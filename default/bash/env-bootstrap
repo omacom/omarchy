@@ -60,3 +60,4 @@ case ":$PATH:" in
   *) PATH="${PATH:+$PATH:}$HOME/.local/bin" ;;
 esac
 export PATH
+_OMARCHY_ENV_BOOTSTRAPPED=1

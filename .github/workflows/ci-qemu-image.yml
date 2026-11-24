@@ -1,0 +1,91 @@
+name: Refresh CI QEMU image
+
+# Keeps ghcr.io/omacom/omarchy-ci-qemu:latest current with Arch's QEMU and
+# openssh so .github/workflows/test.yml boots the test VM without running
+# pacman -Syu on every pull request.
+
+on:
+  push:
+    branches: [quattro]
+    paths:
+      - .github/ci-qemu/**
+      - .github/workflows/ci-qemu-image.yml
+  pull_request:
+    paths:
+      - .github/ci-qemu/**
+      - .github/workflows/ci-qemu-image.yml
+  schedule:
+    # Weekly refresh on Sundays at 04:17 UTC.
+    - cron: '17 4 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-qemu-image-${{ github.event.pull_request.number || 'quattro' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and smoke-test candidate image
+        run: |
+          docker build -t omarchy-ci-qemu:candidate .github/ci-qemu
+          docker run --rm omarchy-ci-qemu:candidate bash -euo pipefail -c '
+            qemu-system-x86_64 --version | head -n 1
+            qemu-img --version | head -n 1
+            ssh -V
+          '
+
+  publish:
+    if: github.repository == 'omacom/omarchy' && github.ref == 'refs/heads/quattro' && github.event_name != 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY_IMAGE: ghcr.io/omacom/omarchy-ci-qemu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and smoke-test image
+        run: |
+          docker build --pull --no-cache -t omarchy-ci-qemu:candidate .github/ci-qemu
+          docker run --rm omarchy-ci-qemu:candidate bash -euo pipefail -c '
+            qemu-system-x86_64 --version | head -n 1
+            qemu-img --version | head -n 1
+            ssh -V
+          '
+      - name: Publish image to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+          DOCKER_CONFIG: ${{ runner.temp }}/ci-qemu-registry-auth
+        run: |
+          set -euo pipefail
+          mkdir -p "$DOCKER_CONFIG"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GH_ACTOR" --password-stdin
+          version="$REGISTRY_IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker tag omarchy-ci-qemu:candidate "$version"
+          docker push "$version"
+          # GHCR creates new packages private. Warn loudly until it is flipped
+          # public so fork PRs can pull it too; test.yml falls back until then.
+          anonymous_config=$(mktemp -d "$RUNNER_TEMP/ci-qemu-anonymous.XXXXXX")
+          if ! DOCKER_CONFIG="$anonymous_config" docker manifest inspect "$version" >/dev/null 2>&1; then
+            echo "::warning::Make the omacom/omarchy-ci-qemu GHCR package public so fork PRs can pull it without falling back to pacman."
+          fi
+          rm -rf "$anonymous_config"
+          docker tag omarchy-ci-qemu:candidate "$REGISTRY_IMAGE:latest"
+          docker push "$REGISTRY_IMAGE:latest"
+          digest=$(docker image inspect "$version" --format '{{index .RepoDigests 0}}')
+          printf '### CI QEMU image\n\nImage: `%s`\n' "$digest" >>"$GITHUB_STEP_SUMMARY"

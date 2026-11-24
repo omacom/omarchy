@@ -144,7 +144,8 @@ Item {
 
   function openFile(file) {
     if (!file || !file.path) return
-    Quickshell.execDetached(["uwsm-app", "--", "nautilus", "--select", fileUri(String(file.path))])
+    // Files opens a file's folder with the file selected.
+    Quickshell.execDetached(["uwsm-app", "--", "folio", String(file.path)])
   }
 
   function fileUri(path) {

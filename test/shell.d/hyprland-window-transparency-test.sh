@@ -136,6 +136,25 @@ run omarchy-theme-set-glass "$theme_dir"
 diff -r "$tmpdir/theme-before" "$theme_dir" || fail "leaving glassy restores the terminal files"
 pass "leaving glassy restores the terminal files byte for byte"
 
+# Symlinked gtk.css and theme files stay linked through glassy on and off.
+dot_dir="$tmpdir/dotfiles"
+mkdir -p "$dot_dir"
+printf 'label { color: blue; }\n' >"$dot_dir/gtk.css"
+printf '[colors-dark]\nbackground=000000\n' >"$dot_dir/foot.ini"
+rm -f "$gtk_css" "$theme_dir/foot.ini"
+ln -s "$dot_dir/gtk.css" "$gtk_css"
+ln -s "$dot_dir/foot.ini" "$theme_dir/foot.ini"
+run omarchy-hyprland-window-transparency glassy
+run omarchy-theme-set-glass "$theme_dir"
+[[ -L $gtk_css && -L $theme_dir/foot.ini ]] || fail "glassy keeps symlinked gtk.css and theme files linked"
+grep -qx 'blur=yes' "$dot_dir/foot.ini" || fail "glassy writes through symlinked foot.ini"
+run omarchy-hyprland-window-transparency transparent
+run omarchy-theme-set-glass "$theme_dir"
+[[ -L $gtk_css && -L $theme_dir/foot.ini ]] || fail "leaving glassy keeps symlinked gtk.css and theme files linked"
+[[ $(<"$dot_dir/gtk.css") == 'label { color: blue; }' ]] || fail "leaving glassy restores symlinked gtk.css"
+! grep -q 'omarchy-glass' "$dot_dir/foot.ini" || fail "leaving glassy cleans symlinked foot.ini"
+pass "glassy preserves symlinked gtk.css and theme files"
+
 # Running foot terminals take the theme's background alpha over OSC, so a
 # change of transparency reaches them without a restart. script stands in for
 # foot: its child sits on a real pty, and whatever reaches the pty lands in the

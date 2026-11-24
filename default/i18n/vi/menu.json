@@ -26,11 +26,11 @@
   "update": {
     "label": "Cập nhật"
   },
-  "about": {
-    "label": "Giới thiệu"
-  },
   "system": {
     "label": "Hệ thống"
+  },
+  "system.about": {
+    "label": "Giới thiệu"
   },
   "system.screensaver": {
     "label": "Bảo vệ màn hình"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Đầu vào"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Ngôn ngữ"
+  },
+  "setup.region.timezone": {
+    "label": "Múi giờ"
   },
   "setup.network": {
     "label": "Mạng"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "Mặc định"
-  },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Agent mặc định"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Trình duyệt",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Khởi động trực tiếp"
-  },
-  "setup.reset": {
-    "label": "Đặt lại máy"
+  "remove.factory-reset": {
+    "label": "Khôi phục cài đặt gốc"
   },
   "install.package": {
     "label": "Gói"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Tài khoản Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "Mật khẩu"
   },
-  "update.timezone": {
-    "label": "Múi giờ"
-  },
   "update.time": {
     "label": "Thời gian"
   },
@@ -1138,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Bàn di chuột"
-  },
-  "update.password.drive": {
-    "label": "Mã hóa ổ đĩa"
-  },
-  "update.password.user": {
-    "label": "Người dùng"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Hiện % pin"
@@ -1235,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Tắt màn hình cảm ứng"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Đơn giản"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Biểu tượng"
+  },
+  "install.style.icons": {
+    "label": "Biểu tượng"
+  },
+  "remove.icons": {
+    "label": "Biểu tượng"
+  },
+  "update.icons": {
+    "label": "Biểu tượng thêm"
+  },
+  "system.firmware": {
+    "label": "Khởi động lại vào BIOS",
+    "description": "Khởi động lại vào thiết lập firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Khu vực"
+  },
+  "setup.region.formats": {
+    "label": "Định dạng",
+    "description": "Cách hiển thị ngày, giờ, số và đơn vị"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Tên máy chủ"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

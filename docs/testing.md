@@ -28,7 +28,7 @@ the end and exits non-zero.
   Deliberately excluded from `./test/all`; it runs in a VM, not the
   development session.
 
-Every pull request runs `./test/all` on a real Omarchy install (`.github/workflows/test.yml`): `test/ci-vm` boots the VM image of the current stable release, copies the checkout and omarchy-pkgs in, and runs the suite in the desktop session with `OMARCHY_PATH` at the checkout and its `bin/` first on `PATH`. The image is fetched from Cloudflare on every run, which measured faster than restoring it from the Actions cache. The job uploads every file's log.
+Every pull request runs `./test/all` on a real Omarchy install (`.github/workflows/test.yml`), sharded across four parallel VMs (`noncomp-1`, `noncomp-2`, `comp` with `test/cli`, and `exclusive`): `test/ci-vm` boots the VM image of the current stable release using a prebuilt Arch QEMU container (`ghcr.io/omacom/omarchy-ci-qemu:latest`, refreshed by `.github/workflows/ci-qemu-image.yml`), copies the checkout and omarchy-pkgs in, and runs its shard in the desktop session with `OMARCHY_PATH` at the checkout and its `bin/` first on `PATH`. Same-repo branches and pushes to `quattro` run on Namespace `16x32` runners with the release VM image cached in `$NSC_CACHE_PATH`; fork pull requests run the same four shards on GitHub's `ubuntu-26.04` runners, fetching the image into `/dev/shm`. When a run fails, the job log shows the output of every test file that failed or did not finish, and the job uploads every file's log as an artifact. `./test/shell` also prints the ten slowest test files in each run (`--group all|noncomp|comp|exclusive` and `--shard K/N` select subsets locally the same way CI does).
 
 A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
@@ -77,7 +77,11 @@ The runner also lists files with skipped checks, including files that ran some c
 
 ## Compositor-dependent tests
 
-Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
+Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines and must not take over the active screen on a workstation.
+
+When `./test/shell` runs in an active Hyprland session, it automatically starts a private nested Hyprland compositor on a headless `1920x1080` output (`HEADLESS-1`) with no visible window on the host desktop and routes compositor-dependent tests into it. You can run a single compositor test the same way with `./test/headless bash test/shell.d/<area>-test.sh`. Set `OMARCHY_TEST_USE_LIVE_COMPOSITOR=1` (as `test/ci-vm` does inside its disposable VM) to target the live compositor directly.
+
+`require_compositor "description"` handles headless environments: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through

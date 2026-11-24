@@ -1,41 +1,43 @@
 # Actualizări
 
-Omarchy și pachetele tale sunt menținute la zi prin _Update > Omarchy_ din meniul Omarchy (`Super + Space`).
+Omarchy și pachetele tale sunt menținute la zi prin _Actualizare > Omarchy_ din meniul Omarchy (`Super + Space`).
 
-Omarchy în sine este instalat ca pachete pacman obișnuite din [Omarchy Package Repository](https://github.com/omacom-io/omarchy-pkgs), așa că o actualizare instalează [cea mai recentă versiune Omarchy](https://github.com/omacom/omarchy/releases), rulează toate migrările în așteptare pentru a-ți sincroniza sistemul cu cea mai recentă versiune și actualizează toate pachetele de sistem din [Omarchy Arch Mirror](https://github.com/omacom-io/omarchy-mirror) și [AUR](https://aur.archlinux.org/) (dacă ai instalat vreun pachet AUR).
+Omarchy însuși este instalat ca pachete pacman obișnuite din [Depozitul de pachete Omarchy](https://github.com/omacom-io/omarchy-pkgs), așa că o actualizare instalează [cea mai recentă versiune Omarchy](https://github.com/omacom/omarchy/releases), rulează orice migrări rămase în așteptare pentru a-ți aduce sistemul în sincron cu cea mai recentă versiune și actualizează toate pachetele de sistem din [Mirror-ul Arch Omarchy](https://github.com/omacom-io/omarchy-mirror) și [AUR](https://aur.archlinux.org/) (dacă ai instalat vreun pachet AUR).
 
-Când apar versiuni noi, o pictogramă cu săgeată circulară va apărea în dreapta ceasului. Dă clic pe ea și procesul de actualizare va începe.
+Când apar versiuni noi, o pictogramă cu o săgeată circulară va apărea în dreapta ceasului tău. Dă clic pe ea și procesul de actualizare va porni.
 
 ![update-available](images/update-available.webp)
 
 ### Patru canale
 
-Omarchy este actualizat pe patru canale: stable, RC, edge și dev. Instalările noi încep pe canalul stable, care urmărește [versiunile oficiale](https://github.com/omacom/omarchy/releases/), precum și [oglinda stabilă Omarchy Arch](https://github.com/omacom-io/omarchy-mirror) care rămâne cu o lună în urma celei mai recente, ca să putem depista orice incompatibilități noi care necesită modificări de configurare înainte ca acestea să cauzeze probleme oamenilor.
+Omarchy este actualizat pe patru canale: stable, RC, edge și dev. Instalările noi pornesc pe canalul stable, care urmărește [versiunile oficiale](https://github.com/omacom/omarchy/releases/), precum și [mirror-ul Arch stabil al Omarchy](https://github.com/omacom-io/omarchy-mirror), care rămâne cu o lună în urma celor mai recente, astfel încât să putem depista orice incompatibilități noi care necesită modificări de configurare înainte ca acestea să creeze probleme oamenilor.
 
-Dar dacă vrei să ajuți la depistarea acelor probleme potențiale, poți rula pe canalul edge. Asta va face ca pachetele tale Omarchy să urmărească cele mai recente build-uri de dezvoltare și îți permite să actualizezi la cele mai recente pachete Arch de îndată ce devin disponibile. Ar trebui să faci asta doar dacă ai experiență cu Linux și știi cum să recuperezi un sistem care are probleme.
+Dar dacă vrei să ajuți la depistarea acestor probleme potențiale, poți rula pe canalul edge. Astfel, pachetele tale Omarchy vor urmări cele mai recente build-uri de dezvoltare și vei putea actualiza la cele mai recente pachete Arch de îndată ce acestea devin disponibile. Ar trebui să faci asta numai dacă ai experiență cu Linux și știi cum să recuperezi un sistem care are probleme.
 
-Înainte de orice versiune majoră nouă, vom face validarea finală folosind canalul RC. Dacă te interesează să ajuți la retușurile finale, vino pe #omarchy-release-candidates pe Discord.
+Înainte de orice versiune majoră nouă, vom face validarea finală folosind canalul RC. Dacă te interesează să ajuți la ultimele finisaje, vino alături de noi în #omarchy-release-candidates pe Discord.
 
-În fine, există canalul dev, care leagă Omarchy direct la un git checkout al codului sursă din `~/omarchy`, combinat cu pachetele edge. Ar trebui să folosești acest canal doar dacă ești un utilizator Linux experimentat, lucrezi direct la Omarchy și ești dispus să tolerezi defecțiuni.
+În cele din urmă, există canalul dev, care leagă Omarchy direct la un checkout git al codului sursă din `~/omarchy`, combinat cu pachetele edge. Ar trebui să folosești acest canal numai dacă ești un utilizator Linux experimentat, lucrezi direct la Omarchy și ești dispus să tolerezi defecțiuni.
 
-Poți comuta între canale folosind _Update > Channel_ din meniul Omarchy (sau `omarchy-channel-set` în terminal).
+Poți comuta între canale folosind _Actualizare > Canal_ din meniul Omarchy (sau `omarchy channel set <stable|rc|edge|dev>` în terminal, cu `omarchy channel current` pentru a vedea unde te afli).
 
-### Schimbarea kernelurilor
+### Schimbarea kernelului
 
-Omarchy pornește cu propriul kernel `linux-omarchy`, dar poți păstra altele instalate alături de el, cum ar fi kernelul `linux` standard din Arch sau un build experimental pe care îl testezi. Când există mai multe, _Update > Kernel_ din meniul Omarchy le listează cu o bifă lângă cel care pornește implicit. Alege altul, introdu parola o singură dată și va porni după următoarea repornire. Celelalte kerneluri rămân în meniul de pornire, așa că poți alege în continuare unul manual dacă noua opțiune implicită îți face probleme. În terminal, este `omarchy-kernel` pentru a vedea opțiunea implicită curentă, `omarchy-kernel list` pentru ce este instalat și `omarchy-kernel set <kernel>` pentru a comuta.
+Omarchy pornește cu propriul kernel `linux-omarchy`, dar poți păstra alte kerneluri instalate alături de el, precum kernelul `linux` standard al Arch sau un build experimental pe care îl testezi. Când există mai mult de unul, _Actualizare > Kernel_ din meniul Omarchy le listează, cu o bifă lângă cel care pornește implicit. Alege altul, introdu parola o singură dată, iar acesta va porni după următoarea repornire. Celelalte kerneluri rămân în meniul de pornire, așa că poți în continuare să alegi unul manual dacă noul kernel implicit îți creează probleme. În terminal, folosești `omarchy kernel` pentru a vedea kernelul implicit curent, `omarchy kernel list` pentru a vedea ce este instalat și `omarchy kernel set <kernel>` pentru a comuta.
 
 ### Actualizări de firmware
 
-Pachetele tale nu sunt singurul lucru care rămâne în urmă. Multe laptopuri și periferice furnizează firmware pentru BIOS, SSD și dock prin Linux Vendor Firmware Service, iar _Update > Firmware_ din meniul Omarchy va prelua și instala tot ce așteaptă pentru hardware-ul tău. Instalează `fwupd` prima dată când îl rulezi. Mult firmware poate fi scris doar în timpul unei reporniri, așa că nu te mira dacă ți se cere una.
+Pachetele tale nu sunt singurul lucru care rămâne în urmă. Multe laptopuri și periferice furnizează firmware pentru BIOS, SSD și dock prin Linux Vendor Firmware Service, iar _Actualizare > Firmware_ din meniul Omarchy va prelua și instala tot ce are hardware-ul tău în așteptare. Acesta instalează `fwupd` prima dată când îl rulezi. O mare parte din firmware poate fi scris numai în timpul unei reporniri, așa că nu te mira dacă ți se cere una.
 
-### Avertisment despre actualizările directe cu pacman/yay
+Când trebuie să schimbi o setare chiar în BIOS, ține apăsat `Alt` în meniul de sistem (`Super + Escape`), iar _Repornire_ se transformă în _Repornire în BIOS_, care repornește direct în configurarea firmware-ului, fără să trebuiască să nimerești tasta potrivită la pornire. Din terminal, folosești `omarchy system firmware`.
 
-Dacă ești deja familiarizat cu Arch, ai putea fi tentat să rulezi pur și simplu `pacman -Syu` sau `yay -Syu` pe cont propriu, dar dacă faci asta, vei rata snapshot-ul, migrările și actualizările de configurare pe care Omarchy le rulează împreună cu pachetele noi. De aceea, Omarchy va opri de fapt o actualizare directă a sistemului și te va îndruma în schimb spre `omarchy update`. (Dacă chiar știi ce faci, protecția îți va spune cum să o ocolești pentru o singură tranzacție.)
+### Avertisment privind actualizările directe cu pacman/yay
 
-### Revenirea după actualizări nereușite
+Dacă ești deja familiarizat cu Arch, ai putea fi tentat să rulezi pur și simplu `pacman -Syu` sau `yay -Syu` pe cont propriu, dar dacă faci asta, vei pierde instantaneul, migrările și actualizările de configurare pe care Omarchy le rulează împreună cu noile pachete. De aceea, Omarchy va opri de fapt o actualizare directă a sistemului și te va îndruma în schimb către `omarchy update`. (Dacă chiar știi ce faci, mecanismul de protecție îți va spune cum să îl ocolești pentru o singură tranzacție.)
 
-Dacă ai vreodată o problemă după ce ai făcut o actualizare, poți reveni cu sistemul la snapshot-ul făcut înainte de actualizare. Repornește pur și simplu și alege snapshot-ul din meniul de încărcare la pornire de dinainte să fi început actualizarea.
+### Revenirea după o actualizare nereușită
+
+Dacă ai vreodată o problemă după ce ai făcut o actualizare, îți poți readuce sistemul la instantaneul realizat înainte de actualizare. Pur și simplu repornește și alege din meniul de încărcare la pornire instantaneul de dinainte să începi actualizarea.
 
 ![bootloader](images/bootloader.webp)
 
-Dacă, cumva, fișierele tale de configurare au fost corupte, poți efectua și o reinstalare Omarchy folosind `omarchy reinstall` în terminal. Aceasta va reinstala toate pachetele Omarchy implicite, te va trece pe stable și va face downgrade la orice pachete care sunt prea noi și va reseta toate fișierele de configurare. Reține că toate modificările tale de configurare de utilizator aduse valorilor implicite Omarchy vor fi suprascrise făcând asta!
+Dacă, cumva, fișierele tale de configurare au fost corupte, poți efectua și o reinstalare Omarchy folosind `omarchy reinstall` în terminal. Aceasta va reinstala toate pachetele Omarchy implicite, te va trece pe stable (edge pe Apple Silicon), va retrograda orice pachete care sunt prea noi și va reseta toate fișierele de configurare. Reține că, făcând asta, toate modificările tale de configurare a valorilor implicite Omarchy vor fi suprascrise!
