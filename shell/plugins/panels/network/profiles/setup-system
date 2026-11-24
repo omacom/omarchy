@@ -1,0 +1,39 @@
+#!/bin/bash
+# Install or remove the system side of per-connection DNS; run explicitly as root.
+set -euo pipefail
+export PATH=/usr/bin:/bin
+src=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+lib=/usr/local/lib/omarchy-network-dns
+dispatcher=/etc/NetworkManager/dispatcher.d/90-omarchy-network-dns
+dropin=/etc/systemd/resolved.conf.d/94-omarchy-network-dns.conf
+legacy=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
+backup=/var/lib/omarchy-network-dns/20-omarchy-dns.conf
+die() { echo "$*" >&2; exit 1; }
+[[ $# == 1 && ( $1 == install || $1 == remove ) ]] || die "Usage: sudo ./setup-system install|remove"
+(( EUID == 0 )) || die "Run this command as root."
+[[ $(readlink -f /etc/resolv.conf) == /run/systemd/resolve/stub-resolv.conf ]] || die "This setup requires the systemd-resolved stub."
+systemctl is-active --quiet NetworkManager.service
+systemctl is-active --quiet systemd-resolved.service
+if [[ $1 == install ]]; then
+  /usr/bin/python3 -I -c 'import gi; gi.require_version("NM","1.0"); from gi.repository import NM'
+  if [[ -e $legacy ]]; then
+    [[ $(head -1 "$legacy") == "# Managed by omarchy-dns."* ]] || die "A custom global DNS file exists at $legacy. Resolve it before setup."
+    [[ ! -e $backup ]] || die "A DNS backup already exists at $backup. Resolve the conflicting global settings first."
+  fi
+  install -d -m 0755 "$lib" /etc/systemd/resolved.conf.d /etc/NetworkManager/dispatcher.d
+  install -d -m 0700 /var/lib/omarchy-network-dns
+  install -m 0755 "$src/network-dns" "$lib/network-dns"
+  install -m 0644 "$src/94-omarchy-network-dns.conf" "$dropin"
+  install -m 0755 "$src/90-omarchy-network-dns" "$dispatcher"
+  if [[ -f $legacy ]]; then mv -- "$legacy" "$backup"; fi
+else
+  if [[ -e $backup && -e $legacy ]]; then
+    die "Both $legacy and its backup exist. Reconcile them before removal."
+  fi
+  rm -f -- "$dispatcher" "$dropin" /run/systemd/resolved.conf.d/95-omarchy-work.conf /run/omarchy-network-dns-work-active "$lib/network-dns"
+  if [[ -f $backup ]]; then mv -- "$backup" "$legacy"; fi
+fi
+systemctl reload systemd-resolved.service
+nmcli general reload conf
+nmcli general reload dns-full
+if [[ $1 == install ]]; then "$lib/network-dns" --reconcile; fi

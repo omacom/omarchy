@@ -104,3 +104,7 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 stage_panel live-rows
 run_panel "network live rows"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+# A mode switch used to discard the only copy of the previous Work DNS settings.
+/usr/bin/python3 -I "$fixtures/dns-profiles.py"
+pass "connection DNS presets survive mode switches, edits and cancellation"

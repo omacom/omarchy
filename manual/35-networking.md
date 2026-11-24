@@ -16,6 +16,27 @@ Omarchy uses whatever DNS your network hands out over DHCP. You can override tha
 
 From the terminal, `omarchy dns` prints the current provider and `omarchy dns Cloudflare` sets one.
 
+### Per-connection DNS profiles
+
+If an office uses private DNS names, you can opt into saved profiles on the network panel. The system part requires NetworkManager 1.44 or later, systemd-resolved's stub resolver and the Python GObject bindings for libnm. Run the setup from a local terminal after recording any existing manual DNS settings. Installing it reloads DNS for the machine. A recognized Omarchy global DNS preset is backed up. The regular provider picker is the default on installations that have not opted in.
+
+```sh
+cd /usr/share/omarchy/shell/plugins/panels/network/profiles
+sudo ./setup-system install
+omarchy bar set omarchy.network connectionDnsProfiles true --json
+```
+
+Open the network panel and choose **Work**. Enter internal domains or individual hostnames separated by spaces, the DNS servers that answer them, and a public provider for other queries. For example, enter `corp.example admin.example.org` to route a private domain and one public-facing service name to office DNS. **Home** and **Home office** each remember a DNS provider. A VPN supplies its own private routes. **Automatic** uses the connection's network-supplied DNS. Settings are saved separately for each NetworkManager connection, and later selections apply without prompting.
+
+Use **Edit DNS profiles** to change a saved choice. Edits to the active mode apply immediately. Other edits take effect when that mode is next selected. To check a result, run `resolvectl status` and `resolvectl query --cache=no your.internal.name`. If the panel shows limited access while sites work, compare the system lookup with `resolvectl -i INTERFACE query PROBE_HOST` for NetworkManager's configured connectivity-check hostname. On a split-DNS connection, you can add that hostname to the Work list if the internal DNS server can resolve it.
+
+To remove the integration, first select Automatic or restore the original DNS settings on each connection you changed. Run the following from the same directory. Removing the system integration restores the saved Omarchy global preset when present. Repeat the install step after an update that changes the dispatcher helper.
+
+```sh
+omarchy bar set omarchy.network connectionDnsProfiles false --json
+sudo ./setup-system remove
+```
+
 ## Pinning the Wi-Fi band
 
 If your router puts 2.4GHz, 5GHz, and 6GHz on the same network name, your laptop will sometimes cling to the slow one. `omarchy network band` shows which band you're on, and `omarchy network band 5` pins it. Use `auto` to let it choose again.

@@ -79,6 +79,15 @@ Panel {
   property bool wifiStationAvailable: false
   property string dnsProvider: ""
   property string pendingDnsProvider: ""
+  readonly property bool connectionProfiles: setting("connectionDnsProfiles", false) === true
+  readonly property string profileHelper: "/usr/local/lib/omarchy-network-dns/network-dns"
+  readonly property string dnsDevice: info.type === "ethernet" || info.type === "wifi" ? (info.iface || "") : ""
+  property string dnsError: ""
+  onDnsDeviceChanged: {
+    dnsError = ""
+    if (connectionProfiles && opened) refreshProfile()
+  }
+  onConnectionProfilesChanged: if (opened) refresh()
   // Wi-Fi band state from `omarchy-network-band`. `bandCurrent` is the band
   // the radio is actually on; `bandSelected` is the pinned choice ("auto" when
   // nothing is pinned), and the two differ whenever Auto is in effect.
@@ -162,7 +171,14 @@ Panel {
   // China offers Alibaba's resolver in place of Cloudflare's and Google's
   // (docs/regions.md); the region comes with the DNS reading.
   property string region: "global"
-  readonly property var dnsProviders: region === "cn" ? ["DHCP", "AliDNS", "Custom"] : ["DHCP", "Cloudflare", "Google", "Custom"]
+  readonly property var dnsProviders: connectionProfiles ? ["Automatic", "Work", "Home", "Home office"]
+    : region === "cn" ? ["DHCP", "AliDNS", "Custom"] : ["DHCP", "Cloudflare", "Google", "Custom"]
+  readonly property var dnsProfileLabels: ({
+    "Automatic": Commons.I18n.t("network.dnsAutomatic"),
+    "Work": Commons.I18n.t("network.dnsWork"),
+    "Home": Commons.I18n.t("network.dnsHome"),
+    "Home office": Commons.I18n.t("network.dnsHomeOffice")
+  })
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
@@ -263,10 +279,14 @@ Panel {
   }
 
   function selectDnsByDelta(delta) {
-    dnsIndex = Math.max(0, Math.min(dnsProviders.length - 1, dnsIndex + delta))
+    dnsIndex = Math.max(0, Math.min(dnsProviders.length - (connectionProfiles ? 0 : 1), dnsIndex + delta))
   }
 
   function activateDns() {
+    if (connectionProfiles && dnsIndex === dnsProviders.length) {
+      openDnsEditor("--edit", dnsDevice)
+      return
+    }
     if (dnsIndex < 0 || dnsIndex >= dnsProviders.length) return
     setDns(dnsProviders[dnsIndex])
   }
@@ -614,7 +634,9 @@ Panel {
     checkConnectivity()
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
-    if (!dnsProc.running) {
+    if (connectionProfiles) {
+      refreshProfile()
+    } else if (!dnsProc.running) {
       dnsProc.command = ["bash", "-c", root.dnsCommand("") + "; omarchy-region"]
       dnsProc.running = true
     }
@@ -772,7 +794,7 @@ Panel {
   // The provider on the first line, the region on the second.
   function updateDns(raw) {
     var lines = String(raw || "").trim().split("\n")
-    dnsProvider = lines[0].trim() || "DHCP"
+    if (!connectionProfiles) dnsProvider = lines[0].trim() || "DHCP"
     region = (lines[1] || "").trim() || "global"
   }
 
@@ -819,7 +841,27 @@ Panel {
     return command
   }
 
+  function refreshProfile() {
+    if (profileStatus.running) return
+    profileStatus.command = [profileHelper, "--status", dnsDevice]
+    profileStatus.running = true
+  }
+
+  function openDnsEditor(action, target) {
+    if (!root.bar || dnsApply.running) return
+    var command = [profileHelper, action, target].map(Util.shellQuote).join(" ")
+    root.bar.run("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(command))
+    root.close()
+  }
+
   function setDns(provider) {
+    if (connectionProfiles) {
+      if (dnsApply.running || dnsProviders.indexOf(provider) < 0) return
+      dnsError = ""
+      dnsApply.command = [profileHelper, "--apply", provider, dnsDevice]
+      dnsApply.running = true
+      return
+    }
     if (!root.bar || !provider || actionProc.running) return
 
     if (provider === "Custom") {
@@ -1028,6 +1070,29 @@ Panel {
     interval: 1500
     repeat: false
     onTriggered: root.syncWifiNetworks()
+  }
+
+  Process {
+    id: dnsApply
+    stdout: StdioCollector { id: dnsApplyOutput; waitForEnd: true }
+    stderr: StdioCollector { id: dnsApplyError; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode === 3) {
+        root.openDnsEditor(command[2], dnsApplyOutput.text.trim() || command[3])
+      } else {
+        root.dnsError = exitCode === 0 ? "" : (dnsApplyError.text.trim() || Commons.I18n.t("network.dnsApplyFailed"))
+        root.refresh()
+      }
+    }
+  }
+
+  Process {
+    id: profileStatus
+    stdout: StdioCollector { id: dnsStatus; waitForEnd: true }
+    onExited: {
+      if (command[2] === root.dnsDevice) root.dnsProvider = dnsStatus.text.trim()
+      else if (root.connectionProfiles && root.opened) root.refreshProfile()
+    }
   }
 
   Process {
@@ -1653,18 +1718,20 @@ Panel {
         spacing: Style.space(10)
 
         PanelSectionHeader {
-          text: Commons.I18n.t("network.dnsProvider")
+          text: root.connectionProfiles ? Commons.I18n.t("network.connectionDns") : Commons.I18n.t("network.dnsProvider")
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
 
-        Row {
+        Grid {
           id: dnsRow
+          enabled: !dnsApply.running
+          columns: root.connectionProfiles ? 2 : count
           width: parent.width
           spacing: Style.space(6)
 
           readonly property int count: root.dnsProviders.length
-          readonly property real cellWidth: (width - spacing * (count - 1)) / count
+          readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
 
           Repeater {
             model: root.dnsProviders
@@ -1672,13 +1739,44 @@ Panel {
             DnsProviderPill {
               required property string modelData
               provider: modelData
-              tooltipText: modelData === "DHCP" ? Commons.I18n.t("network.dnsFromDhcp")
+              tooltipText: root.connectionProfiles ? "" : modelData === "DHCP" ? Commons.I18n.t("network.dnsFromDhcp")
                 : modelData === "Custom" ? Commons.I18n.t("network.setCustomDns")
                 : Commons.I18n.t("network.setDnsTo").arg(modelData)
               width: dnsRow.cellWidth
               onClicked: root.setDns(provider)
             }
           }
+        }
+
+        Button {
+          width: parent.width
+          visible: root.connectionProfiles
+          text: Commons.I18n.t("network.editDnsProfiles")
+          fontSize: Style.font.bodySmall
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          bordered: true
+          enabled: !dnsApply.running
+          hasCursor: root.cursorActive && root.focusSection === "dns" && root.dnsIndex === root.dnsProviders.length
+          onHovered: function(on) {
+            if (on) {
+              root.cursorActive = true
+              root.focusSection = "dns"
+              root.dnsIndex = root.dnsProviders.length
+            }
+          }
+          onClicked: root.openDnsEditor("--edit", root.dnsDevice)
+        }
+
+        Text {
+          width: parent.width
+          visible: root.connectionProfiles && root.dnsError !== ""
+          textFormat: Text.PlainText
+          text: root.dnsError
+          wrapMode: Text.Wrap
+          color: root.bar.urgent
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
         }
       }
 
@@ -1801,7 +1899,7 @@ Panel {
     required property string provider
     required property int index
 
-    text: provider === "Custom" ? Commons.I18n.t("network.dnsCustom") : provider
+    text: root.connectionProfiles ? root.dnsProfileLabels[provider] : provider === "Custom" ? Commons.I18n.t("network.dnsCustom") : provider
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily

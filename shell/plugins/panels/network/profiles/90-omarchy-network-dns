@@ -1,0 +1,6 @@
+#!/bin/sh
+case "${2:-}" in
+  up|down|vpn-up|vpn-down|dhcp4-change|dhcp6-change|reapply|dns-change)
+    exec /usr/local/lib/omarchy-network-dns/network-dns --reconcile
+    ;;
+esac

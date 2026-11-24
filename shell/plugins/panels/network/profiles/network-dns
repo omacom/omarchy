@@ -1,0 +1,394 @@
+#!/usr/bin/python3 -I
+"""Per-connection DNS configuration for the Omarchy network panel."""
+import fcntl
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+from functools import cache
+from typing import NamedTuple
+
+import gi
+gi.require_version("NM", "1.0")
+from gi.repository import Gio, GLib, NM
+
+PROVIDERS = {
+    "Google": ("8.8.8.8", "8.8.4.4"),
+    "Cloudflare": ("1.1.1.1", "1.0.0.1"),
+    "Quad9": ("9.9.9.9", "149.112.112.112"),
+}
+MODES = ("Automatic", "Work", "Home", "Home office")
+KEY = "omarchy.dns-profile"
+RUNTIME = Path("/run/systemd/resolved.conf.d/95-omarchy-work.conf")
+WORK_ACTIVE = Path("/run/omarchy-network-dns-work-active")
+
+
+def call(program, *args):
+    return subprocess.run(
+        [f"/usr/bin/{program}", *args], check=True, text=True, capture_output=True,
+        env={**os.environ, "LC_ALL": "C"}, timeout=40,
+    ).stdout.strip()
+
+
+def fields(uuid, *names):
+    return [call("nmcli", "-g", name, "connection", "show", "uuid", uuid) for name in names]
+
+
+@cache
+def client():
+    return NM.Client.new(None)
+
+
+def connection(uuid):
+    remote = client().get_connection_by_uuid(uuid)
+    if remote is None:
+        raise ValueError("NetworkManager connection profile is unavailable.")
+    return remote
+
+
+def profile(uuid):
+    setting = connection(uuid).get_setting(NM.SettingUser)
+    data = setting.get_data(KEY) if setting else None
+    if data:
+        mode, _, provider = data.partition("/")
+        if mode in MODES:
+            return mode, provider
+    return "Automatic", ""
+
+
+def active():
+    rows = call("nmcli", "-t", "-e", "no", "-f", "UUID,TYPE,DEVICE",
+                "connection", "show", "--active")
+    return [tuple(row.split(":", 2)) for row in rows.splitlines()]
+
+
+def adapters(target=""):
+    return [(uuid, device) for uuid, kind, device in active()
+            if kind in {"802-3-ethernet", "802-11-wireless"} and device and device != "--"
+            and (not target or target in (uuid, device))]
+
+
+def select_adapter(target="", interactive=True):
+    links = adapters(target)
+    if not links:
+        raise ValueError("No active Ethernet or Wi-Fi connection matches this selection.")
+    if len(links) == 1:
+        return links[0]
+    if not interactive:
+        return None
+    for index, (uuid, device) in enumerate(links, 1):
+        name, = fields(uuid, "connection.id")
+        label = "".join(char for char in name if char.isprintable())
+        print(f"{index}. {label} ({device})")
+    return links[pick(len(links))]
+
+
+def pick(count):
+    choice = input(f"Choose 1–{count}: ").strip()
+    if choice not in {str(number) for number in range(1, count + 1)}:
+        raise ValueError("Invalid choice.")
+    return int(choice) - 1
+
+
+def domains(value):
+    result = []
+    for item in value.replace(",", " ").split():
+        domain = item.rstrip(".").encode("idna").decode("ascii").lower()
+        labels = domain.split(".")
+        if len(domain) > 253 or len(labels) < 2 or any(
+            not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+            for label in labels
+        ):
+            raise ValueError(f"Invalid DNS domain: {item}")
+        result.append(f"~{domain}")
+    if not result:
+        raise ValueError("Enter at least one internal DNS domain.")
+    return list(dict.fromkeys(result))
+
+
+def servers(value):
+    result = [ipaddress.ip_address(item) for item in value.replace(",", " ").split()]
+    if not result or any(address.is_unspecified or address.is_multicast or
+                         address.is_loopback or getattr(address, "scope_id", None)
+                         for address in result):
+        raise ValueError("Enter at least one unicast DNS server IP address.")
+    return result
+
+
+def discover_work_dns(device):
+    output = call("nmcli", "-f", "DHCP4.OPTION,DHCP6.OPTION", "device", "show", device)
+    options = {}
+    for line in output.splitlines():
+        name, separator, value = line.partition(":")[2].strip().partition(" = ")
+        if separator:
+            options[name] = value
+    leases = (
+        (options.get("domain_search") or options.get("domain_name", ""),
+         options.get("domain_name_servers", "")),
+        (options.get("dhcp6_domain_search", ""), options.get("dhcp6_name_servers", "")),
+    )
+    for domain_list, address_list in leases:
+        if domain_list.strip() and address_list.strip():
+            try:
+                return domains(domain_list), servers(address_list)
+            except ValueError:
+                continue
+    return None
+
+
+class Preset(NamedTuple):
+    provider: str
+    domains: str = ""
+    dns: str = ""
+
+    def settings(self, mode):
+        if mode == "Work" and self.provider in PROVIDERS:
+            return servers(self.dns), domains(self.domains)
+        if mode in ("Home", "Home office"):
+            if self.provider in PROVIDERS:
+                return servers(" ".join(PROVIDERS[self.provider])), []
+            if self.provider == "Network DNS":
+                return [], []
+        if mode == "Automatic" and self.provider == "":
+            return [], []
+        raise ValueError("Invalid DNS provider.")
+
+
+def preset_key(mode):
+    return "omarchy.dns-preset." + mode.lower().replace(" ", "-")
+
+
+def saved_preset(remote, mode, current_mode, current_provider):
+    if mode == "Automatic":
+        return Preset("")
+    metadata = remote.get_setting(NM.SettingUser)
+    data = metadata.get_data(preset_key(mode)) if metadata else None
+    try:
+        if data:
+            preset = Preset(**json.loads(data))
+        elif mode == current_mode:
+            # Older installations kept only the active mode and its live DNS.
+            names, ips = [], []
+            if mode == "Work":
+                for setting in (remote.get_setting_ip4_config(), remote.get_setting_ip6_config()):
+                    if setting:
+                        names.extend(setting.get_dns_search(i).removeprefix("~")
+                                     for i in range(setting.get_num_dns_searches()))
+                        ips.extend(setting.get_dns(i) for i in range(setting.get_num_dns()))
+            preset = Preset(current_provider, " ".join(dict.fromkeys(names)), " ".join(ips))
+        else:
+            return None
+        if not all(isinstance(field, str) for field in preset):
+            return None
+        preset.settings(mode)
+        return preset
+    except (ValueError, TypeError):
+        return None
+
+
+def choose(label, choices, default):
+    for index, choice in enumerate(choices, 1):
+        print(f"{index}. {choice}")
+    answer = input(f"{label} [{default}]: ").strip()
+    if not answer:
+        return default
+    if answer not in {str(i) for i in range(1, len(choices) + 1)}:
+        raise ValueError("Invalid selection.")
+    return choices[int(answer) - 1]
+
+
+def edit_preset(mode, saved, device):
+    choices = tuple(PROVIDERS) if mode == "Work" else ("Network DNS", *PROVIDERS)
+    defaults = saved or Preset(choices[0])
+    names, ips = defaults.domains, defaults.dns
+    if mode == "Work":
+        if not saved:
+            detected = discover_work_dns(device)
+            if detected:
+                routes, addresses = detected
+                names = " ".join(route.removeprefix("~") for route in routes)
+                ips = " ".join(map(str, addresses))
+        names = input(f"Internal domains [{names}]: ").strip() or names
+        ips = input(f"Internal DNS IPs [{ips}]: ").strip() or ips
+    provider = choose("DNS for other lookups" if mode == "Work" else "DNS provider",
+                      choices, defaults.provider)
+    return Preset(provider, names, ips)
+
+
+def configure(mode, target="", interactive=True):
+    link = select_adapter(target, interactive)
+    if not link:
+        return 3  # The panel opens a terminal when a choice is needed.
+    uuid, device = link
+    remote = connection(uuid)
+    version = remote.get_version_id()
+    current, provider = profile(uuid)
+    editing = mode == "--edit"
+    if editing:
+        mode = choose("Profile to edit", MODES[1:], current if current in MODES[1:] else "Work")
+    saved = saved_preset(remote, mode, current, provider)
+    if saved is None and not interactive:
+        print(uuid)  # Bind first-time setup to the connection that was clicked.
+        return 3
+    preset = edit_preset(mode, saved, device) if editing or saved is None else saved
+    addresses, routes = preset.settings(mode)
+    metadata = remote.get_setting(NM.SettingUser)
+    if metadata is None:
+        metadata = NM.SettingUser.new()
+        remote.add_setting(metadata)
+    if current != mode and current != "Automatic" and not metadata.get_data(preset_key(current)):
+        previous = saved_preset(remote, current, current, provider)
+        if previous:
+            metadata.set_data(preset_key(current), json.dumps(previous._asdict()))
+    if mode != "Automatic":
+        metadata.set_data(preset_key(mode), json.dumps(preset._asdict()))
+    apply_now = not editing or mode == current
+    if apply_now:
+        set_dns(remote, addresses, routes)
+        metadata.set_data(KEY, f"{mode}/{preset.provider}")
+    commit_profile(remote, version)
+    if apply_now and (uuid, device) in adapters(uuid):
+        try:
+            call("nmcli", "device", "reapply", device)
+        except subprocess.SubprocessError as error:
+            raise ValueError("Settings saved. Select this profile again to retry applying it.") from error
+    print(f"{mode} DNS saved.")
+    return 0
+
+
+def commit_profile(remote, version):
+    # Reject stale editors instead of replacing a newer connection or preset.
+    parameters = GLib.Variant.new_tuple(
+        remote.to_dbus(NM.ConnectionSerializationFlags.ALL),
+        GLib.Variant("u", NM.SettingsUpdate2Flags.TO_DISK),
+        GLib.Variant("a{sv}", {"version-id": GLib.Variant("t", version)}),
+    )
+    client().get_dbus_connection().call_sync(
+        NM.DBUS_SERVICE, remote.get_path(), NM.DBUS_INTERFACE_SETTINGS_CONNECTION,
+        "Update2", parameters, None, Gio.DBusCallFlags.NONE, 40000, None,
+    )
+
+
+def set_dns(remote, addresses, routes):
+    for family, setting in ((4, remote.get_setting_ip4_config()),
+                            (6, remote.get_setting_ip6_config())):
+        if setting is None or setting.get_method() in {"disabled", "ignore"}:
+            continue
+        ips = [str(address) for address in addresses if address.version == family]
+        setting.set_property("ignore-auto-dns", bool(addresses))
+        setting.clear_dns()
+        setting.clear_dns_searches()
+        for address in ips:
+            setting.add_dns(address)
+        if ips:
+            for route in routes:
+                setting.add_dns_search(route)
+
+
+def write_override(provider):
+    content = ""
+    if provider:
+        content = "[Resolve]\nDNS=\nDNS=" + " ".join(PROVIDERS[provider]) + "\nDomains=\nDomains=~.\n"
+    current = RUNTIME.read_text() if RUNTIME.exists() else ""
+    if current == content:
+        return
+    replace_override(content)
+    try:
+        call("systemctl", "reload", "systemd-resolved.service")
+    except subprocess.SubprocessError:
+        replace_override(current)
+        raise
+
+
+def replace_override(content):
+    if content:
+        RUNTIME.parent.mkdir(mode=0o755, exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode="w", dir=RUNTIME.parent, delete=False) as handle:
+            handle.write(content)
+            os.fchmod(handle.fileno(), 0o644)
+        os.replace(handle.name, RUNTIME)
+    else:
+        RUNTIME.unlink(missing_ok=True)
+
+
+def reconcile():
+    with open("/run/omarchy-network-dns.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        work = []
+        other_devices = []
+        vpn_default = False
+        for uuid, kind, device in active():
+            if kind in {"vpn", "wireguard"}:
+                ipv4_default, ipv6_default = fields(uuid, "GENERAL.DEFAULT", "GENERAL.DEFAULT6")
+                vpn_default |= "yes" in (ipv4_default, ipv6_default)
+            if kind not in {"802-3-ethernet", "802-11-wireless"} or not device or device == "--":
+                continue
+            mode, provider = profile(uuid)
+            if mode != "Work" or provider not in PROVIDERS:
+                other_devices.append(device)
+                continue
+            ipv4, ipv6, default4, default6 = fields(
+                uuid, "ipv4.dns-search", "ipv6.dns-search", "GENERAL.DEFAULT", "GENERAL.DEFAULT6"
+            )
+            routes = sorted(set((ipv4 + " " + ipv6).replace(",", " ").split()))
+            if routes and all(route.startswith("~") and route != "~." for route in routes):
+                work.append(("yes" in (default4, default6), device, provider, routes))
+        for _, device, _, routes in work:
+            # NM adds a root routing domain to default-route links.
+            call("resolvectl", "domain", device, *routes)
+            call("resolvectl", "default-route", device, "no")
+        selected = max(work, default=None)
+        use_public = selected is not None and not vpn_default
+        if work:
+            work_domains = {route[1:] for _, _, _, routes in work for route in routes}
+            for device in other_devices:
+                current = call("resolvectl", "domain", device).partition(":")[2].split()
+                remaining = []
+                for route in current:
+                    domain = route.removeprefix("~").lower().rstrip(".")
+                    overlaps_work = any(domain == work_domain or domain.endswith("." + work_domain)
+                                        for work_domain in work_domains)
+                    if not overlaps_work and (route != "~." or not use_public):
+                        remaining.append(route)
+                if remaining != current:
+                    call("resolvectl", "domain", device, *(remaining or [""]))
+        restore_network_dns = WORK_ACTIVE.exists() and not work
+        restore_root_routes = RUNTIME.exists() and not use_public
+        write_override(selected[2] if use_public else "")
+        if work:
+            WORK_ACTIVE.touch(mode=0o600)
+        elif restore_network_dns:
+            WORK_ACTIVE.unlink()
+        if restore_network_dns or restore_root_routes:
+            call("nmcli", "general", "reload", "dns-full")
+
+
+def main():
+    if len(sys.argv) < 2:
+        raise ValueError("Select a DNS profile in the network panel.")
+    action, *args = sys.argv[1:]
+    if action == "--status" and len(args) <= 1:
+        links = adapters(*args)
+        if len(links) == 1:
+            print(profile(links[0][0])[0])
+    elif action == "--reconcile" and not args and os.geteuid() == 0:
+        reconcile()
+    elif action == "--apply" and 1 <= len(args) <= 2 and args[0] in MODES:
+        return configure(*args, interactive=False)
+    elif action in (*MODES, "--edit") and len(args) <= 1:
+        return configure(action, *args)
+    else:
+        raise ValueError("Unknown DNS profile.")
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (ValueError, OSError, subprocess.SubprocessError, GLib.Error) as error:
+        sys.exit(getattr(error, "stderr", None) or str(error))
+    except (KeyboardInterrupt, EOFError):
+        sys.exit(130)
