@@ -29,10 +29,20 @@ case "$1 $2" in
     printf 'Repository      : extra\nName            : cua-hyprland-plugin\n%s: hyprland=%s\n' "$depends" "$TEST_HYPRLAND"
     ;;
   "-T "*)
-    # pacman's answer for the installed build: a bare name is met, as is the exact build and its release without the package release.
-    [[ $2 == "hyprland" || $2 == "hyprland=$TEST_HYPRLAND" || $2 == "hyprland=${TEST_HYPRLAND%-*}" ]] && exit 0
-    echo "$2"
-    exit 127
+    # pacman's answer for the installed build, one dependency per argument: a bare name is met, as are the
+    # exact build, its release without the package release, and a range around that release.
+    shift
+    release=${TEST_HYPRLAND%-*}
+    for dependency in "$@"; do
+      case $dependency in
+        hyprland | "hyprland=$TEST_HYPRLAND" | "hyprland=$release" | "hyprland>=$release" | "hyprland<${release%.*}.99") ;;
+        *)
+          echo "$dependency"
+          exit 127
+          ;;
+      esac
+    done
+    exit 0
     ;;
   *)
     printf 'pacman:%s\n' "$*" >>"$TEST_LOG"
@@ -93,10 +103,10 @@ for pin in hyprland=0.57.2-1 hyprland=0.57.2-3 hyprland=0.57.2-2.1 hyprland=0.57
   pass "Cua install skips a plugin built for another Hyprland build ($pin)"
 done
 
-# A dependency the installed Hyprland already meets leaves it alone: no version at all, or the
-# release without its package release. The toggle checks the exact match at load.
-for met in hyprland hyprland=0.57.2; do
-  output=$(TEST_HYPRLAND=0.57.2-2 TEST_PLUGIN_PIN=$met install_cua)
+# A dependency the installed Hyprland already meets leaves it alone: no version at all, the
+# release without its package release, or a range. The toggle checks the exact match at load.
+for met in hyprland hyprland=0.57.2 'hyprland>=0.57.2  hyprland<0.57.99'; do
+  output=$(TEST_HYPRLAND=0.57.2-2 TEST_PLUGIN_PIN="$met" install_cua)
   [[ $(cat "$TEST_LOG") == $'add:cua-driver-bin\nadd:cua-hyprland-plugin' ]] ||
     fail "Cua install adds a plugin whose Hyprland dependency is already met ($met)" "$(cat "$TEST_LOG")"
   pass "Cua install adds a plugin whose Hyprland dependency is already met ($met)"

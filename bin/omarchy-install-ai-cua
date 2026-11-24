@@ -56,12 +56,12 @@ plugin_installed=false
 # The first record is the repository pacman installs from. C keeps the field name
 # it is found by, and without COLUMNS pacman leaves the field on one line.
 plugin_info=$(env -u COLUMNS LC_ALL=C pacman -Si cua-hyprland-plugin 2>/dev/null || true)
-needs=$(awk '/^Depends On/ { for (i = 4; i <= NF; i++) if ($i ~ /^hyprland([<>=]|$)/) print $i; exit }' <<<"$plugin_info")
+mapfile -t needs < <(awk '/^Depends On/ { for (i = 4; i <= NF; i++) if ($i ~ /^hyprland([<>=]|$)/) print $i; exit }' <<<"$plugin_info")
 echo ""
 if [[ -z $plugin_info ]]; then
   echo "The Cua Hyprland plugin is not available in your package channel; Cua Driver works without it."
-elif [[ -n $needs ]] && ! pacman -T "$needs" >/dev/null; then
-  echo "The Cua Hyprland plugin needs $needs and this machine has hyprland=$(pacman -Q hyprland | cut -d' ' -f2); skipping it. Cua Driver works without it."
+elif (( ${#needs[@]} > 0 )) && ! pacman -T "${needs[@]}" >/dev/null; then
+  echo "The Cua Hyprland plugin needs ${needs[*]} and this machine has hyprland=$(pacman -Q hyprland | cut -d' ' -f2); skipping it. Cua Driver works without it."
 else
   echo "Installing the Cua Hyprland plugin..."
   if omarchy-pkg-add cua-hyprland-plugin; then
