@@ -499,3 +499,210 @@ fi
 
 QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
   "$qml_test_runner" -input "$SHELL_TEST_DIR/saved-workspaces" -o -,txt
+
+TEST_TMP=$(mktemp -d)
+trap 'rm -rf "$TEST_TMP"' EXIT
+ROOT="$ROOT" TEST_TMP="$TEST_TMP" python3 - <<'PY'
+from pathlib import Path
+import os, re
+
+root = Path(os.environ['ROOT'])
+dest = Path(os.environ['TEST_TMP'])
+widget = (root / 'shell/plugins/saved-workspaces/Widget.qml').read_text()
+
+def extract_method(source, indent, name):
+    pattern = rf'{indent}function {name}\([^)]*\) \{{[\s\S]*?\n{indent}\}}'
+    match = re.search(pattern, source)
+    assert match, f'missing {name} in Widget.qml'
+    return match.group()
+
+begin_save = extract_method(widget, '  ', 'beginSave')
+begin_rename = extract_method(widget, '  ', 'beginRename')
+reveal_region = extract_method(widget, '      ', 'revealRegion')
+reveal_selection = extract_method(widget, '      ', 'revealSelection')
+reveal_editor = extract_method(widget, '      ', 'revealEditor')
+reveal_feedback = extract_method(widget, '      ', 'revealFeedback')
+clamp_content_y = extract_method(widget, '        ', 'clampContentY')
+
+qml = f'''import QtQuick
+import QtTest
+
+Item {{
+  id: root
+  width: 280
+  height: 430
+  property var entries: []
+  property bool busy: false
+  property bool editingName: false
+  property string renameId: ""
+  property string feedback: ""
+  property QtObject panel: QtObject {{
+    property Item loadedContent: catcher
+  }}
+{begin_save}
+{begin_rename}
+
+  Item {{
+    id: catcher
+    property alias nameEditor: nameEditor
+    anchors.fill: parent
+{reveal_region}
+{reveal_selection}
+{reveal_editor}
+{reveal_feedback}
+
+    Flickable {{
+      id: scroll
+      anchors.fill: parent
+      clip: true
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      boundsBehavior: Flickable.StopAtBounds
+      interactive: contentHeight > height
+{clamp_content_y}
+      onContentHeightChanged: clampContentY()
+      onHeightChanged: clampContentY()
+
+      Column {{
+        id: column
+        width: scroll.width
+        spacing: 8
+
+        Item {{ width: parent.width; height: 28 }}
+
+        Column {{
+          id: listColumn
+          width: parent.width
+          spacing: 2
+          Repeater {{
+            id: savedRows
+            model: root.entries
+            delegate: Item {{
+              width: listColumn.width
+              height: 34
+            }}
+          }}
+        }}
+
+        Rectangle {{
+          visible: root.editingName
+          width: parent.width
+          height: 1
+        }}
+
+        Column {{
+          id: editorSection
+          visible: root.editingName
+          width: parent.width
+          spacing: 6
+          TextInput {{
+            id: nameEditor
+            width: parent.width
+            height: 28
+          }}
+          Row {{
+            id: editorActions
+            spacing: 6
+            Item {{ width: 64; height: 28 }}
+            Item {{ width: 64; height: 28 }}
+          }}
+        }}
+
+        Text {{
+          id: feedbackLabel
+          visible: root.busy || root.feedback !== ""
+          width: parent.width
+          text: root.feedback
+          textFormat: Text.PlainText
+        }}
+      }}
+    }}
+  }}
+
+  TestCase {{
+    name: "ScenesEditorScroll"
+    when: windowShown
+
+    function init() {{
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      catcher.forceActiveFocus()
+    }}
+
+    function makeEntries(count) {{
+      var list = []
+      for (var i = 1; i <= count; i++) list.push({{ id: "scene-" + i, name: "Scene " + i }})
+      return list
+    }}
+
+    function test_save_and_rename_scroll_editor_into_view_when_list_fills_dropdown() {{
+      root.entries = makeEntries(16)
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      tryVerify(function() {{ return scroll.contentHeight > scroll.height }})
+
+      root.beginSave()
+      tryVerify(function() {{ return nameEditor.activeFocus }})
+      verify(root.editingName)
+      compare(nameEditor.text, "")
+      verify(scroll.contentY > 0)
+      verify(editorSection.y >= scroll.contentY)
+      verify(editorSection.y + editorSection.height <= scroll.contentY + scroll.height + 0.001)
+
+      // Scrolling back to the top while editing and starting Rename must reveal it again.
+      scroll.contentY = 0
+      root.beginRename(root.entries[0])
+      tryVerify(function() {{ return nameEditor.text === "Scene 1" && scroll.contentY > 0 }})
+      verify(root.editingName)
+      compare(nameEditor.selectedText, "Scene 1")
+      verify(nameEditor.activeFocus)
+      verify(editorSection.y >= scroll.contentY)
+      verify(editorSection.y + editorSection.height <= scroll.contentY + scroll.height + 0.001)
+
+      // Validation error feedback below the editor also reveals cleanly.
+      root.feedback = "Scene name already exists"
+      catcher.revealFeedback()
+      verify(feedbackLabel.y + feedbackLabel.height <= scroll.contentY + scroll.height + 0.001)
+
+      // Closing the editor clamps scroll.contentY to the shorter list height.
+      root.feedback = ""
+      root.editingName = false
+      tryVerify(function() {{ return scroll.contentY <= Math.max(0, scroll.contentHeight - scroll.height) + 0.001 }})
+    }}
+
+    function test_save_immediately_after_entries_load_still_scrolls_editor_into_view() {{
+      root.entries = []
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      tryVerify(function() {{ return scroll.contentHeight < scroll.height }})
+
+      root.entries = makeEntries(16)
+      root.beginSave()
+      tryVerify(function() {{ return nameEditor.activeFocus }})
+      verify(scroll.contentY > 0)
+      verify(editorSection.y >= scroll.contentY)
+      verify(editorSection.y + editorSection.height <= scroll.contentY + scroll.height + 0.001)
+    }}
+
+    function test_short_list_keeps_scroll_at_top() {{
+      root.entries = makeEntries(2)
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      tryVerify(function() {{ return scroll.contentHeight < scroll.height }})
+      root.beginSave()
+      tryVerify(function() {{ return nameEditor.activeFocus }})
+      compare(scroll.contentY, 0)
+      verify(editorSection.y + editorSection.height <= scroll.height)
+    }}
+  }}
+}}
+'''
+(dest / 'tst_editor_scroll.qml').write_text(qml)
+PY
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+  "$qml_test_runner" -input "$TEST_TMP/tst_editor_scroll.qml" -o -,txt
+pass "save and rename scroll the scene editor into view when saved scenes fill the dropdown"

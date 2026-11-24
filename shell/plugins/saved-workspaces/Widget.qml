@@ -64,10 +64,10 @@ Panel {
     editingName = true
     feedback = ""
     Qt.callLater(function() {
-      if (panel.loadedContent) {
-        panel.loadedContent.nameEditor.text = ""
-        panel.loadedContent.nameEditor.forceActiveFocus()
-      }
+      if (!root.editingName || !panel.loadedContent) return
+      panel.loadedContent.nameEditor.text = ""
+      panel.loadedContent.nameEditor.forceActiveFocus()
+      panel.loadedContent.revealEditor()
     })
   }
 
@@ -77,10 +77,11 @@ Panel {
     renameId = entry.id
     feedback = ""
     Qt.callLater(function() {
-      if (!panel.loadedContent) return
+      if (!root.editingName || !panel.loadedContent) return
       panel.loadedContent.nameEditor.text = entry.name
       panel.loadedContent.nameEditor.forceActiveFocus()
       panel.loadedContent.nameEditor.selectAll()
+      panel.loadedContent.revealEditor()
     })
   }
 
@@ -169,6 +170,9 @@ Panel {
         root.failed = true
         root.feedback = String(result.error || Commons.I18n.t("scenes.failure"))
         if (root.action === "restore") root.controller.show()
+        else if (panel.loadedContent) Qt.callLater(function() {
+          if (panel.loadedContent) panel.loadedContent.revealFeedback()
+        })
         return
       }
       if (root.action === "restore") {
@@ -239,12 +243,37 @@ Panel {
       }
       onTextKey: function(text, modifiers) { root.textAction(text, modifiers) }
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      function revealRegion(top, height) {
+        var bottom = top + height
+        var maxY = Math.max(0, scroll.contentHeight - scroll.height)
+        if (top < scroll.contentY) scroll.contentY = Math.max(0, Math.min(maxY, top))
+        else if (bottom > scroll.contentY + scroll.height) scroll.contentY = Math.max(0, Math.min(maxY, Math.min(top, bottom - scroll.height)))
+      }
+
       function revealSelection(index) {
         var item = savedRows.itemAt(index)
         if (!item) return
-        var position = item.y + listColumn.y
-        if (position < scroll.contentY) scroll.contentY = position
-        else if (position + item.height > scroll.contentY + scroll.height) scroll.contentY = position + item.height - scroll.height
+        listColumn.forceLayout()
+        column.forceLayout()
+        revealRegion(item.y + listColumn.y, item.height)
+      }
+
+      function revealEditor() {
+        if (!root.editingName) return
+        listColumn.forceLayout()
+        editorActions.forceLayout()
+        editorSection.forceLayout()
+        column.forceLayout()
+        revealRegion(editorSection.y, editorSection.height)
+      }
+
+      function revealFeedback() {
+        if (!feedbackLabel.visible) return
+        listColumn.forceLayout()
+        editorActions.forceLayout()
+        editorSection.forceLayout()
+        column.forceLayout()
+        revealRegion(feedbackLabel.y, feedbackLabel.height)
       }
 
       Flickable {
@@ -255,6 +284,12 @@ Panel {
         contentHeight: column.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
         interactive: contentHeight > height
+        function clampContentY() {
+          var maxY = Math.max(0, contentHeight - height)
+          if (contentY > maxY) contentY = maxY
+        }
+        onContentHeightChanged: clampContentY()
+        onHeightChanged: clampContentY()
 
         Column {
           id: column
@@ -407,6 +442,7 @@ Panel {
           PanelSeparator { visible: root.editingName }
 
           Column {
+            id: editorSection
             visible: root.editingName
             width: parent.width
             spacing: Style.space(6)
@@ -424,6 +460,7 @@ Panel {
               }
             }
             Row {
+              id: editorActions
               spacing: Style.space(6)
               Button { text: (root.renameId !== "" ? Commons.I18n.t("scenes.rename") : Commons.I18n.t("scenes.save")); enabled: !root.busy && nameEditor.text.trim() !== ""; onClicked: root.saveName() }
               Button { text: Commons.I18n.t("scenes.cancel"); enabled: !root.busy; onClicked: { root.editingName = false; catcher.forceActiveFocus() } }
@@ -431,6 +468,7 @@ Panel {
           }
 
           Label {
+            id: feedbackLabel
             visible: root.busy || root.feedback !== ""
             x: Style.space(8)
             width: parent.width - x
