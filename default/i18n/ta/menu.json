@@ -26,11 +26,11 @@
   "update": {
     "label": "புதுப்பி"
   },
-  "about": {
-    "label": "பற்றி"
-  },
   "system": {
     "label": "கணினி"
+  },
+  "system.about": {
+    "label": "பற்றி"
   },
   "system.screensaver": {
     "label": "திரைசேமிப்பு"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "உள்ளீடு"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "மொழி"
+  },
+  "setup.region.timezone": {
+    "label": "நேர மண்டலம்"
   },
   "setup.network": {
     "label": "வலையமைப்பு"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "இயல்புநிலைகள்"
-  },
-  "setup.default.agent": {
-    "label": "ஏஜென்ட்",
-    "title": "இயல்புநிலை Agent"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "உலாவி",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "நேரடி தொடக்கம்"
-  },
-  "setup.reset": {
-    "label": "கணினியை மீட்டமை"
+  "remove.factory-reset": {
+    "label": "தொழிற்சாலை மீட்டமைப்பு"
   },
   "install.package": {
     "label": "தொகுப்பு"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium கணக்கு"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "கடவுச்சொல்"
   },
-  "update.timezone": {
-    "label": "நேர மண்டலம்"
-  },
   "update.time": {
     "label": "நேரம்"
   },
@@ -1138,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "தொடுதளம்"
-  },
-  "update.password.drive": {
-    "label": "இயக்கக குறியாக்கம்"
-  },
-  "update.password.user": {
-    "label": "பயனர்"
   },
   "appearance.windows.gaps-on": {
     "label": "சாளர இடைவெளி இயக்கு"
@@ -1226,34 +1162,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "தொடுதிரையை முடக்கு"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "எளிய உரை"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "install.style.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "remove.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "update.icons": {
+    "label": "கூடுதல் ஐகான்கள்"
+  },
+  "system.firmware": {
+    "label": "BIOS-க்கு மறுதொடக்கம்",
+    "description": "UEFI ஃபார்ம்வேர் அமைப்பில் மறுதொடக்கம் செய்யவும்"
+  },
+  "setup.region": {
+    "label": "பிராந்தியம்"
+  },
+  "setup.region.formats": {
+    "label": "வடிவங்கள்",
+    "description": "தேதிகள், நேரங்கள், எண்கள், அலகுகள் எழுதப்படும் முறை"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes விளையாட்டு"
+  },
+  "update.games": {
+    "label": "Game Vibes விளையாட்டுகள்"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "ஹோஸ்ட்பெயர்"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

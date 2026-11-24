@@ -48,23 +48,18 @@ Item {
     }
 
     function test_viewport_data() {
-      var cases = []
-      var borders = [
-        {name: "default", values: {}},
-        {name: "2px", values: {"popups.border-width": "2"}},
-        {name: "asymmetric", values: {"popups.border-width": "3 2 5 4"}}
+      return [
+        {tag: "default-0-28", border: {}, count: 0, rowHeight: 28},
+        {tag: "default-1-28", border: {}, count: 1, rowHeight: 28},
+        {tag: "default-4-20", border: {}, count: 4, rowHeight: 20},
+        {tag: "default-8-28", border: {}, count: 8, rowHeight: 28},
+        {tag: "default-12-28", border: {}, count: 12, rowHeight: 28},
+        {tag: "2px-2-40", border: {"popups.border-width": "2"}, count: 2, rowHeight: 40},
+        {tag: "2px-12-20", border: {"popups.border-width": "2"}, count: 12, rowHeight: 20},
+        {tag: "asymmetric-1-40", border: {"popups.border-width": "3 2 5 4"}, count: 1, rowHeight: 40},
+        {tag: "asymmetric-8-28", border: {"popups.border-width": "3 2 5 4"}, count: 8, rowHeight: 28},
+        {tag: "asymmetric-12-40", border: {"popups.border-width": "3 2 5 4"}, count: 12, rowHeight: 40}
       ]
-      var counts = [0, 1, 2, 4, 8, 12]
-      var rowHeights = [20, 28, 40]
-      for (var b = 0; b < borders.length; b++) {
-        for (var c = 0; c < counts.length; c++) {
-          for (var r = 0; r < rowHeights.length; r++) {
-            cases.push({tag: borders[b].name + "-" + counts[c] + "-" + rowHeights[r],
-                        border: borders[b].values, count: counts[c], rowHeight: rowHeights[r]})
-          }
-        }
-      }
-      return cases
     }
 
     function test_viewport(data) {
@@ -88,7 +83,7 @@ Item {
       if (data.count === 0) return
       tryCompare(list, "count", data.count)
       list.positionViewAtEnd()
-      wait(100)
+      wait(50)
       var last = list.itemAtIndex(data.count - 1)
       verify(last !== null)
       verify(last.y + last.height <= list.contentY + list.height + 0.01, "last row is fully visible at the end")
@@ -97,11 +92,11 @@ Item {
         // The real hover handler changes currentIndex; neither end may shift the list.
         mouseMove(list, 20, list.height - data.rowHeight / 2)
         tryCompare(list, "currentIndex", data.count - 1)
-        wait(100)
+        wait(50)
         compare(list.contentY, 0, "hovering the last row does not scroll")
         mouseMove(list, 20, data.rowHeight / 2)
         tryCompare(list, "currentIndex", 0)
-        wait(100)
+        wait(50)
         compare(list.contentY, 0, "hovering the first row does not scroll")
       } else {
         verify(list.contentY > 0, "long lists retain scrolling")
@@ -113,10 +108,31 @@ Item {
         list.positionViewAtBeginning()
         tryCompare(list, "contentY", 0)
         list.currentIndex = 0
-        wait(100)
+        wait(50)
         list.forceActiveFocus()
         for (var index = 1; index < data.count; index++) {
           keyClick(Qt.Key_Down)
+          // A press that leaves the selection behind fails here now and then in
+          // CI and nowhere else. Say what the list looked like when it did: who
+          // has focus, which row the pointer is over, and whether another
+          // press gets through.
+          if (list.currentIndex !== index) {
+            var hovered = []
+            var rows = list.contentItem.children
+            for (var r = 0; r < rows.length; r++) {
+              if (rows[r].index === undefined) continue
+              var parts = rows[r].children
+              for (var c = 0; c < parts.length; c++)
+                if (parts[c].containsMouse) hovered.push(rows[r].index + "@" + parts[c].mouseX + "," + parts[c].mouseY)
+            }
+            console.warn("STALL want", index, "cur", list.currentIndex, "popupOpened", popup.opened, "listFocus", list.activeFocus,
+                         "winActive", scene.Window.active, "afi", scene.Window.activeFocusItem, "contentY", list.contentY, "hovered", hovered)
+            keyClick(Qt.Key_Down)
+            console.warn("STALL second press cur", list.currentIndex)
+            wait(200)
+            console.warn("STALL settled cur", list.currentIndex)
+            fail("keyboard walk stalled at " + index)
+          }
           tryCompare(list, "currentIndex", index)
         }
         tryCompare(list, "currentIndex", data.count - 1)

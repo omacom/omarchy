@@ -9,16 +9,11 @@ set -euo pipefail
 # theme from its config. Only that key is written, so the rest of the file stays
 # the user's, and the write is what makes running Qt apps reload their icons.
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/qtengine/config.json"
-ICONS_THEME="$HOME/.local/state/omarchy/current/theme/icons.theme"
 
 [[ -f $CONFIG ]] || exit 0
 
-# The same default omarchy-theme-set-gnome gives GTK.
-if [[ -f $ICONS_THEME ]]; then
-  icon_theme=$(<"$ICONS_THEME")
-else
-  icon_theme="Yaru-blue"
-fi
+# The same icons omarchy-theme-set-gnome gives GTK: Adwaita, for every theme.
+icon_theme="Adwaita"
 
 if [[ $(jq -r '.theme.iconTheme // empty' "$CONFIG") == "$icon_theme" ]]; then
   exit 0

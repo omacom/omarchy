@@ -58,7 +58,8 @@ assertDeepEqual(
     searchTerms: [],
     when: '',
     checked: '',
-    disabled: ''
+    disabled: '',
+    alt: ''
   },
   'menu normalizes parsed items'
 )
@@ -116,6 +117,20 @@ assert(menu.isVisible({ 'install.browser.zen': installed }, ['install.browser.ze
 assert(menu.isDisabled({ 'install.browser.zen': true }, installed), 'menu disables a row whose disabled: succeeded')
 assert(!menu.isDisabled({ 'install.browser.zen': false }, installed), 'menu leaves a row selectable when its disabled: failed')
 assert(!menu.isDisabled({ 'install.browser.zen': true }, visibilityItems.laptop), 'menu never disables a row that declares no disabled:')
+
+// `alt:` swaps a row for another entry while Alt is held, unless that
+// entry's own guards rule it out on this machine.
+const altItems = {
+  'system.reboot': menu.normalizeItem('system.reboot', { label: 'Reboot', alt: 'system.firmware', action: 'reboot' }),
+  'system.firmware': menu.normalizeItem('system.firmware', { label: 'Reboot to BIOS', when: 'uefi', disabled: 'busy', action: 'firmware' }),
+  'system.lock': menu.normalizeItem('system.lock', { label: 'Lock', alt: 'system', action: 'lock' }),
+  system: menu.normalizeItem('system', { label: 'System' })
+}
+assertEqual(menu.altVariant(altItems, { 'system.firmware': true }, {}, altItems['system.reboot']).id, 'system.firmware', 'menu swaps a row for its alt stand-in')
+assertEqual(menu.altVariant(altItems, { 'system.firmware': false }, {}, altItems['system.reboot']), null, 'menu keeps the row when the stand-in is guarded out')
+assertEqual(menu.altVariant(altItems, { 'system.firmware': true }, { 'system.firmware': true }, altItems['system.reboot']), null, 'menu keeps the row when the stand-in is disabled')
+assertEqual(menu.altVariant(altItems, {}, {}, altItems['system.lock']), null, 'menu only swaps a row for an action')
+assertDeepEqual(menu.altVariantIds(altItems, Object.keys(altItems)), { 'system.firmware': true }, 'menu hides only entries that can stand in for another row')
 assert(
   menu.displayRow({ 'install.browser.zen': installed }, ['install.browser.zen'], {}, { 'install.browser.zen': true }, installed, '', 0).disabled,
   'menu display rows carry their disabled state'
@@ -178,6 +193,10 @@ assert(
 assert(
   rankScore('appearance.font', 'font') < rankScore('apps.fontforge', 'font'),
   'menu keeps a better-matching menu entry above a weaker app match'
+)
+assert(
+  rankScore('system.about', 'abou') < rankScore('appearance.branding.about', 'abou'),
+  'menu ranks a shallower equal match above a deeper submenu'
 )
 
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
@@ -411,6 +430,28 @@ assert(
   'provider merge leaves rows belonging to another provider alone'
 )
 
+assertDeepEqual(
+  menu.parseKeybindingsRecords(
+    'SUPER + K                           → Keybindings\tlua\thl.dsp.global("omarchy:menu.learn.keybindings")\n'
+    + 'SUPER + RETURN                      → Terminal\texec\tprintf "a\tb"\n'
+    + 'SUPER + Z                           → Zoom in\t\t\n'
+    + '\n'
+  ),
+  {
+    entries: [
+      { label: 'SUPER + K                           → Keybindings', dispatcher: 'lua', arg: 'hl.dsp.global("omarchy:menu.learn.keybindings")' },
+      { label: 'SUPER + RETURN                      → Terminal', dispatcher: 'exec', arg: 'printf "a\tb"' },
+      { label: 'SUPER + Z                           → Zoom in', dispatcher: '', arg: '' }
+    ],
+    options: [
+      'SUPER + K                           → Keybindings',
+      'SUPER + RETURN                      → Terminal',
+      'SUPER + Z                           → Zoom in'
+    ]
+  },
+  'keybindings record parser keeps tabs inside command arguments and skips blank lines'
+)
+
 // Every glyph the menu draws in the Omarchy font is one the font carries. The
 // ranges come from the font itself, so a new glyph needs no edit here.
 const fontRanges = require('child_process')
@@ -424,3 +465,60 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# Verify omarchy-menu-select and omarchy-menu-input serialize payloads faithfully
+# (including UTF-8, tabs, dash-prefixed options, multi-select, and dimensions).
+select_tmp=$(mktemp -d)
+trap 'rm -rf "$select_tmp"' EXIT
+mkdir -p "$select_tmp/bin"
+
+cat >"$select_tmp/bin/omarchy-shell" <<'SH'
+#!/bin/bash
+payload="$4"
+printf '%s\n' "$payload" >"$PAYLOAD_OUT"
+sel_file=$(jq -r '.selectionFile' <<<"$payload")
+done_file=$(jq -r '.doneFile' <<<"$payload")
+printf '%s\n' "$FAKE_ANSWER" >"$sel_file"
+: >"$done_file"
+SH
+chmod +x "$select_tmp/bin/omarchy-shell"
+
+select_answer=$(PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/select.json" FAKE_ANSWER="-dash" \
+  "$ROOT/bin/omarchy-menu-select" "Pick (æøå)" "-dash" $'✓\tSecond\tsub' -- \
+  --multiple --selected "-dash" --selected $'Second\tsub' \
+  --on-change '["apply","--set"]' --change-key "k1" --width 640 --maxheight 480)
+[[ $select_answer == "-dash" ]] || fail "omarchy-menu-select returns the selected value" "$select_answer"
+jq -e '
+  .mode == "select"
+  and .prompt == "Pick (æøå)"
+  and .options == ["-dash", "✓\tSecond\tsub"]
+  and .multiple == true
+  and .selected == ["-dash", "Second\tsub"]
+  and .onChange == ["apply", "--set"]
+  and .changeKey == "k1"
+  and .width == 640
+  and .maxHeight == 480
+' "$select_tmp/select.json" >/dev/null || fail "omarchy-menu-select builds the expected JSON payload" "$(cat "$select_tmp/select.json")"
+pass "omarchy-menu-select builds the expected JSON payload"
+
+# Empty selected list and omitted dimensions stay clean (empty array, no null width/maxHeight).
+PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/select-min.json" FAKE_ANSWER="One" \
+  "$ROOT/bin/omarchy-menu-select" "Simple" "One" >/dev/null
+jq -e '
+  .mode == "select"
+  and .multiple == false
+  and .selected == []
+  and (has("width") | not)
+  and (has("maxHeight") | not)
+' "$select_tmp/select-min.json" >/dev/null || fail "omarchy-menu-select omits unset dimensions and keeps selected empty" "$(cat "$select_tmp/select-min.json")"
+pass "omarchy-menu-select omits unset dimensions and keeps selected empty"
+
+input_answer=$(PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/input.json" FAKE_ANSWER="15" \
+  "$ROOT/bin/omarchy-menu-input" "Reminder (æøå)" --width 400)
+[[ $input_answer == "15" ]] || fail "omarchy-menu-input returns the entered value" "$input_answer"
+jq -e '
+  .mode == "input"
+  and .prompt == "Reminder (æøå)"
+  and .width == 400
+' "$select_tmp/input.json" >/dev/null || fail "omarchy-menu-input builds the expected JSON payload" "$(cat "$select_tmp/input.json")"
+pass "omarchy-menu-input builds the expected JSON payload"

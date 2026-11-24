@@ -2,7 +2,7 @@
 
 ## Alternative Editors
 
-Omarchy ships with [Neovim](https://neovim.io/) by default, but if you'd like something a bit more mainstream and familiar, you can run the Omarchy Menu (`Super + Space`) and see the options under _Install > Editor_. We have VSCode, Cursor, Zed, Sublime Text, Helix, Vim, and Emacs listed there. If you don't find what you're looking for, checkout _Install > Package_, and see if it isn't in an Arch package (and if not, try _Install > AUR_ to check the AUR).
+Omarchy ships with Plain as the default editor on new installs and [Neovim](https://neovim.io/) preinstalled, but if you'd like something a bit more mainstream and familiar, you can run the Omarchy Menu (`Super + Space`) and see the options under _Install > Editor_. We have VSCode, Cursor, Zed, Sublime Text, Helix, Vim, and Emacs listed there. If you don't find what you're looking for, checkout _Install > Package_, and see if it isn't in an Arch package (and if not, try _Install > AUR_ to check the AUR).
 
 The original `vi` editor is also available out of the box. Run `vi filename` to edit a file in the terminal.
 
@@ -20,7 +20,7 @@ To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Rub
 
 ## Preinstalled CLI tools
 
-Omarchy makes tools such as `gh`, `uv`, and most [coding agents](17-ai.md) available through [mise's lazy installation](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). The first time you run one, mise installs it. Later runs reuse the installed version; they do not check for an update on every launch.
+Omarchy makes tools such as `gh`, `uv`, and most [coding agents](17-ai.md) available through [mise's lazy installation](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). The first time you run one, mise installs it. Coding agents then check for an update before they run, at most once every four hours; other tools, like `gh` and `uv`, reuse the installed version until you update.
 
 You can also inspect the defaults or install them ahead of time:
 
@@ -47,7 +47,7 @@ If you already have a `[settings]` table, add the entry there; extend an existin
 
 ### Removing and restoring defaults
 
-_Remove Preinstalls_ has mise skip Omarchy's tool declarations for your user, by adding them to `ignored_config_paths` in `~/.config/mise/miserc.toml`. _Restore Preinstalls_ removes that line again. Tools you declare yourself, in your own config or in a project's `mise.toml`, keep working either way. If you choose a default agent or set up Python after removing the preinstalls, that tool is added to your own config. Both apply only to your user; other users on the machine keep their own choice.
+_Remove > Preinstalls_ removes Omarchy's preinstalled web apps, TUIs and apps, and has mise skip Omarchy's tool declarations for your user, by adding them to `ignored_config_paths` in `~/.config/mise/miserc.toml`. _Install > Preinstalls_ brings them back and removes that line again. Tools you declare yourself, in your own config or in a project's `mise.toml`, keep working either way. If you choose a default agent or set up Python after removing the preinstalls, that tool is added to your own config. The mise setting applies only to your user, and other users keep their own choice; the apps are packages, though, so removing or restoring them changes them for everyone on the machine.
 
 ## Docker
 
