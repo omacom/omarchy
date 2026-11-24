@@ -1,5 +1,7 @@
 // Local, colour-only theme identifiers. No commands or markup are stored.
 var maximumThemes = 512
+// Fits all 512 names at 160 characters each, including JSON formatting.
+var maximumStateLength = 131072
 
 function validName(name) {
   return typeof name === "string" && name.length <= 160 && /^[a-z0-9_][a-z0-9 ._+-]*$/i.test(name)
@@ -21,7 +23,7 @@ function normalize(names) {
 
 function parseState(raw) {
   var empty = { themes: [], favouritesOnly: false }
-  if (typeof raw !== "string" || raw.length > 65536) return empty
+  if (typeof raw !== "string" || raw.length > maximumStateLength) return empty
   try {
     var state = JSON.parse(raw)
     if (!state || Array.isArray(state) || state.version !== 1) return empty

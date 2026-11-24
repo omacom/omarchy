@@ -385,10 +385,16 @@ for (const name of ['', '.', '..', '../escape', 'a/b', 'a\\b', 'a\nb', '<img src
 assertDeepEqual(favourites.parseState('{bad json'), { themes: [], favouritesOnly: false }, 'malformed favourites state falls back safely')
 assertDeepEqual(favourites.parseState(JSON.stringify({ version: 1, themes: ['nord', 'nord', '../escape', '<img src=x>', 'gruvbox'], favouritesOnly: true })),
   { themes: ['nord', 'gruvbox'], favouritesOnly: true }, 'favourites state validates and deduplicates theme identifiers')
-assertDeepEqual(favourites.parseState('x'.repeat(65537)), { themes: [], favouritesOnly: false }, 'oversized favourites state is ignored')
+assertDeepEqual(favourites.parseState(' '.repeat(131073) + JSON.stringify({ version: 1, themes: ['nord'], favouritesOnly: true })),
+  { themes: [], favouritesOnly: false }, 'oversized favourites state is ignored')
 assertDeepEqual(favourites.parseState(JSON.stringify({ version: 2, themes: ['nord'] })), { themes: [], favouritesOnly: false }, 'unknown favourites versions are ignored')
 let saved = favourites.toggle([], 'nord')
 assertDeepEqual(favourites.parseState(favourites.serializeState(saved, true)), { themes: ['nord'], favouritesOnly: true }, 'favourites and filter preference survive a storage round trip')
+const largestFavourites = Array.from({ length: 512 }, (_, i) => `Theme ${i}`.padEnd(160, 'x'))
+for (const favouritesOnly of [false, true]) {
+  assertDeepEqual(favourites.parseState(favourites.serializeState(largestFavourites, favouritesOnly)),
+    { themes: largestFavourites, favouritesOnly }, `512 maximum-length favourites survive save and load with filter ${favouritesOnly}`)
+}
 assertDeepEqual(favourites.toggle(saved, 'nord'), [], 'toggling a favourite removes it')
 const favouriteImages = picker.loadRows('/p/nord.png\n/p/gruvbox.png\n/p/tokyo.png')
 assertDeepEqual(favourites.filterIndices(favouriteImages, [0, 1, 2], ['tokyo', 'nord', 'uninstalled'], true), [0, 2], 'favourites retain carousel order and ignore absent themes')
