@@ -78,9 +78,12 @@ pci_devices() {
 
 # mkinitcpio appends the drop-ins to mkinitcpio.conf in its own order and
 # sources the result once. Do the same on a platform fixture and print what the
-# image is built from. The drop-ins read /etc/vconsole.conf, so point them at
-# $vconsole, which only the cases that need a layout write.
+# image is built from. The drop-ins read /etc/vconsole.conf and
+# /etc/systemd/system.conf.d/20-mount-events.conf, so point them at fixtures in
+# $test_tmp (only cases that need a keyboard layout write $vconsole).
 vconsole="$test_tmp/vconsole.conf"
+mount_events="$test_tmp/20-mount-events.conf"
+cp "$ROOT/etc/systemd/system.conf.d/20-mount-events.conf" "$mount_events"
 compose() {
   local fixture="$test_tmp/platforms/$1" config="$test_tmp/buildconfig" conf
   local -a conf_files=()
@@ -90,7 +93,8 @@ compose() {
   for conf in "${conf_files[@]}"; do
     cat -- "$etc/mkinitcpio.conf.d/$conf" >>"$config"
   done
-  sed -i "s|/etc/vconsole.conf|$vconsole|g" "$config"
+  sed -i -e "s|/etc/vconsole.conf|$vconsole|g" \
+    -e "s|/etc/systemd/system.conf.d/20-mount-events.conf|$mount_events|g" "$config"
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
@@ -221,9 +225,9 @@ assert_composed "NVIDIA-only with hibernation and a provisioning key is unchange
   "$omarchy_hooks_without_kms resume" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
 
 new_etc
-drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
 assert_composed "a T2 Mac is unchanged" x86 \
-  "$omarchy_hooks" "t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
+  "$omarchy_hooks" "t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
 
 new_etc
 drop_in macbook_spi_modules.conf <<<"MODULES=(applespi intel_lpss_pci spi_pxa2xx_platform)"
@@ -266,7 +270,7 @@ KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "without the runtime's d
   "$omarchy_hooks" "thunderbolt" ""
 new_etc
 KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "an Apple Silicon Mac leaves i2c-hid-of out" aarch64-apple \
-  "$apple_hooks" "thunderbolt" ""
+  "$apple_hooks" "thunderbolt" "$mount_events"
 new_etc
 KERNEL_MODULES="thunderbolt" KERNEL_BUILTINS="i2c-hid-of" assert_composed "a kernel with i2c-hid-of built in leaves it out" aarch64-qualcomm \
   "$omarchy_hooks" "thunderbolt" ""
@@ -276,7 +280,7 @@ KERNEL_MODULES="thunderbolt" KERNEL_BUILTINS="i2c-hid-of" assert_composed "a ker
 # an optional thunderbolt? nor a module the kernel lacks may reach it.
 new_etc
 assert_composed "Apple Silicon early-loads the Aurora kernel's thunderbolt module" aarch64-apple \
-  "$apple_hooks" "thunderbolt" ""
+  "$apple_hooks" "thunderbolt" "$mount_events"
 new_etc
 KERNEL_MODULES="" assert_composed "a plain aarch64 kernel without thunderbolt leaves it out" aarch64 \
   "$omarchy_hooks" "" ""

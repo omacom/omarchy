@@ -26,11 +26,11 @@
   "update": {
     "label": "Update"
   },
-  "about": {
-    "label": "About"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "About"
   },
   "system.screensaver": {
     "label": "Screensaver"
@@ -469,8 +469,18 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.language": {
     "label": "Language"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "How dates, times, numbers and units are written"
+  },
+  "setup.region.timezone": {
+    "label": "Timezone"
   },
   "setup.network": {
     "label": "Network"
@@ -487,93 +497,20 @@
   "setup.network.dns.google": {
     "label": "Google"
   },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
   "setup.network.dns.custom": {
     "label": "Custom"
+  },
+  "setup.network.hostname": {
+    "label": "Hostname"
   },
   "setup.network.qr": {
     "label": "QR Code"
   },
   "setup.default": {
     "label": "Defaults"
-  },
-  "agent": {
-    "label": "Agent"
-  },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Default Harness"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -702,7 +639,7 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "setup.config.hyprland": {
@@ -714,11 +651,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direct Boot"
-  },
-  "setup.reset": {
-    "label": "Reset Computer"
+  "remove.factory-reset": {
+    "label": "Factory Reset"
   },
   "install.package": {
     "label": "Package"
@@ -819,6 +753,9 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -827,6 +764,9 @@
   },
   "install.service.tailscale": {
     "label": "Tailscale"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   },
   "install.service.nordvpn": {
     "label": "NordVPN"
@@ -879,6 +819,9 @@
   "install.ai.amp": {
     "label": "Amp Desktop"
   },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -917,6 +860,9 @@
   },
   "install.gaming.minecraft": {
     "label": "Minecraft"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
   },
   "install.gaming.geforce-now": {
     "label": "NVIDIA GeForce NOW"
@@ -1110,6 +1056,9 @@
   "remove.ai.amp": {
     "label": "Amp Desktop"
   },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -1172,6 +1121,9 @@
   },
   "remove.gaming.heroic": {
     "label": "Heroic (Epic Games)"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
   },
   "remove.development.rails": {
     "label": "Ruby on Rails"
@@ -1258,6 +1210,9 @@
   "update.icons": {
     "label": "Extra Icons"
   },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
   "update.process": {
     "label": "Process",
     "title": "Restart"
@@ -1271,9 +1226,6 @@
   },
   "update.password": {
     "label": "Password"
-  },
-  "update.timezone": {
-    "label": "Timezone"
   },
   "update.time": {
     "label": "Time"
@@ -1322,26 +1274,5 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
-  },
-  "update.password.drive": {
-    "label": "Drive Encryption"
-  },
-  "update.password.user": {
-    "label": "User"
-  },
-  "agent.instructions": {
-    "label": "Instructions"
-  },
-  "agent.make": {
-    "label": "Make something"
-  },
-  "agent.make.theme": {
-    "label": "Make a theme"
-  },
-  "agent.make.plugin": {
-    "label": "Make a plugin"
-  },
-  "agent.make.app": {
-    "label": "Make an app"
   }
 }
