@@ -46,6 +46,17 @@ end_update_authorization() {
 cleanup_update() {
   local status=$?
   trap - EXIT HUP INT TERM
+  # A transaction that fails never reaches its PostTransaction hook, which
+  # would leave the shell paused. The hook's state is root-owned but
+  # world-readable, so a bare `paused` probe needs no privilege and a successful
+  # update (whose hook already resumed and cleared the state) stays a no-op.
+  # Resume through the update's authorization while it is still valid.
+  if omarchy-cmd-present omarchy-shell-reload-guard; then
+    if omarchy-shell-reload-guard paused >/dev/null 2>&1; then
+      sudo -n omarchy-shell-reload-guard resume >/dev/null 2>&1 ||
+        echo "Could not resume the shell after the update; restart it to load new plugins." >&2
+    fi
+  fi
   end_update_authorization
   if (( update_stay_awake_stopped == 0 )); then
     omarchy-update-stay-awake stop || status=1

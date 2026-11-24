@@ -18,6 +18,47 @@ pass "default shell.json is valid JSON"
 jq -e '.version == 1 and ([.bar.layout[("left", "centerBegin", "center", "centerEnd", "right")] | type == "array"] | all)' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 
+# The package-owned default shell.json is read once at startup and not watched:
+# a running shell would otherwise apply a half-installed plugin list during an
+# update. The user's own shell.json keeps live reload.
+ROOT="$ROOT" python3 <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+
+source = (Path(os.environ["ROOT"]) / "shell/shell.qml").read_text()
+
+def file_view(name):
+  match = re.search(rf"FileView \{{\s*id: {name}\b[\s\S]*?\n  \}}", source)
+  return match.group(0) if match else ""
+
+errors = []
+
+defaults = file_view("defaultsFile")
+if not defaults:
+  errors.append("shell.qml has no defaultsFile FileView")
+elif re.search(r"watchChanges:\s*false", defaults) is None or re.search(r"onFileChanged\s*:", defaults):
+  errors.append("the package-owned default shell.json watches for changes")
+
+user = file_view("userConfigFile")
+if not user:
+  errors.append("shell.qml has no userConfigFile FileView")
+elif re.search(r"watchChanges:\s*true", user) is None or re.search(r"onFileChanged\s*:\s*reload\(\)", user) is None:
+  errors.append("the user shell.json no longer reloads on change")
+
+reload_config = re.search(r"function reloadConfig\(\): string \{[\s\S]*?\n    \}", source)
+if not reload_config:
+  errors.append("shell.qml has no reloadConfig")
+elif re.search(r"userConfigFile\.reload\(\)", reload_config.group(0)) is None or re.search(r"defaultsFile\.reload\(\)", reload_config.group(0)):
+  errors.append("reloadConfig does not reload only the user shell.json")
+
+if errors:
+  print("\n".join(errors), file=sys.stderr)
+  sys.exit(1)
+PY
+pass "the default shell.json is read at startup and the user's live-reloads"
+
 # Every CLI write goes through the normalizer, which keeps every bar section a
 # list, the ones beside the center box included.
 normalized=$(OMARCHY_PATH="$ROOT" bash -c 'source "$OMARCHY_PATH/bin/omarchy-shell-config" && jq -c "$NORMALIZE | .bar.layout" <<<"{\"bar\":{\"layout\":{\"centerBegin\":null}}}"')
@@ -164,6 +205,8 @@ if notify_alias not in pkgbuild:
 alpm_hooks = [
   "00-omarchy-update-guard.hook",
   "10-omarchy-hyprland-reload-pause.hook",
+  "20-omarchy-shell-reload-pause.hook",
+  "80-omarchy-shell-reload-resume.hook",
   "90-omarchy-hyprland-reload-resume.hook",
 ]
 for hook in alpm_hooks:

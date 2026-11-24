@@ -22,4 +22,20 @@ if [[ -n ${LC_ALL:-} ]]; then
   env_args+=(LC_ALL="$LC_ALL")
 fi
 
-exec sudo env "${env_args[@]}" "${scope[@]}" pacman "$@"
+status=0
+sudo env "${env_args[@]}" "${scope[@]}" pacman "$@" || status=$?
+
+# A failed transaction never reaches its PostTransaction hook, which would
+# leave the shell paused. Recover here so every caller gets it, not just the
+# `omarchy update` flow: `omarchy-refresh-pacman` (and so
+# `omarchy-channel-set`) runs its transactions through this helper too. The
+# state probe is unprivileged; resume needs root because the state directory is
+# root-owned.
+if omarchy-cmd-present omarchy-shell-reload-guard; then
+  if omarchy-shell-reload-guard paused >/dev/null 2>&1; then
+    sudo -n omarchy-shell-reload-guard resume >/dev/null 2>&1 ||
+      echo "Could not resume the shell after the update; restart it to load new plugins." >&2
+  fi
+fi
+
+exit "$status"

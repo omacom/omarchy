@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = omarchy
+Target = omarchy-dev
+
+[Action]
+Description = Pausing Omarchy shell plugin loads for the package update...
+When = PreTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-shell-reload-guard pause
