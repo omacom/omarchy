@@ -1074,17 +1074,13 @@ omarchy-remove-ai-cli codex
 [[ $(<"$agent_file") == "claude" ]] || fail "removing another agent's CLI keeps the default"
 pass "removing an agent's CLI clears its launcher and a default it held"
 
-# A claude on PATH can be an account dispatcher left after its CLI went, so the
-# launcher asks the installer. A sign-in whose CLI isn't installed here installs
-# it in a terminal and then opens, rather than opening a window that fails.
+# A sign-in whose CLI isn't installed here installs it in a terminal and then
+# opens, rather than opening a window that fails.
 : >"$launch_log"
 : >"$terminal_log"
-printf '#!/bin/bash\nexit 127\n' >"$mock_bin/claude"
-chmod +x "$mock_bin/claude"
 printf '%s\n' claude >"$agent_file"
-OMARCHY_TEST_AGENT_INSTALLED=false omarchy-agent </dev/null >/dev/null 2>&1
+OMARCHY_TEST_MISSING_COMMAND=claude omarchy-agent </dev/null >/dev/null 2>&1
 [[ $(tr '\0' ' ' <"$terminal_log") == "omarchy-install-ai-cli claude && omarchy-agent " ]] ||
   fail "launching a claude that isn't installed installs it first" "$(tr '\0' ' ' <"$terminal_log")"
 [[ ! -s $launch_log ]] || fail "a claude that isn't installed opens no window before it is"
-rm "$mock_bin/claude"
 pass "launching an agent whose CLI isn't installed installs it, then opens it"

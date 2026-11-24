@@ -60,15 +60,6 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
-# claude, codex and grok can be on PATH as an account dispatcher whose CLI was
-# removed outside Omarchy, so those ask their installer, which looks past it.
-agent_missing() {
-  case $1 in
-  claude | codex | grok) ! omarchy-install-ai-cli --check "$1" ;;
-  *) omarchy-cmd-missing "$1" ;;
-  esac
-}
-
 # --agent launches a given agent instead of the default: the panel's terminal
 # button on each subscription opens the harness made for it, Codex for OpenAI.
 if [[ -n $agent_override ]]; then
@@ -121,7 +112,7 @@ fi
 
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
-if agent_missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
+if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   # An agent you still have a sign-in for can be missing its CLI: removed, or
   # signed in to on another machine and copied over. Launching it installs the
   # CLI first and then opens as asked, in this terminal or a floating one.
