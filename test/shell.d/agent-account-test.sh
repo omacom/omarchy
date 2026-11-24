@@ -754,7 +754,8 @@ OMARCHY_TEST_LOGIN_UUID=u-lazy OMARCHY_TEST_LOGIN_EMAIL=lazy@example.com add_laz
   fail "adding an account installs its CLI first" "$(cat "$test_tmp/lazy-output")"
 [[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -3) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0 0\n@@omarchy status Sign in as the account you\'re adding in the private window that opens.' ]] ||
   fail "a CLI install is reported before the sign-in" "$(cat "$test_tmp/lazy-output")"
-[[ $(cat "$test_tmp/lazy-log") == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- openai-codex\nrun codex login' ]] ||
+# Through the packaged helper when it's installed, pacman itself until then.
+[[ $(cat "$test_tmp/lazy-log") == @($'pkexec /usr/bin/omarchy-install-ai-package codex\nrun codex login'|$'pkexec /usr/bin/pacman -S --noconfirm --needed -- openai-codex\nrun codex login') ]] ||
   fail "the CLI's package is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
 grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output" ||
   fail "a sign-in after an install finishes as usual" "$(cat "$test_tmp/lazy-output")"
