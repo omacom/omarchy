@@ -15,7 +15,7 @@ elif omarchy-hw-nvidia; then
     legacy)
       PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils) ;;
     *)
-      echo "No compatible driver for your NVIDIA GPU (not in the legacy <0x1e00 or modern >=0x1e00 range). See: https://wiki.archlinux.org/title/NVIDIA" >&2
+      echo "No compatible driver for your NVIDIA GPU. See: https://wiki.archlinux.org/title/NVIDIA" >&2
       exit 0 ;;
   esac
 
