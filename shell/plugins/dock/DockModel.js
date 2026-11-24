@@ -247,10 +247,46 @@ function workspaceBadgeNumber(id) {
   return id > 10 ? id + 10 : id
 }
 
+// Scale workspace badges with fitted icons and hide them once crowded slots
+// leave too little room for a legible label inside the icon's own bounds.
+function badgeMetrics(iconSize, requestedIconSize, fontSize, padX, padY) {
+  var minFont = Math.min(7, Math.max(1, Math.round(fontSize || 0)))
+  if (!(iconSize > 0) || !(requestedIconSize > 0) || !(fontSize > 0)) {
+    return { visible: false, scale: 0, fontSize: 1, minFontSize: minFont, padX: 0, padY: 0 }
+  }
+  var scale = Math.min(1, iconSize / requestedIconSize)
+  var fittedFont = Math.round(fontSize * scale)
+  if (fittedFont < minFont) {
+    return { visible: false, scale: scale, fontSize: 1, minFontSize: minFont, padX: 0, padY: 0 }
+  }
+  return {
+    visible: true,
+    scale: scale,
+    fontSize: fittedFont,
+    minFontSize: minFont,
+    padX: Math.max(2, Math.round(padX * scale)),
+    padY: Math.max(1, Math.round(padY * scale))
+  }
+}
+
+function fitBadgeBox(badgeWidth, badgeHeight, iconWidth, iconHeight, fontSize, minFontSize) {
+  if (!(badgeWidth > 0) || !(badgeHeight > 0) || !(iconWidth > 0) || !(iconHeight > 0)) {
+    return { visible: false, scale: 1 }
+  }
+  var fit = Math.min(1, iconWidth / badgeWidth, iconHeight / badgeHeight)
+  var floor = Math.max(1, minFontSize || 1)
+  if ((fontSize || 0) * fit < floor) {
+    return { visible: false, scale: fit }
+  }
+  return { visible: true, scale: fit }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     fitSlots: fitSlots,
     workspaceBadgeNumber: workspaceBadgeNumber,
+    badgeMetrics: badgeMetrics,
+    fitBadgeBox: fitBadgeBox,
     normalizePosition: normalizePosition,
     isVertical: isVertical,
     normalizeId: normalizeId,

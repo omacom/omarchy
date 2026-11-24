@@ -55,6 +55,7 @@ PanelWindow {
   readonly property var slotMetrics: DockModel.fitSlots(requestedIconSize, Style.spacing.md, (dock ? dock.items.length : 0) + 1 + (insertIndex >= 0 ? 1 : 0), availableLength, body.hasWindowGroup ? window.groupGap : 0)
   readonly property real iconInset: slotMetrics.inset
   readonly property real slotSize: iconSize + iconInset * 2
+  readonly property var badgeMetrics: DockModel.badgeMetrics(iconSize, requestedIconSize, Style.font.bodySmall, Style.space(7), Style.space(3))
   // An app that is starting pulses down to this.
   readonly property real pulseOpacity: 0.7
   readonly property real groupGap: Style.space(24)
@@ -621,8 +622,12 @@ PanelWindow {
     }
 
     Item {
+      id: workspaceBadge
       // Badge shares the icon's geometry and animated transform.
-      visible: (window.dock && window.dock.instances) && appSlot.otherWorkspace > 0 && window.contentShown
+      readonly property var fit: DockModel.fitBadgeBox(
+        badgePill.width, badgePill.height, width, height,
+        window.badgeMetrics.fontSize, window.badgeMetrics.minFontSize)
+      visible: (window.dock && window.dock.instances) && appSlot.otherWorkspace > 0 && window.contentShown && window.badgeMetrics.visible && fit.visible
       x: appIcon.x
       y: appIcon.y
       width: appIcon.width
@@ -635,13 +640,16 @@ PanelWindow {
         y: window.vertical ? appSlot.displayedShift : 0
       }
       Rectangle {
+        id: badgePill
         anchors.left: parent.left
         anchors.top: parent.top
-        width: workspaceText.implicitWidth + Style.space(7)
-        height: workspaceText.implicitHeight + Style.space(3)
-        radius: Math.min(Style.cornerRadius, Style.spacing.sm)
+        width: workspaceText.implicitWidth + window.badgeMetrics.padX
+        height: workspaceText.implicitHeight + window.badgeMetrics.padY
+        scale: workspaceBadge.fit.scale
+        transformOrigin: Item.TopLeft
+        radius: Math.round(Math.min(Style.cornerRadius, Style.spacing.sm) * window.badgeMetrics.scale)
         color: Qt.rgba(Commons.Color.background.r, Commons.Color.background.g, Commons.Color.background.b, 0.92)
-        border.width: Math.max(1, Style.space(1))
+        border.width: Math.max(1, Math.round(Style.space(1) * window.badgeMetrics.scale))
         border.color: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.2)
         Text {
           id: workspaceText
@@ -650,7 +658,7 @@ PanelWindow {
           textFormat: Text.PlainText
           color: Commons.Color.foreground
           font.family: Style.font.family
-          font.pixelSize: Style.font.bodySmall
+          font.pixelSize: window.badgeMetrics.fontSize
           font.bold: true
         }
       }

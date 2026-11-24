@@ -63,6 +63,19 @@ const roomy = dock.fitSlots(36, 6, 4, 1280, 0)
 assertEqual(roomy.iconSize, 36, 'a dock that already fits keeps its normal icon size')
 assertEqual(roomy.inset, 6, 'a dock that already fits keeps its normal spacing')
 
+const roomyBadge = dock.badgeMetrics(roomy.iconSize, 36, 11, 7, 3)
+assert(roomyBadge.visible && roomyBadge.scale === 1 && roomyBadge.fontSize === 11 && roomyBadge.padX === 7 && roomyBadge.padY === 3, 'a roomy dock keeps full workspace badge size and padding')
+const crowdedSlots = dock.fitSlots(36, 6, 35, 1280, 24)
+const crowdedBadge = dock.badgeMetrics(crowdedSlots.iconSize, 36, 11, 7, 3)
+assert(crowdedBadge.visible && crowdedBadge.fontSize < 11 && crowdedBadge.padX < 7 && crowdedBadge.scale < 1, 'a moderately crowded dock scales workspace badge text and padding with its fitted slots')
+const crampedSlots = dock.fitSlots(36, 6, 60, 742, 24)
+const crampedBadge = dock.badgeMetrics(crampedSlots.iconSize, 36, 11, 7, 3)
+assert(!crampedBadge.visible && crampedBadge.fontSize >= 1, 'a severely crowded dock omits workspace badges instead of overlapping neighboring slots')
+const scaledBox = dock.fitBadgeBox(44, 24, 36, 36, 18, 7)
+assert(scaledBox.visible && 44 * scaledBox.scale <= 36 + 0.0001 && 24 * scaledBox.scale <= 36 + 0.0001, 'an oversized badge scales to stay within its icon bounds')
+const illegibleBox = dock.fitBadgeBox(28, 12, 16, 16, 7, 7)
+assert(!illegibleBox.visible, 'a badge that cannot fit its icon legibly is hidden instead of spilling into neighbors')
+
 const dockSource = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/Dock.qml', 'utf8')
 const keyBody = dockSource.match(/function appKey\(key\) \{([^}]+)\}/)[1]
 const pulseBody = dockSource.match(/function isLaunching\(key\) \{([^}]+)\}/)[1]
@@ -530,3 +543,123 @@ qml=qml.replace('METHODS',method(window,'settleShifts')+'\n'+method(window,'endD
 PY
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$qml_test_runner" -input "$TMPDIR/tst_dock_release.qml"
 pass "manual dock release commits grid positions before deferred motion resumes"
+
+ROOT="$ROOT" TEST_TMP="$TMPDIR" python - <<'PY'
+from pathlib import Path
+import os, re
+root = Path(os.environ['ROOT'])
+dest = Path(os.environ['TEST_TMP'])
+stubs = dest / 'Stubs'
+stubs.mkdir(exist_ok=True)
+(stubs / 'qmldir').write_text(
+    'singleton Style 1.0 Style.qml\n'
+    'singleton Color 1.0 Color.qml\n'
+    'singleton I18n 1.0 I18n.qml\n'
+)
+(stubs / 'Style.qml').write_text('''pragma Singleton
+import QtQuick
+QtObject {
+  property int cornerRadius: 4
+  property var spacing: ({ sm: 4 })
+  property var font: ({ family: "monospace", bodySmall: 11 })
+  function space(n) { return n }
+}
+''')
+(stubs / 'Color.qml').write_text('''pragma Singleton
+import QtQuick
+QtObject {
+  property color background: Qt.rgba(0, 0, 0, 1)
+  property color foreground: Qt.rgba(1, 1, 1, 1)
+}
+''')
+(stubs / 'I18n.qml').write_text('''pragma Singleton
+import QtQuick
+QtObject {
+  function formatNumber(n) { return String(n) }
+}
+''')
+window = (root / 'shell/plugins/dock/DockWindow.qml').read_text()
+badge_metrics_prop = re.search(r'  readonly property var badgeMetrics:[^\n]+', window).group()
+badge_item = re.search(r'    Item \{\n      id: workspaceBadge[\s\S]*?\n    \}', window).group()
+dock_model_url = (root / 'shell/plugins/dock/DockModel.js').resolve().as_uri()
+qml = f'''import QtQuick
+import QtTest
+import "Stubs"
+import "Stubs" as Commons
+import "{dock_model_url}" as DockModel
+
+Item {{
+  id: window
+  width: 240; height: 80
+  property var dock: ({{ instances: true }})
+  property bool vertical: false
+  property bool contentShown: true
+  property int popOrigin: Item.Bottom
+  property real requestedIconSize: 36
+  property real iconSize: 36
+  property real iconInset: 6
+  property real slotSize: iconSize + iconInset * 2
+{badge_metrics_prop}
+  Item {{
+    id: appSlot
+    width: window.slotSize; height: window.slotSize
+    property int otherWorkspace: 11
+    property real displayedShift: 0
+    Item {{
+      id: appIcon
+      x: (appSlot.width - width) / 2
+      y: window.iconInset
+      width: window.iconSize
+      height: window.iconSize
+      scale: 1
+    }}
+{badge_item}
+  }}
+  TestCase {{
+    name: "DockWorkspaceBadge"
+    when: windowShown
+    function test_workspace_badge_scales_and_never_overflows_crowded_slots() {{
+      var roomyFit = DockModel.fitSlots(36, 6, 4, 1280, 24)
+      window.iconSize = roomyFit.iconSize
+      window.iconInset = roomyFit.inset
+      wait(0)
+      verify(workspaceBadge.visible)
+      var roomyWidth = badgePill.width * badgePill.scale
+      var roomyHeight = badgePill.height * badgePill.scale
+      verify(roomyWidth <= appIcon.width + 0.001)
+      verify(roomyHeight <= appIcon.height + 0.001)
+
+      var crowdedFit = DockModel.fitSlots(36, 6, 38, 1280, 24)
+      window.iconSize = crowdedFit.iconSize
+      window.iconInset = crowdedFit.inset
+      wait(0)
+      verify(workspaceBadge.visible)
+      var crowdedWidth = badgePill.width * badgePill.scale
+      var crowdedHeight = badgePill.height * badgePill.scale
+      verify(crowdedWidth < roomyWidth)
+      verify(crowdedWidth <= appIcon.width + 0.001)
+      verify(crowdedHeight <= appIcon.height + 0.001)
+
+      var crampedFit = DockModel.fitSlots(36, 6, 60, 742, 24)
+      window.iconSize = crampedFit.iconSize
+      window.iconInset = crampedFit.inset
+      wait(0)
+      verify(!workspaceBadge.visible)
+
+      window.iconSize = 36
+      window.iconInset = 6
+      appSlot.otherWorkspace = 9999
+      Style.font = {{ family: "monospace", bodySmall: 20 }}
+      wait(0)
+      verify(workspaceBadge.visible)
+      verify(badgePill.scale < 1)
+      verify(badgePill.width * badgePill.scale <= appIcon.width + 0.001)
+      verify(badgePill.height * badgePill.scale <= appIcon.height + 0.001)
+    }}
+  }}
+}}
+'''
+(dest / 'tst_dock_badge.qml').write_text(qml)
+PY
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$qml_test_runner" -input "$TMPDIR/tst_dock_badge.qml"
+pass "crowded dock workspace badges scale within icon bounds and hide when cramped"
