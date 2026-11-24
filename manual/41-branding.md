@@ -20,11 +20,13 @@ You can change the logo used for the screensaver under _Appearance > Branding > 
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
+Each theme can ship its own screensaver art, so the art changes when you switch themes. The theme art shows when you have no art of your own. Your own art always wins, on every theme. Art counts as your own when `~/.config/omarchy/branding/screensaver.txt` differs from the Omarchy logo. A theme without art shows the Omarchy logo.
+
 There are three entries in that menu:
 
 - **Edit Text** opens `~/.config/omarchy/branding/screensaver.txt` in your editor. Type or paste whatever you like — ASCII art, your name, a rude word. Save and quit, and the screensaver fires up immediately so you can see it.
 - **Set From Image** opens a file picker for a png or svg, converts it to ASCII, and shows you the result. Logos with a clear silhouette work far better than photos.
-- **Restore Default** puts the Omarchy logo back.
+- **Restore Default** removes your own art. The screensaver shows the theme art, or the Omarchy logo on a theme without art.
 
 ### About screen
 

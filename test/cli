@@ -1021,3 +1021,30 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+# The screensaver launcher picks its art: caller -i, customized user file, theme art, bundled art.
+make_tmpdir SAVER_DIR
+mkdir -p "$SAVER_DIR/home/.config/omarchy/branding" "$SAVER_DIR/home/.local/state/omarchy/current/theme" "$SAVER_DIR/omarchy"
+printf 'logo\n' >"$SAVER_DIR/omarchy/logo.txt"
+printf '#!/bin/bash\necho "$*"\n' >"$SAVER_DIR/stub"
+chmod +x "$SAVER_DIR/stub"
+sed "s#/usr/lib/omarchy-screensaver/omarchy-screensaver#$SAVER_DIR/stub#" "$ROOT/bin/omarchy-launch-screensaver" >"$SAVER_DIR/launch"
+chmod +x "$SAVER_DIR/launch"
+saver() { HOME="$SAVER_DIR/home" OMARCHY_PATH="$SAVER_DIR/omarchy" "$SAVER_DIR/launch" "$@"; }
+theme_art="$SAVER_DIR/home/.local/state/omarchy/current/theme/screensaver.txt"
+user_art="$SAVER_DIR/home/.config/omarchy/branding/screensaver.txt"
+
+[[ $(saver force) == "force" ]] || fail "the launcher adds no art when none exists"
+printf 'theme\n' >"$theme_art"
+[[ $(saver force) == "-i $theme_art force" ]] || fail "the launcher uses the theme art when the user has no art"
+cp "$SAVER_DIR/omarchy/logo.txt" "$user_art"
+[[ $(saver force) == "-i $theme_art force" ]] || fail "a user file identical to logo.txt does not count as customized"
+printf 'mine\n' >"$user_art"
+[[ $(saver force) == "force" ]] || fail "a customized user file wins over the theme art"
+cp "$SAVER_DIR/omarchy/logo.txt" "$user_art"
+[[ $(saver force -ix) == "force -ix" ]] || fail "the attached form -ifile counts as caller input"
+: >"$theme_art"
+[[ $(saver force) == "force" ]] || fail "an empty theme art file falls back to the bundled art"
+printf 'theme\n' >"$theme_art"
+[[ $(saver force --input /x) == "force --input /x" ]] || fail "the caller input wins over the theme art"
+pass "the screensaver launcher picks the art in order"
