@@ -1,0 +1,7 @@
+# Crates from ByteDance's rsproxy, which mainland China reaches where
+# crates.io is slow (docs/regions.md).
+[source.crates-io]
+replace-with = "rsproxy-sparse"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
