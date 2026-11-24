@@ -171,18 +171,25 @@ if is_validity_fingerprint; then
     omarchy-pkg-add usbutils
   fi
 
+  repair_cmd=omarchy-fingerprint-repair
+  if ! command -v "$repair_cmd" >/dev/null 2>&1 && [[ -x "$OMARCHY_PATH/bin/omarchy-fingerprint-repair" ]]; then
+    repair_cmd="$OMARCHY_PATH/bin/omarchy-fingerprint-repair"
+  fi
+  if ! command -v "$repair_cmd" >/dev/null 2>&1; then
+    echo -e "\e[31mMissing omarchy-fingerprint-repair.\e[0m" >&2
+    exit 1
+  fi
+
+  # The packaged python-validity rule enables 2s USB autosuspend. The reader
+  # can suspend while waiting for a finger and drop off the bus mid-capture,
+  # so install the override up front instead of only when a repair is needed.
+  "$repair_cmd" --udev-only
+
   # Healthy sensors should be tried directly; factory reset only runs when
   # the sensor cannot be opened. A reset also clears enrolled prints.
   if ! fprintd-list "$USER" >/dev/null 2>&1; then
     echo "Sensor not reachable; repairing it first..."
-    if command -v omarchy-fingerprint-repair >/dev/null 2>&1; then
-      omarchy-fingerprint-repair
-    elif [[ -x "$OMARCHY_PATH/bin/omarchy-fingerprint-repair" ]]; then
-      "$OMARCHY_PATH/bin/omarchy-fingerprint-repair"
-    else
-      echo -e "\e[31mMissing omarchy-fingerprint-repair.\e[0m" >&2
-      exit 1
-    fi
+    "$repair_cmd"
   fi
 
   if ! fprintd-list "$USER" >/dev/null 2>&1; then

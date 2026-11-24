@@ -15,6 +15,43 @@ if ! omarchy-cmd-present omarchy-hw-fingerprint-validity || ! omarchy-hw-fingerp
   exit 1
 fi
 
+udev_only=0
+[[ ${1:-} == "--udev-only" ]] && udev_only=1
+
+install_validity_udev_rule() {
+  # Persistent udev override: never autosuspend the sensor. The packaged
+  # python-validity rule enables 2s USB autosuspend, which lets the reader
+  # suspend while waiting for a finger and drop off the bus mid-capture.
+  cat > /etc/udev/rules.d/60-python-validity.rules <<'EOF'
+SUBSYSTEM!="usb", GOTO="python_validity_end"
+ENV{DEVTYPE}!="usb_device", GOTO="python_validity_end"
+
+ATTRS{idVendor}=="138a", ATTRS{idProduct}=="0090", GOTO="python_validity_match"
+ATTRS{idVendor}=="138a", ATTRS{idProduct}=="0097", GOTO="python_validity_match"
+ATTRS{idVendor}=="138a", ATTRS{idProduct}=="009d", GOTO="python_validity_match"
+ATTRS{idVendor}=="06cb", ATTRS{idProduct}=="009a", GOTO="python_validity_match"
+
+GOTO="python_validity_end"
+
+LABEL="python_validity_match"
+
+ACTION=="add|change", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add|change", TEST=="power/autosuspend", ATTR{power/autosuspend}="-1"
+ACTION=="add", RUN+="/bin/systemctl --no-block start python3-validity.service"
+ACTION=="remove", RUN+="/bin/systemctl --no-block stop python3-validity.service"
+
+LABEL="python_validity_end"
+EOF
+  udevadm control --reload 2>/dev/null || true
+  udevadm trigger --subsystem-match=usb --action=change 2>/dev/null || true
+}
+
+if (( udev_only )); then
+  echo "Omarchy Validity fingerprint: installing USB power-management override..."
+  install_validity_udev_rule
+  exit 0
+fi
+
 echo "Omarchy Validity fingerprint repair: resetting sensor and restoring services..."
 
 service_unit=/etc/systemd/system/python3-validity.service
@@ -133,29 +170,7 @@ restore_service_unit
 sleep 15
 trap - EXIT
 
-# Persistent udev override: never autosuspend the sensor.
-cat > /etc/udev/rules.d/60-python-validity.rules <<'EOF'
-SUBSYSTEM!="usb", GOTO="python_validity_end"
-ENV{DEVTYPE}!="usb_device", GOTO="python_validity_end"
-
-ATTRS{idVendor}=="138a", ATTRS{idProduct}=="0090", GOTO="python_validity_match"
-ATTRS{idVendor}=="138a", ATTRS{idProduct}=="0097", GOTO="python_validity_match"
-ATTRS{idVendor}=="138a", ATTRS{idProduct}=="009d", GOTO="python_validity_match"
-ATTRS{idVendor}=="06cb", ATTRS{idProduct}=="009a", GOTO="python_validity_match"
-
-GOTO="python_validity_end"
-
-LABEL="python_validity_match"
-
-ACTION=="add|change", TEST=="power/control", ATTR{power/control}="on"
-ACTION=="add|change", TEST=="power/autosuspend", ATTR{power/autosuspend}="-1"
-ACTION=="add", RUN+="/bin/systemctl --no-block start python3-validity.service"
-ACTION=="remove", RUN+="/bin/systemctl --no-block stop python3-validity.service"
-
-LABEL="python_validity_end"
-EOF
-udevadm control --reload 2>/dev/null || true
-udevadm trigger --subsystem-match=usb --action=change 2>/dev/null || true
+install_validity_udev_rule
 
 # Persistent firmware drop-in.
 mkdir -p /etc/systemd/system/python3-validity.service.d
