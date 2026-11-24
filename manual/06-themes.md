@@ -1,8 +1,8 @@
 # Themes
 
-Omarchy comes with twenty-two beautiful themes. You can select between them via _Appearance > Theme_ in the Omarchy Menu (`Super + Space`) or hop directly to the theme selector using `Super + Ctrl + T`.
+Omarchy comes with twenty-three beautiful themes. You can select between them via _Appearance > Theme_ in the Omarchy Menu (`Super + Space`) or hop directly to the theme selector using `Super + Ctrl + T`.
 
-Each theme styles the desktop, terminal, neovim, activity screen (btop), Chromium, and the entire Omarchy shell: top bar, menu, notifications, OSD, and the lock screen. (For Obsidian, you must manually select the Omarchy theme via _Appearance > Themes_ inside the app).
+Each theme styles the desktop, terminal, neovim, activity screen (btop), your browser (Chrome, Chromium, Edge or Brave), and the entire Omarchy shell: top bar, menu, notifications, OSD, and the lock screen. (For Obsidian, you must manually select the Omarchy theme via _Appearance > Themes_ inside the app).
 
 Themes have a set of background images that you can pick between using `Super + Ctrl + W`.
 
@@ -65,6 +65,18 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
 ### App icons
 
 The icons in the app launcher and dock are drawn in the colors of your theme, so they change along with it. They come from an icon set, which you pick separately from the theme under _Appearance > Icons_, from previews of each set, the same way you pick a theme:
@@ -108,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -128,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

@@ -63,6 +63,7 @@ from collectors import (  # noqa: E402
   open_json,
   open_limits,
   opencode_db,
+  opencode_credential_key,
   pi_session_roots,
   read_json,
   routed_match,
@@ -126,6 +127,7 @@ def api_key(config: dict[str, Any]) -> str:
   # the last resort for headless/refresh-timer runs without any.
   return (
     str(os.environ.get("OPENROUTER_API_KEY", "")).strip()
+    or opencode_credential_key("openrouter")
     or read_opencode_key(data_home() / "opencode" / "auth.json")
     or read_pi_key(pi_agent_dir() / "auth.json")
     or read_pi_key(Path.home() / ".omp" / "agent" / "auth.json")

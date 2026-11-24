@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Set how full a Claude, Codex, or Grok account gets before Omarchy offers to switch
+# omarchy:args=[claude|codex|grok] [percent]
+# omarchy:examples=omarchy agent account threshold | omarchy agent account threshold 90 | omarchy agent account threshold codex 90
+
+set -uo pipefail
+
+# The provider can be left out when it's your default agent:
+# `omarchy agent account threshold 90`.
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+  default=$(omarchy-default-agent)
+  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+fi
+
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+  echo "Usage: omarchy-agent-account-threshold [claude|codex|grok] [percent]" >&2
+  exit 1
+fi
+
+if [[ -n ${2:-} ]]; then
+  omarchy-agent-account-state threshold "$@" || exit 1
+fi
+
+omarchy-agent-account-state registry "$1" | jq -r '"\(.name) notifies at \(.threshold)% and switches when you say so."'
