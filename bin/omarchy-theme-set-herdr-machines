@@ -75,6 +75,6 @@ for target in $targets; do
   result=$(printf 'theme=%q from=%q\n%s\n' "$theme" "$(hostname)" "$REMOTE_SCRIPT" |
     timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=5 \
       -o ControlMaster=auto -o ControlPersist=600 -o "ControlPath=$control_dir/%C" \
-      "$target" bash -l -s 2>&1 | tail -n 1)
+      -- "$target" bash -l -s 2>&1 | tail -n 1)
   echo "$(date '+%F %T') $target: ${result:-unreachable}"
 done
