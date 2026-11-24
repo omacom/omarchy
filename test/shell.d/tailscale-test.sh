@@ -154,6 +154,59 @@ const stopped = tailscale.parseStatus(JSON.stringify({
 
 assert(stopped.ok && !stopped.running, 'tailscale parses stopped status')
 
+assert(!status.exitNodeOffline, 'tailscale reports no offline exit node without ExitNodeStatus')
+
+function exitNodeStatus(exitStatus, peers, backendState) {
+  return tailscale.parseStatus(JSON.stringify({
+    BackendState: backendState || 'Running',
+    Self: { HostName: 'laptop', DNSName: 'laptop.tail32f559.ts.net.', TailscaleIPs: ['100.74.97.73'] },
+    ExitNodeStatus: exitStatus,
+    Peer: peers || {}
+  }))
+}
+
+const homePeer = online => ({
+  ID: 'nHome',
+  HostName: 'home',
+  DNSName: 'home.tail32f559.ts.net.',
+  TailscaleIPs: ['100.100.137.86'],
+  Online: online,
+  OS: 'linux',
+  ExitNodeOption: true
+})
+const otherOfflineExit = {
+  ID: 'nOther',
+  HostName: 'other',
+  DNSName: 'other.tail32f559.ts.net.',
+  TailscaleIPs: ['100.1.1.9'],
+  Online: false,
+  OS: 'linux',
+  ExitNodeOption: true
+}
+
+const offlineExit = exitNodeStatus(
+  { ID: 'nHome', Online: false, TailscaleIPs: ['100.100.137.86/32'] },
+  { home: homePeer(false), other: otherOfflineExit }
+)
+assert(offlineExit.exitNodeOffline, 'tailscale flags the selected exit node while it is offline')
+assertEqual(offlineExit.exitNodeName, 'home', 'tailscale names the offline exit node from its peer row')
+assertDeepEqual(offlineExit.exitNodes.map(peer => peer.HostName), ['home'], 'tailscale keeps only the selected offline exit node listed')
+assert(offlineExit.exitNodes[0].ExitNode && !offlineExit.exitNodes[0].Online, 'tailscale marks the listed offline exit node as selected and offline')
+assertDeepEqual(offlineExit.peers, [], 'tailscale still hides offline machines from the machine list')
+
+const missingExit = exitNodeStatus({ ID: 'nGone', Online: false, TailscaleIPs: ['100.100.137.86/32', 'fd7a:115c:a1e0::1/128'] })
+assert(missingExit.exitNodeOffline, 'tailscale flags an offline exit node with no peer row')
+assertEqual(missingExit.exitNodeName, '100.100.137.86', 'tailscale names a missing exit node by its address')
+assertEqual(missingExit.exitNodeId, 'nGone', 'tailscale reports which exit node is selected')
+assertDeepEqual(missingExit.exitNodes, [], 'tailscale lists nothing for a missing exit node')
+
+const onlineExit = exitNodeStatus({ ID: 'nHome', Online: true, TailscaleIPs: ['100.100.137.86/32'] }, { home: homePeer(true) })
+assert(!onlineExit.exitNodeOffline, 'tailscale does not warn while the exit node is online')
+assert(onlineExit.exitNodes[0].ExitNode, 'tailscale marks the online exit node as selected')
+
+const stoppedExit = exitNodeStatus({ ID: 'nHome', Online: false }, { home: homePeer(false) }, 'Stopped')
+assert(!stoppedExit.exitNodeOffline, 'tailscale does not warn about the exit node while stopped')
+
 const accounts = tailscale.parseAccounts(JSON.stringify([
   {
     id: 'db1b',
@@ -260,6 +313,63 @@ const backfailRun = runPlan(tailscale.renamePlan('dd30', 'backfail', 'Good'))
 assertEqual(backfailRun.status, 9, 'switch-back failure is reported when nothing else failed')
 assert(backfailRun.calls.includes('switch backfail'), 'restoration attempt is the failed switch-back itself')
 assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'in-place rename failure is reported')
+
+// A status poll that was already running when an account switch ended makes
+// the refresh after the switch a no-op, and its own result is dropped as
+// stale. Drive the service's real functions to prove another poll follows.
+{
+  const service = require('fs').readFileSync(path.join(root, 'shell/plugins/panels/tailscale/Service.qml'), 'utf8')
+  const scoped = (args, body) => new Function('root', ...args, 'with (root) {' + body + '}')
+  const refreshBody = scoped(['forceAccounts', 'fullPeers'], service.match(/function refreshStatusAndAccounts\(forceAccounts, fullPeers\) \{([\s\S]*?)\n  \}/)[1])
+  const clearBody = scoped([], service.match(/function clearExitNodeStatus\(\) \{([\s\S]*?)\n  \}/)[1])
+  const exitedBody = scoped(['exitCode'], service.match(/id: statusProcess[\s\S]*?onExited: function\(exitCode\) \{([\s\S]*?)\n    \}/)[1])
+
+  function switchDuringPoll(peersWanted, switchStillRunning) {
+    const idle = () => ({ running: true, command: [] })
+    const state = {
+      installed: true, refreshing: false, peersWanted, accounts: [{}], lastError: '', parsed: 0,
+      _statusOutput: '', _statusError: '', _statusFullPeers: false, _pendingFullPeers: false,
+      _accountEpoch: 0, _statusEpoch: 0, _lastAccountsRefreshMs: Date.now(),
+      _mullvadExitNodesOutput: '', _mullvadExitNodesError: '', _accountsOutput: '', _accountsError: '',
+      exitNodeOffline: true, exitNodeName: 'home', exitNodeId: 'nHome',
+      statusProcess: { running: false, command: [] }, switchProcess: { running: false },
+      mullvadExitNodesProcess: idle(), accountsProcess: idle(),
+      statusStdout: { text: '{}' }, statusStderr: { text: '' },
+      pollWatchdog: { running: true, start() {} },
+      parseStatus() { state.parsed++ }, resetUnavailable() {},
+      refreshStatusAndAccounts: (forceAccounts, fullPeers) => refreshBody(state, forceAccounts, fullPeers)
+    }
+    state.root = state
+
+    state.refreshStatusAndAccounts(false, false)   // the periodic poll, account A
+    const before = state.statusProcess.command
+    state.switchProcess.running = true
+    clearBody(state)                               // switch starts
+    if (!switchStillRunning) {
+      state.switchProcess.running = false
+      clearBody(state)                             // switch ends
+      state.refreshStatusAndAccounts()             // delayed refresh, skipped: poll still running
+    }
+    state.statusProcess.command = []
+    state.statusProcess.running = false
+    exitedBody(state, 0)                           // account A's answer arrives
+    return { state, before }
+  }
+
+  const light = switchDuringPoll(false, false)
+  assertEqual(light.state.parsed, 0, 'tailscale drops a light status read before an account switch')
+  assert(light.state.statusProcess.running, 'tailscale polls again after dropping a light status from before a switch')
+  assertDeepEqual(light.state.statusProcess.command, light.before, 'tailscale keeps the replacement poll light')
+  assert(light.before.includes('--peers=false'), 'tailscale polls light while the panel is closed')
+
+  const full = switchDuringPoll(true, false)
+  assertEqual(full.state.parsed, 0, 'tailscale drops a full status read before an account switch')
+  assert(full.state.statusProcess.running, 'tailscale polls again after dropping a full status from before a switch')
+  assertDeepEqual(full.state.statusProcess.command, ['tailscale', 'status', '--json'], 'tailscale keeps the replacement poll full')
+
+  const midSwitch = switchDuringPoll(false, true)
+  assert(!midSwitch.state.statusProcess.running && midSwitch.state.parsed === 0, 'tailscale waits for the switch to end before polling again')
+}
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
