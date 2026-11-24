@@ -10,106 +10,47 @@ if [[ ${1:-} == "--install" ]]; then
   shift
 fi
 
-executable_present() {
-  if [[ $1 == */* ]]; then
-    [[ -x $1 ]]
-  else
-    type -P "$1" >/dev/null 2>&1
-  fi
+terminal_binary_for_desktop_id() {
+  case "$1" in
+  Alacritty.desktop) TERMINAL_BINARY="alacritty" ;;
+  foot.desktop) TERMINAL_BINARY="foot" ;;
+  com.mitchellh.ghostty.desktop) TERMINAL_BINARY="ghostty" ;;
+  kitty.desktop) TERMINAL_BINARY="kitty" ;;
+  *) return 1 ;;
+  esac
 }
 
-# Fast-path reading xdg-terminals.list directly in bash when called without args
-# (the menu guard hot path), avoiding xdg-terminal-exec's ~15ms shell scan for
-# the common Omarchy-managed config. Falls back to xdg-terminal-exec for
-# directives, exclusions, actions, or non-standard entries.
+# Fast-path reading Omarchy's xdg-terminals.list directly in bash when called
+# without args (the menu guard hot path), avoiding xdg-terminal-exec's ~15ms
+# shell scan for the standard config.
 fast_default_terminal() {
-  [[ -z ${XTE_EXECARG_COMPAT:-} && -z ${XTE_DEBUG:-} && -z ${XTE_CACHE_ENABLED:-} ]] || return 1
+  [[ -z ${XTE_EXECARG_COMPAT:-}${XTE_DEBUG:-}${XTE_CACHE_ENABLED:-} ]] || return 1
 
-  local list_dir desktop list line first_id="" binary data_dir entry
-  local in_entry categories try_exec exec_line exec_bin
-  local -a config_dirs data_dirs desktops list_dirs
+  local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local list="$config_dir/xdg-terminals.list"
+  local desktop line binary=""
+  local -a desktops
 
-  IFS=: read -ra config_dirs <<<"${XDG_CONFIG_HOME:-$HOME/.config}:${XDG_CONFIG_DIRS:-/etc/xdg}"
-  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
   IFS=: read -ra desktops <<<"${XDG_CURRENT_DESKTOP:-}"
-
-  list_dirs=("${config_dirs[@]}")
-  for data_dir in "${data_dirs[@]:1}"; do
-    [[ -n $data_dir ]] && list_dirs+=("$data_dir/xdg-terminal-exec")
+  for desktop in "${desktops[@]}"; do
+    [[ -n $desktop && -e $config_dir/${desktop,,}-xdg-terminals.list ]] && return 1
   done
 
-  for list_dir in "${list_dirs[@]}"; do
-    [[ -n $list_dir ]] || continue
-    for desktop in "${desktops[@]}" ""; do
-      list="$list_dir/${desktop:+${desktop,,}-}xdg-terminals.list"
-      [[ -r $list ]] || continue
+  [[ -r $list ]] || return 1
 
-      while IFS= read -r line || [[ -n $line ]]; do
-        line=${line%$'\r'}
-        line=${line#"${line%%[![:space:]]*}"}
-        [[ -z $line || $line == \#* ]] && continue
-        if [[ $line == /* ]]; then
-          [[ $line == /execarg_default:* ]] || return 1
-          continue
-        fi
-        if [[ -z $first_id ]]; then
-          case "$line" in
-          Alacritty.desktop) binary="alacritty" ;;
-          foot.desktop) binary="foot" ;;
-          com.mitchellh.ghostty.desktop) binary="ghostty" ;;
-          kitty.desktop) binary="kitty" ;;
-          *) return 1 ;;
-          esac
-          first_id=$line
-        elif [[ $line == "-$first_id" ]]; then
-          return 1
-        fi
-      done <"$list"
-    done
-  done
-
-  [[ -n $first_id ]] || return 1
-
-  for data_dir in "${data_dirs[@]}"; do
-    [[ -n $data_dir ]] || continue
-    entry="$data_dir/applications/$first_id"
-    [[ -r $entry ]] || continue
-
-    in_entry=0
-    categories=""
-    try_exec=""
-    exec_line=""
-    while IFS= read -r line || [[ -n $line ]]; do
-      line=${line%$'\r'}
-      line=${line#"${line%%[![:space:]]*}"}
-      if [[ $line =~ ^\[Desktop\ Entry\][[:blank:]]*$ ]]; then
-        in_entry=1
-      elif [[ $line == "["* ]]; then
-        (( in_entry )) && break
-      elif (( in_entry )); then
-        case "$line" in
-        Hidden*=* | OnlyShowIn*=* | NotShowIn*=*) return 1 ;;
-        Categories=*) categories=${line#Categories=} ;;
-        TryExec=*) try_exec=${line#TryExec=} ;;
-        Exec=*) exec_line=${line#Exec=} ;;
-        Categories*=* | TryExec*=* | Exec*=*) return 1 ;;
-        esac
-      fi
-    done <"$entry"
-
-    (( in_entry )) && [[ -n $exec_line && ";$categories;" == *";TerminalEmulator;"* ]] || return 1
-    if [[ -n $try_exec ]]; then
-      [[ $try_exec != *\\* ]] && executable_present "$try_exec" || return 1
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    line=${line#"${line%%[![:space:]]*}"}
+    [[ -z $line || $line == \#* ]] && continue
+    [[ $line == [/+-]* ]] && return 1
+    if [[ -z $binary ]]; then
+      terminal_binary_for_desktop_id "$line" || return 1
+      binary=$TERMINAL_BINARY
     fi
-    [[ $exec_line != [\"\'\\]* && $exec_line != *\\* ]] || return 1
-    exec_bin=${exec_line%%[[:space:]]*}
-    executable_present "$exec_bin" || return 1
+  done <"$list"
 
-    echo "$binary"
-    return 0
-  done
-
-  return 1
+  [[ -n $binary ]] && type -P "$binary" >/dev/null 2>&1 || return 1
+  echo "$binary"
 }
 
 if (($# == 0)); then
@@ -118,13 +59,11 @@ if (($# == 0)); then
   fi
   desktop_id=$(xdg-terminal-exec --print-id 2>/dev/null || true)
   desktop_id=${desktop_id%%:*}
-  case "$desktop_id" in
-  Alacritty.desktop) echo "alacritty" ;;
-  foot.desktop) echo "foot" ;;
-  com.mitchellh.ghostty.desktop) echo "ghostty" ;;
-  kitty.desktop) echo "kitty" ;;
-  *) echo "$desktop_id" ;;
-  esac
+  if terminal_binary_for_desktop_id "$desktop_id"; then
+    echo "$TERMINAL_BINARY"
+  else
+    echo "$desktop_id"
+  fi
   exit 0
 fi
 

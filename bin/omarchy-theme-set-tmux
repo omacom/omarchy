@@ -173,7 +173,7 @@ load_tmux_pane_ttys
 sync_theme_environment
 sync_colorfgbg
 sync_tmux_window_style
-queue_refresh_tmux_clients
-apply_tmux_commands
 sync_tmux_pane_colors
 signal_tmux_panes
+queue_refresh_tmux_clients
+apply_tmux_commands

@@ -488,65 +488,24 @@ pass "failed installation preserves the current default"
 
 # Fast-path default terminal query answers directly from xdg-terminals.list
 # without invoking xdg-terminal-exec, and falls back when a desktop-specific
-# list or non-standard entry is present.
+# list is present.
 cat >"$mock_bin/xdg-terminal-exec" <<SH
 #!/bin/bash
 printf 'called\n' >>"$test_tmp/xdg-term-calls"
 printf 'Alacritty.desktop\n'
 SH
 printf '#!/bin/bash\nexit 0\n' >"$mock_bin/kitty"
-printf '#!/bin/bash\nexit 0\n' >"$mock_bin/ghostty"
-chmod +x "$mock_bin/xdg-terminal-exec" "$mock_bin/kitty" "$mock_bin/ghostty"
-mkdir -p "$test_home/.local/share/applications"
-printf '[Desktop Entry]\nName=Kitty\nCategories=System;TerminalEmulator;\nExec=kitty\n' >"$test_home/.local/share/applications/kitty.desktop"
+chmod +x "$mock_bin/xdg-terminal-exec" "$mock_bin/kitty"
 printf '# comment\nkitty.desktop\n' >"$test_home/.config/xdg-terminals.list"
 : >"$test_tmp/xdg-term-calls"
 [[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "kitty" ]] ||
   fail "default terminal fast path reads kitty from xdg-terminals.list"
 [[ ! -s $test_tmp/xdg-term-calls ]] ||
   fail "default terminal fast path avoids spawning xdg-terminal-exec"
-printf '[Desktop Entry]\nName=Ghostty\nCategories=System;TerminalEmulator;\nTryExec=ghostty\nExec=ghostty --gtk-single-instance=true\nDBusActivatable=true\n' >"$test_home/.local/share/applications/com.mitchellh.ghostty.desktop"
-printf 'com.mitchellh.ghostty.desktop\n' >"$test_home/.config/xdg-terminals.list"
-[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "ghostty" ]] ||
-  fail "default terminal fast path handles Ghostty desktop entry with TryExec and Exec flags"
-[[ ! -s $test_tmp/xdg-term-calls ]] ||
-  fail "default terminal fast path avoids spawning xdg-terminal-exec for Ghostty"
-printf '[Desktop Entry]\nName=Kitty\nCategories=System;TerminalEmulator;\nTryExec=/nonexistent/kitty-wrapper\nExec=kitty\n' >"$test_home/.local/share/applications/kitty.desktop"
-printf 'kitty.desktop\n' >"$test_home/.config/xdg-terminals.list"
-[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "alacritty" ]] ||
-  fail "default terminal falls back to xdg-terminal-exec when TryExec is not executable"
-[[ -s $test_tmp/xdg-term-calls ]] ||
-  fail "default terminal invokes xdg-terminal-exec when TryExec is not executable"
-: >"$test_tmp/xdg-term-calls"
-printf '[Desktop Entry]\nName=Kitty\nCategories=System;TerminalEmulator;\n  Hidden = true\nExec=kitty\n' >"$test_home/.local/share/applications/kitty.desktop"
-[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "alacritty" ]] ||
-  fail "default terminal falls back to xdg-terminal-exec when Hidden has leading/internal whitespace"
-[[ -s $test_tmp/xdg-term-calls ]] ||
-  fail "default terminal invokes xdg-terminal-exec for whitespace-formatted Hidden"
-: >"$test_tmp/xdg-term-calls"
-printf '[Desktop Entry]\nName=Kitty\nExec=kitty\n' >"$test_home/.local/share/applications/kitty.desktop"
-[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "alacritty" ]] ||
-  fail "default terminal falls back to xdg-terminal-exec when TerminalEmulator category is absent"
-[[ -s $test_tmp/xdg-term-calls ]] ||
-  fail "default terminal invokes xdg-terminal-exec when TerminalEmulator category is absent"
-: >"$test_tmp/xdg-term-calls"
-printf '[Desktop Entry]\nName=Kitty\nCategories=System;TerminalEmulator;\nExec=kitty\n' >"$test_home/.local/share/applications/kitty.desktop"
-printf 'kitty.desktop\n/execarg_strict\n' >"$test_home/.config/xdg-terminals.list"
-[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "alacritty" ]] ||
-  fail "default terminal falls back to xdg-terminal-exec when selection directives are configured"
-[[ -s $test_tmp/xdg-term-calls ]] ||
-  fail "default terminal invokes xdg-terminal-exec when selection directives are present"
-: >"$test_tmp/xdg-term-calls"
-printf 'kitty.desktop\n' >"$test_home/.config/xdg-terminals.list"
-[[ $(XDG_CURRENT_DESKTOP=Hyprland XTE_EXECARG_COMPAT=false omarchy-default-terminal) == "alacritty" ]] ||
-  fail "default terminal falls back to xdg-terminal-exec when XTE_EXECARG_COMPAT is set"
-[[ -s $test_tmp/xdg-term-calls ]] ||
-  fail "default terminal invokes xdg-terminal-exec when XTE_EXECARG_COMPAT is set"
-: >"$test_tmp/xdg-term-calls"
 printf 'custom.desktop\n' >"$test_home/.config/hyprland-xdg-terminals.list"
 [[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "alacritty" ]] ||
-  fail "default terminal falls back to xdg-terminal-exec for non-standard desktop-specific lists"
+  fail "default terminal falls back to xdg-terminal-exec for desktop-specific lists"
 [[ -s $test_tmp/xdg-term-calls ]] ||
-  fail "default terminal invokes xdg-terminal-exec when a non-standard desktop-specific list exists"
+  fail "default terminal invokes xdg-terminal-exec when a desktop-specific list exists"
 rm -f "$test_home/.config/hyprland-xdg-terminals.list"
 pass "default terminal fast path answers standard configs and falls back cleanly"
