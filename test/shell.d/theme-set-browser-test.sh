@@ -31,7 +31,7 @@ chmod +x "$TMP_BIN/omarchy-theme-set-browser-policy"
 # skip everything.
 policy_tmp="$TMPDIR/policies"
 mkdir -p "$policy_tmp"
-printf '{"BrowserThemeColor": "#1c2027", "BrowserColorScheme": "device"}\n' > "$policy_tmp/color.json"
+printf '{"BrowserThemeColor": "#1c2027"}\n' > "$policy_tmp/color.json"
 
 # A test cannot make a root-owned file, so stat reports the owner the writer
 # leaves behind, or a user-owned one.
@@ -52,6 +52,20 @@ if [[ -e $CALL_LOG ]]; then
   fail "setter skipped the privileged write when color.json already matches"
 fi
 pass "setter skips the privileged write when color.json already matches"
+
+# A file the current writer would never produce is stale even when its colour
+# matches: BrowserColorScheme is not a Chromium policy, so a file still
+# carrying it must be rewritten rather than treated as up to date.
+printf '{"BrowserThemeColor": "#1c2027", "BrowserColorScheme": "device"}\n' > "$policy_tmp/color.json"
+
+HOME="$TMPDIR" PATH="$stat_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" STAT_OWNER="root:root 644" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+
+if [[ ! -e $CALL_LOG ]]; then
+  fail "setter rewrites a color.json that still carries the dropped BrowserColorScheme key"
+fi
+pass "setter rewrites a color.json that still carries the dropped BrowserColorScheme key"
 
 # The same color in a file the writer did not leave behind is not trusted.
 HOME="$TMPDIR" PATH="$stat_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" STAT_OWNER="user:user 666" \

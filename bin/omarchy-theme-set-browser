@@ -36,7 +36,11 @@ file_is_canonical() {
 # existing managed color.json is already canonical. The writer only touches
 # directories that exist, so a browser installed since then has no color.json
 # yet and takes the write.
-expected_json='{"BrowserThemeColor": "'$THEME_HEX_COLOR'", "BrowserColorScheme": "device"}'
+#
+# Canonical is the theme colour alone: a file that still carries the retired
+# BrowserColorScheme key is stale, so the writer is asked to rewrite it rather
+# than leaving an unknown policy in place.
+expected_json='{"BrowserThemeColor": "'$THEME_HEX_COLOR'"}'
 saw_any=false
 all_unchanged=true
 for dir in "${POLICY_DIRS[@]}"; do

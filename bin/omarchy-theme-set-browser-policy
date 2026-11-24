@@ -96,7 +96,10 @@ for policy_dir in "${POLICY_DIRS[@]}"; do
     failed=1
     continue
   }
-  printf '{"BrowserThemeColor": "#%s", "BrowserColorScheme": "device"}\n' "$color" >"$staged"
+  # Chromium has no BrowserColorScheme policy: writing one puts an unknown key
+  # in the managed file, which chrome://policy reports as an error. The browser
+  # keeps following the desktop through its own Mode setting instead.
+  printf '{"BrowserThemeColor": "#%s"}\n' "$color" >"$staged"
 
   if [[ -L $dest || -d $dest ]]; then
     if ! rm -rf -- "$dest"; then
