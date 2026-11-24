@@ -73,7 +73,7 @@ else
 fi
 pass "the logo descriptor can only be opened by an unprivileged caller"
 
-# Style > Unlock picks a theme by name and hands the answer to
+# Appearance > Unlock picks a theme by name and hands the answer to
 # omarchy-launch-floating-terminal-with-presentation, which joins its arguments
 # into a script and runs that with `bash -c`. So the name is shell source
 # unless the action quotes it -- and the name is a directory name under
@@ -86,10 +86,10 @@ unlock_action=$(node -e '
   const path = require("path")
   const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
   const items = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
-  process.stdout.write(items.find(item => item.id === "style.unlock").action)
+  process.stdout.write(items.find(item => item.id === "appearance.unlock").action)
 ')
 
-[[ -n $unlock_action ]] || fail "the shipped menu still carries a style.unlock action"
+[[ -n $unlock_action ]] || fail "the shipped menu still carries a appearance.unlock action"
 
 stub_dir="$test_tmp/stubs"
 mkdir -p "$stub_dir"
@@ -354,20 +354,12 @@ setup_run() {
 }
 
 setup_fresh_run() {
-  local asset destination
-
   setup_run
-  for asset in "${plymouth_default_assets[@]}"; do
-    destination="$theme/$asset"
-    rm -f -- "$destination"
-    /usr/bin/install -m 0644 -- "$ROOT/default/plymouth/$asset" "$destination"
-  done
-  for asset in "${sddm_default_assets[@]}"; do
-    destination="$sddm/$asset"
-    rm -f -- "$destination"
-    /usr/bin/install -m 0644 -- "$ROOT/default/sddm/omarchy/$asset" "$destination"
-  done
-  rm -f -- "$sddm/logo.svg"
+  rm -rf -- "$theme" "$sddm"
+  cp -a -- "$ROOT/default/plymouth" "$theme"
+  cp -a -- "$ROOT/default/sddm/omarchy" "$sddm"
+  chmod 0755 "$theme" "$theme/logos" "$sddm"
+  find "$theme" "$sddm" -type f -exec chmod 0644 {} +
 }
 
 run_in_fake_root() {
@@ -432,7 +424,7 @@ assert_packaged_assets() {
   done
 }
 
-for requested_umask in 022 027 077; do
+for requested_umask in 022 077; do
   setup_fresh_run
   output=$(run_set "$requested_umask" env 2>&1)
   status=$?

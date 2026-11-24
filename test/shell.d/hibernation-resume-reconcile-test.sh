@@ -13,6 +13,7 @@ sed '/^if ! $FORCE; then/,$d' "$ROOT/bin/omarchy-hibernation-setup" |
   sed -e "s|/sys/power/image_size|$test_tmp/image_size|g" \
     -e "s|/etc/mkinitcpio.conf.d/omarchy_resume.conf|$test_tmp/mkinitcpio.conf|g" \
     -e "s|/etc/limine-entry-tool.d/resume.conf|$test_tmp/resume.conf|g" \
+    -e "s|/var/lib/omarchy|$test_tmp/var-lib|g" \
     -e "s|/swap/swapfile|$test_tmp/swapfile|g" >"$test_tmp/setup"
 
 sudo() {
@@ -57,9 +58,8 @@ pass "invalid mappings fail without replacing boot configuration"
 
 printf '# Custom setting\n' >>"$test_tmp/resume.conf"
 cp "$test_tmp/resume.conf" "$test_tmp/before"
-if bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
-  fail "custom resume drop-ins require manual reconciliation"
-fi
+bash "$test_tmp/setup" >"$test_tmp/output" 2>&1 || fail "custom resume drop-ins do not block migrations"
+grep -q "update its resume parameters manually" "$test_tmp/output" || fail "custom settings report manual reconciliation"
 cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "custom settings survive"
 pass "custom drop-ins are preserved"
 
@@ -82,7 +82,7 @@ rm "$test_tmp/resume.conf"
 if TEST_REBUILD_STATUS=1 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
   fail "rebuild failures are reported"
 fi
-[[ ! -e $test_tmp/resume.conf ]] || fail "failed rebuild restores the missing drop-in state"
+[[ -s $test_tmp/resume.conf && -e $test_tmp/var-lib/hibernation-resume-rebuild ]] || fail "failed rebuild keeps the repaired drop-in and pending marker"
 bash "$test_tmp/setup" >"$test_tmp/output"
 [[ -s $test_tmp/resume.conf ]] || fail "missing resume drop-in is recreated"
 [[ $(wc -l <"$test_tmp/rebuilds") == 3 ]] || fail "retry rebuilds after a failed first attempt"
@@ -92,10 +92,11 @@ cp "$test_tmp/resume.conf" "$test_tmp/before"
 if TEST_OFFSET=999 TEST_REBUILD_STATUS=1 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
   fail "failed rebuild returns failure for an existing drop-in"
 fi
-cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "failed rebuild restores previous parameters"
+grep -q 'resume_offset=999"$' "$test_tmp/resume.conf" || fail "failed rebuild retains the new parameters"
+[[ -e $test_tmp/var-lib/hibernation-resume-rebuild ]] || fail "failed rebuild remains pending"
 TEST_OFFSET=999 bash "$test_tmp/setup" >"$test_tmp/output"
 [[ $(wc -l <"$test_tmp/rebuilds") == 5 ]] || fail "retry rebuilds existing configuration after failure"
-pass "existing parameters survive failed rebuilds and retries rebuild again"
+pass "updated parameters survive failed rebuilds and retries rebuild again"
 
 # The installer runs first-time setup with --force --no-rebuild and aborts on failure.
 mkdir -p "$test_tmp/mkinitcpio.conf.d" "$test_tmp/system-sleep"
@@ -106,6 +107,7 @@ sed -e "s|/sys/power/image_size|$test_tmp/image_size|g" \
   -e "s|/etc/fstab|$test_tmp/fstab|g" \
   -e "s|/usr/lib/systemd/system-sleep|$test_tmp/system-sleep|g" \
   -e "s|/sys/power/mem_sleep|$test_tmp/mem_sleep|g" \
+  -e "s|/var/lib/omarchy|$test_tmp/var-lib|g" \
   -e "s|/swap/swapfile|$test_tmp/swapfile|g" \
   "$ROOT/bin/omarchy-hibernation-setup" >"$test_tmp/fresh-setup"
 swapon() { :; }
@@ -132,8 +134,9 @@ rebuilds=$(wc -l <"$test_tmp/rebuilds")
 if TEST_OFFSET=777 TEST_SKIPPED_BUILD=1 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
   fail "skipping a failed kernel build is not a successful rebuild"
 fi
-cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "a skipped build restores the previous drop-in"
+grep -q 'resume_offset=777"$' "$test_tmp/resume.conf" || fail "a skipped build retains the new parameters"
+[[ -e $test_tmp/var-lib/hibernation-resume-rebuild ]] || fail "a skipped build remains pending"
 TEST_OFFSET=777 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1 || fail "setup retries after a skipped build"
 (( $(wc -l <"$test_tmp/rebuilds") == rebuilds + 2 )) || fail "a skipped build remains retryable"
 grep -q 'resume_offset=777' "$test_tmp/resume.conf" || fail "a successful retry keeps the new offset"
-pass "a successful exit with a skipped build rolls back and retries"
+pass "a successful exit with a skipped build remains pending and retries"

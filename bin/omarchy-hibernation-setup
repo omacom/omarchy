@@ -2,16 +2,29 @@
 
 # omarchy:summary=Set up hibernation with swap and boot resume configuration
 # omarchy:requires-sudo=true
-# omarchy:args=[--force] [--no-rebuild]
+# omarchy:args=[--force] [--no-rebuild] [--experimental]
 
 FORCE=false
 NO_REBUILD=false
+EXPERIMENTAL=false
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
     --no-rebuild) NO_REBUILD=true ;;
+    --experimental) EXPERIMENTAL=true ;;
   esac
 done
+
+# Resume is Limine-oriented and hibernate is unreliable on Asahi.
+if omarchy-hw-aarch64-apple; then
+  echo "Skipping hibernation setup (not supported on Apple Silicon)"
+  exit 0
+fi
+
+if omarchy-sleep-disabled; then
+  echo "Hibernation is turned off on this machine" >&2
+  exit 0
+fi
 
 if [[ ! -f /sys/power/image_size ]]; then
   echo -e "Hibernation is not supported on your system" >&2
@@ -29,6 +42,23 @@ fi
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+RESUME_REBUILD_PENDING="/var/lib/omarchy/hibernation-resume-rebuild"
+
+# On the ARM computers hibernation is still being brought up: on most models the
+# machine resets when it resumes and the session is lost. So the installer does
+# not set it up there, whatever the kernel offers. An owner who wants to try it
+# asks with --experimental, and a machine set up that way is kept up by later
+# runs without the flag. A factory reset removes the resume hook before it calls
+# setup and expects the swap file back, so the swap file's line in /etc/fstab
+# counts as set up too.
+arm_set_up_before() {
+  [[ -f $MKINITCPIO_CONF ]] || grep -Fq "$SWAP_FILE" /etc/fstab 2>/dev/null
+}
+
+if omarchy-hw-aarch64 && ! $EXPERIMENTAL && ! arm_set_up_before; then
+  echo "Skipping hibernation setup (still experimental on ARM computers; omarchy-hibernation-setup --experimental sets it up)"
+  exit 0
+fi
 
 install_root_file() {
   local source="$1"
@@ -59,17 +89,40 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
+# The device resume= names for the filesystem holding the swapfile. A kernel name
+# such as /dev/nvme0n1p2 follows probe order, so on a machine with two NVMe disks
+# it can name the other disk at the next boot, and resume then finds no image.
+# The filesystem UUID names the same disk on every boot. A device-mapper name is
+# set by whoever opened it (/dev/mapper/root on an encrypted install), so it stays.
+resume_device() {
+  local source uuid
+
+  source=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
+  if [[ $source != /dev/mapper/* ]] && uuid=$(findmnt -no UUID -T "$SWAP_FILE") && [[ -n $uuid ]]; then
+    echo "UUID=$uuid"
+  else
+    echo "$source"
+  fi
+}
+
 reconcile_resume_parameters() {
   local device offset desired current staged
-  RESUME_CHANGED=false
-  RESUME_PREVIOUS=""
 
-  if ! device=$(findmnt -no SOURCE -T "$SWAP_FILE") || [[ -z $device ]]; then
-    echo "Could not determine the device containing $SWAP_FILE" >&2
-    return 1
+  if [[ -f $RESUME_DROP_IN ]]; then
+    current=$(<"$RESUME_DROP_IN")
+    # Only replace the single line this command owns; custom content stays intact.
+    if [[ ! $current =~ ^KERNEL_CMDLINE\[default\]\+=\"\ ?resume=[^\"[:space:]]*\ resume_offset=[0-9]*\"$ ]]; then
+      echo "Custom resume configuration in $RESUME_DROP_IN; update its resume parameters manually." >&2
+      return 0
+    fi
   fi
-  device=${device%%\[*}
-  if [[ ! $device =~ ^/dev/[[:alnum:]_./:+-]+$ ]] ||
+  if [[ ! -f $SWAP_FILE ]]; then
+    echo "Could not find $SWAP_FILE; leaving resume configuration unchanged." >&2
+    return 0
+  fi
+
+  if ! device=$(resume_device) ||
+    [[ ! $device =~ ^(/dev/[[:alnum:]_./:+-]+|UUID=[[:alnum:]-]+)$ ]] ||
     ! offset=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE") ||
     [[ ! $offset =~ ^[0-9]+$ ]]; then
     echo "Could not determine valid resume parameters for $SWAP_FILE" >&2
@@ -77,23 +130,14 @@ reconcile_resume_parameters() {
   fi
 
   desired="KERNEL_CMDLINE[default]+=\" resume=$device resume_offset=$offset\""
-  if [[ -f $RESUME_DROP_IN ]]; then
-    current=$(<"$RESUME_DROP_IN")
-    [[ $current != "$desired" ]] || return 0
-    # Only replace the single line this command owns. Custom drop-ins need
-    # manual reconciliation so unrelated kernel parameters are not discarded.
-    if [[ ! $current =~ ^KERNEL_CMDLINE\[default\]\+=\"[[:space:]]?resume=[^\"[:space:]]*[[:space:]]resume_offset=[0-9]*\"$ ]]; then
-      echo "Custom resume configuration in $RESUME_DROP_IN; update its resume parameters manually." >&2
-      return 1
-    fi
-  fi
+  [[ ${current:-} != "$desired" ]] || return 0
 
-  RESUME_PREVIOUS=${current:-}
   staged=$(mktemp) || return 1
   printf '%s\n' "$desired" >"$staged"
-  if sudo mkdir -p "${RESUME_DROP_IN%/*}" && install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
+  if sudo mkdir -p "${RESUME_DROP_IN%/*}" &&
+    { $NO_REBUILD || sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING"; } &&
+    install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
     rm -f "$staged"
-    RESUME_CHANGED=true
     echo "Updated resume parameters for $SWAP_FILE"
   else
     rm -f "$staged"
@@ -102,45 +146,36 @@ reconcile_resume_parameters() {
 }
 
 rebuild_resume_images() {
-  local build_log
-  build_log=$(mktemp) || return 1
-  # Limine 1.40 logs a skipped kernel build but still exits successfully.
-  if (set -o pipefail; sudo limine-mkinitcpio 2>&1 | tee "$build_log") &&
-    ! grep -q 'mkinitcpio failed for kernel .*skipping' "$build_log"; then
-    rm -f "$build_log"
-    return 0
-  else
-    rm -f "$build_log"
-    return 1
+  local log
+  local -a status
+
+  [[ -e $RESUME_REBUILD_PENDING ]] && ! $NO_REBUILD || return 0
+
+  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+  log=$(mktemp) || return 1
+  sudo limine-mkinitcpio 2>&1 | tee "$log"
+  status=("${PIPESTATUS[@]}")
+  if (( status[0] == 0 && status[1] == 0 )) && ! grep -q 'mkinitcpio failed for kernel' "$log"; then
+    rm -f "$log"
+    sudo rm -f "$RESUME_REBUILD_PENDING"
+    return
   fi
+
+  rm -f "$log"
+  echo "Could not rebuild the boot image with the resume parameters; run omarchy-hibernation-setup again once that is fixed" >&2
+  return 1
 }
 
 # Recreated swapfiles can move even when hibernation is already configured.
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   reconcile_resume_parameters || exit 1
-  if $RESUME_CHANGED && ! $NO_REBUILD; then
-    if ! rebuild_resume_images; then
-      # Leave the old configuration in place so the next setup retries the
-      # rebuild instead of mistaking an unchanged drop-in for an updated UKI.
-      if [[ -n $RESUME_PREVIOUS ]]; then
-        previous=$(mktemp) || exit 1
-        printf '%s\n' "$RESUME_PREVIOUS" >"$previous"
-        install_root_file "$previous" "$RESUME_DROP_IN" 0644 ||
-          echo "Could not restore $RESUME_DROP_IN; rebuild the initramfs manually." >&2
-        rm -f "$previous"
-      else
-        sudo rm -f -- "$RESUME_DROP_IN"
-      fi
-      echo "Could not rebuild the initramfs; retry hibernation setup after fixing the build error." >&2
-      exit 1
-    fi
-  fi
+  rebuild_resume_images || exit 1
   echo "Hibernation is already set up"
   exit 0
 fi
 
 if ! $FORCE; then
-  MEM_TOTAL_HUMAN=$(free --human | awk '/Mem/ {print $2}')
+  MEM_TOTAL_HUMAN=$(LC_ALL=C free --human | awk '/Mem/ {print $2}')
   if ! gum confirm "Use $MEM_TOTAL_HUMAN on boot drive to make hibernation available?"; then
     exit 0
   fi
@@ -184,9 +219,14 @@ if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/keyboard-back
   exit 1
 fi
 
-# Warn rather than fail: the installer aborts on failure, and rerunning setup adds missing parameters.
+# Warn rather than fail: factory reset aborts on failure; a rerun repairs missing parameters.
 if ! reconcile_resume_parameters; then
   echo "Warning: Continuing without resume parameters; rerun omarchy hibernation setup to add them" >&2
+fi
+
+# Record the rebuild before the hook makes this machine count as configured.
+if ! $NO_REBUILD; then
+  sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING" || exit 1
 fi
 
 # Add resume hook to mkinitcpio
@@ -210,10 +250,10 @@ if ! $NO_REBUILD; then
   # binary on the ESP doesn't change here, so we don't need limine-update
   # (which would also re-deploy the binary and rebuild a second time).
   echo "Regenerating initramfs..."
-  sudo limine-mkinitcpio
+  rebuild_resume_images || exit 1
   echo
 fi
 
 if ! $FORCE && ! $NO_REBUILD && gum confirm "Reboot to enable hibernation?"; then
-  omarchy-system-reboot
+  omarchy-system reboot
 fi

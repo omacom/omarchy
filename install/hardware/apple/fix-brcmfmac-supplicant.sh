@@ -18,11 +18,19 @@
 # machines including the T2-less iMac19,1 and iMac19,2, and BCM4377/4378/4387
 # from the T2 era on. The BCM4360 in 2013-2015 Macs is deliberately absent: it
 # runs the out-of-tree wl driver, which never reads a brcmfmac option.
+#
+# Apple Silicon is excluded even though its BCM4387 is in that list: there the
+# firmware supplicant is what works, and disabling it makes firmware commands
+# time out and breaks scanning entirely.
+if omarchy-hw-aarch64-apple; then
+  return 0
+fi
+
 sys_vendor="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)"
 
-if lspci -nn | grep "106b:180[12]" >/dev/null ||
+if omarchy-hw-pci 106b:1801 106b:1802 ||
   { [[ $sys_vendor == Apple* ]] &&
-    lspci -nn | grep -E "14e4:(43ba|43bb|43bc|43a3|43dc|4464|4488|4425|4433)" >/dev/null; }; then
+    omarchy-hw-pci 14e4:43ba 14e4:43bb 14e4:43bc 14e4:43a3 14e4:43dc 14e4:4464 14e4:4488 14e4:4425 14e4:4433; }; then
   echo "Detected a Mac with Broadcom Wi-Fi; running the WPA handshake in software"
 
   mkdir -p /etc/modprobe.d

@@ -15,6 +15,7 @@ declare -A COMMAND_NAME
 declare -A COMMAND_SUMMARY
 declare -A COMMAND_USAGE
 declare -A COMMAND_ARGS
+declare -A COMMAND_SUBCOMMANDS
 declare -A COMMAND_EXAMPLES
 declare -A COMMAND_REQUIRES_SUDO
 declare -A COMMAND_HIDDEN
@@ -41,29 +42,35 @@ GROUP_DESCRIPTIONS[clipboard]="Clipboard helpers"
 GROUP_DESCRIPTIONS[cmd]="Command and shortcut helpers"
 GROUP_DESCRIPTIONS[config]="System configuration helpers"
 GROUP_DESCRIPTIONS[crash]="Crash notification controls"
-GROUP_DESCRIPTIONS[debug]="Diagnostics and support logs"
 GROUP_DESCRIPTIONS[finalize]="Finalize user setup"
 GROUP_DESCRIPTIONS[default]="Default application selection"
 GROUP_DESCRIPTIONS[dev]="Omarchy development tools"
+GROUP_DESCRIPTIONS[device]="Hardware controls and settings"
 GROUP_DESCRIPTIONS[disk]="Disk performance helpers"
+GROUP_DESCRIPTIONS[dictation]="Dictation recording"
 GROUP_DESCRIPTIONS[display]="Display and text scaling"
 GROUP_DESCRIPTIONS[dns]="DNS resolver configuration"
+GROUP_DESCRIPTIONS[dock]="Dock shown on floating workspaces"
 GROUP_DESCRIPTIONS[drive]="Drive selection and encryption"
 GROUP_DESCRIPTIONS[file]="File selection helpers"
 GROUP_DESCRIPTIONS[font]="Font management"
 GROUP_DESCRIPTIONS[games]="Game launchers and helpers"
 GROUP_DESCRIPTIONS[hibernation]="Hibernation setup and removal"
 GROUP_DESCRIPTIONS[hook]="User hook runner"
-GROUP_DESCRIPTIONS[hw]="Hardware detection and controls"
+GROUP_DESCRIPTIONS[hw]="Hardware detection"
 GROUP_DESCRIPTIONS[hyprland]="Hyprland window, monitor, and toggle controls"
+GROUP_DESCRIPTIONS[icons]="App icon set management"
 GROUP_DESCRIPTIONS[install]="Optional software installers"
 GROUP_DESCRIPTIONS[installed]="Installed optional service checks"
 GROUP_DESCRIPTIONS[launch]="Application launchers"
+GROUP_DESCRIPTIONS[kernel]="Default boot kernel selection"
+GROUP_DESCRIPTIONS[language]="Display language and system locale"
 GROUP_DESCRIPTIONS[menu]="Omarchy menu commands"
 GROUP_DESCRIPTIONS[migrate]="Migration runner"
 GROUP_DESCRIPTIONS[monitor]="Monitor status helpers"
 GROUP_DESCRIPTIONS[network]="Network status helpers"
 GROUP_DESCRIPTIONS[notification]="Notification helpers"
+GROUP_DESCRIPTIONS[models]="Open models running on this machine and the tailnet"
 GROUP_DESCRIPTIONS[mise]="Mise tool wrappers"
 GROUP_DESCRIPTIONS[openclaw]="OpenClaw agent platform setup"
 GROUP_DESCRIPTIONS[osd]="On-screen display status helpers"
@@ -73,13 +80,13 @@ GROUP_DESCRIPTIONS[plymouth]="Plymouth boot theme management"
 GROUP_DESCRIPTIONS[power]="Power supply detection"
 GROUP_DESCRIPTIONS[powerprofiles]="Power profile management"
 GROUP_DESCRIPTIONS[refresh]="Reset config to defaults"
+GROUP_DESCRIPTIONS[region]="The region this machine was installed for, and how dates, times, numbers and units are written"
 GROUP_DESCRIPTIONS[reinstall]="Reinstall and reset workflows"
 GROUP_DESCRIPTIONS[reminder]="Desktop notification reminders"
 GROUP_DESCRIPTIONS[remove]="Removal workflows"
 GROUP_DESCRIPTIONS[restart]="Restart Omarchy components"
 GROUP_DESCRIPTIONS[setup]="Interactive setup wizards"
 GROUP_DESCRIPTIONS[shell]="Omarchy shell IPC helpers"
-GROUP_DESCRIPTIONS[screensaver]="Screensaver branding and animation"
 GROUP_DESCRIPTIONS[snapshot]="System snapshots"
 GROUP_DESCRIPTIONS[sudo]="Sudo configuration helpers"
 GROUP_DESCRIPTIONS[system]="System status, reboot, shutdown, logout, and lock"
@@ -174,6 +181,7 @@ register_command() {
   local summary=""
   local usage=""
   local args=""
+  local subcommands=""
   local examples=""
   local aliases=""
   local requires_sudo=""
@@ -223,6 +231,13 @@ register_command() {
       args)
         args="$metadata_value"
         ;;
+      subcommand)
+        if [[ $metadata_value == *" — "* ]]; then
+          subcommands+="${metadata_value%% — *}"$'\t'"${metadata_value#* — }"$'\n'
+        else
+          metadata_errors=$(append_pipe_value "$metadata_errors" "subcommand must be '<args> — <summary>'")
+        fi
+        ;;
       examples)
         examples="$metadata_value"
         ;;
@@ -271,6 +286,15 @@ register_command() {
     route+=" $name"
   fi
 
+  # Subcommands stand in for args, as alternatives: `use <id> | reset | ...`
+  if [[ -z $args && -n $subcommands ]]; then
+    local subcommand_args=""
+    local subcommand_summary=""
+    while IFS=$'\t' read -r subcommand_args subcommand_summary; do
+      args+="${args:+ | }$subcommand_args"
+    done <<<"${subcommands%$'\n'}"
+  fi
+
   usage="$route"
   if [[ -n $args ]]; then
     usage+=" $args"
@@ -289,6 +313,7 @@ register_command() {
   COMMAND_SUMMARY["$key"]="$summary"
   COMMAND_USAGE["$key"]="$usage"
   COMMAND_ARGS["$key"]="$args"
+  COMMAND_SUBCOMMANDS["$key"]="${subcommands%$'\n'}"
   COMMAND_EXAMPLES["$key"]="$examples"
   COMMAND_REQUIRES_SUDO["$key"]="$requires_sudo"
   COMMAND_HIDDEN["$key"]="$hidden"
@@ -299,17 +324,25 @@ register_command() {
   register_route "$route" "$key"
   register_route "$fallback_route" "$key"
 
-  local old_ifs="$IFS"
   local alias_route=""
-  IFS='|'
-  for alias_route in $aliases; do
+  local alias_routes=()
+  IFS='|' read -ra alias_routes <<<"$aliases"
+  for alias_route in "${alias_routes[@]}"; do
     alias_route="${alias_route# }"
     alias_route="${alias_route% }"
     [[ -z $alias_route || $alias_route == "$route" ]] && continue
     register_route "$alias_route" "$key" true
     COMMAND_ALIASES["$key"]=$(append_pipe_value "${COMMAND_ALIASES[$key]}" "$alias_route")
   done
-  IFS="$old_ifs"
+}
+
+reset_commands() {
+  COMMAND_KEYS=()
+  ROUTE_COLLISIONS=()
+  COMMAND_ROUTE=() COMMAND_FALLBACK_ROUTE=() COMMAND_BINARY=() COMMAND_GROUP=() COMMAND_NAME=()
+  COMMAND_SUMMARY=() COMMAND_USAGE=() COMMAND_ARGS=() COMMAND_SUBCOMMANDS=() COMMAND_EXAMPLES=() COMMAND_REQUIRES_SUDO=()
+  COMMAND_HIDDEN=() COMMAND_ALIASES=() COMMAND_HAS_SUMMARY=() COMMAND_METADATA_ERRORS=()
+  ROUTE_TO_KEY=() ROUTE_IS_ALIAS=() BINARY_TO_KEY=()
 }
 
 load_commands() {
@@ -320,6 +353,32 @@ load_commands() {
     register_command "$file"
   done
 
+}
+
+# Only a command whose route starts with "omarchy <first>" can resolve a route
+# beginning with that word: one in the <first> group by filename or metadata, or
+# one with an alias under it. Loading just those resolves aliases and
+# metadata-moved routes without reading every header. A superset is harmless,
+# and they register in the same order a full load would use.
+load_route_candidates() {
+  local first="$1"
+  local -A seen=()
+  local file=""
+
+  [[ $first =~ ^[[:alnum:]][[:alnum:]_-]*$ ]] || return 1
+
+  for file in "$OMARCHY_BIN_DIR/omarchy-$first"-*; do
+    seen["$file"]=1
+  done
+  while IFS= read -r file; do
+    seen["$file"]=1
+  done < <(grep -l -E -e "omarchy:group=$first([^[:alnum:]_-]|$)" -e "omarchy:alias(es)?=.*omarchy[[:space:]]+$first([[:space:]]|\||$)" "$OMARCHY_BIN_DIR"/omarchy-* 2>/dev/null)
+
+  # The full load's own glob, so colliding routes register in the same order.
+  for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
+    [[ -n ${seen[$file]} && -f $file && -x $file ]] || continue
+    register_command "$file"
+  done
 }
 
 load_command_by_binary() {
@@ -378,10 +437,27 @@ command_takes_only_flags() {
   local key="$1"
   local args="${COMMAND_ARGS[$key]}"
   local token=""
+  local tokens=()
+  local in_option=false
 
   [[ -n $args ]] || return 1
-  for token in $args; do
-    [[ $token == -* || $token == "[-"* ]] || return 1
+  read -ra tokens <<<"$args"
+  # An optional flag may name its value, as in [--model <name>]; the value
+  # placeholder belongs to the flag and isn't a positional argument.
+  for token in "${tokens[@]}"; do
+    if [[ $token == -* || $token == "[-"* ]]; then
+      if [[ $token == "[-"* && $token != *"]" ]]; then
+        in_option=true
+      else
+        in_option=false
+      fi
+    elif [[ $in_option == true ]]; then
+      if [[ $token == *"]" ]]; then
+        in_option=false
+      fi
+    else
+      return 1
+    fi
   done
 }
 
@@ -455,17 +531,24 @@ command_route_for_group() {
   fi
 }
 
-command_usage_for_group() {
-  local key="$1"
-  local group="$2"
-  local route=""
+# Appends a command's table rows under the given route to the named variable:
+# one per declared subcommand, each with its own summary, or a single row with
+# the full usage. Appending in place keeps full listings free of a subshell per
+# command.
+append_command_rows() {
+  local -n command_rows_ref="$1"
+  local key="$2"
+  local route="$3"
+  local subcommand_args=""
+  local subcommand_summary=""
 
-  route=$(command_route_for_group "$key" "$group")
-  if [[ -n ${COMMAND_ARGS[$key]} ]]; then
-    route+=" ${COMMAND_ARGS[$key]}"
+  if [[ -n ${COMMAND_SUBCOMMANDS[$key]} ]]; then
+    while IFS=$'\t' read -r subcommand_args subcommand_summary; do
+      command_rows_ref+="$route $subcommand_args"$'\t'"$subcommand_summary"$'\n'
+    done <<<"${COMMAND_SUBCOMMANDS[$key]}"
+  else
+    command_rows_ref+="$route${COMMAND_ARGS[$key]:+ ${COMMAND_ARGS[$key]}}"$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
   fi
-
-  printf '%s' "$route"
 }
 
 sorted_group_keys() {
@@ -490,34 +573,21 @@ sorted_group_keys() {
   done | sort -u | cut -f2-
 }
 
-examples_as_lines() {
-  local examples="$1"
-  local old_ifs="$IFS"
-  local example=""
-  IFS='|'
-
-  for example in $examples; do
-    example="${example# }"
-    example="${example% }"
-    [[ -n $example ]] && printf '%s\n' "$example"
-  done
-
-  IFS="$old_ifs"
-}
-
 pipe_values_as_lines() {
   local values="$1"
-  local old_ifs="$IFS"
   local value=""
-  IFS='|'
+  local items=()
 
-  for value in $values; do
+  IFS='|' read -ra items <<<"$values"
+  for value in "${items[@]}"; do
     value="${value# }"
     value="${value% }"
     [[ -n $value ]] && printf '%s\n' "$value"
   done
+}
 
-  IFS="$old_ifs"
+examples_as_lines() {
+  pipe_values_as_lines "$1"
 }
 
 show_group_list() {
@@ -545,7 +615,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
 EOF
@@ -589,6 +659,10 @@ print_command_table() {
     (( width > max_width )) && max_width=$width
   done <<<"$rows"
 
+  # Cap the column so a usage longer than 48 characters pushes only its own summary
+  # along, rather than padding every row out past the edge of a normal terminal.
+  (( max_width > 48 )) && max_width=48
+
   while IFS=$'\t' read -r command rest; do
     [[ -n $command ]] || continue
 
@@ -600,7 +674,6 @@ show_commands() {
   local include_all="$1"
   local key=""
   local route=""
-  local usage=""
   local rows=""
   local alias_rows=""
 
@@ -612,8 +685,7 @@ show_commands() {
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    usage="${COMMAND_USAGE[$key]}"
-    rows+="$usage"$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
+    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
   done < <(sorted_keys "$include_all")
 
   print_command_table "$rows"
@@ -642,16 +714,23 @@ markdown_escape() {
 show_commands_markdown() {
   local include_all="$1"
   local key=""
+  local rows=""
+  local usage=""
+  local summary=""
 
   echo "| Command | Binary | Summary |"
   echo "| --- | --- | --- |"
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    printf '| `%s` | `%s` | %s |\n' \
-      "$(markdown_escape "${COMMAND_USAGE[$key]}")" \
-      "$(markdown_escape "${COMMAND_BINARY[$key]}")" \
-      "$(markdown_escape "${COMMAND_SUMMARY[$key]}")"
+    rows=""
+    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
+    while IFS=$'\t' read -r usage summary; do
+      printf '| `%s` | `%s` | %s |\n' \
+        "$(markdown_escape "$usage")" \
+        "$(markdown_escape "${COMMAND_BINARY[$key]}")" \
+        "$(markdown_escape "$summary")"
+    done <<<"${rows%$'\n'}"
   done < <(sorted_keys "$include_all")
 }
 
@@ -825,7 +904,7 @@ show_group_help() {
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    rows+="$(command_usage_for_group "$key" "$group")"$'\t'$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
+    append_command_rows rows "$key" "$(command_route_for_group "$key" "$group")"
   done < <(sorted_group_keys "$group" "$include_all")
 
   if [[ -n $rows ]]; then
@@ -843,8 +922,8 @@ show_prefix_help() {
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    if [[ ${COMMAND_USAGE[$key]} == $prefix_with_space* ]]; then
-      rows+="${COMMAND_USAGE[$key]}"$'\t'$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
+    if [[ ${COMMAND_USAGE[$key]} == "$prefix_with_space"* ]]; then
+      append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
     fi
   done < <(sorted_keys false)
 
@@ -864,7 +943,7 @@ show_related_commands() {
 
   while IFS= read -r child_key; do
     [[ -n $child_key && $child_key != "$key" ]] || continue
-    rows+="$(command_usage_for_group "$child_key" "$group")"$'\t'$'\t'"${COMMAND_SUMMARY[$child_key]}"$'\n'
+    append_command_rows rows "$child_key" "$(command_route_for_group "$child_key" "$group")"
   done < <(sorted_group_keys "$group" false)
 
   if [[ -n $rows ]]; then
@@ -881,13 +960,19 @@ show_command_help() {
   local args="${COMMAND_ARGS[$key]}"
   local example=""
   local alias=""
+  local rows=""
 
   echo "Usage:"
-  echo "  ${COMMAND_USAGE[$key]}"
+  if [[ -n ${COMMAND_SUBCOMMANDS[$key]} ]]; then
+    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
+    print_command_table "$rows"
+  else
+    echo "  ${COMMAND_USAGE[$key]}"
+  fi
   echo ""
   echo "${COMMAND_SUMMARY[$key]}"
 
-  if [[ -n $args ]]; then
+  if [[ -z ${COMMAND_SUBCOMMANDS[$key]} && -n $args ]]; then
     echo ""
     echo "Arguments:"
     echo "  $args"
@@ -1008,10 +1093,11 @@ dispatch_fast_or_help() {
         if (( DIRECT_RESOLVED_COUNT == 1 )) && group_has_child_commands "$1"; then
           load_group_commands "$1"
           show_group_help "$1"
+          return 0
         else
           show_command_help "$key"
+          return 1
         fi
-        return 0
       fi
     fi
 
@@ -1030,6 +1116,15 @@ dispatch_fast_or_help() {
     return 0
   fi
 
+  # Help lists related commands from the whole table, so only a route that runs
+  # its command takes the candidates-only path.
+  if ! remaining_has_help_flag "$@" && load_route_candidates "$1" && resolve_route "$#" "$@" &&
+    ! { (( RESOLVED_COUNT == $# )) && command_requires_args "$RESOLVED_KEY"; }; then
+    dispatch_or_help "$@"
+    return
+  fi
+
+  reset_commands
   load_commands
   dispatch_or_help "$@"
 }
@@ -1063,10 +1158,11 @@ dispatch_or_help() {
     if (( ${#remaining[@]} == 0 )) && command_requires_args "$key"; then
       if (( RESOLVED_COUNT == 1 )) && group_exists "$1"; then
         show_group_help "$1"
+        return 0
       else
         show_command_help "$key"
+        return 1
       fi
-      return 0
     fi
 
     exec "$binary_path" "${remaining[@]}"
@@ -1104,6 +1200,9 @@ main() {
   case "$1" in
   --help | -h)
     show_main_help
+    ;;
+  logout | reboot | shutdown)
+    dispatch_fast_or_help system "$@"
     ;;
   commands)
     load_commands

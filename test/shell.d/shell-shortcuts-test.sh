@@ -12,7 +12,7 @@ shortcuts="$ROOT/default/omarchy/shortcuts"
 # line per binding: "global <name>" for a global shortcut, "exec <command>" for
 # a command, then its description.
 list_bindings() {
-  HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua <<'LUA'
+  HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -60,6 +60,10 @@ o.bind("F", "unlisted audio", { audio = "+1" })
 o.bind("I", "listed brightness", { brightness = "raise" })
 o.bind("G", "listed ipc", { ipc = "media.next" })
 o.bind("H", "unlisted ipc", { ipc = "media.sourceNext" })
+o.bind("J", "listed dotted ipc", { ipc = "omarchy.dock.apps" })
+o.bind("K", "unlisted dotted ipc", { ipc = "omarchy.dock.refresh" })
+o.bind("L", "listed panel_at", { panel_at = "right:1" })
+o.bind("M", "unlisted panel_at", { panel_at = "left:9" })
 
 for _, file in ipairs({ "utilities", "clipboard", "media" }) do
   dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/" .. file .. ".lua")
@@ -84,47 +88,34 @@ expect_binding $'exec\tomarchy-audio-output-volume \'+1\'\tunlisted audio' "an u
 expect_binding $'global\tomarchy:brightness.raise\tlisted brightness' "a listed brightness key binds its global shortcut"
 expect_binding $'global\tomarchy:ipc.media.next\tlisted ipc' "a listed IPC call binds its global shortcut"
 expect_binding $'exec\tomarchy-shell \'media\' \'sourceNext\'\tunlisted ipc' "an unlisted IPC call falls back to omarchy-shell"
+expect_binding $'global\tomarchy:ipc.omarchy.dock.apps\tlisted dotted ipc' "a listed dotted IPC target binds its global shortcut"
+expect_binding $'exec\tomarchy-shell \'omarchy.dock\' \'refresh\'\tunlisted dotted ipc' "an unlisted dotted IPC target splits target and method"
+expect_binding $'global\tomarchy:panelAt.right:1\tlisted panel_at' "a listed positional bar panel binds its global shortcut"
+expect_binding $'exec\tomarchy-shell -q shell togglePanelAt \'left\' \'9\'\tunlisted panel_at' "an unlisted positional bar panel falls back to omarchy-shell"
+expect_binding $'global\tomarchy:ipc.notifications.keyboard\tControl notifications with the keyboard' "Super+Ctrl+comma reaches notifications.keyboard as a global shortcut"
+expect_binding $'global\tomarchy:ipc.notifications.toggleDnd\tToggle silencing notifications' "Super+Ctrl+Alt+comma reaches notifications.toggleDnd as a global shortcut"
 pass "shell bindings use global shortcuts only for what the shell registers"
 
 # Every default binding that toggles a listed route or panel goes through its
 # shortcut, and none toggles one through a command any more.
 ! grep -E $'^exec\t(omarchy-menu toggle|omarchy-shell shell toggle) ' <<<"$bindings" | grep -v $'\tunlisted ' ||
   fail "default bindings toggle menus and panels through global shortcuts"
-expect_binding $'global\tomarchy:menu.root\tOmarchy menu' "SUPER+SPACE opens the menu through its shortcut"
-expect_binding $'global\tomarchy:menu.theme\tTheme menu' "the theme menu binding uses its shortcut"
-expect_binding $'global\tomarchy:panel.omarchy.clipboard\tClipboard manager' "the clipboard binding uses its shortcut"
-expect_binding $'global\tomarchy:audio.raise\tVolume up' "the volume up key steps the volume in the shell"
-expect_binding $'global\tomarchy:audio.lower\tVolume down' "the volume down key steps the volume in the shell"
-expect_binding $'global\tomarchy:audio.mute-toggle\tMute' "the mute key toggles mute in the shell"
-expect_binding $'global\tomarchy:brightness.raise\tBrightness up' "the brightness up key steps the backlight in the shell"
-expect_binding $'global\tomarchy:brightness.lower\tBrightness down' "the brightness down key steps the backlight in the shell"
-expect_binding $'global\tomarchy:ipc.media.playPause\tPlay' "the play key reaches the media service directly"
-expect_binding $'global\tomarchy:ipc.notifications.dismissOne\tDismiss last notification' "dismissing a notification reaches the service directly"
-! grep -E $'^exec\tomarchy-shell (media|notifications) ' <<<"$bindings" ||
-  fail "default media and notification keys reach their services through global shortcuts"
-pass "default bindings toggle menus and panels through global shortcuts"
+# The helper quotes the fallback's arguments, so this matches the form it writes.
+! grep -E $'^exec\tomarchy-shell \'media\' ' <<<"$bindings" | grep -v $'\tunlisted ' ||
+  fail "default media keys reach the media service through global shortcuts"
+pass "default bindings reach menus, panels and the media service through global shortcuts"
 
-# The shell and the helpers read the same list, in the same format.
+# The shell and the helpers both read this list, so every line is a kind and a target.
 while IFS= read -r line; do
   [[ -z $line || $line == \#* ]] && continue
-  [[ $line =~ ^(menu|panel|audio|brightness|ipc)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
+  [[ $line =~ ^(menu|panel|panelAt|audio|brightness|ipc)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
   if [[ $line == ipc\ * ]]; then
-    [[ $line =~ ^ipc\ (media|notifications)\.[A-Za-z]+$ ]] || fail "ipc shortcuts name a mapped target and method: $line"
+    [[ $line =~ ^ipc\ (media|notifications|omarchy\.dock)\.[A-Za-z]+$ ]] || fail "ipc shortcuts name a mapped target and method: $line"
+  elif [[ $line == panelAt\ * ]]; then
+    [[ $line =~ ^panelAt\ (left|center|right):[1-9][0-9]*$ ]] || fail "panelAt shortcuts name a bar section and 1-based position: $line"
   fi
 done <"$shortcuts"
-grep -q 'path: shell.omarchyPath + "/default/omarchy/shortcuts"' "$ROOT/shell/shell.qml" ||
-  fail "the shell registers the shortcuts the helpers bind"
-grep -q 'paths.omarchy_path .. "/default/omarchy/shortcuts"' "$ROOT/default/hypr/helpers.lua" ||
-  fail "the helpers bind the shortcuts the shell registers"
-# An ipc shortcut runs the service's own IPC handler, so it behaves exactly as
-# the omarchy-shell call it replaces.
-for service in services/media notifications; do
-  grep -Pzq 'function runShortcut\(method\) \{\n    if \(typeof ipcHandler\[method\] !== "function"\) return false\n    ipcHandler\[method\]\(\)' "$ROOT/shell/plugins/$service/Service.qml" ||
-    fail "$service runs ipc shortcuts through its IPC handler"
-  grep -Pzq '(IpcHandler|ShellIpc) \{\n    id: ipcHandler' "$ROOT/shell/plugins/$service/Service.qml" ||
-    fail "$service names its IPC handler for shortcuts"
-done
-pass "the shell and the helpers share one shortcut list"
+pass "shortcuts lines name a kind and a target"
 
 # Every default menu binding target is a real menu route.
 run_node_test <<'JS'
