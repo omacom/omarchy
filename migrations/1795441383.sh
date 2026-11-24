@@ -8,20 +8,10 @@ if [[ -n $(omarchy-mise-default-tools list) ]]; then
 fi
 
 # Wrappers older releases wrote in ~/.local/bin run `mise use -g`, and would
-# count as the user's own install of the agent. Only an exact copy goes.
-wrapper() {
-  printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$2" "$2" "$1"
-}
-while read -r command package; do
-  file=$HOME/.local/bin/$command
-  if [[ -f $file && ! -L $file ]] && cmp -s "$file" <(wrapper "$command" "$package"); then
-    rm -f "$file"
-  fi
-done <<'EOF'
-kimi npm:@moonshot-ai/kimi-code
-cursor-agent cursor-agent
-muse http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]
-EOF
+# count as the user's own install of the agent.
+for command in kimi cursor-agent muse; do
+  omarchy-mise-install "$command"
+done
 
 # A copy mise installed for Omarchy's declaration goes. One a mise config of
 # the user's own asks for is theirs and stays.

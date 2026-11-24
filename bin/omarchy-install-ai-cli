@@ -51,17 +51,12 @@ fi
 
 # Installed is the command on PATH: Omarchy's package, or an install of the
 # user's own, such as the link Cursor's installer leaves in ~/.local/bin or an
-# agent the user's own mise config asks for. The account dispatchers stand in
-# for claude, codex and grok whether or not anything is behind them, so they
-# don't count, nor do mise's old command wrappers a long-running session may
-# still have.
-mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+# agent the user's own mise config asks for. An account dispatcher isn't the CLI
+# itself, so its directory doesn't count.
 agent_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
-  if [[ $dir != "$HOME/.local/share/omarchy/agent-accounts/bin" && $dir != "$mise_data/command-wrappers/bin" ]]; then
-    agent_path+="${agent_path:+:}$dir"
-  fi
+  [[ $dir == "$HOME/.local/share/omarchy/agent-accounts/bin" ]] || agent_path+="${agent_path:+:}$dir"
 done
 installed() {
   PATH=$agent_path type -P "$agent"
