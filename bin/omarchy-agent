@@ -60,8 +60,8 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
-# mise's account wrappers keep claude, codex and grok on PATH whether or not
-# they're installed, so those ask their installer.
+# claude, codex and grok can be on PATH as an account dispatcher whose CLI was
+# removed outside Omarchy, so those ask their installer, which looks past it.
 agent_missing() {
   case $1 in
   claude | codex | grok) ! omarchy-install-ai-cli --check "$1" ;;
