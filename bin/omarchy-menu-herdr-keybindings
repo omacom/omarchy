@@ -221,7 +221,11 @@ fi
 
 records=$(output_keybindings)
 
-monitor_height=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .height' 2>/dev/null)
+monitor_height=$(hyprctl monitors 2>/dev/null | awk '
+  /^Monitor / { h = "" }
+  /^[[:space:]]+[0-9]+x[0-9]+@/ { split($1, dims, /[x@]/); h = dims[2] }
+  /^[[:space:]]+focused:[[:space:]]*yes/ { print h; exit }
+')
 
 if [[ ! $monitor_height =~ ^[0-9]+$ ]] || ((monitor_height <= 0)); then
   monitor_height=900
