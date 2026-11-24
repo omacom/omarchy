@@ -13,13 +13,44 @@ ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
 const coordinateQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
-const coordinateMoveBody = coordinateQml.match(/id: bodyHover[\s\S]*?onPointChanged: \{([\s\S]*?)\n      \}/)[1]
-const coordinateMove = new Function('window', 'point', 'Style', coordinateMoveBody)
-const coordinateWindow = {hoverStale: true, dragging: false, dropPoint: {x: 600, y: 400}}
-coordinateMove(coordinateWindow, {position: {x: 601, y: 400}}, {space: n => n})
-assert(coordinateWindow.hoverStale, 'one pixel in window space preserves post-drag hover suppression')
-coordinateMove(coordinateWindow, {position: {x: 607, y: 400}}, {space: n => n})
-assert(!coordinateWindow.hoverStale, 'a deliberate move in window space clears post-drag hover suppression')
+const bodyHoverBlock = coordinateQml.match(/    HoverHandler \{\n      id: bodyHover[\s\S]*?\n    \}/)[0]
+const hoverParentMatch = bodyHoverBlock.match(/^\s*parent:\s*([^\n]+)/m)
+const hoverParentExpr = hoverParentMatch ? hoverParentMatch[1].trim() : 'body'
+const coordinateMoveBody = bodyHoverBlock.match(/onPointChanged: \{([\s\S]*?)\n      \}/)[1]
+const releaseBody = coordinateQml.match(/mouse\.onReleased: function\(event\) \{([\s\S]*?)\n    \}/)[1]
+const coordinateMove = new Function('window', 'body', 'hitStrip', 'point', 'Style', coordinateMoveBody)
+const coordinateRelease = new Function('window', 'body', 'hitStrip', 'appSlot', 'event', releaseBody)
+const makeItem = (x, y) => ({
+  x,
+  y,
+  mapToItem(target, px, py) { return { x: this.x + px - target.x, y: this.y + py - target.y } }
+})
+const inwardReach = 66 * 0.35 - 6
+const sideReach = 66 * 0.35 / 2 - 6
+const contentItem = makeItem(0, 0)
+const bodyItem = makeItem(100, 120)
+const hitStripItem = makeItem(bodyItem.x - sideReach, bodyItem.y - inwardReach)
+const appSlotItem = makeItem(bodyItem.x + 78, bodyItem.y)
+appSlotItem.mouse = makeItem(appSlotItem.x, appSlotItem.y - inwardReach)
+appSlotItem.lifted = true
+appSlotItem.dragged = false
+const coordinateWindow = {
+  contentItem,
+  hoverStale: false,
+  dragging: true,
+  dragIndex: 1,
+  dropIndex: 2,
+  dropPoint: null,
+  endDrag() { this.dragging = false; this.hoverStale = true },
+  dock: { moveItem() {} }
+}
+const hoverParent = new Function('window', 'body', 'hitStrip', 'return ' + hoverParentExpr)(coordinateWindow, bodyItem, hitStripItem)
+coordinateRelease(coordinateWindow, bodyItem, hitStripItem, appSlotItem, contentItem.mapToItem(appSlotItem.mouse, 210, 150))
+assert(coordinateWindow.hoverStale, 'releasing a dock drag marks hover stale')
+coordinateMove(coordinateWindow, bodyItem, hitStripItem, { position: contentItem.mapToItem(hoverParent, 211, 150) }, { space: n => n })
+assert(coordinateWindow.hoverStale, 'one pixel after a drag release preserves post-drag hover suppression across item origins')
+coordinateMove(coordinateWindow, bodyItem, hitStripItem, { position: contentItem.mapToItem(hoverParent, 217, 150) }, { space: n => n })
+assert(!coordinateWindow.hoverStale, 'a deliberate move after a drag release clears post-drag hover suppression')
 
 
 for (const [icon, count, length, extra] of [[66, 12, 742, 0], [36, 29, 1280, 24], [36, 120, 742, 24]]) {
