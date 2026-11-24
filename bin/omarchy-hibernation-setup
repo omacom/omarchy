@@ -133,8 +133,8 @@ reconcile_resume_parameters() {
   [[ ${current:-} != "$desired" ]] || return 0
 
   staged=$(mktemp) || return 1
-  printf '%s\n' "$desired" >"$staged"
-  if sudo mkdir -p "${RESUME_DROP_IN%/*}" &&
+  if printf '%s\n' "$desired" >"$staged" &&
+    sudo mkdir -p "${RESUME_DROP_IN%/*}" &&
     { $NO_REBUILD || sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING"; } &&
     install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
     rm -f "$staged"

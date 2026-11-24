@@ -32,7 +32,10 @@ sudo() {
 }
 findmnt() { printf '%s\n' '/dev/mapper/root[/swap]'; }
 omarchy-cmd-missing() { return 1; }
-export -f sudo findmnt omarchy-cmd-missing
+omarchy-hw-aarch64-apple() { return 1; }
+omarchy-hw-aarch64() { return 1; }
+omarchy-sleep-disabled() { return 1; }
+export -f sudo findmnt omarchy-cmd-missing omarchy-hw-aarch64-apple omarchy-hw-aarch64 omarchy-sleep-disabled
 
 printf 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/old resume_offset=123"\n' >"$test_tmp/resume.conf"
 bash "$test_tmp/setup" >"$test_tmp/output"
@@ -55,6 +58,24 @@ if TEST_OFFSET=invalid bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
 fi
 cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "mapping failures preserve the previous parameters"
 pass "invalid mappings fail without replacing boot configuration"
+
+# A failed staged write must not install an empty drop-in or rebuild from it.
+cp "$test_tmp/resume.conf" "$test_tmp/before"
+rebuilds=$(wc -l <"$test_tmp/rebuilds")
+printf() {
+  if [[ ${1:-} == '%s\n' && ${2:-} == KERNEL_CMDLINE* ]]; then
+    return 1
+  fi
+  builtin printf "$@"
+}
+export -f printf
+status=0
+bash "$test_tmp/setup" >"$test_tmp/output" 2>&1 || status=$?
+unset -f printf
+(( status != 0 )) || fail "a failed staged write is reported"
+cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "a failed staged write preserves the drop-in"
+(( $(wc -l <"$test_tmp/rebuilds") == rebuilds )) || fail "a failed staged write skips the rebuild"
+pass "a failed staged write preserves boot configuration"
 
 printf '# Custom setting\n' >>"$test_tmp/resume.conf"
 cp "$test_tmp/resume.conf" "$test_tmp/before"
