@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# omarchy:summary=Open a local chat with Ollama or llama.cpp
+# omarchy:args=[model <name>]
+# omarchy:examples=omarchy ml chat model llama3.2
+
+set -euo pipefail
+
+chat_file() {
+  printf '%s/omarchy/ml/chat.json' "${XDG_CONFIG_HOME:-$HOME/.config}"
+}
+
+prompt_line() {
+  local placeholder=$1
+  local value=""
+  if [[ -t 0 ]] && omarchy-cmd-present gum; then
+    value=$(gum input --placeholder "$placeholder")
+  elif [[ ! -t 0 ]]; then
+    IFS= read -r value || true
+  fi
+  printf '%s' "$value"
+}
+
+if [[ ${1:-} == "model" ]]; then
+  shift
+  name=${1:-}
+  if [[ -z $name ]]; then
+    name=$(prompt_line "llama3.2")
+  fi
+  if [[ -z $name ]]; then
+    echo "Usage: omarchy ml chat model <name>" >&2
+    exit 1
+  fi
+  python3 - "$name" "$(chat_file)" <<'PY'
+import json
+import os
+import sys
+
+name, path = sys.argv[1:]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {}
+if os.path.isfile(path):
+    with open(path, encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    if isinstance(loaded, dict):
+        data = loaded
+data["model"] = name
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+    handle.write("\n")
+print(name)
+PY
+  exit 0
+fi
+
+model="${OMARCHY_ML_MODEL:-}"
+if [[ -z $model && -f $(chat_file) ]]; then
+  model=$(python3 - "$(chat_file)" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    data = json.load(handle)
+print(data.get("model") or "llama3.2")
+PY
+)
+fi
+model="${model:-llama3.2}"
+
+if omarchy-cmd-present ollama; then
+  exec xdg-terminal-exec --app-id=org.omarchy.ml-chat ollama run "$model"
+fi
+
+if omarchy-cmd-present llama-server && curl -sf "http://127.0.0.1:8080/" >/dev/null; then
+  exec xdg-open "http://127.0.0.1:8080"
+fi
+
+if omarchy-cmd-present llama-cli; then
+  weights="${OMARCHY_ML_GGUF:-$HOME/models/chat.gguf}"
+  if [[ ! -e $weights ]]; then
+    echo "Put a .gguf in $HOME/models/chat.gguf, or install Ollama from the menu." >&2
+    exit 1
+  fi
+  exec xdg-terminal-exec --app-id=org.omarchy.ml-chat llama-cli -m "$weights" -cnv
+fi
+
+echo "Install Ollama or llama.cpp from Install > Machine Learning." >&2
+exit 1
