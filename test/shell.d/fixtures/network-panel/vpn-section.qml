@@ -70,8 +70,25 @@ ShellRoot {
       check(panel.vpnPendingId === "u-home" && panel.vpnPendingMode === "split", "Enter on a mode starts the switch")
       panel.setVpnMode("u-office", "off")
       check(panel.vpnPendingId === "u-home", "a second switch waits for the first")
+      panel.open()
     },
-    function() {},
+    function() {
+      // A card too short for its content (a short screen) scrolls to keep the
+      // cursor in view.
+      panel.testKeys.anchors.fill = undefined
+      panel.testKeys.height = Style.space(160)
+      panel.cursorActive = true
+      panel.focusSection = "vpn"
+      panel.setVpnCursor(panel.vpnList.length, 0)
+    },
+    function() {
+      var flick = panel.testKeys.panelFlick
+      var add = panel.testKeys.vpnAddButton
+      var top = add.mapToItem(flick.contentItem, 0, 0).y
+      check(flick.contentY > 0 && top >= flick.contentY && top + add.height <= flick.contentY + flick.height,
+        "a short card scrolls Add VPN into view (contentY " + flick.contentY + ", top " + top + ")")
+      panel.testKeys.anchors.fill = panel.testKeys.parent
+    },
     function() {},
     function() {
       check(panel.vpnPendingId === "", "the switch clears once the command is done")
