@@ -74,4 +74,20 @@ assertEqual(acronymMatches[0], 'Google Contacts', 'short acronym matching still 
 
 const directMatches = search.sortedEntries(entries, 'obs').map(row => search.entryName(row.entry))
 assertEqual(directMatches[0], 'OBS Studio', 'direct app-name matching still works')
+
+// Menu launches name their systemd scope after the desktop entry id, so
+// xdg-desktop-portal can read the app id back off it; ids that cannot name
+// a unit keep uwsm's own naming.
+assertEqual(
+  search.launchScopeArg('pw.deadbolt.Deadbolt'),
+  '-u "app-pw.deadbolt.Deadbolt-$$.scope"',
+  'a unit-safe id names its launch scope after the entry'
+)
+assertEqual(
+  search.launchScopeArg('google-contacts'),
+  '-u "app-google\\x2dcontacts-$$.scope"',
+  'hyphens escape so the portal cannot read them as a launcher prefix'
+)
+assertEqual(search.launchScopeArg('Disk Usage'), '', 'an id with spaces keeps uwsm scope naming')
+assertEqual(search.launchScopeArg('a/b'), '', 'an id with a slash keeps uwsm scope naming')
 JS
