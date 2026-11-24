@@ -18,6 +18,7 @@ local SEED_CLASS = "org.omarchy.qconsole-seed"
 local PICKER_REOPEN_DELAY_MS = 1000
 local PICKER_PENDING_TIMEOUT_MS = 3000
 local PICKER_CLOSE_GRACE_MS = 500
+local AGENT_START_TIMEOUT_MS = 10000
 
 -- Seed the console with the default agent the first time it opens, rather than
 -- at boot, so nothing is running until it is wanted. The exec rule has to pin
@@ -32,7 +33,9 @@ local PICKER_CLOSE_GRACE_MS = 500
 -- arrives without ever colliding with a running local agent session.
 -- One that has to be installed first does so in a floating terminal and then
 -- moves into the console; see omarchy-default-agent. A console created by
--- moving a window onto it is not empty, and is left alone.
+-- moving a window onto it is not empty, and is left alone. A default chosen
+-- with the panel's star is only saved, so a console still holding just the
+-- placeholder starts it when it next opens or when the picker closes over it.
 local picker_timer = nil
 local picker_pending = false
 local picker_pending_timer = nil
@@ -40,6 +43,8 @@ local picker_over_console = false
 local picker_close_timer = nil
 local restore_timer = nil
 local restoring = false
+local agent_starting = false
+local agent_starting_timer = nil
 
 local function cancel_timer(timer)
   if timer and timer.set_enabled then
@@ -68,6 +73,24 @@ local function mark_picker_pending()
     picker_pending = false
     picker_pending_timer = nil
   end, { type = "oneshot", timeout = PICKER_PENDING_TIMEOUT_MS })
+end
+
+local function clear_agent_starting()
+  agent_starting = false
+  agent_starting_timer = cancel_timer(agent_starting_timer)
+end
+
+-- Until the agent's window arrives, another open must not start a second one.
+local function start_default_agent()
+  if agent_starting then
+    return
+  end
+  agent_starting = true
+  agent_starting_timer = hl.timer(function()
+    agent_starting = false
+    agent_starting_timer = nil
+  end, { type = "oneshot", timeout = AGENT_START_TIMEOUT_MS })
+  hl.exec_cmd("omarchy-agent --pick", { workspace = CONSOLE .. " silent" })
 end
 
 local function default_agent()
@@ -115,6 +138,7 @@ local function close_seed_if_agent_present()
   end
 
   if has_agent then
+    clear_agent_starting()
     cancel_picker_timer()
     clear_picker_pending()
     picker_over_console = false
@@ -279,9 +303,12 @@ hl.on("workspace.special_active", function(ws, mon)
     -- Reopening a seeded console without a default agent offers the picker
     -- again once focus settles on the console's window. Use a cancellable
     -- timer and recheck console visibility so hiding it within the delay
-    -- cancels the launch and repeated toggles never queue duplicates.
+    -- cancels the launch and repeated toggles never queue duplicates. With a
+    -- default chosen since, the placeholder gives way to that agent instead.
     cancel_picker_timer()
-    if not restoring and not default_agent() and has_only_seed_window() then
+    if not restoring and default_agent() and has_only_seed_window() then
+      start_default_agent()
+    elseif not restoring and not default_agent() and has_only_seed_window() then
       picker_timer = hl.timer(function()
         picker_timer = nil
         local current = hl.get_workspace(CONSOLE)
@@ -320,7 +347,8 @@ end)
 -- be the window under the console, and a focus there hides the console. When
 -- the picker that qconsole opened over the console closes, bring the console
 -- back and focus its seed window, unless the user already left the console or
--- chose a default agent. Restoring must not re-offer the picker, so it says so.
+-- chose a default agent; a default chosen over the still-visible console
+-- starts there. Restoring must not re-offer the picker, so it says so.
 -- The panel hands focus back before its fade-out ends and only closes after
 -- it, so a console hidden in between keeps recovery armed for a short grace.
 hl.on("layer.opened", function(layer)
@@ -342,10 +370,13 @@ hl.on("layer.closed", function(layer)
     restore_timer = cancel_timer(restore_timer)
     restore_timer = hl.timer(function()
       restore_timer = nil
+      local ws = hl.get_workspace(CONSOLE)
       if default_agent() then
+        if ws and ws.visible and has_only_seed_window() then
+          start_default_agent()
+        end
         return
       end
-      local ws = hl.get_workspace(CONSOLE)
       if not ws or ws.visible then
         return
       end
