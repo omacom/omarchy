@@ -67,12 +67,17 @@ TestCase {
     }
   }
 
-  function test_settledHoldIgnoresCachedDischargeRate() {
+  function test_settledHoldIgnoresCachedDischargeRate_data() {
+    return [{ tag: "separate notifications", separate: true },
+      { tag: "same event-loop turn", separate: false }]
+  }
+
+  function test_settledHoldIgnoresCachedDischargeRate(data) {
     battery.state = states.Charging
     tryCompare(chargeRate, "atHeldCharge", true)
     battery.state = states.Discharging
     battery.changeRate = 14
-    wait(20)
+    if (data.separate) wait(20)
     battery.state = states.Charging
     wait(20)
     verify(chargeRate.holding)
@@ -82,6 +87,29 @@ TestCase {
     battery.changeRate = 29
     tryCompare(chargeRate, "holding", false)
     verify(!chargeRate.atHeldCharge)
+  }
+
+  function test_lateEstimateReleasesHoldAfterNewRate() {
+    battery.state = states.PendingCharge
+    tryCompare(chargeRate, "atHeldCharge", true)
+    battery.timeToFull = 10 * 60 * 60
+    battery.state = states.Charging
+    battery.changeRate = 24
+    wait(20)
+    verify(chargeRate.holding)
+    battery.timeToFull = 60 * 60
+    tryCompare(chargeRate, "holding", false)
+  }
+
+  function test_repeatedDirectionChangesCannotSettleForever() {
+    for (let i = 0; i < 5; ++i) {
+      battery.state = states.Charging
+      wait(80)
+      battery.state = states.Discharging
+      wait(55)
+    }
+    battery.state = states.Charging
+    verify(chargeRate.holding)
   }
 
   function test_percentageArrivingAfterStateInvalidatesHold() {

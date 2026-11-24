@@ -11,6 +11,9 @@ QtObject {
   property int settleInterval: 90000
 
   property real heldCharge: -1
+  property real settlingCharge: -1
+  property bool settlingRenewed: false
+  property bool measuredChargingRate: false
   readonly property bool batteryPresent: !!(device && device.isPresent)
   readonly property bool charging: batteryPresent && device.state === states.Charging
   readonly property real fraction: Model.batteryFraction(device)
@@ -22,9 +25,36 @@ QtObject {
     if (holding && !atHeldCharge) heldCharge = fraction
   }
 
-  function clearHoldOnNewRate() {
-    if (atHeldCharge && charging && !Model.chargeThresholdActive(device, onBattery, states, true))
-      heldCharge = -1
+  function clearHoldOnCharging() {
+    if (!measuredChargingRate || !charging || Model.chargeThresholdActive(device, onBattery, states, true)) return
+    heldCharge = -1
+    settlingCharge = -1
+  }
+
+  function startSettling() {
+    settlingCharge = fraction
+    settlingRenewed = false
+    settle.restart()
+  }
+
+  function chargingStarted() {
+    if (atHeldCharge) {
+      settle.stop()
+    } else if (settlingCharge < 0 || Math.abs(fraction - settlingCharge) >= 0.01) {
+      startSettling()
+    } else if (settle.running && !settlingRenewed) {
+      // With no new source or charging measurement, allow one renewal at this
+      // level. A weak adapter can alternate between charging and discharging.
+      settlingRenewed = true
+      settle.restart()
+    }
+  }
+
+  function resetChargeEvidence() {
+    heldCharge = -1
+    settlingCharge = -1
+    measuredChargingRate = false
+    settle.stop()
   }
 
   onHoldingChanged: if (holding) Qt.callLater(root.rememberHold)
@@ -33,27 +63,17 @@ QtObject {
     if (heldCharge < 0 || Math.abs(fraction - heldCharge) < 0.01) return
     heldCharge = -1
     // The level can arrive after state. The stale rate needs to settle either way.
-    if (!onBattery && charging) settle.restart()
+    if (!onBattery && charging) startSettling()
     if (holding) Qt.callLater(root.rememberHold)
   }
 
   onOnBatteryChanged: {
-    heldCharge = -1
-    if (onBattery) settle.stop()
-    else settle.restart()
+    resetChargeEvidence()
+    if (!onBattery && batteryPresent) startSettling()
   }
 
-  onDeviceChanged: {
-    heldCharge = -1
-    settle.stop()
-  }
-
-  onBatteryPresentChanged: {
-    if (!batteryPresent) {
-      heldCharge = -1
-      settle.stop()
-    }
-  }
+  onDeviceChanged: resetChargeEvidence()
+  onBatteryPresentChanged: if (!batteryPresent) resetChargeEvidence()
 
   property Timer settle: Timer { interval: root.settleInterval }
 
@@ -61,15 +81,22 @@ QtObject {
     target: root.device
 
     function onStateChanged() {
-      if (root.onBattery || !root.charging) return
+      root.measuredChargingRate = false
       // Charging can begin without an onBattery change if a USB-C port stays online.
-      if (root.atHeldCharge) settle.stop()
-      else settle.restart()
+      if (!root.onBattery && target.isPresent && target.state === root.states.Charging)
+        root.chargingStarted()
     }
 
     function onChangeRateChanged() {
       // A direction change can leave a cached discharge rate visible for another poll.
-      Qt.callLater(root.clearHoldOnNewRate)
+      if (target.state === root.states.Charging) {
+        root.measuredChargingRate = true
+        Qt.callLater(root.clearHoldOnCharging)
+      }
+    }
+
+    function onTimeToFullChanged() {
+      if (root.measuredChargingRate) Qt.callLater(root.clearHoldOnCharging)
     }
   }
 }
