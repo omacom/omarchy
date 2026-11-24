@@ -25,7 +25,13 @@ def migrate(match):
   options = ["omarchy:shift_caps_compose" if option == "compose:caps" else option for option in options]
   return match[1] + match[2] + ",".join(options) + match[2]
 
-updated = re.sub(r"(?m)^([ \t]*kb_options[ \t]*=[ \t]*)([\"'])([^\"'\n]*)\2", migrate, original)
+patterns = (
+  r"(?m)^([ \t]*kb_options[ \t]*=[ \t]*)([\"'])([^\"'\n]*)\2",
+  r"(?m)^([ \t]*hl\.config\(\{[^\n]*?\bkb_options[ \t]*=[ \t]*)([\"'])([^\"'\n]*)\2",
+)
+updated = original
+for pattern in patterns:
+  updated = re.sub(pattern, migrate, updated)
 if updated == original:
   raise SystemExit(0)
 
