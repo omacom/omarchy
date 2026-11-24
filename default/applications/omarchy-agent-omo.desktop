@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=OmO
+Comment=Start OmO in a terminal
+Exec=omarchy-agent --agent omo --app-id=org.omarchy.omo
+Icon=omarchy-agent-omo
+StartupWMClass=org.omarchy.omo
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

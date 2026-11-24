@@ -451,6 +451,7 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [omo]="omo"
 )
 
 declare -A expected_packages=(
@@ -475,6 +476,7 @@ declare -A expected_packages=(
   [commandcode]="$commandcode_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [omo]="npm:omo-ai"
 )
 
 for selection in "${!expected_agents[@]}"; do
