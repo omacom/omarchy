@@ -392,7 +392,7 @@ def model_routes(home):
 
 def omarchy_launches():
   """(auth type, model id) of every model Omarchy has launched Qwen Code on,
-  from the launch files omarchy-agent-local overlay qwen writes: a model on
+  from the launch files omarchy-models overlay qwen writes: a model on
   this machine or a paired one on the tailnet, either way the user's own
   hardware. The files stay when a model is removed, so its replies keep
   counting where they did."""

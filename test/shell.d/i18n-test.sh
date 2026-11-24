@@ -478,20 +478,20 @@ rm -f "$work/stubs/busctl" "$work/stubs/fcitx5-remote" "$cjk_font"
 region_env=$XDG_CONFIG_HOME/uwsm/env.d/51-omarchy-region
 formats="LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER"
 : >"$LOCALE_GEN_LOG"; : >"$ELEVATE_LOG"; : >"$SESSION_ENV_LOG"
-TEST_SUDO_GRANT=1 omarchy-region en-DK </dev/null
+TEST_SUDO_GRANT=1 omarchy-region-formats en-DK </dev/null
 assert_bash_equal "$(cat "$ELEVATE_LOG") $(cat "$LOCALE_GEN_LOG")" "sudo -n omarchy-locale-generate en-DK en_DK.UTF-8" "a region generates its locale through the passwordless helper"
 assert_bash_equal "$(grep '^export' "$region_env" | tr '\n' ' ')" "$(printf 'export %s=en_DK.UTF-8 ' $formats)" "a region sets only the format categories for the next login"
 assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "en_DK.UTF-8", true)' "$SESSION_ENV_LOG") $(tail -n 1 "$SESSION_ENV_LOG")" "5 restart" "a region hands the format categories to the running session"
-assert_bash_equal "$(omarchy-region)" "en-DK" "omarchy-region reads the region back"
+assert_bash_equal "$(omarchy-region-formats)" "en-DK" "omarchy-region-formats reads the region back"
 : >"$SESSION_ENV_LOG"
-omarchy-region default </dev/null
+omarchy-region-formats default </dev/null
 [[ ! -e $region_env ]] && pass "following the language removes the formats" || fail "following the language removes the formats"
 assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "", true)' "$SESSION_ENV_LOG")" "5" "following the language clears the formats in the running session"
-assert_bash_equal "$(omarchy-region)" "default" "omarchy-region reports formats that follow the language"
-if omarchy-region en-ZZ </dev/null 2>/dev/null; then
-  fail "omarchy-region rejects unknown codes"
+assert_bash_equal "$(omarchy-region-formats)" "default" "omarchy-region-formats reports formats that follow the language"
+if omarchy-region-formats en-ZZ </dev/null 2>/dev/null; then
+  fail "omarchy-region-formats rejects unknown codes"
 else
-  pass "omarchy-region rejects unknown codes"
+  pass "omarchy-region-formats rejects unknown codes"
 fi
 [[ ! -e $region_env ]] && pass "an unknown region writes nothing" || fail "an unknown region writes nothing"
 
