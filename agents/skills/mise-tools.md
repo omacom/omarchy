@@ -17,9 +17,10 @@ Don't split a kind of tool between mise and packages, and don't add a mise decla
 
 ## What Omarchy still asks of mise
 
-- `etc/mise/conf.d/omarchy-agent-accounts.toml` declares mise command wrappers for `claude`, `codex` and `grok`, so every session runs as the selected subscription account (`omarchy-agent-account-exec`). They install nothing; `install/user/mise.sh` builds them with `mise reshim`.
 - `etc/mise/conf.d/omarchy.toml` holds settings, such as keeping the version a running process uses when `mise up` upgrades it.
 - `omarchy update` runs `omarchy-update-mise` for the runtimes the user set up.
+
+Account switching for `claude`, `codex` and `grok` is Omarchy's own, not mise's: `default/agent-accounts/bin` holds a dispatcher for each that runs `omarchy-agent-account-exec`, and `default/bash/env-bootstrap` puts that directory first on PATH, so every session, script and editor runs as the selected subscription account.
 
 ## Leave the user's config alone
 

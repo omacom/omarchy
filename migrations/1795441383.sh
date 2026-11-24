@@ -105,4 +105,23 @@ npm:command-code commandcode npm:command-code Command Code
 http:kiro-cli kiro-cli http:kiro-cli[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version] Kiro CLI
 EOF
 
+# Account switching for claude, codex and grok is Omarchy's own dispatchers
+# now, not mise's command wrappers, so the wrappers mise built for it go.
+wrappers="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin"
+for command in claude codex grok; do
+  if [[ -L $wrappers/$command && $(readlink -f "$wrappers/$command") == "$(readlink -f "$(command -v mise)")" ]]; then
+    rm -f "$wrappers/$command"
+  fi
+done
+rmdir "$wrappers" "${wrappers%/bin}" 2>/dev/null || true
+
+# SSH commands that run no shell take PATH from PAM, so the dispatchers lead
+# Omarchy's line there too. Only the exact line Omarchy wrote is changed.
+pam_env=/etc/security/pam_env.conf
+old_path='PATH DEFAULT=/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
+new_path='PATH DEFAULT=/usr/share/omarchy/default/agent-accounts/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
+if grep -qxF "$old_path" "$pam_env"; then
+  sudo sed -i "s|^${old_path//./\\.}\$|${new_path}|" "$pam_env"
+fi
+
 mise reshim

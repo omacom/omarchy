@@ -318,10 +318,14 @@ pass "use moves the chosen login into ~/.claude, so running sessions follow"
 [[ $(omarchy-agent-account-exec claude --version) == "claude home=default args=--version" ]] || fail "claude at a prompt starts in ~/.claude"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
-# mise strips its shims before running a wrapper, so the agent would only see
-# tools installed before it started.
-[[ :$(MISE_DATA_DIR="$test_tmp/mise" OMARCHY_TEST_SHOW_PATH=1 omarchy-agent-account-exec claude): == *":$test_tmp/mise/shims:"* ]] ||
-  fail "an agent finds mise tools installed after it started"
+# Started through its dispatcher, the CLI is the one past it on PATH, and the
+# dispatchers stay first for whatever the agent runs, once.
+dispatchers="$ROOT/default/agent-accounts/bin"
+[[ $(PATH="$dispatchers:$PATH" "$dispatchers/claude" --version) == "claude home=default args=--version" ]] ||
+  fail "the claude dispatcher runs the real CLI as the active account"
+agent_path=$(PATH="$dispatchers:$PATH:$dispatchers" OMARCHY_TEST_SHOW_PATH=1 "$dispatchers/claude")
+[[ $agent_path == "$dispatchers:"* && :${agent_path#"$dispatchers:"}: != *":$dispatchers:"* ]] ||
+  fail "an agent's own subprocesses dispatch too" "$agent_path"
 pass "account dispatch follows the active account"
 
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
@@ -678,15 +682,15 @@ grep -qx "@@omarchy done Added Stuck (stuck@example.com), but couldn't switch ne
 ! grep -q "ready for more" "$notifications" || fail "an added account that can't be selected isn't announced as ready" "$(cat "$notifications")"
 pass "an added account that can't be selected says so"
 
-# Before its package is, an agent's command is on PATH only as mise's account
-# wrapper. The package installs before the login, through polkit since the
+# Before its package is, an agent's command is on PATH only as Omarchy's account
+# dispatcher. The package installs before the login, through polkit since the
 # panel has no terminal, rather than silently inside it. Only the mocks the
 # add needs are on this PATH, not the mock Codex itself.
 lazy_data="$test_tmp/lazy-mise"
 lazy_bin="$test_tmp/lazy-bin"
 lazy_pkexec="$test_tmp/lazy-pkexec"
-lazy_path="$lazy_pkexec:$pkg_bin:$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
-mkdir -p "$lazy_data/command-wrappers/bin" "$lazy_bin" "$lazy_pkexec"
+lazy_path="$lazy_pkexec:$pkg_bin:$ROOT/default/agent-accounts/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+mkdir -p "$lazy_bin" "$lazy_pkexec"
 for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
   ln -s "$mock_bin/$helper" "$lazy_bin/$helper"
 done
@@ -707,7 +711,6 @@ fi
 ln -s "$lazy_bin/mise" "$lazy_bin/codex"
 SH
 chmod +x "$lazy_bin/mise" "$lazy_pkexec/pkexec"
-ln -s "$lazy_bin/mise" "$lazy_data/command-wrappers/bin/codex"
 
 add_lazy() {
   PATH="$lazy_path" MISE_DATA_DIR="$lazy_data" omarchy-agent-account-add --events codex "$@" </dev/null

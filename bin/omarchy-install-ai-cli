@@ -50,16 +50,17 @@ if [[ $mode == "package" ]]; then
 fi
 
 # Installed is the command on PATH: Omarchy's package, or an install of the
-# user's own, such as the link Cursor's installer leaves in ~/.local/bin. mise's
-# account wrappers stand in for claude, codex and grok whether or not anything
-# is behind them, so they don't count, and neither does anything mise puts on
+# user's own, such as the link Cursor's installer leaves in ~/.local/bin. The
+# account dispatchers stand in for claude, codex and grok whether or not
+# anything is behind them, so they don't count (nor mise's old command wrappers
+# a long-running session may still have), and neither does anything mise puts on
 # PATH: its shims everywhere, its install directories only in a shell that
 # activated it, so the panel and a terminal would disagree.
 mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 agent_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
-  if [[ $dir != "$mise_data/command-wrappers/bin" && $dir != "$mise_data/shims" && $dir != "$mise_data/installs/"* ]]; then
+  if [[ $dir != "${OMARCHY_PATH%/}/default/agent-accounts/bin" && $dir != "$mise_data/command-wrappers/bin" && $dir != "$mise_data/shims" && $dir != "$mise_data/installs/"* ]]; then
     agent_path+="${agent_path:+:}$dir"
   fi
 done

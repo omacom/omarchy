@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Runs Grok Build as the selected subscription account. This directory leads
+# PATH (default/bash/env-bootstrap), so scripts and editors that run `grok`
+# follow account switches too.
+exec omarchy-agent-account-exec grok "$@"

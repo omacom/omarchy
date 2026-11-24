@@ -19,8 +19,6 @@ esac
 provider=$1
 shift
 
-# mise removes its wrapper dispatch directories before calling us, so exec
-# finds the real CLI rather than this wrapper.
 # Pin the resolved home for children, including an implicit Main account.
 # Explicit provider homes still take precedence.
 if [[ -z ${!account_env:-} ]]; then
@@ -31,20 +29,22 @@ if [[ -z ${!account_env:-} ]]; then
   fi
 fi
 
-# Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
-# avoid recursion, but the agent's subprocesses need them for other providers.
-# The wrapper is there whether or not the agent is installed, so a missing one
-# says how to install it rather than that the command doesn't exist.
-if ! agent_binary=$(type -P "$provider"); then
+# The real CLI is whatever PATH finds past the dispatchers, the directory this
+# was started from. The dispatcher is there whether or not the agent is
+# installed, so a missing one says how to install it rather than that the
+# command doesn't exist.
+dispatchers="${OMARCHY_PATH%/}/default/agent-accounts/bin"
+cli_path=""
+IFS=: read -r -a dirs <<<"$PATH"
+for dir in "${dirs[@]}"; do
+  [[ $dir == "$dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
+done
+if ! agent_binary=$(PATH=$cli_path type -P "$provider"); then
   echo "$provider is not installed. Install it from Install > AI > CLI, or with: omarchy install ai cli $provider" >&2
   exit 127
 fi
-# mise also drops its shims, leaving only the tools installed at launch. A
-# long-lived agent needs them back to find tools installed after it started.
-mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
-PATH="$mise_data_dir/command-wrappers/bin:$PATH"
-if [[ :$PATH: != *":$mise_data_dir/shims:"* ]]; then
-  PATH="$PATH:$mise_data_dir/shims"
-fi
-export PATH
+
+# The agent's own subprocesses dispatch too, so another provider they start
+# runs as its selected account.
+export PATH="$dispatchers:$cli_path"
 exec "$agent_binary" "$@"
