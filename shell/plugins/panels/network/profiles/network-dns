@@ -236,6 +236,10 @@ def configure(mode, target="", interactive=True):
         return 3
     preset = edit_preset(mode, saved, device) if editing or saved is None else saved
     addresses, routes = preset.settings(mode)
+    ip_settings = enabled_ip_settings(remote)
+    if mode == "Work" and not any(address.version in ip_settings for address in addresses):
+        raise ValueError("Work needs an internal DNS server on an enabled IP family. "
+                         "Edit the Work profile and enter a matching server address.")
     metadata = remote.get_setting(NM.SettingUser)
     if metadata is None:
         metadata = NM.SettingUser.new()
@@ -248,7 +252,7 @@ def configure(mode, target="", interactive=True):
         metadata.set_data(preset_key(mode), json.dumps(preset._asdict()))
     apply_now = not editing or mode == current
     if apply_now:
-        set_dns(remote, addresses, routes)
+        set_dns(ip_settings, addresses, routes)
         metadata.set_data(KEY, f"{mode}/{preset.provider}")
     commit_profile(remote, version)
     if apply_now and (uuid, device) in adapters(uuid):
@@ -273,11 +277,27 @@ def commit_profile(remote, version):
     )
 
 
-def set_dns(remote, addresses, routes):
-    for family, setting in ((4, remote.get_setting_ip4_config()),
-                            (6, remote.get_setting_ip6_config())):
-        if setting is None or setting.get_method() in {"disabled", "ignore"}:
-            continue
+def enabled_ip_settings(remote):
+    return {
+        family: setting
+        for family, setting in ((4, remote.get_setting_ip4_config()),
+                                (6, remote.get_setting_ip6_config()))
+        if setting is not None and setting.get_method() not in {"disabled", "ignore"}
+    }
+
+
+def work_routes(remote):
+    return sorted({
+        route
+        for setting in enabled_ip_settings(remote).values()
+        if setting.get_num_dns()
+        for index in range(setting.get_num_dns_searches())
+        if (route := setting.get_dns_search(index)).startswith("~") and route != "~."
+    })
+
+
+def set_dns(ip_settings, addresses, routes):
+    for family, setting in ip_settings.items():
         ips = [str(address) for address in addresses if address.version == family]
         setting.set_property("ignore-auto-dns", bool(addresses))
         setting.clear_dns()
@@ -328,15 +348,12 @@ def reconcile():
             if kind not in {"802-3-ethernet", "802-11-wireless"} or not device or device == "--":
                 continue
             mode, provider = profile(uuid)
-            if mode != "Work" or provider not in PROVIDERS:
+            routes = work_routes(connection(uuid)) if mode == "Work" and provider in PROVIDERS else []
+            if not routes:
                 other_devices.append(device)
                 continue
-            ipv4, ipv6, default4, default6 = fields(
-                uuid, "ipv4.dns-search", "ipv6.dns-search", "GENERAL.DEFAULT", "GENERAL.DEFAULT6"
-            )
-            routes = sorted(set((ipv4 + " " + ipv6).replace(",", " ").split()))
-            if routes and all(route.startswith("~") and route != "~." for route in routes):
-                work.append(("yes" in (default4, default6), device, provider, routes))
+            default4, default6 = fields(uuid, "GENERAL.DEFAULT", "GENERAL.DEFAULT6")
+            work.append(("yes" in (default4, default6), device, provider, routes))
         for _, device, _, routes in work:
             # NM adds a root routing domain to default-route links.
             call("resolvectl", "domain", device, *routes)
@@ -374,7 +391,10 @@ def main():
     if action == "--status" and len(args) <= 1:
         links = adapters(*args)
         if len(links) == 1:
-            print(profile(links[0][0])[0])
+            uuid, _ = links[0]
+            mode, provider = profile(uuid)
+            if mode != "Work" or (provider in PROVIDERS and work_routes(connection(uuid))):
+                print(mode)
     elif action == "--reconcile" and not args and os.geteuid() == 0:
         reconcile()
     elif action == "--apply" and 1 <= len(args) <= 2 and args[0] in MODES:

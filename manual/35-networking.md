@@ -30,6 +30,8 @@ Open the network panel and choose **Work**. Enter internal domains or individual
 
 Use **Edit DNS profiles** to change a saved choice. Edits to the active mode apply immediately. Other edits take effect when that mode is next selected. To check a result, run `resolvectl status` and `resolvectl query --cache=no your.internal.name`. If the panel shows limited access while sites work, compare the system lookup with `resolvectl -i INTERFACE query PROBE_HOST` for NetworkManager's configured connectivity-check hostname. On a split-DNS connection, you can add that hostname to the Work list if the internal DNS server can resolve it.
 
+Work requires at least one internal DNS server whose IP family is enabled on the connection. If the panel no longer highlights Work after an IP family is disabled, open **Edit DNS profiles** and enter an internal resolver address for an enabled family.
+
 To remove the integration, first select Automatic or restore the original DNS settings on each connection you changed. Run the following from the same directory. Removing the system integration restores the saved Omarchy global preset when present. Repeat the install step after an update that changes the dispatcher helper.
 
 ```sh

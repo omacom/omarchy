@@ -3,6 +3,7 @@ import contextlib
 import io
 from pathlib import Path
 import runpy
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -86,6 +87,61 @@ class ProfileTests(unittest.TestCase):
             self.apply("--edit", ["1", "invalid hostname", "", ""])
         self.assertEqual(len(self.commits), count)
         self.assertEqual(ip.get_dns_search(0), "~corp.example")
+
+    def test_work_rejects_disabled_family_without_changing_connection(self):
+        remote = self.links["wired"]
+        ipv4 = remote.get_setting_ip4_config()
+        ipv6 = remote.get_setting_ip6_config()
+        ipv6.props.method = "disabled"
+        self.apply("Home", ["2"])
+        before = remote.to_dbus(NM.ConnectionSerializationFlags.ALL)
+        commits, reapplies = len(self.commits), len(self.reapplies)
+        for mode, answers in (
+            ("Work", ["corp.example", "2001:db8::53", ""]),
+            ("--edit", ["1", "corp.example", "2001:db8::53", ""]),
+        ):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, "enabled IP family"):
+                self.apply(mode, answers)
+            self.assertEqual(remote.to_dbus(NM.ConnectionSerializationFlags.ALL), before)
+            self.assertEqual((len(self.commits), len(self.reapplies)), (commits, reapplies))
+
+        self.apply("Work", ["corp.example", "192.0.2.53 2001:db8::53", ""])
+        self.assertEqual(ipv4.get_dns(0), "192.0.2.53")
+        self.assertEqual(ipv4.get_dns_search(0), "~corp.example")
+        self.assertEqual(ipv6.get_num_dns(), 0)
+
+    def test_saved_work_stops_reporting_when_its_family_is_disabled(self):
+        remote = self.links["wired"]
+        self.apply("Work", ["corp.example", "2001:db8::53", ""])
+        functions = MODULE["main"].__globals__
+        with patch.object(functions["sys"], "argv", ["network-dns", "--status", "wired"]):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                MODULE["main"]()
+            self.assertEqual(output.getvalue().strip(), "Work")
+            remote.get_setting_ip6_config().props.method = "disabled"
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                MODULE["main"]()
+            self.assertEqual(output.getvalue().strip(), "")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            real_open = open
+            self.reapplies.clear()
+            with patch.dict(functions, RUNTIME=state / "resolved.conf",
+                            WORK_ACTIVE=state / "active",
+                            open=lambda *_: real_open(state / "lock", "w")):
+                MODULE["reconcile"]()
+            self.assertEqual(self.reapplies, [])
+            self.assertFalse((state / "resolved.conf").exists())
+
+        count = len(self.commits)
+        with self.assertRaisesRegex(ValueError, "enabled IP family"):
+            self.apply("Work")
+        self.assertEqual(len(self.commits), count)
+        self.apply("--edit", ["1", "", "192.0.2.53", ""])
+        self.assertEqual(remote.get_setting_ip4_config().get_dns_search(0), "~corp.example")
 
     def test_setup_accepts_dhcp_defaults_only_once(self):
         detected = (["~office.example"], MODULE["servers"]("192.0.2.53"))
