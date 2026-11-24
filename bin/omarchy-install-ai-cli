@@ -79,11 +79,18 @@ elif [[ $mode == "check" ]]; then
 fi
 
 # The agents panel installs with no terminal to ask for a password in, so
-# polkit asks instead. pkexec's 126 is the dialog dismissed, passed on as is.
+# polkit asks instead, through the packaged helper whose polkit action names the
+# agent ("Authorize to install Claude Code"). A checkout linked before that
+# package has landed asks the generic way. pkexec's 126 is the dialog
+# dismissed, passed on as is.
 if [[ -t 0 ]]; then
   omarchy-pkg-add "$package" || exit 1
 else
-  pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package"
+  if [[ -x /usr/bin/omarchy-install-ai-package ]]; then
+    pkexec /usr/bin/omarchy-install-ai-package "$agent"
+  else
+    pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package"
+  fi
   status=$?
   if (( status != 0 )); then
     exit "$status"
