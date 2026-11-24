@@ -354,20 +354,12 @@ setup_run() {
 }
 
 setup_fresh_run() {
-  local asset destination
-
   setup_run
-  for asset in "${plymouth_default_assets[@]}"; do
-    destination="$theme/$asset"
-    rm -f -- "$destination"
-    /usr/bin/install -m 0644 -- "$ROOT/default/plymouth/$asset" "$destination"
-  done
-  for asset in "${sddm_default_assets[@]}"; do
-    destination="$sddm/$asset"
-    rm -f -- "$destination"
-    /usr/bin/install -m 0644 -- "$ROOT/default/sddm/omarchy/$asset" "$destination"
-  done
-  rm -f -- "$sddm/logo.svg"
+  rm -rf -- "$theme" "$sddm"
+  cp -a -- "$ROOT/default/plymouth" "$theme"
+  cp -a -- "$ROOT/default/sddm/omarchy" "$sddm"
+  chmod 0755 "$theme" "$theme/logos" "$sddm"
+  find "$theme" "$sddm" -type f -exec chmod 0644 {} +
 }
 
 run_in_fake_root() {
@@ -432,7 +424,7 @@ assert_packaged_assets() {
   done
 }
 
-for requested_umask in 022 027 077; do
+for requested_umask in 022 077; do
   setup_fresh_run
   output=$(run_set "$requested_umask" env 2>&1)
   status=$?

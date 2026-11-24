@@ -73,14 +73,16 @@ resolve_colors_file() {
   elif [[ -d $ref && -f $ref/colors.toml ]]; then
     printf '%s/colors.toml' "$ref"
   else
-    theme_name=$(normalize_theme_name "$ref")
-    if [[ -f $USER_THEMES_PATH/$theme_name/colors.toml ]]; then
-      printf '%s/colors.toml' "$USER_THEMES_PATH/$theme_name"
-    elif [[ -f $OMARCHY_THEMES_PATH/$theme_name/colors.toml ]]; then
-      printf '%s/colors.toml' "$OMARCHY_THEMES_PATH/$theme_name"
-    else
-      return 1
-    fi
+    for theme_name in "$ref" "$(normalize_theme_name "$ref")"; do
+      if [[ -f $USER_THEMES_PATH/$theme_name/colors.toml ]]; then
+        printf '%s/colors.toml' "$USER_THEMES_PATH/$theme_name"
+        return
+      elif [[ -f $OMARCHY_THEMES_PATH/$theme_name/colors.toml ]]; then
+        printf '%s/colors.toml' "$OMARCHY_THEMES_PATH/$theme_name"
+        return
+      fi
+    done
+    return 1
   fi
 }
 

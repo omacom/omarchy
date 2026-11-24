@@ -1,6 +1,6 @@
 # Detect T2 MacBook models using PCI IDs
 # Vendor: 106b (Apple), Device IDs: 1801 or 1802 (T2 Security Chip)
-if lspci -nn | grep "106b:180[12]" >/dev/null; then
+if omarchy-hw-pci 106b:1801 106b:1802; then
   echo "Detected MacBook with T2 chip. Installing support items..."
 
   # apple-bcm-firmware-fetcher reads its firmware off an on-disk macOS volume —
@@ -26,9 +26,10 @@ if lspci -nn | grep "106b:180[12]" >/dev/null; then
 
   # linux-t2 7.1.4 replaced the apple-bce driver with t2bce; t2bce_vhci is the
   # virtual USB host controller the internal keyboard hangs off, and mkinitcpio
-  # pulls t2bce_core/t2bce_dma in via module dependencies.
+  # pulls t2bce_core/t2bce_dma in via module dependencies. Only linux-t2 ships
+  # t2bce, so the '?' keeps linux-omarchy's initramfs building next to it.
   mkdir -p /etc/mkinitcpio.conf.d
-  echo "MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)" > \
+  echo "MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)" > \
     /etc/mkinitcpio.conf.d/apple-t2.conf
 
   mkdir -p /etc/limine-entry-tool.d

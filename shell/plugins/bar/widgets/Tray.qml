@@ -142,7 +142,17 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
+    if (!item) return
+
+    // Apps that draw their own context menu (Windows apps under Wine) publish
+    // no D-Bus menu, and Quickshell can only show D-Bus menus. Ask the app
+    // for its menu instead.
+    if (!item.hasMenu) {
+      Util.execArgv(["omarchy-tray-context-menu", item.id])
+      return
+    }
+
+    if (!item.menu) {
       var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
       item.display(anchorItem.QsWindow.window, point.x, point.y)
       return
@@ -885,8 +895,8 @@ BarWidget {
     }
 
     TrayIcon {
-      x: (parent.width - width) / 2
-      y: (parent.height - height) / 2
+      x: Math.round((parent.width - width) / 2)
+      y: Math.round((parent.height - height) / 2)
       width: Style.bar.iconSize
       height: Style.bar.iconSize
       icon: trayItemRoot.modelData.icon
@@ -916,6 +926,11 @@ BarWidget {
         } else {
           trayItemRoot.modelData.activate()
         }
+      }
+      // A double-click's second click lands here, not in onClicked.
+      onDoubleClicked: function(mouse) {
+        if (mouse.button === Qt.LeftButton && TrayModel.activatesOnDoubleClick(trayItemRoot.modelData))
+          trayItemRoot.modelData.activate()
       }
       onWheel: function(wheel) {
         trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)

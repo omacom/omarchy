@@ -52,8 +52,8 @@ assert_line() {
 assert_line_count() {
   local description="$1"
 
-  (( ${#state_lines[@]} == 8 )) ||
-    fail "$description" "expected 8 lines, got ${#state_lines[@]}"
+  (( ${#state_lines[@]} == 9 )) ||
+    fail "$description" "expected 9 lines, got ${#state_lines[@]}"
 }
 
 extended='[
@@ -66,6 +66,12 @@ extended='[
 mirrored='[
   { "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 1920, "height": 1080 },
   { "name": "DP-1", "mirrorOf": "eDP-1", "disabled": false, "focused": false, "width": 1920, "height": 1080 }
+]'
+
+# What Hyprland actually sends: `mirrorOf` is the mirrored monitor's id.
+mirrored_by_id='[
+  { "id": 0, "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 1920, "height": 1080 },
+  { "id": 1, "name": "DP-1", "mirrorOf": "0", "disabled": false, "focused": false, "width": 1920, "height": 1080 }
 ]'
 
 # A monitors.lua of the user's own can mirror the other way instead.
@@ -95,6 +101,11 @@ assert_line_count "monitor state answers every line while mirroring"
 assert_line 4 DP-1 "monitor state names the mirroring external monitor"
 assert_line 5 eDP-1 "monitor state still reports the focused monitor while mirroring"
 pass "monitor state reports the external monitor when it mirrors the internal"
+
+monitor_state "$mirrored_by_id"
+[[ $(jq -r '.[] | select(.name == "DP-1").mirrorOf' <<<"${state_lines[7]-}") == "eDP-1" ]] ||
+  fail "monitor state names the mirrored monitor for the panel" "displays: ${state_lines[7]-<missing>}"
+pass "monitor state turns Hyprland's mirror id into the monitor's name"
 
 monitor_state "$reverse_mirrored"
 assert_line_count "monitor state answers every line while mirroring in reverse"
