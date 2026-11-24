@@ -1,9 +1,5 @@
 -- See https://wiki.hypr.land/Configuring/Basics/Window-Rules/
 
--- Chromium changes its client frame when the user double-clicks its header.
--- Honor that maximize request so the surface and compositor stay in sync.
-o.window("negative:(" .. o.chromium_browsers .. "|[bB]rave-origin|((brave|chrome|chromium|msedge|vivaldi|opera|helium)-.+))", { suppress_event = "maximize" })
-
 -- Fix some dragging issues with XWayland.
 o.window(
   {
