@@ -894,6 +894,74 @@ check(
   json.dumps([row._asdict() for row in rows]),
 )
 
+# ----------------------------------------------------------- long sessions
+
+# The reply a typed prompt books is the first step after it. Finding it must
+# seek, not walk: opencode's index is (session_id, seq) and a long session is
+# an ordinary one left open for a while. A walk per prompt is quadratic in the
+# session's length, and every collector that reads opencode's store pays it on
+# each refresh.
+long_db = work / "long" / "opencode.db"
+long_db.parent.mkdir()
+base_ms = now_ms - 3000
+long_conn = sqlite3.connect(long_db)
+long_conn.execute(
+  "CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL,"
+  " type text NOT NULL, seq integer NOT NULL, time_created integer NOT NULL,"
+  " time_updated integer NOT NULL, data text NOT NULL)"
+)
+long_conn.execute("CREATE UNIQUE INDEX session_message_session_seq_idx ON session_message (session_id, seq)")
+long_conn.executemany(
+  "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
+  [(f"usr_{n}", "ses_long", "user", 2 * n, base_ms + 2 * n, base_ms + 2 * n,
+     json.dumps({"role": "user", "time": {"created": base_ms + 2 * n}}))
+   for n in range(1500)],
+)
+long_conn.executemany(
+  "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
+  [(f"ast_{n}", "ses_long", "assistant", 2 * n + 1, base_ms + 2 * n + 1, base_ms + 2 * n + 1,
+     v2("demo", {"input": 1, "output": 1}))
+   for n in range(1500)],
+)
+long_conn.commit()
+long_conn.close()
+
+# Count the work SQLite does, so the check holds on a slow machine too and only
+# a lookup that walks again can fail it.
+steps = [0]
+real_connect = sqlite3.connect
+
+
+def counted_connect(*args, **kwargs):
+  conn = real_connect(*args, **kwargs)
+  conn.set_progress_handler(lambda: (steps.__setitem__(0, steps[0] + 1000), 0)[1], 1000)
+  return conn
+
+
+sqlite3.connect = counted_connect
+try:
+  os.environ["OPENCODE_DB"] = str(long_db)
+  long_rows, long_complete = collectors.scan_opencode(["demo"], accept_demo)
+finally:
+  os.environ.pop("OPENCODE_DB", None)
+  sqlite3.connect = real_connect
+check(
+  "OpenCode books each prompt of a long session to the reply after it",
+  long_complete and len(long_rows) == 1500
+  and sum(r.input_tokens + r.output_tokens for r in long_rows) == 3000
+  and sum(r.prompts for r in long_rows) == 1500,
+  json.dumps({
+    "rows": len(long_rows),
+    "tokens": sum(r.input_tokens + r.output_tokens for r in long_rows),
+    "prompts": sum(r.prompts for r in long_rows),
+  }),
+)
+check(
+  "OpenCode's reply lookup seeks from the prompt instead of reading its session again",
+  steps[0] < 1_000_000,
+  f"{steps[0]} steps of SQLite work for 1500 prompts; reading forward from each one costs about 1125000 rows",
+)
+
 # A prompt is a typed user message, so of the steps answering one, as
 # opencode 1.19.3 writes them (the same parentID), the first books it. A
 # compaction's summary answers the marker opencode adds, and a subagent's
