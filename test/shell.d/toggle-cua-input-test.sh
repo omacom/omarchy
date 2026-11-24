@@ -97,6 +97,11 @@ cat >"$tmp_dir/bin/omarchy-notification-send" <<'SCRIPT'
 #!/bin/bash
 printf 'notify:%s\n' "$*" >>"$TEST_LOG"
 SCRIPT
+
+cat >"$tmp_dir/bin/omarchy-notification-wait" <<'SCRIPT'
+#!/bin/bash
+echo 'notification-wait' >>"$TEST_LOG"
+SCRIPT
 chmod +x "$tmp_dir/bin/"*
 
 export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
@@ -252,10 +257,16 @@ pass "cua input refuses when the compatibility check fails"
 
 # A compositor started before an update of itself or a library is not what the check read:
 # nothing new loads into it, while a module it already holds is left to its own checks.
-cp "$(command -v sleep)" "$tmp_dir/old-compositor"
-"$tmp_dir/old-compositor" 60 &
+# The stand-in's path has a space, as a replaced file's can.
+cp "$(command -v sleep)" "$tmp_dir/old compositor"
+"$tmp_dir/old compositor" 60 &
 stale=$!
-rm "$tmp_dir/old-compositor"
+for ((attempt = 0; attempt < 500; attempt++)); do
+  [[ $(readlink "/proc/$stale/exe" 2>/dev/null) == "$tmp_dir/old compositor" ]] && break
+  sleep 0.01
+done
+[[ $(readlink "/proc/$stale/exe" 2>/dev/null) == "$tmp_dir/old compositor" ]] || fail "the stand-in for an older compositor runs"
+rm "$tmp_dir/old compositor"
 fresh_home
 rc=0
 TEST_COMPOSITOR_PID=$stale "$toggle" on 2>/dev/null || rc=$?
@@ -269,7 +280,34 @@ TEST_COMPOSITOR_PID=$stale TEST_PLUGIN_LOADED=1 TEST_CUA_READY=1 "$toggle" on >/
   fail "cua input turns on with a module the older compositor already holds"
 [[ -e $(flag_file) ]] || fail "cua input turns on with a module the older compositor already holds" "no flag"
 pass "cua input turns on with a module the older compositor already holds"
+
+# The session-start check run by hand in such a session loads nothing either, and says what on says.
+fresh_home
+"$toggle" on >/dev/null
+: >"$TEST_LOG"
+TEST_COMPOSITOR_PID=$stale "$toggle" --load
+[[ ! -e $(flag_file) ]] && ! grep -q '^hyprctl:plugin load' "$TEST_LOG" && grep -q '^notify:.*Cua input turned off.*This session predates a Hyprland update' "$TEST_LOG" ||
+  fail "cua input loads nothing at a session start in a compositor that predates an update" "$(cat "$TEST_LOG")"
+pass "cua input loads nothing at a session start in a compositor that predates an update"
 kill "$stale"
+
+# Executable memory a compositor made for itself reads as deleted without being a replaced file.
+/usr/bin/python3 -c 'import mmap, os, time
+fd = os.memfd_create("jit")
+os.ftruncate(fd, 4096)
+held = mmap.mmap(fd, 4096, prot=mmap.PROT_READ | mmap.PROT_EXEC)
+time.sleep(60)' &
+jit=$!
+for ((attempt = 0; attempt < 500; attempt++)); do
+  grep -q 'r.x.* /memfd:jit (deleted)$' "/proc/$jit/maps" 2>/dev/null && break
+  sleep 0.01
+done
+grep -q 'r.x.* /memfd:jit (deleted)$' "/proc/$jit/maps" || fail "the stand-in for a compositor with executable memory runs"
+fresh_home
+TEST_COMPOSITOR_PID=$jit TEST_CUA_READY=1 "$toggle" on >/dev/null || fail "cua input turns on in a compositor holding executable memory of its own"
+grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input turns on in a compositor holding executable memory of its own" "$(cat "$TEST_LOG")"
+pass "cua input turns on in a compositor holding executable memory of its own"
+kill "$jit"
 
 fresh_home
 rc=0
@@ -548,10 +586,12 @@ for loaded in 0 1; do
   TEST_PLUGIN_LOADED=$loaded TEST_VERIFY_STATUS=1 "$toggle" --load
   grep -q 'enabled = false' "$(flag_file)" && ! grep -q 'enabled = true' "$(flag_file)" && grep -q 'omarchy-toggle-cua-input --load' "$(flag_file)" ||
     fail "cua input waits, held off, when the check fails at session start (loaded=$loaded)" "$(cat "$(flag_file)" 2>&1)"
-  [[ $(grep '^hyprctl:' "$TEST_LOG") == "hyprctl:reload" ]] ||
+  [[ $(grep -c '^hyprctl:' "$TEST_LOG") == 2 && $(grep -m1 '^hyprctl:' "$TEST_LOG") == "hyprctl:reload" ]] &&
+    grep -q '^hyprctl:eval .*enabled = false' "$TEST_LOG" ||
     fail "cua input waits, held off, when the check fails at session start (loaded=$loaded)" "$(cat "$TEST_LOG")"
-  grep -q '^notify:.*Cua input waiting for an update' "$TEST_LOG" ||
-    fail "cua input waits, held off, when the check fails at session start (loaded=$loaded)" "no notification"
+  # Sent once the notification server answers: at login the shell can still be starting.
+  [[ $(grep -A1 '^notification-wait$' "$TEST_LOG" | tail -1) == notify:*--transient*"Cua input waiting for an update"* ]] ||
+    fail "cua input waits, held off, when the check fails at session start (loaded=$loaded)" "$(cat "$TEST_LOG")"
   pass "cua input waits, held off, when the check fails at session start (loaded=$loaded)"
 done
 
@@ -563,12 +603,15 @@ pass "cua input comes back at the session start that finds the check passing"
 
 # A plugin that was removed or replaced by one too old has nothing to wait for, and a hold
 # Hyprland did not take is not a wait.
-for gone in TEST_PLUGIN_INSTALLED=0 TEST_PLUGIN_VERSION=0.28.2-2 "TEST_VERIFY_STATUS=1 TEST_RELOAD_STATUS=1"; do
+for gone in TEST_PLUGIN_INSTALLED=0 TEST_PLUGIN_VERSION=0.28.2-2 "TEST_VERIFY_STATUS=1 TEST_RELOAD_STATUS=1" "TEST_VERIFY_STATUS=1 TEST_EVAL_STATUS=1"; do
   : >"$TEST_LOG"
   # shellcheck disable=SC2086 # the last case is two assignments
   env $gone "$toggle" --load
   [[ ! -e $(flag_file) ]] || fail "cua input turns itself off at session start with $gone"
-  grep -q '^notify:.*Cua input turned off' "$TEST_LOG" || fail "cua input turns itself off at session start with $gone" "no notification"
+  # Says off only where the live option took it.
+  if [[ $gone == *TEST_EVAL_STATUS=1* ]]; then said="Cua input may still be on"; else said="Cua input turned off"; fi
+  [[ $(grep -A1 '^notification-wait$' "$TEST_LOG" | tail -1) == notify:*"$said"* ]] ||
+    fail "cua input turns itself off at session start with $gone" "$(cat "$TEST_LOG")"
   pass "cua input turns itself off at session start with $gone"
   "$toggle" on >/dev/null
 done

@@ -26,13 +26,22 @@ notify() {
   omarchy-notification-send -g "$GLYPH" "$@" || true
 }
 
-# Removes the flag, then switches the live option off: a reload that kept the old
-# settings, as a config syntax error does, still answers ok. Off only once both took.
+# A reload that kept the old settings, as a config syntax error does, still answers ok,
+# so the option is also switched off in the running Hyprland.
+live_off() {
+  [[ $(hyprctl eval 'if hl.get_config("plugin.cua.enabled") ~= nil then hl.config({ plugin = { cua = { enabled = false } } }) end' 2>/dev/null) == "ok" ]]
+}
+
+# Off only once the flag is gone and the live option took the change.
 flag_off() {
-  local live
   omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
-  live=$(hyprctl eval 'if hl.get_config("plugin.cua.enabled") ~= nil then hl.config({ plugin = { cua = { enabled = false } } }) end' 2>/dev/null)
-  [[ $live == "ok" && ! -e $FLAG_FILE ]]
+  live_off && [[ ! -e $FLAG_FILE ]]
+}
+
+# Session start can come before the shell has claimed the notification bus name, and a toast sent then is lost.
+startup_notify() {
+  omarchy-notification-wait || true
+  notify "$@"
 }
 
 refuse() {
@@ -88,10 +97,13 @@ compatible() {
 # The consumer check reads what is installed. A compositor started before an update
 # still runs the executable and libraries it mapped then, which /proc lists as deleted.
 session_current() {
-  local pid
+  local pid maps
   pid=$(hyprctl -j instances 2>/dev/null |
     jq -er --arg signature "${HYPRLAND_INSTANCE_SIGNATURE-}" '.[] | select(.instance == $signature) | .pid') || return 1
-  [[ -r /proc/$pid/maps ]] && ! grep -Eq ' r.xp .* \(deleted\)$' "/proc/$pid/maps"
+  maps=$(cat "/proc/$pid/maps" 2>/dev/null) || return 1
+  # Files only: an anonymous memfd reads as deleted from the moment it is made.
+  [[ -n $maps ]] &&
+    ! awk '$2 ~ /^r.x/ && $NF == "(deleted)" && $6 !~ /^\/memfd:/ { replaced = 1 } END { exit !replaced }' <<<"$maps"
 }
 
 # Hyprland reloads its configuration when a plugin loads, so an enabled flag is
@@ -161,9 +173,9 @@ turn_off() {
 # Session-start failures take the flag back and say whether that took.
 startup_off() {
   if flag_off; then
-    notify "$(omarchy-i18n cua.turnedOff)" "$1"
+    startup_notify "$(omarchy-i18n cua.turnedOff)" "$1"
   else
-    notify "$(omarchy-i18n cua.mayStillBeOn)" "$1 $(omarchy-i18n cua.changeNotTaken)"
+    startup_notify "$(omarchy-i18n cua.mayStillBeOn)" "$1 $(omarchy-i18n cua.changeNotTaken)"
   fi
   exit 0
 }
@@ -175,16 +187,21 @@ load_at_start() {
   omarchy-pkg-present cua-hyprland-plugin || startup_off "$(omarchy-i18n cua.pluginMissing)"
   package_current || startup_off "$(omarchy-i18n cua.pluginTooOld "$MIN_VERSION")"
 
-  # Hyprland or one of its libraries has moved ahead of the plugin, whose build
-  # for it follows by itself: the flag waits, held off, for the session that finds them matching.
+  # Hyprland or one of its libraries has moved ahead of the plugin, whose build for it
+  # follows by itself: the flag waits, held off, for the login that finds them matching.
+  # Transient, so a login does not restore the last one's toast beside a new one.
   if ! compatible; then
     if ! hold_flag; then
       [[ -e $FLAG_FILE ]] && startup_off "$(omarchy-i18n cua.startupReloadFailed)"
       exit 0
     fi
-    notify "$(omarchy-i18n cua.waiting)" "$(omarchy-i18n cua.waitingBody)"
+    live_off || startup_off "$(omarchy-i18n cua.pluginMismatch)"
+    startup_notify --transient "$(omarchy-i18n cua.waiting)" "$(omarchy-i18n cua.waitingBody)"
     exit 0
   fi
+
+  # Only when run by hand: at a real session start the compositor is what is installed.
+  plugin_loaded || session_current || startup_off "$(omarchy-i18n cua.sessionStale)"
 
   if ! plugin_loaded && ! hold_flag; then
     [[ -e $FLAG_FILE ]] && startup_off "$(omarchy-i18n cua.startupHoldFailed)"
