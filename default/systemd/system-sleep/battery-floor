@@ -36,6 +36,40 @@ WAKE_FILE="$DEADLINE_DIR/early-wake"
 # Desktops have no battery to protect; stay out of the way.
 omarchy-battery-present || exit 0
 
+# The alarm-capable RTC is not always rtc0: on Apple silicon the PMU RTC, the
+# one that actually wakes the machine, registers as rtc1 while rtc0 is an SMC
+# RTC with no alarm. A bare rtcwake silently targets rtc0, so name the first
+# RTC that exposes wakealarm and is a wakeup source in every rtcwake call.
+pick_rtc() {
+  local rtc
+  for rtc in /sys/class/rtc/rtc*; do
+    [[ -e $rtc/wakealarm ]] || continue
+    [[ $(cat "$rtc/device/power/wakeup" 2>/dev/null) == enabled ]] || continue
+    printf '%s\n' "${rtc##*/}"
+    return 0
+  done
+  return 1
+}
+
+log() {
+  /usr/bin/logger -t omarchy-battery-floor "$@" 2>/dev/null || true
+}
+
+# rtcwake failures must never block suspend, but they must not vanish either:
+# a missing or unarmed alarm leaves a bagged machine draining silently, so a
+# failure lands in the journal instead of being discarded.
+rtc_wake() {
+  local err
+  if ! err=$(/usr/bin/rtcwake -d "$RTC" "$@" 2>&1); then
+    log "rtcwake -d $RTC $* failed: $err"
+  fi
+}
+
+RTC=$(pick_rtc) || {
+  log "no alarm-capable RTC found; battery floor inactive"
+  exit 0
+}
+
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 
 # The deferred decision, outside the suspend job: the deadline has expired,
@@ -72,7 +106,7 @@ if [[ $1 == "pre" ]]; then
   [[ $sleep_action == suspend* ]] || exit 0
   if ! omarchy-hw-laptop-closed || omarchy-hw-external-monitors; then
     if [[ -f $DEADLINE_FILE ]]; then
-      /usr/bin/rtcwake -m disable >/dev/null 2>&1 || true
+      rtc_wake -m disable
       rm -f "$DEADLINE_FILE" "$WAKE_FILE"
     fi
     exit 0
@@ -104,7 +138,7 @@ if [[ $1 == "pre" ]]; then
     printf '%s\n' "$deadline" >"$DEADLINE_FILE" || exit 0
   fi
   rm -f "$WAKE_FILE"
-  /usr/bin/rtcwake -m no -s "$remaining" >/dev/null 2>&1 || true
+  rtc_wake -m no -s "$remaining"
   exit 0
 fi
 
@@ -127,11 +161,11 @@ if (( now < deadline )); then
     # carries this countdown, and arm the remaining time in the meantime.
     mkdir -p "$DEADLINE_DIR" || exit 0
     printf '%s\n' "$now" >"$WAKE_FILE" || exit 0
-    /usr/bin/rtcwake -m no -s "$(( deadline - now ))" >/dev/null 2>&1 || true
+    rtc_wake -m no -s "$(( deadline - now ))"
   else
     # Lid open or docked: somebody is back (or about to be). Stand the
     # floor down; a later lid-shut suspend re-arms from pre.
-    /usr/bin/rtcwake -m disable >/dev/null 2>&1 || true
+    rtc_wake -m disable
     rm -f "$DEADLINE_FILE" "$WAKE_FILE"
   fi
   exit 0
@@ -140,7 +174,7 @@ fi
 # Deadline reached: consume it, disarm the RTC (some boards honor an RTC
 # alarm even from soft-off), and defer the decision to a transient unit.
 rm -f "$DEADLINE_FILE" "$WAKE_FILE"
-/usr/bin/rtcwake -m disable >/dev/null 2>&1 || true
+rtc_wake -m disable
 
 # After=suspend.target is the point: logind refuses a new action while the
 # original suspend job is still in progress, and this hook runs inside that

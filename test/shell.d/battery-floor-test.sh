@@ -89,6 +89,26 @@ floor_dir="$test_tmp/floor"
 mkdir -p "$stub_bin" "$floor_dir"
 : >"$calls"
 
+# Fake /sys/class/rtc trees. Apple silicon: rtc0 is an SMC RTC with no alarm
+# and the PMU RTC that wakes the machine is rtc1. The cmos tree is the common
+# x86 layout, where rtc0 is the alarm RTC.
+apple_rtc="$test_tmp/sys-apple/class/rtc"
+cmos_rtc="$test_tmp/sys-cmos/class/rtc"
+none_rtc="$test_tmp/sys-none/class/rtc"
+mkdir -p "$apple_rtc/rtc0/device/power" "$apple_rtc/rtc1/device/power" \
+  "$cmos_rtc/rtc0/device/power" "$cmos_rtc/rtc1/device/power" \
+  "$none_rtc/rtc0/device/power" "$none_rtc/rtc1/device/power"
+echo disabled >"$apple_rtc/rtc0/device/power/wakeup"
+: >"$apple_rtc/rtc1/wakealarm"
+echo enabled >"$apple_rtc/rtc1/device/power/wakeup"
+: >"$cmos_rtc/rtc0/wakealarm"
+echo enabled >"$cmos_rtc/rtc0/device/power/wakeup"
+: >"$cmos_rtc/rtc1/wakealarm"
+echo enabled >"$cmos_rtc/rtc1/device/power/wakeup"
+: >"$none_rtc/rtc0/wakealarm"
+echo disabled >"$none_rtc/rtc0/device/power/wakeup"
+: >"$none_rtc/rtc1/wakealarm"
+
 # Each helper exits per its STUB_* switch so the matrix below drives the hook
 # without touching real sysfs. The date stub plus NOW_OFFSET drives the clock
 # so expired and pending deadlines can be tested without waiting.
@@ -103,6 +123,14 @@ done
 cat >"$stub_bin/rtcwake" <<'SH'
 #!/bin/bash
 printf 'rtcwake\t%s\n' "$*" >>"$CALLS"
+if (( ${STUB_RTCWAKE_FAIL:-0} == 1 )); then
+  echo "rtcwake: set rtc wake alarm failed: Invalid argument" >&2
+  exit 1
+fi
+SH
+cat >"$stub_bin/logger" <<'SH'
+#!/bin/bash
+printf 'logger\t%s\n' "$*" >>"$CALLS"
 SH
 cat >"$stub_bin/systemctl" <<'SH'
 #!/bin/bash
@@ -126,12 +154,15 @@ SH
 chmod +x "$stub_bin"/*
 
 # The hook names system tools by absolute /usr/bin path (repo convention),
-# which PATH stubs cannot intercept, so exercise a copy with that prefix
-# redirected into the sandbox. The omarchy-* helpers stay bare names and
-# resolve through PATH as on a real machine.
+# which PATH stubs cannot intercept, and reads the RTC from /sys, so exercise
+# copies with both redirected into the sandbox. The omarchy-* helpers stay
+# bare names and resolve through PATH as on a real machine.
+sandbox_hook() {
+  sed -e "s|/usr/bin/|$stub_bin/|g" -e "s|/sys/class/rtc|$1|g" "$hook" >"$2"
+  chmod +x "$2"
+}
 sandboxed_hook="$test_tmp/battery-floor"
-sed "s|/usr/bin/|$stub_bin/|g" "$hook" >"$sandboxed_hook"
-chmod +x "$sandboxed_hook"
+sandbox_hook "$apple_rtc" "$sandboxed_hook"
 
 deadline_file="$floor_dir/deadline"
 wake_file="$floor_dir/early-wake"
@@ -139,11 +170,17 @@ wake_file="$floor_dir/early-wake"
 # Fake epoch; every scenario below moves the clock explicitly.
 NOW=1000000
 
-run_hook() {
+run_hook_with() {
+  local hook_path=$1
+  shift
   : >"$calls"
   CALLS="$calls" FAKE_NOW="$NOW" \
     OMARCHY_BATTERY_FLOOR_DIR="$floor_dir" \
-    PATH="$stub_bin:$PATH" "$sandboxed_hook" "$@" >/dev/null 2>&1
+    PATH="$stub_bin:$PATH" "$hook_path" "$@" >/dev/null 2>&1
+}
+
+run_hook() {
+  run_hook_with "$sandboxed_hook" "$@"
 }
 
 # No battery anywhere: fully inert, pre and post.
@@ -160,7 +197,7 @@ export STUB_OMARCHY_BATTERY_PRESENT=1
 export STUB_OMARCHY_HW_LAPTOP_CLOSED=1 STUB_OMARCHY_HW_EXTERNAL_MONITORS=0
 rm -f "$deadline_file" "$wake_file"
 run_hook pre suspend
-grep -Fq $'rtcwake\t-m no -s 1200' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m no -s 1200' "$calls" ||
   fail "pre suspend with the lid shut arms a 20min RTC self-wake" "$(cat "$calls")"
 [[ "$(cat "$deadline_file")" == $(( NOW + 1200 )) ]] ||
   fail "pre suspend records a deadline exactly the grace period out" "$(cat "$deadline_file" 2>/dev/null)"
@@ -175,7 +212,7 @@ pass "pre with an open lid arms nothing"
 # Pre with the lid open cancels a countdown a previous lid-shut suspend left.
 run_hook pre suspend
 STUB_OMARCHY_HW_LAPTOP_CLOSED=0 run_hook pre suspend
-grep -Fq $'rtcwake\t-m disable' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m disable' "$calls" ||
   fail "an open-lid suspend cancels a leftover countdown" "$(cat "$calls")"
 [[ ! -f $deadline_file ]] || fail "an open-lid suspend clears the leftover deadline"
 pass "an open-lid suspend cancels a leftover countdown"
@@ -189,9 +226,9 @@ rm -f "$deadline_file" "$wake_file"
 run_hook pre suspend
 export STUB_OMARCHY_HW_EXTERNAL_MONITORS=1
 run_hook pre suspend
-grep -Fq $'rtcwake\t-m disable' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m disable' "$calls" ||
   fail "a docked suspend cancels the countdown" "$(cat "$calls")"
-! grep -q $'rtcwake\t-m no' "$calls" ||
+! grep -q $'rtcwake\t-d rtc1 -m no' "$calls" ||
   fail "a docked suspend does not re-arm a countdown it just cancelled" "$(cat "$calls")"
 [[ ! -f $deadline_file ]] || fail "a docked suspend clears the deadline"
 pass "a docked suspend stands the floor down instead of arming it"
@@ -217,7 +254,7 @@ rm -f "$deadline_file" "$wake_file"
 run_hook pre suspend
 NOW=1000600
 run_hook post suspend
-grep -Fq $'rtcwake\t-m no -s 600' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m no -s 600' "$calls" ||
   fail "an early wake re-arms exactly the remaining countdown" "$(cat "$calls")"
 [[ "$(cat "$deadline_file")" == 1001200 ]] ||
   fail "an early wake keeps the original deadline" "$(cat "$deadline_file" 2>/dev/null)"
@@ -233,7 +270,7 @@ pass "an early wake re-arms exactly the remaining countdown"
 # timer shorter than the grace period postponed it forever and drained anyway.
 NOW=1000630
 run_hook pre suspend
-grep -Fq $'rtcwake\t-m no -s 570' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m no -s 570' "$calls" ||
   fail "the re-suspend after an early wake carries the countdown" "$(cat "$calls")"
 [[ "$(cat "$deadline_file")" == 1001200 ]] ||
   fail "carrying the countdown must not move the deadline" "$(cat "$deadline_file" 2>/dev/null)"
@@ -245,7 +282,7 @@ pass "the re-suspend after an early wake carries the countdown, not a restart"
 NOW=1001100
 printf '1000600\n' >"$wake_file"
 run_hook pre suspend
-grep -Fq $'rtcwake\t-m no -s 1200' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m no -s 1200' "$calls" ||
   fail "a later lid close gets the full grace period" "$(cat "$calls")"
 [[ "$(cat "$deadline_file")" == 1002300 ]] ||
   fail "a later lid close starts a fresh deadline" "$(cat "$deadline_file" 2>/dev/null)"
@@ -256,7 +293,7 @@ pass "a later lid close is a new event, not a carry"
 NOW=1001110
 export STUB_OMARCHY_HW_LAPTOP_CLOSED=0
 run_hook post suspend
-grep -Fq $'rtcwake\t-m disable' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m disable' "$calls" ||
   fail "an early wake with an open lid disarms the alarm" "$(cat "$calls")"
 [[ ! -f $deadline_file && ! -f $wake_file ]] ||
   fail "an early wake with an open lid clears both floor files"
@@ -270,7 +307,7 @@ rm -f "$deadline_file" "$wake_file"
 run_hook pre suspend
 NOW=1001300
 run_hook post suspend
-grep -Fq $'rtcwake\t-m disable' "$calls" ||
+grep -Fq $'rtcwake\t-d rtc1 -m disable' "$calls" ||
   fail "an expired deadline disarms the alarm" "$(cat "$calls")"
 [[ ! -f $deadline_file && ! -f $wake_file ]] ||
   fail "an expired deadline consumes both floor files"
@@ -314,3 +351,51 @@ export STUB_OMARCHY_HW_LAPTOP_CLOSED=1 STUB_OMARCHY_HW_EXTERNAL_MONITORS=1
 run_hook act
 [[ ! -s $calls ]] || fail "a docked decision stands down" "$(cat "$calls")"
 pass "a docked decision stands down"
+
+# --- RTC selection ---
+# Reset the scenario stubs: the previous decision table left the machine
+# docked, where pre arms nothing.
+export STUB_OMARCHY_HW_LAPTOP_CLOSED=1 STUB_OMARCHY_HW_EXTERNAL_MONITORS=0
+export STUB_OMARCHY_POWER_PRESENT=0
+# Apple silicon: rtc0 has no alarm, so every call must name the wake-enabled
+# PMU RTC at rtc1; a bare rtcwake would target rtc0 and never arm anything.
+NOW=1000000
+rm -f "$deadline_file" "$wake_file"
+run_hook pre suspend
+grep -q $'^rtcwake' "$calls" ||
+  fail "the lid-shut pre arms an alarm before RTC selection is asserted" "$(cat "$calls")"
+! grep -Eq $'^rtcwake\t-m' "$calls" ||
+  fail "every rtcwake call names its RTC" "$(cat "$calls")"
+pass "every rtcwake call names the alarm RTC"
+
+# The common x86 layout: rtc0 is the alarm RTC, so it is the one named.
+hook_cmos="$test_tmp/battery-floor-cmos"
+sandbox_hook "$cmos_rtc" "$hook_cmos"
+rm -f "$deadline_file" "$wake_file"
+run_hook_with "$hook_cmos" pre suspend
+grep -Fq $'rtcwake\t-d rtc0 -m no -s 1200' "$calls" ||
+  fail "rtc0 is used where it is the alarm RTC" "$(cat "$calls")"
+pass "rtc0 is used where it is the alarm RTC"
+
+# No alarm-capable RTC: arming would be a silent no-op, so say so and stay out
+# of the way instead of writing a deadline nothing will wake for.
+hook_none="$test_tmp/battery-floor-none"
+sandbox_hook "$none_rtc" "$hook_none"
+rm -f "$deadline_file" "$wake_file"
+run_hook_with "$hook_none" pre suspend
+grep -Fq $'logger\t-t omarchy-battery-floor no alarm-capable RTC' "$calls" ||
+  fail "a machine without an alarm RTC says so" "$(cat "$calls")"
+! grep -q $'^rtcwake' "$calls" ||
+  fail "a machine without an alarm RTC arms nothing" "$(cat "$calls")"
+[[ ! -f $deadline_file ]] ||
+  fail "a machine without an alarm RTC records no deadline"
+pass "a machine without an alarm RTC logs and arms nothing"
+
+# A failing rtcwake must not block suspend, but the journal must carry it.
+rm -f "$deadline_file" "$wake_file"
+STUB_RTCWAKE_FAIL=1 run_hook pre suspend
+grep -Fq $'logger\t-t omarchy-battery-floor rtcwake -d rtc1 -m no -s 1200 failed:' "$calls" ||
+  fail "a failed RTC arm is logged" "$(cat "$calls")"
+[[ -f $deadline_file ]] ||
+  fail "a failed RTC arm must not block suspend"
+pass "a failed RTC arm is logged without blocking suspend"
