@@ -61,8 +61,8 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Shift + Alt + 1…9/0` | Move window to workspace on the focused monitor without following |
 | `Super + S` | Toggle full scratchpad |
 | `Super + Alt + S` | Move window to full scratchpad |
-| `Super + Grave` | Toggle Quake console |
-| `Super + Shift + Grave` | Move window to Quake console |
+| `Super + the key above Tab` (grave on US layouts) | Toggle Quake console |
+| `Super + Shift + the key above Tab` (grave on US layouts) | Move window to Quake console |
 | `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
 | `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
 | `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
@@ -99,7 +99,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 
 On a touchpad, three- and four-finger swipes switch workspaces, move windows, and open the menu and the Quake console; see [keyboard, mouse, and trackpad](34-keyboard-mouse-trackpad.md) for the gestures.
 
-Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<AE12>`), regardless of the characters printed on the keyboard. On US keyboards these keys are `-` and `=`; on Japanese (JIS) keyboards they are `-` and `^`; on Spanish keyboards they are `'` and `¡`. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`.
+Resizing uses the two keys right of 0, whatever your keyboard prints on them: `-` and `=` on US keyboards, `+` and `´` on Danish and Swedish, `+` and `\` on Norwegian, `ß` and `´` on German, `'` and `¡` on Spanish, and `-` and `^` on Japanese (JIS). `Super + K` lists them as your keyboard prints them. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`. Monitor scaling and the password manager use `/`; on layouts that type `/` only with Shift, as most European ones do, they use the key left of right Shift instead (`-` on Danish and German).
 
 ## System controls
 
@@ -111,7 +111,6 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
 | `Super + Ctrl + X`           | Agents panel    |
-| `Super + Ctrl + Alt + X`           | Local models panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
 | `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
@@ -121,7 +120,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Ctrl + H` | Hardware menu |
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
-| `Super + Shift + Ctrl + A` | Pick an AI agent |
+| `Super + Shift + Ctrl + A` | Start your default agent |
 | `Power` key | System menu |
 | `Super + Shift + Copilot` key | Omarchy menu |
 
