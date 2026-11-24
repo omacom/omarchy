@@ -10,6 +10,41 @@ fi
 
 WINDOW_PATTERN="$1"
 shift
+url="$1"
 LAUNCH_COMMAND="omarchy-launch-webapp $@"
 
-exec omarchy-launch-or-focus "$WINDOW_PATTERN" "$LAUNCH_COMMAND"
+# Chromium --app windows carry the URL's host and path in their window class,
+# e.g. chrome-web.whatsapp.com__-Default for https://web.whatsapp.com/. The
+# first argument is only the binding's display name, so matching the derived
+# host and path against the class alone keeps an ordinary browser window whose
+# active tab title contains that name from being taken for the web app, and
+# keeps two web apps on one host apart.
+host_pattern=""
+if [[ $url =~ ^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?#]+)([^?#]*) ]]; then
+  host=${BASH_REMATCH[1]##*@}
+  path=${BASH_REMATCH[2]}
+  [[ -n $path ]] || path=/
+
+  if [[ $host == \[*\]* ]]; then
+    # A bracketed IPv6 host keeps its brackets; a port follows the closing one.
+    host=${host%%]*}
+    host="${host}]"
+  else
+    host=${host%%:*}
+  fi
+
+  # Chromium joins the host and path with an underscore and turns the path's
+  # slashes into underscores, so derive the same string, escape what a regex
+  # would read as syntax, and require the profile separator or the end after it.
+  raw_pattern="-${host}_${path//\//_}"
+  escaped_pattern=$(printf '%s' "$raw_pattern" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
+  host_pattern="${escaped_pattern}([-_]|$)"
+fi
+
+if [[ -n $host_pattern ]]; then
+  exec omarchy-launch-or-focus --class "$host_pattern" "$LAUNCH_COMMAND"
+else
+  # A first argument that is not a URL keeps its historical meaning: match the
+  # pattern a hand-written caller supplied.
+  exec omarchy-launch-or-focus "$WINDOW_PATTERN" "$LAUNCH_COMMAND"
+fi
