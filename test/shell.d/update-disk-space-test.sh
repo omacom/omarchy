@@ -76,6 +76,7 @@ for command in \
   omarchy-update-keyring \
   omarchy-update-system-pkgs \
   omarchy-migrate \
+  omarchy-theme-refresh \
   omarchy-update-aur-pkgs \
   omarchy-update-mise \
   omarchy-update-orphan-pkgs \

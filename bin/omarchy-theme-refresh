@@ -1,11 +1,59 @@
 #!/bin/bash
 
 # omarchy:summary=Refresh the current theme from its templates.
+# omarchy:args=[--if-changed]
+
+set -euo pipefail
 
 THEME_NAME_PATH="$HOME/.local/state/omarchy/current/theme.name"
+# What the staged theme was last rendered from, so an update can tell whether a
+# template changed since.
+TEMPLATES_STAMP_PATH="$HOME/.local/state/omarchy/theme-templates.sha256"
+
+if_changed=false
+if [[ ${1:-} == "--if-changed" ]]; then
+  if_changed=true
+fi
+
+# The templates omarchy-theme-set-templates renders, by name and content, so an
+# added, removed or edited template all change it. A linked template counts by
+# what it points at, as the renderer reads it.
+templates_fingerprint() {
+  local source dir template
+
+  shopt -s nullglob
+  for source in "default:$OMARCHY_PATH/default/themed" "user:$HOME/.config/omarchy/themed"; do
+    dir=${source#*:}
+    [[ -d $dir ]] || continue
+    echo "${source%%:*}"
+    for template in "$dir"/*.tpl; do
+      # A broken link has no content to hash, but it still counts by name.
+      if [[ -r $template ]]; then
+        echo "$(sha256sum <"$template" | cut -d' ' -f1) ${template##*/}"
+      else
+        echo "unreadable ${template##*/}"
+      fi
+    done
+  done | sha256sum | cut -d' ' -f1
+}
+
+[[ -f $THEME_NAME_PATH ]] || exit 0
+
+fingerprint=$(templates_fingerprint)
+if [[ $if_changed == "true" && -f $TEMPLATES_STAMP_PATH && $(<"$TEMPLATES_STAMP_PATH") == "$fingerprint" ]]; then
+  exit 0
+fi
+
+# omarchy-theme-set leaves work running behind it, such as the herdr machine
+# sync over SSH. Inheriting omarchy update's lock, that work would hold it after
+# the update exits, so the next update would report one still running.
+[[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
 
 # Installers and migrations refresh the theme and then read the app configs it
 # writes, so this waits for every retint rather than leaving some running.
-if [[ -f $THEME_NAME_PATH ]]; then
-  OMARCHY_THEME_WAIT=1 OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$(cat $THEME_NAME_PATH)"
-fi
+OMARCHY_THEME_WAIT=1 OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$(<"$THEME_NAME_PATH")"
+
+# Only a refresh that went through counts, so a failed one is retried by the
+# next update.
+mkdir -p "${TEMPLATES_STAMP_PATH%/*}"
+echo "$fingerprint" >"$TEMPLATES_STAMP_PATH"

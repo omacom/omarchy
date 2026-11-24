@@ -24,6 +24,7 @@ steps=(
   omarchy-update-system-pkgs
   omarchy-migrate
   omarchy-restart-shell
+  omarchy-theme-refresh
   omarchy-hook
   omarchy-update-aur-pkgs
   omarchy-update-mise
@@ -89,6 +90,7 @@ expected_steps() {
     omarchy-migrate:--pending \
     ${2-omarchy-restart-shell} \
     omarchy-migrate \
+    omarchy-theme-refresh \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
     omarchy-done \
@@ -134,7 +136,7 @@ pass "an update restarts the shell before migrating only when migrations are pen
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-migrate omarchy-theme-refresh omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
@@ -148,3 +150,11 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# A theme that failed to re-render is no reason to stop an update whose
+# packages and migrations went through; the next update tries it again.
+FAILING_STEP=omarchy-theme-refresh run_update -y || fail "a failed theme refresh fails the update"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "a failed theme refresh skips later update steps" "$(cat "$test_tmp/order")"
+grep -q "next update tries again" "$test_tmp/err" || fail "the theme refresh failure is not reported"
+pass "a failed theme refresh is reported and the update finishes"
