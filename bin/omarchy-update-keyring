@@ -91,7 +91,7 @@ if [[ -f $platform_keyrings ]]; then
     fi
   done <"$platform_keyrings"
 fi
-echo -e "\e[32m\nUpdate signing keys\e[0m"
+echo -e "\e[32m\n$(omarchy-i18n update.signingKeys)\e[0m"
 sudo pacman -Sy --needed --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- skipping$' >&2)
 
 if omarchy-hw-aarch64 && ! alarm_key_trusted; then
@@ -102,4 +102,4 @@ fi
 # Say "correct" only once the key verifiably is: before the failure checks
 # above, a failed recv or reinstall still ended here with exit 0.
 sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 >/dev/null
-echo "Keys are correct"
+echo "$(omarchy-i18n update.keysCorrect)"
