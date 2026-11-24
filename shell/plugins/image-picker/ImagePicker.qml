@@ -35,11 +35,17 @@ Item {
   property string doneFile: ""
   property string filterText: ""
   property var doneFilesToRelease: []
-  // Themes open from rows the shell already holds, so the picker shows without
-  // waiting on omarchy-theme-switcher; each open refreshes them behind it.
+  // Themes and backgrounds open from rows the shell already holds, so the
+  // picker shows without waiting on a directory scan; each open refreshes them
+  // behind it.
   property string themeRows: ""
   property bool themeMode: false
   property bool themeOpenPending: false
+  property string backgroundRows: ""
+  property bool backgroundMode: false
+  property bool backgroundOpenPending: false
+  property string currentBackgroundPath: ""
+  property string initialBackgroundSelection: ""
   property var extraThemeNames: []
   property var stockThemeNames: []
   property bool stockThemesKnown: false
@@ -67,6 +73,13 @@ Item {
   onPreviewRadiusChanged: updateVisibleItems()
 
   onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false }
+
+  PreviewHold {
+    id: previewHold
+    active: root.opened
+    // The selected preview decodes first again on the next open.
+    onHeldChanged: if (!held) root.neighborImagesEnabled = false
+  }
 
   function scriptPath(name) {
     return omarchyPath + "/shell/plugins/image-picker/" + name
@@ -126,7 +139,7 @@ Item {
 
   function currentLabel() {
     var path = currentPath()
-    if (!path) return filterText ? "No matches" : ""
+    if (!path) return filterText ? Commons.I18n.t("common.noMatches") : ""
 
     return labelForPath(path)
   }
@@ -197,6 +210,16 @@ Item {
       return
     }
 
+    if (backgroundMode) {
+      backgroundMode = false
+      root.opened = false
+      if (path) {
+        root.currentBackgroundPath = path
+        Util.execArgv(["omarchy-theme-bg-set", path])
+      }
+      return
+    }
+
     if (!path || !selectionFile) {
       cancel()
       return
@@ -215,6 +238,7 @@ Item {
 
   function cancel() {
     themeOpenPending = false
+    backgroundOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -228,6 +252,7 @@ Item {
   function closeSelector(nextDoneFile) {
     requestSerial += 1
     themeOpenPending = false
+    backgroundOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -270,6 +295,8 @@ Item {
     requestSerial += 1
     themeMode = false
     themeOpenPending = false
+    backgroundMode = false
+    backgroundOpenPending = false
 
     imageDirs = nextImageDirs
     imageRows = nextImageRows
@@ -378,6 +405,56 @@ Item {
     themeMode = true
   }
 
+  function openBackgrounds() {
+    if (backgroundRows) {
+      openBackgroundRows()
+    } else {
+      backgroundOpenPending = true
+    }
+    refreshCurrentBackground()
+    refreshBackgroundRows()
+  }
+
+  function openBackgroundRows() {
+    openSelector("", backgroundRows, currentBackgroundPath, "", "", false, false)
+    backgroundMode = true
+    initialBackgroundSelection = currentPath()
+  }
+
+  function refreshBackgroundRows() {
+    if (backgroundRowsProc.running) { backgroundRowsProc.queued = true; return }
+    backgroundRowsProc.running = true
+  }
+
+  function refreshCurrentBackground() {
+    if (currentBackgroundProc.running) { currentBackgroundProc.queued = true; return }
+    currentBackgroundProc.running = true
+  }
+
+  function updateBackgroundRows(rows) {
+    var changed = rows !== backgroundRows
+    backgroundRows = rows
+
+    if (backgroundOpenPending) {
+      backgroundOpenPending = false
+      if (rows) {
+        openBackgroundRows()
+      } else {
+        Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
+      }
+    } else if (changed && backgroundMode && opened) {
+      if (rows) {
+        selectedImage = currentPath() || currentBackgroundPath
+        imageRows = rows
+        loadRows(rows, false)
+      } else {
+        backgroundMode = false
+        root.opened = false
+        Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
+      }
+    }
+  }
+
   // A refresh asked mid-refresh (a deletion finishing behind the open-time
   // one) queues a second pass instead of leaving the list stale.
   function refreshThemeRows() {
@@ -450,7 +527,55 @@ Item {
     id: themeNameFile
     path: root.stateHome + "/omarchy/current/theme.name"
     watchChanges: true
-    onFileChanged: reload()
+    onFileChanged: {
+      reload()
+      root.backgroundRows = ""
+      root.refreshBackgroundRows()
+      root.refreshCurrentBackground()
+    }
+  }
+
+  Process {
+    id: backgroundRowsProc
+    property bool queued: false
+    command: [root.omarchyPath + "/bin/omarchy-theme-bg-switcher", "--print-rows"]
+    stdout: StdioCollector {
+      onStreamFinished: root.updateBackgroundRows(String(text || "").trim())
+    }
+    onExited: {
+      if (queued) {
+        queued = false
+        running = true
+      }
+    }
+  }
+
+  Process {
+    id: currentBackgroundProc
+    property bool queued: false
+    command: ["readlink", "-f", root.stateHome + "/omarchy/current/background"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var resolved = String(text || "").trim()
+        if (!resolved) return
+        root.currentBackgroundPath = resolved
+        // If an external command (e.g. omarchy-theme-bg-next) changed the
+        // wallpaper before this open, move the highlight to the current one as
+        // long as the user hasn't navigated away from the initial selection.
+        if (root.opened && root.backgroundMode && resolved !== root.selectedImage && root.currentPath() === root.initialBackgroundSelection) {
+          root.selectedImage = resolved
+          root.select(root.selectedImageIndex(), true)
+          root.initialBackgroundSelection = root.currentPath()
+        }
+      }
+    }
+    onExited: {
+      if (queued) {
+        queued = false
+        running = true
+      }
+    }
   }
 
   Process {
@@ -508,6 +633,8 @@ Item {
 
   Component.onCompleted: {
     refreshThemeRows()
+    refreshBackgroundRows()
+    refreshCurrentBackground()
     refreshExtraThemes()
     refreshStockThemes()
   }
@@ -570,6 +697,10 @@ Item {
       openThemes()
       return
     }
+    if (args.source === "backgrounds") {
+      openBackgrounds()
+      return
+    }
     var dirs = String(args.imageDirs || imageDirs)
     var rows = String(args.imageRows || "")
     var sel = String(args.selectedImage || selectedImage)
@@ -591,6 +722,7 @@ Item {
     // leaving the picker invisible behind its own open overlay.
     if (opened || requestActive) return
 
+    previewHold.warm()
     requestSerial += 1
     imageRows = nextImageRows
     selectedImage = nextSelectedImage
@@ -673,6 +805,7 @@ Item {
 
           readonly property real itemStep: root.sliceWidth + root.sliceSpacing
           readonly property real previewX: (width - root.expandedWidth) / 2
+          readonly property bool mirrored: LayoutMirroring.enabled
 
           Keys.priority: Keys.BeforeItem
           Keys.onPressed: function(event) {
@@ -705,10 +838,10 @@ Item {
             } else if (root.filterable && Util.editsFilter(event, root.filterText)) {
               root.updateFilter(Util.editedFilter(event, root.filterText))
               event.accepted = true
-            } else if (event.key === Qt.Key_Left || (event.key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
+            } else if (Util.readingKey(event) === Qt.Key_Left || (event.key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
               root.selectAdjacent(-1)
               event.accepted = true
-            } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
+            } else if (Util.readingKey(event) === Qt.Key_Right || event.key === Qt.Key_Tab) {
               root.selectAdjacent(1)
               event.accepted = true
             } else if (root.filterable && event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
@@ -740,7 +873,10 @@ Item {
               onPreviewSettledChanged: if (previewSettled) root.maybeReveal()
               onSelectedChanged: if (selected && previewReady) root.neighborImagesEnabled = true
 
-              x: selected ? carousel.previewX : (relativeIndex < 0 ? carousel.previewX + relativeIndex * carousel.itemStep : carousel.previewX + root.expandedWidth + root.sliceSpacing + (relativeIndex - 1) * carousel.itemStep)
+              readonly property real readingX: selected ? carousel.previewX : (relativeIndex < 0 ? carousel.previewX + relativeIndex * carousel.itemStep : carousel.previewX + root.expandedWidth + root.sliceSpacing + (relativeIndex - 1) * carousel.itemStep)
+              // A mirrored (right-to-left) layout runs the carousel from the
+              // right, so the next image sits where the reading continues.
+              x: carousel.mirrored ? carousel.width - readingX - width : readingX
               width: selected ? root.expandedWidth : root.sliceWidth
               height: selected ? root.expandedHeight : root.sliceHeight
               y: selected ? 0 : (root.expandedHeight - root.sliceHeight) / 2
@@ -796,7 +932,7 @@ Item {
                   // every preview visited in a large collection.
                   // Queue the selected preview first; neighbors must not delay
                   // the image the user opened the picker to see.
-                  source: (item.selected || root.neighborImagesEnabled) && item.thumbnailPath ? Util.fileUrl(item.thumbnailPath) : ""
+                  source: previewHold.held && (item.selected || root.neighborImagesEnabled) && item.thumbnailPath ? Util.fileUrl(item.thumbnailPath) : ""
                   sourceSize.width: Math.ceil(root.expandedWidth * Screen.devicePixelRatio)
                   sourceSize.height: Math.ceil(root.expandedHeight * Screen.devicePixelRatio)
                   fillMode: Image.PreserveAspectCrop
@@ -882,8 +1018,8 @@ Item {
       anchors.fill: parent
       opened: root.deleteConfirmOpen
       z: 10
-      message: "Do you want to delete " + (root.pendingDeleteTheme ? root.labelForPath(root.pendingDeleteTheme) : "") + "?"
-      confirmText: "Delete"
+      message: Commons.I18n.t("imagePicker.deleteTheme").arg(root.pendingDeleteTheme ? root.labelForPath(root.pendingDeleteTheme) : "")
+      confirmText: Commons.I18n.t("common.delete")
       background: root.dimColor
       foreground: root.foreground
       onCanceled: root.cancelDeleteTheme()

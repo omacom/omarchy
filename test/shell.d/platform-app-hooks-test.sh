@@ -14,6 +14,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 fake_platform "$tmp/apple" aarch64-apple
+fake_platform "$tmp/qualcomm" aarch64-qualcomm
 fake_platform "$tmp/x86" x86
 
 # The hooks record what they were called with and which flags files the
@@ -73,6 +74,19 @@ for browser in chromium chrome edge brave brave-origin firefox zen; do
 done
 pass "apple: every browser install runs post-install <browser> after its package and flags"
 
+# Both write a fresh flags file, which starts without the Snapdragon settings.
+for browser in chromium chrome; do
+  run qualcomm "$ROOT/bin/omarchy-install-browser" "$browser" ||
+    fail "qualcomm: $browser installs" "$(cat "$tmp/output")"
+  grep -Eq '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$tmp/home/.config/${flags[$browser]}" ||
+    fail "qualcomm: $browser's flags enable the PipeWire camera" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+  run x86 "$ROOT/bin/omarchy-install-browser" "$browser" ||
+    fail "x86: $browser installs" "$(cat "$tmp/output")"
+  cmp -s "$ROOT/config/chromium-flags.conf" "$tmp/home/.config/${flags[$browser]}" ||
+    fail "x86: $browser keeps the shipped flags" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+done
+pass "qualcomm: Chromium and Chrome install with PipeWire camera support, and x86 keeps the shipped flags"
+
 touch "$tmp/fail"
 for browser in chromium brave; do
   if run apple "$ROOT/bin/omarchy-install-browser" "$browser"; then
@@ -122,6 +136,7 @@ pass "x86: Steam installs and is removed as before, running no hook"
 gpu_bin=$tmp/gpu-bin
 mkdir -p "$gpu_bin"
 printf '#!/bin/bash\necho "00:02.0 VGA compatible controller: %s"\n' '${GPU:-Apple Inc. AGX}' >"$gpu_bin/lspci"
+printf '#!/bin/bash\nexit "${ARCH_X86:-0}"\n' >"$gpu_bin/omarchy-hw-x86"
 printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
 printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
 printf '#!/bin/bash\necho "omarchy-pkg-add $*" >>"%s"\n' "$tmp/calls" >"$gpu_bin/omarchy-pkg-add"
@@ -134,3 +149,10 @@ GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash 
   fail "an AMD GPU installs its 32-bit driver"
 [[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-vulkan-radeon" ]] || fail "an AMD GPU gets lib32-vulkan-radeon" "$(cat "$tmp/calls")"
 pass "32-bit drivers: a machine with no supported GPU adds nothing without failing"
+
+# Multilib only exists on x86_64; an ARM machine runs the native arm64 Steam.
+rm -f "$tmp/calls"
+ARCH_X86=1 GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "aarch64 skips the 32-bit drivers without failing"
+[[ ! -e $tmp/calls ]] || fail "aarch64 installs no 32-bit driver" "$(cat "$tmp/calls")"
+pass "32-bit drivers: aarch64 adds none, even with a supported GPU"
