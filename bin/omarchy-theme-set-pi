@@ -56,7 +56,7 @@ write_setting_theme() {
   if [[ -f $PI_SETTINGS_PATH ]]; then
     tmp=$(mktemp "$PI_SETTINGS_PATH.XXXXXX")
     jq '.theme = "omarchy-system"' "$PI_SETTINGS_PATH" >"$tmp"
-    mv "$tmp" "$PI_SETTINGS_PATH"
+    omarchy-file-replace "$tmp" "$PI_SETTINGS_PATH"
   else
     cat >"$PI_SETTINGS_PATH" <<EOF
 {
@@ -69,7 +69,7 @@ EOF
 mkdir -p "$PI_THEME_DIR"
 tmp=$(mktemp "$PI_THEME_PATH.XXXXXX")
 cp "$PI_SOURCE_PATH" "$tmp"
-mv "$tmp" "$PI_THEME_PATH"
+omarchy-file-replace "$tmp" "$PI_THEME_PATH"
 
 if (( PI_ACTIVATE == 1 )); then
   write_setting_theme

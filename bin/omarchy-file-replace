@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Replace a file with new contents, writing through a symlink instead of over it
+# omarchy:args=<source> <target>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+if (( $# != 2 )); then
+  echo "Usage: omarchy-file-replace <source> <target>" >&2
+  exit 1
+fi
+
+source_file="$1"
+target=$(readlink -f -- "$2")
+
+staged=$(mktemp "$target.XXXXXX")
+trap 'rm -f -- "$staged"' EXIT
+
+cat -- "$source_file" >"$staged"
+if [[ -e $target ]]; then
+  chmod --reference="$target" -- "$staged"
+else
+  chmod "$(printf '%o' $(( 0666 & ~$(umask) )))" -- "$staged"
+fi
+
+mv -f -- "$staged" "$target"
+trap - EXIT
+rm -f -- "$source_file"
