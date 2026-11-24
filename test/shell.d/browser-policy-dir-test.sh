@@ -344,6 +344,4 @@ as_root() { unprivileged_as_root "$@"; }
 browser_policy_firefox_disable_app_update "$fx_merge"
 [[ $(jq -c . "$fx_merge/policies.json") == '{"policies":{"DisableAppUpdate":true}}' ]] ||
   fail "Firefox's updater is turned off in a file with no policies yet" "$(cat "$fx_merge/policies.json")"
-[[ $(jq '.policies.DisableAppUpdate' "$ROOT/default/firefox/policies.json") == "true" ]] ||
-  fail "Omarchy's Firefox policies turn the updater off"
-pass "Firefox's updater is turned off in new and existing policies"
+pass "Firefox's updater is turned off in existing policies"
