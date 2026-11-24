@@ -849,6 +849,9 @@
   "install.ai.perplexity": {
     "label": "Perplexity"
   },
+  "install.ai.sikemux": {
+    "label": "Sikemux"
+  },
   "install.ai.t3-code": {
     "label": "T3 Code"
   },
@@ -1088,6 +1091,9 @@
   },
   "remove.ai.perplexity": {
     "label": "Perplexity"
+  },
+  "remove.ai.sikemux": {
+    "label": "Sikemux"
   },
   "remove.ai.t3-code": {
     "label": "T3 Code"
