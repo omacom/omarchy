@@ -1018,8 +1018,9 @@ Item {
       anchors.fill: parent
       opened: root.deleteConfirmOpen
       z: 10
-      message: (root.stockThemeNames.includes(root.pendingDeleteTheme) ? Commons.I18n.t("imagePicker.hideTheme") : Commons.I18n.t("imagePicker.deleteTheme")).arg(root.pendingDeleteTheme ? root.labelForPath(root.pendingDeleteTheme) : "")
-      confirmText: Commons.I18n.t("common.delete")
+      readonly property bool bundled: root.stockThemeNames.includes(root.pendingDeleteTheme)
+      message: (bundled ? Commons.I18n.t("imagePicker.hideTheme") : Commons.I18n.t("imagePicker.deleteTheme")).arg(root.pendingDeleteTheme ? root.labelForPath(root.pendingDeleteTheme) : "")
+      confirmText: bundled ? Commons.I18n.t("imagePicker.hideButton") : Commons.I18n.t("common.delete")
       background: root.dimColor
       foreground: root.foreground
       onCanceled: root.cancelDeleteTheme()

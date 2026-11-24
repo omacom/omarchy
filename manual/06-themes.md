@@ -2,7 +2,7 @@
 
 Omarchy comes with twenty-three beautiful themes. You can select between them via _Appearance > Theme_ in the Omarchy Menu (`Super + Space`) or hop directly to the theme selector using `Super + Ctrl + T`.
 
-Press `Delete` in the theme picker or choose _Remove > Theme_ to remove a theme from your choices. Bundled themes can be brought back from _Appearance > Restore Bundled Theme_.
+Press `Delete` in the theme picker or choose _Remove > Theme_ to remove a theme from your choices. Bundled themes can be brought back from _Appearance > Restore Theme_.
 
 Each theme styles the desktop, terminal, neovim, activity screen (btop), your browser (Chrome, Chromium, Edge or Brave), and the entire Omarchy shell: top bar, menu, notifications, OSD, and the lock screen. (For Obsidian, you must manually select the Omarchy theme via _Appearance > Themes_ inside the app).
 

@@ -94,7 +94,7 @@
     "label": "Theme"
   },
   "appearance.restore-theme": {
-    "label": "Restore Bundled Theme"
+    "label": "Restore Theme"
   },
   "appearance.background": {
     "label": "Background"

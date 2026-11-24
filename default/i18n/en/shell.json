@@ -365,6 +365,7 @@
   "elsewhen.yesterday": "Yesterday",
   "emojis.noMatches": "No matches for “%1”",
   "emojis.search": "Search emojis…",
+  "imagePicker.hideButton": "Hide",
   "imagePicker.hideTheme": "Hide %1? You can restore it from Appearance.",
   "imagePicker.deleteTheme": "Do you want to delete %1?",
   "lock.authenticationFailed": "Authentication failed (%1)",
