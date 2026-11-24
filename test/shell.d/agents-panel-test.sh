@@ -125,6 +125,9 @@ assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-01T00:00:0
   'a monthly allowance spans the calendar month before its reset')
 assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-31T00:00:00Z').spanMs / (24 * hour)), 31,
   'a reset on the 31st starts its month at the end of the shorter one before')
+// Cursor's label names no length; its title says the window.
+assertEqual(Math.round(limitWindow('Included total', 0.2, '2027-03-01T00:00:00Z', 'Monthly').spanMs / (24 * hour)), 28,
+  'a window whose label names no length takes it from its title')
 JS
 
 # The saved order keeps agents where they were put, including ones hidden now.

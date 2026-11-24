@@ -1492,9 +1492,11 @@ Panel {
     var expired = isFinite(reset) && reset <= root.nowMs
     // A monthly allowance renews on a calendar date, so its window is the
     // month before the reset (28 days in February), not a fixed 30 days.
-    // Counted in UTC, where the services keep their billing dates.
-    var span = windowSpanMs(label)
-    if (isFinite(reset) && String(label || "").toLowerCase().indexOf("month") >= 0) {
+    // Counted in UTC, where the services keep their billing dates. A label
+    // that names no length (Cursor's "Included total") leaves it to the title.
+    var named = windowSpanMs(label) > 0 ? label : title
+    var span = windowSpanMs(named)
+    if (isFinite(reset) && String(named || "").toLowerCase().indexOf("month") >= 0) {
       var start = new Date(reset)
       start.setUTCMonth(start.getUTCMonth() - 1)
       if (start.getUTCDate() !== new Date(reset).getUTCDate()) start.setUTCDate(0)
