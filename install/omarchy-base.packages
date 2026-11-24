@@ -6,7 +6,6 @@ alsa-utils
 asdcontrol
 avahi
 base-devel
-basecamp-cli
 bash-completion
 bat
 bluez
@@ -65,7 +64,6 @@ gvfs-mtp
 gvfs-nfs
 gvfs-smb
 herdr
-hey-cli
 hunk
 hype
 hyprland
@@ -95,6 +93,7 @@ mariadb-libs
 mise-bin
 monologue
 gnome-disk-utility
+nodejs
 noto-fonts
 noto-fonts-cjk-vf
 noto-fonts-emoji

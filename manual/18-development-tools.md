@@ -20,13 +20,9 @@ To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Rub
 
 ## Preinstalled CLI tools
 
-`gh`, `uv`, `hunk`, `ghui`, and the `basecamp` and `hey` CLIs come installed as packages, and `omarchy update` keeps them current with the rest of the system. [Coding agents](17-ai.md) are packages too, installed the first time you pick one.
+`gh`, `uv`, `hunk`, `ghui`, and Node.js come installed as packages, and `omarchy update` keeps them current with the rest of the system. The Basecamp, Cloudflare and HEY CLIs are a pick away under _Install > CLI_, and [coding agents](17-ai.md) under _Install > AI > CLI_.
 
-mise keeps the language runtimes and the tools that run on them: Omarchy declares Node.js, Playwright, and Cloudflare's `cf` there, each installed the first time you run it. Run `omarchy update` to update them with the rest of Omarchy; the `mup` alias updates mise-managed tools only. To add another tool to your own configuration, use `mise use -g <tool>`.
-
-### Removing and restoring defaults
-
-_Remove > Preinstalls_ removes Omarchy's preinstalled web apps, TUIs and apps, and has mise skip Omarchy's tool declarations for your user, by adding them to `ignored_config_paths` in `~/.config/mise/miserc.toml`. _Install > Preinstalls_ brings them back and removes that line again. Tools you declare yourself, in your own config or in a project's `mise.toml`, keep working either way. The mise setting applies only to your user, and other users keep their own choice; the apps are packages, though, so removing or restoring them changes them for everyone on the machine.
+mise only manages the runtimes you set up from _Install > Development_; Omarchy installs nothing through it on its own. Run `omarchy update` to update them with the rest of Omarchy; the `mup` alias updates mise-managed tools only. To add another tool to your own configuration, use `mise use -g <tool>`.
 
 ## Docker
 

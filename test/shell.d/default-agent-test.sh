@@ -150,53 +150,15 @@ export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
 
-# The wrappers older releases wrote, which Remove Preinstalls still clears.
-grok_package="grok"
-omp_package="oh-my-pi"
-crush_package="crush"
-kimi_package="npm:@moonshot-ai/kimi-code"
-cursor_agent_package="cursor-agent"
-muse_package="muse"
-
-source "$ROOT/install/user/mise.sh"
-lazy_config="$ROOT/etc/mise/conf.d/omarchy-tools.toml"
-[[ -f $lazy_config ]] || fail "Omarchy ships the system mise config"
-grep -Fx 'locked_scopes = ["project", "global"]' "$lazy_config" >/dev/null ||
-  fail "system tools remain installable when the user enables locked mode"
-grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
-pass "user setup builds the system lazy shims"
-: >"$stub_log"
-source "$ROOT/install/user/mise.sh"
-[[ ! -s $stub_log ]] || fail "user setup must not create handwritten mise wrappers"
-pass "user setup leaves ordinary lazy wrappers to mise"
-
-"$ROOT/bin/omarchy-mise-install" "$muse_package" muse
-"$ROOT/bin/omarchy-mise-install" "$kimi_package" kimi
-"$ROOT/bin/omarchy-mise-install" "$cursor_agent_package" cursor-agent
-"$ROOT/bin/omarchy-mise-install" "$grok_package" grok
-"$ROOT/bin/omarchy-mise-install" "$omp_package" omp
-"$ROOT/bin/omarchy-mise-install" "$crush_package" crush
-touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
+# An agent in ~/.local/bin is the user's own, from its own installer, and
+# Remove Preinstalls has no business with it.
+mkdir -p "$test_home/.local/bin"
+printf '#!/bin/bash\necho own-claude\n' >"$test_home/.local/bin/claude"
+chmod +x "$test_home/.local/bin/claude"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse kimi; do
-  [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
-done
-pass "Remove Preinstalls deletes every optional agent lazy stub"
-
-# Cursor's installer links the same path, so anything but the mise wrapper is
-# the user's own install.
-touch "$test_home/.local/bin/cursor-agent.official"
-ln -s cursor-agent.official "$test_home/.local/bin/cursor-agent"
-omarchy-remove-preinstalls >/dev/null
-[[ -L $test_home/.local/bin/cursor-agent ]] || fail "Remove Preinstalls keeps an official Cursor CLI install"
-rm -f "$test_home/.local/bin/cursor-agent" "$test_home/.local/bin/cursor-agent.official"
-pass "Remove Preinstalls keeps an official Cursor CLI install"
-printf '#!/bin/bash\necho user-muse\n' >"$test_home/.local/bin/muse"
-chmod +x "$test_home/.local/bin/muse"
-omarchy-remove-preinstalls >/dev/null
-[[ $("$test_home/.local/bin/muse") == "user-muse" ]] || fail "Remove Preinstalls deletes a user-managed Muse"
-rm "$test_home/.local/bin/muse"
-pass "Remove Preinstalls keeps a user-managed Muse install"
+[[ $("$test_home/.local/bin/claude") == "own-claude" ]] || fail "Remove Preinstalls keeps an agent the user installed"
+rm "$test_home/.local/bin/claude"
+pass "Remove Preinstalls keeps an agent the user installed"
 
 
 [[ -z $(omarchy-default-agent) ]] || fail "default agent is unset until one is chosen"

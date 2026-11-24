@@ -660,6 +660,9 @@
   "install.ai": {
     "label": "AI"
   },
+  "install.cli": {
+    "label": "CLI"
+  },
   "install.ai.desktop": {
     "label": "Desktop"
   },
@@ -849,6 +852,15 @@
   "install.ai.cli.ollama": {
     "label": "Ollama"
   },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
   "install.ai.cli.claude": {
     "label": "Claude Code"
   },
@@ -1024,6 +1036,10 @@
     "label": "AI",
     "title": "Remove"
   },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "Remove"
+  },
   "remove.ai.desktop": {
     "label": "Desktop",
     "title": "Remove"
@@ -1153,6 +1169,15 @@
   },
   "remove.ai.cli.ollama": {
     "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
   },
   "remove.ai.cli.claude": {
     "label": "Claude Code"

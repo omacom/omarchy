@@ -1,13 +1,13 @@
 echo "Install coding agents and CLI tools as packages instead of mise tools"
 
-# The settings package drops their mise declarations. Until it has, stay
-# pending: the declarations would only install them through mise again.
-if omarchy-mise-default-tools list | grep -qx claude; then
-  echo "Waiting for the omarchy-settings package that drops the coding agents from the default mise tools" >&2
-  exit 1
+# The settings package drops every mise declaration. Until it has, stay
+# pending: the declarations would only install the tools through mise again.
+if omarchy-mise-default-tools list | grep -q .; then
+  echo "Waiting for the omarchy-settings package that drops the default mise tools" >&2
+  exit 75
 fi
 
-omarchy-pkg-add basecamp-cli ghui github-cli hey-cli hunk uv || exit 1
+omarchy-pkg-add ghui github-cli hunk nodejs uv || exit 1
 
 # A copy mise installed for Omarchy's declaration goes. One a mise config of
 # the user's own asks for is theirs and stays.
@@ -15,11 +15,31 @@ from_omarchy() {
   mise ls "$1" --json 2>/dev/null | jq -e 'length > 0 and all(.[]; .source == null)' >/dev/null
 }
 
-for tool in basecamp gh ghui hey-cli hunk uv; do
+for tool in gh ghui hunk playwright uv; do
   if from_omarchy "$tool"; then
     mise uninstall --all "$tool"
   fi
 done
+
+# Basecamp, HEY and Cloudflare are installed from Install > CLI now. One that
+# was in use becomes its package.
+while read -r tool package; do
+  if from_omarchy "$tool"; then
+    omarchy-pkg-add "$package" || exit 1
+    mise uninstall --all "$tool"
+  fi
+done <<'EOF'
+basecamp basecamp-cli
+hey-cli hey-cli
+npm:cf cloudflare-cli
+EOF
+
+# Node is a runtime projects build on, so one in use stays, at the version it
+# was, in the user's own config, as Install > Development > Node.js sets it up.
+if from_omarchy node; then
+  version=$(mise ls node --json | jq -r 'map(.version) | last')
+  mise use -g --quiet "node@$version"
+fi
 
 # Each coding agent mise installed becomes its package, so an agent in use
 # keeps working. One never run stays uninstalled until it's picked.
