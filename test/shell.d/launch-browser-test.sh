@@ -109,6 +109,39 @@ grep -Fx '^zen$' "$focus_log" >/dev/null ||
 
 pass "browser launcher follows opened links to the browser workspace"
 
+# A running browser opens a link in the window it saw focused last, so a window
+# on the current workspace has to be focused before the handoff, then the
+# browser is followed as usual in case none was there.
+focus_args="$test_tmp/focus-args"
+cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_FOCUS_ARGS"
+SH
+chmod +x "$mock_bin/omarchy-hyprland-focus-app"
+rm -f "$focus_args" "$launch_log"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS_ARGS="$focus_args" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/here"
+
+[[ $(sed -n 1p "$focus_args") == '--active-workspace ^chromium.*$' ]] ||
+  fail "browser launcher first focuses a browser window on the current workspace" "$(cat "$focus_args")"
+[[ $(sed -n 2p "$focus_args") == '^chromium.*$' ]] ||
+  fail "browser launcher still follows the browser afterwards" "$(cat "$focus_args")"
+
+rm -f "$focus_args"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS_ARGS="$focus_args" \
+  bash "$ROOT/bin/omarchy-launch-browser"
+[[ ! -e $focus_args ]] || fail "browser launcher moves no focus without a URL"
+
+pass "browser launcher opens links in a browser window on the current workspace"
+
+cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >"$OMARCHY_TEST_BROWSER_FOCUS"
+SH
+chmod +x "$mock_bin/omarchy-hyprland-focus-app"
+
 rm -f "$launch_log"
 cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
 #!/bin/bash
