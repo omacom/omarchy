@@ -67,6 +67,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
 | `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
 | `Super + Shift + Arrow`  | Swap window with another in direction of arrow, including one on the monitor on that side |
+| `Super + Ctrl + Alt + Arrow` | Drop window onto the neighbour in direction of arrow, splitting its space, like dragging it there with the mouse |
 | `Super + Minus` | Expand window left |
 | `Super + Equal` | Shrink window left |
 | `Super + Shift + Minus` | Shrink window up |
