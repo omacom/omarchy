@@ -29,6 +29,7 @@ case "$*" in
       guard_capability=",\"ime_popup_guard\":${TEST_IME_GUARD:-true}"
     fi
     printf '{"configured":%s,"transport":{"ready":%s},"keyboard_layout_independent":%s%s%s}\n' "$ready" "$ready" "${TEST_LAYOUT_INDEPENDENT:-true}" "$numlock_capability" "$guard_capability" ;;
+  "-j instances") printf '[{"instance":"other","pid":1},{"instance":"%s","pid":%s}]\n' "$HYPRLAND_INSTANCE_SIGNATURE" "$TEST_COMPOSITOR_PID" ;;
   "-j getoption input:kb_layout") printf '{"str":"%s"}\n' "${TEST_LAYOUT:-us}" ;;
   "-j getoption input:kb_variant") printf '{"str":"%s"}\n' "${TEST_VARIANT:-}" ;;
   "plugin load "*)
@@ -100,6 +101,8 @@ chmod +x "$tmp_dir/bin/"*
 
 export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
+# The running compositor is this shell: a live process whose executable and libraries are still on disk.
+export HYPRLAND_INSTANCE_SIGNATURE=test-instance TEST_COMPOSITOR_PID=$$
 
 toggle="$ROOT/bin/omarchy-toggle-cua-input"
 flag_file() { echo "$HOME/.local/state/omarchy/toggles/hypr/cua-input.lua"; }
@@ -246,6 +249,33 @@ TEST_VERIFY_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
 (( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input refuses when the compatibility check fails"
 ! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input refuses when the compatibility check fails" "plugin loaded anyway"
 pass "cua input refuses when the compatibility check fails"
+
+# A compositor started before an update of itself or a library is not what the check read:
+# nothing new loads into it, while a module it already holds is left to its own checks.
+cp "$(command -v sleep)" "$tmp_dir/old-compositor"
+"$tmp_dir/old-compositor" 60 &
+stale=$!
+rm "$tmp_dir/old-compositor"
+fresh_home
+rc=0
+TEST_COMPOSITOR_PID=$stale "$toggle" on 2>/dev/null || rc=$?
+(( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input refuses a compositor that predates an update"
+! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input refuses a compositor that predates an update" "plugin loaded anyway"
+grep -q '^notify:.*Cua input stays off.*This session predates a Hyprland update' "$TEST_LOG" || fail "cua input refuses a compositor that predates an update" "$(cat "$TEST_LOG")"
+pass "cua input refuses a compositor that predates an update"
+
+fresh_home
+TEST_COMPOSITOR_PID=$stale TEST_PLUGIN_LOADED=1 TEST_CUA_READY=1 "$toggle" on >/dev/null ||
+  fail "cua input turns on with a module the older compositor already holds"
+[[ -e $(flag_file) ]] || fail "cua input turns on with a module the older compositor already holds" "no flag"
+pass "cua input turns on with a module the older compositor already holds"
+kill "$stale"
+
+fresh_home
+rc=0
+TEST_COMPOSITOR_PID=999999999 "$toggle" on 2>/dev/null || rc=$?
+(( rc != 0 )) && ! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input refuses when the compositor cannot be read"
+pass "cua input refuses when the compositor cannot be read"
 
 # on: check, load, land the flag, reload, report.
 fresh_home

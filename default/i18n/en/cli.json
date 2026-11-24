@@ -135,6 +135,7 @@
   "cua.pluginMissing": "The Cua Hyprland plugin is not installed; Install > AI > Cua adds it.",
   "cua.pluginTooOld": "Update cua-hyprland-plugin to %1 or newer before turning Cua Input on.",
   "cua.reloadFailed": "Hyprland could not reload its configuration.",
+  "cua.sessionStale": "This session predates a Hyprland update; log out and back in, then turn Cua Input on.",
   "cua.startupHoldFailed": "Its configuration could not be held off while the plugin loaded; turn Cua Input on again.",
   "cua.startupRefreshFailed": "Its configuration could not be refreshed; turn Cua Input on again.",
   "cua.startupReloadFailed": "Hyprland could not reload its configuration; turn Cua Input on again.",

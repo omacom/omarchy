@@ -85,6 +85,15 @@ compatible() {
   python3 "$KIT/profile_verify.py" --kit "$KIT" --kit-sha256 "$digest" --consumer "$MODULE" >/dev/null 2>&1
 }
 
+# The consumer check reads what is installed. A compositor started before an update
+# still runs the executable and libraries it mapped then, which /proc lists as deleted.
+session_current() {
+  local pid
+  pid=$(hyprctl -j instances 2>/dev/null |
+    jq -er --arg signature "${HYPRLAND_INSTANCE_SIGNATURE-}" '.[] | select(.instance == $signature) | .pid') || return 1
+  [[ -r /proc/$pid/maps ]] && ! grep -Eq ' r.xp .* \(deleted\)$' "/proc/$pid/maps"
+}
+
 # Hyprland reloads its configuration when a plugin loads, so an enabled flag is
 # held at enabled = false until the module passes; nocreat keeps a concurrent off.
 hold_flag() {
@@ -121,6 +130,7 @@ turn_on() {
   package_current || refuse "$(omarchy-i18n cua.pluginTooOld "$MIN_VERSION")"
 
   compatible || refuse "$(omarchy-i18n cua.pluginMismatch)"
+  plugin_loaded || session_current || refuse "$(omarchy-i18n cua.sessionStale)"
   load_plugin || refuse "$(omarchy-i18n cua.loadFailed)"
   if ! module_current; then
     refuse "$(omarchy-i18n cua.moduleStale)"
