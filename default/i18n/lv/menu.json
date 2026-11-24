@@ -26,11 +26,11 @@
   "update": {
     "label": "Atjaunināt"
   },
-  "about": {
-    "label": "Par"
-  },
   "system": {
     "label": "Sistēma"
+  },
+  "system.about": {
+    "label": "Par"
   },
   "system.screensaver": {
     "label": "Ekrānsaudzētājs"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ievade"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Valoda"
+  },
+  "setup.region.timezone": {
+    "label": "Laika josla"
   },
   "setup.network": {
     "label": "Tīkls"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "Noklusējumi"
-  },
-  "setup.default.agent": {
-    "label": "Aģents",
-    "title": "Noklusējuma aģents"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Pārlūks",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Tiešā palaišana"
-  },
-  "setup.reset": {
-    "label": "Atiestatīt datoru"
+  "remove.factory-reset": {
+    "label": "Rūpnīcas atiestatīšana"
   },
   "install.package": {
     "label": "Pakotne"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium konts"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "Parole"
   },
-  "update.timezone": {
-    "label": "Laika josla"
-  },
   "update.time": {
     "label": "Laiks"
   },
@@ -1138,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Skārienpaliktnis"
-  },
-  "update.password.drive": {
-    "label": "Diska šifrēšana"
-  },
-  "update.password.user": {
-    "label": "Lietotājs"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Rādīt akumulatora %"
@@ -1202,7 +1138,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Avāriju fiksēšana ieslēgta"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1244,33 +1180,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Izslēgt skārienekrānu"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.default.dictation.hex": {
     "label": "Hex"
   },
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Vienkāršs"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonas"
+  },
+  "install.style.icons": {
+    "label": "Ikonas"
+  },
+  "remove.icons": {
+    "label": "Ikonas"
+  },
+  "update.icons": {
+    "label": "Papildu ikonas"
+  },
+  "system.firmware": {
+    "label": "Restartēt uz BIOS",
+    "description": "Restartēt UEFI aparātprogrammatūras iestatījumos"
+  },
+  "setup.region": {
+    "label": "Reģions"
+  },
+  "setup.region.formats": {
+    "label": "Formāti",
+    "description": "Kā tiek rakstīti datumi, laiki, skaitļi un mērvienības"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Saimniekdatora nosaukums"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

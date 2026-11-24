@@ -43,8 +43,9 @@ done
 browser=$(omarchy-cmd-default-browser || true)
 
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) browsers=("$browser") ;;
+# New installs have Chrome; older ones may only have the Chromium they shipped with.
+*) browsers=(google-chrome.desktop chromium.desktop) ;;
 esac
 
 if [[ $browser == */* || $browser == *..* ]]; then
@@ -55,11 +56,20 @@ fi
 # omarchy-launch-browser does, so a browser it resolved is one this can start.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 browser_exec=""
-for data_dir in "${data_dirs[@]}"; do
-  entry="$data_dir/applications/$browser"
-  [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-  break
+for browser in "${browsers[@]}"; do
+  for data_dir in "${data_dirs[@]}"; do
+    entry="$data_dir/applications/$browser"
+    [[ -f $entry ]] || continue
+    while IFS= read -r line || [[ -n $line ]]; do
+      line=${line%$'\r'}
+      if [[ $line == Exec=* ]]; then
+        browser_exec=${line#Exec=}
+        browser_exec=${browser_exec%% *}
+        break
+      fi
+    done <"$entry"
+    break 2
+  done
 done
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
@@ -68,21 +78,6 @@ done
 if [[ -z $browser_exec ]]; then
   echo "omarchy-launch-webapp: web apps need a Chromium-based browser; install Chromium with 'omarchy install browser chromium'" >&2
   omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappNeedsChromium)" "$(omarchy-i18n browser.webappNeedsChromiumHint)"
-  exit 1
-fi
-
-browser_exec=""
-for desktop in \
-  "$HOME/.local/share/applications/$browser" \
-  "$HOME/.nix-profile/share/applications/$browser" \
-  "/usr/share/applications/$browser"; do
-  [[ -f $desktop ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$desktop" | head -1)
-  [[ -n $browser_exec ]] && break
-done
-
-if [[ -z $browser_exec ]]; then
-  echo "Error: no Chromium-family browser is installed to launch a web app." >&2
   exit 1
 fi
 

@@ -227,7 +227,7 @@ Item {
   }
 
   function requestNativeSize(path) {
-    if (!path || isVideo(path) || nativeSizes[path] !== undefined || sizeQueue.indexOf(path) !== -1) return
+    if (!path || String(path).charAt(0) !== "/" || isVideo(path) || nativeSizes[path] !== undefined || sizeQueue.indexOf(path) !== -1) return
     sizeQueue = sizeQueue.concat([path])
     probeNextSize()
   }
@@ -235,7 +235,7 @@ Item {
   function probeNextSize() {
     if (sizeProbe.running || sizeQueue.length === 0) return
     sizeProbe.path = sizeQueue[0]
-    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", sizeProbe.path]
+    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", "--", sizeProbe.path]
     sizeProbe.running = true
   }
 

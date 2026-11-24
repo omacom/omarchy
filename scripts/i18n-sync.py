@@ -367,7 +367,7 @@ def keybinding_descriptions(root):
     """Every description the shipped Hyprland bindings show in the
     keybindings menu (Super+K), in English."""
     found = set()
-    for path in sorted((root / "default/hypr/bindings").glob("*.lua")):
+    for path in sorted((root / "default/hypr/bindings").rglob("*.lua")):
         source = path.read_text(encoding="utf-8")
         source = re.sub(r"--[^\n]*", "", source)
         for match in BIND_CALL.finditer(source):
@@ -797,12 +797,32 @@ def cmd_pack(args):
     print(f"packed {code}")
 
 
+def validate_patch(root, code, patch):
+    allowed = language_paths(code)
+    result = git(root, "apply", "--numstat", "-z", "--", str(patch), capture_output=True)
+    for record in result.stdout.split(b"\0"):
+        if not record:
+            continue
+        parts = record.decode("utf-8").split("\t", 2)
+        if len(parts) != 3 or not parts[2]:
+            raise SyncError("artifact contains an unsupported patch entry")
+        path = parts[2]
+        if Path(path).is_absolute() or ".." in Path(path).parts or not any(path.startswith(a + "/") for a in allowed):
+            raise SyncError(f"artifact contains a path outside its language: {path}")
+    summary = git(root, "apply", "--summary", "--", str(patch), capture_output=True)
+    for line in summary.stdout.decode("utf-8").splitlines():
+        entry = line.strip()
+        if entry and not entry.startswith(("create mode 100644 ", "delete mode 100644 ")):
+            raise SyncError(f"artifact contains a disallowed patch operation: {entry}")
+
+
 def cmd_collect(args):
     root = root_path(args)
     directory = Path(args.directory)
     expected = [c.strip() for c in args.expected.split(",") if c.strip()]
+    known = locales(root)
     patches = sorted(directory.glob("*.patch"))
-    if any(p.stem not in expected for p in patches):
+    if any(p.stem not in expected or p.stem not in known for p in patches):
         raise SyncError("unexpected language artifact")
     done = {}
     for patch in patches:
@@ -817,15 +837,8 @@ def cmd_collect(args):
             done.update(recorded)
         if not patch.stat().st_size:
             continue
-        result = git(root, "apply", "--numstat", "-z", str(patch), capture_output=True)
-        for record in result.stdout.split(b"\0"):
-            if not record:
-                continue
-            path = record.decode().split("\t", 2)[2]
-            allowed = language_paths(patch.stem)
-            if not any(path == a or path.startswith(a + "/") for a in allowed) or ".." in Path(path).parts:
-                raise SyncError(f"artifact contains a path outside its language: {path}")
-        git(root, "apply", "--index", str(patch))
+        validate_patch(root, patch.stem, patch)
+        git(root, "apply", "--index", "--", str(patch))
     if done:
         manifest_args = argparse.Namespace(root=args.root, locales=",".join(sorted(done)),
                                            done_file=str(directory / "collected-done.json"))
