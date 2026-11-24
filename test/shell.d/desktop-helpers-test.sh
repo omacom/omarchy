@@ -8,7 +8,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 mkdir -p "$tmp/bin" "$tmp/home/.config/alacritty" "$tmp/home/.config/ghostty" \
-  "$tmp/home/.config/foot" "$tmp/home/.config/kitty" "$tmp/dots"
+  "$tmp/home/.config/foot" "$tmp/home/.config/kitty" "$tmp/home/.config/omarchy" "$tmp/dots"
 
 # Stub external commands for omarchy-font-set.
 cat >"$tmp/bin/fc-list" <<'SH'
@@ -20,12 +20,14 @@ for cmd in pkill omarchy-restart-shell pgrep omarchy-hook omarchy-notification-s
 done
 chmod +x "$tmp/bin/"*
 
-printf 'family = "Old"\n' >"$tmp/dots/alacritty.toml"
-printf 'font-family = "Old"\n' >"$tmp/dots/ghostty.conf"
+printf 'family = "Old"\nsize = 9\n' >"$tmp/dots/alacritty.toml"
+printf 'font-family = "Old"\nfont-size = 9\n' >"$tmp/dots/ghostty.conf"
 printf 'font=Old:size=11\n' >"$tmp/dots/foot.ini"
+printf '[font]\nbase-size = 12\n' >"$tmp/dots/shell.toml"
 ln -s "$tmp/dots/alacritty.toml" "$tmp/home/.config/alacritty/alacritty.toml"
 ln -s "$tmp/dots/ghostty.conf" "$tmp/home/.config/ghostty/config"
 ln -s "$tmp/dots/foot.ini" "$tmp/home/.config/foot/foot.ini"
+ln -s "$tmp/dots/shell.toml" "$tmp/home/.config/omarchy/shell.toml"
 
 font_name='B&H <Mono> "Pro" / 1'\''s'
 HOME="$tmp/home" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-font-set" "$font_name"
@@ -41,6 +43,30 @@ grep -Fxq 'font=B&H <Mono> "Pro" / 1'\''s:size=11' "$tmp/dots/foot.ini" ||
 grep -Fq '<string>B&amp;H &lt;Mono&gt; &quot;Pro&quot; / 1&apos;s</string>' "$tmp/home/.config/fontconfig/fonts.conf" ||
   fail "omarchy-font-set XML-escapes fontconfig family names" "$(<"$tmp/home/.config/fontconfig/fonts.conf")"
 pass "omarchy-font-set escapes special characters and preserves symlinked configs"
+
+# Stub gsettings and treat foot as not running for omarchy-display-text-size
+# (after omarchy-font-set has run with the original pgrep=0 stub above).
+printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/gsettings"
+printf '#!/bin/bash\nexit 1\n' >"$tmp/bin/pgrep"
+chmod +x "$tmp/bin/gsettings" "$tmp/bin/pgrep"
+
+HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-display-text-size" 16 >/dev/null
+[[ -L "$tmp/home/.config/omarchy/shell.toml" && -L "$tmp/home/.config/alacritty/alacritty.toml" && -L "$tmp/home/.config/ghostty/config" && -L "$tmp/home/.config/foot/foot.ini" ]] ||
+  fail "omarchy-display-text-size preserves symlinked configs"
+grep -Fxq 'base-size = 16' "$tmp/dots/shell.toml" ||
+  fail "omarchy-display-text-size writes through symlinked shell.toml" "$(<"$tmp/dots/shell.toml")"
+grep -Fxq 'size = 12' "$tmp/dots/alacritty.toml" ||
+  fail "omarchy-display-text-size writes through symlinked alacritty.toml" "$(<"$tmp/dots/alacritty.toml")"
+grep -Fxq 'font-size = 12' "$tmp/dots/ghostty.conf" ||
+  fail "omarchy-display-text-size writes through symlinked ghostty config" "$(<"$tmp/dots/ghostty.conf")"
+grep -Fxq 'font=B&H <Mono> "Pro" / 1'\''s:size=12' "$tmp/dots/foot.ini" ||
+  fail "omarchy-display-text-size writes through symlinked foot.ini" "$(<"$tmp/dots/foot.ini")"
+HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-display-text-size" reset >/dev/null
+[[ -L "$tmp/home/.config/omarchy/shell.toml" ]] ||
+  fail "omarchy-display-text-size reset preserves symlinked shell.toml"
+! grep -q 'base-size' "$tmp/dots/shell.toml" ||
+  fail "omarchy-display-text-size reset clears base-size in symlinked shell.toml" "$(<"$tmp/dots/shell.toml")"
+pass "omarchy-display-text-size preserves symlinked shell and terminal configs"
 
 # Clipboard helpers fail cleanly on missing --history-index value instead of looping.
 for helper in omarchy-clipboard-open omarchy-clipboard-paste-text; do
