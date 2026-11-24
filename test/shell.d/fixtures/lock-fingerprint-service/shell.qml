@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Services.Pam
 import qs.Commons
+import "services/AuthServiceStore.js" as AuthServiceStore
 
 ShellRoot {
   id: root
@@ -12,6 +13,7 @@ ShellRoot {
   property int checks: 0
 
   Item { id: host }
+  QtObject { id: agent; property bool authenticationBlocked: true }
 
   function check(condition, message) {
     checks += 1
@@ -48,10 +50,23 @@ ShellRoot {
     var service = component.createObject(host, { omarchyPath: rootPath })
     if (!service) throw new Error(component.errorString())
     try {
+      AuthServiceStore.put("custom.polkit", agent)
+      AuthServiceStore.put("custom.lock", service)
+      check(agent.authenticationBlocked, "startup lock discovery blocks Polkit")
+      service.strandedLockResolved = true
+      check(!agent.authenticationBlocked, "an unlocked resolved session permits Polkit")
+      service.strandedLock = true
+      check(agent.authenticationBlocked, "a stranded secure lock blocks Polkit during recovery")
+      service.strandedLock = false
+      service.strandedLockResolved = false
+      service.lockRequested = true
+      service.finishUnlock()
+      check(service.strandedLockResolved && !agent.authenticationBlocked, "authenticated unlock recovers exhausted startup discovery")
       var retry = timer(service, 250, false)
       var reach = timer(service, 20000, false)
       var recheck = timer(service, 1000, false)
       service.lockRequested = true
+      check(agent.authenticationBlocked, "the lock request blocks Polkit before a secure surface exists")
 
       service.applyFingerprintProbe("Could not activate remote peer")
       check(!service.fingerprintConfigured, "unknown cannot invent an enrollment")
@@ -252,7 +267,8 @@ ShellRoot {
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()
-      service.destroy()
+      AuthServiceStore.destroy("custom.lock")
+      check(agent.authenticationBlocked, "losing the lock service blocks Polkit")
     }
   }
 
