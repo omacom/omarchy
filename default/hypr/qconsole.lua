@@ -35,7 +35,7 @@ local AGENT_START_TIMEOUT_MS = 10000
 -- moves into the console; see omarchy-default-agent. A console created by
 -- moving a window onto it is not empty, and is left alone. A default chosen
 -- with the panel's star is only saved, so a console still holding just the
--- placeholder starts it when it next opens or when the picker closes over it.
+-- placeholder starts it when the console next opens.
 local picker_timer = nil
 local picker_pending = false
 local picker_pending_timer = nil
@@ -347,8 +347,10 @@ end)
 -- be the window under the console, and a focus there hides the console. When
 -- the picker that qconsole opened over the console closes, bring the console
 -- back and focus its seed window, unless the user already left the console or
--- chose a default agent; a default chosen over the still-visible console
--- starts there. Restoring must not re-offer the picker, so it says so.
+-- chose a default agent; the placeholder gives way to a default chosen with
+-- the star when the console next opens, as the panel may have closed to
+-- launch an agent of its own. Restoring must not re-offer the picker, so it
+-- says so.
 -- The panel hands focus back before its fade-out ends and only closes after
 -- it, so a console hidden in between keeps recovery armed for a short grace.
 hl.on("layer.opened", function(layer)
@@ -370,13 +372,10 @@ hl.on("layer.closed", function(layer)
     restore_timer = cancel_timer(restore_timer)
     restore_timer = hl.timer(function()
       restore_timer = nil
-      local ws = hl.get_workspace(CONSOLE)
       if default_agent() then
-        if ws and ws.visible and has_only_seed_window() then
-          start_default_agent()
-        end
         return
       end
+      local ws = hl.get_workspace(CONSOLE)
       if not ws or ws.visible then
         return
       end

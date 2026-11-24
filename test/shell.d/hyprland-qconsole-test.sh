@@ -566,7 +566,8 @@ env.run_timers(1000)
 assert(#env.spawned == 0, "a console holding an agent starts nothing")
 
 -- 9. Starring a default while the picker is open over the visible console
--- starts it as soon as the panel closes.
+-- starts nothing as the panel closes, since the panel may have closed to
+-- launch an agent of its own; the console starts the default when it next opens.
 set_default_agent(nil)
 env = load_qconsole(
   { name = "special:qconsole", visible = true },
@@ -578,11 +579,13 @@ env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
 set_default_agent("claude")
 env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
 env.run_timers(1)
+assert(#env.spawned == 1 and #env.dispatches == 0,
+  "a default starred over the visible console starts nothing as the panel closes")
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
 assert(#env.spawned == 2
   and env.spawned[2].cmd == "omarchy-agent --pick"
-  and env.spawned[2].rules.workspace == "special:qconsole silent"
-  and #env.dispatches == 0,
-  "a default starred over the visible console starts when the panel closes")
+  and env.spawned[2].rules.workspace == "special:qconsole silent",
+  "the starred default starts when the console next opens")
 set_default_agent(nil)
 LUA
 pass "console picker lifecycle and seed cleanup work across reloads"
