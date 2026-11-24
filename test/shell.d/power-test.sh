@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const power = requireFromRoot('shell/plugins/panels/power/Model.js')
-const states = { Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4 }
+const states = { Unknown: 0, Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4 }
 
 assertEqual(power.selectProfileIndex(0, 1, ['balanced', 'performance']), 1, 'power advances profile selection')
 assertEqual(power.selectProfileIndex(1, 1, ['balanced', 'performance']), 1, 'power clamps profile selection')
@@ -39,23 +39,18 @@ assertEqual(power.localizeReading('13.1W'), '13.1W', 'power keeps battery readin
 assertEqual(power.localizeReading('75-80%', function(v, d) { return '<' + v + '>' }), '<75>-<80>%', 'power localizes every number in a battery reading')
 assertEqual(power.localizeReading('13.10W', function(v, d) { return v.toFixed(d).replace('.', ',') }), '13,10W', 'power keeps a reading\'s decimals when localizing')
 assertEqual(power.localizeReading(undefined), '', 'power reads a missing battery field as empty')
-assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states), 'On battery', 'power labels battery mode')
-assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'Charging', 'power treats external power as newer than stale discharging state')
-assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states, false), 'power draws from battery when unplugged')
-assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Charging }, true, states, true), 'power trusts unplugging before battery state refreshes')
-assert(!power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states, true), 'power trusts plugging in before battery state refreshes')
-assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states, false), 'power reports draining when a settled battery still discharges on external power')
-assert(!power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Charging }, false, states, false), 'power does not report draining while charging on external power')
-assert(!power.drawingFromBattery({ isPresent: false }, true, states, false), 'power reports no draw without a battery')
-assert(power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging }, false, states).length > 0, 'power maps battery icons')
-assertEqual(
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, false, states),
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states),
-  'power shows charging icon when external power is present before battery state refreshes'
-)
-assertEqual(
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging }, true, states),
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
-  'power shows battery icon when unplugged before battery state refreshes'
-)
+
+const discharging = { isPresent: true, percentage: 0.4, state: states.Discharging }
+const charging = { ...discharging, state: states.Charging, changeRate: 1, timeToFull: 120 }
+const unknown = { ...discharging, state: states.Unknown }
+
+assert(power.drawingFromBattery(discharging, false, states), 'power detects a battery draining with a charger online')
+assert(!power.drawingFromBattery(charging, true, states), 'power detects charging with a stale on-battery flag')
+assert(power.drawingFromBattery(unknown, true, states), 'power falls back to the source when the battery state is unknown')
+assert(!power.drawingFromBattery({ isPresent: false }, true, states), 'power reports no draw without a battery')
+assertEqual(power.modeLabel(discharging, false, states), 'On battery', 'power labels a discharging battery when a charger is reported online')
+assertEqual(power.modeLabel(charging, true, states), 'Charging', 'power labels charging before the on-battery flag catches up')
+assertEqual(power.batteryIcon(discharging, false, states), power.batteryIcon(discharging, true, states), 'power uses the ordinary battery icon when a charger is reported online')
+assertEqual(power.batteryIcon(charging, true, states), power.batteryIcon(charging, false, states), 'power uses the charging icon before the on-battery flag catches up')
+assert(power.batteryIcon(discharging, false, states) !== power.batteryIcon(charging, true, states), 'power shows different icons for charging and discharging at the same level')
 JS

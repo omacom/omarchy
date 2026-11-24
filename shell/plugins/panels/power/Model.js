@@ -67,17 +67,14 @@ function chargeThresholdActive(device, onBattery, states, rateFresh) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-// Plug status is the freshest signal right after a charger is (un)plugged:
-// UPower flips onBattery at once while the battery's own state can lag for
-// seconds. Once that settles, a battery still reporting Discharging on
-// external power is draining because the charger cannot cover the load.
-function drawingFromBattery(device, onBattery, states, plugSettling) {
+// A connected or misreported charger can coexist with a discharging battery.
+// Fall back to the power source when the battery gives no direction.
+function drawingFromBattery(device, onBattery, states) {
   var d = device || {}
-  var s = states || {}
   if (!d.isPresent) return false
-  if (onBattery) return true
-  if (plugSettling) return false
-  return d.state === s.Discharging
+  if (d.state === states.Discharging) return true
+  if (d.state === states.Charging) return false
+  return onBattery
 }
 
 function batteryIcon(device, onBattery, states, rateFresh) {
@@ -91,8 +88,7 @@ function batteryIcon(device, onBattery, states, rateFresh) {
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
-  if (!onBattery) return chargingIcons[index]
-  return defaultIcons[index]
+  return drawingFromBattery(d, onBattery, states) ? defaultIcons[index] : chargingIcons[index]
 }
 
 function modeLabel(device, onBattery, states, tr, rateFresh) {
@@ -102,8 +98,8 @@ function modeLabel(device, onBattery, states, tr, rateFresh) {
 
   var percentage = d.isPresent ? d.percentage : 0
   if (chargeThresholdActive(d, onBattery, states, rateFresh)) return t("power.threshold", "Threshold")
-  if (onBattery) return t("power.onBattery", "On battery")
-  if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
+  if (drawingFromBattery(d, onBattery, states)) return t("power.onBattery", "On battery")
+  if (percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
 }
 

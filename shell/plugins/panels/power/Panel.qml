@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh)
+    return Model.batteryIcon(device, UPower.onBattery, upowerStates(), root.chargeRateFresh)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh)
+    return Model.modeLabel(device, UPower.onBattery, upowerStates(), Commons.I18n.t, root.chargeRateFresh)
   }
 
   function profileIcon(name) {
@@ -66,24 +66,21 @@ Panel {
     var device = UPower.displayDevice
     return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
   }
-  // True while a plug change settles; see Model.drawingFromBattery.
-  property bool plugSettling: false
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return Model.drawingFromBattery(device, UPower.onBattery, upowerStates(), root.plugSettling)
+    return Model.drawingFromBattery(device, UPower.onBattery, upowerStates())
   }
   // False from the moment external power arrives until the battery has had
   // time to report a charge rate measured with it. Some batteries refresh
   // the rate only every half minute, and until then it reads 0 W.
-  property bool chargeRateFresh: true
+  readonly property bool chargeRateFresh: !chargeRateSettle.running
   Timer {
     id: chargeRateSettle
     interval: 90000
-    onTriggered: root.chargeRateFresh = true
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh)
+    return Model.chargeThresholdActive(device, UPower.onBattery, upowerStates(), root.chargeRateFresh)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -96,7 +93,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return !!(d && d.isPresent && !root.discharging && !root.batteryFlowIdle)
+    return !!(d && d.isPresent && d.state === UPowerDeviceState.Charging && !root.batteryFlowIdle)
   }
 
   readonly property color batteryFillColor: {
@@ -251,20 +248,21 @@ Panel {
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
 
-  Timer {
-    id: plugSettleTimer
-    interval: 30000
-    onTriggered: root.plugSettling = false
-  }
-
   Connections {
     target: UPower
     function onOnBatteryChanged() {
-      root.plugSettling = true
-      plugSettleTimer.restart()
-      root.chargeRateFresh = UPower.onBattery
       if (UPower.onBattery) chargeRateSettle.stop()
       else chargeRateSettle.restart()
+    }
+  }
+
+  Connections {
+    target: UPower.displayDevice
+    function onStateChanged() {
+      // A stuck online USB-C port can hide a real plug event from onBattery.
+      // Starting an already running timer leaves its original deadline intact.
+      if (!UPower.onBattery && target.state === UPowerDeviceState.Charging)
+        chargeRateSettle.start()
     }
   }
 
