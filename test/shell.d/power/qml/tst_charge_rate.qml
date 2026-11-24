@@ -49,6 +49,20 @@ TestCase {
     tryCompare(chargeRate, "holding", true)
   }
 
+  function test_firstChargingStateDoesNotSpendHiddenRenewal() {
+    chargeRate.settleInterval = 700
+    chargeRate.onBattery = true
+    chargeRate.onBattery = false
+    wait(90)
+    battery.state = states.Charging
+    wait(290)
+    battery.state = states.Discharging
+    wait(30)
+    battery.state = states.Charging
+    wait(470)
+    verify(!chargeRate.holding, "the first Charging update belongs to the observed plug")
+  }
+
   function test_explicitHoldSurvivesDirectionChanges_data() {
     return [{ tag: "pending charge", state: states.PendingCharge },
       { tag: "fully charged below 99 percent", state: states.FullyCharged }]
@@ -99,6 +113,17 @@ TestCase {
     verify(chargeRate.holding)
     battery.timeToFull = 60 * 60
     tryCompare(chargeRate, "holding", false)
+  }
+
+  function test_estimateCorroboratesRatePublishedBeforeChargingState() {
+    battery.state = states.PendingCharge
+    tryCompare(chargeRate, "atHeldCharge", true)
+    // Quickshell applies EnergyRate, State, then TimeToFull from this update.
+    battery.changeRate = 24
+    battery.state = states.Charging
+    battery.timeToFull = 60 * 60
+    tryCompare(chargeRate, "holding", false)
+    verify(!chargeRate.atHeldCharge)
   }
 
   function test_repeatedDirectionChangesCannotSettleForever() {

@@ -13,7 +13,8 @@ QtObject {
   property real heldCharge: -1
   property real settlingCharge: -1
   property bool settlingRenewed: false
-  property bool measuredChargingRate: false
+  property bool awaitingChargingState: false
+  property bool updatedChargingTelemetry: false
   readonly property bool batteryPresent: !!(device && device.isPresent)
   readonly property bool charging: batteryPresent && device.state === states.Charging
   readonly property real fraction: Model.batteryFraction(device)
@@ -26,21 +27,23 @@ QtObject {
   }
 
   function clearHoldOnCharging() {
-    if (!measuredChargingRate || !charging || Model.chargeThresholdActive(device, onBattery, states, true)) return
+    if (!updatedChargingTelemetry || !charging || Model.chargeThresholdActive(device, onBattery, states, true)) return
     heldCharge = -1
     settlingCharge = -1
   }
 
-  function startSettling() {
+  function startSettling(waitForState = false) {
     settlingCharge = fraction
     settlingRenewed = false
+    awaitingChargingState = waitForState
     settle.restart()
   }
 
   function chargingStarted() {
     if (atHeldCharge) {
+      awaitingChargingState = false
       settle.stop()
-    } else if (settlingCharge < 0 || Math.abs(fraction - settlingCharge) >= 0.01) {
+    } else if (awaitingChargingState || settlingCharge < 0 || Math.abs(fraction - settlingCharge) >= 0.01) {
       startSettling()
     } else if (settle.running && !settlingRenewed) {
       // With no new source or charging measurement, allow one renewal at this
@@ -53,7 +56,8 @@ QtObject {
   function resetChargeEvidence() {
     heldCharge = -1
     settlingCharge = -1
-    measuredChargingRate = false
+    awaitingChargingState = false
+    updatedChargingTelemetry = false
     settle.stop()
   }
 
@@ -69,7 +73,7 @@ QtObject {
 
   onOnBatteryChanged: {
     resetChargeEvidence()
-    if (!onBattery && batteryPresent) startSettling()
+    if (!onBattery && batteryPresent) startSettling(!charging)
   }
 
   onDeviceChanged: resetChargeEvidence()
@@ -81,7 +85,7 @@ QtObject {
     target: root.device
 
     function onStateChanged() {
-      root.measuredChargingRate = false
+      root.updatedChargingTelemetry = false
       // Charging can begin without an onBattery change if a USB-C port stays online.
       if (!root.onBattery && target.isPresent && target.state === root.states.Charging)
         root.chargingStarted()
@@ -90,13 +94,17 @@ QtObject {
     function onChangeRateChanged() {
       // A direction change can leave a cached discharge rate visible for another poll.
       if (target.state === root.states.Charging) {
-        root.measuredChargingRate = true
+        root.updatedChargingTelemetry = true
         Qt.callLater(root.clearHoldOnCharging)
       }
     }
 
     function onTimeToFullChanged() {
-      if (root.measuredChargingRate) Qt.callLater(root.clearHoldOnCharging)
+      if (target.state !== root.states.Charging) return
+      // UPower can publish the rate before the state in the same message.
+      // A new positive estimate corroborates it after the direction changes.
+      if (target.timeToFull > 0) root.updatedChargingTelemetry = true
+      if (root.updatedChargingTelemetry) Qt.callLater(root.clearHoldOnCharging)
     }
   }
 }
