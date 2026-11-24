@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "सदस्यता, प्रति-उपयोग, या स्थानीय",
-  "agents.addProviderAccount": "%1 खाता जोड़ें",
   "agents.addTitle": "एजेंट जोड़ें",
   "agents.app": "ऐप",
   "agents.backToLimits": "सीमाओं पर वापस",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "क्रेडिट समाप्त",
   "agents.pasteCode": "यदि पृष्ठ पूरा होने के बजाय कोड दिखाए, तो उसे यहाँ पेस्ट करें।",
   "agents.pasteCodeLink": "पेज पर इसके बजाय कोड दिख रहा है?",
+  "agents.placeholderApiKey": "API कुंजी",
   "agents.placeholderCode": "कोड",
   "agents.placeholderWork": "कार्य",
   "agents.plugin": "प्लगइन",

@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Підписка, оплата за використання або локально",
-  "agents.addProviderAccount": "Додати обліковий запис %1",
   "agents.addTitle": "Додати агента",
   "agents.app": "Застосунок",
   "agents.backToLimits": "Назад до лімітів",
@@ -76,6 +75,7 @@
   "agents.outOfCredits": "Кредити вичерпано",
   "agents.pasteCode": "Якщо на сторінці показано код замість завершення, вставте його сюди.",
   "agents.pasteCodeLink": "На сторінці натомість код?",
+  "agents.placeholderApiKey": "Ключ API",
   "agents.placeholderCode": "Код",
   "agents.placeholderWork": "Робота",
   "agents.plugin": "Плагін",

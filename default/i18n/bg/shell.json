@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Абонамент, плащане според ползването или локален",
-  "agents.addProviderAccount": "Добави профил в %1",
   "agents.addTitle": "Добави агент",
   "agents.app": "Приложение",
   "agents.backToLimits": "Обратно към лимитите",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Без кредити",
   "agents.pasteCode": "Ако страницата покаже код вместо да завърши, постави го тук.",
   "agents.pasteCodeLink": "Показва се код вместо това?",
+  "agents.placeholderApiKey": "API ключ",
   "agents.placeholderCode": "Код",
   "agents.placeholderWork": "Работа",
   "agents.plugin": "Добавка",

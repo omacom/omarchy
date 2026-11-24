@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Gói đăng ký, trả theo mức dùng, hoặc cục bộ",
-  "agents.addProviderAccount": "Thêm tài khoản %1",
   "agents.addTitle": "Thêm agent",
   "agents.app": "Ứng dụng",
   "agents.backToLimits": "Quay lại giới hạn",
@@ -67,6 +66,7 @@
   "agents.outOfCredits": "Hết tín dụng",
   "agents.pasteCode": "Nếu trang hiện mã thay vì hoàn tất, hãy dán mã vào đây.",
   "agents.pasteCodeLink": "Trang lại hiển thị mã?",
+  "agents.placeholderApiKey": "Khóa API",
   "agents.placeholderCode": "Mã",
   "agents.placeholderWork": "Công việc",
   "agents.plugin": "Plugin",

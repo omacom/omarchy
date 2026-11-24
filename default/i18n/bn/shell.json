@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "সাবস্ক্রিপশন, ব্যবহার অনুযায়ী, বা লোকাল",
-  "agents.addProviderAccount": "%1 অ্যাকাউন্ট যোগ করুন",
   "agents.addTitle": "এজেন্ট যোগ করুন",
   "agents.app": "অ্যাপ",
   "agents.backToLimits": "সীমাতে ফিরে যান",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "ক্রেডিট শেষ",
   "agents.pasteCode": "পেজে শেষ হওয়ার বদলে কোড দেখালে এখানে পেস্ট করুন।",
   "agents.pasteCodeLink": "এর বদলে কোড দেখানো পেজ?",
+  "agents.placeholderApiKey": "API কী",
   "agents.placeholderCode": "কোড",
   "agents.placeholderWork": "কাজ",
   "agents.plugin": "প্লাগইন",

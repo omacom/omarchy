@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Претплата, по употреби или локално",
-  "agents.addProviderAccount": "Додај %1 налог",
   "agents.addTitle": "Додај агента",
   "agents.app": "Апликација",
   "agents.backToLimits": "Назад на ограничења",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Нема кредита",
   "agents.pasteCode": "Ако страница прикаже код уместо да заврши, налепите га овде.",
   "agents.pasteCodeLink": "Страница уместо тога приказује код?",
+  "agents.placeholderApiKey": "API кључ",
   "agents.placeholderCode": "Код",
   "agents.placeholderWork": "Посао",
   "agents.plugin": "Додатак",

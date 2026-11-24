@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Obuna, har foydalanish uchun toʻlov yoki mahalliy",
-  "agents.addProviderAccount": "%1 hisobini qoʻshish",
   "agents.addTitle": "Agent qoʻshish",
   "agents.app": "Ilova",
   "agents.backToLimits": "Limitlarga qaytish",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Kredit tugadi",
   "agents.pasteCode": "Agar sahifa yakunlanish oʻrniga kod koʻrsatsa, uni shu yerga joylashtiring.",
   "agents.pasteCodeLink": "Aks holda kod koʻrsatilgan sahifami?",
+  "agents.placeholderApiKey": "API kaliti",
   "agents.placeholderCode": "Kod",
   "agents.placeholderWork": "Ish",
   "agents.plugin": "Plagin",
