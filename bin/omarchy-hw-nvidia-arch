@@ -10,6 +10,7 @@
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 
 shopt -s nullglob
+legacy=0
 
 for device in "$pci_devices_path"/*; do
   [[ $(< "$device/vendor") == "0x10de" ]] || continue
@@ -19,9 +20,13 @@ for device in "$pci_devices_path"/*; do
     echo modern
     exit 0
   elif (( device_id >= 0x1340 )); then
-    echo legacy
-    exit 0
+    legacy=1
   fi
 done
 
-exit 1
+# Preserve the callers' modern-first choice when both generations are present.
+if (( legacy )); then
+  echo legacy
+else
+  exit 1
+fi

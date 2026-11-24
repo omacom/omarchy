@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Detect whether the computer has an NVIDIA GPU without GSP firmware (Maxwell/Pascal/Volta)
-# omarchy:args=<exit 0 if the GPU is legacy>
 
 # Wrapper over omarchy-hw-nvidia-arch so the device-ID ranges live in one place.
-# See that helper for why 0x1340..0x1e00 is the legacy span.
-[[ $(omarchy-hw-nvidia-arch) == legacy ]]
+# See that helper for why 0x1340 <= ID < 0x1e00 is the legacy span.
+[[ $(omarchy-hw-nvidia-arch) == "legacy" ]]
