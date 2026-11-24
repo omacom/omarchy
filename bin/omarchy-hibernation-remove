@@ -48,6 +48,15 @@ fi
 echo "Removing resume hook"
 sudo rm "$MKINITCPIO_CONF"
 
+# The drop-caches hook is hibernation's too: it does nothing outside a
+# hibernate, so leaving it would be inert rather than harmful, but hibernation
+# is what it belongs to. The keyboard-backlight hook stays - it is published for
+# hardware that needs it, not for hibernation.
+if [[ -e /usr/lib/systemd/system-sleep/drop-caches ]]; then
+  echo "Removing hibernate drop-caches hook"
+  sudo rm -f /usr/lib/systemd/system-sleep/drop-caches
+fi
+
 echo "Regenerating initramfs..."
 sudo limine-mkinitcpio
 
