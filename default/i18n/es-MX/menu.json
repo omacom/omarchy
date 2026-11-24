@@ -670,31 +670,31 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
-  "install.ai.desktop.chatgpt": {
+  "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
-  "install.ai.desktop.claude": {
+  "install.ai.claude": {
     "label": "Claude Desktop"
   },
-  "install.ai.desktop.grok-bot": {
+  "install.ai.grok-bot": {
     "label": "Grok Bot"
   },
-  "install.ai.desktop.hermes": {
+  "install.ai.hermes": {
     "label": "Hermes Desktop"
   },
-  "install.ai.desktop.lm-studio": {
+  "install.ai.lm-studio": {
     "label": "LM Studio"
   },
-  "install.ai.cli.ollama": {
+  "install.ai.ollama": {
     "label": "Ollama"
   },
-  "install.ai.desktop.openclaw": {
+  "install.ai.openclaw": {
     "label": "OpenClaw"
   },
-  "install.ai.desktop.perplexity": {
+  "install.ai.perplexity": {
     "label": "Perplexity"
   },
-  "install.ai.desktop.t3-code": {
+  "install.ai.t3-code": {
     "label": "T3 Code"
   },
   "install.gaming.steam": {
@@ -850,7 +850,7 @@
   "remove.security.sudoless-docker": {
     "label": "Docker sin sudo"
   },
-  "remove.ai.desktop.hermes": {
+  "remove.ai.hermes": {
     "label": "Hermes Desktop"
   },
   "remove.browser.chrome": {
@@ -883,10 +883,10 @@
   "remove.service.ssh-agent": {
     "label": "Agente SSH"
   },
-  "remove.ai.desktop.chatgpt": {
+  "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
-  "remove.ai.desktop.claude": {
+  "remove.ai.claude": {
     "label": "Claude Desktop"
   },
   "remove.dictation.superwhisper": {
@@ -895,22 +895,22 @@
   "remove.dictation.voxtype": {
     "label": "Voxtype"
   },
-  "remove.ai.desktop.grok-bot": {
+  "remove.ai.grok-bot": {
     "label": "Grok Bot"
   },
-  "remove.ai.desktop.lm-studio": {
+  "remove.ai.lm-studio": {
     "label": "LM Studio"
   },
-  "remove.ai.cli.ollama": {
+  "remove.ai.ollama": {
     "label": "Ollama"
   },
-  "remove.ai.desktop.openclaw": {
+  "remove.ai.openclaw": {
     "label": "OpenClaw"
   },
-  "remove.ai.desktop.perplexity": {
+  "remove.ai.perplexity": {
     "label": "Perplexity"
   },
-  "remove.ai.desktop.t3-code": {
+  "remove.ai.t3-code": {
     "label": "T3 Code"
   },
   "remove.gaming.steam": {
@@ -1198,13 +1198,13 @@
   "setup.keyboard.input-methods": {
     "label": "Métodos de entrada"
   },
-  "install.ai.desktop.herdr": {
+  "install.ai.herdr": {
     "label": "Herdr Desktop"
   },
-  "install.ai.desktop.amp": {
+  "install.ai.amp": {
     "label": "Amp Desktop"
   },
-  "remove.ai.desktop.amp": {
+  "remove.ai.amp": {
     "label": "Amp Desktop"
   },
   "install.service.notion": {
@@ -1257,10 +1257,10 @@
   "update.games": {
     "label": "Game Vibes Games"
   },
-  "install.ai.desktop.antigravity": {
+  "install.ai.antigravity": {
     "label": "Antigravity Desktop"
   },
-  "remove.ai.desktop.antigravity": {
+  "remove.ai.antigravity": {
     "label": "Antigravity Desktop"
   },
   "setup.network.hostname": {

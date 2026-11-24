@@ -80,6 +80,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { StringDecoder } = require("string_decoder");
 
 const [, , chrome, url, keys, after, width, height, out] = process.argv;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -108,36 +109,32 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
   });
 }
 
-// Chrome keeps its own sandbox wherever it can start with one, and says
-// where DevTools listens in its profile once it's up.
-async function launch(sandbox) {
-  const portFile = path.join(profile, "DevToolsActivePort");
-  fs.rmSync(portFile, { force: true });
-  const args = ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
-    "--use-angle=gl-egl", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
-    "--mute-audio", `--window-size=${width},${height}`, ...(sandbox ? [] : ["--no-sandbox"]), "about:blank"];
-  child = spawn(chrome, args, { stdio: "ignore" });
-  for (let i = 0; i < 100 && child.exitCode === null && child.signalCode === null; i++) {
-    if (fs.existsSync(portFile)) {
-      const [port] = fs.readFileSync(portFile, "utf8").split("\n");
-      if (port) return Number(port);
-    }
-    await sleep(100);
-  }
-  // The next try reuses the profile, so this Chrome has to be gone first.
-  await stopChrome();
-  return null;
-}
-
-// One page's DevTools session: send() answers a command, on() hears events.
-function connect(socketUrl) {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(socketUrl);
-    const pending = new Map();
-    const listeners = new Map();
-    let id = 0;
-    socket.onmessage = ({ data }) => {
-      const message = JSON.parse(data);
+// Chrome speaks DevTools over a pipe of its own, fds 3 and 4, rather than a
+// port: a port on localhost has no password, so another account on the machine
+// could drive this Chrome and read the user's files through it. Messages are
+// JSON, each ended by a NUL. send() answers a command, on() hears events.
+function connect(chromeProcess) {
+  const input = chromeProcess.stdio[3];
+  const output = chromeProcess.stdio[4];
+  const decoder = new StringDecoder("utf8");
+  const pending = new Map();
+  const listeners = new Map();
+  let id = 0;
+  let buffer = "";
+  // A Chrome that goes away fails whatever was waiting on it, and anything
+  // asked of it later, at once.
+  let closed;
+  const lost = () => {
+    closed ??= new Error("lost Chrome's DevTools connection");
+    pending.forEach(({ fail }) => fail(closed));
+    pending.clear();
+  };
+  output.on("data", (chunk) => {
+    buffer += decoder.write(chunk);
+    let end;
+    while ((end = buffer.indexOf("\0")) >= 0) {
+      const message = JSON.parse(buffer.slice(0, end));
+      buffer = buffer.slice(end + 1);
       if (message.id && pending.has(message.id)) {
         const { done, fail } = pending.get(message.id);
         pending.delete(message.id);
@@ -145,26 +142,36 @@ function connect(socketUrl) {
       } else if (message.method) {
         (listeners.get(message.method) || []).forEach((listener) => listener(message.params));
       }
-    };
-    // A Chrome that goes away fails whatever was waiting on it, and anything
-    // asked of it later, at once.
-    let closed;
-    const lost = () => {
-      closed = new Error("lost Chrome's DevTools connection");
-      reject(closed);
-      pending.forEach(({ fail }) => fail(closed));
-      pending.clear();
-    };
-    socket.onerror = lost;
-    socket.onclose = lost;
-    socket.onopen = () => resolve({
-      send: (method, params = {}) => closed ? Promise.reject(closed) : new Promise((done, fail) => {
-        pending.set(++id, { done, fail });
-        socket.send(JSON.stringify({ id, method, params }));
-      }),
-      on: (method, listener) => listeners.set(method, [...(listeners.get(method) || []), listener]),
-    });
+    }
   });
+  output.on("close", lost);
+  input.on("error", lost);
+  chromeProcess.once("exit", lost);
+  return {
+    send: (method, params = {}, sessionId) => closed ? Promise.reject(closed) : new Promise((done, fail) => {
+      pending.set(++id, { done, fail });
+      input.write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + "\0");
+    }),
+    on: (method, listener) => listeners.set(method, [...(listeners.get(method) || []), listener]),
+  };
+}
+
+// Chrome keeps its own sandbox wherever it can start with one. It's up once it
+// answers on the pipe.
+async function launch(sandbox) {
+  const args = ["--headless=new", "--remote-debugging-pipe", `--user-data-dir=${profile}`,
+    "--use-angle=gl-egl", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
+    "--mute-audio", `--window-size=${width},${height}`, ...(sandbox ? [] : ["--no-sandbox"]), "about:blank"];
+  child = spawn(chrome, args, { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
+  const browser = connect(child);
+  try {
+    await Promise.race([browser.send("Browser.getVersion"), sleep(10000).then(() => { throw new Error("timeout"); })]);
+    return browser;
+  } catch {
+    // The next try reuses the profile, so this Chrome has to be gone first.
+    await stopChrome();
+    return null;
+  }
 }
 
 // What a key name means to Chrome: the names Playwright took, like Space,
@@ -187,16 +194,18 @@ function keyEvent(name) {
 }
 
 (async () => {
-  const port = (await launch(true)) || (await launch(false));
-  if (!port) {
+  const browser = (await launch(true)) || (await launch(false));
+  if (!browser) {
     console.log("launch failed: Chrome didn't start");
     await cleanup();
     process.exit(3);
   }
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const target = targets.find((candidate) => candidate.type === "page");
-  if (!target) throw new Error("Chrome opened no page");
-  const page = await connect(target.webSocketDebuggerUrl);
+  // The blank page Chrome opened on, driven through a session of its own.
+  const { targetInfos } = await browser.send("Target.getTargets");
+  const target = targetInfos.find((candidate) => candidate.type === "page");
+  const targetId = target ? target.targetId : (await browser.send("Target.createTarget", { url: "about:blank" })).targetId;
+  const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
+  const page = { send: (method, params) => browser.send(method, params, sessionId), on: browser.on };
 
   const report = (text) => {
     if (!/chrome-extension:\/\/|lastError/.test(text)) console.log("error: " + String(text).replace(/\s+/g, " ").slice(0, 300));
