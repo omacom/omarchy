@@ -26,13 +26,19 @@ if [[ $cur_swappiness == "1" && $cur_vfs_pressure != "50" ]] && (( zram_ready ==
   exit 0
 fi
 
-# Restore vm.vfs_cache_pressure to the kernel default of 100 when it still holds
-# Omarchy's previous override of 50, then load our sysctl file specifically
-# rather than --system (which fails on any invalid key in an admin file).
-if [[ $cur_vfs_pressure == "50" ]]; then
-  sudo sysctl -q -w vm.vfs_cache_pressure=100 || true
+# Apply only the two sysctl keys this update changes so later drop-ins (such as
+# zz-omarchy-gb10-memory.conf) keep their live values. Fail if sudo or sysctl
+# fails so the migration stays pending instead of being marked complete.
+sysctl_updates=()
+if [[ $cur_swappiness != "1" ]]; then
+  sysctl_updates+=(vm.swappiness=1)
 fi
-sudo sysctl -p /etc/sysctl.d/99-omarchy-sysctl.conf >/dev/null || true
+if [[ $cur_vfs_pressure == "50" ]]; then
+  sysctl_updates+=(vm.vfs_cache_pressure=100)
+fi
+if (( ${#sysctl_updates[@]} > 0 )); then
+  sudo sysctl -q -w "${sysctl_updates[@]}"
+fi
 
 if (( zram_ready == 1 )); then
   exit 0
