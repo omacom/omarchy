@@ -59,7 +59,7 @@ mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 agent_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
-  if [[ $dir != "${OMARCHY_PATH%/}/default/agent-accounts/bin" && $dir != "$mise_data/command-wrappers/bin" ]]; then
+  if [[ $dir != "$HOME/.local/share/omarchy/agent-accounts/bin" && $dir != "$mise_data/command-wrappers/bin" ]]; then
     agent_path+="${agent_path:+:}$dir"
   fi
 done
@@ -73,6 +73,7 @@ if location=$(installed); then
   if [[ $mode == "install" ]] && ! omarchy-pkg-present "$package"; then
     echo "$agent is already installed at $location, so the $package package isn't needed"
   fi
+  [[ $mode == "install" ]] && omarchy-agent-account-dispatch "$agent"
   exit 0
 elif [[ $mode == "check" ]]; then
   exit 1
@@ -98,8 +99,10 @@ else
   installed >/dev/null || exit 1
 fi
 
-# An installed agent gets herdr's hooks, a launcher of its own beside Agent,
-# and the shared ~/.agents/AGENTS.md from its first session.
+# An installed agent gets its account dispatcher, herdr's hooks, a launcher of
+# its own beside Agent, and the shared ~/.agents/AGENTS.md from its first
+# session.
+omarchy-agent-account-dispatch "$agent"
 omarchy-agent-integrate-herdr "$agent"
 omarchy-agent-launcher "$agent" || true
 omarchy-agent-instructions "$agent" >/dev/null || true

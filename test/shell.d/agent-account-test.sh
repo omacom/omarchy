@@ -318,9 +318,32 @@ pass "use moves the chosen login into ~/.claude, so running sessions follow"
 [[ $(omarchy-agent-account-exec claude --version) == "claude home=default args=--version" ]] || fail "claude at a prompt starts in ~/.claude"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
+# A dispatcher exists only while its CLI is installed: no claude command before
+# Claude Code is.
+dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
+# Only the mocks, never a real agent the machine running the test has.
+cli_only_path="$mock_bin:$ROOT/bin:/usr/bin"
+if [[ ! -e /usr/bin/grok ]]; then
+  mv "$mock_bin/grok" "$test_tmp/grok-aside"
+  PATH=$cli_only_path omarchy-agent-account-dispatch
+  [[ -x $dispatchers/claude && -x $dispatchers/codex && ! -e $dispatchers/grok ]] ||
+    fail "only an installed CLI gets a dispatcher" "$(ls "$dispatchers")"
+  # One left by a CLI removed outside Omarchy goes the first time it runs.
+  printf '#!/bin/bash\nexec omarchy-agent-account-exec grok "$@"\n' >"$dispatchers/grok"
+  chmod +x "$dispatchers/grok"
+  if PATH="$dispatchers:$cli_only_path" "$dispatchers/grok" 2>"$test_tmp/grok-missing"; then
+    fail "a dispatcher without its CLI fails"
+  fi
+  [[ ! -e $dispatchers/grok && $(<"$test_tmp/grok-missing") == "grok: command not found" ]] ||
+    fail "a dispatcher without its CLI removes itself and answers as a shell would" "$(<"$test_tmp/grok-missing")"
+  mv "$test_tmp/grok-aside" "$mock_bin/grok"
+fi
+PATH=$cli_only_path omarchy-agent-account-dispatch grok
+[[ -x $dispatchers/grok ]] || fail "installing a CLI gives it a dispatcher"
+pass "a dispatcher exists only while its CLI is installed"
+
 # Started through its dispatcher, the CLI is the one past it on PATH, and the
 # dispatchers stay first for whatever the agent runs, once.
-dispatchers="$ROOT/default/agent-accounts/bin"
 [[ $(PATH="$dispatchers:$PATH" "$dispatchers/claude" --version) == "claude home=default args=--version" ]] ||
   fail "the claude dispatcher runs the real CLI as the active account"
 agent_path=$(PATH="$dispatchers:$PATH:$dispatchers" OMARCHY_TEST_SHOW_PATH=1 "$dispatchers/claude")
@@ -686,14 +709,14 @@ grep -qx "@@omarchy done Added Stuck (stuck@example.com), but couldn't switch ne
 ! grep -q "ready for more" "$notifications" || fail "an added account that can't be selected isn't announced as ready" "$(cat "$notifications")"
 pass "an added account that can't be selected says so"
 
-# Before its package is, an agent's command is on PATH only as Omarchy's account
-# dispatcher. The package installs before the login, through polkit since the
-# panel has no terminal, rather than silently inside it. Only the mocks the
-# add needs are on this PATH, not the mock Codex itself.
+# A CLI that isn't installed isn't on PATH, though a dispatcher an earlier test
+# wrote may be. The package installs before the login, through polkit since the
+# panel has no terminal, rather than silently inside it. Only the mocks the add
+# needs are on this PATH, not the mock Codex itself.
 lazy_data="$test_tmp/lazy-mise"
 lazy_bin="$test_tmp/lazy-bin"
 lazy_pkexec="$test_tmp/lazy-pkexec"
-lazy_path="$lazy_pkexec:$pkg_bin:$ROOT/default/agent-accounts/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+lazy_path="$lazy_pkexec:$pkg_bin:$HOME/.local/share/omarchy/agent-accounts/bin:$lazy_bin:$ROOT/bin:/usr/bin"
 mkdir -p "$lazy_bin" "$lazy_pkexec"
 for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
   ln -s "$mock_bin/$helper" "$lazy_bin/$helper"

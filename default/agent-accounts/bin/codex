@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# Runs Codex as the selected subscription account. This directory leads PATH
-# (default/bash/env-bootstrap), so scripts and editors that run `codex` follow
-# account switches too.
-exec omarchy-agent-account-exec codex "$@"

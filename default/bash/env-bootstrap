@@ -29,7 +29,7 @@ fi
 # real tool directories inherited from a parent shell, so scripts follow account
 # switches without Bash functions. mise's command wrappers did this once; that
 # directory is dropped wherever an older session left it.
-omarchy_wrapper_dir="${OMARCHY_PATH%/}/default/agent-accounts/bin"
+omarchy_wrapper_dir="$HOME/.local/share/omarchy/agent-accounts/bin"
 omarchy_old_wrapper_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin"
 omarchy_wrapper_path=$omarchy_wrapper_dir
 if [ -n "${PATH:-}" ]; then

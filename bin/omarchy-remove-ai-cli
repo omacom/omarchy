@@ -15,6 +15,7 @@ package=$(omarchy-install-ai-cli --package "$agent") || exit 1
 
 omarchy-pkg-drop "$package"
 rm -f "$HOME/.local/share/applications/omarchy-agent-$agent.desktop"
+omarchy-agent-account-dispatch "$agent"
 
 # A default agent that's gone would leave the AI hotkey with nothing to open,
 # so it asks for a new one instead.

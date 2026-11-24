@@ -117,14 +117,18 @@ for command in claude codex grok; do
   fi
 done
 rmdir "$wrappers" "${wrappers%/bin}" 2>/dev/null || true
+omarchy-agent-account-dispatch
 
 # SSH commands that run no shell take PATH from PAM, so the dispatchers lead
 # Omarchy's line there too. Only the exact line Omarchy wrote is changed.
 pam_env=/etc/security/pam_env.conf
 old_path='PATH DEFAULT=/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
-new_path='PATH DEFAULT=/usr/share/omarchy/default/agent-accounts/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
+new_path='PATH DEFAULT=@{HOME}/.local/share/omarchy/agent-accounts/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
 if grep -qxF "$old_path" "$pam_env"; then
   sudo sed -i "s|^${old_path//./\\.}\$|${new_path}|" "$pam_env"
 fi
 
+# The shims of what mise no longer has go first, so only a CLI really there
+# gets an account dispatcher.
 mise reshim
+omarchy-agent-account-dispatch
