@@ -1,5 +1,9 @@
 -- See https://wiki.hypr.land/Configuring/Basics/Window-Rules/
 
+-- Let clients receive native maximize requests so apps with their own frame,
+-- including Chromium and Electron, can redraw to the full compositor area.
+-- Keep event suppression app-specific when a verified regression needs it.
+
 -- Fix some dragging issues with XWayland.
 o.window(
   {
