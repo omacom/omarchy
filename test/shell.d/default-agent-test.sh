@@ -654,6 +654,7 @@ pass "default agent rejects unsupported providers without changing the selection
 # without selecting, installing or opening anything.
 : >"$agent_open_log"
 : >"$terminal_log"
+: >"$mise_history"
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --installed kilo || fail "--installed reports an installed harness"
 grep -Fx "offline=1 where npm:@kilocode/cli" "$mise_history" >/dev/null || fail "--installed queries mise offline"
 if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --installed kilo; then
