@@ -35,12 +35,13 @@ Singleton {
   // directory is gone and has to be set up on the new one. udev's records for
   // input devices are the c13: entries, character major 13.
   //
-  // Quickshell does not always stop Process children on exit, so each restart
-  // can leave an orphaned inotifywait behind. Reap any matching watcher for
-  // this devDir whose parent is no longer a shell before exec'ing ours.
+  // Quickshell does not always stop Process children on exit, and a crashed or
+  // killed shell cannot clean up its children. setpriv asks the kernel to stop
+  // the watch on parent death; the startup reap still clears any matching
+  // watcher left behind by an in-place crash re-exec or older build.
   Process {
     id: watcher
-    command: ["bash", "-c",
+    command: ["setpriv", "--pdeathsig", "TERM", "bash", "-c",
       "for p in /proc/[0-9]*; do "
         + "pid=${p#/proc/}; "
         + "[[ -r $p/cmdline && -r $p/stat ]] || continue; "
