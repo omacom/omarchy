@@ -7,6 +7,8 @@ import "Model.js" as Model
 Item {
   id: root
 
+  signal authUrlOpened()
+
   property var settings: ({})
 
   property bool installed: false
@@ -18,6 +20,7 @@ Item {
   // the real state, or 0/1 while a toggle is still catching up.
   property int _desired: -1
   readonly property bool active: _desired === -1 ? running : (_desired === 1)
+  readonly property bool connecting: _desired === 1 && !running && !needsLogin
   property bool refreshing: false
   property string backendState: "Unknown"
   // statusText answers the IPC status() call, so it stays English.
@@ -57,8 +60,16 @@ Item {
   property string _actionError: ""
   property string _loginOutput: ""
   property string _loginError: ""
+  readonly property bool waitingForLogin: _loginInProgress
+  property bool _loginTimedOut: false
+  property bool _loginSuperseded: false
   property bool _loginInProgress: false
   property bool _loginUrlOpened: false
+  // A resume that may yet reveal an expired key. A cached netmap can report
+  // Running for about a second before NeedsLogin, which settles _desired, so
+  // this intent lasts until the connect deadline, a login or a disconnect.
+  property bool _resumePending: false
+  property int _stateWatchBackoffMs: 2000
   property string _preLoginAuthUrl: ""
   property double _lastAccountsRefreshMs: 0
   property string _switchOutput: ""
@@ -110,6 +121,8 @@ Item {
     _exitNodesSig = sig
     exitNodes = next
   }
+
+  Component.onCompleted: refresh()
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -202,26 +215,73 @@ Item {
     }
   }
 
-  function refreshStatusAndAccounts(forceAccounts, fullPeers) {
-    if (!installed) return
-    var launched = false
-    if (!statusProcess.running) {
-      _statusOutput = ""
-      _statusError = ""
-      refreshing = true
-      _statusFullPeers = fullPeers === true || peersWanted || _pendingFullPeers
-      if (_statusFullPeers) _pendingFullPeers = false
-      statusProcess.command = _statusFullPeers
-        ? ["tailscale", "status", "--json"]
-        : ["tailscale", "status", "--json", "--peers=false"]
-      statusProcess.running = true
-      launched = true
-    } else if ((fullPeers === true || peersWanted) && !_statusFullPeers) {
+  function startStatusRefresh(fullPeers) {
+    if (!installed) return false
+    if (statusProcess.running) {
       // A full-peer request arrived while a light poll is in flight; remember
       // it so the panel is not left stale until the next periodic refresh.
-      _pendingFullPeers = true
+      if ((fullPeers === true || peersWanted) && !_statusFullPeers) _pendingFullPeers = true
+      return false
     }
-    if (!mullvadExitNodesProcess.running) {
+    _statusOutput = ""
+    _statusError = ""
+    refreshing = true
+    _statusFullPeers = fullPeers === true || peersWanted || _pendingFullPeers
+    if (_statusFullPeers) _pendingFullPeers = false
+    statusProcess.command = _statusFullPeers
+      ? ["tailscale", "status", "--json"]
+      : ["tailscale", "status", "--json", "--peers=false"]
+    statusProcess.running = true
+    return true
+  }
+
+  function refreshStatusOnly() {
+    if (startStatusRefresh(false) && !pollWatchdog.running) pollWatchdog.start()
+  }
+
+  function startStateWatch() {
+    if (!installed || stateWatchProcess.running) return
+    // mask 18 = NotifyInitialState (2) | NotifyNoPrivateKeys (16). Only
+    // BrowseToURL is read, plus which fields are present. Current tailscaled
+    // always redacts private keys; the bit covers older daemons.
+    stateWatchProcess.command = ["tailscale", "debug", "localapi", "GET", "/localapi/v0/watch-ipn-bus?mask=18"]
+    stateWatchProcess.running = true
+  }
+
+  function scheduleStateWatchRestart() {
+    if (!installed) return
+    stateWatchRestartTimer.interval = _stateWatchBackoffMs
+    _stateWatchBackoffMs = Math.min(_stateWatchBackoffMs * 2, 60000)
+    stateWatchRestartTimer.restart()
+  }
+
+  function handleStateWatchData(data) {
+    var text = String(data || "").trim()
+    if (text === "") return
+
+    try {
+      var notification = JSON.parse(text)
+      // Only a real notification object means the daemon is reachable again.
+      // An error body on stdout, plain text or JSON, must not reset the backoff.
+      if (!notification || typeof notification !== "object" || Array.isArray(notification)) return
+      _stateWatchBackoffMs = 2000
+      var browseUrl = String(notification.BrowseToURL || "")
+      if (browseUrl !== "" && _loginInProgress && !_loginUrlOpened) openAuthUrl(browseUrl)
+      // Health updates arrive every few seconds; only refresh for changes
+      // that affect what the panel shows.
+      if (notification.State != null || notification.Prefs != null || notification.LoginFinished != null) stateWatchRefreshTimer.restart()
+    } catch (e) {
+      console.warn("tailscale: failed to parse IPN notification", e)
+    }
+  }
+
+  function refreshStatusAndAccounts(forceAccounts, fullPeers) {
+    if (!installed) return
+    var launched = startStatusRefresh(fullPeers)
+    // Exit nodes and accounts appear only in the panel, so a background
+    // refresh with it closed runs the status client alone.
+    var panelData = peersWanted || fullPeers === true || forceAccounts === true
+    if (panelData && !mullvadExitNodesProcess.running) {
       _mullvadExitNodesOutput = ""
       _mullvadExitNodesError = ""
       mullvadExitNodesProcess.command = ["tailscale", "exit-node", "list"]
@@ -229,7 +289,7 @@ Item {
       launched = true
     }
     var now = Date.now()
-    var shouldRefreshAccounts = forceAccounts === true || accounts.length === 0 || now - _lastAccountsRefreshMs > 60000
+    var shouldRefreshAccounts = panelData && (forceAccounts === true || accounts.length === 0 || now - _lastAccountsRefreshMs > 60000)
     if (shouldRefreshAccounts && !accountsProcess.running) {
       _accountsOutput = ""
       _accountsError = ""
@@ -298,7 +358,7 @@ Item {
     if (_desired !== -1 && running === (_desired === 1)) _desired = -1
     needsLogin = parsed.needsLogin
     authUrl = parsed.authUrl
-    if (needsLogin && _loginInProgress && !_loginUrlOpened && authUrl !== "" && authUrl !== _preLoginAuthUrl) openAuthUrlFrom(authUrl, false)
+    if (needsLogin && _loginInProgress && !_loginUrlOpened && authUrl !== "" && authUrl !== _preLoginAuthUrl) openAuthUrl(authUrl)
     selfName = parsed.selfName
     selfDnsName = parsed.selfDnsName
     selfIp = parsed.selfIp
@@ -322,6 +382,8 @@ Item {
     if (needsLogin) statusText = "Needs login"
     else if (running) {
       statusText = "Connected"
+      if (_loginInProgress || _loginTimedOut) actionStatus = ""
+      _loginTimedOut = false
       _loginInProgress = false
       _loginUrlOpened = false
       _preLoginAuthUrl = ""
@@ -332,6 +394,12 @@ Item {
       statusText = backendState
     }
     lastError = ""
+    // A stopped daemon may reveal an expired key only after the resume request.
+    // Continue that user-requested connection once the request has exited.
+    if (needsLogin && (_desired === 1 || _resumePending) && !loginProcess.running) {
+      connectTimeoutTimer.stop()
+      loginOrUp()
+    }
   }
 
   function parseAccounts(raw) {
@@ -362,7 +430,8 @@ Item {
   }
 
   function toggleTailscale() {
-    if (!installed) return
+    // Match the busy switch for keyboard, bar and IPC toggles.
+    if (!installed || connecting || waitingForLogin) return
     if (active) down()
     else loginOrUp()
   }
@@ -371,26 +440,40 @@ Item {
     // No progress status here — the greyed icon and hero line already convey
     // the optimistic off; only surface a message if the command fails.
     _desired = 0
+    _loginInProgress = false
+    _resumePending = false
+    // A resume or login request still in flight no longer reflects intent.
+    if (loginProcess.running) _loginSuperseded = true
+    loginTimeoutTimer.stop()
+    connectTimeoutTimer.stop()
     runAction(["tailscale", "down"])
   }
 
   function loginOrUp() {
-    if (!installed || loginProcess.running) return
+    if (!installed || loginProcess.running || _loginInProgress) return
+    _loginTimedOut = false
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     _desired = -1
     var plan = Model.loginPlan(needsLogin, authUrl)
     if (plan.authUrl !== "") {
       _loginUrlOpened = false
-      openAuthUrlFrom(plan.authUrl, true)
+      openAuthUrl(plan.authUrl)
       return
     }
     _loginOutput = ""
     _loginError = ""
-    if (needsLogin) actionStatus = I18n.t("tailscale.startingLogin")
-    else _desired = 1
+    if (needsLogin) actionStatus = I18n.t("tailscale.waitingForLoginLink")
+    else {
+      _desired = 1
+      connectTimeoutTimer.restart()
+    }
     _loginInProgress = needsLogin
+    _resumePending = !needsLogin
     _loginUrlOpened = false
     _preLoginAuthUrl = authUrl
-    loginProcess.command = plan.command
+    loginProcess.command = timedCommand(plan.command)
     loginProcess.running = true
     if (needsLogin) loginTimeoutTimer.restart()
   }
@@ -404,8 +487,11 @@ Item {
     if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running || renameProcess.running || exitNodeProcess.running) return
     _switchOutput = ""
     _switchError = ""
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     switchingAccountId = accountId
-    switchProcess.command = ["tailscale", "switch", accountId]
+    switchProcess.command = timedCommand(["tailscale", "switch", accountId])
     switchProcess.running = true
   }
 
@@ -415,6 +501,9 @@ Item {
     if (!plan) return
     _renameOutput = ""
     _renameError = ""
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     renamingAccountId = String(id || "")
     renameProcess.command = plan.command
     renameProcess.running = true
@@ -439,8 +528,11 @@ Item {
     if (!active && target === "") return
     _exitNodeOutput = ""
     _exitNodeError = ""
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     settingExitNodeId = String(peer.id || "")
-    exitNodeProcess.command = ["tailscale", "set", "--exit-node=" + target]
+    exitNodeProcess.command = timedCommand(["tailscale", "set", "--exit-node=" + target])
     exitNodeProcess.running = true
   }
 
@@ -453,44 +545,67 @@ Item {
     operatorProcess.running = true
   }
 
+  function timedCommand(command) {
+    return Model.timedCommand(command)
+  }
+
+  function showActionError(exitCode, output, fallback) {
+    var timedOut = exitCode === 124 || exitCode === 137
+    lastError = timedOut ? I18n.t("tailscale.commandTimedOut") : (elideStatus(output) || fallback)
+    actionStatus = lastError
+    if (timedOut) actionStatusTimer.stop()
+    else actionStatusTimer.restart()
+  }
+
   function runAction(command, label) {
     if (actionProcess.running) return
     _actionOutput = ""
     _actionError = ""
+    lastError = ""
+    actionStatusTimer.stop()
     actionStatus = label || ""
-    actionProcess.command = command
+    actionProcess.command = timedCommand(command)
     actionProcess.running = true
   }
 
-  function openAuthUrlFrom(text, allowFallback) {
+  function openAuthUrl(value) {
     if (_loginUrlOpened) return true
-    var match = String(text || "").match(/https?:\/\/\S+/)
-    var url = match && match[0] ? match[0] : (allowFallback === true ? authUrl : "")
-    if (url !== "") {
-      // Turning on ended up needing browser auth — stop pretending we're up.
-      _desired = -1
-      _loginUrlOpened = true
-      _loginInProgress = false
-      loginTimeoutTimer.stop()
-      Quickshell.execDetached(["omarchy-launch-browser", url])
-      return true
-    }
-    return false
+    var url = String(value || "").trim()
+    if (!/^https?:\/\/\S+$/.test(url)) return false
+
+    _loginUrlOpened = true
+    _loginInProgress = false
+    _resumePending = false
+    loginTimeoutTimer.stop()
+    connectTimeoutTimer.stop()
+    Quickshell.execDetached(["omarchy-launch-browser", url])
+    // Close the panel before dropping the optimistic state so its connected
+    // sections do not visibly collapse on the way out.
+    authUrlOpened()
+    actionStatus = ""
+    lastError = ""
+    _desired = -1
+    return true
   }
 
   function handleLoginOutput(data, isError) {
     var text = String(data || "")
+    // `tailscale debug localapi` narrates the request on stderr as
+    // "# doing request …" and "# Response status …"; the body is the message.
+    if (/^\s*#/.test(text)) return
     if (isError) _loginError += text + "\n"
     else _loginOutput += text + "\n"
-    if (_loginInProgress && !_loginUrlOpened) openAuthUrlFrom(text, false)
   }
 
   Timer {
+    // The IPN watcher refreshes status whenever State or Prefs change, which
+    // is all the bar icon shows. It carries no peer changes, so poll only
+    // while the open panel lists machines, exit nodes and accounts. Opening
+    // the panel refreshes them at once.
     id: refreshTimer
     interval: root.refreshIntervalSec * 1000
     repeat: true
-    running: true
-    triggeredOnStart: true
+    running: root.peersWanted
     onTriggered: root.refresh()
   }
 
@@ -541,15 +656,59 @@ Item {
   }
 
   Timer {
+    // State notifications update the icon immediately. Debounce the heavier
+    // status query that fills in peers, account details, and addresses.
+    id: stateWatchRefreshTimer
+    interval: 150
+    repeat: false
+    onTriggered: {
+      if (statusProcess.running) restart()
+      else root.refreshStatusOnly()
+    }
+  }
+
+  Timer {
+    // Interval is set by scheduleStateWatchRestart: 2 s, doubling to a minute
+    // while the daemon stays unreachable, back to 2 s once data flows again.
+    id: stateWatchRestartTimer
+    interval: 2000
+    repeat: false
+    onTriggered: root.startStateWatch()
+  }
+
+  Timer {
+    // The prefs PATCH returns before the backend has connected, so the
+    // optimistic "on" needs its own deadline. Past it, follow the real state
+    // again rather than showing a switch stuck on "Connecting…".
+    id: connectTimeoutTimer
+    interval: 20000
+    repeat: false
+    onTriggered: {
+      root._resumePending = false
+      if (root._desired !== 1 || root.running) return
+      root._desired = -1
+      root.actionStatus = I18n.t("tailscale.stillStarting")
+      actionStatusTimer.restart()
+      // The last poll may predate the backend connecting, and the periodic
+      // refresh can be far off, so ask again rather than trust the cache. The
+      // debounce timer keeps retrying while a status query is still running.
+      stateWatchRefreshTimer.restart()
+    }
+  }
+
+  Timer {
     id: loginTimeoutTimer
-    interval: 10000
+    interval: 25000
     repeat: false
     onTriggered: {
       if (!root._loginInProgress || root._loginUrlOpened) return
-      if (!root.openAuthUrlFrom(root.authUrl, true)) {
-        root._loginInProgress = false
-        root.actionStatus = I18n.t("tailscale.loginLinkUnavailable")
-      }
+      root._loginTimedOut = true
+      root._loginInProgress = false
+      root._desired = -1
+      if (loginProcess.running) loginProcess.running = false
+      actionStatusTimer.stop()
+      root.actionStatus = I18n.t("tailscale.loginLinkTimedOut")
+      stateWatchRefreshTimer.restart()
     }
   }
 
@@ -559,11 +718,27 @@ Item {
     command: []
     onExited: function(exitCode) {
       root.installed = exitCode === 0
-      if (root.installed) root.refreshStatusAndAccounts()
+      if (root.installed) {
+        root.startStateWatch()
+        root.refreshStatusAndAccounts()
+      }
       else {
         root.refreshing = false
         root.resetUnavailable("Not installed")
       }
+    }
+  }
+
+  Process {
+    id: stateWatchProcess
+    running: false
+    command: []
+    stdout: SplitParser { onRead: function(data) { root.handleStateWatchData(data) } }
+    onExited: function(exitCode) {
+      // Nothing polls while the panel is closed, so a stopped daemon would
+      // otherwise leave the last connected state on the bar.
+      stateWatchRefreshTimer.restart()
+      root.scheduleStateWatchRestart()
     }
   }
 
@@ -635,9 +810,7 @@ Item {
       var stderr = String(actionStderr.text || root._actionError || "")
       if (exitCode !== 0) {
         root._desired = -1
-        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.commandFailed"))
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, I18n.t("tailscale.commandFailed"))
       } else {
         root.lastError = ""
         root.actionStatus = ""
@@ -654,16 +827,25 @@ Item {
     stderr: SplitParser { onRead: function(data) { root.handleLoginOutput(data, true) } }
     onExited: function(exitCode) {
       var combined = String(root._loginOutput || "") + "\n" + String(root._loginError || "")
-      var opened = root.openAuthUrlFrom(combined, true)
-      if (exitCode !== 0 && !opened) {
+      // The success body is the full prefs object; nothing here needs it.
+      root._loginOutput = ""
+      root._loginError = ""
+      if (root._loginTimedOut || root._loginSuperseded) {
+        root._loginSuperseded = false
+        delayedRefresh.restart()
+        return
+      }
+      if (exitCode !== 0 && !root._loginUrlOpened) {
+        loginTimeoutTimer.stop()
         root._desired = -1
         root._loginInProgress = false
-        root.lastError = elideStatus(combined || I18n.t("tailscale.upFailed"))
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
-      } else if (!opened) {
+        root._resumePending = false
+        connectTimeoutTimer.stop()
+        root.showActionError(exitCode, combined, I18n.t("tailscale.startFailed"))
+      } else {
         root.lastError = ""
-        root.actionStatus = ""
+        // The request completes before the daemon supplies the login URL.
+        if (!root._loginInProgress) root.actionStatus = ""
       }
       delayedRefresh.restart()
     }
@@ -679,9 +861,7 @@ Item {
       var stdout = String(switchStdout.text || root._switchOutput || "")
       var stderr = String(switchStderr.text || root._switchError || "")
       if (exitCode !== 0) {
-        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.switchFailed"))
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, I18n.t("tailscale.switchFailed"))
       } else {
         root.lastError = ""
         root.actionStatus = ""
@@ -705,9 +885,7 @@ Item {
       var stdout = String(renameStdout.text || root._renameOutput || "")
       var stderr = String(renameStderr.text || root._renameError || "")
       if (exitCode !== 0) {
-        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.renameFailed"))
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, I18n.t("tailscale.renameFailed"))
       } else {
         root.lastError = ""
         root.actionStatus = ""
@@ -728,9 +906,7 @@ Item {
       var stdout = String(exitNodeStdout.text || root._exitNodeOutput || "")
       var stderr = String(exitNodeStderr.text || root._exitNodeError || "")
       if (exitCode !== 0) {
-        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.exitNodeFailed"))
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, I18n.t("tailscale.exitNodeFailed"))
       } else {
         root.lastError = ""
         root.actionStatus = ""

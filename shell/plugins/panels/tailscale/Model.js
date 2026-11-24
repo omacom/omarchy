@@ -79,7 +79,15 @@ function loginPlan(needsLogin, authUrl) {
   if (needsLogin === true && /^https?:\/\//.test(url)) {
     return { authUrl: url, command: [] }
   }
-  return { authUrl: "", command: ["tailscale", "up"] }
+  if (needsLogin === true) {
+    // The IPN watcher receives the authorization URL asynchronously.
+    return { authUrl: "", command: ["tailscale", "debug", "localapi", "POST", "/localapi/v0/login-interactive"] }
+  }
+  // Resume using the persisted preferences. `tailscale up` waits for the
+  // backend to reach Running, and a bare one never starts an interactive
+  // login. The PATCH returns at once; parseStatus continues into login if the
+  // key turns out to have expired.
+  return { authUrl: "", command: ["tailscale", "debug", "localapi", "PATCH", "/localapi/v0/prefs", "{\"WantRunning\":true,\"WantRunningSet\":true}"] }
 }
 
 function shellQuote(value) {
@@ -88,24 +96,36 @@ function shellQuote(value) {
   return "'" + text.replace(/'/g, "'\\''") + "'"
 }
 
+// Bound finite CLI requests, including a child that ignores termination.
+// This does not cancel work already accepted by tailscaled.
+// Keep the supervisor alive when it must kill the CLI, so QML receives 137.
+var commandTimeout = ["timeout", "--foreground", "--kill-after=2s", "20s"]
+
+function timedCommand(command) {
+  return commandTimeout.concat(command)
+}
+
 // `tailscale set --nickname` only reaches the profile that is currently
 // selected, so renaming any other connection has to switch to it, rename,
 // and switch back to the profile that was active before. The switch back
 // always runs, and the first failure — switch, rename, or the switch back
 // itself — is what the command reports, so a successful restoration never
-// masks a failed rename.
+// masks a failed rename. Each CLI call has its own deadline rather than one
+// for the whole script, so a hung switch or rename still leaves time to
+// switch back.
 function renamePlan(accountId, selectedId, nickname) {
   var id = String(accountId || "").trim()
   var name = String(nickname || "").trim()
   if (id === "" || name === "") return null
   var target = String(selectedId || "").trim()
   if (id === target) {
-    return { command: ["bash", "-c", "tailscale set --nickname=" + shellQuote(name)] }
+    return { command: timedCommand(["tailscale", "set", "--nickname=" + name]) }
   }
   if (target === "") return null
-  var script = "r=0; s=0; tailscale switch " + shellQuote(id) + " || r=$?; "
-    + "if (( r == 0 )); then tailscale set --nickname=" + shellQuote(name) + " || r=$?; fi; "
-    + "tailscale switch " + shellQuote(target) + " || s=$?; (( r == 0 )) && r=$s; exit $r"
+  var cli = commandTimeout.join(" ") + " tailscale"
+  var script = "r=0; s=0; " + cli + " switch " + shellQuote(id) + " || r=$?; "
+    + "if (( r == 0 )); then " + cli + " set --nickname=" + shellQuote(name) + " || r=$?; fi; "
+    + cli + " switch " + shellQuote(target) + " || s=$?; (( r == 0 )) && r=$s; exit $r"
   return { command: ["bash", "-c", script] }
 }
 
@@ -349,6 +369,7 @@ if (typeof module !== "undefined") {
     osIcon: osIcon,
     accountLabel: accountLabel,
     loginPlan: loginPlan,
+    timedCommand: timedCommand,
     renamePlan: renamePlan,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
