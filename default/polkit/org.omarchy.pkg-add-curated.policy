@@ -6,8 +6,8 @@
   gh, and the AI desktop apps. omarchy-pkg-add-curated runs itself through pkexec
   with one package, and pkexec picks the action whose exec.path and exec.argv1
   match. The active local session installs without a password; anywhere else,
-  such as over SSH, the prompt names the app. Keep the list in step with the
-  one in bin/omarchy-pkg-add-curated (test/shell.d/pkg-add-curated-test.sh checks).
+  such as over SSH, the prompt names the app. These actions are also the list
+  of what the helper installs as root: one not named here, it refuses.
 -->
 <policyconfig>
   <vendor>Omarchy</vendor>

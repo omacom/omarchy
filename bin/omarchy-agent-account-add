@@ -227,6 +227,8 @@ if ! omarchy-install-ai-cli --check "$harness"; then
   say "$(omarchy-i18n agents.installingCli "$name")"
   install_cli omarchy-install-ai-cli "$harness" || fail "$(omarchy-i18n agents.installCliFailed "$name")"
 fi
+# A CLI installed outside Omarchy has no account dispatcher yet.
+omarchy-agent-account-dispatch "$harness"
 
 # Your main browser is almost certainly signed in to the account you already
 # have, and a login would quietly reuse it. The CLIs open their login page
