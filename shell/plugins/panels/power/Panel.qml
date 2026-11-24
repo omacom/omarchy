@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh)
+    return Model.batteryIcon(device, UPower.onBattery, upowerStates(), chargeRate.rateFresh, chargeRate.atHeldCharge)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh)
+    return Model.modeLabel(device, UPower.onBattery, upowerStates(), Commons.I18n.t, chargeRate.rateFresh, chargeRate.atHeldCharge)
   }
 
   function profileIcon(name) {
@@ -68,26 +68,16 @@ Panel {
   }
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return !!(device && device.isPresent && UPower.onBattery)
+    return Model.drawingFromBattery(device, UPower.onBattery, upowerStates())
   }
-  // False from the moment external power arrives until the battery has had
-  // time to report a charge rate measured with it. Some batteries refresh
-  // the rate only every half minute, and until then it reads 0 W.
-  property bool chargeRateFresh: true
-  onDischargingChanged: {
-    chargeRateFresh = discharging
-    if (discharging) chargeRateSettle.stop()
-    else chargeRateSettle.restart()
+  ChargeRate {
+    id: chargeRate
+    device: UPower.displayDevice
+    onBattery: UPower.onBattery
+    states: root.upowerStates()
   }
-  Timer {
-    id: chargeRateSettle
-    interval: 90000
-    onTriggered: root.chargeRateFresh = true
-  }
-  readonly property bool chargeThresholdActive: {
-    var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh)
-  }
+
+  readonly property bool chargeThresholdActive: chargeRate.holding
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
@@ -99,7 +89,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
+    return !!(d && d.isPresent && d.state === UPowerDeviceState.Charging && !root.batteryFlowIdle)
   }
 
   readonly property color batteryFillColor: {
@@ -186,7 +176,7 @@ Panel {
 
   function setProfile(profile) {
     if (!profile || actionProc.running) return
-    actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
+    actionProc.command = ["omarchy-powerprofiles-set", UPower.onBattery ? "battery" : "ac", profile]
     actionProc.running = true
   }
 
