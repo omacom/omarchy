@@ -28,13 +28,16 @@ if [[ -d $package && ! -e $link && ! -L $link ]]; then
 fi
 
 # Pi shows its whole changelog after every update, and Omarchy keeps Pi
-# updated, so it is condensed to one line. A settings file linked from the
-# user's dotfiles is written through the link, so the link stays.
+# updated, so it is condensed to one line. Startup goes straight to the
+# editor, without Pi's header or the listing of loaded context, skills and
+# extensions. A setting the user has chosen stays, and a settings
+# file linked from the user's dotfiles is written through the link.
+defaults='{"collapseChangelog": true, "quietStartup": true}'
 settings="$pi_dir/settings.json"
 if [[ ! -e $settings && ! -L $settings ]]; then
-  printf '{\n  "collapseChangelog": true\n}\n' >"$settings"
-elif jq -e 'type == "object" and (has("collapseChangelog") | not)' "$settings" &>/dev/null; then
+  jq -n "$defaults" >"$settings"
+elif jq -e --argjson defaults "$defaults" 'type == "object" and ($defaults | keys) - keys != []' "$settings" &>/dev/null; then
   target=$(realpath "$settings")
   tmp=$(mktemp "$target.XXXXXX")
-  jq '.collapseChangelog = true' "$target" >"$tmp" && mv "$tmp" "$target"
+  jq --argjson defaults "$defaults" '$defaults + .' "$target" >"$tmp" && mv "$tmp" "$target"
 fi

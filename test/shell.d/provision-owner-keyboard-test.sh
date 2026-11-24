@@ -89,6 +89,7 @@ source "$ROOT/install/provisioning/setup-form.sh"
 source "$tmp/keyboard.sh"
 language=en
 clear_logo() { echo "prompt" >>"$tmp/screen"; }
+step() { clear_logo; }
 notice() { echo "notice: \$1" >>"$tmp/screen"; }
 log_step() { echo "\$1" >>"\$LOG_FILE"; }
 confirm_reboot() { exit 5; }
@@ -468,6 +469,7 @@ pass "language configuration generates before it persists, forgets an earlier at
 
 (
   clear_logo() { :; }
+  step() { :; }
   say() { printf '%s\n' "$*" >>"$lang/screen"; }
   log_step() { :; }
   notice() { fail "keyboard prompt unexpectedly failed" "$*"; }
@@ -561,8 +563,8 @@ pass "setup is translated only on a console set in the font that draws the trans
   load_tips() { exit 0; }
   run_setup
 )
-[[ $(<"$lang/setup-order") == $'font\ninitial\nlanguage\nkeyboard\naccount\nreview\nkeyboard\naccount\nreview\nagreement\nkeyboard\naccount\nreview\nagreement' ]] ||
-  fail "declining review, or Esc on the agreement that follows it, returns to the keyboard and account steps" "$(cat "$lang/setup-order")"
+[[ $(<"$lang/setup-order") == $'font\ninitial\nlanguage\nkeyboard\naccount\nreview\nlanguage\nkeyboard\naccount\nreview\nagreement\nkeyboard\naccount\nreview\nagreement' ]] ||
+  fail "declining review returns to the language, and Esc on the agreement that follows it to the keyboard" "$(cat "$lang/setup-order")"
 (
   platform_ready() { :; }
   fit_console_font() { :; }
@@ -713,6 +715,7 @@ agreement_form() {
   agreement_form
   fit_console_font() { :; }
   clear_logo() { :; }
+  step() { :; }
   say() { :; }
   answers=("$OMARCHY_OEM_DECLINED" "$OMARCHY_OEM_DECLINED" 0)
   omarchy_oem_eula() {
@@ -741,6 +744,7 @@ agreement_form() {
   agreement_form
   fit_console_font() { :; }
   clear_logo() { :; }
+  step() { :; }
   say() { :; }
   omarchy_oem_eula() { return "$OMARCHY_OEM_DECLINED"; }
   gum() { return 0; }
@@ -941,6 +945,8 @@ KMSCON_RESUME=$kms/resume
 KMSCON_RELAUNCH=75
 language=\$1 chosen=\$2 keyboard_label=German keyboard_input_method=none keyboard_xkb_layout=""
 clear_logo() { :; }
+step() { :; }
+omarchy_form_text() { :; }
 omarchy_form_language_drawn() { :; }
 omarchy_persist_input_selection() { :; }
 omarchy_prompt_keyboard() { keyboard=\$chosen; }

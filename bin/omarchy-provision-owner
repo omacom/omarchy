@@ -612,13 +612,14 @@ keyboard_form() {
   local status failures=0
 
   while true; do
-    clear_logo
-    echo
+    # Every step sits under the one heading, so the screen does not shift
+    # from one to the next.
+    step "$(omarchy_form_text setupForm.machineIntro)"
     if ! omarchy_form_language_drawn "$language"; then
       # English on purpose: the console cannot draw this language to say it in.
       say --foreground 8 "Setup stays in English. Omarchy will be in $(omarchy_form_language_label "$language") once set up."
+      echo
     fi
-    echo
 
     omarchy_prompt_keyboard && status=0 || status=$?
     if ((status == 0)); then
@@ -786,7 +787,7 @@ apply_keyboard() {
 # neutral placeholders for the hostname and timezone (omarchy/UTC); the owner
 # overwrites them here.
 user_form() {
-  step "$(omarchy_form_text setupForm.accountIntro)"
+  step "$(omarchy_form_text setupForm.machineIntro)"
 
   omarchy_prompt_timezone || return $?
 
@@ -805,7 +806,7 @@ user_form() {
 }
 
 confirm_form() {
-  step "$(omarchy_form_text setupForm.accountIntro)"
+  step "$(omarchy_form_text setupForm.machineIntro)"
   omarchy_form_review "$PADDING_LEFT_SPACES"
 }
 
@@ -1377,8 +1378,9 @@ run_setup() {
       continue
     fi
 
-    # "No, change it" starts over from the keyboard, as in the installer.
+    # "No, change it" starts over from the language, as in the installer.
     if ! confirm_form; then
+      language_form
       keyboard_form || return 1
       continue
     fi
