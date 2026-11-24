@@ -89,8 +89,13 @@ glass() {
   append_block "$file" "#" "" "${section:+$section$'\n'}$lines"
 }
 
+# foot sends Hyprland an empty blur region while its own background is fully
+# opaque, even with blur=yes, and Hyprland then skips the blur the window fade
+# would show. An alpha just under 1 makes foot ask for it without fading the
+# terminal twice.
 glass foot.ini '[colors-dark]' \
-  '^[[:space:]]*blur[[:space:]]*=' 'blur=yes' || status=1
+  '^[[:space:]]*blur[[:space:]]*=' 'blur=yes' \
+  '^[[:space:]]*alpha[[:space:]]*=' 'alpha=0.99' || status=1
 # GTK only asks Hyprland for blur under a CSS backdrop-filter, which Ghostty
 # takes as custom CSS and reloads live; its background-blur speaks only KDE's
 # blur protocol.
