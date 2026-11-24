@@ -29,10 +29,11 @@ while (( $# > 0 )); do
   shift
 done
 
-selection_file=$(mktemp)
-done_file=$(mktemp)
-rm -f "$done_file"
-trap 'rm -f "$selection_file" "$done_file"' EXIT
+work_dir=$(mktemp -d)
+selection_file="$work_dir/selection"
+done_file="$work_dir/done"
+: >"$selection_file"
+trap 'rm -rf "$work_dir"' EXIT
 
 payload=$(jq -nc \
   --arg prompt "$prompt" \

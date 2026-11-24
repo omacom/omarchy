@@ -39,3 +39,58 @@ pass "a window opened from an agent's command gets its colors and pager back"
 [[ $(launch) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args="* ]] ||
   fail "a plain launch is unchanged" "$(cat "$test_tmp/window")"
 pass "what the user set for themselves stays as it is"
+
+# launch-or-focus and its TUI/webapp wrappers must pass arguments without eval
+# splitting or shell-executing metacharacters such as & and $(...).
+cat >"$test_tmp/bin/hyprctl" <<'STUB'
+#!/bin/bash
+printf '[]\n'
+STUB
+cat >"$test_tmp/bin/omarchy-launch-webapp" <<STUB
+#!/bin/bash
+printf '%s\0' "\$@" >"$test_tmp/webapp-argv"
+STUB
+cat >"$test_tmp/bin/omarchy-launch-tui" <<STUB
+#!/bin/bash
+printf '%s\0' "\$@" >"$test_tmp/tui-argv"
+STUB
+chmod +x "$test_tmp/bin/hyprctl" "$test_tmp/bin/omarchy-launch-webapp" "$test_tmp/bin/omarchy-launch-tui"
+
+marker="$test_tmp/injected"
+PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-launch-or-focus-webapp" Calendar "https://example.com/?a=1&b=\$(touch '$marker')"
+[[ ! -e $marker ]] || fail "launch-or-focus-webapp does not execute shell metacharacters in URLs"
+mapfile -d '' -t webapp_args <"$test_tmp/webapp-argv"
+[[ ${#webapp_args[@]} == 1 && ${webapp_args[0]} == "https://example.com/?a=1&b=\$(touch '$marker')" ]] ||
+  fail "launch-or-focus-webapp preserves URLs with & and \$()" "${webapp_args[*]}"
+pass "launch-or-focus-webapp preserves URL metacharacters without eval"
+
+PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-launch-or-focus-tui" nvim "my file; touch $marker"
+[[ ! -e $marker ]] || fail "launch-or-focus-tui does not execute shell metacharacters in arguments"
+mapfile -d '' -t tui_args <"$test_tmp/tui-argv"
+[[ ${#tui_args[@]} == 2 && ${tui_args[0]} == "nvim" && ${tui_args[1]} == "my file; touch $marker" ]] ||
+  fail "launch-or-focus-tui preserves spaces and metacharacters" "${tui_args[*]}"
+
+# Legacy single-string command invocations (such as the menu extension example)
+# still work via the legacy eval path while multi-arg calls bypass eval.
+PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-launch-or-focus-tui" "zsh -c 'fastfetch; read -k 1'"
+mapfile -d '' -t tui_args <"$test_tmp/tui-argv"
+[[ ${#tui_args[@]} == 3 && ${tui_args[0]} == "zsh" && ${tui_args[1]} == "-c" && ${tui_args[2]} == "fastfetch; read -k 1" ]] ||
+  fail "launch-or-focus-tui preserves legacy single-string commands" "${tui_args[*]}"
+pass "launch-or-focus-tui preserves multi-arg spaces without eval and keeps legacy single-string commands"
+
+cat >"$test_tmp/bin/uwsm-app" <<STUB
+#!/bin/bash
+printf '%s\0' "\$@" >"$test_tmp/uwsm-argv"
+STUB
+chmod +x "$test_tmp/bin/uwsm-app"
+
+PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-launch-or-focus" "app;touch $marker"
+[[ ! -e $marker ]] || fail "single-arg launch-or-focus does not eval the window pattern"
+mapfile -d '' -t uwsm_args <"$test_tmp/uwsm-argv"
+[[ ${#uwsm_args[@]} == 2 && ${uwsm_args[0]} == "--" && ${uwsm_args[1]} == "app;touch $marker" ]] ||
+  fail "single-arg launch-or-focus passes the pattern as one argument" "${uwsm_args[*]}"
+pass "single-arg launch-or-focus avoids eval"
