@@ -17,6 +17,7 @@ local AGENT_CLASS = "org.omarchy.agent"
 local SEED_CLASS = "org.omarchy.qconsole-seed"
 local PICKER_REOPEN_DELAY_MS = 1000
 local PICKER_PENDING_TIMEOUT_MS = 3000
+local PICKER_CLOSE_GRACE_MS = 500
 
 -- Seed the console with the default agent the first time it opens, rather than
 -- at boot, so nothing is running until it is wanted. The exec rule has to pin
@@ -36,6 +37,7 @@ local picker_timer = nil
 local picker_pending = false
 local picker_pending_timer = nil
 local picker_over_console = false
+local picker_close_timer = nil
 local restore_timer = nil
 local restoring = false
 
@@ -48,6 +50,10 @@ end
 
 local function cancel_picker_timer()
   picker_timer = cancel_timer(picker_timer)
+end
+
+local function cancel_picker_close_grace()
+  picker_close_timer = cancel_timer(picker_close_timer)
 end
 
 local function clear_picker_pending()
@@ -112,6 +118,7 @@ local function close_seed_if_agent_present()
     cancel_picker_timer()
     clear_picker_pending()
     picker_over_console = false
+    cancel_picker_close_grace()
     restore_timer = cancel_timer(restore_timer)
     for _, seed in ipairs(seeds) do
       if seed.address then
@@ -293,7 +300,12 @@ hl.on("workspace.special_active", function(ws, mon)
     if not (current and current.visible) then
       cancel_picker_timer()
       clear_picker_pending()
-      picker_over_console = false
+      if picker_over_console and not picker_close_timer then
+        picker_close_timer = hl.timer(function()
+          picker_close_timer = nil
+          picker_over_console = false
+        end, { type = "oneshot", timeout = PICKER_CLOSE_GRACE_MS })
+      end
     end
   end
 end)
@@ -309,12 +321,15 @@ end)
 -- the picker that qconsole opened over the console closes, bring the console
 -- back and focus its seed window, unless the user already left the console or
 -- chose a default agent. Restoring must not re-offer the picker, so it says so.
+-- The panel hands focus back before its fade-out ends and only closes after
+-- it, so a console hidden in between keeps recovery armed for a short grace.
 hl.on("layer.opened", function(layer)
   if layer and layer.namespace == "omarchy-keyboard-panel" and picker_pending then
     clear_picker_pending()
     local ws = hl.get_workspace(CONSOLE)
     local windows = hl.get_workspace_windows(CONSOLE)
     if ws and ws.visible and not default_agent() and (has_only_seed_window() or #windows == 0) then
+      cancel_picker_close_grace()
       picker_over_console = true
     end
   end
@@ -323,6 +338,7 @@ end)
 hl.on("layer.closed", function(layer)
   if layer and layer.namespace == "omarchy-keyboard-panel" and picker_over_console then
     picker_over_console = false
+    cancel_picker_close_grace()
     restore_timer = cancel_timer(restore_timer)
     restore_timer = hl.timer(function()
       restore_timer = nil

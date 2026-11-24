@@ -443,7 +443,24 @@ assert(#env.dispatches == 2
 env.run_timers(1000)
 assert(#env.spawned == 1, "restoring the console does not re-summon the picker")
 
--- 5. Deliberately hiding the console while the picker is open cancels recovery.
+-- 5. Deliberately hiding the console while the picker stays open cancels
+-- recovery once the close grace has run out.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.handlers["workspace.special_active"](nil, env.monitor)
+env.run_timers(500)
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
+env.run_timers(1)
+assert(#env.dispatches == 0, "deliberately hiding the console cancels picker recovery")
+
+-- 5b. Dismissing the panel hands focus back before its fade-out ends, so the
+-- console can hide before layer.closed arrives; recovery still restores it.
 env = load_qconsole(
   { name = "special:qconsole", visible = true },
   { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
@@ -455,7 +472,11 @@ env.set_workspace({ name = "special:qconsole", visible = false })
 env.handlers["workspace.special_active"](nil, env.monitor)
 env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
 env.run_timers(1)
-assert(#env.dispatches == 0, "deliberately hiding the console cancels picker recovery")
+assert(#env.dispatches == 2
+  and env.dispatches[1].kind == "toggle_special"
+  and env.dispatches[2].kind == "focus"
+  and env.dispatches[2].args.window == "address:0xseed",
+  "focus lost while the panel fades out still restores the console")
 
 -- 6. Unrelated keyboard panels (not summoned as the console picker) do not trigger recovery.
 env = load_qconsole(
