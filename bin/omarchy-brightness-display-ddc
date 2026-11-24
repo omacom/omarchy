@@ -176,4 +176,10 @@ if ! ddcutil --bus "$bus" --skip-ddc-checks --noverify setvcp 10 "$raw_target" >
   exit 1
 fi
 
+# Some monitors (Samsung Odyssey G5) answer the first read after a write with
+# the value from before it, however long the read waits. Read once now and drop
+# the answer, so the shell's next read shows the brightness just set instead of
+# moving the slider back to the old one.
+ddcutil --bus "$bus" --skip-ddc-checks getvcp 10 --brief >/dev/null 2>&1 || true
+
 printf '%s\n' "$target"
