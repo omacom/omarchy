@@ -329,3 +329,19 @@ printf 'not json\n' >"$fx_merge/policies.json"
 browser_policy_firefox_skip_default_check "$fx_merge"
 [[ $(<"$fx_merge/policies.json") == "not json" ]] || fail "an unreadable Firefox policies.json is left alone"
 pass "Firefox's default browser check is merged into existing policies"
+
+printf '{"policies": {"DontCheckDefaultBrowser": true}}\n' >"$fx_merge/policies.json"
+browser_policy_firefox_disable_app_update "$fx_merge"
+[[ $(jq -c '.policies' "$fx_merge/policies.json") == '{"DontCheckDefaultBrowser":true,"DisableAppUpdate":true}' ]] ||
+  fail "Firefox's updater is turned off beside the existing policies" "$(cat "$fx_merge/policies.json")"
+as_root() { return 1; }
+browser_policy_firefox_disable_app_update "$fx_merge" || fail "a policy already on is not written again"
+printf '{}\n' >"$fx_merge/policies.json"
+if browser_policy_firefox_disable_app_update "$fx_merge"; then
+  fail "a policy write that fails is reported"
+fi
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_firefox_disable_app_update "$fx_merge"
+[[ $(jq -c . "$fx_merge/policies.json") == '{"policies":{"DisableAppUpdate":true}}' ]] ||
+  fail "Firefox's updater is turned off in a file with no policies yet" "$(cat "$fx_merge/policies.json")"
+pass "Firefox's updater is turned off in existing policies"

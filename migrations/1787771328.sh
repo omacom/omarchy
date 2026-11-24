@@ -4,6 +4,7 @@ echo "Rewrite the font override that captured every family named *mono*"
 python3 - <<'PYTHON'
 from pathlib import Path
 import re
+import sys
 
 path = Path.home() / ".config/fontconfig/fonts.conf"
 if not path.is_file():
@@ -33,6 +34,16 @@ def upgrade(match):
 
 # Consume comments as a whole so a commented-out example stays untouched.
 updated = re.sub(rb"<!--.*?-->|" + legacy, upgrade, data, flags=re.DOTALL)
-if updated != data:
-  path.write_bytes(updated)
+if updated == data:
+  raise SystemExit(0)
+
+# The alias only works once the installed default puts the placeholder in the
+# monospace chain. Until omarchy-settings ships it, rewriting would drop the
+# chosen family, so stay pending and leave the old rule in place.
+settings = Path("/usr/share/fontconfig/conf.avail/50-omarchy.conf")
+if not settings.is_file() or b"Omarchy Fixed Pitch" not in settings.read_bytes():
+  print("Waiting for the omarchy-settings package that ships the Omarchy Fixed Pitch placeholder", file=sys.stderr)
+  raise SystemExit(75)
+
+path.write_bytes(updated)
 PYTHON
