@@ -27,7 +27,7 @@ locale=${*: -1}
 exit "${LOCALEDEF_STATUS:-0}"
 STUB
 chmod +x "$work/bin/localedef"
-export LOCALE_GEN_LOG=$work/locale-gen.log LOCALEDEF_ARCHIVE=$work/locale-archive OMARCHY_LOCALE_GEN=$work/locale.gen OMARCHY_LOCALE_REGISTRY=$registry
+export LOCALE_GEN_LOG=$work/locale-gen.log LOCALEDEF_ARCHIVE=$work/locale-archive OMARCHY_LOCALE_GEN=$work/locale.gen OMARCHY_LOCALE_REGISTRY=$registry OMARCHY_REGION_REGISTRY=$ROOT/default/i18n/regions.json
 printf '#sv_SE.UTF-8 UTF-8\n#hi_IN UTF-8\n' >"$OMARCHY_LOCALE_GEN"
 run() { PATH="$work/bin:$PATH" bash "$generator" "$@"; }
 
@@ -44,7 +44,9 @@ grep -qx 'hi_IN UTF-8' "$OMARCHY_LOCALE_GEN" || fail "a codeset-less entry is en
   fail "localedef names a codeset-less entry with its codeset" "$(cat "$LOCALE_GEN_LOG")"
 run fil || fail "omarchy-locale-generate adds a locale locale.gen doesn't list"
 grep -qx 'fil_PH.UTF-8 UTF-8' "$OMARCHY_LOCALE_GEN" || fail "a missing locale is appended to locale.gen" "$(cat "$OMARCHY_LOCALE_GEN")"
-pass "omarchy-locale-generate enables and generates a registry language's locale"
+run en-GB || fail "omarchy-locale-generate generates a registry region"
+grep -qx 'en_GB.UTF-8 UTF-8' "$OMARCHY_LOCALE_GEN" || fail "the region's locale is enabled in locale.gen" "$(cat "$OMARCHY_LOCALE_GEN")"
+pass "omarchy-locale-generate enables and generates a registry language's or region's locale"
 
 # localedef exits 1 for warnings and for a locale it could not add to a full
 # archive alike, so only the archive says whether the language can switch.
@@ -59,7 +61,7 @@ for status in 1 4 135; do
 done
 pass "omarchy-locale-generate fails when the locale is not generated"
 
-for bad in "" "xx" "../da" "da;id" "da sv" "DA"; do
+for bad in "" "xx" "en-ZZ" "../da" "da;id" "da sv" "DA"; do
   : >"$LOCALE_GEN_LOG"
   if run "$bad" 2>/dev/null; then
     fail "omarchy-locale-generate rejects '$bad'"
