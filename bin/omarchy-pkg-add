@@ -5,20 +5,61 @@
 # omarchy:examples=omarchy pkg add jq ripgrep
 # omarchy:requires-sudo=true
 
-if omarchy-pkg-missing "$@"; then
-  if (( EUID == 0 )); then
-    pacman -S --noconfirm --needed -- "$@" || exit 1
-  else
-    sudo pacman -S --noconfirm --needed -- "$@" || exit 1
-  fi
+if [[ ${OMARCHY_PKG_DEFER:-} == "1" && -n ${OMARCHY_PKG_QUEUE_FILE:-} ]]; then
+  (( $# == 0 )) && exit 0
+  printf '%s\n' "$@" >>"$OMARCHY_PKG_QUEUE_FILE" || exit 1
+  exit 0
 fi
 
-for pkg in "$@"; do
-  # Secondary check to handle states where pacman doesn't actually register an error
-  if ! pacman -Q -- "$pkg" &>/dev/null; then
-    echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
-    exit 1
+flushed_queue=0
+queued_missing=0
+packages=()
+if [[ -n ${OMARCHY_PKG_QUEUE_FILE:-} && -s $OMARCHY_PKG_QUEUE_FILE ]]; then
+  flushed_queue=1
+  declare -A seen=()
+  while IFS= read -r pkg; do
+    [[ -n $pkg && -z ${seen[$pkg]+x} ]] || continue
+    seen[$pkg]=1
+    if ! pacman -Q -- "$pkg" &>/dev/null; then
+      packages+=("$pkg")
+      queued_missing=1
+    fi
+  done <"$OMARCHY_PKG_QUEUE_FILE"
+
+  for pkg in "$@"; do
+    [[ -z ${seen[$pkg]+x} ]] || continue
+    seen[$pkg]=1
+    packages+=("$pkg")
+  done
+else
+  packages=("$@")
+fi
+
+if (( ${#packages[@]} == 0 )); then
+  if (( flushed_queue )); then
+    : >"$OMARCHY_PKG_QUEUE_FILE" || exit 1
   fi
-done
+  exit 0
+fi
+
+if (( queued_missing )) || omarchy-pkg-missing "${packages[@]}"; then
+  if (( EUID == 0 )); then
+    pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
+  else
+    sudo pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
+  fi
+
+  for pkg in "${packages[@]}"; do
+    # Secondary check to handle states where pacman doesn't actually register an error
+    if ! pacman -Q -- "$pkg" &>/dev/null; then
+      echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
+      exit 1
+    fi
+  done
+fi
+
+if (( flushed_queue )); then
+  : >"$OMARCHY_PKG_QUEUE_FILE" || exit 1
+fi
 
 exit 0

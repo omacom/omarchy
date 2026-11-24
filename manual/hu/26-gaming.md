@@ -1,85 +1,85 @@
-# Játékok
+# Játék
 
-Az Omarchy nem csak a _tErMeLéKeNySéGrE_ való, hanem szórakozásra is, és mi lehetne szórakoztatóbb, mint játszani? Az Omarchy a játékos lehetőségek egész készletét hozza el — Steam és RetroArch natív és retró játékhoz, Battle.net-, Lutris- és Heroic nem steam-boltokhoz, Moonlight PC-s streaminghez, Xbox Cloud Gaming + NVIDIA GeForce NOW felhőz, valamint az örökzöld Minecraft.
+Az Omarchy nem csak _pRoDUcTiVItY_-re való, hanem szórakozásra is, és mi szórakoztatóbb a játéknál? Az Omarchy egy egész játékos csomagot szállít — Steam és RetroArch natív és retró játékhoz, Battle.net, Lutris és Heroic a nem Steames áruházakhoz, Moonlight PC-s streameléshez, Xbox Cloud Gaming + NVIDIA GeForce NOW felhőhöz, plusz az örökzöld Minecraft.
 
-A Valve [a proton kompatibilitási rétegen](https://en.wikipedia.org/wiki/Proton_(software)) végzett hihetetlen munkájának köszönhetően ma már több tízezer modern játék játszható Linuxon. És tudtad, hogy a [Steam Deck](https://store.steampowered.com/steamdeck/) tulajdonképpen Archot futtat!
+A Valve hihetetlen munkájának köszönhetően [a proton kompatibilitási rétegen](https://en.wikipedia.org/wiki/Proton_(software)) ma már több tízezer modern játék játszható Linuxon. És azt tudtad, hogy a [Steam Deck](https://store.steampowered.com/steamdeck/) valójában Archot futtat!
 
-Minden játékos telepítő az Omarchy menü (`Super + Space`) _Install > Gaming_ pontjában található. Ha valaha is vissza szeretnél vonni egyet, használd az _Remove > Gaming_ pontot.
+Minden játéktelepítő az _Install > Gaming_ alatt él az Omarchy menüben (`Super + Space`). Ha valaha vissza akarsz vonni egyet, használd a _Remove > Gaming_ pontot. A Minecraft, az NVIDIA GeForce NOW, a Battle.net, a Lutris és a Heroic csak x86-os gépeken érhető el.
 
 ## Steam
 
-Telepítsd a [Steamet](https://store.steampowered.com/) az Omarchy menü (`Super + Space`) _Install > Gaming > Steam_ pontjának kiválasztásával.
+Telepítsd a [Steamet](https://store.steampowered.com/) az _Install > Gaming > Steam_ kiválasztásával az Omarchy menüből (`Super + Space`).
 
-A telepítés után a `Super + Space` kombinációval indíthatod a Steamet.
+Miután telepítetted, a Steamet a `Super + Space` billentyűkombinációval tudod elindítani.
 
-Megjegyzés: a Steam indulása 10–20 másodpercig tarthat, és semmilyen vizuális visszajelzést nem fog adni arról, hogy betöltődik.
+Ne feledd, hogy a Steam indulása 10-20 másodpercet is igénybe vehet, és semmilyen vizuális visszajelzést nem ad arról, hogy éppen tölt.
 
  ![gaming-steam](images/gaming-steam.webp)
 
 ## RetroArch
 
-Telepítsd a [RetroArchot](https://www.retroarch.com/) az Omarchy menü (`Super + Space`) _Install > Gaming > RetroArch_ pontjának kiválasztásával. A libretro-magok teljes készletét tartalmazza, így minden klasszikus rendszer le van fedve.
+Telepítsd a [RetroArchot](https://www.retroarch.com/) az _Install > Gaming > RetroArch_ kiválasztásával az Omarchy menüből (`Super + Space`). A libretro magok teljes készletével érkezik, így minden klasszikus rendszer le van fedve.
 
-A RetroArch teljesen előre konfigurált a gyönyörű CRT Royale shadervel a tökéletes retró megjelenésért.
+A RetroArch teljesen előre be van állítva a gyönyörű CRT Royale shaderrel a tökéletes retró megjelenéshez.
 
-Kezdéshez:
+A kezdéshez:
 
-1. Dobja be a BIOS-fájljait a `~/Games/bios` mappába, ROM-jait pedig a `~/Games/roms` mappába.
-2. Indítsd a RetroArchot a `Super + Space` kombinációval, és írd be, hogy `retro`.
-3. Vizsgáld át a `~/Games/roms` könyvtárat, és készen állsz a játékra.
+1. Dobd a BIOS fájljaidat a `~/Games/bios` mappába, a ROM-jaidat pedig a `~/Games/roms` mappába.
+2. Indítsd el a RetroArchot a `Super + Space` billentyűkombinációval és a `retro` beírásával.
+3. Olvasd be a `~/Games/roms` könyvtárat, és már játszhatsz is.
 
-Kedvenc játékodnak saját bejegyzést is adhatsz az alkalmazásindítóban az _Install > Gaming > RetroArch Game Launcher_ eszközzel, amely lehetővé teszi egy mag és egy ROM kiválasztását, és közvetlenül a játékba ugorhatsz a `Super + Space` kombinációval.
+Kedvenc játékodnak saját bejegyzést is adhatsz az alkalmazásindítóban az _Install > Gaming > RetroArch Game Launcher_ segítségével, amellyel kiválaszthatsz egy magot és egy ROM-ot, és egyenesen a játékba ugorhatsz a `Super + Space` billentyűkombinációval.
 
  ![gaming-retroarch](images/gaming-retroarch.webp)
 
 ## Xbox Cloud Gaming
 
-Telepítsd az Xbox Cloud Gaming webalkalmazást az Omarchy menü (`Super + Space`) _Install > Gaming > Xbox Cloud Gaming_ pontjának kiválasztásával. „Csak” a szolgáltatás egy webalkalmazása, de gyorsan indul, és 1080p-n kiválóan fut.
+Telepítsd az Xbox Cloud Gaming webalkalmazást az _Install > Gaming > Xbox Cloud Gaming_ kiválasztásával az Omarchy menüből (`Super + Space`). Ez „csak” egy webalkalmazás a szolgáltatáshoz, de gyorsan indul és remekül fut 1080p felbontásban.
 
-Ha már van Xbox Game Passod, ez egy szilárd lehetőség a Fortnite és más olyan címek lejátszására, amelyeket nem tudsz natívan futtatni Linuxon.
+Ha már van Xbox Game Passed, ez egy masszív módja annak, hogy Fortnite-tal és más olyan címekkel játssz, amelyeket nem tudsz natívan futtatni Linuxon.
 
  ![gaming-xbox-cloud](images/gaming-xbox-cloud.webp)
 
 ## NVIDIA GeForce Now
 
-Telepítsd a felhőjáték-szolgáltatást, az [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/) szolgáltatást az Omarchy menü (`Super + Space`) _Install > Gaming > NVIDIA GeForce NOW_ pontjának kiválasztásával. További nagyszerű lehetőség olyan címek lejátszására, amelyek nem érhetők el natívan Linuxon.
+Telepítsd a felhős játékszolgáltatást, az [NVIDIA GeForce NOW-t](https://www.nvidia.com/en-us/geforce-now/) az _Install > Gaming > NVIDIA GeForce NOW_ kiválasztásával az Omarchy menüből (`Super + Space`). Egy másik remek módja annak, hogy olyan címekkel játssz, amelyek nem érhetők el natívan Linuxon.
 
  ![gaming-geforce-now](images/gaming-geforce-now.webp)
 
 ## Minecraft
 
-Telepítsd a Minecraftot az Omarchy menü (`Super + Space`) _Install > Gaming > Minecraft_ pontjának kiválasztásával.
+Telepítsd a Minecraftot az _Install > Gaming > Minecraft_ kiválasztásával az Omarchy menüből (`Super + Space`).
 
-Akárcsak a Steam esetében, vedd figyelembe, hogy a bejelentkezés vagy indítás után sokáig tarthat, amíg megjelenik a következő képernyő, és várakozás közben semmilyen visszajelzést nem kapsz.
+A Steamhez hasonlóan ne feledd, hogy bejelentkezés vagy indulás után eltarthat egy ideig, amíg megjelenik a következő képernyő, és várakozás közben semmilyen visszajelzést nem kapsz.
 
  ![gaming-minecraft](images/gaming-minecraft.webp)
 
-## Xbox-kontrollerek
+## Xbox Controllers
 
-Telepítsd a Bluetooth Xbox kontrollerek támogatását az Omarchy menü (`Super + Space`) _Install > Gaming > Xbox Controllers_ pontjának kiválasztásával. Párosítsd a kontrollerekat Bluetoothon (`Super + Ctrl + B`) keresztül, és működni fognak minden játékodban. Erre nincs szükséged, ha a kontrollert csak USB-C kábellel keményen csatlakoztatod.
+Telepítsd a Bluetooth Xbox kontrollerek támogatását az _Install > Gaming > Xbox Controllers_ kiválasztásával az Omarchy menüből (`Super + Space`). Párosítsd a kontrollereket Bluetooth-on keresztül (`Super + Ctrl + B`), és minden játékodban működni fognak. Erre nincs szükséged, ha csak USB-C kábellel kötöd be a kontrolleredet.
 
-## Moonlight (Játék-streaming PC-ről)
+## Moonlight (Játék streamelése PC-ről)
 
-A [Moonlight kliens](https://github.com/moonlight-stream/moonlight-qt) előre telepítve van az Omarchyval, így azonnal streamelhetsz játékokat egy [Sunshine](https://app.lizardbyte.dev/Sunshine/) rendszert futtató Windows PC-ről. Indítsd a Moonlightot a `Super + Space` kombinációval.
+Telepítsd a [Moonlight klienst](https://github.com/moonlight-stream/moonlight-qt) az _Install > Gaming > Moonlight_ kiválasztásával az Omarchy menüből (`Super + Space`), és streamelhetsz játékokat egy [Sunshine-t](https://app.lizardbyte.dev/Sunshine/) futtató Windows PC-ről.
 
-Ha mind az Omarchy géped, mind a távoli játékos PC-d kábeles, az élmény megkülönböztethetetlen a helyben történő játéktól. Törd fel a felbontást natívra, állítsd a frissítési gyakoriságot 120 Hz-re, és maximalizáld az átviteli sebességet — ez a legjobb mód a versenyszintű FPS-játékok, mint a Fortnite, Linuxon történő lejátszására.
+Ha mind az Omarchy géped, mind a távoli játék-PC vezetékkel csatlakozik, az élmény megkülönböztethetetlen a helyi játéktól. Tekerd fel a felbontást natívra, állítsd a frissítést 120Hz-re, és maxold ki a bitrátát — ez a legjobb módja annak, hogy kompetitív lövöldözős játékokkal, például Fortnite-tal játssz Linuxon.
 
-Az Omarchy-gépet gazdagéppé is teheted az `omarchy install service sunshine` paranccsal, amely telepíti a Sunshine-t, és megnyitja a Moonlight streaming portjait a LAN és a Tailscale felé.
+Az Omarchy gépedet hoszttá is alakíthatod az `omarchy install service sunshine` futtatásával, amely telepíti a Sunshine-t és megnyitja a Moonlight streamelési portjait a LAN-od és a Tailscale számára.
 
 ## Battle.net
 
-Telepítsd a [Battle.netet](https://eu.shop.battle.net/en-us) az Omarchy menü (`Super + Space`) _Install > Gaming > Battle.net_ pontjának kiválasztásával. Így olyan játékok érhetők el, mint a Diablo, a Starcraft és a World of Warcraft önálló telepítésként GE-Proton alatt — Steamre, Lutrisra vagy Heroicra nincs szükség.
+Telepítsd a [Battle.netet](https://eu.shop.battle.net/en-us) az _Install > Gaming > Battle.net_ kiválasztásával az Omarchy menüből (`Super + Space`). Így olyan címekhez jutsz, mint a Diablo, a Starcraft és a World of Warcraft, önálló telepítésként, GE-Proton alatt futtatva — nincs szükség Steamre, Lutrisra vagy Heroicra.
 
  ![gaming-starcraft](images/gaming-starcraft.webp)
 
 ## Lutris (Windows-játékok)
 
-Telepítsd a [Lutrist](https://lutris.net/) az Omarchy menü (`Super + Space`) _Install > Gaming > Lutris_ pontjának kiválasztásával. A Lutris az a mód, ahogyan olyan boltokból származó Windows-játékokat játszhatsz, mint az EA és az Ubisoft Connect, amelyeknek nincs saját telepítőjük fent.
+Telepítsd a [Lutrist](https://lutris.net/) az _Install > Gaming > Lutris_ kiválasztásával az Omarchy menüből (`Super + Space`). A Lutris a módja annak, hogy olyan áruházakból származó Windows-játékokkal játssz, mint az EA és a Ubisoft Connect, amelyeknek nincs saját telepítőjük fentebb.
 
-A telepítés kissé döcögős, és néha úgy tűnik, mintha semmi sem történne — kérjük, légy türelmes, a háttérben működik.
+A telepítés egy kicsit döcögős, és néha úgy néz ki, mintha semmi sem történne — csak légy türelmes, a háttérben dolgozik.
 
 ## Heroic Launcher (Epic Games)
 
-Telepítsd a [Heroic Launchert](https://heroicgameslauncher.com/) az Omarchy menü (`Super + Space`) _Install > Gaming > Heroic (Epic Games)_ pontjának kiválasztásával. A Heroic lehetővé teszi Epic Games-játékok futtatását, mint az OddSparks, amelyek nem használják az anti-cheatet — plusz a GOG és az Amazon Prime Gaming játékait is. Sajnos ez azt jelenti, hogy nincs Fortnite és nincs Rocket League — amíg Tim Sweeney nem érkezik meg Linuxra, ez van a legközelebb, amit kaphatsz.
+Telepítsd a [Heroic Launchert](https://heroicgameslauncher.com/) az _Install > Gaming > Heroic (Epic Games)_ kiválasztásával az Omarchy menüből (`Super + Space`). A Heroic lehetővé teszi, hogy olyan Epic Games címeket futtass, mint az OddSparks, amelyek nem támaszkodnak anti-cheatre — plusz játékokat a GOG-ról és az Amazon Prime Gamingről. Sajnos ez azt jelenti, hogy nincs Fortnite és nincs Rocket League — amíg Tim Sweeney el nem jön Linuxra, ez a legközelebbi, ami elérhető.
 
-Akárcsak a Lutrisnál, a játékok telepítése közben is lassúnak és döcögősnek érződhet. Adj neki időt.
+A Lutrishoz hasonlóan játékok telepítése közben lassúnak és döcögősnek érződhet. Adj neki időt.

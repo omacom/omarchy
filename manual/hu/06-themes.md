@@ -1,12 +1,12 @@
 # Témák
 
-Az Omarchy huszonkét gyönyörű témával érkezik. Közülük az Omarchy menü (`Super + Space`) _Megjelenés > Téma_ pontjában választhatsz, vagy közvetlenül a témaválasztóhoz ugorhatsz a `Super + Ctrl + T` billentyűkombinációval.
+Az Omarchy huszonhárom gyönyörű témával érkezik. Választani közülük az Omarchy Menu _Megjelenés > Téma_ pontjában tudsz (`Super + Space`), vagy közvetlenül a témaválasztóhoz ugorhatsz a `Super + Ctrl + T` kombinációval.
 
-Minden téma formázza az asztalt, a terminált, a neovimt, a tevékenységképernyőt (btop), a Chromiumot és a teljes Omarchy felületet: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidian esetében manuálisan kell kiválasztanod az Omarchy témát az alkalmazáson belül a _Megjelenés > Témák_ alatt).
+Mindegyik téma formálja az asztal, a terminál, a neovim, a tevékenységképernyő (btop), a böngésződ (Chrome, Chromium, Edge vagy Brave) és az egész Omarchy shell megjelenését: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidian esetében az Omarchy témát az alkalmazáson belül, a _Megjelenés > Témák_ pontban kell kézzel kiválasztanod).
 
-A témákhoz háttérképek készlete tartozik, amelyek közül a `Super + Ctrl + W` billentyűkombinációval választhatsz.
+Minden témához tartozik egy sor háttérkép, amelyek közül a `Super + Ctrl + W` kombinációval választhatsz.
 
-Még több témát találsz [a további témák oldalán](https://omarchy.org/themes/), vagy akár [saját témát is készíthetsz](43-making-your-own-theme.md).
+Még több témát találsz [az extra témák oldalán](https://omarchy.org/themes/), vagy akár [saját témát is készíthetsz](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Feloldóképernyők
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-A témák egyéni feloldási dizájnnal is rendelkezhetnek, amelyet a rendszerindításkori visszafejtési folyamat használ. Ezek közül a _Megjelenés > Feloldás_ alatt választhatsz egyet. Így néznek ki:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Alkalmazásikonok
+
+Az alkalmazásindítóban és a dokkban az ikonok a témád színeivel rajzolódnak, így azzal együtt változnak. Egy ikonkészletből származnak, amelyet a témától külön választasz ki a _Megjelenés > Ikonok_ pontban, az egyes készletek előnézetei alapján, ugyanúgy, ahogy témát választasz:
+
+- A _Papercraft_ az alapértelmezett: minden, ami telepítve érkezik, egyetlen stílusban megrajzolva. A logójukról ismert alkalmazások, mint a Chrome, a HEY vagy a YouTube, megtartják az alakjukat, és felveszik a téma színeit.
+- Az _Arcade_ ugyanezeket az alkalmazásokat 8 bites pixelgrafikaként rajzolja meg, ahogy egy régi játékkonzol tenné.
+- Az _Original_ minden alkalmazást azzal az ikonnal mutat, amelyet a készítője adott neki.
+
+Telepítheted mások által készített ikonkészletet a _Telepítés > Stílus > Ikonok_ pontban (vagy az `omarchy icons install <git url>` paranccsal), és az _Eltávolítás > Ikonok_ pontban tudod ismét eltávolítani. A _Frissítés > Extra ikonok_ letölti a telepített készleteid legújabb verzióját.
+
+Saját készítéséhez tedd az ikonjaidat a `~/.config/omarchy/icons/<name>/` mappába, alkalmazásonként egy fájlt, az alkalmazás `.desktop` fájljának `Icon=` sora után elnevezve. A `.svg` végződésű fájl úgy jelenik meg, ahogy van. A `.svg.tpl` végződésű fájl a téma színeivel rajzolódik: írd be a `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` vagy `{{ icon_shadow }}` egyikét oda, ahová szín kerül. Az alapértelmezett készlet a `/usr/share/omarchy/icons/papercraft/` mappában jó kiindulópont. Adj hozzá egy `preview.png` fájlt, hogy a készleted megjelenjen a választóban; ha nincs ilyen, az Omarchy az ikonjaidból rajzol előnézetet. Az alapértelmezett készlet egyetlen ikonjának lecseréléséhez tedd a saját változatodat a `~/.config/omarchy/icons/papercraft/` mappába.
+
+### Feloldások
+
+A témáknak egyedi feloldási dizájnjuk is lehet, amelyet a rendszerindítási visszafejtési folyamat használ. Ezek közül a _Megjelenés > Feloldás_ pontban választhatsz egyet. Így néznek ki:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -96,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_
