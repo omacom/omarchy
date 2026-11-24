@@ -117,7 +117,7 @@ async function launch(sandbox) {
     "--use-angle=gl-egl", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
     "--mute-audio", `--window-size=${width},${height}`, ...(sandbox ? [] : ["--no-sandbox"]), "about:blank"];
   child = spawn(chrome, args, { stdio: "ignore" });
-  for (let i = 0; i < 100 && child.exitCode === null; i++) {
+  for (let i = 0; i < 100 && child.exitCode === null && child.signalCode === null; i++) {
     if (fs.existsSync(portFile)) {
       const [port] = fs.readFileSync(portFile, "utf8").split("\n");
       if (port) return Number(port);
@@ -146,17 +146,19 @@ function connect(socketUrl) {
         (listeners.get(message.method) || []).forEach((listener) => listener(message.params));
       }
     };
-    // A Chrome that goes away fails whatever was waiting on it, at once.
+    // A Chrome that goes away fails whatever was waiting on it, and anything
+    // asked of it later, at once.
+    let closed;
     const lost = () => {
-      const error = new Error("lost Chrome's DevTools connection");
-      reject(error);
-      pending.forEach(({ fail }) => fail(error));
+      closed = new Error("lost Chrome's DevTools connection");
+      reject(closed);
+      pending.forEach(({ fail }) => fail(closed));
       pending.clear();
     };
     socket.onerror = lost;
     socket.onclose = lost;
     socket.onopen = () => resolve({
-      send: (method, params = {}) => new Promise((done, fail) => {
+      send: (method, params = {}) => closed ? Promise.reject(closed) : new Promise((done, fail) => {
         pending.set(++id, { done, fail });
         socket.send(JSON.stringify({ id, method, params }));
       }),
