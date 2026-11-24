@@ -21,11 +21,4 @@ if omarchy-hw-facetimehd; then
       sudo systemctl start --no-block facetimehd-firmware-fetcher.service || true
     fi
   fi
-
-  # Whichever package provides the driver, it hangs hibernation, so every hibernating sleep is guarded.
-  for unit in systemd-hibernate systemd-hybrid-sleep systemd-suspend-then-hibernate; do
-    sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/omarchy-facetimehd-hibernate.conf" \
-      "/etc/systemd/system/$unit.service.d/omarchy-facetimehd.conf"
-  done
-  sudo systemctl daemon-reload
 fi

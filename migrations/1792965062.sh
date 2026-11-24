@@ -1,5 +1,7 @@
 echo "Name the hibernation resume device by its filesystem UUID"
 
+omarchy-cmd-present omarchy-hibernation-setup || exit 0
+
 # Hibernation setup named an unencrypted root by its kernel name. With two NVMe
 # disks that name can belong to the other disk at the next boot, and resume then
 # finds no image and the session is lost. Setup now writes the filesystem UUID,

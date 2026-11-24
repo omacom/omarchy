@@ -8,7 +8,6 @@ set -e
 # suspending.
 
 restore_marker=/run/omarchy-force-igpu-integrated
-sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 [[ -x /usr/bin/supergfxctl ]] || exit 0
 
 switch_mode() {
@@ -32,21 +31,13 @@ switch_mode() {
 
 case "$1" in
   pre)
-    # Remember the mode this sleep cycle started in. supergfxctl persists the
-    # temporary hibernate switch to Vfio, so post must not consult that mutable
-    # value when deciding whether to restore Integrated mode.
+    # Remember that this sleep cycle started in Integrated mode so post can
+    # power the dGPU back off after resume.
     if [[ -L $restore_marker ]]; then
       exit 1
     elif [[ ! -f $restore_marker ]]; then
       /usr/bin/grep -Eq '"mode"[[:space:]]*:[[:space:]]*"Integrated"' /etc/supergfxd.conf 2>/dev/null || exit 0
       /usr/bin/install -m 0600 -o root -g root -T /dev/null "$restore_marker"
-    fi
-
-    # Before hibernating, switch to Vfio so the nvidia driver is detached from the dGPU.
-    # Without this, hibernate resume fails because the nvidia driver can't freeze a
-    # powered-off dGPU (returns -EIO), which aborts the entire resume.
-    if [[ $sleep_action == "hibernate" ]]; then
-      switch_mode Vfio
     fi
     ;;
   post)

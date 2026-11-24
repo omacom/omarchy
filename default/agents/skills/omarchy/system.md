@@ -36,7 +36,6 @@ omarchy weather location --set <place>
 ```bash
 omarchy powerprofiles list
 omarchy powerprofiles set [autodetect|ac|battery] [power-saver|balanced|performance]  # Remembered per power source
-omarchy hibernation setup          # Or: omarchy hibernation remove
 ```
 
 Idle and lock timing is in [`shell.md`](shell.md).

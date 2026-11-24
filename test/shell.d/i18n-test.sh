@@ -156,7 +156,7 @@ assertDeepEqual(MenuModel.applyTranslations(defaults, null), defaults, 'a missin
 const daMenu = readJson('da/menu.json')
 const enMerged = MenuModel.mergeMenuSources(menuItems, [])
 const daMerged = MenuModel.mergeMenuSources(MenuModel.applyTranslations(menuItems, daMenu), [])
-for (const route of ['reboot', 'shutdown', 'logout', 'hibernate', 'lock', 'clock', 'danish', 'setup', 'settings', 'power-menu', 'language'])
+for (const route of ['reboot', 'shutdown', 'logout', 'lock', 'clock', 'danish', 'setup', 'settings', 'power-menu', 'language'])
   assertEqual(MenuModel.resolveRoute(daMerged.items, daMerged.itemOrder, route), MenuModel.resolveRoute(enMerged.items, enMerged.itemOrder, route), `route "${route}" resolves the same in Danish as in English`)
 assert(MenuModel.nameSearchText(daMerged.items.setup).includes('setup'), 'English labels remain searchable in Danish')
 

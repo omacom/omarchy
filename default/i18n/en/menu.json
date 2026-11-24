@@ -41,9 +41,6 @@
   "system.suspend": {
     "label": "Suspend"
   },
-  "system.hibernate": {
-    "label": "Hibernate"
-  },
   "system.logout": {
     "label": "Logout"
   },

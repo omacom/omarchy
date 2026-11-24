@@ -266,8 +266,10 @@ repair_unsafe_privileged_entry() {
 # Replace rather than chown an unsafe destination: its current owner may have
 # already changed the contents or kept a writable file descriptor open. The
 # root-owned staging inode makes the final rename an atomic trust transition.
-repair_unsafe_privileged_entry "$keyboard_source" \
-  "$system_sleep_dir/keyboard-backlight" 0755 keyboard-backlight "$legacy_keyboard_sha256"
+if [[ -f $keyboard_source ]]; then
+  repair_unsafe_privileged_entry "$keyboard_source" \
+    "$system_sleep_dir/keyboard-backlight" 0755 keyboard-backlight "$legacy_keyboard_sha256"
+fi
 
 force_igpu="$system_sleep_dir/force-igpu"
 repair_unsafe_privileged_entry "$force_igpu_source" "$force_igpu" 0755 force-igpu "$legacy_force_igpu_sha256"

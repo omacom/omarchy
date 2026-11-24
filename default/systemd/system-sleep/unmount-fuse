@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Lazy-unmount gvfsd-fuse filesystems before suspend/hibernate to prevent the
+# Lazy-unmount gvfsd-fuse filesystems before suspend to prevent the
 # kernel's process freeze from timing out. FUSE daemons (like gvfsd-fuse from
 # Nautilus) can block in uninterruptible sleep during freeze, causing suspend
 # to silently fail. After wake, restart gvfs so the FUSE mount is restored.

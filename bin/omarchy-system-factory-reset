@@ -511,30 +511,23 @@ rebuild_next_boot() {
     mount --make-rslave "$next/$dir"
   done
 
-  # Btrfs snapshots do not recurse into nested subvolumes, so the factory
-  # root carries only an empty /swap directory where the hibernation swapfile
-  # lived. Recreate it and refresh the resume offset before the UKI build
-  # bakes the cmdline; the empty placeholder directory has to go first so the
-  # subvolume can be recreated.
-  if [[ -x $next/usr/bin/omarchy-hibernation-setup ]] && grep -q "/swap/swapfile" "$next/etc/fstab"; then
-    log "Recreating the hibernation swapfile in the factory system"
-    if [[ -d $next/swap ]] && ! btrfs subvolume show "$next/swap" >/dev/null 2>&1; then
-      rmdir "$next/swap" 2>/dev/null || true
+  # Factory snapshots taken before hibernation was removed still list
+  # /swap/swapfile in fstab (without the nested /swap subvolume) and carry
+  # resume drop-ins. Strip them before rebuilding the factory boot files.
+  if grep -Eq '^[[:space:]]*/swap/swapfile([[:space:]]|$)' "$next/etc/fstab" 2>/dev/null ||
+    [[ -e $next/etc/mkinitcpio.conf.d/omarchy_resume.conf ||
+      -e $next/etc/limine-entry-tool.d/resume.conf ||
+      -e $next/etc/limine-entry-tool.d/rtc-alarm.conf ||
+      -e $next/var/lib/omarchy/hibernation-resume-rebuild ]]; then
+    log "Removing legacy hibernation configuration from the factory system"
+    if grep -Eq '^[[:space:]]*/swap/swapfile([[:space:]]|$)' "$next/etc/fstab" 2>/dev/null; then
+      sed -i -E '/^[[:space:]]*\/swap\/swapfile([[:space:]]|$)/d; /^# Btrfs swapfile for system hibernation$/d' "$next/etc/fstab"
     fi
-    # The factory root still carries the resume hook and drop-in from install,
-    # which make hibernation-setup conclude it has nothing to do. Remove both
-    # so setup reconfigures from scratch and a failed lookup cannot leave the
-    # old swapfile's offset behind in the rebuilt UKI.
-    if [[ ! -f $next/swap/swapfile ]]; then
-      rm -f "$next/etc/mkinitcpio.conf.d/omarchy_resume.conf" \
-        "$next/etc/limine-entry-tool.d/resume.conf"
-    fi
-    if ! chroot "$next" env OMARCHY_PATH=/usr/share/omarchy \
-      /usr/bin/omarchy-hibernation-setup --force --no-rebuild >>"$LOG_FILE" 2>&1; then
-      fail "hibernation setup failed in the factory root (see $LOG_FILE)"
-    fi
-    [[ -f $next/swap/swapfile ]] ||
-      fail "hibernation setup did not recreate $next/swap/swapfile (see $LOG_FILE)"
+    rm -f "$next/etc/mkinitcpio.conf.d/omarchy_resume.conf" \
+      "$next/etc/limine-entry-tool.d/resume.conf" \
+      "$next/etc/limine-entry-tool.d/rtc-alarm.conf" \
+      "$next/var/lib/omarchy/hibernation-resume-rebuild"
+    rmdir "$next/swap" 2>/dev/null || true
   fi
 
   # The running system's identity is the one the reset replaces.
