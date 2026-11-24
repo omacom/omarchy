@@ -92,17 +92,15 @@ run_install 0 executable
 pass "Voxtype does not enable the GPU backend without a Vulkan runtime"
 
 run_install 1 executable existing
-grep -Fx 'sudo voxtype setup gpu --enable' "$calls" >/dev/null ||
-  fail "Voxtype retries GPU setup when a previous attempt already created config.toml"
+! grep -q 'setup gpu' "$calls" ||
+  fail "Voxtype leaves backend selection alone when config.toml already exists"
 [[ $(cat "$test_tmp/home/.config/voxtype/config.toml") == "custom model configuration" ]] ||
-  fail "Voxtype GPU retry must preserve custom configuration"
-pass "Voxtype retries GPU setup without replacing existing configuration"
+  fail "Voxtype must preserve existing configuration"
+pass "Voxtype preserves existing configuration and backend choice on rerun"
 
-for configuration in new existing; do
-  run_install 1 executable "$configuration" 1
-  grep -Fx 'sudo voxtype setup gpu --enable' "$calls" >/dev/null ||
-    fail "failed GPU setup must still run through sudo ($configuration configuration)"
-  grep -q 'could not enable the Voxtype GPU backend' "$test_tmp/output" ||
-    fail "failed GPU setup must warn ($configuration configuration)"
-  pass "failed GPU setup warns while model and service setup complete ($configuration configuration)"
-done
+run_install 1 executable new 1
+grep -Fx 'sudo voxtype setup gpu --enable' "$calls" >/dev/null ||
+  fail "failed GPU setup must still run through sudo"
+grep -q 'could not enable the Voxtype GPU backend' "$test_tmp/output" ||
+  fail "failed GPU setup must warn"
+pass "failed GPU setup warns while model and service setup complete"
