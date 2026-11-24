@@ -1,6 +1,6 @@
-# Teclado, mouse, trackpad
+# Teclado, mouse y trackpad
 
-Hyprland te permite configurar todas tus entradas con gran detalle. Puedes hacer que la repetición del teclado sea supersónicamente rápida o que el trackpad use desplazamiento natural. Todo eso lo cambias en `~/.config/hypr/input.lua`, al que también puedes llegar vía _Setup > Input_ en el menú de Omarchy (`Super + Space`). Todo lo que configures ahí reemplaza los valores predeterminados de Omarchy.
+Hyprland te permite configurar todas tus entradas con gran detalle. Puedes hacer que la repetición del teclado sea supersónicamente rápida o que el trackpad use desplazamiento natural. Todo se cambia en `~/.config/hypr/input.lua`, al que también puedes llegar vía _Setup > Input_ en el menú de Omarchy (`Super + Space`). Todo lo que configures ahí reemplaza los valores predeterminados de Omarchy.
 
 Aquí tienes un ejemplo:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Puedes [ver todas las opciones de entrada](https://wiki.hypr.land/Configuring/Basics/Variables/#input) en el wiki de Hyprland para entradas.
+Puedes [ver todas las opciones de entrada](https://wiki.hypr.land/Configuring/Basics/Variables/#input) en la wiki de Hyprland para entradas.
 
-CapsLock funciona como un Bloq Mayús normal, y `Shift + CapsLock` es la tecla de composición para [emojis rápidos](07-hotkeys.md#quick-emojis) y [otras opciones para completar](07-hotkeys.md#quick-completions). Si prefieres tener la tecla de composición en otro lugar, reemplaza `omarchy:shift_caps_compose` en `kb_options`. Por ejemplo, esto mueve la tecla de composición a Right Alt:
+CapsLock funciona como un Caps Lock normal, y `Shift + CapsLock` es la tecla de composición para [emojis rápidos](07-hotkeys.md#quick-emojis) y [otros completados rápidos](07-hotkeys.md#quick-completions). Si prefieres poner la tecla de composición en otro lado, reemplaza `omarchy:shift_caps_compose` en `kb_options`. Por ejemplo, esto mueve la tecla de composición a Right Alt:
 
 ```lua
 hl.config({
@@ -49,7 +49,7 @@ hl.config({
 
 ### Teclas de función
 
-La fila superior del teclado de una laptop envía las teclas multimedia (volumen, brillo, etc.) de forma predeterminada, y mantener presionada `Fn` da F1-F12; `Fn + Esc` lo bloquea en el sentido contrario hasta que la vuelves a presionar. La mayoría de los teclados recuerdan ese bloqueo por sí mismos. Las laptops ASUS y los teclados estilo Apple se lo dejan a Linux, que los inicia con las teclas multimedia en cada arranque. Para que en su lugar inicien con F1-F12, ejecuta `omarchy device keyboard toprow fnkeys` (y `omarchy device keyboard toprow mediakeys` para volver); en algunas laptops surte efecto después de reiniciar. Las Mac con Apple Silicon mantienen su propia configuración.
+La fila superior de un teclado de laptop envía las teclas multimedia (volumen, brillo, etc.) de forma predeterminada, y mantener presionada `Fn` da F1-F12; `Fn + Esc` lo bloquea en el modo contrario hasta que la presionas otra vez. La mayoría de los teclados recuerdan ese bloqueo por su cuenta. Las laptops ASUS y los teclados estilo Apple se lo dejan a Linux, que las inicia con las teclas multimedia en cada arranque. Para que en su lugar inicien con F1-F12, ejecuta `omarchy device keyboard toprow fnkeys` (y `omarchy device keyboard toprow mediakeys` para volver); en algunas laptops surte efecto después de reiniciar. Las Mac con Apple Silicon mantienen su propia configuración.
 
 ### Gestos del trackpad
 
@@ -58,39 +58,39 @@ Desliza en el trackpad para moverte por el escritorio:
 | Gesto | Acción |
 | --- | --- |
 | Tres dedos a la izquierda / derecha | Espacio de trabajo anterior / siguiente, incluidos los vacíos |
-| Tres dedos hacia arriba | Alternar la consola de IA |
+| Tres dedos hacia arriba | Activar/desactivar la consola de IA |
 | Tres dedos hacia abajo | Abrir el menú de Omarchy |
 | Cuatro dedos a la izquierda / derecha | Mover la ventana activa al espacio de trabajo anterior / siguiente |
-| Cuatro dedos hacia abajo | Alternar pantalla completa |
+| Cuatro dedos hacia abajo | Activar/desactivar pantalla completa |
 
-Para cambiar uno, desactívalo en `~/.config/hypr/input.lua` antes de agregar tu propio [gesto del trackpad](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), ya que Hyprland no aceptará dos gestos con los mismos dedos y la misma dirección:
+Para cambiar uno, desactívalo en `~/.config/hypr/input.lua` antes de agregar tu propio [gesto del touchpad](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), ya que Hyprland no aceptará dos gestos con los mismos dedos y la misma dirección:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "up", action = "unset" })
 hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
 
-Para desactivar todos los gestos de Omarchy, establece `omarchy_default_gestures = false` cerca de la parte superior de `~/.config/hypr/hyprland.lua`, antes de que se carguen los valores predeterminados de Omarchy.
+Para desactivar todos los gestos de Omarchy, establece `omarchy_default_gestures = false` cerca de la parte superior de `~/.config/hypr/hyprland.lua`, antes de que carguen los valores predeterminados de Omarchy.
 
-En laptops Dell XPS con touchpad háptico, también puedes ajustar la fuerza del clic a baja, media o alta en _Trigger > Hardware > Touchpad Haptics_.
+En laptops Dell XPS con touchpad háptico, también puedes establecer la fuerza del clic en baja, media o alta en _Trigger > Hardware > Touchpad Haptics_.
 
 ### Escribir en chino, japonés y otros idiomas
 
-Selecciona japonés, coreano, chino (simplificado, Pinyin), Taiwán (Zhuyin) o Hong Kong (Cangjie) cuando el instalador te pregunte por tu teclado. Omarchy configura automáticamente el teclado y el motor de entrada correspondiente, incluso durante la configuración sin conexión del primer arranque. El japonés usa Mozc, el coreano usa Hangul estándar de dos conjuntos, el chino simplificado usa Pinyin, Taiwán usa la distribución estándar Zhuyin de Chewing y Hong Kong usa Cangjie con las formas de caracteres de Hong Kong. Japonés (teclado de EE. UU.) proporciona Mozc con una distribución de teclado estadounidense. Las teclas de Hangul, Zhuyin y Cangjie permanecen en sus posiciones estándar incluso cuando escribes letras latinas con Dvorak, Colemak o AZERTY. Si agregaste Hangul o Chewing antes de esto, deselecciónalo y vuelve a seleccionarlo en _Setup > Keyboard > Input Methods_ para mover sus teclas ahí; Omarchy no toca un motor con el que ya escribes.
+Selecciona japonés, coreano, chino (simplificado, Pinyin), Taiwán (Zhuyin) o Hong Kong (Cangjie) cuando el instalador te pida tu teclado. Omarchy configura el teclado y el motor de entrada correspondiente automáticamente, incluso durante la configuración sin conexión del primer arranque. El japonés usa Mozc, el coreano usa Hangul estándar de dos conjuntos, el chino simplificado usa Pinyin, Taiwán usa la disposición Zhuyin estándar de Chewing y Hong Kong usa Cangjie con formas de caracteres de Hong Kong. Japonés (teclado de EE. UU.) proporciona Mozc con una distribución de teclado de EE. UU. Las teclas de Hangul, Zhuyin y Cangjie permanecen en sus posiciones estándar incluso cuando escribes letras latinas con Dvorak, Colemak o AZERTY. Si agregaste Hangul o Chewing antes de esto, deselecciónalo y vuélvelo a seleccionar en _Setup > Keyboard > Input Methods_ para mover sus teclas ahí; Omarchy no toca un motor con el que ya escribes.
 
-La escritura empieza en modo latino. Presiona `Super + I` para recorrer los métodos de entrada configurados, y `Super + Shift + I` para recorrerlos hacia atrás. Toca `Shift` por sí sola para salir de un método de entrada como Pinyin y pasar a letras latinas, y tócala de nuevo para volver, como funcionan Sogou, Microsoft Pinyin y macOS; `Shift` más una letra sigue escribiendo una mayúscula. En teclados japoneses, 全角/半角 alterna la entrada, 変換 la activa y 無変換 la desactiva. Con coreano, 한/영 cambia Hangul y 한자 convierte a Hanja, ya sea que tu teclado tenga teclas dedicadas o envíe Right Alt y Right Ctrl para ello, como hacen muchas laptops, así que Right Alt y Right Ctrl no son modificadores simples ahí; el dictado se alterna con Alt + Space en su lugar. `Ctrl + Space` sigue disponible para Tmux y Herdr; `Shift + CapsLock` sigue siendo la tecla de composición.
+La escritura comienza en modo latino. Presiona `Super + I` para recorrer los métodos de entrada configurados, y `Super + Shift + I` para recorrerlos en sentido contrario. Toca `Shift` por sí sola para salir de un método de entrada como Pinyin y pasar a letras latinas, y tócala otra vez para volver, como funcionan Sogou, Microsoft Pinyin y macOS; `Shift` más una letra sigue escribiendo una mayúscula. En los teclados japoneses, 全角/半角 alterna la entrada, 変換 la activa y 無変換 la desactiva. Con coreano, 한/영 cambia Hangul y 한자 convierte a Hanja, ya sea que tu teclado tenga teclas dedicadas o envíe Right Alt y Right Ctrl para ellas, como hacen muchas laptops, así que Right Alt y Right Ctrl no son modificadores simples ahí; el dictado se activa/desactiva con Alt + Space en su lugar. `Ctrl + Space` sigue disponible para Tmux y Herdr; `Shift + CapsLock` sigue siendo la tecla de composición.
 
-El indicador del teclado aparece a la derecha de la barra cuando tienes varias distribuciones de teclado o métodos de entrada. Haz clic en él para cambiar de idioma de entrada; el japonés muestra あ para hiragana. Para las opciones de caracteres japoneses, cambia a japonés, escribe una palabra como `nihongo` y luego presiona Space dos veces. Presiona Enter para aceptar tu elección. Si también tienes varias distribuciones de teclado, haz clic derecho en el indicador para recorrerlas.
+El indicador del teclado aparece a la derecha de la barra cuando tienes varias distribuciones de teclado o métodos de entrada. Haz clic en él para cambiar de idioma de entrada; el japonés muestra あ para hiragana. Para elegir caracteres japoneses, cambia a japonés, escribe una palabra como `nihongo` y luego presiona Space dos veces. Presiona Enter para aceptar tu elección. Si también tienes varias distribuciones de teclado, haz clic derecho en el indicador para recorrerlas.
 
-Usa _Setup > Keyboard > Keyboard Inputs_ para seleccionar distribuciones como inglés y francés, entre las mismas opciones ofrecidas durante la instalación. Usa _Setup > Keyboard > Input Methods_ para seleccionar qué motores de composición están activos. Ambos selectores se abren dentro del menú de Omarchy con tus selecciones actuales marcadas. Haz clic o presiona Enter para alternar una opción; cada cambio se aplica de inmediato. Deseleccionar un método de entrada lo elimina del ciclo sin desinstalarlo; el teclado sigue disponible.
+Usa _Setup > Keyboard > Keyboard Inputs_ para seleccionar distribuciones como inglés y francés, de las mismas opciones que se ofrecen durante la instalación. Usa _Setup > Keyboard > Input Methods_ para seleccionar qué motores de composición están activos. Ambos selectores se abren dentro del menú de Omarchy con tus selecciones actuales marcadas. Haz clic o presiona Enter para activar o desactivar una opción; cada cambio se aplica de inmediato. Deseleccionar un método de entrada lo quita del ciclo sin desinstalarlo; el teclado sigue disponible.
 
-Ejecuta `omarchy setup keyboard` u `omarchy setup input` para abrir los mismos selectores. Para agregar un idioma desde la línea de comandos, usa `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` o `cangjie5`. Quick, Boshiamy y Array vienen en el mismo paquete que Cangjie y aparecen en el selector Input Methods. Tus teclas de cambio personalizadas se conservan. Para distribuciones o teclas alternativas del motor, instala `fcitx5-configtool` con `omarchy pkg add fcitx5-configtool` y ejecútalo desde una terminal. Seleccionar un idioma de entrada no cambia el idioma del escritorio. Elegir japonés, coreano o chino en _Setup > Language_ agrega su método de entrada cuando todavía no tienes ninguno.
+Ejecuta `omarchy setup keyboard` o `omarchy setup input` para abrir los mismos selectores. Para agregar un idioma desde la línea de comandos, usa `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` o `cangjie5`. Quick, Boshiamy y Array vienen en el mismo paquete que Cangjie y aparecen en el selector de Input Methods. Tus teclas personalizadas para cambiar se conservan. Para distribuciones o teclas alternativas del motor, instala `fcitx5-configtool` con `omarchy pkg add fcitx5-configtool` y ejecútalo desde una terminal. Seleccionar un idioma de entrada no cambia el idioma del escritorio. Elegir japonés, coreano o chino en _Setup > Region > Language_ agrega su método de entrada cuando aún no tienes ninguno.
 
-Usa `Super + I` para recorrer los métodos de entrada o las distribuciones de teclado, y `Super + Shift + I` para ir en sentido contrario, para que, con tres configurados, puedas moverte entre dos vecinos. El indicador de entrada aparece a la derecha de la barra solo cuando hay más de un método de entrada o distribución configurado. Esta combinación del escritorio funciona junto con tus teclas de cambio existentes de Fcitx; puedes anularla en `~/.config/hypr/bindings.lua`. Los motores de entrada y las secuencias de composición usan el servicio [Fcitx5](https://fcitx-im.org/) que ya se ejecuta en cada sesión.
+Usa `Super + I` para recorrer los métodos de entrada o las distribuciones de teclado, y `Super + Shift + I` para ir en sentido contrario, así que con tres configurados puedes moverte entre dos vecinos. El indicador de entrada aparece a la derecha de la barra solo cuando hay más de un método de entrada o distribución configurada. Esta combinación de escritorio funciona junto con tus teclas existentes de Fcitx para cambiar; puedes anularla en `~/.config/hypr/bindings.lua`. Los motores de entrada y las secuencias de composición usan el servicio [Fcitx5](https://fcitx-im.org/) que ya se ejecuta en cada sesión.
 
 ### Usar ALT como SUPER
 
-En algunos teclados, no es cómodo usar la tecla meta principal (tecla Windows/cmd) como SUPER. Puedes cambiar esto para que sea ALT en su lugar con este cambio:
+En algunos teclados, no es cómodo usar la tecla meta principal (tecla Windows/cmd) como SUPER. Puedes cambiar esto para que en su lugar sea ALT con este cambio:
 
 ```lua
 hl.config({

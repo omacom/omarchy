@@ -30,6 +30,9 @@ ipc_log="$test_tmp/ipc.log"
 runtime_dir="$test_tmp/runtime"
 mkdir -p "$restart_root/shell" "$restart_bin" "$runtime_dir"
 touch "$restart_root/shell/shell.qml"
+# The IPC wrapper requires a Wayland display before reaching the stub client.
+export WAYLAND_DISPLAY=wayland-test
+touch "$runtime_dir/$WAYLAND_DISPLAY"
 ln -s "$ROOT/bin/omarchy-shell" "$restart_bin/omarchy-shell"
 ln -s "$ROOT/bin/omarchy-launch-shell" "$restart_bin/omarchy-launch-shell"
 ln -s "$ROOT/bin/omarchy-cmd-missing" "$restart_bin/omarchy-cmd-missing"
@@ -268,7 +271,7 @@ locked_error=$(PATH="$restart_bin:$PATH" \
 [[ ! -s $restart_log ]] || fail "locked restart does not stop or launch Quickshell"
 pass "restart preserves the shell while its lock is active"
 
-# A LOCK session without an active locker — dead shell or a crash-handler
+# A LOCK session without an active locker — dead shell or a launcher
 # relaunch holding no lock — is the failsafe: restart must proceed,
 # re-acquire the session lock, and wait for it to report secure.
 sleep 30 &

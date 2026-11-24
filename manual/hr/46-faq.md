@@ -1,8 +1,8 @@
 # Česta pitanja
 
-### Kako se prebacivati između rasporeda tipkovnice?
+### Kako mogu mijenjati rasporede tipkovnice?
 
-Uredite datoteku `~/.config/hypr/input.lua` i dodajte ovo za prebacivanje između rasporeda tipkama `Left Alt + Right Alt`:
+Uredite datoteku `~/.config/hypr/input.lua` i dodajte ovo za mijenjanje rasporeda kombinacijom `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,67 +14,67 @@ hl.config({
 })
 ```
 
-Traka će automatski prikazati vaš trenutni raspored tipkovnice nakon što konfigurirate više rasporeda (a možete ga i kliknuti za prebacivanje).
+Traka će automatski prikazati vaš trenutačni raspored tipkovnice čim konfigurirate više rasporeda (a možete i kliknuti na njega za promjenu).
 
-### Kako promijeniti format sata u 12-satni?
+### Kako mogu promijeniti format sata na 12-satni?
 
-Kliknite desnom tipkom miša sat u traci da biste se kretali kroz uobičajene formate, uključujući 12-satne. Format možete postaviti i izravno:
+Desnom tipkom miša kliknite sat na traci za kruženje kroz uobičajene formate, uključujući 12-satne. Format možete postaviti i izravno:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Time će se prikazati nedjelja 10:55 AM.
+To će prikazati nedjelja 10:55 AM.
 
-### Kako promijeniti vremensku zonu?
+### Kako mogu promijeniti vremensku zonu?
 
-Pokrenite _Postavljanje > Regija > Vremenska zona_ u izborniku Omarchy i odaberite s popisa. Ako je vremenska zona točna, ali je sam sat odlutao, _Ažuriranje > Vrijeme_ ponovno pokreće sinkronizaciju vremena umjesto vas.
+Pokrenite _Postavke > Regija > Vremenska zona_ u izborniku Omarchy i odaberite s popisa. Ako je vremenska zona ispravna, ali je sam sat odlutao, _Ažuriranje > Vrijeme_ ponovno pokreće sinkronizaciju vremena umjesto vas.
 
-### Kako promijeniti DNS, dijeliti Wi-Fi ili provjeriti brzinu veze?
+### Kako mogu promijeniti DNS, podijeliti Wi-Fi ili provjeriti brzinu veze?
 
 Sve to nalazi se u [umrežavanju](35-networking.md).
 
-### Kako provjeriti koliko je brz moj disk?
+### Kako mogu provjeriti koliko je brz moj disk?
 
-_Pokretanje > Test brzine > Test brzine diska_ mjeri stvarnu brzinu čitanja i pisanja na vašem pogonu, ili `omarchy disk speedtest` iz terminala.
+_Okidač > Test brzine > Test brzine diska_ mjeri brzinu čitanja i pisanja na vašem pogonu uživo ili `omarchy disk speedtest` iz terminala.
 
-### Kako dodati pisač?
+### Kako mogu dodati pisač?
 
-Ispis je postavljen i radi odmah po instalaciji, a svaki pisač dodajete sami iz _Postavki ispisa_ u pokretaču aplikacija (`Super + Space`).
+Ispis je postavljen i radi odmah po instalaciji, a svaki pisač dodajete sami iz _Print Settings_ u pokretaču aplikacija (`Super + Alt + Space`).
 
-Odaberite _Dodaj_ i pričekajte trenutak da potraži: pisač priključen putem USB-a i većina mrežnih pisača pronaći će se za vas. Ako vaš nije na popisu, odaberite _Mrežni pisač > Internet Printing Protocol (ipp)_ i unesite njegovu adresu — zaslon samog pisača ili njegova web-stranica reći će vam koja je to adresa, obično nešto poput `192.168.1.50` s redom čekanja `ipp/print`. _Naprijed_ zatim nudi upravljački program, pri čemu moderni pisač najbolje radi na profilu _IPP Everywhere_ bez upravljačkog programa, a stariji želi vlastiti upravljački program modela.
+Odaberite _Dodaj_ i pričekajte trenutak dok traži: pisač priključen putem USB-a i većina mrežnih pisača pronaći će se za vas. Ako vaš nije na popisu, odaberite _Mrežni pisač > Internet Printing Protocol (ipp)_ i unesite njegovu adresu — zaslon samog pisača ili njegova web-stranica reći će vam koja je to adresa, obično nešto poput `192.168.1.50` s redom čekanja `ipp/print`. _Naprijed_ zatim nudi upravljački program, pri čemu moderni pisač najbolje radi na profilu _IPP Everywhere_ bez upravljačkog programa, a stariji želi vlastiti upravljački program modela.
 
-Kliknite pisač desnom tipkom miša i odaberite _Postavi kao zadano_ da biste odabrali kojem će se vaše aplikacije prvo obratiti, a _Svojstva_ za postavljanje veličine papira, obostranog ispisa i kvalitete.
+Desnom tipkom miša kliknite pisač i odaberite _Postavi kao zadano_ kako biste odabrali koji će vaše aplikacije prvo koristiti, a _Svojstva_ za postavljanje veličine papira, obostranog ispisa i kvalitete.
 
-Automatsko otkrivanje, pri kojem se pisači na mreži pojavljuju bez dodavanja, privremeno je isključeno dok se prerađuje, zbog čega je prvi korak gore vaš, a ne automatski. Ispis u PDF datoteku radi i bez ikakvog pisača.
+Automatsko otkrivanje, kod kojeg se pisači na mreži pojavljuju bez dodavanja, privremeno je isključeno dok se prerađuje, zbog čega je prvi korak gore na vama, a ne automatski. Ispis u PDF datoteku radi uopće bez pisača.
 
-### Kako promijeniti gdje se spremaju snimke zaslona ili snimanja zaslona?
+### Kako mogu promijeniti gdje se spremaju snimke zaslona ili snimanja zaslona?
 
-Spremljene snimke zaslona prema zadanim postavkama idu u `~/Pictures/Screenshots`. Za korištenje drugog direktorija dodajte ovo u datoteku pod `~/.config/uwsm/env.d/` (poput `~/.config/uwsm/env.d/capture`):
+Spremljene snimke zaslona prema zadanome idu u `~/Pictures/Screenshots`. Za korištenje drugog direktorija dodajte ovo u datoteku pod `~/.config/uwsm/env.d/` (poput `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Isto možete učiniti i za snimanja zaslona pomoću `OMARCHY_SCREENRECORD_DIR`.
+Isto možete učiniti i za snimanja zaslona koristeći `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap automatski stvara svoj direktorij za snimke zaslona. Direktorij za snimanja zaslona stvorite sami, zatim ponovno pokrenite Omarchy da bi bilo koja od promjena okruženja stupila na snagu.
+Omasnap automatski stvara svoj direktorij za snimke zaslona. Direktorij za snimanja zaslona stvorite sami, zatim ponovno pokrenite Omarchy kako bi bilo koja promjena okruženja stupila na snagu.
 
-### Kako natjerati zvučnike + web-kameru da rade na mom Apple Studio Displayju?
+### Kako mogu osposobiti zvučnike + web-kameru na svom Apple Studio Displayu?
 
-Pomislili biste da bi sve trebalo raditi samo priključivanjem USB C-a, ali nažalost nije tako. Rješenje za koje sam utvrdio da pouzdano radi jest korištenje [kabla WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Tada zvučnici i web-kamera rade kao podmazani.
+Mislili biste da bi sve trebalo raditi samo priključivanjem USB C-a, ali nažalost nije tako. Rješenje za koje sam utvrdio da pouzdano radi jest korištenje [kabela WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Tada zvučnici i web-kamera rade bez greške.
 
-Ne zaboravite da u Omarchyju imate ugrađenu kontrolu svjetline za Apple zaslone (i Studio i XDR) pomoću uobičajenih tipki tipkovnice za svjetlinu.
+Imajte na umu da u Omarchyju imate ugrađenu kontrolu svjetline za Apple zaslone (i Studio i XDR) pomoću uobičajenih tipki za svjetlinu na tipkovnici.
 
-### Kako se riješiti svega dodatnog softvera?
+### Kako mogu ukloniti sav dodatni softver?
 
-Ako ne želite programe poput Obsidian ili LibreOffice ili bilo koju drugu predinstaliranu stvar, možete je vrlo lako ukloniti.
+Ako ne želite programe poput Obsidiana ili LibreOfficea ili bilo što drugo od unaprijed instaliranih stvari, možete ih vrlo lako ukloniti.
 
-Pokrenite _Uklanjanje > Paket_ da biste vidjeli svaki instalirani paket. Zatim tipkom tab možete odabrati bilo koji paket koji želite ukloniti i tipkom return započeti uklanjanje svega što ste odabrali.
+Pokrenite _Ukloni > Paket_ kako biste vidjeli svaki instalirani paket. Zatim tipkom tab možete odabrati bilo koji paket koji želite ukloniti, a tipkom return započeti uklanjanje svega što ste odabrali.
 
-A iz izbornika Omarchy možete upotrijebiti _Uklanjanje > Web aplikacija_ za uklanjanje bilo koje predinstalirane web aplikacije koju ne želite.
+A iz izbornika Omarchy možete koristiti _Ukloni > Web-aplikacija_ za uklanjanje bilo koje unaprijed instalirane web-aplikacije koju ne želite.
 
-Ili pokrenite _Uklanjanje > Predinstalacije_ da biste odjednom izbacili sve predinstalirane dodatke — web aplikacije, TUIs i neobavezne aplikacije. Prečaci koji su ih pokretali nestaju s njima, pa vam ostaje prazna ploča veza koju možete ispuniti vlastitima u `~/.config/hypr/bindings.lua`.
+Ili pokrenite _Ukloni > Unaprijed instalirano_ kako biste odjednom počistili sve unaprijed instalirane dodatke — web-aplikacije, TUI-je i neobvezne aplikacije. Prečaci koji su ih pokretali nestaju zajedno s njima, pa vam ostaje čista ploča prečaca koju možete popuniti svojima u `~/.config/hypr/bindings.lua`.
 
 ---
 

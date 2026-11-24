@@ -251,20 +251,43 @@ pass "identity prompt propagates Esc from its second field"
 
 # Hostname
 
-run_prompt omarchy_prompt_hostname "0:-nope-" "0:workshop"
-assert_status 0 "hostname prompt accepts a valid hostname"
-[[ $(field hostname) == "workshop" ]] || fail "hostname prompt keeps re-asking until the hostname is valid"
-assert_notices "hostname prompt explains the rejection" "Hostname must be 1-63 letters, digits, or dashes, and cannot start or end with a dash"
+# assert_hostname <expected> <username> <sys_vendor> <product_name> [product_version]
+# A vendor of "-" means no DMI tables, leaving product_name as the device tree's model.
+assert_hostname() {
+  local expected=$1 user=$2 vendor=$3 product=$4 version=${5:-} got
+  rm -rf "$tmp_dir/dmi" "$tmp_dir/model"
+  if [[ $vendor == "-" ]]; then
+    printf '%s\0' "$product" >"$tmp_dir/model"
+  else
+    mkdir "$tmp_dir/dmi"
+    printf '%s\n' "$vendor" >"$tmp_dir/dmi/sys_vendor"
+    printf '%s\n' "$product" >"$tmp_dir/dmi/product_name"
+    [[ -z $version ]] || printf '%s\n' "$version" >"$tmp_dir/dmi/product_version"
+  fi
 
-run_prompt omarchy_prompt_hostname "0:"
-assert_status 0 "hostname prompt accepts an empty hostname"
-[[ $(field hostname) == "$OMARCHY_HOSTNAME_DEFAULT" ]] || fail "hostname prompt falls back to the default hostname"
-pass "hostname prompt rejects malformed names and defaults an empty one"
+  got=$(OMARCHY_DMI_DIR="$tmp_dir/dmi" OMARCHY_DEVICE_TREE_MODEL="$tmp_dir/model" bash -c \
+    'set -euo pipefail; source "$1"; username=$2; omarchy_generate_hostname; printf %s "$hostname"' \
+    _ "$ROOT/install/provisioning/setup-form.sh" "$user") || fail "hostname for $vendor $product dies under set -e"
+  [[ $got == "$expected" ]] || fail "hostname for $vendor $product" "got $got, expected $expected"
+}
 
-run_prompt omarchy_prompt_hostname "1:"
-assert_status "$OMARCHY_FORM_BACK" "hostname prompt reports Esc as back"
-assert_returned "hostname prompt survives Esc under set -e"
-pass "hostname prompt propagates Esc without dying under set -e"
+assert_hostname dhh-dell-xps14 dhh "Dell Inc." "XPS 14 9440"
+assert_hostname dhh-lenovo-thinkpadx1 dhh LENOVO 21KC003FUS "ThinkPad X1 Carbon Gen 12"
+assert_hostname dhh-hp-elitebook840 dhh HP "HP EliteBook 840 G10 Notebook PC"
+assert_hostname dhh-asus-zenbook14 dhh "ASUSTeK COMPUTER INC." "ASUS Zenbook 14 UX3405MA_UX3405MA"
+assert_hostname dhh-msi-prestige14 dhh "Micro-Star International Co., Ltd." "Prestige 14 AI Studio C1VEG"
+assert_hostname dhh-framework-laptop13 dhh Framework "Laptop 13 (AMD Ryzen 7040Series)"
+assert_hostname dhh-framework-desktop dhh Framework "Desktop (AMD Ryzen AI Max 300 Series)"
+assert_hostname dhh-apple-macbookpro dhh - "Apple MacBook Pro (14-inch, M2 Pro, 2023)"
+assert_hostname dhh-lenovo-thinkpadt14s dhh - "Lenovo ThinkPad T14s Gen 6"
+pass "hostname is the owner, maker and model, from DMI or the device tree"
+
+assert_hostname dhh-gigabyte dhh "Gigabyte Technology Co., Ltd." "To Be Filled By O.E.M."
+assert_hostname dhh-omarchy dhh "System manufacturer" "System Product Name"
+assert_hostname dhh-vm dhh QEMU "Standard PC (Q35 + ICH9, 2009)"
+assert_hostname dhh-vm dhh "innotek GmbH" VirtualBox
+assert_hostname dev-ops-dell-xps14 'dev_ops$' "Dell Inc." "XPS 14 9440"
+pass "hostname skips firmware placeholders, names virtual machines, and cleans up the username"
 
 # Language
 

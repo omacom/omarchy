@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy معمولاً از طریق کلیدهای میانبر و منوی Omarchy (`Super + Space`) کنترل می‌شود. اما می‌توانید آن را از طریق CLI به نام `omarchy` هم کنترل کنید. این قابلیت به‌ویژه زمانی مفید است که یک ایجنت هوش مصنوعی را برای کار روی سفارشی‌سازی یا پیکربندی در کنار خود داشته باشید.
+Omarchy معمولاً از طریق کلیدهای میانبر و منوی Omarchy ‏(`Super + Space`) کنترل می‌شود. اما می‌توانید آن را از طریق CLI ‏ی `omarchy` هم کنترل کنید. این موضوع به‌ویژه وقتی مفید است که یک ایجنت هوش مصنوعی را برای کمک در شخصی‌سازی یا پیکربندی کنار خودتان به کار گرفته‌اید.
 
-این CLI به تمام ابزارهای داخلی‌ای دسترسی دارد که هم از طریق منو و هم به روش‌های دیگر استفاده می‌شوند. با اجرای `omarchy` در ترمینال می‌توانید هر چیزی را که در دسترس است ببینید.
+این CLI به تمام ابزارهای داخلی‌ای دسترسی دارد که هم از طریق منو و هم به روش‌های دیگر استفاده می‌شوند. با اجرای `omarchy` در ترمینال می‌توانید همه چیزهای موجود را ببینید.
 
-ظاهرش چیزی شبیه به این است:
+چیزی شبیه به این است:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,23 +42,23 @@ Groups:
   ...
 ```
 
-برای عیب‌یابی، `omarchy-debug --no-sudo --print` را مستقیماً اجرا کنید. این دستور اطلاعات عیب‌یابی را چاپ می‌کند و بدون درخواست sudo، فایل `/tmp/omarchy-debug.log` را می‌نویسد، از جمله روی نصب‌های بسته‌ای که در آن‌ها `omarchy debug` می‌تواند با خطای "Unknown Omarchy command" شکست بخورد.
+برای عیب‌یابی، `omarchy-debug --no-sudo --print` را مستقیماً اجرا کنید. این دستور اطلاعات عیب‌یابی را چاپ می‌کند و `/tmp/omarchy-debug.log` را بدون درخواست sudo می‌نویسد، از جمله روی نصب‌های بسته‌ای که در آن‌ها `omarchy debug` ممکن است با خطای "Unknown Omarchy command" شکست بخورد.
 
-و می‌توانید در هر گروه عمیق‌تر شوید:
+و می‌توانید در هر گروه عمیق‌تر هم شوید:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-هر فرمان `--help` را هم می‌پذیرد، چه از یک گروه کامل بپرسید (`omarchy capture --help`) و چه از یک فرمان واحد (`omarchy capture screenshot --help`).
+هر دستور `--help` هم می‌گیرد، چه از یک گروه کامل بپرسید (`omarchy capture --help`) و چه از یک دستور منفرد (`omarchy capture screenshot --help`).
 
 ### باز کردن منو از ترمینال
 
-منوی Omarchy هم قابل اسکریپت‌نویسی است، که برای میانبرهای صفحه‌کلید خودتان مفید است. `omarchy menu` آن را در ریشه باز می‌کند، و می‌توانید با نام بردن از هر نقطه‌ای از درخت، مستقیماً به همان‌جا بروید: `omarchy menu summon appearance.theme` مستقیماً به انتخاب‌گر تم می‌رود، `omarchy menu toggle system` منوی سیستم را باز می‌کند و اگر از قبل باز باشد دوباره آن را می‌بندد، و `omarchy menu close` آن را کنار می‌گذارد.
+منوی Omarchy قابل اسکریپت‌نویسی هم هست، که برای میانبرهای صفحه‌کلید خودتان به کار می‌آید. `omarchy menu` آن را از ریشه باز می‌کند، و می‌توانید با نام بردن از هر نقطه‌ای از درخت، مستقیم سراغ همان‌جا بروید: `omarchy menu summon appearance.theme` مستقیم به انتخاب‌گر تم می‌رود، `omarchy menu toggle system` منوی سیستم را باز می‌کند و اگر از قبل باز باشد دوباره آن را می‌بندد، و `omarchy menu close` آن را کنار می‌گذارد.
