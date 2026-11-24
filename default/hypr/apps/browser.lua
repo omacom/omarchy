@@ -1,6 +1,6 @@
 -- Browser tags and styling.
 o.window(o.chromium_browsers, { tag = "+chromium-based-browser" })
-o.window("([fF]irefox|zen|librewolf)", { tag = "+firefox-based-browser" })
+o.window(o.firefox_browsers, { tag = "+firefox-based-browser" })
 o.window({ tag = "chromium-based-browser" }, { tile = true })
 
 -- Video apps: remove the chromium browser tag so they can float.
