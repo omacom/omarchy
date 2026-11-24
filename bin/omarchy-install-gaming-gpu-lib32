@@ -25,10 +25,12 @@ for vendor in "${!VULKAN_DRIVERS[@]}"; do
   fi
 done
 
-if omarchy-hw-nvidia-gsp; then
-  PACKAGES+=(lib32-nvidia-utils)
-elif omarchy-hw-nvidia-without-gsp; then
-  PACKAGES+=(lib32-nvidia-580xx-utils)
+if omarchy-hw-nvidia; then
+  case "$(omarchy-hw-nvidia-arch)" in
+    modern) PACKAGES+=(lib32-nvidia-utils) ;;
+    legacy) PACKAGES+=(lib32-nvidia-580xx-utils) ;;
+    *) echo "NVIDIA GPU is not in the supported legacy or modern range; skipping 32-bit NVIDIA libraries." >&2 ;;
+  esac
 fi
 
 if (( ${#PACKAGES[@]} > 0 )); then
