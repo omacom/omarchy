@@ -141,7 +141,8 @@ EOF
 ) & worker_pids+=("$!")
 
 # Ghostty sources bashrc before defining its own ssh function. Omarchy must
-# delegate to ghostty +ssh without losing the outer cleanup and reconnect.
+# delegate to ghostty +ssh without losing the outer cleanup and reconnect,
+# including when the user reloads their Bash settings in the same shell.
 (
   dir="$fake_dir/c6"
   mkdir -p "$dir"
@@ -176,8 +177,11 @@ fi
 unset __ghostty_bash_flags
 ssh host
 echo "rc=\$?"
+source <(sed 's/< 30/< 2/' "$fns")
+ssh host
+echo "reload-rc=\$?"
 EOF
-  printf '%s\n' $'2 255\n0 0' >"$dir/plan"
+  printf '%s\n' $'2 255\n0 0\n0 0' >"$dir/plan"
   script -qec "bash '$dir/driver'" /dev/null | tr -d '\r' >"$dir/out"
 ) & worker_pids+=("$!")
 
@@ -270,11 +274,12 @@ out=$(cat "$fake_dir/c5/out")
 pass "redirected stdin does not reconnect"
 
 out=$(cat "$fake_dir/c6/out")
-expected_ghostty_log=$'+ssh --terminfo=false -- host\n+ssh --terminfo=false -- host'
-[[ $out == *"$disarm"* && $out == *"rc=0"* ]] && (( $(cat "$fake_dir/c6/count") == 2 )) &&
+expected_ghostty_log=$'+ssh --terminfo=false -- host\n+ssh --terminfo=false -- host\n+ssh --terminfo=false -- host'
+[[ $out == *"$disarm"* && $out == *"rc=0"* && $out == *"reload-rc=0"* ]] &&
+  (( $(cat "$fake_dir/c6/count") == 3 )) &&
   [[ $(cat "$fake_dir/c6/ghostty-log") == "$expected_ghostty_log" ]] ||
-  fail "Ghostty ssh-env preserves cleanup and reconnects through +ssh" "$out"
-pass "Ghostty ssh-env preserves cleanup and reconnects through +ssh"
+  fail "Ghostty ssh-env preserves cleanup and reconnects through +ssh after reload" "$out"
+pass "Ghostty ssh-env preserves cleanup and reconnects through +ssh after reload"
 
 [[ $(cat "$fake_dir/c7/calls") == ssh && $(cat "$fake_dir/c7/out") == "features=no-cursor,ssh-env" ]] ||
   fail "Ghostty versions without +ssh keep their original SSH integration"

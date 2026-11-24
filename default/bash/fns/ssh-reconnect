@@ -4,9 +4,13 @@
 # tracking, focus reporting, the alternate screen) that only it can disarm. If
 # the connection dies instead of exiting cleanly, those modes stay armed on the
 # local terminal, and every mouse move floods the prompt with escape junk.
-_ssh_connect() {
-  command ssh "$@"
-}
+# Reloading bashrc must not reset an active Ghostty helper after its startup
+# marker and SSH features have been consumed.
+if [[ ${_omarchy_ghostty_ssh_active-} != 1 ]]; then
+  _ssh_connect() {
+    command ssh "$@"
+  }
+fi
 
 # Ghostty's automatic Bash integration sources bashrc before defining its own
 # ssh function. __ghostty_bash_flags remains set while bashrc runs, after the
@@ -39,6 +43,7 @@ if [[ -n ${BASH_VERSION-} && -n ${__ghostty_bash_flags-} &&
   done
 
   if (( _omarchy_ghostty_ssh && _omarchy_ghostty_supported )); then
+    _omarchy_ghostty_ssh_active=1
     _omarchy_ghostty_ssh_flags=()
     [[ $GHOSTTY_SHELL_FEATURES == *ssh-env* ]] || _omarchy_ghostty_ssh_flags+=(--forward-env=false)
     [[ $GHOSTTY_SHELL_FEATURES == *ssh-terminfo* ]] || _omarchy_ghostty_ssh_flags+=(--terminfo=false)
