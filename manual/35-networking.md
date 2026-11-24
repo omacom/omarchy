@@ -32,6 +32,14 @@ The firewall is on by default and blocks all incoming traffic, with one exceptio
 
 SSH is off until you turn it on with _Setup > Security > SSHD_, which starts the daemon, opens port 22 rate-limited against brute force, and authorizes a key. Docker is locked down too, so containers can't accidentally expose themselves to the world. See [security](48-security.md) for the whole story.
 
+## VPN
+
+VPNs you set up in NetworkManager show up in the network panel under _VPN_: up front while you're connected, and at the bottom of the panel, past the Wi-Fi networks, while you aren't. A long list scrolls, and so does the panel on a short screen. Click one to connect it, and again to disconnect it or to call off a connect that's taking too long. While a VPN is up, the network icon in the bar gets a lock, and hovering it names the VPN.
+
+WireGuard works out of the box: `nmcli connection import type wireguard file wg0.conf` brings in a config. For OpenVPN, install the plugin with `omarchy pkg add networkmanager-openvpn`, then `nmcli connection import type openvpn file work.ovpn`. If the profile has no user name yet, or doesn't keep its password, the row asks for them right in the panel; a new user name is saved to the profile, the password is used for that connection only. Anything else a VPN needs to ask (a certificate password, a one-time code) opens a terminal that asks for it.
+
+[Tailscale](#tailscale) is listed there too while its bar widget is on the bar and Tailscale is running. Clicking it opens the Tailscale widget, which connects, signs in and picks exit nodes; if Tailscale needs you to sign in, the sign-in page opens in your browser as well. When Tailscale only takes orders from root, the widget asks for your password once to make you its operator, then carries on. It only puts the lock on the icon while an exit node carries your traffic, since without one it reaches just your own machines.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) is a mesh VPN that makes reaching all your computers and servers over the internet simple and secure. Install it with _Install > Service > Tailscale_.

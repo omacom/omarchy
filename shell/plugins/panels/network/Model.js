@@ -21,8 +21,10 @@ function parseNetworkStatus(raw) {
 // -70 dBm, so every cut-off leaves a few dB where they disagree; these keep
 // those bands to about 4 dB: full from -60 dBm (-64 for scan results), three
 // from -70, two from -80 (-76), one down to about -90.
-function wifiIconFor(strength) {
-  var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
+function wifiIconFor(strength, vpn) {
+  var icons = vpn
+    ? ["󰤬", "󰤡", "󰤤", "󰤧", "󰤪"]
+    : ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
   var index = strength >= 60 ? 4 : strength >= 50 ? 3 : strength >= 40 ? 2 : strength >= 15 ? 1 : 0
   return icons[index]
 }
@@ -66,11 +68,36 @@ function connectivityState(kind, connectivity, states, checksEnabled, limitedSet
   return "unknown"
 }
 
-function connectionIcon(kind, signalStrength, connectivity) {
+// A VPN carrying the traffic puts a lock on the same icon: the Wi-Fi bars
+// keep their strength and gain a lock, and Ethernet, which has no locked
+// variant, becomes a shield with a lock. A portal or limited link still wins,
+// since that is what needs attention.
+function connectionIcon(kind, signalStrength, connectivity, vpn) {
   var restricted = connectivity === "portal" || connectivity === "limited"
-  if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
-  if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
+  if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength, vpn)
+  if (kind === "ethernet") return restricted ? "󰈂" : (vpn ? "󰦝" : "󰈀")
   return "󰤮"
+}
+
+// The bar icon's tooltip. Restricted access keeps its own message; otherwise a
+// VPN is named, since the lock alone does not say which profile is up.
+function connectionTooltip(hasCaptivePortal, restricted, vpnNames, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (hasCaptivePortal) return t("network.signInToNetwork", "Sign in to this network")
+  if (restricted) return t("network.limitedAccess", "Limited internet access")
+  var names = Array.isArray(vpnNames) ? vpnNames : []
+  if (names.length === 0) return ""
+  return t("network.vpnTooltip", "VPN: %1").replace("%1", names.join(", "))
+}
+
+// Where the panel lists the VPNs. A VPN rides on a connection, so once there
+// is one they sit up front, under the connection they would ride on. Without
+// one they wait at the bottom, past the networks that would make one, reached
+// by scrolling. "" when there are none to list.
+function vpnPlacement(kind, connections) {
+  var list = Array.isArray(connections) ? connections : []
+  if (list.length === 0) return ""
+  return kind === "disconnected" ? "bottom" : "top"
 }
 
 function formatHeaderSpeed(mbps, fmt) {
@@ -462,6 +489,8 @@ if (typeof module !== "undefined") {
     parseNetworkStatus: parseNetworkStatus,
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,
+    connectionTooltip: connectionTooltip,
+    vpnPlacement: vpnPlacement,
     connectedSignalStrength: connectedSignalStrength,
     parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,

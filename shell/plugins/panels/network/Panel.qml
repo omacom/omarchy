@@ -21,6 +21,7 @@ Panel {
   function close() {
     root.controller.hide()
     cancelPasswordPrompt()
+    if (Commons.NetworkVpn.credentialsId !== "" && Commons.NetworkVpn.pendingId === "") Commons.NetworkVpn.cancelCredentials()
   }
 
   function cancelPasswordPrompt() {
@@ -140,9 +141,10 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
-  // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ the lists below it (VPNs and
+  // Wi-Fi networks, in the order listSections draws them).
+  // h/l move within header actions, band pills, or DNS providers.
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "vpn" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -164,6 +166,19 @@ Panel {
   property string region: "global"
   readonly property var dnsProviders: region === "cn" ? ["DHCP", "AliDNS", "Custom"] : ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
+  // Every VPN the machine has (NetworkManager's profiles, Tailscale), shared
+  // across monitors, and where they sit: "top" under the DNS row once there
+  // is a connection, "bottom" past the Wi-Fi networks without one, "" for
+  // none.
+  readonly property var vpnConnections: Commons.NetworkVpn.connections
+  readonly property string vpnPlacement: Model.vpnPlacement(kind, vpnConnections)
+  readonly property bool vpnVisible: vpnPlacement !== ""
+  property int vpnIndex: 0
+  // The VPN asking for a user name and password, and what has been typed,
+  // kept here so a row rebuilt by a profile refresh puts it back.
+  readonly property string vpnCredentialsId: Commons.NetworkVpn.credentialsId
+  property string vpnUserText: ""
+  property string vpnPasswordText: ""
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
   // panel is describing.
@@ -196,6 +211,154 @@ Panel {
   property bool bandAutoFocused: true
 
   onHeaderActionCountChanged: clampHeaderIndex()
+
+  // Profiles come and go with NetworkManager, so keep the cursor on a row
+  // that still exists, and off the section once it has none.
+  onVpnConnectionsChanged: {
+    if (vpnIndex > vpnConnections.length - 1) vpnIndex = Math.max(0, vpnConnections.length - 1)
+  }
+  onVpnVisibleChanged: if (!vpnVisible && focusSection === "vpn") focusSection = wifiNetworks.length > 0 ? "wifi" : "dns"
+
+  // The credentials prompt opening moves the cursor onto its row; closing it
+  // hands the keyboard back to the panel, as the passphrase prompt does.
+  onVpnCredentialsIdChanged: {
+    vpnPasswordText = ""
+    if (vpnCredentialsId !== "") {
+      vpnUserText = Commons.NetworkVpn.credentialsUser
+      var index = vpnIndexFor(vpnCredentialsId)
+      if (index >= 0) {
+        cursorActive = true
+        focusSection = "vpn"
+        vpnIndex = index
+        Qt.callLater(revealVpn)
+      }
+    } else {
+      vpnUserText = ""
+      if (opened) Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+    }
+  }
+
+  // A connect that needs a secret the panel can't ask for continues in a
+  // terminal, which can only take the keyboard once this panel lets go of it.
+  Connections {
+    target: Commons.NetworkVpn
+    function onHandedToTerminal(id) { if (root.opened) root.close() }
+  }
+
+  function vpnIndexFor(id) {
+    for (var i = 0; i < vpnConnections.length; i++) {
+      if (vpnConnections[i].id === id) return i
+    }
+    return -1
+  }
+
+  function selectVpnByDelta(delta) {
+    vpnIndex = Math.max(0, Math.min(vpnConnections.length - 1, vpnIndex + delta))
+    revealVpn()
+  }
+
+  // The rows below the DNS row, in the order they are drawn: VPNs over the
+  // Wi-Fi networks once connected, under them without a connection.
+  readonly property var listSections: {
+    var sections = []
+    if (vpnPlacement === "top") sections.push("vpn")
+    if (wifiNetworks.length > 0) sections.push("wifi")
+    if (vpnPlacement === "bottom") sections.push("vpn")
+    return sections
+  }
+
+  // j off the end of one list section, or k off its start: on to the next
+  // section in `listSections`, or up to DNS above the first one.
+  function stepListSection(from, direction) {
+    var next = listSections.indexOf(from) + direction
+    wifiActionFocused = false
+    if (next < 0) {
+      focusSection = "dns"
+    } else if (next < listSections.length) {
+      enterListSection(listSections[next], direction > 0)
+    }
+  }
+
+  function enterListSection(section, fromAbove) {
+    focusSection = section
+    wifiActionFocused = false
+    if (section === "wifi") {
+      selectedIndex = fromAbove ? 0 : wifiNetworks.length - 1
+      revealWifi()
+    } else {
+      vpnIndex = fromAbove ? 0 : vpnConnections.length - 1
+      revealVpn()
+    }
+  }
+
+  // Scrolls the keyboard's network into view, for a move into the list that
+  // lands on the row it already had (so the list's own index doesn't change).
+  function revealWifi() {
+    var list = panel.loadedContent ? panel.loadedContent.networkList : null
+    if (!list || selectedIndex < 0) return
+    scrollIntoView(list, selectedIndex)
+  }
+
+  // Scrolls the keyboard's VPN row into view: the VPN list to the row, then
+  // the panel to the list (see VpnSection).
+  signal vpnRevealRequested()
+  function revealVpn() { vpnRevealRequested() }
+
+  // Scrolls the panel so `item` is on screen, for a card the screen's
+  // height cuts short; with `index`, `item` is a ListView and the row at
+  // that index is what must show. Deferred until the cursor has settled:
+  // callLater keeps one pending call per function, with the latest
+  // arguments, so the last row asked for wins.
+  function scrollIntoView(item, index) {
+    if (item) Qt.callLater(scrollIntoViewNow, item, index === undefined ? -1 : index)
+  }
+
+  function scrollIntoViewNow(item, index) {
+    var content = panel.loadedContent
+    var flick = content ? content.panelFlick : null
+    if (!flick || !item) return
+    // A move between sections changes which lists build rows, and lists
+    // and the column otherwise settle only at the next frame: measure what
+    // will be drawn, not the layout from before the move. A list's row is
+    // looked up only then, once it exists.
+    content.settleLayout()
+    if (index >= 0) {
+      item.positionViewAtIndex(index, ListView.Contain)
+      item = item.itemAtIndex(index)
+    }
+    if (!item || !flick.interactive) return
+    var margin = Style.space(6)
+    var top = item.mapToItem(flick.contentItem, 0, 0).y
+    var bottom = top + item.height
+    var maxY = Math.max(0, flick.contentHeight - flick.height)
+    if (top < flick.contentY + margin) flick.contentY = Math.max(0, top - margin)
+    else if (bottom > flick.contentY + flick.height - margin) flick.contentY = Math.min(maxY, bottom + margin - flick.height)
+  }
+
+  // A VPN that belongs to its own bar widget (Tailscale) opens that widget,
+  // which does the connecting, signing in and exit nodes; the rest connect or
+  // disconnect here.
+  function activateVpn(connection) {
+    var target = connection || vpnConnections[vpnIndex]
+    if (!target) return
+    Commons.NetworkVpn.toggle(target)
+    if (target.opens) openWidget(target.opens)
+  }
+
+  function openWidget(id) {
+    close()
+    var shell = bar ? bar.shell : null
+    var opened = !!shell && typeof shell.summon === "function" && shell.summon(id) === true
+    if (!opened) Commons.IpcRegistry.call(id, "open", [])
+  }
+
+  function submitVpnCredentials() {
+    Commons.NetworkVpn.submitCredentials(vpnUserText, vpnPasswordText)
+  }
+
+  function cancelVpnCredentials() {
+    if (Commons.NetworkVpn.pendingId === "") Commons.NetworkVpn.cancelCredentials()
+  }
 
   // Availability shifts as scans land, so the option list can shrink out from
   // under the cursor. Clamp the index and evacuate the section before it
@@ -546,7 +709,7 @@ Panel {
   }
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
-  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
+  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity, Commons.NetworkVpn.active)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
   // stays up, and a real network switch already passes through "disconnected".
@@ -1155,8 +1318,7 @@ Panel {
     bar: root.bar
     text: root.icon
     active: root.restricted
-    tooltipText: root.hasCaptivePortal ? Commons.I18n.t("network.signInToNetwork")
-      : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
+    tooltipText: Model.connectionTooltip(root.hasCaptivePortal, root.restricted, Commons.NetworkVpn.activeNames, Commons.I18n.t)
 
     onPressed: function(b) {
       if (root.opened) root.close()
@@ -1190,11 +1352,13 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias heroMeta: heroMeta
+      property alias panelFlick: panelFlick
+      property alias networkList: networkList
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open;
       // the TextField inside owns input until Esc/Enter/Cancel.
-      blocked: root.passwordSsid !== ""
+      blocked: root.passwordSsid !== "" || root.vpnCredentialsId !== ""
 
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) {
@@ -1253,17 +1417,25 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
-            } else if (root.wifiNetworks.length > 0) {
+            } else if (root.listSections[0] === "wifi") {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
+              root.revealWifi()
+            } else if (root.listSections[0] === "vpn") {
+              root.enterListSection("vpn", true)
             }
+          } else if (root.focusSection === "vpn") {
+            // The VPNs sit above or below the Wi-Fi list (see listSections);
+            // running off either end carries on into whatever is next.
+            if (dy < 0 && root.vpnIndex <= 0) root.stepListSection("vpn", -1)
+            else if (dy > 0 && root.vpnIndex >= root.vpnConnections.length - 1) root.stepListSection("vpn", 1)
+            else root.selectVpnByDelta(dy)
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
-            if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
-              root.wifiActionFocused = false
-            }
+            // k from the top row escapes back up to what is above the list
+            // rather than wrapping around to the bottom; j from the bottom row
+            // carries on into the VPNs when they are below it.
+            if (dy < 0 && root.selectedIndex <= 0) root.stepListSection("wifi", -1)
+            else if (dy > 0 && root.selectedIndex >= root.wifiNetworks.length - 1 && root.listSections.indexOf("wifi") < root.listSections.length - 1) root.stepListSection("wifi", 1)
             else root.selectByDelta(dy)
           }
         }
@@ -1280,6 +1452,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "vpn") root.activateVpn()
           else root.activateSelected()
         }
       }
@@ -1290,15 +1463,47 @@ Panel {
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
+    function settleLayout() {
+      vpnTopSection.list.forceLayout()
+      networkList.forceLayout()
+      vpnBottomSection.list.forceLayout()
+      column.forceLayout()
+    }
+
+    // The cursor moving to a control above the lists scrolls it back into
+    // view; the lists reveal their own rows.
+    Connections {
+      target: root
+      function onFocusSectionChanged() {
+        var section = root.focusSection
+        root.scrollIntoView(section === "header" ? heroSection
+          : section === "portal" ? portalAction
+          : section === "band" ? bandSection
+          : section === "dns" ? dnsSection : null)
+      }
+    }
+
+    // The card is capped at the screen's height, so whatever doesn't fit
+    // scrolls, and the keyboard's row is scrolled into view (scrollIntoView).
+    Flickable {
+      id: panelFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
     Column {
       id: column
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.top: parent.top
+      width: panelFlick.width
       spacing: Style.space(12)
 
       // ---------- Hero: network icon · SSID + state · actions ----------
       Item {
+        id: heroSection
         width: parent.width
         implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroActions.implicitHeight)
 
@@ -1520,6 +1725,7 @@ Panel {
       }
 
       Column {
+        id: bandSection
         visible: root.canSelectBand
         width: parent.width
         spacing: Style.space(10)
@@ -1649,6 +1855,7 @@ Panel {
       }
 
       Column {
+        id: dnsSection
         width: parent.width
         spacing: Style.space(10)
 
@@ -1682,6 +1889,12 @@ Panel {
         }
       }
 
+      // Once there is a connection for them to ride on, the VPNs come before
+      // the Wi-Fi networks, where they can be seen without scrolling.
+      VpnSection {
+        id: vpnTopSection
+        visible: root.vpnPlacement === "top"
+      }
 
       // Wi-Fi networks (only if a Wi-Fi station is available).
       PanelSeparator {
@@ -1715,12 +1928,13 @@ Panel {
 
         model: root.wifiStationAvailable ? root.wifiNetworks : []
         currentIndex: root.selectedIndex
-        onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+        onCurrentIndexChanged: if (currentIndex >= 0) root.scrollIntoView(networkList, currentIndex)
 
         // Wrapper takes the required props from ListView's delegate context
         // (which doesn't bind into nested `component` declarations like
         // NetworkRow) and passes them down explicitly.
         delegate: Item {
+          id: wifiDelegate
           required property var modelData
           required property int index
           readonly property string sectionTitle: root.wifiSectionTitle(index)
@@ -1728,9 +1942,12 @@ Panel {
           height: delegateColumn.implicitHeight
 
           // Opening the passphrase prompt grows the row, which can push the
-          // field below the list's clip on the bottom rows; scroll it in.
+          // field below the list's clip on the bottom rows, or below the
+          // card's; scroll it in.
           function revealPrompt() {
-            if (row.isPasswordOpen) networkList.positionViewAtIndex(index, ListView.Contain)
+            if (!row.isPasswordOpen) return
+            networkList.positionViewAtIndex(index, ListView.Contain)
+            root.scrollIntoView(wifiDelegate)
           }
           onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
 
@@ -1756,6 +1973,14 @@ Panel {
           }
         }
       }
+
+      // Without a connection the VPNs come last, past the networks that
+      // would make one, reached by scrolling.
+      VpnSection {
+        id: vpnBottomSection
+        visible: root.vpnPlacement === "bottom"
+      }
+    }
     }
     }
   }
@@ -1820,6 +2045,318 @@ Panel {
       root.cursorActive = true
       root.focusSection = "dns"
       root.dnsIndex = pill.index
+    }
+  }
+
+  // The VPNs as a capped, scrollable list: about four rows, so many profiles
+  // don't stretch the panel. The keyboard's row is kept in view, in the list
+  // and in the panel around it.
+  component VpnSection: Column {
+    readonly property alias list: vpnList
+    width: parent ? parent.width : 0
+    spacing: Style.space(12)
+
+    PanelSeparator {
+      foreground: root.bar.foreground
+    }
+
+    PanelSectionHeader {
+      text: Commons.I18n.t("network.vpn")
+      foreground: root.bar.foreground
+      fontFamily: root.bar.fontFamily
+    }
+
+    ListView {
+      id: vpnList
+      width: parent.width
+      // About four rows, so many profiles scroll instead of pushing the
+      // panel past the screen.
+      height: Math.min(contentHeight, Style.space(176))
+      spacing: Style.space(4)
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      interactive: contentHeight > height
+
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+      model: root.vpnConnections
+      currentIndex: root.focusSection === "vpn" ? root.vpnIndex : -1
+      onCurrentIndexChanged: reveal()
+
+      function reveal() {
+        if (visible && currentIndex >= 0) root.scrollIntoView(vpnList, currentIndex)
+      }
+
+      Connections {
+        target: root
+        function onVpnRevealRequested() { vpnList.reveal() }
+      }
+
+      delegate: VpnRow {
+        required property var modelData
+        required property int index
+        width: ListView.view.width
+        connection: modelData
+        slot: index
+      }
+    }
+  }
+
+  // One VPN. The icon locks once it is up; the second line carries its
+  // progress (the shell's own while its nmcli runs), the exit node Tailscale
+  // is going through, or that it needs signing in. A row whose VPN belongs to
+  // another widget shows a chevron, since clicking it opens that widget.
+  // When a profile can't connect without a user name and password, the row
+  // opens a prompt for them, as a Wi-Fi network does for its passphrase.
+  component VpnRow: CursorSurface {
+    id: vpnRow
+    required property var connection
+    required property int slot
+
+    readonly property string connectionId: connection ? connection.id : ""
+    // Not `state`: that is Item's own states-machine property.
+    readonly property string vpnState: connection ? connection.state : ""
+    readonly property bool opensWidget: !!connection && !!connection.opens
+    readonly property bool isConnected: vpnState === "activated"
+    readonly property bool isPending: connectionId !== "" && Commons.NetworkVpn.pendingId === connectionId
+    readonly property bool isConnecting: vpnState === "activating" || (isPending && Commons.NetworkVpn.pendingAction === "up")
+    readonly property bool isDisconnecting: vpnState === "deactivating" || (isPending && Commons.NetworkVpn.pendingAction === "down")
+    readonly property bool isFailed: connectionId !== "" && Commons.NetworkVpn.failedId === connectionId
+    readonly property bool needsLogin: vpnState === "login"
+    readonly property bool isPromptOpen: connectionId !== "" && root.vpnCredentialsId === connectionId
+    readonly property string exitNode: connection && connection.exitNode ? connection.exitNode : ""
+
+    readonly property string statusText: {
+      if (isDisconnecting) return Commons.I18n.t("network.disconnecting")
+      if (isConnecting) return Commons.I18n.t("network.connecting")
+      if (isConnected && exitNode !== "") return Commons.I18n.t("network.vpnExitNode").replace("%1", exitNode)
+      if (isConnected) return Commons.I18n.t("network.connected")
+      if (isFailed) return Commons.I18n.t("network.failedToConnect")
+      if (needsLogin) return Commons.I18n.t("network.signInRequired")
+      return ""
+    }
+    readonly property color statusColor: {
+      if (isFailed && !isConnecting) return root.bar.urgent
+      if (isConnected || isConnecting || isDisconnecting) return root.bar.foreground
+      return Qt.darker(root.bar.foreground, 1.5)
+    }
+
+    function submit() {
+      if (credentialsPanel.canSubmit) root.submitVpnCredentials()
+    }
+
+    hasCursor: root.cursorActive && root.focusSection === "vpn" && root.vpnIndex === slot
+    current: isConnected
+    foreground: root.bar.foreground
+    fill: root.hoverFill
+    currentFill: root.selectedFill
+    implicitHeight: vpnBody.implicitHeight + (isPromptOpen ? credentialsPanel.implicitHeight + Style.spacing.md : 0)
+
+    // The prompt grows the row, which can push its fields past the bottom of
+    // the list; scroll them in.
+    onImplicitHeightChanged: if (isPromptOpen) Qt.callLater(root.revealVpn)
+
+    MouseArea {
+      id: vpnMouse
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      height: vpnBody.implicitHeight
+      hoverEnabled: true
+      acceptedButtons: Qt.LeftButton
+      cursorShape: Qt.PointingHandCursor
+      // A connect in flight can still be clicked, to call it off.
+      enabled: vpnRow.opensWidget || !Commons.NetworkVpn.busy || (vpnRow.isPending && Commons.NetworkVpn.pendingAction === "up")
+      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "vpn"; root.vpnIndex = vpnRow.slot }
+      onClicked: {
+        root.cursorActive = true
+        root.focusSection = "vpn"
+        root.vpnIndex = vpnRow.slot
+        if (vpnRow.isPromptOpen && !vpnRow.isPending) root.cancelVpnCredentials()
+        else root.activateVpn(vpnRow.connection)
+      }
+    }
+
+    Item {
+      id: vpnBody
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(10)
+      implicitHeight: Math.max(vpnIcon.implicitHeight, vpnInfo.implicitHeight) + Style.spacing.rowPaddingX
+      height: implicitHeight
+
+      Text {
+        id: vpnIcon
+        textFormat: Text.PlainText
+        text: vpnRow.isConnected ? "󰦝" : "󰒙"
+        color: vpnRow.statusColor
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.title
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Column {
+        id: vpnInfo
+        spacing: Style.space(1)
+        anchors.left: vpnIcon.right
+        anchors.leftMargin: Style.space(10)
+        anchors.right: vpnOpens.visible ? vpnOpens.left : parent.right
+        anchors.rightMargin: vpnOpens.visible ? Style.space(6) : 0
+        anchors.verticalCenter: parent.verticalCenter
+
+        Text {
+          textFormat: Text.PlainText
+          text: vpnRow.connection ? vpnRow.connection.name : ""
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+          width: parent.width
+        }
+        Text {
+          textFormat: Text.PlainText
+          text: vpnRow.statusText
+          // Column already leaves out a hidden line; a bound height would
+          // loop with the elided text's own measuring.
+          visible: vpnRow.statusText !== ""
+          color: vpnRow.statusColor
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
+      }
+
+      Text {
+        id: vpnOpens
+        visible: vpnRow.opensWidget
+        textFormat: Text.PlainText
+        text: "󰅂"
+        color: Qt.darker(root.bar.foreground, 1.5)
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.body
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+      }
+    }
+
+    // User name and password for a profile that can't connect without them.
+    // Enter in the name moves to the password; Enter there (or the check
+    // button) connects; Esc, or clicking the row again, cancels.
+    Item {
+      id: credentialsPanel
+      visible: opacity > 0
+      opacity: vpnRow.isPromptOpen ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: Style.duration(vpnRow.isPromptOpen ? 180 : 90); easing.type: Easing.OutCubic }
+      }
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: vpnMouse.bottom
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(10)
+      anchors.topMargin: Style.space(4)
+      implicitHeight: credentialsColumn.implicitHeight + Style.spacing.rowGap
+      height: implicitHeight
+
+      property bool revealed: false
+      readonly property bool open: vpnRow.isPromptOpen
+      readonly property bool needUser: Commons.NetworkVpn.credentialsNeedUser
+      readonly property bool canSubmit: open && !vpnRow.isPending && root.vpnPasswordText !== "" && (!needUser || root.vpnUserText !== "")
+      // Every prompt opens masked again.
+      onOpenChanged: {
+        if (!open) revealed = false
+        else Qt.callLater(focusFirstField)
+      }
+
+      Column {
+        id: credentialsColumn
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: Style.space(4)
+
+        TextField {
+          id: vpnUserField
+          visible: credentialsPanel.needUser
+          width: parent.width
+          placeholderText: Commons.I18n.t("network.vpnUsername")
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          foreground: root.bar.foreground
+          horizontalPadding: Style.spacing.controlGap
+          verticalPadding: Style.spacing.controlPaddingY
+          enabled: !vpnRow.isPending
+          text: vpnRow.isPromptOpen ? root.vpnUserText : ""
+
+          onAccepted: vpnPasswordField.forceActiveFocus()
+          onTextChanged: if (vpnRow.isPromptOpen && text !== root.vpnUserText) root.vpnUserText = text
+          Keys.onEscapePressed: root.cancelVpnCredentials()
+        }
+
+        Item {
+          width: parent.width
+          height: vpnPasswordField.implicitHeight
+
+          TextField {
+            id: vpnPasswordField
+            anchors.left: parent.left
+            anchors.right: vpnConnectBtn.left
+            anchors.rightMargin: Style.space(6)
+            anchors.verticalCenter: parent.verticalCenter
+            password: true
+            revealed: credentialsPanel.revealed
+            placeholderText: Commons.I18n.t("network.vpnPassword")
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            foreground: root.bar.foreground
+            horizontalPadding: Style.spacing.controlGap
+            verticalPadding: Style.spacing.controlPaddingY
+            enabled: !vpnRow.isPending
+            text: vpnRow.isPromptOpen ? root.vpnPasswordText : ""
+
+            onAccepted: vpnRow.submit()
+            onTextChanged: if (vpnRow.isPromptOpen && text !== root.vpnPasswordText) root.vpnPasswordText = text
+            Keys.onEscapePressed: root.cancelVpnCredentials()
+          }
+
+          PanelActionButton {
+            id: vpnConnectBtn
+            anchors.right: vpnRevealBtn.left
+            anchors.rightMargin: Style.space(2)
+            anchors.verticalCenter: parent.verticalCenter
+            enabled: credentialsPanel.canSubmit
+            iconText: "󰄬"
+            tooltipText: Commons.I18n.t("network.connect")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            onClicked: vpnRow.submit()
+          }
+
+          PanelActionButton {
+            id: vpnRevealBtn
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            iconText: credentialsPanel.revealed ? "󰈉" : "󰈈"
+            tooltipText: credentialsPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            onClicked: credentialsPanel.revealed = !credentialsPanel.revealed
+          }
+        }
+      }
+
+      // The name first when there is none yet, otherwise straight to the
+      // password.
+      function focusFirstField() {
+        if (!open || vpnRow.isPending) return
+        if (needUser && root.vpnUserText === "") vpnUserField.forceActiveFocus()
+        else vpnPasswordField.forceActiveFocus()
+      }
+      Component.onCompleted: if (open) Qt.callLater(focusFirstField)
     }
   }
 

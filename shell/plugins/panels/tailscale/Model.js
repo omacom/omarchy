@@ -82,6 +82,13 @@ function loginPlan(needsLogin, authUrl) {
   return { authUrl: "", command: ["tailscale", "up"] }
 }
 
+// tailscale takes up/down only from root or its operator, and says so on a
+// refusal. The widget then asks once to grant the operator (the same pkexec
+// grant as its Authorize button) and runs the refused command again.
+function refusedOperator(text) {
+  return /access denied|must be root|--operator/i.test(String(text || ""))
+}
+
 function shellQuote(value) {
   var text = String(value || "")
   if (/^[A-Za-z0-9_@.,:+-]+$/.test(text)) return text
@@ -341,6 +348,7 @@ function parseAccounts(raw, tr) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    refusedOperator: refusedOperator,
     filterIPv4: filterIPv4,
     filterIPv6: filterIPv6,
     cleanDnsName: cleanDnsName,
