@@ -44,7 +44,7 @@ Each page has a scene: a miniature of the desktop that shows what one option doe
 | `GitScene` | A history filling up under a name and an address, beside GitHub, signed in to |
 | `KeyboardScene` | A chord opening a window, the legends of three layouts, or keys coming out in another script |
 | `RegionScene` | A window each for script, formats and the hour, the cursor's one running through what it could be |
-| `NetworkScene` | A name looked up through the resolver under the cursor, or the Wi-Fi code read by a phone |
+| `NetworkScene` | A name looked up through the resolver under the cursor, this computer's own name reaching another machine, or the Wi-Fi code read by a phone |
 | `HandoffScene` | What picking a row opens: a terminal wizard, the editor on the file it names, a list in the menu, or the app or setting itself |
 
 `SETUP_SCENES` in `SetupModel.js` gives a Setup submenu its scene. `HandoffScene` is the fallback for every page without one, which is what lets a row from a menu extension get a picture too. `handoffKind` reads which of the four it is from the row's action: a floating terminal, `omarchy-launch-editor`, or an `omarchy-menu` command.

@@ -3,16 +3,18 @@ import qs.Commons
 import qs.Commons as Commons
 
 // For a resolver, a name going out from this machine and its address coming
-// back from whoever the row under the cursor names. For the Wi-Fi code, the
-// code itself and a phone taking it in.
+// back from whoever the row under the cursor names. For the hostname, this
+// machine under its own name, which reaches another on the network. For the
+// Wi-Fi code, the code itself and a phone taking it in.
 Desk {
   id: root
 
   // The row under the cursor, as SetupModel.optionFor describes it.
   property var option: null
 
-  // The Wi-Fi code is the one row here that is not a resolver.
+  // The Wi-Fi code and the hostname are the rows here that are not a resolver.
   readonly property bool code: !!option && /\.qr$/.test(String(option.id))
+  readonly property bool naming: !!option && option.id === "setup.network.hostname"
   // One lookup: the name out, the address back, and a moment to read it.
   property real turn: Style.reduceMotion ? 0.8 : 0
   readonly property real out: Util.clamp((turn - 0.08) / 0.24, 0, 1)
@@ -37,7 +39,7 @@ Desk {
     running: root.visible && !Style.reduceMotion
   }
 
-  // ----------------------------------------------------------- a resolver
+  // ----------------------------------------------------------- a resolver, or the hostname
 
   Item {
     anchors.fill: parent
@@ -48,35 +50,51 @@ Desk {
       x: parent.width * 0.2 - width / 2
       y: (parent.height - height) / 2
       glyph: "\u{f109}"
-      lit: root.answered
+      lit: root.naming || root.answered
       foreground: root.foreground
       accent: root.accent
     }
 
+    // The name this machine goes by, which stands for any it could be given.
+    Text {
+      visible: root.naming
+      textFormat: Text.PlainText
+      text: "workshop"
+      color: root.foreground
+      font.family: Style.font.menuFamily
+      font.pixelSize: Style.font.bodySmall
+      font.bold: true
+      anchors.horizontalCenter: machine.horizontalCenter
+      anchors.top: machine.bottom
+      anchors.topMargin: Style.space(6)
+    }
+
+    // Whoever the row names, or another machine on the network.
     Tile {
       id: resolver
       x: parent.width * 0.8 - width / 2
       y: (parent.height - height) / 2
-      glyph: root.option ? root.option.icon : ""
-      glyphFont: root.option ? root.option.iconFont : ""
-      lit: root.out >= 1 && root.back < 1
+      glyph: root.naming ? "\u{f108}" : root.option ? root.option.icon : ""
+      glyphFont: !root.naming && root.option ? root.option.iconFont : ""
+      lit: root.out >= 1 && (root.naming || root.back < 1)
       foreground: root.foreground
       accent: root.accent
     }
 
-    // The question on its way, then the answer.
+    // The question on its way, then the answer. A name only goes out.
     Way {
       id: wire
       x: machine.x + machine.width + Style.space(8)
       y: (parent.height - height) / 2
       width: resolver.x - x - Style.space(8)
-      along: root.out < 1 ? root.out : 1 - root.back
+      along: root.naming || root.out < 1 ? root.out : 1 - root.back
       foreground: root.foreground
       accent: root.accent
     }
 
     // A name asked for, and the address it turns out to have.
     Column {
+      visible: !root.naming
       anchors.horizontalCenter: wire.horizontalCenter
       anchors.bottom: wire.top
       anchors.bottomMargin: Style.space(10)

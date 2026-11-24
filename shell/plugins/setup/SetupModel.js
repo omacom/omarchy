@@ -65,7 +65,7 @@ function pageDescription(id, entry, t) {
   case "setup.keyboard": return t("setup.keyboardDescription", "Keyboard layouts, input methods and your own keybindings.")
   case "setup.input": return t("setup.inputDescription", "Key repeat, trackpad and mouse settings.")
   case "setup.region": return t("setup.regionDescription", "Your language, how dates and numbers are written, and your timezone.")
-  case "setup.network": return t("setup.networkDescription", "DNS resolvers, and sharing Wi-Fi with a QR code.")
+  case "setup.network": return t("setup.networkDescription", "DNS resolvers, this computer's name, and sharing Wi-Fi with a QR code.")
   }
   return (entry && entry.description) || ""
 }
@@ -104,7 +104,9 @@ function optionDetail(id, entry, t) {
   case "setup.network.dns.dhcp": return t("setup.dnsDhcpDetail", "The resolver your network hands out.")
   case "setup.network.dns.cloudflare": return t("setup.dnsCloudflareDetail", "Cloudflare's public resolvers.")
   case "setup.network.dns.google": return t("setup.dnsGoogleDetail", "Google's public resolvers.")
+  case "setup.network.dns.alidns": return t("setup.dnsAlidnsDetail", "Alibaba's public resolvers.")
   case "setup.network.dns.custom": return t("setup.dnsCustomDetail", "Resolvers you name yourself.")
+  case "setup.network.hostname": return t("setup.hostnameDetail", "The name this computer goes by on the network.")
   case "setup.network.qr": return t("setup.wifiQrDetail", "The Wi-Fi you're on as a QR code, for a phone to scan.")
   }
   return (entry && entry.description) || ""
