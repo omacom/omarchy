@@ -13,9 +13,9 @@
 #          (never-default yes, for IPv4 and IPv6)
 #   full   connected, and all traffic goes through it (never-default no);
 #          only one VPN is in full at a time, the others drop to split.
-#          A WireGuard profile offers full only when a peer allows
-#          0.0.0.0/0 or ::/0, since NetworkManager routes only what the
-#          peers allow
+#          WireGuard routes only what its peers allow, so a profile offers
+#          full only when a peer allows 0.0.0.0/0; without ::/0 as well,
+#          full blocks IPv6 rather than let it out the normal connection
 #
 # The mode lives in the profile itself, so nmcli, nm-applet and this command
 # always agree. `list` prints one tab-separated line per VPN:
@@ -34,6 +34,15 @@ RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/omarchy"
 SNAPSHOT="$RUNTIME_DIR/network-vpn"
 SIGNIN_DIR="$RUNTIME_DIR/network-vpn-signin"
 GLYPH="󰖂"
+# Two /1 routes beat any IPv6 default route without being one, so the
+# connectivity penalty NetworkManager gives default routes can't undo them.
+IPV6_BLOCK=("::/1 type=blackhole" "8000::/1 type=blackhole")
+
+# Output that gets read is asked for in English, whatever the user's language.
+# Only the interactive sign-in keeps the user's language.
+nmc() {
+  LC_ALL=C nmcli "$@"
+}
 
 notify() {
   omarchy-notification-send -g "$GLYPH" "$@" >/dev/null 2>&1 || true
@@ -87,9 +96,18 @@ runtime_dir_ready() {
   mkdir -p "$RUNTIME_DIR" 2>/dev/null && [[ -O $RUNTIME_DIR ]]
 }
 
+wireguard_peers() {
+  nmc -g wireguard.peers connection show uuid "$1" 2>/dev/null
+}
+
+# Whether a peer allows <prefix> (0.0.0.0/0 or ::/0).
+peers_allow() { # <peers> <prefix>
+  grep -qE "(=|,|;)${2//./\\.}([,; ]|\$)" <<<"$1"
+}
+
 # A WireGuard profile carries all traffic only when a peer allows it.
 vpn_modes() { # <uuid> <type>
-  if [[ $2 == "wireguard" ]] && ! nmcli -g wireguard.peers connection show uuid "$1" 2>/dev/null | grep -qE '(=|,|;)(0\.0\.0\.0|::)/0([,; ]|$)'; then
+  if [[ $2 == "wireguard" ]] && ! peers_allow "$(wireguard_peers "$1")" "0.0.0.0/0"; then
     echo "off,split"
   else
     echo "$MODES"
@@ -97,7 +115,7 @@ vpn_modes() { # <uuid> <type>
 }
 
 profile_mode() { # <uuid> <modes>
-  if [[ ,$2, == *,full,* && $(nmcli -g ipv4.never-default connection show uuid "$1" 2>/dev/null) == "no" ]]; then
+  if [[ ,$2, == *,full,* && $(nmc -g ipv4.never-default connection show uuid "$1" 2>/dev/null) == "no" ]]; then
     echo "full"
   else
     echo "split"
@@ -108,7 +126,7 @@ profile_mode() { # <uuid> <modes>
 # unescaped; uuid and type never contain one.
 list_vpns() {
   local active uuid type name kind state detail mode modes actions
-  active=$(nmcli -t -f UUID,STATE connection show --active 2>/dev/null)
+  active=$(nmc -t -f UUID,STATE connection show --active 2>/dev/null)
 
   while IFS=: read -r uuid type name; do
     [[ $type == "vpn" || $type == "wireguard" ]] || continue
@@ -116,7 +134,7 @@ list_vpns() {
 
     kind=$type
     if [[ $type == "vpn" ]]; then
-      kind=$(nmcli -g vpn.service-type connection show uuid "$uuid" 2>/dev/null)
+      kind=$(nmc -g vpn.service-type connection show uuid "$uuid" 2>/dev/null)
       kind=${kind##*.}
       kind=${kind:-vpn}
     fi
@@ -134,8 +152,8 @@ list_vpns() {
       mode=$(profile_mode "$uuid" "$modes")
       # The live address lags a moment behind activation; the profile's own
       # address (WireGuard has one) stands in until then.
-      detail=$(nmcli -g IP4.ADDRESS connection show uuid "$uuid" 2>/dev/null | head -1)
-      [[ -n $detail ]] || detail=$(nmcli -g ipv4.addresses connection show uuid "$uuid" 2>/dev/null)
+      detail=$(nmc -g IP4.ADDRESS connection show uuid "$uuid" 2>/dev/null | head -1)
+      [[ -n $detail ]] || detail=$(nmc -g ipv4.addresses connection show uuid "$uuid" 2>/dev/null)
       detail=$(cut -d'|' -f1 <<<"${detail%%,*}" | cut -d/ -f1 | tr -d ' ')
     fi
 
@@ -143,7 +161,7 @@ list_vpns() {
     [[ -f $(signin_flag "$uuid") ]] && actions=signin
 
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$(clean "$name")" "$kind" "$state" "$detail" "$mode" "$modes" "$actions"
-  done < <(nmcli -t -f UUID,TYPE,NAME connection show 2>/dev/null)
+  done < <(nmc -t -f UUID,TYPE,NAME connection show 2>/dev/null)
 }
 
 # Writes the snapshot the bar watches. Each writer gets its own temporary file
@@ -170,11 +188,11 @@ list() {
 }
 
 vpn_type() {
-  nmcli -g connection.type connection show uuid "$1" 2>/dev/null
+  nmc -g connection.type connection show uuid "$1" 2>/dev/null
 }
 
 vpn_name() {
-  nmcli -g connection.id connection show uuid "$1" 2>/dev/null
+  nmc -g connection.id connection show uuid "$1" 2>/dev/null
 }
 
 require_vpn() {
@@ -193,12 +211,18 @@ active_full_vpns() {
 set_default_route() { # <uuid> <split|full>
   local never_default=yes
   [[ $2 == "full" ]] && never_default=no
-  nmcli connection modify uuid "$1" ipv4.never-default "$never_default" ipv6.never-default "$never_default"
+  nmc connection modify uuid "$1" ipv4.never-default "$never_default" ipv6.never-default "$never_default" \
+    -ipv6.routes "${IPV6_BLOCK[0]}" -ipv6.routes "${IPV6_BLOCK[1]}" || return 1
+
+  # Full on WireGuard that doesn't carry IPv6 blocks it instead.
+  if [[ $2 == "full" && $(vpn_type "$1") == "wireguard" ]] && ! peers_allow "$(wireguard_peers "$1")" "::/0"; then
+    nmc connection modify uuid "$1" +ipv6.routes "${IPV6_BLOCK[0]}" +ipv6.routes "${IPV6_BLOCK[1]}"
+  fi
 }
 
 # How nmcli reports a VPN it could not bring up without asking for a password,
-# token or login cookie. Callers run nmcli with LC_ALL=C so this matches in
-# every language.
+# token or login cookie. nmc asks for English, so this matches in every
+# language.
 needs_secrets() {
   grep -qiE 'secret|password|no agents|authenticat' <<<"$1"
 }
@@ -212,7 +236,7 @@ connect() {
 
   if [[ -t 0 ]]; then
     nmcli --ask connection up uuid "$uuid" || fail "could not connect $name"
-  elif ! err=$(LC_ALL=C nmcli connection up uuid "$uuid" 2>&1 >/dev/null); then
+  elif ! err=$(nmc connection up uuid "$uuid" 2>&1 >/dev/null); then
     if needs_secrets "$err"; then
       needs_signin_set "$uuid"
       open_terminal signin "$uuid" "$mode"
@@ -232,7 +256,7 @@ set_mode() {
 
   case $mode in
     off)
-      nmcli connection down uuid "$uuid" >/dev/null 2>&1
+      nmc connection down uuid "$uuid" >/dev/null 2>&1
       return 0
       ;;
     split | full) ;;
@@ -255,7 +279,7 @@ set_mode() {
       set_default_route "$other" split || continue
       # Reconnecting applies the change. A VPN whose token or login cookie
       # can't be reused drops here, so its row offers Sign in.
-      if ! err=$(LC_ALL=C nmcli connection up uuid "$other" 2>&1 >/dev/null) && needs_secrets "$err"; then
+      if ! err=$(nmc connection up uuid "$other" 2>&1 >/dev/null) && needs_secrets "$err"; then
         needs_signin_set "$other"
       fi
     done
@@ -314,11 +338,11 @@ import_file() {
     name=${name%-}
     dir=$(mktemp -d)
     cp "$file" "$dir/${name:-wg0}.conf"
-    out=$(nmcli connection import type wireguard file "$dir/${name:-wg0}.conf" 2>&1)
+    out=$(nmc connection import type wireguard file "$dir/${name:-wg0}.conf" 2>&1)
     rc=$?
     rm -rf "$dir"
   else
-    out=$(nmcli connection import type openvpn file "$file" 2>&1)
+    out=$(nmc connection import type openvpn file "$file" 2>&1)
     rc=$?
   fi
 
@@ -329,8 +353,8 @@ import_file() {
 
   uuid=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$out" | head -1)
   if [[ -n $uuid ]]; then
-    nmcli connection modify uuid "$uuid" connection.id "$(clean "$label")" connection.autoconnect no >/dev/null 2>&1
-    nmcli connection down uuid "$uuid" >/dev/null 2>&1
+    nmc connection modify uuid "$uuid" connection.id "$(clean "$label")" connection.autoconnect no >/dev/null 2>&1
+    nmc connection down uuid "$uuid" >/dev/null 2>&1
   fi
 
   echo "Added $label"

@@ -20,7 +20,14 @@ stub nmcli 'NM=$TEST_NM
 ask=0
 [[ $1 == "--ask" ]] && { ask=1; shift; }
 if [[ $1 == "-t" ]]; then
-  if [[ $* == *--active* ]]; then cat "$NM/active" 2>/dev/null; else cat "$NM/connections"; fi
+  # Active states come out in the user language unless told otherwise.
+  if [[ $* == *--active* && ${LC_ALL:-} == "C" ]]; then
+    cat "$NM/active" 2>/dev/null
+  elif [[ $* == *--active* ]]; then
+    sed "s/:activated$/:aktiviert/" "$NM/active" 2>/dev/null
+  else
+    cat "$NM/connections"
+  fi
   exit 0
 fi
 if [[ $1 == "-g" ]]; then
@@ -113,8 +120,11 @@ pass "list writes the snapshot the bar watches"
 # allows everything.
 reset_nm
 if vpn mode "$OTHER" full 2>/dev/null; then fail "refuses full for WireGuard whose peers don't allow everything"; fi
+# IPv6 alone is not everything: IPv4 would still go out the normal way.
+echo "peerkey allowed-ips=::/0" > "$stage/nm/peers-$OTHER"
+if vpn mode "$OTHER" full 2>/dev/null; then fail "refuses full for WireGuard that only allows ::/0"; fi
 ! grep -q "modify" "$stage/log" || fail "a refused full changes nothing" "$(<"$stage/log")"
-pass "refuses full for WireGuard whose peers don't allow everything"
+pass "refuses full for WireGuard whose peers don't allow all IPv4 traffic"
 
 # Only one VPN carries all traffic: the one in full drops to split, but only
 # once the new one is up.
@@ -128,16 +138,30 @@ pass "the new VPN is up before the old one leaves full"
 [[ $(<"$stage/nm/nd-$OTHER") == "yes" && $(<"$stage/nm/nd-$WG") == "no" ]] || fail "full moves the other full VPN to split" "$(<"$stage/log")"
 grep -qx "connection up uuid $OTHER" "$stage/log" || fail "the VPN moved to split reconnects to apply it" "$(<"$stage/log")"
 pass "full moves the other full VPN to split and reconnects it"
-grep -qx "connection modify uuid $WG ipv4.never-default no ipv6.never-default no" "$stage/log" &&
-  grep -qx "connection modify uuid $OTHER ipv4.never-default yes ipv6.never-default yes" "$stage/log" ||
+unblock="-ipv6.routes ::/1 type=blackhole -ipv6.routes 8000::/1 type=blackhole"
+block="+ipv6.routes ::/1 type=blackhole +ipv6.routes 8000::/1 type=blackhole"
+grep -qx "connection modify uuid $WG ipv4.never-default no ipv6.never-default no $unblock" "$stage/log" &&
+  grep -qx "connection modify uuid $OTHER ipv4.never-default yes ipv6.never-default yes $unblock" "$stage/log" ||
   fail "the mode covers IPv6 too" "$(<"$stage/log")"
 pass "the mode covers IPv6 too"
+# Office's peer doesn't allow ::/0, so in full IPv6 is blocked instead of
+# leaving through the normal connection; split lifts the block.
+grep -qx "connection modify uuid $WG $block" "$stage/log" || fail "full blocks IPv6 a WireGuard VPN doesn't carry" "$(<"$stage/log")"
+! grep -qx "connection modify uuid $OTHER $block" "$stage/log" || fail "split doesn't block IPv6" "$(<"$stage/log")"
+pass "full blocks IPv6 a WireGuard VPN doesn't carry"
 [[ $(awk -F'\t' -v u="$WG" '$1 == u {print $4 $6}' "$stage/runtime/omarchy/network-vpn") == "upfull" ]] || fail "a switch rewrites the snapshot" "$(cat "$stage/runtime/omarchy/network-vpn")"
 pass "a switch rewrites the snapshot"
 
 vpn mode "$WG" off
 ! grep -q "^$WG:" "$stage/nm/active" || fail "off disconnects" "$(<"$stage/log")"
 pass "off disconnects"
+
+# A WireGuard VPN that carries IPv6 itself needs no block.
+reset_nm
+echo "peerkey allowed-ips=0.0.0.0/0;::/0" > "$stage/nm/peers-$WG"
+vpn mode "$WG" full
+! grep -q "+ipv6.routes" "$stage/log" || fail "full doesn't block IPv6 a VPN carries" "$(<"$stage/log")"
+pass "full doesn't block IPv6 a VPN carries"
 
 # A VPN without saved credentials asks for them in a terminal instead of failing.
 reset_nm
