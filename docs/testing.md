@@ -28,7 +28,7 @@ the end and exits non-zero.
   Deliberately excluded from `./test/all`; it runs in a VM, not the
   development session.
 
-Every pull request runs `./test/all` on a real Omarchy install (`.github/workflows/test.yml`): `test/ci-vm` boots the VM image of the current stable release, copies the checkout and omarchy-pkgs in, and runs the suite in the desktop session with `OMARCHY_PATH` at the checkout and its `bin/` first on `PATH`. The image is fetched from Cloudflare on every run, which measured faster than restoring it from the Actions cache. The job uploads every file's log.
+Every pull request runs `./test/all` on a real Omarchy install (`.github/workflows/test.yml`): `test/ci-vm` boots the VM image of the current stable release, copies the checkout and omarchy-pkgs in, and runs the suite in the desktop session with `OMARCHY_PATH` at the checkout and its `bin/` first on `PATH`. The image is fetched from Cloudflare on every run, which measured faster than restoring it from the Actions cache. When a run fails, the job log shows the output of every test file that failed or did not finish, and the job uploads every file's log as an artifact.
 
 A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
@@ -77,7 +77,11 @@ The runner also lists files with skipped checks, including files that ran some c
 
 ## Compositor-dependent tests
 
-Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
+Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines and must not take over the active screen on a workstation.
+
+When `./test/shell` runs in an active Hyprland session, it automatically starts a private nested Hyprland compositor on a headless `1920x1080` output (`HEADLESS-1`) with no visible window on the host desktop and routes compositor-dependent tests into it. You can run a single compositor test the same way with `./test/headless bash test/shell.d/<area>-test.sh`. Set `OMARCHY_TEST_USE_LIVE_COMPOSITOR=1` (as `test/ci-vm` does inside its disposable VM) to target the live compositor directly.
+
+`require_compositor "description"` handles headless environments: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through

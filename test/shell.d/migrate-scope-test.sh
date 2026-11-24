@@ -90,6 +90,28 @@ grep -q '^before-fail$' "$calls" || fail "migration runner started failing migra
 ! grep -q '^after-fail$' "$calls" || fail "migration runner stops failing migration under strict mode"
 pass "migration runner does not mark failed migrations complete"
 
+deferred_root="$test_tmp/deferred-omarchy"
+deferred_home="$test_tmp/deferred-home"
+deferred_calls="$test_tmp/deferred-calls"
+mkdir -p "$deferred_root/migrations" "$deferred_home"
+
+cat >"$deferred_root/migrations/100-waiting.sh" <<'SH'
+echo waiting >>"$TEST_CALLS"
+exit 75
+SH
+cat >"$deferred_root/migrations/200-later.sh" <<'SH'
+echo later >>"$TEST_CALLS"
+SH
+
+: >"$dismissals"
+TEST_CALLS="$deferred_calls" run_migrate "$deferred_home" "$deferred_root" >"$test_tmp/deferred.out" ||
+  fail "a migration waiting on a package does not fail the run"
+grep -qx waiting "$deferred_calls" || fail "migration runner started the waiting migration"
+! grep -qx later "$deferred_calls" || fail "a waiting migration holds back the rest of the queue"
+[[ ! -e $deferred_home/.local/state/omarchy/migrations/100-waiting.sh ]] || fail "a waiting migration stays pending"
+[[ ! -s $dismissals ]] || fail "a waiting migration keeps the pending-migrations reminder"
+pass "migration runner defers a migration that exits 75"
+
 stdin_root="$test_tmp/stdin-omarchy"
 stdin_home="$test_tmp/stdin-home"
 stdin_calls="$test_tmp/stdin-calls"

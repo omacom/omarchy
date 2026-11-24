@@ -4,13 +4,13 @@ Ilmoitukset saapuvat kohdistetun näytön oikeaan yläkulmaan. Pikanäppäinilmo
 
 ## Ilmoitukset
 
-Saman sovelluksen tai sivuston ilmoitukset pinoutuvat pakaksi, joten vilkas Slack-kanava ei työnnä koontiversiosi virhettä pois näytöltä. Vie osoitin pakan päälle levittääksesi sen; mitään uutta ei liu'u osoittimesi alle, kun luet. Napsauta korttia siirtyäksesi paikkaan, josta se tuli, ja hylkää se napsauttamalla oikealla tai keskimmäisellä painikkeella tai painamalla ✕.
+Saman sovelluksen tai sivuston ilmoitukset pinoutuvat pakaksi, joten puhelias Slack-kanava ei työnnä koontivirhettäsi pois näytöltä. Vie osoitin pakan päälle levittääksesi sen auki; mikään uusi ei liu'u osoittimesi alle, kun olet lukemassa. Siirry ilmoituksen lähteeseen napsauttamalla korttia, ja hylkää se napsauttamalla hiiren oikealla painikkeella, keskimmäisellä painikkeella tai painamalla ✕.
 
-Kortit tarjoavat sen, mitä ne kantavat: _Kopioi koodi_ vahvistuskoodeille (pidetään poissa [leikepöydän historiasta](08-unified-clipboard-history.md) ja tyhjennetään minuutin kuluttua) sekä kaikki painikkeet, jotka sovellus tarjoaa. Ilmoituksen tekstissä olevat linkit avautuvat, kun niitä napsautetaan.
+Kortit tarjoavat sen, mitä ne kantavat: _Kopioi koodi_ vahvistuskoodeille (ne pidetään poissa [leikepöydän historiasta](08-unified-clipboard-history.md) ja tyhjennetään minuutin kuluttua) sekä kaikki sovelluksen tarjoamat painikkeet. Ilmoituksen tekstissä olevat linkit avautuvat napsautettaessa.
 
-Kun haluat käyttää niitä ilman hiirtä, paina `Super + Ctrl + ,`. Uusin ilmoitus on valittuna ja sen painikkeet numeroituna: käytä painiketta painamalla sen numeroa, napsauta ilmoitusta painamalla `Enter`, siirry ilmoitusten välillä painikkeilla `↑` ja `↓`, hylkää ilmoitus painamalla `Delete` ja palauta näppäimistö painamalla `Esc`. Se päästää myös itse irti muutaman käyttämättömän sekunnin jälkeen.
+`Super + ,` hylkää uusimman ilmoituksen tai avaa sen kohteen, jos ilmoitus tarjoaa sellaisen, `Super + Alt + ,` hylkää vain viimeisimmän, `Super + Shift + ,` hylkää ne kaikki ja `Super + Shift + Alt + ,` avaa historian. Käytä niitä ilman hiirtä painamalla `Super + Ctrl + ,`. Uusin ilmoitus valitaan ja sen painikkeet numeroidaan: käytä painiketta painamalla sen numeroa, napsauta ilmoitusta painamalla `Enter`, siirry ilmoitusten välillä painamalla `↑` ja `↓`, hylkää ilmoitus painamalla `Delete` ja palauta näppäimistö painamalla `Esc`. Se päästää myös irti itsestään muutaman käyttämättömän sekunnin jälkeen.
 
-Ilmoitusten hiljentäminen pitää ne poissa näkyvistä, lukuun ottamatta Omarchyn omia vahvistuksia, hätävaroituksia ja vahvistuskoodeja, joita pyysit hetki sitten. Tuo viimeisimmät takaisin näytölle, olivatpa ne pidätettyinä tai eivät, painamalla `Super + Shift + Alt + ,`. Historiaa säilytetään vuorokauden ajan.
+Ilmoitusten vaimentaminen pidättää niitä, lukuun ottamatta Omarchyn omia vahvistuksia, hätähälytyksiä ja vahvistuskoodeja, joita pyysit hetki sitten. Tuo muutama viimeisin takaisin näytölle, pidätettyinä tai ei, näppäimillä `Super + Shift + Alt + ,`. Historia säilytetään vuorokauden ajan.
 
 ## Pikanäppäinilmoitukset
 
@@ -26,7 +26,7 @@ Ilmoitusten hiljentäminen pitää ne poissa näkyvistä, lukuun ottamatta Omarc
 
  ![notice-weather](images/notice-weather.webp)
 
-Sijainti tunnistetaan IP-osoitteesi perusteella, mikä on yleensä riittävän lähellä, mutta ei aina. Voit tarkentaa sen komennolla `omarchy weather location --set Malibu` tai olla täsmällinen lisäämällä koordinaatit: `omarchy weather location --set Malibu 34.0259,-118.7798`. Suorita `omarchy weather location` sellaisenaan nähdäksesi, missä se luulee sinun olevan, ja `--clear` palataksesi automaattiseen tunnistukseen.
+Sijainti tunnistetaan IP-osoitteesi perusteella, mikä on yleensä tarpeeksi lähellä, mutta ei aina. Voit tarkentaa sen komennolla `omarchy weather location --set Malibu` tai määrittää sen täsmällisesti lisäämällä koordinaatit: `omarchy weather location --set Malibu 34.0259,-118.7798`. Suorita `omarchy weather location` sellaisenaan nähdäksesi, missä se luulee sinun olevan, ja palaa automaattiseen tunnistukseen valinnalla `--clear`.
 
 ### Akku
 

@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "情報"
-  },
   "system": {
     "label": "システム"
+  },
+  "system.about": {
+    "label": "情報"
   },
   "system.screensaver": {
     "label": "スクリーンセーバー"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "入力"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "言語"
+  },
+  "setup.region.timezone": {
+    "label": "タイムゾーン"
   },
   "setup.network": {
     "label": "ネットワーク"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "既定アプリ"
-  },
-  "setup.default.agent": {
-    "label": "エージェント",
-    "title": "既定のエージェント"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "ブラウザ",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "ダイレクトブート"
-  },
-  "setup.reset": {
-    "label": "コンピュータをリセット"
+  "remove.factory-reset": {
+    "label": "工場出荷時リセット"
   },
   "install.package": {
     "label": "パッケージ"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromiumアカウント"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "パスワード"
   },
-  "update.timezone": {
-    "label": "タイムゾーン"
-  },
   "update.time": {
     "label": "時刻"
   },
@@ -1138,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "トラックパッド"
-  },
-  "update.password.drive": {
-    "label": "ドライブ暗号化"
-  },
-  "update.password.user": {
-    "label": "ユーザー"
   },
   "appearance.windows.gaps-on": {
     "label": "ウィンドウ間隔 オン"
@@ -1235,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "タッチスクリーンを無効化"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "プレーン"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "アイコン"
+  },
+  "install.style.icons": {
+    "label": "アイコン"
+  },
+  "remove.icons": {
+    "label": "アイコン"
+  },
+  "update.icons": {
+    "label": "追加アイコン"
+  },
+  "system.firmware": {
+    "label": "BIOSへ再起動",
+    "description": "UEFIファームウェア設定で再起動"
+  },
+  "setup.region": {
+    "label": "地域"
+  },
+  "setup.region.formats": {
+    "label": "書式",
+    "description": "日付、時刻、数値、単位の表記方法"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "ホスト名"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
