@@ -18,11 +18,17 @@
 # Arguments are split the way the Desktop Entry spec quotes them, without shell
 # evaluation, so a quoted VAR=VALUE may hold spaces.
 browser_from_desktop_entry() {
-  local line value="" word="" char next assignment i
+  local raw line="" value="" word="" char next assignment i
   local in_word=0 quoted=0
   local -a words=()
 
-  line=$(sed -n 's/^Exec=//p' "$1" | head -1)
+  while IFS= read -r raw || [[ -n $raw ]]; do
+    raw=${raw%$'\r'}
+    if [[ $raw == Exec=* ]]; then
+      line=${raw#Exec=}
+      break
+    fi
+  done <"$1"
 
   # The desktop file's own string escapes come first: \s \n \t \r \\.
   for (( i = 0; i < ${#line}; i++ )); do

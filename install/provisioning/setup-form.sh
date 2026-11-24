@@ -286,21 +286,71 @@ omarchy_prompt_identity() {
   return $status
 }
 
-omarchy_prompt_hostname() {
-  local status
-  while true; do
-    hostname=$(gum input --placeholder "$(omarchy_form_text setupForm.hostnamePlaceholder)" --prompt.foreground="#845DF9" --prompt "$(omarchy_form_text setupForm.hostnamePrompt)") && status=0 || status=$?
-    ((status == 0)) || return $status
+# Lowercase letters and digits, every other run of characters one dash, none at
+# either end: "Dell Inc." is "dell-inc".
+omarchy_hostname_slug() {
+  sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' <<<"${1,,}"
+}
 
-    if [[ -z $hostname ]]; then
-      hostname="$OMARCHY_HOSTNAME_DEFAULT"
-      return 0
-    elif [[ "$hostname" =~ $OMARCHY_HOSTNAME_PATTERN ]]; then
-      return 0
+# The machine's maker and model, "dell xps14", from the firmware's DMI tables,
+# or from the device tree on ARM machines that have none ("Apple MacBook Pro
+# (14-inch, M2 Pro, 2023)"). The model is its first two words run together,
+# which is the name people know: XPS 14 9440, EliteBook 840 G10 Notebook PC,
+# Laptop 13 (AMD Ryzen 7040Series). Virtual machines are "vm", and placeholders
+# from boards nobody filled in are nothing.
+omarchy_hardware_name() {
+  local dmi=${OMARCHY_DMI_DIR:-/sys/class/dmi/id} tree=${OMARCHY_DEVICE_TREE_MODEL:-/proc/device-tree/model}
+  local vendor="" model="" maker first words
+
+  if [[ -r $dmi/sys_vendor ]]; then
+    vendor=$(<"$dmi/sys_vendor")
+    # Lenovo's product_name is a part number (21KC003FUS); the name on the lid
+    # is its product_version.
+    if [[ ${vendor,,} == "lenovo" ]]; then
+      model=$(cat "$dmi/product_version" 2>/dev/null) || model=""
     else
-      notice "$(omarchy_form_text setupForm.hostnameInvalid)" 1
+      model=$(cat "$dmi/product_name" 2>/dev/null) || model=""
     fi
-  done
+  elif [[ -r $tree ]]; then
+    model=$(tr -d '\0' <"$tree")
+    vendor=${model%% *}
+    model=${model#"$vendor"}
+  fi
+
+  case "${vendor,,} ${model,,}" in
+    *qemu* | *virtualbox* | *vmware* | *"virtual machine"* | *kvm* | *parallels* | *bochs* | "xen "*)
+      echo vm
+      return
+      ;;
+  esac
+  case ${vendor,,} in *"to be filled"* | *"system manufacturer"* | *"default string"* | *"not applicable"*) vendor="" ;; esac
+  case ${model,,} in *"to be filled"* | *"system product name"* | *"default string"* | *"not applicable"*) model="" ;; esac
+
+  first=$(omarchy_hostname_slug "${vendor%% *}")
+  case $first in
+    asustek) maker=asus ;;
+    micro-star) maker=msi ;;
+    hewlett-packard) maker=hp ;;
+    *) maker=$first ;;
+  esac
+
+  # Drop what's in parentheses, and the maker's name where the model repeats
+  # it (HP EliteBook, ASUS Zenbook).
+  read -ra words <<<"$(omarchy_hostname_slug "$(sed -E 's/\([^)]*\)//g' <<<"$model")" | tr - ' ')"
+  [[ -n ${words[0]:-} && (${words[0]} == "$maker" || ${words[0]} == "$first") ]] && words=("${words[@]:1}")
+  model="${words[0]:-}${words[1]:-}"
+
+  echo "${maker:0:12} ${model:0:16}"
+}
+
+# The hostname, made from the owner and the machine (dhh-dell-xps14) rather
+# than asked for; Setup > Network > Hostname changes it after install.
+omarchy_generate_hostname() {
+  local hardware
+  hardware=$(omarchy_hardware_name)
+  [[ -n ${hardware// /} ]] || hardware=$OMARCHY_HOSTNAME_DEFAULT
+  hostname=$(omarchy_hostname_slug "${username:0:30} $hardware")
+  [[ $hostname =~ $OMARCHY_HOSTNAME_PATTERN ]] || hostname=$OMARCHY_HOSTNAME_DEFAULT
 }
 
 # A fresh machine often hasn't joined a network yet, so the geo guess fails
@@ -325,7 +375,8 @@ omarchy_prompt_timezone() {
     zones=$(printf '%s\n' "$guess"; grep -vxF -- "$guess" <<<"$zones")
   fi
 
-  timezone=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)" <<<"$zones") && status=0 || status=$?
+  timezone=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)" \
+    --placeholder "$(omarchy_form_text setupForm.timezonePlaceholder)" <<<"$zones") && status=0 || status=$?
   ((status == 0)) || return $status
 
   [[ -n $timezone ]] || timezone="UTC"
