@@ -208,6 +208,27 @@ zoom_ok=$(PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-zoom" "zoo
 [[ $zoom_ok == "https://app.zoom.us/wc/join/123456789?pwd=ab%2Fc%3D" ]] ||
   fail "zoom handler joins valid meeting and preserves percent escapes in pwd" "$zoom_ok"
 
+# Exercise both collations: ranges can accept non-ASCII digits in en_US.UTF-8.
+for locale_name in C en_US.UTF-8; do
+  if [[ $locale_name != "C" ]] && ! locale -a 2>/dev/null | grep -qix 'en_US.utf-\?8'; then
+    skip "no en_US.UTF-8 locale; skipping the Zoom locale check"
+    continue
+  fi
+  for confno in '../../other-path/' '123?injected=1' '123%26injected=1' '１２３４５６７８' '١٢٣٤٥٦٧٨' '123456789012345678901'; do
+    zoom_bad=$(LC_ALL=$locale_name PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-zoom" "zoommtg://zoom.us/join?confno=$confno&pwd=abc")
+    [[ $zoom_bad == "https://app.zoom.us/wc/home" ]] ||
+      fail "zoom handler refuses invalid meeting number $confno under $locale_name" "$zoom_bad"
+  done
+  pass "zoom handler refuses invalid meeting numbers under $locale_name"
+done
+
+zoom_ok=$(PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-zoom" 'zoommtg://zoom.us/join?confno=123456789&pwd=abcDEF123')
+[[ $zoom_ok == "https://app.zoom.us/wc/join/123456789?pwd=abcDEF123" ]] ||
+  fail "zoom handler joins a numeric meeting with a password" "$zoom_ok"
+zoom_ok=$(PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-zoom" 'zoommtg://zoom.us/join?confno=123456789&pwd=ab*%3F9%2312')
+[[ $zoom_ok == "https://app.zoom.us/wc/join/123456789?pwd=ab%2A%3F9%2312" ]] ||
+  fail "zoom handler encodes passcodes while preserving existing escapes" "$zoom_ok"
+
 hey_ok=$(PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-hey" "MAILTO:user+tag%40example.com?subject=hi&x=1")
 [[ $hey_ok == "https://app.hey.com/messages/new?to=user%2Btag%40example.com" ]] ||
   fail "hey handler strips mailto case-insensitively and preserves percent escapes without query injection" "$hey_ok"
