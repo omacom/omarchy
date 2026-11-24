@@ -3,26 +3,91 @@
 # omarchy:summary=Edit, set, or reset screensaver branding
 # omarchy:group=branding
 # omarchy:name=screensaver
-# omarchy:args=<image|text|reset>
-# omarchy:examples=omarchy branding screensaver image | omarchy branding screensaver text | omarchy branding screensaver reset
+# omarchy:args=<image|text|preset|reset>
+# omarchy:examples=omarchy branding screensaver image | omarchy branding screensaver text | omarchy branding screensaver preset [name] | omarchy branding screensaver reset
 
 set -euo pipefail
+
+PRESETS_DIR="$OMARCHY_PATH/default/screensavers"
+TARGET_FILE="$HOME/.config/omarchy/branding/screensaver.txt"
+
+list_presets() {
+  echo "omarchy"
+  if [[ -d $PRESETS_DIR ]]; then
+    local file name
+    for file in "$PRESETS_DIR"/*.txt; do
+      [[ -f $file ]] || continue
+      name=$(basename "$file" .txt)
+      [[ $name == "omarchy" ]] && continue
+      printf '%s\n' "$name"
+    done
+  fi
+}
+
+resolve_preset() {
+  local name="$1"
+
+  if [[ $name == "omarchy" ]]; then
+    printf '%s\n' "$OMARCHY_PATH/logo.txt"
+    return 0
+  fi
+
+  if [[ -z $name || $name == */* || $name == *..* ]]; then
+    return 1
+  fi
+
+  local preset_file="$PRESETS_DIR/$name.txt"
+  if [[ -f $preset_file ]]; then
+    printf '%s\n' "$preset_file"
+    return 0
+  else
+    return 1
+  fi
+}
+
+apply_preset() {
+  local name="$1"
+  local source_file
+
+  if ! source_file=$(resolve_preset "$name"); then
+    echo "Unknown screensaver preset: $name" >&2
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "$TARGET_FILE")"
+  cp "$source_file" "$TARGET_FILE" && omarchy-launch-screensaver force >/dev/null 2>&1
+}
 
 case "${1:-}" in
 image)
   image=$(omarchy-file-select --title "$(omarchy-i18n branding.pickScreensaverImage)" --extensions "png svg")
-  if omarchy-transcode-ascii "$image" ~/.config/omarchy/branding/screensaver.txt; then
+  if omarchy-transcode-ascii "$image" "$TARGET_FILE"; then
     omarchy-launch-screensaver force >/dev/null 2>&1
   fi
   ;;
 text)
-  omarchy-launch-editor ~/.config/omarchy/branding/screensaver.txt >/dev/null 2>&1 && omarchy-launch-screensaver force >/dev/null 2>&1
+  omarchy-launch-editor "$TARGET_FILE" >/dev/null 2>&1 && omarchy-launch-screensaver force >/dev/null 2>&1
+  ;;
+preset)
+  case "${2:-}" in
+  --list | list)
+    list_presets
+    ;;
+  "")
+    preset=$(list_presets | omarchy-menu-select "$(omarchy-i18n branding.pickScreensaverPreset)") || exit 0
+    [[ -n $preset ]] && apply_preset "$preset"
+    ;;
+  *)
+    apply_preset "$2"
+    ;;
+  esac
   ;;
 reset)
-  cp "$OMARCHY_PATH/logo.txt" ~/.config/omarchy/branding/screensaver.txt && omarchy-launch-screensaver force >/dev/null 2>&1
+  mkdir -p "$(dirname "$TARGET_FILE")"
+  cp "$OMARCHY_PATH/logo.txt" "$TARGET_FILE" && omarchy-launch-screensaver force >/dev/null 2>&1
   ;;
 *)
-  echo "Usage: omarchy-branding-screensaver <image|text|reset>" >&2
+  echo "Usage: omarchy-branding-screensaver <image|text|preset|reset>" >&2
   exit 1
   ;;
 esac
