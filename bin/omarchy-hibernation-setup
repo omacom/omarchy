@@ -230,9 +230,9 @@ echo "Adding resume kernel parameters"
 sudo swapon -p 0 "$SWAP_FILE" 2>/dev/null
 RESUME_DEVICE=$(resume_device)
 RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE")
-if [[ -z $RESUME_OFFSET ]]; then
-  echo "Could not determine resume offset for $SWAP_FILE; run omarchy-hibernation-setup again once that is fixed" >&2
-  exit 1
+if [[ -z $RESUME_DEVICE || -z $RESUME_OFFSET ]]; then
+  echo "Warning: Could not determine resume parameters for $SWAP_FILE; run omarchy-hibernation-setup again once that is fixed" >&2
+  exit 0
 fi
 sudo mkdir -p /etc/limine-entry-tool.d
 echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null || exit 1
