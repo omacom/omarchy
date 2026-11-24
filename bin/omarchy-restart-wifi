@@ -5,6 +5,12 @@
 echo -e "Unblocking wifi...\n"
 
 rfkill unblock wifi
+
+if ! systemctl is-active --quiet NetworkManager; then
+  echo -e "NetworkManager isn't running; restarting it...\n"
+  sudo systemctl restart NetworkManager || exit $?
+fi
+
 nmcli networking on
 nmcli radio wifi on
 nmcli device wifi rescan 2>/dev/null || true
