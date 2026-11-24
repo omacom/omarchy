@@ -12,7 +12,7 @@ runtime_dir="/run/user/$(id -u)"
 test_run_id="test-$BASHPID-$RANDOM"
 update_lock_name="omarchy-update-$test_run_id.lock"
 stay_awake_dir_name="omarchy-update-stay-awake-$test_run_id"
-trap 'rm -rf -- "$runtime_dir/$stay_awake_dir_name"; rm -f -- "$runtime_dir/$update_lock_name"; rm -rf -- "$boundary_tmp"' EXIT
+trap 'rm -rf -- "$runtime_dir/$stay_awake_dir_name"; rm -f -- "$runtime_dir/$update_lock_name" "/tmp/omarchy-$(id -u)/$update_lock_name"; rm -rf -- "$boundary_tmp"' EXIT
 for command in omarchy-update omarchy-update-lock omarchy-update-stay-awake; do
   rm -f "$SUDO_TEST_ROOT/bin/$command"
   copy_boundary_file "bin/$command"
@@ -355,4 +355,20 @@ kill -0 "$unrelated_pid" 2>/dev/null ||
 kill "$unrelated_pid"
 wait "$unrelated_pid" 2>/dev/null || true
 pass "stale inhibitor state does not terminate a reused PID"
+
+# Without XDG_RUNTIME_DIR, the update lock lives in a private 0700 per-UID
+# directory instead of directly in world-writable /tmp, and refuses symlinks.
+env -u XDG_RUNTIME_DIR "$stub_bin/omarchy-update-lock" run /bin/bash -c \
+  '[[ -f "/tmp/omarchy-$EUID/'"$update_lock_name"'" ]] && [[ $(stat -Lc %a "/tmp/omarchy-$EUID") == "700" ]]' ||
+  fail "update lock falls back to a private 0700 per-UID directory when XDG_RUNTIME_DIR is unset"
+pass "update lock falls back to a private 0700 per-UID directory when XDG_RUNTIME_DIR is unset"
+
+symlink_runtime="$test_tmp/symlink-runtime"
+mkdir -m 700 "$symlink_runtime"
+ln -s "$test_tmp/symlink-target" "$symlink_runtime/$update_lock_name"
+if XDG_RUNTIME_DIR="$symlink_runtime" "$stub_bin/omarchy-update-lock" run true >/dev/null 2>&1; then
+  fail "update lock refuses a symlinked lock path"
+fi
+[[ ! -e $test_tmp/symlink-target ]] || fail "update lock does not create symlink targets"
+pass "update lock refuses a symlinked lock path"
 
