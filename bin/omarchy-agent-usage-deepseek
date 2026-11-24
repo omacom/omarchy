@@ -53,6 +53,7 @@ from collectors import (  # noqa: E402
   scan_routed,
   trusted_endpoint,
   warn,
+  opencode_credential_key,
 )
 
 AGENT_ID = "deepseek"
@@ -219,6 +220,7 @@ def api_key() -> str:
   for read in (
     lambda: read_json_key(pi_agent_dir() / "auth.json", "deepseek"),
     lambda: read_json_key(Path.home() / ".omp" / "agent" / "auth.json", "deepseek"),
+    lambda: opencode_credential_key("deepseek"),
     lambda: read_json_key(data_home() / "opencode" / "auth.json", "deepseek"),
     lambda: read_dsh_credentials_key(dsh_home() / ".credentials.yaml"),
     lambda: read_dotenv_key(dsh_home() / ".env"),

@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Rialaítear Omarchy de ghnáth trí na heochracha te agus tríd an roghchlár Omarchy (`Super + Space`). Ach is féidir leat é a rialú freisin tríd an `omarchy` CLI. Tá sé seo an-chabhrach go háirithe nuair a bhíonn gníomhaire AI ag obair leat ar shaincheapadh nó ar chumraíocht.
+De ghnáth, rialaítear Omarchy trí na haicearraí méarchláir agus trí roghchlár Omarchy (`Super + Space`). Ach is féidir leat é a rialú tríd an CLI `omarchy` freisin. Tá sé seo an-úsáideach go háirithe nuair a bhíonn oibreán AI ag obair in éineacht leat ar shaincheapadh nó ar chumraíocht.
 
-Tá rochtain ag an CLI ar an uirlisíocht inmheánach go léir a úsáidtear tríd an roghchlár agus ar bhealaí eile araon. Is féidir leat gach rud atá ar fáil a fheiceáil trí `omarchy` a rith sa teirminéal.
+Tá rochtain ag an CLI ar an uirlisiú inmheánach go léir a úsáidtear tríd an roghchlár agus ar bhealaí eile araon. Is féidir leat gach rud atá ar fáil a fheiceáil ach `omarchy` a rith sa teirminéal.
 
-Breathnaíonn sé rud éigin mar seo:
+Tá cuma éigin mar seo air:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,15 +42,15 @@ Groups:
   ...
 ```
 
-Le haghaidh diagnóisice, rith `omarchy-debug --no-sudo --print` go díreach. Priontálann sé diagnóisic agus scríobhann sé `/tmp/omarchy-debug.log` gan sudo a iarraidh, lena n-áirítear ar shuiteálacha pacáiste áit a bhféadfadh `omarchy debug` teip le "Unknown Omarchy command".
+Le haghaidh diagnóisice, rith `omarchy-debug --no-sudo --print` go díreach. Priontálann sé diagnóisic agus scríobhann sé `/tmp/omarchy-debug.log` gan sudo a iarraidh, lena n-áirítear ar shuiteálacha pacáiste ina bhféadfadh `omarchy debug` teipeadh le "Unknown Omarchy command".
 
-Agus is féidir leat dul níos doimhne ar gach grúpa:
+Agus is féidir leat dul níos doimhne isteach i ngach grúpa:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -60,4 +61,4 @@ Glacann gach ordú le `--help` freisin, cibé a iarrann tú ar ghrúpa iomlán (
 
 ### An roghchlár a oscailt ón teirminéal
 
-Is féidir an roghchlár Omarchy a scripteáil freisin, rud atá áisiúil do do cheangail eochracha féin. Osclaíonn `omarchy menu` é ag an bhfréamh, agus is féidir leat léim go díreach chuig aon phointe sa chrann trína ainmniú: téann `omarchy menu summon appearance.theme` díreach chuig an roghnóir téama, osclaíonn `omarchy menu toggle system` an roghchlár córais agus dúnann sé arís é má tá sé ar oscailt cheana, agus cuireann `omarchy menu close` ar shiúl é.
+Is féidir roghchlár Omarchy a scriptiú freisin, rud atá áisiúil do do cheangail eochracha féin. Osclaíonn `omarchy menu` ag an bhfréamh é, agus is féidir leat léim díreach chuig pointe ar bith sa chrann ach é a ainmniú: téann `omarchy menu summon appearance.theme` díreach chuig an roghnóir téama, osclaíonn `omarchy menu toggle system` roghchlár an chórais agus dúnann sé arís é má tá sé ar oscailt cheana, agus cuireann `omarchy menu close` ar shiúl é.

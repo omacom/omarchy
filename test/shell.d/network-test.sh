@@ -260,3 +260,23 @@ assertDeepEqual(
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
 JS
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin"
+printf '#!/bin/bash\nexit 0\n' >"$tmpdir/bin/nmcli"
+cat >"$tmpdir/bin/rfkill" <<'SH'
+#!/bin/bash
+if [[ $* == *"--output HARD"* ]]; then
+  [[ $LC_ALL == "C" ]] || exit 2
+  printf '%s\n' "$HARD_BLOCKS"
+fi
+SH
+chmod +x "$tmpdir/bin/"*
+PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=unblocked "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 ||
+  fail "Wi-Fi restart accepts radios without a hard block" "$(cat "$tmpdir/output")"
+status=0
+PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=$'unblocked\nblocked' "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 || status=$?
+(( status == 1 )) && grep -q "still hardware-blocked" "$tmpdir/output" ||
+  fail "Wi-Fi restart reports a remaining hardware block" "status=$status: $(cat "$tmpdir/output")"
+pass "Wi-Fi restart distinguishes unblocked and hardware-blocked radios"

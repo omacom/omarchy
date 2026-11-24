@@ -5,5 +5,5 @@ echo "Add launchers for the local models already set up"
 # here; a machine without any gets nothing. Neither does one whose engine was
 # removed: without omarchy-local-ai no model can be read, let alone opened.
 if omarchy-cmd-present omarchy-local-ai; then
-  omarchy-agent-local-launchers
+  omarchy-models-launchers
 fi
