@@ -13,7 +13,8 @@ set -euo pipefail
 
 game=${1:-}
 name=${2:-$game}
-if [[ ! $game =~ ^[a-z0-9][a-z0-9-]*$ || ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+if ! (LC_ALL=C; [[ $game =~ ^[a-z0-9][a-z0-9-]*$ && $name =~ ^[a-z0-9][a-z0-9-]*$ ]]); then
   echo "Usage: omarchy-games-vibes-copy <game> [new-name], with names of lowercase letters, digits and dashes" >&2
   exit 1
 fi

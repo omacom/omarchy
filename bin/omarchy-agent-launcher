@@ -14,7 +14,8 @@ agent=${1:?Usage: omarchy-agent-launcher <agent>}
 entry="omarchy-agent-$agent.desktop"
 applications="$HOME/.local/share/applications"
 
-if [[ $agent =~ ^[a-z0-9-]+$ && -f $OMARCHY_PATH/default/applications/$entry ]]; then
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+if (LC_ALL=C; [[ $agent =~ ^[a-z0-9-]+$ ]]) && [[ -f $OMARCHY_PATH/default/applications/$entry ]]; then
   # A launcher that couldn't be written fails, so the migration adding one
   # stays pending until it can be.
   mkdir -p "$applications" || exit 1

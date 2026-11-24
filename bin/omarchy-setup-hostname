@@ -20,7 +20,8 @@ while true; do
   fi
 
   # The same rule the installer's setup form holds hostnames to.
-  [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] && break
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  (LC_ALL=C; [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]]) && break
   omarchy-i18n setupForm.hostnameInvalid >&2
   (($#)) && exit 1
   name=""
