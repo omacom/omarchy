@@ -372,3 +372,27 @@ fi
 [[ ! -e $test_tmp/symlink-target ]] || fail "update lock does not create symlink targets"
 pass "update lock refuses a symlinked lock path"
 
+# A planted FIFO must be refused promptly rather than hanging or acting as a lock.
+rm -f "$symlink_runtime/$update_lock_name"
+mkfifo "$symlink_runtime/$update_lock_name"
+fifo_status=0
+timeout 5 env XDG_RUNTIME_DIR="$symlink_runtime" "$stub_bin/omarchy-update-lock" run true >/dev/null 2>&1 || fifo_status=$?
+(( fifo_status == 1 )) || fail "update lock refuses a FIFO without hanging" "status $fifo_status"
+pass "update lock refuses a FIFO promptly"
+
+# XDG_RUNTIME_DIR itself must be a private, non-symlink directory.
+shared_runtime="$test_tmp/shared-runtime"
+mkdir -m 777 "$shared_runtime"
+chmod 777 "$shared_runtime"
+if XDG_RUNTIME_DIR="$shared_runtime" "$stub_bin/omarchy-update-lock" run true >/dev/null 2>&1; then
+  fail "update lock rejects a world-writable runtime directory"
+fi
+[[ ! -e $shared_runtime/$update_lock_name ]] || fail "rejected runtime directory receives no lock file"
+chmod 700 "$shared_runtime"
+linked_runtime="$test_tmp/linked-runtime"
+ln -s "$shared_runtime" "$linked_runtime"
+if XDG_RUNTIME_DIR="$linked_runtime" "$stub_bin/omarchy-update-lock" run true >/dev/null 2>&1; then
+  fail "update lock rejects a symlinked runtime directory"
+fi
+pass "update lock requires a private non-symlink runtime directory"
+
