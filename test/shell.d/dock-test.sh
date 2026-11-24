@@ -122,6 +122,28 @@ assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspa
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
+const fs = require('fs')
+const vm = require('vm')
+const dockQml = fs.readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
+const bringForwardFn = dockQml.match(/function bringForward\(window\) \{[\s\S]*?\n  \}/)[0]
+const commands = []
+const dockCtx = {
+  Hyprland: { focusedMonitor: { activeWorkspace: { id: 2 } } },
+  Util: {
+    shellQuote: s => `'${s}'`,
+    execDetached(cmd) { commands.push(cmd) }
+  }
+}
+vm.runInNewContext(bringForwardFn, dockCtx)
+
+let fallbackActivated = 0
+dockCtx.bringForward({ address: '0x1" }); os.execute("id"); --', minimized: false, toplevel: { activate() { fallbackActivated += 1 } } })
+assertEqual(commands.length, 0, 'dock bringForward rejects non-hex window addresses before Lua dispatch')
+assertEqual(fallbackActivated, 1, 'dock bringForward falls back to toplevel.activate on invalid address')
+
+dockCtx.bringForward({ address: 'deadbeef', minimized: false, toplevel: { activate() {} } })
+assert(commands.length === 1 && commands[0].includes('address:0xdeadbeef'), 'dock bringForward dispatches valid hex addresses')
+
 JS
 
 home="$TMPDIR/home"
