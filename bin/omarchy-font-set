@@ -21,9 +21,9 @@ case "$font_name" in
     ;;
 esac
 
-# Terminal configs treat the family as literal text, so a quote, backslash,
-# dollar or line break could close a string and inject a second setting.
-if [[ $font_name == *$'\n'* || $font_name == *$'\r'* || $font_name == *['"\\`$;']* ]]; then
+# Reject line breaks and metacharacters unsupported across terminal configs.
+# Double quotes are escaped for the quoted values below.
+if [[ $font_name == *$'\n'* || $font_name == *$'\r'* || $font_name == *['\\`$;']* ]]; then
   echo "Font name contains characters that cannot be written into terminal configs." >&2
   exit 1
 fi
