@@ -1,0 +1,23 @@
+# Pagkuha ng Teksto at Pagdidikta
+
+### Pagkuha ng Teksto
+
+Pindutin ang `Super + Ctrl + PrtScr` para pumili ng rehiyon sa screen para sa pagkuha ng teksto. Mabilis na iko-convert ng tesseract open source OCR model ang pinili mo sa teksto at ilalagay ito sa clipboard. Pagkatapos, pindutin lang ang `Super + V` para i-paste.
+
+Napakakatulong nito para kumuha ng mga address mula sa mga footer ng larawan o mga numero ng telepono na naka-embed sa mga headline ng website.
+
+ ![text-extraction](images/text-extraction.webp)
+
+### Pagdidikta
+
+Sa mga bagong install, ang [Superwhisper](https://superwhisper.com/) ang default na dictation backend, na gumagamit ng cloud processing nang walang offline model downloads. Piliin ang Superwhisper, [Voxtype](https://voxtype.io/), o [Hex](https://anoma.ly/hex/) sa pamamagitan ng _Setup > Defaults > Dictation_ sa menu ng Omarchy. Ang pagpili ng backend ay mag-i-install nito kung kinakailangan at gagawin itong default para sa pagdidikta. Naglo-load ang Voxtype ng base English model na kumukuha ng 150MB; baguhin ang modelo gamit ang `voxtype setup model` at ang iba pang mga setting sa pamamagitan ng `~/.config/voxtype/config.toml`. Binubuksan ng Superwhisper ang mga setting nito para pumili ng cloud o local processing, at pinapanatiling updated ng OPR ang application. Dina-download ng Hex ang on-device speech model nito sa panahon ng setup at tumatakbo bilang `hex.service` user service; buksan ang window nito mula sa tray icon ng bar o sa pamamagitan ng pagpapatakbo ng `hex` para baguhin ang modelo at iba pang mga setting.
+
+Magdidikta ka sa pamamagitan ng pagpindot nang matagal sa `Right Alt`, o sa pamamagitan ng pag-toggle gamit ang `Alt + Space`, at lalabas ang idinikta mong teksto sa nakapokus na input area. Ginagamit ng mga shortcut na ito ang napiling backend. Sinisimulan din ng Right Alt ang pagdidikta kapag ginamit sa isang modifier chord; gamitin ang Left Alt para sa mga chord na iyon. Sa mga keyboard layout kung saan ang Right Alt ay AltGr, kabilang kapag isa ang naturang layout sa mga pinagpapalit-palit mo, pindutin ito nang mag-isa nang sandali para magdikta; ang AltGr na pinindot kasama ng isa pang key ay nagta-type pa rin ng character nito. Ang mga install mula bago naging default ang Alt + Space ay pinananatili ang `F9` para sa push-to-talk at `Super + Ctrl + X` para mag-toggle, na idinagdag sa `~/.config/hypr/bindings.lua`, kung saan ang `Super + Ctrl + X` na iyon ang pumapalit sa lugar ng agents panel; alisin ang mga ito doon para ibalik ang mga key na iyon sa mga application at sa panel.
+
+Gumagana ang parehong mga shortcut sa bawat backend. Piliin ang iyong backend sa pamamagitan ng Setup > Defaults > Dictation. Iko-configure ito ng backend installer at ise-save ang pinili. Patakbuhin ang `omarchy default dictation` para makita kung alin ang napili. Naka-save ang pinili sa `~/.config/omarchy/defaults/dictation`. Awtomatikong pinipili ng mga bagong install ang Superwhisper.
+
+Awtomatikong nilo-load ng Omarchy ang desktop integration ng napiling backend. Walang kinakailangang configuration ng Superwhisper sa `~/.config/hypr/`.
+
+Maaaring gumamit ang mga custom binding at script ng `omarchy dictation start`, `omarchy dictation stop`, at `omarchy dictation toggle`. Ang napiling backend ang humahawak sa recording at transcription. Ang pagpili sa Superwhisper ay nagdi-disable sa native hold shortcut nito at nagse-set sa native toggle nito sa `Ctrl + Alt + Space`, na pinapanatili itong hiwalay sa mga recording key ng Omarchy. Nangangailangan ang Superwhisper ng hindi bababa sa isang native recording shortcut, at nananatiling available ang cancellation shortcut nito.
+
+Maaaring mag-integrate ang mga karagdagang backend nang hindi binabago ang Omarchy. Magbigay ng executable na pinangalanang `omarchy-dictation-<backend>` sa PATH na tumatanggap ng `start`, `stop`, at `toggle` at agad na nagbabalik, na may nonzero status kapag nabigo. Iko-configure ng installer nito ang provider at tatawagin ang `omarchy-dictation-use <backend>` pagkatapos ng matagumpay na setup. Ihihinto nito ang dating backend at ise-save nang atomically ang pinili; dapat magtagumpay ang `stop` kapag idle o unavailable ang provider. Gumagamit ang mga pangalan ng backend ng maliliit na titik, mga digit, at mga gitling. Magbigay ng `omarchy-install-dictation-<backend>` para sa setup; ilulunsad ito ng `omarchy default dictation <backend>`. Magdagdag ng entry sa Defaults menu sa pamamagitan ng isang Omarchy menu extension para tawagin ang selector na iyon. Maaaring manirahan ang opsyonal na desktop integration sa `${XDG_CONFIG_HOME:-$HOME/.config}/<backend>/shortcuts.lua`.

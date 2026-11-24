@@ -17,16 +17,35 @@ function fingerprintConfiguredFromPamConfig(raw) {
   return false
 }
 
-function authorizationLabel(message) {
+// The program a pkexec prompt asks to run, as its message names it; empty for
+// any other prompt.
+function promptProgram(message) {
+  var match = String(message || "").match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
+  return match ? match[1] : ""
+}
+
+// A label a command asked for its next prompt (omarchy.polkit expect), when
+// this prompt is that one: pkexec running the program it named, before the
+// label went stale. Empty otherwise.
+function expectedLabel(message, expected, nowMs) {
+  if (!expected || !expected.label || nowMs > expected.until) return ""
+  var program = promptProgram(message)
+  return program !== "" && program === expected.program ? String(expected.label) : ""
+}
+
+function authorizationLabel(message, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
   var match = text.match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
-  return match ? "Authorize running '" + match[1] + "'" : text
+  return match ? t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", match[1]) : text
 }
 
 if (typeof module !== "undefined") {
   module.exports = {
     promptLooksFingerprint: promptLooksFingerprint,
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
-    authorizationLabel: authorizationLabel
+    authorizationLabel: authorizationLabel,
+    promptProgram: promptProgram,
+    expectedLabel: expectedLabel
   }
 }

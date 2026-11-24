@@ -38,8 +38,12 @@ chmod +x "$tmp_dir/bin/update-desktop-database"
 
 cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
-if [[ $1 == "-Qqo" && $2 == */native.desktop ]]; then
-  printf 'native-pkg\n'
+if [[ $1 == "-Qqo" ]]; then
+  shift
+  [[ ${1:-} == "--" ]] && shift
+  if [[ ${1:-} == */native.desktop ]]; then
+    printf 'native-pkg\n'
+  fi
 fi
 SCRIPT
 chmod +x "$tmp_dir/bin/pacman"
@@ -157,16 +161,29 @@ export HOME="$tmp_dir/home"
 
 "$ROOT/bin/omarchy-remove-launcher-entry" Basecamp.desktop Basecamp
 "$ROOT/bin/omarchy-remove-launcher-entry" Docker.desktop Docker
-"$ROOT/bin/omarchy-remove-launcher-entry" native.desktop Native
-"$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens
-"$ROOT/bin/omarchy-remove-launcher-entry" omamail.desktop Omamail
-"$ROOT/bin/omarchy-remove-launcher-entry" mail-handler.desktop "Mail Handler"
-"$ROOT/bin/omarchy-remove-launcher-entry" linked.desktop Linked
+remove_with_terminal() {
+  local expected=$1
+  shift
+  terminal_output="$("$ROOT/bin/omarchy-remove-launcher-entry" "$@")"
+  [[ $terminal_output == "terminal" ]] || fail "launcher remove announces its confirmation terminal" "$terminal_output"
+  for _ in {1..50}; do
+    (( $(grep -c '^terminal:' "$TEST_LOG" || true) >= expected )) && return 0
+    sleep 0.1
+  done
+  fail "launcher remove did not open its confirmation terminal"
+}
+
+remove_with_terminal 1 native.desktop Native
+native_output="$terminal_output"
+aliens_output="$("$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens)"
+remove_with_terminal 2 omamail.desktop Omamail
+remove_with_terminal 3 mail-handler.desktop "Mail Handler"
+remove_with_terminal 4 linked.desktop Linked
 "$ROOT/bin/omarchy-remove-launcher-entry" borrowed-icon.desktop "Borrowed Icon"
 "$ROOT/bin/omarchy-remove-launcher-entry" notes.desktop Notes
 "$ROOT/bin/omarchy-remove-launcher-entry" editor.desktop Editor
 "$ROOT/bin/omarchy-remove-launcher-entry" escape.desktop Escape
-"$ROOT/bin/omarchy-remove-launcher-entry" borrowed-plugin.desktop "Borrowed Plugin Utility"
+remove_with_terminal 5 borrowed-plugin.desktop "Borrowed Plugin Utility"
 
 actions_before_tryexec=$(cat "$TEST_LOG")
 "$ROOT/bin/omarchy-remove-launcher-entry" borrowed-tryexec.desktop "Borrowed Availability Check"
@@ -186,6 +203,12 @@ pass "launcher remove routes TUIs by desktop name"
 
 [[ ${lines[2]} == "terminal::echo Uninstalling Native...; sudo pacman -Rns native-pkg" ]] || fail "launcher remove opens package uninstall flow" "${lines[2]}"
 pass "launcher remove opens package uninstall flow"
+
+[[ $native_output == "terminal" ]] || fail "launcher remove announces an uninstall that needs a terminal" "$native_output"
+pass "launcher remove announces an uninstall that needs a terminal"
+
+[[ -z $aliens_output ]] || fail "launcher remove deletes user-owned desktop files without a terminal" "$aliens_output"
+pass "launcher remove deletes user-owned desktop files without a terminal"
 
 [[ ! -e $tmp_dir/data/applications/aliens.desktop ]] || fail "launcher remove deletes user-owned desktop files"
 pass "launcher remove deletes user-owned desktop files"
@@ -241,3 +264,20 @@ pass "Icon-only references cannot remove a plugin"
 [[ ! -e $tmp_dir/data/applications/notes.desktop && ! -e $tmp_dir/data/applications/editor.desktop && ! -e $tmp_dir/data/applications/escape.desktop ]] ||
   fail "a desktop id, Path=, desktop action or path leaving a plugin removes only the desktop file"
 pass "a desktop id, Path=, desktop action or path leaving a plugin cannot remove a plugin"
+
+actions_before_bad_ids=$(cat "$TEST_LOG")
+# Traversal or option-shaped desktop IDs must be rejected before resolving paths.
+cat >"$tmp_dir/data/escaped.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Escaped
+Exec=omarchy-launch-webapp https://example.com
+DESKTOP
+
+for bad_id in "../escaped.desktop" "/etc/passwd" "-rf.desktop" ".."; do
+  if "$ROOT/bin/omarchy-remove-launcher-entry" "$bad_id" Bad >/dev/null 2>&1; then
+    fail "launcher remove rejects unsafe desktop id: $bad_id"
+  fi
+done
+[[ -f $tmp_dir/data/escaped.desktop ]] || fail "launcher remove leaves files outside applications/ untouched"
+[[ $(cat "$TEST_LOG") == "$actions_before_bad_ids" ]] || fail "rejected desktop IDs do not dispatch removal commands"
+pass "launcher remove rejects traversal and option-shaped desktop IDs"
