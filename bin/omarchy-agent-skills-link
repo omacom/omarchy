@@ -9,7 +9,9 @@
 # package, or the checkout `omarchy dev link` points at, so agents read the
 # skills of the code they run. A link into another Omarchy tree is moved to
 # this one, or removed when this tree has no such skill. Links to skills from
-# anywhere else are the user's, and stay.
+# anywhere else are the user's, and stay. A skill under optional-skills is
+# linked by the install flow of the tool it describes, so only the links that
+# exist follow the tree, and none is added here.
 
 set -euo pipefail
 
@@ -32,6 +34,14 @@ for dir in "${dirs[@]}"; do
     target=$(readlink "$link")
     if [[ $target == */default/agents/skills/* && ! -d $skills/${link##*/} ]]; then
       rm "$link"
+    elif [[ $target == */default/agents/optional-skills/* ]]; then
+      # By the skill the link points at, whatever the link itself is called.
+      optional="$root/default/agents/optional-skills/${target##*/default/agents/optional-skills/}"
+      if [[ -d $optional ]]; then
+        ln -sfn "$optional" "$link"
+      else
+        rm "$link"
+      fi
     fi
   done
   pending=()
