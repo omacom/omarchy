@@ -14,7 +14,7 @@
   "agents.added": "%1 hozzáadva.",
   "agents.addedNotSelected": "%1 hozzáadva, de nem sikerült az új munkameneteket erre váltani.",
   "agents.allOver": "Minden %1-fiók %2% felett van",
-  "agents.apiKeyHint": "A(z) %1 ellenőrzi, majd elmentésre kerül a pi és az opencode számára.",
+  "agents.apiKeyHint": "%1 segítségével ellenőrizzük, majd az OpenCode-ban mentjük.",
   "agents.atLimit": "%1 egy %3 korlát %2%-ánál tart",
   "agents.chooseForPrompt": "Válassz ágenst ehhez a feladathoz",
   "agents.durationDaysHours": "%1n %2ó",

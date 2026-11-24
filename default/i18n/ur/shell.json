@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "سبسکرپشن، فی استعمال، یا لوکل",
-  "agents.addProviderAccount": "%1 اکاؤنٹ شامل کریں",
   "agents.addTitle": "ایجنٹ شامل کریں",
   "agents.app": "ایپ",
   "agents.backToLimits": "حدود پر واپس",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "کریڈٹ ختم ہو گئے",
   "agents.pasteCode": "اگر صفحہ مکمل ہونے کے بجائے کوڈ دکھائے تو اسے یہاں لگائیں۔",
   "agents.pasteCodeLink": "اس کے بجائے کوڈ والا صفحہ دکھ رہا ہے؟",
+  "agents.placeholderApiKey": "API کی",
   "agents.placeholderCode": "کوڈ",
   "agents.placeholderWork": "کام",
   "agents.plugin": "پلگ ان",

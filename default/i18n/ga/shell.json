@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Síntiús, íocaíocht de réir úsáide, nó áitiúil",
-  "agents.addProviderAccount": "Cuir cuntas %1 leis",
   "agents.addTitle": "Cuir gníomhaire leis",
   "agents.app": "Aip",
   "agents.backToLimits": "Ar ais go dtí na teorainneacha",
@@ -79,6 +78,7 @@
   "agents.outOfCredits": "Creidiúintí ídithe",
   "agents.pasteCode": "Má thaispeánann an leathanach cód in ionad críochnaithe, greamaigh anseo é.",
   "agents.pasteCodeLink": "Leathanach ag taispeáint cóid ina ionad sin?",
+  "agents.placeholderApiKey": "Eochair API",
   "agents.placeholderCode": "Cód",
   "agents.placeholderWork": "Obair",
   "agents.plugin": "Forlíontán",

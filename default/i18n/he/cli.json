@@ -15,7 +15,7 @@
   "agents.added": "%1 נוסף.",
   "agents.addedNotSelected": "%1 נוסף, אבל לא ניתן להעביר אליו הפעלות חדשות.",
   "agents.allOver": "כל חשבונות %1 עברו את %2%",
-  "agents.apiKeyHint": "הוא נבדק מול %1, ואז נשמר עבור pi ו-opencode.",
+  "agents.apiKeyHint": "הוא נבדק מול %1, ואז נשמר ב-OpenCode.",
   "agents.atLimit": "%1 הגיע ל-%2% ממגבלת %3",
   "agents.chooseForPrompt": "בחרו סוכן למשימה זו",
   "agents.durationDaysHours": "%1 ימ׳ %2 שע׳",

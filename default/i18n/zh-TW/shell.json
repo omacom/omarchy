@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "訂閱、按用量計費或本機",
-  "agents.addProviderAccount": "新增 %1 帳號",
   "agents.addTitle": "新增代理",
   "agents.app": "應用程式",
   "agents.backToLimits": "回到用量限制",
@@ -67,6 +66,7 @@
   "agents.outOfCredits": "額度已用完",
   "agents.pasteCode": "如果頁面顯示代碼而未完成，請貼在這裡。",
   "agents.pasteCodeLink": "頁面顯示的是驗證碼？",
+  "agents.placeholderApiKey": "API 金鑰",
   "agents.placeholderCode": "代碼",
   "agents.placeholderWork": "工作",
   "agents.plugin": "外掛",

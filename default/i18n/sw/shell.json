@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Usajili, kwa matumizi, au wa ndani",
-  "agents.addProviderAccount": "Ongeza akaunti ya %1",
   "agents.addTitle": "Ongeza wakala",
   "agents.app": "Programu",
   "agents.backToLimits": "Rudi kwenye vikomo",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Salio limeisha",
   "agents.pasteCode": "Ikiwa ukurasa unaonyesha msimbo badala ya kukamilisha, ubandike hapa.",
   "agents.pasteCodeLink": "Ukurasa unaonyesha msimbo badala yake?",
+  "agents.placeholderApiKey": "Ufunguo wa API",
   "agents.placeholderCode": "Msimbo",
   "agents.placeholderWork": "Kazi",
   "agents.plugin": "Programu-jalizi",

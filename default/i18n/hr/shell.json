@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Pretplata, po potrošnji ili lokalno",
-  "agents.addProviderAccount": "Dodajte %1 račun",
   "agents.addTitle": "Dodajte agenta",
   "agents.app": "Aplikacija",
   "agents.backToLimits": "Natrag na ograničenja",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Nema kredita",
   "agents.pasteCode": "Ako stranica prikaže kod umjesto da završi, zalijepite ga ovdje.",
   "agents.pasteCodeLink": "Stranica umjesto toga prikazuje kod?",
+  "agents.placeholderApiKey": "API ključ",
   "agents.placeholderCode": "Kod",
   "agents.placeholderWork": "Posao",
   "agents.plugin": "Dodatak",

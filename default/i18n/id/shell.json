@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Langganan, per penggunaan, atau lokal",
-  "agents.addProviderAccount": "Tambahkan akun %1",
   "agents.addTitle": "Tambahkan agen",
   "agents.app": "Aplikasi",
   "agents.backToLimits": "Kembali ke batas",
@@ -67,6 +66,7 @@
   "agents.outOfCredits": "Kredit habis",
   "agents.pasteCode": "Jika halaman menampilkan kode alih-alih selesai, tempelkan di sini.",
   "agents.pasteCodeLink": "Halaman malah menampilkan kode?",
+  "agents.placeholderApiKey": "Kunci API",
   "agents.placeholderCode": "Kode",
   "agents.placeholderWork": "Kerja",
   "agents.plugin": "Plugin",

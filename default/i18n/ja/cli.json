@@ -13,7 +13,7 @@
   "agents.added": "%1 を追加しました。",
   "agents.addedNotSelected": "%1を追加しましたが、新しいセッションをこれに切り替えることができませんでした。",
   "agents.allOver": "すべての %1 アカウントが %2% を超えています",
-  "agents.apiKeyHint": "%1 で確認し、pi と opencode 用に保存します。",
+  "agents.apiKeyHint": "%1で確認され、OpenCodeに保存されます。",
   "agents.atLimit": "%1 は %3 の上限の %2% に達しています",
   "agents.chooseForPrompt": "このタスクのエージェントを選択",
   "agents.durationDaysHours": "%1日 %2時間",

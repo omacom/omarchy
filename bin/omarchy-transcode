@@ -124,7 +124,7 @@ copy_to_clipboard() {
   local output="$1"
   local uri
 
-  uri="file://$(realpath -- "$output")"
+  uri="file://$(jq -rn --arg path "$(realpath -- "$output")" '$path | split("/") | map(@uri) | join("/")')"
   printf '%s\n' "$uri" | wl-copy --type text/uri-list
 }
 

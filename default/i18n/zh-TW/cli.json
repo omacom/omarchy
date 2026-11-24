@@ -13,7 +13,7 @@
   "agents.added": "已新增 %1。",
   "agents.addedNotSelected": "已新增 %1，但無法將新工作階段切換至此帳號。",
   "agents.allOver": "所有 %1 帳號都已超過 %2%",
-  "agents.apiKeyHint": "會先以 %1 驗證，再儲存供 pi 和 opencode 使用。",
+  "agents.apiKeyHint": "會先經 %1 驗證，再儲存至 OpenCode。",
   "agents.atLimit": "%1 已達 %3 上限的 %2%",
   "agents.chooseForPrompt": "為此任務選擇 agent",
   "agents.durationDaysHours": "%1天 %2小時",

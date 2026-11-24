@@ -16,7 +16,7 @@
   "agents.added": "Dodano %1.",
   "agents.addedNotSelected": "Dodano %1, ale nie udało się przełączyć nowych sesji na to konto.",
   "agents.allOver": "Wszystkie konta %1 są powyżej %2%",
-  "agents.apiKeyHint": "Jest sprawdzany przez %1, a następnie zapisywany dla pi i opencode.",
+  "agents.apiKeyHint": "Jest sprawdzany w %1, a następnie zapisywany w OpenCode.",
   "agents.atLimit": "%1 jest na poziomie %2% limitu %3",
   "agents.chooseForPrompt": "Wybierz agenta do tego zadania",
   "agents.durationDaysHours": "%1d %2godz.",

@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "订阅、按量付费或本地",
-  "agents.addProviderAccount": "添加 %1 账户",
   "agents.addTitle": "添加智能体",
   "agents.app": "应用",
   "agents.backToLimits": "返回额度",
@@ -67,6 +66,7 @@
   "agents.outOfCredits": "额度已用完",
   "agents.pasteCode": "如果页面显示代码而未完成，请将其粘贴到此处。",
   "agents.pasteCodeLink": "页面显示的是代码？",
+  "agents.placeholderApiKey": "API 密钥",
   "agents.placeholderCode": "代码",
   "agents.placeholderWork": "工作",
   "agents.plugin": "插件",

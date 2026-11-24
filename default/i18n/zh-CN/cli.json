@@ -13,7 +13,7 @@
   "agents.added": "已添加 %1。",
   "agents.addedNotSelected": "已添加 %1，但无法将新会话切换到该账户。",
   "agents.allOver": "所有 %1 账户均已超过 %2%",
-  "agents.apiKeyHint": "将通过 %1 验证，然后保存供 pi 和 opencode 使用。",
+  "agents.apiKeyHint": "会先通过 %1 验证，然后保存到 OpenCode 中。",
   "agents.atLimit": "%1 已达到 %3 限额的 %2%",
   "agents.chooseForPrompt": "为此任务选择智能体",
   "agents.durationDaysHours": "%1天 %2小时",

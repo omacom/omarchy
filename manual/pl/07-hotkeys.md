@@ -2,41 +2,41 @@
 
 Możesz zobaczyć wszystkie główne skróty klawiszowe za pomocą `Super + K` (skróty Tmux za pomocą `Super + Alt + K`, a skróty Herdr za pomocą `Super + Ctrl + K`).
 
-## Jak są zorganizowane skróty klawiszowe
+## Jak ułożone są skróty klawiszowe
 
-Każdy skrót klawiszowy leży na jednej płaszczyźnie, wyznaczonej przez jego modyfikatory, a każda płaszczyzna ma jedno zadanie. To właśnie sprawia, że skróty klawiszowe się ze sobą nie zlewają, i oznacza, że zwykle możesz zgadnąć, gdzie coś mieszka.
+Każdy skrót klawiszowy znajduje się na płaszczyźnie wyznaczonej przez jego modyfikatory, a każda płaszczyzna ma jedno zadanie. To właśnie sprawia, że skróty nie zlewają się ze sobą, i oznacza, że zwykle możesz zgadnąć, gdzie coś się znajduje.
 
-| Płaszczyzna | Co na niej mieszka | Przykłady |
+| Płaszczyzna | Co na niej jest | Przykłady |
 | --- | --- | --- |
-| `Super + key` | System: okna, obszary robocze, układy i główne menu | `Super + Space` menu Omarchy, `Super + W` zamknięcie okna, `Super + F` pełny ekran |
+| `Super + key` | System: okna, przestrzenie robocze, układy i główne menu | `Super + Space` menu Omarchy, `Super + W` zamknij okno, `Super + F` pełny ekran |
 | `Super + Shift + key` | Aplikacje | `Super + Shift + B` przeglądarka, `Super + Shift + E` e-mail, `Super + Shift + N` edytor |
 | `Super + Ctrl + key` | Panele i menu systemowe | `Super + Ctrl + A` audio, `Super + Ctrl + N` sieć, `Super + Ctrl + C` menu przechwytywania |
-| `Super + Ctrl + Alt + key` | Szybkie akcje i powiadomienia | `Super + Ctrl + Alt + T` pokaż czas, `Super + Ctrl + Alt + B` bateria, `Super + Ctrl + Alt + C` zrzut ekranu |
+| `Super + Ctrl + Alt + key` | Szybkie akcje i komunikaty | `Super + Ctrl + Alt + T` pokaż czas, `Super + Ctrl + Alt + B` bateria, `Super + Ctrl + Alt + C` zrzut ekranu |
 
-Dodanie `Alt` do skrótu klawiszowego daje wariant tego samego, nigdy coś niezwiązanego:
+Dodanie `Alt` do skrótu daje wariant tej samej rzeczy, nigdy coś niezwiązanego:
 
 - `Super + Shift + B` otwiera przeglądarkę; `Super + Shift + Alt + B` otwiera okno prywatne
-- `Super + Shift + E` otwiera e-mail; `Super + Shift + Alt + E` zaczyna nowy
+- `Super + Shift + E` otwiera e-mail; `Super + Shift + Alt + E` rozpoczyna nowy
 - `Super + F` przechodzi na pełny ekran; `Super + Alt + F` przechodzi na pełną szerokość
 - `Super + Ctrl + C` otwiera menu przechwytywania; `Super + Ctrl + Alt + C` pomija menu i robi zrzut ekranu
 
-Dodając skrót klawiszowy:
+Gdy dodajesz skrót:
 
 1. Wybierz płaszczyznę na podstawie tego, co robi, a potem wybierz klawisz.
-2. Nie przesuwaj istniejącego skrótu klawiszowego, żeby zrobić miejsce. Znajdź wolny klawisz na właściwej płaszczyźnie.
-3. Używaj `Alt` tylko jako wariantu skrótu klawiszowego bez niego.
+2. Nie przenoś istniejącego skrótu, żeby zrobić miejsce. Znajdź wolny klawisz na właściwej płaszczyźnie.
+3. Używaj `Alt` tylko do wariantu skrótu bez niego.
 
-Kilka skrótów klawiszowych łamie te zasady, bo tak jest wygodnie. `Shift` ze strzałką lub `Tab` przesuwa lub odwraca zamiast otwierać aplikację, a `Print`, klawisze multimedialne, `Alt + Tab` i `Ctrl + Alt + Del` działają tak, jak działają wszędzie indziej. To wyjątki, nie wzorce do kopiowania.
+Kilka skrótów łamie te zasady, bo tak jest wygodniej. `Shift` ze strzałką lub `Tab` przenosi lub odwraca zamiast otwierać aplikację, a `Print`, klawisze multimedialne, `Alt + Tab` i `Ctrl + Alt + Del` działają tak, jak wszędzie indziej. To wyjątki, nie wzorce do kopiowania.
 
-Jeśli domyślny ci nie pasuje (powiedzmy, że chcesz `Super + Shift + S` do zrzutów ekranu jak w Windows), zmień go w `~/.config/hypr/bindings.lua`.
+Jeśli domyślny Ci nie pasuje (powiedzmy, że chcesz `Super + Shift + S` do zrzutów ekranu jak w Windows), przypisz go na nowo w `~/.config/hypr/bindings.lua`.
 
 ## Nawigacja
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
-| `Super + Space`           | Menu Omarchy (aplikacje i wszystko pozostałe)    |
+| `Super + Space`           | Menu Omarchy (aplikacje i wszystko inne)    |
 | `Super + Alt + Space` | Siatka aplikacji |
-| `Super + Escape` | Menu systemowe (uśpienie, ponowne uruchomienie itd.)  |
+| `Super + Escape` | Menu systemowe (uśpij, uruchom ponownie itd.)  |
 | `Super + Ctrl + L` | Zablokuj komputer |
 | `Super + W` or `Super + Q` | Zamknij okno             |
 | `Ctrl + Alt + Del` | Zamknij wszystkie okna |
@@ -44,66 +44,66 @@ Jeśli domyślny ci nie pasuje (powiedzmy, że chcesz `Super + Shift + S` do zrz
 | `Super + Alt + K` | Pokaż skróty klawiszowe tmux |
 | `Super + Ctrl + K` | Pokaż skróty klawiszowe herdr |
 | `Super + M` | Zminimalizuj okno do docka |
-| `Super + T`               | Przełącz okno między trybem kafelkowym/swobodnym             |
-| `Super + J` | Przełącz pozycję okna (pozioma/pionowa) |
-| `Super + O`               | Przełącz wyrzucanie okna do trybu sticky'n'floating |
-| `Super + L`               | Przechodź przez układy dwindle, scrolling i floating |
-| `Super + Alt + L`         | Przechodź przez układy w odwrotnej kolejności |
-| `Super + P`               | Przełącz styl okna pseudo (natural v stretch) |
+| `Super + T`               | Przełącz okno między trybem kafelkowym a pływającym             |
+| `Super + J` | Przełącz pozycję okna (poziomo/pionowo) |
+| `Super + O`               | Przełącz okno w tryb sticky'n'floating |
+| `Super + L`               | Przełączaj między układami dwindle, scrolling i floating |
+| `Super + Alt + L`         | Przełączaj układy w odwrotnej kolejności |
+| `Super + P`               | Przełącz styl pseudo okna (naturalny kontra rozciągnięty) |
 | `Super + F`                 | Przejdź na pełny ekran              |
 | `Super + Alt + F`                 | Przejdź na pełną szerokość              |
 | `Super + Ctrl + F`                 | Przejdź na pełny ekran wewnątrz okna              |
-| `Super + 1…9/0`         | Przejdź do określonego obszaru roboczego (0 to 10) na monitorze z fokusem |
-| `Super + Tab` | Przejdź do następnego obszaru roboczego na monitorze z fokusem |
-| `Super + Shift + Tab` | Przejdź do poprzedniego obszaru roboczego na monitorze z fokusem |
-| `Super + Ctrl + Tab` | Przejdź do wcześniejszego obszaru roboczego na monitorze z fokusem |
-| `Super + Shift + 1…9/0` | Przenieś okno na obszar roboczy na monitorze z fokusem |
-| `Super + Shift + Alt + 1…9/0` | Przenieś okno na obszar roboczy na monitorze z fokusem bez podążania za nim |
+| `Super + 1…9/0`         | Przejdź do konkretnej przestrzeni roboczej (0 to 10) na aktywnym monitorze |
+| `Super + Tab` | Przejdź do następnej przestrzeni roboczej na aktywnym monitorze |
+| `Super + Shift + Tab` | Przejdź do poprzedniej przestrzeni roboczej na aktywnym monitorze |
+| `Super + Ctrl + Tab` | Przejdź do wcześniejszej przestrzeni roboczej na aktywnym monitorze |
+| `Super + Shift + 1…9/0` | Przenieś okno do przestrzeni roboczej na aktywnym monitorze |
+| `Super + Shift + Alt + 1…9/0` | Przenieś okno do przestrzeni roboczej na aktywnym monitorze bez podążania za nim |
 | `Super + S` | Przełącz pełny scratchpad |
-| `Super + Alt + S` | Przenieś okno na pełny scratchpad |
-| `Super + the key above Tab` (grave na układach US) | Przełącz konsolę Quake |
-| `Super + Shift + the key above Tab` (grave na układach US) | Przenieś okno do konsoli Quake |
+| `Super + Alt + S` | Przenieś okno do pełnego scratchpada |
+| `Super + the key above Tab` (grave w układach amerykańskich) | Przełącz konsolę Quake |
+| `Super + Shift + the key above Tab` (grave w układach amerykańskich) | Przenieś okno do konsoli Quake |
 | `Super + Shift + Ctrl + Arrows` | Przenieś okno na monitor w tym kierunku |
-| `Super + Shift + Alt + Arrows` | Przenieś obszar roboczy na monitor w tym kierunku |
-| `Super + Arrow`  | Przenieś fokus na okno w kierunku strzałki, przechodząc na monitor po tej stronie przy krawędzi ekranu |
+| `Super + Shift + Alt + Arrows` | Przenieś przestrzeń roboczą na monitor w tym kierunku |
+| `Super + Arrow`  | Przenieś fokus na okno w kierunku strzałki, przechodząc na monitor po tej stronie na krawędzi ekranu |
 | `Super + Shift + Arrow`  | Zamień okno z innym w kierunku strzałki, w tym z oknem na monitorze po tej stronie |
-| `Super + Minus` | Poszerz okno w lewo |
-| `Super + Equal` | Zwęź okno w lewo |
-| `Super + Shift + Minus` | Zmniejsz okno w górę |
-| `Super + Shift + Equal` | Poszerz okno w dół |
+| `Super + Minus` | Powiększ okno w lewo |
+| `Super + Equal` | Pomniejsz okno w lewo |
+| `Super + Shift + Minus` | Pomniejsz okno w górę |
+| `Super + Shift + Equal` | Powiększ okno w dół |
 | `Super + Alt + Minus/Equal` | To samo zmienianie rozmiaru w mniejszych krokach |
 | `Super + Ctrl + Minus/Equal` | To samo zmienianie rozmiaru w większych krokach |
 | `Super + Alt + Home` | Zapisz szerokość okna |
 | `Super + Home` | Przywróć zapisaną szerokość okna |
 | `Super + Left Mouse` | Przeciągaj okno |
-| `Super + Right Mouse` | Zmieniaj rozmiar okna |
-| `Super + Scroll Wheel` | Przewijaj obszary robocze na monitorze z fokusem |
+| `Super + Right Mouse` | Zmień rozmiar okna |
+| `Super + Scroll Wheel` | Przewijaj przestrzenie robocze na aktywnym monitorze |
 | `Super + G`               | Przełącz grupowanie okien      |
-| `Super + Alt + G`               | Wyjmij okno z grupy      |
-| `Super + Alt + Tab`               | Przechodź między oknami w grupie      |
-| `Super + Alt + Shift + Tab`               | Przechodź wstecz między oknami w grupie      |
-| `Super + Alt + Scroll Wheel` | Przechodź między oknami w grupie |
-| `Super + Alt + 1/2/3/4/5`               | Przejdź do określonego okna w grupie      |
+| `Super + Alt + G`               | Wyprowadź okno z grupy      |
+| `Super + Alt + Tab`               | Przełączaj między oknami w grupie      |
+| `Super + Alt + Shift + Tab`               | Przełączaj wstecz między oknami w grupie      |
+| `Super + Alt + Scroll Wheel` | Przełączaj między oknami w grupie |
+| `Super + Alt + 1/2/3/4/5`               | Przejdź do konkretnego okna w grupie      |
 | `Super + Alt + Arrow`  | Przenieś okno do grupy w kierunku strzałki, w tym okno na monitorze po tej stronie |
-| `Super + Ctrl + Left/Right`  | Poruszaj się między oknami wewnątrz grupy kafelkowej |
+| `Super + Ctrl + Left/Right`  | Przechodź między oknami wewnątrz grupy kafelkowej |
 | `Super + Ctrl + Z` | Powiększ ekran (powtórz, aby powiększyć bardziej) |
-| `Super + Ctrl + Alt + Z` | Oddal ekran całkowicie |
-| `Super + /` | Przejdź do przodu przez opcje skalowania monitora |
-| `Super + Alt + /` | Przejdź wstecz przez opcje skalowania monitora |
-| `Alt + Tab` | Przechodź do przodu między oknami na aktywnym obszarze roboczym |
-| `Alt + Shift + Tab` | Przechodź wstecz między oknami na aktywnym obszarze roboczym |
-| `Ctrl + Alt + Tab`| Przechodź fokus do przodu między monitorami |
-| `Ctrl + Alt + Shift + Tab`| Przechodź fokus wstecz między monitorami |
+| `Super + Ctrl + Alt + Z` | Całkowicie pomniejsz ekran |
+| `Super + /` | Przechodź do przodu przez opcje skalowania monitora |
+| `Super + Alt + /` | Przechodź wstecz przez opcje skalowania monitora |
+| `Alt + Tab` | Przełączaj do przodu między oknami w aktywnej przestrzeni roboczej |
+| `Alt + Shift + Tab` | Przełączaj wstecz między oknami w aktywnej przestrzeni roboczej |
+| `Ctrl + Alt + Tab`| Przełączaj fokus do przodu między monitorami |
+| `Ctrl + Alt + Shift + Tab`| Przełączaj fokus wstecz między monitorami |
 | `Super + I` | Przełącz język wprowadzania (przy więcej niż jednym układzie lub metodzie wprowadzania) |
-| `Super + Shift + I` | Przełącz język wprowadzania wstecz |
+| `Super + Shift + I` | Przełącz język wprowadzania z powrotem |
 
-Na touchpadzie przeciągnięcia trzema i czterema palcami przełączają obszary robocze, przenoszą okna oraz otwierają menu i konsolę Quake; zobacz [klawiatura, mysz i trackpad](34-keyboard-mouse-trackpad.md), aby poznać gesty.
+Na touchpadzie przeciągnięcia trzema i czterema palcami przełączają przestrzenie robocze, przenoszą okna oraz otwierają menu i konsolę Quake; zobacz [klawiatura, mysz i touchpad](34-keyboard-mouse-trackpad.md), aby poznać gesty.
 
-Zmienianie rozmiaru używa dwóch klawiszy na prawo od 0, niezależnie od tego, co twoja klawiatura na nich drukuje: `-` i `=` na klawiaturach US, `+` i `´` na duńskich i szwedzkich, `+` i `\` na norweskich, `ß` i `´` na niemieckich, `'` i `¡` na hiszpańskich oraz `-` i `^` na japońskich (JIS). `Super + K` wypisuje je tak, jak drukuje je twoja klawiatura. Na JIS `Super + ^` to `Super + Equal`, natomiast `Super + Shift + -` (które wpisuje `=`) to `Super + Shift + Minus`. Skalowanie monitora i menedżer haseł używają `/`; na układach, które wpisują `/` tylko z Shift, jak większość europejskich, używają zamiast tego klawisza na lewo od prawego Shift (`-` na duńskim i niemieckim).
+Zmiana rozmiaru używa dwóch klawiszy na prawo od 0, cokolwiek Twoja klawiatura na nich drukuje: `-` i `=` na klawiaturach amerykańskich, `+` i `´` na duńskich i szwedzkich, `+` i `\` na norweskiej, `ß` i `´` na niemieckiej, `'` i `¡` na hiszpańskiej oraz `-` i `^` na japońskiej (JIS). `Super + K` wyświetla je tak, jak drukuje je Twoja klawiatura. Na JIS `Super + ^` to `Super + Equal`, natomiast `Super + Shift + -` (który wpisuje `=`) to `Super + Shift + Minus`. Skalowanie monitora i menedżer haseł używają `/`; w układach, które wpisują `/` tylko z Shift, jak większość europejskich, używają zamiast tego klawisza na lewo od prawego Shift (`-` na duńskim i niemieckim).
 
-## Sterowanie systemem
+## Sterowanie systemowe
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Panel audio    |
 | `Super + Ctrl + B`           | Panel Bluetooth    |
@@ -115,36 +115,36 @@ Zmienianie rozmiaru używa dwóch klawiszy na prawo od 0, niezależnie od tego, 
 | `Super + Ctrl + Alt + E`           | Panel zegara światowego    |
 | `Super + Ctrl + 1-9`           | Przełącz panel paska według pozycji    |
 | `Super + Ctrl + S` | Menu udostępniania (przez LocalSend) |
-| `Super + Ctrl + C` | Sterowanie przechwytywaniem (zrzut ekranu/-nagrywanie/wybierak) |
+| `Super + Ctrl + C` | Sterowanie przechwytywaniem (zrzut ekranu/nagrywanie/wybierak) |
 | `Super + Ctrl + O` | Przełącz menu |
 | `Super + Ctrl + H` | Menu sprzętu |
 | `Super + Ctrl + E` | Wybierak emoji |
 | `Super + Ctrl + .` | Transkoduj multimedia |
-| `Super + Shift + Ctrl + A` | Uruchom swojego domyślnego agenta |
-| `Power` key | Menu systemowe |
-| `Super + Shift + Copilot` key | Menu Omarchy |
+| `Super + Shift + Ctrl + A` | Uruchom domyślnego agenta |
+| `Power` klawisz | Menu systemowe |
+| `Super + Shift + Copilot` klawisz | Menu Omarchy |
 
 ## Regulacje
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Maksymalna jasność ekranu |
 | `Shift + Brightness Down` | Minimalna jasność ekranu |
-| `Alt + Brightness Up/Down` | Precyzyjne zmiany jasności o 1% |
-| `Alt + Volume Up/Down` | Precyzyjne zmiany głośności o 1% |
-| `Keyboard Brightness Up/Down` | Podświetlenie klawiatury jaśniej/ciemniej |
+| `Alt + Brightness Up/Down` | Precyzyjne zmiany jasności co 1% |
+| `Alt + Volume Up/Down` | Precyzyjne zmiany głośności co 1% |
+| `Keyboard Brightness Up/Down` | Podświetlenie klawiatury jaśniejsze/słabsze |
 | `Keyboard Backlight` | Przełączaj poziomy podświetlenia klawiatury |
-| `Ctrl + Brightness Up/Down` | Podświetlenie klawiatury jaśniej/ciemniej, na klawiaturach bez własnych klawiszy |
+| `Ctrl + Brightness Up/Down` | Podświetlenie klawiatury jaśniejsze/słabsze, na klawiaturach bez własnych klawiszy |
 | `Mic Mute` | Wycisz mikrofon |
 | `Shift + Mute` | Przełącz wyjście audio |
 | `Touchpad Toggle` | Włącz lub wyłącz touchpad |
-| `Display` key | Przełączaj układ obszaru roboczego |
+| `Display` klawisz | Przełączaj układ przestrzeni roboczej |
 | `Alt + Play` | Następny utwór |
 | `Alt + Shift + Play` | Poprzedni utwór |
 
 ## Uruchamianie aplikacji
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |
 | `Super + Alt + Return` | Terminal Tmux |
@@ -156,14 +156,14 @@ Zmienianie rozmiaru używa dwóch klawiszy na prawo od 0, niezależnie od tego, 
 | `Super + Shift + M`           | Muzyka (Spotify)    |
 | `Super + Shift + Alt + M`           | Muzyka (cliamp)    |
 | `Super + Shift + /`           | Menedżer haseł (1password)    |
-| `Super + Shift + Q` or `Calculator` key  | Kalkulator (Omacalc)    |
+| `Super + Shift + Q` or `Calculator` klawisz  | Kalkulator (Omacalc)    |
 | `Super + Shift + D`           | Docker (lazydocker, po zainstalowaniu)    |
 | `Super + Shift + T`           | Aktywność (btop)    |
-| `Super + Shift + N`           | Edytor (Plain lub wybrany przez ciebie domyślny)  |
+| `Super + Shift + N`           | Edytor (Plain lub wybrany przez Ciebie domyślny)  |
 | `Super + Shift + C`           | Kalendarz ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | E-mail ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | Nowy e-mail ([HEY](https://hey.com/))  |
-| `Super + Shift + A`           | Twój domyślny agent lub ChatGPT, dopóki nie wybierzesz własnego |
+| `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Komunikator (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
@@ -176,47 +176,47 @@ Zmienianie rozmiaru używa dwóch klawiszy na prawo od 0, niezależnie od tego, 
 | `Super + Shift + Alt + X`           | X (nowy post) |
 | `Super + Shift + Y`           | YouTube |
 
-Zmień/dodaj skróty w `~/.config/hypr/bindings.lua`.
+Zmień/dodaj przypisania w `~/.config/hypr/bindings.lua`.
 
 ## Uniwersalny schowek
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
-| `Super + A`           | Zaznacz wszystko w aplikacjach, które obsługują `Ctrl + A`    |
+| `Super + A`           | Zaznacz wszystko w aplikacjach obsługujących `Ctrl + A`    |
 | `Super + C`           | Kopiuj    |
 | `Super + X`           | Wytnij (nie w terminalu)    |
 | `Super + V`           | Wklej    |
 | `Super + Ctrl + V`           | Menedżer schowka    |
 
-Zwykle w Linuksie potrzebujesz `Ctrl + Shift + C/V`, aby kopiować i wklejać w terminalu, oraz `Ctrl + C/V`, aby robić to wszędzie indziej. Te ujednolicone skróty klawiszowe schowka Omarchy działają wszędzie.
+Zwykle w systemie Linux potrzebujesz `Ctrl + Shift + C/V`, aby kopiować i wklejać w terminalu, oraz `Ctrl + C/V`, aby robić to wszędzie indziej. Te ujednolicone skróty schowka Omarchy działają wszędzie.
 
 ## Przechwytywanie
 
-| Skrót | Funkcja |
+| Skrót              | Funkcja                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Zrzut ekranu                      |
 | `Super + Ctrl + Alt + C`            | Zrzut ekranu (ten sam zrzut, dla klawiatur bez klawisza Print Screen) |
 | `Super + Ctrl + C` | Menu przechwytywania |
 | `Alt + Print Screen`            | Nagrywanie ekranu                     |
 | `Super + Shift + Ctrl + Alt + C` | Nagrywanie ekranu bez dźwięku, z pominięciem menu (naciśnij ponownie, aby zatrzymać) |
-| `Super + Print Screen` | Wybierak kolorów |
+| `Super + Print Screen` | Wybierak koloru |
 | `Super + Ctrl + Print Screen` | Wyodrębnianie tekstu do schowka |
 | `Super + Alt + [` | Zmniejsz nakładkę kamery internetowej podczas nagrywania |
-| `Super + Alt + ]` | Zwiększ nakładkę kamery internetowej podczas nagrywania |
+| `Super + Alt + ]` | Powiększ nakładkę kamery internetowej podczas nagrywania |
 | `Alt + Shift + L` | Kopiuj bieżący URL z aplikacji webowej lub przeglądarki |
 | `Alt + Shift + D` | Pobierz wideo z bieżącej strony do `~/Videos` |
 | `Alt + Space` | Start/stop dyktowania (wymaga _Setup > Defaults > Dictation_) |
 | `Right Alt` | Przytrzymaj, aby dyktować (wymaga _Setup > Defaults > Dictation_) |
 
-Przy nagraniach ekranu skrót klawiszowy najpierw pyta, jaki dźwięk chcesz, a potem zaczyna nagrywać. Naciśnij go ponownie, aby zatrzymać. Zobacz [zrzuty ekranu i nagrywanie](12-screenshots-recording.md), aby poznać szczegóły.
+Przy nagrywaniu ekranu skrót najpierw pyta, jakiego dźwięku chcesz, a potem zaczyna nagrywać. Naciśnij go ponownie, aby zatrzymać. Zobacz [zrzuty ekranu i nagrywanie](12-screenshots-recording.md), aby poznać szczegóły.
 
 Wszystkie opcje przechwytywania są też dostępne w _Trigger > Capture_ w menu Omarchy (`Super + Space`).
 
 ## Powiadomienia
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Działaj na najnowsze powiadomienie: otwórz je lub naciśnij jego jedyny przycisk, wybierz spośród jego opcji albo odrzuć je, gdy nie ma żadnej  |
+| `Super + ,` | Działaj na najnowszym powiadomieniu: otwórz je lub naciśnij jego jedyny przycisk, wybierz spośród jego opcji albo odrzuć je, gdy nie ma żadnej  |
 | `Super + Shift + ,` | Odrzuć wszystkie powiadomienia |
 | `Super + Ctrl + ,` | Steruj powiadomieniami za pomocą klawiatury  |
 | `Super + Alt + ,` | Odrzuć najnowsze powiadomienie  |
@@ -225,7 +225,7 @@ Wszystkie opcje przechwytywania są też dostępne w _Trigger > Capture_ w menu 
 
 ## Styl
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Wybierz nowy motyw (także `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Wybierz tło motywu (także `Super + Ctrl + Space`) |
@@ -238,7 +238,7 @@ Wszystkie opcje stylu są też dostępne w _Appearance_ w menu Omarchy (`Super +
 
 ## Przełączniki
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Przełącz blokowanie przy bezczynności |
 | `Super + Ctrl + Delete` | Przełącz wyświetlacz laptopa wł./wył. |
@@ -247,11 +247,11 @@ Wszystkie opcje stylu są też dostępne w _Appearance_ w menu Omarchy (`Super +
 | `Shift + Mute` | Przełącz na następne wyjście audio |
 | `Shift + Play` | Przełącz na następne źródło multimediów |
 | `Super + Shift + Backspace` | Przełącz odstępy między oknami |
-| `Super + Ctrl + Alt + F` | Przełącz pulpit na pełnym ekranie (górny pasek + odstępy między oknami) |
+| `Super + Ctrl + Alt + F` | Przełącz pełnoekranowy pulpit (górny pasek + odstępy między oknami) |
 
 ## Przypomnienia
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Ustaw przypomnienie  |
 | `Super + Ctrl + Alt + R` | Zobacz wszystkie przypomnienia  |
@@ -259,7 +259,7 @@ Wszystkie opcje stylu są też dostępne w _Appearance_ w menu Omarchy (`Super +
 
 ## Komunikaty
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Pokaż czas jako powiadomienie  |
 | `Super + Ctrl + Alt + B` | Pokaż baterię jako powiadomienie  |
@@ -267,49 +267,49 @@ Wszystkie opcje stylu są też dostępne w _Appearance_ w menu Omarchy (`Super +
 
 ## Tmux
 
-Klawiszem prefix jest `Ctrl + Space` (`Ctrl + B` też działa). Możesz zmienić te skróty w `~/.config/tmux/tmux.conf`.
+Klawisz prefix to `Ctrl + Space` (`Ctrl + B` też działa). Możesz zmienić te przypisania w `~/.config/tmux/tmux.conf`.
 
 ### Panele
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Podziel panel obok (w pionie) |
-| `Prefix + h` | Podziel panel poniżej (w poziomie) |
-| `Prefix + x` | Zabij panel |
+| `Prefix + v` | Podziel panel obok (pionowo) |
+| `Prefix + h` | Podziel panel poniżej (poziomo) |
+| `Prefix + x` | Zamknij panel |
 | `Prefix + z` | Przełącz powiększenie panelu (pełny ekran) |
-| `Alt + Enter` | Podziel panel poniżej (bez prefix) |
-| `Alt + Shift + Enter` | Podziel panel obok (bez prefix) |
-| `Alt + Escape` | Zabij panel (bez prefix) |
-| `Ctrl + Alt + Arrows` | Poruszaj się między panelami |
-| `Ctrl + Alt + Shift + Arrows` | Zmieniaj rozmiar paneli |
+| `Alt + Enter` | Podziel panel poniżej (bez prefiksu) |
+| `Alt + Shift + Enter` | Podziel panel obok (bez prefiksu) |
+| `Alt + Escape` | Zamknij panel (bez prefiksu) |
+| `Ctrl + Alt + Arrows` | Przechodź między panelami |
+| `Ctrl + Alt + Shift + Arrows` | Zmień rozmiar paneli |
 
 ### Okna
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Nowe okno |
-| `Prefix + k` | Zabij okno |
+| `Prefix + k` | Zamknij okno |
 | `Prefix + r` | Zmień nazwę okna |
-| `Alt + 1-9` | Przejdź do określonego okna |
-| `Alt + Arrow Left/Right` | Poruszaj się między oknami |
-| `Alt + Shift + Arrow Left/Right` | Przesuń okno w lewo/w prawo |
+| `Alt + 1-9` | Przejdź do konkretnego okna |
+| `Alt + Arrow Left/Right` | Przechodź między oknami |
+| `Alt + Shift + Arrow Left/Right` | Przenieś okno w lewo/w prawo |
 
 ### Sesje
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Nowa sesja |
-| `Prefix + K` | Zabij sesję |
+| `Prefix + K` | Zamknij sesję |
 | `Prefix + R` | Zmień nazwę sesji |
 | `Prefix + N` | Następna sesja |
 | `Prefix + P` | Poprzednia sesja |
-| `Alt + Arrow Up/Down` | Poruszaj się między sesjami |
+| `Alt + Arrow Up/Down` | Przechodź między sesjami |
 | `Prefix + s` | Wyświetl listę sesji |
 | `Prefix + d` | Odłącz od sesji |
 
 ### Tryb kopiowania (w stylu vi)
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Wejdź w tryb kopiowania |
 | `v` | Rozpocznij zaznaczanie (w trybie kopiowania) |
@@ -317,7 +317,7 @@ Klawiszem prefix jest `Ctrl + Space` (`Ctrl + B` też działa). Możesz zmienić
 
 ### Ogólne
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Przeładuj konfigurację |
 | `Prefix + ?` | Pokaż skróty klawiszowe Tmux |
@@ -331,53 +331,53 @@ Te funkcje muszą być uruchamiane wewnątrz sesji Tmux.
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Utwórz układ deweloperski z edytorem, AI i terminalem |
 | `tdlm <ai> [<second_ai>]` | Utwórz układ deweloperski dla każdego podkatalogu |
-| `tsl <count> <command>` | Utwórz układ roju z wieloma panelami |
+| `tsl <count> <command>` | Utwórz układ swarm z wieloma panelami |
 
 ## Terminal Ghostty
 
 Terminal Ghostty instaluje się za pomocą _Install > Terminal_ w menu Omarchy.
 
-| Skrót | Funkcja |
+| Skrót                  | Funkcja              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Nowy podział poniżej |
 | `Ctrl + Shift + O` | Nowy podział obok |
-| `Ctrl + Alt + Arrows` | Poruszaj się między podziałami |
-| `Super + Ctrl + Shift + Arrows` | Zmień rozmiar podziału o 10 linii |
-| `Super + Ctrl + Shift + Alt + Arrows` | Zmień rozmiar podziału o 100 linii |
+| `Ctrl + Alt + Arrows` | Przechodź między podziałami |
+| `Super + Ctrl + Shift + Arrows` | Zmień rozmiar podziału o 10 wierszy |
+| `Super + Ctrl + Shift + Alt + Arrows` | Zmień rozmiar podziału o 100 wierszy |
 | `Ctrl + Shift + T` | Nowa karta  |
-| `Ctrl + Shift + Arrows` | Poruszaj się między kartami |
-| `Alt + Numbers` | Przejdź do określonej karty |
+| `Ctrl + Shift + Arrows` | Przechodź między kartami |
+| `Alt + Numbers` | Przejdź do konkretnej karty |
 | `Shift + Pg Up/Down` | Przewijaj historię |
 | `Ctrl + Left mouse` | Otwórz link w przeglądarce |
 
 ## Menedżer plików
 
-| Skrót | Funkcja |
+| Skrót              | Funkcja                       |
 | ------------------- | ------------------------------ |
-| `Ctrl + L`            | Idź do ścieżki                     |
+| `Ctrl + L`            | Przejdź do ścieżki                     |
 | `Space`               | Podgląd pliku (strzałki nawigują) |
-| `Alt + Up`       | Idź w górę do folderu nadrzędnego        |
+| `Alt + Up`       | Przejdź w górę do folderu nadrzędnego        |
 
-## Neovim (w/ lazyvim)
+## Neovim (z lazyvim)
 
 ### Nawigacja
 
-| Skrót | Funkcja |
+| Skrót                   | Funkcja                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Pokaż opcje poleceń            |
 | `Space Space`              | Otwórz plik przez wyszukiwanie rozmyte      |
 | `Space E`                  | Przełącz pasek boczny                  |
 | `Space G G`                | Pokaż sterowanie git               |
-| `Space S G`                | Szukaj w zawartości pliku             |
+| `Space S G`                | Szukaj w treści pliku             |
 | `Ctrl + W W`               | Przeskakuj między paskiem bocznym a edytorem |
 | `Ctrl + Left/right arrow`  | Zmień rozmiar paska bocznego          |
-| `Shift + H`                      | Idź do lewej karty pliku             |
-| `Shift + L`                      | Idź do prawej karty pliku            |
+| `Shift + H`                      | Przejdź do lewej karty pliku             |
+| `Shift + L`                      | Przejdź do prawej karty pliku            |
 | `Space B D`                | Zamknij kartę pliku                  |
 
-### Będąc w pasku bocznym
+### W pasku bocznym
 
-| Skrót | Funkcja |
+| Skrót                   | Funkcja                        |
 | ------------------------ | ------------------------------- |
 | `A`                        | Dodaj nowy plik w katalogu nadrzędnym      |
 | `Shift + A`                | Dodaj nowy podkatalog w katalogu nadrzędnym    |
@@ -392,7 +392,7 @@ Terminal Ghostty instaluje się za pomocą _Install > Terminal_ w menu Omarchy.
 
 Możesz użyć `Super + Ctrl + E`, aby pokazać kompletny wybierak emoji, który umieści wybór w schowku, albo możesz użyć tych opcji szybkiego dostępu.
 
-| Skrót | EM | Wskazówka |
+| Skrót       | EM | Wskazówka       |
 | ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | uśmiech      |
 | `Shift + CapsLock M C` | 😂 | płacz        |
@@ -404,13 +404,13 @@ Możesz użyć `Super + Ctrl + E`, aby pokazać kompletny wybierak emoji, który
 | `Shift + CapsLock M F` | 🖕 | fuck       |
 | `Shift + CapsLock M W` | 🤞 | życzenie       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | buziak       |
+| `Shift + CapsLock M K` | 😘 | pocałunek       |
 | `Shift + CapsLock M E` | 🙄 | przewracanie oczami    |
 | `Shift + CapsLock M I` | 😉 | mrugnięcie       |
 | `Shift + CapsLock M P` | 🙏 | modlitwa |
-| `Shift + CapsLock M D` | 🤤 | ślinienie      |
+| `Shift + CapsLock M D` | 🤤 | ślinienie się      |
 | `Shift + CapsLock M M` | 💰 | pieniądze      |
-| `Shift + CapsLock M X` | 🎉 | świętowanie |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
 | `Shift + CapsLock M T` | 🥂 | toast      |
 | `Shift + CapsLock M O` |👌 | ok |
@@ -420,10 +420,10 @@ Możesz użyć `Super + Ctrl + E`, aby pokazać kompletny wybierak emoji, który
 
 ## Szybkie uzupełnienia
 
-| Skrót | Uzupełnienie |
+| Skrót       | Uzupełnienie       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | Twoje imię i nazwisko (jak podano podczas konfiguracji)  |
+| `Shift + CapsLock Space N` | Twoje imię (jak podano podczas konfiguracji)  |
 | `Shift + CapsLock Space E` | Twój e-mail (jak podano podczas konfiguracji)  |
 
-Możesz dodać więcej własnych, edytując `~/.XCompose`, a potem uruchamiając `omarchy restart xcompose` w terminalu, aby zmiany zostały wczytane.
+Możesz dodać więcej własnych, edytując `~/.XCompose`, a następnie uruchamiając `omarchy restart xcompose` w terminalu, aby zmiany zostały wczytane.

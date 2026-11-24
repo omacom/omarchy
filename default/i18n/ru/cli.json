@@ -16,7 +16,7 @@
   "agents.added": "Добавлен %1.",
   "agents.addedNotSelected": "Добавлен %1, но не удалось переключить на него новые сессии.",
   "agents.allOver": "Все аккаунты %1 превысили %2%",
-  "agents.apiKeyHint": "Он проверяется через %1, а затем сохраняется для pi и opencode.",
+  "agents.apiKeyHint": "Он проверяется через %1, затем сохраняется в OpenCode.",
   "agents.atLimit": "%1: %2% от лимита %3",
   "agents.chooseForPrompt": "Выберите агента для этой задачи",
   "agents.durationDaysHours": "%1д %2ч",

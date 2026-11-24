@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "اشتراکی، به‌ازای مصرف، یا محلی",
-  "agents.addProviderAccount": "افزودن حساب %1",
   "agents.addTitle": "افزودن عامل",
   "agents.app": "برنامه",
   "agents.backToLimits": "بازگشت به محدودیت‌ها",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "اعتبار تمام شد",
   "agents.pasteCode": "اگر صفحه به‌جای اتمام کد نشان می‌دهد، آن را اینجا بچسبانید.",
   "agents.pasteCodeLink": "به‌جایش صفحهٔ کد می‌بینید؟",
+  "agents.placeholderApiKey": "کلید API",
   "agents.placeholderCode": "کد",
   "agents.placeholderWork": "کار",
   "agents.plugin": "افزونه",

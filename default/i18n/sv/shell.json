@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Prenumeration, per användning eller lokalt",
-  "agents.addProviderAccount": "Lägg till %1-konto",
   "agents.addTitle": "Lägg till agent",
   "agents.app": "App",
   "agents.backToLimits": "Tillbaka till gränserna",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Slut på krediter",
   "agents.pasteCode": "Om sidan visar en kod i stället för att slutföra, klistra in den här.",
   "agents.pasteCodeLink": "Visar sidan en kod istället?",
+  "agents.placeholderApiKey": "API-nyckel",
   "agents.placeholderCode": "Kod",
   "agents.placeholderWork": "Arbete",
   "agents.plugin": "Tillägg",

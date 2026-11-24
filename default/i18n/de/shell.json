@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Abo, nutzungsbasiert oder lokal",
-  "agents.addProviderAccount": "%1-Konto hinzufügen",
   "agents.addTitle": "Agent hinzufügen",
   "agents.app": "App",
   "agents.backToLimits": "Zurück zu den Limits",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Keine Credits mehr",
   "agents.pasteCode": "Falls die Seite einen Code zeigt statt abzuschließen, füge ihn hier ein.",
   "agents.pasteCodeLink": "Wird stattdessen ein Code angezeigt?",
+  "agents.placeholderApiKey": "API-Schlüssel",
   "agents.placeholderCode": "Code",
   "agents.placeholderWork": "Arbeit",
   "agents.plugin": "Plugin",

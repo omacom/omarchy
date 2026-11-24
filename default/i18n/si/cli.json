@@ -14,7 +14,7 @@
   "agents.added": "%1 එක් කළා.",
   "agents.addedNotSelected": "%1 එක් කළා, නමුත් අලුත් සැසි එයට මාරු කළ නොහැකි විය.",
   "agents.allOver": "සියලුම %1 ගිණුම් %2% ඉක්මවා ඇත",
-  "agents.apiKeyHint": "එය %1 සමඟ පරීක්ෂා කර, පසුව pi සහ opencode සඳහා සුරකියි.",
+  "agents.apiKeyHint": "එය %1 මගින් පරීක්ෂා කර, OpenCode තුළ සුරකිනු ලැබේ.",
   "agents.atLimit": "%1, %3 සීමාවෙන් %2% ක් ඇත",
   "agents.chooseForPrompt": "මෙම කාර්යය සඳහා ඒජන්ට් එකක් තෝරන්න",
   "agents.durationDaysHours": "%1ද %2පැ",

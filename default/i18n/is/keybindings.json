@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "Virkni",
   "Agent": "Agent",
   "Agents": "Agentar",
@@ -21,6 +20,7 @@
   "Calculator": "Reiknivél",
   "Calendar": "Dagatal",
   "Capture menu": "Upptökuvalmynd",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Hreinsa áminningar",
   "Clipboard manager": "Klippispjaldsstjóri",
   "Close all windows": "Loka öllum gluggum",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Stjórna tilkynningum með lyklaborði",
   "Cycle workspace layout": "Næsta útlit vinnusvæðis",
   "Cycle workspace layout back": "Fyrra útlit vinnusvæðis",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Beint inntak fyrir forskeyti útstöðvar",
   "Disable touchpad": "Afvirkja snertiplatta",
   "Dismiss all notifications": "Fjarlægja allar tilkynningar",
