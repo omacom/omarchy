@@ -32,6 +32,10 @@ write_pci 0x14e4:0x4331
 hw || fail "BCM4331 is detected"
 pass "BCM4331 is detected from sysfs"
 
+write_pci 0x14e4:0x4353
+hw || fail "BCM43224 is detected"
+pass "BCM43224 is detected from sysfs"
+
 write_pci 0x14e4:0x43ba
 hw && fail "a brcmfmac part is not the wl driver"
 pass "newer Broadcom Wi-Fi is left to brcmfmac"

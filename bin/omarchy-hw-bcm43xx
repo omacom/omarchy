@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Detect Broadcom BCM4360/BCM4331 Wi-Fi that needs the wl driver.
+# omarchy:summary=Detect Broadcom BCM4360/BCM4331/BCM43224 Wi-Fi that needs the wl driver.
 # omarchy:hidden=true
 
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
@@ -11,7 +11,7 @@ for device in "$pci_devices_path"/*; do
   [[ -r $device/vendor && -r $device/device ]] || continue
   [[ $(<"$device/vendor") == "0x14e4" ]] || continue
   case $(<"$device/device") in
-    0x43a0 | 0x4331) exit 0 ;;
+    0x43a0 | 0x4331 | 0x4353) exit 0 ;;
   esac
 done
 
