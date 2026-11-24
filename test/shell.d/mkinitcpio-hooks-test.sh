@@ -20,6 +20,7 @@ printf '%s\0' apple,j416c qcom,x1e80100 >"$test_tmp/platforms/contradiction/proc
 
 etc="$test_tmp/etc"
 devices="$test_tmp/devices"
+boltd_devices="$test_tmp/boltd-devices"
 
 omarchy_hooks="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck btrfs-overlayfs"
 omarchy_hooks_without_kms=${omarchy_hooks/ kms / }
@@ -48,8 +49,8 @@ done
 # mkinitcpio's stock mkinitcpio.conf, which the baseline replaces, plus every
 # drop-in Omarchy ships, on a machine with no PCI devices.
 new_etc() {
-  rm -rf "$etc" "$devices"
-  mkdir -p "$etc/mkinitcpio.conf.d" "$devices"
+  rm -rf "$etc" "$devices" "$boltd_devices"
+  mkdir -p "$etc/mkinitcpio.conf.d" "$devices" "$boltd_devices"
   cat >"$etc/mkinitcpio.conf" <<'CONF'
 MODULES=()
 BINARIES=()
@@ -57,6 +58,11 @@ FILES=()
 HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block filesystems fsck)
 CONF
   cp "$ROOT"/etc/mkinitcpio.conf.d/*.conf "$etc/mkinitcpio.conf.d/"
+}
+
+# $1 names the enrolled device file in boltd's devices store; stdin is its content.
+boltd_device() {
+  cat >"$boltd_devices/$1"
 }
 
 # $1 names the drop-in; stdin is its content.
@@ -98,7 +104,8 @@ compose() {
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
-  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
+  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" \
+    OMARCHY_BOLTD_DEVICES_DIR="$boltd_devices" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
   ' -- "$config"
@@ -202,14 +209,14 @@ assert_composed "a machine without hardware drop-ins is unchanged" x86 \
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x10de:0x030000
-assert_composed "NVIDIA-only drops only kms" x86 \
-  "$omarchy_hooks_without_kms" "$nvidia_modules thunderbolt" ""
+assert_composed "NVIDIA-only drops only kms and loads thunderbolt ahead of nvidia_drm" x86 \
+  "$omarchy_hooks_without_kms" "thunderbolt $nvidia_modules" ""
 
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x8086:0x030000 0x10de:0x030200
 assert_composed "hybrid graphics keeps kms for the iGPU" x86 \
-  "$omarchy_hooks" "$nvidia_modules thunderbolt" ""
+  "$omarchy_hooks" "thunderbolt $nvidia_modules" ""
 
 new_etc
 pci_devices 0x10de:0x030000
@@ -222,24 +229,24 @@ drop_in omarchy_resume.conf <<<"HOOKS+=(resume)"
 drop_in 99-omarchy-provisioning-key.conf <<<"FILES+=(/etc/omarchy/provisioning.key)"
 pci_devices 0x10de:0x030000
 assert_composed "NVIDIA-only with hibernation and a provisioning key is unchanged" x86 \
-  "$omarchy_hooks_without_kms resume" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
+  "$omarchy_hooks_without_kms resume" "thunderbolt $nvidia_modules" "/etc/omarchy/provisioning.key"
 
 new_etc
 drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
-assert_composed "a T2 Mac is unchanged" x86 \
-  "$omarchy_hooks" "t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
+assert_composed "a T2 Mac keeps its modules with thunderbolt early-loaded first" x86 \
+  "$omarchy_hooks" "thunderbolt t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd" ""
 
 new_etc
 drop_in macbook_spi_modules.conf <<<"MODULES=(applespi intel_lpss_pci spi_pxa2xx_platform)"
-assert_composed "an SPI keyboard MacBook is unchanged" x86 \
-  "$omarchy_hooks" "applespi intel_lpss_pci spi_pxa2xx_platform thunderbolt" ""
+assert_composed "an SPI keyboard MacBook keeps its modules with thunderbolt early-loaded first" x86 \
+  "$omarchy_hooks" "thunderbolt applespi intel_lpss_pci spi_pxa2xx_platform" ""
 
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 drop_in surface_device_modules.conf <<<"MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)"
 pci_devices 0x8086:0x030000
-assert_composed "a Surface is unchanged" x86 \
-  "$omarchy_hooks" "pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
+assert_composed "a Surface keeps its modules with thunderbolt early-loaded first" x86 \
+  "$omarchy_hooks" "thunderbolt pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw" ""
 
 
 # Snapdragon and other aarch64 machines build the same image as x86, whatever
@@ -258,7 +265,7 @@ done
 # builds it as a module, and nowhere else.
 new_etc
 KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "a Snapdragon laptop early-loads i2c-hid-of for its keyboard" aarch64-qualcomm \
-  "$omarchy_hooks" "i2c-hid-of thunderbolt" ""
+  "$omarchy_hooks" "thunderbolt i2c-hid-of" ""
 new_etc
 KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "a machine without a device tree leaves i2c-hid-of out" x86 \
   "$omarchy_hooks" "thunderbolt" ""
@@ -330,3 +337,62 @@ pass "a non-Latin layout stays out of the Mac image"
 printf 'KEYMAP=us\nXKBLAYOUT=us\n' >"$vconsole"
 mac_etc "$legacy_encrypted"
 KERNEL_MODULES="" assert_hooks "a busybox encrypt Mac keeps its own line with the Apple drop-ins" aarch64-apple "$legacy_encrypted"
+
+# Apple Silicon's HID drop-in adds thunderbolt itself; thunderbolt_module.conf
+# must not duplicate it in MODULES.
+mac_etc "$alarm_systemd"
+mac_modules=$(KERNEL_MODULES="usbhid thunderbolt thunderbolt_apple" compose aarch64-apple | sed -n 's/^MODULES=//p')
+[[ $mac_modules == "usbhid thunderbolt thunderbolt_apple" ]] ||
+  fail "Apple Silicon with thunderbolt in 92-omarchy-mac-hid.conf does not duplicate thunderbolt" \
+    "expected: usbhid thunderbolt thunderbolt_apple"$'\n'"actual:   $mac_modules"
+pass "Apple Silicon with thunderbolt in 92-omarchy-mac-hid.conf does not duplicate thunderbolt"
+
+# Early-boot Thunderbolt dock authorization activates only when at least one
+# peripheral device with policy=auto is enrolled in boltd's store.
+new_etc
+boltd_device "c7030000-0080-6f08-238a-74100804b120" <<'EOF'
+[device]
+name=Host Controller
+type=host
+
+[user]
+policy=auto
+EOF
+boltd_device "11111111-2222-3333-4444-555555555555" <<'EOF'
+[device]
+name=Manual Dock
+type=peripheral
+
+[user]
+policy=manual
+EOF
+boltd_device "not-a-uuid" <<'EOF'
+[device]
+type=peripheral
+
+[user]
+policy=auto
+EOF
+assert_hooks "host, manual, and non-UUID boltd entries leave HOOKS unchanged" x86 "$omarchy_hooks"
+
+new_etc
+boltd_device "0071f980-902a-f000-ffff-ffffffffffff" <<'EOF'
+[device]
+name=ThinkPad Thunderbolt 3 Dock
+vendor=Lenovo
+type=peripheral
+
+[user]
+policy=auto
+EOF
+assert_hooks "an enrolled policy=auto peripheral inserts omarchy-thunderbolt-dock after udev on x86" x86 \
+  "${omarchy_hooks/udev /udev omarchy-thunderbolt-dock }"
+assert_hooks "an enrolled policy=auto peripheral inserts omarchy-thunderbolt-dock after udev on plain aarch64" aarch64 \
+  "${omarchy_hooks/udev /udev omarchy-thunderbolt-dock }"
+assert_hooks "an enrolled policy=auto peripheral inserts omarchy-thunderbolt-dock after systemd on Apple Silicon" aarch64-apple \
+  "${apple_hooks/systemd /systemd omarchy-thunderbolt-dock }"
+
+# Sourcing thunderbolt_dock.conf when the hook is already present is idempotent.
+drop_in zz-repeat-thunderbolt-dock.conf <"$ROOT/etc/mkinitcpio.conf.d/thunderbolt_dock.conf"
+assert_hooks "omarchy-thunderbolt-dock is not duplicated when already present in HOOKS" x86 \
+  "${omarchy_hooks/udev /udev omarchy-thunderbolt-dock }"

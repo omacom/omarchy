@@ -10,7 +10,16 @@
 #   Only filters kms for NVIDIA and handles the vconsole hooks, from the
 #   machine's own devices and configuration.
 # etc/mkinitcpio.conf.d/thunderbolt_module.conf
-#   Adds thunderbolt to MODULES only where modinfo finds it as a loadable module.
+#   Prepends thunderbolt to MODULES (ahead of nvidia_drm) only where modinfo
+#   finds it as a loadable module.
+# etc/mkinitcpio.conf.d/thunderbolt_dock.conf,
+# etc/initcpio/install/omarchy-thunderbolt-dock,
+# etc/initcpio/hooks/omarchy-thunderbolt-dock,
+# etc/systemd/system/omarchy-thunderbolt-dock-sync.path,
+# etc/systemd/system/omarchy-thunderbolt-dock-sync.service
+#   Activates only when policy=auto peripheral Thunderbolt devices are enrolled
+#   in /var/lib/boltd/devices, stays compatible with busybox and systemd
+#   initramfs hooks, and keeps the boot image in sync when enrollment changes.
 # etc/limine-entry-tool.d/, default/limine/
 #   Read only where Limine and its entry tool are installed.
 # etc/systemd/oomd.conf.d/, default/systemd/user/app.slice.d/10-oomd.conf
