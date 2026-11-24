@@ -70,3 +70,5 @@ if [ -f "$HOME/.local/state/omarchy/rootless-docker/enabled" ]; then
   export DOCKER_HOST
   unset rootless_docker_runtime
 fi
+
+_OMARCHY_ENV_BOOTSTRAPPED=1

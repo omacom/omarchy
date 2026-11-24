@@ -1,18 +1,18 @@
-# Bildirishnomalar
+# Xabarnomalar
 
-Bildirishnomalar fokusdagi displeyning yuqori o‘ng burchagida paydo bo‘ladi. Shuningdek, tezkor tugmalar bildirishnomalari yordamida sana va vaqt, batareya holati va joriy ob-havoga tezda kirishingiz mumkin.
+Bildirishnomalar fokusdagi displeyning yuqori o'ng burchagida paydo bo'ladi. Tezkor tugmalar xabarnomalaridan foydalanib, sana va vaqt, batareya holati va joriy ob-havoni ham tezda ko'rishingiz mumkin.
 
 ## Bildirishnomalar
 
-Bir xil ilova yoki saytdan kelgan bildirishnomalar bitta to‘plamga yig‘iladi, shuning uchun sergap Slack kanali build xatosi haqidagi bildirishnomangizni ekrandan surib yubormaydi. To‘plamni yoyish uchun kursorni uning ustiga olib boring; siz o‘qiyotganingizda ko‘rsatkichingiz ostiga hech narsa yangidan sirg‘alib kirmaydi. Kelgan joyiga o‘tish uchun kartani bosing, uni yopish uchun o‘ng tugmani bosing, o‘rta tugmani bosing yoki ✕ belgisini bosing.
+Bir xil ilova yoki saytdan kelgan bildirishnomalar bitta to'plamga yig'iladi, shuning uchun gapdon Slack kanali build xatosi haqidagi xabaringizni ekrandan surib yubora olmaydi. To'plamni yoyish uchun kursorni uning ustiga olib boring; o'qib turganingizda kursoringiz ostiga hech narsa yangidan sirg'alib kirmaydi. Kartochkani bossangiz, u kelgan joyga o'tasiz, uni yopish uchun esa o'ng tugmani bosing, o'rta tugmani bosing yoki ✕ belgisini bosing.
 
-Kartalar o‘zida bor narsani taklif qiladi: tasdiqlash kodlari uchun _Copy code_ ([bufer tarixi](08-unified-clipboard-history.md)da saqlanmaydi va bir daqiqadan keyin tozalanadi), shuningdek ilova taqdim etadigan istalgan tugmalar. Bildirishnoma matnidagi havolalar bosilganda ochiladi.
+Kartochkalar o'zi olib kelganini taklif qiladi: tasdiqlash kodlari uchun _Kodni nusxalash_ ([bufer tarixi](08-unified-clipboard-history.md)dan tashqarida saqlanadi va bir daqiqadan keyin tozalanadi), shuningdek ilova taqdim etgan har qanday tugmalar. Bildirishnoma matnidagi havolalar bosilganda ochiladi.
 
-Ularga sichqonchasiz kirish uchun `Super + Ctrl + ,` tugmalarini bosing. Eng yangi bildirishnoma tanlanadi va uning tugmalari raqamlanadi: biridan foydalanish uchun raqamni bosing, bildirishnomani bosish uchun `Enter`ni bosing, bildirishnomalar orasida harakatlanish uchun `↑` va `↓` tugmalarini bosing, birini yopish uchun `Delete`ni bosing va klaviaturani qaytarish uchun `Esc`ni bosing. U bir necha soniya harakatsizlikdan keyin o‘zi ham qo‘yib yuboradi.
+`Super + ,` eng yangi bildirishnomani yopadi yoki u shunday imkoniyatni taklif qilsa, u ko'rsatgan narsani ochadi, `Super + Alt + ,` faqat oxirgisini yopadi, `Super + Shift + ,` hammasini yopadi va `Super + Shift + Alt + ,` tarixni ochadi. Ulardan sichqonchasiz foydalanish uchun `Super + Ctrl + ,` ni bosing. Eng yangi bildirishnoma tanlanadi va uning tugmalari raqamlanadi: birini ishlatish uchun raqamni bosing, bildirishnomani bosish uchun `Enter` ni, bildirishnomalar orasida harakatlanish uchun `↑` va `↓` ni, bittasini yopish uchun `Delete` ni va klaviaturani qaytarib berish uchun `Esc` ni bosing. U bir necha soniya harakatsizlikdan keyin o'zi ham qo'yib yuboradi.
 
-Bildirishnomalarni ovozini o‘chirish ularni ushlab qoladi, bundan Omarchy’ning o‘z tasdiqlari, favqulodda ogohlantirishlari va siz hozirgina so‘ragan tasdiqlash kodlari mustasno. Ushlab qolinganmi yoki yo‘qmi, oxirgi bir nechtasini `Super + Shift + Alt + ,` bilan ekranga qaytaring. Tarix bir kun saqlanadi.
+Bildirishnomalarni ovozsiz qilish ularni ushlab turadi, bundan Omarchy'ning o'z tasdiqlari, favqulodda ogohlantirishlar va siz bir zum oldin so'ragan tasdiqlash kodlari mustasno. Oxirgi bir nechtasini, ushlab turilgan bo'ladimi yoki yo'qmi, `Super + Shift + Alt + ,` bilan ekranga qaytaring. Tarix bir kun saqlanadi.
 
-## Tezkor tugmalar bildirishnomalari
+## Tezkor tugmalar xabarnomalari
 
 ### Sana va vaqt
 
@@ -26,7 +26,7 @@ Bildirishnomalarni ovozini o‘chirish ularni ushlab qoladi, bundan Omarchy’ni
 
  ![notice-weather](images/notice-weather.webp)
 
-Joylashuv IP manzilingizdan aniqlanadi, bu odatda yetarlicha yaqin, lekin har doim ham emas. Uni `omarchy weather location --set Malibu` bilan aniq belgilashingiz yoki koordinatalarni qo‘shib aniq ko‘rsatishingiz mumkin: `omarchy weather location --set Malibu 34.0259,-118.7798`. Qayerda deb hisoblayotganini ko‘rish uchun `omarchy weather location`ni alohida ishga tushiring va avtomatik aniqlashga qaytish uchun `--clear`dan foydalaning.
+Joylashuv IP manzilingiz bo'yicha aniqlanadi, bu odatda yetarlicha yaqin chiqadi, lekin har doim ham emas. Uni `omarchy weather location --set Malibu` bilan aniq belgilab qo'yishingiz yoki koordinatalarni qo'shib, mutlaqo aniq qilishingiz mumkin: `omarchy weather location --set Malibu 34.0259,-118.7798`. Qayerda deb o'ylayotganini ko'rish uchun `omarchy weather location` ni alohida ishga tushiring, avtomatik aniqlashga qaytish uchun esa `--clear` dan foydalaning.
 
 ### Batareya
 
