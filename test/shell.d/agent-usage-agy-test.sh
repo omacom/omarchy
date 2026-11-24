@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Antigravity collector fallback to retrieveUserQuota when
-# retrieveUserQuotaSummary omits the Gemini group (as Google AI Ultra does).
+# Antigravity collector: the fallback to retrieveUserQuota when
+# retrieveUserQuotaSummary omits the Gemini group (as Google AI Ultra does),
+# and which history.jsonl entries count as prompts.
 
 set -euo pipefail
 
@@ -110,4 +111,26 @@ record, _ = agy({
 expect("404 on retrieveUserQuota degrades cleanly to summary limits",
        [record["tierLabel"], record["limits"], record["usageStatusText"]],
        ["Ultra", [], ""], record)
+
+# Slash commands run in agy itself and never reach a model, so only the
+# prompts in history.jsonl count.
+machine()
+freeze_today()
+history = home() / "agy" / "history.jsonl"
+history.parent.mkdir(parents=True, exist_ok=True)
+stamp = int(fixture_now().timestamp() * 1000)
+history.write_text("\n".join(json.dumps(e) for e in [
+  {"display": "/usage", "timestamp": stamp, "type": "slash_command"},
+  {"display": "fix the bar", "timestamp": stamp, "conversationId": "c1"},
+  {"display": "/exit", "timestamp": stamp, "conversationId": "c1", "type": "slash_command"},
+  {"display": "/model", "timestamp": stamp, "conversationId": "command-only", "type": "slash_command"},
+  {"display": "/etc/hosts looks wrong", "timestamp": stamp, "conversationId": "c2"},
+]) + "\n")
+record, _ = agy({
+  TIER: {"paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}},
+  SUMMARY: {"groups": [{"displayName": "Gemini Models", "buckets": [{"window": "5h", "remainingFraction": 1.0}]}]},
+})
+expect("slash commands in history.jsonl are not prompts",
+       (record["todayPrompts"], record["totalPrompts"], record["todaySessions"]),
+       (2, 2, 2), record)
 PY
