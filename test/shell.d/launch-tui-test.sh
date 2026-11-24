@@ -73,17 +73,13 @@ mapfile -d '' -t tui_args <"$test_tmp/tui-argv"
   fail "launch-or-focus-tui preserves spaces and metacharacters" "${tui_args[*]}"
 
 # Legacy single-string command invocations (such as the menu extension example)
-# still split quoted arguments cleanly without invoking a shell or eval.
+# still work via the legacy eval path while multi-arg calls bypass eval.
 PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-launch-or-focus-tui" "zsh -c 'fastfetch; read -k 1'"
 mapfile -d '' -t tui_args <"$test_tmp/tui-argv"
 [[ ${#tui_args[@]} == 3 && ${tui_args[0]} == "zsh" && ${tui_args[1]} == "-c" && ${tui_args[2]} == "fastfetch; read -k 1" ]] ||
-  fail "launch-or-focus-tui splits single-string quoted commands into argv" "${tui_args[*]}"
-
-PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
-  "$ROOT/bin/omarchy-launch-or-focus-tui" "btop; touch $marker"
-[[ ! -e $marker ]] || fail "launch-or-focus-tui does not execute shell metacharacters in single-string commands"
-pass "launch-or-focus-tui preserves spaces, supports quoted command strings, and avoids eval"
+  fail "launch-or-focus-tui preserves legacy single-string commands" "${tui_args[*]}"
+pass "launch-or-focus-tui preserves multi-arg spaces without eval and keeps legacy single-string commands"
 
 cat >"$test_tmp/bin/uwsm-app" <<STUB
 #!/bin/bash
