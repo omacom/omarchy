@@ -105,36 +105,47 @@ resume_device() {
   fi
 }
 
-# Earlier setups named an unencrypted root by its kernel name. Rename it in the
-# line setup writes; a drop-in edited by hand is left to whoever edited it. The
-# boot image keeps the old name until it is rebuilt, so a marker written before
-# the drop-in changes stays until a rebuild succeeds. A failed or interrupted
-# rebuild then leaves the marker, and the next run rebuilds again.
-rename_resume_device() {
-  local previous device offset staged
+reconcile_resume_parameters() {
+  local device offset desired current staged
 
-  [[ -f $RESUME_DROP_IN && -f $SWAP_FILE ]] || return 0
-  previous=$(<"$RESUME_DROP_IN")
-  [[ $previous =~ ^KERNEL_CMDLINE\[default\]\+=\"\ ?resume=(/dev/[^[:space:]\"]+)\ resume_offset=([0-9]+)\"$ ]] || return 0
-  [[ ${BASH_REMATCH[1]} != /dev/mapper/* ]] || return 0
-  offset=${BASH_REMATCH[2]}
-  device=$(resume_device)
-  [[ $device == UUID=* ]] || return 0
-
-  staged=$(mktemp) || return 1
-  if printf 'KERNEL_CMDLINE[default]+=" resume=%s resume_offset=%s"\n' "$device" "$offset" >"$staged" &&
-    { $NO_REBUILD || sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING"; } &&
-    install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
-    rm -f "$staged"
-    echo "Named the resume device by $device"
+  if [[ -f $RESUME_DROP_IN ]]; then
+    current=$(<"$RESUME_DROP_IN")
+    # Only replace the single line this command owns; custom content stays intact.
+    if [[ ! $current =~ ^KERNEL_CMDLINE\[default\]\+=\"\ ?resume=[^\"[:space:]]*\ resume_offset=[0-9]*\"$ ]]; then
+      echo "Custom resume configuration in $RESUME_DROP_IN; update its resume parameters manually." >&2
+      return 0
+    fi
+  fi
+  if [[ ! -f $SWAP_FILE ]]; then
+    echo "Could not find $SWAP_FILE; leaving resume configuration unchanged." >&2
     return 0
   fi
 
-  rm -f "$staged"
-  return 1
+  if ! device=$(resume_device) ||
+    [[ ! $device =~ ^(/dev/[[:alnum:]_./:+-]+|UUID=[[:alnum:]-]+)$ ]] ||
+    ! offset=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE") ||
+    [[ ! $offset =~ ^[0-9]+$ ]]; then
+    echo "Could not determine valid resume parameters for $SWAP_FILE" >&2
+    return 1
+  fi
+
+  desired="KERNEL_CMDLINE[default]+=\" resume=$device resume_offset=$offset\""
+  [[ ${current:-} != "$desired" ]] || return 0
+
+  staged=$(mktemp) || return 1
+  if printf '%s\n' "$desired" >"$staged" &&
+    sudo mkdir -p "${RESUME_DROP_IN%/*}" &&
+    { $NO_REBUILD || sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING"; } &&
+    install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
+    rm -f "$staged"
+    echo "Updated resume parameters for $SWAP_FILE"
+  else
+    rm -f "$staged"
+    return 1
+  fi
 }
 
-rebuild_renamed_resume_device() {
+rebuild_resume_images() {
   local log
   local -a status
 
@@ -151,27 +162,14 @@ rebuild_renamed_resume_device() {
   fi
 
   rm -f "$log"
-  echo "Could not rebuild the boot image with the renamed resume device; run omarchy-hibernation-setup again once that is fixed" >&2
+  echo "Could not rebuild the boot image with the resume parameters; run omarchy-hibernation-setup again once that is fixed" >&2
   return 1
 }
 
-# Check if hibernation is already configured
+# Recreated swapfiles can move even when hibernation is already configured.
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
-  # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
-  if [[ -f $RESUME_DROP_IN ]] && grep -q 'resume_offset="$' "$RESUME_DROP_IN" && [[ -f $SWAP_FILE ]]; then
-    RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE" 2>/dev/null)
-    if [[ -n $RESUME_OFFSET ]]; then
-      echo "Fixing empty resume_offset ($RESUME_OFFSET)"
-      sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" "$RESUME_DROP_IN"
-      if ! $NO_REBUILD; then
-        sudo limine-mkinitcpio
-      fi
-    fi
-  fi
-
-  # After the offset repair, which leaves the device as it found it.
-  rename_resume_device || exit 1
-  rebuild_renamed_resume_device || exit 1
+  reconcile_resume_parameters || exit 1
+  rebuild_resume_images || exit 1
   echo "Hibernation is already set up"
   exit 0
 fi
@@ -221,25 +219,20 @@ if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/keyboard-back
   exit 1
 fi
 
+# Warn rather than fail: factory reset aborts on failure; a rerun repairs missing parameters.
+if ! reconcile_resume_parameters; then
+  echo "Warning: Continuing without resume parameters; rerun omarchy hibernation setup to add them" >&2
+fi
+
+# Record the rebuild before the hook makes this machine count as configured.
+if ! $NO_REBUILD; then
+  sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING" || exit 1
+fi
+
 # Add resume hook to mkinitcpio
 sudo mkdir -p /etc/mkinitcpio.conf.d
 echo "Adding resume hook to $MKINITCPIO_CONF"
 echo "HOOKS+=(resume)" | sudo tee "$MKINITCPIO_CONF" >/dev/null
-
-# Add resume= kernel parameters so the initramfs resume hook knows where to find the
-# hibernation image. Without these, resume happens late (after GPU drivers load) and fails.
-if [[ ! -f $RESUME_DROP_IN ]]; then
-  echo "Adding resume kernel parameters"
-  sudo swapon -p 0 "$SWAP_FILE" 2>/dev/null
-  RESUME_DEVICE=$(resume_device)
-  RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE")
-  if [[ -n $RESUME_OFFSET ]]; then
-    sudo mkdir -p /etc/limine-entry-tool.d
-    echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null
-  else
-    echo "Warning: Could not determine resume offset for $SWAP_FILE" >&2
-  fi
-fi
 
 # Use ACPI alarm for RTC wakeup on s2idle systems (needed for suspend-then-hibernate)
 if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
@@ -257,7 +250,7 @@ if ! $NO_REBUILD; then
   # binary on the ESP doesn't change here, so we don't need limine-update
   # (which would also re-deploy the binary and rebuild a second time).
   echo "Regenerating initramfs..."
-  sudo limine-mkinitcpio
+  rebuild_resume_images || exit 1
   echo
 fi
 

@@ -23,7 +23,7 @@ for command in omarchy-hw-aarch64-apple omarchy-hw-aarch64 omarchy-sleep-disable
 done
 printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
 printf '#!/bin/bash\n[[ $1 == --show ]] && echo "$SWAP_FILE_PATH"\nexit 0\n' >"$rtmp/bin/swapon"
-printf '#!/bin/bash\n[[ $1 == inspect-internal ]] && echo 4242\nexit 0\n' >"$rtmp/bin/btrfs"
+printf '#!/bin/bash\nif [[ $1 == inspect-internal ]]; then [[ ${LOOKUP:-} == fail ]] && exit 1; echo "${OFFSET-4242}"; fi\nexit 0\n' >"$rtmp/bin/btrfs"
 printf '#!/bin/bash\n[[ $2 == SOURCE ]] && echo "$SWAP_SOURCE"\n[[ $2 == UUID ]] && echo "$SWAP_UUID"\nexit 0\n' >"$rtmp/bin/findmnt"
 
 # Root ownership is not the test's to give.
@@ -50,8 +50,13 @@ cat >"$rtmp/bin/limine-mkinitcpio" <<'SH'
 case ${REBUILD_RESULT:-ok} in
   skip) echo "==> ERROR: mkinitcpio failed for kernel 7.2.8-9-omarchy, skipping." >&2 ;;
   interrupt) kill -TERM "$PPID"; exit 0 ;;
+  fail) exit 1 ;;
 esac
-cat "$DROP_IN" >>"$REBUILD_LOG"
+if [[ -f $DROP_IN ]]; then
+  cat "$DROP_IN" >>"$REBUILD_LOG"
+else
+  echo "built-without-drop-in" >>"$REBUILD_LOG"
+fi
 exit 0
 SH
 chmod +x "$rtmp/bin/"*
@@ -75,8 +80,8 @@ machine() {
 }
 
 setup() {
-  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="$uuid" \
-    DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" \
+  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="${SWAP_UUID-$uuid}" \
+    DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" OFFSET="${OFFSET-4242}" \
     bash "$rtmp/setup" "$@" >"$rtmp/out" 2>&1
 }
 
@@ -91,6 +96,109 @@ SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild || fail "setup on 
 [[ $(<"$drop_in") == 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' ]] ||
   fail "setup keeps the device-mapper name of an encrypted root" "$(<"$drop_in")"
 pass "setup names the resume device by filesystem UUID, or by its device-mapper name"
+
+# An earlier remove could leave the drop-in behind, naming the deleted swapfile's offset.
+machine
+mkdir -p "$rtmp/limine-entry-tool.d"
+printf '%s\n' 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=1929151"' >"$drop_in"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "setup over a leftover drop-in" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] || fail "setup rewrites a drop-in left by an earlier setup" "$(<"$drop_in")"
+pass "setup rewrites a drop-in left by an earlier setup"
+
+# Factory reset expects success even when a lookup cannot run in its chroot.
+for lookup in offset device; do
+  machine
+  if [[ $lookup == "offset" ]]; then
+    SWAP_SOURCE="/dev/nvme0n1p2[/@]" LOOKUP=fail setup --force --no-rebuild || fail "setup with an unreadable offset"
+  else
+    SWAP_SOURCE="" SWAP_UUID="" setup --force --no-rebuild || fail "setup with an unknown device"
+  fi
+  [[ ! -e $drop_in && -f $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -s $rtmp/rebuilds ]] ||
+    fail "an unreadable $lookup warns without writing invalid resume parameters" "$(<"$rtmp/out")"
+  grep -q "Continuing without resume parameters" "$rtmp/out" || fail "unreadable $lookup reports a warning"
+  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "setup after the $lookup lookup recovers" "$(<"$rtmp/out")"
+  [[ $(tail -n1 "$rtmp/rebuilds") == "$uuid_line" ]] || fail "the retry rebuilds with the resume parameters"
+done
+pass "unattended setup survives unreadable mappings and repairs them on a later run"
+
+# Reconcile stale devices, offsets and legacy generated forms, once each.
+for source in '/dev/nvme0n1p2[/@]' '/dev/mapper/root[/@]'; do
+  if [[ $source == /dev/mapper/* ]]; then
+    expected='KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"'
+  else
+    expected=$uuid_line
+  fi
+  for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/old resume_offset=123"' \
+    'KERNEL_CMDLINE[default]+=" resume=UUID=old resume_offset=123"' \
+    'KERNEL_CMDLINE[default]+=" resume= resume_offset=123"' \
+    'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset="' \
+    'KERNEL_CMDLINE[default]+="resume=/dev/mapper/root resume_offset=123"' \
+    'KERNEL_CMDLINE[default]+="resume=/dev/mapper/root resume_offset="'; do
+    machine "$line"
+    SWAP_SOURCE="$source" setup || fail "reconcile '$line' on $source" "$(<"$rtmp/out")"
+    [[ $(<"$drop_in") == "$expected" && $(<"$rtmp/rebuilds") == "$expected" ]] || fail "the rebuild reads the repaired parameters"
+    SWAP_SOURCE="$source" setup || fail "rerun repaired setup on $source"
+    [[ $(<"$rtmp/rebuilds") == "$expected" ]] || fail "reconciliation is idempotent"
+  done
+done
+pass "stale, empty and Omarchy 3.4 resume parameters are repaired idempotently"
+
+machine "$uuid_line"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" OFFSET=789 setup --no-rebuild || fail "repair parameters without rebuilding"
+[[ $(<"$drop_in") == "${uuid_line/4242/789}" && ! -s $rtmp/rebuilds && ! -e $rtmp/var-lib/hibernation-resume-rebuild ]] ||
+  fail "no-rebuild updates parameters and leaves the build to its caller"
+pass "no-rebuild repairs changed parameters without building"
+
+for offset in invalid ''; do
+  machine "$uuid_line"
+  if SWAP_SOURCE="/dev/nvme0n1p2[/@]" OFFSET="$offset" setup; then
+    fail "an invalid offset reports failure"
+  fi
+  [[ $(<"$drop_in") == "$uuid_line" && ! -s $rtmp/rebuilds ]] || fail "invalid mappings preserve boot configuration"
+done
+pass "invalid mappings preserve the previous parameters"
+
+# Inject only the staged write failure, leaving mapping commands unaffected.
+machine "$uuid_line"
+printf() {
+  if [[ ${1:-} == '%s\n' && ${2:-} == KERNEL_CMDLINE* ]]; then
+    return 1
+  fi
+  builtin printf "$@"
+}
+export -f printf
+status=0
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" OFFSET=789 setup || status=$?
+unset -f printf
+(( status != 0 )) || fail "a failed staged write is reported"
+[[ $(<"$drop_in") == "$uuid_line" && ! -s $rtmp/rebuilds && ! -e $rtmp/var-lib/hibernation-resume-rebuild ]] ||
+  fail "a failed staged write preserves the drop-in and skips rebuilding"
+pass "a failed staged write preserves boot configuration"
+
+machine "$uuid_line"
+rm "$drop_in"
+if SWAP_SOURCE="/dev/nvme0n1p2[/@]" REBUILD_RESULT=fail setup; then
+  fail "a failed build after recreating a missing drop-in reports failure"
+fi
+[[ $(<"$drop_in") == "$uuid_line" && -e $rtmp/var-lib/hibernation-resume-rebuild ]] || fail "the recreated drop-in stays pending"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "retry a missing drop-in repair"
+[[ $(<"$rtmp/rebuilds") == "$uuid_line" && ! -e $rtmp/var-lib/hibernation-resume-rebuild ]] || fail "the retry rebuilds from the recreated drop-in"
+pass "a missing drop-in is recreated and failed rebuilds remain retryable"
+
+# Even a matching leftover drop-in needs a rebuild when its hook is first added.
+for result in fail skip interrupt; do
+  machine
+  mkdir -p "$rtmp/limine-entry-tool.d"
+  printf '%s\n' "$uuid_line" >"$drop_in"
+  if (SWAP_SOURCE="/dev/nvme0n1p2[/@]" REBUILD_RESULT=$result setup --force) 2>/dev/null; then
+    fail "fresh setup reports a failed rebuild ($result)"
+  fi
+  [[ -e $rtmp/var-lib/hibernation-resume-rebuild ]] || fail "fresh setup keeps its rebuild pending ($result)"
+  : >"$rtmp/rebuilds"
+  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "fresh setup retries its rebuild ($result)" "$(<"$rtmp/out")"
+  [[ ! -e $rtmp/var-lib/hibernation-resume-rebuild && $(<"$rtmp/rebuilds") == "$uuid_line" ]] || fail "fresh setup retries from matching parameters ($result)"
+done
+pass "fresh setup retries failed, skipped and interrupted rebuilds"
 
 # A machine set up before: a rerun renames the device and rebuilds from the
 # renamed drop-in, once. An empty offset is filled in first.
@@ -108,12 +216,13 @@ pass "a rerun renames a kernel-name resume device once"
 
 # If a kernel's image is not rebuilt, or the rebuild is interrupted, the drop-in
 # is already renamed; the next run sees the pending rebuild and does it, once.
-for result in skip interrupt; do
+for result in fail skip interrupt; do
   machine 'KERNEL_CMDLINE[default]+=" resume=/dev/sda2 resume_offset=4242"'
   # A subshell, so the shell reporting the killed setup does not print to the log.
   if (SWAP_SOURCE="/dev/sda2[/@]" REBUILD_RESULT=$result setup) 2>/dev/null; then
     fail "setup reports a boot image it did not rebuild ($result)"
   fi
+  [[ $(<"$drop_in") == "$uuid_line" && -e $rtmp/var-lib/hibernation-resume-rebuild ]] || fail "failed rebuild retains new parameters and marker ($result)"
   : >"$rtmp/rebuilds"
   SWAP_SOURCE="/dev/sda2[/@]" setup || fail "a rerun after a failed rebuild succeeds ($result)" "$(<"$rtmp/out")"
   SWAP_SOURCE="/dev/sda2[/@]" setup || fail "a third run succeeds ($result)" "$(<"$rtmp/out")"
@@ -122,15 +231,25 @@ for result in skip interrupt; do
 done
 pass "a rebuild that failed or was interrupted is retried on the next run"
 
-# Encrypted installs are stable already, and a drop-in edited by hand belongs to
-# whoever edited it.
-for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' \
-  $'KERNEL_CMDLINE[default]+=" resume=/dev/nvme0n1p2\tresume_offset=4242"'; do
+# An encrypted root keeps its mapper name. Additional hand-edited content is
+# preserved and reported for manual reconciliation.
+line='KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"'
+machine "$line"
+SWAP_SOURCE="/dev/mapper/root[/@]" setup || fail "setup on an encrypted root" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup leaves a matching mapper device alone"
+for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/nvme0n1p2 resume_offset=4242 quiet"' \
+  $'KERNEL_CMDLINE[default]+=" resume=/dev/nvme0n1p2\tresume_offset=4242"' \
+  $'KERNEL_CMDLINE[default]+=" resume=/dev/nvme0n1p2 resume_offset=4242"\n# Custom setting'; do
   machine "$line"
-  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "setup on a drop-in it does not own" "$(<"$rtmp/out")"
-  [[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup leaves a drop-in it does not own alone" "$(<"$drop_in")"
+  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "custom drop-ins do not block migrations" "$(<"$rtmp/out")"
+  [[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup preserves custom parameters"
+  grep -q "update its resume parameters manually" "$rtmp/out" || fail "custom settings report manual reconciliation"
 done
-pass "setup leaves device-mapper and hand-edited drop-ins alone"
+machine "$uuid_line"
+rm "$rtmp/swapfile"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "a missing swapfile does not block migrations"
+[[ $(<"$drop_in") == "$uuid_line" && ! -s $rtmp/rebuilds ]] || fail "a missing swapfile leaves resume settings untouched"
+pass "setup leaves matching device-mapper and hand-edited drop-ins alone"
 
 # An ARM computer: the installer's call sets nothing up, since most models reset
 # when they resume. --experimental does, and a machine set up that way is kept
@@ -178,7 +297,62 @@ env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_i
   bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove succeeds" "$(<"$rtmp/out")"
 [[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -e $drop_in && ! -e $rtmp/var-lib/hibernation-resume-rebuild ]] ||
   fail "hibernation remove deletes resume hook, Limine drop-in, and pending rebuild marker"
+[[ $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
+  fail "hibernation remove deletes resume.conf before rebuilding the boot image" "$(<"$rtmp/rebuilds")"
 pass "hibernation remove cleans up the Limine resume drop-in and rebuild marker"
+
+# A machine an older remove left half-removed (no hook, stale resume.conf) is repaired too.
+machine
+mkdir -p "$rtmp/limine-entry-tool.d"
+printf '%s\n' "$uuid_line" >"$drop_in"
+env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove repairs a half-removed machine" "$(<"$rtmp/out")"
+[[ ! -e $drop_in && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
+  fail "hibernation remove deletes a leftover resume.conf before rebuilding" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove repairs a machine left with only resume.conf"
+
+# If deleting resume.conf fails, remove stops before rebuilding the boot image.
+machine "$uuid_line"
+cat >"$rtmp/bin/rm" <<'SH'
+#!/bin/bash
+for arg in "$@"; do
+  [[ $arg == */limine-entry-tool.d/resume.conf ]] && exit 1
+done
+exec /usr/bin/rm "$@"
+SH
+chmod +x "$rtmp/bin/rm"
+if env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1; then
+  rm -f "$rtmp/bin/rm"
+  fail "hibernation remove reports failure when resume.conf cannot be deleted"
+fi
+/usr/bin/rm -f "$rtmp/bin/rm"
+[[ ! -s $rtmp/rebuilds ]] ||
+  fail "hibernation remove does not rebuild when resume.conf deletion fails" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove stops before rebuilding if resume.conf deletion fails"
+
+# If only the pending rebuild marker remains after a partial failure, retry still rebuilds.
+machine
+mkdir -p "$rtmp/var-lib"
+: >"$rtmp/var-lib/hibernation-resume-rebuild"
+env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove retries when only rebuild marker remains" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/var-lib/hibernation-resume-rebuild && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
+  fail "hibernation remove clears a leftover rebuild marker and rebuilds" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove finishes cleanup when only the rebuild marker remains"
+for result in fail skip interrupt; do
+  machine "$uuid_line"
+  if (env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" \
+    REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="$result" bash "$rtmp/remove" >"$rtmp/out" 2>&1) 2>/dev/null; then
+    fail "removal reports a failed rebuild ($result)"
+  fi
+  [[ -e $rtmp/var-lib/hibernation-resume-rebuild && ! -e $drop_in ]] || fail "failed removal keeps a pending rebuild ($result)"
+  : >"$rtmp/rebuilds"
+  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+    bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "removal retries a failed rebuild ($result)" "$(<"$rtmp/out")"
+  [[ ! -e $rtmp/var-lib/hibernation-resume-rebuild && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] || fail "removal retry clears the marker ($result)"
+done
+pass "failed, skipped and interrupted removal rebuilds stay retryable"
 rm -rf "$rtmp"
 
 if [[ ! -f /sys/power/image_size ]]; then
