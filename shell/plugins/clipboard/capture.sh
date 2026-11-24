@@ -5,10 +5,12 @@
 # or an explicit MIME type). Without arguments, it snapshots the selection itself.
 
 set -o pipefail
+umask 077
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 IMAGE_DIR="$STATE_DIR/clipboard-images"
 mkdir -p "$IMAGE_DIR"
+chmod 700 "$IMAGE_DIR"
 
 types=$(timeout 2s wl-paste --list-types 2>/dev/null || true)
 
@@ -27,7 +29,7 @@ read_copy() {
 
 emit_image() {
   local mime="$1"
-  local ext hash file
+  local ext hash file meta inode gen
   shift
 
   tmp=$(mktemp --tmpdir="$IMAGE_DIR" clipboard.XXXXXX) || return 0
@@ -39,24 +41,33 @@ emit_image() {
     mime=$(file --brief --mime-type -- "$tmp") || return
     [[ $mime == "image/x-ms-bmp" ]] && mime="image/bmp"
     if [[ " ${image_types[*]} " != *" $mime "* ]]; then
-      rm -f -- "$tmp"
+      rm -f -- "$tmp" || return 1
       return 2 # Unsupported format: try a supported representation instead.
     fi
   fi
 
   ext=${mime#image/}
-  [[ $ext == jpeg ]] && ext=jpg
+  [[ $ext == "jpeg" ]] && ext=jpg
+  [[ $ext =~ ^[A-Za-z0-9]+$ ]] || return 0
 
   hash=$(sha256sum "$tmp" | awk '{print $1}')
   file="$IMAGE_DIR/$hash.$ext"
-  if [[ -e $file ]]; then
-    rm -f "$tmp"
-  else
-    mv "$tmp" "$file"
-  fi
+  meta=$(
+    {
+      flock 9 || exit 1
+      mv -f -- "$tmp" "$file" || exit 1
+      gen=0
+      [[ -f $IMAGE_DIR/.gen ]] && read -r gen <"$IMAGE_DIR/.gen" || true
+      [[ $gen =~ ^[0-9]+$ ]] || gen=0
+      gen=$((gen + 1))
+      printf '%s\n' "$gen" >"$IMAGE_DIR/.gen"
+      printf '%s %s\n' "$(stat -c '%i' -- "$file")" "$gen"
+    } 9>"$IMAGE_DIR/.lock"
+  ) || return 0
+  read -r inode gen <<<"$meta"
 
-  jq -cn --arg mime "$mime" --arg path "$file" --arg captured_at "$(LC_TIME="$(omarchy-language locale 2>/dev/null)" date +'%A %H:%M')" \
-    '{type:"image", mime:$mime, path:$path, capturedAt:$captured_at}'
+  jq -cn --arg mime "$mime" --arg path "$file" --arg inode "$inode" --argjson gen "$gen" --arg captured_at "$(LC_TIME="$(omarchy-language locale 2>/dev/null)" date +'%A %H:%M')" \
+    '{type:"image", mime:$mime, path:$path, inode:$inode, gen:$gen, capturedAt:$captured_at}'
 }
 
 emit_text() {

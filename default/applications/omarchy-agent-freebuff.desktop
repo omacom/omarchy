@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Freebuff
+Comment=Start Freebuff in a terminal
+Exec=omarchy-agent --agent freebuff --app-id=org.omarchy.freebuff
+Icon=omarchy-agent-freebuff
+StartupWMClass=org.omarchy.freebuff
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

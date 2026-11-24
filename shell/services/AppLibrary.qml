@@ -12,6 +12,9 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // The shell that owns this library; launch feedback drives the OSD plugin
+  // through it in-process rather than through a spawned omarchy-shell call.
+  property var shell: null
 
   property var configuredHiddenEntryIds: ({})
   property var desktopHiddenEntryIds: ({})
@@ -25,6 +28,7 @@ Item {
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
   property bool iconRescanQueued: false
+  property bool desktopEntryRescanQueued: false
 
   // Omarchy's own app icons are linked into the user's icon dir and redrawn in
   // place after each theme switch, which then writes icons.revision. The
@@ -44,8 +48,8 @@ Item {
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
   // True while the launch OSD is on screen. It outlives the launch that opened
-  // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
-  // down.
+  // it: closeLaunchFeedback() normally takes it down, and its own duration
+  // (the rest of launchTimeout) dismisses it if a show lands after that close.
   property bool launchOsdOpen: false
   property string launchOsdMessage: ""
 
@@ -100,6 +104,11 @@ Item {
     else iconIndexScan.running = true
   }
 
+  function refreshDesktopEntries() {
+    if (desktopEntryScan.running) root.desktopEntryRescanQueued = true
+    else desktopEntryScan.running = true
+  }
+
   function refreshVersions() {
     if (!versionScan.running) versionScan.running = true
   }
@@ -117,14 +126,14 @@ Item {
     // titlebars can tell Neovim from the terminal it runs in.
     var command = root.terminalCommand(DesktopEntries.byId(id))
     if (command.length > 0) {
-      Util.execDetached("omarchy-launch-tui " + command.map(function(word) { return Util.shellQuote(word) }).join(" "))
+      Util.execArgv(["omarchy-launch-tui"].concat(command))
       return
     }
     // Start gtk-launch inside a scope under app-graphical.slice so apps do not
     // inherit wayland-wm@.service. Keeping gtk-launch as the desktop-entry
     // resolver supports IDs with spaces and entries that UWSM rejects.
     // Keep the .desktop suffix or ids like org.telegram.desktop won't resolve.
-    Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+    Util.execArgv(["uwsm-app", "--", "gtk-launch", "--", id + ".desktop"])
   }
 
   // The command a terminal entry runs, without the field codes it leaves for a
@@ -199,10 +208,11 @@ Item {
     // so the parser, which keeps the first hit per name, prefers scalable icons.
     // Within each icon dir, PNGs go largest size first, so a 256x256 beats a 32x32.
     return [
-      'dirs="$HOME/.icons ${XDG_DATA_HOME:-$HOME/.local/share}/icons";',
-      'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
+      'dirs=("$HOME/.icons" "${XDG_DATA_HOME:-$HOME/.local/share}/icons");',
+      'IFS=":" read -ra xdg_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}";',
+      'for d in "${xdg_dirs[@]}"; do [[ -n $d ]] && dirs+=("$d/icons"); done;',
       '{',
-      '  for base in $dirs; do',
+      '  for base in "${dirs[@]}"; do',
       '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
       '    echo;',
       '  done;',
@@ -247,7 +257,7 @@ Item {
     launchDelay.stop()
     launchTimeout.stop()
     if (root.launchOsdOpen) {
-      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
+      if (root.shell) root.shell.hide("omarchy.osd")
       root.launchOsdOpen = false
     }
   }
@@ -272,7 +282,13 @@ Item {
     command: ["bash", "-c", root.desktopEntryScanCommand()]
     stdout: SplitParser { onRead: function(line) { desktopEntryOutput.text += line + "\n" } }
     onStarted: desktopEntryOutput.text = ""
-    onExited: root.loadDesktopEntryScan(desktopEntryOutput.text)
+    onExited: {
+      root.loadDesktopEntryScan(desktopEntryOutput.text)
+      if (root.desktopEntryRescanQueued) {
+        root.desktopEntryRescanQueued = false
+        running = true
+      }
+    }
   }
 
   Process {
@@ -309,14 +325,16 @@ Item {
   Timer {
     id: iconIndexDebounce
     interval: 750
-    onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+    onTriggered: root.refreshIcons()
   }
 
   FileView {
     path: root.home + "/.local/state/omarchy/current/icons.revision"
     watchChanges: true
+    preload: false
     printErrors: false
     onFileChanged: {
+      reload()
       root.themeRevision++
       root.refreshIcons()
     }
@@ -327,7 +345,7 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: root.loadConfiguredHides(text())
-    onFileChanged: root.loadConfiguredHides(text())
+    onFileChanged: reload()
     onLoadFailed: root.loadConfiguredHides("")
   }
 
@@ -346,8 +364,9 @@ Item {
     interval: 2000
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
+      if (!root.shell) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      root.shell.summon("omarchy.osd", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: launchTimeout.interval - launchDelay.interval }))
     }
   }
 
@@ -360,7 +379,7 @@ Item {
   Connections {
     target: DesktopEntries.applications
     function onValuesChanged() {
-      desktopEntryScan.running = true
+      root.refreshDesktopEntries()
       iconIndexDebounce.restart()
       root.appsChanged()
     }
