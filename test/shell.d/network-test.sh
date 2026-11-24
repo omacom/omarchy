@@ -272,6 +272,19 @@ if [[ $* == *"--output HARD"* ]]; then
   printf '%s\n' "$HARD_BLOCKS"
 fi
 SH
+cat >"$tmpdir/bin/systemctl" <<'SH'
+#!/bin/bash
+case $1 in
+  is-active) [[ ${NM_ACTIVE:-1} == 1 ]] && exit 0 || exit 3 ;;
+  restart) printf 'restart %s\n' "$2" >>"${SYSTEMCTL_LOG:-/dev/null}"; exit "${RESTART_RC:-0}" ;;
+esac
+exit 0
+SH
+cat >"$tmpdir/bin/sudo" <<'SH'
+#!/bin/bash
+while [[ $1 == -* ]]; do shift; done
+exec "$@"
+SH
 chmod +x "$tmpdir/bin/"*
 PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=unblocked "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 ||
   fail "Wi-Fi restart accepts radios without a hard block" "$(cat "$tmpdir/output")"
@@ -280,3 +293,20 @@ PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=$'unblocked\nblocked' "$ROOT/bin/omarchy-re
 (( status == 1 )) && grep -q "still hardware-blocked" "$tmpdir/output" ||
   fail "Wi-Fi restart reports a remaining hardware block" "status=$status: $(cat "$tmpdir/output")"
 pass "Wi-Fi restart distinguishes unblocked and hardware-blocked radios"
+
+# nmcli is only a NetworkManager client, so when a pentest tool's `airmon-ng
+# check kill` has stopped the daemon, every nmcli line is a no-op and the radio
+# stays dead. The restart has to bring the service back first, and give up with
+# its exit code rather than report a success it did not deliver.
+: >"$tmpdir/systemctl.log"
+PATH="$tmpdir/bin:$PATH" NM_ACTIVE=0 RESTART_RC=0 SYSTEMCTL_LOG="$tmpdir/systemctl.log" HARD_BLOCKS=unblocked \
+  "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 ||
+  fail "Wi-Fi restart revives a stopped NetworkManager" "$(cat "$tmpdir/output")"
+grep -q 'restart NetworkManager' "$tmpdir/systemctl.log" ||
+  fail "Wi-Fi restart starts NetworkManager when the daemon is down" "$(cat "$tmpdir/systemctl.log")"
+status=0
+PATH="$tmpdir/bin:$PATH" NM_ACTIVE=0 RESTART_RC=1 SYSTEMCTL_LOG="$tmpdir/systemctl.log" HARD_BLOCKS=unblocked \
+  "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 || status=$?
+(( status != 0 )) ||
+  fail "Wi-Fi restart stops when NetworkManager cannot be restarted" "status=$status: $(cat "$tmpdir/output")"
+pass "Wi-Fi restart revives a stopped NetworkManager and fails loudly when it cannot"
