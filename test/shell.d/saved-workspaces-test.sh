@@ -511,10 +511,10 @@ dest = Path(os.environ['TEST_TMP'])
 widget = (root / 'shell/plugins/saved-workspaces/Widget.qml').read_text()
 
 def extract_method(source, indent, name):
-    pattern = rf'{indent}function {name}\([^)]*\) \{{[\s\S]*?\n{indent}\}}'
-    match = re.search(pattern, source)
-    assert match, f'missing {name} in Widget.qml'
-    return match.group()
+  pattern = rf'{indent}function {name}\([^)]*\) \{{[\s\S]*?\n{indent}\}}'
+  match = re.search(pattern, source)
+  assert match, f'missing {name} in Widget.qml'
+  return match.group()
 
 begin_save = extract_method(widget, '  ', 'beginSave')
 begin_rename = extract_method(widget, '  ', 'beginRename')
