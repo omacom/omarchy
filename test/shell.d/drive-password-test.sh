@@ -237,33 +237,37 @@ chmod +x "$tmp"/bin/* "$tmp/real/cryptsetup"
 # records its arguments and is a crash point like the rest.
 fake_platform "$tmp/x86" x86
 fake_platform "$tmp/apple" aarch64-apple
-mkdir -p "$tmp/lifecycle/usr/lib/omarchy/mac-boot"
-cat >"$tmp/lifecycle/usr/lib/omarchy/mac-boot/luks-slots" <<SH
+install_luks_slots() {
+  local root=$1
+  mkdir -p "$root/lifecycle/usr/lib/omarchy/mac-boot"
+  cat >"$root/lifecycle/usr/lib/omarchy/mac-boot/luks-slots" <<SH
 #!/bin/bash
 # --owner names the recorded owner slot, read-only; setup recorded slot 0. A Mac
 # set up before slots were recorded has none (4); a record the header doesn't
 # hold is a failure (1).
 if [[ \$1 == --owner ]]; then
-  [[ ! -e $tmp/owner-query-fail ]] || { echo "The LUKS header has no key in the recorded owner slot 0." >&2; exit 1; }
-  [[ ! -e $tmp/owner-query-garbage ]] || { echo "slot zero"; exit 0; }
-  [[ ! -e $tmp/owner-slot ]] || { cat "$tmp/owner-slot"; exit 0; }
-  [[ ! -e $tmp/owner-unrecorded ]] || { echo "No owner key slot is recorded." >&2; exit 4; }
+  [[ ! -e $root/owner-query-fail ]] || { echo "The LUKS header has no key in the recorded owner slot 0." >&2; exit 1; }
+  [[ ! -e $root/owner-query-garbage ]] || { echo "slot zero"; exit 0; }
+  [[ ! -e $root/owner-slot ]] || { cat "$root/owner-slot"; exit 0; }
+  [[ ! -e $root/owner-unrecorded ]] || { echo "No owner key slot is recorded." >&2; exit 4; }
   echo 0
   exit 0
 fi
-[[ ! -e $tmp/record-fail ]] || exit 1
-printf '%s\n' "\$*" >>"$tmp/slot-record"
-[[ \$1 != owner=* ]] || echo "\${1#owner=}" >"$tmp/owner-slot"
-count=\$(( \$(cat "$tmp/steps") + 1 ))
-echo "\$count" >"$tmp/steps"
-printf '%s slots recorded\n' "\$count" >>"$tmp/trace"
-if (( count == \$(cat "$tmp/crash-at") )); then
+[[ ! -e $root/record-fail ]] || exit 1
+printf '%s\n' "\$*" >>"$root/slot-record"
+[[ \$1 != owner=* ]] || echo "\${1#owner=}" >"$root/owner-slot"
+count=\$(( \$(cat "$root/steps") + 1 ))
+echo "\$count" >"$root/steps"
+printf '%s slots recorded\n' "\$count" >>"$root/trace"
+if (( count == \$(cat "$root/crash-at") )); then
   kill -9 "\$PPID"
   kill -9 \$\$
 fi
 SH
-chmod 755 "$tmp/lifecycle/usr/lib/omarchy/mac-boot/luks-slots"
-chmod -R go-w "$tmp/lifecycle"
+  chmod 755 "$root/lifecycle/usr/lib/omarchy/mac-boot/luks-slots"
+  chmod -R go-w "$root/lifecycle"
+}
+install_luks_slots "$tmp"
 
 export TEST_TMP=$tmp OMARCHY_PATH=$ROOT XDG_STATE_HOME=$tmp/state SUDO_USER=owner OMARCHY_LIFECYCLE_ROOT=$tmp/lifecycle
 base_path=$PATH
@@ -462,40 +466,66 @@ for run_spec in "${matrix[@]}"; do
   # works. Run the full double-nested matrix on fake, and one representative
   # mid-change crash/resume on real cryptsetup volumes.
   if [[ $backend == "fake" ]]; then
+    step_pids=()
+    step_logs=()
     for (( step = 1; step <= total_steps; step++ )); do
-      for answer in "$new_password" "$old_password"; do
-        fixture
-        if attempt "$step" "$old_password" "$new_password" "$new_password"; then fail "$backend: the run is killed at step $step"; fi
-        point=$(sed -n "${step}p" "$tmp/trace")
-        recoverable "killed after '$point'"
-        if [[ ! -e $journal ]]; then
-          if [[ -n $(opens "$system" "$new_password") ]]; then
-            consistent "killed after '$point'" "$new_password"
-          else
-            consistent "killed after '$point'" "$old_password"
+      step_log="$tmp/step-$step.log"
+      step_logs+=("$step_log")
+      (
+        parent_tmp=$tmp
+        tmp=$(mktemp -d "$parent_tmp/step-$step.XXXXXX")
+        mkdir -p "$tmp/dev"
+        ln -s "$parent_tmp/bin" "$parent_tmp/real" "$parent_tmp/x86" "$parent_tmp/apple" "$parent_tmp/crash.sh" "$tmp/"
+        install_luks_slots "$tmp"
+        journal=$tmp/state/omarchy/drive-password.state
+        data=$tmp/dev/data
+        export TEST_TMP=$tmp XDG_STATE_HOME=$tmp/state OMARCHY_LIFECYCLE_ROOT=$tmp/lifecycle
+        use "$spec_backend" "$spec_platform"
+        for answer in "$new_password" "$old_password"; do
+          fixture
+          if attempt "$step" "$old_password" "$new_password" "$new_password"; then fail "$backend: the run is killed at step $step"; fi
+          point=$(sed -n "${step}p" "$tmp/trace")
+          recoverable "killed after '$point'"
+          if [[ ! -e $journal ]]; then
+            if [[ -n $(opens "$system" "$new_password") ]]; then
+              consistent "killed after '$point'" "$new_password"
+            else
+              consistent "killed after '$point'" "$old_password"
+            fi
+            continue
           fi
-          continue
-        fi
-        [[ -n $(opens "$system" "$answer") ]] || continue
-        if grep -qx 'phase=record' "$journal" && [[ $answer == "$old_password" ]]; then
-          if attempt 0 "$answer"; then fail "$backend: after '$point' a confirmed change refuses the old password"; fi
-          [[ -e $journal ]] || fail "$backend: after '$point' a refused rerun keeps the journal"
-          answer=$new_password
-        fi
-        # A rerun that finds both keys (killed between luksChangeKey's two header
-        # updates) asks for the new password, and the old one when it was given
-        # the new, before it removes either slot.
-        for (( again = 1; ; again++ )); do
-          status=0
-          attempt "$again" "$answer" "$new_password" "$old_password" || status=$?
-          (( status == 0 )) && break
-          (( status == 137 )) || fail "$backend: the rerun after '$point' finishes" "$(cat "$tmp/output")"
-          recoverable "rerun after '$point' killed at step $again"
+          [[ -n $(opens "$system" "$answer") ]] || continue
+          if grep -qx 'phase=record' "$journal" && [[ $answer == "$old_password" ]]; then
+            if attempt 0 "$answer"; then fail "$backend: after '$point' a confirmed change refuses the old password"; fi
+            [[ -e $journal ]] || fail "$backend: after '$point' a refused rerun keeps the journal"
+            answer=$new_password
+          fi
+          # A rerun that finds both keys (killed between luksChangeKey's two header
+          # updates) asks for the new password, and the old one when it was given
+          # the new, before it removes either slot.
+          for (( again = 1; ; again++ )); do
+            status=0
+            attempt "$again" "$answer" "$new_password" "$old_password" || status=$?
+            (( status == 0 )) && break
+            (( status == 137 )) || fail "$backend: the rerun after '$point' finishes" "$(cat "$tmp/output")"
+            recoverable "rerun after '$point' killed at step $again"
+          done
+          consistent "rerun with $answer after '$point'" "$answer"
+          no_secrets "rerun after '$point'"
         done
-        consistent "rerun with $answer after '$point'" "$answer"
-        no_secrets "rerun after '$point'"
-      done
+        rm -rf "$tmp"
+      ) >"$step_log" 2>&1 &
+      step_pids+=("$!")
     done
+    step_failed=0
+    for i in "${!step_pids[@]}"; do
+      if ! wait "${step_pids[$i]}"; then
+        cat "${step_logs[$i]}" >&2
+        step_failed=1
+      fi
+      rm -f "${step_logs[$i]}"
+    done
+    (( step_failed == 0 )) || exit 1
   else
     [[ -n $real_crash_step ]] || fail "$backend: trace exposes luksChangeKey done checkpoint" "$(cat "$tmp/trace")"
     fixture
