@@ -71,7 +71,6 @@ qml_matches "$shell_qml" 'bar\.barConfig *= *shell\.barConfigFor\( *shell\.activ
   fail "replacement-bar configuration updates are not detached"
 pass "replacement bars receive detached configuration snapshots"
 
-# Widget host injection is exercised through production code in bar-text-color-test.sh.
 qml_matches "$bar_qml" 'api\.clickTargets *= *root\.pluginClickTargets\( *api\.pluginId *\)' ||
   fail "third-party bar facades exclude other widgets from their object graph"
 pass "third-party widgets receive a bar facade instead of the host bar"

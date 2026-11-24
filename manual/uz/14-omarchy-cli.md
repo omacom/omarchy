@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy odatda tezkor tugmalar va Omarchy menyusi (`Super + Space`) orqali boshqariladi. Lekin uni `omarchy` CLI orqali ham boshqarishingiz mumkin. Bu, ayniqsa, moslashtirish yoki sozlash ustida AI agent siz bilan birga ishlayotganda juda qo'l keladi.
+Omarchy odatda tezkor tugmalar va Omarchy menyusi (`Super + Space`) orqali boshqariladi. Lekin uni `omarchy` CLI orqali ham boshqarishingiz mumkin. Bu, ayniqsa, moslashtirish yoki konfiguratsiya ustida AI agent bilan birga ishlayotganingizda juda qo'l keladi.
 
-CLI menyu orqali ham, boshqa yo'llar bilan ham ishlatiladigan barcha ichki vositalarga kirish imkoniga ega. Terminalda `omarchy` ni ishga tushirib, mavjud barcha narsani ko'rishingiz mumkin.
+CLI menyu orqali ham, boshqa yo'llar bilan ham ishlatiladigan barcha ichki vositalarga kira oladi. Mavjud hamma narsani terminalda `omarchy` ni ishga tushirib ko'rishingiz mumkin.
 
 U taxminan shunday ko'rinadi:
 
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,15 +42,15 @@ Groups:
   ...
 ```
 
-Diagnostika uchun `omarchy-debug --no-sudo --print` ni to'g'ridan-to'g'ri ishga tushiring. U diagnostikani chop etadi va sudo so'ramasdan `/tmp/omarchy-debug.log` ga yozadi, jumladan, `omarchy debug` "Unknown Omarchy command" xatosi bilan muvaffaqiyatsiz bo'lishi mumkin bo'lgan paket o'rnatishlarida ham.
+Diagnostika uchun to'g'ridan-to'g'ri `omarchy-debug --no-sudo --print` ni ishga tushiring. U sudo so'ramasdan diagnostikani chop etadi va `/tmp/omarchy-debug.log` ga yozadi, jumladan `omarchy debug` "Unknown Omarchy command" xatosi bilan muvaffaqiyatsiz bo'lishi mumkin bo'lgan paket o'rnatishlarida ham.
 
-Va har bir guruhni chuqurroq o'rganishingiz mumkin:
+Va har bir guruhga chuqurroq kirishingiz ham mumkin:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -60,4 +61,4 @@ Har bir buyruq `--help` ni ham qabul qiladi, xoh butun guruhni so'rang (`omarchy
 
 ### Menyuni terminaldan ochish
 
-Omarchy menyusini skriptlash ham mumkin, bu o'z tugmalar birikmalaringiz uchun qulay. `omarchy menu` uni ildizda ochadi va siz uni nomlab, daraxtning istalgan nuqtasiga to'g'ridan-to'g'ri o'tishingiz mumkin: `omarchy menu summon appearance.theme` to'g'ridan-to'g'ri mavzu tanlagichga o'tadi, `omarchy menu toggle system` tizim menyusini ochadi va agar u allaqachon ochiq bo'lsa, uni yana yopadi, `omarchy menu close` esa uni yopib qo'yadi.
+Omarchy menyusini skript orqali ham boshqarish mumkin, bu o'zingizning tugma birikmalaringiz uchun qulay. `omarchy menu` uni ildizdan ochadi, nomini aytish orqali esa daraxtning istalgan nuqtasiga to'g'ridan-to'g'ri sakrashingiz mumkin: `omarchy menu summon appearance.theme` to'g'ridan-to'g'ri mavzu tanlagichga o'tadi, `omarchy menu toggle system` tizim menyusini ochadi va agar u allaqachon ochiq bo'lsa, uni yana yopadi, `omarchy menu close` esa uni yopib qo'yadi.

@@ -2,23 +2,23 @@
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) is een heerlijk alternatief voor iets als de GitHub Desktop-applicatie, en het draait in de terminal.
+[Lazygit](https://github.com/jesseduffield/lazygit) is een heerlijk alternatief voor zoiets als de GitHub Desktop-applicatie, en het draait in de terminal.
 
-Je kunt het rechtstreeks uitvoeren door naar een willekeurige map te gaan die door git wordt beheerd en `lazygit` uit te voeren. Of je kunt het binnen Neovim uitvoeren, waar het kan worden gestart met `Space G G`.
+Je kunt het rechtstreeks uitvoeren door naar een willekeurige directory te gaan die door git wordt beheerd en `lazygit` uit te voeren. Of je kunt het in Neovim uitvoeren, waar het kan worden gestart met `Space G G`.
 
-Je springt tussen de verschillende deelvensters met `Tab`. In het deelvenster Files selecteer je bestanden voor staging met `Space`, en vervolgens kun je met `c` een nieuwe commit aanmaken. Je kunt alle beschikbare commando's zien met `?`.
+Je springt tussen de verschillende deelvensters met `Tab`. In het deelvenster Files selecteer je bestanden om te stagen met `Space`, en daarna kun je een nieuwe commit maken met `c`. Je kunt alle beschikbare commando's zien met `?`.
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) is een prachtige resource manager die geheugen-, CPU-, schijf- en netwerkgebruik toont. Het toont ook alle actieve processen en laat je die beheren.
+[Btop](https://github.com/aristocratos/btop) is een prachtige resourcemanager die geheugen-, CPU-, schijf- en netwerkgebruik toont. Hij toont ook alle actieve processen en laat je die beheren.
 
-Omarchy noemt het Activity Monitor, en je start het vanuit de app launcher of door op `Super + Shift + T` te drukken. Het opent als een zwevend venster, dat je kunt tegelen met `Super + T`.
+Omarchy noemt het Activity Monitor, en je start het vanuit de applicatiestarter of door op `Super + Shift + T` te drukken. Het opent als een zwevend venster, dat je kunt tegelen met `Super + T`.
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) is een terminal workspace manager die je workspaces, tabs en panes geeft, en ze allemaal laat draaien in een persistente sessie waar je je van kunt loskoppelen en later naar kunt terugkeren.
+[Herdr](https://herdr.dev) is een terminal workspace manager die je workspaces, tabbladen en deelvensters geeft, en ze allemaal draaiende houdt in een persistente sessie waarvan je kunt loskoppelen en waar je later naar kunt terugkeren.
 
-Je start het (of koppelt opnieuw aan je bestaande sessie) vanuit de app launcher of met `Super + Ctrl + Return`. Omarchy levert een Herdr-configuratie die de Tmux-configuratie spiegelt, dus de prefix-toets is hier ook `Ctrl + Space`. Je kunt alle sneltoetsen bekijken met `Super + Ctrl + K`.
+Je start het (of maakt opnieuw verbinding met je bestaande sessie) vanuit de applicatiestarter of met `Super + Ctrl + Return`. Omarchy levert een Herdr-configuratie die zijn Tmux-configuratie spiegelt, dus de prefix-toets is hier ook `Ctrl + Space`. Je kunt alle sneltoetsen bekijken met `Super + Ctrl + K`.
 
 ## Fastfetch
 
@@ -28,12 +28,12 @@ Omarchy heeft dit verpakt als _System > About_ in het Omarchy-menu (`Super + Spa
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) is een retro terminalmuziekspeler geïnspireerd door Winamp 2.x, compleet met ingebouwde radiostations voor lo-fi beats. Start het met `Super + Shift + Alt + M`, of vanuit het Omarchy-menu onder _Apps_. Druk op `?` voor de volledige lijst met sneltoetsen.
+[Cliamp](https://www.cliamp.stream/) is een retro muziekspeler voor de terminal, geïnspireerd door Winamp 2.x, compleet met ingebouwde radiostations voor lo-fi beats. Start het met `Super + Shift + Alt + M`, of vanuit het Omarchy-menu onder _Apps_. Druk op `?` voor de volledige lijst met sneltoetsen.
 
-## Hoe zit het met Wi-Fi en Bluetooth?
+## En Wi-Fi en Bluetooth dan?
 
 Je vindt geen TUIs voor Wi-Fi en Bluetooth — die taken horen bij de Omarchy-shell. Klik op het Wi-Fi-pictogram in de bovenste balk (of druk op `Super + Ctrl + N`) om netwerken te zien en verbinding te maken, en klik op het Bluetooth-pictogram (of druk op `Super + Ctrl + B`) om apparaten te koppelen en te verbinden. Zie [netwerken](35-networking.md) voor het volledige verhaal.
 
 ## Je eigen toevoegen
 
-Elk terminalprogramma kan de volledige app-behandeling krijgen. Ga naar _Install > TUI_ in het Omarchy-menu (`Super + Space`), geef het een naam, een startcommando, een vensterstijl en een pictogram, en het verschijnt in de app launcher net als elke andere applicatie. Je kunt het weer verwijderen onder _Remove > TUI_.
+Elk terminalprogramma kan de volledige app-behandeling krijgen. Ga naar _Install > TUI_ in het Omarchy-menu (`Super + Space`), geef het een naam, een startcommando, een vensterstijl en een pictogram, en het verschijnt in de applicatiestarter net als elke andere applicatie. Je kunt het weer verwijderen onder _Remove > TUI_.
