@@ -24,4 +24,22 @@ for arg in "$@"; do
   esac
 done
 
-exec omasnap "${omasnap_args[@]}"
+stamp=$(mktemp)
+touch "$stamp"
+omasnap "${omasnap_args[@]}"
+status=$?
+if [[ -n ${OMARCHY_PATH:-} && -x $OMARCHY_PATH/bin/omarchy-ml-shot ]]; then
+  roots=()
+  if [[ -n ${OMASNAP_SCREENSHOT_DIR:-} ]]; then
+    roots+=("$OMASNAP_SCREENSHOT_DIR")
+  elif [[ -n ${XDG_PICTURES_DIR:-} ]]; then
+    roots+=("$XDG_PICTURES_DIR/Screenshots")
+  else
+    roots+=("$HOME/Pictures/Screenshots")
+  fi
+  while IFS= read -r -d '' shot; do
+    "$OMARCHY_PATH/bin/omarchy-ml-shot" index --path "$shot" || true
+  done < <(find "${roots[@]}" -type f -name '*.png' -newer "$stamp" -print0 2>/dev/null)
+fi
+rm -f "$stamp"
+exit "$status"

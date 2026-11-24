@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Print GPU use, memory, and temperature
+
+set -euo pipefail
+
+if [[ -n ${OMARCHY_ML_GPU_STATUS+x} ]]; then
+  if [[ -z $OMARCHY_ML_GPU_STATUS ]]; then
+    exit 1
+  fi
+  printf '%s\n' "$OMARCHY_ML_GPU_STATUS"
+  exit 0
+fi
+
+format_nvidia() {
+  awk -F',' '{
+    gsub(/ /, "", $1)
+    gsub(/ /, "", $2)
+    gsub(/ /, "", $3)
+    gsub(/ /, "", $4)
+    if ($1 == "" || $2 == "" || $3 == "") exit 1
+    printf "%s%% %.0f/%.0fG %s°\n", $1, $2 / 1024, $3 / 1024, $4
+  }'
+}
+
+if omarchy-cmd-present nvidia-smi; then
+  line=$(nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits | head -n 1)
+  printf '%s\n' "$line" | format_nvidia
+  exit 0
+fi
+
+if omarchy-cmd-present rocm-smi; then
+  raw=$(rocm-smi --showuse --showmeminfo vram --showtemp 2>/dev/null || true)
+  RAW="$raw" python3 -c '
+import os, re, sys
+text = os.environ.get("RAW", "")
+use = re.search(r"GPU use \(%\):\s*([0-9.]+)", text)
+temp = re.search(r"Temperature.*:\s*([0-9.]+)", text)
+used = re.search(r"VRAM Total Used Memory \(B\):\s*([0-9]+)", text)
+total = re.search(r"VRAM Total Memory \(B\):\s*([0-9]+)", text)
+if not use or not temp or not used or not total:
+    sys.exit(1)
+print("%s%% %.0f/%.0fG %s°" % (use.group(1).split(".")[0], int(used.group(1)) / 1024**3, int(total.group(1)) / 1024**3, temp.group(1).split(".")[0]))
+'
+  exit 0
+fi
+
+exit 1
