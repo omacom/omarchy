@@ -518,6 +518,11 @@ Item {
       selectedImage = deleteSelectionPath || currentPath() || currentThemePreview()
       deleteSelectionPath = ""
       awaitingDeleteRefresh = false
+      if (!rows) {
+        themeMode = false
+        opened = false
+        return
+      }
       imageRows = rows
       loadRows(rows, false)
     }

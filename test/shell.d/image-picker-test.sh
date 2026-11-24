@@ -315,6 +315,11 @@ updateCtx.themeRows = 'new-rows'
 updateCtx.loaded = null
 updateCtx.updateThemeRows('new-rows')
 assertEqual(updateCtx.selectedImage, '/p/alpha.png', 'an unchanged refresh leaves the selection alone')
+updateCtx.awaitingDeleteRefresh = true
+updateCtx.updateThemeRows('')
+assert(!updateCtx.opened && !updateCtx.themeMode && !updateCtx.awaitingDeleteRefresh,
+  'hiding the last theme closes the picker and releases keyboard focus')
+
 
 deletion = deleteContext('/cache/previews/nord.png', ['nord', 'fjord'], true)
 deletion.stockThemeNames = []
@@ -348,6 +353,8 @@ application.applySelected()
 assertDeepEqual(application.applied, ['omarchy-theme-set', 'fjord'], 'Enter applies the selected theme once no deletion is pending')
 
 updateCtx.awaitingDeleteRefresh = true
+updateCtx.themeMode = true
+updateCtx.opened = true
 updateCtx.deleteSelectionPath = '/p/alpha.png'
 updateCtx.themeRows = 'new-rows'
 updateCtx.updateThemeRows('after-delete-rows')
