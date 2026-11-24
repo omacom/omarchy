@@ -83,25 +83,14 @@ fi
 
 # Dev-aware skill symlinks. Cannot live in /etc/skel because OMARCHY_PATH may
 # point at a dev checkout (omarchy dev link) where the target differs.
-# Loops every skill directory, so shipping a new one needs no edit here.
-mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/.gemini/config/skills ~/.hermes/skills
-for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
-  skill=${skill%/}
-  name=${skill##*/}
-  ln -sfn "$skill" ~/.agents/skills/"$name"
-  ln -sfn "$skill" ~/.claude/skills/"$name"
-  ln -sfn "$skill" ~/.codex/skills/"$name"
-  ln -sfn "$skill" ~/.pi/agent/skills/"$name"
-  ln -sfn "$skill" ~/.gemini/config/skills/"$name"
-  ln -sfn "$skill" ~/.hermes/skills/"$name"
-  if [[ -d ~/.hermes/profiles ]]; then
-    for profile in ~/.hermes/profiles/*/; do
-      [[ -d $profile ]] || continue
-      mkdir -p "$profile/skills"
-      ln -sfn "$skill" "$profile/skills/$name"
-    done
-  fi
-done
+"$OMARCHY_PATH/bin/omarchy-agent-skills-link"
+
+# Pi's extensions link the same way, dev-aware, beside Pi's own defaults.
+"$OMARCHY_PATH/bin/omarchy-agent-pi-defaults"
+
+# Personal agent rules live in ~/.agents/AGENTS.md beside the skills, linked
+# into each harness that reads its own global instructions file.
+"$OMARCHY_PATH/bin/omarchy-agent-instructions" >/dev/null || true
 
 mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
 xdg-user-dirs-update --set TEMPLATES "$HOME"
@@ -124,15 +113,26 @@ done
 
 source "$OMARCHY_INSTALL/user/all.sh"
 
+# /etc/skel seeds every shipped launcher before the region is known, so a new
+# home starts over from the region's list.
+if (( first_install )); then
+  for launcher in "$OMARCHY_PATH"/applications/*.desktop; do
+    rm -f ~/.local/share/applications/"${launcher##*/}"
+  done
+fi
 omarchy-refresh-applications
-env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop
-xdg-mime default HEY.desktop x-scheme-handler/mailto
+XDG_CURRENT_DESKTOP= xdg-mime default google-chrome.desktop \
+  text/html x-scheme-handler/http x-scheme-handler/https x-scheme-handler/about x-scheme-handler/unknown
 
 if (( first_install )); then
   mkdir -p "$state_dir/migrations"
-  for migration in "$OMARCHY_PATH"/migrations/*.sh; do
-    [[ -f $migration ]] && touch "$state_dir/migrations/$(basename "$migration")"
-  done
+  # One touch for all of them: a basename and a touch per migration were over
+  # 500 processes, 1.4s on an N1x.
+  migrations=("$OMARCHY_PATH"/migrations/*.sh)
+  if [[ -f ${migrations[0]} ]]; then
+    migrations=("${migrations[@]##*/}")
+    touch "${migrations[@]/#/$state_dir/migrations/}"
+  fi
 fi
 
 omarchy-done mark finalize-user
