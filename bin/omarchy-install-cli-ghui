@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Install ghui, a terminal UI for GitHub pull requests
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-add ghui
