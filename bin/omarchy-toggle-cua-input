@@ -162,8 +162,18 @@ startup_off() {
 load_at_start() {
   omarchy-hyprland-toggle-enabled "$FLAG" || exit 0
 
-  if ! omarchy-pkg-present cua-hyprland-plugin || ! package_current || ! compatible; then
-    startup_off "$(omarchy-i18n cua.startupMismatch)"
+  omarchy-pkg-present cua-hyprland-plugin || startup_off "$(omarchy-i18n cua.pluginMissing)"
+  package_current || startup_off "$(omarchy-i18n cua.pluginTooOld "$MIN_VERSION")"
+
+  # Hyprland or one of its libraries has moved ahead of the plugin, whose build
+  # for it follows by itself: the flag waits, held off, for the session that finds them matching.
+  if ! compatible; then
+    if ! hold_flag; then
+      [[ -e $FLAG_FILE ]] && startup_off "$(omarchy-i18n cua.startupReloadFailed)"
+      exit 0
+    fi
+    notify "$(omarchy-i18n cua.waiting)" "$(omarchy-i18n cua.waitingBody)"
+    exit 0
   fi
 
   if ! plugin_loaded && ! hold_flag; then

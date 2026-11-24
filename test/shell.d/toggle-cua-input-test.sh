@@ -510,13 +510,39 @@ TEST_PLUGIN_LOADED=1 TEST_LAYOUT_INDEPENDENT=false "$toggle" --load
 pass "cua input disables stale loaded module at session start"
 "$toggle" on >/dev/null
 
-# A check that no longer passes turns the flag off.
+# A check that no longer passes means Hyprland moved ahead of the plugin: nothing
+# loads, and the flag stays, held off, for the session that finds the matching build.
+# Held and reloaded, so a module something else loaded has its input off as well.
+for loaded in 0 1; do
+  : >"$TEST_LOG"
+  TEST_PLUGIN_LOADED=$loaded TEST_VERIFY_STATUS=1 "$toggle" --load
+  grep -q 'enabled = false' "$(flag_file)" && ! grep -q 'enabled = true' "$(flag_file)" && grep -q 'omarchy-toggle-cua-input --load' "$(flag_file)" ||
+    fail "cua input waits, held off, when the check fails at session start (loaded=$loaded)" "$(cat "$(flag_file)" 2>&1)"
+  [[ $(grep '^hyprctl:' "$TEST_LOG") == "hyprctl:reload" ]] ||
+    fail "cua input waits, held off, when the check fails at session start (loaded=$loaded)" "$(cat "$TEST_LOG")"
+  grep -q '^notify:.*Cua input waiting for an update' "$TEST_LOG" ||
+    fail "cua input waits, held off, when the check fails at session start (loaded=$loaded)" "no notification"
+  pass "cua input waits, held off, when the check fails at session start (loaded=$loaded)"
+done
+
 : >"$TEST_LOG"
-TEST_VERIFY_STATUS=1 "$toggle" --load
-[[ ! -e $(flag_file) ]] || fail "cua input turns itself off when the check fails at session start"
-! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input turns itself off when the check fails at session start" "loaded anyway"
-grep -q '^notify:.*Cua input turned off' "$TEST_LOG" || fail "cua input turns itself off when the check fails at session start" "no notification"
-pass "cua input turns itself off when the check fails at session start"
+"$toggle" --load
+grep -q '^hyprctl:plugin load' "$TEST_LOG" && cmp -s "$(flag_file)" "$ROOT/default/hypr/toggles/cua-input.lua" ||
+  fail "cua input comes back at the session start that finds the check passing" "$(cat "$TEST_LOG")"
+pass "cua input comes back at the session start that finds the check passing"
+
+# A plugin that was removed or replaced by one too old has nothing to wait for, and a hold
+# Hyprland did not take is not a wait.
+for gone in TEST_PLUGIN_INSTALLED=0 TEST_PLUGIN_VERSION=0.28.2-2 "TEST_VERIFY_STATUS=1 TEST_RELOAD_STATUS=1"; do
+  : >"$TEST_LOG"
+  # shellcheck disable=SC2086 # the last case is two assignments
+  env $gone "$toggle" --load
+  [[ ! -e $(flag_file) ]] || fail "cua input turns itself off at session start with $gone"
+  grep -q '^notify:.*Cua input turned off' "$TEST_LOG" || fail "cua input turns itself off at session start with $gone" "no notification"
+  pass "cua input turns itself off at session start with $gone"
+  "$toggle" on >/dev/null
+done
+"$toggle" off >/dev/null
 
 # With the flag off, session start does nothing.
 : >"$TEST_LOG"

@@ -28,6 +28,12 @@ case "$1 $2" in
     printf 'Repository      : omarchy\nName            : cua-hyprland-plugin\nDescription     : Cua plugin for hyprland=%s\nProvides        : cua-hyprland=%s\n%s: %s  hyprlang=0.6.8-5\n\n' "$TEST_HYPRLAND" "$TEST_HYPRLAND" "$depends" "${TEST_DEPENDS_BEFORE_PIN:+$TEST_DEPENDS_BEFORE_PIN$wrap}$TEST_PLUGIN_PIN"
     printf 'Repository      : extra\nName            : cua-hyprland-plugin\n%s: hyprland=%s\n' "$depends" "$TEST_HYPRLAND"
     ;;
+  "-T "*)
+    # pacman's answer for the installed build: a bare name is met, as is the exact build and its release without the package release.
+    [[ $2 == "hyprland" || $2 == "hyprland=$TEST_HYPRLAND" || $2 == "hyprland=${TEST_HYPRLAND%-*}" ]] && exit 0
+    echo "$2"
+    exit 127
+    ;;
   *)
     printf 'pacman:%s\n' "$*" >>"$TEST_LOG"
     exit 1
@@ -75,9 +81,9 @@ done
   fail "Cua install sets the driver's Wayland switch in the running Hyprland and nowhere else" "$(cat "$TEST_ENV_LOG")"
 pass "Cua install sets the driver's Wayland switch in the running Hyprland and nowhere else"
 
-# pacman would meet either pin by replacing the installed Hyprland with a
+# pacman would meet any of these by replacing the installed Hyprland with a
 # build from another repository, which is never the plugin's call to make.
-for pin in hyprland=0.57.2-1 hyprland=0.57.2-3 hyprland=0.57.2-2.1 hyprland=0.57.2-21 hyprland; do
+for pin in hyprland=0.57.2-1 hyprland=0.57.2-3 hyprland=0.57.2-2.1 hyprland=0.57.2-21 'hyprland>=0.57.3'; do
   output=$(TEST_HYPRLAND=0.57.2-2 TEST_PLUGIN_PIN=$pin install_cua) ||
     fail "Cua install skips a plugin built for another Hyprland build ($pin)" "the driver install failed with it"
   [[ $(cat "$TEST_LOG") == "add:cua-driver-bin" ]] ||
@@ -86,9 +92,15 @@ for pin in hyprland=0.57.2-1 hyprland=0.57.2-3 hyprland=0.57.2-2.1 hyprland=0.57
     fail "Cua install skips a plugin built for another Hyprland build ($pin)" "$output"
   pass "Cua install skips a plugin built for another Hyprland build ($pin)"
 done
-[[ $output == *"built for another Hyprland build and"* ]] ||
-  fail "Cua install says so when the plugin names no Hyprland build" "$output"
-pass "Cua install says so when the plugin names no Hyprland build"
+
+# A dependency the installed Hyprland already meets leaves it alone: no version at all, or the
+# release without its package release. The toggle checks the exact match at load.
+for met in hyprland hyprland=0.57.2; do
+  output=$(TEST_HYPRLAND=0.57.2-2 TEST_PLUGIN_PIN=$met install_cua)
+  [[ $(cat "$TEST_LOG") == $'add:cua-driver-bin\nadd:cua-hyprland-plugin' ]] ||
+    fail "Cua install adds a plugin whose Hyprland dependency is already met ($met)" "$(cat "$TEST_LOG")"
+  pass "Cua install adds a plugin whose Hyprland dependency is already met ($met)"
+done
 
 output=$(TEST_HYPRLAND=0.57.2-2 install_cua) ||
   fail "Cua install carries on without a plugin the channel lacks" "the driver install failed with it"
