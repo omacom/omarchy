@@ -286,9 +286,9 @@ Item {
     if (lockRequested && fingerprintConfigured && !fingerprintAuthenticating) fingerprintRetryTimer.restart()
   }
 
-  // A resume can light the panel with no input to wake the lock, so after a
-  // lock request the reader comes back once a sleep is seen; the blank
-  // countdown then pauses it again if nothing else happens. The idle service
+  // A resume brings no input to wake the lock, so after a lock request the
+  // panel and the reader come back once a sleep is seen; the blank countdown
+  // then takes both away again if nothing else happens. The idle service
   // repeats the same request without sleeping, so the sleep has to be seen.
   function noteSleepRequested() {
     if (!lockRequested || !fingerprintPaused) return
@@ -375,12 +375,16 @@ Item {
     passwordPam.respond(pendingPassword)
   }
 
+  // onError and onCompleted can both fire; settle each password attempt once
+  // and always clear pendingPassword even if the lock was already dismissed.
   function handlePasswordFailure() {
-    if (!lockRequested) return
+    if (!authenticatingPassword) return
 
     authenticatingPassword = false
-    enteredPassword = ""
     pendingPassword = ""
+    if (!lockRequested) return
+
+    enteredPassword = ""
     failedAttempts += 1
     failureMessage = I18n.t("lock.authenticationFailed").arg(I18n.formatNumber(failedAttempts))
     runWake()
@@ -573,12 +577,19 @@ Item {
     onPamMessage: root.respondToPasswordPrompt()
 
     onCompleted: function(result) {
-      root.authenticatingPassword = false
-      root.pendingPassword = ""
-
-      if (!root.lockRequested) return
-      if (result === PamResult.Success) root.finishUnlock()
-      else root.handlePasswordFailure()
+      if (!root.authenticatingPassword) return
+      if (!root.lockRequested) {
+        root.authenticatingPassword = false
+        root.pendingPassword = ""
+        return
+      }
+      if (result === PamResult.Success) {
+        root.authenticatingPassword = false
+        root.pendingPassword = ""
+        root.finishUnlock()
+      } else {
+        root.handlePasswordFailure()
+      }
     }
 
     onError: function(error) {
@@ -669,6 +680,9 @@ Item {
       if (slept && root.lockRequested && root.fingerprintPaused) {
         stop()
         root.fingerprintSleptWhilePaused = true
+        // A panel blanked before the sleep stays dark through the resume, and
+        // opening the lid is no input that would light it.
+        if (!wakeProcess.running) wakeProcess.running = true
         root.resumeFingerprint()
         root.armBlankTimer(idleBlankTimer.resumeMs)
       } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
@@ -786,6 +800,20 @@ Item {
       // fingerprint PAM stays armed for the whole lock, so gating on
       // `authenticating` here would keep the panel lit until unlock.
       if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
+    }
+  }
+
+  // Hyprland lights the panel for any key, but a bound key like volume never
+  // reaches the lock surface, so nothing re-arms the blank and the lock stays
+  // lit. Blank once input has been quiet for the run-up and no countdown is
+  // pending, so the resume run-up is left alone.
+  IdleMonitor {
+    id: lockIdleMonitor
+    enabled: root.lockRequested
+    timeout: idleBlankTimer.idleMs / 1000
+    respectInhibitors: false
+    onIsIdleChanged: {
+      if (isIdle && root.lockRequested && !root.authenticatingPassword && !idleBlankTimer.running) root.runBlank()
     }
   }
 

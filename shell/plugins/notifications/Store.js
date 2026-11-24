@@ -45,6 +45,9 @@ function snapshot(n, key, urgencyEnum) {
     execActions: actions ? JSON.stringify(actions) : "",
     glyph: hints["omarchy-glyph"],
     transient: hints["transient"] === true || hints["transient"] === 1,
+    // omarchy-notification-send --sticky: news you'd come back for, like an
+    // agent ready, waits like a critical one without its alarm.
+    sticky: hints["omarchy-sticky"] === true || hints["omarchy-sticky"] === 1,
     app: raw.app,
     // Else the desktop-entry hint, which names the app's .desktop file and so,
     // usually, its icon. normalise() drops it when it is a path (Chrome's).
@@ -65,7 +68,7 @@ function snapshot(n, key, urgencyEnum) {
 }
 
 // The fields an in-place update (replaces_id) must write through to the row.
-var ROLES = ["originalId", "senderPid", "execArgv", "execActions", "glyph", "transient", "app", "appIcon", "summary", "body", "rawBody", "bodyRich",
+var ROLES = ["originalId", "senderPid", "execArgv", "execActions", "glyph", "transient", "sticky", "app", "appIcon", "summary", "body", "rawBody", "bodyRich",
              "bodyLine", "source", "groupKey", "image", "urgency",
              "expireTimeout", "duration", "ts",
              "code", "codes", "link"]
@@ -103,7 +106,7 @@ var RESTORE_GRACE = 20000
 // from the first row it sees and silently drops keys that row lacked, so every
 // row goes through normalise() and carries every field.
 var SHAPE = {
-  key: "", originalId: 0, senderPid: 0, execArgv: "", execActions: "", glyph: "", transient: false, app: "", appIcon: "", summary: "", body: "",
+  key: "", originalId: 0, senderPid: 0, execArgv: "", execActions: "", glyph: "", transient: false, sticky: false, app: "", appIcon: "", summary: "", body: "",
   bodyRich: "", bodyLine: "", rawBody: "", source: "", groupKey: "", image: "",
   code: "", codes: "", link: "",
   urgency: 1, expireTimeout: 0, duration: 0, ts: 0,
@@ -149,7 +152,8 @@ function restored(entry) {
   var found = Detect.scan(row.summary, row.body)
   row.link = found.link
   row = normalise(row)
-  row.duration = row.urgency === 2 ? 0 : RESTORE_GRACE
+  // A critical card, or a sticky one, still waits for whoever comes back.
+  row.duration = row.urgency === 2 || row.sticky ? 0 : RESTORE_GRACE
   row.restored = true
   return row
 }
@@ -175,7 +179,7 @@ var HISTORY_ROW_CHARS = 4096
 // What a stored row keeps. Derived text is recomputed on restore; codes,
 // links and images never persist, so a stored row cannot assert a
 // capability.
-var STORED = ["key", "originalId", "senderPid", "execArgv", "execActions", "glyph", "app", "appIcon", "summary", "body",
+var STORED = ["key", "originalId", "senderPid", "execArgv", "execActions", "glyph", "sticky", "app", "appIcon", "summary", "body",
               "rawBody", "source", "groupKey", "urgency", "expireTimeout", "duration", "ts"]
 
 function storedSize(row) { return JSON.stringify(row).length }

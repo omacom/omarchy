@@ -85,6 +85,7 @@ for _ in 1 2 3; do
   if [[ -z $best ]] || (( elapsed < best )); then
     best=$elapsed
   fi
+  (( best <= BUDGET_MS )) && break
 done
 
 (( best <= BUDGET_MS )) || fail "login reaches a drawn bar within ${BUDGET_MS}ms" "Fastest of three cold logins took ${best}ms."

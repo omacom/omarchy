@@ -71,8 +71,8 @@ handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
 assert(
   #spawned == 1
     and spawned[1].cmd
-      == "omarchy-agent --prefer-local 2>/dev/null || omarchy-launch-tui --app-id=org.omarchy.qconsole-seed bash -c 'omarchy-menu summon agent.harness; exec bash'",
-  "console without a default agent tries a running local model before falling back to a marked seed terminal"
+      == "omarchy-launch-tui --app-id=org.omarchy.qconsole-seed bash -c 'omarchy-shell omarchy.agents open; exec bash'",
+  "console without a default agent is seeded with a marked seed terminal behind the picker"
 )
 assert(spawned[1].rules.workspace == "special:qconsole silent",
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
@@ -384,7 +384,7 @@ end
 set_default_agent("claude")
 local env = load_qconsole(nil, {})
 env.handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
-assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-agent --pick --prefer-local",
+assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-agent --pick",
   "default agent launches directly without spawning a placeholder shell")
 
 -- 2. When a real agent window arrives on the console, the seed placeholder is closed.
@@ -416,7 +416,7 @@ env.set_workspace({ name = "special:qconsole", visible = true })
 env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
 env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
 env.run_timers(1000)
-assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-menu summon agent.harness",
+assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-shell omarchy.agents open",
   "repeated toggles queue at most one picker launch")
 
 -- 4. Reloading Hyprland (no workspace.created) still recognizes the surviving seed window,
@@ -427,10 +427,10 @@ env = load_qconsole(
 )
 env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
 env.run_timers(1000)
-assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-menu summon agent.harness",
+assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-shell omarchy.agents open",
   "reopening after a Hyprland reload still offers the picker")
-env.handlers["layer.opened"]({ namespace = "omarchy-menu" })
-env.handlers["layer.closed"]({ namespace = "omarchy-menu" })
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
 -- Simulate focus moving under the pointer and hiding the console right after layer.closed.
 env.set_workspace({ name = "special:qconsole", visible = false })
 env.run_timers(1)
@@ -450,35 +450,35 @@ env = load_qconsole(
 )
 env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
 env.run_timers(1000)
-env.handlers["layer.opened"]({ namespace = "omarchy-menu" })
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
 env.set_workspace({ name = "special:qconsole", visible = false })
 env.handlers["workspace.special_active"](nil, env.monitor)
-env.handlers["layer.closed"]({ namespace = "omarchy-menu" })
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
 env.run_timers(1)
 assert(#env.dispatches == 0, "deliberately hiding the console cancels picker recovery")
 
--- 6. Unrelated omarchy-menu routes (not summoned as the console picker) do not trigger recovery.
+-- 6. Unrelated keyboard panels (not summoned as the console picker) do not trigger recovery.
 env = load_qconsole(
   { name = "special:qconsole", visible = true },
   { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
 )
-env.handlers["layer.opened"]({ namespace = "omarchy-menu" })
-env.handlers["layer.closed"]({ namespace = "omarchy-menu" })
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
 env.set_workspace({ name = "special:qconsole", visible = false })
 env.run_timers(1)
-assert(#env.dispatches == 0, "unrelated omarchy-menu overlays do not trigger console recovery")
+assert(#env.dispatches == 0, "unrelated keyboard panels do not trigger console recovery")
 
--- 7. Without a default agent, a running local agent launches as org.omarchy.agent
--- rather than inside the seed placeholder: it clears picker_pending, is never
--- closed when another agent window joins the console, and reopening never pops
--- the picker over it.
+-- 7. Without a default agent, a local agent started from the agents panel
+-- arrives as org.omarchy.agent rather than inside the seed placeholder: it
+-- clears picker_pending, is never closed when another agent window joins the
+-- console, and reopening never pops the picker over it.
 env = load_qconsole({ name = "special:qconsole", visible = true }, {})
 env.handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
 env.set_windows({ { address = "0xlocal", class = "org.omarchy.agent", floating = false } })
 env.handlers["window.open"]()
--- An unrelated menu after the local agent maps must not trigger recovery.
-env.handlers["layer.opened"]({ namespace = "omarchy-menu" })
-env.handlers["layer.closed"]({ namespace = "omarchy-menu" })
+-- An unrelated panel after the local agent maps must not trigger recovery.
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
 env.set_workspace({ name = "special:qconsole", visible = false })
 env.run_timers(1)
 assert(#env.dispatches == 0, "a local agent opening clears picker_pending and closes nothing")

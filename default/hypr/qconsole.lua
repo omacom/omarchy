@@ -23,18 +23,15 @@ local PICKER_PENDING_TIMEOUT_MS = 3000
 -- the workspace itself: Hyprland only tags a spawn with the workspace it came
 -- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
 -- Omarchy ships without a default agent, so --pick offers the choice instead
--- of an empty console that explains nothing. The picker is a menu overlay,
--- not a window on the console, so when no default agent is set the seed first
--- tries a running local model in a normal agent window, and only falls back to
--- a marked placeholder terminal behind the picker when no agent can launch:
--- that placeholder holds the console open and takes focus back when the picker
--- is dismissed, survives Hyprland reloads, and is closed once a real agent
--- window arrives without ever colliding with a running local agent session.
+-- of an empty console that explains nothing. The picker is the agents panel,
+-- an overlay rather than a window on the console, so when no default agent is
+-- set the seed is a marked placeholder terminal behind the picker: that
+-- placeholder holds the console open and takes focus back when the picker is
+-- dismissed, survives Hyprland reloads, and is closed once a real agent window
+-- arrives without ever colliding with a running local agent session.
 -- One that has to be installed first does so in a floating terminal and then
 -- moves into the console; see omarchy-default-agent. A console created by
--- moving a window onto it is not empty, and is left alone. --prefer-local
--- opens the agent on the local model when one is running, and on the usual one
--- otherwise.
+-- moving a window onto it is not empty, and is left alone.
 local picker_timer = nil
 local picker_pending = false
 local picker_pending_timer = nil
@@ -127,13 +124,13 @@ end
 hl.on("workspace.created", function(ws)
   if ws and ws.name == CONSOLE and ws.is_empty then
     if default_agent() then
-      hl.exec_cmd("omarchy-agent --pick --prefer-local", { workspace = CONSOLE .. " silent" })
+      hl.exec_cmd("omarchy-agent --pick", { workspace = CONSOLE .. " silent" })
     else
       mark_picker_pending()
       hl.exec_cmd(
-        "omarchy-agent --prefer-local 2>/dev/null || omarchy-launch-tui --app-id="
+        "omarchy-launch-tui --app-id="
           .. SEED_CLASS
-          .. " bash -c 'omarchy-menu summon agent.harness; exec bash'",
+          .. " bash -c 'omarchy-shell omarchy.agents open; exec bash'",
         { workspace = CONSOLE .. " silent" }
       )
     end
@@ -288,7 +285,7 @@ hl.on("workspace.special_active", function(ws, mon)
           return
         end
         mark_picker_pending()
-        hl.exec_cmd("omarchy-menu summon agent.harness")
+        hl.exec_cmd("omarchy-shell omarchy.agents open")
       end, { type = "oneshot", timeout = PICKER_REOPEN_DELAY_MS })
     end
   else
@@ -313,7 +310,7 @@ end)
 -- back and focus its seed window, unless the user already left the console or
 -- chose a default agent. Restoring must not re-offer the picker, so it says so.
 hl.on("layer.opened", function(layer)
-  if layer and layer.namespace == "omarchy-menu" and picker_pending then
+  if layer and layer.namespace == "omarchy-keyboard-panel" and picker_pending then
     clear_picker_pending()
     local ws = hl.get_workspace(CONSOLE)
     local windows = hl.get_workspace_windows(CONSOLE)
@@ -324,7 +321,7 @@ hl.on("layer.opened", function(layer)
 end)
 
 hl.on("layer.closed", function(layer)
-  if layer and layer.namespace == "omarchy-menu" and picker_over_console then
+  if layer and layer.namespace == "omarchy-keyboard-panel" and picker_over_console then
     picker_over_console = false
     restore_timer = cancel_timer(restore_timer)
     restore_timer = hl.timer(function()
