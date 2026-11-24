@@ -81,6 +81,7 @@ bin/omarchy-upload-log         ──►  omarchy-settings    /usr/bin/  (needed
 
 default/libalpm/hooks/*.hook
                                 ──►  omarchy             /usr/share/libalpm/hooks/*.hook
+default/polkit/*.policy        ──►  omarchy             /usr/share/polkit-1/actions/*.policy
 
 install/**                     ──►  omarchy             /usr/share/omarchy/install/
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/

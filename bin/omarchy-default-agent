@@ -109,12 +109,8 @@ elif [[ $installing == "false" ]] && ! agent_present; then
   exec omarchy-launch-floating-terminal-with-presentation omarchy-default-agent --install "$agent"
 fi
 
-if ! agent_install; then
-  if [[ $installing == "true" ]]; then
-    echo "Could not install $name" >&2
-  else
-    echo "Could not set $name as the default coding agent" >&2
-  fi
+if [[ $installing == "true" ]] && ! agent_install; then
+  echo "Could not install $name" >&2
   exit 1
 fi
 
@@ -131,8 +127,9 @@ elif [[ $agent == "local" ]]; then
 fi
 
 # An installed harness gets a launcher of its own beside Agent, as signing in
-# to a subscription adds one.
+# to a subscription adds one, and claude, codex or grok its account dispatcher.
 omarchy-agent-launcher "$agent" || true
+omarchy-agent-account-dispatch "$agent"
 
 # The harness reads the shared ~/.agents/AGENTS.md from its first session.
 omarchy-agent-instructions "$agent" >/dev/null || true

@@ -29,6 +29,6 @@ esac
 # anything else at the path is the user's own.
 wrapper="$HOME/.local/bin/$command"
 if [[ -f $wrapper && ! -L $wrapper ]] && (( $(stat -c%s "$wrapper") <= 1024 )) &&
-  grep -q '^\(export MISE_MINIMUM_RELEASE_AGE=0\|MISE_MINIMUM_RELEASE_AGE=0 \)\?mise use -g ' "$wrapper"; then
+  grep -Eq '^(MISE_MINIMUM_RELEASE_AGE=0 )?mise use -g ' "$wrapper"; then
   rm -f "$wrapper"
 fi

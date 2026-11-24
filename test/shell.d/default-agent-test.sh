@@ -14,8 +14,6 @@ notification_history="$test_tmp/notification-history"
 agent_open_log="$test_tmp/agent-open"
 launch_log="$test_tmp/launch"
 inline_log="$test_tmp/inline"
-mise_log="$test_tmp/mise"
-mise_history="$test_tmp/mise-history"
 install_log="$test_tmp/install"
 install_history="$test_tmp/install-history"
 stub_log="$test_tmp/stubs"
@@ -67,21 +65,6 @@ SH
 cat >"$mock_bin/pi" <<'SH'
 #!/bin/bash
 printf '%s\0' pi "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
-SH
-
-cat >"$mock_bin/omarchy-mise-install" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*" >>"$OMARCHY_TEST_STUB_LOG"
-SH
-
-cat >"$mock_bin/mise" <<'SH'
-#!/bin/bash
-printf '%s\0' "$@" >"$OMARCHY_TEST_MISE_LOG"
-printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
-if [[ -n ${MISE_PRERELEASES:-} ]]; then
-  printf 'prereleases=%s %s\n' "$MISE_PRERELEASES" "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
-fi
-
 SH
 
 cat >"$mock_bin/omarchy-install-ai-cli" <<'SH'
@@ -140,8 +123,6 @@ export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
 export OMARCHY_TEST_AGENT_LAUNCH_LOG="$launch_log"
 export OMARCHY_TEST_AGENT_INLINE_LOG="$inline_log"
-export OMARCHY_TEST_MISE_LOG="$mise_log"
-export OMARCHY_TEST_MISE_HISTORY="$mise_history"
 export OMARCHY_TEST_INSTALL_LOG="$install_log"
 export OMARCHY_TEST_INSTALL_HISTORY="$install_history"
 export OMARCHY_TEST_STUB_LOG="$stub_log"
@@ -150,7 +131,6 @@ export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
-export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
 
 # An agent in ~/.local/bin is the user's own, from its own installer, and
 # Remove Preinstalls has no business with it.
@@ -323,12 +303,7 @@ for selection in "${!expected_agents[@]}"; do
     [[ ! -s $stub_log ]] || fail "other agents do not install the Claude extension"
   fi
 
-  if [[ $expected == "pi" ]]; then
-    [[ ! -s $install_log ]] || fail "Pi is a base package with nothing to install"
-  else
-    [[ $(tr '\0' ' ' <"$install_log") == "$expected " ]] ||
-      fail "default agent installs $selection as $expected"
-  fi
+  [[ ! -s $install_log ]] || fail "selecting an installed $selection installs nothing"
 
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||

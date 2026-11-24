@@ -23,7 +23,7 @@ policy=/usr/share/polkit-1/actions/org.omarchy.pkg-add-curated.policy
 
 curated() {
   [[ $1 =~ ^[a-z0-9][a-z0-9+._-]*$ ]] &&
-    grep -qF "<annotate key=\"org.freedesktop.policykit.exec.argv1\">$1</annotate>" "$policy" 2>/dev/null
+    /usr/bin/grep -qF "<annotate key=\"org.freedesktop.policykit.exec.argv1\">$1</annotate>" "$policy" 2>/dev/null
 }
 
 if (( EUID == 0 )); then

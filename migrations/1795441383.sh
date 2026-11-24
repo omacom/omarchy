@@ -107,7 +107,6 @@ for command in claude codex grok; do
   fi
 done
 rmdir "$wrappers" "${wrappers%/bin}" 2>/dev/null || true
-omarchy-agent-account-dispatch
 
 # SSH commands that run no shell take PATH from PAM, so the dispatchers lead
 # Omarchy's line there too. Only the exact line Omarchy wrote is changed.

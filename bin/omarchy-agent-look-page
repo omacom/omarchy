@@ -184,6 +184,8 @@ const named = {
   Shift: ["Shift", "ShiftLeft", 16], Control: ["Control", "ControlLeft", 17], Alt: ["Alt", "AltLeft", 18],
 };
 function keyEvent(name) {
+  // KeyQ and Digit1 are the q and 1 keys.
+  name = name.replace(/^Key([A-Z])$/, (_, letter) => letter.toLowerCase()).replace(/^Digit([0-9])$/, "$1");
   if (named[name]) {
     const [key, code, keyCode] = named[name];
     return { key, code, windowsVirtualKeyCode: keyCode, text: key === " " || key === "Enter" ? (key === " " ? " " : "\r") : undefined };

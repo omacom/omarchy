@@ -29,9 +29,12 @@ for agent in "${agents[@]}"; do
   esac
 
   if PATH=$cli_path type -P "$agent" >/dev/null; then
+    # Renamed into place, so a command starting while this runs never finds
+    # the dispatcher half written.
     mkdir -p "$dir"
-    printf '#!/bin/bash\nexec omarchy-agent-account-exec %s "$@"\n' "$agent" >"$dir/$agent"
-    chmod +x "$dir/$agent"
+    printf '#!/bin/bash\nexec omarchy-agent-account-exec %s "$@"\n' "$agent" >"$dir/.$agent.new"
+    chmod +x "$dir/.$agent.new"
+    mv -f "$dir/.$agent.new" "$dir/$agent"
   else
     rm -f "$dir/$agent"
   fi
