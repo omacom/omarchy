@@ -337,6 +337,16 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
+            // Mouse wheels keep the grid's own scrolling.
+            WheelHandler {
+              acceptedDevices: PointerDevice.TouchPad
+              target: null
+              onWheel: function(event) {
+                var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
+                grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - event.pixelDelta.y * Style.touchpadScrollFactor))
+              }
+            }
+
             delegate: Item {
               id: cell
 

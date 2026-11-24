@@ -38,7 +38,6 @@ node = { version = "latest", lazy = true, minimum_release_age = "0s" }
 oh-my-pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 opencode = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 ori = { version = "latest", lazy = true, minimum_release_age = "0s" }
-pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 playwright = { version = "latest", lazy = true, minimum_release_age = "0s" }
 qwen = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 uv = { version = "latest", lazy = true, minimum_release_age = "0s" }
