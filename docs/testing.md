@@ -77,7 +77,11 @@ The runner also lists files with skipped checks, including files that ran some c
 
 ## Compositor-dependent tests
 
-Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
+Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines and must not take over the active screen on a workstation.
+
+When `./test/shell` runs in an active Hyprland session, it automatically starts a private nested Hyprland compositor on a headless `1920x1080` output (`HEADLESS-1`) with no visible window on the host desktop and routes compositor-dependent tests into it. You can run a single compositor test the same way with `./test/headless bash test/shell.d/<area>-test.sh`. Set `OMARCHY_TEST_USE_LIVE_COMPOSITOR=1` (as `test/ci-vm` does inside its disposable VM) to target the live compositor directly.
+
+`require_compositor "description"` handles headless environments: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through

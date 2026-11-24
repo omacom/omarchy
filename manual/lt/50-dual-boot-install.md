@@ -1,12 +1,12 @@
-# Diegimas su dviguba įkrova
+# Dual Boot diegimas
 
-Galite įdiegti Omarchy į vieną skaidinį greta Windows ar kitų įdiegtų sistemų.
+Omarchy galite įdiegti į vieną skaidinį greta Windows ar kitų įdiegtų sistemų.
 
-Šis diegimo būdas pagal numatytuosius nustatymus vis tiek naudoja LUKS šifravimą skaidiniui, todėl iš esmės niekuo nesiskiria nuo diegimo į visą diską ir tiesiog reikalauja, kad diske būtų laisvos vietos.
+Taikant šį diegimo būdą, skaidinys pagal numatytuosius nustatymus vis tiek šifruojamas naudojant LUKS, todėl iš esmės jis niekuo nesiskiria nuo diegimo į visą diską ir tiesiog reikia, kad diske būtų laisvos vietos.
 
 ## Vietos atlaisvinimas Windows sistemoje
 
-Norėdami įdiegti greta Windows, pradžios meniu įveskite `disk management` ir pasirinkite parinktį **Sukurti ir formatuoti standžiojo disko skaidinius**.
+Kad įdiegtumėte greta Windows, pradžios meniu įveskite `disk management` ir pasirinkite parinktį **Sukurti ir formatuoti standžiojo disko skaidinius**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
@@ -18,27 +18,31 @@ Raskite tinkamą skaidinį, spustelėkite jį dešiniuoju pelės mygtuku ir pasi
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Baigę turėtumėte matyti kažką panašaus į tai, kur 50GB skirsnis šiame pavyzdyje yra vieta, kurioje įdiegsime Omarchy.
+Baigę turėtumėte matyti maždaug tokį vaizdą, kuriame 50GB skirsnis šiame pavyzdyje yra ta vieta, į kurią diegsime Omarchy.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Omarchy diegimas
 
-Omarchy diegimo procesas iš esmės yra toks pat kaip įprastai. Pasirinkę diską, gausite parinktį **Free space install**. Pasirinkite tą parinktį, kad nebūtų ištrintas visas diskas.
+Omarchy diegimo procesas iš esmės yra toks pat, kaip įprastai. Pasirinkę diską, gausite parinktį **Diegimas į laisvą vietą**. Pasirinkite tą parinktį, kad nebūtų ištrintas visas diskas.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Patvirtinkite, kad viskas atrodo gerai, ir palaukite, kol diegimas baigsis kaip įprastai. Čia taip pat galite pasirinkti diegti be šifravimo (nerekomenduojama), lygiai taip pat kaip diegdami į visą diską.
+Patikrinkite, ar viskas atrodo gerai, ir, kaip įprastai, palaukite, kol diegimas bus baigtas. Čia taip pat galite pasirinkti diegti be šifravimo (nerekomenduojama), lygiai taip pat, kaip diegdami į visą diską.
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Kitų įdiegtų sistemų pridėjimas prie įkrovos tvarkyklės
+## Kitų įdiegtų sistemų įtraukimas į paleidyklę
 
-Baigę Omarchy diegimą pastebėsite, kad dabar numatytoji yra Limine įkrovos tvarkyklė. Su ja taip pat galite pridėti Limine parinkčių kitoms įdiegtoms sistemoms, pavyzdžiui, Windows.
+Baigę Omarchy diegimą pastebėsite, kad dabar numatytoji paleidyklė yra Limine. Su ja į Limine taip pat galite įtraukti kitų įdiegtų sistemų, pavyzdžiui, Windows, parinktis.
 
-Norėdami pridėti kitų operacinių sistemų, paleiskite `limine-scan` ir vykdykite nurodymus, kad pridėtumėte norimus įrašus į savo Limine konfigūraciją. Įkrovos meniu pagal numatytuosius nustatymus lieka paslėptas ir po vienos sekundės paleidžia Omarchy. Norėdami pasirinkti Windows ar kitą įrašą, paspauskite bet kurį klavišą, kai tik paleidžiama Limine; kai pasirodys meniu, rodyklių klavišais pasirinkite įrašą ir paspauskite Enter. Jei Omarchy paleidžiama prieš jums paspaudžiant klavišą, paleiskite kompiuterį iš naujo ir bandykite dar kartą.
+Kad įtrauktumėte kitas operacines sistemas, paleiskite `limine-scan` ir vykdykite nurodymus, kad į savo Limine konfigūraciją įtrauktumėte norimus įrašus. Įkrovos meniu pagal numatytuosius nustatymus lieka paslėptas ir po vienos sekundės paleidžia Omarchy. Kad pasirinktumėte Windows ar kitą įrašą, vos tik paleidžiama Limine, paspauskite bet kurį klavišą; kai pasirodys meniu, rodyklių klavišais pasirinkite įrašą ir paspauskite Enter. Jei Omarchy pasileis nespėjus paspausti klavišo, paleiskite kompiuterį iš naujo ir bandykite dar kartą.
 
 ## Bitlocker
 
-Svarbu atkreipti dėmesį, kad šis diegimo būdas nesuderinamas su Bitlocker, nes jis šifruoja visą diską, o ne tik skaidinį. Jei pamatysite klaidą, nurodančią, kad Bitlocker įjungtas, paleiskite Windows, eikite į **Nustatymai -> Privatumas ir sauga -> Įrenginio šifravimas** ir išjunkite Bitlocker. Disko iššifravimas gali užtrukti.
+Svarbu atkreipti dėmesį, kad šis diegimo būdas nesuderinamas su Bitlocker, nes Bitlocker šifruoja visą diską, o ne tik skaidinį. Jei susidursite su klaida, kurioje teigiama, kad Bitlocker įjungtas, paleiskite Windows, eikite į **Nustatymai -> Privatumas ir sauga -> Įrenginio šifravimas** ir išjunkite Bitlocker. Disko iššifravimas gali užtrukti.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Windows diegimas iš naujo
+
+Jei šis kompiuteris buvo pristatytas su Windows, jo produkto raktas saugomas programinėje aparatinėje įrangoje. Paleiskite `omarchy windows key`, kad jį išspausdintumėte, kad galėtumėte vėl suaktyvinti Windows, jei kada nors šiame kompiuteryje diegtumėte ją iš naujo.

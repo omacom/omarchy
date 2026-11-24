@@ -85,7 +85,15 @@ wifi_restart() {
     if ! timeout "${OMARCHY_RESTART_WIFI_NM_TIMEOUT:-20}" nmcli radio wifi on; then nm_failed=1; fi
     nmcli device wifi rescan 2>/dev/null || true
   fi
-  rfkill list wifi
+  rfkill list wifi || return $?
+  if [[ -z $target ]]; then
+    local hard_blocks
+    hard_blocks=$(rfkill --raw --noheadings --output HARD list wifi) || return $?
+    if grep -qx "blocked" <<<"$hard_blocks"; then
+      echo "Wi-Fi is still hardware-blocked; software unblock cannot clear this state." >&2
+      return 1
+    fi
+  fi
 
   # The watcher toasts on exit 0, so a run NetworkManager refused must not
   # report success: the radio is no more back than a failed modprobe leaves it.

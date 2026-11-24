@@ -17,7 +17,9 @@ mkdir -p "$tmp_dir/bin" "$tmp_dir/net"
 cat >"$tmp_dir/bin/rfkill" <<'EOF'
 #!/bin/bash
 printf 'rfkill %s\n' "$*" >>"$CALLS"
-if [[ $1 == "list" ]]; then
+if [[ $* == "--raw --noheadings --output HARD list wifi" ]]; then
+  printf '%s\n' "${WIFI_HARD_BLOCK:-unblocked}"
+elif [[ $1 == "list" ]]; then
   printf '0: phy0: Wireless LAN\n\tSoft blocked: no\n\tHard blocked: no\n'
 fi
 EOF
@@ -83,6 +85,10 @@ pass "wifi reloads a wedged iwlwifi/iwlmvm radio"
 [[ $(<"$tmp_dir/rc") == "0" ]] ||
   fail "wifi reports success when the driver reloads" "$(cat "$tmp_dir/rc")"
 pass "wifi reports success when the driver reloads"
+
+WIFI_HARD_BLOCK=blocked run_restart
+[[ $(<"$tmp_dir/rc") == "1" ]] || fail "wifi reports success while still hardware-blocked"
+pass "manual restart reports a hardware block after software unblock"
 
 # BE200+ uses iwlmld, not iwlmvm. Same PCI driver name, different helper.
 printf 'iwlmld 1 0\niwlwifi 1 1\n' >"$tmp_dir/lsmod"
