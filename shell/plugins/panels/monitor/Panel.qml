@@ -1499,6 +1499,7 @@ Panel {
     horizontalPadding: Style.spacing.sm
     verticalPadding: Style.spacing.controlPaddingY
     bordered: true
+    selectable: true
 
     active: root.current !== null && root.current.current === resolution
     hasCursor: root.cursorActive && root.focusSection === "resolution" && root.selectedIndex === resolutionIndex
@@ -1521,6 +1522,7 @@ Panel {
     horizontalPadding: Style.spacing.sm
     verticalPadding: Style.spacing.controlPaddingY
     bordered: true
+    selectable: true
 
     active: root.current !== null && Math.round(root.current.refreshRate) === Number(option.label)
     hasCursor: root.cursorActive && root.focusSection === "refresh" && root.selectedIndex === refreshIndex
