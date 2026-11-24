@@ -15,6 +15,7 @@ BarWidget {
   property bool expanded: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
+  readonly property bool opened: managePopupOpen || trayMenuOpen
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
