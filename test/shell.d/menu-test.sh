@@ -480,6 +480,7 @@ sel_file=$(jq -r '.selectionFile' <<<"$payload")
 done_file=$(jq -r '.doneFile' <<<"$payload")
 printf '%s\n' "$FAKE_ANSWER" >"$sel_file"
 : >"$done_file"
+echo ok
 SH
 chmod +x "$select_tmp/bin/omarchy-shell"
 
@@ -522,3 +523,13 @@ jq -e '
   and .width == 400
 ' "$select_tmp/input.json" >/dev/null || fail "omarchy-menu-input builds the expected JSON payload" "$(cat "$select_tmp/input.json")"
 pass "omarchy-menu-input builds the expected JSON payload"
+
+# A refused summon never writes the done file, so the caller must not wait on it.
+mkdir -p "$select_tmp/refused-bin"
+printf '#!/bin/bash\necho refused\n' >"$select_tmp/refused-bin/omarchy-shell"
+chmod +x "$select_tmp/refused-bin/omarchy-shell"
+refused_rc=0
+refused_answer=$(PATH="$select_tmp/refused-bin:$PATH" timeout 5 "$ROOT/bin/omarchy-menu-select" "Simple" "One") || refused_rc=$?
+(( refused_rc == 2 )) && [[ -z $refused_answer ]] ||
+  fail "omarchy-menu-select exits 2 with no selection when the summon is refused" "rc=$refused_rc answer=$refused_answer"
+pass "omarchy-menu-select exits 2 with no selection when the summon is refused"
