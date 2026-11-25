@@ -95,3 +95,49 @@ fi
   fail "an escaping command name removes nothing outside ~/.local/bin"
 
 pass "an escaping command name removes nothing outside ~/.local/bin"
+
+# A missing tool executable causes mise x to fall back to a PATH lookup,
+# which hits the wrapper again. The wrapper must break recursion rather than
+# forking indefinitely.
+cat >"$stub_bin/mise" <<'SH'
+#!/bin/bash
+
+if [[ $1 == "x" ]]; then
+  # mise x <package> -- <bin> "$@" -> shift past x, <package>, --
+  shift 3
+  exec "$@"
+fi
+exit 0
+SH
+
+err="$tmpdir/recurse.err"
+status=0
+PATH="$stub_bin:$home/.local/bin:$PATH" "$home/.local/bin/playwright" 2>"$err" || status=$?
+(( status == 127 )) || fail "recursing wrapper exits 127" "exit: $status"
+grep -Fq "omarchy-mise-install: 'playwright' recursed" "$err" ||
+  fail "recursing wrapper explains why it stopped" "$(cat "$err")"
+
+pass "a wrapper stops recursion when mise falls back to PATH"
+
+# Shell characters in a literal command name must stay data in the recursion
+# diagnostic as well as in the execution lines.
+command='tool$(touch marker)'
+(
+  cd "$tmpdir"
+  install_wrapper somepkg "$command" >/dev/null
+)
+[[ ! -e $tmpdir/marker ]] ||
+  fail "generating a wrapper does not execute its command name"
+
+status=0
+(
+  cd "$tmpdir"
+  PATH="$stub_bin:$home/.local/bin:$PATH" "$home/.local/bin/$command"
+) 2>"$err" || status=$?
+(( status == 127 )) || fail "recursing literal command wrapper exits 127" "exit: $status"
+[[ ! -e $tmpdir/marker ]] ||
+  fail "the recursion diagnostic does not execute its command name"
+grep -Fqx "omarchy-mise-install: '$command' recursed; mise could not provide $command" "$err" ||
+  fail "the recursion diagnostic preserves the literal command name" "$(cat "$err")"
+
+pass "a recursion diagnostic treats shell characters in command names as data"
