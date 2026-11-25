@@ -1,15 +1,34 @@
 #!/bin/bash
 
 # omarchy:summary=Manage TPM 2.0 unlocking for encrypted drives
-# omarchy:args=[status|enroll|wipe] [drive]
-# omarchy:examples=omarchy drive tpm status | omarchy drive tpm enroll
+# omarchy:args=[status|enroll|wipe] [--allow-unsafe] [--keep-autologin] [drive]
+# omarchy:examples=omarchy drive tpm status | omarchy drive tpm enroll | omarchy drive tpm enroll --allow-unsafe --keep-autologin
 # omarchy:requires-sudo=true
 
 set -euo pipefail
 
 ACTION="${1:-status}"
 shift || true
-DRIVE="${1:-}"
+
+MKINITCPIO_CONF="${OMARCHY_MKINITCPIO_CONF:-/etc/mkinitcpio.conf}"
+MKINITCPIO_DIR="${OMARCHY_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}"
+TPM_HOOKS_DROP_IN="$MKINITCPIO_DIR/omarchy_tpm_unlock.conf"
+# status and wipe also run from a plain ssh command, where OMARCHY_PATH is unset.
+TPM_HOOKS_SOURCE="${OMARCHY_PATH:-}/default/mkinitcpio/omarchy_tpm_unlock.conf"
+LIMINE_DROP_INS="${OMARCHY_LIMINE_DROP_INS:-/etc/limine-entry-tool.d}"
+TPM_CMDLINE_DROP_IN="$LIMINE_DROP_INS/99-omarchy-tpm-unlock.conf"
+CRYPTTAB_INITRAMFS="${OMARCHY_CRYPTTAB_INITRAMFS:-/etc/crypttab.initramfs}"
+SDDM_AUTOLOGIN="${OMARCHY_SDDM_AUTOLOGIN:-/etc/sddm.conf.d/autologin.conf}"
+TPM_STATE_DIR="${OMARCHY_TPM_STATE_DIR:-/var/lib/omarchy/drive-tpm}"
+AUTOLOGIN_BACKUP="$TPM_STATE_DIR/sddm-autologin.conf"
+PROC_CMDLINE="${OMARCHY_PROC_CMDLINE:-/proc/cmdline}"
+
+# The hooks Omarchy's drop-ins compose for an encrypted Limine install. The TPM
+# drop-in maps the busybox ones among them to systemd hooks, and the rest work
+# unchanged in a systemd initramfs. Any other hook may carry a busybox runtime
+# script that would silently stop running, so enrollment refuses to switch it.
+KNOWN_HOOKS="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck btrfs-overlayfs resume"
+BUSYBOX_ONLY_HOOKS="udev keymap consolefont encrypt btrfs-overlayfs resume"
 
 root_luks_device() {
   local root_source ancestry device
@@ -48,34 +67,177 @@ luks_tpm2_slots() {
   ' <<<"$dump" | paste -sd, -
 }
 
-initramfs_has_sd_encrypt() {
-  local conf_file="${OMARCHY_MKINITCPIO_CONF:-/etc/mkinitcpio.conf}"
-  local conf_dir="${OMARCHY_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}"
+# The HOOKS line mkinitcpio builds from: mkinitcpio.conf, then every drop-in in
+# name order. "installed" reads the drop-ins as they are; "without-tpm" leaves
+# this command's drop-in out, for the line enrollment starts from; "with-tpm"
+# sources the shipped copy last instead, for the line enrollment produces. A
+# drop-in that fails to source fails the whole read rather than give a line
+# mkinitcpio would not build.
+composed_hooks() {
+  local mode="${1:-installed}"
 
-  if [[ ! -f $conf_file && ! -d $conf_dir ]]; then
+  if [[ ! -f $MKINITCPIO_CONF && ! -d $MKINITCPIO_DIR ]]; then
     return 1
   fi
 
-  bash -c '
+  LC_ALL=C bash -c '
     HOOKS=()
     conf_file=$1
     conf_dir=$2
+    mode=$3
+    ours=$4
+    shipped=$5
     if [[ -f $conf_file ]]; then
-      source "$conf_file" 2>/dev/null || true
+      source "$conf_file" >/dev/null 2>&1 || exit 1
     fi
     if [[ -d $conf_dir ]]; then
       shopt -s nullglob
       for dropin in "$conf_dir"/*.conf; do
-        source "$dropin" 2>/dev/null || true
+        if [[ $mode != "installed" && $dropin == "$ours" ]]; then
+          continue
+        fi
+        source "$dropin" >/dev/null 2>&1 || exit 1
       done
     fi
-    for hook in "${HOOKS[@]}"; do
-      if [[ $hook == "sd-encrypt" ]]; then
-        exit 0
-      fi
-    done
-    exit 1
-  ' bash "$conf_file" "$conf_dir" 2>/dev/null
+    if [[ $mode == "with-tpm" ]]; then
+      source "$shipped" >/dev/null 2>&1 || exit 1
+    fi
+    echo "${HOOKS[*]}"
+  ' bash "$MKINITCPIO_CONF" "$MKINITCPIO_DIR" "$mode" "$TPM_HOOKS_DROP_IN" "$TPM_HOOKS_SOURCE"
+}
+
+hook_listed() {
+  [[ " $2 " == *" $1 "* ]]
+}
+
+initramfs_has_sd_encrypt() {
+  local hooks
+  hooks=$(composed_hooks 2>/dev/null) || return 1
+  hook_listed sd-encrypt "$hooks"
+}
+
+# Only Omarchy's busybox line, unlocking root through encrypt, is switched.
+check_busybox_hooks() {
+  local hooks=$1 hook
+
+  if ! hook_listed udev "$hooks" || ! hook_listed encrypt "$hooks"; then
+    echo "Refusing: the initramfs does not unlock root through Omarchy's busybox encrypt hook (HOOKS: $hooks)." >&2
+    return 1
+  fi
+  for hook in $hooks; do
+    if ! hook_listed "$hook" "$KNOWN_HOOKS"; then
+      echo "Refusing: the mkinitcpio hook '$hook' is not known to work in a systemd initramfs (HOOKS: $hooks)." >&2
+      return 1
+    fi
+  done
+}
+
+check_systemd_hooks() {
+  local hooks=$1 hook
+
+  if ! hook_listed systemd "$hooks" || ! hook_listed sd-encrypt "$hooks"; then
+    echo "Refusing: the TPM drop-in did not produce a systemd initramfs with sd-encrypt (HOOKS: $hooks)." >&2
+    return 1
+  fi
+  for hook in $BUSYBOX_ONLY_HOOKS; do
+    if hook_listed "$hook" "$hooks"; then
+      echo "Refusing: the busybox hook '$hook' would remain in the systemd initramfs (HOOKS: $hooks)." >&2
+      return 1
+    fi
+  done
+}
+
+# Reads how the booted kernel unlocks root: exactly one
+# cryptdevice=<device>:<name>[:allow-discards] with root=/dev/mapper/<name>, and
+# no unlock parameter this command does not manage (its own rd.luks.* once the
+# cmdline drop-in is in place). Prints the device, the mapper name and the
+# extra rd.luks.options, one per line.
+booted_root_unlock() {
+  local -a params=()
+  local param spec="" root="" count=0 device name options="" extra=""
+
+  if [[ ! -r $PROC_CMDLINE ]]; then
+    echo "Refusing: cannot read the boot command line from $PROC_CMDLINE." >&2
+    return 1
+  fi
+  read -ra params <"$PROC_CMDLINE" || true
+
+  for param in "${params[@]}"; do
+    case $param in
+      cryptdevice=*)
+        spec=${param#cryptdevice=}
+        count=$((count + 1))
+        ;;
+      root=*)
+        root=${param#root=}
+        ;;
+      rd.luks.name=* | rd.luks.options=*)
+        if [[ ! -f $TPM_CMDLINE_DROP_IN ]]; then
+          echo "Refusing: the boot command line carries '$param', an unlock setup this command does not manage." >&2
+          return 1
+        fi
+        ;;
+      rd.luks.* | luks.* | cryptkey=* | crypto=*)
+        echo "Refusing: the boot command line carries '$param', an unlock setup this command does not manage." >&2
+        return 1
+        ;;
+    esac
+  done
+
+  if (( count != 1 )) || [[ $spec != *:* ]]; then
+    echo "Refusing: expected one cryptdevice=<device>:<name> on the boot command line, found $count." >&2
+    return 1
+  fi
+
+  device=${spec%%:*}
+  name=${spec#*:}
+  if [[ $name == *:* ]]; then
+    extra=${name#*:}
+    name=${name%%:*}
+  fi
+
+  case $extra in
+    "") ;;
+    allow-discards) options=",discard" ;;
+    *)
+      echo "Refusing: unknown cryptdevice option '$extra' on the boot command line." >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -z $device || ! $name =~ ^[A-Za-z0-9_-]+$ || $root != "/dev/mapper/$name" ]]; then
+    echo "Refusing: the boot command line does not mount root=/dev/mapper/<name> from cryptdevice=$spec." >&2
+    return 1
+  fi
+
+  printf '%s\n%s\n%s\n' "$device" "$name" "$options"
+}
+
+# Whether the cryptdevice= device names the drive being enrolled.
+cryptdevice_is_drive() {
+  local device=$1 drive=$2 luks_uuid=$3 partuuid
+
+  case $device in
+    PARTUUID=*)
+      partuuid=$(lsblk -dno PARTUUID "$drive" 2>/dev/null) || return 1
+      device=${device#PARTUUID=}
+      [[ -n $partuuid && ${partuuid,,} == "${device,,}" ]]
+      ;;
+    UUID=*)
+      device=${device#UUID=}
+      [[ ${luks_uuid,,} == "${device,,}" ]]
+      ;;
+    /dev/*)
+      [[ $(readlink -f "$device") == "$(readlink -f "$drive")" ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+tpm_boot_installed() {
+  [[ -f $TPM_HOOKS_DROP_IN || -f $TPM_CMDLINE_DROP_IN ]]
 }
 
 secure_boot_active() {
@@ -104,6 +266,68 @@ resolve_drive() {
     return 0
   fi
   return 1
+}
+
+is_root_drive() {
+  local root_drive
+  root_drive=$(root_luks_device 2>/dev/null) || return 1
+  [[ -n $root_drive && $root_drive == "$(readlink -f "$1")" ]]
+}
+
+# limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+rebuild_boot_images() {
+  local log
+  log=$(mktemp)
+  if sudo limine-mkinitcpio 2>&1 | tee "$log" && ! grep -q 'mkinitcpio failed for kernel' "$log"; then
+    rm -f "$log"
+    return 0
+  fi
+  rm -f "$log"
+  return 1
+}
+
+# cryptdevice= stays on the command line: a busybox image, from before the
+# switch or after a drop-in went missing, still finds root and asks for the
+# passphrase, and the tools that read cryptdevice= from /proc/cmdline keep
+# working. The systemd image ignores it.
+install_tpm_boot() {
+  local cmdline=$1 staged
+  staged=$(mktemp)
+  printf '# Written by omarchy-drive-tpm enroll; omarchy-drive-tpm wipe removes it.\nKERNEL_CMDLINE[default]+=" %s"\n' "$cmdline" >"$staged"
+  sudo install -Dm644 "$staged" "$TPM_CMDLINE_DROP_IN"
+  rm -f "$staged"
+  sudo install -Dm644 "$TPM_HOOKS_SOURCE" "$TPM_HOOKS_DROP_IN"
+}
+
+remove_tpm_boot() {
+  sudo rm -f "$TPM_HOOKS_DROP_IN" "$TPM_CMDLINE_DROP_IN"
+}
+
+autologin_disable() {
+  sudo test -f "$SDDM_AUTOLOGIN" || return 0
+  sudo mkdir -p "$TPM_STATE_DIR"
+  sudo cp -a "$SDDM_AUTOLOGIN" "$AUTOLOGIN_BACKUP"
+  sudo rm -f "$SDDM_AUTOLOGIN"
+}
+
+autologin_restore() {
+  sudo test -f "$AUTOLOGIN_BACKUP" || return 0
+  if sudo test -e "$SDDM_AUTOLOGIN"; then
+    echo "Autologin was set up again since enrollment; leaving $SDDM_AUTOLOGIN as it is."
+    sudo rm -f "$AUTOLOGIN_BACKUP"
+    return 0
+  fi
+  sudo mkdir -p "$(dirname "$SDDM_AUTOLOGIN")"
+  sudo cp -a "$AUTOLOGIN_BACKUP" "$SDDM_AUTOLOGIN"
+  sudo rm -f "$AUTOLOGIN_BACKUP"
+  echo "Restored SDDM autologin ($SDDM_AUTOLOGIN)."
+}
+
+confirm_changes() {
+  if [[ ! -t 0 ]]; then
+    return 0
+  fi
+  gum confirm "Apply these changes?"
 }
 
 cmd_status() {
@@ -141,16 +365,30 @@ cmd_status() {
   else
     echo "  Boot Configuration: Notice (requires 'sd-encrypt' hook in mkinitcpio for boot-time unlock)"
   fi
+
+  if tpm_boot_installed; then
+    echo "  Unattended Boot: Set up by omarchy drive tpm ($TPM_HOOKS_DROP_IN, $TPM_CMDLINE_DROP_IN)"
+  fi
+  if sudo test -f "$AUTOLOGIN_BACKUP"; then
+    echo "  Autologin: Off while TPM unlock is on (saved in $AUTOLOGIN_BACKUP)"
+  elif [[ -n $slots ]] && sudo test -f "$SDDM_AUTOLOGIN"; then
+    echo "  Autologin: On; an unattended boot opens a logged-in desktop"
+  fi
 }
 
 cmd_enroll() {
   local allow_unsafe="${OMARCHY_TPM_ALLOW_UNSAFE:-0}"
+  local keep_autologin="${OMARCHY_TPM_KEEP_AUTOLOGIN:-0}"
   local drive_arg=""
 
   while (( $# > 0 )); do
     case "$1" in
       --allow-unsafe)
         allow_unsafe=1
+        shift
+        ;;
+      --keep-autologin)
+        keep_autologin=1
         shift
         ;;
       *)
@@ -179,29 +417,169 @@ cmd_enroll() {
 
   local existing
   existing=$(luks_tpm2_slots "$drive")
-  if [[ -n $existing ]]; then
-    echo "TPM 2.0 is already enrolled in keyslot $existing for $drive."
-    echo "To re-enroll, first run: omarchy drive tpm wipe $drive"
+
+  # Enrolling a drive other than the root only adds the token; its unlock at
+  # boot is the business of whatever opens it.
+  if ! is_root_drive "$drive"; then
+    if [[ -n $existing ]]; then
+      echo "TPM 2.0 is already enrolled in keyslot $existing for $drive."
+      echo "To re-enroll, first run: omarchy drive tpm wipe $drive"
+      return 0
+    fi
+    check_secure_boot "$pcrs" "$allow_unsafe" || return 1
+    enroll_token "$drive" "$pcrs" || return 1
+    if ! initramfs_has_sd_encrypt; then
+      echo "Notice: Ensure mkinitcpio is configured with 'sd-encrypt' hook to unlock automatically at boot."
+    fi
     return 0
   fi
 
+  if [[ -n $existing ]]; then
+    echo "TPM 2.0 is already enrolled in keyslot $existing for $drive."
+    if tpm_boot_installed && { [[ $keep_autologin == "1" ]] || ! sudo test -f "$SDDM_AUTOLOGIN"; }; then
+      echo "TPM 2.0 unattended boot is already set up. To start over, first run: omarchy drive tpm wipe"
+      return 0
+    fi
+  else
+    check_secure_boot "$pcrs" "$allow_unsafe" || return 1
+  fi
+
+  # Everything the boot switch depends on is checked before anything changes.
+  local hooks_before hooks_after switch_boot=1 cmdline=""
+  hooks_before=$(composed_hooks without-tpm) || {
+    echo "Refusing: could not read the mkinitcpio HOOKS from $MKINITCPIO_CONF and $MKINITCPIO_DIR." >&2
+    return 1
+  }
+
+  if hook_listed sd-encrypt "$hooks_before"; then
+    # A systemd initramfs set up by hand or by the platform already reads the token.
+    switch_boot=0
+  else
+    check_busybox_hooks "$hooks_before" || return 1
+    if [[ -z ${OMARCHY_PATH:-} || ! -f $TPM_HOOKS_SOURCE ]]; then
+      echo "Refusing: cannot find the TPM drop-in under OMARCHY_PATH (${OMARCHY_PATH:-unset}). Run from a login shell." >&2
+      return 1
+    fi
+    hooks_after=$(composed_hooks with-tpm) || {
+      echo "Refusing: could not compose the mkinitcpio HOOKS with the TPM drop-in." >&2
+      return 1
+    }
+    check_systemd_hooks "$hooks_after" || return 1
+
+    if omarchy-cmd-missing limine-mkinitcpio; then
+      echo "Refusing: rebuilding the boot images needs limine-mkinitcpio (Omarchy's Limine boot)." >&2
+      return 1
+    fi
+
+    # rd.luks.* on the command line and a crypttab in the image would compete.
+    if [[ -e $CRYPTTAB_INITRAMFS ]]; then
+      echo "Refusing: $CRYPTTAB_INITRAMFS already sets up volumes for the initramfs." >&2
+      return 1
+    fi
+
+    local unlock device name options luks_uuid
+    unlock=$(booted_root_unlock) || return 1
+    # The options line is empty when there are none, and $(...) drops it.
+    { read -r device; read -r name; read -r options || true; } <<<"$unlock"
+
+    luks_uuid=$(sudo cryptsetup luksUUID "$drive" 2>/dev/null) || true
+    if [[ ! $luks_uuid =~ ^[0-9A-Fa-f-]{36}$ ]]; then
+      echo "Refusing: could not read the LUKS UUID of $drive." >&2
+      return 1
+    fi
+
+    if ! cryptdevice_is_drive "$device" "$drive" "$luks_uuid"; then
+      echo "Refusing: the booted cryptdevice=$device does not name $drive." >&2
+      return 1
+    fi
+
+    cmdline="rd.luks.name=$luks_uuid=$name rd.luks.options=$luks_uuid=tpm2-device=auto$options"
+  fi
+
+  local autologin_on=0
+  if sudo test -f "$SDDM_AUTOLOGIN"; then
+    autologin_on=1
+  fi
+
+  echo "Setting up TPM 2.0 unattended boot for $drive. This will:"
+  if [[ -n $existing ]]; then
+    echo "  - Keep the TPM 2.0 key already enrolled in keyslot $existing."
+  else
+    echo "  - Enroll a TPM 2.0 key in a new LUKS keyslot, sealed to PCRs $pcrs. The passphrase keyslot stays as the fallback."
+  fi
+  if (( switch_boot )); then
+    echo "  - Install $TPM_HOOKS_DROP_IN, switching the initramfs to systemd:"
+    echo "      before: $hooks_before"
+    echo "      after:  $hooks_after"
+    echo "  - Install $TPM_CMDLINE_DROP_IN, adding to the kernel command line:"
+    echo "      $cmdline"
+    echo "    cryptdevice= stays, for images that still use the busybox hook."
+    echo "  - Rebuild the boot images and Limine entries with limine-mkinitcpio."
+  else
+    echo "  - Leave the boot configuration alone: the initramfs already uses sd-encrypt."
+  fi
+  if (( autologin_on )); then
+    if [[ $keep_autologin == "1" ]]; then
+      echo "  - Keep SDDM autologin ($SDDM_AUTOLOGIN)."
+      echo "    WARNING: anyone who powers this machine on reaches your logged-in desktop without a password."
+    else
+      echo "  - Turn off SDDM autologin, so the unlocked machine stops at the login screen."
+      echo "    $SDDM_AUTOLOGIN moves to $AUTOLOGIN_BACKUP. Keep it with --keep-autologin."
+    fi
+  fi
+  echo "'omarchy drive tpm wipe' undoes all of it."
+
+  if ! confirm_changes; then
+    echo "Cancelled. Nothing was changed."
+    return 1
+  fi
+
+  if [[ -z $existing ]]; then
+    enroll_token "$drive" "$pcrs" || return 1
+  fi
+
+  if (( autologin_on )) && [[ $keep_autologin != "1" ]]; then
+    autologin_disable
+    echo "Turned off SDDM autologin."
+  fi
+
+  if (( switch_boot )); then
+    install_tpm_boot "$cmdline"
+    echo "Rebuilding boot images..."
+    if ! rebuild_boot_images; then
+      echo "Rebuilding the boot images failed. Restoring the previous boot configuration." >&2
+      remove_tpm_boot
+      autologin_restore
+      if ! rebuild_boot_images; then
+        echo "Rebuilding the restored boot images failed too. Run 'sudo limine-mkinitcpio' and fix what it reports before rebooting." >&2
+      fi
+      return 1
+    fi
+  fi
+
+  echo "TPM 2.0 unattended boot is set up for $drive."
+  echo "If the TPM refuses to unseal (firmware or Secure Boot changes), boot asks for the passphrase as before."
+}
+
+check_secure_boot() {
+  local pcrs=$1 allow_unsafe=$2
   if [[ $pcrs == "0+7" && $allow_unsafe != "1" ]] && ! secure_boot_active; then
     echo "Refusing TPM enrollment: Secure Boot is disabled or unavailable." >&2
     echo "Binding PCRs 0+7 without Secure Boot allows an attacker with physical access to boot a modified image and extract the disk key." >&2
     echo "To proceed without Secure Boot, re-run with --allow-unsafe or set OMARCHY_TPM_ALLOW_UNSAFE=1." >&2
     return 1
   fi
+}
+
+enroll_token() {
+  local drive=$1 pcrs=$2 new_slots
 
   echo "Enrolling TPM 2.0 unlock for $drive (PCRs: $pcrs)..."
   sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs="$pcrs" "$drive"
 
-  local new_slots
   new_slots=$(luks_tpm2_slots "$drive")
   if [[ -n $new_slots ]]; then
     echo "TPM 2.0 successfully enrolled in keyslot $new_slots."
-    if ! initramfs_has_sd_encrypt; then
-      echo "Notice: Ensure mkinitcpio is configured with 'sd-encrypt' hook to unlock automatically at boot."
-    fi
   else
     echo "Failed to verify TPM 2.0 enrollment on $drive." >&2
     return 1
@@ -215,16 +593,43 @@ cmd_wipe() {
     return 1
   }
 
-  local existing
+  local existing revert_boot=0 restore_autologin=0 status=0
   existing=$(luks_tpm2_slots "$drive")
-  if [[ -z $existing ]]; then
+  if is_root_drive "$drive"; then
+    tpm_boot_installed && revert_boot=1
+    sudo test -f "$AUTOLOGIN_BACKUP" && restore_autologin=1
+  fi
+
+  if [[ -z $existing ]] && (( !revert_boot && !restore_autologin )); then
     echo "No TPM 2.0 token found on $drive."
     return 0
   fi
 
-  echo "Wiping TPM 2.0 token from $drive (keyslot: $existing)..."
-  sudo systemd-cryptenroll --wipe-slot=tpm2 "$drive"
-  echo "TPM 2.0 token removed from $drive."
+  # The token goes first and autologin comes back last, so no step leaves an
+  # unattended unlock that opens a logged-in desktop. The passphrase unlocks
+  # every boot image along the way.
+  if [[ -n $existing ]]; then
+    echo "Wiping TPM 2.0 token from $drive (keyslot: $existing)..."
+    sudo systemd-cryptenroll --wipe-slot=tpm2 "$drive"
+    echo "TPM 2.0 token removed from $drive."
+  else
+    echo "No TPM 2.0 token found on $drive."
+  fi
+
+  if (( revert_boot )); then
+    echo "Removing $TPM_HOOKS_DROP_IN and $TPM_CMDLINE_DROP_IN, and rebuilding boot images..."
+    remove_tpm_boot
+    if ! rebuild_boot_images; then
+      echo "Rebuilding the boot images failed. Run 'sudo limine-mkinitcpio' and fix what it reports before rebooting." >&2
+      status=1
+    fi
+  fi
+
+  if (( restore_autologin )); then
+    autologin_restore
+  fi
+
+  return $status
 }
 
 case "$ACTION" in
@@ -238,7 +643,7 @@ case "$ACTION" in
     cmd_wipe "$@"
     ;;
   *)
-    echo "Usage: omarchy drive tpm [status|enroll|wipe] [drive]" >&2
+    echo "Usage: omarchy drive tpm [status|enroll|wipe] [--allow-unsafe] [--keep-autologin] [drive]" >&2
     exit 1
     ;;
 esac

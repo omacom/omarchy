@@ -7,13 +7,31 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+# enroll asks before changing anything when it has a terminal.
+exec </dev/null
+
 mkdir -p "$tmp/bin" "$tmp/etc/mkinitcpio.conf.d"
 export PATH="$tmp/bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_MKINITCPIO_CONF="$tmp/etc/mkinitcpio.conf"
 export OMARCHY_MKINITCPIO_DIR="$tmp/etc/mkinitcpio.conf.d"
 export OMARCHY_SECURE_BOOT_VAR="$tmp/no-secure-boot-var"
-unset OMARCHY_TPM_ALLOW_UNSAFE OMARCHY_TPM_PCRS
+export OMARCHY_CRYPTTAB_INITRAMFS="$tmp/etc/crypttab.initramfs"
+export OMARCHY_LIMINE_DROP_INS="$tmp/etc/limine-entry-tool.d"
+export OMARCHY_SDDM_AUTOLOGIN="$tmp/etc/sddm.conf.d/autologin.conf"
+export OMARCHY_TPM_STATE_DIR="$tmp/var/lib/omarchy/drive-tpm"
+export OMARCHY_PROC_CMDLINE="$tmp/proc-cmdline"
+unset OMARCHY_TPM_ALLOW_UNSAFE OMARCHY_TPM_PCRS OMARCHY_TPM_KEEP_AUTOLOGIN
+
+# The root volume as an Omarchy install boots it: archinstall's PARTUUID on the
+# busybox encrypt line, and SDDM logging the owner straight in.
+luks_uuid=0b7c3f4e-5d6a-4b8c-9e1f-2a3b4c5d6e7f
+partuuid=e6f2ad2b-8b10-4bbe-b2ca-aa7d6db27340
+export FAKE_LUKS_UUID=$luks_uuid FAKE_PARTUUID=$partuuid
+printf 'cryptdevice=PARTUUID=%s:root root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs resume=/dev/mapper/root resume_offset=1931266 quiet splash\n' "$partuuid" >"$OMARCHY_PROC_CMDLINE"
+mkdir -p "$(dirname "$OMARCHY_SDDM_AUTOLOGIN")"
+printf '[Autologin]\nUser=owner\nSession=omarchy.desktop\n' >"$OMARCHY_SDDM_AUTOLOGIN"
+autologin_original=$(<"$OMARCHY_SDDM_AUTOLOGIN")
 
 # Shipped-like configuration: uses encrypt hook, comment mentions sd-encrypt
 printf 'HOOKS=(base udev block encrypt filesystems)\n' >"$OMARCHY_MKINITCPIO_CONF"
@@ -55,6 +73,10 @@ cat >"$tmp/bin/lsblk" <<'SH'
 if [[ -n ${FAKE_LSBLK_FAIL:-} ]]; then
   exit 1
 fi
+if [[ " $* " == *" PARTUUID "* ]]; then
+  echo "$FAKE_PARTUUID"
+  exit 0
+fi
 cat <<'EOF'
 NAME TYPE FSTYPE
 /dev/mapper/root crypt btrfs
@@ -72,6 +94,9 @@ if [[ $1 == "isLuks" ]]; then
   if [[ ${2:-} == "--type" && ${3:-} == "luks2" && -n ${FAKE_LUKS1:-} ]]; then
     exit 1
   fi
+  exit 0
+elif [[ $1 == "luksUUID" ]]; then
+  echo "$FAKE_LUKS_UUID"
   exit 0
 elif [[ $1 == "luksDump" ]]; then
   if [[ -n ${FAKE_TPM_ENROLLED:-} ]]; then
@@ -115,6 +140,25 @@ chmod +x "$tmp/bin/systemd-cryptenroll"
 
 export TEST_CRYPTENROLL_CALLS="$tmp/cryptenroll.calls"
 : >"$TEST_CRYPTENROLL_CALLS"
+
+# limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+# The rebuild records the HOOKS drop-in it built from.
+cat >"$tmp/bin/limine-mkinitcpio" <<'SH'
+#!/bin/bash
+if [[ -f $OMARCHY_MKINITCPIO_DIR/omarchy_tpm_unlock.conf ]]; then
+  echo tpm >>"$TEST_REBUILD_CALLS"
+else
+  echo busybox >>"$TEST_REBUILD_CALLS"
+fi
+if [[ -n ${FAKE_REBUILD_FAIL:-} && ! -f $TEST_REBUILD_FAILED ]]; then
+  touch "$TEST_REBUILD_FAILED"
+  echo "==> ERROR: mkinitcpio failed for kernel linux-omarchy"
+fi
+exit 0
+SH
+chmod +x "$tmp/bin/limine-mkinitcpio"
+export TEST_REBUILD_CALLS="$tmp/rebuild.calls" TEST_REBUILD_FAILED="$tmp/rebuild.failed"
+: >"$TEST_REBUILD_CALLS"
 
 drive_tpm="$ROOT/bin/omarchy-drive-tpm"
 
@@ -172,6 +216,8 @@ cat >"$tmp/bin/cryptsetup" <<'SH'
 #!/bin/bash
 if [[ $1 == "isLuks" ]]; then
   exit 0
+elif [[ $1 == "luksUUID" ]]; then
+  echo "$FAKE_LUKS_UUID"
 elif [[ $1 == "luksDump" ]]; then
   if [[ -f "$TEST_ENROLLED_FLAG" ]]; then
     cat <<'EOF'
@@ -200,7 +246,11 @@ if [[ ${1:-} == "--tpm2-device=list" ]]; then
   echo "/dev/tpmrm0"
   exit 0
 fi
-touch "$TEST_ENROLLED_FLAG"
+if [[ ${1:-} == "--wipe-slot=tpm2" ]]; then
+  rm -f "$TEST_ENROLLED_FLAG"
+else
+  touch "$TEST_ENROLLED_FLAG"
+fi
 exit 0
 SH
 chmod +x "$tmp/bin/systemd-cryptenroll"
@@ -248,3 +298,111 @@ out=$("$drive_tpm" wipe /dev/fake)
 assert_output_contains "wipe when unenrolled reports no token" "$out" "No TPM 2.0 token found"
 [[ ! -s "$TEST_CRYPTENROLL_CALLS" ]] || fail "wipe should not call cryptenroll when no token is present"
 pass "wipe when unenrolled does not call cryptenroll"
+
+# Unattended boot of the root volume: enroll switches the initramfs to systemd,
+# names the volume with rd.luks.* on the Limine command line and turns autologin
+# off; wipe undoes it.
+tpm_drop_in="$OMARCHY_MKINITCPIO_DIR/omarchy_tpm_unlock.conf"
+cmdline_drop_in="$OMARCHY_LIMINE_DROP_INS/99-omarchy-tpm-unlock.conf"
+autologin_backup="$OMARCHY_TPM_STATE_DIR/sddm-autologin.conf"
+busybox_conf='HOOKS=(base udev block encrypt filesystems)'
+cmdline_original=$(<"$OMARCHY_PROC_CMDLINE")
+
+reset_root() {
+  rm -f "$tpm_drop_in" "$cmdline_drop_in" "$OMARCHY_CRYPTTAB_INITRAMFS" "$TEST_ENROLLED_FLAG" "$TEST_REBUILD_FAILED"
+  rm -rf "$OMARCHY_TPM_STATE_DIR"
+  printf '%s\n' "$busybox_conf" >"$OMARCHY_MKINITCPIO_CONF"
+  printf '%s\n' "$cmdline_original" >"$OMARCHY_PROC_CMDLINE"
+  printf '%s\n' "$autologin_original" >"$OMARCHY_SDDM_AUTOLOGIN"
+  : >"$TEST_CRYPTENROLL_CALLS"
+  : >"$TEST_REBUILD_CALLS"
+}
+
+assert_root_untouched() {
+  local desc=$1
+  ! grep -q -e '--tpm2-pcrs' "$TEST_CRYPTENROLL_CALLS" || fail "$desc: no TPM key was enrolled" "$(<"$TEST_CRYPTENROLL_CALLS")"
+  [[ ! -e $tpm_drop_in && ! -e $cmdline_drop_in ]] || fail "$desc: no drop-in was installed"
+  [[ ! -s $TEST_REBUILD_CALLS ]] || fail "$desc: no boot image was rebuilt"
+  [[ $(<"$OMARCHY_SDDM_AUTOLOGIN") == "$autologin_original" ]] || fail "$desc: autologin is unchanged"
+  pass "$desc"
+}
+
+assert_refused() {
+  local desc=$1 expected=$2 status=0 err
+  err=$("$drive_tpm" enroll --allow-unsafe 2>&1) || status=$?
+  (( status != 0 )) || fail "$desc: enroll fails" "$err"
+  assert_output_contains "$desc: says why" "$err" "$expected"
+  assert_root_untouched "$desc: changes nothing"
+}
+
+reset_root
+out=$("$drive_tpm" enroll --allow-unsafe)
+assert_output_contains "enroll shows the HOOKS before the switch" "$out" "before: base udev block encrypt filesystems"
+assert_output_contains "enroll shows the HOOKS after the switch" "$out" "after:  base systemd block sd-encrypt filesystems"
+tpm_cmdline="rd.luks.name=$luks_uuid=root rd.luks.options=$luks_uuid=tpm2-device=auto"
+grep -qxF "KERNEL_CMDLINE[default]+=\" $tpm_cmdline\"" "$cmdline_drop_in" ||
+  fail "enroll names the root volume by LUKS UUID on the Limine command line" "$(cat "$cmdline_drop_in" 2>&1)"
+pass "enroll names the root volume by LUKS UUID on the Limine command line"
+cmp -s "$tpm_drop_in" "$ROOT/default/mkinitcpio/omarchy_tpm_unlock.conf" || fail "enroll installs the HOOKS drop-in"
+pass "enroll installs the HOOKS drop-in"
+[[ ! -e $OMARCHY_SDDM_AUTOLOGIN && $(<"$autologin_backup") == "$autologin_original" ]] ||
+  fail "enroll moves SDDM autologin aside"
+pass "enroll moves SDDM autologin aside"
+[[ $(<"$TEST_REBUILD_CALLS") == "tpm" ]] || fail "enroll rebuilds the boot images once with the drop-in" "$(<"$TEST_REBUILD_CALLS")"
+pass "enroll rebuilds the boot images once with the drop-in"
+
+: >"$TEST_REBUILD_CALLS"
+out=$("$drive_tpm" enroll --allow-unsafe)
+assert_output_contains "a second enroll finds the setup in place" "$out" "already set up"
+[[ ! -s $TEST_REBUILD_CALLS ]] || fail "a second enroll rebuilds nothing"
+pass "a second enroll rebuilds nothing"
+
+: >"$TEST_CRYPTENROLL_CALLS"
+: >"$TEST_REBUILD_CALLS"
+out=$("$drive_tpm" wipe)
+grep -qF -e '--wipe-slot=tpm2 /dev/nvme0n1p3' "$TEST_CRYPTENROLL_CALLS" || fail "wipe removes the root token"
+[[ ! -e $tpm_drop_in && ! -e $cmdline_drop_in ]] || fail "wipe removes both drop-ins"
+[[ $(<"$OMARCHY_SDDM_AUTOLOGIN") == "$autologin_original" && ! -e $autologin_backup ]] || fail "wipe restores SDDM autologin"
+[[ $(<"$TEST_REBUILD_CALLS") == "busybox" ]] || fail "wipe rebuilds the busybox boot images" "$(<"$TEST_REBUILD_CALLS")"
+pass "wipe reverts the token, the boot images and autologin"
+
+reset_root
+out=$("$drive_tpm" enroll --allow-unsafe --keep-autologin)
+assert_output_contains "--keep-autologin warns about the logged-in desktop" "$out" "WARNING"
+[[ $(<"$OMARCHY_SDDM_AUTOLOGIN") == "$autologin_original" && ! -e $autologin_backup ]] || fail "--keep-autologin leaves autologin on"
+pass "--keep-autologin leaves autologin on"
+
+reset_root
+sed -i 's/:root /:root:allow-discards /' "$OMARCHY_PROC_CMDLINE"
+"$drive_tpm" enroll --allow-unsafe >/dev/null
+grep -qF "rd.luks.options=$luks_uuid=tpm2-device=auto,discard\"" "$cmdline_drop_in" ||
+  fail "allow-discards carries over as discard" "$(cat "$cmdline_drop_in" 2>&1)"
+pass "allow-discards carries over as discard"
+
+reset_root
+printf 'HOOKS=(base udev block lvm2 encrypt filesystems)\n' >"$OMARCHY_MKINITCPIO_CONF"
+assert_refused "a hook without a known systemd counterpart" "mkinitcpio hook 'lvm2'"
+
+reset_root
+printf 'HOOKS=(base systemd block filesystems)\n' >"$OMARCHY_MKINITCPIO_CONF"
+assert_refused "an initramfs that does not unlock through encrypt" "busybox encrypt hook"
+
+reset_root
+FAKE_PARTUUID=00000000-0000-0000-0000-000000000000 assert_refused "a cryptdevice= naming another partition" "does not name /dev/nvme0n1p3"
+
+reset_root
+sed -i "s/^/rd.luks.name=$luks_uuid=root /" "$OMARCHY_PROC_CMDLINE"
+assert_refused "an rd.luks unlock already on the command line" "rd.luks.name="
+
+reset_root
+printf 'data UUID=1234 none\n' >"$OMARCHY_CRYPTTAB_INITRAMFS"
+assert_refused "a crypttab.initramfs already in use" "already sets up volumes"
+
+reset_root
+status=0
+err=$(FAKE_REBUILD_FAIL=1 "$drive_tpm" enroll --allow-unsafe 2>&1) || status=$?
+(( status != 0 )) || fail "a failed rebuild fails enroll" "$err"
+[[ ! -e $tpm_drop_in && ! -e $cmdline_drop_in ]] || fail "a failed rebuild removes both drop-ins"
+[[ $(<"$OMARCHY_SDDM_AUTOLOGIN") == "$autologin_original" ]] || fail "a failed rebuild restores autologin"
+[[ $(<"$TEST_REBUILD_CALLS") == $'tpm\nbusybox' ]] || fail "a failed rebuild rebuilds the previous boot images" "$(<"$TEST_REBUILD_CALLS")"
+pass "a failed rebuild restores the previous boot configuration"
