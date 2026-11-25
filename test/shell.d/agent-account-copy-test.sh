@@ -69,7 +69,7 @@ for label in ["Work", "Third"]:
   state.register("claude", label, pending)
 registry = state.load("claude")
 registry["accounts"][0]["label"] = "Personal"
-registry.update(active="third", switch="auto", threshold=90)
+registry.update(active="third", threshold=90)
 state.save("claude", registry)
 codex = state.primary_home("codex")
 claims = base64.urlsafe_b64encode(json.dumps({"email": "codex@example.com"}).encode()).decode().rstrip("=")
@@ -92,7 +92,7 @@ for provider, incoming in payload["providers"].items():
   assert all("fake-" not in line for line in results), "status must not expose tokens"
 registry = state.load("claude")
 assert [a["label"] for a in registry["accounts"]] == ["Personal", "Work", "Third"]
-assert registry["active"] == "third" and registry["switch"] == "auto" and registry["threshold"] == 90
+assert registry["active"] == "third" and registry["threshold"] == 90
 assert state.read_json(Path.home() / ".claude.json")["mcpServers"] == {"local": "destination-settings"}
 for account in registry["accounts"]:
   home = state.account_home("claude", account)
@@ -273,7 +273,7 @@ assert len(state.load("claude")["accounts"]) == 4
 assert [a["label"] for a in state.load("claude")["accounts"]][:2] == ["Personal 2", "Personal"]
 assert state.find(state.load("claude"), "main")["accountId"] == "personal"
 assert state.load("claude")["active"] == "personal-2"
-assert state.load("claude")["switch"] == "manual" and state.load("claude")["threshold"] == 95
+assert state.load("claude")["threshold"] == 95
 
 # An older installed receiver lacks name synchronization. Use the destination's
 # own backend for the new receiver so additional registry fields survive.

@@ -201,9 +201,9 @@ ShellRoot {
         root.secondTwin.objectName = "second"
         root.counts = root.countsNow()
         root.lift(twins[0])
-      }, 300],
-      [function() { root.pointAt(root.slotOf("test.a", "left"), 0.8) }, 300],
-      [function() { root.letGo(root.slotOf("test.a", "left"), 0.8) }, 700],
+      }, 180],
+      [function() { root.pointAt(root.slotOf("test.a", "left"), 0.8) }, 180],
+      [function() { root.letGo(root.slotOf("test.a", "left"), 0.8) }, 400],
       [function() {
         root.check(JSON.stringify(root.ids("left")) === JSON.stringify(["test.a", "test.twin"]), "the first twin lands after test.a: " + JSON.stringify(root.ids("left")))
         root.check(JSON.stringify(root.ids("right")) === JSON.stringify(["test.b", "test.twin", "test.c"]), "the right section keeps the other twin: " + JSON.stringify(root.ids("right")))
@@ -215,9 +215,9 @@ ShellRoot {
 
         // Back into the right section, just before its twin.
         root.lift(moved)
-      }, 300],
-      [function() { root.pointAt(root.slotOf("test.twin", "right"), 0.2) }, 300],
-      [function() { root.letGo(root.slotOf("test.twin", "right"), 0.2) }, 700],
+      }, 180],
+      [function() { root.pointAt(root.slotOf("test.twin", "right"), 0.2) }, 180],
+      [function() { root.letGo(root.slotOf("test.twin", "right"), 0.2) }, 400],
       [function() {
         root.check(JSON.stringify(root.ids("right")) === JSON.stringify(["test.b", "test.twin", "test.twin", "test.c"]), "the twin lands just before its twin: " + JSON.stringify(root.ids("right")))
         var twins = root.slotsOf("test.twin")
@@ -227,11 +227,11 @@ ShellRoot {
         // A widget that shows itself mid-drag can be dropped beside.
         root.shown = root.slotOf("test.c", "right").activeItem
         root.shown.visible = false
-      }, 300],
-      [function() { root.lift(root.slotOf("test.b", "right")) }, 200],
-      [function() { root.shown.visible = true }, 300],
-      [function() { root.pointAt(root.slotOf("test.c", "right"), 0.8) }, 300],
-      [function() { root.letGo(root.slotOf("test.c", "right"), 0.8) }, 700],
+      }, 180],
+      [function() { root.lift(root.slotOf("test.b", "right")) }, 150],
+      [function() { root.shown.visible = true }, 180],
+      [function() { root.pointAt(root.slotOf("test.c", "right"), 0.8) }, 180],
+      [function() { root.letGo(root.slotOf("test.c", "right"), 0.8) }, 400],
       [function() {
         root.check(JSON.stringify(root.ids("right")) === JSON.stringify(["test.twin", "test.twin", "test.c", "test.b"]), "a widget dropped beside one that showed itself mid-drag lands there: " + JSON.stringify(root.ids("right")))
         root.check(root.countsNow() === root.counts, "the drag builds nothing again: " + root.countsNow())
@@ -242,7 +242,7 @@ ShellRoot {
           config.bar.layout.right.push({ id: "test.tray" })
           config.bar.layout.tray = [{ id: "test.inner" }]
         })
-      }, 400],
+      }, 250],
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "end", "a tray in the right section has the widgets in its section grow from its end: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
@@ -250,7 +250,7 @@ ShellRoot {
           config.bar.layout.right = config.bar.layout.right.filter(function(entry) { return entry.id !== "test.tray" })
           config.bar.layout.left.push({ id: "test.tray" })
         })
-      }, 400],
+      }, 250],
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
@@ -281,7 +281,7 @@ ShellRoot {
 
   Timer {
     id: quitter
-    interval: 200
+    interval: 50
     onTriggered: Qt.quit()
   }
 }

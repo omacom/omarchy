@@ -79,6 +79,13 @@ if [[ $1 == "monitors" && $2 == "-j" ]]; then
   exit 0
 fi
 
+if [[ $1 == "--batch" ]]; then
+  printf '%s\n' "$2" >>"$FAKE_DISPATCH_LOG"
+  IFS=';' read -ra cmds <<<"$2"
+  for _ in "${cmds[@]}"; do printf 'ok\n\n\n'; done
+  exit 0
+fi
+
 if [[ $1 == "dispatch" ]]; then
   printf '%s\n' "$2" >>"$FAKE_DISPATCH_LOG"
   exit 0

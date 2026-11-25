@@ -9,16 +9,17 @@ x=${3:-}
 y=${4:-}
 
 active=$(hyprctl activewindow -j)
+addr=$(jq -r '.address // empty' <<<"$active")
+[[ -n $addr ]] || exit 0
 pinned=$(jq -r '.pinned // false' <<<"$active")
 floating=$(jq -r '.floating // false' <<<"$active")
-addr=$(jq -r '.address // empty' <<<"$active")
 monitor_id=$(jq -r '.monitor // empty' <<<"$active")
 window="address:$addr"
 
 # Where a floating window sat before it was popped out, kept for the session so popping it back in
 # returns it there. Only under the private runtime dir: without one nothing is saved.
 geometry_file=""
-if [[ -n ${XDG_RUNTIME_DIR:-} && -n $addr ]]; then
+if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
   geometry_file="$XDG_RUNTIME_DIR/omarchy/windows/${HYPRLAND_INSTANCE_SIGNATURE:-}/pop-$addr-geometry"
 fi
 
@@ -27,6 +28,25 @@ hypr_dispatch() {
   shift
 
   hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
+}
+
+hypr_batch() {
+  local joined="" cmd out line total=0 ok_count=0
+  for cmd in "$@"; do
+    joined+="${joined:+ ; }dispatch $cmd"
+  done
+  out=$(hyprctl --batch "$joined" 2>/dev/null) || return 1
+  while IFS= read -r line; do
+    [[ -n $line ]] || continue
+    (( ++total ))
+    [[ $line == "ok" ]] && (( ++ok_count ))
+  done <<<"$out"
+  if (( total == $# && ok_count == $# )); then
+    return 0
+  elif (( ok_count == 0 )); then
+    return 1
+  fi
+  return 2
 }
 
 monitor_rect() {
@@ -43,10 +63,9 @@ monitor_rect() {
   ' 2>/dev/null
 }
 
-if [[ $pinned == "true" ]]; then
-  hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
-  hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
+pin_lua="hl.dsp.window.pin({ window = \"$window\" })"
 
+if [[ $pinned == "true" ]]; then
   restored=""
   if [[ -n $geometry_file && -f $geometry_file ]]; then
     read -r saved_width saved_height offset_x offset_y <"$geometry_file" || true
@@ -83,16 +102,37 @@ if [[ $pinned == "true" ]]; then
         fi
       fi
 
-      hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $target_width, y = $target_height })" resizewindowpixel "exact $target_width $target_height,$window"
-      hypr_dispatch "hl.dsp.window.move({ window = \"$window\", x = $target_x, y = $target_y })" movewindowpixel "exact $target_x $target_y,$window"
+      resize_lua="hl.dsp.window.resize({ window = \"$window\", x = $target_width, y = $target_height })"
+      move_lua="hl.dsp.window.move({ window = \"$window\", x = $target_x, y = $target_y })"
       restored="true"
     fi
   fi
 
-  if [[ $restored != "true" ]]; then
-    hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"off\" })" togglefloating "$window"
+  untag_lua="hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })"
+  tile_lua="hl.dsp.window.float({ window = \"$window\", action = \"off\" })"
+
+  if [[ $restored == "true" ]]; then
+    lua=("$pin_lua" "$untag_lua" "$resize_lua" "$move_lua")
+  else
+    lua=("$pin_lua" "$untag_lua" "$tile_lua")
   fi
-elif [[ -n $addr ]]; then
+
+  status=0
+  hypr_batch "${lua[@]}" || status=$?
+  if (( status == 1 )); then
+    hypr_dispatch "$pin_lua" pin "$window"
+    hypr_dispatch "$untag_lua" tagwindow -pop "$window"
+
+    if [[ $restored == "true" ]]; then
+      hypr_dispatch "$resize_lua" resizewindowpixel "exact $target_width $target_height,$window"
+      hypr_dispatch "$move_lua" movewindowpixel "exact $target_x $target_y,$window"
+    else
+      hypr_dispatch "$tile_lua" togglefloating "$window"
+    fi
+  elif (( status != 0 )); then
+    exit 1
+  fi
+else
   if [[ $floating == "true" ]]; then
     saved_width=$(jq -r '.size[0] // empty' <<<"$active")
     saved_height=$(jq -r '.size[1] // empty' <<<"$active")
@@ -115,18 +155,41 @@ elif [[ -n $addr ]]; then
     rm -f "$geometry_file"
   fi
 
-  if [[ $floating != "true" ]]; then
-    hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"on\" })" togglefloating "$window"
-  fi
-  hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizewindowpixel "exact $width $height,$window"
-
+  float_lua="hl.dsp.window.float({ window = \"$window\", action = \"on\" })"
+  resize_lua="hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })"
   if [[ -n $x && -n $y ]]; then
-    hypr_dispatch "hl.dsp.window.move({ window = \"$window\", x = $x, y = $y })" movewindowpixel "exact $x $y,$window"
+    move_lua="hl.dsp.window.move({ window = \"$window\", x = $x, y = $y })"
   else
-    hypr_dispatch "hl.dsp.window.center({ window = \"$window\" })" centerwindow "$window"
+    move_lua="hl.dsp.window.center({ window = \"$window\" })"
   fi
+  raise_lua="hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })"
+  tag_lua="hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })"
 
-  hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
-  hypr_dispatch "hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })" alterzorder top "$window"
-  hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })" tagwindow +pop "$window"
+  # An already floating window keeps its floating state; only a tiled one is floated.
+  lua=()
+  if [[ $floating != "true" ]]; then
+    lua+=("$float_lua")
+  fi
+  lua+=("$resize_lua" "$move_lua" "$pin_lua" "$raise_lua" "$tag_lua")
+
+  status=0
+  hypr_batch "${lua[@]}" || status=$?
+  if (( status == 1 )); then
+    if [[ $floating != "true" ]]; then
+      hypr_dispatch "$float_lua" togglefloating "$window"
+    fi
+    hypr_dispatch "$resize_lua" resizewindowpixel "exact $width $height,$window"
+
+    if [[ -n $x && -n $y ]]; then
+      hypr_dispatch "$move_lua" movewindowpixel "exact $x $y,$window"
+    else
+      hypr_dispatch "$move_lua" centerwindow "$window"
+    fi
+
+    hypr_dispatch "$pin_lua" pin "$window"
+    hypr_dispatch "$raise_lua" alterzorder top "$window"
+    hypr_dispatch "$tag_lua" tagwindow +pop "$window"
+  elif (( status != 0 )); then
+    exit 1
+  fi
 fi
