@@ -143,6 +143,31 @@ for kind in ("string", "langset"):
 
 print(f"ok - {checks} Persian, Arabic, Urdu, Latin, digit, emoji and Nerd Font fallback checks")
 PY
+
+  # Qt and GTK tag Persian as ar outside a Persian locale; a Persian reader's
+  # own preference sends ar to Vazirmatn, and only for them.
+  stubs=$test_tmp/stubs notify_log=$test_tmp/notify.log
+  mkdir -p "$stubs"
+  printf '#!/bin/bash\n' >"$stubs/omarchy-restart-shell"
+  printf '#!/bin/bash\necho "$*" >>"%s"\n' "$notify_log" >"$stubs/omarchy-notification-send"
+  chmod +x "$stubs"/*
+  persian() { PATH="$stubs:$ROOT/bin:$PATH" omarchy-font-persian "$@"; }
+  arabic_script() { fc-match -f '%{family[0]}' "$1:lang=$2:charset=$3"; }
+
+  [[ $(persian) == "default" ]] || fail "with no preference the Persian font is the default" "$(persian)"
+  [[ $(arabic_script sans-serif ar 067e) == "Noto Naskh Arabic" ]] || fail "without the preference ar stays in Naskh"
+  persian --seed on
+  [[ $(persian) == "on" ]] || fail "seeding turns the Persian font on" "$(persian)"
+  for generic in sans-serif monospace; do
+    [[ $(arabic_script $generic ar 067e) == "Vazirmatn NL" ]] || fail "with the preference ar Persian in $generic is Vazirmatn" "$(arabic_script $generic ar 067e)"
+    [[ $(arabic_script $generic ur 067e) == "Noto Nastaliq Urdu" ]] || fail "with the preference Urdu stays in Nastaliq" "$(arabic_script $generic ur 067e)"
+  done
+  [[ $(arabic_script sans-serif ar 0041) == "Liberation Sans" ]] || fail "with the preference Latin keeps its family" "$(arabic_script sans-serif ar 0041)"
+  persian default
+  grep -q "$(PATH="$ROOT/bin:$PATH" omarchy-i18n font.persianChanged)" "$notify_log" || fail "a change is announced" "$(cat "$notify_log")"
+  persian --seed on
+  [[ $(persian) == "default" && $(arabic_script sans-serif ar 067e) == "Noto Naskh Arabic" ]] || fail "a later seed keeps the user's default" "$(persian)"
+  pass "a Persian reader's preference sets ar text in Vazirmatn, keeps Urdu and Latin, and a seed never overrides the user"
 fi
 
 # Either build of the fonts: noto-fonts-cjk-vf, which Omarchy installs, or

@@ -121,6 +121,12 @@ class TypingSetupTest(unittest.TestCase):
       self.assertIn("Setup > Keyboard > Input Methods", "".join(call.args[0] for call in error.write.call_args_list))
       self.assertIn("Noto Sans CJK SC", (Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text())
 
+  def test_a_persian_layout_seeds_the_persian_font_unless_arabic_is_chosen_too(self):
+    for layouts, seeded in (("us,ir", True), ("ir", True), ("us,ara,ir", False), ("us,ara", False), ("us", False)):
+      with patch.object(typing.subprocess, "run") as run:
+        typing.seed_persian_font(layouts)
+      self.assertEqual(run.call_args_list, [unittest.mock.call(["omarchy-font-persian", "--seed", "on"], check=False)] if seeded else [], layouts)
+
   def test_failed_font_write_restores_the_input_group(self):
     before = [["keyboard-us", ""]]
     with patch.object(typing.setup, "live_group", return_value=("Default", "us", before)), patch.object(typing.setup, "available_methods", return_value=[["mozc", "Mozc"]]), patch.object(typing, "set_inputs"), patch.object(typing.setup, "font_default", side_effect=OSError("read-only")), patch.object(typing.setup, "live_set") as setter:
