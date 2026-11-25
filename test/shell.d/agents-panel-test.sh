@@ -295,6 +295,16 @@ assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running mo
 assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
 assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
 
+// A model being set up or handing off to status.json isn't dropped from the
+// panel's added list even before status.json reloads with it.
+const findRemoved = new Function(fn('findRemovedLocalModels') + '\nreturn findRemovedLocalModels')()
+const uninst = [{ id: 'm', installed: false }, { id: 'n', installed: false }, { id: 'gone', installed: false }]
+assertDeepEqual(
+  findRemoved(['m', 'n', 'gone', 'spark/d'], {}, [], uninst, 'm', ['n']),
+  ['gone'],
+  'setups in progress or handing off stay added until status.json lists them, while uninstalled models drop'
+)
+
 // Adding a running network model returns to the panel index instead of
 // closing the panel and launching a terminal.
 const added = []
