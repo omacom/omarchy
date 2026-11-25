@@ -19,7 +19,7 @@ p = Path(sys.argv[1])
 p.write_text(p.read_text().replace('/usr/share/omarchy', sys.argv[2]))
 PY
 
-for command in omarchy-dev-link omarchy-dev-unlink omarchy-state gum git; do
+for command in omarchy-dev-link omarchy-dev-unlink omarchy-done omarchy-state gum git; do
   cat >"$SUDO_TEST_ROOT/bin/$command" <<'STUB'
 #!/bin/bash
 set -euo pipefail
@@ -68,7 +68,34 @@ done
 # A switch to stable or rc downgrades while the -dev pair is still installed,
 # and the ignored pair's dependencies gate the transaction: edge's omarchy-dev
 # requires a newer omarchy-themes-intros than stable publishes, so the
-# downgrade must carry the release pair in the same transaction (#19955).
+# downgrade must carry the release pair in the same transaction (#19955). The
+# release pair conflicts with the installed dev build, so the pacman stand-in
+# models that conflict: a release target without --ask 4's bit set is refused,
+# which the run itself then has to survive.
+rm "$SUDO_TEST_ROOT/bin/pacman"
+cat >"$SUDO_TEST_ROOT/bin/pacman" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+step=${0##*/}
+printf 'step:%s %s\n' "$step" "$*" >>"$SUDO_TEST_LOG"
+asked=0
+conflicting=()
+while (( $# )); do
+  case "$1" in
+    --ask) asked=${2:-0}; shift 2 ;;
+    --ask=*) asked=${1#--ask=}; shift ;;
+    -*) shift ;;
+    omarchy | omarchy-settings) conflicting+=("$1"); shift ;;
+    *) shift ;;
+  esac
+done
+if (( ${#conflicting[@]} )) && (( (asked & 4) == 0 )); then
+  echo ":: omarchy and omarchy-dev are in conflict. Remove omarchy-dev? [y/N] n" >&2
+  echo "error: failed to prepare transaction (conflicting dependencies)" >&2
+  exit 1
+fi
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/pacman"
 for channel in stable rc edge dev; do
   reset_boundary
   run_channel "$channel" || fail "$channel failed for the transaction shape" "$(cat "$boundary_tmp/output")"
@@ -76,7 +103,7 @@ for channel in stable rc edge dev; do
     fail "$channel: no downgrade transaction ran" "$(grep '^step:pacman' "$SUDO_TEST_LOG" || true)"
   case $channel in
     stable | rc)
-      if [[ $transaction != *'--ignore omarchy-dev,omarchy-settings-dev omarchy omarchy-settings'* ]]; then
+      if [[ $transaction != *'--ignore omarchy-dev,omarchy-settings-dev --ask 4 omarchy omarchy-settings'* ]]; then
         fail "$channel downgrade does not carry the release pair beside the ignored dev pair" "$transaction"
       fi
       ;;
@@ -87,6 +114,7 @@ for channel in stable rc edge dev; do
       ;;
   esac
 done
+ln -sfn test-step "$SUDO_TEST_ROOT/bin/pacman"
 pass "a stable or rc downgrade carries the release pair so the ignored dev build leaves with it"
 
 # Every aarch64 platform switches to all four channels, copying its own

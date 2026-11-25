@@ -190,8 +190,10 @@ if channel in ('stable', 'rc'):
   # The -dev pair is edge's: an old build of it in a stable or rc repository is
   # kept at its own version, and the release pair conflicts with the dev build,
   # so the release pair is named in the same downgrade and the ignored pair's
-  # dependencies no longer gate it (#19955).
-  upgrade += ' --ignore omarchy-dev,omarchy-settings-dev omarchy omarchy-settings'
+  # dependencies no longer gate it (#19955). Removing the dev build for that
+  # conflict is a prompt, which --noconfirm answers No to, so --ask 4 accepts
+  # the replacement here too.
+  upgrade += ' --ignore omarchy-dev,omarchy-settings-dev --ask 4 omarchy omarchy-settings'
 transaction = events.index(upgrade)
 assert events.index(expected[-1]) < hook < transaction, events
 PY
