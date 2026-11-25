@@ -100,7 +100,7 @@ BarWidget {
   }
 
   function dispatch(expression) {
-    if (root.bar) root.bar.run("hyprctl dispatch " + Util.shellQuote(expression))
+    Hyprland.dispatch(expression)
   }
 
   function focusWorkspace(id) {

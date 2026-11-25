@@ -90,6 +90,7 @@ mariadb-libs
 mise-bin
 monologue
 gnome-disk-utility
+nodejs
 noto-fonts
 noto-fonts-cjk-vf
 noto-fonts-emoji
@@ -119,6 +120,7 @@ papers
 pi-coding-agent
 pinta
 plain
+playwright-cli
 plocate
 plymouth
 podman
@@ -160,6 +162,7 @@ ufw
 ufw-docker
 unzip
 usage
+uv
 uwsm
 vi
 whois
