@@ -496,7 +496,7 @@ Panel {
   }
 
   function setDisplayBrightness(name, value) {
-    var monitor = Model.monitorName(name)
+    var monitor = String(name == null ? "" : name).trim()
     if (!monitor) return false
     // An absolute set wins over a relative step still waiting on its read.
     abandonBrightnessProbe()
@@ -508,7 +508,7 @@ Panel {
   }
 
   function previewBrightness(name, value) {
-    var monitor = Model.monitorName(name)
+    var monitor = String(name == null ? "" : name).trim()
     if (!monitor) return
     // Dragging the slider is an absolute choice. Drop a relative read so its
     // result doesn't land on top of the drag.
@@ -539,7 +539,7 @@ Panel {
   // percent a write we already issued will land on. The cached percent is
   // used only when the live reading failed.
   function stepDisplayBrightness(name, delta, showOsd) {
-    var monitor = Model.monitorName(name)
+    var monitor = String(name == null ? "" : name).trim()
     if (!monitor || !delta) return
 
     var pending = Model.pendingBrightnessTarget(

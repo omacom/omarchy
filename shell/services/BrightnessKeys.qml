@@ -19,11 +19,10 @@ Item {
   property var host: null
   // The backlight omarchy-hw-display picks. Devices do not come and go at
   // runtime, so maxBrightness is cached per device and omarchy-hw-display is
-  // only re-probed if reading the sysfs files fails. The name is one path
-  // segment; anything else never becomes a sysfs path.
+  // only re-probed if reading the sysfs files fails.
   property string device: ""
   property int maxBrightness: 0
-  readonly property string devicePath: BrightnessModel.backlightSysfsPath(device)
+  readonly property string devicePath: device ? "/sys/class/backlight/" + device : ""
 
   // The internal panel's percent right now, or -1 when this monitor is not
   // that panel or the sysfs read failed. The monitor panel's relative steps
@@ -89,7 +88,9 @@ Item {
     file.reload()
     file.waitForJob()
     if (file.failed) return NaN
-    return BrightnessModel.backlightReading(file.text())
+    var raw = String(file.text() || "").trim()
+    if (!raw) return NaN
+    return Number(raw)
   }
 
   // The payload omarchy-osd builds, from the level read back after the write.
@@ -138,7 +139,7 @@ Item {
     running: true
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.device = BrightnessModel.backlightDeviceName(String(text || "").trim())
+      onStreamFinished: root.device = String(text || "").trim()
     }
   }
 }

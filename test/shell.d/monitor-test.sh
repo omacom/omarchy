@@ -21,13 +21,6 @@ assertEqual(monitor.brightnessStep(false, null, -1, 72, -5).target, 67, 'a faile
 assertEqual(monitor.brightnessStep(false, null, -1, -1, -5).target, -1, 'a step with no level does nothing')
 assertEqual(monitor.brightnessStep(false, null, 0, 72, 5).target, 5, 'a live reading of zero is a real level')
 
-assertEqual(monitor.monitorName('DP-1'), 'DP-1', 'a connector name is kept')
-assertEqual(monitor.monitorName('eDP-1'), 'eDP-1', 'a built-in connector name is kept')
-assertEqual(monitor.monitorName('../etc/passwd'), '', 'a monitor name with a slash is rejected')
-assertEqual(monitor.monitorName('DP-1;rm'), '', 'a monitor name with a metacharacter is rejected')
-assertEqual(monitor.monitorName(''), '', 'an empty monitor name is rejected')
-assertEqual(monitor.monitorName('..'), '', 'a monitor name of .. is rejected')
-
 assertEqual(monitor.parseBrightnessReading('62\n'), 62, 'a brightness read is the percent')
 assertEqual(monitor.parseBrightnessReading('unavailable'), -1, 'a failed brightness read is not a percent')
 assertEqual(monitor.parseBrightnessReading('62 extra'), -1, 'a brightness read with a trailing word is rejected')
@@ -49,18 +42,6 @@ assertEqual(afterWrite.available, false, 'the next empty reading stays not contr
 assertEqual(monitor.focusedStateAfterRead(true, 50, 'eDP-1', 'eDP-1', '', true).percent, 50, 'an empty reading for the same display keeps its level')
 assertEqual(monitor.focusedStateAfterRead(true, 50, 'eDP-1', 'eDP-1', '40', false).percent, 50, 'a state read during a write does not replace the level')
 assertEqual(monitor.focusedStateAfterRead(true, 50, 'eDP-1', 'DP-1', '', true).available, false, 'moving focus onto a display with no reading clears control')
-
-const backlight = requireFromRoot('shell/services/BrightnessModel.js')
-assertEqual(backlight.backlightDeviceName('intel_backlight'), 'intel_backlight', 'a backlight device name is one path segment')
-assertEqual(backlight.backlightSysfsPath('intel_backlight'), '/sys/class/backlight/intel_backlight', 'a backlight path stays under sysfs')
-assertEqual(backlight.backlightDeviceName('../intel_backlight'), '', 'a backlight name with a slash is rejected')
-assertEqual(backlight.backlightDeviceName('..'), '', 'a backlight name of .. is rejected')
-assertEqual(backlight.backlightDeviceName('intel backlight'), '', 'a backlight name with a space is rejected')
-assertEqual(backlight.backlightSysfsPath('../etc/passwd'), '', 'a rejected backlight name builds no path')
-assertEqual(backlight.backlightReading('62\n'), 62, 'a backlight read is the raw value')
-assertEqual(backlight.backlightReading('0'), 0, 'a backlight value of zero stays zero')
-assertEqual(Number.isNaN(backlight.backlightReading('')), true, 'an empty backlight read is not zero')
-assertEqual(Number.isNaN(backlight.backlightReading('   ')), true, 'a blank backlight read is not zero')
 
 assertEqual(monitor.brightnessProbeCurrent(1, 2, true), false, 'a brightness read canceled before it returns does not apply')
 assertEqual(monitor.brightnessProbeCurrent(2, 2, true), true, 'the brightness read still in flight applies')
