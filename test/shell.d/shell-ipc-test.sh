@@ -68,6 +68,14 @@ pass "shell IPC targets the newest live Quickshell instance of this config"
 # Display recovery: qs matches instances by display.
 display_run="$test_tmp/display-run"
 mkdir -p "$display_run"
+
+output=$(runtime="$display_run" display="" shell_call lock status 2>&1) && fail "shell ipc fails when no Wayland display exists"
+[[ $output == "omarchy-shell is not running" && ! -s $calls ]] ||
+  fail "shell ipc fails without starting qs when no Wayland display exists" "output: $output, calls: $(<"$calls")"
+runtime="$display_run" display="" shell_call -q lock status && [[ ! -s $calls ]] ||
+  fail "quiet shell ipc exits cleanly without starting qs when no Wayland display exists"
+pass "shell ipc skips qs when no Wayland display exists"
+
 touch "$display_run/wayland-1" "$display_run/wayland-1.lock"
 
 output=$(runtime="$display_run" display="" shell_call omarchy.indicators refresh)
