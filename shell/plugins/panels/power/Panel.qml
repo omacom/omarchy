@@ -66,19 +66,16 @@ Panel {
     var device = UPower.displayDevice
     return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
   }
+  // True while a plug change settles; see Model.drawingFromBattery.
+  property bool plugSettling: false
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return !!(device && device.isPresent && UPower.onBattery)
+    return Model.drawingFromBattery(device, UPower.onBattery, upowerStates(), root.plugSettling)
   }
   // False from the moment external power arrives until the battery has had
   // time to report a charge rate measured with it. Some batteries refresh
   // the rate only every half minute, and until then it reads 0 W.
   property bool chargeRateFresh: true
-  onDischargingChanged: {
-    chargeRateFresh = discharging
-    if (discharging) chargeRateSettle.stop()
-    else chargeRateSettle.restart()
-  }
   Timer {
     id: chargeRateSettle
     interval: 90000
@@ -99,7 +96,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
+    return !!(d && d.isPresent && !root.discharging && !root.batteryFlowIdle)
   }
 
   readonly property color batteryFillColor: {
@@ -186,7 +183,7 @@ Panel {
 
   function setProfile(profile) {
     if (!profile || actionProc.running) return
-    actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
+    actionProc.command = ["omarchy-powerprofiles-set", UPower.onBattery ? "battery" : "ac", profile]
     actionProc.running = true
   }
 
@@ -253,6 +250,23 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+
+  Timer {
+    id: plugSettleTimer
+    interval: 30000
+    onTriggered: root.plugSettling = false
+  }
+
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() {
+      root.plugSettling = true
+      plugSettleTimer.restart()
+      root.chargeRateFresh = UPower.onBattery
+      if (UPower.onBattery) chargeRateSettle.stop()
+      else chargeRateSettle.restart()
+    }
+  }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
