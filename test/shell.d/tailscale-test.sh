@@ -265,19 +265,25 @@ assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, mess
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
 
-
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin"
-for command in omarchy-pkg-add sudo systemctl; do
+for command in sudo systemctl; do
   printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/$command"
 done
+printf '#!/bin/bash\nexit "${OMARCHY_TEST_PKG_STATUS:-0}"\n' >"$test_tmp/bin/omarchy-pkg-add"
 printf '#!/bin/bash\nexit 1\n' >"$test_tmp/bin/omarchy-plugin-enable"
 cat >"$test_tmp/bin/omarchy-webapp-install" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >"$OMARCHY_TEST_WEBAPP_LOG"
 SH
 chmod +x "$test_tmp/bin"/*
+if PATH="$test_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_PKG_STATUS=1 OMARCHY_TEST_WEBAPP_LOG="$test_tmp/webapp" \
+  "$ROOT/bin/omarchy-install-service-tailscale" >"$test_tmp/output" 2>&1; then
+  fail "Tailscale install fails when package installation fails"
+fi
+[[ ! -e $test_tmp/webapp ]] || fail "Tailscale does not install its web app after package installation fails"
+pass "Tailscale stops when package installation fails"
 PATH="$test_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_WEBAPP_LOG="$test_tmp/webapp" \
   "$ROOT/bin/omarchy-install-service-tailscale" >"$test_tmp/output" 2>&1 ||
   fail "Tailscale install finishes when its optional bar plugin is unavailable" "$(<"$test_tmp/output")"
