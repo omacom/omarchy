@@ -120,11 +120,18 @@ if [[ $1 == "pre" ]]; then
   # forever. Carry it across a suspend that closely follows an early wake;
   # a later lid close is a separate event and gets the full grace period, so
   # a quick close-and-carry is not punished with whatever time was left.
+  #
+  # The deadline may have passed while the machine was awake: the RTC alarm
+  # fires, but no post hook runs until the next resume, and logind's
+  # re-suspend can land after the deadline. Carrying the expired deadline
+  # (and waking immediately below) runs the expiry path then, instead of
+  # granting another full grace period that repeated early wakes could
+  # postpone forever.
   if [[ -f $DEADLINE_FILE && -f $WAKE_FILE ]]; then
     pending=$(<"$DEADLINE_FILE")
     woken=$(<"$WAKE_FILE")
     if [[ $pending =~ ^[0-9]+$ ]] && [[ $woken =~ ^[0-9]+$ ]] &&
-      (( pending > now )) && (( now - woken <= CARRY_WINDOW_SEC )); then
+      (( now - woken <= CARRY_WINDOW_SEC )); then
       deadline=$pending
     fi
   fi
@@ -132,6 +139,9 @@ if [[ $1 == "pre" ]]; then
   mkdir -p "$DEADLINE_DIR" || exit 0
   if [[ -n $deadline ]]; then
     remaining=$(( deadline - now ))
+    # An already expired deadline has nothing left to count down: wake in a
+    # second so post sees it expired and queues the decision.
+    (( remaining > 0 )) || remaining=1
   else
     deadline=$(( now + GRACE_SEC ))
     remaining=$GRACE_SEC

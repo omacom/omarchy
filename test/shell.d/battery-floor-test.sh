@@ -69,6 +69,16 @@ grep -Fq '/usr/lib/systemd/system-sleep/battery-floor' "$remove" ||
   fail "battery-floor remove cleans the hook"
 pass "battery-floor remove cleans the hook"
 
+# A pending alarm outlives the hook: removal has to disarm the same RTC the
+# hook picks, or the next suspend wakes with no hook left to sleep again.
+grep -Fq 'rtcwake' "$remove" ||
+  fail "battery-floor remove disarms the RTC alarm"
+grep -Fq -- '-m disable' "$remove" ||
+  fail "battery-floor remove disables the armed alarm"
+grep -Fq 'wakealarm' "$remove" ||
+  fail "battery-floor remove finds the alarm-capable RTC"
+pass "battery-floor remove disarms the alarm RTC"
+
 bash -n "$hook" || fail "battery-floor hook parses"
 pass "battery-floor hook parses"
 
@@ -143,6 +153,14 @@ SH
 cat >"$stub_bin/sleep" <<'SH'
 #!/bin/bash
 exit 0
+SH
+cat >"$stub_bin/gum" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$stub_bin/sudo" <<'SH'
+#!/bin/bash
+"$@"
 SH
 cat >"$stub_bin/date" <<'SH'
 #!/bin/bash
@@ -289,6 +307,27 @@ grep -Fq $'rtcwake\t-d rtc1 -m no -s 1200' "$calls" ||
 [[ ! -f $wake_file ]] || fail "a fresh arm clears the stale early-wake marker"
 pass "a later lid close is a new event, not a carry"
 
+# The RTC alarm fires while the machine is awake, but no post hook runs until
+# the next resume, and logind's re-suspend can land after the deadline. That
+# pre must carry the expired deadline and wake at once — restarting the grace
+# period would let repeated early wakes postpone the floor forever.
+NOW=1000000
+rm -f "$deadline_file" "$wake_file"
+run_hook pre suspend
+NOW=1001190
+run_hook post suspend
+grep -Fq $'rtcwake\t-d rtc1 -m no -s 10' "$calls" ||
+  fail "the early wake re-arms the last ten seconds" "$(cat "$calls")"
+NOW=1001210
+run_hook pre suspend
+grep -Fq $'rtcwake\t-d rtc1 -m no -s 1' "$calls" ||
+  fail "a late re-suspend wakes immediately instead of restarting the grace" "$(cat "$calls")"
+! grep -q $'rtcwake\t-d rtc1 -m no -s 1200' "$calls" ||
+  fail "a late re-suspend must not restart the countdown" "$(cat "$calls")"
+[[ "$(cat "$deadline_file")" == 1001200 ]] ||
+  fail "a late re-suspend keeps the expired deadline" "$(cat "$deadline_file" 2>/dev/null)"
+pass "a late re-suspend after the deadline keeps the expired deadline"
+
 # Early wake with the lid open: cancel the countdown entirely.
 NOW=1001110
 export STUB_OMARCHY_HW_LAPTOP_CLOSED=0
@@ -399,3 +438,24 @@ grep -Fq $'logger\t-t omarchy-battery-floor rtcwake -d rtc1 -m no -s 1200 failed
 [[ -f $deadline_file ]] ||
   fail "a failed RTC arm must not block suspend"
 pass "a failed RTC arm is logged without blocking suspend"
+
+# Removal while an early wake left an alarm armed: the alarm must be cleared
+# on the same RTC the hook armed, before the saved state is deleted.
+remove_sandbox="$test_tmp/battery-floor-remove"
+hook_dest="$test_tmp/hook-dest"
+sed -e "s|/usr/bin/|$stub_bin/|g" \
+  -e "s|/usr/lib/systemd/system-sleep/battery-floor|$hook_dest|g" \
+  -e "s|/sys/class/rtc|$apple_rtc|g" \
+  -e "s|/run/omarchy-battery-floor|$floor_dir|g" "$remove" >"$remove_sandbox"
+chmod +x "$remove_sandbox"
+touch "$hook_dest"
+mkdir -p "$floor_dir"
+printf '1001200\n' >"$deadline_file"
+printf '1001190\n' >"$wake_file"
+: >"$calls"
+CALLS="$calls" PATH="$stub_bin:$PATH" "$remove_sandbox" >/dev/null 2>&1
+grep -Fq $'rtcwake\t-d rtc1 -m disable' "$calls" ||
+  fail "removal disarms the armed RTC alarm" "$(cat "$calls")"
+[[ ! -e $hook_dest ]] || fail "removal deletes the installed hook"
+[[ ! -d $floor_dir ]] || fail "removal deletes the saved floor state"
+pass "removal disarms the alarm RTC before deleting the state"

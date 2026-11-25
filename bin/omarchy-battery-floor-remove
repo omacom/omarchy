@@ -6,6 +6,21 @@
 # omarchy:requires-sudo=true
 
 HOOK_DEST="/usr/lib/systemd/system-sleep/battery-floor"
+STATE_DIR="/run/omarchy-battery-floor"
+
+# The hook picks the first RTC that exposes wakealarm and is a wakeup source;
+# the alarm RTC is not always rtc0 (Apple PMU RTCs sit at rtc1). Same picker
+# as the hook, so removal disarms the alarm the hook actually armed.
+pick_rtc() {
+  local rtc
+  for rtc in /sys/class/rtc/rtc*; do
+    [[ -e $rtc/wakealarm ]] || continue
+    [[ $(cat "$rtc/device/power/wakeup" 2>/dev/null) == enabled ]] || continue
+    printf '%s\n' "${rtc##*/}"
+    return 0
+  done
+  return 1
+}
 
 if [[ ! -f $HOOK_DEST && ! -L $HOOK_DEST ]]; then
   echo "Suspend battery floor is not set up"
@@ -16,11 +31,18 @@ if ! gum confirm "Remove suspend battery floor setup?"; then
   exit 0
 fi
 
+# An early wake can leave a re-armed alarm pending; removing the hook and its
+# saved files does not clear it, and a later suspend would wake to no hook
+# that sends the laptop back to sleep. Disarm the RTC before dropping state.
+if rtc=$(pick_rtc); then
+  sudo /usr/bin/rtcwake -d "$rtc" -m disable >/dev/null 2>&1 || true
+fi
+
 echo "Removing suspend battery floor hook"
 if ! sudo rm -f -- "$HOOK_DEST"; then
   echo "Could not remove the battery-floor hook" >&2
   exit 1
 fi
-sudo rm -rf -- /run/omarchy-battery-floor
+sudo rm -rf -- "$STATE_DIR"
 
 echo "Suspend battery floor removed"
