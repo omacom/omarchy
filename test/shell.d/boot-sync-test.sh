@@ -139,3 +139,14 @@ sync_boot
 ! grep -q -- '--splash' "$test_tmp/ukify.log" || fail "the image is built without a splash" "$(cat "$test_tmp/ukify.log")"
 [[ ! -e $test_tmp/store/splash.bmp ]] || fail "an old splash leaves the store"
 pass "boot images carry no splash"
+
+# A pending restore keeps the live image it replaces: the commit records it
+# as "Before restore".
+new_machine
+add_image restored linux-omarchy 7.1
+mkdir -p "$test_tmp/store/restore"
+printf 'TX=1\nSTATE=swapped\nIMAGE=restored\nPREVIOUS_IMAGE=live\n' >"$test_tmp/store/restore/journal"
+ln -sfn ../images/restored "$test_tmp/store/current/linux-omarchy"
+sync_boot
+[[ -d $test_tmp/store/images/live ]] || fail "the image a pending restore replaces is kept"
+pass "a pending restore keeps the image it replaces"

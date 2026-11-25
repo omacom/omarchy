@@ -109,7 +109,7 @@ EOF
 # Runs production functions in one shell, so state set by one reaches the next.
 run_reset() {
   env PATH="$test_tmp/bin:$PATH" NVRAM="$test_tmp/nvram" PARTUUID="$PARTUUID" \
-    ESP_MNT="$test_tmp/esp" bash -c '
+    ESP_MNT="$test_tmp/esp" OMARCHY_BOOT_STORE="$test_tmp/store" bash -c '
     set -euo pipefail
     source "$1/functions"
     ESP_MNT=$1/esp
@@ -181,3 +181,20 @@ REFUSE_CREATE=1 run_reset 'prepare_limine_return /next' 2>"$test_tmp/err" || sta
 (( status == 1 )) && grep -q 'refused a boot entry' "$test_tmp/err" ||
   fail "firmware that refuses the entry stops the reset" "$(cat "$test_tmp/err")"
 pass "the reset stops when the firmware refuses Limine's boot entry"
+
+# Another installation booted through systemd-boot on this ESP before the
+# switch, which saved its loader and loader.conf and reused its entry: the
+# reset gives all three back.
+new_machine
+rm -rf "$test_tmp/store"
+mkdir -p "$test_tmp/store/backup/esp/systemd"
+printf 'theirs\n' >"$test_tmp/store/backup/esp/systemd/systemd-bootx64.efi"
+printf 'default theirs\n' >"$test_tmp/store/backup/esp/loader.conf"
+printf 'esp_backed_up=1\n' >"$test_tmp/store/state"
+run_reset 'prepare_limine_return /next; commit_systemd_boot_return' || fail "the reset commits next to another installation"
+grep -q $'^0003\tsystemd-boot' "$test_tmp/nvram/entries" || fail "the other installation's boot entry stays" "$(cat "$test_tmp/nvram/entries")"
+[[ $(order) == 0007,0003,0000 ]] || fail "Limine goes first and the other installation's entry stays in the order" "$(order)"
+[[ $(<"$test_tmp/esp/EFI/systemd/systemd-bootx64.efi") == theirs && $(<"$test_tmp/esp/loader/loader.conf") == "default theirs" ]] ||
+  fail "the other installation's systemd-boot comes back"
+rm -rf "$test_tmp/store"
+pass "the reset gives another installation back its systemd-boot"

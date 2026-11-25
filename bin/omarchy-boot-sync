@@ -590,8 +590,11 @@ gc_images() {
   done
   image=$(state_get backup_image)
   [[ -n $image ]] && keep[$image]=1
-  image=$(kv_get "$STORE/restore/journal" IMAGE)
-  [[ -n $image ]] && keep[$image]=1
+  # A pending restore's image, and the live one it replaces, which becomes
+  # "Before restore".
+  for image in $(kv_get "$STORE/restore/journal" IMAGE) $(kv_get "$STORE/restore/journal" PREVIOUS_IMAGE); do
+    keep[$image]=1
+  done
 
   for image in "$STORE"/images/*/; do
     image=$(basename "$image")

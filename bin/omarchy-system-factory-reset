@@ -194,8 +194,13 @@ prepare_limine_return() {
 
 # The factory root is at @: Limine starts it from now on.
 commit_systemd_boot_return() {
-  local sd_entry order
+  local sd_entry order other_install=0
+  # Another installation on this ESP booted through systemd-boot before the
+  # switch: the switch saved its loader and loader.conf, which go back, and
+  # reused its boot entry, which stays.
+  [[ -d $(boot_store)/backup/esp/systemd ]] && other_install=1
   sd_entry=$(efi_entry_for '\EFI\systemd\')
+  ((other_install)) && [[ $(boot_state loader_entry_created) != 1 ]] && sd_entry=""
   order=$(efibootmgr | sed -n 's/^BootOrder: //p' | tr ',' '\n' | grep -vxF -e "$limine_entry" -e "${sd_entry:-none}" | paste -sd, -)
   efibootmgr --quiet --bootorder "$limine_entry${order:+,$order}" || log "Could not put Limine first in the boot order"
   if [[ -n $sd_entry ]]; then
@@ -213,7 +218,7 @@ commit_systemd_boot_return() {
     foreign=0
     if [[ -f $before ]] && ! grep -qa '[Ll]imine' "$before"; then
       foreign=1
-      for loader in "$ESP_MNT"/EFI/systemd/systemd-boot*.efi; do
+      ((other_install)) || for loader in "$ESP_MNT"/EFI/systemd/systemd-boot*.efi; do
         if [[ -f $loader ]] && cmp -s "$before" "$loader"; then foreign=0; fi
       done
     fi
@@ -225,6 +230,12 @@ commit_systemd_boot_return() {
     fi
   done
   rm -rf "${ESP_MNT:?}/EFI/systemd" "$ESP_MNT/loader/loader.conf"
+  if ((other_install)); then
+    cp -a "$(boot_store)/backup/esp/systemd" "$ESP_MNT/EFI/systemd" || log "Could not put back the other installation's systemd-boot"
+    if [[ -f $(boot_store)/backup/esp/loader.conf ]]; then
+      cp -a "$(boot_store)/backup/esp/loader.conf" "$ESP_MNT/loader/loader.conf" || log "Could not put back the other installation's loader.conf"
+    fi
+  fi
   drop_stale_limine_entries "$ESP_MNT/limine.conf" "$fallback_taken" || log "Could not tidy Limine's menu"
   [[ -z ${esp_old_id:-} ]] || rm -f "$ESP_MNT"/EFI/Linux/omarchy-"${esp_old_id:0:8}"-*.efi
 }
