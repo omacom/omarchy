@@ -500,7 +500,8 @@ Panel {
           host: host || "",
           decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
           context: model.ctx != null ? model.ctx : recipe.context,
-          memory_gib: recipe.memory_gib
+          memory_gib: recipe.memory_gib,
+          best: recipe.best === true
         }
       })
     }
@@ -534,7 +535,7 @@ Panel {
   // What the network and local blocks of the add screen offer: each coding
   // model without a line, a paired machine's first, then one shared on the
   // tailnet by a machine not paired yet, which choosing pairs with. This
-  // machine's are those set up here, then every recipe that fits and isn't,
+  // machine's are those set up here and every recipe that fits and isn't,
   // recommended first, then another DGX Spark cabled to this one. Those
   // being set up or paired with, and the one being started from here, stay,
   // showing how that goes.
@@ -543,14 +544,15 @@ Panel {
     var lines = localModelLines.filter(function(line) {
       return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
     })
-    var offerLine = function(line) {
+    var offerLine = function(targetList, line) {
       var model = localModelState(line.localModel)
       if (model && model.unit === "removing") return
-      offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
-                    host: line.localModel.host, facts: line.localModel,
-                    shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
+      targetList.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
+                        host: line.localModel.host, facts: line.localModel,
+                        best: line.localModel.host === "" && line.localModel.best === true,
+                        shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
     }
-    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
+    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(function(line) { offerLine(offers, line) })
     var network = localModelsService ? localModelsService.networkModels || {} : {}
     for (var nid in network) {
       var shared = network[nid]
@@ -558,20 +560,26 @@ Panel {
       offers.push({ target: nid, name: shared.name || shared.recipe, vendor: shared.vendor || "local", host: shared.host,
                     facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, pair: shared })
     }
-    lines.filter(function(line) { return line.localModel.host === "" }).forEach(offerLine)
+    var localOffers = []
+    lines.filter(function(line) { return line.localModel.host === "" }).forEach(function(line) { offerLine(localOffers, line) })
     var recipes = (localModelsService ? localModelsService.localRecipes || [] : []).filter(function(recipe) {
       return recipe.kind === "text" && recipe.available === true
         && !localModelLines.some(function(line) { return line.localModel.target === String(recipe.id) })
     })
-    recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
     for (var r = 0; r < recipes.length; r++)
-      offers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
-                    host: "", facts: recipes[r], recipe: recipes[r], shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+      localOffers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
+                         host: "", facts: recipes[r], recipe: recipes[r], best: recipes[r].best === true,
+                         shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+    offers = offers.concat(sortLocalOffers(localOffers))
     var link = localModelsService && localModelsService.localModel ? localModelsService.localModel.link : null
     if (link && link.state === "available")
       offers.push({ target: "", name: link.host ? Commons.I18n.t("localModels.linkOffer").arg(link.host) : Commons.I18n.t("localModels.linkOfferUnnamed"),
                     vendor: "nvidia", host: "", facts: {}, link: link })
     return offers
+  }
+
+  function sortLocalOffers(offers) {
+    return offers.slice().sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
   }
 
   // A model on this machine that the memory free now can't start: one set up
@@ -596,6 +604,12 @@ Panel {
 
   // The network block's share of the offers, which come first.
   readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
+  // Local models offered for this machine, excluding a cabled-Spark link offer.
+  readonly property int localModelOfferCount: ownModelOffers.filter(function(offer) { return offer.host === "" && !offer.link }).length
+
+  function offerRecommended(offer, localCount) {
+    return !!offer && offer.host === "" && !offer.link && offer.best === true && localCount > 1
+  }
 
   // A model removed from this machine is no longer added, so set up again
   // it's offered on the add screen first. One still being set up or
@@ -679,8 +693,8 @@ Panel {
     if (model.unit === "installing" && install.phase === "dependencies") return timed(Commons.I18n.t("localModels.installingMeter"), 30)
     if (model.unit === "installing") {
       var total = Number(install.total_bytes) || 0
-      return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
-               rate: downloadRate(Number(install.rate_bytes_s) || 0) }
+      return { title: "", value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
+               rate: downloadRate(Number(install.rate_bytes_s) || 0), downloading: true }
     }
     if (model.unit === "activating") return timed(Commons.I18n.t("localModels.loadingMeter"), expectedLoadSeconds(model))
     if (model.unit === "deactivating") return timed(Commons.I18n.t("localModels.stoppingMeter"), expectedStopSeconds(model))
@@ -2456,6 +2470,9 @@ Panel {
           readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
           // Too big for the memory free now: dimmed, saying so, and not chosen.
           readonly property var shortfall: modelData.shortfall || null
+          readonly property bool recommended: root.offerRecommended(modelData, root.localModelOfferCount)
+          readonly property var offerMeterState: modelData.pair ? (modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(modelData)
+          readonly property bool downloading: !!offerMeterState && offerMeterState.downloading === true
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
@@ -2482,24 +2499,63 @@ Panel {
             anchors.left: ownModelMark.right
             anchors.leftMargin: Style.space(12)
             anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(4)
 
-            Text {
+            Item {
+              id: ownModelHeader
               width: parent.width
-              text: ownModel.modelData.name
-              textFormat: Text.PlainText
-              color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-              elide: Text.ElideRight
+              implicitHeight: Math.max(ownModelName.implicitHeight, ownModelRecommended.visible ? ownModelRecommended.implicitHeight : 0)
+
+              Text {
+                id: ownModelName
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: ownModelRecommended.visible
+                  ? Math.max(0, Math.min(implicitWidth, parent.width - ownModelRecommended.implicitWidth - Style.space(8)))
+                  : parent.width
+                text: ownModel.modelData.name
+                textFormat: Text.PlainText
+                color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Rectangle {
+                id: ownModelRecommended
+                visible: ownModel.recommended
+                opacity: ownModel.shortfall ? 0.5 : 1
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: ownModelRecommendedLabel.implicitWidth + Style.space(12)
+                implicitHeight: ownModelRecommendedLabel.implicitHeight + Style.space(4)
+                radius: Style.cornerRadius
+                color: root.alpha(Commons.Color.accent, 0.14)
+                border.width: Style.spacing.hairline
+                border.color: root.alpha(Commons.Color.accent, 0.35)
+
+                Text {
+                  id: ownModelRecommendedLabel
+                  anchors.centerIn: parent
+                  text: Commons.I18n.t("localModels.recommended")
+                  textFormat: Text.PlainText
+                  color: Commons.Color.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
             }
 
             // A paired machine's model says whose it is before its facts; a
             // cabled Spark, what setting it up does; one too big for the
-            // memory free now, in red, why it can't start.
+            // memory free now, in red, why it can't start. While downloading,
+            // the progress bar takes this line's place.
             Text {
+              visible: !ownModel.downloading
               width: parent.width
               text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
                 : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
@@ -2514,10 +2570,10 @@ Panel {
             // The setup or start begun here: installing, downloading, then
             // loading, as its line will show it; or the pairing.
             LocalMeterRow {
-              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
+              meter: ownModel.offerMeterState
               visible: !!meter
               width: parent.width
-              topPadding: Style.space(6)
+              topPadding: ownModel.downloading ? Style.space(2) : Style.space(6)
             }
           }
 
@@ -3249,9 +3305,10 @@ Panel {
     }
 
     // The machine a local model runs on when that isn't this one, then its
-    // memory, speed, and context.
+    // memory, speed, and context. While downloading, the progress bar takes
+    // this line's place.
     Text {
-      visible: !!section.local && text !== ""
+      visible: !!section.local && text !== "" && !(section.localMeter && section.localMeter.downloading === true)
       width: parent.width
       textFormat: Text.PlainText
       text: section.local ? [section.local.host, root.ownModelFacts(section.local)].filter(function(part) { return part !== "" }).join(" · ") : ""
@@ -3592,10 +3649,13 @@ Panel {
     readonly property bool failed: !!meter && meter.failed === true
     // A step with no measure of its own, like a pairing, is its title alone.
     readonly property bool barless: !meter || failed || meter.value < 0
-    implicitHeight: Math.max(meterTitle.implicitHeight, meterRate.implicitHeight) + topPadding
+    readonly property bool titled: !!meter && String(meter.title || "") !== ""
+    readonly property bool hasRate: meterRate.text !== ""
+    implicitHeight: Math.max(titled ? meterTitle.implicitHeight : 0, meterRate.implicitHeight, meterBar.implicitHeight) + topPadding
 
     Text {
       id: meterTitle
+      visible: meterRow.titled
       width: meterRow.barless ? parent.width : parent.width * 0.3
       anchors.bottom: parent.bottom
       textFormat: Text.PlainText
@@ -3608,24 +3668,25 @@ Panel {
     }
 
     Meter {
+      id: meterBar
       visible: !meterRow.barless
-      anchors.left: meterTitle.right
-      anchors.right: meterRate.left
-      anchors.rightMargin: Style.space(20)
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.left: meterRow.titled ? meterTitle.right : parent.left
+      anchors.right: meterRow.hasRate ? meterRate.left : parent.right
+      anchors.rightMargin: meterRow.hasRate ? (meterRow.titled ? Style.space(20) : Style.space(10)) : 0
+      anchors.verticalCenter: meterRow.titled ? meterTitle.verticalCenter : meterRate.verticalCenter
       value: meterRow.meter ? meterRow.meter.value : 0
     }
 
     Text {
       id: meterRate
       anchors.right: parent.right
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       horizontalAlignment: Text.AlignRight
       text: meterRow.meter && !meterRow.failed ? meterRow.meter.rate : ""
       color: root.dim
       font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: meterRow.titled ? Style.font.bodySmall : Style.font.caption
     }
   }
 
