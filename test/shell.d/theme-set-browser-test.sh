@@ -164,10 +164,11 @@ refreshed=$(sort "$refresh_log" | tr '\n' ' ')
   fail "setter refreshes plain brave without brave-origin when only brave runs (got: $refreshed)"
 pass "setter refreshes plain brave without brave-origin when only brave runs"
 
-# A hanging browser refresh does not block the theme switch.
+# A hanging browser refresh does not block the theme switch, even if it ignores SIGTERM.
 rm -f "$refresh_log"
 cat >"$browser_bin/brave" <<'FAKE'
 #!/bin/bash
+trap '' TERM
 sleep 15
 FAKE
 chmod +x "$browser_bin/brave"
