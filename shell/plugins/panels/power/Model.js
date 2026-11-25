@@ -76,9 +76,10 @@ function batteryIcon(device, onBattery, states, rateFresh) {
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
   var threshold = chargeThresholdActive(d, onBattery, states, rateFresh)
 
+  if (d.state === states.Discharging) return defaultIcons[index]
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
-  if (!onBattery) return chargingIcons[index]
+  if (d.state === states.Charging || !onBattery) return chargingIcons[index]
   return defaultIcons[index]
 }
 
@@ -89,8 +90,10 @@ function modeLabel(device, onBattery, states, tr, rateFresh) {
 
   var percentage = d.isPresent ? d.percentage : 0
   if (chargeThresholdActive(d, onBattery, states, rateFresh)) return t("power.threshold", "Threshold")
+  if (d.state === states.Discharging) return t("power.onBattery", "On battery")
+  if (d.state === states.Charging) return percentage >= 1 ? t("power.fullyCharged", "Fully charged") : t("power.charging", "Charging")
   if (onBattery) return t("power.onBattery", "On battery")
-  if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
+  if (percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
 }
 
