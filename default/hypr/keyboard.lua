@@ -117,12 +117,13 @@ end
 local function resolve_letter(letter, kb_layout, kb_variant)
   local variants = {}
   for variant in (kb_variant .. ","):gmatch("([^,]*),") do
-    variants[#variants + 1] = variant
+    variants[#variants + 1] = variant:match("^%s*(.-)%s*$")
   end
 
   local latin, has_non_latin = {}, false
   local i = 0
   for layout in (kb_layout .. ","):gmatch("([^,]*),") do
+    local layout = layout:match("^%s*(.-)%s*$")
     i = i + 1
     if non_latin(layout, variants[i] or "") then
       has_non_latin = true

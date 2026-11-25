@@ -311,6 +311,9 @@ keys=$(clipboard_keys ru,us ,)
 keys=$(clipboard_keys ru,us ,dvorak)
 [[ $keys == "CTRL+code:38 CTRL+code:31 CTRL+code:60 CTRL+code:56 CTRL SHIFT+code:31 | 4" ]] ||
   fail "clipboard shortcuts send the keycodes of the Latin layout's letters" "$keys"
+keys=$(clipboard_keys " ru , us " " , dvorak ")
+[[ $keys == "CTRL+code:38 CTRL+code:31 CTRL+code:60 CTRL+code:56 CTRL SHIFT+code:31 | 4" ]] ||
+  fail "clipboard shortcuts accept whitespace around layouts and variants" "$keys"
 keys=$(clipboard_keys us,fr ,)
 [[ $keys == "CTRL+A CTRL+C CTRL+V CTRL+X CTRL SHIFT+C | 0" ]] ||
   fail "clipboard shortcuts send letter names without a lookup when every layout is Latin" "$keys"
