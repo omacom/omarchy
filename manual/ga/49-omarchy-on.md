@@ -1,29 +1,29 @@
 # Omarchy ar...
 
-### Sceallóga Apple M1/M2
+### Macanna Apple Silicon
 
-Is leagan de Arch do ríomhairí Apple M1/M2 é [Asahi Alarm](https://asahi-alarm.org/) a tógadh ar bharr [Asahi Linux](https://asahilinux.org/). Is féidir leat Omarchy a chur ag rith ar bharr air sin le roinnt iarrachta. Féach [an treoir tiomáinte ag an úsáideoir](https://github.com/omarchy-mac/omarchy-mac).
+Ritheann Omarchy do Apple Silicon ar Mhacs M1, M2 agus M3 agus suiteálann sé taobh le macOS. Féach [Omarchy do Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) sa chaibidil tacaíochta Mac.
 
-### Meaisín Fíorúil Apple
+### Bain triail as Omarchy ar Mac
 
-Is féidir leat Omarchy a shuiteáil taobh istigh de VM Parallels freisin. Próiseas sách achrannach, ach tá [treoir tiomáinte ag an úsáideoir](https://github.com/omacom/omarchy/discussions/452) chuige sin freisin.
+Ritheann [Try Omarchy](https://github.com/omacom/try-omarchy) Omarchy i meaisín fíorúil ar aon Mac Apple Silicon le macOS 15 nó níos nuaí, gan aon rud le deighilt ná le suiteáil taobh le macOS.
 
 ### VirtualBox
 
-Is rádala VM coitianta é VirtualBox. [Is féidir leat Omarchy a rith taobh istigh de sin freisin](https://github.com/omacom/omarchy/discussions/176). Ach is dócha nach mbeidh an fheidhmíocht iontach.
+Is ritheoir VM coitianta é VirtualBox. [Is féidir leat Omarchy a rith istigh ansin chomh maith](https://github.com/omacom/omarchy/discussions/176). Ach is dócha nach mbeidh an fheidhmíocht iontach.
 
 ### VMware Workstation ar Windows 11
 
-Rádala VM coitianta eile do Windows. [Tá Omarchy curtha ar bun taobh istigh de sin freisin](https://github.com/omacom/omarchy/discussions/572).
+Ritheoir VM coitianta eile do Windows. [Tá Omarchy socraithe istigh ansin chomh maith](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-Ritheann an Steam Deck ar Arch, rud a chiallaíonn gur féidir leat Omarchy a rith ar do Steam Deck. Tá [script socraithe iomlán agus míniú ar conas é a dhéanamh](https://github.com/aorumbayev/deckarchy) ag Altynbek Orumbayev. Cé chomh fionnuar is atá sé sin!
+Ritheann an Steam Deck ar Arch, rud a chiallaíonn gur féidir leat Omarchy a rith ar do Steam Deck. Tá [script socraithe iomlán agus míniú ar conas é a dhéanamh](https://github.com/aorumbayev/deckarchy) ag Altynbek Orumbayev. Nach fionnuar an rud é sin!
 
 ### NixOS
 
-Is é Arch + Hyprland i ndáiríre é Omarchy, ach tá Henry Sipp [tar éis bunús an tsocraithe a iompar go NixOS](https://github.com/henrysipp/omarchy-nix). Mar sin má tá tú faoi dhraíocht nix, seo pointe tosaigh maith. Seans go bhfanfaidh nó nach bhfanfaidh sé cothrom le dáta leis na hathruithe Omarchy is déanaí, ach tá sé sách fionnuar mar sin féin!
+Is éard atá in Omarchy i ndáiríre ná Arch + Hyprland, ach tá croílár an tsocraithe [aistrithe go NixOS](https://github.com/henrysipp/omarchy-nix) ag Henry Sipp. Mar sin má tá an piolla Nix slogtha agat, is pointe tosaigh maith é seo. B’fhéidir go bhfanfaidh sé cothrom le dáta leis na hathruithe is déanaí in Omarchy nó nach bhfanfaidh, ach tá sé sách fionnuar mar sin féin!
 
 ### Rud éigin eile!
 
-Má tá tú ag iarraidh Omarchy a chur ag rith ar chumraíocht nach í an réamhshocrú í, ba chóir duit páirt a ghlacadh sa chainéal #omarchy-on-other ar [ár Discord pobail](https://discord.gg/tXFUdasqhY).
+Má tá tú ag iarraidh Omarchy a chur ag rith ar chumraíocht nach í an chumraíocht réamhshocraithe í, ba chóir duit dul isteach sa chainéal #omarchy-on-other ar [Discord ár bpobail](https://discord.gg/tXFUdasqhY).

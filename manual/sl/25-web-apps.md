@@ -1,28 +1,28 @@
 # Spletne aplikacije
 
-Svoje spletne aplikacije lahko dodate z _Install > Web App_ v meniju Omarchy (`Super + Space`). Vprašalo vas bo po imenu aplikacije, URL-ju aplikacije in URL-ju ikone, če je ne more pridobiti prek favicon. Odlične ikone PNG za številne priljubljene spletne aplikacije lahko dobite na [Dashboard Icons](https://dashboardicons.com).
+Svoje spletne aplikacije lahko dodate z _Install > Web App_ v meniju Omarchy (`Super + Space`). Vprašal vas bo za ime aplikacije, URL aplikacije in URL ikone, če je ne more pridobiti prek favicon. Odlične ikone PNG za številne priljubljene spletne aplikacije lahko dobite na [Dashboard Icons](https://dashboardicons.com).
 
 Nato bodo dostopne prek zaganjalnika aplikacij (`Super + Space`) in bodo uporabljale čudovito okno spletne aplikacije brez okvirja.
 
-Če želite odstraniti spletno aplikacijo, preprosto pojdite na _Remove > Web App_ v meniju Omarchy.
+Če želite spletno aplikacijo odstraniti, preprosto pojdite na _Remove > Web App_ v meniju Omarchy.
 
-Najbolje je, da se v vse svoje račune prijavite z običajnim brskalnikom, preden uporabite bližnjice spletnih aplikacij. Tanek okvir ovojalnice ne deluje dobro z 1password, zato se je preprosto lažje najprej prijaviti neposredno.
+Najbolje je, da se v vse svoje račune prijavite z običajnim brskalnikom, preden uporabite bližnjice spletnih aplikacij. Tanek ovojni okvir ne deluje dobro z 1password, zato je preprosteje, če ste že neposredno prijavljeni.
 
 Vse bližnjice na tipkovnici za te spletne aplikacije lahko spremenite v `~/.config/hypr/bindings.lua`.
 
 Ko ste v spletni aplikaciji, lahko trenutni URL kopirate v odložišče z `Shift + Alt + L`.
 
-Omarchy privzeto že vključuje izbor privzetih aplikacij:
+Omarchy privzeto že vsebuje izbor privzetih aplikacij:
 
 ## HEY
 
-[HEY](https://www.hey.com/) je storitev za e-pošto in koledar, ki je odlična alternativa za ljudi, naveličane Gmail, Outlook ali Apple Mail. Izdeluje jo [37signals](https://37signals.com/), kjer je Omarchy nastal.
+[HEY](https://www.hey.com/) je storitev za e-pošto in koledar, ki je odlična alternativa za ljudi, ki imajo dovolj Gmail, Outlook ali Apple Mail. Razvija ga [37signals](https://37signals.com/), od koder izvira Omarchy.
 
-HEY Email lahko zaženete z `Super + Shift + E`, skočite naravnost na sestavljanje nove e-pošte z `Super + Shift + Alt + E` in zaženete HEY Calendar z `Super + Shift + C`.
+HEY Email lahko zaženete z `Super + Shift + E`, z `Super + Shift + Alt + E` skočite naravnost na sestavljanje novega e-poštnega sporočila, HEY Calendar pa zaženete z `Super + Shift + C`.
 
 ## Basecamp
 
-[Basecamp](https://basecamp.com/) je storitev za vodenje projektov, ki majhnim ekipam pomaga delati hitreje in doseči večji napredek. Namesto da skupaj lepite mešanico Trello, Slack, Asana, Notion ali česarkoli že, lahko imate z Basecamp vse na enem mestu. Izdeluje jo [37signals](https://37signals.com/), kjer je Omarchy nastal.
+[Basecamp](https://basecamp.com/) je storitev za upravljanje projektov, ki majhnim ekipam pomaga delati hitreje in doseči večji napredek. Namesto da skupaj krpate zmešnjavo Trello, Slack, Asana, Notion ali česar koli drugega, lahko z Basecamp vse to imate na enem mestu. Razvija ga [37signals](https://37signals.com/), od koder izvira Omarchy.
 
 Basecamp lahko zaženete z zaganjalnikom aplikacij (`Super + Space`)
 
@@ -40,21 +40,21 @@ Grok lahko zaženete z `Super + Shift + Alt + A`.
 
 ## WhatsApp
 
-[WhatsApp](https://www.whatsapp.com/) je ena najbolj priljubljenih storitev za sporočanje na svetu, spletna različica pa je odlična možnost za Linux.
+[WhatsApp](https://www.whatsapp.com/) je ena najbolj priljubljenih storitev za sporočanje na svetu in spletna različica je odlična možnost za Linux.
 
-WhatsApp lahko zaženete z `Super + Shift + Alt + G`.
+WhatsApp lahko zaženete z `Super + Shift + Alt + G`. Odpre se z razširitvijo WhatsApp Slim za Omarchy, zaradi katere sledi vaši temi in strne seznam klepetov, ko je okno ozko.
 
 ## Googlove aplikacije
 
 Google Messages, Google Photos, Google Maps in Google Contacts so prav tako vključeni kot spletne aplikacije.
 
-Google Messages lahko zaženete z `Super + Shift + Ctrl + G`, Google Photos z `Super + Shift + P` in Google Maps z `Super + Shift + S`. Google Contacts je na voljo prek zaganjalnika aplikacij (`Super + Space`).
+Google Messages lahko zaženete z `Super + Shift + Ctrl + G`, Google Photos z `Super + Shift + P`, Google Maps pa z `Super + Shift + S`. Google Contacts je na voljo prek zaganjalnika aplikacij (`Super + Space`).
 
 ## X
 
 X je kraj, kjer novice izbruhnejo.
 
-X lahko zaženete z `Super + Shift + X` in greste naravnost na pisanje nove objave z `Super + Shift + Alt + X`.
+X lahko zaženete z `Super + Shift + X` in z `Super + Shift + Alt + X` pojdite naravnost na pisanje nove objave.
 
 ## YouTube
 
@@ -62,15 +62,21 @@ X lahko zaženete z `Super + Shift + X` in greste naravnost na pisanje nove obja
 
 YouTube lahko zaženete z `Super + Shift + Y`.
 
+## Netflix
+
+[Netflix](https://www.netflix.com/) je pri novih namestitvah vključen kot spletna aplikacija.
+
+Netflix zaženete z zaganjalnikom aplikacij (`Super + Space`).
+
 ## Zoom
 
-[Zoom](https://zoom.us/) je najbolj priljubljen sistem za video klepet, ki se uporablja v ZDA. Odlične povezave po vsem svetu. In 40-minutne sestanke lahko izvedete brez plačljivega računa. Omarchy ovije spletnega odjemalca Zoom, povezave do sestankov Zoom pa se bodo odprle naravnost vanj.
+[Zoom](https://zoom.us/) je najbolj priljubljen sistem za video klepet, ki se uporablja v ZDA. Odlične povezave po vsem svetu. In 40-minutne sestanke lahko imate brez plačljivega računa. Omarchy ovije spletni odjemalec Zoom in povezave do sestankov Zoom se bodo odprle naravnost vanj.
 
 Zoom zaženete z zaganjalnikom aplikacij (`Super + Space`).
 
 ## Discord
 
-[Discord](https://discord.com/) je kraj, kjer se druži večina igralnih in odprtokodnih skupnosti, vključno z [Omarchyjevo lastno](https://discord.gg/tXFUdasqhY).
+[Discord](https://discord.com/) je kraj, kjer se druži večina igralniških in odprtokodnih skupnosti, vključno z [Omarchyjevo lastno](https://discord.gg/tXFUdasqhY).
 
 Discord zaženete z zaganjalnikom aplikacij (`Super + Space`).
 
@@ -78,14 +84,14 @@ Discord zaženete z zaganjalnikom aplikacij (`Super + Space`).
 
 Izberite _Install > Service > Microsoft_, da dodate Outlook, Word, Excel, PowerPoint, Teams in OneDrive kot spletne aplikacije. Vsaka aplikacija ima svoj zaganjalnik in se odpre neposredno, pri čemer uporablja komercialne URL-je Microsoft 365 in vaš obstoječi profil brskalnika. Odprejo se v istih oknih aplikacij brskalnika kot druge spletne aplikacije Omarchy; ne namestijo ločenega odjemalca Teams for Linux.
 
-Paket odstranite z _Remove > Service > Microsoft_ ali odstranite posamezne aplikacije z _Remove > Web App_. Prek _Install > Web App_ lahko namestite tudi samo aplikacije, ki jih želite.
+Paket odstranite z _Remove > Services > Microsoft_ ali pa posamezne aplikacije odstranite z _Remove > Web App_. Prek _Install > Web App_ lahko namestite tudi samo aplikacije, ki jih želite.
 
-Za vladni ali suvereni oblak uredite URL v vrstici `Exec=` v ustreznem zaganjalniku pod `~/.local/share/applications/`, na primer `Microsoft Teams.desktop`, pri čemer uporabite URL, ki ga zagotovi vaša organizacija. Vsak dobesedni `%` v tej vrstici zapišite kot `%%`. Spremembe začnejo veljati ob naslednjem zagonu. Če namestitveni program paketa zaženete znova, bo njegove zaganjalnike zamenjal s privzetimi URL-ji.
+Za vladni ali suvereni oblak uredite URL v vrstici `Exec=` v ustreznem zaganjalniku pod `~/.local/share/applications/`, na primer `Microsoft Teams.desktop`, pri čemer uporabite URL, ki ga je zagotovila vaša organizacija. Vsak dobesedni `%` v tej vrstici zapišite kot `%%`. Spremembe začnejo veljati ob naslednjem zagonu. Če znova zaženete namestitveni program paketa, bo njegove zaganjalnike zamenjal s privzetimi URL-ji.
 
-Če želite službene prijave ohraniti ločene, vsaki vrstici `Exec=` zaganjalnika dodajte imenik s podatki brskalnika:
+Če želite službene prijave ohraniti ločene, vsaki vrstici `Exec=` zaganjalnika pripnite imenik s podatki brskalnika:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Imenik primera zamenjajte z absolutno potjo po svoji izbiri in isto pot uporabite za vseh šest zaganjalnikov, da bodo službene prijave med njimi deljene. Spletne aplikacije uporabljajo izbrani podprti brskalnik Omarchy, pri čemer uporabijo Chrome kot nadomestno možnost, kadar privzeti brskalnik ni podprt.
+Imenik iz primera zamenjajte z absolutno potjo po lastni izbiri in isto pot uporabite za vseh šest zaganjalnikov, da bodo službene prijave med njimi skupne. Spletne aplikacije uporabljajo izbrani podprti brskalnik Omarchy, če pa privzeti brskalnik ni podprt, se vrnejo na Chrome.

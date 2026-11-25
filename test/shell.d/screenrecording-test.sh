@@ -22,6 +22,12 @@ case "$1" in
   printf '\t%s\n' "/dev/video0"
   printf '\t%s\n' "/dev/video1"
 
+  # A Snapdragon's camera subsystem: raw I/O MC capture nodes of a media
+  # pipeline, listed ahead of the cameras apps can open.
+  printf '\n%s\n' "Qualcomm Camera Subsystem (platform:acb7000.isp):"
+  printf '\t%s\n' "/dev/video20"
+  printf '\t%s\n' "/dev/video21"
+
   if [[ ${OMARCHY_TEST_RAW_WEBCAM:-false} != "true" ]]; then
     printf '\n%s\n' "Built-in Webcam: Integrated Camera"
     printf '\t%s\n' "/dev/video42"
@@ -43,6 +49,7 @@ case "$1" in
   /dev/video0) device_capability="Video Output" ;;
   /dev/video1) device_capability="Metadata Capture" ;;
   /dev/video7 | /dev/video9) device_capability="Video Output" ;;
+  /dev/video20 | /dev/video21) device_capability="Video Capture Multiplanar" ;;
   *) device_capability="Video Capture" ;;
   esac
 
@@ -52,6 +59,10 @@ case "$1" in
     $'\t\tVideo Capture' \
     $'\tDevice Caps      : 0x04200001' \
     $'\t\t'"$device_capability"
+
+  case "$2" in
+  /dev/video20 | /dev/video21) printf '%s\n' $'\t\tI/O MC' ;;
+  esac
   ;;
 esac
 SH
@@ -131,6 +142,31 @@ if OMARCHY_TEST_NO_WEBCAM=true "$ROOT/bin/omarchy-hw-webcam"; then
   fail "webcam hardware detection fails when no video device is available"
 else
   pass "webcam hardware detection fails when no video device is available"
+fi
+
+# udev records :capture: for a Snapdragon camera subsystem's raw nodes, but they
+# are no camera for an app: with nothing else listed they must not answer yes.
+raw_v4l="$tmp_dir/v4l-camss"
+raw_udev="$tmp_dir/udev-camss"
+raw_dev="$tmp_dir/dev-camss"
+mkdir -p "$raw_v4l/video20/device" "$raw_udev" "$raw_dev"
+echo 81:20 >"$raw_v4l/video20/dev"
+ln -s "../../../../bus/platform/drivers/qcom-camss" "$raw_v4l/video20/device/driver"
+touch "$raw_dev/video20"
+printf '%s\n' "E:ID_V4L_CAPABILITIES=:capture:" >"$raw_udev/c81:20"
+
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+else
+  pass "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+fi
+
+rm "$raw_v4l/video20/device/driver"
+ln -s "../../../../bus/usb/drivers/uvcvideo" "$raw_v4l/video20/device/driver"
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  pass "webcam hardware detection still takes a recorded capture node of another driver"
+else
+  fail "webcam hardware detection still takes a recorded capture node of another driver"
 fi
 
 # With udev's record available the guard answers from it and opens no device.
@@ -482,6 +518,36 @@ mode=$(stat -c '%a' "$state_home/omarchy" 2>/dev/null || stat -f '%Lp' "$state_h
 [[ $mode == "700" ]] || fail "fallback directory is private even when it already existed" "mode: $mode"
 pass "fallback directory is private even when it already existed"
 
+# A Polaris GPU hangs its VCE encoder mid-recording (#9555), so it records on
+# the CPU; any other GPU, AMD's included, keeps hardware encoding.
+cat >"$stub_bin/gpu-screen-recorder" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_TEST_GSR_ARGS"
+for i in "$@"; do
+  [[ -n ${take_next:-} ]] && { : >"$i"; break; }
+  [[ $i == "-o" ]] && take_next=1
+done
+sleep 5
+SH
+chmod +x "$stub_bin/gpu-screen-recorder"
+
+recorder_args_for_amd_gpu() {
+  local run="$tmp_dir/amd-$1"
+  mkdir -p "$run/pci/0000:01:00.0" "$run/recordings"
+  echo 0x1002 >"$run/pci/0000:01:00.0/vendor"
+  echo "0x$1" >"$run/pci/0000:01:00.0/device"
+  XDG_RUNTIME_DIR="$run" OMARCHY_PCI_DEVICES_PATH="$run/pci" OMARCHY_SCREENRECORD_DIR="$run/recordings" OMARCHY_TEST_GSR_ARGS="$run/args" \
+    "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
+  pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+  cat "$run/args" 2>/dev/null || true
+}
+
+polaris_args=$(recorder_args_for_amd_gpu 67df)
+[[ $polaris_args == *$'\n-encoder\ncpu\n'* ]] || fail "a Polaris GPU records on the CPU" "$polaris_args"
+navi_args=$(recorder_args_for_amd_gpu 73df)
+[[ -n $navi_args && $navi_args != *-encoder* ]] || fail "other AMD GPUs keep hardware encoding" "$navi_args"
+pass "only a Polaris GPU records on the CPU"
+
 # gpu-screen-recorder aborts before recording on a GPU it does not know, such
 # as Apple Silicon's. wf-recorder takes over when it is installed, on the same
 # monitor, and its pid is the one stop and status act on.
@@ -662,3 +728,28 @@ recorder --status || status=$?
 (( status == 1 )) || fail "status reports inactive before the recorder starts"
 [[ ! -s $audio_calls && -e $audio_modules ]] || fail "status preserves the audio mix created before the recorder starts"
 pass "status leaves the starting recorder's audio mix alone"
+
+# omarchy-capture-screenrecording-process inspects OMARCHY_PROC_ROOT directly
+# without pgrep, both for explicit --pid lookups and full scans.
+fake_proc="$tmp_dir/fake-proc"
+mkdir -p "$fake_proc/101" "$fake_proc/102" "$fake_proc/103"
+printf 'gpu-screen-reco\n' >"$fake_proc/101/comm"
+ln -s /usr/bin/gpu-screen-recorder "$fake_proc/101/exe"
+printf 'wf-recorder\n' >"$fake_proc/102/comm"
+ln -s '/usr/bin/wf-recorder (deleted)' "$fake_proc/102/exe"
+printf 'gpu-screen-reco\n' >"$fake_proc/103/comm"
+ln -s /usr/bin/impostor "$fake_proc/103/exe"
+
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" ||
+  fail "process helper finds recorders in OMARCHY_PROC_ROOT"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 101 ||
+  fail "process helper matches gpu-screen-recorder by --pid"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 102 ||
+  fail "process helper matches unlinked wf-recorder by --pid"
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 103; then
+  fail "process helper rejects impostor process whose exe is not a recorder"
+fi
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 999999; then
+  fail "process helper rejects missing --pid"
+fi
+pass "process helper verifies recorders directly via OMARCHY_PROC_ROOT"
