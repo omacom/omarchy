@@ -150,3 +150,29 @@ ln -sfn ../images/restored "$test_tmp/store/current/linux-omarchy"
 sync_boot
 [[ -d $test_tmp/store/images/live ]] || fail "the image a pending restore replaces is kept"
 pass "a pending restore keeps the image it replaces"
+
+# A restore staged, then the live image rebuilt before the reboot: the
+# maintenance profile moves to the new image, and the firmware's one-shot boot
+# follows it.
+new_machine
+add_image old linux-omarchy 7.1
+add_snapshot "$test_tmp/top/@" 12 old
+mkdir -p "$test_tmp/store/restore" "$test_tmp/efivars"
+printf 'TX=1\nSTATE=pending\nSOURCE=12\nIMAGE=old\nPREVIOUS_IMAGE=live\n' >"$test_tmp/store/restore/journal"
+cat >"$test_tmp/bin/bootctl" <<SH
+#!/bin/bash
+echo "\$*" >>"$test_tmp/bootctl.log"
+SH
+chmod +x "$test_tmp/bin/bootctl"
+oneshot() { { printf '\7\0\0\0'; printf '%s' "$1" | sed 's/./&\x00/g'; } >"$test_tmp/efivars/LoaderEntryOneShot-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"; }
+oneshot "omarchy-${ns}-old-image.efi@omarchy-restore"
+rm -f "$test_tmp/bootctl.log"
+sync_boot env OMARCHY_BOOT_EFIVARS="$test_tmp/efivars"
+[[ $(<"$test_tmp/bootctl.log") == "set-oneshot $(file_of live)@omarchy-restore" ]] ||
+  fail "the one-shot boot follows the maintenance profile" "$(cat "$test_tmp/bootctl.log" 2>/dev/null; cat "$test_tmp/store/entries")"
+oneshot "$(file_of live)@omarchy-restore"
+rm -f "$test_tmp/bootctl.log"
+sync_boot env OMARCHY_BOOT_EFIVARS="$test_tmp/efivars"
+[[ ! -e $test_tmp/bootctl.log ]] || fail "a one-shot boot already right is left alone" "$(cat "$test_tmp/bootctl.log")"
+rm -f "$test_tmp/bin/bootctl"
+pass "a pending restore's maintenance boot follows the rebuilt live image"

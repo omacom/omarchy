@@ -537,6 +537,12 @@ cmd_sync() {
     if [[ -n $id && $id != "$(kv_get "$journal" ONESHOT)" ]]; then
       kv_set "$journal" ONESHOT "$id"
     fi
+    # And the maintenance boot the firmware is armed for moves with the live
+    # image when that is rebuilt before the reboot.
+    id=$(entry_id omarchy-restore)
+    if [[ $(kv_get "$journal" STATE) == "pending" && -n $id && -n $oneshot && $oneshot != "$id" ]]; then
+      bootctl set-oneshot "$id" >/dev/null 2>&1 || log "could not arm the restore's maintenance boot ($id)" >&2
+    fi
   fi
 
   local live
@@ -552,7 +558,7 @@ entry_id() {
 }
 
 efivar_string() {
-  local file=/sys/firmware/efi/efivars/$1-$LOADER_GUID
+  local file=${OMARCHY_BOOT_EFIVARS:-/sys/firmware/efi/efivars}/$1-$LOADER_GUID
   [[ -r $file ]] && tail -c +5 "$file" | tr -d '\0'
   return 0
 }
