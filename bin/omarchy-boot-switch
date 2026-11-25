@@ -365,8 +365,29 @@ install_loader() {
   done
 }
 
+# Another installation on a shared ESP may already boot through systemd-boot:
+# its loader and loader.conf are kept, once, for revert to put back.
+backup_esp() {
+  [[ -z $(state_get esp_backed_up) ]] || return 0
+  rm -rf "$STORE/backup/esp"
+  mkdir -p "$STORE/backup/esp"
+  if [[ -d $ESP/EFI/systemd ]]; then cp -a "$ESP/EFI/systemd" "$STORE/backup/esp/systemd"; fi
+  if [[ -f $ESP/loader/loader.conf ]]; then cp -a "$ESP/loader/loader.conf" "$STORE/backup/esp/loader.conf"; fi
+  state_set esp_backed_up 1
+}
+
+# Takes this switch's files off the ESP and puts back what was there before.
+restore_esp() {
+  rm -rf "$ESP/EFI/systemd"
+  rm -f "$ESP/loader/loader.conf" "$ESP"/EFI/Linux/omarchy-"$(head -c 8 /etc/machine-id)"-*.efi
+  if [[ -d $STORE/backup/esp/systemd ]]; then cp -a "$STORE/backup/esp/systemd" "$ESP/EFI/systemd"; fi
+  if [[ -f $STORE/backup/esp/loader.conf ]]; then cp -a "$STORE/backup/esp/loader.conf" "$ESP/loader/loader.conf"; fi
+  return 0
+}
+
 # systemd-boot's NVRAM entry, created if the firmware has none yet. efibootmgr
-# puts a new entry first in the boot order.
+# puts a new entry first in the boot order. One this created is marked, so
+# revert only ever deletes its own.
 loader_entry() {
   local num esp_device disk part
   num=$(boot_entry_for "$LOADER_PATH")
@@ -378,6 +399,7 @@ loader_entry() {
     # until the order is set, which a power loss could make for good.
     efibootmgr --quiet --create-only --disk "$disk" --part "$part" --label "$LOADER_LABEL" --loader "$LOADER_PATH" >/dev/null || return 1
     num=$(boot_entry_for "$LOADER_PATH")
+    [[ -z $num ]] || state_set loader_entry_created 1
   fi
   [[ -n $num ]] && echo "$num"
 }
@@ -414,6 +436,7 @@ stage() {
   state_set phase staged
 
   say "Building boot images"
+  backup_esp
   install_loader
   install -Dm644 "$BOOT_DEFAULTS/pacman/95-omarchy-boot-trial.hook" /etc/pacman.d/hooks/95-omarchy-boot-trial.hook
   omarchy-boot-rebuild || die "Building the boot images failed. Nothing that boots has changed; fix the error above and run omarchy-boot-switch again, or revert."
@@ -629,11 +652,13 @@ revert() {
   entry=$(state_get loader_entry)
   order=$(state_get boot_order)
   efibootmgr --quiet --delete-bootnext 2>/dev/null || true
-  [[ -n $entry ]] && efibootmgr --quiet --delete-bootnum --bootnum "$entry" 2>/dev/null || true
+  # An entry that was there before the switch belongs to another installation.
+  if [[ -n $entry && -n $(state_get loader_entry_created) ]]; then
+    efibootmgr --quiet --delete-bootnum --bootnum "$entry" 2>/dev/null || true
+  fi
   [[ -n $order ]] && efibootmgr --quiet --bootorder "$order" || true
 
-  rm -rf "$ESP/EFI/systemd"
-  rm -f "$ESP/loader/loader.conf" "$ESP"/EFI/Linux/omarchy-"$(head -c 8 /etc/machine-id)"-*.efi
+  restore_esp
   rm -f /etc/pacman.d/hooks/95-omarchy-boot-trial.hook
   local plugin file
   for plugin in 50-mkinitcpio.install 90-uki-copy.install; do

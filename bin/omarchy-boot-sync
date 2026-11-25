@@ -334,6 +334,18 @@ osrel() { # pretty-name order
 # One profile per line of the profile list: ID, PRETTY, TITLE, ORDER, CMDLINE
 # separated by the ASCII unit separator (\x1f). Not tabs: read collapses runs
 # of whitespace separators, so an empty TITLE would shift the fields.
+
+# What an image reads besides its manifest and profiles: uki.conf and every
+# file it names, such as a Snapdragon machine's device trees. Part of the
+# published image's key, so a changed tree reaches the next boot.
+uki_inputs() {
+  [[ -r $UKI_CONFIG ]] || return 0
+  cat "$UKI_CONFIG"
+  local file
+  while read -r file; do
+    if [[ -f $file ]]; then sha256sum "$file"; fi
+  done < <(sed -n 's/^[^#=]*=//p' "$UKI_CONFIG" | grep -o '/[^[:space:]]*' || true)
+}
 build_uki() {
   local image=$1 profiles=$2 out=$3 work dir kver id pretty title order cmdline n=0 splash_file
   dir=$(image_dir "$image")
@@ -465,6 +477,7 @@ cmd_sync() {
         cat "$(image_dir "$image")/manifest"
         echo "$sorted"
         if [[ -s $STORE/splash.bmp ]]; then sha256sum <"$STORE/splash.bmp"; fi
+        uki_inputs
       } | sha256sum | cut -c1-64
     )
     if [[ ! -s $ESP/EFI/Linux/$file || $(cat "$STORE/published/$file.key" 2>/dev/null) != "$key" ]]; then
@@ -773,6 +786,13 @@ cmd_restore_commit() {
   fi
   [[ $state == "swapped" ]] || return 0
   [[ $(subvol_uuid "$TOP/@") == "$(kv_get "$journal" STAGED_UUID)" ]] || die "@ is not the staged root; leaving the restore journal for inspection"
+  # Only the restored root itself commits: booted into a snapshot instead,
+  # this root's kernels would decide which of @'s boot images stay. The
+  # journal waits for the next boot of @.
+  if [[ $(subvol_uuid /) != "$(kv_get "$journal" STAGED_UUID)" ]]; then
+    log "this boot isn't the restored root; the restore commits on its next boot" >&2
+    return 0
+  fi
 
   image=$(kv_get "$journal" IMAGE)
   backup=$(kv_get "$journal" BACKUP)

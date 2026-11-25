@@ -13,8 +13,10 @@ set -euo pipefail
 STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
 seen_file=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/boot-notice-seen
 
+# Empty, not a failure, where there is no boot store yet (a Limine machine).
 state_get() {
-  sed -n "s/^$1=//p" "$STORE/state" 2>/dev/null | tail -1
+  [[ -f $STORE/state ]] || return 0
+  sed -n "s/^$1=//p" "$STORE/state" | tail -1
 }
 
 # omarchy-boot-confirm, a system service this user unit can't be ordered
