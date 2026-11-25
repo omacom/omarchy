@@ -54,10 +54,10 @@
           "id": "omarchy.bluetooth"
         },
         {
-          "id": "omarchy.network"
+          "id": "omarchy.audio"
         },
         {
-          "id": "omarchy.audio"
+          "id": "omarchy.network"
         },
         {
           "id": "omarchy.monitor"
@@ -72,12 +72,13 @@
     "position": "bottom",
     "pinned": [
       "folio",
-      "google-chrome",
-      "foot",
+      "omarchy-browser",
+      "omarchy-terminal",
       "omacalc",
       "omawrite",
-      "X",
-      "YouTube"
+      "hype",
+      "monologue",
+      "cliamp"
     ]
   },
   "plugins": []

@@ -99,6 +99,14 @@ load
 [[ $(send --print-id=1 "Body") != "42" ]] || fail "--print-id=… does not print the id"
 pass "notification wrapper supports --transient"
 
+# --sticky keeps a toast up until it's clicked or closed, a flag like --transient.
+: >"$args_file"
+send --sticky "Codex is ready" "Make something cool" >/dev/null
+load
+[[ $(hint_value omarchy-sticky) == "true" ]] || fail "notification wrapper sets the sticky hint from --sticky" "$(hint_value omarchy-sticky)"
+[[ ${args[11]} == "Codex is ready" ]] || fail "--sticky takes no value" "${args[11]}"
+pass "notification wrapper supports --sticky"
+
 # Options may follow the headline and description (Taildrop appends -u critical
 # and -g after the two positionals); they still land on the call, and urgency
 # stays a single hint rather than doubling.
@@ -129,6 +137,16 @@ load
 has_hint omarchy-exec-argv && fail "notification wrapper adds no click hint without --exec"
 [[ ${args[11]} == "Plain" ]] || fail "notification wrapper still sends a plain toast"
 pass "notification wrapper omits the click hint when no command is given"
+
+# --help before the headline prints usage and sends nothing; after it, it is the
+# description, so a reminder whose message is "--help" is still sent.
+: >"$args_file"
+output=$(send --help 2>/dev/null) || fail "notification wrapper exits 0 for --help"
+[[ $output == "Usage: omarchy-notification-send"* && ! -s $args_file ]] || fail "notification wrapper prints usage for --help and sends nothing" "$output"
+send "Reminder" --help >/dev/null
+load
+[[ ${args[12]-} == "--help" ]] || fail "notification wrapper sends --help after the headline as the description" "${args[12]-}"
+pass "notification wrapper prints usage for a leading --help and sends one after the headline"
 
 # ------------------------------------------------ rest-of-line --exec is literal
 : >"$args_file"

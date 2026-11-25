@@ -1,28 +1,36 @@
-# App e servizi commerciali
+# App/servizi commerciali
 
-Omarchy è incentrata soprattutto sulla fornitura di software gratuito e open source, ma non ne fa una religione. A volte la soluzione migliore è un'offerta commerciale, e va benissimo così. Ecco alcune delle opzioni per cui forniamo un'installazione facile.
+Omarchy è incentrato soprattutto sulla fornitura di software libero e open source, ma non ne fa una religione. A volte la soluzione migliore è un'offerta commerciale, e va benissimo così. Ecco alcune delle opzioni per cui forniamo un'installazione semplice.
 
 ## 1Password
 
 Conservare le password in un gestore di password è una buona pratica. A maggior ragione se lavori in team. E [1password](https://1password.com/) è un'ottima soluzione, che include anche uno strumento da riga di comando per integrare la ricerca delle chiavi negli script.
 
-Avvii 1Password con `Super + Shift + /`. Se non è ancora installato, quella scorciatoia avvia prima l'installazione (puoi anche usare _Installa > Servizio > 1Password_ dal menu di Omarchy). Il programma di installazione configura anche l'estensione 1Password per Chromium.
+Avvii 1Password con `Super + Shift + /`. Se non è ancora installato, quella scorciatoia avvia prima l'installazione (puoi anche usare _Installa > Servizio > 1Password_ dal menu di Omarchy). Il programma di installazione installa anche lo strumento da riga di comando di 1Password e configura l'estensione di 1Password per Chrome e Chromium; riavvia il browser per caricarla.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) è l'alternativa open source nel mondo dei gestori di password, con un piano gratuito che copre la maggior parte degli usi personali. Installalo con _Installa > Servizio > Bitwarden_ dal menu di Omarchy, che installa anche lo strumento da riga di comando di Bitwarden.
+[Bitwarden](https://bitwarden.com/) è l'alternativa open source nel settore dei gestori di password, con un piano gratuito che copre la maggior parte degli usi personali. Installalo con _Installa > Servizio > Bitwarden_ dal menu di Omarchy, che installa anche lo strumento da riga di comando di Bitwarden.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) è il servizio di streaming musicale più popolare al mondo. Omarchy lo include come web app, che ti offre il player completo, i tasti multimediali e Spotify Connect, ma non i download offline. Avvialo con `Super + Shift + M`.
+[Spotify](https://spotify.com/) è il servizio di streaming musicale più popolare al mondo. Omarchy lo fornisce come web app, che ti offre il player completo, i tasti multimediali e Spotify Connect, ma non i download offline. Avvialo con `Super + Shift + M`.
 
 ## Slack
 
 [Slack](https://slack.com/) è dove molti team chiacchierano, sia all'interno dell'azienda sia con collaboratori esterni. Installalo con _Installa > Servizio > Slack_ dal menu di Omarchy, e si aprirà non appena sarà pronto.
 
+## Notion
+
+[Notion](https://www.notion.com/) è uno spazio di lavoro per note, documenti e progetti. Installa la sua app desktop con _Installa > Servizio > Notion_ dal menu di Omarchy.
+
+## WeChat
+
+[WeChat](https://www.wechat.com/) è l'app di messaggistica su cui si basa la maggior parte della Cina, per chat, chiamate e per restare in contatto con chiunque viva lì. Installa il client Linux ufficiale di Tencent con _Installa > Servizio > WeChat_ dal menu di Omarchy, e si aprirà non appena sarà pronto. È disponibile solo su computer x86.
+
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) è un ottimo modo per sincronizzare i file tra macchine mantenendo un backup nel cloud. Per configurarlo, seleziona _Installa > Servizio > Dropbox_ dal menu di Omarchy. Una volta in esecuzione, passa il mouse sulla tray in alto a destra nella barra e fai clic con il pulsante destro sull'icona di Dropbox per completare la configurazione.
+[Dropbox](https://www.dropbox.com/) è un ottimo modo per sincronizzare i file tra macchine mantenendo un backup nel cloud. Per configurarlo, seleziona _Installa > Servizio > Dropbox_ dal menu di Omarchy. Aggiunge un'icona di Dropbox alla barra: cliccala per accedere, poi usa lo stesso pannello per controllare lo spazio di archiviazione e aprire i file sincronizzati di recente.
 
 ## Tailscale
 
@@ -32,7 +40,7 @@ Ottiene un pannello nella barra, una web app per la console di amministrazione e
 
 ## ONCE
 
-[ONCE](https://once.com/) è la linea di software di 37signals che compri una volta e gestisci sul tuo server, come il sistema di chat Campfire. Seleziona _Installa > Servizio > ONCE_ dal menu di Omarchy per installarlo: questo abilita il suo servizio in background e ti porta nell'interfaccia terminale di ONCE per proseguire da lì.
+[ONCE](https://once.com/) è la linea di software di 37signals che compri una volta e fai girare sul tuo server, come il sistema di chat Campfire. Seleziona _Installa > Servizio > ONCE_ dal menu di Omarchy per installarlo, cosa che abilita il suo servizio in background e ti porta nell'interfaccia terminale di ONCE per proseguire da lì.
 
 ## NordVPN
 
