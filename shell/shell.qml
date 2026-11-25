@@ -228,11 +228,10 @@ ShellRoot {
       return selected
     return defaultBarId
   }
-  // Hold the default-bar fallback while a custom bar is configured and the
-  // initial plugin scan (or an active plugin reload) has not finished. Stock
-  // bar users never wait on the plugin scan.
+  // Hold the default-bar fallback until the first scan finds a configured
+  // custom bar. Once settled, keep the fallback through plugin reloads.
   readonly property bool waitingForSelectedBar: selectedBarId !== defaultBarId
-    && (!shell.pluginRegistry.initialScanComplete || shell.pluginReloading)
+    && !shell.pluginRegistry.initialScanComplete
   readonly property var activeBarManifest: {
     var revision = shell.pluginRegistry.registryRevision
     return shell.barManifestFor(shell.activeBarId)

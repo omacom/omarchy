@@ -857,8 +857,10 @@ reset_scratch_home
 
 cat >"$SCRATCH_ROOT/shell/plugins/bar/Bar.qml" <<'QML'
 import QtQuick
+import Quickshell.Io
 
 Item {
+  id: startupFallbackBar
   property string omarchyPath: ""
   property var barWidgetRegistry: null
   property var barConfig: null
@@ -866,6 +868,12 @@ Item {
   property var manifest: null
 
   Component.onCompleted: console.warn("SCRATCH_DEFAULT_BAR_MOUNTED")
+  IpcHandler {
+    target: "startup-fallback-bar"
+    function reloading(): bool {
+      return startupFallbackBar.shell ? startupFallbackBar.shell.pluginReloading : true
+    }
+  }
 }
 QML
 
@@ -964,3 +972,15 @@ done
 (( default_bar_mounts == 1 )) ||
   fail_with_log "missing configured replacement bar falls back to omarchy.bar once (mounted $default_bar_mounts time(s))"
 pass "missing configured replacement bar falls back to omarchy.bar once"
+
+scratch_ipc shell reloadPlugins >/dev/null
+for _ in {1..80}; do
+  [[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] && break
+  sleep 0.1
+done
+[[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] ||
+  fail_with_log "plugin reload completes with a missing replacement bar"
+default_bar_mounts=$(grep -c "SCRATCH_DEFAULT_BAR_MOUNTED" "$SCRATCH_LOG" || true)
+(( default_bar_mounts == 1 )) ||
+  fail_with_log "plugin reload keeps the fallback bar mounted (mounted $default_bar_mounts time(s))"
+pass "plugin reload keeps the fallback bar mounted"
