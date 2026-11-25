@@ -52,7 +52,7 @@ function batteryFraction(device) {
 // rateFresh is false while the charge rate still dates from before external
 // power arrived. A battery that reports its rate every half minute reads
 // "charging at 0 W" until then, which is not a threshold holding it.
-function chargeThresholdActive(device, onBattery, states, rateFresh) {
+function chargeThresholdActive(device, onBattery, states, rateFresh, atHeldCharge) {
   var d = device || {}
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
@@ -62,35 +62,45 @@ function chargeThresholdActive(device, onBattery, states, rateFresh) {
   if (d.state === s.PendingCharge) return true
   if (d.state === s.FullyCharged && fraction < 0.99) return true
   if (d.state !== s.Charging || fraction >= 0.99) return false
+  if (atHeldCharge) return true
   if (rateFresh === false) return false
 
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states, rateFresh) {
+// A connected or misreported charger can coexist with a discharging battery.
+// Fall back to the power source when the battery gives no direction.
+function drawingFromBattery(device, onBattery, states) {
+  var d = device || {}
+  if (!d.isPresent) return false
+  if (d.state === states.Discharging) return true
+  if (d.state === states.Charging) return false
+  return onBattery
+}
+
+function batteryIcon(device, onBattery, states, rateFresh, atHeldCharge) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh)
+  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh, atHeldCharge)
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
-  if (!onBattery) return chargingIcons[index]
-  return defaultIcons[index]
+  return drawingFromBattery(d, onBattery, states) ? defaultIcons[index] : chargingIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr, rateFresh) {
+function modeLabel(device, onBattery, states, tr, rateFresh, atHeldCharge) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states, rateFresh)) return t("power.threshold", "Threshold")
-  if (onBattery) return t("power.onBattery", "On battery")
-  if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
+  if (chargeThresholdActive(d, onBattery, states, rateFresh, atHeldCharge)) return t("power.threshold", "Threshold")
+  if (drawingFromBattery(d, onBattery, states)) return t("power.onBattery", "On battery")
+  if (percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
 }
 
@@ -123,6 +133,7 @@ if (typeof module !== "undefined") {
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
+    drawingFromBattery: drawingFromBattery,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
