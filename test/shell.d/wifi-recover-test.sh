@@ -77,10 +77,10 @@ if [[ $1 == "-n" && $2 == "-l" ]]; then
   printf '!authenticate\n'
   exit 0
 fi
-if [[ ${RESTART_FAIL:-0} == "1" ]]; then
-  exit 1
+if [[ ${RESTART_FAIL:-0} == "69" ]]; then
+  rm -rf -- "$OMARCHY_WIFI_NET_ROOT/${@: -1}"
 fi
-exit 0
+exit "${RESTART_FAIL:-0}"
 EOF
 
 cat >"$tmp_dir/bin/omarchy-notification-send" <<'EOF'
@@ -354,6 +354,12 @@ grep -q 'omarchy-restart-wifi failed' "$tmp_dir/err" ||
   fail "wifi recover reports a failed reload" "$(cat "$tmp_dir/err")"
 pass "wifi recover does not toast a failed reload"
 RESTART_FAIL=0
+RESTART_FAIL=69 NM_STATUS=$'wlp9s0:wifi:connected\n' IW_CONNECTED=0 run_loop 4
+[[ ! -d "$tmp_dir/net/wlp9s0" ]] || fail "terminal failure did not remove the fixture adapter"
+(( $(grep -c '^notify -u critical' "$tmp_dir/calls") == 1 )) ||
+  fail "missing adapter was not reported immediately" "$(cat "$tmp_dir/calls")"
+add_phy
+pass "wifi recover reports a driver that stayed unloaded before losing the adapter"
 # Staged ~/.config unit must not shadow a later packaged copy.
 # Unstage runs only in the daemon path, not --check/ONCE.
 mkdir -p "$tmp_dir/home/.config/systemd/user/graphical-session.target.wants" "$tmp_dir/lib"

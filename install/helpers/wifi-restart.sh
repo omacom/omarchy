@@ -72,6 +72,8 @@ wifi_restart() {
       else
         reload_failed=1
         echo "omarchy-restart-wifi: $driver left unloaded; run: sudo modprobe $driver" >&2
+        # The watcher cannot find this interface again while its driver is gone.
+        if [[ -n $target ]]; then return 69; fi
       fi
     fi
   done
