@@ -8,7 +8,7 @@ How you boot and restore a snapshot depends on the boot loader your machine star
 
 Pick _System > Snapshots_ in the Omarchy menu and choose the snapshot you'd like to boot into. The machine restarts into it once. Or hold Space while the machine starts to see the boot menu, where every snapshot is listed newest first with its Omarchy version and date.
 
-A snapshot boots with a temporary layer on top, so you can use it as normal, but anything you change is gone at the next reboot. To keep it, make it your system: click the notification that appears when you log in, pick _System > Restore This Snapshot_, or run `omarchy-snapshot restore`. The restore happens while the machine restarts. The system as it was before stays in the boot menu as _Before restore_, and `omarchy-snapshot restore backup` puts it back.
+A snapshot boots with a temporary layer on top, so you can use it as normal, but anything you change is gone at the next reboot. To keep it, make it your system: click the notification that appears when you log in, pick _System > Snapshots > Restore This Snapshot_, or run `omarchy-snapshot restore`. The restore happens while the machine restarts. The system as it was before stays in the boot menu as _Before restore_, and `omarchy-snapshot restore backup` puts it back.
 
 From the terminal:
 
