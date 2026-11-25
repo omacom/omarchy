@@ -27,6 +27,9 @@ hl.on("hyprland.start", function()
       .. "--description='Herdr terminal multiplexer server' herdr server"
   )
 
+  -- Reopen the windows saved at the last logout, reboot or shutdown.
+  hl.exec_cmd("sleep 2 && omarchy-session-restore")
+
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
 end)

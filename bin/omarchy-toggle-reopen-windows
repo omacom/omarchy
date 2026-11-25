@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle reopening windows after logout or reboot
+
+omarchy-toggle reopen-windows
+
+if omarchy-toggle-enabled reopen-windows; then
+  omarchy-notification-send -g 󰑓 "$(omarchy-i18n reopenWindows.enabled)"
+else
+  omarchy-notification-send -g 󰑓 "$(omarchy-i18n reopenWindows.disabled)"
+fi
