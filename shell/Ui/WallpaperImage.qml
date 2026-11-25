@@ -19,6 +19,10 @@ Item {
   property color fillColor: Commons.Color.background
   property real focalX: 0.5
   property real focalY: 0.5
+  property real rasterScale: 1
+  // Pad and Tile use native image dimensions. Responsive SVG rasters contain
+  // physical pixels, so draw the whole padded or tiled surface in logical units.
+  readonly property real naturalScale: fill === "center" || fill === "tile" ? rasterScale : 1
   // Lock cache-busting: appended as ?v= when > 0 so Image reloads a changed
   // background mid-session without a path change.
   property int sourceVersion: 0
@@ -134,8 +138,12 @@ Item {
       return image.physHeight
     }
 
-    width: coverReady ? implicitWidth * coverScale : root.width
-    height: coverReady ? implicitHeight * coverScale : root.height
+    width: coverReady ? implicitWidth * coverScale : root.width * root.naturalScale
+    height: coverReady ? implicitHeight * coverScale : root.height * root.naturalScale
+    transform: Scale {
+      xScale: 1 / root.naturalScale
+      yScale: 1 / root.naturalScale
+    }
     x: coverReady ? -(width - root.width) * Util.clamp(root.focalX, 0, 1) : 0
     y: coverReady ? -(height - root.height) * Util.clamp(root.focalY, 0, 1) : 0
   }

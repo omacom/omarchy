@@ -490,6 +490,7 @@ Item {
       property color lastDisplayedFillColor: Commons.Color.background
       property real lastDisplayedFocalX: 0.5
       property real lastDisplayedFocalY: 0.5
+      property real lastDisplayedRasterScale: 1
 
       // Commit incoming pixels with their own metadata once per transition.
       // Keep the outgoing layer while resolving instead of revealing a new
@@ -503,8 +504,9 @@ Item {
       property color incomingFillColor: Commons.Color.background
       property real incomingFocalX: 0.5
       property real incomingFocalY: 0.5
+      property real incomingRasterScale: 1
 
-      function lockIncoming(path, fillMode, backdropMode, tint, fx, fy) {
+      function lockIncoming(path, fillMode, backdropMode, tint, fx, fy, scale) {
         if (incomingAbandoned || incomingLockedVersion === root.backgroundVersion) return
         incomingLockedVersion = root.backgroundVersion
         root.requestNativeSize(path)
@@ -514,6 +516,7 @@ Item {
         incomingFillColor = tint
         incomingFocalX = fx
         incomingFocalY = fy
+        incomingRasterScale = scale || 1
         maybeStartReveal()
       }
 
@@ -605,6 +608,7 @@ Item {
             panel.lastDisplayedFillColor = fillColor
             panel.lastDisplayedFocalX = focalX
             panel.lastDisplayedFocalY = focalY
+            panel.lastDisplayedRasterScale = rasterScale
           }
           root.maybeFinishTransition()
         }
@@ -636,7 +640,7 @@ Item {
         refreshToken: root.backgroundVersion
         onResolveVersionChanged: {
           if (!ready || root.incomingBackground === "") return
-          panel.lockIncoming(usedFallback || resolvedPath === canonicalPath ? root.incomingBackground : resolvedPath, fill, backdrop, fillColor, focalX, focalY)
+          panel.lockIncoming(usedFallback || resolvedPath === canonicalPath ? root.incomingBackground : resolvedPath, fill, backdrop, fillColor, focalX, focalY, rasterScale)
         }
       }
 
@@ -654,6 +658,7 @@ Item {
         fillColor: panel.lastDisplayedFillColor
         focalX: panel.lastDisplayedFocalX
         focalY: panel.lastDisplayedFocalY
+        rasterScale: panel.lastDisplayedRasterScale
         cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(panel.lastDisplayedPath)
@@ -695,6 +700,7 @@ Item {
           fillColor: panel.incomingFillColor
           focalX: panel.incomingFocalX
           focalY: panel.incomingFocalY
+          rasterScale: panel.incomingRasterScale
           asynchronous: true
           cache: false
           smooth: true
