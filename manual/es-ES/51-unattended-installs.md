@@ -11,7 +11,7 @@ Los archivos son exactamente los que escribe el propio asistente del instalador,
 | Archivo | Obligatorio | Propósito |
 |------|----------|---------|
 | `user_configuration.json` | Sí | Disco, nombre del equipo, zona horaria, teclado |
-| `user_credentials.json` | Sí | Nombre de usuario y hash de la contraseña |
+| `user_credentials.json` | Sí | Nombre de usuario, hash de la contraseña y, si la instalación está cifrada, la frase de contraseña de LUKS |
 | `user_encrypt_installation.txt` | No | `true` cuando la configuración incluye un bloque `disk_encryption` |
 | `authorized_keys` | No | Claves públicas de SSH, una por línea |
 | `tailscale_authkey` | No | Clave de autenticación de Tailscale para unirte a tu tailnet en el primer arranque |
@@ -58,4 +58,4 @@ El orden de arranque pone el disco primero a propósito: el disco vacío cede el
 
 ## Dos advertencias
 
-Las instalaciones desatendidas cifradas no son totalmente desatendidas: alguien todavía tiene que escribir la frase de contraseña de LUKS en el primer arranque. Y el bloque `disk_encryption` en `user_configuration.json` lleva esa frase de contraseña en texto plano, así que trata una unidad cidata creada a partir de una instalación cifrada como el secreto que es.
+Las instalaciones desatendidas cifradas requieren que alguien introduzca la frase de contraseña de LUKS en el primer arranque. archinstall lee esa frase del campo `encryption_password` en el nivel superior de `user_credentials.json`. El bloque `disk_encryption` de `user_configuration.json` no se usa para leerla. Protege como un secreto cualquier unidad cidata creada a partir de una instalación cifrada.

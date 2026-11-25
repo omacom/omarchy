@@ -20,34 +20,9 @@ Para instalar, por ejemplo, Ruby, ejecuta `mise use -g ruby`, que instalará Rub
 
 ## Herramientas CLI preinstaladas
 
-Omarchy pone herramientas como `gh`, `uv` y la mayoría de los [agentes de programación](17-ai.md) a tu disposición a través de la [instalación diferida de mise](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). La primera vez que ejecutas una, mise la instala. Después, los agentes de programación buscan una actualización antes de ejecutarse, como máximo una vez cada cuatro horas; otras herramientas, como `gh` y `uv`, reutilizan la versión instalada hasta que las actualices.
+`uv`, Node.js y `playwright-cli` (para que los agentes controlen el navegador con el Chrome instalado) vienen instalados como paquetes. `omarchy update` los mantiene al día con el resto del sistema. Puedes instalar [Hunk](https://github.com/modem-dev/hunk) y las CLI de GitHub, Basecamp, Cloudflare y HEY desde _Instalar > CLI_. Los [agentes de programación](17-ai.md) están en _Instalar > IA > CLI_.
 
-También puedes revisar los valores predeterminados o instalarlas por adelantado:
-
-```bash
-mise ls --current              # List the tools configured for this directory
-mise install gh               # Install one tool now
-mise install --include-lazy    # Install all configured tools, including lazy tools
-```
-
-Ejecuta `omarchy update` para actualizar las herramientas instaladas junto con el resto de Omarchy. El alias `mup` actualiza solo las herramientas gestionadas por mise. Para añadir otra herramienta a tu propia configuración, usa `mise use -g <tool>`.
-
-La configuración de Python también instala `uv` mediante mise. Al eliminar el entorno de desarrollo de Python, `uv` sigue disponible como herramienta independiente.
-
-### Usar tu propia instalación
-
-Los comandos de mise van antes de `~/.local/bin` en `PATH`, así que una herramienta que instalaste por tu cuenta, por ejemplo con el instalador propio de Claude Code o de Cursor, seguirá ejecutando la copia de mise. Las aplicaciones lanzadas desde el escritorio también encuentran los comandos de mise antes que los paquetes del sistema, así que una aplicación que ejecuta `gh` usa la copia de mise aunque hayas instalado `github-cli` con pacman, y mise instala esa copia la primera vez. Para usar la tuya, desactiva la copia de mise en `~/.config/mise/config.toml`. Por ejemplo, si instalaste Cursor CLI por tu cuenta:
-
-```toml
-[settings]
-disable_tools = ["cursor-agent"]
-```
-
-Si ya tienes una tabla `[settings]`, añade la entrada ahí; amplía una lista `disable_tools` existente en lugar de reemplazarla. Asegúrate de que tu instalación esté en `PATH`. Usa el nombre de la herramienta de mise, que puede diferir de su comando: `oh-my-pi` proporciona `omp`, por ejemplo. El lanzador del agente predeterminado también prefiere un Cursor o Muse instalado por el usuario en `~/.local/bin`.
-
-### Eliminar y restaurar los valores predeterminados
-
-_Quitar > Preinstalados_ elimina las aplicaciones web, las TUI y las aplicaciones preinstaladas de Omarchy, y hace que mise omita las declaraciones de herramientas de Omarchy para tu usuario añadiéndolas a `ignored_config_paths` en `~/.config/mise/miserc.toml`. _Instalar > Preinstalados_ las trae de vuelta y elimina esa línea de nuevo. Las herramientas que declares tú mismo, en tu propia configuración o en el `mise.toml` de un proyecto, seguirán funcionando en cualquier caso. Si eliges un agente predeterminado o configuras Python después de eliminar las preinstalaciones, esa herramienta se añade a tu propia configuración. El ajuste de mise se aplica solo a tu usuario, y los demás usuarios mantienen su propia elección; sin embargo, las aplicaciones son paquetes, así que eliminarlas o restaurarlas las cambia para todos en la máquina.
+mise solo gestiona los entornos de ejecución que configuras desde _Instalar > Desarrollo_. Omarchy no instala nada por su cuenta a través de mise. Ejecuta `omarchy update` para actualizarlos con el resto de Omarchy. El alias `mup` actualiza únicamente las herramientas gestionadas por mise. Para añadir otra herramienta a tu propia configuración, ejecuta `mise use -g <tool>`.
 
 ## Docker
 
@@ -59,6 +34,6 @@ Las bases de datos habituales para desarrollo local en Docker se configuran desd
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) está disponible como `gh` para trabajar con repositorios, issues y pull requests desde la terminal. Ejecuta `gh auth login` para instalarlo en el primer uso y autenticarte, luego `gh repo clone org/repo` para clonar un repositorio. Ejecuta `gh --help` para explorar sus comandos.
+[GitHub CLI](https://cli.github.com/) es el comando `gh` para trabajar con repositorios, incidencias y pull requests desde la terminal. _Configurar > Git_ la instala si eliges iniciar sesión en GitHub. También puedes instalarla directamente desde _Instalar > CLI > GitHub_. Después, ejecuta `gh repo clone org/repo` para clonar un repositorio o `gh --help` para consultar los comandos disponibles.
 
-Para una interfaz de terminal para pull requests, ejecuta `ghui`; mise también lo instala en el primer uso. [Lazygit](https://github.com/jesseduffield/lazygit) viene preinstalado para trabajar con el propio Git.
+[Lazygit](https://github.com/jesseduffield/lazygit) viene preinstalado para trabajar con Git.
