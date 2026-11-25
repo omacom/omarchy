@@ -336,7 +336,14 @@ local function update_input(workspace)
 
   input.floating = active
 
-  hl.config({ input = { follow_mouse = active and 0 or input.follow_mouse } })
+  -- Keep pointer events without hover focus. Hyprland's float-switch override
+  -- would otherwise focus a floating window when arriving from a tiled one.
+  hl.config({
+    input = {
+      follow_mouse = active and 2 or input.follow_mouse,
+      float_switch_override_focus = active and 0 or input.float_switch_override_focus,
+    },
+  })
 end
 
 -- Windows arrive by opening and by being carried in, and a window rule only ever
@@ -350,6 +357,7 @@ local function watch()
   watching = true
 
   input.follow_mouse = hl.get_config("input.follow_mouse")
+  input.float_switch_override_focus = hl.get_config("input.float_switch_override_focus")
 
   hl.on("window.open", function(window)
     claim_opened(window)

@@ -251,7 +251,7 @@ local subscriptions = {}
 local queried = {}
 local all = {}
 local placed = {}
-local config = { ["input.follow_mouse"] = 1, ["general.resize_on_border"] = false, ["decoration.shadow.enabled"] = true }
+local config = { ["input.follow_mouse"] = 1, ["input.float_switch_override_focus"] = 1, ["general.resize_on_border"] = false, ["decoration.shadow.enabled"] = true }
 -- What Hyprland reports as the active workspace, replaced by cases that
 -- simulate its focus state lagging an event.
 local active_ws = { id = 3 }
@@ -479,7 +479,7 @@ assert(workspace_rules[#workspace_rules].workspace == "3")
 -- active-workspace read can still report the one the pointer left when the
 -- handler runs, which left follow_mouse one monitor behind on tiled ones.
 o.workspace_mode({ workspace = "3", mode = "floating" })
-assert(config["input.follow_mouse"] == 0, "a floating workspace did not turn follow_mouse off")
+assert(config["input.follow_mouse"] == 2, "a floating workspace did not keep pointer events without hover focus")
 
 local focus_changed = subscriptions["monitor.focused"][1]
 assert(focus_changed, "monitor.focused was not subscribed")
@@ -489,12 +489,14 @@ assert(focus_changed, "monitor.focused was not subscribed")
 active_ws = { id = 3 }
 focus_changed({ name = "DP-2", active_workspace = { id = 5 } })
 assert(config["input.follow_mouse"] == 1, "focus moving to a tiled monitor kept follow_mouse off")
+assert(config["input.float_switch_override_focus"] == 1, "focus moving to a tiled monitor lost the user's float switch setting")
 
 -- And the way round: the stale report says tiled 5 while the monitor that
--- took focus shows floating 3, which must keep follow_mouse off.
+-- took focus shows floating 3, which must keep hover focus off.
 active_ws = { id = 5 }
 focus_changed({ name = "DP-1", active_workspace = { id = 3 } })
-assert(config["input.follow_mouse"] == 0, "focus moving to a floating monitor turned follow_mouse on")
+assert(config["input.follow_mouse"] == 2, "focus moving to a floating monitor lost pointer events or enabled hover focus")
+assert(config["input.float_switch_override_focus"] == 0, "focus moving to a floating monitor enabled float switch focus")
 
 -- Without a monitor to read, the handler falls back to the active workspace.
 active_ws = { id = 5 }
