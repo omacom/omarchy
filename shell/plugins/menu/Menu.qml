@@ -1022,8 +1022,10 @@ Item {
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
-    // their icons. Refresh here even when the desktop entry list did not change.
-    if (root.appLibrary) root.appLibrary.refreshIcons()
+    // their icons; scan on open until the index is populated (later installs
+    // and theme switches refresh via AppLibrary's watchers).
+    if (root.appLibrary && Object.keys(root.appLibrary.iconIndex || {}).length === 0)
+      root.appLibrary.refreshIcons()
 
     Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
