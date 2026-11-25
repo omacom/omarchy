@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# omarchy:summary=Give zram a disk swapfile to overflow into
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Swap on zram compresses pages but keeps them in RAM, and the Omarchy drop-in
+# caps it at half of RAM or 8 GiB. Once RAM and zram are full there is nowhere
+# left to put memory, and systemd-oomd or the kernel starts killing apps. A
+# disk swapfile at a lower priority than zram absorbs that cold overflow, the
+# way macOS spills its memory compressor to swap files on the SSD.
+#
+# This lays out the swapfile exactly as omarchy-hibernation-setup does (a
+# nested /swap subvolume, one file the size of RAM, pri=0), so setting up
+# hibernation later finds it and only adds the resume configuration. A nested
+# subvolume is left out of snapshots of the root subvolume, so an active
+# swapfile never blocks snapper (#6456).
+#
+# Machines that already have disk swap, a root that is not Btrfs, or too
+# little free space are left alone.
+
+swap_subvolume="${OMARCHY_SWAP_SUBVOLUME:-/swap}"
+swap_file="$swap_subvolume/swapfile"
+fstab="${OMARCHY_FSTAB:-/etc/fstab}"
+swaps="${OMARCHY_SWAPS_PATH:-/proc/swaps}"
+meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
+
+if [[ $(findmnt -no FSTYPE /) != "btrfs" ]]; then
+  echo "Skipping swapfile (root filesystem is not Btrfs)"
+  exit 0
+fi
+
+# Already set up, here or by hibernation setup. Make sure it is on, but a
+# chroot or a missing file is not worth failing over: nofail covers boot.
+if grep -Fq "$swap_file" "$fstab"; then
+  if ! grep -Fq "$swap_file" "$swaps"; then
+    swapon -p 0 "$swap_file" 2>/dev/null || true
+  fi
+  exit 0
+fi
+
+# A swap partition or swapfile the owner set up themselves stays in charge.
+if awk '!/^[[:space:]]*#/ && $3 == "swap" { found = 1 } END { exit !found }' "$fstab" ||
+  awk 'NR > 1 && $1 !~ /zram/ { found = 1 } END { exit !found }' "$swaps"; then
+  echo "Skipping swapfile (disk swap is already configured)"
+  exit 0
+fi
+
+if [[ -e $swap_subvolume ]] && ! btrfs subvolume show "$swap_subvolume" &>/dev/null; then
+  echo "Skipping swapfile ($swap_subvolume exists and is not a Btrfs subvolume)"
+  exit 0
+fi
+
+# The size hibernation needs, so the same file serves both.
+mem_kb=$(awk '$1 == "MemTotal:" { print $2 }' "$meminfo")
+avail_kb=$(df --output=avail -k / | tail -1 | tr -d '[:space:]')
+
+# Never let swap be what fills a small disk: keep at least twice the
+# swapfile's size free after creating it.
+if (( avail_kb < 3 * mem_kb )); then
+  echo "Skipping swapfile (less than three times RAM free on /)"
+  exit 0
+fi
+
+echo "Creating a $(( mem_kb / 1024 / 1024 + 1 )) GiB swapfile for zram to overflow into"
+
+if ! btrfs subvolume show "$swap_subvolume" &>/dev/null; then
+  btrfs subvolume create "$swap_subvolume" >/dev/null
+  chattr +C "$swap_subvolume"
+fi
+
+if ! swaplabel "$swap_file" &>/dev/null; then
+  rm -f "$swap_file"
+  btrfs filesystem mkswapfile -s "${mem_kb}k" "$swap_file" >/dev/null
+fi
+
+# nofail: booting a restored snapshot finds an empty /swap, since snapshots
+# skip the nested subvolume, and that should not fail swap.target.
+printf "\n# Btrfs swapfile for zram overflow and hibernation\n%s none swap defaults,nofail,pri=0 0 0\n" "$swap_file" >>"$fstab"
+
+# Inside the installer's chroot there is nothing to switch on; fstab brings
+# it up at the first boot.
+swapon -p 0 "$swap_file" 2>/dev/null || true
