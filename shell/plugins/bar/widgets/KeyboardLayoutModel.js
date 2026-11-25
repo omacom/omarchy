@@ -54,6 +54,121 @@ function shortLabel(description, briefs) {
   return label.substring(0, 3).toUpperCase()
 }
 
+// The same table, keyed by the layout/variant pair hyprctl reports ("us" for a
+// bare layout, "us:intl" once a variant is set): the seat's configured list is
+// positional, and this is what turns it into descriptions. A block without a
+// layout line is a model or a group, not a layout, and never enters the table.
+function layoutDescriptionsByPair(text) {
+  // Null prototype: a description like "constructor" reaches an inherited
+  // member rather than the table, the way shortLabel guards its own.
+  var byPair = Object.create(null)
+  var layout = ""
+  var variant = ""
+  var description = ""
+
+  var commit = function () {
+    if (layout && description) byPair[variant ? layout + ":" + variant : layout] = description
+    layout = ""
+    variant = ""
+    description = ""
+  }
+
+  String(text || "").split("\n").forEach(function (line) {
+    if (/^\s*- /.test(line)) commit()
+
+    // The layout opens its own block ("- layout: 'us'"), so it is the one field
+    // the dash prefix can carry; variant and description sit under it.
+    var field = line.match(/^\s*(?:- )?(layout|variant|description): (.*)$/)
+    if (!field) return
+
+    if (field[1] === "layout") layout = field[2].replace(/^'|'$/g, "")
+    else if (field[1] === "variant") variant = field[2].replace(/^'|'$/g, "")
+    else description = field[2]
+  })
+  commit()
+
+  return byPair
+}
+
+// The configured list hyprctl reports per keyboard — layout "us,us" with variant
+// ",intl" — as the pair keys the table above answers to. The lists are paired
+// positionally; a variant list that is missing or shorter leaves the rest bare,
+// the way xkb itself treats an absent variant.
+function configuredLayoutPairs(layouts, variants) {
+  var layoutList = String(layouts || "").split(",")
+  var variantList = String(variants || "").split(",")
+  var pairs = []
+
+  layoutList.forEach(function (entry, index) {
+    if (entry === "") return
+    // xkb also reads the inline spelling "us(intl)", which carries its variant
+    // on the layout and never consults the variant list.
+    var inline = entry.match(/^([^()]+)\(([^()]+)\)$/)
+    if (inline) {
+      pairs.push(inline[1] + ":" + inline[2])
+      return
+    }
+    var variant = index < variantList.length ? variantList[index] : ""
+    pairs.push(variant ? entry + ":" + variant : entry)
+  })
+
+  return pairs
+}
+
+// The descriptions of the configured layouts, in list order; a pair the table
+// does not know reads as "" and gets the plain fallback label later. The table
+// can be a plain QML object, so the lookup is a typeof check, the way shortLabel
+// guards its own ("constructor" reaches an inherited member, not a description).
+function configuredDescriptions(layouts, variants, descriptionsByPair) {
+  var byPair = descriptionsByPair || {}
+  return configuredLayoutPairs(layouts, variants).map(function (pair) {
+    var description = byPair[pair]
+    return typeof description === "string" ? description : ""
+  })
+}
+
+// The bar label per configured layout description, with a subscript where two
+// configured layouts share one: us and us:intl both read EN, and a label that
+// cannot tell them apart describes the wrong keyboard half the time. GNOME
+// marks the same collision the same way (en₁, en₂); one narrow character, so
+// the widget keeps the slot it sits in. Every member of a colliding group is
+// subscripted by its order in the list; a layout alone on its label is left
+// alone. Descriptions the briefs table could not resolve fall back to
+// shortLabel and are subscripted like any other collision; a pair missing from
+// the layout table reads as empty and gets no label here at all.
+function subscriptedLabels(descriptions, briefs) {
+  var labels = Object.create(null)
+  var groups = Object.create(null)
+  var seen = Object.create(null)
+  var order = []
+  var list = descriptions || []
+
+  list.forEach(function (description) {
+    // The same description can sit in the list twice (us,de,us types on one
+    // layout twice); it gets one label, not a collision with itself.
+    if (!description || seen[description]) return
+    seen[description] = true
+    var label = shortLabel(description, briefs)
+    if (!label) return
+    if (groups[label] === undefined) {
+      groups[label] = []
+      order.push(label)
+    }
+    groups[label].push(description)
+  })
+
+  order.forEach(function (label) {
+    var group = groups[label]
+    group.forEach(function (description, index) {
+      labels[description] = group.length > 1 && index < 9
+        ? label + String.fromCharCode(0x2081 + index)
+        : label
+    })
+  })
+
+  return labels
+}
+
 // Hyprland's activelayout event pairs the keyboard that switched with the layout
 // it moved to. Quickshell cuts the event into that many fields, so a description
 // carrying a comma of its own stays in one piece; a binding old enough to hand
@@ -137,6 +252,10 @@ if (typeof module !== "undefined") {
     eventKeyboardName: eventKeyboardName,
     isTypedKeyboard: isTypedKeyboard,
     layoutBriefs: layoutBriefs,
+    layoutDescriptionsByPair: layoutDescriptionsByPair,
+    configuredLayoutPairs: configuredLayoutPairs,
+    configuredDescriptions: configuredDescriptions,
+    subscriptedLabels: subscriptedLabels,
     selectKeyboard: selectKeyboard,
     shortLabel: shortLabel,
     inputLabel: inputLabel,
