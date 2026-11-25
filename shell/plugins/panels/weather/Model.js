@@ -193,6 +193,8 @@ function openMeteoCurrentCondition(dailyForecastReport) {
   }
 }
 
+// wttr.in carries no day/night flag, so its icon is always the day glyph; the
+// bar label reads it only while open-meteo has not resolved the conditions.
 function currentIcon(current, fallback) {
   if (!current) return fallback || ""
   if (current.openMeteoWeatherCode !== undefined && current.openMeteoWeatherCode !== null)
@@ -200,12 +202,6 @@ function currentIcon(current, fallback) {
   if (current.weatherCode !== undefined && current.weatherCode !== null)
     return iconForCode(current.weatherCode, false)
   return fallback || ""
-}
-
-// wttr.in has no day/night flag. Use its icon only to fill an empty initial
-// state, never to replace a day/night-aware icon resolved by Open-Meteo.
-function provisionalCurrentIcon(current, resolvedIcon) {
-  return resolvedIcon || currentIcon(current, "")
 }
 
 function weatherResponseCompletesSave(hasConfiguredCoordinates, source) {
@@ -305,7 +301,6 @@ if (typeof module !== "undefined") {
     openMeteoForecastDays: openMeteoForecastDays,
     openMeteoCurrentCondition: openMeteoCurrentCondition,
     currentIcon: currentIcon,
-    provisionalCurrentIcon: provisionalCurrentIcon,
     weatherResponseCompletesSave: weatherResponseCompletesSave,
     wttrNextForecastDays: wttrNextForecastDays,
     buildForecastDays: buildForecastDays,

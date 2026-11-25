@@ -62,6 +62,10 @@ Panel {
   // Parsed wttr.in j1 response. Kept on failure so stale data stays visible.
   property var report: null
   property var dailyForecastReport: null
+  // Whether open-meteo has resolved the current label for this location. Until
+  // it has, each wttr reading keeps the label current; a location change and an
+  // open-meteo run that exhausts its retries both hand the label back to wttr.
+  property bool labelResolved: false
 
   // Configured location, read from the weather.json state file (owned by
   // omarchy-weather-location). The watch makes hand edits take effect live.
@@ -88,6 +92,7 @@ Panel {
     if (savingLocation) savingLocationQueryStarted = true
     forecastRetries = 0
     dailyForecastRetries = 0
+    labelResolved = false
     forecastProc.running = false
     dailyForecastProc.running = false
     Qt.callLater(refresh)
@@ -369,8 +374,12 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           root.report = parsed
-          if (!root.hasConfiguredCoordinates)
-            root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
+          // Until open-meteo resolves the label, each wttr reading keeps it
+          // current: a persistent open-meteo failure (a strict proxy 403ing the
+          // request, the network still down after wake) would otherwise freeze
+          // the pill on this session's first icon, or leave it hidden (#20190).
+          if (!root.labelResolved)
+            root.label = Model.currentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
@@ -401,11 +410,16 @@ Panel {
     onTriggered: if (!forecastProc.running) forecastProc.running = true
   }
 
-  // With configured coordinates this fetch is the only thing that updates the
-  // bar icon, so a dropped response (e.g. waking before the network is back)
-  // must retry rather than wait out the refresh timer with a stale icon.
+  // With configured coordinates this fetch is what resolves the bar label;
+  // until then wttr keeps it current, so a dropped response (e.g. waking before
+  // the network is back) must retry rather than wait out the refresh timer with
+  // a stale icon. A run that exhausts its retries hands the label back to wttr,
+  // which keeps it current until open-meteo answers again.
   function scheduleDailyForecastRetry() {
-    if (dailyForecastRetries >= 3) return
+    if (dailyForecastRetries >= 3) {
+      labelResolved = false
+      return
+    }
     dailyForecastRetries++
     dailyForecastRetryTimer.restart()
   }
@@ -431,6 +445,7 @@ Panel {
           var parsedCurrent = Model.openMeteoCurrentCondition(parsed)
           root.dailyForecastReport = parsed
           root.label = Model.currentIcon(parsedCurrent, root.label)
+          if (parsedCurrent) root.labelResolved = true
           root.dailyForecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "open-meteo"))
             root.finishSavingLocation()
