@@ -48,12 +48,6 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
-  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-    --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
-fi
-
 url=""
 for argument in "$@"; do
   if [[ $argument != "--private" ]]; then
@@ -62,14 +56,34 @@ for argument in "$@"; do
   fi
 done
 
-if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  # The binary name is only a guess at the window class (Zen runs zen-bin as
-  # class zen), so prefer the class the desktop entry declares, then the guess.
-  guessed_pattern="^$(basename "$browser_exec" -stable).*$"
+# The binary name is only a guess at the window class (Zen runs zen-bin as
+# class zen), so prefer the class the desktop entry declares, then the guess.
+focus_browser() {
+  local guessed_pattern="^$(basename "$browser_exec" -stable).*$"
   if [[ -n $browser_class ]]; then
-    omarchy-hyprland-focus-app "^$browser_class$" ||
-      omarchy-hyprland-focus-app "$guessed_pattern" || true
+    omarchy-hyprland-focus-app "$@" "^$browser_class$" ||
+      omarchy-hyprland-focus-app "$@" "$guessed_pattern"
   else
-    omarchy-hyprland-focus-app "$guessed_pattern" || true
+    omarchy-hyprland-focus-app "$@" "$guessed_pattern"
   fi
+}
+
+# A running browser hands a new tab to the window it saw focused last, which may
+# be on another workspace. Focus one on this workspace first so the link opens
+# beside the terminal it was clicked in, and give the browser a moment to
+# register the activation before the handoff.
+if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  if focus_browser --active-workspace; then
+    sleep 0.3
+  fi
+fi
+
+if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+    --property=StandardOutput=null --property=StandardError=null \
+    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+fi
+
+if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  focus_browser || true
 fi

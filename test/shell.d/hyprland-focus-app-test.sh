@@ -14,6 +14,8 @@ cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 if [[ $1 == "clients" ]]; then
   printf '%s\n' "$OMARCHY_TEST_CLIENTS_JSON"
+elif [[ $1 == "activeworkspace" ]]; then
+  printf '{"id":%s}\n' "${OMARCHY_TEST_ACTIVE_WORKSPACE:-1}"
 elif [[ $1 == "dispatch" ]]; then
   printf '%s\n' "$2" >"$OMARCHY_TEST_FOCUS_DISPATCH"
 fi
@@ -70,3 +72,28 @@ grep -F 'hl.dsp.focus({ window = "address:0xrecent" })' "$dispatch_log" >/dev/nu
   fail "app focus picks the window focused last"
 
 pass "app focus picks the window focused last among several"
+
+clients_json='[
+  {"address":"0xelsewhere","class":"chromium","focusHistoryID":0,"workspace":{"id":7}},
+  {"address":"0xhere","class":"chromium","focusHistoryID":3,"workspace":{"id":9}}
+]'
+rm -f "$dispatch_log"
+PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" OMARCHY_TEST_ACTIVE_WORKSPACE=9 \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" --active-workspace '^chromium$'
+
+grep -F 'hl.dsp.focus({ window = "address:0xhere" })' "$dispatch_log" >/dev/null || \
+  fail "app focus on the active workspace skips a more recently focused window elsewhere"
+
+pass "app focus can stay on the active workspace"
+
+rm -f "$dispatch_log"
+if PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" OMARCHY_TEST_ACTIVE_WORKSPACE=1 \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" --active-workspace '^chromium$'; then
+  fail "app focus on the active workspace fails when the app has no window there"
+fi
+
+[[ ! -e $dispatch_log ]] || fail "app focus on the active workspace never switches workspaces"
+
+pass "app focus on the active workspace leaves other workspaces alone"

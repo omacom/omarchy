@@ -1,13 +1,22 @@
 #!/bin/bash
 
 # omarchy:summary=Focus a Hyprland window by application identity
-# omarchy:args=<app-name>
-# omarchy:examples=omarchy hyprland focus app Slack
+# omarchy:args=[--active-workspace] <app-name>
+# omarchy:examples=omarchy hyprland focus app Slack | omarchy hyprland focus app --active-workspace Slack
 
 usage() {
-  echo "Usage: omarchy-hyprland-focus-app <app-name>" >&2
+  echo "Usage: omarchy-hyprland-focus-app [--active-workspace] <app-name>" >&2
   exit 1
 }
+
+# With --active-workspace only windows on the current workspace are considered,
+# so the call never switches workspaces.
+workspace=""
+if [[ ${1:-} == "--active-workspace" ]]; then
+  shift
+  workspace=$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.id // empty')
+  [[ -n $workspace ]] || exit 1
+fi
 
 app=${1:-}
 [[ -n $app ]] || usage
@@ -19,8 +28,9 @@ app=${1:-}
 # browser hands a new tab to.
 address=$(
   hyprctl clients -j 2>/dev/null |
-    jq -r --arg pattern "$app" \
+    jq -r --arg pattern "$app" --arg workspace "$workspace" \
       'def matches($value): ($value // "") | test($pattern; "i");
+       map(select($workspace == "" or (.workspace.id | tostring) == $workspace)) |
        sort_by(.focusHistoryID) |
        first(
          (.[] | select(matches(.class))),
