@@ -466,6 +466,91 @@ const missingGlyphs = fontGlyphRows
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
 
+# Live query plugins: which plugins fire for a query, how their rows read, and
+# what the real calculator and web helpers print for them.
+run_node_test <<'JS'
+const { execFileSync } = require('child_process')
+const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+
+// Mirrors the built-ins in Menu.qml, plus a keyword-triggered copy plugin.
+const plugins = {
+  'omarchy.query.calc': { id: 'omarchy.query.calc', kind: 'math', icon: 'calc', action: 'copy', command: 'omarchy-query-calc', enabled: true, builtin: true },
+  'omarchy.query.web': { id: 'omarchy.query.web', kind: 'web', icon: 'search', action: 'run', command: 'omarchy-query-web', args: 'url', enabled: true, builtin: true },
+  'com.example.clip': { id: 'com.example.clip', kind: 'copy', label: 'Clip', icon: '󰅌', action: 'copy', command: 'echo', keyword: '> ', enabled: true },
+}
+const fired = (map, query) => menu.queryPluginsForQuery(map, query).map(p => p.id)
+
+assertDeepEqual(fired(plugins, '2+2'), ['omarchy.query.calc', 'omarchy.query.web'], 'arithmetic fires the calculator first and web search as the fallback')
+assertDeepEqual(fired(plugins, 'weather tomorrow'), ['omarchy.query.web'], 'free text fires only web search')
+assertDeepEqual(fired(plugins, 'https://example.com'), ['omarchy.query.web'], 'a bare URL is not arithmetic')
+assertDeepEqual(fired(plugins, '> hi'), ['com.example.clip', 'omarchy.query.web'], 'a keyword plugin fires for its keyword, above web search')
+assertDeepEqual(fired(plugins, 'go home'), ['omarchy.query.web'], 'a keyword plugin stays dormant without its keyword')
+assertDeepEqual(fired({ 'omarchy.query.web': plugins['omarchy.query.web'], 'com.example.math': { id: 'com.example.math', kind: 'math', command: 'x', enabled: true } }, '2+2'),
+  ['com.example.math', 'omarchy.query.web'], 'ranking is by kind, not by the order plugins were merged')
+assertDeepEqual(fired({ ...plugins, 'omarchy.query.calc': { ...plugins['omarchy.query.calc'], enabled: false } }, '2+2'), ['omarchy.query.web'], 'a disabled plugin never fires')
+const translate = { 'com.example.tr': { id: 'com.example.tr', kind: 'web', label: 'Translate', keyword: 'tr ', action: 'run', command: 'x', enabled: true } }
+assertDeepEqual(fired(translate, 'hola'), [], 'a web plugin with a keyword fires only for that keyword')
+
+const calcRow = menu.queryPluginRow(plugins['omarchy.query.calc'], '2+2', '4', 'en')
+assertDeepEqual([calcRow.kind, calcRow.label, calcRow.detail, calcRow.icon, calcRow.section], ['query', '2+2 = 4', 'Copy to clipboard', 'calc', 'results'], 'a calculator row shows the sum above the search matches')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.calc'], '2+2', '', 'en').label, '2+2 = …', 'a pending calculator row shows an ellipsis')
+const webRow = menu.queryPluginRow(plugins['omarchy.query.web'], 'weather', 'https://x', 'en')
+assertDeepEqual([webRow.label, webRow.detail, webRow.section], ['Search: weather', 'Open', 'fallback'], 'a web row is a search below the search matches')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'youtube omarchy', 'u', 'en').label, 'YouTube: omarchy', 'a provider keyword names the provider it searches')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'GitHub  quickshell lsp', 'u', 'en').label, 'GitHub: quickshell lsp', 'a provider keyword is matched without case')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'youtube', 'u', 'en').label, 'Search: youtube', 'a lone provider keyword is a plain search')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'youtube https://example.com', 'u', 'en').label, 'https://example.com', 'a URL after a provider keyword shows the URL')
+assertEqual(menu.queryPluginRow(translate['com.example.tr'], 'youtube hola', 'u', 'en').label, 'Translate: youtube hola', 'a user web row keeps its own name')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'https://example.com', 'https://example.com', 'en').label, 'https://example.com', 'a URL row shows the URL')
+assertEqual(menu.queryPluginRow(translate['com.example.tr'], 'tr hola', 'https://x', 'en').label, 'Translate: tr hola', 'a user web row names its plugin')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'bash $$ $& %2', 'u', 'en').label, 'Search: bash $$ $& %2', 'a search label shows the query literally')
+assertEqual(menu.queryPluginRow({ ...translate['com.example.tr'], label: 'T $&' }, 'tr %1 $$', 'u', 'en').label, 'T $&: tr %1 $$', 'a user web label shows its name and query literally')
+const clipRow = menu.queryPluginRow(plugins['com.example.clip'], '> hi', 'hello\nworld\n', 'en')
+assertDeepEqual([clipRow.label, clipRow.detail, clipRow.icon], ['hello world', 'Clip', '󰅌'], 'a copy row shows its output on one line, its plugin name and its icon')
+const tr = (key, english) => '[' + key + '] ' + english
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'q', 'u', 'en', tr).label, '[menu.querySearch] Search: q', 'row text goes through the translator')
+assertDeepEqual(menu.queryPluginPrefs({ plugins: { 'com.example.off': { language: 'es' }, 'omarchy.query.web': { enabled: false } } }),
+  { 'com.example.off': { language: 'es' }, 'omarchy.query.web': { language: '', enabled: false } }, 'a pref carries enabled only when it sets it')
+assertDeepEqual(menu.queryPluginPrefs({ 'omarchy.query.calc': { enabled: true, language: 'de' } }), { 'omarchy.query.calc': { language: 'de', enabled: true } }, 'prefs may be the id map itself')
+assertEqual(menu.queryPluginLabel({ id: 'p', label: 'P', i18n: { es: 'P (es)' } }, 'es'), 'P (es)', 'a plugin name uses its i18n entry for the language')
+assertEqual(menu.queryPluginLabel({ id: 'p', label: 'P', i18n: { es: 'P (es)' } }, 'de'), 'P', 'a plugin name falls back to its label')
+
+// The real helpers, as the menu runs them (args "url" means --print).
+const run = (name, args) => {
+  try {
+    return { ok: true, out: execFileSync(path.join(root, 'bin', name), args, { encoding: 'utf8', timeout: 10000 }).replace(/\s+$/, '') }
+  } catch (e) {
+    return { ok: false, out: String(e.stdout || '').trim() }
+  }
+}
+const helperCases = [
+  ['omarchy-query-calc', ['2+2'], '4'],
+  ['omarchy-query-calc', ['2^10'], '1024'],
+  ['omarchy-query-calc', ['sqrt(16)+1'], '5'],
+  ['omarchy-query-web', ['--print', '2+2'], 'https://www.google.com/search?q=2%2B2'],
+  ['omarchy-query-web', ['--print', 'omarchy linux'], 'https://www.google.com/search?q=omarchy%20linux'],
+  ['omarchy-query-web', ['--print', 'youtube omarchy'], 'https://www.youtube.com/results?search_query=omarchy'],
+  ['omarchy-query-web', ['--print', 'youtube'], 'https://www.google.com/search?q=youtube'],
+  ['omarchy-query-web', ['--print', 'hello', 'world'], 'https://www.google.com/search?q=hello%20world'],
+  ['omarchy-query-web', ['--print', 'https://example.com'], 'https://example.com'],
+  ['omarchy-query-web', ['--print', '--help'], 'https://www.google.com/search?q=--help'],
+]
+for (const [name, args, expected] of helperCases) {
+  const result = run(name, args)
+  assert(result.ok && result.out === expected, `${name} ${args.join(' ')} prints ${expected}`, `ok: ${result.ok}\nactual: ${result.out}`)
+}
+for (const id of Object.keys(menu.queryWebProviders)) {
+  const result = run('omarchy-query-web', ['--print', id + ' omarchy'])
+  assert(result.ok && !result.out.startsWith('https://www.google.com/') === (id !== 'google'), `omarchy-query-web knows the ${id} provider the menu names`, `ok: ${result.ok}\nactual: ${result.out}`)
+}
+const help = run('omarchy-query-web', ['--help'])
+assert(help.ok && help.out.startsWith('Usage: omarchy-query-web'), 'omarchy-query-web --help prints usage', help.out)
+for (const expr of ["os.system('id')", '9^9^9', '1/0']) {
+  const result = run('omarchy-query-calc', [expr])
+  assert(!result.ok && result.out === 'Error', `the calculator rejects ${expr}`, `ok: ${result.ok}\nactual: ${result.out}`)
+}
+JS
+
 # Verify omarchy-menu-select and omarchy-menu-input serialize payloads faithfully
 # (including UTF-8, tabs, dash-prefixed options, multi-select, and dimensions).
 select_tmp=$(mktemp -d)
