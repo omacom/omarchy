@@ -141,6 +141,7 @@ pass 'audio-output-switch reads pactl outputs in the C locale'
 LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 2>/dev/null || true
 grep -qx 'C pactl get-sink-volume alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink volume in the C locale' "$(calls)"
+XDG_RUNTIME_DIR="$work" LC_ALL=en_US.UTF-8 omarchy-audio-output-volume mute-toggle 2>/dev/null || true
 grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
