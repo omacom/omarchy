@@ -7,6 +7,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # Reverting the switch on an ESP that another installation already boots
 # through systemd-boot gives that installation back its loader, its
 # loader.conf and its boot entry, and takes away only what the switch made.
+# Finishing it takes over only Limine's fallback loader, and a finish that
+# can't start leaves the switch revertible.
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -17,13 +19,15 @@ awk '
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-boot-switch" >"$test_tmp/functions"
 
-machine=$(head -c 8 /etc/machine-id)
+echo 0123456789abcdef0123456789abcdef >"$test_tmp/machine-id"
+machine=01234567
 
 run() {
   bash -c '
     set -euo pipefail
     source "$1/functions"
     STORE=$1/store ESP=$1/esp LOADER_PATH="\\EFI\\systemd\\systemd-bootx64.efi" LOADER_LABEL="Omarchy Boot"
+    MACHINE_ID_FILE=$1/machine-id FALLBACK=EFI/BOOT/BOOTX64.EFI LOADER_SOURCE=$1/systemd-bootx64.efi
     mkdir -p "$STORE"
     eval "$2"
   ' _ "$test_tmp" "$1"
@@ -63,6 +67,17 @@ run 'backup_esp
 [[ ! -e $test_tmp/esp/EFI/systemd && ! -e $test_tmp/esp/loader/loader.conf ]] || fail "systemd-boot's files leave an ESP that had none"
 pass "a revert takes systemd-boot off an ESP that had none"
 
+# Staging stopped before it backed up the ESP (the command line didn't
+# convert): the switch put nothing there, so revert takes nothing away.
+new_esp
+mkdir -p "$test_tmp/esp/EFI/systemd" "$test_tmp/esp/loader"
+printf 'theirs\n' >"$test_tmp/esp/EFI/systemd/systemd-bootx64.efi"
+printf 'default theirs\n' >"$test_tmp/esp/loader/loader.conf"
+run 'state_set backend limine; restore_esp' || fail "the revert runs before anything was staged"
+[[ $(<"$test_tmp/esp/EFI/systemd/systemd-bootx64.efi") == theirs && $(<"$test_tmp/esp/loader/loader.conf") == "default theirs" ]] ||
+  fail "another installation's systemd-boot stays when staging stopped early"
+pass "a revert after staging stopped early leaves another installation's systemd-boot alone"
+
 # The boot entry: one the firmware already had is reused and not marked as
 # the switch's, so revert leaves it; one the switch creates is marked.
 new_esp
@@ -81,3 +96,50 @@ run 'created=$1/created
   [[ $(loader_entry) == 0007 ]]
   [[ $(state_get loader_entry_created) == 1 ]]' || fail "a created entry is marked"
 pass "a boot entry the switch creates is marked as its own"
+
+# A finish that finds no package to install hasn't started: revert still
+# works, and the user is told.
+new_esp
+status=0
+run 'state_set phase promoted; finalize' 2>/dev/null || status=$?
+((status == 1)) || fail "a finish without the package stops" "exit $status"
+[[ -z $(run 'state_get final_step') && $(run 'state_get notice_key') == finishNoPackage ]] ||
+  fail "a finish without the package records no step and leaves a notice" "$(cat "$test_tmp/store/state")"
+pass "a finish that can't find its package leaves the switch revertible"
+
+# The finish's last step takes over the fallback loader when it is Limine's,
+# whatever version that is now, and leaves another system's.
+printf 'systemd-boot\n' >"$test_tmp/systemd-bootx64.efi"
+finish_esp() {
+  new_esp
+  mkdir -p "$test_tmp/esp/EFI/BOOT"
+  printf '%s\n' "$1" >"$test_tmp/esp/EFI/BOOT/BOOTX64.EFI"
+  run 'state_set final_step snapshot
+    boot_entry_for() { :; }
+    notice() { :; }
+    finalize' || fail "the finish's last step runs"
+  cat "$test_tmp/esp/EFI/BOOT/BOOTX64.EFI"
+}
+[[ $(finish_esp 'Limine 10.1 (upgraded since staging)') == systemd-boot ]] || fail "Limine's fallback loader becomes systemd-boot"
+[[ $(finish_esp 'Windows Boot Manager') == "Windows Boot Manager" ]] || fail "another system's fallback loader stays"
+pass "the finish replaces Limine's fallback loader and only Limine's"
+
+# A trial that came up puts its entry first, also when the boot order has
+# nothing else in it.
+new_esp
+run 'state_set phase trial; state_set loader_entry 0001
+  started_by_systemd_boot() { :; }
+  boot_current() { echo 0001; }
+  live_root() { :; }
+  omarchy-boot-sync() { :; }
+  efibootmgr() { if [[ ${2:-} == --bootorder ]]; then echo "$3" >"$STORE/order"; else echo "BootOrder: 0001"; fi; }
+  confirm' || fail "the trial is confirmed"
+[[ $(<"$test_tmp/store/order") == 0001 ]] || fail "the boot order has no empty entry" "$(cat "$test_tmp/store/order")"
+pass "promoting the trial sets a boot order without a trailing comma"
+
+[[ $(run 'esp_space_needed 1 100') == $((3 * 100 + 32 * 1024 * 1024)) ]] || fail "one kernel needs room for three images"
+[[ $(run 'esp_space_needed 3 100') == $((4 * 100 + 32 * 1024 * 1024)) ]] || fail "each kernel past two needs room for another image"
+pass "the ESP space check counts the installed kernels"
+
+[[ -z $(run 'cmdline_values "$1/no-such-file"') ]] || fail "a missing Limine config has no command line"
+pass "a missing Limine config reads as no command line"

@@ -51,6 +51,7 @@ LOADER_LABEL="Omarchy Boot"
 BOOT_DEFAULTS=${OMARCHY_PATH:-/usr/share/omarchy}/default/boot
 LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
 TOP=/run/omarchy-boot/top
+MACHINE_ID_FILE=${OMARCHY_BOOT_MACHINE_ID:-/etc/machine-id}
 
 die() {
   echo -e "\e[31m$*\e[0m" >&2
@@ -144,6 +145,7 @@ note() { notes+=("$1"); }
 # over faithfully, so it stops instead of guessing.
 cmdline_values() {
   local file=$1 line
+  [[ -f $file ]] || return 0
   while IFS= read -r line || [[ -n $line ]]; do
     [[ $line == *KERNEL_CMDLINE* ]] || continue
     [[ $line =~ ^[[:space:]]*# ]] && continue
@@ -178,6 +180,15 @@ preferred_limine_kernel() {
   done | grep -x linux-omarchy || cat /usr/lib/modules/*/pkgbase 2>/dev/null | sed -n 1p
 }
 
+# Bytes the ESP needs free: next to Limine's own, a boot image per kernel, and
+# a staging copy of one while the finish rebuilds it with the recovery
+# snapshot, before Limine's files go. At least three images' worth.
+esp_space_needed() {
+  local kernels=$1 uki_size=$2
+  ((kernels >= 2)) || kernels=2
+  echo $(((kernels + 1) * uki_size + 32 * 1024 * 1024))
+}
+
 preflight() {
   if omarchy-hw-aarch64-apple; then
     problem "Apple Silicon boots through m1n1 and its own platform package, not Limine."
@@ -209,14 +220,15 @@ preflight() {
 
   # Room for a boot image per kernel plus staging copies on the ESP, and the
   # stored images on the root.
-  local uki_size=0 file free
+  local uki_size=0 file free need
   for file in "$ESP"/EFI/Linux/*.efi; do
     [[ -f $file ]] && ((uki_size < $(stat -c %s "$file"))) && uki_size=$(stat -c %s "$file")
   done
   ((uki_size)) || uki_size=$((80 * 1024 * 1024))
   free=$(df --output=avail -B1 "$ESP" | tail -1)
-  ((free > 3 * uki_size + 32 * 1024 * 1024)) ||
-    problem "The EFI system partition needs $(((3 * uki_size + 32 * 1024 * 1024) / 1024 / 1024)) MB free; it has $((free / 1024 / 1024)) MB."
+  need=$(esp_space_needed "$(cat /usr/lib/modules/*/pkgbase 2>/dev/null | sort -u | wc -l)" "$uki_size")
+  ((free > need)) ||
+    problem "The EFI system partition needs $((need / 1024 / 1024)) MB free; it has $((free / 1024 / 1024)) MB."
   free=$(df --output=avail -B1 / | tail -1)
   ((free > 2 * 1024 * 1024 * 1024)) || problem "The root filesystem needs 2 GB free for boot images."
 
@@ -377,9 +389,12 @@ backup_esp() {
 }
 
 # Takes this switch's files off the ESP and puts back what was there before.
+# Before backup_esp ran (staging stopped earlier), the switch has put nothing
+# there, and what is there is another installation's.
 restore_esp() {
+  [[ -n $(state_get esp_backed_up) ]] || return 0
   rm -rf "$ESP/EFI/systemd"
-  rm -f "$ESP/loader/loader.conf" "$ESP"/EFI/Linux/omarchy-"$(head -c 8 /etc/machine-id)"-*.efi
+  rm -f "$ESP/loader/loader.conf" "$ESP"/EFI/Linux/omarchy-"$(head -c 8 "$MACHINE_ID_FILE")"-*.efi
   if [[ -d $STORE/backup/esp/systemd ]]; then cp -a "$STORE/backup/esp/systemd" "$ESP/EFI/systemd"; fi
   if [[ -f $STORE/backup/esp/loader.conf ]]; then cp -a "$STORE/backup/esp/loader.conf" "$ESP/loader/loader.conf"; fi
   return 0
@@ -425,8 +440,6 @@ stage() {
   state_set backend limine
   [[ -n $(state_get boot_order) ]] || state_set boot_order "$(boot_order)"
   [[ -n $(state_get limine_entry) ]] || state_set limine_entry "$current"
-  [[ -n $(state_get limine_fallback_sha) ]] ||
-    state_set limine_fallback_sha "$(sha256sum <"$ESP/$FALLBACK" 2>/dev/null | cut -d' ' -f1)"
   state_set signing "$(state_get signing | grep -x required || echo off)"
 
   say "Fetching packages"
@@ -464,7 +477,7 @@ confirm() {
   case $(phase) in
   trial)
     if started_by_systemd_boot && [[ $current == "$loader_entry" ]] && live_root && omarchy-boot-sync verify >/dev/null; then
-      efibootmgr --quiet --bootorder "$loader_entry,$(boot_order | tr ',' '\n' | grep -vx "$loader_entry" | paste -sd, -)"
+      efibootmgr --quiet --bootorder "$loader_entry$(boot_order | tr ',' '\n' | grep -vx "$loader_entry" | sed 's/^/,/' | tr -d '\n')"
       state_set phase promoted
       notice trialUp
     elif ! started_by_systemd_boot; then
@@ -492,24 +505,30 @@ confirm() {
   esac
 }
 
+# The newest omarchy-boot-systemd package staging fetched; nothing, and no
+# failure, when there is none.
+cached_package() {
+  ls -t "$STORE"/packages/omarchy-boot-systemd-*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | sed -n 1p || true
+}
+
 finalize() {
   local step
   step=$(state_get final_step)
 
   if [[ -z $step || $step == "packages-started" ]]; then
-    # Recorded first: once the transaction below has started, Limine may be
+    local package
+    package=$(cached_package)
+    [[ -n $package ]] || { notice finishNoPackage; return 1; }
+    # Recorded before the transaction: once it has started, Limine may be
     # gone, and revert must not run.
     state_set final_step packages-started
-    local package
-    package=$(ls -t "$STORE"/packages/omarchy-boot-systemd-*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | sed -n 1p)
-    [[ -n $package ]] || { notice finishNoPackage; return 1; }
     # Installing it removes the Limine packages it conflicts with; their
     # pacman hook is replaced by the one this package owns.
     if ! pacman -U --noconfirm --ask=4 "$package"; then
       notice finishInstallFailed
       return 1
     fi
-    if omarchy-pkg-present limine && ! pacman -Qi limine | grep -q '^Required By *: [^N]'; then
+    if omarchy-pkg-present limine && LC_ALL=C pacman -Qi limine | grep -qx 'Required By *: None'; then
       pacman -R --noconfirm limine >/dev/null || true
     fi
     rm -f /etc/pacman.d/hooks/95-omarchy-boot-trial.hook /etc/pacman.d/hooks/99-omarchy-limine.hook
@@ -535,10 +554,11 @@ finalize() {
   if [[ $step == "snapshot" ]]; then
     rm -rf "$ESP/EFI/limine" "$ESP/limine.conf" "$ESP/limine.conf.old" "$ESP/limine.conf.bak" "$ESP/limine_history"
     # limine-snapper-sync's copies of boot files, per machine.
-    rm -rf "$ESP/$(cat /etc/machine-id)/limine_history"
-    rmdir "$ESP/$(cat /etc/machine-id)" 2>/dev/null || true
-    rm -f "$ESP"/EFI/Linux/omarchy_*.efi "$ESP/EFI/Linux/$(cat /etc/machine-id)"_*.efi
-    if [[ -f $ESP/$FALLBACK && $(sha256sum <"$ESP/$FALLBACK" | cut -d' ' -f1) == "$(state_get limine_fallback_sha)" ]]; then
+    rm -rf "$ESP/$(cat "$MACHINE_ID_FILE")/limine_history"
+    rmdir "$ESP/$(cat "$MACHINE_ID_FILE")" 2>/dev/null || true
+    rm -f "$ESP"/EFI/Linux/omarchy_*.efi "$ESP/EFI/Linux/$(cat "$MACHINE_ID_FILE")"_*.efi
+    # Limine's binary, whichever version: another system's loader stays.
+    if [[ -f $ESP/$FALLBACK ]] && grep -qa '[Ll]imine' "$ESP/$FALLBACK"; then
       install -m644 "$LOADER_SOURCE" "$ESP/$FALLBACK"
     fi
     local limine_entry
@@ -711,9 +731,18 @@ case ${1:-} in
   ;;
 --apply)
   ((EUID == 0)) || die "--apply runs as root"
-  case $(phase) in staged | trial | trial-failed | "") ;; *) die "Nothing to stage: the switch is $(phase)." ;; esac
-  run_preflight || exit 1
-  stage
+  case $(phase) in
+  promoted)
+    # The finish at the next boot installs the package fetched at staging;
+    # fetch it again if it went missing.
+    [[ -n $(cached_package) ]] || stage_package
+    ;;
+  staged | trial | trial-failed | "")
+    run_preflight || exit 1
+    stage
+    ;;
+  *) die "Nothing to stage: the switch is $(phase)." ;;
+  esac
   ;;
 confirm)
   ((EUID == 0)) || die "confirm runs as root"
@@ -732,6 +761,11 @@ status)
   status
   ;;
 "" | --yes)
+  if [[ $(phase) == "promoted" ]]; then
+    as_root "$0" --apply
+    say "systemd-boot finishes taking over at the next boot."
+    exit 0
+  fi
   if [[ $(omarchy-boot-backend) == "systemd-boot" ]]; then
     say "This machine already boots systemd-boot."
     exit 0
