@@ -369,8 +369,13 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           root.report = parsed
-          if (!root.hasConfiguredCoordinates)
-            root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
+          // A first reading fills an empty label wherever it can: open-meteo is
+          // the faster source and overwrites this when it lands, but when it
+          // cannot answer (a strict proxy 403s the request, the network is still
+          // down after wake) the wttr icon is what keeps the pill on the bar —
+          // with configured coordinates nothing else sets the label at all
+          // (#20190). provisionalCurrentIcon never overrides a resolved icon.
+          root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
