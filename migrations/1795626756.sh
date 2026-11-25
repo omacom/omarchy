@@ -15,7 +15,7 @@ xdph_config="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/xdph.conf"
 xdph_dir=$(dirname "$xdph_config")
 shipped="$OMARCHY_PATH/config/hypr/xdph.conf"
 
-[[ -f $xdph_config && ! -L $xdph_config && ! -L $xdph_dir && -f $shipped ]] || exit 0
+[[ -f $xdph_config && ! -L $xdph_config && ! -L $xdph_dir ]] || exit 0
 
 # Historical sha256 hashes of config/hypr/xdph.conf (commits c1fca69de and
 # abffb0abf; matches the hypr/xdph.conf rows in bin/omarchy-upgrade-to-quattro).
@@ -26,6 +26,13 @@ case $(sha256sum <"$xdph_config") in
     exit 0
     ;;
 esac
+
+# config/** ships in omarchy-settings while migrations/** ships in omarchy.
+# Wait until omarchy-settings delivers the updated hypr/xdph.conf.
+if [[ ! -f $shipped ]] || ! grep -qE '^[[:space:]]*(screencopy:)?cursor_mode[[:space:]]*=[[:space:]]*2([[:space:]]|#|$)' "$shipped"; then
+  echo "Waiting for the omarchy-settings package that ships the updated hypr/xdph.conf" >&2
+  exit 75
+fi
 
 # Stage beside the target and move into place atomically so a failed write
 # never leaves a partial config behind.
