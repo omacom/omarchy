@@ -1955,6 +1955,7 @@ Item {
           pool: horizontalPool
           drawn: !barWindow.centerBesideRight
           notchSpan: barWindow.notchSpan
+          rightStart: rightModules.x - Style.space(4)
         }
 
         LeftModules {
@@ -2301,6 +2302,8 @@ Item {
     // A display notch's width in the middle of the bar, which the center
     // sections split around.
     property real notchSpan: 0
+    // Where the right section starts, less the gap kept before it.
+    property real rightStart: width
 
     CenterGestureArea { anchors.fill: parent }
 
@@ -2310,6 +2313,7 @@ Item {
       pool: centerRoot.pool
       active: centerRoot.drawn
       notchSpan: centerRoot.notchSpan
+      rightStart: centerRoot.rightStart
     }
   }
 
@@ -2317,8 +2321,10 @@ Item {
   // of the bar the box is centered, and centerBegin and centerEnd grow away
   // from it. Around a display notch, centerBegin ends at its left edge and the
   // box and centerEnd start at its right one, growing away from it, so moving
-  // a widget between the sections moves it across the notch. Beside the right
-  // section the three run on as one, growing toward the start of the bar.
+  // a widget between the sections moves it across the notch; where the right
+  // section leaves them too little room there, the box and centerEnd give way
+  // toward the notch rather than run over it. Beside the right section the
+  // three run on as one, growing toward the start of the bar.
   // Placed by hand rather than by a Row or Column, which
   // cannot center one child and hang the others off it.
   component CenterSections: Item {
@@ -2335,6 +2341,10 @@ Item {
     readonly property bool aroundNotch: !root.vertical && !besideRight && notchSpan > 0
     readonly property real notchStart: Math.round((width - notchSpan) / 2) - Style.space(4)
     readonly property real notchEnd: Math.round((width + notchSpan) / 2) + Style.space(4)
+    property real rightStart: width
+    // Where the box starts around a notch: at its right edge, or as far back
+    // toward it as keeps centerEnd clear of the right section.
+    readonly property real notchBoxStart: Math.min(notchEnd, rightStart - centerBox.width - endList.width)
 
     implicitWidth: root.vertical ? root.barSize : beginList.width + centerBox.width + endList.width
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
@@ -2384,9 +2394,9 @@ Item {
       pool: sections.pool
       active: sections.active
       fixedEdge: sections.besideRight ? "end" : (sections.aroundNotch ? "start" : "center")
-      beginGap: sections.aroundNotch ? sections.notchEnd - sections.notchStart : 0
+      beginGap: sections.aroundNotch ? sections.notchBoxStart - sections.notchStart : 0
       crossSize: root.vertical ? sections.width : sections.height
-      x: root.vertical ? 0 : (sections.besideRight ? beginList.width : (sections.aroundNotch ? sections.notchEnd : Math.round((sections.width - width) / 2)))
+      x: root.vertical ? 0 : (sections.besideRight ? beginList.width : (sections.aroundNotch ? sections.notchBoxStart : Math.round((sections.width - width) / 2)))
       y: root.vertical ? Math.round((sections.height - height) / 2) : 0
     }
   }
