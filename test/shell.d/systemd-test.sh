@@ -85,6 +85,7 @@ simplefb_dir="$tmpdir/simple-framebuffer"
 dri_dir="$tmpdir/dri"
 udev_log="$tmpdir/udevadm-calls"
 udev_on_removed="$tmpdir/udev-on-removed"
+udev_on_monitor="$tmpdir/udev-on-monitor"
 
 sed \
   -e "s|^SIMPLEFB_DIR=.*|SIMPLEFB_DIR=$simplefb_dir|" \
@@ -97,6 +98,12 @@ cat >"$mock_bin/udevadm" <<'SH'
 printf '%s\n' "$*" >>"$UDEV_LOG"
 if [[ $1 == "wait" && $* == *" --removed "* && -x ${UDEV_ON_REMOVED:-} ]]; then
   "$UDEV_ON_REMOVED"
+fi
+if [[ $1 == "monitor" ]]; then
+  if [[ -x ${UDEV_ON_MONITOR:-} ]]; then
+    "$UDEV_ON_MONITOR"
+  fi
+  printf 'UDEV - the event which udev sends out after rule processing\n'
 fi
 SH
 chmod +x "$mock_bin/udevadm"
@@ -112,7 +119,7 @@ $on_removed
 SH
     chmod +x "$udev_on_removed"
   fi
-  PATH="$mock_bin:$PATH" UDEV_LOG="$udev_log" UDEV_ON_REMOVED="$udev_on_removed" "$wait_drm"
+  PATH="$mock_bin:$PATH" UDEV_LOG="$udev_log" UDEV_ON_REMOVED="$udev_on_removed" UDEV_ON_MONITOR="$udev_on_monitor" "$wait_drm"
 }
 
 # Early KMS: no simpledrm bound, waits directly for existing /dev/dri/card0.
@@ -124,25 +131,34 @@ run_wait_drm
   fail "early-KMS boot waits only for /dev/dri/card0" "$(<"$udev_log")"
 pass "early-KMS boot waits only for /dev/dri/card0"
 
-# Late KMS: simpledrm bound, then unbound before real card0 is registered.
+# Late KMS: simpledrm bound, then unbound before real card1 is registered.
 rm -rf "$simplefb_dir" "$dri_dir"
 mkdir -p "$simplefb_dir/simple-framebuffer.0" "$dri_dir"
 : >"$dri_dir/card0"
+cat >"$udev_on_monitor" <<SH
+#!/bin/bash
+: >"$dri_dir/card1"
+SH
+chmod +x "$udev_on_monitor"
 run_wait_drm "rm -rf '$simplefb_dir/simple-framebuffer.0' '$dri_dir/card0'"
-expected_handoff=$(printf '%s\n%s' \
+expected_handoff=$(printf '%s\n%s\n%s' \
   "wait --timeout=5 --removed $simplefb_dir/simple-framebuffer.0" \
-  "wait --timeout=10 --initialized=true $dri_dir/card0")
+  "monitor --udev --subsystem-match=drm" \
+  "wait --timeout=10 --initialized=true $dri_dir/card1")
 [[ $(<"$udev_log") == "$expected_handoff" ]] ||
-  fail "late-KMS handoff waits for simpledrm removal then card0 initialization" "$(<"$udev_log")"
-pass "late-KMS handoff waits for simpledrm removal then card0 initialization"
+  fail "late-KMS handoff waits for simpledrm removal then card1 initialization" "$(<"$udev_log")"
+pass "late-KMS handoff waits for simpledrm removal then card1 initialization"
 
-# Mid-handoff: simpledrm already unbound and /dev/dri has no card yet.
+# Mid-handoff: card1 appears after the initial empty scan.
 rm -rf "$simplefb_dir" "$dri_dir"
 mkdir -p "$simplefb_dir" "$dri_dir"
 run_wait_drm
-[[ $(<"$udev_log") == "wait --timeout=10 --initialized=true $dri_dir/card0" ]] ||
-  fail "mid-handoff empty /dev/dri waits for card0" "$(<"$udev_log")"
-pass "mid-handoff empty /dev/dri waits for card0"
+expected_mid_handoff=$(printf '%s\n%s' \
+  "monitor --udev --subsystem-match=drm" \
+  "wait --timeout=10 --initialized=true $dri_dir/card1")
+[[ $(<"$udev_log") == "$expected_mid_handoff" ]] ||
+  fail "mid-handoff empty /dev/dri waits for the card that appears" "$(<"$udev_log")"
+pass "mid-handoff empty /dev/dri waits for the card that appears"
 
 # Non-card0 device: waits on the existing card1 instead of timing out on card0.
 rm -rf "$simplefb_dir" "$dri_dir"
