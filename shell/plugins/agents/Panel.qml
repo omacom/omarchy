@@ -688,8 +688,8 @@ Panel {
     if (model.unit === "installing" && install.phase === "dependencies") return timed(Commons.I18n.t("localModels.installingMeter"), 30)
     if (model.unit === "installing") {
       var total = Number(install.total_bytes) || 0
-      return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
-               rate: downloadRate(Number(install.rate_bytes_s) || 0) }
+      return { title: "", value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
+               rate: downloadRate(Number(install.rate_bytes_s) || 0), downloading: true }
     }
     if (model.unit === "activating") return timed(Commons.I18n.t("localModels.loadingMeter"), expectedLoadSeconds(model))
     if (model.unit === "deactivating") return timed(Commons.I18n.t("localModels.stoppingMeter"), expectedStopSeconds(model))
@@ -2466,6 +2466,8 @@ Panel {
           // Too big for the memory free now: dimmed, saying so, and not chosen.
           readonly property var shortfall: modelData.shortfall || null
           readonly property bool recommended: root.offerRecommended(modelData, root.localModelOfferCount)
+          readonly property var offerMeterState: modelData.pair ? (modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(modelData)
+          readonly property bool downloading: !!offerMeterState && offerMeterState.downloading === true
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
@@ -2494,7 +2496,7 @@ Panel {
             anchors.right: parent.right
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(4)
 
             Item {
               id: ownModelHeader
@@ -2545,8 +2547,10 @@ Panel {
 
             // A paired machine's model says whose it is before its facts; a
             // cabled Spark, what setting it up does; one too big for the
-            // memory free now, in red, why it can't start.
+            // memory free now, in red, why it can't start. While downloading,
+            // the progress bar takes this line's place.
             Text {
+              visible: !ownModel.downloading
               width: parent.width
               text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
                 : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
@@ -2561,10 +2565,10 @@ Panel {
             // The setup or start begun here: installing, downloading, then
             // loading, as its line will show it; or the pairing.
             LocalMeterRow {
-              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
+              meter: ownModel.offerMeterState
               visible: !!meter
               width: parent.width
-              topPadding: Style.space(6)
+              topPadding: ownModel.downloading ? Style.space(2) : Style.space(6)
             }
           }
 
@@ -3296,9 +3300,10 @@ Panel {
     }
 
     // The machine a local model runs on when that isn't this one, then its
-    // memory, speed, and context.
+    // memory, speed, and context. While downloading, the progress bar takes
+    // this line's place.
     Text {
-      visible: !!section.local && text !== ""
+      visible: !!section.local && text !== "" && !(section.localMeter && section.localMeter.downloading === true)
       width: parent.width
       textFormat: Text.PlainText
       text: section.local ? [section.local.host, root.ownModelFacts(section.local)].filter(function(part) { return part !== "" }).join(" · ") : ""
@@ -3639,10 +3644,13 @@ Panel {
     readonly property bool failed: !!meter && meter.failed === true
     // A step with no measure of its own, like a pairing, is its title alone.
     readonly property bool barless: !meter || failed || meter.value < 0
-    implicitHeight: Math.max(meterTitle.implicitHeight, meterRate.implicitHeight) + topPadding
+    readonly property bool titled: !!meter && String(meter.title || "") !== ""
+    readonly property bool hasRate: meterRate.text !== ""
+    implicitHeight: Math.max(titled ? meterTitle.implicitHeight : 0, meterRate.implicitHeight, meterBar.implicitHeight) + topPadding
 
     Text {
       id: meterTitle
+      visible: meterRow.titled
       width: meterRow.barless ? parent.width : parent.width * 0.3
       anchors.bottom: parent.bottom
       textFormat: Text.PlainText
@@ -3655,24 +3663,25 @@ Panel {
     }
 
     Meter {
+      id: meterBar
       visible: !meterRow.barless
-      anchors.left: meterTitle.right
-      anchors.right: meterRate.left
-      anchors.rightMargin: Style.space(20)
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.left: meterRow.titled ? meterTitle.right : parent.left
+      anchors.right: meterRow.hasRate ? meterRate.left : parent.right
+      anchors.rightMargin: meterRow.hasRate ? (meterRow.titled ? Style.space(20) : Style.space(10)) : 0
+      anchors.verticalCenter: meterRow.titled ? meterTitle.verticalCenter : meterRate.verticalCenter
       value: meterRow.meter ? meterRow.meter.value : 0
     }
 
     Text {
       id: meterRate
       anchors.right: parent.right
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       horizontalAlignment: Text.AlignRight
       text: meterRow.meter && !meterRow.failed ? meterRow.meter.rate : ""
       color: root.dim
       font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: meterRow.titled ? Style.font.bodySmall : Style.font.caption
     }
   }
 

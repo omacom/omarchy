@@ -135,7 +135,6 @@
   "agents.windowUsedResets": "%1: %2% used · resets in %3",
   "agents.windowWeekly": "Weekly",
   "localModels.contextFact": "%1K context",
-  "localModels.downloadingMeter": "Downloading",
   "localModels.installingMeter": "Installing",
   "localModels.linkOffer": "%1 is cabled to this Spark",
   "localModels.linkOfferUnnamed": "Another DGX Spark is cabled to this one",
