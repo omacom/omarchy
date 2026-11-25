@@ -50,7 +50,9 @@ local function create(id, monitor)
 end
 
 local function activate(workspace)
-  monitor_named(workspace.monitor).active = workspace.id
+  local monitor = monitor_named(workspace.monitor)
+  assert(monitor, "Workspace has no monitor")
+  monitor.active = workspace.id
 end
 
 local function windows_on(id)
