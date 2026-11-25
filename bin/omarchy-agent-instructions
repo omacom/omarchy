@@ -47,9 +47,7 @@ declare -A links=(
   [copilot]="${COPILOT_HOME:-$HOME/.copilot}/copilot-instructions.md"
   [qwen]="${QWEN_HOME:-$HOME/.qwen}/AGENTS.md"
   [mcode]="${MINIMAX_DATA_DIR:-$HOME/.minimax}/AGENTS.md"
-  [kiro-cli]="$HOME/.kiro/steering/AGENTS.md"
   [kilo]="$config/kilo/AGENTS.md"
-  [commandcode]="$HOME/.commandcode/AGENTS.md"
   [freebuff]="$HOME/.AGENTS.md"
 )
 

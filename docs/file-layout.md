@@ -81,6 +81,7 @@ bin/omarchy-upload-log         ──►  omarchy-settings    /usr/bin/  (needed
 
 default/libalpm/hooks/*.hook
                                 ──►  omarchy             /usr/share/libalpm/hooks/*.hook
+default/polkit/*.policy        ──►  omarchy             /usr/share/polkit-1/actions/*.policy
 
 install/**                     ──►  omarchy             /usr/share/omarchy/install/
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/
@@ -107,7 +108,7 @@ applications/icons/*           ──►  omarchy-settings    /usr/share/icons/h
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
   ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
-  ├─ mise/conf.d/{omarchy,omarchy-tools,omarchy-agent-accounts}.toml
+  ├─ mise/conf.d/{omarchy,omarchy-tools}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
   │  profile.d/omarchy.sh, …                            (a summary — `ls etc/` for the full ~17-entry tree)
   └─ security/faillock.conf, nsswitch.conf,
@@ -235,7 +236,7 @@ Single source of truth for `OMARCHY_PATH` and dev-link-aware `PATH`. It:
 - Prepends `$OMARCHY_PATH/bin` to `PATH` **only when** `OMARCHY_PATH` is
   not `/usr/share/omarchy`. On a production install the binaries are
   already on `PATH` as `/usr/bin/omarchy-*` via the `omarchy` package.
-- Prepends mise's `command-wrappers/bin` so subscription account dispatch runs before inherited tool binaries, then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. The existing mise tool shims also dispatch these wrappers for SSH commands that run no shell setup; the PAM path needs no additional entry. `etc/mise/conf.d/omarchy-agent-accounts.toml` declares the Claude, Codex, and Grok wrappers; `mise reshim` builds them during user setup and migration. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Claude sessions all start in `~/.claude`, which holds the active account's login; the others wait in their own homes (Main's in `accounts/claude/.primary`), and switching moves logins between them under Claude Code's own lock directories, so running sessions re-read the new login on their next message. Codex and Grok credentials and running sessions remain in their original account homes.
+- Prepends `~/.local/share/omarchy/agent-accounts/bin` so subscription account dispatch runs before inherited tool binaries (and drops mise's old `command-wrappers/bin` that did this once), then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. SSH commands that run no shell setup get the same order from the PAM PATH line `install/config/ssh-command-path.sh` writes. The directory holds a dispatcher for each of `claude`, `codex` and `grok` that is installed, which `omarchy-agent-account-dispatch` writes when an agent is installed or removed through Omarchy. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Claude sessions all start in `~/.claude`, which holds the active account's login; the others wait in their own homes (Main's in `accounts/claude/.primary`), and switching moves logins between them under Claude Code's own lock directories, so running sessions re-read the new login on their next message. Codex and Grok credentials and running sessions remain in their original account homes.
 
 Sourced by every entry point that needs the env set:
 
