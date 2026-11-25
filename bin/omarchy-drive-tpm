@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Manage TPM 2.0 unlocking for encrypted drives
-# omarchy:args=[status|enroll|wipe] [--allow-unsafe] [--keep-autologin] [drive]
+# omarchy:args=[status|enroll|wipe] [--allow-unsafe] [--keep-autologin] [--yes] [drive]
 # omarchy:examples=omarchy drive tpm status | omarchy drive tpm enroll | omarchy drive tpm enroll --allow-unsafe --keep-autologin
 # omarchy:requires-sudo=true
 
@@ -21,6 +21,8 @@ CRYPTTAB_INITRAMFS="${OMARCHY_CRYPTTAB_INITRAMFS:-/etc/crypttab.initramfs}"
 SDDM_AUTOLOGIN="${OMARCHY_SDDM_AUTOLOGIN:-/etc/sddm.conf.d/autologin.conf}"
 TPM_STATE_DIR="${OMARCHY_TPM_STATE_DIR:-/var/lib/omarchy/drive-tpm}"
 AUTOLOGIN_BACKUP="$TPM_STATE_DIR/sddm-autologin.conf"
+BOOT_SWITCHED="$TPM_STATE_DIR/boot-switched"
+INITCPIO_INSTALL_DIRS="${OMARCHY_INITCPIO_INSTALL_DIRS:-/etc/initcpio/install /usr/lib/initcpio/install}"
 PROC_CMDLINE="${OMARCHY_PROC_CMDLINE:-/proc/cmdline}"
 
 # The hooks Omarchy's drop-ins compose for an encrypted Limine install. The TPM
@@ -68,42 +70,45 @@ luks_tpm2_slots() {
 }
 
 # The HOOKS line mkinitcpio builds from: mkinitcpio.conf, then every drop-in in
-# name order. "installed" reads the drop-ins as they are; "without-tpm" leaves
-# this command's drop-in out, for the line enrollment starts from; "with-tpm"
-# sources the shipped copy last instead, for the line enrollment produces. A
-# drop-in that fails to source fails the whole read rather than give a line
-# mkinitcpio would not build.
+# the order mkinitcpio sorts them. "installed" reads the drop-ins as they are;
+# "without-tpm" leaves this command's drop-in out, for the line enrollment
+# starts from; "with-tpm" puts the shipped copy in its place, for the line
+# enrollment produces. A drop-in that fails to source fails the whole read
+# rather than give a line mkinitcpio would not build.
 composed_hooks() {
-  local mode="${1:-installed}"
+  local mode="${1:-installed}" ours="${TPM_HOOKS_DROP_IN##*/}"
+  local -a names=()
 
   if [[ ! -f $MKINITCPIO_CONF && ! -d $MKINITCPIO_DIR ]]; then
     return 1
   fi
 
-  LC_ALL=C bash -c '
+  if [[ -d $MKINITCPIO_DIR ]]; then
+    mapfile -t names < <(
+      {
+        find "$MKINITCPIO_DIR" -maxdepth 1 -xtype f -name '*.conf' -printf '%f\n'
+        [[ $mode != "with-tpm" ]] || echo "$ours"
+      } | LC_ALL=C.UTF-8 sort -Vu
+    )
+  fi
+
+  bash -c '
     HOOKS=()
-    conf_file=$1
-    conf_dir=$2
-    mode=$3
-    ours=$4
-    shipped=$5
+    conf_file=$1 conf_dir=$2 mode=$3 ours=$4 shipped=$5
+    shift 5
     if [[ -f $conf_file ]]; then
       source "$conf_file" >/dev/null 2>&1 || exit 1
     fi
-    if [[ -d $conf_dir ]]; then
-      shopt -s nullglob
-      for dropin in "$conf_dir"/*.conf; do
-        if [[ $mode != "installed" && $dropin == "$ours" ]]; then
-          continue
-        fi
-        source "$dropin" >/dev/null 2>&1 || exit 1
-      done
-    fi
-    if [[ $mode == "with-tpm" ]]; then
-      source "$shipped" >/dev/null 2>&1 || exit 1
-    fi
+    for name in "$@"; do
+      dropin=$conf_dir/$name
+      if [[ $name == "$ours" ]]; then
+        [[ $mode != "without-tpm" ]] || continue
+        [[ $mode != "with-tpm" ]] || dropin=$shipped
+      fi
+      source "$dropin" >/dev/null 2>&1 || exit 1
+    done
     echo "${HOOKS[*]}"
-  ' bash "$MKINITCPIO_CONF" "$MKINITCPIO_DIR" "$mode" "$TPM_HOOKS_DROP_IN" "$TPM_HOOKS_SOURCE"
+  ' bash "$MKINITCPIO_CONF" "$MKINITCPIO_DIR" "$mode" "$ours" "$TPM_HOOKS_SOURCE" "${names[@]}"
 }
 
 hook_listed() {
@@ -240,6 +245,19 @@ tpm_boot_installed() {
   [[ -f $TPM_HOOKS_DROP_IN || -f $TPM_CMDLINE_DROP_IN ]]
 }
 
+# Both drop-ins, and a rebuild that finished with them.
+tpm_boot_complete() {
+  [[ -f $TPM_HOOKS_DROP_IN && -f $TPM_CMDLINE_DROP_IN ]] && sudo test -f "$BOOT_SWITCHED"
+}
+
+hook_installable() {
+  local dir
+  for dir in $INITCPIO_INSTALL_DIRS; do
+    [[ -f $dir/$1 ]] && return 0
+  done
+  return 1
+}
+
 secure_boot_active() {
   if bootctl is-secure-boot 2>/dev/null | grep -qi "yes"; then
     return 0
@@ -292,6 +310,7 @@ rebuild_boot_images() {
 # working. The systemd image ignores it.
 install_tpm_boot() {
   local cmdline=$1 staged
+  sudo rm -f "$BOOT_SWITCHED"
   staged=$(mktemp)
   printf '# Written by omarchy-drive-tpm enroll; omarchy-drive-tpm wipe removes it.\nKERNEL_CMDLINE[default]+=" %s"\n' "$cmdline" >"$staged"
   sudo install -Dm644 "$staged" "$TPM_CMDLINE_DROP_IN"
@@ -299,8 +318,17 @@ install_tpm_boot() {
   sudo install -Dm644 "$TPM_HOOKS_SOURCE" "$TPM_HOOKS_DROP_IN"
 }
 
-remove_tpm_boot() {
-  sudo rm -f "$TPM_HOOKS_DROP_IN" "$TPM_CMDLINE_DROP_IN"
+# Two rebuilds, so that no boot image is ever a systemd one without rd.luks.*
+# on its command line, which would find no root and ask for no passphrase:
+# first busybox hooks with rd.luks.* still there (busybox ignores it), then
+# without it.
+revert_tpm_boot() {
+  sudo rm -f "$BOOT_SWITCHED" "$TPM_HOOKS_DROP_IN"
+  rebuild_boot_images || return 1
+  if [[ -f $TPM_CMDLINE_DROP_IN ]]; then
+    sudo rm -f "$TPM_CMDLINE_DROP_IN"
+    rebuild_boot_images || return 1
+  fi
 }
 
 autologin_disable() {
@@ -324,10 +352,15 @@ autologin_restore() {
 }
 
 confirm_changes() {
-  if [[ ! -t 0 ]]; then
+  local assume_yes=$1
+  if [[ $assume_yes == "1" ]]; then
     return 0
+  elif [[ -t 0 ]]; then
+    gum confirm "Apply these changes?"
+  else
+    echo "No terminal to confirm in. Re-run with --yes to apply these changes." >&2
+    return 1
   fi
-  gum confirm "Apply these changes?"
 }
 
 cmd_status() {
@@ -379,6 +412,7 @@ cmd_status() {
 cmd_enroll() {
   local allow_unsafe="${OMARCHY_TPM_ALLOW_UNSAFE:-0}"
   local keep_autologin="${OMARCHY_TPM_KEEP_AUTOLOGIN:-0}"
+  local assume_yes=0
   local drive_arg=""
 
   while (( $# > 0 )); do
@@ -389,6 +423,10 @@ cmd_enroll() {
         ;;
       --keep-autologin)
         keep_autologin=1
+        shift
+        ;;
+      --yes)
+        assume_yes=1
         shift
         ;;
       *)
@@ -416,7 +454,10 @@ cmd_enroll() {
   fi
 
   local existing
-  existing=$(luks_tpm2_slots "$drive")
+  existing=$(luks_tpm2_slots "$drive") || {
+    echo "Could not read the LUKS header of $drive." >&2
+    return 1
+  }
 
   # Enrolling a drive other than the root only adds the token; its unlock at
   # boot is the business of whatever opens it.
@@ -436,7 +477,7 @@ cmd_enroll() {
 
   if [[ -n $existing ]]; then
     echo "TPM 2.0 is already enrolled in keyslot $existing for $drive."
-    if tpm_boot_installed && { [[ $keep_autologin == "1" ]] || ! sudo test -f "$SDDM_AUTOLOGIN"; }; then
+    if tpm_boot_complete && { [[ $keep_autologin == "1" ]] || ! sudo test -f "$SDDM_AUTOLOGIN"; }; then
       echo "TPM 2.0 unattended boot is already set up. To start over, first run: omarchy drive tpm wipe"
       return 0
     fi
@@ -465,6 +506,13 @@ cmd_enroll() {
       return 1
     }
     check_systemd_hooks "$hooks_after" || return 1
+    local hook
+    for hook in $hooks_after; do
+      if ! hook_installable "$hook"; then
+        echo "Refusing: mkinitcpio has no install script for the '$hook' hook." >&2
+        return 1
+      fi
+    done
 
     if omarchy-cmd-missing limine-mkinitcpio; then
       echo "Refusing: rebuilding the boot images needs limine-mkinitcpio (Omarchy's Limine boot)." >&2
@@ -529,8 +577,8 @@ cmd_enroll() {
   fi
   echo "'omarchy drive tpm wipe' undoes all of it."
 
-  if ! confirm_changes; then
-    echo "Cancelled. Nothing was changed."
+  if ! confirm_changes "$assume_yes"; then
+    echo "Nothing was changed."
     return 1
   fi
 
@@ -548,13 +596,15 @@ cmd_enroll() {
     echo "Rebuilding boot images..."
     if ! rebuild_boot_images; then
       echo "Rebuilding the boot images failed. Restoring the previous boot configuration." >&2
-      remove_tpm_boot
-      autologin_restore
-      if ! rebuild_boot_images; then
-        echo "Rebuilding the restored boot images failed too. Run 'sudo limine-mkinitcpio' and fix what it reports before rebooting." >&2
+      # Autologin comes back only once no image can unlock from the TPM.
+      if revert_tpm_boot; then
+        autologin_restore
+      else
+        echo "Rebuilding the restored boot images failed too, so autologin stays off. Run 'sudo limine-mkinitcpio' and fix what it reports before rebooting, then 'omarchy drive tpm wipe'." >&2
       fi
       return 1
     fi
+    sudo install -Dm644 /dev/null "$BOOT_SWITCHED"
   fi
 
   echo "TPM 2.0 unattended boot is set up for $drive."
@@ -594,7 +644,10 @@ cmd_wipe() {
   }
 
   local existing revert_boot=0 restore_autologin=0 status=0
-  existing=$(luks_tpm2_slots "$drive")
+  existing=$(luks_tpm2_slots "$drive") || {
+    echo "Could not read the LUKS header of $drive." >&2
+    return 1
+  }
   if is_root_drive "$drive"; then
     tpm_boot_installed && revert_boot=1
     sudo test -f "$AUTOLOGIN_BACKUP" && restore_autologin=1
@@ -618,8 +671,7 @@ cmd_wipe() {
 
   if (( revert_boot )); then
     echo "Removing $TPM_HOOKS_DROP_IN and $TPM_CMDLINE_DROP_IN, and rebuilding boot images..."
-    remove_tpm_boot
-    if ! rebuild_boot_images; then
+    if ! revert_tpm_boot; then
       echo "Rebuilding the boot images failed. Run 'sudo limine-mkinitcpio' and fix what it reports before rebooting." >&2
       status=1
     fi
@@ -643,7 +695,7 @@ case "$ACTION" in
     cmd_wipe "$@"
     ;;
   *)
-    echo "Usage: omarchy drive tpm [status|enroll|wipe] [--allow-unsafe] [--keep-autologin] [drive]" >&2
+    echo "Usage: omarchy drive tpm [status|enroll|wipe] [--allow-unsafe] [--keep-autologin] [--yes] [drive]" >&2
     exit 1
     ;;
 esac
