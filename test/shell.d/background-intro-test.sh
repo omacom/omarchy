@@ -20,6 +20,11 @@ ln -s "$background" "$intro_state/background"
 
 resolved=$(HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-only)
 [[ $resolved == "$theme_intro_dir/road.mp4" ]] || fail "a sibling intro matches the current image by filename" "$resolved"
+svg_background="$intro_state/theme/backgrounds/road.svg"
+printf '<svg/>\n' >"$svg_background"
+resolved=$(HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-only "$svg_background")
+[[ $resolved == "$theme_intro_dir/road.mp4" ]] || fail "a responsive SVG keeps its matching theme intro" "$resolved"
+rm "$svg_background"
 rm "$theme_intro_dir/road.mp4"
 resolved=$(HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-only)
 [[ -z $resolved ]] || fail "a background without a matching video has no intro" "$resolved"

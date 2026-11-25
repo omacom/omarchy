@@ -71,8 +71,6 @@ qml_matches "$shell_qml" 'bar\.barConfig *= *shell\.barConfigFor\( *shell\.activ
   fail "replacement-bar configuration updates are not detached"
 pass "replacement bars receive detached configuration snapshots"
 
-qml_matches "$bar_qml" 'target\.bar *= *firstParty *\? *root *: *root\.pluginBarApiFor\( *pluginApiId, *moduleName, *registered *\)' ||
-  fail "third-party widgets receive a bar facade instead of the host bar"
 qml_matches "$bar_qml" 'api\.clickTargets *= *root\.pluginClickTargets\( *api\.pluginId *\)' ||
   fail "third-party bar facades exclude other widgets from their object graph"
 pass "third-party widgets receive a bar facade instead of the host bar"

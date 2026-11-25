@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
+import qs.Ui
 
 // Keep startup and theme covers alive across background service handoffs.
 Item {
@@ -25,6 +26,8 @@ Item {
   readonly property string startupBackgroundPath: Quickshell.env("OMARCHY_STARTUP_BACKGROUND")
   property string themeBackground: sessionConsumed && !Util.isVideoPath(startupBackgroundPath) ? startupBackgroundPath : ""
   property var themeNativeSize: null
+  property var themeFrames: ({})
+  onThemeBackgroundChanged: if (!themeBackground) themeFrames = ({})
   property string themeColors: ""
   property string themeShell: ""
   property real themeOpacity: 1
@@ -76,7 +79,7 @@ Item {
     function onPluginsChanged() { root.finishStartup() }
   }
 
-  function prepareTheme(fromPath, token, colors, shell) {
+  function prepareTheme(fromPath, token, colors, shell, frames) {
     framePoll.stop()
     themeFade.stop()
     themeCutReveal.stop()
@@ -89,6 +92,7 @@ Item {
       themeNativeSize = backgroundService && backgroundService.nativeSizes ? backgroundService.nativeSizes[backgroundService.displayedBackground] : null
     }
     themeBackground = fromPath
+    themeFrames = frames || ({})
     themeColors = colors
     themeShell = shell
     themeOpacity = 1
@@ -330,9 +334,13 @@ Item {
     PanelWindow {
       id: panel
       required property var modelData
+      readonly property var frame: root.themeFrames[modelData.name]
+      readonly property int coverImageStatus: frame ? resolvedFrame.status : plainFrame.status
       property int coverFrames: 0
-      readonly property bool coverReady: outgoingFrame.status === Image.Ready && coverFrames >= 2
-      readonly property bool coverFailed: outgoingFrame.status === Image.Error
+      onFrameChanged: coverFrames = 0
+      onCoverImageStatusChanged: coverFrames = 0
+      readonly property bool coverReady: panel.coverImageStatus === Image.Ready && coverFrames >= 2
+      readonly property bool coverFailed: panel.coverImageStatus === Image.Error
       onCoverReadyChanged: root.coverPresented()
       onCoverFailedChanged: root.coverPresented()
       screen: modelData
@@ -353,21 +361,9 @@ Item {
         color: Commons.Color.background
       }
 
-      Image {
-        id: outgoingFrame
+      Item {
         anchors.fill: parent
-        source: root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
-        sourceSize: {
-          var w = Math.ceil((parent.width || modelData.width) * modelData.devicePixelRatio)
-          var h = Math.ceil((parent.height || modelData.height) * modelData.devicePixelRatio)
-          var native = root.themeNativeSize
-          return native && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
-        }
-        fillMode: Image.PreserveAspectCrop
         opacity: root.themeOpacity
-        // Start decoding while the remaining theme configs render.
-        asynchronous: true
-        onStatusChanged: panel.coverFrames = 0
         layer.enabled: root.themeCut && root.themeCutProgress > 0
         layer.smooth: true
         layer.effect: MultiEffect {
@@ -376,6 +372,37 @@ Item {
           maskSource: cutMask
           maskThresholdMin: 0.5
           maskSpreadAtMin: 0.02
+        }
+
+        Image {
+          id: plainFrame
+          anchors.fill: parent
+          source: !panel.frame && root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
+          sourceSize: {
+            var w = Math.ceil((parent.width || modelData.width) * modelData.devicePixelRatio)
+            var h = Math.ceil((parent.height || modelData.height) * modelData.devicePixelRatio)
+            var native = root.themeNativeSize
+            return native && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
+          }
+          fillMode: Image.PreserveAspectCrop
+          asynchronous: true
+        }
+
+        WallpaperImage {
+          id: resolvedFrame
+          anchors.fill: parent
+          visible: !!panel.frame
+          path: panel.frame ? panel.frame.path : ""
+          sourceVersion: panel.frame ? panel.frame.version : 0
+          fill: panel.frame ? panel.frame.fill : "crop"
+          backdrop: panel.frame ? panel.frame.backdrop : "solid"
+          fillColor: panel.frame ? panel.frame.fillColor : Commons.Color.background
+          focalX: panel.frame ? panel.frame.focalX : 0.5
+          focalY: panel.frame ? panel.frame.focalY : 0.5
+          rasterScale: panel.frame ? panel.frame.rasterScale : 1
+          decodeSize: panel.frame ? panel.frame.decodeSize : Qt.size(0, 0)
+          useSourceSizeCap: true
+          constrainDecode: true
         }
       }
 
@@ -411,7 +438,7 @@ Item {
       // Give the ready image a frame to reach the compositor before OWE
       // releases the shell's wallpaper underneath this cover.
       FrameAnimation {
-        running: outgoingFrame.status === Image.Ready && panel.coverFrames < 2
+        running: panel.coverImageStatus === Image.Ready && panel.coverFrames < 2
         onTriggered: panel.coverFrames += 1
       }
     }
