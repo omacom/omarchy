@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# omarchy:summary=Log out, reboot, reboot to the BIOS, or shut down after closing applications
+# omarchy:args=<logout|reboot|firmware|shutdown>
+# omarchy:examples=omarchy system logout | omarchy system reboot | omarchy system firmware | omarchy system shutdown
+# omarchy:aliases=omarchy logout | omarchy reboot | omarchy shutdown
+
+usage="Usage: omarchy-system <logout|reboot|firmware|shutdown>"
+for arg in "$@"; do
+  case $arg in
+    -h | --help) echo "$usage"; exit 0 ;;
+  esac
+done
+if (( $# > 2 )); then
+  echo "$usage" >&2
+  exit 2
+fi
+
+action=${1:-}
+case $action in
+  logout) command=(uwsm stop) ;;
+  reboot) command=(systemctl reboot --no-wall) ;;
+  firmware) command=(systemctl reboot --firmware-setup --no-wall) ;;
+  shutdown) command=(systemctl poweroff --no-wall) ;;
+  *) echo "$usage" >&2; exit 2 ;;
+esac
+
+# Each action has whole sentences of its own, so a translation can inflect it.
+# Keep literal omarchy-i18n calls inside helpers so they only run when the
+# delayed OSD or a failure notification is actually shown, while staying visible
+# to the static i18n key check.
+exit_message() {
+  case $action in
+    logout) omarchy-i18n system.loggingOut ;;
+    reboot) omarchy-i18n system.rebooting ;;
+    firmware) omarchy-i18n system.rebootingToFirmware ;;
+    shutdown) omarchy-i18n system.shuttingDown ;;
+  esac
+}
+
+notify_failure() {
+  local title body
+  case $action in
+    logout)
+      title=$(omarchy-i18n system.logoutFailed)
+      body=$(omarchy-i18n system.logoutRetry)
+      ;;
+    reboot)
+      title=$(omarchy-i18n system.rebootFailed)
+      body=$(omarchy-i18n system.rebootRetry)
+      ;;
+    firmware)
+      title=$(omarchy-i18n system.firmwareFailed)
+      body=$(omarchy-i18n system.firmwareRetry)
+      ;;
+    shutdown)
+      title=$(omarchy-i18n system.shutdownFailed)
+      body=$(omarchy-i18n system.shutdownRetry)
+      ;;
+  esac
+  omarchy-notification-send -u critical "$title" "$body"
+}
+
+exit_session() {
+  # systemctl only finds out the firmware can't do it after the apps are gone.
+  if [[ $action == "firmware" ]]; then
+    local answer
+    answer=$(busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanRebootToFirmwareSetup 2>/dev/null)
+    if [[ $answer != 's "yes"' ]]; then
+      return 1
+    fi
+  fi
+
+  # Only show the OSD once the exit has taken 2 seconds, so a quick one doesn't flash it.
+  { sleep 2; omarchy-osd -i "${action/firmware/reboot}" -m "$(exit_message)" -d 0; } &
+  local osd_pid=$!
+
+  if [[ $action != "logout" ]]; then
+    omarchy-state clear re*-required
+  fi
+
+  # Proceed as soon as apps exit, with a bound for unresponsive windows.
+  timeout 2s omarchy-hyprland-window-close-all --wait
+  if "${command[@]}"; then
+    # The unit kills the delayed OSD when this script exits, so stay until the session goes down.
+    wait "$osd_pid"
+  else
+    local status=$?
+    kill "$osd_pid" 2>/dev/null
+    omarchy-shell -q osd close
+    return "$status"
+  fi
+}
+
+if [[ ${2:-} == "--inhibited" ]]; then
+  exit_session
+elif [[ ${2:-} == "--execute" ]]; then
+  if [[ $action == "shutdown" ]]; then
+    # Block lid handling explicitly: it ignores high-level sleep inhibitors.
+    systemd-inhibit --what=sleep:idle:handle-lid-switch \
+      --who=Omarchy --why="Shutdown in progress" --mode=block \
+      "$0" "$action" --inhibited
+  else
+    exit_session
+  fi
+  status=$?
+  if (( status != 0 )); then
+    notify_failure
+    exit "$status"
+  fi
+elif [[ -z ${2:-} ]]; then
+  # Survive closing the terminal that requested the session exit.
+  systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
+    --setenv=PATH --setenv=HYPRLAND_INSTANCE_SIGNATURE --setenv=OMARCHY_PATH \
+    "$0" "$action" --execute
+else
+  echo "$usage" >&2
+  exit 2
+fi

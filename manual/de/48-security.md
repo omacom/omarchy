@@ -1,0 +1,35 @@
+# Sicherheit
+
+Omarchy nimmt Sicherheit extrem ernst. Dies soll ein Betriebssystem sein, mit dem du _Echte Arbeit_ in der _Echten Welt_ erledigen kannst. Wo der Verlust eines Laptops nicht zu einem Sicherheitsnotfall führen kann. Also machen wir Folgendes:
+
+1. *Vollständige Festplattenverschlüsselung ist standardmäßig aktiviert*: Das ist der wichtigste Schritt, um deine Daten physisch zu schützen. Wenn dein Computer verloren geht oder gestohlen wird, sind die Daten mit dem Standardverfahren LUKS (Linux Unified Key Setup) vollständig verschlüsselt. Im Installer kannst du sie für Wegwerf-Rechner deaktivieren (siehe [Erste Schritte](02-getting-started.md)); eine Installation ohne Verschlüsselung hat diesen Schutz nicht, und jeder, der das Laufwerk in die Hände bekommt, kann es auslesen.
+2. *Die Firewall ist standardmäßig aktiviert*: Sämtlicher eingehender Datenverkehr wird standardmäßig blockiert, mit wenigen Ausnahmen: Port 53317 für [LocalSend](https://localsend.org/); DNS-Anfragen an den eigenen Resolver des Computers unter der Docker-Bridge-Adresse (172.17.0.1), die aus den privaten Adressbereichen akzeptiert werden, die Docker seinen Containern zuweist; und Multicast-DNS (Port 5353), mit dem Drucker und andere Geräte in deinem Netzwerk einander finden können und über das auch der Name deines Computers dort bekannt gegeben wird. Darüber hinaus behält die Firewall die Standardfreigaben von UFW für Ping, das Beziehen einer Adresse von deinem Router (DHCP) und die UPnP-Erkennung bei. Selbst ssh ist deaktiviert, bis du es über _Setup > Security > SSHD_ einschaltest; dadurch wird dein SSH-Schlüssel autorisiert, Passwort-Anmeldungen werden deaktiviert, und erst dann wird Port 22 geöffnet (mit Ratenbegrenzung gegen Brute-Force-Angriffe). Wir schotten sogar den Docker-Zugriff mit dem [ufw-docker](https://github.com/chaifeng/ufw-docker)-Setup ab, damit deine Container nicht versehentlich für die ganze Welt freigegeben werden.
+3. *Arch hat immer die neuesten Updates*: Arch, die zugrunde liegende Distribution, auf der Omarchy basiert, ist eine Rolling-Release-Distribution. Das bedeutet, dass jede entdeckte und in einem Paket behobene Sicherheitslücke schnell per `omarchy-update` zur Installation verfügbar ist. Auf diese Weise nutzt du immer die neuesten und sichersten Versionen von allem.
+4. *Omarchy pflegt eigene Pakete und einen eigenen Spiegelserver*: Standardmäßig setzt Omarchy ausschließlich auf Pakete aus Archs eigenen Repositories core/extra/multilib (auf ARM-Rechnern denen von Arch Linux ARM, plus Asahi ALARM auf Apple Silicon) und auf sein eigenes Omarchy Package Repository. Du kannst Software direkt aus dem AUR installieren, die Basisinstallation tut das jedoch nicht — nur wenige optionale Installationen, wie die Browser von Drittanbietern, stammen aus dem AUR.
+5. *Cloudflare schützt uns vor DDoS*: Die Distributionsinfrastruktur von Omarchy — die ISOs, die Omarchy-Pakete, der Arch-Spiegelserver — steht geschützt hinter Cloudflares gewaltigem DDoS-Schutzschild und wird auf deren CDN gehostet. Das sorgt für hervorragende Verfügbarkeit.
+
+## Deine Passwörter ändern
+
+Bei einer verschlüsselten Installation hast du zwei Passwörter: eines, mit dem du das Laufwerk beim Booten entsperrst, und eines, mit dem du dich anmeldest und `sudo` verwendest. Die Einrichtung macht beide gleich. _Update > Password_ im Omarchy-Menü ändert beide auf einmal, damit sie gleich bleiben: Es fragt nach dem aktuellen Laufwerkspasswort, dann nach dem neuen, ändert das des Laufwerks und setzt dann dein Anmeldepasswort entsprechend. Ohne Laufwerksverschlüsselung ändert es nur dein Anmeldepasswort. Wenn eine Änderung unterbrochen wird, führe _Update > Password_ erneut aus: Es fragt nach dem Passwort, mit dem das Laufwerk jetzt entsperrt wird, schließt die Änderung ab und setzt dein Anmeldepasswort darauf. Um das Passwort eines anderen verschlüsselten Laufwerks zu ändern, führe `omarchy-drive-password` in einem Terminal aus.
+
+## Einen Rechner weitergeben, den du bereits benutzt hast
+
+Wenn du deinen Rechner an jemand anderen weitergibst, musst du ihn nicht neu installieren. Führe im Omarchy-Menü _Remove > Factory Reset_ aus, tippe zur Bestätigung `reset` ein, gib bei Aufforderung dein Passwort für die Laufwerksverschlüsselung ein und starte neu. Dadurch werden jedes Benutzerkonto und alles in `/home` gelöscht, alle Pakete und Systemänderungen verworfen, die du seit der Installation vorgenommen hast, und die Identität des Rechners bereinigt — Netzwerkverbindungen, Host-Schlüssel und alles andere. Beim Neustart erscheint der Einrichtungsassistent wie beim ersten Start, bereit für den neuen Besitzer, der seinen eigenen Namen, sein Passwort und sein Verschlüsselungspasswort eingeben kann.
+
+Das funktioniert, indem die Baseline-Momentaufnahme wiederhergestellt wird, die der Installer anlegt, und ist daher nur auf Rechnern verfügbar, die von der Omarchy-ISO installiert wurden. Und auf einem Laufwerk ohne Verschlüsselung ist ein Zurücksetzen ein Löschen und kein sicheres Überschreiben; wenn die Daten sensibel waren, mache stattdessen eine frische Neuinstallation.
+
+## Passwortloses sudo
+
+Manchmal soll `sudo` aufhören nachzufragen, am häufigsten dann, wenn ein KI-Agent für dich eine lange Phase an Systemarbeit erledigt. _Setup > Security > Passwordless Sudo_ fragt, wie lange der Zugriff erlaubt sein soll: **15 Minuten**, **1 Stunde**, **1 Tag** oder **Dauerhaft**. Während der Zugriff aktiv ist, erscheint neben den anderen Anzeigen in der Menüleiste ein rotes Warnsymbol. Klicke darauf oder führe den Befehl erneut aus, um den Zugriff zu deaktivieren. Du kannst mit `omarchy-sudo-passwordless 30` auch eine eigene Minutenzahl (von 1 bis 1440) übergeben oder `omarchy-sudo-passwordless permanent` verwenden.
+
+Ein zeitlich begrenzter Zugriff läuft automatisch ab, auch unmittelbar nach dem Aufwachen aus einem Ruhezustand, in dem die Frist überschritten wurde. Ein Neustart des Computers beendet ihn vorzeitig. Dauerhafter Zugriff übersteht Neustarts und bleibt aktiviert, bis du ihn deaktivierst.
+
+Das Aktualisieren oder Entfernen des Einstellungspakets von Omarchy beendet jede temporäre Freigabe, bevor sich deren Ablaufmechanismus ändert. Wenn der Befehl einen Autorisierungs- oder Bereinigungsfehler meldet, behebe ihn, bevor du versuchst, eine weitere Freigabe zu aktivieren; ein Fehler bedeutet nicht, dass der passwortlose Zugriff inaktiv ist.
+
+Mach dir bei dieser Sache nichts vor: Solange sie aktiv ist, kann alles, was unter deinem Benutzer läuft, ohne Rückfrage alles als root tun. Das ist der ganze Sinn der Sache, und es ist auch das ganze Risiko.
+
+## Signaturschlüssel
+
+Der öffentliche Schlüssel für alle ISO-Signaturen und Pakete des Omarchy-Repos lautet `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([auf openpgp.org überprüfen](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). Auch das Paket `omarchy/omarchy-keyring` enthält ihn und wird verwendet, um alle möglichen Updates nahtlos auszurollen.
+
+Die Signatur zu jeder ISO-Version findest du, indem du `.sig` an ihre URL anhängst, zum Beispiel `https://iso.omarchy.org/omarchy-x.x.x.iso.sig`.

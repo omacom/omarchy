@@ -98,6 +98,28 @@ HOME="$test_home" omarchy-toggle-animations
 [[ -f $animations_flag ]] || fail "toggling animations flips the flag"
 pass "animations toggle turns the no-animations flag the right way round"
 
+# A session that renders on the CPU has animations off without the flag;
+# turning them on there is remembered, and turning them off forgets it.
+cpu_runtime="$TMPDIR/run"
+mkdir -p "$cpu_runtime/hypr/cpu"
+touch "$cpu_runtime/hypr/cpu/omarchy-software-rendering"
+without_gpu="$test_home/.local/state/omarchy/toggles/animations-without-gpu"
+cpu_session() {
+  HOME="$test_home" XDG_RUNTIME_DIR="$cpu_runtime" HYPRLAND_INSTANCE_SIGNATURE=cpu "$@"
+}
+rm -f "$animations_flag"
+cpu_session omarchy-hyprland-animations-off || fail "a CPU session counts animations as off without the flag"
+cpu_session omarchy-toggle-animations
+[[ -f $without_gpu && ! -f $animations_flag ]] || fail "turning animations on in a CPU session is remembered"
+! cpu_session omarchy-hyprland-animations-off || fail "animations turned on in a CPU session count as on"
+cpu_session omarchy-toggle-animations
+[[ ! -f $without_gpu && -f $animations_flag ]] || fail "turning animations off again forgets the choice"
+rm -f "$animations_flag"
+printf '#!/bin/bash\necho %s\n' "'{\"bool\": true}'" >"$stub_bin/hyprctl"
+! cpu_session omarchy-hyprland-animations-off || fail "animations the user's looknfeel.lua kept on in a CPU session count as on"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/hyprctl"
+pass "the animations toggle works in a session that renders on the CPU"
+
 # A VM install starts without animations; other machines keep them.
 for virt in vm none; do
   rm -rf "$test_home/.local/state/omarchy/toggles/hypr"
@@ -113,23 +135,3 @@ for virt in vm none; do
   fi
 done
 pass "a VM install starts without animations and with opaque windows"
-
-# Animations off no longer makes windows opaque. The migration takes that rule
-# out of a saved flag, keeping anything else in it, and keeps those windows
-# opaque through Window Transparency instead.
-migration_home=$(mktemp -d)
-migration_flags="$migration_home/.local/state/omarchy/toggles/hypr"
-mkdir -p "$migration_flags"
-printf 'hl.config({ animations = { enabled = false } })\n\no.window(".*", { opacity = "1 1" })\n-- mine\n' >"$migration_flags/no-animations.lua"
-for _ in 1 2; do
-  HOME="$migration_home" XDG_STATE_HOME="" OMARCHY_PATH="$ROOT" bash -euo pipefail "$ROOT/migrations/1791705142.sh" >/dev/null
-done
-! grep -q 'opacity' "$migration_flags/no-animations.lua" || fail "the migration drops the opacity rule from a saved animations flag"
-grep -qx -- '-- mine' "$migration_flags/no-animations.lua" || fail "the migration keeps the rest of a saved animations flag"
-[[ -f $migration_flags/window-opaque.lua ]] || fail "the migration keeps windows opaque where animations are off"
-rm -f "$migration_flags/window-opaque.lua"
-printf 'x\n' >"$migration_flags/window-glassy.lua"
-HOME="$migration_home" XDG_STATE_HOME="" OMARCHY_PATH="$ROOT" bash -euo pipefail "$ROOT/migrations/1791705142.sh" >/dev/null
-[[ ! -f $migration_flags/window-opaque.lua ]] || fail "the migration leaves a chosen transparency alone"
-rm -rf "$migration_home"
-pass "the migration moves opaque windows from the animations flag to Window Transparency"

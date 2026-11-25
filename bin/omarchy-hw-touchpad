@@ -3,7 +3,11 @@
 # omarchy:summary=Print the detected Hyprland touchpad or trackpad device name
 
 mice=$(hyprctl devices -j | jq -r '.mice[].name')
-device=$(grep -iE -m1 'touchpad|trackpad' <<<"$mice")
+# iptsd (Surface touchpads) takes the raw device and creates its own, which is
+# the one that moves the pointer. The raw one stays silent, so disabling it
+# would leave the touchpad working.
+device=$(grep -iE -m1 '^iptsd-virtual-touchpad' <<<"$mice")
+[[ -n $device ]] || device=$(grep -iE -m1 'touchpad|trackpad' <<<"$mice")
 
 # Some touchpads carry neither word (Apple Silicon's is "apple-mtp-multi-touch"),
 # so ask udev which mouse is one. The name alone can't say: some touchscreens'
@@ -18,13 +22,20 @@ if [[ -z $device ]]; then
     name=$(<"$event/device/name")
     name=${name,,}
     name=${name//[ ,$'\n']/-}
-    udevadm info --query=property "$event" 2>/dev/null | grep -Fxq 'ID_INPUT_TOUCHPAD=1' || continue
+    # Match the name first: udevadm is a fork per device, and a desktop with no
+    # touchpad would otherwise pay it for every keyboard, button and switch on
+    # each menu open.
+    match=""
     while IFS= read -r mouse; do
       if [[ $mouse == "$name" || ( $mouse == "$name"-* && ${mouse#"$name"-} =~ ^[0-9]+$ ) ]]; then
-        device=$mouse
-        break 2
+        match=$mouse
+        break
       fi
     done <<<"$mice"
+    [[ -n $match ]] || continue
+    udevadm info --query=property "$event" 2>/dev/null | grep -Fxq 'ID_INPUT_TOUCHPAD=1' || continue
+    device=$match
+    break
   done
 fi
 

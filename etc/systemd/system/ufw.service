@@ -1,0 +1,22 @@
+# Full unit override rather than a drop-in: systemd does not allow clearing
+# Before= in a drop-in (systemd.unit(5)). Ordering before network-pre.target
+# (systemd.special(7)) still guarantees firewall rules load before
+# NetworkManager, systemd-networkd, and tailscaled bring up any interface, while
+# no longer blocking sysinit.target and graphical login.
+[Unit]
+Description=CLI Netfilter Manager
+DefaultDependencies=no
+After=systemd-sysctl.service
+Before=network-pre.target
+Wants=network-pre.target
+ConditionPathExists=|/etc/ufw/ufw.conf
+ConditionDirectoryNotEmpty=|/usr/lib/ufw
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/ufw/ufw-init start
+ExecStop=/usr/lib/ufw/ufw-init stop
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -10,7 +10,7 @@ BarIndicator {
 
   active: remoteSessionService ? remoteSessionService.active : false
   activeText: "󰢹"
-  activeTooltipText: peers.length > 0 ? "Remote session from " + peers.join(", ") : "Remote session"
+  activeTooltipText: peers.length > 0 ? Commons.I18n.t("bar.remoteSessionFrom").arg(peers.join(", ")) : Commons.I18n.t("bar.remoteSession")
   useActiveColor: true
   activeColor: Commons.Color.urgent
   revealWhenInactive: false
