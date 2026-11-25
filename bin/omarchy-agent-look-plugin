@@ -35,6 +35,8 @@ while (( $# )); do
       fi
       sets=$(jq -c --arg key "${2%%=*}" --arg value "${2#*=}" '. + {($key): ($value | try fromjson catch .)}' <<<"$sets")
       shift 2 ;;
+    # --set a=1 b=2 sets both.
+    [A-Za-z_]*=*) sets=$(jq -c --arg key "${1%%=*}" --arg value "${1#*=}" '. + {($key): ($value | try fromjson catch .)}' <<<"$sets"); shift ;;
     *) echo "$usage" >&2; exit 2 ;;
   esac
 done
