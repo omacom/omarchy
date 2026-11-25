@@ -241,9 +241,19 @@ function keyEvent(name) {
   const timedOut = await Promise.race([load.then(() => false), sleep(30000).then(() => true)]);
   if (timedOut) report("page didn't load: no load event within 30s");
 
+  // Headless Chrome hides the page about a second after it loads, and a hidden
+  // page gets no animation frames, so a game would stand still on its first
+  // frames whatever keys it was sent. The page is put in front and given the
+  // focus once that has happened, and again every second after, so it plays in
+  // real time for the whole look.
+  const wake = () => Promise.all([page.send("Page.bringToFront"), page.send("Emulation.setFocusEmulationEnabled", { enabled: true })]);
+  await sleep(1200);
+  await wake();
+  const awake = setInterval(() => wake().catch(() => {}), 1000);
+
   // Real key presses, held across a few frames as a player's are, so a game
   // reads both the press and the key held down.
-  await sleep(800);
+  await sleep(300);
   for (const name of keys.split(" ").filter(Boolean)) {
     const key = keyEvent(name);
     await page.send("Input.dispatchKeyEvent", { type: key.text ? "keyDown" : "rawKeyDown", ...key });
@@ -252,6 +262,7 @@ function keyEvent(name) {
     await sleep(150);
   }
   await sleep(Number(after));
+  clearInterval(awake);
   const { data } = await page.send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(out, Buffer.from(data, "base64"));
   console.log("saved");
