@@ -11,5 +11,7 @@ if [[ ! -r $OMARCHY_PATH/default/audio/tunings/dell-xps-16-n1x/tuning.conf ]]; t
 fi
 
 omarchy-pkg-add lsp-plugins-lv2
-omarchy-audio-tuning on ||
-  echo "Speaker tuning not applied yet. After logging in or rebooting, run: omarchy audio tuning on"
+if ! omarchy-audio-tuning on; then
+  echo "Speaker tuning not applied yet. After logging in or rebooting, run: omarchy audio tuning on" >&2
+  exit 1
+fi
