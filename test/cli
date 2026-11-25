@@ -99,6 +99,20 @@ pass "commands --all does not crash"
 output=$("$CLI" commands --man)
 [[ $output == ".TH OMARCHY 1 "* ]] || fail "commands --man renders a man page"
 pass "commands --man renders a man page"
+[[ $output == *'.B omarchy hyprland window gaps toggle'* ]] || fail "commands --man lists documented commands"
+pass "commands --man lists documented commands"
+
+[[ $output != *'agent account exec'* ]] || fail "commands --man omits hidden commands"
+pass "commands --man omits hidden commands"
+
+[[ $output == *'\- Install and configure the Windows VM'* ]] || fail "commands --man lists subcommands with their own summaries"
+pass "commands --man lists subcommands with their own summaries"
+
+if command -v groff >/dev/null; then
+  warnings=$(groff -man -ww -z <<<"$output" 2>&1)
+  [[ -z $warnings ]] || fail "commands --man renders without groff warnings"
+  pass "commands --man renders without groff warnings"
+fi
 
 jq -e '.commands[] | select(.route == "omarchy hyprland window gaps toggle" and .summary != "undocumented")' "$commands_all_json_file" >/dev/null
 pass "fallback commands are inferred and documented"
