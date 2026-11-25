@@ -217,6 +217,12 @@ printf 'cn\n' >"$OMARCHY_REGION_FILE"
 printf '# comment\nwechat-bin\nx86-only  # left out\n' >"$OMARCHY_PATH/default/regions/cn/packages"
 region_packages() { PATH="$PATH:$ROOT/bin" "$ROOT/bin/omarchy-region-packages"; }
 
+: >"$PACMAN_LOG"
+touch "$scratch/provisioning-pending"
+OMARCHY_PROVISIONING_PENDING="$scratch/provisioning-pending" region_packages >/dev/null 2>&1 && fail "pending owner setup fails the run so the service retries"
+[[ ! -s $PACMAN_LOG && ! -e $OMARCHY_REGION_PACKAGES_DONE ]] || fail "nothing installs before owner setup settles the region" "$(<"$PACMAN_LOG")"
+export OMARCHY_PROVISIONING_PENDING="$scratch/no-provisioning-pending"
+
 for failure in PACMAN_INDEX_STATUS PKG_ADD_STATUS; do
   env "$failure=1" bash -c "$(declare -f region_packages); region_packages" >/dev/null 2>&1 && fail "$failure fails the run"
   [[ ! -e $OMARCHY_REGION_PACKAGES_DONE ]] || fail "a failed run leaves the packages pending"

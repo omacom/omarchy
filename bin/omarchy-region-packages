@@ -10,6 +10,14 @@ set -euo pipefail
 # (docs/regions.md). The ISO carries none of these packages, so it stays the same
 # for every region.
 done_file=${OMARCHY_REGION_PACKAGES_DONE:-/var/lib/omarchy/region-packages-installed}
+
+# A deferred install settles its region from the owner's timezone during
+# first-boot owner setup (omarchy-provision-owner), so wait until that is done.
+if [[ -e ${OMARCHY_PROVISIONING_PENDING:-/var/lib/omarchy/provisioning/pending} ]]; then
+  echo "Waiting for owner setup to settle the region" >&2
+  exit 1
+fi
+
 list="$OMARCHY_PATH/default/regions/$(omarchy-region)/packages"
 
 packages=()

@@ -4,7 +4,7 @@
 [Unit]
 Description=Omarchy regional default packages
 Wants=network-online.target
-After=network-online.target
+After=network-online.target omarchy-provision-owner.service
 ConditionPathExists=/etc/omarchy/region
 ConditionPathExists=!/var/lib/omarchy/region-packages-installed
 
