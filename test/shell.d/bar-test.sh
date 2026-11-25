@@ -102,6 +102,22 @@ for (const edge of ['top', 'right', 'bottom', 'left']) {
   assertEqual(bar.reservedMargin(true, unevenTheme, edge), 0, `a ${edge} bar floating in the gap reserves what a flush bar reserves`)
 }
 
+// A theme margin sits a top bar below the edge, so the cutout reaches only the
+// rest of the floor into it, and nothing once the margin clears it. A bar
+// floating in the gap reserves only a flush bar's space, so it keeps the flush
+// floor: a thinner bar there would move the windows when floating is toggled.
+assertEqual(bar.notchReach(32, 0), 32, 'a flush top bar meets the whole cutout')
+assertEqual(bar.notchReach(32, 10), 22, 'a top margin shortens how far the cutout reaches into the bar')
+assertEqual(bar.notchReach(32, 32), 0, 'a top margin as tall as the cutout clears it')
+assertEqual(bar.notchReach(32, 40), 0, 'a top margin past the cutout clears it')
+assertEqual(bar.notchReach(0, 10), 0, 'a screen without a cutout has nothing to reach')
+assertEqual(bar.notchReach(32, -4), 32, 'a negative margin counts as none')
+assertEqual(bar.notchReach(32, 'x'), 32, 'an unreadable margin counts as none')
+// The bar floats in the gap at the flush floor and reserves nothing past it,
+// so it reserves exactly what the flush bar does.
+const gapMargins = { top: 6, right: 12, bottom: 12, left: 12 }
+assertEqual(Math.max(26, bar.notchReach(40, 0)) + bar.reservedMargin(true, gapMargins, 'top'), 40, 'a bar floating in the gap on a notched screen reserves what the flush bar reserves')
+
 // gaps_out comes from hyprctl as a CSS-style list; each side is kept. Runs
 // the real Style.qml function, in a block so its helpers stay local.
 {
@@ -111,11 +127,11 @@ for (const edge of ['top', 'right', 'bottom', 'left']) {
   const geometry = vm.createContext({})
   vm.runInContext(geometrySource, geometry)
   const gapsStyle = vm.createContext({ Geometry: geometry })
-  vm.runInContext(styleFunction('applyGapsOutJson') + '\nvar gapsOut = 5, gapsOutEdges = null', gapsStyle)
+  vm.runInContext(['applyGapsOutOption', 'applyBatchOptionsJson'].map(styleFunction).join('\n') + '\nvar gapsOut = 5, gapsOutEdges = null', gapsStyle)
   const edges = () => JSON.parse(JSON.stringify(gapsStyle.gapsOutEdges))
-  gapsStyle.applyGapsOutJson('{"option":"general:gaps_out","css":"10 20 30 40"}')
+  gapsStyle.applyBatchOptionsJson('{"option":"general:gaps_out","css":"10 20 30 40"}')
   assertDeepEqual(edges(), { top: 10, right: 20, bottom: 30, left: 40 }, 'per-side gaps_out reaches the floating bar')
-  gapsStyle.applyGapsOutJson('{"option":"general:gaps_out","css":"12"}')
+  gapsStyle.applyBatchOptionsJson('{"option":"general:gaps_out","css":"12"}')
   assertDeepEqual(edges(), { top: 12, right: 12, bottom: 12, left: 12 }, 'a single gaps_out value applies to every side')
   // [bar] radius is a number like the sizes; margin stays a raw list.
   const parseStyle = vm.createContext({})
@@ -123,7 +139,7 @@ for (const edge of ['top', 'right', 'bottom', 'left']) {
   parseStyle.applyShellValues({ 'bar.radius': '9', 'bar.margin': '4 8' })
   assertEqual(parseStyle.barInsetToken('radius', 0), 9, '[bar] radius in shell.toml reaches the bar')
   assertEqual(parseStyle.barOverrides.margin, '4 8', '[bar] margin reaches the bar as the list it was written as')
-  gapsStyle.applyGapsOutJson('not json')
+  gapsStyle.applyBatchOptionsJson('not json')
   assertDeepEqual(edges(), { top: 12, right: 12, bottom: 12, left: 12 }, 'unreadable hyprctl output keeps the last gaps')
 }
 
@@ -147,11 +163,23 @@ assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
 // The bar drops its input under a real fullscreen window on its workspace, so
 // the window gets the clicks along the edge; a maximized one keeps the bar.
-const toplevel = (id, fullscreen) => ({ workspace: { id }, lastIpcObject: { fullscreen } })
-assertEqual(bar.fullscreenOn([toplevel(4, 0), toplevel(4, 2)], 4), true, 'a fullscreen window takes the bar edge')
-assertEqual(bar.fullscreenOn([toplevel(4, 1)], 4), false, 'a maximized window leaves the bar clickable')
-assertEqual(bar.fullscreenOn([toplevel(9, 2)], 4), false, 'fullscreen on another workspace leaves the bar clickable')
-assertEqual(bar.fullscreenOn([{ workspace: null, lastIpcObject: null }], 4), false, 'a toplevel without a workspace is ignored')
+const output = { x: 0, y: 0, width: 1280, height: 800 }
+const toplevel = (id, fullscreen, name = String(id), x = 0) => ({ workspace: { id, name }, lastIpcObject: { fullscreen, at: [x, 0], size: [1280, 800] } })
+const fullscreenOn = (windows, hasFullscreen = true, special = '') => bar.fullscreenOn(windows, 4, hasFullscreen, special, output)
+assertEqual(fullscreenOn([toplevel(4, 0), toplevel(4, 2)]), true, 'a fullscreen window takes the bar edge')
+assertEqual(fullscreenOn([toplevel(4, 1)]), false, 'a maximized window leaves the bar clickable')
+assertEqual(fullscreenOn([toplevel(9, 2)]), false, 'fullscreen on another workspace leaves the bar clickable')
+assertEqual(fullscreenOn([{ workspace: null, lastIpcObject: null }]), false, 'a toplevel without a workspace is ignored')
+assertEqual(fullscreenOn([toplevel(4, 2)], false), false, 'a fullscreen column out of view leaves the bar clickable')
+assertEqual(fullscreenOn([toplevel(4, 2), toplevel(4, 1)], true, 'special:qconsole'), false, 'a nonfullscreen special workspace over fullscreen leaves the bar clickable')
+assertEqual(fullscreenOn([toplevel(4, 2), toplevel(-1, 2, 'special:qconsole')], false, 'special:qconsole'), true, 'fullscreen in the visible special workspace takes the bar edge')
+assertEqual(fullscreenOn([toplevel(-1, 2, 'special:other')], true, 'special:qconsole'), false, 'another special workspace with the same synthetic id is ignored')
+assertEqual(fullscreenOn([toplevel(4, 2, '4', -1887), toplevel(4, 1)]), false, 'a maximized column does not revive an offscreen fullscreen column')
+assertEqual(fullscreenOn([toplevel(4, 2)]), true, 'closing the special workspace restores fullscreen click-through')
+assertEqual(bar.fullscreenOn([toplevel(4, 2, '4', -1280)], 4, true, '', { x: -1280, y: 0, width: 1280, height: 800 }), true, 'fullscreen on a monitor left of the origin takes its own bar edge')
+const roundedFullscreen = toplevel(4, 2)
+roundedFullscreen.lastIpcObject.size = [1279, 799]
+assertEqual(fullscreenOn([roundedFullscreen]), true, 'rounded fullscreen geometry still covers the output')
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.

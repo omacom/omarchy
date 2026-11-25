@@ -608,7 +608,7 @@ Item {
     // Otherwise the object is destroyed when this handler returns.
     notification.tracked = true
 
-    row.duration = durationFor(notification.urgency, row.expireTimeout)
+    row.duration = row.sticky ? 0 : durationFor(notification.urgency, row.expireTimeout)
 
     var previous = refs[key]
     refs[key] = notification

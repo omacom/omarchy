@@ -125,6 +125,9 @@ if [[ -x $target/bin/omarchy-agent-skills-link ]]; then
   "$target/bin/omarchy-agent-skills-link" "$target"
   echo "Agent skills now link to $target/default/agents/skills"
 fi
+if [[ -x $target/bin/omarchy-agent-pi-defaults ]]; then
+  "$target/bin/omarchy-agent-pi-defaults" "$target"
+fi
 echo
 
 if (( prompt_reboot )) && gum confirm "Reboot now to activate?"; then
