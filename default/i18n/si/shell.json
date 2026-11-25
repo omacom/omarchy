@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' ධාවනයට අවසර දෙන්න",
   "polkit.checking": "පරීක්ෂා කරමින්...",
   "polkit.enterPassword": "මුරපදය ඇතුළත් කරන්න",
+  "polkit.unlockDrive": "%1 අගුළු අරින්න",
   "polkit.wrong": "වැරදියි",
   "power.battery": "බැටරිය",
   "power.batterySize": "බැටරි ප්‍රමාණය",

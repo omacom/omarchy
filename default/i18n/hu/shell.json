@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' futtatásának engedélyezése",
   "polkit.checking": "Ellenőrzés...",
   "polkit.enterPassword": "Add meg a jelszót",
+  "polkit.unlockDrive": "%1 feloldása",
   "polkit.wrong": "Hibás",
   "power.battery": "Akkumulátor",
   "power.batterySize": "Akkumulátor mérete",

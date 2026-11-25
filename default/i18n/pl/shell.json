@@ -516,6 +516,7 @@
   "polkit.authorizeRunning": "Autoryzuj uruchomienie '%1'",
   "polkit.checking": "Sprawdzanie...",
   "polkit.enterPassword": "Podaj hasło",
+  "polkit.unlockDrive": "Odblokuj %1",
   "polkit.wrong": "Błędne",
   "power.battery": "Bateria",
   "power.batterySize": "Pojemność baterii",

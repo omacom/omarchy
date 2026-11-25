@@ -474,6 +474,7 @@
   "polkit.authorizeRunning": "Benarkan menjalankan '%1'",
   "polkit.checking": "Menyemak...",
   "polkit.enterPassword": "Masukkan kata laluan",
+  "polkit.unlockDrive": "Buka kunci %1",
   "polkit.wrong": "Salah",
   "power.battery": "Bateri",
   "power.batterySize": "Saiz bateri",

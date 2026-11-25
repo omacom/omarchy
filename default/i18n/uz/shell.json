@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' ni ishga tushirishga ruxsat berish",
   "polkit.checking": "Tekshirilmoqda...",
   "polkit.enterPassword": "Parolni kiriting",
+  "polkit.unlockDrive": "%1 ni qulfdan chiqarish",
   "polkit.wrong": "Noto'g'ri",
   "power.battery": "Batareya",
   "power.batterySize": "Batareya hajmi",

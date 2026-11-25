@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Godkend kørsel af '%1'",
   "polkit.checking": "Kontrollerer...",
   "polkit.enterPassword": "Indtast adgangskode",
+  "polkit.unlockDrive": "Lås %1 op",
   "polkit.wrong": "Forkert",
   "power.battery": "Batteri",
   "power.batterySize": "Batteristørrelse",

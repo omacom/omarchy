@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Εξουσιοδότησε την εκτέλεση του '%1'",
   "polkit.checking": "Έλεγχος...",
   "polkit.enterPassword": "Εισήγαγε κωδικό",
+  "polkit.unlockDrive": "Ξεκλείδωσε το %1",
   "polkit.wrong": "Λάθος",
   "power.battery": "Μπαταρία",
   "power.batterySize": "Μέγεθος μπαταρίας",

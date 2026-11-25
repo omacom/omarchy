@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "مجوز اجرای '%1'",
   "polkit.checking": "در حال بررسی...",
   "polkit.enterPassword": "گذرواژه را وارد کنید",
+  "polkit.unlockDrive": "باز کردن قفل %1",
   "polkit.wrong": "نادرست",
   "power.battery": "باتری",
   "power.batterySize": "ظرفیت باتری",

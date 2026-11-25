@@ -544,6 +544,7 @@
   "polkit.authorizeRunning": "السماح بتشغيل '%1'",
   "polkit.checking": "جارٍ التحقق...",
   "polkit.enterPassword": "أدخل كلمة المرور",
+  "polkit.unlockDrive": "فتح قفل %1",
   "polkit.wrong": "خاطئة",
   "power.battery": "البطارية",
   "power.batterySize": "حجم البطارية",

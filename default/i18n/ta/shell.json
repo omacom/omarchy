@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' ஐ இயக்க அனுமதிக்கவும்",
   "polkit.checking": "சரிபார்க்கிறது...",
   "polkit.enterPassword": "கடவுச்சொல்லை உள்ளிடவும்",
+  "polkit.unlockDrive": "%1 ஐத் திறக்கவும்",
   "polkit.wrong": "தவறு",
   "power.battery": "மின்கலம்",
   "power.batterySize": "மின்கல அளவு",

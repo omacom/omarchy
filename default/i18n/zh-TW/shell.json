@@ -474,6 +474,7 @@
   "polkit.authorizeRunning": "授權執行 '%1'",
   "polkit.checking": "檢查中...",
   "polkit.enterPassword": "輸入密碼",
+  "polkit.unlockDrive": "解鎖 %1",
   "polkit.wrong": "錯誤",
   "power.battery": "電池",
   "power.batterySize": "電池容量",

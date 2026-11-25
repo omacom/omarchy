@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Idhinisha kuendesha '%1'",
   "polkit.checking": "Inakagua...",
   "polkit.enterPassword": "Weka nenosiri",
+  "polkit.unlockDrive": "Fungua %1",
   "polkit.wrong": "Si sahihi",
   "power.battery": "Betri",
   "power.batterySize": "Ukubwa wa betri",

@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Autoriser å kjøre '%1'",
   "polkit.checking": "Sjekker...",
   "polkit.enterPassword": "Skriv inn passord",
+  "polkit.unlockDrive": "Lås opp %1",
   "polkit.wrong": "Feil",
   "power.battery": "Batteri",
   "power.batterySize": "Batteristørrelse",

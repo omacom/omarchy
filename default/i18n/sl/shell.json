@@ -516,6 +516,7 @@
   "polkit.authorizeRunning": "Dovoli zagon '%1'",
   "polkit.checking": "Preverjanje...",
   "polkit.enterPassword": "Vnesite geslo",
+  "polkit.unlockDrive": "Odkleni %1",
   "polkit.wrong": "Napačno",
   "power.battery": "Baterija",
   "power.batterySize": "Velikost baterije",

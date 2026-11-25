@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' চালানোর অনুমতি দিন",
   "polkit.checking": "যাচাই হচ্ছে...",
   "polkit.enterPassword": "পাসওয়ার্ড দিন",
+  "polkit.unlockDrive": "%1 আনলক করুন",
   "polkit.wrong": "ভুল",
   "power.battery": "ব্যাটারি",
   "power.batterySize": "ব্যাটারির সাইজ",

@@ -502,6 +502,7 @@
   "polkit.authorizeRunning": "Povoliť spustenie '%1'",
   "polkit.checking": "Kontroluje sa...",
   "polkit.enterPassword": "Zadajte heslo",
+  "polkit.unlockDrive": "Odomknúť %1",
   "polkit.wrong": "Nesprávne",
   "power.battery": "Batéria",
   "power.batterySize": "Veľkosť batérie",

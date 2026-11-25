@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Pahintulutan ang pagpapatakbo ng '%1'",
   "polkit.checking": "Sinusuri...",
   "polkit.enterPassword": "Ilagay ang password",
+  "polkit.unlockDrive": "I-unlock ang %1",
   "polkit.wrong": "Mali",
   "power.battery": "Baterya",
   "power.batterySize": "Laki ng baterya",
