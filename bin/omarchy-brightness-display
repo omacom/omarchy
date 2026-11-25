@@ -141,8 +141,10 @@ else
     step="$target%"
   fi
 
-  # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
+  # Set brightness of the display device, never below one raw step. A coarse
+  # backlight (max_brightness 15 on some Apple panels) rounds 1% to raw 0, so
+  # the panel went dark, and from 0% the up step lands on 1%, raw 0 again.
+  brightnessctl -n1 -d "$device" set "$step" >/dev/null
 
   # Show the new brightness in OSD
   (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
