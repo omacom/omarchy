@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Luba '%1' käivitamine",
   "polkit.checking": "Kontrollib...",
   "polkit.enterPassword": "Sisesta parool",
+  "polkit.unlockDrive": "Lukusta %1 lahti",
   "polkit.wrong": "Vale",
   "power.battery": "Aku",
   "power.batterySize": "Aku suurus",

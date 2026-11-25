@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Ausführung von '%1' autorisieren",
   "polkit.checking": "Wird geprüft...",
   "polkit.enterPassword": "Passwort eingeben",
+  "polkit.unlockDrive": "%1 entsperren",
   "polkit.wrong": "Falsch",
   "power.battery": "Akku",
   "power.batterySize": "Akkugröße",

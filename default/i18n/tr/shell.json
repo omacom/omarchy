@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' çalıştırmak için yetki ver",
   "polkit.checking": "Kontrol ediliyor...",
   "polkit.enterPassword": "Parola girin",
+  "polkit.unlockDrive": "%1 kilidini aç",
   "polkit.wrong": "Yanlış",
   "power.battery": "Pil",
   "power.batterySize": "Pil boyutu",

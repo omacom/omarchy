@@ -502,6 +502,7 @@
   "polkit.authorizeRunning": "Leisti vykdyti '%1'",
   "polkit.checking": "Tikrinama...",
   "polkit.enterPassword": "Įveskite slaptažodį",
+  "polkit.unlockDrive": "Atrakinti %1",
   "polkit.wrong": "Neteisingas",
   "power.battery": "Akumuliatorius",
   "power.batterySize": "Akumuliatoriaus talpa",

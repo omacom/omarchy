@@ -530,6 +530,7 @@
   "polkit.authorizeRunning": "Údaraigh '%1' a rith",
   "polkit.checking": "Ag seiceáil...",
   "polkit.enterPassword": "Iontráil pasfhocal",
+  "polkit.unlockDrive": "Díghlasáil %1",
   "polkit.wrong": "Mícheart",
   "power.battery": "Ceallra",
   "power.batterySize": "Méid ceallra",

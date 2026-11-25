@@ -474,6 +474,7 @@
   "polkit.authorizeRunning": "授权运行 '%1'",
   "polkit.checking": "正在检查...",
   "polkit.enterPassword": "输入密码",
+  "polkit.unlockDrive": "解锁 %1",
   "polkit.wrong": "错误",
   "power.battery": "电池",
   "power.batterySize": "电池容量",

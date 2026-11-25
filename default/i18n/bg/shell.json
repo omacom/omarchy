@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Разреши стартирането на '%1'",
   "polkit.checking": "Проверка...",
   "polkit.enterPassword": "Въведи парола",
+  "polkit.unlockDrive": "Отключи %1",
   "polkit.wrong": "Грешно",
   "power.battery": "Батерия",
   "power.batterySize": "Размер батерия",

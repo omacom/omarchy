@@ -474,6 +474,7 @@
   "polkit.authorizeRunning": "'%1' の実行を許可",
   "polkit.checking": "確認中...",
   "polkit.enterPassword": "パスワードを入力",
+  "polkit.unlockDrive": "%1 のロックを解除",
   "polkit.wrong": "違います",
   "power.battery": "バッテリー",
   "power.batterySize": "バッテリー容量",

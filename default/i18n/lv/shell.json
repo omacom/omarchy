@@ -502,6 +502,7 @@
   "polkit.authorizeRunning": "Atļaut palaist '%1'",
   "polkit.checking": "Pārbauda...",
   "polkit.enterPassword": "Ievadi paroli",
+  "polkit.unlockDrive": "Atbloķēt %1",
   "polkit.wrong": "Nepareizi",
   "power.battery": "Baterija",
   "power.batterySize": "Baterijas ietilpība",

@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "Auktorisera körning av '%1'",
   "polkit.checking": "Kontrollerar...",
   "polkit.enterPassword": "Ange lösenord",
+  "polkit.unlockDrive": "Lås upp %1",
   "polkit.wrong": "Fel",
   "power.battery": "Batteri",
   "power.batterySize": "Batteristorlek",

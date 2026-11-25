@@ -474,6 +474,7 @@
   "polkit.authorizeRunning": "Ủy quyền chạy '%1'",
   "polkit.checking": "Đang kiểm tra...",
   "polkit.enterPassword": "Nhập mật khẩu",
+  "polkit.unlockDrive": "Mở khóa %1",
   "polkit.wrong": "Sai",
   "power.battery": "Pin",
   "power.batterySize": "Dung lượng pin",

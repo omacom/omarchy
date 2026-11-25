@@ -502,6 +502,7 @@
   "polkit.authorizeRunning": "Odobri pokretanje '%1'",
   "polkit.checking": "Provjera...",
   "polkit.enterPassword": "Unesite lozinku",
+  "polkit.unlockDrive": "Otključaj %1",
   "polkit.wrong": "Pogrešno",
   "power.battery": "Baterija",
   "power.batterySize": "Veličina baterije",

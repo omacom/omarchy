@@ -474,6 +474,7 @@
   "polkit.authorizeRunning": "อนุญาตให้เรียกใช้ '%1'",
   "polkit.checking": "กำลังตรวจสอบ...",
   "polkit.enterPassword": "ป้อนรหัสผ่าน",
+  "polkit.unlockDrive": "ปลดล็อก %1",
   "polkit.wrong": "ไม่ถูกต้อง",
   "power.battery": "แบตเตอรี่",
   "power.batterySize": "ขนาดแบตเตอรี่",

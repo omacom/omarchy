@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' चलाने की अनुमति दें",
   "polkit.checking": "जांच हो रही है...",
   "polkit.enterPassword": "पासवर्ड दर्ज करें",
+  "polkit.unlockDrive": "%1 अनलॉक करें",
   "polkit.wrong": "गलत",
   "power.battery": "बैटरी",
   "power.batterySize": "बैटरी आकार",

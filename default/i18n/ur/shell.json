@@ -488,6 +488,7 @@
   "polkit.authorizeRunning": "'%1' چلانے کی اجازت دیں",
   "polkit.checking": "جانچ ہو رہی ہے...",
   "polkit.enterPassword": "پاس ورڈ درج کریں",
+  "polkit.unlockDrive": "%1 کو غیر مقفل کریں",
   "polkit.wrong": "غلط",
   "power.battery": "بیٹری",
   "power.batterySize": "بیٹری سائز",

@@ -502,6 +502,7 @@
   "polkit.authorizeRunning": "Autorizar execução de '%1'",
   "polkit.checking": "Verificando...",
   "polkit.enterPassword": "Digite a senha",
+  "polkit.unlockDrive": "Desbloquear %1",
   "polkit.wrong": "Incorreta",
   "power.battery": "Bateria",
   "power.batterySize": "Tamanho da bateria",

@@ -502,6 +502,7 @@
   "polkit.authorizeRunning": "אישור הרצת '%1'",
   "polkit.checking": "בודק...",
   "polkit.enterPassword": "הזנת סיסמה",
+  "polkit.unlockDrive": "ביטול נעילת %1",
   "polkit.wrong": "שגוי",
   "power.battery": "סוללה",
   "power.batterySize": "גודל סוללה",

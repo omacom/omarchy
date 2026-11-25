@@ -474,6 +474,7 @@
   "polkit.authorizeRunning": "'%1' 실행 승인",
   "polkit.checking": "확인 중...",
   "polkit.enterPassword": "비밀번호 입력",
+  "polkit.unlockDrive": "%1 잠금 해제",
   "polkit.wrong": "틀림",
   "power.battery": "배터리",
   "power.batterySize": "배터리 용량",

@@ -516,6 +516,7 @@
   "polkit.authorizeRunning": "Дозволити запуск '%1'",
   "polkit.checking": "Перевірка...",
   "polkit.enterPassword": "Введіть пароль",
+  "polkit.unlockDrive": "Розблокувати %1",
   "polkit.wrong": "Неправильно",
   "power.battery": "Батарея",
   "power.batterySize": "Розмір батареї",
