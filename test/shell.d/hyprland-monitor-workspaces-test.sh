@@ -489,6 +489,30 @@ check(state_file():find("1\tDP-9\tDP-9\n", 1, true), "a monitor with a backend w
 ' || fail "a reported backend decides, not the fields"
 pass "a reported backend decides, not the fields"
 
+run_lua made-reclassified '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-9", 1, "", 11, nil, 0, 0)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+-- After an upgrade, the backend identifies the same anonymous output as a
+-- physical monitor. Its old temporary mark must not outlive that correction.
+monitor_named("DP-9").hardware_details = { backend = "drm" }
+load_module()
+world.handlers["config.reloaded"]()
+' || fail "a physical monitor is recognised after an upgrade"
+pass "a physical monitor is recognised after an upgrade"
+
+run_lua made-reclassified '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(state_file():find("1\t\tDP-9\n", 1, true), "the reclassified physical monitor lost its block: " .. state_file())
+' || fail "a reclassified physical monitor keeps its block while unplugged"
+pass "a reclassified physical monitor keeps its block while unplugged"
+
 run_lua made-no-monitor '
 plug("eDP-1", 0, "Panel", 1)
 world.focused = "eDP-1"

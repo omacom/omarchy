@@ -322,8 +322,8 @@ end
 local function mark_ephemeral(identities, monitors)
   for _, monitor in ipairs(monitors) do
     local identity = identities[monitor.name]
-    if identity and ephemeral_output(monitor) then
-      ephemeral[identity] = true
+    if identity then
+      ephemeral[identity] = ephemeral_output(monitor) or nil
     end
   end
 end
