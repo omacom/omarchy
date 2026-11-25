@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "Activity",
   "Agent": "Agent",
   "Agents": "Agents",
@@ -21,6 +20,7 @@
   "Calculator": "Calculator",
   "Calendar": "Calendar",
   "Capture menu": "Capture menu",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Clear reminders",
   "Clipboard manager": "Clipboard manager",
   "Close all windows": "Close all windows",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Control notifications with the keyboard",
   "Cycle workspace layout": "Cycle workspace layout",
   "Cycle workspace layout back": "Cycle workspace layout back",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Direct input for the terminal prefix",
   "Disable touchpad": "Disable touchpad",
   "Dismiss all notifications": "Dismiss all notifications",

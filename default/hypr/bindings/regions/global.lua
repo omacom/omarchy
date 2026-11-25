@@ -2,7 +2,7 @@
 -- region, everywhere without a region file of its own (docs/regions.md).
 o.bind("SUPER + SHIFT + M", "Music", { omarchy = "spotify" })
 o.bind("SUPER + SHIFT + G", "Signal", { omarchy = "signal" })
-o.bind("SUPER + SHIFT + A", "AI", "omarchy-agent --or-webapp https://chatgpt.com")
+o.bind("SUPER + SHIFT + A", "ChatGPT", { webapp = "https://chatgpt.com" })
 o.bind("SUPER + SHIFT + ALT + A", "Grok", { webapp = "https://grok.com" })
 o.bind("SUPER + SHIFT + C", "Calendar", { webapp = "https://app.hey.com/calendar/weeks/" })
 o.bind("SUPER + SHIFT + E", "Email", { webapp = "https://app.hey.com" })
