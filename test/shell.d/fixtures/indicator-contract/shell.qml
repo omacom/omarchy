@@ -211,12 +211,299 @@ ShellRoot {
 
   function checkInactiveOrders(cases) {
     if (cases.length === 0) {
-      checkTraySection(writeResult)
+      checkTraySection(function() { checkSectionPeek(writeResult) })
       return
     }
     checkInactiveOrder(cases[0], function() {
       root.checkInactiveOrders(cases.slice(1))
     })
+  }
+
+  // A neighbour in the right section, so that section has a still side for the
+  // peek to cover once the indicators move to its start.
+  Component {
+    id: sectionPeekSibling
+
+    Rectangle {
+      property var bar: null
+      property string moduleName: ""
+      property var settings: ({})
+      property string fixedEdge: "center"
+
+      implicitWidth: 36
+      implicitHeight: 20
+      color: "transparent"
+    }
+  }
+
+  QtObject {
+    id: sectionPeekRegistry
+
+    property int revision: 0
+    property var widgets: ({})
+
+    function metadataFor(id) {
+      return widgets[id] ? { firstParty: true } : null
+    }
+  }
+
+  QtObject {
+    id: sectionPeekHost
+
+    property var config: ({})
+
+    function mutateShellConfig(mutator) {
+      var copy = JSON.parse(JSON.stringify(config))
+      mutator(copy)
+      config = copy
+    }
+  }
+
+  // Hidden indicators keep hiddenBlockZone underneath the icons so buttons keep
+  // their cursor and tooltips. Moving them between two end-anchored sections
+  // goes through the bar: WidgetHost supplies the new sectionItem, and the
+  // surface peek then covers that section's still side as well as the growth
+  // zone. Assigning sectionItem here would pass with that refresh removed.
+  function checkSectionPeek(done) {
+    notificationService.doNotDisturb = false
+    remoteSessionService.active = false
+    nightlightService.setNightlight(false)
+    idleService.setIdleEnabled(true)
+
+    var settled = false
+    var bar = null
+    function finish() {
+      if (settled) return
+      settled = true
+      if (bar) {
+        var dying = bar
+        bar = null
+        dying.Component.destruction.connect(function() { Qt.callLater(done) })
+        dying.destroy()
+        return
+      }
+      done()
+    }
+
+    var indicatorsComponent = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
+    if (indicatorsComponent.status !== Component.Ready) {
+      fail("section peek: Indicators failed to load: " + indicatorsComponent.errorString())
+      finish()
+      return
+    }
+    var barComponent = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/Bar.qml")
+    if (barComponent.status !== Component.Ready) {
+      fail("section peek: Bar failed to load: " + barComponent.errorString())
+      finish()
+      return
+    }
+
+    sectionPeekRegistry.widgets = {
+      "omarchy.indicators": { component: indicatorsComponent },
+      "test.sibling": { component: sectionPeekSibling }
+    }
+    sectionPeekHost.config = {
+      bar: {
+        position: "top",
+        background: "opaque",
+        layout: {
+          centerBegin: [{ id: "omarchy.indicators", items: ["Dnd", "NightLight", "StayAwake"] }],
+          right: [{ id: "test.sibling" }]
+        }
+      }
+    }
+
+    bar = barComponent.createObject(root, {
+      barWidgetRegistry: sectionPeekRegistry,
+      shell: mockShell,
+      barConfig: sectionPeekHost.config.bar
+    })
+    if (!bar) {
+      fail("section peek: Bar failed to instantiate: " + barComponent.errorString())
+      finish()
+      return
+    }
+    bar.barConfig = Qt.binding(function() { return sectionPeekHost.config.bar })
+
+    function slotsNamed(name, region, surfaceWindow) {
+      return bar.moduleSlots.filter(function(slot) {
+        return slot && slot.moduleName === name && (!region || slot.region === region) &&
+          (!surfaceWindow || bar.slotWindow(slot) === surfaceWindow)
+      })
+    }
+
+    function checkCenteredSibling(tray, pool, surfaceWindow) {
+      bar.clearIndicatorBarPeek(pool)
+      tray.setIndicatorAreaHovered(false)
+      tray.setIndicatorItemHovered(false)
+      sectionPeekHost.mutateShellConfig(function(config) {
+        config.bar.layout.center = config.bar.layout.right
+        config.bar.layout.right = []
+      })
+
+      function awaitCenter(tries, siblingRegion) {
+        var indicators = slotsNamed("omarchy.indicators", "center", surfaceWindow)
+        var siblings = slotsNamed("test.sibling", siblingRegion, surfaceWindow)
+        if (indicators.length !== 1 || siblings.length !== 1 || indicators[0].activeItem !== tray ||
+            !tray.sectionItem || tray.sectionItem.fixedEdge !== "center" || tray.implicitWidth !== 0) {
+          if (tries <= 0) {
+            fail("center peek (" + siblingRegion + "): indicators did not settle hidden beside a sibling")
+            finish()
+            return
+          }
+          root.after(150, function() { awaitCenter(tries - 1, siblingRegion) })
+          return
+        }
+
+        var sibling = siblings[0]
+        var surface = tray.sectionItem.parent
+        root.layOut(surface)
+        var before = sibling.mapToItem(surface, 0, 0)
+        var probe = sibling.mapToItem(surface, sibling.width / 2, sibling.height / 2)
+        bar.syncIndicatorBarPeek(indicators[0].pool, surface, probe)
+        root.assertTrue(!tray.indicatorBarHovered,
+          "center peek (" + siblingRegion + "): hovering a sibling does not reveal indicators")
+        root.after(200, function() {
+          root.layOut(surface)
+          var after = sibling.mapToItem(surface, 0, 0)
+          root.assertTrue(tray.implicitWidth === 0 && Math.abs(after.x - before.x) < 1,
+            "center peek (" + siblingRegion + "): hovering the sibling keeps its click target still")
+          if (siblingRegion === "center") {
+            sectionPeekHost.mutateShellConfig(function(config) {
+              config.bar.layout.centerEnd = config.bar.layout.center.slice(1)
+              config.bar.layout.center = config.bar.layout.center.slice(0, 1)
+            })
+            root.after(150, function() { awaitCenter(12, "centerEnd") })
+          } else {
+            finish()
+          }
+        })
+      }
+
+      root.after(150, function() { awaitCenter(12, "center") })
+    }
+
+    function awaitPlacement(tries) {
+      var indicators = slotsNamed("omarchy.indicators", "centerBegin")
+      var siblings = slotsNamed("test.sibling", "right")
+      var pair = null
+      for (var i = 0; i < indicators.length && !pair; i++) {
+        var surface = bar.slotWindow(indicators[i])
+        var tray = indicators[i].activeItem
+        if (!surface || !tray || tray.sectionItem !== indicators[i].parent) continue
+        if (tray.fixedEdge !== "end" || !(tray.inactiveReach > 0) || tray.implicitWidth !== 0) continue
+        for (var j = 0; j < siblings.length; j++) {
+          if (bar.slotWindow(siblings[j]) !== surface || !siblings[j].parent || !(siblings[j].parent.width > 0)) continue
+          if (siblings[j].parent === tray.sectionItem) continue
+          pair = { surface: surface, slot: indicators[i], sibling: siblings[j], tray: tray }
+          break
+        }
+      }
+      if (!pair) {
+        if (tries <= 0) {
+          fail("section peek: bar did not place indicators in centerBegin beside a right-section widget (" +
+            indicators.length + " indicator slots, " + siblings.length + " siblings)")
+          finish()
+          return
+        }
+        root.after(200, function() { awaitPlacement(tries - 1) })
+        return
+      }
+
+      var tray = pair.tray
+      var centerList = tray.sectionItem
+      var rightList = pair.sibling.parent
+      var indicatorKey = pair.slot.widgetKey
+      var surface = pair.surface
+      root.layOut(tray)
+      var zoneIndex = -1
+      var loaderIndex = -1
+      for (var c = 0; c < tray.children.length; c++) {
+        if (tray.children[c].objectName === "hiddenBlockZone") zoneIndex = c
+        else if (tray.children[c].sourceComponent !== undefined) loaderIndex = c
+      }
+      root.assertTrue(zoneIndex >= 0 && loaderIndex > zoneIndex,
+        "section peek: hiddenBlockZone sits underneath the icon loader (" + zoneIndex + " < " + loaderIndex + ")")
+
+      // Live move from centerBegin to right index 0, same fixedEdge "end".
+      // The host has to notice: nothing here writes sectionItem.
+      sectionPeekHost.mutateShellConfig(function(config) {
+        var layout = config.bar.layout
+        var moved = (layout.centerBegin || []).filter(function(entry) { return entry.id === "omarchy.indicators" })
+        layout.centerBegin = (layout.centerBegin || []).filter(function(entry) { return entry.id !== "omarchy.indicators" })
+        layout.right = moved.concat(layout.right || [])
+      })
+
+      function awaitMove(tries) {
+        var moved = null
+        var landed = bar.moduleSlots.filter(function(slot) {
+          return slot && slot.widgetKey === indicatorKey && slot.region === "right" && bar.slotWindow(slot) === surface
+        })
+        if (landed.length === 1 && landed[0].activeItem === tray) moved = landed[0]
+        if (!moved) {
+          if (tries <= 0) {
+            fail("section peek: the bar did not hand the same indicators instance to right index 0")
+            finish()
+            return
+          }
+          root.after(150, function() { awaitMove(tries - 1) })
+          return
+        }
+
+        try {
+          root.assertTrue(moved.parent === rightList && tray.sectionItem === rightList && tray.sectionItem !== centerList,
+            "section peek: WidgetHost set sectionItem to the right section, got " +
+            (tray.sectionItem === centerList ? "the old centerBegin container" : "another container"))
+          root.assertTrue(tray.fixedEdge === "end",
+            "section peek: indicators keep fixedEdge 'end' in right section, got " + tray.fixedEdge)
+          var rightSlots = bar.moduleSlots.filter(function(slot) {
+            return slot && slot.region === "right" && bar.slotWindow(slot) === surface
+          })
+          var movedOrder = -1
+          var siblingOrder = -1
+          for (var c = 0; c < rightList.children.length; c++) {
+            if (rightList.children[c] === moved) movedOrder = c
+            else if (rightList.children[c] === pair.sibling) siblingOrder = c
+          }
+          root.assertTrue(rightSlots.length >= 2 && movedOrder >= 0 && siblingOrder > movedOrder,
+            "section peek: indicators moved to right index 0 ahead of sibling (movedOrder=" + movedOrder + ", siblingOrder=" + siblingOrder + ")")
+          var surfaceItem = rightList.parent
+          root.assertTrue(!!surfaceItem, "section peek: the right section is drawn on a bar surface")
+          if (surfaceItem) {
+            root.layOut(surfaceItem)
+            var origin = rightList.mapToItem(surfaceItem, 0, 0)
+            var movedOrigin = moved.mapToItem(surfaceItem, 0, 0)
+            var siblingOrigin = pair.sibling.mapToItem(surfaceItem, 0, 0)
+            root.assertTrue(movedOrigin.x + moved.width <= siblingOrigin.x + 1,
+              "section peek: moved indicator sits left of sibling (" + movedOrigin.x + "+" + moved.width + " <= " + siblingOrigin.x + ")")
+            var sectionStart = origin.x
+            var sectionEnd = sectionStart + rightList.width
+            var span = tray.peekSpanIn(surfaceItem)
+            root.assertTrue(span !== null && span.start < sectionStart && span.end >= sectionEnd - 1 && span.end <= sectionEnd + 1,
+              "section peek: right index 0 covers growth zone and right section, got " + JSON.stringify(span) +
+              " for section " + sectionStart + "-" + sectionEnd)
+            // Over the sibling, on the section's still side, strictly right of the collapsed widget.
+            var probeX = sectionStart + rightList.width * 0.75
+            root.assertTrue(probeX > movedOrigin.x + moved.width,
+              "section peek: probe (" + probeX + ") sits to the right of collapsed indicator (" + (movedOrigin.x + moved.width) + ")")
+            bar.syncIndicatorBarPeek(moved.pool, surfaceItem, { x: probeX, y: origin.y + rightList.height / 2 })
+            root.assertTrue(tray.indicatorBarHovered === true, "section peek: hovering the right section reveals hidden indicators")
+            Qt.callLater(function() {
+              root.layOut(tray)
+              root.assertTrue(tray.implicitWidth > 0, "section peek: the right-section hover grows the hidden indicators, got width " + tray.implicitWidth)
+              checkCenteredSibling(tray, moved.pool, surface)
+            })
+            return
+          }
+        } catch (e) {
+          root.fail("section peek: " + e)
+        }
+        finish()
+      }
+      awaitMove(12)
+    }
+
+    awaitPlacement(20)
   }
 
   // In the tray's drawer, an idle widget with its icons hidden takes no room,

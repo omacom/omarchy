@@ -489,6 +489,51 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// Hidden indicators peek beside the widget on the side they grow toward, plus
+// the still side of their holding section (the whole box for "center").
+// On a 968px bar with an 8px margin, a 50px tray and 40px battery place the
+// right section at [870, 960].
+const rightIndex0 = bar.indicatorPeekSpan('end', 870, 0, 80, false, 870, 960)
+assertDeepEqual(rightIndex0, { start: 790, end: 960 }, 'right index 0 peeks its growth side and the still right section')
+assert(bar.axisInSpan(895, rightIndex0) && bar.axisInSpan(940, rightIndex0), 'hovering tray or battery reveals right index 0 indicators')
+assert(!bar.axisInSpan(100, rightIndex0) && !bar.axisInSpan(450, rightIndex0) && !bar.axisInSpan(789, rightIndex0), 'outside the right peek stays closed')
+
+const rightMiddle = bar.indicatorPeekSpan('end', 920, 0, 80, false, 700, 960)
+assertDeepEqual(rightMiddle, { start: 840, end: 960 }, 'middle right joins only the still side, leaving far growing-side widgets alone')
+assert(!bar.axisInSpan(720, rightMiddle), 'hovering a far widget on the growing side does not slide it away')
+
+const leftIndex0 = bar.indicatorPeekSpan('start', 8, 0, 80, false, 8, 400)
+assertDeepEqual(leftIndex0, { start: 8, end: 88 }, 'left index 0 peeks only its growth zone, leaving far right widgets in left alone')
+const leftLast = bar.indicatorPeekSpan('start', 150, 0, 80, false, 8, 150)
+assertDeepEqual(leftLast, { start: 8, end: 230 }, 'left last index joins its still leading section')
+
+assertDeepEqual(bar.indicatorPeekSpan('end', 400, 0, 80, false), { start: 320, end: 400 }, 'without a section, end peeks along its growth side')
+assertDeepEqual(bar.indicatorPeekSpan('start', 500, 0, 80, false, 500, 560), { start: 500, end: 580 }, 'centerEnd peeks across its growth side')
+assertDeepEqual(bar.indicatorPeekSpan('end', 740, 0, 80, false, 740, 820), { start: 660, end: 820 }, 'notched centerEnd index 0 peeks across its still section')
+assertDeepEqual(bar.indicatorPeekSpan('center', 500, 0, 80, false), { start: 420, end: 500 }, 'center keeps its peek off the following neighbour')
+assertDeepEqual(bar.indicatorPeekSpan('end', 640, 0, 80, false, 640, 760), { start: 560, end: 760 }, 'vertical bottom section peeks upward across the section')
+assertEqual(bar.indicatorPeekSpan('end', 870, 0, 0, false, 870, 960), null, 'nothing hidden means no peek')
+assertEqual(bar.indicatorPeekSpan('end', NaN, 0, 80, false), null, 'a missing edge produces no peek')
+
+// Opening keeps the fixed edge put and contains the closed peek so the pointer
+// can travel from the trigger point onto the revealed icons without collapsing.
+function peekHolds(edge, origin, reach, secStart, secEnd, openSecStart, openSecEnd) {
+  const closed = bar.indicatorPeekSpan(edge, origin, 0, reach, false, secStart, secEnd)
+  const open = bar.indicatorPeekSpan(edge, origin, reach, reach, true, openSecStart ?? secStart, openSecEnd ?? secEnd)
+  return bar.axisInSpan(closed.start + 0.5, open) && bar.axisInSpan(closed.end - 0.5, open)
+}
+for (const [label, args] of [
+  ['right index 0', ['end', 870, 80, 870, 960, 790, 960]],
+  ['right middle', ['end', 920, 80, 700, 960, 620, 960]],
+  ['right last', ['end', 960, 80, 870, 960, 790, 960]],
+  ['left index 0', ['start', 8, 80, 8, 400, 8, 480]],
+  ['left last', ['start', 150, 80, 8, 150, 8, 230]],
+  ['center', ['center', 500, 80]],
+  ['notched centerEnd', ['end', 740, 80, 740, 820, 660, 820]],
+]) {
+  assert(peekHolds(...args), `opening ${label} contains the closed peek so pointer travel stays open`)
+}
 JS
 
 put_tmp=$(mktemp -d)
