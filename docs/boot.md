@@ -69,7 +69,7 @@ The pipeline:
 
 `omarchy-boot-backend` recognises such a machine by `omarchy-boot-systemd`'s snapper plugin, even where the store isn't mounted (a factory clone). A factory reset of it runs the same install in the clone, into a fresh `@omarchy-boot-next` store that replaces the old owner's `@omarchy-boot` once the clone is at `@`; the old owner's images leave the ESP then too. BIOS installs keep Limine: systemd-boot can't start on BIOS firmware. `OMARCHY_ISO_BOOT_LOADER=limine` keeps a UEFI install on Limine.
 
-The migration only offers the switch. Unattended updates, declines and ineligible machines stay on Limine, and Setup > Switch to systemd-boot keeps offering it. `omarchy-boot-notify`, a user service at login, shows what the root side recorded (`notice_*` in the state).
+The migration only offers the switch. Unattended updates, declines and ineligible machines stay on Limine, and `omarchy-boot-switch` runs it later; there is no menu entry for it. `omarchy-boot-notify`, a user service at login, shows what the root side recorded (`notice_*` in the state).
 
 ## Restore
 

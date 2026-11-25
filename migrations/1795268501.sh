@@ -2,9 +2,9 @@ echo "Offer to move the boot loader from Limine to systemd-boot"
 
 # The switch is opt-in for now: it explains itself, checks the machine and
 # asks. Machines it can't move yet, unattended updates and a "no" all leave
-# Limine in place; the Setup menu keeps offering it.
+# Limine in place; omarchy-boot-switch runs it later.
 [[ $(omarchy-boot-backend) == limine ]] || exit 0
-# ARM machines can switch from the Setup menu; the update offers it on x86,
+# ARM machines can run omarchy-boot-switch themselves; the update offers it on x86,
 # where the switch has been run on real machines.
 omarchy-hw-x86 || exit 0
 

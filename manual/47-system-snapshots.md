@@ -2,7 +2,7 @@
 
 We create snapshots automatically on every Omarchy update, but should you want to create your own, you can use `omarchy-snapshot create`.
 
-How you boot and restore a snapshot depends on the boot loader your machine starts with. Machines installed with Omarchy use Limine. On x86 you can move to systemd-boot, the boot loader Secure Boot needs, with _Setup > Switch to systemd-boot_ (see below). `omarchy-boot-backend` tells you which one you have.
+How you boot and restore a snapshot depends on the boot loader your machine starts with. New UEFI installs use systemd-boot, the boot loader Secure Boot needs; older installs use Limine, and can move to systemd-boot when an update offers it or with `omarchy-boot-switch` (see below). `omarchy-boot-backend` tells you which one you have.
 
 ## With systemd-boot
 
@@ -20,7 +20,7 @@ Snapshots taken before the switch to systemd-boot stay on disk, but can't be boo
 
 ### Switching from Limine
 
-_Setup > Switch to systemd-boot_ (or `omarchy-boot-switch`) checks the machine first and explains anything that stands in the way. The switch is careful about it:
+`omarchy-boot-switch` (which an update offers to run) checks the machine first and explains anything that stands in the way. The switch is careful about it:
 
 1. systemd-boot is set up next to Limine, and the machine restarts into it once. If that start fails or hangs, resetting the machine brings back Limine.
 2. Once systemd-boot has started Omarchy, it becomes the default; Limine stays as the fallback.
