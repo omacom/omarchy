@@ -75,12 +75,12 @@ refocus_origin() {
   # before pasting.
   sleep 0.15
   for _ in {1..15}; do
-    [[ $(active_address) == "$target" ]] && return 0
+    [[ $(active_address) == $target ]] && return 0
     focus_window "$target"
     sleep 0.04
   done
 
-  [[ $(active_address) == "$target" ]]
+  [[ $(active_address) == $target ]]
 }
 
 if [[ -n $history_index ]]; then

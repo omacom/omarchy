@@ -47,14 +47,14 @@ if [[ -n $target ]]; then
   sleep 0.15
   focused=false
   for _ in {1..15}; do
-    if [[ $(active_address) == "$target" ]]; then
+    if [[ $(active_address) == $target ]]; then
       focused=true
       break
     fi
     focus_window "$target"
     sleep 0.04
   done
-  [[ $focused == "true" || $(active_address) == "$target" ]] || exit 0
+  [[ $focused == "true" || $(active_address) == $target ]] || exit 0
 else
   sleep 0.15
 fi
