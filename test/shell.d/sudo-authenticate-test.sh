@@ -117,6 +117,10 @@ try:
         if not wait_for(b"[sudo] password for "):
             sys.stderr.write("never saw password prompt; output=%r\n" % bytes(buf))
             sys.exit(99)
+        # bash writes the prompt before it blocks in read(). A Ctrl-C that lands
+        # in between only marks the trap pending and read() never returns, so
+        # let bash reach read() first.
+        time.sleep(0.5)
         os.write(master, b"\x03")
     elif action == "typo-then-ok":
         if not wait_for(b"[sudo] password for "):
