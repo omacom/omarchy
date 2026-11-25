@@ -27,6 +27,8 @@ Panel {
   property bool circleUp: false
   property string actionStatus: ""
   property int _desired: -1
+  // A toggle waiting on systemd's answer, so it never acts on old state.
+  property bool _pendingToggle: false
 
   // Cursor model shared by keyboard and mouse. Sections, top to bottom:
   //   "header" - the on/off switch.
@@ -123,8 +125,9 @@ Panel {
 
   // ---- state ----
 
-  // Re-read Reach's state file, and ask systemd whether Reach is running:
-  // the file stays behind when it's turned off.
+  // Re-read Reach's state file, and ask systemd whether Reach is installed and
+  // running: the file stays behind when it's turned off, and is gone after a
+  // reboot, so it can't answer either.
   function refresh() {
     statusFile.reload()
     if (!activeProc.running) activeProc.running = true
@@ -132,8 +135,9 @@ Panel {
 
   function applyStatus(raw) {
     var s = Model.parseStatus(raw)
-    available = s.ok
     if (!s.ok) return
+    // Only an installed Reach writes the file; systemd has the final word on open.
+    available = true
     // Reach wrote it, so it's running unless systemd says otherwise on open.
     if (!opened) running = true
     me = s.me
@@ -146,7 +150,15 @@ Panel {
 
   // ---- actions ----
 
+  // Ask systemd first, then toggle: right after login, or once the panel has
+  // been closed a while, what the panel last saw may be stale or missing.
   function toggleReach() {
+    if (busy) return
+    _pendingToggle = true
+    refresh()
+  }
+
+  function applyToggle() {
     if (!available || busy) return
     var on = !active
     run(["systemctl", "--user", on ? "enable" : "disable", "--now", "reach.service"], on ? 1 : 0)
@@ -235,16 +247,23 @@ Panel {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.applyStatus(text())
-    onLoadFailed: root.available = false
+    // No file: Reach is off (or not installed); systemd tells which on open.
+    onLoadFailed: root.circleUp = false
   }
 
   Process {
     id: activeProc
-    command: ["systemctl", "--user", "is-active", "reach.service"]
+    command: ["systemctl", "--user", "show", "--property=LoadState", "--property=ActiveState", "reach.service"]
     stdout: StdioCollector { id: activeOut; waitForEnd: true }
     onExited: {
-      root.running = activeOut.text.trim() === "active"
+      var state = Model.parseUnitState(activeOut.text)
+      root.available = state.installed
+      root.running = state.running
       if (root._desired !== -1 && root.running === (root._desired === 1)) root._desired = -1
+      if (root._pendingToggle) {
+        root._pendingToggle = false
+        root.applyToggle()
+      }
     }
   }
 
@@ -287,11 +306,14 @@ Panel {
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       reorderableSideways: root.cursorActive && root.focusSection === "map"
-      onReorderSidewaysRequested: function(dx) { root.nudgeSelected(dx) }
+      // Left and right here mean the desk's left and right, which a
+      // right-to-left language doesn't turn around: undo the catcher's swap.
+      function physical(dx) { return LayoutMirroring.enabled ? -dx : dx }
+      onReorderSidewaysRequested: function(dx) { root.nudgeSelected(physical(dx)) }
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; root.clampCursor(); return }
         if (dy !== 0) root.moveCursor(dy)
-        else if (dx !== 0) root.moveCursorH(dx)
+        else if (dx !== 0) root.moveCursorH(physical(dx))
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
       onDeleteRequested: if (root.cursorActive) root.removeSelected()
@@ -428,12 +450,30 @@ Panel {
             wrapMode: Text.WordWrap
           }
 
-          Repeater {
+          // A ListView, so a long Circle stays inside the card and the picked
+          // machine stays in view on j/k (Contain only moves for a clipped row).
+          ListView {
+            id: addListView
+            width: parent.width
+            height: Math.min(contentHeight, Style.space(260))
+            spacing: Style.space(6)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
             model: root.addList
-            AddRow {
+            currentIndex: root.focusSection === "add" ? root.addIndex : -1
+            // Deferred a turn: the model is rebuilt whenever Reach's file changes.
+            onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(keepCurrentVisible)
+            function keepCurrentVisible() {
+              if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+            }
+
+            delegate: AddRow {
               required property var modelData
               required property int index
-              width: parent.width
+              width: ListView.view.width
               peer: modelData
               rowIndex: index
             }
@@ -448,6 +488,11 @@ Panel {
   component RowMap: Item {
     id: map
     property bool hasCursor: false
+
+    // The row is the desk, left to right, so it stays that way in a
+    // right-to-left language too (like a QR code's modules).
+    LayoutMirroring.enabled: false
+    LayoutMirroring.childrenInherit: true
 
     readonly property real gap: Style.space(10)
     readonly property int count: root.tiles.length
@@ -486,7 +531,7 @@ Panel {
         border.color: picked || modelData.self ? Commons.Color.accent : Qt.darker(root.foreground, 1.6)
         opacity: modelData.online === false ? 0.6 : 1
 
-        Behavior on x { enabled: !tile.dragging; NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
+        Behavior on x { enabled: !tile.dragging; NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
 
         // The fill is translucent; back it with the panel's surface.
         Rectangle {
@@ -642,22 +687,29 @@ Panel {
         }
       }
 
-      PanelActionButton {
-        iconText: "←"
-        tooltipText: Commons.I18n.t("reach.addLeft")
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        enabled: !root.busy
-        onClicked: root.place(addRow.peer.name, "left")
-      }
+      // The desk's left and right: these keep their order in a right-to-left
+      // language too.
+      Row {
+        Layout.alignment: Qt.AlignVCenter
+        LayoutMirroring.enabled: false
 
-      PanelActionButton {
-        iconText: "→"
-        tooltipText: Commons.I18n.t("reach.addRight")
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        enabled: !root.busy
-        onClicked: root.place(addRow.peer.name, "right")
+        PanelActionButton {
+          iconText: "←"
+          tooltipText: Commons.I18n.t("reach.addLeft")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          enabled: !root.busy
+          onClicked: root.place(addRow.peer.name, "left")
+        }
+
+        PanelActionButton {
+          iconText: "→"
+          tooltipText: Commons.I18n.t("reach.addRight")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          enabled: !root.busy
+          onClicked: root.place(addRow.peer.name, "right")
+        }
       }
     }
   }

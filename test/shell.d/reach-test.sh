@@ -76,4 +76,11 @@ assertEqual(reach.dropIndex([10, 30, 50], 0, 40), 1, 'reach drops between the ti
 assertEqual(reach.dropIndex([10, 30, 50], 0, 60), 2, 'reach drops past the last tile')
 assertEqual(reach.dropIndex([10, 30, 50], 2, 0), 0, 'reach drops before the first tile')
 assertEqual(reach.dropIndex([10, 30, 50], 1, 31), 1, 'reach keeps a tile that barely moved')
+
+// Installed and running come from systemd, not from the state file, which is
+// gone after a reboot with Reach turned off.
+assertDeepEqual(reach.parseUnitState('LoadState=loaded\nActiveState=active\n'), { installed: true, running: true }, 'reach is installed and running')
+assertDeepEqual(reach.parseUnitState('ActiveState=inactive\nLoadState=loaded\n'), { installed: true, running: false }, 'reach is installed but off, in either order')
+assertDeepEqual(reach.parseUnitState('LoadState=not-found\nActiveState=inactive\n'), { installed: false, running: false }, 'reach is not installed')
+assertDeepEqual(reach.parseUnitState(''), { installed: false, running: false }, 'reach reads nothing as not installed')
 JS

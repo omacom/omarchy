@@ -53,6 +53,17 @@ function names(list) {
     .filter(function(s) { return s !== "" })
 }
 
+// What `systemctl --user show --property=LoadState --property=ActiveState`
+// says about reach.service: installed (a unit file loaded) and running.
+function parseUnitState(text) {
+  var props = {}
+  String(text || "").split("\n").forEach(function(line) {
+    var i = line.indexOf("=")
+    if (i > 0) props[line.slice(0, i).trim()] = line.slice(i + 1).trim()
+  })
+  return { installed: props.LoadState === "loaded", running: props.ActiveState === "active" }
+}
+
 // How many of the Circle machines are close by.
 function nearbyCount(peers) {
   var n = 0
@@ -150,6 +161,7 @@ function dropIndex(centers, from, centerX) {
 if (typeof module !== "undefined") {
   module.exports = {
     parseStatus: parseStatus,
+    parseUnitState: parseUnitState,
     nearbyCount: nearbyCount,
     tiles: tiles,
     addable: addable,

@@ -32,7 +32,7 @@ From a script: `omarchy-shell omarchy.reach place <machine> left|right` and `oma
 
 ## State
 
-Reach keeps `$XDG_RUNTIME_DIR/reach.json` current: the row, the machines it's connected to, and your Circle machines, marking the ones close by (a direct, fast path from one of this machine's own networks). The panel watches that file, so a hidden icon runs nothing. Opening the panel asks systemd whether Reach is running, since the file stays behind when it's turned off.
+Reach keeps `$XDG_RUNTIME_DIR/reach.json` current: the row, the machines it's connected to, and your Circle machines, marking the ones close by (a direct, fast path from one of this machine's own networks). The panel watches that file, so a hidden icon runs nothing. Opening the panel, or right-clicking its icon, asks systemd whether Reach is installed and running, since the file stays behind when it's turned off and is gone after a reboot.
 
 ## In the bar
 
