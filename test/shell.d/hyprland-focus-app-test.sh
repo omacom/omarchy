@@ -100,11 +100,16 @@ fi
 pass "app focus fails when Hyprland will not focus the window"
 
 # These launchers select their own window instead of using focus-app.
+for command in setsid omarchy-launch-floating-terminal-with-presentation; do
+  printf '#!/bin/bash\ntouch "$OMARCHY_TEST_LAUNCHED"\n' >"$mock_bin/$command"
+  chmod +x "$mock_bin/$command"
+done
+
 for command in omarchy-launch-or-focus omarchy-launch-signal; do
-  rm -f "$dispatch_log"
+  rm -f "$dispatch_log" "$test_tmp/launched"
   clients_json='[{"address":"0xsignal","class":"signal","title":"Signal","floating":true}]'
   PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
-    OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+    OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" OMARCHY_TEST_LAUNCHED="$test_tmp/launched" \
     bash "$ROOT/bin/$command" signal "touch $test_tmp/launched"
 
   [[ ! -e $test_tmp/launched ]] || fail "$command launches a second copy of a running app"
@@ -115,7 +120,7 @@ for command in omarchy-launch-or-focus omarchy-launch-signal; do
 
   rm -f "$dispatch_log"
   if PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
-    OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" OMARCHY_TEST_DISPATCH_FAILS=1 \
+    OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" OMARCHY_TEST_DISPATCH_FAILS=1 OMARCHY_TEST_LAUNCHED="$test_tmp/launched" \
     bash "$ROOT/bin/$command" signal; then
     fail "$command reports success when neither focus dispatcher succeeds"
   fi
