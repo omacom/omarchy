@@ -3,14 +3,17 @@
 # omarchy:summary=Switch between audio outputs while preserving the mute status
 
 # Skip the physical sink an active speaker tuning fronts: rotating onto it would
-# silently bypass the tuning rather than pick a different output.
+# silently bypass the tuning rather than pick a different output. Smart filters
+# (Superwhisper's Muffle, for one) already sit in front of every output, and
+# choosing one routes around the tuning, so skip those too.
 fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
 
 # pactl translates availability, headers and yes/no; parse them in the C locale.
 sinks=$(LC_ALL=C timeout 2 pactl -f json list sinks |
   jq --arg fronted "$fronted" '[.[]
     | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))
-    | select($fronted == "" or .name != $fronted)]')
+    | select($fronted == "" or .name != $fronted)
+    | select(.properties."filter.smart" != "true")]')
 sinks_count=$(jq 'length' <<<"$sinks")
 
 if (( sinks_count == 0 )); then
