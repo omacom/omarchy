@@ -5,10 +5,16 @@
 # Skip the fix when the proprietary driver was configured: supported GPUs can
 # still use nouveau during installation before switching drivers on reboot.
 nvidia_config="${OMARCHY_NVIDIA_MODPROBE_CONFIG:-/etc/modprobe.d/nvidia.conf}"
+nouveau_driver="${OMARCHY_NOUVEAU_DRIVER_PATH:-/sys/bus/pci/drivers/nouveau}"
 
-if [[ ! -f $nvidia_config ]] &&
-  omarchy-cmd-present lspci &&
-  LC_ALL=C lspci -k | grep -qi 'Kernel driver in use: nouveau'; then
+has_nouveau=0
+shopt -s nullglob
+for _ in "$nouveau_driver"/*/vendor; do
+  has_nouveau=1
+  break
+done
+
+if [[ ! -f $nvidia_config ]] && (( has_nouveau )); then
   looknfeel="$HOME/.config/hypr/looknfeel.lua"
 
   if [[ -f $looknfeel ]] && ! grep -q 'no_hardware_cursors' "$looknfeel"; then

@@ -1,38 +1,38 @@
-# Tezkor tugmalar
+# Tezkor klavishlar
 
-Asosiy klaviatura bog‘lanishlarining barchasini `Super + K` bilan ko‘rishingiz mumkin (Tmux bog‘lanishlari `Super + Alt + K` bilan va Herdr bog‘lanishlari `Super + Ctrl + K` bilan).
+Barcha asosiy klaviatura bog‘lanishlarini `Super + K` bilan ko‘rishingiz mumkin (Tmux bog‘lanishlari `Super + Alt + K` bilan va Herdr bog‘lanishlari `Super + Ctrl + K` bilan).
 
-## Tezkor tugmalar qanday joylashtirilgan
+## Tezkor klavishlar qanday joylashtirilgan
 
-Har bir tezkor tugma o‘z modifikatorlari bilan belgilanadigan tekislikda joylashadi va har bir tekislikning bitta vazifasi bor. Tezkor tugmalarning bir-biriga aralashib ketmasligini aynan shu ta’minlaydi va bu odatda biror narsaning qayerda joylashganini taxmin qila olishingizni anglatadi.
+Har bir tezkor klavish o‘z modifikatorlari bilan belgilanadigan tekislikda joylashadi va har bir tekislikning bitta vazifasi bor. Tezkor klavishlarning bir-biriga aralashib ketmasligini aynan shu ta’minlaydi va bu odatda biror narsa qayerda joylashganini taxmin qila olishingizni anglatadi.
 
 | Tekislik | U yerda nimalar joylashadi | Misollar |
 | --- | --- | --- |
-| `Super + key` | Tizim: oynalar, ish maydonlari, tartiblar va asosiy menyular | `Super + Space` Omarchy menyusi, `Super + W` oynani yopish, `Super + F` to‘liq ekran |
+| `Super + key` | Tizim: oynalar, ish maydonlari, joylashuvlar va asosiy menyular | `Super + Space` Omarchy menyusi, `Super + W` oynani yopish, `Super + F` to‘liq ekran |
 | `Super + Shift + key` | Ilovalar | `Super + Shift + B` brauzer, `Super + Shift + E` elektron pochta, `Super + Shift + N` muharrir |
-| `Super + Ctrl + key` | Panellar va tizim menyulari | `Super + Ctrl + A` audio, `Super + Ctrl + N` tarmoq, `Super + Ctrl + C` tasvirga olish menyusi |
-| `Super + Ctrl + Alt + key` | Tezkor amallar va bildirishlar | `Super + Ctrl + Alt + T` vaqtni ko‘rsatish, `Super + Ctrl + Alt + B` batareya, `Super + Ctrl + Alt + C` skrinshot |
+| `Super + Ctrl + key` | Panellar va tizim menyulari | `Super + Ctrl + A` audio, `Super + Ctrl + N` tarmoq, `Super + Ctrl + C` suratga olish menyusi |
+| `Super + Ctrl + Alt + key` | Tezkor amallar va xabarnomalar | `Super + Ctrl + Alt + T` vaqtni ko‘rsatish, `Super + Ctrl + Alt + B` batareya, `Super + Ctrl + Alt + C` skrinshot |
 
-Tezkor tugmaga `Alt` qo‘shish sizga xuddi o‘sha narsaning variantini beradi, hech qachon unga aloqasi bo‘lmagan narsani emas:
+Tezkor klavishga `Alt` qo‘shish sizga xuddi shu narsaning variantini beradi, hech qachon aloqasiz narsani emas:
 
 - `Super + Shift + B` brauzerni ochadi; `Super + Shift + Alt + B` shaxsiy oynani ochadi
 - `Super + Shift + E` elektron pochtani ochadi; `Super + Shift + Alt + E` yangisini boshlaydi
 - `Super + F` to‘liq ekranga o‘tadi; `Super + Alt + F` to‘liq kenglikka o‘tadi
-- `Super + Ctrl + C` tasvirga olish menyusini ochadi; `Super + Ctrl + Alt + C` menyuni o‘tkazib yuboradi va skrinshot oladi
+- `Super + Ctrl + C` suratga olish menyusini ochadi; `Super + Ctrl + Alt + C` menyuni o‘tkazib yuborib, skrinshot oladi
 
-Tezkor tugma qo‘shayotganda:
+Tezkor klavish qo‘shayotganda:
 
-1. U nima qilishiga qarab tekislikni tanlang, keyin tugmani tanlang.
-2. Joy bo‘shatish uchun mavjud tezkor tugmani ko‘chirmang. To‘g‘ri tekislikda bo‘sh tugmani toping.
-3. `Alt` dan faqat usiz bo‘lgan tezkor tugmaning varianti uchun foydalaning.
+1. U nima qilishiga qarab tekislikni tanlang, keyin klavishni tanlang.
+2. Joy bo‘shatish uchun mavjud tezkor klavishni ko‘chirmang. To‘g‘ri tekislikda bo‘sh klavishni toping.
+3. `Alt` dan faqat usiz bo‘lgan tezkor klavishning varianti uchungina foydalaning.
 
-Bir nechta tezkor tugmalar qulay bo‘lgani uchun bu qoidalarni buzadi. O‘q yoki `Tab` bilan `Shift` ilovani ochish o‘rniga ko‘chiradi yoki yo‘nalishni teskari qiladi, `Print`, media tugmalari, `Alt + Tab` va `Ctrl + Alt + Del` esa boshqa hamma joydagi kabi ishlaydi. Ular istisnolar, nusxa olish uchun namuna emas.
+Bir nechta tezkor klavishlar qulay bo‘lgani uchun bu qoidalarni buzadi. O‘q yoki `Tab` bilan `Shift` ilovani ochish o‘rniga ko‘chiradi yoki teskari yo‘nalishda bajaradi, `Print`, media klavishlari, `Alt + Tab` va `Ctrl + Alt + Del` esa hamma joyda qanday ishlasa, shunday ishlaydi. Ular istisnolar, ko‘chirish uchun namunalar emas.
 
-Agar standart variant sizga mos kelmasa (aytaylik, Windows dagi kabi skrinshotlar uchun `Super + Shift + S` ni xohlasangiz), uni `~/.config/hypr/bindings.lua` da qayta bog‘lang.
+Agar standart variant sizga mos kelmasa (masalan, Windows dagidek skrinshotlar uchun `Super + Shift + S` ni xohlasangiz), uni `~/.config/hypr/bindings.lua` da qayta bog‘lang.
 
 ## Navigatsiya
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy menyusi (ilovalar va qolgan hamma narsa)    |
 | `Super + Alt + Space` | Ilovalar panjarasi |
@@ -40,131 +40,130 @@ Agar standart variant sizga mos kelmasa (aytaylik, Windows dagi kabi skrinshotla
 | `Super + Ctrl + L` | Kompyuterni qulflash |
 | `Super + W` yoki `Super + Q` | Oynani yopish             |
 | `Ctrl + Alt + Del` | Barcha oynalarni yopish |
-| `Super + K` | Barcha tezkor tugmalarni ko‘rsatish |
-| `Super + Alt + K` | tmux tezkor tugmalarini ko‘rsatish |
-| `Super + Ctrl + K` | herdr tezkor tugmalarini ko‘rsatish |
+| `Super + K` | Barcha tezkor klavishlarni ko‘rsatish |
+| `Super + Alt + K` | Tmux tezkor klavishlarini ko‘rsatish |
+| `Super + Ctrl + K` | Herdr tezkor klavishlarini ko‘rsatish |
 | `Super + M` | Oynani dokka kichraytirish |
-| `Super + T`               | Oynani plitka/yuzuvchi rejimlar o‘rtasida almashtirish             |
+| `Super + T`               | Oynani kafel/suzuvchi rejimlar orasida almashtirish             |
 | `Super + J` | Oyna holatini almashtirish (gorizontal/vertikal) |
-| `Super + O`               | Oynani sticky'n'floating rejimiga chiqarishni almashtirish |
-| `Super + L`               | dwindle, scrolling va floating tartiblari bo‘ylab aylanish |
-| `Super + Alt + L`         | Tartiblar bo‘ylab teskari yo‘nalishda aylanish |
-| `Super + P`               | Pseudo oyna uslubini almashtirish (natural v stretch) |
+| `Super + O`               | Oynani sticky'n'floating holatiga chiqarishni almashtirish |
+| `Super + L`               | Dwindle, scrolling va floating joylashuvlari orasida aylanish |
+| `Super + Alt + L`         | Joylashuvlar orasida teskari yo‘nalishda aylanish |
+| `Super + P`               | Pseudo oyna uslubini almashtirish (tabiiy va cho‘zilgan) |
 | `Super + F`                 | To‘liq ekranga o‘tish              |
 | `Super + Alt + F`                 | To‘liq kenglikka o‘tish              |
 | `Super + Ctrl + F`                 | Oyna ichida to‘liq ekranga o‘tish              |
-| `Super + 1…9/0`         | Fokusdagi monitordagi muayyan ish maydoniga o‘tish (0 — 10) |
-| `Super + Tab` | Fokusdagi monitordagi keyingi ish maydoniga o‘tish |
-| `Super + Shift + Tab` | Fokusdagi monitordagi avvalgi ish maydoniga o‘tish |
-| `Super + Ctrl + Tab` | Fokusdagi monitordagi ilgari bo‘lgan ish maydoniga o‘tish |
+| `Super + 1…9/0`         | Fokusdagi monitorda muayyan ish maydoniga o‘tish (0 — bu 10) |
+| `Super + Tab` | Fokusdagi monitorda keyingi ish maydoniga o‘tish |
+| `Super + Shift + Tab` | Fokusdagi monitorda oldingi ish maydoniga o‘tish |
+| `Super + Ctrl + Tab` | Fokusdagi monitorda avvalgi ish maydoniga o‘tish |
 | `Super + Shift + 1…9/0` | Oynani fokusdagi monitordagi ish maydoniga ko‘chirish |
 | `Super + Shift + Alt + 1…9/0` | Oynani fokusdagi monitordagi ish maydoniga ortidan bormasdan ko‘chirish |
 | `Super + S` | To‘liq scratchpad ni almashtirish |
 | `Super + Alt + S` | Oynani to‘liq scratchpad ga ko‘chirish |
-| `Super + the key above Tab` (AQSH tartiblarida grave) | Quake konsolini almashtirish |
-| `Super + Shift + the key above Tab` (AQSH tartiblarida grave) | Oynani Quake konsoliga ko‘chirish |
-| `Super + Shift + Ctrl + Arrows` | Oynani o‘sha yo‘nalishdagi monitorga ko‘chirish |
-| `Super + Shift + Alt + Arrows` | Ish maydonini o‘sha yo‘nalishdagi monitorga ko‘chirish |
-| `Super + Arrow`  | Fokusni o‘q yo‘nalishidagi oynaga ko‘chirish, ekranning chetida o‘sha tomondagi monitorga o‘tish |
-| `Super + Shift + Arrow`  | Oynani o‘q yo‘nalishidagi boshqa oyna bilan almashtirish, shu jumladan o‘sha tomondagi monitordagisi bilan |
+| `Super + the key above Tab` (AQSh joylashuvlarida grave) | Quake konsolini almashtirish |
+| `Super + Shift + the key above Tab` (AQSh joylashuvlarida grave) | Oynani Quake konsoliga ko‘chirish |
+| `Super + Shift + Ctrl + Arrows` | Oynani shu yo‘nalishdagi monitorga ko‘chirish |
+| `Super + Shift + Alt + Arrows` | Ish maydonini shu yo‘nalishdagi monitorga ko‘chirish |
+| `Super + Arrow`  | Fokusni o‘q yo‘nalishidagi oynaga ko‘chirish, ekran chetida shu tomondagi monitorga o‘tish |
+| `Super + Shift + Arrow`  | Oynani o‘q yo‘nalishidagi boshqa oyna bilan almashtirish, shu tomondagi monitordagi oynani ham qo‘shib |
 | `Super + Minus` | Oynani chapga kengaytirish |
-| `Super + Equal` | Oynani chapga qisqartirish |
-| `Super + Shift + Minus` | Oynani tepaga qisqartirish |
+| `Super + Equal` | Oynani chapga kichraytirish |
+| `Super + Shift + Minus` | Oynani yuqoriga kichraytirish |
 | `Super + Shift + Equal` | Oynani pastga kengaytirish |
-| `Super + Alt + Minus/Equal` | Xuddi shu o‘lcham o‘zgartirish kichikroq qadamlarda |
-| `Super + Ctrl + Minus/Equal` | Xuddi shu o‘lcham o‘zgartirish kattaroq qadamlarda |
+| `Super + Alt + Minus/Equal` | Xuddi shu o‘lcham o‘zgartirish kichikroq qadamlar bilan |
+| `Super + Ctrl + Minus/Equal` | Xuddi shu o‘lcham o‘zgartirish kattaroq qadamlar bilan |
 | `Super + Alt + Home` | Oyna kengligini saqlash |
 | `Super + Home` | Saqlangan oyna kengligini tiklash |
 | `Super + Left Mouse` | Oynani sudrab yurish |
 | `Super + Right Mouse` | Oyna o‘lchamini o‘zgartirish |
-| `Super + Scroll Wheel` | Fokusdagi monitordagi ish maydonlari bo‘ylab aylantirish |
+| `Super + Scroll Wheel` | Fokusdagi monitorda ish maydonlari orasida aylantirish |
 | `Super + G`               | Oynalarni guruhlashni almashtirish      |
 | `Super + Alt + G`               | Oynani guruhdan chiqarish      |
-| `Super + Alt + Tab`               | Guruh ichidagi oynalar bo‘ylab aylanish      |
-| `Super + Alt + Shift + Tab`               | Guruh ichidagi oynalar bo‘ylab orqaga aylanish      |
-| `Super + Alt + Scroll Wheel` | Guruh ichidagi oynalar bo‘ylab aylanish |
+| `Super + Alt + Tab`               | Guruhdagi oynalar orasida aylanish      |
+| `Super + Alt + Shift + Tab`               | Guruhdagi oynalar orasida orqaga aylanish      |
+| `Super + Alt + Scroll Wheel` | Guruhdagi oynalar orasida aylanish |
 | `Super + Alt + 1/2/3/4/5`               | Guruhdagi muayyan oynaga o‘tish      |
-| `Super + Alt + Arrow`  | Oynani o‘q yo‘nalishida guruh ichiga ko‘chirish, shu jumladan o‘sha tomondagi monitordagisini |
-| `Super + Ctrl + Left/Right`  | Plitka guruhi ichidagi oynalar o‘rtasida harakatlanish |
+| `Super + Alt + Arrow`  | Oynani o‘q yo‘nalishida guruhga ko‘chirish, shu tomondagi monitordagi oynani ham qo‘shib |
+| `Super + Ctrl + Left/Right`  | Kafel guruhi ichidagi oynalar orasida harakatlanish |
 | `Super + Ctrl + Z` | Ekranni yaqinlashtirish (ko‘proq yaqinlashtirish uchun takrorlang) |
-| `Super + Ctrl + Alt + Z` | Ekrandan to‘liq uzoqlashish |
-| `Super + /` | Monitor masshtablash variantlari bo‘ylab oldinga qadam tashlash |
-| `Super + Alt + /` | Monitor masshtablash variantlari bo‘ylab orqaga qadam tashlash |
-| `Alt + Tab` | Faol ish maydonidagi oynalar bo‘ylab oldinga aylanish |
-| `Alt + Shift + Tab` | Faol ish maydonidagi oynalar bo‘ylab orqaga aylanish |
-| `Ctrl + Alt + Tab`| Fokusni monitorlar bo‘ylab oldinga aylantirish |
-| `Ctrl + Alt + Shift + Tab`| Fokusni monitorlar bo‘ylab orqaga aylantirish |
-| `Super + I` | Kiritish tilini almashtirish (bir nechta tartib yoki kiritish usuli bo‘lganda) |
+| `Super + Ctrl + Alt + Z` | Ekrandan to‘liq uzoqlashtirish |
+| `Super + /` | Monitor masshtabi variantlari bo‘ylab oldinga qadam tashlash |
+| `Super + Alt + /` | Monitor masshtabi variantlari bo‘ylab orqaga qadam tashlash |
+| `Alt + Tab` | Faol ish maydonidagi oynalar orasida oldinga aylanish |
+| `Alt + Shift + Tab` | Faol ish maydonidagi oynalar orasida orqaga aylanish |
+| `Ctrl + Alt + Tab`| Monitorlar orasida fokusni oldinga aylantirish |
+| `Ctrl + Alt + Shift + Tab`| Monitorlar orasida fokusni orqaga aylantirish |
+| `Super + I` | Kiritish tilini almashtirish (bittadan ortiq joylashuv yoki kiritish usuli bo‘lsa) |
 | `Super + Shift + I` | Kiritish tilini orqaga almashtirish |
 
-Touchpad da uch va to‘rt barmoqli surishlar ish maydonlarini almashtiradi, oynalarni ko‘chiradi hamda menyu va Quake konsolini ochadi; imo-ishoralar uchun [klaviatura, sichqoncha va trekpad](34-keyboard-mouse-trackpad.md) ga qarang.
+Sensor panelda uch va to‘rt barmoqli surishlar ish maydonlarini almashtiradi, oynalarni ko‘chiradi hamda menyu va Quake konsolini ochadi; imo-ishoralar uchun [klaviatura, sichqoncha va trekpad](34-keyboard-mouse-trackpad.md) ga qarang.
 
-O‘lcham o‘zgartirish 0 ning o‘ngidagi ikki tugmadan foydalanadi, klaviaturangizda ularga nima bosilganidan qat’i nazar: AQSH klaviaturalarida `-` va `=`, Daniya va Shvetsiya klaviaturalarida `+` va `´`, Norvegiya klaviaturasida `+` va `\\`, Nemis klaviaturasida `ß` va `´`, Ispan klaviaturasida `'` va `¡`, Yapon (JIS) klaviaturasida esa `-` va `^`. `Super + K` ularni klaviaturangizda bosilganidek ro‘yxatlaydi. JIS da `Super + ^` — `Super + Equal`, `Super + Shift + -` (u `=` ni yozadi) esa `Super + Shift + Minus` dir. Monitor masshtabi va parollar menejeri `/` dan foydalanadi; `/` ni faqat Shift bilan yozadigan tartiblarda, aksariyat Yevropa tartiblaridagi kabi, ular o‘rniga o‘ng Shift ning chapidagi tugma ishlatiladi (Daniya va Nemis tartiblarida `-`).
+O‘lcham o‘zgartirish 0 ning o‘ng tomonidagi ikkita klavishdan foydalanadi, klaviaturangizda ularga nima yozilganidan qat’i nazar: AQSh klaviaturalarida `-` va `=`, Daniya va Shvetsiya klaviaturalarida `+` va `´`, Norvegiya klaviaturasida `+` va `\\`, Nemis klaviaturasida `ß` va `´`, Ispan klaviaturasida `'` va `¡`, Yapon (JIS) klaviaturasida esa `-` va `^`. `Super + K` ularni klaviaturangizda qanday yozilgan bo‘lsa, shunday ro‘yxatlaydi. JIS da `Super + ^` — bu `Super + Equal`, `Super + Shift + -` (u `=` ni yozadi) esa `Super + Shift + Minus` dir. Monitor masshtabi va parollar menejeri `/` dan foydalanadi; `/` ni faqat Shift bilan yozadigan joylashuvlarda, aksariyat Yevropa joylashuvlarida bo‘lgani kabi, ular o‘ng Shift ning chap tomonidagi klavishdan foydalanadi (Daniya va Nemis joylashuvlarida `-`).
 
 ## Tizim boshqaruvi
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Audio paneli    |
 | `Super + Ctrl + B`           | Bluetooth paneli    |
-| `Super + Ctrl + N`           | Wi-Fi/tarmoq paneli    |
+| `Super + Ctrl + N`           | Wifi/tarmoq paneli    |
 | `Super + Ctrl + D`           | Displey paneli    |
 | `Super + Ctrl + P`           | Quvvat paneli    |
 | `Super + Ctrl + X`           | Agentlar paneli    |
-| `Super + Ctrl + Alt + X`           | Lokal modellar paneli    |
 | `Super + Ctrl + Alt + D`           | Kalendar paneli    |
 | `Super + Ctrl + Alt + E`           | Jahon soati paneli    |
-| `Super + Ctrl + 1-9`           | Bar panelini o‘rni bo‘yicha almashtirish    |
+| `Super + Ctrl + 1-9`           | Bar panelini pozitsiyasi bo‘yicha almashtirish    |
 | `Super + Ctrl + S` | Ulashish menyusi (LocalSend orqali) |
-| `Super + Ctrl + C` | Tasvirga olish boshqaruvi (skrinshot/-yozib olish/tanlagich) |
+| `Super + Ctrl + C` | Suratga olish boshqaruvi (skrinshot/yozib olish/tanlagich) |
 | `Super + Ctrl + O` | Menyuni almashtirish |
-| `Super + Ctrl + H` | Qurilma menyusi |
-| `Super + Ctrl + E` | Emoji tanlagich |
-| `Super + Ctrl + .` | Mediani transkodlash |
+| `Super + Ctrl + H` | Uskuna menyusi |
+| `Super + Ctrl + E` | Emoji tanlagichi |
+| `Super + Ctrl + .` | Medianı transkodlash |
 | `Super + Shift + Ctrl + A` | Standart agentingizni ishga tushirish |
-| `Power` tugmasi | Tizim menyusi |
-| `Super + Shift + Copilot` tugmasi | Omarchy menyusi |
+| `Power` klavishi | Tizim menyusi |
+| `Super + Shift + Copilot` klavishi | Omarchy menyusi |
 
 ## Sozlashlar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
-| `Shift + Brightness Up` | Maksimal ekran yorqinligi |
-| `Shift + Brightness Down` | Minimal ekran yorqinligi |
-| `Alt + Brightness Up/Down` | Aniq 1% yorqinlik o‘zgarishlari |
-| `Alt + Volume Up/Down` | Aniq 1% ovoz balandligi o‘zgarishlari |
+| `Shift + Brightness Up` | Ekranning maksimal yorqinligi |
+| `Shift + Brightness Down` | Ekranning minimal yorqinligi |
+| `Alt + Brightness Up/Down` | Yorqinlikni aniq 1% ga o‘zgartirish |
+| `Alt + Volume Up/Down` | Ovoz balandligini aniq 1% ga o‘zgartirish |
 | `Keyboard Brightness Up/Down` | Klaviatura yoritgichi yorqinroq/xiraroq |
-| `Keyboard Backlight` | Klaviatura yoritgichi darajalari bo‘ylab aylanish |
-| `Ctrl + Brightness Up/Down` | O‘z tugmalari bo‘lmagan klaviaturalarda klaviatura yoritgichi yorqinroq/xiraroq |
+| `Keyboard Backlight` | Klaviatura yoritgichi darajalari orasida aylanish |
+| `Ctrl + Brightness Up/Down` | Klaviatura yoritgichi yorqinroq/xiraroq, o‘z klavishlariga ega bo‘lmagan klaviaturalarda |
 | `Mic Mute` | Mikrofonni o‘chirish |
 | `Shift + Mute` | Audio chiqishini almashtirish |
-| `Touchpad Toggle` | Touchpad ni yoqish yoki o‘chirish |
-| `Display` tugmasi | Ish maydoni tartibi bo‘ylab aylanish |
+| `Touchpad Toggle` | Sensor panelni yoqish yoki o‘chirish |
+| `Display` klavishi | Ish maydoni joylashuvini aylantirish |
 | `Alt + Play` | Keyingi trek |
-| `Alt + Shift + Play` | Avvalgi trek |
+| `Alt + Shift + Play` | Oldingi trek |
 
 ## Ilovalarni ishga tushirish
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |
 | `Super + Alt + Return` | Tmux terminali |
 | `Super + Ctrl + Return` | Herdr (agent menejeri) |
 | `Super + Shift + Return` yoki `Super + Shift + B`  | Brauzer    |
-| `Super + Shift + Alt + B`           | Brauzer (shaxsiy/inkognito)    |
+| `Super + Shift + Alt + B`           | Brauzer (shaxsiy/incognito)    |
 | `Super + Shift + F`           | Fayl menejeri    |
-| `Super + Shift + Alt + F`           | Terminalning cwd sidagi fayl menejeri    |
+| `Super + Shift + Alt + F`           | Terminalning cwd katalogidagi fayl menejeri    |
 | `Super + Shift + M`           | Musiqa (Spotify)    |
 | `Super + Shift + Alt + M`           | Musiqa (cliamp)    |
 | `Super + Shift + /`           | Parollar menejeri (1password)    |
-| `Super + Shift + Q` yoki `Calculator` tugmasi  | Kalkulyator (Omacalc)    |
+| `Super + Shift + Q` yoki `Calculator` klavishi  | Kalkulyator (Omacalc)    |
 | `Super + Shift + D`           | Docker (lazydocker, o‘rnatilgandan keyin)    |
 | `Super + Shift + T`           | Faollik (btop)    |
 | `Super + Shift + N`           | Muharrir (Plain yoki siz tanlagan standart)  |
 | `Super + Shift + C`           | Kalendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Elektron pochta ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | Yangi elektron pochta ([HEY](https://hey.com/))  |
-| `Super + Shift + A`           | Standart agentingiz yoki bitta tanlaguningizcha ChatGPT |
+| `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Messenjer (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
@@ -179,138 +178,138 @@ O‘lcham o‘zgartirish 0 ning o‘ngidagi ikki tugmadan foydalanadi, klaviatur
 
 Bog‘lanishlarni `~/.config/hypr/bindings.lua` da o‘zgartiring/qo‘shing.
 
-## Universal almashuv buferi
+## Universal almashish buferi
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Super + A`           | `Ctrl + A` ni qo‘llab-quvvatlaydigan ilovalarda hammasini tanlash    |
 | `Super + C`           | Nusxalash    |
 | `Super + X`           | Kesish (terminalda emas)    |
 | `Super + V`           | Qo‘yish    |
-| `Super + Ctrl + V`           | Almashuv buferi menejeri    |
+| `Super + Ctrl + V`           | Almashish buferi menejeri    |
 
-Odatda Linux da terminalda nusxalash-qo‘yish uchun `Ctrl + Shift + C/V`, boshqa hamma joyda esa `Ctrl + C/V` kerak bo‘ladi. Ushbu Omarchy ning birlashtirilgan almashuv buferi tezkor tugmalari hamma joyda ishlaydi.
+Odatda Linux da terminalda nusxalash va qo‘yish uchun `Ctrl + Shift + C/V`, qolgan hamma joyda bajarish uchun esa `Ctrl + C/V` kerak bo‘ladi. Ushbu Omarchy ning birlashtirilgan almashish buferi tezkor klavishlari hamma joyda ishlaydi.
 
-## Tasvirga olish
+## Suratga olish
 
-| Tezkor tugma              | Funksiya                       |
+| Tezkor klavish              | Funksiya                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Skrinshot                      |
-| `Super + Ctrl + Alt + C`            | Skrinshot (o‘sha surat, Print Screen tugmasi bo‘lmagan klaviaturalar uchun) |
-| `Super + Ctrl + C` | Tasvirga olish menyusi |
+| `Super + Ctrl + Alt + C`            | Skrinshot (xuddi shu surat, Print Screen klavishi bo‘lmagan klaviaturalar uchun) |
+| `Super + Ctrl + C` | Suratga olish menyusi |
 | `Alt + Print Screen`            | Ekranni yozib olish                     |
-| `Super + Shift + Ctrl + Alt + C` | Menyuni o‘tkazib yuborib, audiosiz ekranni yozib olish (to‘xtatish uchun yana bosing) |
-| `Super + Print Screen` | Rang tanlagich |
-| `Super + Ctrl + Print Screen` | Matnni almashuv buferiga chiqarib olish |
-| `Super + Alt + [` | Yozib olish paytida veb-kamera qoplamasini kichiklashtirish |
-| `Super + Alt + ]` | Yozib olish paytida veb-kamera qoplamasini kattalashtirish |
+| `Super + Shift + Ctrl + Alt + C` | Audiosiz ekranni yozib olish, menyuni o‘tkazib yuborish (to‘xtatish uchun yana bosing) |
+| `Super + Print Screen` | Rang tanlagichi |
+| `Super + Ctrl + Print Screen` | Matnni ajratib almashish buferiga olish |
+| `Super + Alt + [` | Yozib olish paytida veb-kamera ustki qatlamini kichraytirish |
+| `Super + Alt + ]` | Yozib olish paytida veb-kamera ustki qatlamini kattalashtirish |
 | `Alt + Shift + L` | Veb-ilova yoki brauzerdan joriy URL ni nusxalash |
 | `Alt + Shift + D` | Joriy sahifadagi videoni `~/Videos` ga yuklab olish |
-| `Alt + Space` | Diktovkani boshlash/to‘xtatish (_Setup > Defaults > Dictation_ talab qilinadi) |
-| `Right Alt` | Diktovka qilish uchun bosib turish (_Setup > Defaults > Dictation_ talab qilinadi) |
+| `Alt + Space` | Diktovkani boshlash/to‘xtatish (_Setup > Defaults > Dictation_ ni talab qiladi) |
+| `Right Alt` | Diktovka qilish uchun bosib turish (_Setup > Defaults > Dictation_ ni talab qiladi) |
 
-Ekranni yozib olishda tezkor tugma avval qaysi audioni xohlayotganingizni so‘raydi, keyin yozishni boshlaydi. To‘xtatish uchun uni yana bosing. Tafsilotlar uchun [skrinshotlar va yozib olish](12-screenshots-recording.md) ga qarang.
+Ekran yozuvlarida tezkor klavish avval qaysi audioni xohlashingizni so‘raydi, keyin yozishni boshlaydi. To‘xtatish uchun uni yana bosing. Tafsilotlar uchun [skrinshotlar va yozib olish](12-screenshots-recording.md) ga qarang.
 
-Barcha tasvirga olish variantlariga Omarchy menyusidagi _Trigger > Capture_ ostida ham kirish mumkin (`Super + Space`).
+Barcha suratga olish variantlari Omarchy menyusidagi (`Super + Space`) _Trigger > Capture_ ostida ham mavjud.
 
-## Bildirishlar
+## Bildirishnomalar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Eng so‘nggi bildirishga amal qilish: uni ochish yoki uning yagona tugmasini bosish, variantlaridan tanlash yoki varianti bo‘lmaganda uni bekor qilish  |
-| `Super + Shift + ,` | Barcha bildirishlarni bekor qilish |
-| `Super + Ctrl + ,` | Bildirishlarni klaviatura bilan boshqarish  |
-| `Super + Alt + ,` | Eng so‘nggi bildirishni bekor qilish  |
-| `Super + Shift + Alt + ,` | Bildirishlar tarixini ochish  |
-| `Super + Ctrl + Alt + ,` | Bildirishlarni jim qilishni almashtirish  |
+| `Super + ,` | Eng so‘nggi bildirishnoma bo‘yicha amal qilish: uni ochish yoki uning yagona tugmasini bosish, uning variantlaridan tanlash yoki hech biri bo‘lmasa, uni rad etish  |
+| `Super + Shift + ,` | Barcha bildirishnomalarni rad etish |
+| `Super + Ctrl + ,` | Bildirishnomalarni klaviatura bilan boshqarish  |
+| `Super + Alt + ,` | Eng so‘nggi bildirishnomani rad etish  |
+| `Super + Shift + Alt + ,` | Bildirishnomalar tarixini ochish  |
+| `Super + Ctrl + Alt + ,` | Bildirishnomalarni jim qilishni almashtirish  |
 
 ## Uslub
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Yangi mavzuni tanlash (shuningdek `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Mavzu fonini tanlash (shuningdek `Super + Ctrl + Space`) |
-| `Super + Backspace` | Oynadagi shaffoflikni almashtirish |
-| `Super + Ctrl + Backspace` | Bitta oyna kvadrat formatini almashtirish |
+| `Super + Backspace` | Oynada shaffoflikni almashtirish |
+| `Super + Ctrl + Backspace` | Bitta oynaning kvadrat nisbatini almashtirish |
 
-Qo‘shimcha fon rasmlari `~/.config/omarchy/backgrounds/<theme name>` da joylashgan. Omarchy menyusidagi _Install > Style > Background_ orqali ham mavjud.
+Qo‘shimcha fon rasmlari `~/.config/omarchy/backgrounds/<theme name>` da joylashadi. Omarchy menyusidagi _Install > Style > Background_ orqali ham mavjud.
 
-Barcha uslub variantlariga Omarchy menyusidagi _Appearance_ ostida ham kirish mumkin (`Super + Space`).
+Barcha uslub variantlari Omarchy menyusidagi (`Super + Space`) _Appearance_ ostida ham mavjud.
 
 ## Almashtirgichlar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Bo‘sh turganda qulflashni almashtirish |
-| `Super + Ctrl + Delete` | Noutbuk displeyini yoqish/o‘chirishni almashtirish |
+| `Super + Ctrl + Delete` | Noutbuk displeyini yoqish/o‘chirish |
 | `Super + Ctrl + Alt + Delete` | Noutbuk displeyini aks ettirishni almashtirish |
 | `Super + Shift + Space` | Yuqori panelni almashtirish  |
 | `Shift + Mute` | Keyingi audio chiqishiga o‘tish |
 | `Shift + Play` | Keyingi media manbasiga o‘tish |
-| `Super + Shift + Backspace` | Oyna oraliqlarini almashtirish |
-| `Super + Ctrl + Alt + F` | To‘liq ekran ish stolini almashtirish (yuqori panel + oyna oraliqlari) |
+| `Super + Shift + Backspace` | Oyna bo‘shliqlarini almashtirish |
+| `Super + Ctrl + Alt + F` | To‘liq ekran ish stolini almashtirish (yuqori panel + oyna bo‘shliqlari) |
 
 ## Eslatmalar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Eslatma o‘rnatish  |
 | `Super + Ctrl + Alt + R` | Barcha eslatmalarni ko‘rish  |
 | `Super + Ctrl + Shift + R` | Barcha eslatmalarni tozalash  |
 
-## Ma’lumotlar
+## Xabarnomalar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Vaqtni bildirish sifatida ko‘rsatish  |
-| `Super + Ctrl + Alt + B` | Batareyani bildirish sifatida ko‘rsatish  |
-| `Super + Ctrl + Alt + W` | Ob-havoni bildirish sifatida almashtirish  |
+| `Super + Ctrl + Alt + T` | Vaqtni bildirishnoma sifatida ko‘rsatish  |
+| `Super + Ctrl + Alt + B` | Batareya holatini bildirishnoma sifatida ko‘rsatish  |
+| `Super + Ctrl + Alt + W` | Ob-havoni bildirishnoma sifatida almashtirish  |
 
 ## Tmux
 
-Prefiks tugmasi `Ctrl + Space` (`Ctrl + B` ham ishlaydi). Bu bog‘lanishlarni `~/.config/tmux/tmux.conf` da o‘zgartirishingiz mumkin.
+Prefiks klavishi `Ctrl + Space` (`Ctrl + B` ham ishlaydi). Ushbu bog‘lanishlarni `~/.config/tmux/tmux.conf` da o‘zgartirishingiz mumkin.
 
 ### Panellar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Prefix + v` | Panelni yoniga bo‘lish (vertikal) |
 | `Prefix + h` | Panelni pastiga bo‘lish (gorizontal) |
-| `Prefix + x` | Panelni tugatish |
+| `Prefix + x` | Panelni yopish |
 | `Prefix + z` | Panelni kattalashtirishni almashtirish (to‘liq ekran) |
 | `Alt + Enter` | Panelni pastiga bo‘lish (prefikssiz) |
 | `Alt + Shift + Enter` | Panelni yoniga bo‘lish (prefikssiz) |
-| `Alt + Escape` | Panelni tugatish (prefikssiz) |
-| `Ctrl + Alt + Arrows` | Panellar o‘rtasida harakatlanish |
+| `Alt + Escape` | Panelni yopish (prefikssiz) |
+| `Ctrl + Alt + Arrows` | Panellar orasida harakatlanish |
 | `Ctrl + Alt + Shift + Arrows` | Panellar o‘lchamini o‘zgartirish |
 
 ### Oynalar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Yangi oyna |
-| `Prefix + k` | Oynani tugatish |
+| `Prefix + k` | Oynani yopish |
 | `Prefix + r` | Oyna nomini o‘zgartirish |
 | `Alt + 1-9` | Muayyan oynaga o‘tish |
-| `Alt + Arrow Left/Right` | Oynalar o‘rtasida harakatlanish |
+| `Alt + Arrow Left/Right` | Oynalar orasida harakatlanish |
 | `Alt + Shift + Arrow Left/Right` | Oynani chapga/o‘ngga ko‘chirish |
 
 ### Sessiyalar
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Yangi sessiya |
-| `Prefix + K` | Sessiyani tugatish |
+| `Prefix + K` | Sessiyani yopish |
 | `Prefix + R` | Sessiya nomini o‘zgartirish |
 | `Prefix + N` | Keyingi sessiya |
-| `Prefix + P` | Avvalgi sessiya |
-| `Alt + Arrow Up/Down` | Sessiyalar o‘rtasida harakatlanish |
+| `Prefix + P` | Oldingi sessiya |
+| `Alt + Arrow Up/Down` | Sessiyalar orasida harakatlanish |
 | `Prefix + s` | Sessiyalarni ro‘yxatlash |
 | `Prefix + d` | Sessiyadan uzilish |
 
 ### Nusxalash rejimi (vi uslubida)
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Nusxalash rejimiga kirish |
 | `v` | Tanlashni boshlash (nusxalash rejimida) |
@@ -318,42 +317,42 @@ Prefiks tugmasi `Ctrl + Space` (`Ctrl + B` ham ishlaydi). Bu bog‘lanishlarni `
 
 ### Umumiy
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Konfiguratsiyani qayta yuklash |
-| `Prefix + ?` | Tmux tugma bog‘lanishlarini ko‘rsatish |
+| `Prefix + ?` | Tmux klavish bog‘lanishlarini ko‘rsatish |
 | `Prefix + :` | Buyruq satri |
 
-### Tmux tartib funksiyalari
+### Tmux joylashuv funksiyalari
 
-Bu funksiyalar Tmux sessiyasi ichida ishlatilishi kerak.
+Ushbu funksiyalarni Tmux sessiyasi ichida ishga tushirish kerak.
 
 | Buyruq | Funksiya |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Muharrir, AI va terminal bilan dasturlash tartibini yaratish |
-| `tdlm <ai> [<second_ai>]` | Har bir pastki katalog uchun dasturlash tartibini yaratish |
-| `tsl <count> <command>` | Ko‘p panelli swarm tartibini yaratish |
+| `tdl <ai> [<second_ai>]` | Muharrir, AI va terminal bilan dev joylashuvini yaratish |
+| `tdlm <ai> [<second_ai>]` | Har bir pastki katalog uchun dev joylashuvini yaratish |
+| `tsl <count> <command>` | Ko‘p panelli swarm joylashuvini yaratish |
 
 ## Ghostty Terminal
 
 Ghostty terminali Omarchy menyusi orqali _Install > Terminal_ yordamida o‘rnatiladi.
 
-| Tezkor tugma                  | Funksiya              |
+| Tezkor klavish                  | Funksiya              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Pastda yangi bo‘linma |
-| `Ctrl + Shift + O` | Yonida yangi bo‘linma |
-| `Ctrl + Alt + Arrows` | Bo‘linmalar o‘rtasida harakatlanish |
-| `Super + Ctrl + Shift + Arrows` | Bo‘linma o‘lchamini 10 qatorga o‘zgartirish |
-| `Super + Ctrl + Shift + Alt + Arrows` | Bo‘linma o‘lchamini 100 qatorga o‘zgartirish |
-| `Ctrl + Shift + T` | Yangi varaq  |
-| `Ctrl + Shift + Arrows` | Varaqlar o‘rtasida harakatlanish |
-| `Alt + Numbers` | Muayyan varaqqa o‘tish |
+| `Ctrl + Shift + E` | Pastga yangi bo‘linish |
+| `Ctrl + Shift + O` | Yoniga yangi bo‘linish |
+| `Ctrl + Alt + Arrows` | Bo‘linishlar orasida harakatlanish |
+| `Super + Ctrl + Shift + Arrows` | Bo‘linish o‘lchamini 10 qatorga o‘zgartirish |
+| `Super + Ctrl + Shift + Alt + Arrows` | Bo‘linish o‘lchamini 100 qatorga o‘zgartirish |
+| `Ctrl + Shift + T` | Yangi yorliq  |
+| `Ctrl + Shift + Arrows` | Yorliqlar orasida harakatlanish |
+| `Alt + Numbers` | Muayyan yorliqqa o‘tish |
 | `Shift + Pg Up/Down` | Tarixni aylantirish |
 | `Ctrl + Left mouse` | Havolani brauzerda ochish |
 
 ## Fayl menejeri
 
-| Tezkor tugma              | Funksiya                       |
+| Tezkor klavish              | Funksiya                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Yo‘lga o‘tish                     |
 | `Space`               | Faylni oldindan ko‘rish (o‘qlar bilan navigatsiya) |
@@ -363,22 +362,22 @@ Ghostty terminali Omarchy menyusi orqali _Install > Terminal_ yordamida o‘rnat
 
 ### Navigatsiya
 
-| Tezkor tugma                   | Funksiya                        |
+| Tezkor klavish                   | Funksiya                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Buyruq variantlarini ko‘rsatish            |
-| `Space Space`              | Faylni noaniq qidiruv orqali ochish      |
+| `Space Space`              | Noaniq qidiruv orqali faylni ochish      |
 | `Space E`                  | Yon panelni almashtirish                  |
-| `Space G G`                | git boshqaruvini ko‘rsatish               |
-| `Space S G`                | Fayl mazmunini qidirish             |
-| `Ctrl + W W`               | Yon panel va muharrir o‘rtasida o‘tish |
+| `Space G G`                | Git boshqaruvlarini ko‘rsatish               |
+| `Space S G`                | Fayl tarkibini qidirish             |
+| `Ctrl + W W`               | Yon panel va muharrir orasida sakrash |
 | `Ctrl + Left/right arrow`  | Yon panel o‘lchamini o‘zgartirish          |
-| `Shift + H`                      | Chap fayl varag‘iga o‘tish             |
-| `Shift + L`                      | O‘ng fayl varag‘iga o‘tish            |
-| `Space B D`                | Fayl varag‘ini yopish                  |
+| `Shift + H`                      | Chap fayl yorlig‘iga o‘tish             |
+| `Shift + L`                      | O‘ng fayl yorlig‘iga o‘tish            |
+| `Space B D`                | Fayl yorlig‘ini yopish                  |
 
 ### Yon panelda bo‘lganda
 
-| Tezkor tugma                   | Funksiya                        |
+| Tezkor klavish                   | Funksiya                        |
 | ------------------------ | ------------------------------- |
 | `A`                        | Ota katalogda yangi fayl qo‘shish      |
 | `Shift + A`                | Ota katalogda yangi pastki katalog qo‘shish    |
@@ -387,16 +386,16 @@ Ghostty terminali Omarchy menyusi orqali _Install > Terminal_ yordamida o‘rnat
 | `R`                        | Belgilangan fayl/katalog nomini o‘zgartirish     |
 | `?`                        | Barcha buyruqlar uchun yordamni ko‘rsatish      |
 
-[LazyVim tomonidan sozlangan barcha Neovim tezkor tugmalarini ko‘ring](https://www.lazyvim.org/keymaps).
+[LazyVim tomonidan sozlangan barcha Neovim tezkor klavishlarini ko‘ring](https://www.lazyvim.org/keymaps).
 
 ## Tezkor emojilar
 
-To‘liq emoji tanlagichni ko‘rsatish uchun `Super + Ctrl + E` dan foydalanishingiz mumkin, u tanlovni almashuv buferiga joylashtiradi, yoki ushbu tezkor kirish variantlaridan foydalanishingiz mumkin.
+To‘liq emoji tanlagichini ko‘rsatish uchun `Super + Ctrl + E` dan foydalanishingiz mumkin, u tanlovni almashish buferiga qo‘yadi, yoki ushbu tezkor kirish variantlaridan foydalanishingiz mumkin.
 
-| Tezkor tugma       | EM | Ishora       |
+| Tezkor klavish       | EM | Ishora       |
 | ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | tabassum      |
-| `Shift + CapsLock M C` | 😂 | yig‘i        |
+| `Shift + CapsLock M C` | 😂 | yig‘lash        |
 | `Shift + CapsLock M L` | 😍 | sevgi       |
 | `Shift + CapsLock M V` | ✌️ | g‘alaba    |
 | `Shift + CapsLock M H` | ❤️ | yurak      |
@@ -406,9 +405,9 @@ To‘liq emoji tanlagichni ko‘rsatish uchun `Super + Ctrl + E` dan foydalanish
 | `Shift + CapsLock M W` | 🤞 | tilak       |
 | `Shift + CapsLock M R` | 🤘 | rok       |
 | `Shift + CapsLock M K` | 😘 | o‘pich       |
-| `Shift + CapsLock M E` | 🙄 | ko‘z aylantirish    |
+| `Shift + CapsLock M E` | 🙄 | ko‘zni aylantirish    |
 | `Shift + CapsLock M I` | 😉 | ko‘z qisish       |
-| `Shift + CapsLock M P` | 🙏 | ibodat |
+| `Shift + CapsLock M P` | 🙏 | duo |
 | `Shift + CapsLock M D` | 🤤 | so‘lak oqishi      |
 | `Shift + CapsLock M M` | 💰 | pul      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
@@ -421,10 +420,10 @@ To‘liq emoji tanlagichni ko‘rsatish uchun `Super + Ctrl + E` dan foydalanish
 
 ## Tezkor to‘ldirishlar
 
-| Tezkor tugma       | To‘ldirish       |
+| Tezkor klavish       | To‘ldirish       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
 | `Shift + CapsLock Space N` | Ismingiz (sozlashda kiritilganidek)  |
 | `Shift + CapsLock Space E` | Elektron pochtangiz (sozlashda kiritilganidek)  |
 
-`~/.XCompose` ni tahrirlash orqali o‘zingiznikidan ko‘proq qo‘shishingiz, keyin o‘zgarishlar qabul qilinishi uchun terminalda `omarchy restart xcompose` ni ishga tushirishingiz mumkin.
+O‘zingiznikidan ko‘proq qo‘shish uchun `~/.XCompose` ni tahrirlang, keyin o‘zgarishlar qabul qilinishi uchun terminalda `omarchy restart xcompose` ni ishga tushiring.

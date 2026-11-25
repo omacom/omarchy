@@ -111,7 +111,6 @@ Resizing uses the two keys right of 0, whatever your keyboard prints on them: `-
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
 | `Super + Ctrl + X`           | Agents panel    |
-| `Super + Ctrl + Alt + X`           | Local models panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
 | `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
@@ -164,7 +163,7 @@ Resizing uses the two keys right of 0, whatever your keyboard prints on them: `-
 | `Super + Shift + C`           | Calendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | New email ([HEY](https://hey.com/))  |
-| `Super + Shift + A`           | Your default agent, or ChatGPT until you choose one |
+| `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Messenger (Signal)  |
 | `Super + Shift + P`           | Google Photos  |

@@ -154,13 +154,24 @@ end
 
 -- The region this machine was installed for (docs/regions.md).
 function o.region()
-  local command = io.popen(shell_quote(paths.omarchy_path .. "/bin/omarchy-region"))
-  local region = command and command:read("*l")
-  if command then
-    command:close()
+  local path = os.getenv("OMARCHY_REGION_FILE")
+  if not path or path == "" then
+    path = "/etc/omarchy/region"
   end
 
-  return region or "global"
+  local file = io.open(path, "r")
+  if not file then
+    return "global"
+  end
+
+  local region = file:read("*l")
+  file:close()
+
+  if not region or region == "" then
+    return "global"
+  end
+
+  return region
 end
 
 function o.bind(keys, description, dispatcher, options)

@@ -111,11 +111,18 @@ function keyboard.altgr()
   end
 
   -- Only names XKB could know pass, since they end up on a command line.
-  local commands = {}
+  -- Plain US never maps Right Alt to AltGr, so skip xkbcli when nothing else
+  -- is configured, and deduplicate entries shared between Hyprland and Fcitx.
+  local commands, seen = {}, {}
   for _, entry in ipairs(layouts) do
-    if entry[1]:match("^[%w_]+$") and entry[2]:match("^[%w_-]*$") then
+    local key = entry[1] .. "\0" .. entry[2]
+    if not seen[key] and not (entry[1] == "us" and entry[2] == "") and entry[1]:match("^[%w_]+$") and entry[2]:match("^[%w_-]*$") then
+      seen[key] = true
       table.insert(commands, "xkbcli compile-keymap --layout " .. entry[1] .. " --variant '" .. entry[2] .. "' </dev/null 2>/dev/null")
     end
+  end
+  if #commands == 0 then
+    return false
   end
   local pipe = io.popen(table.concat(commands, "; "), "r")
   local keymaps = pipe and pipe:read("a") or ""
