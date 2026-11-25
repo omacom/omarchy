@@ -5,6 +5,10 @@ echo "Install omarchy-mac on Apple Silicon Macs set up before it became a defaul
 # resume fix. Both setups are idempotent, so each user gets the user setup.
 if omarchy-hw-aarch64-apple; then
   omarchy-pkg-add omarchy-mac
-  sudo omarchy-lifecycle-dispatch setup-system
+  system_marker=/var/lib/omarchy/migrations/1792657167
+  if [[ ! -f $system_marker ]]; then
+    sudo omarchy-lifecycle-dispatch setup-system
+    sudo install -Dm644 /dev/null "$system_marker"
+  fi
   omarchy-lifecycle-dispatch setup-user
 fi
