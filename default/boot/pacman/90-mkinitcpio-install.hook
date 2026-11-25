@@ -21,6 +21,11 @@ Target = usr/lib/libcryptsetup.so
 Target = usr/lib/libp11-kit.so
 Target = usr/lib/libpcsclite.so
 Target = usr/lib/modprobe.d/
+# What a Snapdragon machine's boot image embeds (uki.conf's device trees, and
+# the hardware IDs systemd-stub picks one by): a dtbs package's upgrade
+# rebuilds it even when the kernel doesn't change.
+Target = boot/dtbs/*
+Target = usr/lib/systemd/boot/hwids/*
 
 [Trigger]
 Type = Path
