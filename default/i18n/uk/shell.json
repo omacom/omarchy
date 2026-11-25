@@ -513,6 +513,7 @@
   "notifications.redactedSummary": "Сповіщення для підтвердження",
   "notifications.yesterday": "учора",
   "polkit.authenticationNeeded": "Потрібна автентифікація...",
+  "polkit.authorizeAgentRunning": "Дозволити %1 запустити '%2'",
   "polkit.authorizeFormatting": "Дозволити форматування %1",
   "polkit.authorizeRunning": "Дозволити запуск '%1'",
   "polkit.checking": "Перевірка...",

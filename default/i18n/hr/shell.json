@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Obavijest o verifikaciji",
   "notifications.yesterday": "jučer",
   "polkit.authenticationNeeded": "Potrebna je autentifikacija...",
+  "polkit.authorizeAgentRunning": "Odobri %1 da pokrene '%2'",
   "polkit.authorizeFormatting": "Odobri formatiranje %1",
   "polkit.authorizeRunning": "Odobri pokretanje '%1'",
   "polkit.checking": "Provjera...",

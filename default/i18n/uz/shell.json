@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Tasdiqlash bildirishnomasi",
   "notifications.yesterday": "kecha",
   "polkit.authenticationNeeded": "Autentifikatsiya talab qilinadi...",
+  "polkit.authorizeAgentRunning": "%1 ga '%2' ni ishga tushirishga ruxsat berish",
   "polkit.authorizeFormatting": "%1 ni formatlashga ruxsat berish",
   "polkit.authorizeRunning": "'%1' ni ishga tushirishga ruxsat berish",
   "polkit.checking": "Tekshirilmoqda...",

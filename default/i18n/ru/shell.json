@@ -513,6 +513,7 @@
   "notifications.redactedSummary": "Уведомление о подтверждении",
   "notifications.yesterday": "вчера",
   "polkit.authenticationNeeded": "Требуется аутентификация...",
+  "polkit.authorizeAgentRunning": "Разрешить %1 запуск '%2'",
   "polkit.authorizeFormatting": "Разрешить форматирование %1",
   "polkit.authorizeRunning": "Разрешить запуск '%1'",
   "polkit.checking": "Проверка...",
