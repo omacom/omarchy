@@ -58,7 +58,17 @@ case $1 in
   layout.tiling) echo Tiling ;;
   layout.scrolling) echo Scrolling ;;
   layout.floating) echo Floating ;;
-  *) echo Title ;;
+  layout.cycleTitle) echo "Enabled Layouts" ;;
+  layout.cycleRequired) echo "Choose at least one workspace layout" ;;
+  layout.disabled) echo "That workspace layout is disabled" ;;
+  layout.needsReload) echo "Workspace layout needs a Hyprland reload" ;;
+  layout.workspaceTiling) echo "Workspace layout set to tiling" ;;
+  layout.workspaceScrolling) echo "Workspace layout set to scrolling" ;;
+  layout.workspaceFloating) echo "Workspace layout set to floating" ;;
+  layout.workspaceTilingUnsaved) echo "Workspace layout set to tiling but could not be saved" ;;
+  layout.workspaceScrollingUnsaved) echo "Workspace layout set to scrolling but could not be saved" ;;
+  layout.workspaceFloatingUnsaved) echo "Workspace layout set to floating but could not be saved" ;;
+  *) echo "$1" ;;
 esac
 EOF
 chmod +x "$stub_dir/omarchy-i18n"
@@ -133,6 +143,7 @@ grep -q -- '--selected Floating' "$tmpdir/menu.log" || fail "the picker restores
 [[ $(cat "$tmpdir/menu-result.json") == '["Tiling","Floating"]' ]] ||
   fail "the picker returns the applied selection to its checkmarks"
 pass "the layout picker saves and restores its selection"
+cycle dwindle scrolling floating
 
 # Nothing saved yet, so the cycle starts from the layout Hyprland reports.
 : >"$notification_log"
