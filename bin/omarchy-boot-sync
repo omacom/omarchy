@@ -538,9 +538,10 @@ cmd_sync() {
       kv_set "$journal" ONESHOT "$id"
     fi
     # And the maintenance boot the firmware is armed for moves with the live
-    # image when that is rebuilt before the reboot.
+    # image when that is rebuilt before the reboot. Only that one: a one-shot
+    # boot the user chose since (a snapshot) stays theirs.
     id=$(entry_id omarchy-restore)
-    if [[ $(kv_get "$journal" STATE) == "pending" && -n $id && -n $oneshot && $oneshot != "$id" ]]; then
+    if [[ $(kv_get "$journal" STATE) == "pending" && -n $id && $oneshot == *@omarchy-restore && $oneshot != "$id" ]]; then
       bootctl set-oneshot "$id" >/dev/null 2>&1 || log "could not arm the restore's maintenance boot ($id)" >&2
     fi
   fi
