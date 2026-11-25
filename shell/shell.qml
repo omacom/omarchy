@@ -11,6 +11,7 @@ import qs.Commons as Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
+import "services/PluginReload.js" as PluginReload
 
 ShellRoot {
   id: shell
@@ -67,16 +68,28 @@ ShellRoot {
   property bool pluginReloading: false
   property bool pluginReloadPending: false
   property bool localPluginNeedsReload: false
+  property bool localPluginQmlReloadPending: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
     onTriggered: {
-      if (shell.localPluginNeedsReload) {
-        shell.localPluginNeedsReload = false
-        shell.reloadPlugins()
-      } else {
-        shell.rescanPlugins()
+      shell.localPluginQmlReloadPending = PluginReload.flush(
+        shell.localPluginQmlReloadPending,
+        AuthServiceStore.hasActiveLock(),
+        function() { Quickshell.reload(false) },
+        function() {
+          if (shell.localPluginNeedsReload) {
+            shell.localPluginNeedsReload = false
+            shell.reloadPlugins()
+          } else {
+            shell.rescanPlugins()
+          }
+        })
+      if (shell.localPluginQmlReloadPending) {
+        // Keep the edit queued until unlock without polling the idle shell.
+        localPluginReloadTimer.interval = 1000
+        localPluginReloadTimer.start()
       }
     }
   }
@@ -1624,18 +1637,21 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
-    if (typeof Qt.clearComponentCache === "function") Qt.clearComponentCache()
     shell.pluginRegistry.rescan()
   }
 
   Connections {
     target: shell.pluginRegistry
-    function onLocalPluginChanged(pluginId) {
-      // An edit to a plugin the shell already runs needs its fresh code; a
-      // plugin that just appeared only needs adding.
-      if (shell.localPluginLoaded(pluginId))
+    function onLocalPluginChanged(pluginId, qmlSourceChanged) {
+      // An edit to a plugin the shell already runs needs its fresh code, and
+      // compiled QML or JavaScript only refreshes in a new engine; a plugin
+      // that just appeared only needs adding.
+      if (shell.localPluginLoaded(pluginId)) {
         shell.localPluginNeedsReload = true
+        if (qmlSourceChanged) shell.localPluginQmlReloadPending = true
+      }
       console.log("Local plugin changed:", pluginId)
+      localPluginReloadTimer.interval = PluginReload.quietInterval(shell.localPluginQmlReloadPending)
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
