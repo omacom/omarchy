@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
 
-unset MISE_DATA_DIR XDG_DATA_HOME
+unset "${!MISE_@}" XDG_DATA_HOME
 
 run_bootstrap() {
   local shell_bin="$1"
@@ -218,6 +218,17 @@ out_mise_cfg=$(OMARCHY_TEST_MISE_STARSHIP_CONFIG="$starship_proj_cfg" OMARCHY_TE
 [[ $out_mise_cfg == "v1:v1:## :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
   fail "STARSHIP_CONFIG exported by mise activation invalidates cached starship PS2" "$out_mise_cfg"
 
+# Static continuation_prompt containing the letter 'r' still bakes PS2 into cache
+printf 'continuation_prompt = "more> "\n' >"$starship_cfg"
+: >"$init_calls"
+out_more=$(OMARCHY_TEST_PS2="more> " run_init)
+[[ $out_more == "v1:v1:more> :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
+  fail "static continuation_prompt containing 'r' bakes PS2" "$out_more"
+: >"$init_calls"
+[[ $(run_init) == "v1:v1:more> :$home/.local/share/omarchy/agent-accounts/bin" ]] &&
+  ! grep -q '^starship ' "$init_calls" ||
+  fail "cached static continuation_prompt containing 'r' avoids re-running starship" "$(<"$init_calls")"
+
 # Dynamic continuation_prompt (bare or quoted TOML key) is evaluated per shell rather than baked
 for dyn_line in 'continuation_prompt = "$directory> "' '"continuation_prompt" = "$directory> "'; do
   starship_dyn_cfg="$tmpdir/starship-dynamic.toml"
@@ -242,7 +253,7 @@ cnf_off=$(MISE_NOT_FOUND_AUTO_INSTALL=0 MISE_GITHUB_TOKEN=secret-token-value HOM
   OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
   PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
   bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
-cnf_on=$(HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+cnf_on=$(env -u MISE_NOT_FOUND_AUTO_INSTALL HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
   STARSHIP_CONFIG="$starship_cfg" OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
   PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
   bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
@@ -250,7 +261,14 @@ cnf_on=$(HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_P
   fail "MISE_NOT_FOUND_AUTO_INSTALL override bypasses cached mise init" "$cnf_off | $cnf_on"
 ! grep -rq 'secret-token-value' "$init_cache" || fail "MISE_* credentials are never written to init cache"
 
-# Project mise.toml, project .config/mise.toml, and global conf.d bypass shared mise cache
+# Non-interactive shell with set -e completes init cleanly
+errexit_out=$(env -u MISE_NOT_FOUND_AUTO_INSTALL HOME="$home" XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+  bash -ec 'source "$OMARCHY_PATH/default/bash/init"; echo reached' 2>/dev/null)
+[[ $errexit_out == "reached" ]] || fail "init succeeds under set -e in non-interactive shells" "$errexit_out"
+
+# Project mise.toml, HOME/.config/mise.toml, project .config/mise.toml, and global conf.d bypass shared mise cache
 mkdir -p "$tmpdir/local-proj" "$tmpdir/dotconfig-proj/.config" "$home/.config/mise/conf.d"
 printf '[settings]\nnot_found_auto_install = false\n' >"$tmpdir/local-proj/mise.toml"
 printf '[settings]\nnot_found_auto_install = false\n' >"$tmpdir/dotconfig-proj/.config/mise.toml"
@@ -265,6 +283,11 @@ printf '[settings]\nnot_found_auto_install = false\n' >"$home/.config/mise/conf.
 run_init >/dev/null
 grep -q '^mise activate' "$init_calls" || fail "global mise conf.d bypasses shared mise activation cache" "$(<"$init_calls")"
 rm -rf "$home/.config/mise/conf.d"
+printf '[settings]\nnot_found_auto_install = false\n' >"$home/.config/mise.toml"
+: >"$init_calls"
+run_init >/dev/null
+grep -q '^mise activate' "$init_calls" || fail "HOME/.config/mise.toml bypasses shared mise activation cache" "$(<"$init_calls")"
+rm -f "$home/.config/mise.toml"
 
 cat >"$init_bin/starship" <<'SH'
 #!/bin/bash

@@ -34,10 +34,11 @@ _omarchy_has_uncached_mise_config() {
   local dir="$PWD"
   while true; do
     if [[ -e $dir/mise.toml || -e $dir/.mise.toml || -e $dir/mise.local.toml || -e $dir/.mise.local.toml ||
-      -d $dir/.mise || -e $dir/mise/config.toml || -e $dir/mise/config.local.toml ]]; then
+      -d $dir/.mise || -e $dir/mise/config.toml || -e $dir/mise/config.local.toml ||
+      -e $dir/.config/mise.toml || -e $dir/.config/mise.local.toml ]]; then
       return 0
     fi
-    if [[ $dir != "$HOME" ]] && [[ -e $dir/.config/mise.toml || -e $dir/.config/mise.local.toml || -d $dir/.config/mise ]]; then
+    if [[ $dir != "$HOME" && -d $dir/.config/mise ]]; then
       return 0
     fi
     [[ $dir == "/" || $dir != */* ]] && break
@@ -49,9 +50,12 @@ _omarchy_has_uncached_mise_config() {
 
 _omarchy_starship_ps2_is_static() {
   local cfg="$1"
-  [[ -z $cfg || ! -r $cfg ]] && return 0
+  if [[ -z $cfg || ! -r $cfg ]]; then
+    return 0
+  fi
   local line
   while IFS= read -r line || [[ -n $line ]]; do
+    line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"
     [[ -z $line || $line == "#"* ]] && continue
     # Bail conservatively on escaped TOML keys (e.g. "\u0063ontinuation_prompt")
@@ -59,7 +63,7 @@ _omarchy_starship_ps2_is_static() {
       return 1
     fi
     if [[ $line == *continuation_prompt* ]]; then
-      if [[ $line =~ ^(\"continuation_prompt\"|\'continuation_prompt\'|continuation_prompt)[[:space:]]*=[[:space:]]*(\'[^\'\$\r]*\'|\"[^\"\$\\\r]*\")[[:space:]]*(#.*)?$ ]]; then
+      if [[ $line =~ ^(\"continuation_prompt\"|\'continuation_prompt\'|continuation_prompt)[[:space:]]*=[[:space:]]*(\'[^\'\$]*\'|\"[^\"\$\\]*\")[[:space:]]*(#.*)?$ ]]; then
         continue
       fi
       return 1
@@ -155,7 +159,7 @@ _omarchy_mise=""
 _omarchy_mise_cacheable=0
 _omarchy_mise_cfg=""
 _omarchy_mise_sys_dir=""
-_omarchy_mise_sys_cfg=""
+_omarchy_mise_sys_files=()
 _omarchy_starship=""
 _omarchy_starship_cfg=""
 _omarchy_starship_cfg_path=""
@@ -174,10 +178,11 @@ if _omarchy_mise=$(type -P mise); then
     if [[ -d /etc/mise/conf.d ]]; then
       _omarchy_mise_sys_dir="/etc/mise/conf.d"
       _omarchy_init_paths+=("$_omarchy_mise_sys_dir")
-    fi
-    if [[ -e /etc/mise/conf.d/omarchy.toml ]]; then
-      _omarchy_mise_sys_cfg="/etc/mise/conf.d/omarchy.toml"
-      _omarchy_init_paths+=("$_omarchy_mise_sys_cfg")
+      for _omarchy_mise_sys_file in /etc/mise/conf.d/*; do
+        [[ -e $_omarchy_mise_sys_file ]] || continue
+        _omarchy_mise_sys_files+=("$_omarchy_mise_sys_file")
+        _omarchy_init_paths+=("$_omarchy_mise_sys_file")
+      done
     fi
   fi
 fi
@@ -191,7 +196,9 @@ if [[ $- == *i* ]] && [[ ${TERM:-} != "dumb" ]]; then
     fi
   fi
 fi
-_omarchy_zoxide=$(type -P zoxide) && _omarchy_init_paths+=("$_omarchy_zoxide")
+if _omarchy_zoxide=$(type -P zoxide); then
+  _omarchy_init_paths+=("$_omarchy_zoxide")
+fi
 
 if (( ${#_omarchy_init_paths[@]} > 0 )) || [[ -n $_omarchy_mise ]]; then
   _omarchy_init_stamps=()
@@ -203,26 +210,24 @@ if (( ${#_omarchy_init_paths[@]} > 0 )) || [[ -n $_omarchy_mise ]]; then
     _omarchy_mise_stamp=""
     if (( _omarchy_mise_cacheable )); then
       _omarchy_mise_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-      (( _omarchy_stamp_idx++ ))
+      (( ++_omarchy_stamp_idx ))
       if [[ -n $_omarchy_mise_cfg ]]; then
         _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-        (( _omarchy_stamp_idx++ ))
+        (( ++_omarchy_stamp_idx ))
       else
         _omarchy_mise_stamp+=":none"
       fi
       if [[ -n $_omarchy_mise_sys_dir ]]; then
         _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-        (( _omarchy_stamp_idx++ ))
+        (( ++_omarchy_stamp_idx ))
+        for _omarchy_mise_sys_file in "${_omarchy_mise_sys_files[@]}"; do
+          _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
+          (( ++_omarchy_stamp_idx ))
+        done
       else
         _omarchy_mise_stamp+=":none"
       fi
-      if [[ -n $_omarchy_mise_sys_cfg ]]; then
-        _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-        (( _omarchy_stamp_idx++ ))
-      else
-        _omarchy_mise_stamp+=":none"
-      fi
-      _omarchy_mise_stamp+=":v3"
+      _omarchy_mise_stamp+=":v4"
     fi
     _omarchy_mise_transform() { _omarchy_transform_mise_init "$2"; }
     _omarchy_source_cached_init mise "$_omarchy_mise" "$_omarchy_mise_stamp" _omarchy_mise_transform activate bash
@@ -230,11 +235,11 @@ if (( ${#_omarchy_init_paths[@]} > 0 )) || [[ -n $_omarchy_mise ]]; then
   fi
   if [[ -n $_omarchy_starship ]]; then
     _omarchy_starship_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-    (( _omarchy_stamp_idx++ ))
+    (( ++_omarchy_stamp_idx ))
     _omarchy_starship_cfg_stamp="none"
     if [[ -n $_omarchy_starship_cfg ]]; then
       _omarchy_starship_cfg_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-      (( _omarchy_stamp_idx++ ))
+      (( ++_omarchy_stamp_idx ))
     fi
     _omarchy_effective_starship_cfg="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
     if [[ $_omarchy_effective_starship_cfg != "$_omarchy_starship_cfg_path" ]]; then
@@ -244,14 +249,14 @@ if (( ${#_omarchy_init_paths[@]} > 0 )) || [[ -n $_omarchy_mise ]]; then
         _omarchy_starship_cfg_stamp="none"
       fi
     fi
-    _omarchy_starship_stamp+=":${_omarchy_starship_cfg_stamp}:${NO_COLOR+1}:v3"
+    _omarchy_starship_stamp+=":${_omarchy_starship_cfg_stamp}:${NO_COLOR+1}:v4"
     _omarchy_source_cached_init starship "$_omarchy_starship" "$_omarchy_starship_stamp" _omarchy_transform_starship_init init bash --print-full-init
   fi
   if [[ -n $_omarchy_zoxide ]]; then
     _omarchy_source_cached_init zoxide "$_omarchy_zoxide" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}" "" init bash
   fi
 fi
-unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_mise _omarchy_mise_cacheable _omarchy_mise_cfg _omarchy_mise_sys_dir _omarchy_mise_sys_cfg _omarchy_mise_stamp _omarchy_starship _omarchy_starship_cfg _omarchy_starship_cfg_path _omarchy_starship_cfg_stamp _omarchy_effective_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
+unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_mise _omarchy_mise_cacheable _omarchy_mise_cfg _omarchy_mise_sys_dir _omarchy_mise_sys_files _omarchy_mise_sys_file _omarchy_mise_stamp _omarchy_starship _omarchy_starship_cfg _omarchy_starship_cfg_path _omarchy_starship_cfg_stamp _omarchy_effective_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
 unset -f _omarchy_source_cached_init _omarchy_transform_mise_init _omarchy_transform_starship_init _omarchy_has_mise_env_override _omarchy_has_uncached_mise_config _omarchy_starship_ps2_is_static
 
 if command -v try &> /dev/null; then
