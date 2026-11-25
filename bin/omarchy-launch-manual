@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Open the Omarchy manual in the current language
+
+# Each language's manual lives on that language's own site (locales.json).
+site=$(jq -r --arg code "$(omarchy-language)" '.[$code].site // empty' "$OMARCHY_PATH/default/i18n/locales.json")
+exec omarchy-launch-webapp "${site:-https://omarchy.org/}manual/"

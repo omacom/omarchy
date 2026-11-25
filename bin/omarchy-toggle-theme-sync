@@ -5,7 +5,7 @@
 omarchy-toggle herdr-theme-sync
 
 if omarchy-toggle-enabled herdr-theme-sync; then
-  omarchy-notification-send -g 󰸌 "Herdr theme sync enabled"
+  omarchy-notification-send -g 󰸌 "$(omarchy-i18n themeSync.enabled)"
 else
-  omarchy-notification-send -g 󰸌 "Herdr theme sync disabled"
+  omarchy-notification-send -g 󰸌 "$(omarchy-i18n themeSync.disabled)"
 fi
