@@ -146,14 +146,11 @@ trap 'rm -rf "$tmpdir"' EXIT
 # its conditional ones, so the check covers the largest set a user can get.
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
-mkdir -p "$home" "$stub_bin"
-cat > "$stub_bin/omarchy-default-dictation" <<'SH'
-#!/bin/bash
-echo voxtype
-SH
+mkdir -p "$home/.config/omarchy/defaults" "$stub_bin"
+printf 'voxtype\n' > "$home/.config/omarchy/defaults/dictation"
 # The dictation keys are bound only once the selected backend is installed.
 printf '#!/bin/bash\nexit 0\n' > "$stub_bin/voxtype"
-chmod +x "$stub_bin/omarchy-default-dictation" "$stub_bin/voxtype"
+chmod +x "$stub_bin/voxtype"
 
 bindings=$(PATH="$stub_bin:$PATH" list_bindings "$home")
 [[ -n $bindings ]] || fail "default bindings load for the conflict check"
