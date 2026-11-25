@@ -58,12 +58,15 @@ cat >"$test_tmp/bin/lsblk" <<'SH'
 #!/bin/bash
 case $2 in PARTUUID) echo "$PARTUUID" ;; PKNAME) echo nvme0n1 ;; PARTN) echo 1 ;; esac
 SH
-# limine-install lays Limine's binary down as the real one does.
+# limine-install lays Limine's binary down as the real one does, and with the
+# factory root's ENABLE_LIMINE_FALLBACK=yes makes it the fallback loader,
+# whatever was there.
 cat >"$test_tmp/bin/chroot" <<'SH'
 #!/bin/bash
 [[ $2 == /usr/bin/limine-install && $3 == --no-efi-register ]] || exit 1
-mkdir -p "$ESP_MNT/EFI/limine"
+mkdir -p "$ESP_MNT/EFI/limine" "$ESP_MNT/EFI/BOOT"
 printf 'limine\n' >"$ESP_MNT/EFI/limine/limine_x64.efi"
+cp "$ESP_MNT/EFI/limine/limine_x64.efi" "$ESP_MNT/EFI/BOOT/BOOTX64.EFI"
 SH
 chmod +x "$test_tmp/bin/"*
 
@@ -115,6 +118,10 @@ run_reset() {
     LOG_FILE=$1/reset.log
     log() { printf "%s\n" "$1" >>"$ESP_MNT/../log"; }
     fail() { printf "%s\n" "$1" >&2; exit 1; }
+    # rebuild_next_boot copies the ESP before anything touches it.
+    esp_backup=$1/esp-backup
+    rm -rf "$esp_backup"
+    backup_esp "$ESP_MNT" "$esp_backup"
     eval "$2"
   ' _ "$test_tmp" "$1"
 }

@@ -202,15 +202,27 @@ commit_systemd_boot_return() {
     efibootmgr --quiet --delete-bootnum --bootnum "$sd_entry" || log "Could not remove systemd-boot's boot entry"
   fi
   limine_entry_created=0
-  # The switch made systemd-boot the firmware's fallback loader too.
-  local fallback loader fallback_taken=0
+  # The switch made systemd-boot the firmware's fallback loader too. By now
+  # limine-install (here and in limine-update) has made Limine the fallback,
+  # whatever was there, so the copy taken before the reset decides: one that
+  # was systemd-boot's stays Limine's, another system's goes back.
+  local fallback before loader foreign fallback_taken=0
   for fallback in "$ESP_MNT"/EFI/BOOT/BOOT*.EFI; do
-    for loader in "$ESP_MNT"/EFI/systemd/systemd-boot*.efi; do
-      if [[ -f $fallback && -f $loader ]] && cmp -s "$fallback" "$loader"; then
-        cp "$ESP_MNT/${limine_loader//\\//}" "$fallback" && fallback_taken=1 ||
-          log "Could not make Limine the fallback boot loader"
-      fi
-    done
+    [[ -f $fallback ]] || continue
+    before=${esp_backup:-}/${fallback#"$ESP_MNT"/}
+    foreign=0
+    if [[ -f $before ]] && ! grep -qa '[Ll]imine' "$before"; then
+      foreign=1
+      for loader in "$ESP_MNT"/EFI/systemd/systemd-boot*.efi; do
+        if [[ -f $loader ]] && cmp -s "$before" "$loader"; then foreign=0; fi
+      done
+    fi
+    if ((foreign)); then
+      cp "$before" "$fallback" || log "Could not put back the fallback boot loader"
+    else
+      cp "$ESP_MNT/${limine_loader//\\//}" "$fallback" && fallback_taken=1 ||
+        log "Could not make Limine the fallback boot loader"
+    fi
   done
   rm -rf "${ESP_MNT:?}/EFI/systemd" "$ESP_MNT/loader/loader.conf"
   drop_stale_limine_entries "$ESP_MNT/limine.conf" "$fallback_taken" || log "Could not tidy Limine's menu"

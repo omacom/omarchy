@@ -1222,9 +1222,11 @@ esp_path() {
 # or the bare header reset_limine_config leaves when the rebuild after it
 # failed. Other machine-ids are not stale: a shared ESP holds other systems'
 # entries, and the factory reset already re-keyed this system's entry to the
-# identity it boots with.
+# identity it boots with. A machine on systemd-boot has no Limine entry: a
+# limine.conf on its ESP is another installation's.
 limine_entries_stale() {
   local esp machine_id
+  [[ $(boot_backend) != systemd-boot ]] || return 1
   esp=$(esp_path)
   machine_id=$(cat /etc/machine-id 2>/dev/null || true)
   [[ -f $esp/limine.conf && -n $machine_id ]] || return 1
