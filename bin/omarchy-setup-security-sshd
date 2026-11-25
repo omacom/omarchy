@@ -15,9 +15,18 @@ GITHUB_USER=""
 # option-shaped username otherwise falls through to the interactive menu having
 # already changed the machine, and `--gh-keys --help` would take --help as the
 # username and set the server up on its way to failing.
+valid_github_user() {
+  local LC_ALL=C
+  [[ $1 =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$ ]]
+}
+
 require_github_user() {
   if [[ -z $1 || $1 == -* ]]; then
     echo "omarchy-setup-security-sshd: --gh-keys needs a GitHub username." >&2
+    exit 2
+  fi
+  if ! valid_github_user "$1"; then
+    echo "omarchy-setup-security-sshd: invalid GitHub username '$1'." >&2
     exit 2
   fi
 }
@@ -90,28 +99,32 @@ valid_key() {
 }
 
 authorize_key() {
-  local key="$1"
+  local key="${1%$'\r'}"
 
-  if ! valid_key "$key"; then
+  if [[ $key == *$'\n'* ]] || ! valid_key "$key"; then
     echo -e "\e[31mNot a valid SSH public key: $key\e[0m" >&2
     return 1
   fi
 
-  mkdir -p "$HOME/.ssh"
-  chmod 700 "$HOME/.ssh"
-  touch "$AUTHORIZED_KEYS"
+  install -d -m 700 "$HOME/.ssh"
+  (umask 077 && touch "$AUTHORIZED_KEYS")
   chmod 600 "$AUTHORIZED_KEYS"
 
-  if grep -qxF "$key" "$AUTHORIZED_KEYS"; then
+  if grep -qxF -- "$key" "$AUTHORIZED_KEYS"; then
     echo "Key already authorized: $(ssh-keygen -lf /dev/stdin <<<"$key")"
   else
-    echo "$key" >>"$AUTHORIZED_KEYS"
+    printf '%s\n' "$key" >>"$AUTHORIZED_KEYS"
     echo "Authorized key: $(ssh-keygen -lf /dev/stdin <<<"$key")"
   fi
 }
 
 authorize_keys_from_github() {
   local username="$1" keys added=0
+
+  if ! valid_github_user "$username"; then
+    echo -e "\e[31mInvalid GitHub username '$username'.\e[0m" >&2
+    exit 1
+  fi
 
   echo "Fetching keys from https://github.com/$username.keys..."
   if ! keys=$(curl -fsSL "https://github.com/$username.keys") || [[ -z $keys ]]; then
@@ -120,8 +133,11 @@ authorize_keys_from_github() {
   fi
 
   while IFS= read -r key; do
+    key="${key%$'\r'}"
     [[ -z $key ]] && continue
-    authorize_key "$key" && added=$((added + 1))
+    if authorize_key "$key"; then
+      added=$((added + 1))
+    fi
   done <<<"$keys"
 
   if (( added == 0 )); then

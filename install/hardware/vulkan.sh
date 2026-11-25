@@ -19,5 +19,5 @@ if omarchy-hw-aarch64-qualcomm; then
 fi
 
 if (( ${#PACKAGES[@]} > 0 )); then
-  omarchy-pkg-add "${PACKAGES[@]}"
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add "${PACKAGES[@]}"
 fi

@@ -64,6 +64,47 @@ english_catalog=$i18n/en/cli.json
 registry=$i18n/locales.json
 [[ -f $registry ]] || registry=/dev/null
 
+# Fast path for --number on Latin-digit languages (48 of 50 locales): avoids
+# spawning jq and parsing three JSON files on every volume/brightness OSD tick.
+fast_number() {
+  local value="$1"
+  if [[ $language == "en" ]]; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  [[ -f $registry ]] || return 1
+  local line in_lang=0 decimal="" zero_digit=""
+  while IFS= read -r line; do
+    if (( !in_lang )); then
+      [[ $line =~ ^[[:space:]]*\"$language\"[[:space:]]*:[[:space:]]*\{ ]] && in_lang=1
+    else
+      if [[ $line =~ ^[[:space:]]*\} ]]; then
+        break
+      elif [[ $line =~ \"decimal\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+        decimal=${BASH_REMATCH[1]}
+      elif [[ $line =~ \"zeroDigit\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+        zero_digit=${BASH_REMATCH[1]}
+      fi
+    fi
+  done <"$registry"
+
+  if (( in_lang )) && [[ ${zero_digit:-0} == "0" ]]; then
+    if [[ $value != *.* ]]; then
+      printf '%s' "$value"
+      return 0
+    elif [[ -n $decimal && $decimal != *\\* ]]; then
+      printf '%s' "${value/./$decimal}"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+if (( number_only )) && fast_number "$1"; then
+  exit 0
+fi
+
 # Fast path for plain, non-plural catalog entries without numeric arguments or
 # JSON escapes: avoids spawning jq and parsing three JSON files on every lookup.
 # Any key carrying escapes, an empty string, a plural object, or numeric args

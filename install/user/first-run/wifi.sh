@@ -16,8 +16,13 @@ announce_network() {
     notify_wifi
     # Nothing to install until a link lands, so hold those prompts
     # for however long that takes. nm-online has no "forever", so wait out its
-    # timeout as often as needed.
-    until nm-online -q -t 86400; do :; done
+    # timeout as often as needed, backing off if it returns immediately (e.g.
+    # when NetworkManager is stopped).
+    local started=$SECONDS
+    until nm-online -q -t 86400; do
+      (( SECONDS - started < 5 )) && sleep 5
+      started=$SECONDS
+    done
   fi
 
   # Both setups install packages, so they wait for the link. Each invites only

@@ -194,6 +194,50 @@ assertDeepEqual(targets({
   'away/a': { recipe: 'a', host: 'away', kind: 'text', unit: 'active', paired: true, offline: 'offline' }
 }), ['q', 'f', 'n', 'box/d'], 'every coding model here and each setup gets a line, a paired machine\'s only while it runs there')
 
+const builtWithBest = build(
+  { n: { recipe: 'n', kind: 'text', unit: 'inactive' }, q: { recipe: 'q', kind: 'text', unit: 'inactive' } },
+  [],
+  { 'box/n': { recipe: 'n', host: 'box', kind: 'text', unit: 'active', paired: true, offline: '' } },
+  [{ id: 'n', best: true }, { id: 'q', best: false }]
+)
+assertDeepEqual(builtWithBest.map(line => [line.localModel.target, line.localModel.best]),
+  [['n', true], ['q', false], ['box/n', false]],
+  'local model lines carry best from this machine\'s catalog and never for a network model')
+
+const offerRecommended = new Function(fn('offerRecommended') + '\nreturn offerRecommended')()
+assertEqual(offerRecommended({ host: '', best: true }, 2), true, 'the best model gets the recommended pill when multiple local models are offered')
+assertEqual(offerRecommended({ host: '', best: true }, 1), false, 'a single offered local model gets no recommended pill')
+assertEqual(offerRecommended({ host: '', best: false }, 2), false, 'a non-best model gets no recommended pill')
+assertEqual(offerRecommended({ host: 'spark', best: true }, 2), false, 'a network model never gets the recommended pill')
+assertEqual(offerRecommended({ host: '', best: true, link: { state: 'available' } }, 2), false, 'a cabled Spark link offer never gets the recommended pill')
+
+const sortLocalOffers = new Function(fn('sortLocalOffers') + '\nreturn sortLocalOffers')()
+assertDeepEqual(
+  sortLocalOffers([
+    { target: 'qwen', best: false },
+    { target: 'other', best: false },
+    { target: 'nemotron', best: true }
+  ]).map(o => o.target),
+  ['nemotron', 'qwen', 'other'],
+  'the recommended model sorts at the top even when another model is already installed'
+)
+
+const localMeter = new Function('Commons', 'nowMs', 'downloadRate', fn('phaseProgress') + fn('expectedLoadSeconds') + fn('expectedStopSeconds') + fn('localMeter') + '\nreturn localMeter')(
+  { I18n: { t: key => key } },
+  10000,
+  rate => rate > 0 ? Math.round(rate / 1e6) + ' MB/s' : ''
+)
+assertDeepEqual(
+  localMeter({ unit: 'installing', install: { phase: 'downloading', done_bytes: 20e9, total_bytes: 40e9, rate_bytes_s: 84e6 } }, false),
+  { title: '', value: 0.5, rate: '84 MB/s', downloading: true },
+  'a downloading model shows a titleless progress bar with speed and marks downloading'
+)
+assertEqual(
+  localMeter({ unit: 'installing', install: { phase: 'dependencies' } }, false).downloading,
+  undefined,
+  'dependency installation keeps its titled meter'
+)
+
 const localActions = new Function(fn('localActions') + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle'], 'a running model can be shared and stopped')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle'], 'without Tailscale set up, sharing is not offered')
@@ -251,6 +295,16 @@ assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running mo
 assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
 assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
 
+// A model being set up or handing off to status.json isn't dropped from the
+// panel's added list even before status.json reloads with it.
+const findRemoved = new Function(fn('findRemovedLocalModels') + '\nreturn findRemovedLocalModels')()
+const uninst = [{ id: 'm', installed: false }, { id: 'n', installed: false }, { id: 'gone', installed: false }]
+assertDeepEqual(
+  findRemoved(['m', 'n', 'gone', 'spark/d'], {}, [], uninst, 'm', ['n']),
+  ['gone'],
+  'setups in progress or handing off stay added until status.json lists them, while uninstalled models drop'
+)
+
 // Adding a running network model returns to the panel index instead of
 // closing the panel and launching a terminal.
 const added = []
@@ -278,4 +332,44 @@ assertEqual(cancelled, true, 'choosing a network model returns to the panel inde
 assertEqual(closed, false, 'choosing a network model keeps the panel open')
 assertDeepEqual(execs, [], 'choosing a network model does not launch a terminal')
 assertEqual(selectedDefault, '', 'choosing a network model leaves an existing default agent alone')
+
+// Pasting a sign-in code hides the field and switches to checking for both
+// Claude and Gemini; a later re-prompt brings the field back.
+const writes = []
+let refocused = 0
+const pasteState = {
+  addProcess: { running: true, write: s => writes.push(s) },
+  addNeedsPaste: true,
+  addPasteHint: '',
+  addKeyEntry: false,
+  addCheckingCode: false,
+  addStatus: '',
+  addCode: '',
+  addUrl: '',
+  addDownloading: false,
+  addPhase: 'signin',
+  addFetched: false,
+  addHeldStatus: '',
+  addResult: '',
+  addStage: 'running',
+  addProvider: 'claude',
+  addProviderEntry: null,
+  addFetchTimer: { stop() {}, restart() {} },
+  beginSignIn(s) { this.addStatus = s; this.addPhase = 'signin' },
+  reopenSignIn() {},
+  setProviderShown() {},
+  usage: { refreshLimits() {}, enabledProviders: [{}] },
+  checkProcess: { running: false },
+  root: { focusKeys() { refocused++ } }
+}
+const submitPaste = new Function('with (this) { ' + fn('submitPaste') + '\nreturn submitPaste }').call(pasteState)
+const handleAddLine = new Function('with (this) { ' + fn('handleAddLine') + '\nreturn handleAddLine }').call(pasteState)
+submitPaste('secret-code')
+assertDeepEqual(writes, ['secret-code\n'], 'submitting a code sends it to the login process')
+assertEqual(pasteState.addNeedsPaste, false, 'submitting a Claude code hides the paste field like Gemini and API keys')
+assertEqual(pasteState.addCheckingCode, true, 'submitting a code enters the checking state')
+assertEqual(refocused, 1, 'submitting a code returns keyboard focus to the panel')
+handleAddLine('Paste code here:')
+assertEqual(pasteState.addNeedsPaste, true, 'a re-prompt brings the paste field back')
+assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking state')
 JS

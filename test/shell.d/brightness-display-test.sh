@@ -264,7 +264,7 @@ if mkfifo "$tmp_lock" 2>/dev/null; then
   (( status == 0 )) ||
     fail "brightness set opened the world-writable /tmp lock or failed" \
       "status $status; a FIFO decoy at $tmp_lock blocks a command that opens it"
-  grep -F 'brightnessctl -d mock_backlight set 40%' "$call_log" >/dev/null ||
+  grep -F 'brightnessctl -d mock_backlight -m set 40%' "$call_log" >/dev/null ||
     fail "brightness set without a runtime dir did not reach brightnessctl"
   pass "brightness set skips the /tmp lock when XDG_RUNTIME_DIR is unset"
 else

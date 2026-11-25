@@ -18,9 +18,11 @@ Item {
   // The shell host, for summoning the OSD.
   property var host: null
   // The backlight omarchy-hw-display picks. Devices do not come and go at
-  // runtime, but each press refreshes it for the next. The name is one path
+  // runtime, so maxBrightness is cached per device and omarchy-hw-display is
+  // only re-probed if reading the sysfs files fails. The name is one path
   // segment; anything else never becomes a sysfs path.
   property string device: ""
+  property int maxBrightness: 0
   readonly property string devicePath: BrightnessModel.backlightSysfsPath(device)
 
   // The internal panel's percent right now, or -1 when this monitor is not
@@ -29,11 +31,24 @@ Item {
   function percentForMonitor(monitorName) {
     if (!/^(eDP|LVDS|DSI)-/.test(String(monitorName || ""))) return -1
     if (!devicePath) return -1
-    var max = readNumber(maxFile)
+    var max = ensureMax()
     if (!(max > 0)) return -1
-    var raw = readNumber(brightnessFile)
-    if (!isFinite(raw)) return -1
-    return Math.max(0, Math.min(100, Math.round(100 * raw / max)))
+    var level = readNumber(brightnessFile)
+    if (!(level >= 0)) {
+      root.maxBrightness = 0
+      if (!deviceProc.running) deviceProc.running = true
+      return -1
+    }
+    return Math.max(0, Math.min(100, Math.round(100 * level / max)))
+  }
+
+  onDeviceChanged: maxBrightness = 0
+
+  function ensureMax() {
+    if (root.maxBrightness > 0) return root.maxBrightness
+    var max = readNumber(maxFile)
+    if (max > 0) root.maxBrightness = max
+    return root.maxBrightness
   }
 
   // Returns false when the focused display is not one to handle here, so the
@@ -48,11 +63,18 @@ Item {
     // repeat cannot race the writes.
     if (setProc.running) return true
 
-    var max = readNumber(maxFile)
-    if (!(max > 0)) return false
-    var raw = readNumber(brightnessFile)
-    if (!isFinite(raw)) return false
-    var current = Math.round(100 * raw / max)
+    var max = ensureMax()
+    if (!(max > 0)) {
+      if (!deviceProc.running) deviceProc.running = true
+      return false
+    }
+    var level = readNumber(brightnessFile)
+    if (!(level >= 0)) {
+      root.maxBrightness = 0
+      if (!deviceProc.running) deviceProc.running = true
+      return false
+    }
+    var current = Math.round(100 * level / max)
 
     setProc.command = ["brightnessctl", "-q", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]
     setProc.running = true
@@ -63,18 +85,20 @@ Item {
   // still hold the previous reading, and a level changed elsewhere (the
   // monitor panel, a script) would step from the wrong place.
   function readNumber(file) {
+    file.failed = false
     file.reload()
     file.waitForJob()
+    if (file.failed) return NaN
     return BrightnessModel.backlightReading(file.text())
   }
 
   // The payload omarchy-osd builds, from the level read back after the write.
   function showOsd() {
-    var max = readNumber(maxFile)
+    var max = ensureMax()
     if (!host || !(max > 0)) return
-    var raw = readNumber(brightnessFile)
-    if (!isFinite(raw)) return
-    var percent = Math.round(100 * raw / max)
+    var level = readNumber(brightnessFile)
+    if (!(level >= 0)) return
+    var percent = Math.round(100 * level / max)
     host.summon("omarchy.osd", JSON.stringify({
       icon: "brightness",
       message: "",
@@ -87,24 +111,25 @@ Item {
 
   FileView {
     id: brightnessFile
+    property bool failed: false
     path: root.devicePath ? root.devicePath + "/brightness" : ""
     blockLoading: true
     printErrors: false
+    onLoadFailed: failed = true
   }
 
   FileView {
     id: maxFile
+    property bool failed: false
     path: root.devicePath ? root.devicePath + "/max_brightness" : ""
     blockLoading: true
     printErrors: false
+    onLoadFailed: failed = true
   }
 
   Process {
     id: setProc
-    onExited: {
-      root.showOsd()
-      if (!deviceProc.running) deviceProc.running = true
-    }
+    onExited: root.showOsd()
   }
 
   Process {
