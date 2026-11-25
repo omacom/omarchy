@@ -36,7 +36,7 @@ BarWidget {
   readonly property var verticalLines: displayText.split("\n")
 
   function refresh() {
-    displayDate = new Date()
+    clock.tick()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 

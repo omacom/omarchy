@@ -18,10 +18,14 @@ Timer {
     restart()
   }
 
-  onStepChanged: arm()
-  onTriggered: {
+  // Also for whoever knows the wall clock jumped: a suspend stops this timer,
+  // so after a resume it would otherwise fire up to a whole step late.
+  function tick() {
     date = new Date()
     arm()
   }
+
+  onStepChanged: arm()
+  onTriggered: tick()
   Component.onCompleted: arm()
 }

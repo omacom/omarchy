@@ -116,6 +116,7 @@ Panel {
   }
 
   function refresh() {
+    clock.tick()
     root.today = new Date()
     root.goToToday()
   }

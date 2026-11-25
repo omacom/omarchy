@@ -62,7 +62,9 @@ monitor_sleep_events() {
       --why="Lock screen before suspend" \
       "$sleep_monitor" --consume <&"$monitor_fd" &&
     wait_for_wake <&"$monitor_fd"; do
-    :
+    # The shell's timers stood still through the sleep. In the background, so
+    # a slow shell cannot delay taking the inhibitor again.
+    omarchy-shell -q omarchy.clock refresh &
   done
 
   cleanup_monitor
