@@ -25,6 +25,8 @@ QtObject {
   property int registryRevision: 0
   property bool scanning: false
   property bool initialScanComplete: false
+  property bool rescanQueued: false
+  property bool destroying: false
   property string lastEnableError: ""
 
   signal pluginsChanged()
@@ -684,6 +686,10 @@ QtObject {
     onExited: function(exitCode) {
       var output = scanStdout.text || ""
       registry.parseScanOutput(output)
+      if (registry.rescanQueued && !registry.destroying) {
+        registry.rescanQueued = false
+        registry.rescan()
+      }
     }
     stdout: StdioCollector {
       id: scanStdout
@@ -705,6 +711,7 @@ QtObject {
   // own command line from matching its search.
   property Process watcherReaper: Process {
     onExited: {
+      if (registry.destroying) return
       localPluginWatcher.running = true
       registry.rescan()
     }
@@ -725,6 +732,7 @@ QtObject {
   // A graceful stop takes the watcher with it; the reaper above covers the
   // stops that never run this (a killed or crashed shell).
   Component.onDestruction: {
+    destroying = true
     localPluginWatcherRestart.stop()
     localPluginWatcher.running = false
   }
@@ -747,7 +755,9 @@ QtObject {
         if (pluginId) registry.localPluginChanged(pluginId)
       }
     }
-    onExited: localPluginWatcherRestart.restart()
+    onExited: {
+      if (!registry.destroying) localPluginWatcherRestart.restart()
+    }
   }
 
   property Timer localPluginWatcherRestart: Timer {
@@ -756,8 +766,12 @@ QtObject {
   }
 
   function rescan() {
-    if (scanning) return
+    if (scanning) {
+      registry.rescanQueued = true
+      return
+    }
     scanning = true
+    registry.rescanQueued = false
     // $0 = first-party dir, $1 = third-party dir. Some bash versions need the explicit -- separator.
     // First-party plugins may be grouped one level deeper, e.g. panels/audio
     // or services/battery.
@@ -797,7 +811,7 @@ QtObject {
   }
 
   function ensureUserDir() {
-    initProcess.command = ["bash", "-c", "mkdir -p \"$0\"", registry.pluginsDir]
+    initProcess.command = ["mkdir", "-p", registry.pluginsDir]
     initProcess.running = true
   }
 
@@ -817,5 +831,8 @@ QtObject {
     return slash === -1 ? relative : relative.slice(0, slash)
   }
 
-  Component.onCompleted: ensureUserDir()
+  Component.onCompleted: {
+    if (firstPartyDir) rescan()
+    ensureUserDir()
+  }
 }

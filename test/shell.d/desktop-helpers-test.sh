@@ -112,3 +112,80 @@ HOME="$tmp/home" PATH="$tmp/bin:$ROOT/bin:$PATH" \
 [[ $(<"$tmp/wl-copy-out") == "file://$tmp/pics/My%20Photo%20100%25%20%231-low.jpg" ]] ||
   fail "omarchy-transcode percent-encodes special characters in clipboard file URIs" "$(<"$tmp/wl-copy-out")"
 pass "omarchy-transcode percent-encodes clipboard file URIs"
+
+# omarchy-hyprland-window-pop exits cleanly without dispatching on an empty workspace,
+# batches focused window operations, falls back when Lua dispatchers are rejected,
+# and avoids replaying toggles after a partial batch failure.
+cat >"$tmp/bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "activewindow" ]]; then
+  if [[ -n \${POP_ACTIVE_JSON:-} ]]; then
+    printf '%s\n' "\$POP_ACTIVE_JSON"
+  else
+    echo '{}'
+  fi
+  exit 0
+fi
+printf '%s\n' "\$*" >>"$tmp/hyprctl-pop-calls"
+if [[ \$1 == "--batch" ]]; then
+  case "\${POP_BATCH_MODE:-ok}" in
+    ok)
+      IFS=';' read -ra cmds <<<"\$2"
+      for _ in "\${cmds[@]}"; do printf 'ok\n\n\n'; done
+      ;;
+    reject)
+      IFS=';' read -ra cmds <<<"\$2"
+      for _ in "\${cmds[@]}"; do printf 'Invalid dispatcher\n\n\n'; done
+      ;;
+    partial)
+      printf 'ok\n\n\nInvalid dispatcher\n\n\nok\n'
+      ;;
+    fail)
+      exit 1
+      ;;
+  esac
+elif [[ \$1 == "dispatch" && \$2 == hl.dsp.* && \${POP_BATCH_MODE:-ok} == "reject" ]]; then
+  exit 1
+fi
+SH
+chmod +x "$tmp/bin/hyprctl"
+
+rm -f "$tmp/hyprctl-pop-calls"
+PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop"
+[[ ! -e "$tmp/hyprctl-pop-calls" ]] ||
+  fail "omarchy-hyprland-window-pop does not dispatch when no window is focused" "$(<"$tmp/hyprctl-pop-calls")"
+pass "omarchy-hyprland-window-pop exits cleanly on an empty workspace"
+
+rm -f "$tmp/hyprctl-pop-calls"
+POP_ACTIVE_JSON='{"address":"0x1234","pinned":false}' POP_BATCH_MODE=ok \
+  PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop" 1200 800
+(( $(wc -l <"$tmp/hyprctl-pop-calls") == 1 )) &&
+  grep -Fq 'hl.dsp.window.float({ window = "address:0x1234", action = "toggle" })' "$tmp/hyprctl-pop-calls" &&
+  grep -Fq 'hl.dsp.window.center({ window = "address:0x1234" })' "$tmp/hyprctl-pop-calls" &&
+  grep -Fq 'hl.dsp.window.tag({ window = "address:0x1234", tag = "+pop" })' "$tmp/hyprctl-pop-calls" ||
+  fail "omarchy-hyprland-window-pop batches unpinned window pop in one IPC call" "$(<"$tmp/hyprctl-pop-calls")"
+
+rm -f "$tmp/hyprctl-pop-calls"
+POP_ACTIVE_JSON='{"address":"0x1234","pinned":true}' POP_BATCH_MODE=ok \
+  PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop"
+(( $(wc -l <"$tmp/hyprctl-pop-calls") == 1 )) &&
+  grep -Fq 'hl.dsp.window.pin({ window = "address:0x1234" })' "$tmp/hyprctl-pop-calls" &&
+  grep -Fq 'hl.dsp.window.tag({ window = "address:0x1234", tag = "-pop" })' "$tmp/hyprctl-pop-calls" ||
+  fail "omarchy-hyprland-window-pop batches pinned window unpop in one IPC call" "$(<"$tmp/hyprctl-pop-calls")"
+
+rm -f "$tmp/hyprctl-pop-calls"
+POP_ACTIVE_JSON='{"address":"0x1234","pinned":true}' POP_BATCH_MODE=reject \
+  PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop"
+grep -Fq 'dispatch pin address:0x1234' "$tmp/hyprctl-pop-calls" &&
+  grep -Fq 'dispatch togglefloating address:0x1234' "$tmp/hyprctl-pop-calls" &&
+  grep -Fq 'dispatch tagwindow -pop address:0x1234' "$tmp/hyprctl-pop-calls" ||
+  fail "omarchy-hyprland-window-pop falls back to legacy dispatchers when batch replies reject Lua" "$(<"$tmp/hyprctl-pop-calls")"
+
+rm -f "$tmp/hyprctl-pop-calls"
+if POP_ACTIVE_JSON='{"address":"0x1234","pinned":true}' POP_BATCH_MODE=partial \
+  PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop"; then
+  fail "omarchy-hyprland-window-pop fails cleanly on partial batch failure"
+fi
+(( $(wc -l <"$tmp/hyprctl-pop-calls") == 1 )) ||
+  fail "omarchy-hyprland-window-pop does not replay toggles after a partial batch failure" "$(<"$tmp/hyprctl-pop-calls")"
+pass "omarchy-hyprland-window-pop batches dispatches and handles fallback safely"
