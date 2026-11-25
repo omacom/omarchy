@@ -193,16 +193,23 @@ Item {
     noAnimUnsetTimer.restart()
   }
 
+  function flushNoAnimUnsets() {
+    noAnimUnsetTimer.stop()
+    var addresses = pendingNoAnimUnsets
+    pendingNoAnimUnsets = []
+    for (var i = 0; i < addresses.length; i++)
+      Hyprland.dispatch("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"unset\", window = \"address:" + addresses[i] + "\" })")
+  }
+
+  // If the dock is disabled or reloaded within 400ms of restoring a minimized
+  // window, flush pending resets immediately so no_anim isn't left stuck on.
+  Component.onDestruction: flushNoAnimUnsets()
+
   Timer {
     id: noAnimUnsetTimer
     interval: 400
     repeat: false
-    onTriggered: {
-      var addresses = root.pendingNoAnimUnsets
-      root.pendingNoAnimUnsets = []
-      for (var i = 0; i < addresses.length; i++)
-        Hyprland.dispatch("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"unset\", window = \"address:" + addresses[i] + "\" })")
-    }
+    onTriggered: root.flushNoAnimUnsets()
   }
 
   // A window the dock brings forward lands on top of the others, focused; a
