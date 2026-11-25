@@ -27,6 +27,11 @@ assertEqual(
   'polkit falls back when no agent name is given'
 )
 assertEqual(
+  polkit.authorizationLabel('Authentication is required to format Crucial X10 Pro (/dev/sda)'),
+  'Authorize formatting of Crucial X10 Pro (/dev/sda)',
+  'polkit says which drive udisks is formatting'
+)
+assertEqual(
   polkit.authorizationLabel('Authentication is required to change system settings'),
   'Authentication is required to change system settings',
   'polkit preserves custom authorization messages'

@@ -71,11 +71,16 @@ function authorizationLabel(message, tr, agentName) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
   var match = text.match(pkexecPrompt)
-  if (!match) return text
-  var name = String(agentName || "").trim()
-  if (name !== "")
-    return t("polkit.authorizeAgentRunning", "Authorize %1 to run '%2'").replace("%1", function() { return name }).replace("%2", function() { return match[1] })
-  return t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", function() { return match[1] })
+  if (match) {
+    var name = String(agentName || "").trim()
+    if (name !== "")
+      return t("polkit.authorizeAgentRunning", "Authorize %1 to run '%2'").replace("%1", function() { return name }).replace("%2", function() { return match[1] })
+    return t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", function() { return match[1] })
+  }
+  // udisks formatting a drive, named as udisks names it.
+  match = text.match(/^Authentication is required to format (.+)$/i)
+  if (match) return t("polkit.authorizeFormatting", "Authorize formatting of %1").replace("%1", function() { return match[1] })
+  return text
 }
 
 if (typeof module !== "undefined") {
