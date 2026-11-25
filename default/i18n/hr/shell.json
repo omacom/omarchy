@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Obavijest o verifikaciji",
   "notifications.yesterday": "jučer",
   "polkit.authenticationNeeded": "Potrebna je autentifikacija...",
+  "polkit.authorizeFormatting": "Odobri formatiranje %1",
   "polkit.authorizeRunning": "Odobri pokretanje '%1'",
   "polkit.checking": "Provjera...",
   "polkit.enterPassword": "Unesite lozinku",

@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Abiso ng beripikasyon",
   "notifications.yesterday": "kahapon",
   "polkit.authenticationNeeded": "Kailangan ang pagpapatunay...",
+  "polkit.authorizeFormatting": "Pahintulutan ang pag-format ng %1",
   "polkit.authorizeRunning": "Pahintulutan ang pagpapatakbo ng '%1'",
   "polkit.checking": "Sinusuri...",
   "polkit.enterPassword": "Ilagay ang password",

@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Bekræftelsesnotifikation",
   "notifications.yesterday": "i går",
   "polkit.authenticationNeeded": "Godkendelse påkrævet...",
+  "polkit.authorizeFormatting": "Godkend formatering af %1",
   "polkit.authorizeRunning": "Godkend kørsel af '%1'",
   "polkit.checking": "Kontrollerer...",
   "polkit.enterPassword": "Indtast adgangskode",

@@ -471,6 +471,7 @@
   "notifications.redactedSummary": "Thông báo xác minh",
   "notifications.yesterday": "hôm qua",
   "polkit.authenticationNeeded": "Cần xác thực...",
+  "polkit.authorizeFormatting": "Ủy quyền định dạng %1",
   "polkit.authorizeRunning": "Ủy quyền chạy '%1'",
   "polkit.checking": "Đang kiểm tra...",
   "polkit.enterPassword": "Nhập mật khẩu",

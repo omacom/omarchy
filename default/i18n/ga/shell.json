@@ -527,6 +527,7 @@
   "notifications.redactedSummary": "Fógra fíoraithe",
   "notifications.yesterday": "inné",
   "polkit.authenticationNeeded": "Teastaíonn fíordheimhniú...",
+  "polkit.authorizeFormatting": "Údaraigh %1 a fhormáidiú",
   "polkit.authorizeRunning": "Údaraigh '%1' a rith",
   "polkit.checking": "Ag seiceáil...",
   "polkit.enterPassword": "Iontráil pasfhocal",

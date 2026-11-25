@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Notifica di verifica",
   "notifications.yesterday": "ieri",
   "polkit.authenticationNeeded": "Autenticazione richiesta...",
+  "polkit.authorizeFormatting": "Autorizza la formattazione di %1",
   "polkit.authorizeRunning": "Autorizza l'esecuzione di '%1'",
   "polkit.checking": "Verifica in corso...",
   "polkit.enterPassword": "Inserisci password",

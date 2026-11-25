@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Arifa ya uthibitishaji",
   "notifications.yesterday": "jana",
   "polkit.authenticationNeeded": "Uthibitisho unahitajika...",
+  "polkit.authorizeFormatting": "Idhinisha kuumbiza %1",
   "polkit.authorizeRunning": "Idhinisha kuendesha '%1'",
   "polkit.checking": "Inakagua...",
   "polkit.enterPassword": "Weka nenosiri",

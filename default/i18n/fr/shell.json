@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Notification de vérification",
   "notifications.yesterday": "hier",
   "polkit.authenticationNeeded": "Authentification requise...",
+  "polkit.authorizeFormatting": "Autoriser le formatage de %1",
   "polkit.authorizeRunning": "Autoriser l'exécution de '%1'",
   "polkit.checking": "Vérification...",
   "polkit.enterPassword": "Saisir le mot de passe",
