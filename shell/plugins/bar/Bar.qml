@@ -1616,12 +1616,18 @@ Item {
     }
   }
 
-  // Hyprland's window list does not follow fullscreen on its own, and each
-  // BarPanel reads it to drop its input under a fullscreen window.
+  // Refresh the snapshots that decide whether fullscreen covers each bar,
+  // including focus-only scrolling changes and special-workspace toggles.
   Connections {
     target: Hyprland
     function onRawEvent(event) {
-      if (event && String(event.name) === "fullscreen") Hyprland.refreshToplevels()
+      var name = event ? String(event.name) : ""
+      if (name === "fullscreen" || name === "activewindowv2" || name === "moveworkspacev2") {
+        Hyprland.refreshToplevels()
+        Hyprland.refreshWorkspaces()
+      } else if (name === "activespecial") {
+        Hyprland.refreshMonitors()
+      }
     }
   }
 
@@ -1745,12 +1751,24 @@ Item {
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
-    // Whether the active workspace on this screen holds a real fullscreen
-    // window, which fades the bar out.
+    // Only drop input while fullscreen covers the screen. A special workspace
+    // exposes the bar above the normal workspace beneath it.
     readonly property bool underFullscreen: {
       var monitor = Hyprland.monitorFor(screen)
       var workspace = monitor ? monitor.activeWorkspace : null
-      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+      var ipc = monitor ? monitor.lastIpcObject : null
+      var special = ipc ? ipc.specialWorkspace : null
+      return !!workspace && !!ipc && BarModel.fullscreenOn(Hyprland.toplevels.values,
+        workspace.id, workspace.hasFullscreen, special ? special.name : null,
+        { x: ipc.x, y: ipc.y, width: screen.width, height: screen.height })
+    }
+
+    Connections {
+      target: barWindow.screen
+      function onGeometryChanged() {
+        Hyprland.refreshMonitors()
+        Hyprland.refreshToplevels()
+      }
     }
 
     // Idle, only the strip takes input, so the clear expanse passes clicks

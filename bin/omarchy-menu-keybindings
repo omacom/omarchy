@@ -707,18 +707,36 @@ output_binding_records_uncached() {
 }
 
 keybindings_cache_key() {
-  local lang hash _
+  local lang hash _ batch f
   lang=$(omarchy-language 2>/dev/null) || lang=""
+
+  # Fetch all Hyprland state in one batched IPC call (falls back to separate
+  # calls for older Hyprland or test stubs that don't handle --batch).
+  batch=$(hyprctl --batch "j/getoption input:kb_layout ; j/getoption input:kb_variant ; devices ; binds" 2>/dev/null || true)
 
   read -r hash _ < <(
     {
-      printf 'v22\n'
-      leading_keyboard
+      printf 'v23\n'
       printf '%s\n' "$lang"
       [[ -n $lang ]] && cat "$OMARCHY_PATH/default/i18n/$lang/keybindings.json" 2>/dev/null
-      hyprctl devices 2>/dev/null | grep -F 'active keymap:'
       cat "$key_names_file" 2>/dev/null
-      hyprctl binds 2>/dev/null
+      # Hyprland reports Lua binds only by an opaque dispatcher/number, so
+      # editing a Lua bind's command leaves `hyprctl binds` unchanged. Hash the
+      # Lua config files (including nested regional bindings) scanned by
+      # build_lua_bind_cache() too.
+      shopt -s nullglob globstar
+      for f in "$HOME/.config/hypr"/**/*.lua "$OMARCHY_PATH/default/hypr/bindings.lua" "$OMARCHY_PATH/default/hypr/bindings"/**/*.lua; do
+        [[ -f $f && -r $f ]] || continue
+        printf 'lua:%s\n' "$f"
+        cat "$f"
+      done
+      if [[ -n $batch ]]; then
+        printf '%s\n' "$batch"
+      else
+        leading_keyboard
+        hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+        hyprctl binds 2>/dev/null
+      fi
     } | sha256sum
   )
   printf '%s\n' "$hash"

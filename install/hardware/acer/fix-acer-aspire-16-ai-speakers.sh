@@ -6,5 +6,5 @@
 # microphone. Its UCM profile comes with alsa-ucm-conf.
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "Aspire A16-11M"; then
-  omarchy-pkg-add acer-aspire-16-ai-audio
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add acer-aspire-16-ai-audio
 fi

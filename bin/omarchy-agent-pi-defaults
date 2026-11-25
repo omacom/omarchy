@@ -4,8 +4,8 @@
 # omarchy:args=[omarchy-root]
 # omarchy:hidden=true
 
-# Pi gets Omarchy's package of extensions (web_fetch, todo_write and
-# subagents), which it discovers as a folder in its extensions directory,
+# Pi gets Omarchy's package of extensions (web_fetch and the Omarchy look),
+# which it discovers as a folder in its extensions directory,
 # linked from one Omarchy tree: the package, or the checkout `omarchy dev link`
 # points at. A link into another Omarchy tree is moved to this one, and a
 # folder or a link of the user's own by that name wins. Settings are only
