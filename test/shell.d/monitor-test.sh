@@ -322,7 +322,14 @@ const brightness = {
   brightnessProbeRestartMonitor: "",
   brightnessProbeRestartDelta: 0,
   brightnessProbeRestartShowOsd: false,
-  brightnessDebounce: { running: false },
+  brightnessDebounce: {
+    running: false,
+    stops: 0,
+    stop() {
+      this.running = false
+      this.stops += 1
+    },
+  },
   setBrightnessProc: { running: false, command: [] },
   Model: monitor,
   readInternalBrightness: () => 70,
@@ -443,4 +450,24 @@ brightness.brightnessAvailable = false
 const accepted = brightness.setBrightness(50)
 assertEqual(accepted, false, 'an absolute set is refused when the focused display has no brightness control')
 assertEqual(brightness.queuedBrightness.length, 0, 'a refused absolute set queues no write')
+
+// A newer absolute set cancels a slider preview still waiting on its debounce,
+// so the timer cannot write the older preview afterwards.
+brightness.setBrightnessProc.running = false
+brightness.brightnessWriteMonitor = ''
+brightness.queuedBrightness = []
+brightness.brightnessDebounce.running = true
+brightness.brightnessPreviewMonitor = 'eDP-1'
+brightness.brightnessPreviewPercent = 40
+brightness.brightnessAvailable = true
+brightness.focusedMonitor = 'eDP-1'
+brightness.setDisplayBrightness('eDP-1', 60)
+assertEqual(brightness.brightnessDebounce.running, false, 'an absolute set stops the pending preview')
+assertEqual(brightness.brightnessPreviewMonitor, '', 'an absolute set clears the pending preview display')
+assertEqual(brightness.brightnessPreviewPercent, 0, 'an absolute set clears the pending preview level')
+assertDeepEqual(
+  brightness.setBrightnessProc.command,
+  ['omarchy-brightness-display', '--no-osd', '--monitor', 'eDP-1', '60%'],
+  'the newer absolute set is the write that lands'
+)
 JS

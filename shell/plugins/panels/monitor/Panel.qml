@@ -498,8 +498,13 @@ Panel {
   function setDisplayBrightness(name, value) {
     var monitor = String(name == null ? "" : name).trim()
     if (!monitor) return false
-    // An absolute set wins over a relative step still waiting on its read.
+    // An absolute set wins over a relative step still waiting on its read and
+    // over a slider preview still waiting on its debounce. The newest request
+    // is the one that lands.
     abandonBrightnessProbe()
+    brightnessDebounce.stop()
+    root.brightnessPreviewMonitor = ""
+    root.brightnessPreviewPercent = 0
     var percent = Model.clampBrightness(value)
     showBrightness(monitor, percent)
     queueBrightness(monitor, percent)
