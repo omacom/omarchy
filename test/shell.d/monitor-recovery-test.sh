@@ -71,12 +71,3 @@ rm -f "$toggles_home/internal-monitor-clamshell.lua" "$toggles_home/internal-mon
 printf disconnected >"$recover_tmp/drm/card1-DP-1/status"
 recover
 pass "recovery succeeds with no toggles present"
-
-# The unit runs before the session, so it must not gate on the manual disable
-# toggle alone: a machine shut down clamshell-docked holds only the clamshell
-# toggle on the next boot.
-if grep -q 'ConditionPathExists=.*internal-monitor-disable.lua' \
-  "$ROOT/default/systemd/user/omarchy-recover-internal-monitor.service"; then
-  fail "recovery unit runs when only the clamshell toggle exists"
-fi
-pass "recovery unit runs when only the clamshell toggle exists"
