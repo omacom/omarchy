@@ -577,7 +577,7 @@ Panel {
               }
 
               onWheel: function(wheel) {
-                const phase = wheel.phase
+                const phase = wheel.phase || Qt.NoScrollPhase
                 if (phase === Qt.ScrollBegin || phase === Qt.ScrollEnd) {
                   swipeTimeout.stop()
                   swipeDistance = 0
