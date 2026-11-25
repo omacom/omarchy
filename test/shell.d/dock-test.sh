@@ -236,6 +236,28 @@ for (const options of [strip, Object.assign({}, strip, { maxWidth: 400 })]) {
 }
 assert(settled, 'dock strip keeps the pointer over the slice it selected, so the selection never flickers')
 
+const fs = require('fs')
+const vm = require('vm')
+const dockQml = fs.readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
+const bringForwardFn = dockQml.match(/function bringForward\(window\) \{[\s\S]*?\n  \}/)[0]
+const commands = []
+const dockCtx = {
+  Hyprland: { focusedMonitor: { activeWorkspace: { id: 2 } } },
+  Util: {
+    shellQuote: s => `'${s}'`,
+    execDetached(cmd) { commands.push(cmd) }
+  }
+}
+vm.runInNewContext(bringForwardFn, dockCtx)
+
+let fallbackActivated = 0
+dockCtx.bringForward({ address: '0x1" }); os.execute("id"); --', minimized: false, toplevel: { activate() { fallbackActivated += 1 } } })
+assertEqual(commands.length, 0, 'dock bringForward rejects non-hex window addresses before Lua dispatch')
+assertEqual(fallbackActivated, 1, 'dock bringForward falls back to toplevel.activate on invalid address')
+
+dockCtx.bringForward({ address: 'deadbeef', minimized: false, toplevel: { activate() {} } })
+assert(commands.length === 1 && commands[0].includes('address:0xdeadbeef'), 'dock bringForward dispatches valid hex addresses')
+
 JS
 
 home="$TMPDIR/home"
