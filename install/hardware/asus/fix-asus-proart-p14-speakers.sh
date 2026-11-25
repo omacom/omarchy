@@ -7,5 +7,5 @@
 # have it.
 
 if omarchy-hw-match "H7407BA"; then
-  OMARCHY_PKG_DEFER=1 omarchy-pkg-add asus-proart-p14-audio
+  omarchy-pkg-add asus-proart-p14-audio
 fi
