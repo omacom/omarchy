@@ -34,6 +34,6 @@ You can setup the common databases for local development in Docker using _Instal
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) is `gh`, for working with repositories, issues, and pull requests from the terminal. _Setup > Git_ installs it when you choose to sign in to GitHub there, then `gh repo clone org/repo` clones a repository. Run `gh --help` to explore its commands.
+[GitHub CLI](https://cli.github.com/) is `gh`, for working with repositories, issues, and pull requests from the terminal. _Setup > Git_ installs `gh` and `ghui` (a terminal interface to pull requests) when you choose to sign in to GitHub there, then `gh repo clone org/repo` clones a repository. Run `gh --help` to explore its commands.
 
-_Install > CLI > GitHub_ installs the GitHub CLI, `gh`, along with `ghui`, a terminal interface to pull requests. [Lazygit](https://github.com/jesseduffield/lazygit) is preinstalled for working with Git itself.
+_Install > CLI > GitHub_ installs the same pair without running _Setup > Git_. [Lazygit](https://github.com/jesseduffield/lazygit) is preinstalled for working with Git itself.
