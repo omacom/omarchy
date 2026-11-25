@@ -579,9 +579,14 @@ jq -e --argjson layout "$default_layout" '
 }
 pass "default bar layout renders each widget in its configured section"
 
+# A panel's first open builds its content on the shell's thread, which in CI's
+# emulated VM can hold the next call past omarchy-shell's interactive 2s, so
+# these calls get 10s. A failure says what omarchy-shell answered.
 for panel_id in omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network omarchy.power; do
-  scratch_ipc "$panel_id" open >/dev/null || fail_with_log "direct panel IPC opens $panel_id"
-  scratch_ipc "$panel_id" close >/dev/null || fail_with_log "direct panel IPC closes $panel_id"
+  for action in open close; do
+    err=$(OMARCHY_SHELL_IPC_TIMEOUT=10s scratch_ipc "$panel_id" "$action" 2>&1 >/dev/null) ||
+      fail_with_log "direct panel IPC ${action}s $panel_id: ${err:-no answer}"
+  done
 done
 pass "direct panel IPC opens and closes default panels"
 
