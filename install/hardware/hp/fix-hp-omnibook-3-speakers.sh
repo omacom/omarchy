@@ -6,5 +6,5 @@
 # microphone. alsa-ucm-conf's ThinkPad T14s profile already matches it.
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "OmniBook 3 Laptop"; then
-  omarchy-pkg-add hp-omnibook-3-audio
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add hp-omnibook-3-audio
 fi

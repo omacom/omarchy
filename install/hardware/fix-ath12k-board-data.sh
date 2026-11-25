@@ -7,7 +7,11 @@
 # entry for each card in linux-firmware's board-2.bin.
 
 if omarchy-hw-pci 17cb:1103 17cb:1107 17cb:1112; then
-  omarchy-pkg-add ath12k-board-fallback
+  if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
+    omarchy-pkg-add ath12k-board-fallback
+  else
+    OMARCHY_PKG_DEFER=1 omarchy-pkg-add ath12k-board-fallback
+  fi
 
   # On an image's first boot (omarchy-provision-hardware sets the marker) the
   # driver probed the card before the package gave it board data, and nothing
