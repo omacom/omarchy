@@ -12,7 +12,7 @@ here=$(dirname "$(realpath "$0")")
 exec 9>"$dir/running"
 flock -n 9 || exit 1
 
-rm -f "$dir/in" "$dir/out" "$dir/hidden"
+rm -f "$dir/in" "$dir/out" "$dir/hidden" "$dir/finished"
 mkfifo -m 600 "$dir/in"
 : >"$dir/out"
 printf '%s\n' "$$" >"$dir/active"
@@ -30,4 +30,7 @@ export SUDO_PROMPT=$'\e]5150;password\a'
 SHELL=/bin/bash script -qefc "stty cols 110 rows 40 -echo; $command" /dev/null <&3 3>&- 9>&- >>"$dir/out" 2>&1
 code=$?
 printf '\e]5150;exit;%d\a' "$code" >>"$dir/out"
+# Stays until the window has shown how it went (see Service.qml), so a run
+# that ends while the shell restarts does not end unseen.
+printf '%s\n' "$code" >"$dir/finished"
 rm -f "$dir/active"

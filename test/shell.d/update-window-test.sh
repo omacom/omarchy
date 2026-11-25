@@ -191,6 +191,14 @@ rm -rf "$probe"
 (( code != 0 )) || fail 'a failed package fails the terminal install' "exit $code: $output"
 pass 'a failed package fails the terminal install'
 
+# A run that ends while the shell restarts would end unseen: run.sh leaves its
+# exit status behind, and the next shell shows the result.
+state=$(mktemp -d)
+bash "$ROOT/shell/plugins/update/run.sh" "$state" 'exit 3' >/dev/null 2>&1 || true
+[[ ! -e $state/active && $(<"$state/finished") == 3 ]] || fail 'a finished run leaves its exit status for the next shell' "$(ls "$state")"
+rm -rf "$state"
+pass 'a finished run leaves its exit status for the next shell'
+
 # A preview that could not ask the AUR says so, as one that could not ask the
 # repositories does, instead of passing for up to date.
 mock=$(mktemp -d)

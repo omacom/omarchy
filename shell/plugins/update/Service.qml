@@ -7,7 +7,8 @@ import qs.Commons
 // from the menu (omarchy-launch-update, omarchy-launch-install). The work runs
 // detached in run.sh, so neither closing the window nor the shell restart that
 // ends every update interrupts it: a window opened while something runs
-// attaches to it, and a shell that starts while it runs brings it back.
+// attaches to it, and a shell that starts while it runs, or after it ended
+// unseen, brings it back.
 Item {
   id: root
 
@@ -33,6 +34,16 @@ Item {
     printErrors: false
   }
 
+  // run.sh leaves its exit status here when it ends, and the window clears it
+  // once the result was dismissed, so a run that ends while the shell restarts
+  // still gets its window.
+  FileView {
+    id: finishedFile
+    path: root.stateDir + "/finished"
+    blockAllReads: true
+    printErrors: false
+  }
+
   // A runner killed outright leaves active behind, so only one whose process
   // is still there counts.
   FileView {
@@ -48,6 +59,11 @@ Item {
     procFile.path = "/proc/" + pid + "/cmdline"
     procFile.reload()
     return procFile.text().indexOf("run.sh") >= 0
+  }
+
+  function unshown() {
+    finishedFile.reload()
+    return finishedFile.text().trim() !== ""
   }
 
   function show(command, attach, hidden) {
@@ -80,11 +96,14 @@ Item {
 
   Connections {
     target: loader.item
-    function onFinished() { loader.source = "" }
+    function onFinished() {
+      if (loader.item.phase === "done" || loader.item.phase === "failed") finishedFile.setText("")
+      loader.source = ""
+    }
   }
 
   Component.onCompleted: {
-    if (!running()) return
+    if (!running() && !unshown()) return
     hiddenFile.reload()
     show("", true, hiddenFile.text().trim() === "1")
   }
