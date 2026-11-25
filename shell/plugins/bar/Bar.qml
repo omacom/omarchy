@@ -65,6 +65,12 @@ Item {
   // A locked bar stays where it is: widgets can't be dragged and the bar
   // can't be moved, so its surface only needs to cover the strip (BarPanel).
   property bool locked: false
+  // Locked mid-drag, the drag lets go, so the release lands nothing: not a
+  // widget on its last drop target, nor the bar on its last edge.
+  onLockedChanged: if (locked) {
+    clearBarDrag()
+    clearBarMove()
+  }
   // Resolves through fontconfig at paint time (Style.font.family defaults
   // to "monospace"), so changing the system font (via `omarchy-font-set`)
   // updates the bar without a reload.
