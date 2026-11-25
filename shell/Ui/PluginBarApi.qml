@@ -28,6 +28,7 @@ QtObject {
   property var layoutConfig: ({})
   readonly property var foreignPopoutMarker: ({ foreign: true })
 
+  property var _foregroundForItem: null
   property var _showTooltip: null
   property var _hideTooltip: null
   property var _registerClickTarget: null
@@ -40,6 +41,9 @@ QtObject {
   property var _targetBelongsToWindow: null
   property var _moduleWidgets: null
   property var _run: null
+  function foregroundForItem(target) {
+    return _foregroundForItem ? _foregroundForItem(target) : barForeground
+  }
 
   function showTooltip(target, text) {
     if (_showTooltip) _showTooltip(target, String(text || ""))
