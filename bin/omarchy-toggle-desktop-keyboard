@@ -1,0 +1,198 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the optional touch desktop keyboard
+# omarchy:args=[toggle|show|hide|stop|--help]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+case "${1:-toggle}" in
+  -h | --help)
+    cat <<'HELP'
+Usage: omarchy-toggle-desktop-keyboard [toggle|show|hide|stop]
+
+Show a bottom overlay keyboard without resizing desktop windows.
+Toggle is the default; show/hide are idempotent. Stop releases the process.
+Requires wvkbd 0.21 or newer and a Wayland desktop session.
+On the original Ally, wvkbd needs output selection and only the built-in display
+can be active while showing the keyboard.
+No automatic startup, input-device permissions or system service is needed.
+
+Open Desktop Keyboard from Apps; there is no swipe-up gesture or automatic
+text-field activation. Tap the bottom-left keyboard symbol to change layouts:
+full has Ctrl/Esc/arrows; special has Alt, Sup (Super) and AltGr. Abc returns
+to letters. The keyboard symbol changes layouts; it does not hide the keyboard.
+Open Desktop Keyboard again to toggle visibility, or run this command with hide.
+HELP
+    exit 0
+    ;;
+  toggle | show | hide | stop) action=${1:-toggle} ;;
+  *) echo 'Unknown action; use --help.' >&2; exit 2 ;;
+esac
+(( $# <= 1 )) || { echo 'Too many arguments; use --help.' >&2; exit 2; }
+
+fail() {
+  echo "Desktop keyboard: $*" >&2
+  exit 1
+}
+[[ -n ${WAYLAND_DISPLAY:-} && -n ${XDG_RUNTIME_DIR:-} ]] || fail 'run inside your Wayland desktop session.'
+[[ -d $XDG_RUNTIME_DIR && -O $XDG_RUNTIME_DIR ]] || fail 'runtime directory is not owned by this user.'
+# Separate state for independent Wayland sessions; never signal by process name.
+session=${WAYLAND_DISPLAY##*/}
+[[ $session =~ ^[[:alnum:]_.-]+$ ]] || fail 'invalid Wayland display name.'
+state="$XDG_RUNTIME_DIR/omarchy-desktop-keyboard-$session"
+umask 077
+mkdir -p "$state"
+[[ -d $state && ! -L $state && -O $state ]] || fail 'unsafe state directory.'
+exec 9>"$state/lock"
+flock -x 9
+
+same_value() {
+  case "$1" in
+    "$2") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Match both the process start time and executable before signalling a saved PID.
+# /proc/stat fields after the final ')' begin at field 3; starttime is field 22.
+identity() {
+  local stat executable
+  local -a fields
+  [[ $pid =~ ^[1-9][0-9]*$ && $started =~ ^[0-9]+$ ]] || return 1
+  IFS= read -r stat 2>/dev/null <"/proc/$pid/stat" || return 1
+  read -ra fields <<<"${stat##*) }"
+  [[ ${fields[0]:-} != "Z" ]] && same_value "${fields[19]:-}" "$started" || return 1
+  executable=$(readlink "/proc/$pid/exe" 2>/dev/null) || return 1
+  # Linux retains the old executable inode across package replacement.
+  same_value "${executable%" (deleted)"}" "$binary"
+}
+
+control_mask=$(( (1 << ($(kill -l USR1) - 1)) |
+                (1 << ($(kill -l USR2) - 1)) |
+                (1 << ($(kill -l RTMIN) - 1)) ))
+
+signals_ready() {
+  local field bits
+  while read -r field bits _; do
+    if [[ $field == "SigBlk:" ]]; then
+      (( (16#$bits & control_mask) == control_mask ))
+      return
+    fi
+  done 2>/dev/null <"/proc/$pid/status"
+  return 1
+}
+
+pid='' started='' binary=''
+alive=false
+if [[ -f $state/process ]]; then
+  read -r pid started binary <"$state/process" || true
+  if identity; then
+    # A previous launcher may have been interrupted after writing the record.
+    signals_ready || fail 'the keyboard is still starting.'
+    alive=true
+  else
+    rm -f "$state/process"
+  fi
+fi
+
+ally=false
+ally_connector() {
+  hyprctl -j monitors | jq -er '
+    select(type == "array" and length == 1)
+    | .[0]
+    | select(.focused == true and (.mirrorOf // "none") == "none")
+    | .name | select(test("^eDP-[0-9]+$"))
+  '
+}
+
+if [[ $action == "show" || $action == "toggle" ]] && omarchy-hw-rog-ally; then
+  ally=true
+  if ! connector=$(ally_connector); then
+    if $alive && [[ $action == "toggle" ]]; then
+      # A dock may have appeared with the keyboard visible. Allow dismissal.
+      kill -USR1 "$pid"
+      exit 0
+    fi
+    fail 'the Ally keyboard needs its built-in display as the only active output.'
+  fi
+fi
+
+if $alive; then
+  case "$action" in
+    toggle) kill -RTMIN "$pid" ;;
+    show) kill -USR2 "$pid" ;;
+    hide) kill -USR1 "$pid" ;;
+    stop)
+      # hide() releases held keys before removing the surface in wvkbd 0.21.
+      kill -USR1 "$pid"
+      sleep 0.1
+      if identity; then
+        kill -TERM "$pid"
+      fi
+      rm -f "$state/process"
+      ;;
+  esac
+elif [[ $action == "hide" || $action == "stop" ]]; then
+  exit 0
+else
+  omarchy-cmd-present wvkbd-mobintl || fail 'wvkbd-mobintl is missing; install wvkbd from the Omarchy package repository.'
+  binary=$(readlink -f "$(command -v wvkbd-mobintl)")
+  # Refuse older builds rather than starting an unexpectedly exclusive surface.
+  flags=$("$binary" --help 2>&1) || fail 'cannot read wvkbd options.'
+  [[ $flags == *--non-exclusive* && $flags == *--wayland-layer* ]] || fail 'wvkbd 0.21 or newer is required.'
+  output=()
+  if $ally; then
+    [[ $flags == *--output* ]] || fail 'this wvkbd package cannot select the built-in display.'
+    same_value "$(ally_connector)" "$connector" ||
+      fail 'the Ally keyboard needs its built-in display as the only active output.'
+    output=(--output "$connector")
+  fi
+  # These dimensions are logical surface units: at scale 2, 180 becomes 360px.
+  # Both orientations are explicit. No auto input-method or focus stealing.
+  launch_keyboard() {
+    local child=$BASHPID stat
+    local -a fields
+    IFS= read -r stat <"/proc/$child/stat" || return 1
+    read -ra fields <<<"${stat##*) }"
+    # The compositor can see the first layer before the parent wakes up.
+    # Record its owner before the child execs the Wayland client.
+    printf '%s %s %s\n' "$child" "${fields[19]}" "$binary" >"$state/process" || return 1
+    # Readiness must come from wvkbd's own signal mask after its Wayland setup.
+    exec nohup env --default-signal=USR1,USR2,RTMIN "$binary" \
+      -H 180 -L 180 --non-exclusive --wayland-layer overlay \
+      -l full,special --landscape-layers full,special --no-popup "${output[@]}"
+  }
+
+  wait_for_startup() {
+    local uptime deadline recorded executable
+    # Keep the flock until wvkbd blocks all three controls for signalfd.
+    # /proc/uptime provides a monotonic deadline in centiseconds.
+    read -r uptime _ </proc/uptime || return 1
+    deadline=$((10#${uptime/./} + 200))
+    while (( 10#${uptime/./} < deadline )) && kill -0 "$pid" 2>/dev/null; do
+      if read -r recorded started executable 2>/dev/null <"$state/process" &&
+        same_value "$recorded" "$pid" && same_value "$executable" "$binary" &&
+        identity && signals_ready; then
+        return 0
+      fi
+      sleep 0.02
+      read -r uptime _ </proc/uptime || return 1
+    done
+    return 1
+  }
+
+  abort_startup() {
+    # The shell's job table still owns the launch, even before exec succeeds.
+    kill -KILL %% 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    rm -f "$state/process"
+  }
+
+  launch_keyboard >"$state/output.log" 2>&1 </dev/null 9>&- &
+  pid=$!
+  trap abort_startup EXIT
+  trap 'exit 1' HUP INT TERM
+  wait_for_startup || fail "startup failed; see $state/output.log"
+  trap - EXIT HUP INT TERM
+fi
