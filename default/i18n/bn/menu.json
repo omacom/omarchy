@@ -1369,7 +1369,8 @@
     "label": "Cloudflare"
   },
   "remove.cli.github": {
-    "label": "GitHub"
+    "label": "GitHub",
+    "description": "gh and ghui"
   },
   "remove.cli.hey": {
     "label": "HEY"
@@ -1385,5 +1386,66 @@
   },
   "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "ডেস্কটপ"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub",
+    "description": "gh এবং ghui"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
   }
 }
