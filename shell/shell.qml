@@ -237,6 +237,20 @@ ShellRoot {
     return String(pluginId || "") === shell.activeBarId
   }
 
+  function panelExtensionsFor(point) {
+    if (shell.pluginReloading) return []
+    return shell.pluginRegistry.panelExtensionsFor(point)
+  }
+
+  function configurePanelExtension(target, pluginId) {
+    var manifest = shell.pluginRegistry.installedPlugins[pluginId]
+    if (!target || !manifest || !Array.isArray(manifest.kinds)
+        || manifest.kinds.indexOf("panel-extension") === -1
+        || !shell.pluginRegistry.isEnabled(pluginId)) return
+    if ("shell" in target) target.shell = shell.pluginShellFor(manifest)
+    if ("manifest" in target) target.manifest = shell.publicPluginManifest(manifest)
+  }
+
   function configureBar(target, manifest) {
     if (!target) return
     if ("omarchyPath" in target) target.omarchyPath = shell.omarchyPath
