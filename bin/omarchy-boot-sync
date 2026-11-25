@@ -44,7 +44,7 @@ MACHINE_ID_FILE=${OMARCHY_BOOT_MACHINE_ID:-/etc/machine-id}
 LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
 
 # Bumped when the image layout changes, so published images get rebuilt.
-FORMAT=3
+FORMAT=4
 
 die() {
   echo "omarchy-boot-sync: $*" >&2
