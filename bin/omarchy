@@ -493,7 +493,14 @@ register_command_files() {
           file_binary, route, fallback_route, group, name, summary, usage, args, \
           subcommands, examples, clean_aliases, requires_sudo, hidden, has_summary, metadata_errors
       }
-      BEGINFILE { reset_file(FILENAME) }
+      BEGINFILE {
+        reset_file(FILENAME)
+        if (ERRNO != "") {
+          printf "omarchy: %s: %s\n", FILENAME, ERRNO > "/dev/stderr"
+          emit_file()
+          nextfile
+        }
+      }
       ENDFILE { emit_file() }
       FNR > limit { nextfile }
       FNR == 1 && /^#!/ { next }
