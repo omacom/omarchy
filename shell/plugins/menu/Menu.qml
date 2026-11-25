@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -28,7 +29,9 @@ Item {
     // whole; reading it again here keeps the menu from opening empty.
     if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
 
-    if (payload.mode === "select" || payload.mode === "input") {
+    if (payload.mode === "keybindings") {
+      root.openKeybindings()
+    } else if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
     } else {
       root.openRoute(payload.initialMenu || payload.menu || "root")
@@ -44,6 +47,7 @@ Item {
     userMenuFile.reload()
     languageFile.reload()
     menuCatalogFile.reload()
+    root.refreshKeybindings()
     return "ok"
   }
 
@@ -72,9 +76,15 @@ Item {
   property bool userMenuSettled: false
   property bool opened: false
   property string mode: "menu"
-  readonly property bool dmenuActive: mode === "select" || mode === "input"
+  readonly property bool dmenuActive: mode === "select" || mode === "input" || mode === "keybindings"
   property string dmenuPrompt: ""
   property var dmenuOptions: []
+  property string keybindingsRaw: ""
+  property var keybindingsEntries: []
+  property var keybindingsOptions: []
+  property bool keybindingsLoaded: false
+  property bool keybindingsRefreshPending: false
+  property var displayRows: []
   property bool dmenuMultiple: false
   property var dmenuSelected: []
   // What the last confirmed change applied; a failed change returns the checks here.
@@ -142,7 +152,7 @@ Item {
   readonly property var wideMenus: ({ "trigger.capture.screenrecord": true, "appearance.font": true, "update.kernel": true, "system.snapshots": true })
   property bool wideDisplay: false
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideDisplay ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
-  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
+  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, filterText) : rowListHeight(layoutSerial, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
@@ -172,7 +182,13 @@ Item {
     if (!command) return
 
     var summon = MenuModel.summonAction(command)
-    if (summon && root.shell && root.shell.summon(summon.id, summon.payload)) return
+    if (summon) {
+      if (summon.id === "omarchy.menu") {
+        root.open(summon.payload)
+        return
+      }
+      if (root.shell && root.shell.summon(summon.id, summon.payload)) return
+    }
 
     Util.execDetached(command)
   }
@@ -214,15 +230,16 @@ Item {
     return totals[full - 1] + root.rowSpacing + peek
   }
 
-  function rowListHeight(_serial, _count, _filter, _divider) {
-    if (displayModel.count === 0) return root.baseRowHeight
+  function rowListHeight(_serial, _filter, _divider) {
+    var rows = root.displayRows
+    if (rows.length === 0) return root.baseRowHeight
 
     var totals = []
     var total = 0
     var previousSection = ""
 
-    for (var i = 0; i < displayModel.count; i++) {
-      var row = displayModel.get(i)
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i]
       if (i > 0) total += root.rowSpacing
       if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
       total += root.rowHeightForDetail(row.detail)
@@ -233,18 +250,19 @@ Item {
     return foldedListHeight(totals, availableRowsHeight())
   }
 
-  function dmenuRowListHeight(_serial, _count, _filter) {
+  function dmenuRowListHeight(_serial, _filter) {
     if (root.mode === "input") return 0
-    if (displayModel.count === 0) return root.baseRowHeight
+    var rows = root.displayRows
+    if (rows.length === 0) return root.baseRowHeight
 
     var available = availableRowsHeight()
     if (root.dmenuMaxHeight > 0) available = Math.min(available, Style.space(root.dmenuMaxHeight))
 
     var totals = []
     var total = 0
-    for (var i = 0; i < displayModel.count; i++) {
+    for (var i = 0; i < rows.length; i++) {
       if (i > 0) total += root.rowSpacing
-      total += root.rowHeightForDetail(displayModel.get(i).detail)
+      total += root.rowHeightForDetail(rows[i].detail)
       totals.push(total)
     }
 
@@ -291,6 +309,8 @@ Item {
     if (root.language === code) return
     root.language = code
     menuCatalogFile.reload()
+    keybindingsPreloadTimer.stop()
+    keybindingsRefreshTimer.restart()
   }
 
   // Merge defaults + user extension. Later entries override earlier ones
@@ -650,12 +670,14 @@ Item {
     root.searchDivider = false
 
     if (root.mode === "input") {
+      root.displayRows = []
       layoutSerial += 1
       return
     }
 
+    var rows = []
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
-      displayModel.append({
+      rows.push({
         itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
         appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
         detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
@@ -674,7 +696,7 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
-      displayModel.append({
+      rows.push({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
@@ -694,6 +716,8 @@ Item {
       })
     }
 
+    root.displayRows = rows
+    if (rows.length > 0) displayModel.append(rows)
     layoutSerial += 1
 
     if (displayModel.count === 0) selectedIndex = 0
@@ -793,9 +817,10 @@ Item {
     for (var k = 0; k < rows.length; k++) {
       var shown = root.item(rows[k].itemId)
       if (shown && root.wideMenus[shown.parent] === true) wide = true
-      displayModel.append(rows[k])
     }
     root.wideDisplay = wide
+    root.displayRows = rows
+    if (rows.length > 0) displayModel.append(rows)
     layoutSerial += 1
 
     root.settleCursor()
@@ -892,6 +917,15 @@ Item {
       }
       if (index < 0 || index >= displayModel.count) return
       var picked = displayModel.get(index)
+      if (root.mode === "keybindings") {
+        var kbEntry = root.keybindingsEntries[Number(picked.itemId.substring(6))]
+        applySerial = requestSerial
+        opened = false
+        filterText = ""
+        if (kbEntry && kbEntry.dispatcher)
+          Util.execArgv(["omarchy-menu-keybindings", "--dispatch", kbEntry.dispatcher, kbEntry.arg])
+        return
+      }
       if (root.dmenuMultiple) {
         if (picked.itemId === "dmenu.apply") {
           root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
@@ -1041,6 +1075,54 @@ Item {
 
     Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
+
+  function keybindingsTitle() {
+    var entry = root.item("learn.keybindings")
+    return (entry && entry.label) ? entry.label : "Keybindings"
+  }
+
+  function refreshKeybindings() {
+    if (keybindingsProc.running) {
+      root.keybindingsRefreshPending = true
+      return
+    }
+    root.keybindingsRefreshPending = false
+    keybindingsProc.collected = ""
+    keybindingsProc.command = ["omarchy-menu-keybindings", "--records"]
+    keybindingsProc.running = true
+  }
+
+  function openKeybindings() {
+    altHeld = false
+    requestSerial += 1
+    mode = "keybindings"
+    dmenuPrompt = root.keybindingsTitle()
+    dmenuOptions = root.keybindingsOptions
+    dmenuMultiple = false
+    dmenuOnChange = []
+    dmenuChangeKey = ""
+    dmenuSelected = []
+    dmenuSaved = []
+    selectionFile = ""
+    doneFile = ""
+    requestActive = false
+    dmenuWidth = 800
+    dmenuMaxHeight = 500
+    activeMenu = "root"
+    navStack = []
+    filterText = ""
+    selectedIndex = 0
+    cursorActive = true
+    panel.cardTop = -1
+    panel.maxRowsHeight = -1
+    root.disarmPointer()
+    opened = true
+    rebuildDisplay()
+    keybindingsPreloadTimer.stop()
+    root.refreshKeybindings()
+
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
+  }
   ListModel { id: displayModel }
 
   // ----------------------------------------------------------- route surface
@@ -1174,6 +1256,66 @@ Item {
     onExited: {
       if (root.applySerial === root.requestSerial)
         root.opened = false
+    }
+  }
+
+  // Keep keybinding records warm in memory so SUPER+K opens on the first frame
+  // with no subprocess in the open path. Preloaded once after startup settles
+  // and refreshed on Hyprland config/layout changes or language switches.
+  Process {
+    id: keybindingsProc
+    property string collected: ""
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: keybindingsProc.collected = text
+    }
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 0 && exitStatus === 0 && keybindingsProc.collected.length > 0) {
+        var firstLoad = !root.keybindingsLoaded
+        if (keybindingsProc.collected !== root.keybindingsRaw) {
+          var parsed = MenuModel.parseKeybindingsRecords(keybindingsProc.collected)
+          root.keybindingsRaw = keybindingsProc.collected
+          root.keybindingsEntries = parsed.entries
+          root.keybindingsOptions = parsed.options
+          root.keybindingsLoaded = true
+          if (root.opened && root.mode === "keybindings") {
+            if (firstLoad) {
+              panel.cardTop = -1
+              panel.maxRowsHeight = -1
+            }
+            root.dmenuOptions = root.keybindingsOptions
+            root.rebuildDisplay()
+          }
+        } else if (firstLoad) {
+          root.keybindingsLoaded = true
+        }
+      }
+      if (root.keybindingsRefreshPending) Qt.callLater(function() { root.refreshKeybindings() })
+    }
+  }
+
+  Timer {
+    id: keybindingsPreloadTimer
+    interval: 1000
+    repeat: false
+    running: true
+    onTriggered: root.refreshKeybindings()
+  }
+
+  Timer {
+    id: keybindingsRefreshTimer
+    interval: 250
+    repeat: false
+    onTriggered: root.refreshKeybindings()
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (!event || !event.name) return
+      var name = String(event.name)
+      if (name === "configreloaded" || name.indexOf("activelayout") !== -1)
+        keybindingsRefreshTimer.restart()
     }
   }
 
@@ -1335,6 +1477,7 @@ Item {
     readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
     readonly property int effectiveCardTop: cardTop >= 0 ? cardTop : centeredTop
     function freezeCardTop() {
+      if (root.mode === "keybindings" && !root.keybindingsLoaded) return
       if (shown && cardTop < 0) {
         cardTop = effectiveCardTop
         maxRowsHeight = root.visibleRowsHeight
@@ -1497,9 +1640,10 @@ Item {
             boundsBehavior: Flickable.StopAtBounds
 
             WheelHandler {
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
               target: null
               onWheel: function(event) {
-                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
+                var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
                 var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
                 resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
                 event.accepted = true
@@ -1731,7 +1875,7 @@ Item {
           Column {
             anchors.centerIn: parent
             spacing: Style.space(8)
-            visible: displayModel.count === 0 && root.mode !== "input"
+            visible: displayModel.count === 0 && root.mode !== "input" && !(root.mode === "keybindings" && keybindingsProc.running && !root.keybindingsLoaded)
 
             Text {
               text: "󰈉"

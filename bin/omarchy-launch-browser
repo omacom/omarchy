@@ -13,8 +13,16 @@ browser_class=""
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$default_browser"
   [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-  browser_class=$(sed -n 's/^StartupWMClass=//p' "$entry" | head -1)
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    if [[ -z $browser_exec && $line == Exec=* ]]; then
+      browser_exec=${line#Exec=}
+      browser_exec=${browser_exec%% *}
+    elif [[ -z $browser_class && $line == StartupWMClass=* ]]; then
+      browser_class=${line#StartupWMClass=}
+    fi
+    [[ -n $browser_exec && -n $browser_class ]] && break
+  done <"$entry"
   break
 done
 

@@ -78,3 +78,70 @@ if grep -q "restart" "$call_log"; then
   fail "failed loginctl query fails closed without restarting SDDM" "$(<"$call_log")"
 fi
 pass "failed loginctl query fails closed without restarting SDDM"
+
+wait_soundwire="$ROOT/bin/omarchy-hw-wait-soundwire"
+sdw_dir="$tmpdir/soundwire"
+sleep_log="$tmpdir/sleep-calls"
+
+cat >"$mock_bin/sleep" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >>"$sleep_log"
+/usr/bin/sleep "\$@"
+SH
+chmod +x "$mock_bin/sleep"
+
+make_sdw_device() {
+  local name="$1" status="$2" dev_num="$3" bound="${4:-1}"
+  mkdir -p "$sdw_dir/$name"
+  printf '%s\n' "$status" >"$sdw_dir/$name/status"
+  printf '%s\n' "$dev_num" >"$sdw_dir/$name/device_number"
+  if (( bound )); then
+    mkdir -p "$sdw_dir/$name/driver"
+  else
+    rm -rf "$sdw_dir/$name/driver"
+  fi
+}
+
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$tmpdir/no-soundwire" OMARCHY_SOUNDWIRE_TRIES=5 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+[[ ! -s $sleep_log ]] || fail "missing SoundWire bus exits without waiting" "$(<"$sleep_log")"
+pass "missing SoundWire bus exits without waiting"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Unattached" "0" 0
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=5 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+[[ ! -s $sleep_log ]] || fail "unbound SoundWire peripheral is skipped without waiting" "$(<"$sleep_log")"
+pass "unbound SoundWire peripheral is skipped without waiting"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Attached" "2" 1
+make_sdw_device "sdw:0:1:025d:0713:01" "Alert" "1" 1
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=5 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+[[ ! -s $sleep_log ]] || fail "attached and alerting SoundWire peripherals with device numbers return immediately" "$(<"$sleep_log")"
+pass "attached and alerting SoundWire peripherals with device numbers return immediately"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:1" "Attached" "1" 1
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Unattached" "0" 1
+: >"$sleep_log"
+(
+  /usr/bin/sleep 0.05
+  printf 'Attached\n' >"$sdw_dir/sdw:0:0:025d:1321:01:0/status"
+  printf '2\n' >"$sdw_dir/sdw:0:0:025d:1321:01:0/device_number"
+) &
+updater_pid=$!
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=50 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+wait "$updater_pid"
+sleeps=$(wc -l <"$sleep_log")
+(( sleeps > 0 && sleeps < 49 )) || fail "waits for unattached SoundWire peripheral to enumerate and stops once ready" "sleeps=$sleeps"
+pass "waits for unattached SoundWire peripheral to enumerate and stops once ready"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Attached" "0" 1
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=4 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+sleeps=$(wc -l <"$sleep_log")
+(( sleeps == 3 )) || fail "attached peripheral without a device number times out cleanly" "sleeps=$sleeps"
+pass "attached peripheral without a device number times out cleanly"

@@ -121,7 +121,9 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
       if found["accountId"] and files:
         entries.append({"id": account["id"], "label": account["label"], "primary": bool(account.get("primary")), "accountId": found["accountId"], "files": files})
     if entries:
-      payload["providers"][provider] = {"active": registry["active"] if any(a["id"] == registry["active"] for a in entries) else entries[0]["id"], "switch": registry["switch"], "threshold": registry["threshold"], "accounts": entries}
+      # "switch" is for an Omarchy from before automatic switching was removed,
+      # which refuses a transfer without it.
+      payload["providers"][provider] = {"active": registry["active"] if any(a["id"] == registry["active"] for a in entries) else entries[0]["id"], "switch": "manual", "threshold": registry["threshold"], "accounts": entries}
   if not payload["providers"]:
     raise accounts.AccountError("No signed-in subscription accounts to copy")
   return payload
@@ -133,7 +135,7 @@ def validate(payload: Any) -> None:
   for provider, registry in payload["providers"].items():
     if provider not in FILES or not isinstance(registry, dict) or not isinstance(registry.get("accounts"), list) or not registry["accounts"]:
       raise accounts.AccountError("Invalid account transfer provider")
-    if not isinstance(registry.get("active"), str) or registry.get("switch") not in accounts.SWITCH_MODES or type(registry.get("threshold")) is not int or not 50 <= registry["threshold"] <= 100:
+    if not isinstance(registry.get("active"), str) or type(registry.get("threshold")) is not int or not 50 <= registry["threshold"] <= 100:
       raise accounts.AccountError("Invalid account transfer preferences")
     ids = set()
     identities = set()
@@ -345,8 +347,6 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
       mapped = {entry["id"]: account["id"] for entry, account in copied}
       if was_empty:
         registry["active"] = mapped.get(incoming.get("active"), registry["active"])
-        if incoming.get("switch") in accounts.SWITCH_MODES:
-          registry["switch"] = incoming["switch"]
         registry["threshold"] = max(50, min(100, int(incoming.get("threshold", 95))))
       registry["alert"] = ""
   except BaseException:
