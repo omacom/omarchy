@@ -342,11 +342,11 @@ fi
 
 # Only the boot entry functions: the script's top level draws its UI.
 awk '
-  /^(esp_path|limine_entries_stale|reset_limine_config)\(\) \{/ { copying = 1 }
+  /^(esp_path|boot_backend|limine_entries_stale|reset_limine_config)\(\) \{/ { copying = 1 }
   copying { print }
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-provision-owner" >"$test_tmp/provision-functions"
-[[ $(grep -c '^[a-z_]*() {' "$test_tmp/provision-functions") == 3 ]] ||
+[[ $(grep -c '^[a-z_]*() {' "$test_tmp/provision-functions") == 4 ]] ||
   fail "the first-boot boot entry functions can be loaded"
 
 # omarchy-provision-owner reads /etc/machine-id directly, so give it this
@@ -362,6 +362,7 @@ run_provision_function() {
     mount --bind "$test_tmp/machine-id" /etc/machine-id
     source "$test_tmp/provision-functions"
     esp_path() { echo "$root/boot"; }
+    boot_backend() { echo "${BOOT_BACKEND:-limine}"; }
     log_step() { :; }
     OMARCHY_PATH="$root/usr/share/omarchy"
     "$@"
@@ -409,6 +410,10 @@ printf 'default_entry: 2\n' >"$root/boot/limine.conf"
 [[ $(staleness "$root") == stale ]] ||
   fail "first boot repairs a machine left without an entry of its own"
 pass "a machine without an entry of its own still gets one at first boot"
+
+[[ $(BOOT_BACKEND=systemd-boot staleness "$root") == fresh ]] ||
+  fail "a machine on systemd-boot leaves a shared limine.conf to its installation"
+pass "first boot on systemd-boot doesn't rebuild another installation's Limine entries"
 
 # The image builder clears its machine-id but leaves the bootable Omarchy UKI
 # entry. Kept as is, limine-update reuses it by name without this machine's

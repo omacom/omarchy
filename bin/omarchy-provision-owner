@@ -1063,6 +1063,7 @@ finalize_user() {
 PROVISIONING_UNLOCK_FILES=(
   /etc/omarchy/provisioning.key
   /etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+  /etc/cmdline.d/99-omarchy-provisioning-unlock.conf
   /etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
 )
 
@@ -1074,12 +1075,25 @@ limine_auto_unlock_present() {
   return 1
 }
 
+boot_backend() {
+  "$OMARCHY_PATH/bin/omarchy-boot-backend"
+}
+
+# Rebuilds the boot images, on whichever loader this machine boots.
+rebuild_boot_images() {
+  if [[ $(boot_backend) == systemd-boot ]]; then
+    "$OMARCHY_PATH/bin/omarchy-boot-rebuild" >>"$LOG_FILE" 2>&1
+  else
+    reset_limine_config
+    limine-update >>"$LOG_FILE" 2>&1
+  fi
+}
+
 # Rebuild the UKI without the embedded keyfile. A failed rebuild restores the
 # auto-unlock, so the retry still boots unattended.
 limine_auto_unlock_drop() {
   rm -f "${PROVISIONING_UNLOCK_FILES[@]}"
-  reset_limine_config
-  if limine-update >>"$LOG_FILE" 2>&1; then
+  if rebuild_boot_images; then
     return 0
   fi
 
@@ -1087,15 +1101,20 @@ limine_auto_unlock_drop() {
   # boot files already ask for the owner's password. The rebuild is still
   # retried for the boot entries.
   if [[ -f $PROVISIONING_DIR/luks-key ]]; then
-    log_step "limine-update failed during re-key; restoring auto-unlock for retry"
+    log_step "the boot image rebuild failed during re-key; restoring auto-unlock for retry"
     install -Dm600 "$PROVISIONING_DIR/luks-key" /etc/omarchy/provisioning.key
-    echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
-      >/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+    if [[ $(boot_backend) == systemd-boot ]]; then
+      mkdir -p /etc/cmdline.d
+      echo 'cryptkey=rootfs:/etc/omarchy/provisioning.key' >/etc/cmdline.d/99-omarchy-provisioning-unlock.conf
+    else
+      echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
+        >/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+    fi
     echo 'FILES+=(/etc/omarchy/provisioning.key)' >/etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
   else
-    log_step "limine-update failed during re-key; the staged key is gone, so no auto-unlock is restored"
+    log_step "the boot image rebuild failed during re-key; the staged key is gone, so no auto-unlock is restored"
   fi
-  limine-update >>"$LOG_FILE" 2>&1 || true
+  rebuild_boot_images || true
   return 1
 }
 
@@ -1203,9 +1222,11 @@ esp_path() {
 # or the bare header reset_limine_config leaves when the rebuild after it
 # failed. Other machine-ids are not stale: a shared ESP holds other systems'
 # entries, and the factory reset already re-keyed this system's entry to the
-# identity it boots with.
+# identity it boots with. A machine on systemd-boot has no Limine entry: a
+# limine.conf on its ESP is another installation's.
 limine_entries_stale() {
   local esp machine_id
+  [[ $(boot_backend) != systemd-boot ]] || return 1
   esp=$(esp_path)
   machine_id=$(cat /etc/machine-id 2>/dev/null || true)
   [[ -f $esp/limine.conf && -n $machine_id ]] || return 1

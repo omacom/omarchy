@@ -533,3 +533,20 @@ refused_answer=$(PATH="$select_tmp/refused-bin:$PATH" timeout 5 "$ROOT/bin/omarc
 (( refused_rc == 2 )) && [[ -z $refused_answer ]] ||
   fail "omarchy-menu-select exits 2 with no selection when the summon is refused" "rc=$refused_rc answer=$refused_answer"
 pass "omarchy-menu-select exits 2 with no selection when the summon is refused"
+
+# The Snapshots provider lists systemd-boot's entries. On Limine its menu is
+# hidden, and a search must not run omarchy-snapshot list there: it asks sudo
+# for snapper's table, with no terminal to ask in.
+snapshots_script=$(node -e '
+  const src = require("fs").readFileSync(process.argv[1], "utf8")
+  process.stdout.write(JSON.parse(src.match(/"snapshots": \{\s*script: ("(?:[^"\\]|\\.)*")/)[1]))
+' "$ROOT/shell/plugins/menu/Menu.qml")
+mkdir -p "$select_tmp/snapshots"
+printf '#!/bin/bash\necho "$BOOT_BACKEND"\n' >"$select_tmp/snapshots/omarchy-boot-backend"
+printf '#!/bin/bash\necho "omarchy-snapshot $*" >>"$CALLS"\nprintf "12\\tSnapshot 12 (update)\\n"\n' >"$select_tmp/snapshots/omarchy-snapshot"
+chmod +x "$select_tmp/snapshots/"*
+rows=$(BOOT_BACKEND=limine CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/snapshots:$PATH" bash -c "$snapshots_script")
+[[ -z $rows && ! -e $select_tmp/snapshot-calls ]] || fail "on Limine the Snapshots provider runs nothing" "$rows"
+rows=$(BOOT_BACKEND=systemd-boot CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/snapshots:$PATH" bash -c "$snapshots_script")
+[[ $rows == $'Snapshot 12 (update)\t12\t' ]] || fail "on systemd-boot the Snapshots provider lists the entries" "$rows"
+pass "the Snapshots provider lists systemd-boot's entries and asks nothing of Limine"
