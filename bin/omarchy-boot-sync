@@ -13,7 +13,7 @@
 # live system and every snapshot taken on that image are profiles inside it:
 #
 #   omarchy-<machine>-<pkgbase>-<hash>.efi
-#     .linux .initrd .cmdline .osrel .uname [.splash]   shared
+#     .linux .initrd .cmdline .osrel .uname             shared
 #     .profile omarchy      the live system                    (when installed)
 #     .profile snapshot-12  .cmdline rootflags=subvol=@/.snapshots/12/snapshot
 #
@@ -39,7 +39,6 @@ LOCK=${OMARCHY_BOOT_LOCK:-/run/omarchy-boot.lock}
 # (omarchy-update-qualcomm-device-trees); profiles read nothing, so the trees
 # are carried once rather than copied into every profile.
 UKI_CONFIG=${OMARCHY_BOOT_UKI_CONFIG:-/etc/kernel/uki.conf}
-SPLASH_SOURCE=${OMARCHY_BOOT_SPLASH_SOURCE:-/usr/share/plymouth/themes/omarchy/logo.png}
 MAX_SNAPSHOTS=${OMARCHY_BOOT_MAX_SNAPSHOTS:-6}
 MACHINE_ID_FILE=${OMARCHY_BOOT_MACHINE_ID:-/etc/machine-id}
 LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
@@ -343,16 +342,6 @@ snapshot_details() {
 
 # --- building ------------------------------------------------------------------------
 
-splash() {
-  local bmp=$STORE/splash.bmp
-  if [[ ! -s $bmp && -f $SPLASH_SOURCE ]] && omarchy-cmd-present magick; then
-    magick "$SPLASH_SOURCE" -background black -flatten -type TrueColor "BMP3:$bmp.new" 2>/dev/null &&
-      mv -f "$bmp.new" "$bmp"
-  fi
-  [[ -s $bmp ]] && echo "$bmp"
-  return 0
-}
-
 osrel() { # pretty-name order
   printf 'NAME="Omarchy"\nID=omarchy\nIMAGE_ID=omarchy\nPRETTY_NAME="%s"\nIMAGE_VERSION=%s\n' "$1" "$2"
 }
@@ -373,7 +362,7 @@ uki_inputs() {
   done < <(sed -n 's/^[^#=]*=//p' "$UKI_CONFIG" | grep -o '/[^[:space:]]*' || true)
 }
 build_uki() {
-  local image=$1 profiles=$2 out=$3 work dir kver id pretty title order cmdline n=0 splash_file
+  local image=$1 profiles=$2 out=$3 work dir kver id pretty title order cmdline n=0
   dir=$(image_dir "$image")
   kver=$(image_get "$image" KVER)
   work=$(mktemp -d "$STORE/tmp/build.XXXXXX")
@@ -385,8 +374,6 @@ build_uki() {
   else
     args+=(--config="$work/empty.conf")
   fi
-  splash_file=$(splash)
-  [[ -n $splash_file ]] && args+=(--splash="$splash_file")
 
   # The first profile is built into the image itself: its .profile, .osrel and
   # .cmdline are the shared base, so it is profile 0, the entry named after the
@@ -437,6 +424,8 @@ cmd_sync() {
   mount_top
   mkdir -p "$STORE/tmp" "$STORE/published" "$ESP/EFI/Linux"
   rm -rf "$STORE"/tmp/build.*
+  # Boot images no longer carry a splash; a store from before keeps none.
+  rm -f "$STORE/splash.bmp"
 
   local ns preferred pkgbase kver image num dir file id
   local -A profiles=() wanted=()
@@ -505,7 +494,6 @@ cmd_sync() {
         echo "format=$FORMAT signing=$(state_get signing)"
         cat "$(image_dir "$image")/manifest"
         echo "$sorted"
-        if [[ -s $STORE/splash.bmp ]]; then sha256sum <"$STORE/splash.bmp"; fi
         uki_inputs
       } | sha256sum | cut -c1-64
     )

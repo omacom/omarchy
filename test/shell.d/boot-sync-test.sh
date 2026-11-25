@@ -60,7 +60,7 @@ sync_boot() {
   env PATH="$test_tmp/bin:$PATH" UKIFY_LOG="$test_tmp/ukify.log" OMARCHY_BOOT_TEST=1 \
     OMARCHY_BOOT_STORE="$test_tmp/store" OMARCHY_BOOT_ESP="$test_tmp/esp" OMARCHY_BOOT_TOP="$test_tmp/top" \
     OMARCHY_BOOT_LOCK="$test_tmp/lock" OMARCHY_BOOT_MACHINE_ID="$test_tmp/machine-id" \
-    OMARCHY_BOOT_UKI_CONFIG="$test_tmp/uki.conf" OMARCHY_BOOT_SPLASH_SOURCE="$test_tmp/no-splash" \
+    OMARCHY_BOOT_UKI_CONFIG="$test_tmp/uki.conf" \
     "$@" bash "$ROOT/bin/omarchy-boot-sync" sync >>"$test_tmp/sync.log" 2>&1 ||
     fail "the sync runs" "$(cat "$test_tmp/sync.log")"
 }
@@ -129,3 +129,13 @@ sync_boot
 [[ $(builds) == 2 ]] || fail "a changed device tree rebuilds the image" "$(builds)"
 rm -f "$test_tmp/uki.conf"
 pass "a published image is rebuilt when a device tree it carries changes"
+
+# Boot images carry no splash: the firmware hands over straight to Plymouth's
+# unlock screen. A splash a store kept from before goes.
+new_machine
+printf 'BM-old-splash\n' >"$test_tmp/store/splash.bmp"
+sync_boot
+[[ $(builds) == 1 ]] || fail "the sync builds the image" "$(builds)"
+! grep -q -- '--splash' "$test_tmp/ukify.log" || fail "the image is built without a splash" "$(cat "$test_tmp/ukify.log")"
+[[ ! -e $test_tmp/store/splash.bmp ]] || fail "an old splash leaves the store"
+pass "boot images carry no splash"
