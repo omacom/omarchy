@@ -1,0 +1,7 @@
+#!/usr/bin/ash
+
+run_hook() {
+  [ -x /usr/bin/setleds ] || return 0
+  # -D sets the default for the console the passphrase is typed on.
+  setleds -D +num </dev/console >/dev/null 2>&1 || true
+}
