@@ -119,7 +119,11 @@ pass "omarchy-transcode percent-encodes clipboard file URIs"
 cat >"$tmp/bin/hyprctl" <<SH
 #!/bin/bash
 if [[ \$1 == "activewindow" ]]; then
-  printf '%s\n' "\${POP_ACTIVE_JSON:-{}}"
+  if [[ -n \${POP_ACTIVE_JSON:-} ]]; then
+    printf '%s\n' "\$POP_ACTIVE_JSON"
+  else
+    echo '{}'
+  fi
   exit 0
 fi
 printf '%s\n' "\$*" >>"$tmp/hyprctl-pop-calls"
