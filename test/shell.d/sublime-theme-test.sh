@@ -195,15 +195,15 @@ listener = module['OmarchyWindowDefaults']()
 
 
 class Window:
-    def __init__(self):
-        self.menu = True
-        self.minimap = True
+  def __init__(self):
+    self.menu = True
+    self.minimap = True
 
-    def set_menu_visible(self, value):
-        self.menu = value
+  def set_menu_visible(self, value):
+    self.menu = value
 
-    def set_minimap_visible(self, value):
-        self.minimap = value
+  def set_minimap_visible(self, value):
+    self.minimap = value
 
 
 module['plugin_loaded']()
