@@ -236,6 +236,11 @@ preflight() {
 }
 
 # The command line the switch will write, checked against what Limine boots.
+# The words of a command line, each identical one only at its first place.
+once() {
+  awk '{ for (i = 1; i <= NF; i++) if (!seen[$i]++) printf "%s%s", (n++ ? " " : ""), $i } END { print "" }'
+}
+
 check_cmdline() {
   local kernel effective base values file stem converted=() out
   kernel=$(preferred_limine_kernel)
@@ -244,7 +249,11 @@ check_cmdline() {
     problem "Limine reports no command line for $kernel."
     return
   fi
-  if [[ $(tr -s '[:space:]' ' ' </proc/cmdline) != "$effective"* ]]; then
+  # An identical parameter given twice is given once: a 4.5.0 install writes
+  # systemd.tty.term.console=dumb into /etc/default/limine, omarchy-defaults
+  # adds it again, and the entry Limine boots carries it once. Anything after
+  # the line (a serial console the firmware or a VM adds) is allowed.
+  if [[ $(once </proc/cmdline) != "$(once <<<"$effective")"* ]]; then
     problem "This boot didn't start with Limine's current command line; reboot into Omarchy normally first."
   fi
 
