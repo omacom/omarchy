@@ -54,19 +54,13 @@ tpm2_device_present() {
 }
 
 luks_tpm2_slots() {
-  local drive=$1 dump
-  dump=$(sudo cryptsetup luksDump "$drive" 2>/dev/null) || return 1
-  awk '
-    /^Tokens:/ { in_tokens = 1 }
-    in_tokens && /^[ \t]*[0-9]+: systemd-tpm2/ { is_tpm = 1 }
-    is_tpm && /Keyslot(s)?:?[ \t]*[0-9]+/ {
-      sub(/.*Keyslot(s)?:?[ \t]*/, "");
-      sub(/[^0-9].*/, "");
-      print $0;
-      is_tpm = 0
-    }
-    /^[^ \t]/ && !/^Tokens:/ { in_tokens = 0; is_tpm = 0 }
-  ' <<<"$dump" | paste -sd, -
+  local drive=$1 json
+  # Read the keyslots from the JSON header, not the text dump. The text dump
+  # prints systemd-tpm2 token details (including "Keyslot:") through the token
+  # plugin, which on cryptsetup 2.8 / systemd 261 writes them to stderr, so a
+  # stdout-only parse never sees the keyslot of a token that is really there.
+  json=$(sudo cryptsetup luksDump --dump-json-metadata "$drive" 2>/dev/null) || return 1
+  jq -r '[.tokens[]? | select(.type == "systemd-tpm2") | .keyslots[]?] | join(",")' <<<"$json"
 }
 
 # The HOOKS line mkinitcpio builds from: mkinitcpio.conf, then every drop-in in

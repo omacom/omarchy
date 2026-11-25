@@ -98,15 +98,23 @@ if [[ $1 == "isLuks" ]]; then
 elif [[ $1 == "luksUUID" ]]; then
   echo "$FAKE_LUKS_UUID"
   exit 0
+elif [[ $1 == "luksDump" && ${2:-} == "--dump-json-metadata" ]]; then
+  if [[ -n ${FAKE_TPM_ENROLLED:-} ]]; then
+    echo '{"keyslots":{"0":{"type":"luks2"},"2":{"type":"luks2"}},"tokens":{"0":{"type":"systemd-tpm2","keyslots":["2"]}}}'
+  else
+    echo '{"keyslots":{"0":{"type":"luks2"}},"tokens":{}}'
+  fi
+  exit 0
 elif [[ $1 == "luksDump" ]]; then
   if [[ -n ${FAKE_TPM_ENROLLED:-} ]]; then
+    # Like real cryptsetup 2.8: the token plugin prints its details on stderr.
     cat <<'EOF'
 LUKS header information
 Version: 2
 Tokens:
   0: systemd-tpm2
-	Keyslot: 2
 EOF
+    printf '\tKeyslot:    2\n' >&2
   else
     cat <<'EOF'
 LUKS header information
@@ -227,15 +235,23 @@ if [[ $1 == "isLuks" ]]; then
   exit 0
 elif [[ $1 == "luksUUID" ]]; then
   echo "$FAKE_LUKS_UUID"
+elif [[ $1 == "luksDump" && ${2:-} == "--dump-json-metadata" ]]; then
+  if [[ -f "$TEST_ENROLLED_FLAG" ]]; then
+    echo '{"keyslots":{"0":{"type":"luks2"},"3":{"type":"luks2"}},"tokens":{"0":{"type":"systemd-tpm2","keyslots":["3"]}}}'
+  else
+    echo '{"keyslots":{"0":{"type":"luks2"}},"tokens":{}}'
+  fi
+  exit 0
 elif [[ $1 == "luksDump" ]]; then
   if [[ -f "$TEST_ENROLLED_FLAG" ]]; then
+    # Like real cryptsetup 2.8: the token plugin prints its details on stderr.
     cat <<'EOF'
 LUKS header information
 Version: 2
 Tokens:
   0: systemd-tpm2
-	Keyslot: 3
 EOF
+    printf '\tKeyslot:    3\n' >&2
   else
     cat <<'EOF'
 LUKS header information
