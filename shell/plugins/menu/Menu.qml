@@ -1003,22 +1003,6 @@ Item {
     altHeld = false
   }
 
-  function hasMissingAppIcons() {
-    if (!root.appLibrary) return false
-    var index = root.appLibrary.iconIndex || ({})
-    if (Object.keys(index).length === 0) return true
-    var entries = DesktopEntries.applications.values || []
-    for (var i = 0; i < entries.length; i++) {
-      var entry = entries[i]
-      if (!entry || root.appLibrary.isHiddenEntry(entry)) continue
-      var icon = String(entry.icon || "")
-      if (icon === "" || icon.charAt(0) === "/" || icon.indexOf("file://") === 0 || icon.indexOf("image://") === 0) continue
-      if (index[icon]) continue
-      if (Quickshell.iconPath(icon, true).length === 0) return true
-    }
-    return false
-  }
-
   function openExistingMenu(initialMenu) {
     altHeld = false
     requestSerial += 1
@@ -1038,10 +1022,8 @@ Item {
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
-    // their icons; skip the scan once the index is warm and every visible
-    // desktop entry resolves an icon (AppLibrary's watchers handle updates).
-    if (root.hasMissingAppIcons())
-      root.appLibrary.refreshIcons()
+    // their icons. Refresh here even when the desktop entry list did not change.
+    if (root.appLibrary) root.appLibrary.refreshIcons()
 
     Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
