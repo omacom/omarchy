@@ -41,7 +41,7 @@ These bindings only exist while Omasnap is open, so they can't collide with anyt
 
 ## Screen recording
 
-`Alt + Print Screen` opens _Trigger > Capture > Screenrecord_, which asks what you want on the soundtrack: no audio, desktop audio, desktop plus microphone, or desktop plus microphone plus webcam. That last one only shows up if you actually have a camera plugged in. Pick one and Omarchy's recording picker lets you drag a region or click a window or monitor.
+`Alt + Print Screen` opens _Trigger > Capture > Screenrecord_, which asks what you want on the soundtrack: no audio, desktop audio, desktop plus microphone, or desktop plus microphone plus webcam. That last one only shows up if you actually have a camera plugged in. Pick one and Omarchy's recording picker lets you drag a region or click a window or monitor. _Full screen with no audio_ and _Full screen with desktop audio_ skip the picker and record the monitor you're on, bar included.
 
 Recording runs on gpu-screen-recorder, which encodes on the GPU at 60fps and falls back to the CPU if it has to; on GPUs it doesn't support, such as Apple Silicon's, Omarchy records with wf-recorder instead. The result is an MP4 in `~/Videos`, named `screenrecording-2026-08-13_14-22-05.mp4`. Set `OMARCHY_SCREENRECORD_DIR` to change that — but note that unlike the screenshot directory, this one has to exist already, or the recording refuses to start.
 
