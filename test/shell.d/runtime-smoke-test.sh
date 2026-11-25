@@ -857,7 +857,7 @@ reset_scratch_home
 
 cat >"$SCRATCH_ROOT/shell/plugins/bar/Bar.qml" <<'QML'
 import QtQuick
-import Quickshell.Io
+import qs.Commons
 
 Item {
   id: startupFallbackBar
@@ -868,10 +868,12 @@ Item {
   property var manifest: null
 
   Component.onCompleted: console.warn("SCRATCH_DEFAULT_BAR_MOUNTED")
-  IpcHandler {
+  ShellIpc {
     target: "startup-fallback-bar"
     function reloading(): bool {
-      return startupFallbackBar.shell ? startupFallbackBar.shell.pluginReloading : true
+      var host = startupFallbackBar.shell
+      return !host || host.pluginReloading || host.pluginReloadPending
+        || host.pluginRegistry.scanning || host.pluginRegistry.rescanQueued
     }
   }
 }
@@ -892,7 +894,7 @@ cat >"$startup_bar_dir/manifest.json" <<JSON
 JSON
 cat >"$startup_bar_dir/Bar.qml" <<'QML'
 import QtQuick
-import Quickshell.Io
+import qs.Commons
 
 Item {
   property string omarchyPath: ""
@@ -901,7 +903,7 @@ Item {
   property var shell: null
   property var manifest: null
 
-  IpcHandler {
+  ShellIpc {
     target: "acme-startup-bar"
 
     function name(): string {
@@ -973,6 +975,12 @@ done
   fail_with_log "missing configured replacement bar falls back to omarchy.bar once (mounted $default_bar_mounts time(s))"
 pass "missing configured replacement bar falls back to omarchy.bar once"
 
+for _ in {1..80}; do
+  [[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] && break
+  sleep 0.1
+done
+[[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] ||
+  fail_with_log "initial plugin scans settle before reloading the fallback bar"
 scratch_ipc shell reloadPlugins >/dev/null
 for _ in {1..80}; do
   [[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] && break
