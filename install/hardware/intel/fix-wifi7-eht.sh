@@ -5,7 +5,7 @@
 # back to WiFi 6 (HE/802.11ax) which works at full speed.
 # This should be removed when Intel fixes the firmware/driver.
 
-if lspci -nn | grep -qE '\[8086:(e440|272b)\]'; then
+if omarchy-hw-pci 8086:e440 8086:272b; then
   mkdir -p /etc/modprobe.d
   cat > /etc/modprobe.d/iwlwifi-disable-eht.conf <<'EOF'
 # Temporary fix Dell XPS 14/16 on Panther lake
