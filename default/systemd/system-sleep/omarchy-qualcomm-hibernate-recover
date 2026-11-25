@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# On the Lenovo Yoga Slim 7x, yoga-slim7x-hibernate.service stops the DSPs and
-# Wi-Fi before a hibernation and brings them back when systemd stops it
+# On the Snapdragon X1 laptops, omarchy-qualcomm-hibernate.service stops the DSPs
+# and Wi-Fi before a hibernation and brings them back when systemd stops it
 # afterwards. When a hibernation fails, a driver refusing to freeze say,
 # systemd leaves the unit active and its restore never runs. So after every
 # hibernation attempt the unit is stopped 10 s later. After a resume it is
@@ -10,9 +10,9 @@
 if [[ $1 == "post" ]]; then
   case ${SYSTEMD_SLEEP_ACTION:-$2} in
     hibernate | hybrid-sleep | suspend-then-hibernate)
-      if systemctl is-active --quiet yoga-slim7x-hibernate.service; then
-        systemd-run --quiet --no-block --collect --on-active=10 --unit=yoga-slim7x-hibernate-recover \
-          /usr/bin/systemctl --no-block stop yoga-slim7x-hibernate.service || true
+      if systemctl is-active --quiet omarchy-qualcomm-hibernate.service; then
+        systemd-run --quiet --no-block --collect --on-active=10 --unit=omarchy-qualcomm-hibernate-recover \
+          /usr/bin/systemctl --no-block stop omarchy-qualcomm-hibernate.service || true
       fi
       ;;
   esac

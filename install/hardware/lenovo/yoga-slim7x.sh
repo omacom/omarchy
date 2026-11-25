@@ -63,33 +63,4 @@ UNIT
   # Keep deep suspend with the lid open from waking itself.
   install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/yoga-slim7x-lid-wake" \
     "$sleep_hook_dir/yoga-slim7x-lid-wake"
-
-  # Stop the DSPs and Wi-Fi before hibernating and boot them again after the
-  # resume, also after a hibernation that failed. The unit runs before the
-  # sleep service, which freezes user.slice: the sound card's removal would
-  # then wait for a frozen PipeWire forever. The sleep services require it, so
-  # no hibernation starts when a driver would not unload. The timeouts cover
-  # the helper's longest path, all its waits running out: a unit killed while
-  # the drivers come back leaves the watchdog unfed and resets the laptop.
-  cat >"$systemd_dir/yoga-slim7x-hibernate.service" <<'UNIT'
-[Unit]
-Description=Stop the Lenovo Yoga Slim 7x DSPs and Wi-Fi around hibernation
-Before=systemd-hibernate.service systemd-hybrid-sleep.service systemd-suspend-then-hibernate.service
-StopWhenUnneeded=yes
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/bin/bash /usr/share/omarchy/install/hardware/lenovo/yoga-slim7x-hibernate.sh pre
-ExecStop=/bin/bash /usr/share/omarchy/install/hardware/lenovo/yoga-slim7x-hibernate.sh post
-TimeoutStartSec=300
-TimeoutStopSec=300
-
-[Install]
-WantedBy=hibernate.target hybrid-sleep.target suspend-then-hibernate.target
-RequiredBy=systemd-hibernate.service systemd-hybrid-sleep.service systemd-suspend-then-hibernate.service
-UNIT
-  systemctl enable yoga-slim7x-hibernate.service
-  install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/yoga-slim7x-hibernate-recover" \
-    "$sleep_hook_dir/yoga-slim7x-hibernate-recover"
 fi
