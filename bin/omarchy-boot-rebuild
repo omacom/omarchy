@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Rebuild the boot images after an initramfs, kernel or command line change
-# omarchy:args=[PKGBASE...] | --pacman-install | --pacman-remove
+# omarchy:args=[--initramfs PKGBASE=FILE]... [PKGBASE...] | --pacman-install | --pacman-remove
 # omarchy:hidden=true
 # omarchy:requires-sudo=true
 
@@ -13,10 +13,19 @@
 #
 # --pacman-install / --pacman-remove are the pacman hooks' entry points on
 # systemd-boot machines; --pacman-install reads the hook targets on stdin.
+#
+# --initramfs PKGBASE=FILE stores FILE as that kernel's initramfs on
+# systemd-boot instead of building one: the installer passes the generic one
+# its root image carries, which saves the install its 4 s of mkinitcpio. Every
+# other kernel builds as usual, and so does this one when FILE is missing or
+# the kernel isn't installed. The first kernel update builds its own, with
+# autodetect, as on any machine.
 
 set -euo pipefail
 
 MODULES=${OMARCHY_BOOT_MODULES:-/usr/lib/modules}
+MKINITCPIO=${OMARCHY_BOOT_MKINITCPIO:-/usr/bin/mkinitcpio}
+declare -A PREBUILT=()
 
 installed_kernels() {
   local pkgbase
@@ -63,16 +72,31 @@ rebuild_systemd_boot() {
     if ((${#only[@]})) && [[ " ${only[*]} " != *" $pkgbase "* ]]; then
       continue
     fi
-    initramfs=$(mktemp --suffix=.img)
-    if /usr/bin/mkinitcpio -k "$kver" -g "$initramfs"; then
+    initramfs=${PREBUILT[$pkgbase]:-}
+    unset "PREBUILT[$pkgbase]"
+    if [[ -n $initramfs && ! -s $initramfs ]]; then
+      echo "The pre-built initramfs $initramfs for $pkgbase is missing; building one" >&2
+      initramfs=""
+    fi
+    if [[ -n $initramfs ]]; then
+      echo "Using the pre-built initramfs $initramfs for kernel $pkgbase ($kver)"
       omarchy-boot-sync import "$pkgbase" "$kver" "$MODULES/$kver/vmlinuz" "$initramfs" || failed=1
       built=1
     else
-      echo "mkinitcpio failed for kernel $pkgbase ($kver)" >&2
-      failed=1
+      initramfs=$(mktemp --suffix=.img)
+      if "$MKINITCPIO" -k "$kver" -g "$initramfs"; then
+        omarchy-boot-sync import "$pkgbase" "$kver" "$MODULES/$kver/vmlinuz" "$initramfs" || failed=1
+        built=1
+      else
+        echo "mkinitcpio failed for kernel $pkgbase ($kver)" >&2
+        failed=1
+      fi
+      rm -f "$initramfs"
     fi
-    rm -f "$initramfs"
   done < <(installed_kernels)
+  for pkgbase in "${!PREBUILT[@]}"; do
+    echo "Kernel $pkgbase isn't installed or isn't being rebuilt; ignoring its pre-built initramfs" >&2
+  done
   if ((built)); then
     omarchy-boot-sync sync || failed=1
   fi
@@ -110,11 +134,23 @@ case ${1:-} in
   omarchy-boot-sync sync
   ;;
 *)
+  kernels=()
+  while (($#)); do
+    case $1 in
+    --initramfs)
+      [[ ${2:-} == ?*=?* ]] || { echo "--initramfs needs PKGBASE=FILE" >&2; exit 2; }
+      PREBUILT[${2%%=*}]=${2#*=}
+      shift
+      ;;
+    *) kernels+=("$1") ;;
+    esac
+    shift
+  done
   status=0
   for backend in $(omarchy-boot-backend --managed); do
     case $backend in
-    limine) rebuild_limine "$@" || status=1 ;;
-    systemd-boot) rebuild_systemd_boot "$@" || status=1 ;;
+    limine) rebuild_limine "${kernels[@]}" || status=1 ;;
+    systemd-boot) rebuild_systemd_boot "${kernels[@]}" || status=1 ;;
     esac
   done
   exit "$status"
