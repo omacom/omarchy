@@ -40,8 +40,15 @@ cat >"$mock_omarchy/bin/omarchy-system-sleep-lock" <<'SH'
 echo "locked" >>"$EVENT_LOG"
 SH
 
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+echo "omarchy-shell $*" >>"$EVENT_LOG"
+SH
+
 chmod +x \
   "$mock_bin/systemd-inhibit" \
+  "$mock_bin/omarchy-shell" \
   "$mock_omarchy/bin/omarchy-system-sleep-lock"
 ln -s "$sleep_monitor" "$mock_omarchy/bin/omarchy-system-sleep-monitor"
 
@@ -70,9 +77,18 @@ mapfile -t events <"$event_log"
   fail "sleep monitor locks while holding the inhibitor, then releases it" "$(<"$event_log")"
 pass "sleep monitor locks while holding the inhibitor, then releases it"
 
-[[ ${events[3]:-} == "inhibitor taken" ]] ||
+grep -v '^omarchy-shell' "$event_log" | sed -n 4p | grep -qx "inhibitor taken" ||
   fail "sleep monitor takes the inhibitor again after the wake" "$(<"$event_log")"
 pass "sleep monitor takes the inhibitor again after the wake"
+
+# The refresh runs alongside taking the inhibitor again, so it may land last.
+for _ in {1..100}; do
+  grep -q '^omarchy-shell' "$event_log" && break
+  sleep 0.01
+done
+[[ $(grep '^omarchy-shell' "$event_log" || true) == "omarchy-shell -q omarchy.clock refresh" ]] ||
+  fail "sleep monitor refreshes the bar clock once after the wake" "$(<"$event_log")"
+pass "sleep monitor refreshes the bar clock once after the wake"
 
 # A failed inhibit (logind still finishing a sleep, say) must end the monitor
 # so systemd retries it, without orphaning the event producer.
