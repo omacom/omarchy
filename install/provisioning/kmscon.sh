@@ -16,9 +16,13 @@
 #   omarchy_kmscon <log> <keymap> <lang> <#rrggbb or ""> <command...>
 #       run command in kmscon on this VT; returns when kmscon ends
 #
-# Source setup-form.sh first. omarchy_keymap_xkb reads the XKB layouts of the
-# form's keymaps that systemd's kbd-model-map lacks from omarchy_keymap_xkb_extra
-# in that file.
+# omarchy_keymap_xkb reads the XKB layouts of the form's keymaps that systemd's
+# kbd-model-map lacks from omarchy_keymap_xkb_extra in setup-form.sh, sourcing
+# the sibling file when the caller has not already.
+if ! declare -F omarchy_keymap_xkb_extra >/dev/null; then
+  # shellcheck source=setup-form.sh
+  source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/setup-form.sh"
+fi
 
 # kmscon reads keys through XKB, not the console keymap, and the password
 # typed in it is typed again at boot under that keymap: the layouts must place

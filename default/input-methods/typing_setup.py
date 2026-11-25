@@ -17,7 +17,7 @@ def localized(command, *args):
 def xkb_choice(layout, variant):
   # The first layout and variant of an XKB pair, as "layout" or "layout:variant".
   layout, variant = layout.split(",")[0], variant.split(",")[0]
-  return layout + (":" + variant if variant != "-" else "")
+  return layout + (":" + variant if variant and variant != "-" else "")
 
 
 def keyboard_catalog():

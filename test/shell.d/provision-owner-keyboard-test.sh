@@ -900,6 +900,8 @@ source "$ROOT/install/provisioning/kmscon.sh"
   fail "kmscon types the layout systemd pairs with a keymap" "$(omarchy_keymap_xkb de-latin1-nodeadkeys)"
 [[ $(omarchy_keymap_xkb ua) == "ua,us - - grp:shifts_toggle,grp_led:scroll" && $(omarchy_keymap_xkb cz) == "cz,us - qwerty, grp:shifts_toggle,grp_led:scroll" ]] ||
   fail "kmscon types the form's own layout for a keymap systemd lacks" "$(omarchy_keymap_xkb ua) / $(omarchy_keymap_xkb cz)"
+[[ $(bash -c 'source "$1" && omarchy_keymap_xkb de_CH-latin1' bash "$ROOT/install/provisioning/kmscon.sh") == "ch - - -" ]] ||
+  fail "kmscon.sh resolves extra keymaps when sourced on its own"
 [[ $(omarchy_keymap_xkb no-such-keymap) == "us - - -" ]] || fail "an unknown keymap types US" "$(omarchy_keymap_xkb no-such-keymap)"
 [[ $(omarchy_kmscon_face ja) == "Noto Sans Mono CJK JP" && $(omarchy_kmscon_face ko) == "Noto Sans Mono CJK KR" &&
   $(omarchy_kmscon_face zh-TW) == "Noto Sans Mono CJK TC" && $(omarchy_kmscon_face da) == "Noto Sans Mono CJK SC" ]] ||
