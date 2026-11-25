@@ -163,7 +163,7 @@ Resizing uses the two keys right of 0, whatever your keyboard prints on them: `-
 | `Super + Shift + C`           | Calendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | New email ([HEY](https://hey.com/))  |
-| `Super + Shift + A`           | Your default agent, or ChatGPT until you choose one |
+| `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Messenger (Signal)  |
 | `Super + Shift + P`           | Google Photos  |

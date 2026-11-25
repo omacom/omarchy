@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "활동",
   "Agent": "에이전트",
   "Agents": "에이전트",
@@ -21,6 +20,7 @@
   "Calculator": "계산기",
   "Calendar": "캘린더",
   "Capture menu": "캡처 메뉴",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "리마인더 지우기",
   "Clipboard manager": "클립보드 관리자",
   "Close all windows": "모든 창 닫기",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "키보드로 알림 제어",
   "Cycle workspace layout": "작업 공간 레이아웃 순환",
   "Cycle workspace layout back": "작업 공간 레이아웃 역순환",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "터미널 접두사 직접 입력",
   "Disable touchpad": "터치패드 비활성화",
   "Dismiss all notifications": "모든 알림 닫기",
