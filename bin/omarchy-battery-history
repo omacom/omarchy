@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Print the battery's charge and power history from UPower for the power panel
+# omarchy:hidden=true
+
+# The history files in /var/lib/upower are root-only; UPower serves the same
+# data over D-Bus. Prints one line per kind, "<kind>\t<JSON array of
+# [unix time, value, state]>": charge (percent, logged when it changes) and
+# rate (watts, logged about every 30 seconds while awake), covering the last
+# three days, about as far back as UPower keeps it. Prints nothing without a
+# battery that powers the machine.
+
+span=$(( 3 * 24 * 3600 ))
+
+# Same match as omarchy-battery-status: a battery_ device that is a power
+# supply, so a wireless mouse or keyboard is passed over.
+battery=""
+while read -r candidate; do
+  [[ -n $candidate ]] || continue
+  if upower -i "$candidate" 2>/dev/null | grep -qE '^\s*power supply:\s+yes'; then
+    battery=$candidate
+    break
+  fi
+done < <(upower -e 2>/dev/null | grep '/battery_')
+
+if [[ -n $battery ]]; then
+  for kind in charge rate; do
+    json=$(busctl --system --json=short call org.freedesktop.UPower "$battery" org.freedesktop.UPower.Device GetHistory suu "$kind" "$span" 5000 2>/dev/null | jq -c '.data[0]' 2>/dev/null)
+    [[ -n $json ]] && printf '%s\t%s\n' "$kind" "$json"
+  done
+fi
+
+exit 0
