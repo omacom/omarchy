@@ -38,7 +38,7 @@ Every VPN NetworkManager knows about — WireGuard, OpenVPN, OpenConnect, and th
 
 - _Off_ disconnects it.
 - _Split_ connects it, but only the VPN's own networks go through it. The rest of your traffic goes out the way it always does, which is what you want for reaching the office without routing your video calls through it.
-- _Full_ sends all your traffic through it. Only one VPN can be in _Full_ at a time; switching another one to _Full_ drops the first back to _Split_ once the new one is connected. A WireGuard VPN only offers _Full_ when its config allows all traffic (`AllowedIPs = 0.0.0.0/0`), since the server decides what it will carry. If it doesn't also allow `::/0`, _Full_ blocks IPv6 so nothing leaves outside the VPN; sites still load over IPv4.
+- _Full_ sends all your traffic through it. Only one VPN can be in _Full_ at a time; switching another one to _Full_ drops the first back to _Split_ once the new one is connected. A WireGuard VPN only offers _Full_ when its config allows all traffic (`AllowedIPs = 0.0.0.0/0`), since the server decides what it will carry. Any VPN in _Full_ that doesn't carry IPv6 (a WireGuard config without `::/0`, or an OpenVPN or OpenConnect server that hands out no IPv6) has IPv6 blocked for as long as it's in _Full_, so nothing leaves outside the VPN; sites still load over IPv4.
 
 The choice is stored in the VPN's own NetworkManager profile, so `nmcli` and any other NetworkManager tool see the same thing. A small dot on the network icon tells you a VPN is up, and hovering it names which one.
 

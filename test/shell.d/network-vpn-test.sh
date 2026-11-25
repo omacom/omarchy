@@ -39,6 +39,7 @@ if [[ $1 == "-g" ]]; then
     connection.type) awk -F: -v u="$uuid" "\$1 == u {print \$2}" "$NM/connections" ;;
     connection.id) awk -F: -v u="$uuid" "\$1 == u {print \$3}" "$NM/connections" ;;
     IP4.ADDRESS) grep -q "^$uuid:activated" "$NM/active" 2>/dev/null && echo "10.8.0.2/24" ;;
+    IP6.ADDRESS) cat "$NM/ip6-$uuid" 2>/dev/null ;;
   esac
   exit 0
 fi
@@ -67,6 +68,9 @@ case "$2 $3" in
     echo "import $4 $(basename "$6")" >> "$TEST_LOG"
     echo "Connection (aaaaaaaa-0000-4000-8000-000000000009) successfully added." ;;
 esac'
+# A dual-stack network routes IPv6 out of wlan0 when $NM/ipv6-default exists.
+stub ip '[[ " $* " == *" -6 "* && -f $TEST_NM/ipv6-default ]] && echo "default via fe80::1 dev wlan0 proto ra metric 600 pref medium"
+exit 0'
 stub omarchy-notification-send 'echo "notify $*" >> "$TEST_LOG"'
 stub omarchy-launch-floating-terminal-with-presentation 'echo "terminal $*" >> "$TEST_LOG"'
 
@@ -162,6 +166,37 @@ echo "peerkey allowed-ips=0.0.0.0/0;::/0" > "$stage/nm/peers-$WG"
 vpn mode "$WG" full
 ! grep -q "+ipv6.routes" "$stage/log" || fail "full doesn't block IPv6 a VPN carries" "$(<"$stage/log")"
 pass "full doesn't block IPv6 a VPN carries"
+
+# A plugin VPN without IPv6 on a dual-stack network: full blocks IPv6 on the
+# device that routes it, and leaving full lifts the block.
+uplink_block="device modify wlan0 +ipv6.routes ::/1 type=blackhole +ipv6.routes 8000::/1 type=blackhole"
+uplink_unblock="device modify wlan0 -ipv6.routes ::/1 type=blackhole -ipv6.routes 8000::/1 type=blackhole"
+reset_nm
+touch "$stage/nm/ipv6-default"
+vpn mode "$OVPN" full
+grep -qx "$uplink_block" "$stage/log" || fail "full blocks IPv6 a plugin VPN doesn't carry" "$(<"$stage/log")"
+vpn mode "$OVPN" split
+grep -qx "$uplink_unblock" "$stage/log" || fail "split lifts the IPv6 block" "$(<"$stage/log")"
+pass "full blocks IPv6 a plugin VPN doesn't carry, and split lifts it"
+
+reset_nm
+touch "$stage/nm/ipv6-default"
+echo "2001:db8::2/64" > "$stage/nm/ip6-$OVPN"
+vpn mode "$OVPN" full
+reset_nm
+vpn mode "$OVPN" full
+! grep -q "^device modify" "$stage/log" || fail "no block for a VPN that carries IPv6 or a network without it" "$(<"$stage/log")"
+pass "no block for a VPN that carries IPv6 or a network without it"
+
+# A VPN that drops by itself leaves the block; the next list lifts it.
+reset_nm
+touch "$stage/nm/ipv6-default"
+vpn mode "$OVPN" full
+: > "$stage/log"
+: > "$stage/nm/active"
+vpn list >/dev/null
+grep -qx "$uplink_unblock" "$stage/log" || fail "a dropped VPN's IPv6 block lifts on the next list" "$(<"$stage/log")"
+pass "a dropped VPN's IPv6 block lifts on the next list"
 
 # A VPN without saved credentials asks for them in a terminal instead of failing.
 reset_nm

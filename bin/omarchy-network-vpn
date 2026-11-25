@@ -14,8 +14,9 @@
 #   full   connected, and all traffic goes through it (never-default no);
 #          only one VPN is in full at a time, the others drop to split.
 #          WireGuard routes only what its peers allow, so a profile offers
-#          full only when a peer allows 0.0.0.0/0; without ::/0 as well,
-#          full blocks IPv6 rather than let it out the normal connection
+#          full only when a peer allows 0.0.0.0/0. A VPN that doesn't
+#          carry IPv6 has IPv6 blocked in full, rather than let it out the
+#          normal connection
 #
 # The mode lives in the profile itself, so nmcli, nm-applet and this command
 # always agree. `list` prints one tab-separated line per VPN:
@@ -33,6 +34,7 @@ MODES="off,split,full"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/omarchy"
 SNAPSHOT="$RUNTIME_DIR/network-vpn"
 SIGNIN_DIR="$RUNTIME_DIR/network-vpn-signin"
+UPLINK_BLOCK="$RUNTIME_DIR/network-vpn-ipv6-block"
 GLYPH="󰖂"
 # Two /1 routes beat any IPv6 default route without being one, so the
 # connectivity penalty NetworkManager gives default routes can't undo them.
@@ -180,6 +182,7 @@ write_snapshot() {
 }
 
 list() {
+  heal_ipv6_block
   if write_snapshot; then
     cat "$SNAPSHOT"
   else
@@ -220,6 +223,50 @@ set_default_route() { # <uuid> <split|full>
   fi
 }
 
+# A plugin VPN (OpenVPN, OpenConnect, ...) only learns whether it carries IPv6
+# once it is up, and routes on its own profile apply only when it does. So a
+# full one without IPv6 has the block put on each device that routes IPv6 to
+# the internet, for as long as it stays up. $UPLINK_BLOCK records the VPN
+# that holds the block and the devices it is on.
+vpn_has_ipv6() {
+  nmc -g IP6.ADDRESS connection show uuid "$1" 2>/dev/null | tr '|,' '\n\n' | tr -d ' ' | grep -v -E '^(fe80|$)' | grep -q :
+}
+
+ipv6_uplinks() {
+  ip -6 -o route show default 2>/dev/null |
+    awk '{for (i = 1; i < NF; i++) if ($i == "dev" && $(i + 1) != "lo") print $(i + 1)}' | sort -u
+}
+
+block_ipv6_uplinks() { # <uuid>
+  local devs dev
+  devs=$(ipv6_uplinks | tr '\n' ' ')
+  [[ -n ${devs// /} ]] && runtime_dir_ready || return 0
+  for dev in $devs; do
+    nmc device modify "$dev" +ipv6.routes "${IPV6_BLOCK[0]}" +ipv6.routes "${IPV6_BLOCK[1]}" >/dev/null 2>&1
+  done
+  echo "$1 $devs" >"$UPLINK_BLOCK"
+}
+
+lift_ipv6_block() { # [uuid]: only when that VPN holds the block
+  local owner devs dev
+  [[ -f $UPLINK_BLOCK ]] || return 0
+  read -r owner devs <"$UPLINK_BLOCK"
+  [[ -z ${1:-} || $1 == "$owner" ]] || return 0
+  for dev in $devs; do
+    nmc device modify "$dev" -ipv6.routes "${IPV6_BLOCK[0]}" -ipv6.routes "${IPV6_BLOCK[1]}" >/dev/null 2>&1
+  done
+  rm -f "$UPLINK_BLOCK"
+}
+
+# A VPN that dropped by itself leaves its block behind; lift it once the VPN
+# is gone.
+heal_ipv6_block() {
+  local owner rest
+  [[ -f $UPLINK_BLOCK ]] || return 0
+  read -r owner rest <"$UPLINK_BLOCK"
+  nmc -t -f UUID,STATE connection show --active 2>/dev/null | grep -q "^$owner:activat" || lift_ipv6_block "$owner"
+}
+
 # How nmcli reports a VPN it could not bring up without asking for a password,
 # token or login cookie. nmc asks for English, so this matches in every
 # language.
@@ -257,6 +304,7 @@ set_mode() {
   case $mode in
     off)
       nmc connection down uuid "$uuid" >/dev/null 2>&1
+      lift_ipv6_block "$uuid"
       return 0
       ;;
     split | full) ;;
@@ -264,7 +312,7 @@ set_mode() {
   esac
 
   [[ ,$(vpn_modes "$uuid" "$(vpn_type "$uuid")"), == *,$mode,* ]] ||
-    fail "$(vpn_name "$uuid") can't carry all traffic: none of its peers allows 0.0.0.0/0 or ::/0"
+    fail "$(vpn_name "$uuid") can't carry all traffic: none of its peers allows 0.0.0.0/0"
 
   set_default_route "$uuid" "$mode" || fail "could not change the VPN profile"
 
@@ -272,6 +320,16 @@ set_mode() {
   # anything else changes, so a switch that fails or waits for sign-in
   # leaves the VPN that carries all traffic now as it is.
   connect "$uuid" "$mode" || return 0
+
+  if [[ $mode == "full" ]]; then
+    # Whichever VPN held the IPv6 block before, this one decides it now.
+    lift_ipv6_block
+    if [[ $(vpn_type "$uuid") == "vpn" ]] && ! vpn_has_ipv6 "$uuid"; then
+      block_ipv6_uplinks "$uuid"
+    fi
+  else
+    lift_ipv6_block "$uuid"
+  fi
 
   # Only one VPN carries all traffic.
   if [[ $mode == "full" ]]; then
@@ -377,7 +435,7 @@ add() {
 }
 
 # Whatever changed, every bar shows it.
-trap 'write_snapshot' EXIT
+trap 'heal_ipv6_block; write_snapshot' EXIT
 
 case ${1:-list} in
   list)
