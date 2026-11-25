@@ -93,7 +93,7 @@ Open every screenshot with your tool for viewing images; reading the path is not
 - Does it look like the game you set out to make, with enough in it to be worth playing, not a few shapes on an empty field?
 - In the light theme, is it as readable and as good-looking?
 
-Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that.
+Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Keep the copy in the game's own folder, as `~/Games/vibes/<name>/scratch.html`, where it still finds `../three.min.js` and Game Vibes doesn't list it, and delete it when done; a folder of its own in `~/Games/vibes` would show up in the list as another game.
 
 When a fixed key sequence isn't enough, play it step by step with `playwright-cli`: one headless Chrome session that stays open between commands, so you can press, click, read the game's state and look again. It writes its screenshots and logs under `.playwright-cli/` in the current directory, and opens local files only when told to:
 
