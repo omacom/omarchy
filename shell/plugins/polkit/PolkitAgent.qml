@@ -35,6 +35,17 @@ Item {
   // a minute. Taken by the prompt it fits, which keeps it as currentLabel.
   property var expected: null
   property string currentLabel: ""
+  // The coding agent a prompt comes from ({ mark, name, light }), whose icon
+  // in the agents plugin takes the padlock's place. Looked up per prompt, and
+  // the padlock waits for the answer so it doesn't flash before the mark.
+  property var currentAgent: null
+  property bool requesterPending: false
+  property int requestSerial: 0
+  readonly property url agentMarkSource: {
+    if (!currentAgent) return ""
+    var suffix = currentAgent.light && Util.luminance(background) >= 0.5 ? "-light.svg" : ".svg"
+    return Qt.resolvedUrl("../agents/assets/" + currentAgent.mark + suffix)
+  }
   property string currentPrompt: ""
   property string currentSupplementary: ""
   property bool responseRequired: false
@@ -65,13 +76,15 @@ Item {
   // just frames the centered sensor icon.
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
-  // A command's label never stands in for what pkexec runs: the program
-  // stays at the end, which the line keeps in view however it's cut.
+  // A command's label never stands in for what pkexec runs: the program gets
+  // a line of its own under it, which a long label can't push out of view.
   function authorizationLabel(message) {
-    if (driveDevice !== "") return currentLabel
-    if (currentLabel !== "") return currentLabel + " · " + PolkitModel.promptProgram(message)
-    return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
+    if (currentLabel !== "") return currentLabel
+    return message ? PolkitModel.authorizationLabel(message, I18n.t, currentAgent ? currentAgent.name : "") : I18n.t("polkit.authenticationNeeded")
   }
+
+  // The program a labelled prompt runs, for the line under the label.
+  readonly property string labelProgram: currentLabel !== "" ? PolkitModel.promptProgram(currentMessage) : ""
 
   ShellIpc {
     target: "omarchy.polkit"
@@ -93,9 +106,19 @@ Item {
     if (!laptopClosedProc.running) laptopClosedProc.running = true
   }
 
+  function clearRequester() {
+    currentAgent = null
+    requesterPending = false
+    requesterTimeout.stop()
+    // A lookup still running is for a prompt that's gone, not for what comes
+    // next, a drive's card included.
+    requestSerial++
+  }
+
   function resetSnapshot() {
     currentMessage = ""
     currentLabel = ""
+    clearRequester()
     currentPrompt = ""
     currentSupplementary = ""
     responseRequired = false
@@ -111,13 +134,6 @@ Item {
     if (!flow) return
 
     currentMessage = String(flow.message || "")
-    if (currentLabel === "") {
-      var label = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
-      if (label !== "") {
-        currentLabel = label
-        expected = null
-      }
-    }
     currentPrompt = String(flow.inputPrompt || "")
     currentSupplementary = String(flow.supplementaryMessage || "")
     responseRequired = !!flow.isResponseRequired
@@ -170,13 +186,38 @@ Item {
       driveDevice = ""
     }
     // A new request starts fresh even if the previous flow is still tearing down.
-    currentLabel = ""
     dismissed = false
     submitted = false
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
+    // Each request takes the label it was expected with, or none, so one
+    // arriving while the last dialog closes doesn't keep the last label. It is
+    // taken here and not in syncFromFlow, which runs first: Quickshell sets the
+    // flow, and with it isActive, before it says the request started.
+    currentLabel = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
+    if (currentLabel !== "") expected = null
+    findRequester()
     Qt.callLater(refocus)
+  }
+
+  // Only a pkexec prompt names the command line its process can be found by.
+  // A lookup that hangs gives the padlock back after a second.
+  function findRequester() {
+    clearRequester()
+    requesterPending = PolkitModel.promptProgram(currentMessage) !== ""
+    if (!requesterPending) return
+    requesterTimeout.restart()
+    lookUpRequester()
+  }
+
+  // One lookup runs at a time: a prompt that starts while the last one's
+  // still runs gets its own when that ends.
+  function lookUpRequester() {
+    if (requesterProc.running) return
+    requesterProc.forSerial = requestSerial
+    requesterProc.command = ["python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/polkit/requester.py", PolkitModel.promptProgram(currentMessage)]
+    requesterProc.running = true
   }
 
   function dismissPolkit() {
@@ -258,6 +299,31 @@ Item {
     onLoaded: root.loadPamConfig(text())
     onLoadFailed: root.fingerprintConfigured = false
     onFileChanged: reload()
+  }
+
+  Process {
+    id: requesterProc
+    property int forSerial: 0
+    stdout: StdioCollector { id: requesterOut; waitForEnd: true }
+    onExited: {
+      if (forSerial === root.requestSerial) {
+        requesterTimeout.stop()
+        if (root.dialogVisible) root.currentAgent = PolkitModel.parseRequester(requesterOut.text)
+        root.requesterPending = false
+      } else if (root.requesterPending) {
+        Qt.callLater(root.lookUpRequester)
+      }
+    }
+  }
+
+  Timer {
+    id: requesterTimeout
+    interval: 1000
+    repeat: false
+    onTriggered: {
+      root.requestSerial++
+      root.requesterPending = false
+    }
   }
 
   Process {
@@ -407,15 +473,32 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: Style.space(14)
 
-        Text {
-          text: "\uf023"
-          color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.iconLarge
+        Item {
           width: Style.space(26)
           height: root.fieldHeight
-          horizontalAlignment: Text.AlignHCenter
-          verticalAlignment: Text.AlignVCenter
+
+          Image {
+            id: agentMark
+            anchors.centerIn: parent
+            width: Style.font.iconLarge
+            height: width
+            source: root.agentMarkSource
+            sourceSize.width: width * 2
+            sourceSize.height: height * 2
+            fillMode: Image.PreserveAspectFit
+            visible: status === Image.Ready
+          }
+
+          Text {
+            anchors.fill: parent
+            visible: !agentMark.visible && !root.requesterPending
+            text: "\uf023"
+            color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.iconLarge
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+          }
         }
 
         Item {
@@ -481,27 +564,55 @@ Item {
     }
 
     Rectangle {
-      width: Math.min(justificationText.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
-      height: Style.space(28)
+      // Waits for the agent with the mark when its line names it, unless a
+      // label is already known.
+      visible: !root.requesterPending || root.currentLabel !== ""
+      // Measured apart from the lines, whose width follows this one.
+      width: Math.min(Math.ceil(Math.max(labelMetrics.advanceWidth, root.labelProgram !== "" ? programMetrics.advanceWidth : 0)) + Style.space(24), panel.width - Style.gapsOut * 2)
+      height: root.labelProgram !== "" ? justificationLines.implicitHeight + Style.space(16) : Style.space(28)
       anchors.horizontalCenter: card.horizontalCenter
       anchors.bottom: card.top
       anchors.bottomMargin: Style.space(10)
       radius: root.cornerRadius
       color: root.background
 
-      Text {
-        id: justificationText
-        textFormat: Text.PlainText
-        anchors.fill: parent
+      TextMetrics { id: labelMetrics; font: justificationText.font; text: justificationText.text }
+      TextMetrics { id: programMetrics; font: programText.font; text: programText.text }
+
+      Column {
+        id: justificationLines
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: Style.space(12)
         anchors.rightMargin: Style.space(12)
-        text: root.authorizationLabel(root.currentMessage)
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideMiddle
+        spacing: Style.space(3)
+
+        Text {
+          id: justificationText
+          textFormat: Text.PlainText
+          width: parent.width
+          text: root.authorizationLabel(root.currentMessage)
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: root.labelProgram !== "" ? Style.font.body : Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+          elide: root.labelProgram !== "" ? Text.ElideRight : Text.ElideMiddle
+        }
+
+        Text {
+          id: programText
+          textFormat: Text.PlainText
+          width: parent.width
+          visible: text !== ""
+          text: root.labelProgram
+          color: root.foreground
+          opacity: 0.6
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideMiddle
+        }
       }
     }
   }

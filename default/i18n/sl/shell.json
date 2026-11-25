@@ -513,6 +513,8 @@
   "notifications.redactedSummary": "Obvestilo o preverjanju",
   "notifications.yesterday": "včeraj",
   "polkit.authenticationNeeded": "Potrebna je avtentikacija...",
+  "polkit.authorizeAgentRunning": "Dovoli %1 zagon '%2'",
+  "polkit.authorizeFormatting": "Dovoli formatiranje %1",
   "polkit.authorizeRunning": "Dovoli zagon '%1'",
   "polkit.checking": "Preverjanje...",
   "polkit.enterPassword": "Vnesite geslo",

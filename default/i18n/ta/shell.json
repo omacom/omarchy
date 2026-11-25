@@ -485,6 +485,8 @@
   "notifications.redactedSummary": "சரிபார்ப்பு அறிவிப்பு",
   "notifications.yesterday": "நேற்று",
   "polkit.authenticationNeeded": "அங்கீகாரம் தேவை...",
+  "polkit.authorizeAgentRunning": "%1 க்கு '%2' ஐ இயக்க அனுமதிக்கவும்",
+  "polkit.authorizeFormatting": "%1 ஐ வடிவமைக்க அனுமதிக்கவும்",
   "polkit.authorizeRunning": "'%1' ஐ இயக்க அனுமதிக்கவும்",
   "polkit.checking": "சரிபார்க்கிறது...",
   "polkit.enterPassword": "கடவுச்சொல்லை உள்ளிடவும்",

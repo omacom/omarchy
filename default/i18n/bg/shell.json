@@ -485,6 +485,8 @@
   "notifications.redactedSummary": "Известие за потвърждение",
   "notifications.yesterday": "вчера",
   "polkit.authenticationNeeded": "Нужно е удостоверяване...",
+  "polkit.authorizeAgentRunning": "Разреши на %1 да стартира '%2'",
+  "polkit.authorizeFormatting": "Разреши форматирането на %1",
   "polkit.authorizeRunning": "Разреши стартирането на '%1'",
   "polkit.checking": "Проверка...",
   "polkit.enterPassword": "Въведи парола",

@@ -485,6 +485,8 @@
   "notifications.redactedSummary": "Ellenőrző értesítés",
   "notifications.yesterday": "tegnap",
   "polkit.authenticationNeeded": "Hitelesítés szükséges...",
+  "polkit.authorizeAgentRunning": "%1 engedélyezése '%2' futtatására",
+  "polkit.authorizeFormatting": "%1 formázásának engedélyezése",
   "polkit.authorizeRunning": "'%1' futtatásának engedélyezése",
   "polkit.checking": "Ellenőrzés...",
   "polkit.enterPassword": "Add meg a jelszót",

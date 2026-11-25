@@ -612,18 +612,29 @@ Panel {
   }
 
   // A model removed from this machine is no longer added, so set up again
-  // it's offered on the add screen first. One still being set up or
-  // downloaded isn't installed yet either, and stays.
-  readonly property var removedLocalModels: {
-    if (!localModelsService) return []
-    var recipes = localModelsService.localRecipes || []
-    var setups = localModelsService.setupRows()
-    return usage.addedLocalModels.filter(function(target) {
-      return target.indexOf("/") < 0 && !localModels[target] && !setups.some(function(row) { return row.recipe === target })
-        && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
+  // it's offered on the add screen first. One still being set up, handing off
+  // to the background unit, or downloading isn't installed yet either, and stays.
+  function findRemovedLocalModels(added, models, setups, recipes, settingUp, handingOff) {
+    var pending = handingOff || []
+    return (added || []).filter(function(target) {
+      return target.indexOf("/") < 0
+        && target !== settingUp
+        && pending.indexOf(target) < 0
+        && !(models && models[target])
+        && !(setups || []).some(function(row) { return row.recipe === target })
+        && (recipes || []).some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
     })
   }
-  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) usage.removeLocalModels(removedLocalModels)
+
+  readonly property var removedLocalModels: {
+    if (!localModelsService) return []
+    return findRemovedLocalModels(usage.addedLocalModels, localModels, localModelsService.setupRows(),
+      localModelsService.localRecipes || [], settingUpLocal, localModelsService.handingOff || [])
+  }
+  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) Qt.callLater(function() {
+    var dropped = removedLocalModels
+    if (dropped.length > 0) usage.removeLocalModels(dropped)
+  })
 
   // A model set up or started from the add screen keeps its row there,
   // showing how that goes, until it runs. Then it becomes the default if
@@ -669,9 +680,12 @@ Panel {
   onLocalSetupChanged: {
     if (!localSetup || localSetup.unit !== "active" || localSetup.sub_state !== "running") return
     var target = settingUpLocal
-    settingUpLocal = ""
-    if (usage.defaultAgent === "") selectLocalDefault(target)
-    if (pairingLocal === "" && addStage === "pick") cancelAdd()
+    Qt.callLater(function() {
+      if (settingUpLocal !== target) return
+      settingUpLocal = ""
+      if (usage.defaultAgent === "") selectLocalDefault(target)
+      if (pairingLocal === "" && addStage === "pick") cancelAdd()
+    })
   }
 
   // What a model on this machine is doing, as a meter: its title, how far
@@ -1807,29 +1821,15 @@ Panel {
     return ""
   }
 
-  // Agents that ship a white mark carry an `assets/<id>-light.svg` twin for
-  // light surfaces; marks that work on both (Claude's brand-orange) ship one
-  // file. The luminance check decides which candidate to try first.
-  function colorChannelLuminance(value) {
-    var channel = Number(value)
-    if (!isFinite(channel)) return 0
-    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4)
-  }
-
-  function colorLuminance(color) {
-    return 0.2126 * colorChannelLuminance(color.r)
-      + 0.7152 * colorChannelLuminance(color.g)
-      + 0.0722 * colorChannelLuminance(color.b)
-  }
-
   // Marks resolve by convention, so a new agent's data file needs nothing
   // from this panel: assets/<id>.svg if it ships one, the module's bar glyph
-  // if it doesn't.
+  // if it doesn't. Agents that ship a white mark carry an `assets/<id>-light.svg`
+  // twin for light surfaces.
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var id = p.iconId || p.providerId
     var candidates = []
-    if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
+    if (Util.luminance(surfaceColor || Commons.Color.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + id + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + id + ".svg"))
     return candidates

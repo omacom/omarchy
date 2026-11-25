@@ -485,6 +485,8 @@
   "notifications.redactedSummary": "Ειδοποίηση επαλήθευσης",
   "notifications.yesterday": "χθες",
   "polkit.authenticationNeeded": "Απαιτείται πιστοποίηση...",
+  "polkit.authorizeAgentRunning": "Εξουσιοδότησε το %1 να εκτελέσει το '%2'",
+  "polkit.authorizeFormatting": "Εξουσιοδότησε τη μορφοποίηση του %1",
   "polkit.authorizeRunning": "Εξουσιοδότησε την εκτέλεση του '%1'",
   "polkit.checking": "Έλεγχος...",
   "polkit.enterPassword": "Εισήγαγε κωδικό",

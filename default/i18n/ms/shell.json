@@ -471,6 +471,8 @@
   "notifications.redactedSummary": "Pemberitahuan pengesahan",
   "notifications.yesterday": "semalam",
   "polkit.authenticationNeeded": "Pengesahan diperlukan...",
+  "polkit.authorizeAgentRunning": "Benarkan %1 menjalankan '%2'",
+  "polkit.authorizeFormatting": "Benarkan memformat %1",
   "polkit.authorizeRunning": "Benarkan menjalankan '%1'",
   "polkit.checking": "Menyemak...",
   "polkit.enterPassword": "Masukkan kata laluan",

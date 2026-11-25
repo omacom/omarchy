@@ -485,6 +485,8 @@
   "notifications.redactedSummary": "Verificatiemelding",
   "notifications.yesterday": "gisteren",
   "polkit.authenticationNeeded": "Authenticatie vereist...",
+  "polkit.authorizeAgentRunning": "Uitvoering van '%2' door %1 toestaan",
+  "polkit.authorizeFormatting": "Formatteren van %1 toestaan",
   "polkit.authorizeRunning": "Uitvoering van '%1' toestaan",
   "polkit.checking": "Controleren...",
   "polkit.enterPassword": "Wachtwoord invoeren",

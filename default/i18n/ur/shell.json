@@ -485,6 +485,8 @@
   "notifications.redactedSummary": "توثیقی نوٹیفکیشن",
   "notifications.yesterday": "کل",
   "polkit.authenticationNeeded": "تصدیق درکار ہے...",
+  "polkit.authorizeAgentRunning": "%1 کو '%2' چلانے کی اجازت دیں",
+  "polkit.authorizeFormatting": "%1 کی فارمیٹنگ کی اجازت دیں",
   "polkit.authorizeRunning": "'%1' چلانے کی اجازت دیں",
   "polkit.checking": "جانچ ہو رہی ہے...",
   "polkit.enterPassword": "پاس ورڈ درج کریں",

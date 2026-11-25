@@ -471,6 +471,8 @@
   "notifications.redactedSummary": "Notifikasi verifikasi",
   "notifications.yesterday": "kemarin",
   "polkit.authenticationNeeded": "Autentikasi diperlukan...",
+  "polkit.authorizeAgentRunning": "Izinkan %1 menjalankan '%2'",
+  "polkit.authorizeFormatting": "Izinkan memformat %1",
   "polkit.authorizeRunning": "Izinkan menjalankan '%1'",
   "polkit.checking": "Memeriksa...",
   "polkit.enterPassword": "Masukkan kata sandi",

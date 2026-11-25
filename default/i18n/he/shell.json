@@ -499,6 +499,8 @@
   "notifications.redactedSummary": "התראת אימות",
   "notifications.yesterday": "אתמול",
   "polkit.authenticationNeeded": "נדרש אימות...",
+  "polkit.authorizeAgentRunning": "אישור ל%1 להריץ את '%2'",
+  "polkit.authorizeFormatting": "אישור פרמוט %1",
   "polkit.authorizeRunning": "אישור הרצת '%1'",
   "polkit.checking": "בודק...",
   "polkit.enterPassword": "הזנת סיסמה",
