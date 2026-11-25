@@ -5,7 +5,7 @@ matching guide before starting:
 
 - [`agents/skills/command-metadata.md`](agents/skills/command-metadata.md) - adding or changing commands in `bin/`
 - [`agents/skills/install-scripts.md`](agents/skills/install-scripts.md) - working under `install/` or on system/user setup commands
-- [`agents/skills/mise-tools.md`](agents/skills/mise-tools.md) - adding or changing mise-managed tools
+- [`agents/skills/mise-tools.md`](agents/skills/mise-tools.md) - adding a tool to Omarchy, and what Omarchy still uses mise for
 - [`agents/skills/shell-dev.md`](agents/skills/shell-dev.md) - editing the Quickshell desktop under `shell/`
 - [`agents/skills/icon-font.md`](agents/skills/icon-font.md) - adding branded glyphs to `default/fonts/omarchy/omarchy.ttf`
 - [`agents/skills/acceptance-tests.md`](agents/skills/acceptance-tests.md) - writing or running graphical acceptance tests under `test/acceptance.d/`
@@ -188,6 +188,4 @@ To copy a default config to user config with automatic backup:
 omarchy-refresh-config hypr/hyprland.lua
 ```
 
-This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument
-is interpolated into both paths and only checked with `[[ -e ]]`, so pass a plain relative path: a
-name containing `..` resolves and copies, landing outside `~/.config` rather than being rejected.
+This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument must be a plain relative path: an absolute path or any `..` segment is rejected before anything is copied. That check is lexical, so a symlink under `~/.config` is still followed and its target rewritten — which is what keeps symlink-managed dotfiles working.

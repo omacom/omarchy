@@ -1,0 +1,14 @@
+{
+  "name": "omarchy",
+  "private": true,
+  "type": "module",
+  "description": "Omarchy's defaults for pi: web_fetch, the Omarchy mark behind a new session, the folder in the editor border and a one-line footer",
+  "pi": {
+    "extensions": [
+      "./extensions/web-fetch.ts",
+      "./extensions/backdrop.ts",
+      "./extensions/footer.ts"
+    ],
+    "changelogPath": ""
+  }
+}

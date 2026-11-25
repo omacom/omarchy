@@ -75,6 +75,7 @@ assertDeepEqual(
 assertDeepEqual(monitor.resolutionOptions(undefined, 0, 0), [], 'monitor offers no resolutions without modes')
 assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
 assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')
+assertEqual(monitor.resolutionLabel('5120x2160'), '5K2K', 'monitor names ultrawide 5K2K rather than 4K')
 assertEqual(monitor.resolutionLabel('2560x1440'), '1440p', 'monitor names smaller modes by height')
 
 // A gaming monitor advertises several rates at its resolution, and others at
@@ -121,8 +122,26 @@ assertDeepEqual(
 )
 assert(monitor.sameLayout(monitor.normalizeLayout(desk), desk), 'monitor sees an unmoved layout as the same')
 
-assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
-assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1200, physicalWidth: 300, physicalHeight: 190, refreshRate: 119.94 }),
+  '1920×1200 · 120 Hz · 161 ppi',
+  'monitor describes a display by resolution, rounded refresh rate, and pixel density'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1080, physicalWidth: 0, physicalHeight: 0, refreshRate: 60 }),
+  '1920×1080 · 60 Hz',
+  'monitor leaves out the density of a display that reports no size'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1080, physicalWidth: 600, physicalHeight: 150, refreshRate: 60 }),
+  '1920×1080 · 60 Hz',
+  'monitor leaves out the density of a display whose size disagrees with its shape'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 3840, height: 2160, physicalWidth: 16000, physicalHeight: 9000, refreshRate: 60 }),
+  '3840×2160 · 60 Hz',
+  'monitor leaves out the density of a display that reports an implausible size'
+)
 
 assertDeepEqual(
   monitor.parseDisplays(JSON.stringify([

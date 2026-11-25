@@ -1,64 +1,39 @@
-# Entwicklungs-Tools
+# Entwicklungstools
 
 ## Alternative Editoren
 
-Omarchy liefert standardmäßig [Neovim](https://neovim.io/) aus, aber wenn du etwas gängigeres und vertrauteres möchtest, kannst du das Omarchy Menu (`Super + Space`) öffnen und dir die Optionen unter _Install > Editor_ ansehen. Dort sind VSCode, Cursor, Zed, Sublime Text, Helix, Vim und Emacs aufgeführt. Wenn du nicht findest, wonach du suchst, schau unter _Install > Package_ nach, ob es nicht als Arch-Paket verfügbar ist (und falls nicht, versuche _Install > AUR_, um in AUR nachzusehen).
+Omarchy liefert Plain als Standardeditor bei Neuinstallationen und [Neovim](https://neovim.io/) vorinstalliert, aber wenn du etwas Mainstreamigeres und Vertrauteres willst, kannst du das Omarchy-Menü (`Super + Space`) aufrufen und dir die Optionen unter _Install > Editor_ ansehen. Dort findest du VSCode, Cursor, Zed, Sublime Text, Helix, Vim und Emacs. Wenn du nicht findest, wonach du suchst, schau unter _Install > Package_ nach, ob es nicht in einem Arch-Paket steckt (und wenn nicht, versuch _Install > AUR_, um im AUR nachzusehen).
 
-Der ursprüngliche `vi`-Editor ist ebenfalls von Haus aus verfügbar. Führe `vi filename` aus, um eine Datei im Terminal zu bearbeiten.
+Der originale `vi`-Editor ist ebenfalls sofort einsatzbereit. Führe `vi filename` aus, um eine Datei im Terminal zu bearbeiten.
 
-Eine Theme-Anpassung wird für `VSCode`, `Cursor`, `VSCodium` und `Helix` angeboten.
+Theme-Abgleich wird für `VSCode`, `Cursor`, `VSCodium` und `Helix` angeboten.
 
-Den systemweiten Standard-Editor kannst du unter `Setup > Defaults > Editor` festlegen.
+Du kannst den systemweiten Standardeditor unter `Setup > Defaults > Editor` festlegen.
 
 ## Umgebung
 
-Omarchy unterstützt die Einrichtung einer ganzen Reihe von Entwicklungsumgebungen über den Bereich _Install > Development_ des Omarchy Menu (`Super + Space`). Dort findest du natürlich _Ruby on Rails_, aber auch alle drei großen Laufzeitumgebungen für JavaScript (Node.js, Bun, Deno) sowie beliebte PHP-Frameworks wie Laravel und Symfony. Oh, und Go, Rust, Python, Java, Elixir (mit Phoenix), .NET, OCaml, Zig, Clojure und Scala gibt es auch. Es ist eine sehr breite Auswahl!
+Omarchy unterstützt das Einrichten einer ganzen Reihe von Entwicklungsumgebungen über den Abschnitt _Install > Development_ im Omarchy-Menü (`Super + Space`). Dort findest du natürlich _Ruby on Rails_, aber auch alle drei großen Laufzeitumgebungen für JavaScript (Node.js, Bun, Deno) sowie beliebte PHP-Frameworks wie Laravel und Symfony. Ach, und Go, Rust, Python, Java, Elixir (mit Phoenix), .NET, OCaml, Zig, Clojure und Scala gibt es auch. Es ist eine sehr breite Auswahl!
 
-Die meisten dieser Umgebungen werden von [Mise](https://mise.jdx.dev/) verwaltet. Es ist ein Tool, mit dem du mehrere Versionen einer Programmiersprache auf derselben Maschine installieren und ausführen kannst. Es ist wie rbenv oder rvm für Ruby oder virtualenv für Python, funktioniert aber für eine ganze Reihe verschiedener Umgebungen.
+Die Mehrheit dieser Umgebungen wird von [Mise](https://mise.jdx.dev/) verwaltet. Es ist ein Tool, mit dem du mehrere Versionen einer Programmiersprache auf derselben Maschine installieren und ausführen kannst. Es ist wie rbenv oder rvm für Ruby oder virtualenv für Python, aber es funktioniert für eine ganze Reihe verschiedener Umgebungen.
 
-Um beispielsweise Ruby zu installieren, würdest du `mise use -g ruby` ausführen. Dadurch wird Ruby sowohl installiert als auch als globaler Standard festgelegt. Oder wenn dein Projekt eine .ruby-version-Datei hat, kannst du einfach `mise i` im Stammverzeichnis dieses Projekts ausführen.
+Um zum Beispiel Ruby zu installieren, würdest du `mise use -g ruby` ausführen, wodurch Ruby sowohl installiert als auch als globaler Standard festgelegt wird. Oder, wenn dein Projekt eine .ruby-version-Datei hat, kannst du einfach `mise i` im Stammverzeichnis dieses Projekts ausführen.
 
 ## Vorinstallierte CLI-Tools
 
-Omarchy stellt Tools wie `gh`, `uv` und die meisten [Coding-Agenten](17-ai.md) über [mises Lazy-Installation](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools) bereit. Beim ersten Ausführen eines solchen Tools installiert mise es. Spätere Ausführungen verwenden die installierte Version wieder; sie suchen nicht bei jedem Start nach einem Update.
+`uv`, Node.js und `playwright-cli` (damit Agenten einen Browser steuern, unter Verwendung des installierten Chrome) sind als Pakete installiert, und `omarchy update` hält sie mit dem Rest des Systems aktuell. `ghui`, [Hunk](https://github.com/modem-dev/hunk) sowie die CLIs von Basecamp, Cloudflare und HEY sind unter _Install > CLI_ nur einen Klick entfernt, und [Coding-Agenten](17-ai.md) unter _Install > AI > CLI_.
 
-Du kannst dir die Standardeinstellungen auch ansehen oder sie im Voraus installieren:
-
-```bash
-mise ls --current              # List the tools configured for this directory
-mise install gh               # Install one tool now
-mise install --include-lazy    # Install all configured tools, including lazy tools
-```
-
-Führe `omarchy update` aus, um installierte Tools zusammen mit dem restlichen Omarchy zu aktualisieren. Der Alias `mup` aktualisiert nur die von mise verwalteten Tools. Um ein weiteres Tool zu deiner eigenen Konfiguration hinzuzufügen, verwende `mise use -g <tool>`.
-
-Die Python-Einrichtung installiert über mise auch `uv`. Wenn du die Python-Entwicklungsumgebung entfernst, bleibt `uv` als eigenständiges Tool verfügbar.
-
-### Eigene Installation verwenden
-
-Die Befehle von mise stehen auf `PATH` vor `~/.local/bin`. Ein Tool, das du selbst installiert hast, beispielsweise mit dem eigenen Installer von Claude Code oder Cursor, führt daher trotzdem mises Kopie aus. Vom Desktop gestartete Apps finden mises Befehle ebenfalls vor Systempaketen. Eine App, die `gh` ausführt, erhält also mises Kopie, selbst wenn du `github-cli` mit pacman installiert hast, und mise installiert diese Kopie beim ersten Mal. Um stattdessen deine eigene Installation zu verwenden, deaktiviere mises Kopie in `~/.config/mise/config.toml`. Wenn du beispielsweise die Cursor CLI selbst installiert hast:
-
-```toml
-[settings]
-disable_tools = ["cursor-agent"]
-```
-
-Wenn du bereits eine `[settings]`-Tabelle hast, füge den Eintrag dort hinzu; erweitere eine vorhandene `disable_tools`-Liste, anstatt sie zu ersetzen. Stelle sicher, dass sich deine Installation auf `PATH` befindet. Verwende den mise-Toolnamen, der von seinem Befehl abweichen kann: `oh-my-pi` stellt beispielsweise `omp` bereit. Der Launcher für den Standard-Agenten bevorzugt ebenfalls einen von dir installierten Cursor oder Muse in `~/.local/bin`.
-
-### Standardeinstellungen entfernen und wiederherstellen
-
-Bei _Remove Preinstalls_ überspringt mise Omarchys Tool-Deklarationen für deinen Benutzer, indem sie zu `ignored_config_paths` in `~/.config/mise/miserc.toml` hinzugefügt werden. _Restore Preinstalls_ entfernt diese Zeile wieder. Tools, die du selbst deklarierst, in deiner eigenen Konfiguration oder in der `mise.toml` eines Projekts, funktionieren in beiden Fällen weiterhin. Wenn du nach dem Entfernen der Vorinstallationen einen Standard-Agenten auswählst oder Python einrichtest, wird dieses Tool zu deiner eigenen Konfiguration hinzugefügt. Beides gilt nur für deinen Benutzer; andere Benutzer auf der Maschine behalten ihre eigene Auswahl.
+mise verwaltet nur die Laufzeitumgebungen, die du über _Install > Development_ einrichtest; Omarchy installiert von sich aus nichts darüber. Führe `omarchy update` aus, um sie mit dem Rest von Omarchy zu aktualisieren; der `mup`-Alias aktualisiert nur mise-verwaltete Tools. Um deiner eigenen Konfiguration ein weiteres Tool hinzuzufügen, verwende `mise use -g <tool>`.
 
 ## Docker
 
-[Docker](https://www.docker.com/) braucht wohl kaum eine Einführung. Es ermöglicht dir, isolierte Container auszuführen, und Omarchy installiert alles, was für einen guten Betrieb nötig ist, einschließlich Docker selbst und [Docker Compose](https://docs.docker.com/compose/).
+[Docker](https://www.docker.com/) bedarf kaum einer Einführung. Es ermöglicht dir, isolierte Container auszuführen, und Omarchy installiert alles, was nötig ist, um es gut zu betreiben, einschließlich Docker selbst und [Docker Compose](https://docs.docker.com/compose/).
 
-Standardmäßig ist dein Benutzer *nicht* in der Gruppe `docker`. Diese Gruppe ist faktisch root ohne Passwort – alles darin kann `docker run -v /:/host` ausführen und die Maschine übernehmen –, sodass ein einziges bösartiges Skript oder eine Abhängigkeit, die als du ausgeführt wird, sonst nur einen Befehl von root entfernt wäre. Auf der Kommandozeile führst du Docker daher mit `sudo` aus (`sudo docker ps`, `sudo docker compose up`), und die grafischen Tools, die mit dem Daemon kommunizieren – die Windows VM –, fragen bei Bedarf nach einer Autorisierung. Wenn du den Komfort einer gruppenlosen Einrichtung zurückhaben möchtest und den Kompromiss verstehst, aktiviere ihn über **Setup > Security > Sudoless Docker** (oder führe `omarchy-setup-security-sudoless-docker` aus). Dadurch wirst du nach einer Warnung zur Gruppe `docker` hinzugefügt; dann funktionieren einfaches `docker` und der Alias `d` wieder ohne `sudo`.
+Standardmäßig ist dein Benutzer *nicht* in der `docker`-Gruppe. Diese Gruppe ist faktisch passwortloses Root — alles in ihr kann `docker run -v /:/host` ausführen und die Maschine übernehmen — also wäre ein einzelnes bösartiges Skript oder eine Abhängigkeit, die als du läuft, sonst nur einen Befehl von Root entfernt. Deshalb führst du Docker auf der Kommandozeile mit `sudo` aus (`sudo docker ps`, `sudo docker compose up`), und die grafischen Tools, die mit dem Daemon kommunizieren — die Windows VM —, fragen um Autorisierung, wenn sie sie benötigen. Wenn du den Komfort eines gruppenlosen Setups zurückhaben willst und den Kompromiss verstehst, aktiviere es unter **Setup > Security > Sudoless Docker** (oder führe `omarchy-setup-security-sudoless-docker` aus), was dich nach einer Warnung zur `docker`-Gruppe hinzufügt; dann funktionieren einfaches `docker` und der `d`-Alias wieder ohne `sudo`.
 
-Die gängigen Datenbanken für die lokale Entwicklung in Docker kannst du über _Install > Development > Docker DB_ im Omarchy-Menü einrichten.
+Du kannst die gängigen Datenbanken für lokale Entwicklung in Docker über _Install > Development > Docker DB_ im Omarchy-Menü einrichten.
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) ist als `gh` verfügbar, um vom Terminal aus mit Repositories, Issues und Pull Requests zu arbeiten. Führe `gh auth login` aus, um es bei der ersten Verwendung zu installieren und dich zu authentifizieren, und anschließend `gh repo clone org/repo`, um ein Repository zu klonen. Führe `gh --help` aus, um seine Befehle zu erkunden.
+Die [GitHub CLI](https://cli.github.com/) ist `gh`, um mit Repositories, Issues und Pull Requests aus dem Terminal zu arbeiten. _Setup > Git_ installiert sie, wenn du dich dort dafür entscheidest, dich bei GitHub anzumelden, dann klont `gh repo clone org/repo` ein Repository. Führe `gh --help` aus, um ihre Befehle zu erkunden.
 
-Für eine Terminaloberfläche für Pull Requests führe `ghui` aus; mise installiert es ebenfalls bei der ersten Verwendung. [Lazygit](https://github.com/jesseduffield/lazygit) ist für die Arbeit mit Git selbst vorinstalliert.
+_Install > CLI > GitHub_ installiert die GitHub CLI, `gh`, zusammen mit `ghui`, einer Terminal-Oberfläche für Pull Requests. [Lazygit](https://github.com/jesseduffield/lazygit) ist für die Arbeit mit Git selbst vorinstalliert.
