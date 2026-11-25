@@ -2,6 +2,7 @@
 Version=1.0
 Name=Google Contacts
 Exec=omarchy-launch-webapp https://contacts.google.com/
+StartupWMClass=chrome-contacts.google.com__-Default
 Terminal=false
 Type=Application
 Icon=google-contacts

@@ -3,6 +3,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "EmojiSearch.js" as EmojiSearch
 
@@ -23,13 +24,13 @@ Item {
   // Shares the [menu] surface tokens — themes that style the menu also
   // style emojis. Selected-cell colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
-  property color background: Color.menu.background
-  property color foreground: Color.menu.text
-  property color border: Color.menu.border
+  property color background: Commons.Color.menu.background
+  property color foreground: Commons.Color.menu.text
+  property color border: Commons.Color.menu.border
   property var borderSpec: Border.surfaceSpec("menu", "border", border, Math.max(1, Style.space(2)))
-  property color scrim: Color.menu.scrim
-  property color selectedBackground: Color.menu.selectedBackground
-  property color selectedText: Color.menu.selectedText
+  property color scrim: Commons.Color.menu.scrim
+  property color selectedBackground: Commons.Color.menu.selectedBackground
+  property color selectedText: Commons.Color.menu.selectedText
   readonly property int cornerRadius: Style.cornerRadius
   property string fontFamily: Style.font.menuFamily
   property int contentMargin: Style.spacing.panelPadding
@@ -40,7 +41,7 @@ Item {
 
   property int cellWidth: Math.max(Style.space(44), Style.font.display + Style.spacing.md)
   property int cellHeight: Math.max(Style.space(44), Style.font.display + Style.spacing.md)
-  property int columns: Math.floor((cardWidth - contentMargin * 2) / cellWidth)
+  property int columns: Math.max(1, Math.floor((cardWidth - contentMargin * 2) / cellWidth))
 
   function open(payloadJson) {
     root.opened = true
@@ -75,59 +76,57 @@ Item {
     var out = EmojiSearch.filterEmojis(root.emojis, root.filterText, 1000)
     root.filteredEmojis = out
 
-    displayModel.clear()
-    for (var j = 0; j < out.length; j++) {
-      displayModel.append({ emoji: out[j].e, index: j })
-    }
-
-    if (displayModel.count === 0) selectedIndex = 0
-    else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
+    if (out.length === 0) selectedIndex = 0
+    else if (selectedIndex >= out.length) selectedIndex = out.length - 1
     else if (selectedIndex < 0) selectedIndex = 0
-    cursorActive = displayModel.count > 0
+    cursorActive = out.length > 0
 
     Qt.callLater(function() {
-      if (displayModel.count > 0) resultGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+      if (root.filteredEmojis.length > 0) resultGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
     })
   }
 
   function select(delta) {
-    if (displayModel.count === 0) return
+    var count = root.filteredEmojis.length
+    if (count === 0) return
     if (!cursorActive) {
       cursorActive = true
-      selectedIndex = delta < 0 ? displayModel.count - 1 : 0
+      selectedIndex = delta < 0 ? count - 1 : 0
     } else {
-      selectedIndex = (selectedIndex + delta + displayModel.count) % displayModel.count
+      selectedIndex = (selectedIndex + delta + count) % count
     }
     resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
   }
 
   function selectRow(delta) {
-    if (displayModel.count === 0) return
+    var count = root.filteredEmojis.length
+    if (count === 0) return
     if (!cursorActive) {
       cursorActive = true
-      selectedIndex = delta < 0 ? displayModel.count - 1 : 0
+      selectedIndex = delta < 0 ? count - 1 : 0
       resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
       return
     }
     var newIndex = selectedIndex + delta * columns
     if (newIndex < 0) newIndex = 0
-    if (newIndex >= displayModel.count) newIndex = displayModel.count - 1
+    if (newIndex >= count) newIndex = count - 1
     selectedIndex = newIndex
     resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
   }
 
   function selectPage(delta) {
-    if (displayModel.count === 0) return
+    var count = root.filteredEmojis.length
+    if (count === 0) return
     if (!cursorActive) {
       cursorActive = true
-      selectedIndex = delta < 0 ? displayModel.count - 1 : 0
+      selectedIndex = delta < 0 ? count - 1 : 0
       resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
       return
     }
     var visibleRows = Math.max(1, Math.floor(resultGrid.height / cellHeight))
     var newIndex = selectedIndex + delta * columns * visibleRows
     if (newIndex < 0) newIndex = 0
-    if (newIndex >= displayModel.count) newIndex = displayModel.count - 1
+    if (newIndex >= count) newIndex = count - 1
     selectedIndex = newIndex
     resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
   }
@@ -140,9 +139,8 @@ Item {
   }
 
   function activateIndex(index) {
-    if (index < 0 || index >= displayModel.count) return
-    var row = displayModel.get(index)
-    root.applySelected(row.emoji)
+    if (index < 0 || index >= root.filteredEmojis.length) return
+    root.applySelected(root.filteredEmojis[index].e)
   }
 
   function applySelected(emoji) {
@@ -150,8 +148,6 @@ Item {
     root.dismiss()
     Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-menu-emoji-insert", emoji])
   }
-
-  ListModel { id: displayModel }
 
   FileView {
     path: root.omarchyPath + "/shell/plugins/emojis/emojis.json"
@@ -198,10 +194,10 @@ Item {
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
-          } else if (event.key === Qt.Key_Left) {
+          } else if (Util.readingKey(event) === Qt.Key_Left) {
             root.select(-1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Right) {
+          } else if (Util.readingKey(event) === Qt.Key_Right) {
             root.select(1)
             event.accepted = true
           } else if (event.key === Qt.Key_Up) {
@@ -218,7 +214,7 @@ Item {
             event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (root.cursorActive) root.activateIndex(root.selectedIndex)
-            else if (displayModel.count > 0) root.cursorActive = true
+            else if (root.filteredEmojis.length > 0) root.cursorActive = true
             event.accepted = true
           } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
             root.setFilter(root.filterText + event.text)
@@ -246,7 +242,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search emojis…"
+            text: root.filterText || Commons.I18n.t("emojis.search")
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -262,7 +258,7 @@ Item {
           GridView {
             id: resultGrid
             anchors.fill: parent
-            model: displayModel
+            model: root.filteredEmojis
             clip: true
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
@@ -270,7 +266,7 @@ Item {
 
             delegate: Rectangle {
               required property int index
-              required property string emoji
+              required property var modelData
 
               readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
 
@@ -281,7 +277,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: parent.emoji
+                text: parent.modelData.e
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.display
                 anchors.centerIn: parent
@@ -309,8 +305,9 @@ Item {
 
           Column {
             anchors.centerIn: parent
+            width: parent.width - 2 * root.contentMargin
             spacing: Style.space(8)
-            visible: displayModel.count === 0
+            visible: root.filteredEmojis.length === 0
 
             Text {
               text: "󰈉"
@@ -324,13 +321,14 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: "No matches for “" + root.filterText + "”"
+              text: Commons.I18n.t("emojis.noMatches").arg(root.filterText)
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
               font.pixelSize: Style.font.title
               horizontalAlignment: Text.AlignHCenter
               width: parent.width
+              elide: Text.ElideRight
             }
           }
         }
