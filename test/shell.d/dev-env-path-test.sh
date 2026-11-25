@@ -155,6 +155,9 @@ _mise_hook --force
 EOF
 elif [[ $1 == "hook-env" ]]; then
   printf "export PATH='%s:%s'\n" "$OMARCHY_TEST_MISE_TOOL_BIN" "$PATH"
+  if [[ -n ${OMARCHY_TEST_MISE_STARSHIP_CONFIG:-} ]]; then
+    printf "export STARSHIP_CONFIG='%s'\n" "$OMARCHY_TEST_MISE_STARSHIP_CONFIG"
+  fi
 fi
 SH
 chmod +x "$init_bin/starship" "$init_bin/zoxide" "$init_bin/mise"
@@ -187,11 +190,25 @@ time_check=$(HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARC
 [[ $time_check =~ ^[0-9]{13}:[0-9]{13}:[0-9]{13}$ ]] || fail "rewritten starship time produces 13-digit epoch milliseconds" "$time_check"
 ! grep -q '^starship time' "$init_calls" || fail "starship preexec/precmd do not fork starship time" "$(<"$init_calls")"
 
-# Updating starship.toml invalidates cached PS2
+# Updating starship.toml invalidates cached PS2, including same-size edits within the same second
 printf 'continuation_prompt = ">> "\n' >"$starship_cfg"
+touch -d '@1795600000.100' "$starship_cfg"
 out_after_cfg=$(OMARCHY_TEST_PS2=">> " run_init)
 [[ $out_after_cfg == "v1:v1:>> :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
   fail "editing STARSHIP_CONFIG invalidates cached starship PS2" "$out_after_cfg"
+
+printf 'continuation_prompt = "!! "\n' >"$starship_cfg"
+touch -d '@1795600000.900' "$starship_cfg"
+out_same_sec=$(OMARCHY_TEST_PS2="!! " run_init)
+[[ $out_same_sec == "v1:v1:!! :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
+  fail "same-size edit to STARSHIP_CONFIG within the same second invalidates cached PS2" "$out_same_sec"
+
+# Project STARSHIP_CONFIG set during mise activation invalidates cached PS2
+starship_proj_cfg="$tmpdir/starship-project.toml"
+printf 'continuation_prompt = "## "\n' >"$starship_proj_cfg"
+out_mise_cfg=$(OMARCHY_TEST_MISE_STARSHIP_CONFIG="$starship_proj_cfg" OMARCHY_TEST_PS2="## " run_init)
+[[ $out_mise_cfg == "v1:v1:## :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
+  fail "STARSHIP_CONFIG exported by mise activation invalidates cached starship PS2" "$out_mise_cfg"
 
 cat >"$init_bin/starship" <<'SH'
 #!/bin/bash

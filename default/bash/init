@@ -102,24 +102,24 @@ _omarchy_init_paths=()
 _omarchy_mise=""
 _omarchy_starship=""
 _omarchy_starship_cfg=""
+_omarchy_starship_cfg_path=""
 _omarchy_zoxide=""
 
 _omarchy_mise=$(type -P mise) && _omarchy_init_paths+=("$_omarchy_mise")
 if [[ $- == *i* ]] && [[ ${TERM:-} != "dumb" ]]; then
   if _omarchy_starship=$(type -P starship); then
     _omarchy_init_paths+=("$_omarchy_starship")
-    _omarchy_starship_cfg="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
-    if [[ -e $_omarchy_starship_cfg ]]; then
+    _omarchy_starship_cfg_path="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
+    if [[ -e $_omarchy_starship_cfg_path ]]; then
+      _omarchy_starship_cfg="$_omarchy_starship_cfg_path"
       _omarchy_init_paths+=("$_omarchy_starship_cfg")
-    else
-      _omarchy_starship_cfg=""
     fi
   fi
 fi
 _omarchy_zoxide=$(type -P zoxide) && _omarchy_init_paths+=("$_omarchy_zoxide")
 
 if (( ${#_omarchy_init_paths[@]} > 0 )); then
-  mapfile -t _omarchy_init_stamps < <(stat -Lc '%d:%i:%s:%Y' "${_omarchy_init_paths[@]}" 2>/dev/null)
+  mapfile -t _omarchy_init_stamps < <(stat -Lc '%d:%i:%s:%y' "${_omarchy_init_paths[@]}" 2>/dev/null)
   _omarchy_stamp_idx=0
   if [[ -n $_omarchy_mise ]]; then
     _omarchy_mise_transform() { _omarchy_transform_mise_init "$2"; }
@@ -130,19 +130,27 @@ if (( ${#_omarchy_init_paths[@]} > 0 )); then
   if [[ -n $_omarchy_starship ]]; then
     _omarchy_starship_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
     (( _omarchy_stamp_idx++ ))
+    _omarchy_starship_cfg_stamp="none"
     if [[ -n $_omarchy_starship_cfg ]]; then
-      _omarchy_starship_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
+      _omarchy_starship_cfg_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
       (( _omarchy_stamp_idx++ ))
-    else
-      _omarchy_starship_stamp+=":none"
     fi
+    _omarchy_effective_starship_cfg="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
+    if [[ $_omarchy_effective_starship_cfg != "$_omarchy_starship_cfg_path" ]]; then
+      if [[ -e $_omarchy_effective_starship_cfg ]]; then
+        _omarchy_starship_cfg_stamp=$(stat -Lc '%d:%i:%s:%y' "$_omarchy_effective_starship_cfg" 2>/dev/null) || _omarchy_starship_cfg_stamp="none"
+      else
+        _omarchy_starship_cfg_stamp="none"
+      fi
+    fi
+    _omarchy_starship_stamp+=":${_omarchy_starship_cfg_stamp}"
     _omarchy_source_cached_init starship "$_omarchy_starship" "${_omarchy_starship_stamp}:v1" _omarchy_transform_starship_init init bash --print-full-init
   fi
   if [[ -n $_omarchy_zoxide ]]; then
     _omarchy_source_cached_init zoxide "$_omarchy_zoxide" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}" "" init bash
   fi
 fi
-unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_mise _omarchy_starship _omarchy_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
+unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_mise _omarchy_starship _omarchy_starship_cfg _omarchy_starship_cfg_path _omarchy_starship_cfg_stamp _omarchy_effective_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
 unset -f _omarchy_source_cached_init _omarchy_transform_mise_init _omarchy_transform_starship_init
 
 if command -v try &> /dev/null; then
