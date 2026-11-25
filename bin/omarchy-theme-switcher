@@ -56,11 +56,15 @@ add_theme_preview() {
 fast_signature="v2"$'\n'
 for theme_dir in "$USER_THEMES_PATH" "$OMARCHY_THEMES_PATH"; do
   if [[ -d $theme_dir ]]; then
-    fast_signature+="$theme_dir:$(stat -Lc '%Y' "$theme_dir")"$'\n'
-
-    while IFS= read -r -d '' theme_path; do
-      fast_signature+="$theme_path:$(stat -Lc '%Y' "$theme_path")"$'\n'
-    done < <(find -L "$theme_dir" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null | sort -z)
+    mapfile -d '' -t theme_paths < <(find -L "$theme_dir" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null | sort -z)
+    if entries=$(exec stat -L --printf='%n:%Y\n' "$theme_dir" "${theme_paths[@]}" 2>/dev/null); then
+      fast_signature+="$entries"$'\n'
+    else
+      # Keep individual entries and diagnostics when a link is dangling or a theme disappears.
+      for theme_path in "$theme_dir" "${theme_paths[@]}"; do
+        fast_signature+="$theme_path:$(stat -Lc '%Y' "$theme_path")"$'\n'
+      done
+    fi
   fi
 done
 
