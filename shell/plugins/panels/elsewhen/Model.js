@@ -938,20 +938,24 @@ function geocodeUrl(label) {
 // result puts the marker in southern Africa (#17782). The geocoder answers with
 // whichever name tzdata gives the place, which for a legacy row name can be a
 // link: a Chuuk result says Pacific/Chuuk, never Pacific/Truk.
+//
+// `zone` is the row's own zone, never its link target. Two linked zones can both
+// answer for a name: "Mbale" gives a town in Uganda (Africa/Kampala) before the
+// one in Kenya (Africa/Nairobi), and tzdata links Kampala to Nairobi. Resolving
+// the row first would let a Kampala row take the Kenyan town across the border.
 function pickGeocode(text, zone, aliases) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
+  var canonical = canonicalZone(zone, aliases)
   var best = null
   var i
   for (i = 0; i < results.length && !best; i++) {
     if (results[i] && results[i].timezone === zone) best = results[i]
   }
-  // A name can put a place in two linked zones: "Mbale" answers with a town in
-  // Uganda (Africa/Kampala) before the one in Kenya (Africa/Nairobi), and
-  // tzdata links Kampala to Nairobi. Only fall back to the links once no result
-  // names the row's zone itself, or the marker lands across the border.
+  // Only fall back to the links once no result names the row's zone itself, and
+  // resolve both sides so a Pacific/Truk row still takes a Pacific/Chuuk answer.
   for (i = 0; i < results.length && !best; i++) {
-    if (results[i] && canonicalZone(results[i].timezone, aliases) === zone) best = results[i]
+    if (results[i] && canonicalZone(results[i].timezone, aliases) === canonical) best = results[i]
   }
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }

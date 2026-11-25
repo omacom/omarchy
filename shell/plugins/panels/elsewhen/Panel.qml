@@ -797,7 +797,7 @@ Panel {
         geoProc.rows.forEach(function(row, i) {
           var key = Model.factsKey(row)
           var zone = Model.canonicalZone(row.id, aliases)
-          var found = Model.pickGeocode(answers[i] || "", zone, aliases)
+          var found = Model.pickGeocode(answers[i] || "", row.id, aliases)
           var place = found.place || Model.zoneTabCoords(zoneTab.text(), Model.fallbackZone(row.id, zone, Greet.countryFor))
           if (!place) return
           if (found.answered) nextGeo[key] = place
