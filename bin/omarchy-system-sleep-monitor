@@ -4,6 +4,12 @@
 # omarchy:group=system
 # omarchy:hidden=true
 
+# logind's delay inhibitor pattern: hold the inhibitor while awake, lock and
+# release it when PrepareForSleep(true) announces a suspend, and take it again
+# when PrepareForSleep(false) reports the wake. The inhibitor lives exactly as
+# long as the systemd-inhibit child that consumes the next sleep event, while a
+# single dbus-monitor outlives every cycle, so no wake is missed in between.
+
 consume_sleep_events() {
   local line sleep_lock
   sleep_lock="$OMARCHY_PATH/bin/omarchy-system-sleep-lock"
@@ -14,48 +20,60 @@ consume_sleep_events() {
       return 0
     fi
   done
+
+  return 1
+}
+
+wait_for_wake() {
+  local line
+
+  while IFS= read -r line; do
+    if [[ $line == *"boolean false"* ]]; then
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 monitor_sleep_events() {
-  local monitor_fd monitor_pid status
+  local monitor_fd monitor_pid sleep_monitor
+  sleep_monitor="$OMARCHY_PATH/bin/omarchy-system-sleep-monitor"
 
-  coproc SLEEP_EVENTS {
+  exec {monitor_fd}< <(
     exec dbus-monitor --system \
       "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
-  }
-  monitor_fd=${SLEEP_EVENTS[0]}
-  monitor_pid=$SLEEP_EVENTS_PID
+  )
+  monitor_pid=$!
 
   cleanup_monitor() {
     kill "$monitor_pid" 2>/dev/null || true
     wait "$monitor_pid" 2>/dev/null || true
+    exec {monitor_fd}<&-
   }
   trap cleanup_monitor EXIT
 
-  consume_sleep_events <&"$monitor_fd"
-  status=$?
+  # A failed inhibit, or a bus that went away, ends the monitor so systemd
+  # starts it over with a fresh subscription.
+  while systemd-inhibit \
+      --what=sleep \
+      --mode=delay \
+      --who=Omarchy \
+      --why="Lock screen before suspend" \
+      "$sleep_monitor" --consume <&"$monitor_fd" &&
+    wait_for_wake <&"$monitor_fd"; do
+    :
+  done
+
   cleanup_monitor
   trap - EXIT
-
-  return "$status"
+  return 1
 }
 
-case ${1:-} in
-  --consume)
-    consume_sleep_events
-    exit 0
-    ;;
-  --inhibited)
-    monitor_sleep_events
-    exit 0
-    ;;
-esac
-
-sleep_monitor="$OMARCHY_PATH/bin/omarchy-system-sleep-monitor"
-
-exec systemd-inhibit \
-  --what=sleep \
-  --mode=delay \
-  --who=Omarchy \
-  --why="Lock screen before suspend" \
-  "$sleep_monitor" --inhibited
+if [[ ${1:-} == "--consume" ]]; then
+  consume_sleep_events
+  exit
+else
+  monitor_sleep_events
+  exit
+fi
