@@ -145,19 +145,14 @@ cat >"$init_bin/mise" <<'SH'
 #!/bin/bash
 echo "mise $*" >>"$OMARCHY_TEST_INIT_CALLS"
 if [[ $1 == "activate" ]]; then
+  printf "export __MISE_ORIG_PATH='%s'\n" "$PATH"
+  printf "export PATH='%s:%s'\n" "$OMARCHY_TEST_MISE_TOOL_BIN" "$PATH"
   cat <<'EOF'
-export __MISE_ORIG_PATH='/stale/path'
-export PATH='/stale/shims:/stale/path'
 _mise_hook() {
   eval "$(mise hook-env -s bash "$@")"
 }
 _mise_hook --force
 EOF
-  if [[ ${MISE_NOT_FOUND_AUTO_INSTALL:-1} != "0" ]]; then
-    echo "OMARCHY_TEST_MISE_CNF=1"
-  else
-    echo "OMARCHY_TEST_MISE_CNF=0"
-  fi
 elif [[ $1 == "hook-env" ]]; then
   printf "export PATH='%s:%s'\n" "$OMARCHY_TEST_MISE_TOOL_BIN" "$PATH"
   if [[ -n ${OMARCHY_TEST_MISE_STARSHIP_CONFIG:-} ]]; then
@@ -181,13 +176,12 @@ mkdir -p "$home"
 cd "$home"
 
 [[ $(run_init) == "v1:v1:.. :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
-  fail "first interactive shell populates mise, starship, and zoxide init caches and preserves agent-accounts precedence" "$(run_init)"
+  fail "first interactive shell populates starship and zoxide init caches and preserves agent-accounts precedence" "$(run_init)"
 : >"$init_calls"
 [[ $(run_init) == "v1:v1:.. :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
   fail "subsequent interactive shell loads cached init scripts with baked PS2 and agent-accounts first on PATH"
 ! grep -q '^starship ' "$init_calls" || fail "cached starship init avoids re-executing starship (including time and continuation)" "$(<"$init_calls")"
 ! grep -q '^zoxide ' "$init_calls" || fail "cached zoxide init avoids re-executing zoxide" "$(<"$init_calls")"
-! grep -q '^mise activate' "$init_calls" || fail "cached mise init avoids re-executing mise activate" "$(<"$init_calls")"
 
 # Verify PS0/preexec/precmd timing uses EPOCHREALTIME (dot or comma decimal) without calling starship time
 : >"$init_calls"
@@ -247,47 +241,12 @@ for dyn_line in 'continuation_prompt = "$directory> "' '"continuation_prompt" = 
     fail "dynamic continuation_prompt ($dyn_line) is evaluated live per shell" "$out_dyn_a | $out_dyn_b"
 done
 
-# MISE_* env overrides bypass cache and never persist secrets to cache files
-cnf_off=$(MISE_NOT_FOUND_AUTO_INSTALL=0 MISE_GITHUB_TOKEN=secret-token-value HOME="$home" TERM=xterm-256color \
-  XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" STARSHIP_CONFIG="$starship_cfg" \
-  OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
-  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
-  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
-cnf_on=$(env -u MISE_NOT_FOUND_AUTO_INSTALL HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
-  STARSHIP_CONFIG="$starship_cfg" OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
-  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
-  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
-[[ $cnf_off == "0" && $cnf_on == "1" ]] ||
-  fail "MISE_NOT_FOUND_AUTO_INSTALL override bypasses cached mise init" "$cnf_off | $cnf_on"
-! grep -rq 'secret-token-value' "$init_cache" || fail "MISE_* credentials are never written to init cache"
-
 # Non-interactive shell with set -e completes init cleanly
-errexit_out=$(env -u MISE_NOT_FOUND_AUTO_INSTALL HOME="$home" XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+errexit_out=$(HOME="$home" XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
   OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
   PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
   bash -ec 'source "$OMARCHY_PATH/default/bash/init"; echo reached' 2>/dev/null)
 [[ $errexit_out == "reached" ]] || fail "init succeeds under set -e in non-interactive shells" "$errexit_out"
-
-# Project mise.toml, HOME/.config/mise.toml, project .config/mise.toml, and global conf.d bypass shared mise cache
-mkdir -p "$tmpdir/local-proj" "$tmpdir/dotconfig-proj/.config" "$home/.config/mise/conf.d"
-printf '[settings]\nnot_found_auto_install = false\n' >"$tmpdir/local-proj/mise.toml"
-printf '[settings]\nnot_found_auto_install = false\n' >"$tmpdir/dotconfig-proj/.config/mise.toml"
-: >"$init_calls"
-(cd "$tmpdir/local-proj" && run_init >/dev/null)
-grep -q '^mise activate' "$init_calls" || fail "local mise.toml bypasses shared mise activation cache" "$(<"$init_calls")"
-: >"$init_calls"
-(cd "$tmpdir/dotconfig-proj" && run_init >/dev/null)
-grep -q '^mise activate' "$init_calls" || fail "project .config/mise.toml bypasses shared mise activation cache" "$(<"$init_calls")"
-printf '[settings]\nnot_found_auto_install = false\n' >"$home/.config/mise/conf.d/custom.toml"
-: >"$init_calls"
-run_init >/dev/null
-grep -q '^mise activate' "$init_calls" || fail "global mise conf.d bypasses shared mise activation cache" "$(<"$init_calls")"
-rm -rf "$home/.config/mise/conf.d"
-printf '[settings]\nnot_found_auto_install = false\n' >"$home/.config/mise.toml"
-: >"$init_calls"
-run_init >/dev/null
-grep -q '^mise activate' "$init_calls" || fail "HOME/.config/mise.toml bypasses shared mise activation cache" "$(<"$init_calls")"
-rm -f "$home/.config/mise.toml"
 
 cat >"$init_bin/starship" <<'SH'
 #!/bin/bash
@@ -297,7 +256,7 @@ SH
 chmod +x "$init_bin/starship"
 touch -d "2020-01-01 00:00:00" "$init_bin/starship"
 [[ $(run_init) == "v2:v1:"* ]] || fail "replacement starship binary with older timestamp invalidates its cached init script" "$(run_init)"
-pass "mise, starship (zero-fork time + PS2), and zoxide init scripts cache across shells, invalidate on changes, and keep agent-accounts first on PATH"
+pass "starship (zero-fork time + PS2) and zoxide init scripts cache across shells, invalidate on changes, and mise keeps agent-accounts first on PATH"
 
 if [[ -f /usr/share/bash-completion/bash_completion ]]; then
   TERM=xterm-256color OMARCHY_PATH="$ROOT" bash --norc -ic '

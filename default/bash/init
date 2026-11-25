@@ -16,38 +16,6 @@ _omarchy_starship_now() {
   printf -v "$1" '%s' "${t%???}"
 }
 
-_omarchy_has_mise_env_override() {
-  local var
-  for var in "${!MISE_@}"; do
-    [[ $var == "MISE_SHELL" ]] && continue
-    return 0
-  done
-  return 1
-}
-
-_omarchy_has_uncached_mise_config() {
-  local cfg_dir="${XDG_CONFIG_HOME:-$HOME/.config}/mise"
-  if [[ -e $cfg_dir/config.local.toml || -e $cfg_dir/mise.toml || -e $cfg_dir/mise.local.toml || -d $cfg_dir/conf.d || -e /etc/mise/config.toml ]]; then
-    return 0
-  fi
-
-  local dir="$PWD"
-  while true; do
-    if [[ -e $dir/mise.toml || -e $dir/.mise.toml || -e $dir/mise.local.toml || -e $dir/.mise.local.toml ||
-      -d $dir/.mise || -e $dir/mise/config.toml || -e $dir/mise/config.local.toml ||
-      -e $dir/.config/mise.toml || -e $dir/.config/mise.local.toml ]]; then
-      return 0
-    fi
-    if [[ $dir != "$HOME" && -d $dir/.config/mise ]]; then
-      return 0
-    fi
-    [[ $dir == "/" || $dir != */* ]] && break
-    dir="${dir%/*}"
-    [[ -n $dir ]] || dir="/"
-  done
-  return 1
-}
-
 _omarchy_starship_ps2_is_static() {
   local cfg="$1"
   if [[ -z $cfg || ! -r $cfg ]]; then
@@ -79,7 +47,6 @@ _omarchy_transform_mise_init() {
 
   while IFS= read -r line; do
     case "$line" in
-      'export __MISE_ORIG_PATH='* | 'export PATH='*) continue ;;
       *'eval "$(mise hook-env '* | *'eval "$(command '*' "$command" "$@")"'*)
         lines+=("$line; _omarchy_prioritize_agent_accounts_path")
         ;;
@@ -104,7 +71,7 @@ _omarchy_transform_starship_init() {
   output="${output//'if [[ "${PS0-}" != *"starship_preexec_ps0"* ]]; then'/'if [[ "${PS0-}" != *"STARSHIP_START_TIME"* ]]; then'}"
   output="${output//'STARSHIP_START_TIME="$(starship_preexec_ps0)"'/'STARSHIP_START_TIME=${EPOCHREALTIME/[.,]/},STARSHIP_START_TIME/=1000'}"
 
-  if _omarchy_starship_ps2_is_static "${_omarchy_effective_starship_cfg:-}" && [[ $output == *"PS2=\"\$($bin prompt --continuation)\""* ||
+  if _omarchy_starship_ps2_is_static "${_omarchy_starship_cfg:-}" && [[ $output == *"PS2=\"\$($bin prompt --continuation)\""* ||
     $output == *"PS2=\"\$('$bin' prompt --continuation)\""* ||
     $output == *"PS2=\"\$($bin_q prompt --continuation)\""* ]]; then
     if ps2=$(STARSHIP_SHELL=bash "$bin" prompt --continuation 2>/dev/null); then
@@ -154,45 +121,26 @@ _omarchy_source_cached_init() {
   eval "$output"
 }
 
+if command -v mise &> /dev/null; then
+  if _omarchy_mise_init=$(mise activate bash 2>/dev/null); then
+    eval "$(_omarchy_transform_mise_init "$_omarchy_mise_init")"
+    _omarchy_prioritize_agent_accounts_path
+  fi
+  unset _omarchy_mise_init
+fi
+
 _omarchy_init_paths=()
-_omarchy_mise=""
-_omarchy_mise_cacheable=0
-_omarchy_mise_cfg=""
-_omarchy_mise_sys_dir=""
-_omarchy_mise_sys_files=()
 _omarchy_starship=""
 _omarchy_starship_cfg=""
-_omarchy_starship_cfg_path=""
 _omarchy_zoxide=""
-
-if _omarchy_mise=$(type -P mise); then
-  if ! _omarchy_has_mise_env_override && ! _omarchy_has_uncached_mise_config; then
-    _omarchy_mise_cacheable=1
-    _omarchy_init_paths+=("$_omarchy_mise")
-    _omarchy_mise_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/mise/config.toml"
-    if [[ -e $_omarchy_mise_cfg ]]; then
-      _omarchy_init_paths+=("$_omarchy_mise_cfg")
-    else
-      _omarchy_mise_cfg=""
-    fi
-    if [[ -d /etc/mise/conf.d ]]; then
-      _omarchy_mise_sys_dir="/etc/mise/conf.d"
-      _omarchy_init_paths+=("$_omarchy_mise_sys_dir")
-      for _omarchy_mise_sys_file in /etc/mise/conf.d/*; do
-        [[ -e $_omarchy_mise_sys_file ]] || continue
-        _omarchy_mise_sys_files+=("$_omarchy_mise_sys_file")
-        _omarchy_init_paths+=("$_omarchy_mise_sys_file")
-      done
-    fi
-  fi
-fi
 if [[ $- == *i* ]] && [[ ${TERM:-} != "dumb" ]]; then
   if _omarchy_starship=$(type -P starship); then
     _omarchy_init_paths+=("$_omarchy_starship")
-    _omarchy_starship_cfg_path="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
-    if [[ -e $_omarchy_starship_cfg_path ]]; then
-      _omarchy_starship_cfg="$_omarchy_starship_cfg_path"
+    _omarchy_starship_cfg="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
+    if [[ -e $_omarchy_starship_cfg ]]; then
       _omarchy_init_paths+=("$_omarchy_starship_cfg")
+    else
+      _omarchy_starship_cfg=""
     fi
   fi
 fi
@@ -200,64 +148,27 @@ if _omarchy_zoxide=$(type -P zoxide); then
   _omarchy_init_paths+=("$_omarchy_zoxide")
 fi
 
-if (( ${#_omarchy_init_paths[@]} > 0 )) || [[ -n $_omarchy_mise ]]; then
-  _omarchy_init_stamps=()
-  if (( ${#_omarchy_init_paths[@]} > 0 )); then
-    mapfile -t _omarchy_init_stamps < <(stat -Lc '%d:%i:%s:%y' "${_omarchy_init_paths[@]}" 2>/dev/null)
-  fi
+if (( ${#_omarchy_init_paths[@]} > 0 )); then
+  mapfile -t _omarchy_init_stamps < <(stat -Lc '%d:%i:%s:%y' "${_omarchy_init_paths[@]}" 2>/dev/null)
   _omarchy_stamp_idx=0
-  if [[ -n $_omarchy_mise ]]; then
-    _omarchy_mise_stamp=""
-    if (( _omarchy_mise_cacheable )); then
-      _omarchy_mise_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-      (( ++_omarchy_stamp_idx ))
-      if [[ -n $_omarchy_mise_cfg ]]; then
-        _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-        (( ++_omarchy_stamp_idx ))
-      else
-        _omarchy_mise_stamp+=":none"
-      fi
-      if [[ -n $_omarchy_mise_sys_dir ]]; then
-        _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-        (( ++_omarchy_stamp_idx ))
-        for _omarchy_mise_sys_file in "${_omarchy_mise_sys_files[@]}"; do
-          _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
-          (( ++_omarchy_stamp_idx ))
-        done
-      else
-        _omarchy_mise_stamp+=":none"
-      fi
-      _omarchy_mise_stamp+=":v4"
-    fi
-    _omarchy_mise_transform() { _omarchy_transform_mise_init "$2"; }
-    _omarchy_source_cached_init mise "$_omarchy_mise" "$_omarchy_mise_stamp" _omarchy_mise_transform activate bash
-    unset -f _omarchy_mise_transform
-  fi
   if [[ -n $_omarchy_starship ]]; then
     _omarchy_starship_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
     (( ++_omarchy_stamp_idx ))
-    _omarchy_starship_cfg_stamp="none"
     if [[ -n $_omarchy_starship_cfg ]]; then
-      _omarchy_starship_cfg_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
+      _omarchy_starship_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
       (( ++_omarchy_stamp_idx ))
+    else
+      _omarchy_starship_stamp+=":none"
     fi
-    _omarchy_effective_starship_cfg="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
-    if [[ $_omarchy_effective_starship_cfg != "$_omarchy_starship_cfg_path" ]]; then
-      if [[ -e $_omarchy_effective_starship_cfg ]]; then
-        _omarchy_starship_cfg_stamp=$(stat -Lc '%d:%i:%s:%y' "$_omarchy_effective_starship_cfg" 2>/dev/null) || _omarchy_starship_cfg_stamp="none"
-      else
-        _omarchy_starship_cfg_stamp="none"
-      fi
-    fi
-    _omarchy_starship_stamp+=":${_omarchy_starship_cfg_stamp}:${NO_COLOR+1}:v4"
+    _omarchy_starship_stamp+=":${NO_COLOR:+1}:${NO_COLOR+set}:v1"
     _omarchy_source_cached_init starship "$_omarchy_starship" "$_omarchy_starship_stamp" _omarchy_transform_starship_init init bash --print-full-init
   fi
   if [[ -n $_omarchy_zoxide ]]; then
     _omarchy_source_cached_init zoxide "$_omarchy_zoxide" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}" "" init bash
   fi
 fi
-unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_mise _omarchy_mise_cacheable _omarchy_mise_cfg _omarchy_mise_sys_dir _omarchy_mise_sys_files _omarchy_mise_sys_file _omarchy_mise_stamp _omarchy_starship _omarchy_starship_cfg _omarchy_starship_cfg_path _omarchy_starship_cfg_stamp _omarchy_effective_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
-unset -f _omarchy_source_cached_init _omarchy_transform_mise_init _omarchy_transform_starship_init _omarchy_has_mise_env_override _omarchy_has_uncached_mise_config _omarchy_starship_ps2_is_static
+unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_starship _omarchy_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
+unset -f _omarchy_source_cached_init _omarchy_transform_mise_init _omarchy_transform_starship_init _omarchy_starship_ps2_is_static
 
 if command -v try &> /dev/null; then
   try() {
