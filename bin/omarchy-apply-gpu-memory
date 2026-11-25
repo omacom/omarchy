@@ -33,6 +33,7 @@ unified_gpu() {
 
   shopt -s nullglob
   for device in "$pci_devices_path"/*; do
+    [[ -r $device/class && -r $device/vendor ]] || continue
     [[ $(< "$device/class") == 0x03* ]] || continue
     vendor=$(< "$device/vendor")
     if [[ $vendor == "0x1002" ]]; then

@@ -15,7 +15,7 @@ if ! desktop_exec_argv "$default_browser"; then
   exit 1
 fi
 
-browser_class=$(sed -n 's/^StartupWMClass=//p' "$desktop_exec_file" | head -1)
+browser_class=$desktop_exec_class
 
 # The browser is what an env or flatpak wrapper runs, including inside an
 # env -S string; a Flatpak's is its app id, which is no command on the host.

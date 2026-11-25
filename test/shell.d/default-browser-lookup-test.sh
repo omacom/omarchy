@@ -44,7 +44,7 @@ cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
 [Added Associations]
 x-scheme-handler/http=firefox.desktop;
 
-[Default Applications]
+[Default Applications]   
 text/html=firefox.desktop
 x-scheme-handler/http=missing.desktop;removed.desktop;env-removed.desktop;chromium.desktop;
 EOF
@@ -62,7 +62,18 @@ EOF
 [[ $(omarchy-cmd-default-browser) == "brave-browser.desktop" ]] ||
   fail "default browser prefers the desktop-specific mimeapps.list"
 
-rm "$XDG_CONFIG_HOME/hyprland-mimeapps.list"
+rm "$XDG_CONFIG_HOME/hyprland-mimeapps.list" "$XDG_CONFIG_HOME/mimeapps.list"
+cat >"$XDG_DATA_DIRS/applications/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=brave-browser.desktop
+EOF
+
+[[ $(omarchy-cmd-default-browser) == "brave-browser.desktop" ]] ||
+  fail "default browser reads mimeapps.list from XDG_DATA_DIRS/applications"
+[[ ! -e $OMARCHY_TEST_XDG_SETTINGS_LOG ]] ||
+  fail "default browser skips xdg-settings when data-dir mimeapps.list names one"
+
+rm "$XDG_DATA_DIRS/applications/mimeapps.list"
 printf '[Default Applications]\nx-scheme-handler/http=missing.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
 echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/fallback.desktop"
 
@@ -125,10 +136,12 @@ echo 'Exec=flatpak run org.mozilla.firefox %u' >"$XDG_DATA_HOME/applications/fla
 # Equals signs in env options must not turn those options into assignments.
 echo 'Exec=env "--split-string=A=1 firefox" %u' >"$XDG_DATA_HOME/applications/env-options.desktop"
 
-for entry in quoted.desktop custom-path.desktop flatpak.desktop env-options.desktop; do
+printf 'Exec=chromium\r\n' >"$XDG_DATA_HOME/applications/crlf.desktop"
+
+for entry in quoted.desktop custom-path.desktop flatpak.desktop env-options.desktop crlf.desktop; do
   printf '[Default Applications]\nx-scheme-handler/http=%s\n' "$entry" >"$XDG_CONFIG_HOME/mimeapps.list"
   [[ $(omarchy-cmd-default-browser) == "$entry" ]] ||
     fail "default browser accepts $entry" "$(omarchy-cmd-default-browser)"
 done
 
-pass "default browser checks quoted env prefixes, their PATH and Flatpak wrappers"
+pass "default browser checks quoted env prefixes, their PATH, Flatpak wrappers and CRLF entries"

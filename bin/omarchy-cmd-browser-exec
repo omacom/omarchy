@@ -26,9 +26,10 @@ desktop_string() {
 
 desktop_exec_argv() {
   local desktop=$1
-  local file="" line="" name data_dir
+  local file="" line="" name="" data_dir entry_line exec_found=0 name_found=0
   desktop_exec_argv=()
   desktop_exec_file=""
+  desktop_exec_class=""
   # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
   # the same order, so the command always comes from the entry that was checked.
   local -a data_dirs
@@ -36,12 +37,23 @@ desktop_exec_argv() {
   for data_dir in "${data_dirs[@]}"; do
     file="$data_dir/applications/$desktop"
     [[ -f $file ]] || continue
-    line=$(sed -n 's/^Exec=//p' "$file" | head -1)
+    while IFS= read -r entry_line || [[ -n $entry_line ]]; do
+      entry_line=${entry_line%$'\r'}
+      if (( ! exec_found )) && [[ $entry_line == Exec=* ]]; then
+        line=${entry_line#Exec=}
+        exec_found=1
+      elif (( ! name_found )) && [[ $entry_line == Name=* ]]; then
+        name=${entry_line#Name=}
+        name_found=1
+      elif [[ -z $desktop_exec_class && $entry_line == StartupWMClass=* ]]; then
+        desktop_exec_class=${entry_line#StartupWMClass=}
+      fi
+    done <"$file"
     break
   done
   [[ -n $line ]] || return 1
   desktop_exec_file=$file
-  desktop_string "$(sed -n 's/^Name=//p' "$file" | head -1)"
+  desktop_string "$name"
   name=$REPLY
 
   # Split the Exec line by its own quoting, expanding %c and %k, keeping %% as

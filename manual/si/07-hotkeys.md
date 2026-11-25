@@ -1,430 +1,429 @@
-# හොට්කී
+# හොට්කීස්
 
-`Super + K` මඟින් ප්‍රධාන යතුරු බැඳීම් සියල්ලම දැකිය හැකිය (`Super + Alt + K` මඟින් Tmux බැඳීම් සහ `Super + Ctrl + K` මඟින් Herdr බැඳීම්).
+ඔබට ප්‍රධාන යතුරුපුවරු බන්ධන සියල්ල `Super + K` සමඟින් දැක ගත හැකිය (Tmux බන්ධන `Super + Alt + K` සමඟින් සහ Herdr බන්ධන `Super + Ctrl + K` සමඟින්).
 
-## හොට්කී සකසා ඇති ආකාරය
+## හොට්කීස් සකස් වී ඇති ආකාරය
 
-සෑම හොට්කී එකක්ම එහි modifiers අනුව තීරණය වන තලයක පිහිටන අතර, සෑම තලයකටම එක් කාර්යයක් ඇත. හොට්කී එකිනෙකට පැටලීම වළක්වන්නේ එයයි, එමෙන්ම යමක් පිහිටන්නේ කොහේදැයි ඔබට සාමාන්‍යයෙන් අනුමාන කළ හැකි වන්නේද එයයි.
+සෑම හොට්කී එකක්ම එහි විකරණ අනුව තීරණය වන තලයක පිහිටා ඇති අතර, සෑම තලයකටම එක් කාර්යයක් ඇත. එය හොට්කීස් එකිනෙක ගැටීම වළක්වන අතර, සාමාන්‍යයෙන් යමක් පිහිටා ඇත්තේ කොතැනදැයි ඔබට අනුමාන කළ හැකි බව ද එයින් අදහස් වේ.
 
-| තලය | එහි තිබෙන්නේ කුමක්ද | උදාහරණ |
+| තලය | එහි ඇත්තේ කුමක්ද | උදාහරණ |
 | --- | --- | --- |
-| `Super + key` | පද්ධතිය: කවුළු, වැඩතල, පිහිටුම් සහ මූලික මෙනු | `Super + Space` Omarchy මෙනුව, `Super + W` කවුළුව වසන්න, `Super + F` සම්පූර්ණ තිරය |
-| `Super + Shift + key` | Apps | `Super + Shift + B` browser, `Super + Shift + E` email, `Super + Shift + N` editor |
-| `Super + Ctrl + key` | පැනල සහ පද්ධති මෙනු | `Super + Ctrl + A` audio, `Super + Ctrl + N` network, `Super + Ctrl + C` capture මෙනුව |
-| `Super + Ctrl + Alt + key` | ඉක්මන් ක්‍රියා සහ දැනුම්දීම් | `Super + Ctrl + Alt + T` වේලාව පෙන්වන්න, `Super + Ctrl + Alt + B` battery, `Super + Ctrl + Alt + C` screenshot |
+| `Super + key` | පද්ධතිය: කවුළු, වැඩබිම්, පිරිසැලසුම්, සහ මූලික මෙනු | `Super + Space` Omarchy මෙනුව, `Super + W` කවුළුව වසන්න, `Super + F` සම්පූර්ණ තිරය |
+| `Super + Shift + key` | යෙදුම් | `Super + Shift + B` බ්‍රවුසරය, `Super + Shift + E` ඊමේල්, `Super + Shift + N` සංස්කාරකය |
+| `Super + Ctrl + key` | පැනල සහ පද්ධති මෙනු | `Super + Ctrl + A` ශ්‍රව්‍ය, `Super + Ctrl + N` ජාලය, `Super + Ctrl + C` ග්‍රහණ මෙනුව |
+| `Super + Ctrl + Alt + key` | ඉක්මන් ක්‍රියා සහ නිවේදන | `Super + Ctrl + Alt + T` වේලාව පෙන්වන්න, `Super + Ctrl + Alt + B` බැටරිය, `Super + Ctrl + Alt + C` තිරපිටපත |
 
-හොට්කී එකකට `Alt` එක් කිරීමෙන් ඔබට ලැබෙන්නේ එම දේමෙහි ප්‍රභේදයක් මිස, කිසිසේත්ම සම්බන්ධ නැති දෙයක් නොවේ:
+හොට්කී එකකට `Alt` එක් කිරීමෙන් ඔබට ලැබෙන්නේ එම දෙයේම ප්‍රභේදයක් වන අතර, කිසිවිටෙක ඊට සම්බන්ධ නැති දෙයක් නොවේ:
 
-- `Super + Shift + B` මඟින් browser එක විවෘත වේ; `Super + Shift + Alt + B` මඟින් private කවුළුවක් විවෘත වේ
-- `Super + Shift + E` මඟින් email විවෘත වේ; `Super + Shift + Alt + E` මඟින් අලුත් එකක් ආරම්භ වේ
-- `Super + F` මඟින් සම්පූර්ණ තිරය වෙත යයි; `Super + Alt + F` මඟින් සම්පූර්ණ පළල වෙත යයි
-- `Super + Ctrl + C` මඟින් capture මෙනුව විවෘත වේ; `Super + Ctrl + Alt + C` මඟින් මෙනුව මඟහැර screenshot එකක් ගනී
+- `Super + Shift + B` මඟින් බ්‍රවුසරය විවෘත වේ; `Super + Shift + Alt + B` මඟින් පුද්ගලික කවුළුවක් විවෘත වේ
+- `Super + Shift + E` මඟින් ඊමේල් විවෘත වේ; `Super + Shift + Alt + E` මඟින් අලුත් එකක් ආරම්භ වේ
+- `Super + F` මඟින් සම්පූර්ණ තිරයට යයි; `Super + Alt + F` මඟින් සම්පූර්ණ පළලට යයි
+- `Super + Ctrl + C` මඟින් ග්‍රහණ මෙනුව විවෘත වේ; `Super + Ctrl + Alt + C` මඟින් මෙනුව මඟ හැර තිරපිටපතක් ගනියි
 
-හොට්කී එකක් එක් කිරීමේදී:
+හොට්කී එකක් එක් කරන විට:
 
-1. එය කරන දෙය අනුව තලය තෝරන්න, ඉන්පසු යතුර තෝරන්න.
-2. ඉඩ ලබා ගැනීම සඳහා පවතින හොට්කී එකක් ඉවත් නොකරන්න. නිවැරදි තලයේ නිදහස් යතුරක් සොයන්න.
+1. එය කරන දෙය අනුව තලය තෝරා, පසුව යතුර තෝරන්න.
+2. ඉඩ ලබා ගැනීම සඳහා පවතින හොට්කී එකක් ගෙන නොයන්න. නිවැරදි තලයේ නිදහස් යතුරක් සොයන්න.
 3. `Alt` භාවිතා කරන්න එය නොමැති හොට්කී එකේ ප්‍රභේදයක් සඳහා පමණි.
 
-හොට්කී කිහිපයක් පහසු බැවින් මෙම නීති කඩ කරයි. ඊතලයක් හෝ `Tab` සමඟ `Shift` යනු app එකක් විවෘත කිරීම වෙනුවට ගෙනයාම හෝ ආපසු හැරවීමයි, එමෙන්ම `Print`, media යතුරු, `Alt + Tab`, සහ `Ctrl + Alt + Del` අනෙකුත් සෑම තැනකම ක්‍රියා කරන ආකාරයටම ක්‍රියා කරයි. ඒවා ව්‍යතිරේකයන් මිස, අනුකරණය කළ යුතු රටා නොවේ.
+හොට්කී කිහිපයක් මෙම නීති කඩ කරන්නේ ඒවා පහසු නිසාය. ඊතලයක් හෝ `Tab` සමඟ `Shift` යනු යෙදුමක් විවෘත කිරීම වෙනුවට ගෙන යාම හෝ ප්‍රතිවර්තනය කිරීම වන අතර, `Print`, මාධ්‍ය යතුරු, `Alt + Tab`, සහ `Ctrl + Alt + Del` අනෙක් සෑම තැනකම ක්‍රියා කරන ආකාරයටම ක්‍රියා කරයි. ඒවා ව්‍යතිරේක වන අතර, පිටපත් කළ යුතු රටා නොවේ.
 
-පෙරනිමියක් ඔබට නොගැළපේ නම් (ඔබට Windows හි මෙන් screenshots සඳහා `Super + Shift + S` අවශ්‍ය යැයි සිතන්න), එය `~/.config/hypr/bindings.lua` හි නැවත බඳින්න.
+පෙරනිමියක් ඔබට නොගැලපේ නම් (ඔබට Windows වල මෙන් තිරපිටපත් සඳහා `Super + Shift + S` අවශ්‍ය යැයි සිතමු), එය `~/.config/hypr/bindings.lua` හි නැවත බඳින්න.
 
-## සංචාලනය
+## සැරිසැරීම
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + Space` | Omarchy මෙනුව (apps සහ අන් සියල්ල) |
-| `Super + Alt + Space` | App ජාලකය |
-| `Super + Escape` | පද්ධති මෙනුව (suspend, restart, ආදිය) |
-| `Super + Ctrl + L` | පරිගණකය lock කරන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + Space` | Omarchy මෙනුව (යෙදුම් සහ අනෙක් සියල්ල) |
+| `Super + Alt + Space` | යෙදුම් ජාලකය |
+| `Super + Escape` | පද්ධති මෙනුව (අත්හිටුවන්න, නැවත ආරම්භ කරන්න, ආදිය) |
+| `Super + Ctrl + L` | පරිගණකය අගුළු දමන්න |
 | `Super + W` or `Super + Q` | කවුළුව වසන්න |
-| `Ctrl + Alt + Del` | සියලු කවුළු වසන්න |
-| `Super + K` | සියලු හොට්කී පෙන්වන්න |
-| `Super + Alt + K` | tmux හොට්කී පෙන්වන්න |
-| `Super + Ctrl + K` | herdr හොට්කී පෙන්වන්න |
-| `Super + M` | කවුළුව dock එකට minimize කරන්න |
-| `Super + T` | කවුළුව tiling/floating අතර toggle කරන්න |
-| `Super + J` | කවුළු පිහිටීම toggle කරන්න (තිරස්/සිරස්) |
-| `Super + O` | කවුළුව sticky'n'floating වෙත popping කිරීම toggle කරන්න |
-| `Super + L` | dwindle, scrolling, සහ floating පිහිටුම් හරහා cycle කරන්න |
-| `Super + Alt + L` | පිහිටුම් හරහා ආපසු cycle කරන්න |
-| `Super + P` | pseudo කවුළු විලාසය toggle කරන්න (natural v stretch) |
-| `Super + F` | සම්පූර්ණ තිරය වෙත යන්න |
-| `Super + Alt + F` | සම්පූර්ණ පළල වෙත යන්න |
-| `Super + Ctrl + F` | කවුළුව තුළ සම්පූර්ණ තිරය වෙත යන්න |
-| `Super + 1…9/0` | අවධානය යොමු වූ මොනිටරයේ නිශ්චිත වැඩතලයට පනින්න (0 යනු 10) |
-| `Super + Tab` | අවධානය යොමු වූ මොනිටරයේ ඊළඟ වැඩතලයට පනින්න |
-| `Super + Shift + Tab` | අවධානය යොමු වූ මොනිටරයේ පෙර වැඩතලයට පනින්න |
-| `Super + Ctrl + Tab` | අවධානය යොමු වූ මොනිටරයේ පෙර පැවති වැඩතලයට පනින්න |
-| `Super + Shift + 1…9/0` | කවුළුව අවධානය යොමු වූ මොනිටරයේ වැඩතලයට ගෙන යන්න |
-| `Super + Shift + Alt + 1…9/0` | පසුපස අනුගමනය නොකර කවුළුව අවධානය යොමු වූ මොනිටරයේ වැඩතලයට ගෙන යන්න |
-| `Super + S` | සම්පූර්ණ scratchpad එක toggle කරන්න |
+| `Ctrl + Alt + Del` | සියලුම කවුළු වසන්න |
+| `Super + K` | සියලුම හොට්කීස් පෙන්වන්න |
+| `Super + Alt + K` | tmux හොට්කීස් පෙන්වන්න |
+| `Super + Ctrl + K` | herdr හොට්කීස් පෙන්වන්න |
+| `Super + M` | කවුළුව ඩොක් එකට අවම කරන්න |
+| `Super + T` | කවුළුව ටයිලින්/ඉපිලෙන අතර මාරු කරන්න |
+| `Super + J` | කවුළු පිහිටීම මාරු කරන්න (තිරස්/සිරස්) |
+| `Super + O` | කවුළුව sticky'n'floating වෙතට පොප් කිරීම මාරු කරන්න |
+| `Super + L` | dwindle, scrolling, සහ floating පිරිසැලසුම් හරහා චක්‍රීයව යන්න |
+| `Super + Alt + L` | පිරිසැලසුම් හරහා ප්‍රතිලෝමව චක්‍රීයව යන්න |
+| `Super + P` | pseudo කවුළු විලාසය මාරු කරන්න (ස්වාභාවික එදිරිව දිගු කිරීම) |
+| `Super + F` | සම්පූර්ණ තිරයට යන්න |
+| `Super + Alt + F` | සම්පූර්ණ පළලට යන්න |
+| `Super + Ctrl + F` | කවුළුව තුළ සම්පූර්ණ තිරයට යන්න |
+| `Super + 1…9/0` | අවධානය යොමු වූ මොනිටරයේ නිශ්චිත වැඩබිමට පනින්න (0 යනු 10 වේ) |
+| `Super + Tab` | අවධානය යොමු වූ මොනිටරයේ ඊළඟ වැඩබිමට පනින්න |
+| `Super + Shift + Tab` | අවධානය යොමු වූ මොනිටරයේ පෙර වැඩබිමට පනින්න |
+| `Super + Ctrl + Tab` | අවධානය යොමු වූ මොනිටරයේ පෙර පැවති වැඩබිමට පනින්න |
+| `Super + Shift + 1…9/0` | අවධානය යොමු වූ මොනිටරයේ වැඩබිමට කවුළුව ගෙන යන්න |
+| `Super + Shift + Alt + 1…9/0` | අනුගමනය නොකර අවධානය යොමු වූ මොනිටරයේ වැඩබිමට කවුළුව ගෙන යන්න |
+| `Super + S` | සම්පූර්ණ scratchpad එක මාරු කරන්න |
 | `Super + Alt + S` | කවුළුව සම්පූර්ණ scratchpad එකට ගෙන යන්න |
-| `Super + Grave` | Quake console එක toggle කරන්න |
-| `Super + Shift + Grave` | කවුළුව Quake console එකට ගෙන යන්න |
-| `Super + Shift + Ctrl + Arrows` | කවුළුව එම දිශාවේ ඇති මොනිටරයට ගෙන යන්න |
-| `Super + Shift + Alt + Arrows` | වැඩතලය එම දිශාවේ ඇති මොනිටරයට ගෙන යන්න |
-| `Super + Arrow` | ඊතලයේ දිශාවේ ඇති කවුළුව වෙත අවධානය ගෙන යන්න, තිරයේ කෙළවරේදී එම පැත්තේ මොනිටරයට හරවන්න |
-| `Super + Shift + Arrow` | කවුළුව ඊතලයේ දිශාවේ ඇති තවත් කවුළුවක් සමඟ හුවමාරු කරන්න, එම පැත්තේ මොනිටරයේ ඇති එකක් ද ඇතුළුව |
-| `Super + Minus` | කවුළුව වමට expand කරන්න |
-| `Super + Equal` | කවුළුව වමට shrink කරන්න |
-| `Super + Shift + Minus` | කවුළුව ඉහළට shrink කරන්න |
-| `Super + Shift + Equal` | කවුළුව පහළට expand කරන්න |
-| `Super + Alt + Minus/Equal` | කුඩා පියවරවලින් එම ප්‍රමාණය වෙනස් කිරීමම |
-| `Super + Ctrl + Minus/Equal` | විශාල පියවරවලින් එම ප්‍රමාණය වෙනස් කිරීමම |
-| `Super + Alt + Home` | කවුළු පළල සුරකින්න |
-| `Super + Home` | සුරකින ලද කවුළු පළල restore කරන්න |
-| `Super + Left Mouse` | කවුළුව වටා drag කරන්න |
-| `Super + Right Mouse` | කවුළුව resize කරන්න |
-| `Super + Scroll Wheel` | අවධානය යොමු වූ මොනිටරයේ වැඩතල හරහා scroll කරන්න |
-| `Super + G` | කවුළු grouping එක toggle කරන්න |
-| `Super + Alt + G` | කවුළුව grouping එකෙන් පිටතට ගෙන යන්න |
-| `Super + Alt + Tab` | grouping එකේ කවුළු අතර cycle කරන්න |
-| `Super + Alt + Shift + Tab` | grouping එකේ කවුළු අතර ආපස්සට cycle කරන්න |
-| `Super + Alt + Scroll Wheel` | grouping එකේ කවුළු අතර cycle කරන්න |
-| `Super + Alt + 1/2/3/4/5` | grouping එකේ නිශ්චිත කවුළුවට පනින්න |
-| `Super + Alt + Arrow` | කවුළුව ඊතලයේ දිශාවට grouping එකට ගෙන යන්න, එම පැත්තේ මොනිටරයේ ඇති එකක් ද ඇතුළුව |
-| `Super + Ctrl + Left/Right` | tiling කණ්ඩායමක් තුළ කවුළු අතර ගමන් කරන්න |
-| `Super + Ctrl + Z` | තිරය මත zoom in කරන්න (වැඩි zoom සඳහා නැවත කරන්න) |
-| `Super + Ctrl + Alt + Z` | තිරයෙන් සම්පූර්ණයෙන්ම zoom out කරන්න |
+| `Super + the key above Tab` (grave on US layouts) | Quake කොන්සෝලය මාරු කරන්න |
+| `Super + Shift + the key above Tab` (grave on US layouts) | කවුළුව Quake කොන්සෝලයට ගෙන යන්න |
+| `Super + Shift + Ctrl + Arrows` | එම දිශාවේ ඇති මොනිටරයට කවුළුව ගෙන යන්න |
+| `Super + Shift + Alt + Arrows` | එම දිශාවේ ඇති මොනිටරයට වැඩබිම ගෙන යන්න |
+| `Super + Arrow` | තිරයේ කෙළවරේදී එම පැත්තේ ඇති මොනිටරයට තරණය කරමින්, ඊතලයේ දිශාවේ ඇති කවුළුව වෙත අවධානය ගෙන යන්න |
+| `Super + Shift + Arrow` | එම පැත්තේ ඇති මොනිටරයේ ඇති එකක් ද ඇතුළුව, ඊතලයේ දිශාවේ ඇති අනෙක් කවුළුවක් සමඟ කවුළුව හුවමාරු කරන්න |
+| `Super + Minus` | කවුළුව වමට පුළුල් කරන්න |
+| `Super + Equal` | කවුළුව වමට හැකිළෙන්න |
+| `Super + Shift + Minus` | කවුළුව ඉහළට හැකිළෙන්න |
+| `Super + Shift + Equal` | කවුළුව පහළට පුළුල් කරන්න |
+| `Super + Alt + Minus/Equal` | කුඩා පියවර වලින් එම ප්‍රමාණය වෙනස් කිරීමම |
+| `Super + Ctrl + Minus/Equal` | විශාල පියවර වලින් එම ප්‍රමාණය වෙනස් කිරීමම |
+| `Super + Alt + Home` | කවුළුවේ පළල සුරකින්න |
+| `Super + Home` | සුරකින ලද කවුළු පළල ප්‍රතිෂ්ඨාපනය කරන්න |
+| `Super + Left Mouse` | කවුළුව වටා අදින්න |
+| `Super + Right Mouse` | කවුළුවේ ප්‍රමාණය වෙනස් කරන්න |
+| `Super + Scroll Wheel` | අවධානය යොමු වූ මොනිටරයේ වැඩබිම් හරහා අනුචලනය කරන්න |
+| `Super + G` | කවුළු කාණ්ඩගත කිරීම මාරු කරන්න |
+| `Super + Alt + G` | කවුළුව කාණ්ඩගත කිරීමෙන් පිටතට ගෙන යන්න |
+| `Super + Alt + Tab` | කාණ්ඩගත කිරීමේ කවුළු අතර චක්‍රීයව යන්න |
+| `Super + Alt + Shift + Tab` | කාණ්ඩගත කිරීමේ කවුළු අතර පසුපසට චක්‍රීයව යන්න |
+| `Super + Alt + Scroll Wheel` | කාණ්ඩගත කිරීමේ කවුළු අතර චක්‍රීයව යන්න |
+| `Super + Alt + 1/2/3/4/5` | කාණ්ඩගත කිරීමේ නිශ්චිත කවුළුවට පනින්න |
+| `Super + Alt + Arrow` | එම පැත්තේ ඇති මොනිටරයේ ඇති එකක් ද ඇතුළුව, ඊතලයේ දිශාවේ කාණ්ඩගත කිරීම තුළට කවුළුව ගෙන යන්න |
+| `Super + Ctrl + Left/Right` | ටයිලින් කාණ්ඩයක් තුළ කවුළු අතර ගමන් කරන්න |
+| `Super + Ctrl + Z` | තිරය විශාලනය කරන්න (තවත් විශාලනය සඳහා නැවත කරන්න) |
+| `Super + Ctrl + Alt + Z` | තිරයෙන් සම්පූර්ණයෙන්ම විශාලනය අඩු කරන්න |
 | `Super + /` | මොනිටර පරිමාණ විකල්ප හරහා ඉදිරියට පියවර තබන්න |
-| `Super + Alt + /` | මොනිටර පරිමාණ විකල්ප හරහා ආපස්සට පියවර තබන්න |
-| `Alt + Tab` | සක්‍රිය වැඩතලයේ කවුළු හරහා ඉදිරියට cycle කරන්න |
-| `Alt + Shift + Tab` | සක්‍රිය වැඩතලයේ කවුළු හරහා ආපස්සට cycle කරන්න |
-| `Ctrl + Alt + Tab` | මොනිටර හරහා අවධානය ඉදිරියට cycle කරන්න |
-| `Ctrl + Alt + Shift + Tab` | මොනිටර හරහා අවධානය ආපස්සට cycle කරන්න |
-| `Super + I` | ආදාන භාෂාව මාරු කරන්න (පිහිටුම් එකකට වැඩි ගණනක් හෝ ආදාන ක්‍රමයක් ඇති විට) |
+| `Super + Alt + /` | මොනිටර පරිමාණ විකල්ප හරහා පසුපසට පියවර තබන්න |
+| `Alt + Tab` | සක්‍රිය වැඩබිමේ කවුළු හරහා ඉදිරියට චක්‍රීයව යන්න |
+| `Alt + Shift + Tab` | සක්‍රිය වැඩබිමේ කවුළු හරහා පසුපසට චක්‍රීයව යන්න |
+| `Ctrl + Alt + Tab` | මොනිටර හරහා අවධානය ඉදිරියට චක්‍රීයව යන්න |
+| `Ctrl + Alt + Shift + Tab` | මොනිටර හරහා අවධානය පසුපසට චක්‍රීයව යන්න |
+| `Super + I` | ආදාන භාෂාව මාරු කරන්න (පිරිසැලසුම් හෝ ආදාන ක්‍රම එකකට වඩා ඇති විට) |
 | `Super + Shift + I` | ආදාන භාෂාව ආපසු මාරු කරන්න |
 
-touchpad එකක, ඇඟිලි තුනේ සහ හතරේ swipes මඟින් වැඩතල මාරු කරයි, කවුළු ගෙන යයි, සහ මෙනුව සහ Quake console එක විවෘත කරයි; අභිනයන් සඳහා [යතුරු පුවරුව, මූසිකය සහ ට්‍රැක්පෑඩය](34-keyboard-mouse-trackpad.md) බලන්න.
+ස්පර්ශක පෑඩයක, ඇඟිලි තුනේ සහ හතරේ ස්වයිප් මඟින් වැඩබිම් මාරු කරයි, කවුළු ගෙන යයි, සහ මෙනුව සහ Quake කොන්සෝලය විවෘත කරයි; අභිනයන් සඳහා [යතුරුපුවරුව, මූසිකය, සහ ධාවන පෑඩය](34-keyboard-mouse-trackpad.md) බලන්න.
 
-Resize කෙටිමං, යතුරු පුවරුවේ මුද්‍රණය කර ඇති අක්ෂර නොසලකා, භෞතික යතුරු `code:20` සහ `code:21` (XKB `<AE11>` සහ `<AE12>`) භාවිතා කරයි. US යතුරු පුවරුවල මෙම යතුරු `-` සහ `=` වේ; ජපන් (JIS) යතුරු පුවරුවල ඒවා `-` සහ `^` වේ; ස්පාඤ්ඤ යතුරු පුවරුවල ඒවා `'` සහ `¡` වේ. JIS හි, `Super + ^` යනු `Super + Equal` වන අතර, `Super + Shift + -` (එය `=` type කරයි) යනු `Super + Shift + Minus` වේ.
+ප්‍රමාණය වෙනස් කිරීමේදී 0 ට දකුණින් ඇති යතුරු දෙක භාවිතා වන අතර, ඔබේ යතුරුපුවරුව ඒවා මත මුද්‍රණය කරන්නේ කුමක් වුවද එය අදාල වේ: US යතුරුපුවරු මත `-` සහ `=`, ඩෙන්මාර්ක සහ ස්වීඩන් මත `+` සහ `´`, නෝර්වීජියානු මත `+` සහ `\`, ජර්මානු මත `ß` සහ `´`, ස්පාඤ්ඤ මත `'` සහ `¡`, සහ ජපන් (JIS) මත `-` සහ `^`. `Super + K` මඟින් ඒවා ඔබේ යතුරුපුවරුව මුද්‍රණය කරන ආකාරයටම ලැයිස්තුගත කරයි. JIS මත, `Super + ^` යනු `Super + Equal` වන අතර, `Super + Shift + -` (එය `=` ටයිප් කරයි) යනු `Super + Shift + Minus` වේ. මොනිටර පරිමාණය සහ මුරපද කළමනාකරු `/` භාවිතා කරයි; බොහෝ යුරෝපීය පිරිසැලසුම් මෙන් Shift සමඟ පමණක් `/` ටයිප් කරන පිරිසැලසුම් මත, ඒවා ඒ වෙනුවට දකුණු Shift එකට වමෙන් ඇති යතුර භාවිතා කරයි (ඩෙන්මාර්ක සහ ජර්මානු මත `-`).
 
 ## පද්ධති පාලන
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + Ctrl + A` | Audio පැනලය |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + Ctrl + A` | ශ්‍රව්‍ය පැනලය |
 | `Super + Ctrl + B` | Bluetooth පැනලය |
-| `Super + Ctrl + N` | Wifi/network පැනලය |
-| `Super + Ctrl + D` | Display පැනලය |
-| `Super + Ctrl + P` | Power පැනලය |
+| `Super + Ctrl + N` | Wi-Fi/ජාල පැනලය |
+| `Super + Ctrl + D` | සංදර්ශක පැනලය |
+| `Super + Ctrl + P` | බල පැනලය |
 | `Super + Ctrl + X` | Agents පැනලය |
-| `Super + Ctrl + Alt + X` | Local models පැනලය |
-| `Super + Ctrl + Alt + D` | Calendar පැනලය |
-| `Super + Ctrl + Alt + E` | World clock පැනලය |
-| `Super + Ctrl + 1-9` | තත්ත්වය අනුව bar පැනලය toggle කරන්න |
-| `Super + Ctrl + S` | Share මෙනුව (LocalSend හරහා) |
-| `Super + Ctrl + C` | Capture පාලන (screenshot/-recording/picker) |
-| `Super + Ctrl + O` | Toggle මෙනුව |
-| `Super + Ctrl + H` | Hardware මෙනුව |
-| `Super + Ctrl + E` | Emoji picker |
-| `Super + Ctrl + .` | Media transcode කරන්න |
-| `Super + Shift + Ctrl + A` | AI agent එකක් තෝරන්න |
+| `Super + Ctrl + Alt + D` | දින දර්ශන පැනලය |
+| `Super + Ctrl + Alt + E` | ලෝක ඔරලෝසු පැනලය |
+| `Super + Ctrl + 1-9` | පිහිටීම අනුව බාර් පැනලය මාරු කරන්න |
+| `Super + Ctrl + S` | බෙදාගැනීමේ මෙනුව (LocalSend හරහා) |
+| `Super + Ctrl + C` | ග්‍රහණ පාලන (තිරපිටපත/-පටිගත කිරීම/තෝරකය) |
+| `Super + Ctrl + O` | මෙනුව මාරු කරන්න |
+| `Super + Ctrl + H` | දෘඩාංග මෙනුව |
+| `Super + Ctrl + E` | ඉමෝජි තෝරකය |
+| `Super + Ctrl + .` | මාධ්‍ය ට්‍රාන්ස්කෝඩ් කරන්න |
+| `Super + Shift + Ctrl + A` | ඔබේ පෙරනිමි නියෝජිතයා ආරම්භ කරන්න |
 | `Power` key | පද්ධති මෙනුව |
 | `Super + Shift + Copilot` key | Omarchy මෙනුව |
 
 ## ගැලපීම්
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
 | `Shift + Brightness Up` | උපරිම තිර දීප්තිය |
 | `Shift + Brightness Down` | අවම තිර දීප්තිය |
 | `Alt + Brightness Up/Down` | නිරවද්‍ය 1% දීප්ති වෙනස්කම් |
-| `Alt + Volume Up/Down` | නිරවද්‍ය 1% ශබ්ද වෙනස්කම් |
-| `Keyboard Brightness Up/Down` | යතුරු පුවරු backlight දීප්තිමත්/අඳුරු කරන්න |
-| `Keyboard Backlight` | යතුරු පුවරු backlight මට්ටම් cycle කරන්න |
-| `Ctrl + Brightness Up/Down` | තමන්ගේම යතුරු නොමැති යතුරු පුවරුවල යතුරු පුවරු backlight දීප්තිමත්/අඳුරු කරන්න |
-| `Mic Mute` | මයික්‍රෆෝනය mute කරන්න |
-| `Shift + Mute` | Audio output මාරු කරන්න |
-| `Touchpad Toggle` | touchpad එක සක්‍රිය හෝ අක්‍රිය කරන්න |
-| `Display` key | වැඩතල පිහිටුම cycle කරන්න |
-| `Alt + Play` | ඊළඟ track එක |
-| `Alt + Shift + Play` | පෙර track එක |
+| `Alt + Volume Up/Down` | නිරවද්‍ය 1% ශබ්ද පරිමා වෙනස්කම් |
+| `Keyboard Brightness Up/Down` | යතුරුපුවරු පසුබිම් ආලෝකය දීප්තිමත්/අඳුරු |
+| `Keyboard Backlight` | යතුරුපුවරු පසුබිම් ආලෝක මට්ටම් චක්‍රීයව යන්න |
+| `Ctrl + Brightness Up/Down` | තමන්ගේම යතුරු නොමැති යතුරුපුවරු මත, යතුරුපුවරු පසුබිම් ආලෝකය දීප්තිමත්/අඳුරු |
+| `Mic Mute` | මයික්‍රෆෝනය නිශ්ශබ්ද කරන්න |
+| `Shift + Mute` | ශ්‍රව්‍ය ප්‍රතිදානය මාරු කරන්න |
+| `Touchpad Toggle` | ස්පර්ශක පෑඩය සක්‍රිය හෝ අක්‍රිය කරන්න |
+| `Display` key | වැඩබිම් පිරිසැලසුම චක්‍රීයව යන්න |
+| `Alt + Play` | ඊළඟ ධාවන පථය |
+| `Alt + Shift + Play` | පෙර ධාවන පථය |
 
-## Apps දියත් කිරීම
+## යෙදුම් දියත් කිරීම
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + Return` | Terminal |
-| `Super + Alt + Return` | Tmux terminal |
-| `Super + Ctrl + Return` | Herdr (agent manager) |
-| `Super + Shift + Return` or `Super + Shift + B` | Browser |
-| `Super + Shift + Alt + B` | Browser (private/incognito) |
-| `Super + Shift + F` | File manager |
-| `Super + Shift + Alt + F` | terminal එකේ cwd හි File manager |
-| `Super + Shift + M` | Music (Spotify) |
-| `Super + Shift + Alt + M` | Music (cliamp) |
-| `Super + Shift + /` | Password manager (1password) |
-| `Super + Shift + Q` or `Calculator` key | Calculator (Omacalc) |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + Return` | ටර්මිනලය |
+| `Super + Alt + Return` | Tmux ටර්මිනලය |
+| `Super + Ctrl + Return` | Herdr (නියෝජිත කළමනාකරු) |
+| `Super + Shift + Return` or `Super + Shift + B` | බ්‍රවුසරය |
+| `Super + Shift + Alt + B` | බ්‍රවුසරය (පුද්ගලික/අඥාත) |
+| `Super + Shift + F` | ගොනු කළමනාකරු |
+| `Super + Shift + Alt + F` | ටර්මිනලයේ cwd එකේ ගොනු කළමනාකරු |
+| `Super + Shift + M` | සංගීතය (Spotify) |
+| `Super + Shift + Alt + M` | සංගීතය (cliamp) |
+| `Super + Shift + /` | මුරපද කළමනාකරු (1password) |
+| `Super + Shift + Q` or `Calculator` key | කැල්කියුලේටරය (Omacalc) |
 | `Super + Shift + D` | Docker (lazydocker, ස්ථාපනය කළ පසු) |
-| `Super + Shift + T` | Activity (btop) |
-| `Super + Shift + N` | Editor (Plain, හෝ ඔබ තෝරාගත් පෙරනිමිය) |
-| `Super + Shift + C` | Calendar ([HEY](https://hey.com/)) |
-| `Super + Shift + E` | Email ([HEY](https://hey.com/)) |
-| `Super + Shift + Alt + E` | New email ([HEY](https://hey.com/)) |
+| `Super + Shift + T` | ක්‍රියාකාරකම් (btop) |
+| `Super + Shift + N` | සංස්කාරකය (Plain, හෝ ඔබ තෝරාගත් පෙරනිමිය) |
+| `Super + Shift + C` | දින දර්ශනය ([HEY](https://hey.com/)) |
+| `Super + Shift + E` | ඊමේල් ([HEY](https://hey.com/)) |
+| `Super + Shift + Alt + E` | අලුත් ඊමේල් එකක් ([HEY](https://hey.com/)) |
 | `Super + Shift + A` | AI (ChatGPT) |
 | `Super + Shift + Alt + A` | AI (Grok) |
-| `Super + Shift + G` | Messenger (Signal) |
+| `Super + Shift + G` | පණිවිඩකරු (Signal) |
 | `Super + Shift + P` | Google Photos |
 | `Super + Shift + S` | Google Maps |
-| `Super + Shift + Alt + G` | Messenger (WhatsApp) |
-| `Super + Shift + Ctrl + G` | Messenger (Google) |
+| `Super + Shift + Alt + G` | පණිවිඩකරු (WhatsApp) |
+| `Super + Shift + Ctrl + G` | පණිවිඩකරු (Google) |
 | `Super + Shift + O` | Obsidian |
-| `Super + Shift + W` | Writing (Omawrite) |
+| `Super + Shift + W` | ලිවීම (Omawrite) |
 | `Super + Shift + X` | X |
-| `Super + Shift + Alt + X` | X (new post) |
+| `Super + Shift + Alt + X` | X (අලුත් පළ කිරීමක්) |
 | `Super + Shift + Y` | YouTube |
 
-`~/.config/hypr/bindings.lua` හි බැඳීම් වෙනස් කරන්න/එක් කරන්න.
+`~/.config/hypr/bindings.lua` හි බන්ධන වෙනස් කරන්න/එක් කරන්න.
 
-## Universal clipboard
+## විශ්ව ක්ලිප්බෝඩය
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + A` | `Ctrl + A` සඳහා සහය දක්වන apps හි සියල්ල තෝරන්න |
-| `Super + C` | Copy |
-| `Super + X` | Cut (terminal හි නොවේ) |
-| `Super + V` | Paste |
-| `Super + Ctrl + V` | Clipboard manager |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + A` | `Ctrl + A` සඳහා සහය දක්වන යෙදුම්වල සියල්ල තෝරන්න |
+| `Super + C` | පිටපත් කරන්න |
+| `Super + X` | කපන්න (ටර්මිනලයේ නොවේ) |
+| `Super + V` | අලවන්න |
+| `Super + Ctrl + V` | ක්ලිප්බෝඩ් කළමනාකරු |
 
-සාමාන්‍යයෙන් Linux හි, terminal හි copy'n'paste සඳහා `Ctrl + Shift + C/V` ද අනෙකුත් සෑම තැනකම එය කිරීමට `Ctrl + C/V` ද අවශ්‍ය වේ. මෙම Omarchy ඒකාබද්ධ clipboard හොට්කී සෑම තැනකම ක්‍රියා කරයි.
+සාමාන්‍යයෙන් Linux මත, ටර්මිනලයේ පිටපත් කර ඇලවීමට `Ctrl + Shift + C/V` සහ අනෙක් සෑම තැනකම එය කිරීමට `Ctrl + C/V` අවශ්‍ය වේ. මෙම Omarchy ඒකාබද්ධ ක්ලිප්බෝඩ් හොට්කීස් සෑම තැනකම ක්‍රියා කරයි.
 
-## Capture
+## ග්‍රහණය
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Print Screen` | Screenshot |
-| `Super + Ctrl + Alt + C` | Screenshot (එකම ඡායාරූපය, Print Screen යතුරක් නොමැති යතුරු පුවරු සඳහා) |
-| `Super + Ctrl + C` | Capture මෙනුව |
-| `Alt + Print Screen` | Screenrecord |
-| `Super + Shift + Ctrl + Alt + C` | මෙනුව මඟහැර audio නොමැතිව Screenrecord (නැවැත්වීමට නැවත ඔබන්න) |
-| `Super + Print Screen` | Color picker |
-| `Super + Ctrl + Print Screen` | පෙළ clipboard එකට extract කරන්න |
-| `Super + Alt + [` | Record කිරීමේදී webcam overlay එක කුඩා කරන්න |
-| `Super + Alt + ]` | Record කිරීමේදී webcam overlay එක විශාල කරන්න |
-| `Alt + Shift + L` | webapp හෝ browser වෙතින් වත්මන් URL එක copy කරන්න |
-| `Alt + Shift + D` | වත්මන් පිටුවේ video එක `~/Videos` වෙත download කරන්න |
-| `Alt + Space` | Dictation ආරම්භ/නැවැත්වීම (අවශ්‍ය වේ _Setup > Defaults > Dictation_) |
-| `Right Alt` | Dictate කිරීමට අල්ලාගෙන සිටින්න (අවශ්‍ය වේ _Setup > Defaults > Dictation_) |
+| හොට්කී | කාර්යය |
+| ------------------- | ------------------------------ |
+| `Print Screen` | තිරපිටපත |
+| `Super + Ctrl + Alt + C` | තිරපිටපත (එම ඡායාරූපයම, Print Screen යතුරක් නොමැති යතුරුපුවරු සඳහා) |
+| `Super + Ctrl + C` | ග්‍රහණ මෙනුව |
+| `Alt + Print Screen` | තිර පටිගත කිරීම |
+| `Super + Shift + Ctrl + Alt + C` | මෙනුව මඟ හැර, ශ්‍රව්‍ය නොමැතිව තිර පටිගත කිරීම (නවත්වන්න නැවත ඔබන්න) |
+| `Super + Print Screen` | වර්ණ තෝරකය |
+| `Super + Ctrl + Print Screen` | ක්ලිප්බෝඩයට පෙළ උපුටා ගැනීම |
+| `Super + Alt + [` | පටිගත කරන අතරතුර වෙබ් කැමරා උඩැල්ලීම කුඩා කරන්න |
+| `Super + Alt + ]` | පටිගත කරන අතරතුර වෙබ් කැමරා උඩැල්ලීම විශාල කරන්න |
+| `Alt + Shift + L` | වෙබ් යෙදුමෙන් හෝ බ්‍රවුසරයෙන් වත්මන් URL එක පිටපත් කරන්න |
+| `Alt + Shift + D` | වත්මන් පිටුවේ ඇති වීඩියෝව `~/Videos` වෙත බාගන්න |
+| `Alt + Space` | ආඥාව ආරම්භ කරන්න/නවත්වන්න (_Setup > Defaults > Dictation_ අවශ්‍ය වේ) |
+| `Right Alt` | ආඥා කිරීමට අල්ලාගෙන සිටින්න (_Setup > Defaults > Dictation_ අවශ්‍ය වේ) |
 
-screenrecordings සමඟ, හොට්කී එක මුලින්ම ඔබ කැමති audio කුමක්දැයි අසයි, ඉන්පසු recording ආරම්භ කරයි. නැවැත්වීමට එය නැවත ඔබන්න. විස්තර සඳහා [screenshots සහ recording](12-screenshots-recording.md) බලන්න.
+තිර පටිගත කිරීම් සමඟ, හොට්කී එක පළමුව ඔබට අවශ්‍ය ශ්‍රව්‍යය කුමක්දැයි අසනු ඇත, පසුව පටිගත කිරීම ආරම්භ කරයි. එය නැවැත්වීමට නැවත එය ඔබන්න. විස්තර සඳහා [තිරපිටපත් සහ පටිගත කිරීම](12-screenshots-recording.md) බලන්න.
 
-සියලුම capture විකල්ප Omarchy මෙනුවේ (`Super + Space`) _Trigger > Capture_ යටතේද ප්‍රවේශ විය හැකිය.
+සියලුම ග්‍රහණ විකල්ප Omarchy මෙනුවේ (`Super + Space`) _Trigger > Capture_ යටතේ ද ප්‍රවේශ විය හැකිය.
 
-## Notifications
+## දැනුම්දීම්
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + ,` | නවතම notification මත ක්‍රියා කරන්න: එය විවෘත කරන්න හෝ එහි ඇති එකම button එක ඔබන්න, එහි තේරීම්වලින් තෝරන්න, හෝ කිසිවක් නැති විට එය dismiss කරන්න |
-| `Super + Shift + ,` | සියලු notifications dismiss කරන්න |
-| `Super + Ctrl + ,` | යතුරු පුවරුවෙන් notifications පාලනය කරන්න |
-| `Super + Alt + ,` | නවතම notification එක dismiss කරන්න |
-| `Super + Shift + Alt + ,` | Notification ඉතිහාසය විවෘත කරන්න |
-| `Super + Ctrl + Alt + ,` | Notifications නිහඬ කිරීම toggle කරන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + ,` | නවතම දැනුම්දීමට ක්‍රියා කරන්න: එය විවෘත කරන්න හෝ එහි ඇති එකම බොත්තම ඔබන්න, එහි තේරීම් වලින් තෝරන්න, හෝ කිසිවක් නැති විට එය ඉවත් කරන්න |
+| `Super + Shift + ,` | සියලුම දැනුම්දීම් ඉවත් කරන්න |
+| `Super + Ctrl + ,` | යතුරුපුවරුවෙන් දැනුම්දීම් පාලනය කරන්න |
+| `Super + Alt + ,` | නවතම දැනුම්දීම ඉවත් කරන්න |
+| `Super + Shift + Alt + ,` | දැනුම්දීම් ඉතිහාසය විවෘත කරන්න |
+| `Super + Ctrl + Alt + ,` | දැනුම්දීම් නිශ්ශබ්ද කිරීම මාරු කරන්න |
 
-## Style
+## විලාසය
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + Ctrl + T` | අලුත් theme එකක් තෝරන්න (`Super + Ctrl + Shift + Space` ද වේ) |
-| `Super + Ctrl + W` | Theme background එක තෝරන්න (`Super + Ctrl + Space` ද වේ) |
-| `Super + Backspace` | කවුළුවක් මත transparency toggle කරන්න |
-| `Super + Ctrl + Backspace` | තනි-කවුළු square aspect toggle කරන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + Ctrl + T` | අලුත් තේමාවක් තෝරන්න (ද `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | තේමා පසුබිම තෝරන්න (ද `Super + Ctrl + Space`) |
+| `Super + Backspace` | කවුළුවක පාරදෘශ්‍යතාව මාරු කරන්න |
+| `Super + Ctrl + Backspace` | තනි-කවුළු චතුරස්‍ර අනුපාතය මාරු කරන්න |
 
-අමතර background රූප `~/.config/omarchy/backgrounds/<theme name>` හි පිහිටයි. Omarchy මෙනුවේ _Install > Style > Background_ හරහාද තිබේ.
+අමතර පසුබිම් රූප `~/.config/omarchy/backgrounds/<theme name>` හි ඇත. Omarchy මෙනුවේ _Install > Style > Background_ හරහා ද ලබා ගත හැකිය.
 
-සියලුම style විකල්ප Omarchy මෙනුවේ (`Super + Space`) _Appearance_ යටතේද ප්‍රවේශ විය හැකිය.
+සියලුම විලාස විකල්ප Omarchy මෙනුවේ (`Super + Space`) _Appearance_ යටතේ ද ප්‍රවේශ විය හැකිය.
 
-## Toggles
+## ටොගල
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + Ctrl + I` | Idle විට locking toggle කරන්න |
-| `Super + Ctrl + Delete` | Laptop display සක්‍රිය/අක්‍රිය toggle කරන්න |
-| `Super + Ctrl + Alt + Delete` | Laptop display mirroring toggle කරන්න |
-| `Super + Shift + Space` | Top bar එක toggle කරන්න |
-| `Shift + Mute` | ඊළඟ audio output වෙත මාරු වන්න |
-| `Shift + Play` | ඊළඟ media source වෙත මාරු වන්න |
-| `Super + Shift + Backspace` | කවුළු gaps toggle කරන්න |
-| `Super + Ctrl + Alt + F` | සම්පූර්ණ තිර desktop එක toggle කරන්න (top bar + window gaps) |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + Ctrl + I` | අක්‍රිය විට අගුළු දැමීම මාරු කරන්න |
+| `Super + Ctrl + Delete` | ලැප්ටොප් තිරය සක්‍රිය/අක්‍රිය කිරීම මාරු කරන්න |
+| `Super + Ctrl + Alt + Delete` | ලැප්ටොප් තිරය දර්පණය කිරීම මාරු කරන්න |
+| `Super + Shift + Space` | ඉහළ බාර් එක මාරු කරන්න |
+| `Shift + Mute` | ඊළඟ ශ්‍රව්‍ය ප්‍රතිදානයට මාරු වන්න |
+| `Shift + Play` | ඊළඟ මාධ්‍ය මූලාශ්‍රයට මාරු වන්න |
+| `Super + Shift + Backspace` | කවුළු හිඩැස් මාරු කරන්න |
+| `Super + Ctrl + Alt + F` | සම්පූර්ණ තිර ඩෙස්ක්ටොප් එක මාරු කරන්න (ඉහළ බාර් එක + කවුළු හිඩැස්) |
 
-## Reminders
+## මතක් කිරීම්
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + Ctrl + R` | Reminder එකක් සකසන්න |
-| `Super + Ctrl + Alt + R` | සියලු reminders බලන්න |
-| `Super + Ctrl + Shift + R` | සියලු reminders ඉවත් කරන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + Ctrl + R` | මතක් කිරීමක් සකසන්න |
+| `Super + Ctrl + Alt + R` | සියලුම මතක් කිරීම් බලන්න |
+| `Super + Ctrl + Shift + R` | සියලුම මතක් කිරීම් හිස් කරන්න |
 
-## Notices
+## නිවේදන
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Super + Ctrl + Alt + T` | වේලාව notification එකක් ලෙස පෙන්වන්න |
-| `Super + Ctrl + Alt + B` | Battery එක notification එකක් ලෙස පෙන්වන්න |
-| `Super + Ctrl + Alt + W` | කාලගුණය notification එකක් ලෙස toggle කරන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Super + Ctrl + Alt + T` | වේලාව දැනුම්දීමක් ලෙස පෙන්වන්න |
+| `Super + Ctrl + Alt + B` | බැටරිය දැනුම්දීමක් ලෙස පෙන්වන්න |
+| `Super + Ctrl + Alt + W` | කාලගුණය දැනුම්දීමක් ලෙස මාරු කරන්න |
 
 ## Tmux
 
-prefix යතුර `Ctrl + Space` වේ (`Ctrl + B` ද ක්‍රියා කරයි). ඔබට මෙම බැඳීම් `~/.config/tmux/tmux.conf` හි වෙනස් කළ හැකිය.
+උපසර්ග යතුර `Ctrl + Space` වේ (`Ctrl + B` ද ක්‍රියා කරයි). ඔබට මෙම බන්ධන `~/.config/tmux/tmux.conf` හි වෙනස් කළ හැකිය.
 
-### Panes
+### පැනල
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Prefix + v` | Pane එක අසලින් බෙදන්න (සිරස්) |
-| `Prefix + h` | Pane එක පහළින් බෙදන්න (තිරස්) |
-| `Prefix + x` | Pane එක kill කරන්න |
-| `Prefix + z` | Pane zoom toggle කරන්න (fullscreen) |
-| `Alt + Enter` | Pane එක පහළින් බෙදන්න (prefix නැත) |
-| `Alt + Shift + Enter` | Pane එක අසලින් බෙදන්න (prefix නැත) |
-| `Alt + Escape` | Pane එක kill කරන්න (prefix නැත) |
-| `Ctrl + Alt + Arrows` | Panes අතර ගමන් කරන්න |
-| `Ctrl + Alt + Shift + Arrows` | Panes resize කරන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Prefix + v` | පැත්තෙන් පැනලය බෙදන්න (සිරස්) |
+| `Prefix + h` | පහළින් පැනලය බෙදන්න (තිරස්) |
+| `Prefix + x` | පැනලය විනාශ කරන්න |
+| `Prefix + z` | පැනල විශාලනය මාරු කරන්න (සම්පූර්ණ තිරය) |
+| `Alt + Enter` | පහළින් පැනලය බෙදන්න (උපසර්ගයක් නැත) |
+| `Alt + Shift + Enter` | පැත්තෙන් පැනලය බෙදන්න (උපසර්ගයක් නැත) |
+| `Alt + Escape` | පැනලය විනාශ කරන්න (උපසර්ගයක් නැත) |
+| `Ctrl + Alt + Arrows` | පැනල අතර ගමන් කරන්න |
+| `Ctrl + Alt + Shift + Arrows` | පැනලවල ප්‍රමාණය වෙනස් කරන්න |
 
-### Windows
+### කවුළු
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Prefix + c` | New window |
-| `Prefix + k` | Window එක kill කරන්න |
-| `Prefix + r` | Window එක rename කරන්න |
-| `Alt + 1-9` | නිශ්චිත window එකට යන්න |
-| `Alt + Arrow Left/Right` | Windows අතර ගමන් කරන්න |
-| `Alt + Shift + Arrow Left/Right` | Window එක වමට/දකුණට ගෙන යන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Prefix + c` | අලුත් කවුළුවක් |
+| `Prefix + k` | කවුළුව විනාශ කරන්න |
+| `Prefix + r` | කවුළුවේ නම වෙනස් කරන්න |
+| `Alt + 1-9` | නිශ්චිත කවුළුවට යන්න |
+| `Alt + Arrow Left/Right` | කවුළු අතර ගමන් කරන්න |
+| `Alt + Shift + Arrow Left/Right` | කවුළුව වමට/දකුණට ගෙන යන්න |
 
-### Sessions
+### සැසි
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Prefix + C` | New session |
-| `Prefix + K` | Session එක kill කරන්න |
-| `Prefix + R` | Session එක rename කරන්න |
-| `Prefix + N` | Next session |
-| `Prefix + P` | Previous session |
-| `Alt + Arrow Up/Down` | Sessions අතර ගමන් කරන්න |
-| `Prefix + s` | Sessions ලැයිස්තුගත කරන්න |
-| `Prefix + d` | Session එකෙන් detach වන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Prefix + C` | අලුත් සැසියක් |
+| `Prefix + K` | සැසිය විනාශ කරන්න |
+| `Prefix + R` | සැසියේ නම වෙනස් කරන්න |
+| `Prefix + N` | ඊළඟ සැසිය |
+| `Prefix + P` | පෙර සැසිය |
+| `Alt + Arrow Up/Down` | සැසි අතර ගමන් කරන්න |
+| `Prefix + s` | සැසි ලැයිස්තුගත කරන්න |
+| `Prefix + d` | සැසියෙන් වෙන් වන්න |
 
-### Copy mode (vi-style)
+### පිටපත් ප්‍රකාරය (vi-විලාසය)
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Prefix + [` | Copy mode එකට ඇතුළු වන්න |
-| `v` | තේරීම ආරම්භ කරන්න (copy mode හි) |
-| `y` | තේරීම copy කරන්න (copy mode හි) |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Prefix + [` | පිටපත් ප්‍රකාරයට පිවිසෙන්න |
+| `v` | තේරීම ආරම්භ කරන්න (පිටපත් ප්‍රකාරයේදී) |
+| `y` | තේරීම පිටපත් කරන්න (පිටපත් ප්‍රකාරයේදී) |
 
-### General
+### සාමාන්‍ය
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Prefix + q` | Config reload කරන්න |
-| `Prefix + ?` | Tmux keybindings පෙන්වන්න |
-| `Prefix + :` | Command prompt |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Prefix + q` | වින්‍යාසය නැවත පූරණය කරන්න |
+| `Prefix + ?` | Tmux යතුරු බන්ධන පෙන්වන්න |
+| `Prefix + :` | විධාන ආරාධනය |
 
-### Tmux layout functions
+### Tmux පිරිසැලසුම් ශ්‍රිත
 
-මෙම functions Tmux session එකක් තුළ ධාවනය කළ යුතුය.
+මෙම ශ්‍රිත Tmux සැසියක් තුළ ධාවනය කළ යුතුය.
 
-| Command | ක්‍රියාව |
-| --- | --- |
-| `tdl <ai> [<second_ai>]` | Editor, AI, සහ terminal සමඟ dev layout එකක් සාදන්න |
-| `tdlm <ai> [<second_ai>]` | උපඩිරෙක්ටරියකට dev layout එකක් සාදන්න |
-| `tsl <count> <command>` | බහු-pane swarm layout එකක් සාදන්න |
+| විධානය | කාර්යය |
+| ------- | -------- |
+| `tdl <ai> [<second_ai>]` | සංස්කාරකය, AI, සහ ටර්මිනලය සමඟ සංවර්ධන පිරිසැලසුමක් සාදන්න |
+| `tdlm <ai> [<second_ai>]` | උප නාමාවලියකට සංවර්ධන පිරිසැලසුමක් සාදන්න |
+| `tsl <count> <command>` | බහු-පැනල රොත්ත පිරිසැලසුමක් සාදන්න |
 
 ## Ghostty Terminal
 
-Ghostty terminal එක Omarchy මෙනුව හරහා _Install > Terminal_ භාවිතයෙන් ස්ථාපනය කෙරේ.
+Ghostty ටර්මිනලය Omarchy මෙනුව හරහා _Install > Terminal_ භාවිතයෙන් ස්ථාපනය කෙරේ.
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Ctrl + Shift + E` | පහළින් new split |
-| `Ctrl + Shift + O` | අසලින් new split |
-| `Ctrl + Alt + Arrows` | Splits අතර ගමන් කරන්න |
-| `Super + Ctrl + Shift + Arrows` | Split එක පේළි 10කින් resize කරන්න |
-| `Super + Ctrl + Shift + Alt + Arrows` | Split එක පේළි 100කින් resize කරන්න |
-| `Ctrl + Shift + T` | New tab |
-| `Ctrl + Shift + Arrows` | Tabs අතර ගමන් කරන්න |
-| `Alt + Numbers` | නිශ්චිත tab එකට යන්න |
-| `Shift + Pg Up/Down` | ඉතිහාසය scroll කරන්න |
-| `Ctrl + Left mouse` | Link එක browser හි විවෘත කරන්න |
+| හොට්කී | කාර්යය |
+| ----------------------- | --------------------- |
+| `Ctrl + Shift + E` | පහළ අලුත් බෙදීමක් |
+| `Ctrl + Shift + O` | පසෙකින් අලුත් බෙදීමක් |
+| `Ctrl + Alt + Arrows` | බෙදීම් අතර ගමන් කරන්න |
+| `Super + Ctrl + Shift + Arrows` | පේළි 10කින් බෙදීමේ ප්‍රමාණය වෙනස් කරන්න |
+| `Super + Ctrl + Shift + Alt + Arrows` | පේළි 100කින් බෙදීමේ ප්‍රමාණය වෙනස් කරන්න |
+| `Ctrl + Shift + T` | අලුත් ටැබ් එකක් |
+| `Ctrl + Shift + Arrows` | ටැබ් අතර ගමන් කරන්න |
+| `Alt + Numbers` | නිශ්චිත ටැබ් එකට යන්න |
+| `Shift + Pg Up/Down` | ඉතිහාසය අනුචලනය කරන්න |
+| `Ctrl + Left mouse` | බ්‍රවුසරයේ සබැඳිය විවෘත කරන්න |
 
-## File Manager
+## ගොනු කළමනාකරු
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Ctrl + L` | Path එකට යන්න |
-| `Space` | File preview කරන්න (ඊතල මඟින් navigate කරයි) |
-| `Alt + Up` | Parent folder එකට ඉහළට යන්න |
+| හොට්කී | කාර්යය |
+| ------------------- | ------------------------------ |
+| `Ctrl + L` | මාර්ගයට යන්න |
+| `Space` | ගොනුව පෙරදක්වන්න (ඊතල වලින් සැරිසරන්න) |
+| `Alt + Up` | මව් ෆෝල්ඩරයට ඉහළට යන්න |
 
 ## Neovim (w/ lazyvim)
 
-### Navigation
+### සැරිසැරීම
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `Space` | Command විකල්ප පෙන්වන්න |
-| `Space Space` | Fuzzy search හරහා file විවෘත කරන්න |
-| `Space E` | Sidebar එක toggle කරන්න |
-| `Space G G` | Git controls පෙන්වන්න |
-| `Space S G` | File අන්තර්ගතය සොයන්න |
-| `Ctrl + W W` | Sidebar සහ editor අතර පනින්න |
-| `Ctrl + Left/right arrow` | Sidebar එකේ ප්‍රමාණය වෙනස් කරන්න |
-| `Shift + H` | වම් file tab එකට යන්න |
-| `Shift + L` | දකුණු file tab එකට යන්න |
-| `Space B D` | File tab එක වසන්න |
+| හොට්කී | කාර්යය |
+| ------------------------ | ------------------------------- |
+| `Space` | විධාන විකල්ප පෙන්වන්න |
+| `Space Space` | නොපැහැදිලි සෙවුම හරහා ගොනුව විවෘත කරන්න |
+| `Space E` | පැති තීරුව මාරු කරන්න |
+| `Space G G` | git පාලන පෙන්වන්න |
+| `Space S G` | ගොනු අන්තර්ගතය සොයන්න |
+| `Ctrl + W W` | පැති තීරුව සහ සංස්කාරකය අතර පනින්න |
+| `Ctrl + Left/right arrow` | පැති තීරුවේ ප්‍රමාණය වෙනස් කරන්න |
+| `Shift + H` | වම් ගොනු ටැබයට යන්න |
+| `Shift + L` | දකුණු ගොනු ටැබයට යන්න |
+| `Space B D` | ගොනු ටැබය වසන්න |
 
-### While in sidebar
+### පැති තීරුවේ සිටින අතරතුර
 
-| හොට්කී | ක්‍රියාව |
-| --- | --- |
-| `A` | Parent dir හි new file එකක් එක් කරන්න |
-| `Shift + A` | Parent dir හි new subdir එකක් එක් කරන්න |
-| `D` | Highlight කළ file/dir මකන්න |
-| `M` | Highlight කළ file/dir ගෙන යන්න |
-| `R` | Highlight කළ file/dir rename කරන්න |
-| `?` | සියලු commands සඳහා help පෙන්වන්න |
+| හොට්කී | කාර්යය |
+| ------------------------ | ------------------------------- |
+| `A` | මව් නාමාවලියේ අලුත් ගොනුවක් එක් කරන්න |
+| `Shift + A` | මව් නාමාවලියේ අලුත් උප නාමාවලියක් එක් කරන්න |
+| `D` | උද්දීපනය කළ ගොනුව/නාමාවලිය මකන්න |
+| `M` | උද්දීපනය කළ ගොනුව/නාමාවලිය ගෙන යන්න |
+| `R` | උද්දීපනය කළ ගොනුව/නාමාවලියේ නම වෙනස් කරන්න |
+| `?` | සියලුම විධාන සඳහා උදව් පෙන්වන්න |
 
-[LazyVim මඟින් වින්‍යාස කළ සියලුම Neovim හොට්කී බලන්න](https://www.lazyvim.org/keymaps).
+[LazyVim මඟින් වින්‍යාස කළ සියලුම Neovim හොට්කීස් බලන්න](https://www.lazyvim.org/keymaps).
 
-## Quick Emojis
+## ඉක්මන් ඉමෝජි
 
-සම්පූර්ණ emoji picker එකක් පෙන්වීමට ඔබට `Super + Ctrl + E` භාවිතා කළ හැකිය, එය තේරීම clipboard එකට දමනු ඇත, නැතහොත් ඔබට මෙම quick access විකල්ප භාවිතා කළ හැකිය.
+ඔබට සම්පූර්ණ ඉමෝජි තෝරකයක් පෙන්වීමට `Super + Ctrl + E` භාවිතා කළ හැකි අතර, එය තේරීම ක්ලිප්බෝඩයට දමනු ඇත, නැතහොත් ඔබට මෙම ඉක්මන් ප්‍රවේශ විකල්ප භාවිතා කළ හැකිය.
 
 | හොට්කී | EM | ඉඟිය |
-| --- | -- | --- |
+| ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | සිනහව |
-| `Shift + CapsLock M C` | 😂 | හැඬීම |
+| `Shift + CapsLock M C` | 😂 | අඬන්න |
 | `Shift + CapsLock M L` | 😍 | ආදරය |
 | `Shift + CapsLock M V` | ✌️ | ජයග්‍රහණය |
 | `Shift + CapsLock M H` | ❤️ | හදවත |
 | `Shift + CapsLock M Y` | 👍 | ඔව් |
 | `Shift + CapsLock M N` | 👎 | නැත |
-| `Shift + CapsLock M F` | 🖕 | fuck |
+| `Shift + CapsLock M F` | 🖕 | මැද ඇඟිල්ල |
 | `Shift + CapsLock M W` | 🤞 | පැතුම |
-| `Shift + CapsLock M R` | 🤘 | rock |
+| `Shift + CapsLock M R` | 🤘 | රොක් |
 | `Shift + CapsLock M K` | 😘 | හාදුව |
-| `Shift + CapsLock M E` | 🙄 | eyeroll |
-| `Shift + CapsLock M I` | 😉 | wink |
-| `Shift + CapsLock M P` | 🙏 | යාඥාව |
-| `Shift + CapsLock M D` | 🤤 | drool |
+| `Shift + CapsLock M E` | 🙄 | ඇස් කරකැවීම |
+| `Shift + CapsLock M I` | 😉 | ඇස් ගැසීම |
+| `Shift + CapsLock M P` | 🙏 | යාච්ඤාව |
+| `Shift + CapsLock M D` | 🤤 | කෙළ හැළීම |
 | `Shift + CapsLock M M` | 💰 | මුදල් |
-| `Shift + CapsLock M X` | 🎉 | xellebrate |
+| `Shift + CapsLock M X` | 🎉 | සැමරීම |
 | `Shift + CapsLock M 1` | 💯 | 100% |
-| `Shift + CapsLock M T` | 🥂 | toast |
-| `Shift + CapsLock M O` |👌 | ok |
+| `Shift + CapsLock M T` | 🥂 | ටෝස්ට් |
+| `Shift + CapsLock M O` |👌 | හරි |
 | `Shift + CapsLock M G` |👋 | ආචාරය |
-| `Shift + CapsLock M A` |💪 | අත |
-| `Shift + CapsLock M B` |🤯 | blowing |
+| `Shift + CapsLock M A` |💪 | බාහුව |
+| `Shift + CapsLock M B` |🤯 | මවිතය |
 
-## Quick Completions
+## ඉක්මන් සම්පූර්ණ කිරීම්
 
-| හොට්කී | Completion |
-| --- | --- |
+| හොට්කී | සම්පූර්ණ කිරීම |
+| ------------ | ---------- |
 | `Shift + CapsLock Space Space` | — (mdash) |
-| `Shift + CapsLock Space N` | ඔබේ නම (setup හි ඇතුළත් කළ පරිදි) |
-| `Shift + CapsLock Space E` | ඔබේ email එක (setup හි ඇතුළත් කළ පරිදි) |
+| `Shift + CapsLock Space N` | ඔබේ නම (සැකසීමේදී ඇතුළත් කළ පරිදි) |
+| `Shift + CapsLock Space E` | ඔබේ ඊමේල් එක (සැකසීමේදී ඇතුළත් කළ පරිදි) |
 
-`~/.XCompose` සංස්කරණය කිරීමෙන් ඔබට ඔබේම තවත් එක් කළ හැකිය, ඉන්පසු වෙනස්කම් ලබා ගැනීම සඳහා terminal හි `omarchy restart xcompose` ධාවනය කරන්න.
+ඔබට `~/.XCompose` සංස්කරණය කිරීමෙන් ඔබේම තවත් එක් කළ හැකි අතර, පසුව වෙනස්කම් ලබා ගැනීම සඳහා ටර්මිනලයේ `omarchy restart xcompose` ධාවනය කරන්න.

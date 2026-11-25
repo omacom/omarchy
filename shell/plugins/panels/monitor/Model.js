@@ -126,6 +126,7 @@ function resolutionLabel(resolution) {
   if (h >= 4320) return "8K"
   if (w >= 6000) return "6K"
   if (w >= 5120 && h >= 2880) return "5K"
+  if (w >= 5120 && h >= 2160) return "5K2K"
   if (w >= 3840 && h >= 2160) return "4K"
   return h + "p"
 }

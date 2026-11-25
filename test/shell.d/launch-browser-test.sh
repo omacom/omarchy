@@ -145,6 +145,15 @@ launch --private
 [[ $(sed '1,/^--$/d' "$launch_log") == $'chromium\n--incognito' ]] || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
 
+printf '[Desktop Entry]\r\nName=Work Chromium\r\nExec=chromium --name %%c %%U\r\nStartupWMClass=chromium-crlf\r\n' >"$test_home/.local/share/applications/chromium.desktop"
+launch "https://example.test/crlf"
+expected=$(printf '%s\n' chromium --name "Work Chromium" https://example.test/crlf)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "a CRLF entry passes its decoded name and URL without carriage returns" "$(cat "$launch_log")"
+grep -Fx '^chromium-crlf$' "$focus_log" >/dev/null ||
+  fail "a CRLF entry focuses its declared window class" "$(cat "$focus_log")"
+pass "browser launcher reads CRLF Exec, Name and StartupWMClass values"
+
 cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 [Desktop Entry]
 Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100%% %U
