@@ -762,7 +762,7 @@ keybindings_cache_key() {
 
   read -r hash _ < <(
     {
-      printf 'v23\n'
+      printf 'v24\n'
       printf '%s\n' "$lang"
       [[ -n $lang ]] && cat "$OMARCHY_PATH/default/i18n/$lang/keybindings.json" 2>/dev/null
       cat "$key_names_file" 2>/dev/null
