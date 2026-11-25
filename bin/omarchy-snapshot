@@ -1,21 +1,46 @@
 #!/bin/bash
 
-# omarchy:summary=Create or restore system snapshots with snapper
-# omarchy:args=<create|restore>
+# omarchy:summary=Create, list, boot into or restore system snapshots
+# omarchy:args=<create|list|boot NUMBER|restore [NUMBER|backup|--cancel]>
+# omarchy:examples=omarchy snapshot create | omarchy snapshot boot 12 | omarchy snapshot restore 12
 # omarchy:requires-sudo=true
 
 set -e
 
 COMMAND="$1"
+STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
+USAGE="Usage: omarchy-snapshot <create|list|boot NUMBER|restore [NUMBER|backup|--cancel]>"
 
 if [[ -z $COMMAND ]]; then
-  echo "Usage: omarchy-snapshot <create|restore>" >&2
+  echo "$USAGE" >&2
   exit 1
 fi
 
 if omarchy-cmd-missing snapper; then
   exit 127 # omarchy-update can use this to just ignore if snapper is not available
 fi
+
+# Without the boot commands (an older install), snapshots work as on Limine.
+backend=$(omarchy-boot-backend 2>/dev/null || echo limine)
+
+# The snapshot the running system was booted from, if any.
+booted_snapshot() {
+  sed -n 's#.*rootflags=[^ ]*subvol=[^ ,]*/\.snapshots/\([0-9]*\)/snapshot.*#\1#p' /proc/cmdline
+}
+
+# entries: PROFILE-ID <TAB> ENTRY-ID <TAB> TITLE, written by omarchy-boot-sync.
+snapshot_entries() {
+  [[ -f $STORE/entries ]] && awk -F'\t' '$1 ~ /^snapshot-[0-9]+$/ { sub(/^snapshot-/, "", $1); print $1 "\t" $2 "\t" $3 }' "$STORE/entries" | sort -rn
+  return 0
+}
+
+confirm_reboot() {
+  if gum confirm "$1"; then
+    omarchy-system reboot
+  else
+    echo "$(omarchy-i18n snapshot.nextReboot)"
+  fi
+}
 
 case "$COMMAND" in
 create)
@@ -29,25 +54,83 @@ create)
   # reads as a successful snapshot, so the next update looks recoverable when
   # nothing has ever been captured.
   if (( ${#CONFIGS[@]} == 0 )); then
-    echo -e "\e[33mNo Snapper configs found, so no snapshot was created.\e[0m" >&2
-    echo "Configure Snapper with: sudo bash -euo pipefail \"$OMARCHY_PATH/install/config/snapper.sh\"" >&2
+    echo -e "\e[33m$(omarchy-i18n snapshot.noConfigs)\e[0m" >&2
+    echo "$(omarchy-i18n snapshot.configure "sudo bash -euo pipefail \"$OMARCHY_PATH/install/config/snapper.sh\"")" >&2
     exit 1
   fi
 
-  echo -e "\e[32mCreate system snapshot\e[0m"
+  echo -e "\e[32m$(omarchy-i18n snapshot.create)\e[0m"
 
+  root_number=""
   for config in "${CONFIGS[@]}"; do
-    sudo snapper -c "$config" create -c number -d "$DESC"
+    number=$(sudo snapper -c "$config" create -c number -d "$DESC" -p)
+    [[ $config == "root" ]] && root_number=$number
     sudo snapper -c "$config" cleanup number
   done
 
-  echo "Snapshots can be selected during boot."
+  # On systemd-boot the snapshot's boot entry is built by omarchy-boot-sync;
+  # wait for it, and check it is there, so an update only goes ahead once its
+  # rollback point boots. Until a switch to systemd-boot finishes, nothing pins
+  # a snapshot to a boot image (omarchy-boot-systemd's snapper plugin comes
+  # with the finish): its rollback point is in Limine's menu.
+  if [[ $backend == "systemd-boot" && -f ${OMARCHY_BOOT_SYSTEMD_MARKER:-/usr/lib/snapper/plugins/20-omarchy-boot} ]]; then
+    if ! sudo omarchy-boot-sync sync >/dev/null ||
+      { [[ -n $root_number ]] && ! grep -q "^snapshot-$root_number"$'\t' "${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}/entries"; }; then
+      echo -e "\e[33m$(omarchy-i18n snapshot.bootEntryFailed)\e[0m" >&2
+      exit 1
+    fi
+  fi
+
+  echo "$(omarchy-i18n snapshot.bootSelectable)"
+  ;;
+list)
+  if [[ $backend == systemd-boot ]]; then
+    snapshot_entries | awk -F'\t' '{ print $1 "\t" $3 }'
+  else
+    sudo snapper -c root list
+  fi
+  ;;
+boot)
+  [[ $backend == systemd-boot ]] || { echo "$(omarchy-i18n snapshot.bootFromLimine)" >&2; exit 1; }
+  number=${2:-}
+  [[ $number =~ ^[0-9]+$ ]] || { echo "$USAGE" >&2; exit 1; }
+  entry=$(snapshot_entries | awk -F'\t' -v n="$number" '$1 == n { print $2 }' | sed -n 1p)
+  [[ -n $entry ]] || { echo "$(omarchy-i18n snapshot.noBootEntry "$number")" >&2; exit 1; }
+  # Only arm an entry whose image is on the ESP.
+  esp=/boot
+  [[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == vfat ]] && esp=/efi
+  sudo test -s "$esp/EFI/Linux/${entry%%@*}" || { echo "$(omarchy-i18n snapshot.bootImageMissing "$number")" >&2; exit 1; }
+  sudo bootctl set-oneshot "$entry"
+  echo "$(omarchy-i18n snapshot.bootNext "$number")"
+  confirm_reboot "$(omarchy-i18n snapshot.rebootIntoConfirm "$number")"
   ;;
 restore)
-  sudo limine-snapper-restore
+  if [[ $backend != systemd-boot ]]; then
+    sudo limine-snapper-restore
+    exit
+  fi
+  target=${2:-}
+  if [[ $target == --cancel ]]; then
+    sudo omarchy-boot-sync restore-cancel
+    exit
+  fi
+  [[ -n $target ]] || target=$(booted_snapshot)
+  if [[ -z $target ]]; then
+    target=$(snapshot_entries | awk -F'\t' '{ print $1 "  " $3 }' | gum choose --header "$(omarchy-i18n snapshot.restoreWhich)" | awk '{ print $1 }') || exit 1
+  fi
+  [[ -n $target ]] || exit 1
+
+  if [[ $target == backup ]]; then
+    echo "$(omarchy-i18n snapshot.restoreBackupExplain)"
+  else
+    echo "$(omarchy-i18n snapshot.restoreExplain "$target")"
+  fi
+  gum confirm "$(omarchy-i18n snapshot.restoreConfirm)" || exit 1
+  sudo omarchy-boot-sync restore-stage "$target"
+  confirm_reboot "$(omarchy-i18n snapshot.restoreReboot)"
   ;;
 *)
-  echo "Usage: omarchy-snapshot <create|restore>" >&2
+  echo "$USAGE" >&2
   exit 1
   ;;
 esac

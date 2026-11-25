@@ -24,6 +24,8 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  property bool rescanQueued: false
+  property bool destroying: false
   property string lastEnableError: ""
 
   signal pluginsChanged()
@@ -36,7 +38,8 @@ QtObject {
   function isSafeEntryPoint(value) {
     if (typeof value !== "string" || value.length === 0) return false
     if (value.charAt(0) === "/") return false
-    if (value.indexOf("..") !== -1) return false
+    if (value.indexOf("..") !== -1 || value.indexOf("\\") !== -1) return false
+    if (/[\x00-\x1f]/.test(value)) return false
     return true
   }
 
@@ -57,7 +60,8 @@ QtObject {
       }
     }
     var id = String(manifest.id)
-    if (!id || id.indexOf("/") !== -1 || id.indexOf("..") !== -1 || id.charAt(0) === "/") {
+    if (!id || id === "." || id === "__proto__" || id === "constructor" || id === "prototype"
+        || id.indexOf("/") !== -1 || id.indexOf("..") !== -1 || /[\x00-\x1f]/.test(id)) {
       console.warn("PluginRegistry: invalid plugin id '" + id + "' at " + sourcePath)
       return null
     }
@@ -601,55 +605,57 @@ QtObject {
   // ---------------------------------------------------------------- scanning
 
   // Output format produced by the rescan script:
-  //   ===<kind>::<absolute-source-dir>===
-  //   ... raw manifest.json content ...
+  //   ===<kind>::<line-count>::<absolute-source-dir>===
+  //   ... exact <line-count> raw manifest.json lines ...
   //   === EOM ===
   // (repeating for every manifest found)
+  function isWithinDir(path, rootDir) {
+    var base = String(rootDir || "").replace(/\/+$/, "")
+    if (!base) return false
+    var candidate = String(path || "").replace(/\/+$/, "")
+    if (candidate.split("/").indexOf("..") !== -1) return false
+    return candidate.indexOf(base + "/") === 0
+  }
+
   function parseScanOutput(text) {
     var lines = String(text || "").split("\n")
     var firstParty = {}
     var thirdParty = {}
-    var currentSource = null
-    var currentKind = null
-    var currentJson = []
 
-    function flush() {
-      if (!currentSource) return
-      var raw = currentJson.join("\n").trim()
+    for (var i = 0; i < lines.length; i++) {
+      var startMatch = lines[i].match(/^===(firstparty|thirdparty)::(\d+)::(.+)===$/)
+      if (!startMatch) continue
+      var kind = startMatch[1]
+      var lineCount = parseInt(startMatch[2], 10)
+      var source = startMatch[3].replace(/\/+$/, "")
+      if (i + lineCount >= lines.length) {
+        console.warn("PluginRegistry: truncated manifest stream at " + source)
+        break
+      }
+      var raw = lines.slice(i + 1, i + 1 + lineCount).join("\n").trim()
+      i += lineCount
+      if (lines[i + 1] === "=== EOM ===") i++
+      if (kind === "firstparty" && !isWithinDir(source, registry.firstPartyDir)) {
+        console.warn("PluginRegistry: rejecting first-party manifest outside firstPartyDir: " + source)
+        continue
+      }
       try {
         var manifest = JSON.parse(raw)
-        manifest.__sourceDir = currentSource
-        manifest.__isFirstParty = (currentKind === "firstparty")
-        var validated = validateManifest(manifest, currentSource + "/manifest.json")
+        if (!Util.isPlainObject(manifest)) {
+          console.warn("PluginRegistry: manifest is not an object at " + source + "/manifest.json")
+          continue
+        }
+        manifest.__sourceDir = source
+        manifest.__isFirstParty = (kind === "firstparty")
+        var validated = validateManifest(manifest, source + "/manifest.json")
         if (validated) {
-          if (currentKind === "firstparty") firstParty[validated.id] = validated
+          if (kind === "firstparty") firstParty[validated.id] = validated
           else thirdParty[validated.id] = validated
         }
       } catch (e) {
-        console.warn("PluginRegistry: bad manifest at " + currentSource + ": " + e)
+        console.warn("PluginRegistry: bad manifest at " + source + ": " + e)
       }
-      currentSource = null
-      currentKind = null
-      currentJson = []
     }
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i]
-      var startMatch = line.match(/^===([a-z]+)::(.+)===$/)
-      if (startMatch) {
-        flush()
-        currentKind = startMatch[1]
-        currentSource = startMatch[2].replace(/\/$/, "")
-        currentJson = []
-        continue
-      }
-      if (line === "=== EOM ===") {
-        flush()
-        continue
-      }
-      if (currentSource) currentJson.push(line)
-    }
-    flush()
 
     stampHostCapabilities(firstParty, thirdParty)
 
@@ -678,6 +684,10 @@ QtObject {
     onExited: function(exitCode) {
       var output = scanStdout.text || ""
       registry.parseScanOutput(output)
+      if (registry.rescanQueued && !registry.destroying) {
+        registry.rescanQueued = false
+        registry.rescan()
+      }
     }
     stdout: StdioCollector {
       id: scanStdout
@@ -699,6 +709,7 @@ QtObject {
   // own command line from matching its search.
   property Process watcherReaper: Process {
     onExited: {
+      if (registry.destroying) return
       localPluginWatcher.running = true
       registry.rescan()
     }
@@ -719,6 +730,7 @@ QtObject {
   // A graceful stop takes the watcher with it; the reaper above covers the
   // stops that never run this (a killed or crashed shell).
   Component.onDestruction: {
+    destroying = true
     localPluginWatcherRestart.stop()
     localPluginWatcher.running = false
   }
@@ -741,7 +753,9 @@ QtObject {
         if (pluginId) registry.localPluginChanged(pluginId)
       }
     }
-    onExited: localPluginWatcherRestart.restart()
+    onExited: {
+      if (!registry.destroying) localPluginWatcherRestart.restart()
+    }
   }
 
   property Timer localPluginWatcherRestart: Timer {
@@ -750,8 +764,12 @@ QtObject {
   }
 
   function rescan() {
-    if (scanning) return
+    if (scanning) {
+      registry.rescanQueued = true
+      return
+    }
     scanning = true
+    registry.rescanQueued = false
     // $0 = first-party dir, $1 = third-party dir. Some bash versions need the explicit -- separator.
     // First-party plugins may be grouped one level deeper, e.g. panels/audio
     // or services/battery.
@@ -759,22 +777,29 @@ QtObject {
     // widgets/Clock.manifest.json so multiple widgets can live in one source
     // directory without wrapper folders.
     // Third-party plugins stay at the top level of ~/.config/omarchy/plugins.
+    // Each manifest is framed by its exact line count so untrusted third-party
+    // manifest contents can never inject a synthetic header (such as
+    // `===firstparty::...===`) or truncate parsing early.
     var script = ""
-      + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
+      + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; local -a lines=(); "
+      + "  [[ -r $manifest ]] || return 0; "
       + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"${manifest%/*}\"; fi; "
-      + "  printf '===%s::%s===\\n' \"$kind\" \"$sub\"; "
-      + "  printf '%s\\n' \"$(<\"$manifest\")\"; "
-      + "  printf '\\n=== EOM ===\\n'; "
+      + "  sub=\"${sub%/}\"; "
+      + "  [[ $sub == *$'\\n'* ]] && return 0; "
+      + "  mapfile -t lines < \"$manifest\"; "
+      + "  printf '===%s::%d::%s===\\n' \"$kind\" \"${#lines[@]}\" \"$sub\"; "
+      + "  if (( ${#lines[@]} > 0 )); then printf '%s\\n' \"${lines[@]}\"; fi; "
+      + "  printf '=== EOM ===\\n'; "
       + "}; "
       + "scan_firstparty() { local dir=\"$1\"; "
-      + "  [[ -d \"$dir\" ]] || return 0; "
-      + "  while IFS= read -r manifest; do emit_manifest firstparty \"$manifest\"; done < <(find \"$dir\" -mindepth 2 -maxdepth 3 -type f \\( -name manifest.json -o -name '*.manifest.json' \\) | sort); "
+      + "  [[ -d $dir ]] || return 0; "
+      + "  while IFS= read -r -d '' manifest; do emit_manifest firstparty \"$manifest\"; done < <(find \"$dir\" -mindepth 2 -maxdepth 3 -type f \\( -name manifest.json -o -name '*.manifest.json' \\) -print0 | sort -z); "
       + "}; "
       + "scan_thirdparty() { local dir=\"$1\"; "
-      + "  [[ -d \"$dir\" ]] || return 0; "
+      + "  [[ -d $dir ]] || return 0; "
       + "  for sub in \"$dir\"/*/; do "
-      + "    [[ -f \"$sub/manifest.json\" ]] || continue; "
-      + "    emit_manifest thirdparty \"$sub/manifest.json\"; "
+      + "    [[ -f ${sub}manifest.json ]] || continue; "
+      + "    emit_manifest thirdparty \"${sub}manifest.json\"; "
       + "  done; "
       + "}; "
       + "scan_firstparty \"$0\"; "
@@ -784,7 +809,7 @@ QtObject {
   }
 
   function ensureUserDir() {
-    initProcess.command = ["bash", "-c", "mkdir -p \"$0\"", registry.pluginsDir]
+    initProcess.command = ["mkdir", "-p", registry.pluginsDir]
     initProcess.running = true
   }
 
@@ -804,5 +829,8 @@ QtObject {
     return slash === -1 ? relative : relative.slice(0, slash)
   }
 
-  Component.onCompleted: ensureUserDir()
+  Component.onCompleted: {
+    if (firstPartyDir) rescan()
+    ensureUserDir()
+  }
 }

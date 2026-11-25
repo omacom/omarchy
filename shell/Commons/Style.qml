@@ -69,6 +69,10 @@ QtObject {
     return v.length > 0 ? v : fallback
   }
 
+  // Touchpad deltas reach shell layers already scaled by Hyprland's touchpad
+  // scroll_factor, without the per-window boost terminals get; 3.0 feels like foot at 1.5.
+  readonly property real touchpadScrollFactor: 3.0
+
   readonly property string normalColorToken: styleString("normal-color", "foreground")
   readonly property string hoverColorToken: styleString("hover-cursor-color", "foreground")
   readonly property string selectedColorToken: styleString("selected-color", "foreground")
@@ -370,21 +374,36 @@ QtObject {
   // pointer: it starts at once and settles without a bounce.
   readonly property var easeOut: [0.23, 1.0, 0.32, 1.0, 1.0, 1.0]
 
+  property bool refreshPending: false
+  property bool fontResolvePending: false
+
   function refresh() {
+    if (hyprctlProc.running) {
+      refreshPending = true
+      return
+    }
     hyprctlProc.running = true
-    gapsOutProc.running = true
-    animationsProc.running = true
   }
 
   function scheduleRefresh() {
     refreshTimer.restart()
   }
 
+  function applyRoundingOption(json) {
+    var n = Number(json.int)
+    if (isFinite(n) && n >= 0) cornerRadius = n
+  }
+
+  function applyGapsOutOption(json) {
+    var css = String(json.css || "")
+    var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
+    var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
+    if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+  }
+
   function applyRoundingJson(raw) {
     try {
-      var json = JSON.parse(raw || "{}")
-      var n = Number(json.int)
-      if (isFinite(n) && n >= 0) cornerRadius = n
+      applyRoundingOption(JSON.parse(raw || "{}"))
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
@@ -392,13 +411,25 @@ QtObject {
 
   function applyGapsOutJson(raw) {
     try {
-      var json = JSON.parse(raw || "{}")
-      var css = String(json.css || "")
-      var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
-      var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
-      if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+      applyGapsOutOption(JSON.parse(raw || "{}"))
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
+    }
+  }
+
+  function applyBatchOptionsJson(raw) {
+    var chunks = String(raw || "").trim().split(/\n\s*\n/)
+    for (var i = 0; i < chunks.length; i++) {
+      var chunk = chunks[i].trim()
+      if (!chunk) continue
+      try {
+        var json = JSON.parse(chunk)
+        if (json.option === "decoration:rounding") applyRoundingOption(json)
+        else if (json.option === "general:gaps_out") applyGapsOutOption(json)
+        else if (json.option === "animations:enabled") root.reduceMotion = json.bool === false
+      } catch (e) {
+        // hyprctl missing / Hyprland not running — leave the previous value.
+      }
     }
   }
 
@@ -467,24 +498,15 @@ QtObject {
 
   property Process hyprctlProc: Process {
     id: hyprctlProc
-    command: ["hyprctl", "-j", "getoption", "decoration:rounding"]
+    command: ["hyprctl", "-j", "--batch", "getoption decoration:rounding ; getoption general:gaps_out ; getoption animations:enabled"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.applyRoundingJson(text)
+      onStreamFinished: root.applyBatchOptionsJson(text)
     }
-  }
-
-  property Process animationsProc: Process {
-    id: animationsProc
-    command: ["hyprctl", "-j", "getoption", "animations:enabled"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        try {
-          root.reduceMotion = JSON.parse(text || "{}").bool === false
-        } catch (e) {
-          // hyprctl missing / Hyprland not running — leave the previous value.
-        }
+    onExited: {
+      if (root.refreshPending) {
+        root.refreshPending = false
+        running = true
       }
     }
   }
@@ -498,19 +520,14 @@ QtObject {
     }
   }
 
-  property Process gapsOutProc: Process {
-    id: gapsOutProc
-    command: ["hyprctl", "-j", "getoption", "general:gaps_out"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyGapsOutJson(text)
-    }
-  }
-
   // Resolve the fontconfig alias to a concrete family name. `omarchy font
   // set <name>` rewrites ~/.config/fontconfig/fonts.conf and restarts the
   // shell, but rerun on file change anyway so manual edits propagate too.
   function resolveFontFamily() {
+    if (fcMatchProc.running) {
+      fontResolvePending = true
+      return
+    }
     fcMatchProc.running = true
   }
 
@@ -524,15 +541,23 @@ QtObject {
         if (name.length > 0) root.resolvedFontFamily = name
       }
     }
+    onExited: {
+      if (root.fontResolvePending) {
+        root.fontResolvePending = false
+        running = true
+      }
+    }
   }
 
   property FileView fontconfigFile: FileView {
     path: Quickshell.env("HOME") + "/.config/fontconfig/fonts.conf"
     watchChanges: true
+    preload: false
     printErrors: false
-    onFileChanged: root.resolveFontFamily()
-    onLoaded: root.resolveFontFamily()
-    onLoadFailed: root.resolveFontFamily()
+    onFileChanged: {
+      reload()
+      root.resolveFontFamily()
+    }
   }
 
   // Re-poll Hyprland a beat after either input file changes. Hyprland's
@@ -552,10 +577,12 @@ QtObject {
   property FileView windowNoGapsToggle: FileView {
     path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles/hypr/window-no-gaps.lua"
     watchChanges: true
+    preload: false
     printErrors: false
-    onFileChanged: refreshTimer.restart()
-    onLoaded: refreshTimer.restart()
-    onLoadFailed: refreshTimer.restart()
+    onFileChanged: {
+      reload()
+      refreshTimer.restart()
+    }
   }
 
   Component.onCompleted: {

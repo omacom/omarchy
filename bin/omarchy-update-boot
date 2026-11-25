@@ -30,7 +30,7 @@ resolved=$(omarchy-lifecycle-dispatch --resolve "$operation" 2>"$errors") || sta
 # predates it and boots a chain the package does not manage, so verification
 # warns instead of failing every update until the package is installed.
 if (( status == 3 )); then
-  echo -e "\e[33m\n$(sed 's/^Error: //' "$errors")\nThe boot files were not verified. This machine predates its platform's boot package; updates verify them once it is installed.\e[0m" >&2
+  echo -e "\e[33m\n$(sed 's/^Error: //' "$errors")\n$(omarchy-i18n update.bootNotVerified)\e[0m" >&2
 elif (( status != 0 )); then
   cat "$errors" >&2
   exit "$status"
