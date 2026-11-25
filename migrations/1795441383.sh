@@ -26,7 +26,14 @@ installed_version() {
 # Cloudflare from Install > CLI, and each coding agent from Install > AI > CLI,
 # so one of them becomes its package only if it was in use. The lists are read
 # first and installed in one go, with the terminal still on stdin for sudo.
-packages=(nodejs playwright-cli uv)
+packages=(playwright-cli uv)
+# nodejs only where no installed package provides it. Bitwarden's CLI comes from
+# Install > Service with nodejs-lts-jod, which conflicts with the nodejs package,
+# and failing that transaction would keep every later migration from running.
+# pacman -T names nodejs back only when nothing installed already satisfies it.
+if [[ -n $(pacman -T nodejs) ]]; then
+  packages+=(nodejs)
+fi
 retired=(playwright uv)
 while read -r tool package; do
   if from_omarchy "$tool"; then
