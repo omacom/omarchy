@@ -56,7 +56,7 @@ fi
 agent_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
-  [[ $dir == "$HOME/.local/share/omarchy/agent-accounts/bin" ]] || agent_path+="${agent_path:+:}$dir"
+  [[ $dir == "$HOME/.local/state/omarchy/agent-accounts/bin" ]] || agent_path+="${agent_path:+:}$dir"
 done
 installed() {
   PATH=$agent_path type -P "$agent"

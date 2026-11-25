@@ -20,7 +20,7 @@ Don't split a kind of tool between mise and packages, and don't add a mise decla
 - `etc/mise/conf.d/omarchy.toml` holds settings, such as keeping the version a running process uses when `mise up` upgrades it.
 - `omarchy update` runs `omarchy-update-mise` for the runtimes the user set up.
 
-Account switching for `claude`, `codex` and `grok` is Omarchy's own, not mise's: `omarchy-agent-account-dispatch` writes a dispatcher into `~/.local/share/omarchy/agent-accounts/bin` for each of them that is installed, running `omarchy-agent-account-exec`, and `default/bash/env-bootstrap` puts that directory first on PATH, so every session, script and editor runs as the selected subscription account. There is no dispatcher for a CLI that isn't installed: installing or removing an agent through Omarchy rewrites them, and one whose CLI was removed some other way takes itself away the next time it runs.
+Account switching for `claude`, `codex` and `grok` is Omarchy's own, not mise's: `omarchy-agent-account-dispatch` writes a dispatcher into `~/.local/state/omarchy/agent-accounts/bin` for each of them that is installed, running `omarchy-agent-account-exec`, and `default/bash/env-bootstrap` puts that directory first on PATH, so every session, script and editor runs as the selected subscription account. There is no dispatcher for a CLI that isn't installed: installing or removing an agent through Omarchy rewrites them, and one whose CLI was removed some other way takes itself away the next time it runs.
 
 ## Leave the user's config alone
 

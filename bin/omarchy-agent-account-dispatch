@@ -10,7 +10,7 @@
 # claude command before Claude Code is. Installing or removing an agent through
 # Omarchy runs this; with no agents named, every one is brought in line.
 
-dir="$HOME/.local/share/omarchy/agent-accounts/bin"
+dir="$HOME/.local/state/omarchy/agent-accounts/bin"
 
 # The real CLI is whatever PATH finds past the dispatchers.
 cli_path=""

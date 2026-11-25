@@ -320,7 +320,7 @@ pass "use moves the chosen login into ~/.claude, so running sessions follow"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
 # A dispatcher exists only while its CLI is installed: no claude command before
 # Claude Code is.
-dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
+dispatchers="$HOME/.local/state/omarchy/agent-accounts/bin"
 # Only the mocks, never a real agent the machine running the test has.
 cli_only_path="$mock_bin:$ROOT/bin:/usr/bin"
 if [[ ! -e /usr/bin/grok ]]; then
@@ -350,6 +350,24 @@ agent_path=$(PATH="$dispatchers:$PATH:$dispatchers" OMARCHY_TEST_SHOW_PATH=1 "$d
 [[ $agent_path == "$dispatchers:"* && :${agent_path#"$dispatchers:"}: != *":$dispatchers:"* ]] ||
   fail "an agent's own subprocesses dispatch too" "$agent_path"
 pass "account dispatch follows the active account"
+
+# An install upgraded from Omarchy 3 keeps ~/.local/share/omarchy as a link into
+# root's package tree, so no dispatcher is written through it. One a fresh
+# install wrote there before they moved, still on a session's PATH, reaches the
+# real CLI rather than itself.
+package_tree="$test_tmp/package-tree"
+mkdir -p "$package_tree" "$HOME/.local/share"
+ln -sT "$package_tree" "$HOME/.local/share/omarchy"
+PATH=$cli_only_path omarchy-agent-account-dispatch claude
+[[ -x $dispatchers/claude && -z $(ls -A "$package_tree") ]] ||
+  fail "dispatchers stay out of the linked package tree" "$(ls -A "$package_tree")"
+old_dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
+mkdir -p "$old_dispatchers"
+cp "$dispatchers/claude" "$old_dispatchers/claude"
+[[ $(PATH="$old_dispatchers:$PATH" timeout 10 "$old_dispatchers/claude" --version) == "claude home=default args=--version" ]] ||
+  fail "a dispatcher left in the old directory runs the real CLI"
+rm -rf "$HOME/.local/share/omarchy" "$package_tree"
+pass "dispatchers live outside ~/.local/share/omarchy"
 
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
   fail "omarchy-agent starts Claude in ~/.claude"
@@ -716,7 +734,7 @@ pass "an added account that can't be selected says so"
 lazy_data="$test_tmp/lazy-mise"
 lazy_bin="$test_tmp/lazy-bin"
 lazy_pkexec="$test_tmp/lazy-pkexec"
-lazy_path="$lazy_pkexec:$pkg_bin:$HOME/.local/share/omarchy/agent-accounts/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+lazy_path="$lazy_pkexec:$pkg_bin:$HOME/.local/state/omarchy/agent-accounts/bin:$lazy_bin:$ROOT/bin:/usr/bin"
 mkdir -p "$lazy_bin" "$lazy_pkexec"
 for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
   ln -s "$mock_bin/$helper" "$lazy_bin/$helper"

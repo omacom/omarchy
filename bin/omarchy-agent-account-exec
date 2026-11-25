@@ -33,11 +33,15 @@ fi
 # was started from. A dispatcher exists only while its CLI is installed, so one
 # left by a CLI removed outside Omarchy takes itself away and answers the way
 # a shell would.
-dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
+dispatchers="$HOME/.local/state/omarchy/agent-accounts/bin"
+# They were in ~/.local/share/omarchy once. A session or PAM PATH line from
+# before they moved still names that directory, and a dispatcher left in it
+# would start this again without end.
+old_dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
 cli_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
-  [[ $dir == "$dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
+  [[ $dir == "$dispatchers" || $dir == "$old_dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
 done
 if ! agent_binary=$(PATH=$cli_path type -P "$provider"); then
   rm -f "$dispatchers/$provider"
