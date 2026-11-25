@@ -136,6 +136,7 @@ Item {
       fillColor: root.resolution.fillColor
       focalX: root.resolution.focalX
       focalY: root.resolution.focalY
+      rasterScale: root.resolution.rasterScale
       cached: true
       constrainDecode: true
       decodeSize: Qt.size(Math.round(width * Screen.devicePixelRatio), Math.round(height * Screen.devicePixelRatio))

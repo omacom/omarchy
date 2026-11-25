@@ -659,6 +659,7 @@ Item {
         fillColor: preloadResolver.fillColor
         focalX: preloadResolver.focalX
         focalY: preloadResolver.focalY
+        rasterScale: preloadResolver.rasterScale
         cached: true
         constrainDecode: true
         decodeSize: Qt.size(Math.round(preload.width * preload.modelData.devicePixelRatio), Math.round(preload.height * preload.modelData.devicePixelRatio))

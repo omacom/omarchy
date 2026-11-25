@@ -107,12 +107,12 @@ Item {
                               JSON.stringify({ cmd: "snapshot", path: snapshotProc.file })]
       snapshotProc.running = true
     } else {
-      cover(displayedStill())
+      cover(displayedStill(), backgroundService.introFrames())
     }
   }
 
-  function cover(path) {
-    intro.prepareTheme(path, token, "", "")
+  function cover(path, frames) {
+    intro.prepareTheme(path, token, "", "", frames)
     advance()
   }
 

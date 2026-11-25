@@ -13,6 +13,7 @@ Item {
   property color fillColor: "black"
   property real focalX: 0.5
   property real focalY: 0.5
+  property real rasterScale: 1
   // Versioned callers may opt into caching because the version is in the URL.
   property bool cached: version === 0
   property bool constrainDecode: false
@@ -44,6 +45,7 @@ Item {
       fillColor: root.fillColor
       focalX: root.focalX
       focalY: root.focalY
+      rasterScale: root.rasterScale
       sourceVersion: root.version
       useSourceSizeCap: root.constrainDecode || root.version > 0
       constrainDecode: root.constrainDecode
