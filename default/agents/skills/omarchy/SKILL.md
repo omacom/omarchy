@@ -79,6 +79,12 @@ enter a password there, such as a command launched by an agent or a graphical
 background process. Do not replace `sudo` with `pkexec` merely because a
 command changes system state.
 
+The one exception is installing an app Omarchy curates (a coding agent, an
+_Install > CLI_ tool, `gh`, an AI desktop app): use `omarchy-pkg-add-curated`,
+from a terminal or not. Its polkit action is what lets the machine's own
+session install without a password while SSH still asks, which `sudo` can't
+tell apart.
+
 ## System Architecture
 
 Omarchy is built on:

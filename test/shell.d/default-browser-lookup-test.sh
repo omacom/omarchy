@@ -43,7 +43,7 @@ cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
 [Added Associations]
 x-scheme-handler/http=firefox.desktop;
 
-[Default Applications]
+[Default Applications]   
 text/html=firefox.desktop
 x-scheme-handler/http=missing.desktop;removed.desktop;chromium.desktop;
 EOF
@@ -61,7 +61,18 @@ EOF
 [[ $(omarchy-cmd-default-browser) == "brave-browser.desktop" ]] ||
   fail "default browser prefers the desktop-specific mimeapps.list"
 
-rm "$XDG_CONFIG_HOME/hyprland-mimeapps.list"
+rm "$XDG_CONFIG_HOME/hyprland-mimeapps.list" "$XDG_CONFIG_HOME/mimeapps.list"
+cat >"$XDG_DATA_DIRS/applications/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=brave-browser.desktop
+EOF
+
+[[ $(omarchy-cmd-default-browser) == "brave-browser.desktop" ]] ||
+  fail "default browser reads mimeapps.list from XDG_DATA_DIRS/applications"
+[[ ! -e $OMARCHY_TEST_XDG_SETTINGS_LOG ]] ||
+  fail "default browser skips xdg-settings when data-dir mimeapps.list names one"
+
+rm "$XDG_DATA_DIRS/applications/mimeapps.list"
 printf '[Default Applications]\nx-scheme-handler/http=missing.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
 echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/fallback.desktop"
 

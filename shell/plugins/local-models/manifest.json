@@ -5,23 +5,11 @@
   "version": "1.0.0",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Models running on hardware you own, and the memory they run in, in a native Omarchy bar panel.",
+  "description": "Follows the models running on hardware you own and sets up the coding models the agents panel adds.",
   "kinds": [
-    "service",
-    "bar-widget"
+    "service"
   ],
-  "activation": "on-demand",
   "entryPoints": {
-    "service": "Models.qml",
-    "barWidget": "Panel.qml"
-  },
-  "barWidget": {
-    "displayName": "Local Models",
-    "description": "One bar icon and one panel: this machine's memory split between Omarchy and running models, and a line per model to start, stop, share, update or open.",
-    "category": "AI",
-    "allowMultiple": false,
-    "defaults": {
-      "hidden": []
-    }
+    "service": "Models.qml"
   }
 }
