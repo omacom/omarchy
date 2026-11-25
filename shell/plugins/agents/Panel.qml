@@ -643,8 +643,8 @@ Panel {
   property string settingUpLocal: ""
   readonly property var localSetup: settingUpLocal === "" ? null : localModelState({ target: settingUpLocal, host: "" })
 
-  // A tailnet model being paired with keeps its row too, its meter saying
-  // how the pairing goes; once paired, it has its line in the panel and
+  // A tailnet model being paired with keeps its row too, its metadata line
+  // saying how the pairing goes; once paired, it has its line in the panel and
   // becomes the default if nothing else was finished first.
   property string pairingLocal: ""
   onLocalModelLinesChanged: {
@@ -654,15 +654,15 @@ Panel {
     if (settingUpLocal === "" && addStage === "pick") cancelAdd()
   }
 
-  // The pairing's meter: under way, or why it failed.
-  readonly property var pairingMeter: {
+  // How the pairing is going: under way, or why it failed.
+  readonly property var pairingStatus: {
     if (pairingLocal === "" || !localModelsService) return null
     var host = pairingLocal.split("/")[0]
     if (localModelsService.pairingId === pairingLocal)
-      return { title: Commons.I18n.t("localModels.networkPairing").arg(host), value: -1, rate: "" }
+      return { text: Commons.I18n.t("localModels.networkPairing").arg(host), failed: false }
     var failure = localModelsService.pairFailures[pairingLocal]
     if (failure)
-      return { title: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), value: -1, rate: "", failed: true }
+      return { text: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), failed: true }
     return null
   }
 
@@ -2471,7 +2471,8 @@ Panel {
           // Too big for the memory free now: dimmed, saying so, and not chosen.
           readonly property var shortfall: modelData.shortfall || null
           readonly property bool recommended: root.offerRecommended(modelData, root.localModelOfferCount)
-          readonly property var offerMeterState: modelData.pair ? (modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(modelData)
+          readonly property var pairingState: modelData.pair && modelData.target === root.pairingLocal ? root.pairingStatus : null
+          readonly property var offerMeterState: modelData.pair ? null : root.offerMeter(modelData)
           readonly property bool downloading: !!offerMeterState && offerMeterState.downloading === true
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
@@ -2552,23 +2553,27 @@ Panel {
 
             // A paired machine's model says whose it is before its facts; a
             // cabled Spark, what setting it up does; one too big for the
-            // memory free now, in red, why it can't start. While downloading,
+            // memory free now, in red, why it can't start; one being paired
+            // with, that it's pairing or why pairing failed. While downloading,
             // the progress bar takes this line's place.
             Text {
               visible: !ownModel.downloading
               width: parent.width
-              text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
+              text: ownModel.pairingState ? ownModel.pairingState.text
+                : ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
                 : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
                 : [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
               textFormat: Text.PlainText
-              color: ownModel.shortfall ? root.urgent : root.dim
+              color: ownModel.pairingState ? (ownModel.pairingState.failed ? root.urgent : root.foreground)
+                : ownModel.shortfall ? root.urgent : root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
+              wrapMode: ownModel.pairingState && ownModel.pairingState.failed ? Text.Wrap : Text.NoWrap
+              elide: ownModel.pairingState && ownModel.pairingState.failed ? Text.ElideNone : Text.ElideRight
             }
 
             // The setup or start begun here: installing, downloading, then
-            // loading, as its line will show it; or the pairing.
+            // loading, as its line will show it.
             LocalMeterRow {
               meter: ownModel.offerMeterState
               visible: !!meter
@@ -3647,7 +3652,7 @@ Panel {
     property var meter: null
     property real topPadding: 0
     readonly property bool failed: !!meter && meter.failed === true
-    // A step with no measure of its own, like a pairing, is its title alone.
+    // A failed step has no measure of its own, only its reason.
     readonly property bool barless: !meter || failed || meter.value < 0
     readonly property bool titled: !!meter && String(meter.title || "") !== ""
     readonly property bool hasRate: meterRate.text !== ""
