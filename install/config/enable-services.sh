@@ -8,13 +8,14 @@ systemctl enable \
   cups.service \
   avahi-daemon.service \
   linux-modules-cleanup.service \
-  docker.socket \
   systemd-resolved.service \
   NetworkManager.service \
   power-profiles-daemon.service \
   sddm.service \
   systemd-oomd.service \
   omarchy-shutdown-ramfs.timer
+
+systemctl --global enable podman.socket podman-restart.service
 
 # Don't let network-online.target hold up graphical.target waiting for
 # DHCP/Wi-Fi association. Nothing in the session needs to block on the network.

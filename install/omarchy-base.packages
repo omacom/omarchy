@@ -22,8 +22,6 @@ cups-filters
 cups-pk-helper
 ddcutil
 disktree-bin
-docker
-docker-buildx
 docker-compose
 dosfstools
 dotnet-runtime
@@ -122,6 +120,9 @@ plain
 plocate
 plymouth
 podman
+podman-compose
+podman-desktop
+podman-tui
 postgresql-libs
 python-gobject
 python-poetry-core
@@ -157,7 +158,6 @@ ttf-jetbrains-mono-nerd-basic
 tzupdate
 udiskie
 ufw
-ufw-docker
 unzip
 usage
 uwsm

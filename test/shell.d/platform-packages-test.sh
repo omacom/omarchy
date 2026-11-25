@@ -139,6 +139,9 @@ SH
 # INSTALLED names the packages pacman reports as installed.
 cat >"$work/stubs/pacman" <<'SH'
 #!/bin/bash
+if [[ $1 == "-Qq" && $# == 1 ]]; then
+  exit 0
+fi
 [[ $1 == "-Q" && $2 == "--" ]] && grep -Fxq "$3" <<<"${INSTALLED:-}"
 SH
 chmod +x "$work/stubs/"*

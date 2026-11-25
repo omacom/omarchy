@@ -17,6 +17,13 @@ omarchy-refresh-pacman "$channel"
 # Downgrade any packages to that channel's setup
 omarchy-update-pacman -Suu --noconfirm
 
+# Pacman resolves virtual providers too. A failed package database query must
+# not turn an installed engine into an apparently empty machine.
+if ! docker_provider=$(pacman -Qq docker 2>/dev/null); then
+  pacman -Qq >/dev/null
+  docker_provider=""
+fi
+
 # Ensure this platform's default packages are installed
 default_packages=$(omarchy-pkg-defaults)
 # pipewire-jack conflicts with jack and jack2, and --ask 4 below would remove
@@ -25,6 +32,11 @@ if omarchy-pkg-present jack2 || omarchy-pkg-present jack; then
   default_packages=$(grep -vx pipewire-jack <<<"$default_packages")
 fi
 mapfile -t packages <<<"$default_packages"
+# A pending workload migration must keep the real Docker engine and CLI.
+# Its migration installs the compatibility package after transferring data.
+if [[ -n $docker_provider && $docker_provider != "podman-docker" ]]; then
+  mapfile -t packages < <(printf '%s\n' "${packages[@]}" | grep -vx 'podman-docker')
+fi
 # --ask 4 accepts removing a stock package a default replaces, such as
 # power-profiles-daemon for omarchy-power-profiles-daemon.
 omarchy-update-pacman -Syu --noconfirm --ask 4 --needed "${packages[@]}"

@@ -633,9 +633,6 @@
   "setup.security.ssh-agent": {
     "label": "SSH Agent"
   },
-  "setup.security.sudoless-docker": {
-    "label": "Sudoless Docker"
-  },
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
@@ -891,9 +888,6 @@
   "install.development.rails": {
     "label": "Ruby on Rails"
   },
-  "install.development.docker-dbs": {
-    "label": "Docker DB"
-  },
   "install.development.javascript": {
     "label": "JavaScript"
   },
@@ -1010,9 +1004,6 @@
   },
   "remove.security.sshd": {
     "label": "SSHD"
-  },
-  "remove.security.sudoless-docker": {
-    "label": "Sudoless Docker"
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"
@@ -1274,5 +1265,11 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "install.development.podman-dbs": {
+    "label": "Podman DB"
+  },
+  "install.development.docker-compat": {
+    "label": "Docker Compatibility"
   }
 }

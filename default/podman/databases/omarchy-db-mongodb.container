@@ -1,0 +1,30 @@
+[Quadlet]
+# Local databases do not need the desktop to wait for network-online.target.
+DefaultDependencies=false
+
+[Unit]
+Description=Omarchy MongoDB development database
+
+[Container]
+GlobalArgs=--remote=false
+Image=docker.io/library/mongo:noble
+ContainerName=omarchy-db-mongodb
+PublishPort=127.0.0.1:27017:27017
+Volume=omarchy-db-mongodb-data.volume:/data
+ImageVolume=ignore
+HttpProxy=false
+StopTimeout=120
+# Never replace an unrelated container that has claimed this name.
+PodmanArgs=--replace=false --cidfile=%t/%N/container.cid
+Environment=MONGO_INITDB_ROOT_USERNAME=admin
+Environment=MONGO_INITDB_ROOT_PASSWORD=admin123
+
+[Service]
+RuntimeDirectory=%N
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=900
+TimeoutStopSec=130
+
+[Install]
+WantedBy=default.target
