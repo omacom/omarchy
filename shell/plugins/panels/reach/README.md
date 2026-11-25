@@ -28,7 +28,7 @@ From a script: `omarchy-shell omarchy.reach place <machine> left|right` and `oma
 ## Requirements
 
 - `reach` on `PATH`, with its `reach.service` user unit
-- Circle, signed in, for Reach to find your machines
+- Circle, with your machines in one network, for Reach to find them
 
 ## State
 

@@ -544,7 +544,7 @@
     "one": "%1 machine close by",
     "other": "%1 machines close by"
   },
-  "reach.noCircle": "Sign in to Circle on your machines to add them here.",
+  "reach.noCircle": "Add your other machines to your Circle network to place them here.",
   "reach.notArrangedMeta": "Not arranged yet",
   "reach.notConnected": "Reach not running there",
   "reach.notInstalled": "Not installed",

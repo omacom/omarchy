@@ -14,6 +14,7 @@ const status = JSON.stringify({
   connected: ['laptop'],
   circle: {
     up: true,
+    name: 'desk',
     peers: [
       { name: 'mini', online: false, nearby: false },
       { name: 'laptop', online: true, nearby: true },
