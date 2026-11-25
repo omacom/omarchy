@@ -161,4 +161,84 @@ assertDeepEqual(
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
+
+// Rapid text-size steps must queue the latest value while textScaleProc is
+// running instead of dropping it and leaving textSizePreviewIndex stuck, and
+// mouse slider release must keep the preview stop until Style catches up.
+const fs = require('fs')
+const vm = require('vm')
+const panelSource = fs.readFileSync(path.join(root, 'shell/plugins/panels/monitor/Panel.qml'), 'utf8')
+assert(
+  /id:\s*textSizeSlider[\s\S]*?onReleased:\s*function\(v\)\s*\{\s*root\.applyTextSizeStop\(v\)\s*\}/.test(panelSource),
+  'text size slider release applies preview stop and reflow guard like keyboard steps'
+)
+const extractFn = (name) => {
+  const m = panelSource.match(new RegExp(`^( *)function ${name}\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\1\\}`, 'm'))
+  if (!m) throw new Error('missing function ' + name)
+  return m[0]
+}
+const procBlock = panelSource.match(/Process\s*\{\s*id:\s*textScaleProc[\s\S]*?\n  \}/)[0]
+const runningMatch = procBlock.match(/onRunningChanged:\s*\{([\s\S]*?)\n    \}/)
+assert(runningMatch, 'textScaleProc drains queued text size changes when it finishes')
+const exitedMatch = procBlock.match(/onExited:\s*function\(exitCode\)\s*\{([\s\S]*?)\n    \}/)
+assert(exitedMatch, 'textScaleProc clears preview on failure')
+
+const commands = []
+const proc = {
+  _running: false,
+  command: [],
+  get running() { return this._running },
+  set running(v) {
+    this._running = v
+    if (v) commands.push(this.command.slice())
+  },
+}
+const scope = {
+  textSizeStops: [11, 12, 14, 16, 18],
+  textSizePreviewIndex: -1,
+  pendingTextSize: -1,
+  reflows: 0,
+  Style: { font: { baseSize: 12 } },
+  textScaleProc: proc,
+  markReflowing: function() { this.reflows += 1 },
+}
+scope.root = scope
+vm.createContext(scope)
+vm.runInContext([
+  extractFn('nearestTextStop'),
+  extractFn('currentTextIndex'),
+  extractFn('setTextSize'),
+  extractFn('applyTextSizeStop'),
+  extractFn('adjustTextSize'),
+  `function onProcRunningChanged(running) { ${runningMatch[1]} }`,
+  `function onProcExited(exitCode) { ${exitedMatch[1]} }`,
+].join('\n'), scope)
+
+scope.adjustTextSize(1)
+assertEqual(scope.textSizePreviewIndex, 2, 'first step previews 14px stop')
+assertDeepEqual(commands, [['omarchy-display-text-size', '14']], 'first step launches CLI')
+// Second step while first CLI run is still in flight must be queued, not dropped.
+scope.adjustTextSize(1)
+assertEqual(scope.textSizePreviewIndex, 3, 'second rapid step advances preview to 16px stop')
+assertDeepEqual(commands, [['omarchy-display-text-size', '14']], 'second rapid step waits for active process')
+proc.running = false
+scope.onProcExited(0)
+scope.onProcRunningChanged(false)
+assertDeepEqual(commands, [
+  ['omarchy-display-text-size', '14'],
+  ['omarchy-display-text-size', '16'],
+], 'queued text size runs once the first command finishes')
+scope.Style.font.baseSize = 16
+proc.running = false
+scope.onProcExited(0)
+scope.onProcRunningChanged(false)
+assertEqual(scope.textSizePreviewIndex, -1, 'preview clears once Style matches the applied stop')
+
+// A failing command clears the preview instead of leaving the slider stuck.
+scope.applyTextSizeStop(4)
+assertEqual(scope.textSizePreviewIndex, 4, 'slider release previews target stop')
+proc.running = false
+scope.onProcExited(1)
+scope.onProcRunningChanged(false)
+assertEqual(scope.textSizePreviewIndex, -1, 'failed text size update clears preview')
 JS
