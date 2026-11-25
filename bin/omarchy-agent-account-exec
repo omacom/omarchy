@@ -51,5 +51,9 @@ fi
 
 # The agent's own subprocesses dispatch too, so another provider they start
 # runs as its selected account.
-export PATH="$dispatchers:$cli_path"
+agent_path=$dispatchers
+if [[ -d $old_dispatchers ]]; then
+  agent_path+=":$old_dispatchers"
+fi
+export PATH="$agent_path:$cli_path"
 exec "$agent_binary" "$@"

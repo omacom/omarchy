@@ -111,9 +111,11 @@ pass "bootstrap moves existing dispatchers ahead of inherited managed tool paths
 legacy_dispatchers="$home/.local/share/omarchy/agent-accounts/bin"
 mkdir -p "$legacy_dispatchers" "$home/.local/state/omarchy/agents/accounts"
 printf '#!/bin/bash\nprintf "%%s\\n" "${CODEX_HOME:-primary}"\n' >"$tmpdir/unrelated/bin/codex"
-chmod +x "$tmpdir/unrelated/bin/codex"
-HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" omarchy-agent-account-dispatch codex
+printf '#!/bin/bash\nexec codex\n' >"$tmpdir/unrelated/bin/claude"
+chmod +x "$tmpdir/unrelated/bin/codex" "$tmpdir/unrelated/bin/claude"
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" omarchy-agent-account-dispatch claude codex
 mv "$home/.local/state/omarchy/agent-accounts/bin/codex" "$legacy_dispatchers/codex"
+mv "$home/.local/state/omarchy/agent-accounts/bin/claude" "$legacy_dispatchers/claude"
 printf '{"active":"side","accounts":[{"id":"main","primary":true,"home":""},{"id":"side","home":"%s"}]}\n' "$tmpdir/side" >"$home/.local/state/omarchy/agents/accounts/codex.json"
 HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; codex' sh "$bootstrap" >"$tmpdir/pending-account"
 [[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "a login before migration keeps the selected account"
@@ -126,6 +128,10 @@ ln -s "$tmpdir/unrelated/bin/codex" "$home/.local/share/mise/shims/codex"
 HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; codex' sh "$uwsm_env" >"$tmpdir/pending-account"
 [[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "uwsm keeps pending dispatchers ahead of mise shims"
 pass "uwsm keeps pending dispatchers ahead of mise shims"
+
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; claude' sh "$bootstrap" >"$tmpdir/pending-account"
+[[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "an agent's child keeps the selected account before migration"
+pass "an agent's child keeps the selected account before migration"
 
 # Interactive shell startup caches static starship/zoxide init output keyed by
 # binary fingerprint (invalidating on both newer and older-timestamp replacements)
