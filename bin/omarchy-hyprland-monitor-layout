@@ -7,7 +7,11 @@
 
 # Positions are in Hyprland's layout space: logical pixels, after each
 # monitor's scale. Every position is applied in one eval, so the monitors never
-# pass through a half-moved arrangement, and then saved for each monitor.
+# pass through a half-moved arrangement, and then saved for each monitor. On
+# some Hyprland versions a position change commits before the resized monitor's
+# new size does, so a neighbour a growth would cover moves out in a first eval
+# and a neighbour closing in on a shrink moves in a last one, each waited
+# for, so no committed arrangement ever overlaps and Hyprland stays quiet.
 
 usage() {
   echo "Usage: omarchy-hyprland-monitor-layout NAME=XxY [NAME=XxY...]"
@@ -66,24 +70,94 @@ if [[ ${1:-} == "--resized" ]]; then
       end;
     (map(select(.name == $name))[0]) as $m
     | if $m == null then empty else
-      logical($ow; $oh; $os; $m.transform // 0) as $old
+      logical($ow; $oh; $os; $m.transform // 0) as $osize
       | logical($nw; $nh; $ns; $m.transform // 0) as $new
       | [.[] | select((.mirrorOf // "none") == "none")
         | (if .name == $name then $new else logical(.width; .height; .scale; .transform // 0) end) as $size
         | {name, ox: .x, oy: .y, w: $size[0], h: $size[1],
-           x: (if .name != $name and .x >= $m.x + $old[0] then .x + $new[0] - $old[0] else .x end),
-           y: (if .name != $name and .y >= $m.y + $old[1] then .y + $new[1] - $old[1] else .y end)}]
+           x: (if .name != $name and .x >= $m.x + $osize[0] then .x + $new[0] - $osize[0] else .x end),
+           y: (if .name != $name and .y >= $m.y + $osize[1] then .y + $new[1] - $osize[1] else .y end)}]
       | unpile
       | (map(.x = .ox | .y = .oy)) as $old
       | if piled and ($old | piled | not) then $old else . end
       | sort_by(if .name == $name then [1, 0]
           elif .x > .ox or .y > .oy then [0, -(.ox + .oy)]
           else [2, .ox + .oy] end)
-      | .[] | "\(.name)=\(.x)x\(.y)"
+      # The compositor commits a position change before the new size of the
+      # resized monitor, so a neighbour moving away out of that new size sits under
+      # the growth until it leaves, and a neighbour closing in on the space a
+      # shrink frees sits over the old size until the shrink commits. The
+      # first is marked "!" and leaves in a first eval, the second "+" and
+      # waits for the new size; @RESIZED carries that new size for the wait.
+      | ["@RESIZED=\($new[0])x\($new[1])"]
+      + [ .[] | (if .name != $name and ((.x > .ox or .y > .oy))
+                 and overlaps({x: $m.x, y: $m.y, w: $new[0], h: $new[1]}; {x: .ox, y: .oy, w, h})
+                then "!"
+              elif .name != $name and ((.x != .ox or .y != .oy))
+                 and (.x >= $m.x and .x < $m.x + $osize[0] and .y >= $m.y and .y < $m.y + $osize[1])
+                then "+"
+              else "" end) + "\(.name)=\(.x)x\(.y)" ] | .[]
     end' <<<"$monitors_json")
   resized_name="$2"
   resized_scale="$6"
-  set -- "${positions[@]}"
+
+  # Move the "!" neighbours out first and wait for the move to land, so the
+  # growth fills a gap instead of covering a neighbour. The "+" neighbours
+  # close in on the space the shrink frees, which only exists once the new
+  # size has committed, so they move in a final eval after it. A move or size
+  # that can't be confirmed gets the old one-eval behaviour rather than a
+  # blocked layout.
+  target_wh=""
+  stripped=()
+  prepark=()
+  postpark=()
+  for pos in "${positions[@]}"; do
+    if [[ $pos == @RESIZED=* ]]; then
+      target_wh="${pos#@RESIZED=}"
+    elif [[ $pos == \!* ]]; then
+      prepark+=("${pos:1}")
+      stripped+=("${pos:1}")
+    elif [[ $pos == \+* ]]; then
+      postpark+=("${pos:1}")
+    else
+      stripped+=("$pos")
+    fi
+  done
+
+  if (( ${#prepark[@]} > 0 )); then
+    prepark_expr=""
+    for pos in "${prepark[@]}"; do
+      name="${pos%%=*}"
+      position="${pos#*=}"
+      # Same guard as the one-eval path below: these names go into a Lua
+      # string eval'd as root of the compositor.
+      [[ $name =~ ^[A-Za-z0-9._-]+$ && $position =~ ^-?[0-9]+x-?[0-9]+$ ]] || continue
+      prepark_expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
+    done
+    if [[ -n $prepark_expr ]] && hyprctl eval "$prepark_expr" >/dev/null 2>&1; then
+      want=$(printf '%s\n' "${prepark[@]}" | jq -Rn '
+        [inputs | select(length > 0) | split("=")
+         | {(.[0]): {x: (.[1] | split("x")[0] | tonumber), y: (.[1] | split("x")[1] | tonumber)}}]
+        | add // {}')
+      # The compositor applies the move asynchronously, and a rotation still
+      # settling from the turn that brought us here can hold it for a couple
+      # of seconds, so the wait is long enough for that to finish; a move that
+      # never lands still gets the old one-eval behaviour.
+      poll_max=${OMARCHY_LAYOUT_WAIT_TRIES:-50}
+      for (( i = 0; i < poll_max; i++ )); do
+        if hyprctl monitors -j 2>/dev/null | jq -e --argjson want "$want" '
+            . as $mon | [ $want | to_entries[]
+              | .key as $n | .value as $p
+              | ($mon | map(select(.name == $n)) | .[0]) as $m
+              | $m != null and $m.x == $p.x and $m.y == $p.y ] | all' >/dev/null; then
+          break
+        fi
+        sleep 0.1
+      done
+    fi
+  fi
+
+  set -- "${stripped[@]}"
 fi
 
 if (( $# == 0 )); then
@@ -122,6 +196,41 @@ for arg in "$@"; do
 done
 
 hyprctl eval "$expr" >/dev/null
+
+# A neighbour closing in sits over the resized monitor's old size until the
+# new one commits, so wait for the size before it moves in; a size that never
+# commits still lets the layout finish rather than hang. A rule without a mode
+# or transform changes no size in this eval, so nothing waits for it.
+if (( ${#postpark[@]} > 0 )); then
+  if [[ -n $target_wh && ( -n $resized_mode || -n $resized_transform ) ]]; then
+    tw="${target_wh%x*}"
+    th="${target_wh#*x}"
+    poll_max=${OMARCHY_LAYOUT_WAIT_TRIES:-50}
+      for (( i = 0; i < poll_max; i++ )); do
+      if hyprctl monitors -j 2>/dev/null | jq -e --arg name "$resized_name" \
+          --argjson tw "$tw" --argjson th "$th" '
+          . as $mon | ($mon | map(select(.name == $name)) | .[0]) as $m
+          | $m != null
+            and ((($m.width / $m.scale | round) == $tw and ($m.height / $m.scale | round) == $th)
+              or (($m.width / $m.scale | round) == $th and ($m.height / $m.scale | round) == $tw))' >/dev/null; then
+        break
+      fi
+      sleep 0.1
+    done
+  fi
+  postpark_expr=""
+  for pos in "${postpark[@]}"; do
+    name="${pos%%=*}"
+    position="${pos#*=}"
+    [[ $name =~ ^[A-Za-z0-9._-]+$ && $position =~ ^-?[0-9]+x-?[0-9]+$ ]] || continue
+    postpark_expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
+    names+=("$name")
+    positions+=("$position")
+  done
+  if [[ -n $postpark_expr ]]; then
+    hyprctl eval "$postpark_expr" >/dev/null 2>&1
+  fi
+fi
 
 for i in "${!names[@]}"; do
   # The resized monitor saves the scale it was given, not one read back from

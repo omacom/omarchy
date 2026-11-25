@@ -20,16 +20,46 @@ mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
-if [[ $1 == "monitors" && $2 == "-j" && -n $OMARCHY_TEST_MONITORS_JSON ]]; then
-  printf '%s' "$OMARCHY_TEST_MONITORS_JSON"
-elif [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"x":0,"y":0,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"availableModes":["2880x1800@120.00Hz","2880x1800@60.00Hz","1920x1200@60.00Hz"]}' \
-    "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
-  if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
-    printf ',{"name":"DP-1","focused":false,"x":1440,"y":0,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0,"availableModes":["3840x2160@60.00Hz","2560x1440@60.00Hz"]}' \
-      "$OMARCHY_TEST_OTHER_MONITOR_SCALE"
+apply_evals() {
+  # Replay the recorded evals against the given JSON, as the compositor would
+  # commit them, so a wait against the live state sees what it is waiting for.
+  local json="$1" rules
+  if [[ -n ${OMARCHY_TEST_HYPRCTL_EVAL_OUT:-} && -f $OMARCHY_TEST_HYPRCTL_EVAL_OUT ]]; then
+    rules=$(grep -ohE 'output = "[^"]+", (mode = "[^"]+", )?position = "-?[0-9]+x-?[0-9]+"(, scale = [0-9.]+(, transform = [0-7]))?' "$OMARCHY_TEST_HYPRCTL_EVAL_OUT" | jq -Rn '
+      [inputs | select(length > 0)
+       | (capture("output = \"(?<n>[^\"]+)\"").n) as $n
+       | (capture("position = \"(?<p>-?[0-9]+x-?[0-9]+)\"").p) as $p
+       | {"name": $n,
+          "pos": $p,
+          "mode": (if test("mode = ") then (capture("mode = \"(?<m>[^\"]+)\"").m) else null end),
+          "t": (if test("transform = ") then (capture("transform = (?<t>[0-7])").t) else null end)}]')
+    if [[ -n $rules && $rules != "[]" ]]; then
+      json=$(jq --argjson rules "$rules" '
+        def apply($r):
+          (.[] | select(.name == $r.name) | .x) = ($r.pos | split("x")[0] | tonumber)
+          | (.[] | select(.name == $r.name) | .y) = ($r.pos | split("x")[1] | tonumber)
+          | (if $r.mode == null then . else
+              (.[] | select(.name == $r.name) | .width) = ($r.mode | split("x")[0] | tonumber)
+              | (.[] | select(.name == $r.name) | .height) = ($r.mode | split("x")[1] | split("@")[0] | tonumber) end)
+          | (if $r.t == null then . else (.[] | select(.name == $r.name) | .transform) = ($r.t | tonumber) end);
+        reduce $rules[] as $r (.; apply($r))' <<<"$json")
+    fi
   fi
-  printf ']'
+  printf '%s' "$json"
+}
+
+if [[ $1 == "monitors" && $2 == "-j" && -n $OMARCHY_TEST_MONITORS_JSON ]]; then
+  apply_evals "$OMARCHY_TEST_MONITORS_JSON"
+elif [[ $1 == "monitors" && $2 == "-j" ]]; then
+  base='[{"name":"eDP-1","focused":true,"x":0,"y":0,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"availableModes":["2880x1800@120.00Hz","2880x1800@60.00Hz","1920x1200@60.00Hz"]}'
+  if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
+    base+=',{"name":"DP-1","focused":false,"x":1440,"y":0,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0,"availableModes":["3840x2160@60.00Hz","2560x1440@60.00Hz"]}'
+    base=$(printf "$base" "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}" "$OMARCHY_TEST_OTHER_MONITOR_SCALE")
+  else
+    base=$(printf "$base" "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}")
+  fi
+  base+="]"
+  apply_evals "$base"
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
 else
@@ -242,29 +272,44 @@ grep -F 'hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/
 [[ $(setting DP-1) == "|960x0|1" ]] || fail "monitor resolution saves its neighbour's new position" "actual: $(setting DP-1)"
 pass "monitor resolution closes the layout up around a smaller mode"
 
-# The resize and the moves around it are one eval, ordered so no step overlaps
-# and Hyprland has nothing to warn about: a shrinking monitor resizes before its
-# neighbour closes in, and a growing one waits for its neighbour to move away.
-grep -F 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2 }) hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/null ||
-  fail "monitor resolution shrinks before its neighbour closes in" "actual: $(<"$eval_out")"
+# The compositor commits a position change before the resized monitor's new
+# size, so a neighbour a growth would cover leaves in a first eval, and a
+# neighbour closing in on a shrink waits for the new size in a last one, the
+# resize itself in between: no committed arrangement ever overlaps.
+resize_line=$(grep -nF 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2 }) ' "$eval_out" | head -1 | cut -d: -f1)
+neighbour_line=$(grep -nF 'hl.monitor({ output = "DP-1", position = "960x0" }) ' "$eval_out" | head -1 | cut -d: -f1)
+[[ -n $resize_line && -n $neighbour_line && $resize_line -lt $neighbour_line ]] ||
+  fail "a shrinking monitor resizes alone before its neighbour" "actual: $(<"$eval_out")"
+sed -n "${resize_line}p" "$eval_out" | grep -Fxq 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2 }) ' ||
+  fail "the shrink's eval carries no neighbour" "actual: $(sed -n "${resize_line}p" "$eval_out")"
 fresh
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_scaling 1.6
-grep -F 'hl.monitor({ output = "DP-1", position = "1800x0" }) hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 1.6 })' "$eval_out" >/dev/null ||
-  fail "monitor scaling grows only after its neighbour moves away" "actual: $(<"$eval_out")"
-pass "monitor resizes and moves apply in one step without overlapping"
+leave_line=$(grep -nF 'hl.monitor({ output = "DP-1", position = "1800x0" }) ' "$eval_out" | head -1 | cut -d: -f1)
+sed -n "${leave_line}p" "$eval_out" | grep -Fxq 'hl.monitor({ output = "DP-1", position = "1800x0" }) ' ||
+  fail "a growing monitor's covered neighbour leaves first" "actual: $(<"$eval_out")"
+sed -n "$((leave_line + 1))p" "$eval_out" | grep -Fq 'mode = "2880x1800@120.0", position = "0x0", scale = 1.6' ||
+  fail "the growth follows the neighbour's move" "actual: $(sed -n "$((leave_line + 1))p" "$eval_out")"
+pass "monitor resizes and moves apply so no committed arrangement overlaps"
 
-# In a row of three, the far screen moves out of the way before the middle one
-# moves into its spot, and on the way back the middle one closes in first.
+# In a row of three, the covered neighbour leaves before the growth, the far
+# screen moves out first, and on the way back only the neighbour the shrink
+# frees waits for the new size before it closes in.
 fresh
 row='[{"name":"DP-1","x":0,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-2","x":100,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-3","x":200,"y":0,"width":100,"height":100,"scale":1}]'
 OMARCHY_TEST_MONITORS_JSON="$row" run_layout --resized DP-1 100x100 1 200x100 1 200x100@60
-grep -F 'hl.monitor({ output = "DP-3", position = "300x0" }) hl.monitor({ output = "DP-2", position = "200x0" }) hl.monitor({ output = "DP-1", mode = "200x100@60"' "$eval_out" >/dev/null ||
-  fail "monitor layout moves the farthest neighbour away first" "actual: $(<"$eval_out")"
+head -1 "$eval_out" | grep -Fxq 'hl.monitor({ output = "DP-2", position = "200x0" }) ' ||
+  fail "the covered neighbour leaves before the growth" "actual: $(head -1 "$eval_out")"
+growth_line=$(grep -nF 'mode = "200x100@60"' "$eval_out" | head -1 | cut -d: -f1)
+sed -n "${growth_line}p" "$eval_out" | grep -Fq 'hl.monitor({ output = "DP-3", position = "300x0" }) hl.monitor({ output = "DP-2", position = "200x0" })' ||
+  fail "the growth follows, the farthest neighbour moving out first" "actual: $(sed -n "${growth_line}p" "$eval_out")"
 fresh
 row='[{"name":"DP-1","x":0,"y":0,"width":200,"height":100,"scale":1},{"name":"DP-2","x":200,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-3","x":300,"y":0,"width":100,"height":100,"scale":1}]'
 OMARCHY_TEST_MONITORS_JSON="$row" run_layout --resized DP-1 200x100 1 100x100 1 100x100@60
-grep -F 'position = "0x0", scale = 1 }) hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output = "DP-3", position = "200x0" })' "$eval_out" >/dev/null ||
-  fail "monitor layout closes in the nearest neighbour first" "actual: $(<"$eval_out")"
+head -1 "$eval_out" | grep -Fxq 'hl.monitor({ output = "DP-1", mode = "100x100@60", position = "0x0", scale = 1 }) hl.monitor({ output = "DP-3", position = "200x0" }) ' ||
+  fail "the shrink and the uncovered neighbour move together" "actual: $(head -1 "$eval_out")"
+close_line=$(grep -nF 'hl.monitor({ output = "DP-2", position = "100x0" }) ' "$eval_out" | head -1 | cut -d: -f1)
+[[ -n $close_line && $close_line -gt 1 ]] ||
+  fail "the neighbour the shrink frees closes in after the new size" "actual: $(<"$eval_out")"
 pass "monitor layout orders a row's moves so none overlaps"
 
 run_rotate() {
@@ -274,13 +319,17 @@ run_rotate() {
     "$ROOT/bin/omarchy-hyprland-monitor-rotate" "$@"
 }
 
-# A quarter turn stands the monitor on its side, and its neighbour closes in on
-# the narrower monitor in the same eval: 2880x1800 at 2x spans 1440 across,
-# turned it spans 900. The rotation is saved with the monitor's settings.
+# A quarter turn stands the monitor on its side; its neighbour closes in on
+# the narrower monitor only once the turn has committed. The rotation is saved
+# with the monitor's settings.
 fresh
 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_rotate 90
-grep -F 'hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 2, transform = 1 }) hl.monitor({ output = "DP-1", position = "900x0" })' "$eval_out" >/dev/null ||
-  fail "monitor rotate turns a monitor and closes up around it in one step" "actual: $(<"$eval_out")"
+turn_line=$(grep -nF 'hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 2, transform = 1 }) ' "$eval_out" | head -1 | cut -d: -f1)
+sed -n "${turn_line}p" "$eval_out" | grep -Fxq 'hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 2, transform = 1 }) ' ||
+  fail "monitor rotate turns a monitor alone first" "actual: $(<"$eval_out")"
+close_line=$(grep -nF 'hl.monitor({ output = "DP-1", position = "900x0" }) ' "$eval_out" | head -1 | cut -d: -f1)
+[[ -n $turn_line && -n $close_line && $turn_line -lt $close_line ]] ||
+  fail "the neighbour closes in after the turn" "actual: $(<"$eval_out")"
 [[ $(saved_transform eDP-1) == "1" ]] || fail "monitor rotate saves the rotation" "actual: $(<"$settings_file")"
 pass "monitor rotate turns a monitor beside another"
 
@@ -309,8 +358,11 @@ pass "monitor rotate adds a rotation to an older saved line"
 fresh
 OMARCHY_TEST_MONITORS_JSON='[{"name":"DP-1","x":0,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-2","x":100,"y":0,"width":100,"height":200,"scale":1},{"name":"DP-3","x":0,"y":100,"width":100,"height":100,"scale":1}]' \
   run_layout --resized DP-1 100x100 1 100x100 2
-grep -F 'hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output = "DP-3", position = "0x50" })' "$eval_out" >/dev/null ||
-  fail "monitor layout keeps neighbours from piling onto each other" "actual: $(<"$eval_out")"
+head -1 "$eval_out" | grep -Fxq 'hl.monitor({ output = "DP-1", position = "0x0" }) hl.monitor({ output = "DP-2", position = "100x0" }) ' ||
+  fail "monitor layout keeps neighbours from piling onto each other" "actual: $(head -1 "$eval_out")"
+close_line=$(grep -nF 'hl.monitor({ output = "DP-3", position = "0x50" }) ' "$eval_out" | head -1 | cut -d: -f1)
+[[ -n $close_line && $close_line -gt 1 ]] ||
+  fail "the neighbour the shrink frees waits for the new size" "actual: $(<"$eval_out")"
 pass "monitor layout keeps neighbours from piling onto each other"
 
 # With a fourth screen beyond the tall one, neither overlapping screen can go
@@ -318,8 +370,11 @@ pass "monitor layout keeps neighbours from piling onto each other"
 fresh
 OMARCHY_TEST_MONITORS_JSON='[{"name":"DP-1","x":0,"y":0,"width":1000,"height":1000,"scale":1},{"name":"DP-2","x":1000,"y":0,"width":1000,"height":2000,"scale":1},{"name":"DP-3","x":0,"y":1000,"width":1000,"height":1000,"scale":1},{"name":"DP-4","x":2000,"y":0,"width":1000,"height":2000,"scale":1}]' \
   run_layout --resized DP-1 1000x1000 1 1000x1000 2
-grep -F 'hl.monitor({ output = "DP-2", position = "1000x0" }) hl.monitor({ output = "DP-3", position = "0x500" }) hl.monitor({ output = "DP-4", position = "2000x0" })' "$eval_out" >/dev/null ||
-  fail "monitor layout untangles a pile-up a third screen blocks" "actual: $(<"$eval_out")"
+head -1 "$eval_out" | grep -Fxq 'hl.monitor({ output = "DP-1", position = "0x0" }) hl.monitor({ output = "DP-2", position = "1000x0" }) hl.monitor({ output = "DP-4", position = "2000x0" }) ' ||
+  fail "monitor layout untangles a pile-up a third screen blocks" "actual: $(head -1 "$eval_out")"
+close_line=$(grep -nF 'hl.monitor({ output = "DP-3", position = "0x500" }) ' "$eval_out" | head -1 | cut -d: -f1)
+[[ -n $close_line && $close_line -gt 1 ]] ||
+  fail "the neighbour the shrink frees closes in after the new size" "actual: $(<"$eval_out")"
 pass "monitor layout untangles a pile-up a third screen blocks"
 
 # The saved settings are read back on every config load, so a value out of
