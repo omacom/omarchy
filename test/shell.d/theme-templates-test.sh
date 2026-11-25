@@ -360,6 +360,15 @@ EOF
   fail "empty theme colors use their gradient fallbacks: $(diff <(printf '%s\n' "$expected_empty") "$empty_next/empty-fallback.txt")"
 pass "empty theme colors fall back cleanly in gradient helpers"
 
+# An empty fallback alias keeps the literal name, as a missing fallback does.
+printf 'background = "#111111"\nforeground = "#eeeeee"\n' >"$empty_next/colors.toml"
+printf '{{ gradient_start missing_border accent }}\n' >"$empty_themed/empty-alias.txt.tpl"
+HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/empty-alias.err"
+[[ ! -s $test_tmp/empty-alias.err ]] || fail "an empty fallback alias renders without errors" "$(cat "$test_tmp/empty-alias.err")"
+[[ $(<"$empty_next/empty-alias.txt") == "accent" ]] || fail "an empty fallback alias keeps its literal name"
+pass "an empty fallback alias keeps its literal name"
+
 if timeout 2s "$ROOT/bin/omarchy-theme-color" --file >/dev/null 2>&1; then
   fail "omarchy-theme-color rejects --file without a value"
 else
