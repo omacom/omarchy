@@ -17,6 +17,11 @@ assertEqual(
   'polkit shortens the standard pkexec message'
 )
 assertEqual(
+  polkit.authorizationLabel("Authentication is needed to run `/opt/$$/$&/helper' as the super user"),
+  "Authorize running '/opt/$$/$&/helper'",
+  'polkit shows the program path literally'
+)
+assertEqual(
   polkit.authorizationLabel('Authentication is required to change system settings'),
   'Authentication is required to change system settings',
   'polkit preserves custom authorization messages'
