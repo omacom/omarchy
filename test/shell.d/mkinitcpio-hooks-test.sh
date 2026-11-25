@@ -238,6 +238,23 @@ assert_composed "a Surface is unchanged" x86 \
   "$omarchy_hooks" "pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
 
 
+# omarchy drive tpm enroll installs a drop-in that turns the busybox line into
+# its systemd counterpart in place, so a TPM2 token can unlock root. It has to
+# sort after omarchy_hooks.conf and omarchy_resume.conf: the NVIDIA filter still
+# decides kms, and the resume hook those add is one the systemd hook replaces.
+tpm_hooks="base systemd plymouth keyboard autodetect microcode modconf kms sd-vconsole block sd-encrypt filesystems fsck sd-btrfs-overlayfs"
+new_etc
+drop_in omarchy_resume.conf <<<"HOOKS+=(resume)"
+cp "$ROOT/default/mkinitcpio/omarchy_tpm_unlock.conf" "$etc/mkinitcpio.conf.d/"
+assert_hooks "the TPM drop-in maps a hibernating busybox line to systemd" x86 "$tpm_hooks"
+drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
+pci_devices 0x10de:0x030000
+assert_hooks "the TPM drop-in keeps the NVIDIA filter's kms removal" x86 "${tpm_hooks/ kms / }"
+# mkinitcpio sources the drop-ins again after the hooks run.
+cp "$ROOT/default/mkinitcpio/omarchy_tpm_unlock.conf" "$etc/mkinitcpio.conf.d/zz-tpm-again.conf"
+assert_hooks "the TPM drop-in leaves a line it already mapped as it is" x86 "${tpm_hooks/ kms / }"
+
+
 # Snapdragon and other aarch64 machines build the same image as x86, whatever
 # systemd line their mkinitcpio.conf starts from.
 for platform in aarch64; do
