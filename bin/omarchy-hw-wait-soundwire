@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Wait at login until SoundWire audio peripherals finish enumerating
+# omarchy:hidden=true
+
+# PipeWire probes a sound card's ALSA UCM profiles once when WirePlumber opens
+# it and does not re-probe if a PCM fails to prepare. On SoundWire laptops, the
+# kernel registers the ALSA card while SoundWire peripherals (such as smart
+# amplifiers loading firmware over the bus) are still enumerating asynchronously.
+# If WirePlumber probes the card before every bound SoundWire peripheral has
+# attached with a device number, snd_soc_link_prepare fails with EINVAL,
+# PipeWire drops the HiFi profile, and audio stays stuck on Dummy Output until
+# WirePlumber restarts. Wait up to five seconds for bound SoundWire peripherals
+# to finish enumerating before WirePlumber starts.
+
+soundwire_path=${OMARCHY_SOUNDWIRE_DEVICES_PATH:-/sys/bus/soundwire/devices}
+tries=${OMARCHY_SOUNDWIRE_TRIES:-50}
+delay=${OMARCHY_SOUNDWIRE_DELAY:-0.1}
+
+[[ -d $soundwire_path ]] || exit 0
+
+for ((try = 0; try < tries; try++)); do
+  found=0
+  waiting=0
+  for device in "$soundwire_path"/sdw:*; do
+    [[ -d $device ]] || continue
+    [[ -e $device/driver || -L $device/driver ]] || continue
+    found=1
+
+    status=""
+    [[ -r $device/status ]] && IFS= read -r status <"$device/status"
+    dev_num=0
+    [[ -r $device/device_number ]] && IFS= read -r dev_num <"$device/device_number"
+
+    if [[ $status != "Attached" && $status != "Alert" ]] || [[ ! $dev_num =~ ^[0-9]+$ ]] || (( dev_num == 0 )); then
+      waiting=1
+      break
+    fi
+  done
+
+  (( found && waiting )) || break
+  if (( try + 1 < tries )); then
+    sleep "$delay"
+  fi
+done
