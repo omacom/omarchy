@@ -1,20 +1,23 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a supported browser and clean up Omarchy browser defaults
-# omarchy:args=<chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chrome|chromium|brave|brave-origin|edge|firefox|zen>
 # omarchy:examples=omarchy remove browser firefox | omarchy remove browser brave
 # omarchy:requires-sudo=true
 
 set_fallback_default_browser() {
   local current_browser
-  current_browser=$(env -u BROWSER xdg-settings get default-web-browser)
+  current_browser=$(omarchy-cmd-default-browser)
 
   if [[ $current_browser != $1 ]]; then
     return
   fi
 
-  if omarchy-cmd-present chromium; then
-    env -u BROWSER xdg-settings set default-web-browser chromium.desktop || true
+  # Hand links to whichever of the two Chromium-family defaults stays behind.
+  if [[ $1 != "google-chrome.desktop" ]] && omarchy-cmd-present google-chrome-stable; then
+    env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser google-chrome.desktop || true
+  elif [[ $1 != "chromium.desktop" ]] && omarchy-cmd-present chromium; then
+    env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop || true
   fi
 }
 
@@ -24,14 +27,21 @@ chrome)
   set_fallback_default_browser google-chrome.desktop
   omarchy-pkg-drop google-chrome
   rm -f ~/.config/chrome-flags.conf
-  sudo rm -f /etc/opt/chrome/policies/managed/color.json
+  sudo rm -f /etc/opt/chrome/policies/managed/color.json /etc/opt/chrome/policies/managed/omarchy.json /etc/opt/chrome/policies/managed/omarchy-extensions.json
+  ;;
+chromium)
+  echo "Removing Chromium..."
+  set_fallback_default_browser chromium.desktop
+  omarchy-pkg-drop chromium
+  rm -f ~/.config/chromium-flags.conf
+  sudo rm -f /etc/chromium/policies/managed/color.json /etc/chromium/policies/managed/omarchy.json
   ;;
 edge)
   echo "Removing Edge..."
   set_fallback_default_browser microsoft-edge.desktop
   omarchy-pkg-drop microsoft-edge-stable-bin
   rm -f ~/.config/microsoft-edge-stable-flags.conf
-  sudo rm -f /etc/opt/edge/policies/managed/color.json
+  sudo rm -f /etc/opt/edge/policies/managed/color.json /etc/opt/edge/policies/managed/omarchy.json
   ;;
 brave)
   echo "Removing Brave..."
@@ -64,7 +74,7 @@ zen)
   omarchy-pkg-drop zen-browser-bin
   ;;
 *)
-  echo "Usage: omarchy-remove-browser <chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-remove-browser <chrome|chromium|brave|brave-origin|edge|firefox|zen>"
   exit 1
   ;;
 esac

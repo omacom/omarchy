@@ -9,12 +9,12 @@ const fs = require('fs')
 const vm = require('vm')
 const source = fs.readFileSync(root + '/shell/plugins/panels/power/Panel.qml', 'utf8')
 const Model = requireFromRoot('shell/plugins/panels/power/Model.js')
+const Numbers = requireFromRoot('shell/Commons/Numbers.js')
+const strings = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
 const states = { Unknown: 0, Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4, PendingDischarge: 5 }
 
-// Evaluate the JavaScript bindings read from the real QML. Getters keep their
-// dependencies live, so a broken state-to-hero or state-to-label connection
-// fails here even when the old source fragments are still present. This checks
-// binding behavior with synthetic UPower inputs, not Qt rendering or signals.
+// Evaluate the real bindings with synthetic UPower inputs; this checks
+// presentation wiring, not Qt rendering or signal delivery.
 function binding(name) {
   const match = source.match(new RegExp('^  readonly property \\w+ ' + name + ': (\\{[\\s\\S]*?^  \\}|\\[[\\s\\S]*?^  \\]|[^\\n]+)', 'm'))
   if (!match) fail('power panel declares the ' + name + ' binding')
@@ -23,6 +23,12 @@ function binding(name) {
 
 const panel = {
   Model,
+  Commons: { I18n: {
+    t: (key, fallback) => strings[key] || fallback || key,
+    formatNumber: (value, decimals) => Numbers.format(value, decimals, ".", "0")
+  } },
+  Style: { reduceMotion: false },
+  chargeRateFresh: true,
   UPowerDeviceState: states,
   UPower: { displayDevice: null, onBattery: false },
   batteryInfo: { time: '2:00', rate: '8 W', threshold: '80%' },
@@ -32,10 +38,10 @@ const panel = {
 panel.root = panel
 const context = vm.createContext(panel)
 const evaluate = expression => vm.runInContext(expression, context)
-for (const name of ['upowerStates', 'batteryIcon', 'modeLabel']) {
-  const match = source.match(new RegExp('^  function ' + name + '\\(\\) (\\{[\\s\\S]*?^  \\})', 'm'))
+for (const name of ['upowerStates', 'batteryIcon', 'modeLabel', 'reading']) {
+  const match = source.match(new RegExp('^  function ' + name + '\\(([^)]*)\\) (\\{[\\s\\S]*?^  \\})', 'm'))
   if (!match) fail('power panel declares ' + name)
-  panel[name] = () => evaluate('(function() ' + match[1] + ')()')
+  panel[name] = evaluate('(function(' + match[1] + ') ' + match[2] + ')')
 }
 for (const name of ['batteryPresent', 'fullyCharged', 'discharging', 'chargeThresholdActive', 'batteryFull', 'batteryFlowIdle', 'batteryFraction', 'charging', 'chargingPhrases', 'onBatteryPhrases', 'activePhrases', 'rotatingPhrases', 'heroStatusText']) {
   const expression = binding(name)
@@ -94,6 +100,12 @@ assertDeepEqual(display(states.PendingCharge, false), {
   charging: false, discharging: false, hero: 'THRESHOLD',
   timeLabel: 'Charge limit', timeValue: '80%', rateLabel: 'Battery state', rateValue: 'Holding', pulse: false
 }, 'charge-threshold presentation keeps its holding labels and no pulse')
+panel.chargeRateFresh = false
+assertDeepEqual(display(states.Charging, false, { changeRate: 0, timeToFull: 0 }), charging, 'a stale zero rate keeps the charging presentation while the rate settles')
+assertEqual(panel.batteryIcon(), chargingIcon, 'the charging icon receives the rate freshness guard')
+assertEqual(panel.modeLabel(), 'Charging', 'the mode label receives the rate freshness guard')
+panel.chargeRateFresh = true
+assertEqual(display(states.Charging, false, { changeRate: 0, timeToFull: 0 }).hero, 'THRESHOLD', 'a settled zero rate still identifies a held charge')
 display(states.Discharging, true, { isPresent: false })
 assert(!panel.batteryPresent && !panel.charging && !panel.discharging, 'an absent battery activates neither flow state')
 assertEqual(panel.heroStatusText, '', 'an absent battery has no flow hero text')

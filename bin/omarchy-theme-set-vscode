@@ -68,8 +68,17 @@ install_generated_extension() {
     ui_theme="vs-dark"
   fi
 
+  # VS Code caches loaded color themes in memory and only rebuilds a registry
+  # entry when the providing extension changes, so derive the version from the
+  # theme content: identical palettes keep the cache, new palettes invalidate it.
+  GENERATED_EXTENSION_VERSION="1.0.$(cksum "$GENERATED_THEME" | cut -d' ' -f1)"
+
   mkdir -p "$ext_dir/themes"
-  ln -sfn "$GENERATED_THEME" "$ext_dir/themes/omarchy-color-theme.json"
+  # A real file rather than a symlink into current/theme: the _watch watcher
+  # below needs a same-inode rewrite to fire, and a symlink would dangle while
+  # omarchy-theme-set swaps current/theme via rm + mv.
+  rm -f "$ext_dir/themes/omarchy-color-theme.json"
+  cat "$GENERATED_THEME" >"$ext_dir/themes/omarchy-color-theme.json"
 
   cat > "$ext_dir/package.json" <<EOF
 {
@@ -84,13 +93,47 @@ install_generated_extension() {
         "themes": [{
             "label": "Omarchy",
             "uiTheme": "$ui_theme",
-            "path": "./themes/omarchy-color-theme.json"
+            "path": "./themes/omarchy-color-theme.json",
+            "_watch": true
         }]
     }
 }
 EOF
 
   register_generated_extension "$ext_dir"
+}
+
+# Reads the editor's extension registry rather than asking the editor: every
+# --list-extensions boots Electron, for each editor on each theme switch. The
+# registry lists installed extensions; .obsolete holds the ones uninstalled but
+# not yet deleted. Extension ids are case-insensitive. Without a registry the
+# editor is asked after all.
+extension_installed() {
+  local editor_cmd="$1"
+  local ext_base="$2"
+  local extension="$3"
+  local extensions_file="$ext_base/extensions.json"
+  local obsolete_file="$ext_base/.obsolete"
+  local relative
+
+  if [[ ! -f $extensions_file ]]; then
+    "$editor_cmd" --list-extensions 2>/dev/null | grep -Fixq "$extension"
+    return
+  fi
+
+  while IFS= read -r relative; do
+    [[ -n $relative && -d $ext_base/$relative ]] && return 0
+  done < <(
+    jq -r --arg id "${extension,,}" --slurpfile obsolete <(cat "$obsolete_file" 2>/dev/null || printf '{}') '
+      ($obsolete[0] // {}) as $gone
+      | .[]
+      | select((.identifier.id // "" | ascii_downcase) == $id)
+      | .relativeLocation // ((.location.path // .location.fsPath // "" | split("/") | last) // "")
+      | select(($gone[.] // false) | not)
+    ' "$extensions_file" 2>/dev/null
+  )
+
+  return 1
 }
 
 set_theme() {
@@ -116,7 +159,7 @@ set_theme() {
     # Only install a well-formed publisher.name id; a malformed one skips the
     # install without skipping the colorTheme write below.
     if [[ $extension =~ ^[a-zA-Z0-9._-]+$ ]] &&
-      ! "$editor_cmd" --list-extensions 2>/dev/null | grep -Fxq "$extension"; then
+      ! extension_installed "$editor_cmd" "$ext_base" "$extension"; then
       "$editor_cmd" --install-extension "$extension" >/dev/null 2>&1
     fi
   elif [[ -f "$GENERATED_THEME" ]]; then
@@ -147,7 +190,15 @@ set_theme() {
   fi
 }
 
-! omarchy-toggle-enabled skip-vscode-theme-changes && set_theme "code" "$HOME/.config/Code/User/settings.json" "$HOME/.vscode/extensions"
-! omarchy-toggle-enabled skip-vscode-insiders-theme-changes && set_theme "code-insiders" "$HOME/.config/Code - Insiders/User/settings.json" "$HOME/.vscode-insiders/extensions"
-! omarchy-toggle-enabled skip-codium-theme-changes && set_theme "codium" "$HOME/.config/VSCodium/User/settings.json" "$HOME/.vscode-oss/extensions"
-! omarchy-toggle-enabled skip-cursor-theme-changes && set_theme "/usr/bin/cursor" "$HOME/.config/Cursor/User/settings.json" "$HOME/.cursor/extensions"
+if ! omarchy-toggle-enabled skip-vscode-theme-changes; then
+  set_theme "code" "$HOME/.config/Code/User/settings.json" "$HOME/.vscode/extensions"
+fi
+if ! omarchy-toggle-enabled skip-vscode-insiders-theme-changes; then
+  set_theme "code-insiders" "$HOME/.config/Code - Insiders/User/settings.json" "$HOME/.vscode-insiders/extensions"
+fi
+if ! omarchy-toggle-enabled skip-codium-theme-changes; then
+  set_theme "codium" "$HOME/.config/VSCodium/User/settings.json" "$HOME/.vscode-oss/extensions"
+fi
+if ! omarchy-toggle-enabled skip-cursor-theme-changes; then
+  set_theme "/usr/bin/cursor" "$HOME/.config/Cursor/User/settings.json" "$HOME/.cursor/extensions"
+fi

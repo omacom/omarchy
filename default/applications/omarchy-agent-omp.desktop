@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Oh My Pi
+Comment=Start Oh My Pi in a terminal
+Exec=omarchy-agent --agent omp --app-id=org.omarchy.omp
+Icon=omarchy-agent-omp
+StartupWMClass=org.omarchy.omp
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

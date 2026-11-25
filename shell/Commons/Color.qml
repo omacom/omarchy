@@ -20,6 +20,8 @@ QtObject {
   property color background: "#101315"
   property color accent: "#cacccc"
   property color urgent: "#a55555"
+  // A caution short of urgent: the theme's yellow.
+  property color warning: "#c4a35a"
   property color muted: "#707880"
 
   // Flat dictionary of "section.key" -> raw string from shell.toml.
@@ -49,9 +51,15 @@ QtObject {
   }
 
   function flatColor(value, fallback) {
+    var seen = Object.create(null)
     var token = firstColorToken(value)
     var role = String(token || "").replace(/^\s+|\s+$/g, "").toLowerCase()
-    if (root.shellValues[role] && root.shellValues[role] !== token) return flatColor(root.shellValues[role], fallback)
+    while (root.shellValues[role] && root.shellValues[role] !== token) {
+      if (seen[role]) return fallback
+      seen[role] = true
+      token = firstColorToken(root.shellValues[role])
+      role = String(token || "").replace(/^\s+|\s+$/g, "").toLowerCase()
+    }
     if (role === "foreground" || role === "text") return root.foreground
     if (role === "accent") return root.accent
     if (role === "urgent") return root.urgent
@@ -122,11 +130,9 @@ QtObject {
     property color borderError: root.composed("lock.border-error", "lock.border-alpha", root.urgent, 1.0)
     property color selection: root.composed("lock.selection", "lock.selection-alpha", root.accent, 0.45)
   }
-  // The image picker has no card surface; `scrim` is the full-screen dim
-  // wash, and per-slice dim overlays / text outlines use the foundational
-  // `background` color directly.
+  // The image picker has no card surface or backdrop; per-slice dim
+  // overlays / text outlines use the foundational `background` color directly.
   readonly property QtObject imagePicker: QtObject {
-    property color scrim: root.composed("image-picker.scrim", "image-picker.scrim-alpha", root.background, 0.5)
     property color text: root.pick("image-picker.text", root.foreground)
     property color selectedBorder: root.composed("image-picker.selected-border", "image-picker.selected-border-alpha", root.accent, 1.0)
     property color unselectedBorder: root.composed("image-picker.unselected-border", "image-picker.unselected-border-alpha", root.foreground, 0.28)
@@ -157,6 +163,7 @@ QtObject {
       else if (match[1] === "color7") color7Value = match[2]
       else if (match[1] === "color8") color8Value = match[2]
       else if (match[1] === "red" || match[1] === "color1") urgent = match[2]
+      else if (match[1] === "yellow" || match[1] === "color3") warning = match[2]
     }
     if (!loadedBackground && color0Value.length > 0) background = color0Value
     if (!loadedForeground && color7Value.length > 0) foreground = color7Value

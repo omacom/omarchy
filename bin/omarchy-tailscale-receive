@@ -48,7 +48,7 @@ claim_path() {
 
     # Only a taken name is worth another spin. Anything else failed the link
     # itself, and the file keeps its place in staging for the next run.
-    [[ -e $candidate ]] || return 1
+    [[ -e $candidate || -L $candidate ]] || return 1
 
     ((index++))
   done
@@ -59,14 +59,15 @@ claim_path() {
 announce() {
   local path="$1"
   local name="${path##*/}"
-  local args=("Received $name" "Saved to ${dir/#$HOME/~}" -u critical)
+  # Taildrop only accepts files from your own devices, so an image previews like
+  # any other app's notification image. The send glyph stays as the fallback for
+  # an image that doesn't load and the mark for everything else. Naming the app
+  # stacks a batch of files into one deck rather than a toast apiece.
+  local args=("$(omarchy-i18n tailscale.received "$name")" "$(omarchy-i18n tailscale.savedTo "${dir/#$HOME/"~"}")" --app-name Taildrop -u critical -g 󰒊)
 
   case "${name,,}" in
   *.png | *.jpg | *.jpeg | *.gif | *.webp | *.avif | *.bmp | *.tif | *.tiff)
     args+=(--image "$path")
-    ;;
-  *)
-    args+=(-g 󰒊)
     ;;
   esac
 
@@ -78,10 +79,10 @@ announce() {
 deliver() {
   local staged target
 
-  while IFS= read -r staged; do
+  while IFS= read -r -d '' staged; do
     target=$(claim_path "$staged") || continue
     announce "$target"
-  done < <(find "$staging" -mindepth 1 -maxdepth 1)
+  done < <(find "$staging" -mindepth 1 -maxdepth 1 -print0)
 }
 
 # Anything left staged by an interrupted run still deserves delivering.

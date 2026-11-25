@@ -2,4 +2,10 @@
 
 # omarchy:summary=Show the current time and date notification
 
-omarchy-notification-send -g  -u low "$(date +"%A %H:%M  ·  %d %B %Y  ·  Week %V")"
+# Day and month names follow the Omarchy language right away, rather than
+# LC_TIME, which only catches up with it at the next login. One timestamp feeds
+# every part, so a notification sent at midnight can't mix two days.
+locale=$(omarchy-language locale)
+IFS=$'\t' read -r day_time day_month_year week < <(LC_TIME=$locale date +"%A %H:%M%t%d %B %Y%t%V")
+
+omarchy-notification-send -g  -u low "$(omarchy-i18n time.now "$day_time" "$day_month_year" "$week")"
