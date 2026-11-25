@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Install the HEY CLI and set it up
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-add-curated hey-cli
+
+# Signs in and connects the coding agents it finds.
+hey setup
