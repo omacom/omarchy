@@ -36,48 +36,40 @@ function promptLine(line) {
   return text.length > 80 ? text.slice(0, 38) + " ... " + text.slice(-37) : text
 }
 
+function matchesProgram(shown, want) {
+  if (!shown || !want) return false
+  if (want.charAt(0) === "/") return shown === want || shown === promptLine(want)
+  var bare = "/" + want.replace(/^\.\//, "")
+  if (shown.slice(-bare.length) === bare) return true
+  return shown.length === 80 && shown.indexOf(" ... ") === 38 && shown.slice(-37) === bare.slice(-37)
+}
+
 // A label a command asked for its next prompt (omarchy.polkit expect), when
 // this prompt is that one: pkexec running the program it named, before the
 // label went stale. Empty otherwise.
 function expectedLabel(message, expected, nowMs) {
   if (!expected || !expected.label || nowMs > expected.until) return ""
-  var program = promptProgram(message)
-  return program !== "" && (program === expected.program || program === promptLine(expected.program)) ? String(expected.label) : ""
+  return matchesProgram(promptProgram(message), String(expected.program || "")) ? String(expected.label) : ""
 }
 
-// The mark requester.sh named, as a file name in the agents plugin's assets;
-// empty for anything else.
-function agentMark(text) {
-  var name = String(text || "").trim()
-  return /^[a-z0-9-]+$/.test(name) ? name : ""
-}
-
-// Relative luminance of a Qt color, to pick a mark drawn for light surfaces.
-function luminance(color) {
-  function channel(value) {
-    var c = Number(value)
-    if (!isFinite(c)) return 0
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
-  }
-  if (!color) return 0
-  return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
-}
-
-// What the prompt calls an agent requester.sh named, by its mark.
-var agentNames = { claude: "Claude", codex: "Codex", grok: "Grok", opencode: "OpenCode", cursor: "Cursor", copilot: "Copilot" }
-
-function agentName(mark) {
-  return Object.prototype.hasOwnProperty.call(agentNames, mark) ? agentNames[mark] : ""
+// Parse requester.py output ("<mark>\t<display name>\t<0|1>"); null otherwise.
+function parseRequester(text) {
+  var parts = String(text || "").trim().split("\t")
+  if (parts.length < 2) return null
+  var mark = parts[0]
+  var name = parts[1].trim()
+  if (!/^[a-z0-9-]+$/.test(mark) || name === "") return null
+  return { mark: mark, name: name, light: parts[2] === "1" }
 }
 
 // A pkexec prompt names the agent it comes from, when that's known. The parts
 // go in through functions, so a $ in a command line stays as it is.
-function authorizationLabel(message, tr, agent) {
+function authorizationLabel(message, tr, agentName) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
   var match = text.match(pkexecPrompt)
   if (!match) return text
-  var name = agentName(agent)
+  var name = String(agentName || "").trim()
   if (name !== "")
     return t("polkit.authorizeAgentRunning", "Authorize %1 to run '%2'").replace("%1", function() { return name }).replace("%2", function() { return match[1] })
   return t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", function() { return match[1] })
@@ -90,8 +82,6 @@ if (typeof module !== "undefined") {
     authorizationLabel: authorizationLabel,
     promptProgram: promptProgram,
     expectedLabel: expectedLabel,
-    agentMark: agentMark,
-    agentName: agentName,
-    luminance: luminance
+    parseRequester: parseRequester
   }
 }

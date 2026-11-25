@@ -17,14 +17,14 @@ assertEqual(
   'polkit shortens the standard pkexec message'
 )
 assertEqual(
-  polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, 'claude'),
+  polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, 'Claude'),
   "Authorize Claude to run '/usr/bin/true'",
   'polkit names the agent a pkexec prompt comes from'
 )
 assertEqual(
-  polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, 'unknown'),
+  polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, ''),
   "Authorize running '/usr/bin/true'",
-  'polkit names no agent it has no name for'
+  'polkit falls back when no agent name is given'
 )
 assertEqual(
   polkit.authorizationLabel('Authentication is required to change system settings'),
@@ -44,9 +44,14 @@ assertEqual(polkit.expectedLabel(pacman, null, 500), '', 'with nothing expected 
 const longLine = '/usr/bin/pacman -S --noconfirm valkey redis-cli sidekiq-dashboard postgresql-libs'
 const cutPrompt = "Authentication is needed to run `" + longLine.slice(0, 38) + ' ... ' + longLine.slice(-37) + "' as the super user"
 assertEqual(polkit.expectedLabel(cutPrompt, { program: longLine, label: 'Claude needs to install Valkey', until: 1000 }, 500), 'Claude needs to install Valkey', 'a long command line expected whole matches the prompt that cuts it')
+assertEqual(polkit.expectedLabel("Authentication is needed to run `/usr/bin/pacman -S valkey' as the super user", { program: 'pacman -S valkey', label: 'Install Valkey', until: 1000 }, 500), 'Install Valkey', 'a bare program name matches the resolved path in the prompt')
+assertEqual(polkit.expectedLabel("Authentication is needed to run `/usr/bin/unpacman -S valkey' as the super user", { program: 'pacman -S valkey', label: 'Install Valkey', until: 1000 }, 500), '', 'a bare program name does not match a different program suffix')
 assertEqual(polkit.promptProgram(pacman), '/usr/bin/pacman', 'a pkexec prompt names the program it runs, which a label never hides')
 assertEqual(polkit.promptProgram("Authentication is needed to run `/usr/bin/sh -c echo it's' as the super user"), "/usr/bin/sh -c echo it's", 'a command line holding a quote is read up to the quote that closes it')
-assertEqual(polkit.agentMark('../../x'), '', 'a mark is a file name in the agents plugin, never a path')
+assertEqual(JSON.stringify(polkit.parseRequester('claude\tClaude\t0\n')), JSON.stringify({ mark: 'claude', name: 'Claude', light: false }), 'parseRequester reads mark, display name, and light flag')
+assertEqual(JSON.stringify(polkit.parseRequester('codex\tCodex\t1\n')), JSON.stringify({ mark: 'codex', name: 'Codex', light: true }), 'parseRequester preserves the light-variant flag')
+assertEqual(polkit.parseRequester('../../x\tBad\t0'), null, 'a mark is a file name in the agents plugin, never a path')
+assertEqual(polkit.parseRequester(''), null, 'empty requester output yields null')
 
 assert(
   polkit.fingerprintConfiguredFromPamConfig(`
@@ -94,21 +99,22 @@ const cancelledBody = agentSource.match(/function onAuthenticationRequestCancell
 const makeScope = () => {
   let cancelled = 0
   const scope = {
-    polkitAgent: { isActive: true, flow: { cancelAuthenticationRequest: () => { cancelled += 1 } } },
+    polkitAgent: { isActive: true, flow: { message: '', cancelAuthenticationRequest: () => { cancelled += 1 } } },
     closing: false,
     dismissed: false,
     closeTimer: { stop: () => {}, restart: () => {} },
+    requesterTimeout: { stop: () => {}, restart: () => {} },
     driveDevice: '',
     driveLabel: '',
     driveQueue: [],
     submitted: true,
     currentMessage: 'auth',
     currentLabel: 'label',
-    currentAgent: 'claude',
+    currentAgent: { mark: 'claude', name: 'Claude', light: false },
     requesterPending: false,
     requestSerial: 0,
     expected: null,
-    PolkitModel: { expectedLabel: () => '' },
+    PolkitModel: polkit,
     findRequester: () => {},
     currentPrompt: 'Password:',
     currentSupplementary: '',
@@ -119,7 +125,6 @@ const makeScope = () => {
     passwordInput: { text: 'secret' },
     I18n: { t: key => key === 'polkit.unlockDrive' ? 'Unlock %1' : key },
     refreshLidState: () => {},
-    syncFromFlow: () => {},
     triggerFailureFeedback: () => {},
     refocus: () => {},
     Qt: { callLater: () => {} },
@@ -128,7 +133,9 @@ const makeScope = () => {
   scope.root = scope
   vm.createContext(scope)
   vm.runInContext([
+    extractFn('clearRequester'),
     extractFn('resetSnapshot'),
+    extractFn('syncFromFlow'),
     extractFn('nextDrive'),
     extractFn('beginDrive'),
     extractFn('driveChecked'),
@@ -151,6 +158,18 @@ const makeScope = () => {
   assertEqual(s.cancelledCount, 1, 'cancelling polkit forwards cancellation to the flow')
   s.beginFlow()
   assert(s.isDialogVisible(), 'a subsequent polkit request shows the dialog again')
+}
+{
+  // Quickshell sets isActive before emitting authenticationRequestStarted;
+  // syncing on isActive must not consume expected before beginFlow takes it.
+  const s = makeScope()
+  s.currentLabel = ''
+  s.polkitAgent.flow.message = pacman
+  s.expected = { program: '/usr/bin/pacman', label: 'Install Valkey', until: Date.now() + 60000 }
+  s.onAgentActiveChanged(true)
+  s.beginFlow()
+  assertEqual(s.currentLabel, 'Install Valkey', 'beginFlow preserves an expected label even after isActive fires first')
+  assertEqual(s.expected, null, 'consuming an expected label clears it for subsequent requests')
 }
 {
   const s = makeScope()
@@ -180,7 +199,7 @@ const makeScope = () => {
 }
 JS
 
-# requester.sh finds the agent a pkexec prompt comes from in OMARCHY_PROC_ROOT:
+# requester.py finds the agent a pkexec prompt comes from in OMARCHY_PROC_ROOT:
 # this user's pkexec running the prompt's command line, then up its parents.
 uid=$(id -u)
 proc_dir=$(mktemp -d)
@@ -198,7 +217,7 @@ fake_process() { # pid ppid comm uid [arguments...]
 }
 
 requester() {
-  OMARCHY_PROC_ROOT="$proc_dir" bash "$ROOT/shell/plugins/polkit/requester.sh" "$1"
+  OMARCHY_PROC_ROOT="$proc_dir" python3 "$ROOT/shell/plugins/polkit/requester.py" "$1"
 }
 
 long=(/usr/bin/pacman -S --noconfirm valkey redis-cli sidekiq-dashboard postgresql-libs)
@@ -207,7 +226,7 @@ fake_process 101 100 bash "$uid"
 fake_process 102 101 pkexec "$uid" --disable-internal-agent "${long[@]}"
 shown="${long[*]}"
 shown="${shown:0:38} ... ${shown: -37}"
-[[ $(requester "$shown") == claude ]] || fail "polkit names the agent a pkexec runs under, its command line cut as the prompt cuts it"
+[[ $(requester "$shown") == $'claude\tClaude\t0' ]] || fail "polkit names the agent a pkexec runs under, its command line cut as the prompt cuts it"
 pass "polkit names the agent a pkexec runs under, its command line cut as the prompt cuts it"
 
 rm -rf "${proc_dir:?}"/*
@@ -228,8 +247,21 @@ fake_process 100 1 node "$uid"
 fake_process 101 100 bash "$uid"
 printf 'PATH=/usr/bin\0CLAUDECODE=1\0' >"$proc_dir/101/environ"
 fake_process 102 101 pkexec "$uid" true
-[[ $(requester /usr/local/bin/true) == claude ]] || fail "polkit knows Claude Code by its environment, and a program given by name by the end of the line"
+[[ $(requester /usr/local/bin/true) == $'claude\tClaude\t0' ]] || fail "polkit knows Claude Code by its environment, and a program given by name by the end of the line"
 pass "polkit knows Claude Code by its environment, and a program given by name by the end of the line"
+
+rm -rf "${proc_dir:?}"/*
+fake_process 100 1 node "$uid" /usr/bin/copilot --stdio
+fake_process 101 100 pkexec "$uid" -- /usr/bin/true
+[[ $(requester /usr/bin/true) == $'copilot\tCopilot\t1' ]] || fail "polkit recognizes interpreter-wrapped agents and pkexec -- separator"
+pass "polkit recognizes interpreter-wrapped agents and pkexec -- separator"
+
+rm -rf "${proc_dir:?}"/*
+fake_process 100 1 bash "$uid"
+printf 'ANTIGRAVITY_AGENT=1\0' >"$proc_dir/100/environ"
+fake_process 101 100 pkexec "$uid" /usr/bin/true
+[[ $(requester /usr/bin/true) == $'agy\tAntigravity\t1' ]] || fail "polkit recognizes Antigravity from its environment"
+pass "polkit recognizes Antigravity from its environment"
 
 rm -rf "${proc_dir:?}"/*
 fake_process 100 1 claude "$uid"
@@ -238,5 +270,13 @@ fake_process 200 1 codex "$uid"
 fake_process 201 200 pkexec "$uid" /usr/bin/pacman -Syu
 fake_process 300 1 grok 4242
 fake_process 301 300 pkexec 4242 /usr/bin/pacman -Syu
-[[ $(requester "/usr/bin/pacman -Syu") == codex ]] || fail "polkit picks the pkexec that runs the prompt's command line, of this user"
+[[ $(requester "/usr/bin/pacman -Syu") == $'codex\tCodex\t1' ]] || fail "polkit picks the pkexec that runs the prompt's command line, of this user"
 pass "polkit picks the pkexec that runs the prompt's command line, of this user"
+
+rm -rf "${proc_dir:?}"/*
+fake_process 100 1 claude "$uid"
+fake_process 101 100 pkexec "$uid" /usr/bin/true
+fake_process 200 1 foot "$uid"
+fake_process 201 200 pkexec "$uid" /usr/bin/true
+[[ -z $(requester /usr/bin/true) ]] || fail "polkit names no agent when two waiting pkexecs disagree"
+pass "polkit names no agent when two waiting pkexecs disagree"

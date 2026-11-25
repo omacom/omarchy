@@ -85,20 +85,6 @@ from a terminal or not. Its polkit action is what lets the machine's own
 session install without a password while SSH still asks, which `sudo` can't
 tell apart.
 
-When you run `pkexec` for the user, say why first, so the password dialog
-shows it above the command. Within a minute before it, run
-`omarchy-shell omarchy.polkit expect "<command line>" "<reason>"`, where the
-command line is what you give `pkexec`, with the program by its full path:
-
-```bash
-omarchy-shell omarchy.polkit expect "/usr/bin/pacman -S --noconfirm valkey" "Claude needs to install Valkey for Sidekiq"
-pkexec /usr/bin/pacman -S --noconfirm valkey
-```
-
-Start the reason with your own name and keep it to one short line. If
-`expect` fails, run `pkexec` anyway: the dialog then still shows your icon and
-the command.
-
 ## System Architecture
 
 Omarchy is built on:

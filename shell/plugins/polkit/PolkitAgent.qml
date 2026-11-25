@@ -35,22 +35,17 @@ Item {
   // a minute. Taken by the prompt it fits, which keeps it as currentLabel.
   property var expected: null
   property string currentLabel: ""
-  // The coding agent a prompt comes from, by the name of its mark in the
-  // agents plugin, which takes the padlock's place. Looked up per prompt, and
+  // The coding agent a prompt comes from ({ mark, name, light }), whose icon
+  // in the agents plugin takes the padlock's place. Looked up per prompt, and
   // the padlock waits for the answer so it doesn't flash before the mark.
-  property string currentAgent: ""
+  property var currentAgent: null
   property bool requesterPending: false
   property int requestSerial: 0
-  readonly property var agentMarkCandidates: {
-    if (currentAgent === "") return []
-    var base = "../agents/assets/" + currentAgent
-    var candidates = []
-    if (PolkitModel.luminance(background) >= 0.5) candidates.push(Qt.resolvedUrl(base + "-light.svg"))
-    candidates.push(Qt.resolvedUrl(base + ".svg"))
-    return candidates
+  readonly property url agentMarkSource: {
+    if (!currentAgent) return ""
+    var suffix = currentAgent.light && Util.luminance(background) >= 0.5 ? "-light.svg" : ".svg"
+    return Qt.resolvedUrl("../agents/assets/" + currentAgent.mark + suffix)
   }
-  property int agentMarkIndex: 0
-  onAgentMarkCandidatesChanged: agentMarkIndex = 0
   property string currentPrompt: ""
   property string currentSupplementary: ""
   property bool responseRequired: false
@@ -85,7 +80,7 @@ Item {
   // a line of its own under it, which a long label can't push out of view.
   function authorizationLabel(message) {
     if (currentLabel !== "") return currentLabel
-    return message ? PolkitModel.authorizationLabel(message, I18n.t, currentAgent) : I18n.t("polkit.authenticationNeeded")
+    return message ? PolkitModel.authorizationLabel(message, I18n.t, currentAgent ? currentAgent.name : "") : I18n.t("polkit.authenticationNeeded")
   }
 
   // The program a labelled prompt runs, for the line under the label.
@@ -111,14 +106,19 @@ Item {
     if (!laptopClosedProc.running) laptopClosedProc.running = true
   }
 
-  function resetSnapshot() {
-    currentMessage = ""
-    currentLabel = ""
-    currentAgent = ""
+  function clearRequester() {
+    currentAgent = null
     requesterPending = false
+    requesterTimeout.stop()
     // A lookup still running is for a prompt that's gone, not for what comes
     // next, a drive's card included.
     requestSerial++
+  }
+
+  function resetSnapshot() {
+    currentMessage = ""
+    currentLabel = ""
+    clearRequester()
     currentPrompt = ""
     currentSupplementary = ""
     responseRequired = false
@@ -186,7 +186,6 @@ Item {
       driveDevice = ""
     }
     // A new request starts fresh even if the previous flow is still tearing down.
-    currentLabel = ""
     dismissed = false
     submitted = false
     passwordInput.text = ""
@@ -205,8 +204,7 @@ Item {
   // Only a pkexec prompt names the command line its process can be found by.
   // A lookup that hangs gives the padlock back after a second.
   function findRequester() {
-    requestSerial++
-    currentAgent = ""
+    clearRequester()
     requesterPending = PolkitModel.promptProgram(currentMessage) !== ""
     if (!requesterPending) return
     requesterTimeout.restart()
@@ -218,7 +216,7 @@ Item {
   function lookUpRequester() {
     if (requesterProc.running) return
     requesterProc.forSerial = requestSerial
-    requesterProc.command = ["bash", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/polkit/requester.sh", PolkitModel.promptProgram(currentMessage)]
+    requesterProc.command = ["python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/polkit/requester.py", PolkitModel.promptProgram(currentMessage)]
     requesterProc.running = true
   }
 
@@ -309,7 +307,8 @@ Item {
     stdout: StdioCollector { id: requesterOut; waitForEnd: true }
     onExited: {
       if (forSerial === root.requestSerial) {
-        if (root.dialogVisible) root.currentAgent = PolkitModel.agentMark(requesterOut.text)
+        requesterTimeout.stop()
+        if (root.dialogVisible) root.currentAgent = PolkitModel.parseRequester(requesterOut.text)
         root.requesterPending = false
       } else if (root.requesterPending) {
         Qt.callLater(root.lookUpRequester)
@@ -321,7 +320,10 @@ Item {
     id: requesterTimeout
     interval: 1000
     repeat: false
-    onTriggered: root.requesterPending = false
+    onTriggered: {
+      root.requestSerial++
+      root.requesterPending = false
+    }
   }
 
   Process {
@@ -480,15 +482,11 @@ Item {
             anchors.centerIn: parent
             width: Style.font.iconLarge
             height: width
-            source: root.agentMarkIndex < root.agentMarkCandidates.length ? root.agentMarkCandidates[root.agentMarkIndex] : ""
+            source: root.agentMarkSource
             sourceSize.width: width * 2
             sourceSize.height: height * 2
             fillMode: Image.PreserveAspectFit
             visible: status === Image.Ready
-            // Advancing source from inside its own status change trips the
-            // binding-loop detector; defer the step one tick.
-            onStatusChanged: if (status === Image.Error && root.agentMarkIndex < root.agentMarkCandidates.length)
-              Qt.callLater(function() { root.agentMarkIndex++ })
           }
 
           Text {
@@ -566,8 +564,9 @@ Item {
     }
 
     Rectangle {
-      // Waits for the agent with the mark, as its line names it.
-      visible: !root.requesterPending
+      // Waits for the agent with the mark when its line names it, unless a
+      // label is already known.
+      visible: !root.requesterPending || root.currentLabel !== ""
       // Measured apart from the lines, whose width follows this one.
       width: Math.min(Math.ceil(Math.max(labelMetrics.advanceWidth, root.labelProgram !== "" ? programMetrics.advanceWidth : 0)) + Style.space(24), panel.width - Style.gapsOut * 2)
       height: root.labelProgram !== "" ? justificationLines.implicitHeight + Style.space(16) : Style.space(28)
