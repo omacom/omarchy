@@ -205,23 +205,24 @@ Item {
   function refreshStatusAndAccounts(forceAccounts, fullPeers) {
     if (!installed) return
     var launched = false
+    var wantPanelDetails = fullPeers === true || peersWanted
     if (!statusProcess.running) {
       _statusOutput = ""
       _statusError = ""
       refreshing = true
-      _statusFullPeers = fullPeers === true || peersWanted || _pendingFullPeers
+      _statusFullPeers = wantPanelDetails || _pendingFullPeers
       if (_statusFullPeers) _pendingFullPeers = false
       statusProcess.command = _statusFullPeers
         ? ["tailscale", "status", "--json"]
         : ["tailscale", "status", "--json", "--peers=false"]
       statusProcess.running = true
       launched = true
-    } else if ((fullPeers === true || peersWanted) && !_statusFullPeers) {
+    } else if (wantPanelDetails && !_statusFullPeers) {
       // A full-peer request arrived while a light poll is in flight; remember
       // it so the panel is not left stale until the next periodic refresh.
       _pendingFullPeers = true
     }
-    if (!mullvadExitNodesProcess.running) {
+    if (wantPanelDetails && !mullvadExitNodesProcess.running) {
       _mullvadExitNodesOutput = ""
       _mullvadExitNodesError = ""
       mullvadExitNodesProcess.command = ["tailscale", "exit-node", "list"]
@@ -229,7 +230,7 @@ Item {
       launched = true
     }
     var now = Date.now()
-    var shouldRefreshAccounts = forceAccounts === true || accounts.length === 0 || now - _lastAccountsRefreshMs > 60000
+    var shouldRefreshAccounts = forceAccounts === true || (wantPanelDetails && (accounts.length === 0 || now - _lastAccountsRefreshMs > 60000))
     if (shouldRefreshAccounts && !accountsProcess.running) {
       _accountsOutput = ""
       _accountsError = ""
@@ -445,7 +446,7 @@ Item {
   }
 
   function authorizeTailscaleOperator() {
-    if (!installed || operatorProcess.running || userName === "") return
+    if (!installed || operatorProcess.running || !/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(userName)) return
     _operatorOutput = ""
     _operatorError = ""
     actionStatus = I18n.t("tailscale.authorizingOperator")

@@ -4,7 +4,7 @@ ConditionPathExists=/run/initramfs/mkinitcpio-shutdown.conf
 ConditionFileIsExecutable=!/run/initramfs/shutdown
 
 [Timer]
-OnBootSec=30s
+OnStartupSec=30s
 AccuracySec=5s
 Unit=mkinitcpio-generate-shutdown-ramfs.service
 

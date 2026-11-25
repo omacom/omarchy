@@ -55,3 +55,53 @@ pass "Ethernet and no route at all are not Wi-Fi"
 ! ROUTE_DEV=wlan0 NM_STATE=70 connected || fail "a Wi-Fi device NetworkManager has not activated is not connected"
 ! ROUTE_DEV=wlan0 NM_DOWN=1 connected || fail "Wi-Fi NetworkManager cannot answer for is not connected"
 pass "Wi-Fi counts only once NetworkManager has it activated, as omarchy-network-status does"
+
+# First-run Wi-Fi wait backs off when nm-online fails immediately (e.g. NM down)
+# and still runs both follow-up setup hooks once a link comes up.
+wifi_bin="$test_tmp/wifi-bin"
+wifi_root="$test_tmp/wifi-root"
+wifi_log="$test_tmp/wifi.log"
+wifi_attempts="$test_tmp/wifi-attempts"
+mkdir -p "$wifi_bin" "$wifi_root/install/user/first-run"
+echo 0 >"$wifi_attempts"
+
+cat >"$wifi_bin/nm-online" <<'SH'
+#!/bin/bash
+case "$*" in
+  "-q -s -t 30") exit 0 ;;
+  "-q -x -t 30") exit 1 ;;
+  "-q -t 86400")
+    count=$(<"$WIFI_ATTEMPTS")
+    count=$((count + 1))
+    echo "$count" >"$WIFI_ATTEMPTS"
+    (( count == 1 )) && exit 4
+    exit 0
+    ;;
+  *) exit 1 ;;
+esac
+SH
+cat >"$wifi_bin/sleep" <<'SH'
+#!/bin/bash
+printf 'sleep %s\n' "$*" >>"$WIFI_LOG"
+SH
+cat >"$wifi_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf 'notify\n' >>"$WIFI_LOG"
+SH
+cat >"$wifi_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1"
+SH
+chmod +x "$wifi_bin"/*
+printf 'printf "setup-agent\\n" >>"$WIFI_LOG"\n' >"$wifi_root/install/user/first-run/setup-agent.hook"
+printf 'printf "setup-fingerprint\\n" >>"$WIFI_LOG"\n' >"$wifi_root/install/user/first-run/setup-fingerprint.hook"
+
+(
+  export PATH="$wifi_bin:$PATH" OMARCHY_PATH="$wifi_root" WIFI_LOG="$wifi_log" WIFI_ATTEMPTS="$wifi_attempts"
+  source "$ROOT/install/user/first-run/wifi.sh"
+  wait
+)
+
+[[ $(<"$wifi_log") == $'notify\nsleep 5\nsetup-agent\nsetup-fingerprint' ]] ||
+  fail "first-run wifi.sh backs off on immediate nm-online failure and runs hooks once online" "$(cat "$wifi_log")"
+pass "first-run wifi.sh backs off on immediate nm-online failure and runs hooks once online"

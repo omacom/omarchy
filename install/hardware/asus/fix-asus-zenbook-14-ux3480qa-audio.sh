@@ -4,5 +4,5 @@
 # Zenbook A14.
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3480QA"; then
-  omarchy-pkg-add asus-zenbook-14-ux3480qa-audio
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add asus-zenbook-14-ux3480qa-audio
 fi

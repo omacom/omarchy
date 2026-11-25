@@ -13,9 +13,31 @@ fi
 
 flushed_queue=0
 packages=()
+declare -A seen=()
+
+if (( $# > 0 )); then
+  # When every requested package is already installed, leave any deferred queue
+  # intact for the final flush instead of running pacman mid-pass.
+  omarchy-pkg-missing "$@" || exit 0
+
+  missing_args=()
+  for pkg in "$@"; do
+    [[ -n $pkg && -z ${seen[$pkg]+x} ]] || continue
+    seen[$pkg]=1
+    if omarchy-pkg-missing "$pkg"; then
+      missing_args+=("$pkg")
+    fi
+  done
+
+  if (( ${#missing_args[@]} == 0 )); then
+    exit 0
+  fi
+
+  seen=()
+fi
+
 if [[ -n ${OMARCHY_PKG_QUEUE_FILE:-} && -s $OMARCHY_PKG_QUEUE_FILE ]]; then
   flushed_queue=1
-  declare -A seen=()
   while IFS= read -r pkg; do
     [[ -n $pkg && -z ${seen[$pkg]+x} ]] || continue
     seen[$pkg]=1
@@ -23,14 +45,14 @@ if [[ -n ${OMARCHY_PKG_QUEUE_FILE:-} && -s $OMARCHY_PKG_QUEUE_FILE ]]; then
       packages+=("$pkg")
     fi
   done <"$OMARCHY_PKG_QUEUE_FILE"
+fi
 
-  for pkg in "$@"; do
+if (( $# > 0 )); then
+  for pkg in "${missing_args[@]}"; do
     [[ -z ${seen[$pkg]+x} ]] || continue
     seen[$pkg]=1
     packages+=("$pkg")
   done
-else
-  packages=("$@")
 fi
 
 if (( ${#packages[@]} == 0 )); then
@@ -40,12 +62,10 @@ if (( ${#packages[@]} == 0 )); then
   exit 0
 fi
 
-if omarchy-pkg-missing "${packages[@]}"; then
-  if (( EUID == 0 )); then
-    pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
-  else
-    sudo pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
-  fi
+if (( EUID == 0 )); then
+  pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
+else
+  sudo pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
 fi
 
 for pkg in "${packages[@]}"; do

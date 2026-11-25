@@ -175,20 +175,32 @@ browser_policy_install_firefox_policies() {
   as_root install -m 644 -o root -g root -T "$policies" "$distribution_dir/policies.json"
 }
 
-# Add Omarchy's default-browser setting to an existing policies.json, keeping
-# whatever else an administrator put there.
-browser_policy_firefox_skip_default_check() {
+# Turn one boolean policy on in an existing policies.json, keeping whatever
+# else an administrator put there.
+browser_policy_firefox_enable() {
   local file=$1/policies.json
+  local policy=$2
   local tmp
+  local status=0
 
   browser_policy_firefox_policy_file_ok "$file" || return 0
-  [[ $(jq '.policies.DontCheckDefaultBrowser' "$file" 2>/dev/null) == "true" ]] && return 0
+  [[ $(jq --arg policy "$policy" '.policies[$policy]' "$file" 2>/dev/null) == "true" ]] && return 0
 
   tmp=$(mktemp) || return 1
-  if jq '.policies.DontCheckDefaultBrowser = true' "$file" >"$tmp" 2>/dev/null; then
-    as_root install -m 644 -o root -g root -T "$tmp" "$file"
+  if jq --arg policy "$policy" '.policies[$policy] = true' "$file" >"$tmp" 2>/dev/null; then
+    as_root install -m 644 -o root -g root -T "$tmp" "$file" || status=1
   fi
   rm -f "$tmp"
+  return $status
+}
+
+browser_policy_firefox_skip_default_check() {
+  browser_policy_firefox_enable "$1" DontCheckDefaultBrowser
+}
+
+# pacman updates Firefox and Zen; a vendor build's own updater can only nag.
+browser_policy_firefox_disable_app_update() {
+  browser_policy_firefox_enable "$1" DisableAppUpdate
 }
 
 browser_policy_setup_firefox_distribution() {

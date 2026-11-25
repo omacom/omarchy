@@ -20,13 +20,7 @@ install_php() {
 
 install_node() {
   echo -e "Installing Node.js...\n"
-  # Omarchy declares Node as a default tool. A user who removed the preinstalls,
-  # like one without Omarchy's declarations, selects it in their own config.
-  if omarchy-mise-default-tools declares node; then
-    mise install node
-  else
-    mise use --global node
-  fi
+  mise use --global node
 }
 
 case "$1" in
@@ -77,14 +71,6 @@ symfony)
 python)
   echo -e "Installing Python...\n"
   mise use --global python@latest
-  echo -e "\nInstalling uv...\n"
-  # Omarchy declares uv as a default tool. A user who removed the preinstalls,
-  # like one without Omarchy's declarations, selects it in their own config.
-  if omarchy-mise-default-tools declares uv; then
-    mise install uv
-  else
-    mise use --global uv
-  fi
   ;;
 elixir)
   echo -e "Installing Elixir...\n"

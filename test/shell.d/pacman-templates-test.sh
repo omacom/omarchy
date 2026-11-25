@@ -90,6 +90,12 @@ for platform in $platforms; do
 done
 pass "omarchy-version-channel names the channel of every platform's templates"
 
+printf '# Server = https://stable-mirror.omarchy.org/$repo/os/$arch\nServer = https://mirror.omarchy.org/$repo/os/$arch\n' >"$work/mirrorlist"
+printf '[omarchy]\n# Server = https://pkgs.omarchy.org/stable/$arch\nServer = https://pkgs.omarchy.org/edge/$arch\n' >"$work/pacman.conf"
+said=$(bash "$work/version-channel")
+[[ $said == "edge" ]] || fail "omarchy-version-channel ignores commented-out mirror and repo lines" "$said"
+pass "omarchy-version-channel ignores commented-out mirror and repo lines"
+
 # ── install finalization ─────────────────────────────────────────────────────
 
 finalize_bin=$work/finalize-bin
