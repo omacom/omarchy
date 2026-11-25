@@ -2,7 +2,7 @@
 
 We create snapshots automatically on every Omarchy update, but should you want to create your own, you can use `omarchy-snapshot create`.
 
-How you boot and restore a snapshot depends on the boot loader your machine starts with. New UEFI installs use systemd-boot, the boot loader Secure Boot needs; older installs use Limine, and can move to systemd-boot when an update offers it or with `omarchy-boot-switch` (see below). `omarchy-boot-backend` tells you which one you have.
+How you boot and restore a snapshot depends on the boot loader your machine starts with. New UEFI installs use systemd-boot; older installs and BIOS machines use Limine. `omarchy-boot-backend` tells you which one you have.
 
 ## With systemd-boot
 
@@ -15,18 +15,6 @@ From the terminal:
 - `omarchy-snapshot list` lists the snapshots you can boot;
 - `omarchy-snapshot boot 12` restarts into snapshot 12 once;
 - `omarchy-snapshot restore 12` makes snapshot 12 the system at the next restart, and `omarchy-snapshot restore --cancel` changes your mind before that restart.
-
-Snapshots taken before the switch to systemd-boot stay on disk, but can't be booted or restored: they belong to the Limine setup.
-
-### Switching from Limine
-
-`omarchy-boot-switch` (which an update offers to run) checks the machine first and explains anything that stands in the way. The switch is careful about it:
-
-1. systemd-boot is set up next to Limine, and the machine restarts into it once. If that start fails or hangs, resetting the machine brings back Limine.
-2. Once systemd-boot has started Omarchy, it becomes the default; Limine stays as the fallback.
-3. After one more restart proves the firmware starts systemd-boot on its own, Limine is removed and a fresh snapshot is taken.
-
-Until that last step, `omarchy-boot-switch revert` puts everything back the way it was. Other operating systems on the same disk show up in systemd-boot's menu when they're Windows; anything else is reached from the firmware's boot menu. A factory reset after the switch returns the machine to Limine, which it was installed with; a machine installed with systemd-boot stays on it.
 
 ## With Limine
 
