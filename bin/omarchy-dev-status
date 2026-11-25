@@ -48,7 +48,11 @@ if (( linked )); then
   echo "dev-link: configured"
   echo "  /etc/omarchy.conf -> OMARCHY_PATH=$configured"
   echo "  sudo resolves omarchy-* from: $(sudo_bin_dir)"
-  echo "  status: reboot required before all session layers use this checkout"
+  if [[ -d $configured ]]; then
+    echo "  status: reboot required before all session layers use this checkout"
+  else
+    echo "  status: checkout is missing; restore it or run 'omarchy dev unlink'"
+  fi
 else
   echo "dev-link: inactive"
   if (( conf_present )); then
@@ -58,7 +62,7 @@ fi
 
 echo "  current shell:       OMARCHY_PATH=${OMARCHY_PATH:-<unset>}"
 
-if [[ ${OMARCHY_PATH:-$default_target} != "$configured" ]]; then
+if [[ ${OMARCHY_PATH:-$default_target} != "$configured" && -d $configured ]]; then
   echo
   echo "Note: the running session does not match /etc/omarchy.conf. Reboot to settle it."
 fi

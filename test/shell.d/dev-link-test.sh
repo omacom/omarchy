@@ -178,3 +178,17 @@ fi
 grep -F 'Usage: omarchy dev unlink [--no-reboot]' "$test_tmp/invalid.err" >/dev/null ||
   fail "dev unlink explains valid arguments" "$(cat "$test_tmp/invalid.err")"
 pass "dev unlink rejects unknown arguments"
+
+status_script="$test_tmp/omarchy-dev-status"
+sed "s#/etc/omarchy.conf#$conf_file#g" "$ROOT/bin/omarchy-dev-status" >"$status_script"
+printf 'export OMARCHY_PATH="%s"\n' "$test_tmp/deleted-checkout" >"$conf_file"
+status_output=$(OMARCHY_PATH=/usr/share/omarchy OMARCHY_DEV_TEST_LOG="$log_file" PATH="$stub_bin:$PATH" bash "$status_script")
+[[ $status_output == *"checkout is missing"* && $status_output == *"omarchy dev unlink"* && $status_output != *"reboot required"* && $status_output != *"Reboot to settle"* ]] ||
+  fail "dev status gives a repair instead of a reboot for a missing checkout" "$status_output"
+pass "dev status gives a repair instead of a reboot for a missing checkout"
+
+printf 'export OMARCHY_PATH="%s"\n' "$checkout" >"$conf_file"
+status_output=$(OMARCHY_PATH=/usr/share/omarchy OMARCHY_DEV_TEST_LOG="$log_file" PATH="$stub_bin:$PATH" bash "$status_script")
+[[ $status_output == *"reboot required"* && $status_output == *"Reboot to settle"* ]] ||
+  fail "dev status preserves reboot advice when the configured checkout exists" "$status_output"
+pass "dev status preserves reboot advice when the configured checkout exists"
