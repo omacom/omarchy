@@ -107,6 +107,26 @@ mapfile -t reordered_result < <(run_bootstrap bash "$bootstrap" "$home" "$inheri
   fail "bootstrap moves existing dispatchers ahead of inherited managed tool paths without duplication" "${reordered_result[1]}"
 pass "bootstrap moves existing dispatchers ahead of inherited managed tool paths without duplication"
 
+# A package update can reach a user's next login before their migration runs.
+legacy_dispatchers="$home/.local/share/omarchy/agent-accounts/bin"
+mkdir -p "$legacy_dispatchers" "$home/.local/state/omarchy/agents/accounts"
+printf '#!/bin/bash\nprintf "%%s\\n" "${CODEX_HOME:-primary}"\n' >"$tmpdir/unrelated/bin/codex"
+chmod +x "$tmpdir/unrelated/bin/codex"
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" omarchy-agent-account-dispatch codex
+mv "$home/.local/state/omarchy/agent-accounts/bin/codex" "$legacy_dispatchers/codex"
+printf '{"active":"side","accounts":[{"id":"main","primary":true,"home":""},{"id":"side","home":"%s"}]}\n' "$tmpdir/side" >"$home/.local/state/omarchy/agents/accounts/codex.json"
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; codex' sh "$bootstrap" >"$tmpdir/pending-account"
+[[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "a login before migration keeps the selected account"
+pass "a login before migration keeps the selected account"
+
+uwsm_env="$tmpdir/uwsm-env"
+sed "s#/usr/share/omarchy/default/bash/env-bootstrap#$bootstrap#g" "$ROOT/default/uwsm/env.d/10-omarchy" >"$uwsm_env"
+mkdir -p "$home/.local/share/mise/shims"
+ln -s "$tmpdir/unrelated/bin/codex" "$home/.local/share/mise/shims/codex"
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; codex' sh "$uwsm_env" >"$tmpdir/pending-account"
+[[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "uwsm keeps pending dispatchers ahead of mise shims"
+pass "uwsm keeps pending dispatchers ahead of mise shims"
+
 # Interactive shell startup caches static starship/zoxide init output keyed by
 # binary fingerprint (invalidating on both newer and older-timestamp replacements)
 # and lazy-loads bash_completion on first completion request.

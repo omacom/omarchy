@@ -16,7 +16,8 @@ fi
 # Omarchy wrote is changed.
 pam_env=/etc/security/pam_env.conf
 old_path='PATH DEFAULT=@{HOME}/.local/share/omarchy/agent-accounts/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
-new_path='PATH DEFAULT=@{HOME}/.local/state/omarchy/agent-accounts/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
+# PAM is shared by every user; some have not migrated their dispatchers yet.
+new_path='PATH DEFAULT=@{HOME}/.local/state/omarchy/agent-accounts/bin:@{HOME}/.local/share/omarchy/agent-accounts/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
 if grep -qxF "$old_path" "$pam_env"; then
   sudo sed -i "s|^${old_path//./\\.}\$|${new_path}|" "$pam_env"
 fi
