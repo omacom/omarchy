@@ -485,6 +485,8 @@
   "notifications.redactedSummary": "Текшерүү билдирмеси",
   "notifications.yesterday": "кечээ",
   "polkit.authenticationNeeded": "Өздүктү ырастоо керек...",
+  "polkit.authorizeAgentRunning": "%1 агентине «%2» иштетүүгө уруксат берүү",
+  "polkit.authorizeFormatting": "%1 форматтоого уруксат берүү",
   "polkit.authorizeRunning": "«%1» иштетүүгө уруксат берүү",
   "polkit.checking": "Текшерилүүдө...",
   "polkit.enterPassword": "Сырсөздү киргизиңиз",

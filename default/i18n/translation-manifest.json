@@ -45437,6 +45437,8 @@
     "shell:notifications.redactedSummary": "7cc2959e230d",
     "shell:notifications.yesterday": "9523d9fbe79b",
     "shell:polkit.authenticationNeeded": "2790f925f06e",
+    "shell:polkit.authorizeAgentRunning": "6bf356ea402b",
+    "shell:polkit.authorizeFormatting": "91ee0dc2a228",
     "shell:polkit.authorizeRunning": "865d31d3a4ac",
     "shell:polkit.checking": "2e5f79bb94a8",
     "shell:polkit.enterPassword": "7014aff13517",
