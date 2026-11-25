@@ -127,28 +127,6 @@ balanced = audio.beginVolumeWrite(balanced)
 assertDeepEqual(balanced.activePercents, [27.5, 55], 'volume queue carries per-channel percents')
 assertEqual(balanced.activePercent, 27.5, 'activePercent mirrors the first channel for compat')
 
-const panelSource = require('fs').readFileSync(path.join(root, 'shell/plugins/panels/audio/Panel.qml'), 'utf8')
-assert(
-  /Process \{[\s\S]*id: outputVolumeWriteProc[\s\S]*pactl[\s\S]*set-sink-volume/.test(panelSource),
-  'audio panel uses one reusable pactl process for output volume writes'
-)
-assert(
-  /channelPercentsFromVolumes\(volumes\)/.test(panelSource),
-  'audio panel writes per-channel percents from audio.volumes after the QS scale'
-)
-assert(
-  /for \(var i = 0; i < list\.length; i\+\+\) args\.push/.test(panelSource),
-  'audio panel passes one pactl VOLUME arg per channel'
-)
-assert(
-  /onExited:[\s\S]*finishVolumeWrite[\s\S]*flushOutputVolumeWrite/.test(panelSource),
-  'audio panel starts the latest pending write only after the active process exits'
-)
-assert(
-  !/Quickshell\.execDetached\(\["pactl", "set-sink-volume"/.test(panelSource),
-  'audio panel no longer spawns detached pactl writers per slider event'
-)
-
 // A virtual source is untyped in Quickshell (no audio); PulseAudio's source
 // listing is what names it a source.
 const availability = { virtual_mic: true, 'alsa_input.usb': false }
@@ -245,3 +223,26 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
 }
 JS
+
+# The pactl volume fallback runs one write at a time. A value queued while a
+# write runs must still reach the sink once that write exits, or the slider's
+# last position is lost. The stub's write takes 400ms.
+require_quickshell "audio panel volume write test"
+
+qml_fixture_scratch
+cat >"$QML_FIXTURE_TMP/bin/pactl" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "set-sink-volume" ]]; then
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_PACTL_LOG"
+  sleep 0.4
+fi
+SH
+chmod +x "$QML_FIXTURE_TMP/bin/pactl"
+
+OMARCHY_TEST_PACTL_LOG="$QML_FIXTURE_TMP/pactl.log" \
+  run_qml_fixture audio-volume-write "audio panel drains volume writes queued behind a running pactl" Ui Commons
+
+writes=$(cat "$QML_FIXTURE_TMP/pactl.log" 2>/dev/null || true)
+expected=$'set-sink-volume bluez_output.test 20%\nset-sink-volume bluez_output.test 80% 60%'
+[[ $writes == "$expected" ]] || fail "audio panel writes the first value, then only the newest queued one" "writes: $writes"
+pass "audio panel writes the first value, then only the newest queued one"
