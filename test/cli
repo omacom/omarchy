@@ -13,6 +13,10 @@ export PATH="$ROOT/bin:$PATH"
 # they follow HOME, as in test/shell.d/base-test.sh.
 unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
 
+# Pi keeps its config wherever PI_CODING_AGENT_DIR points, so the default-path
+# Pi checks below must not follow the developer's own setting.
+unset PI_CODING_AGENT_DIR
+
 # Assigns a fresh temporary directory to the named variable and registers it for
 # removal on exit, so every scratch directory this suite makes is cleaned up.
 make_tmpdir() {
@@ -584,6 +588,12 @@ mv "$PI_TMPDIR/settings.json.tmp" "$PI_TMPDIR/.pi/agent/settings.json"
 HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
 jq -e '.theme == "omarchy-system" and .model == "keep-me"' "$PI_TMPDIR/.pi/agent/settings.json" >/dev/null
 pass "pi theme activation preserves existing settings"
+
+PI_TEST_AGENT_DIR="$PI_TMPDIR/.pi-work"
+HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR="$PI_TEST_AGENT_DIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
+[[ -f $PI_TEST_AGENT_DIR/themes/omarchy-system.json ]] || fail "pi theme is synced to the configured directory"
+jq -e '.theme == "omarchy-system"' "$PI_TEST_AGENT_DIR/settings.json" >/dev/null 2>&1 || fail "pi theme is activated in the configured directory"
+pass "pi theme sync respects PI_CODING_AGENT_DIR"
 
 jq -e '.name == "Omarchy" and .base == "light" and .overrides.text == "#ffffff" and .overrides.composerSidebarBackground == "#0d0d0d"' "$NEXT_THEME/claude.json" >/dev/null
 pass "claude theme template is generated from standard themed templates"
