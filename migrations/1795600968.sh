@@ -9,4 +9,10 @@ fi
 
 if systemctl --user show-environment >/dev/null 2>&1; then
   systemctl --user daemon-reload
+
+  # Do not restart running models mid-inference; notify if any are active.
+  running=$(systemctl --user list-units --type=service --state=active,activating --no-legend --plain 'omarchy-agent-local-model-*.service' 2>/dev/null || true)
+  if [[ -n $running ]]; then
+    echo "Restart any running local AI models to apply the new slice and priorities."
+  fi
 fi
