@@ -11,8 +11,9 @@ Local stats come from Antigravity's history log, conversation summaries, and
 conversation transcripts under ~/.gemini/antigravity-cli/, and from the
 Antigravity answers pi, omp, OpenClaw, and opencode's Antigravity plugin
 recorded; no other collector counts those. The plan and
-limits come from the Google Cloud Code API (v1internal:loadCodeAssist and
-v1internal:retrieveUserQuotaSummary), asked with the sign-in agy keeps in the
+limits come from the Google Cloud Code API (v1internal:loadCodeAssist,
+v1internal:retrieveUserQuotaSummary, and v1internal:retrieveUserQuota when the
+summary omits Gemini), asked with the sign-in agy keeps in the
 Secret Service keyring (or its antigravity-oauth-token file), or with the
 Antigravity sign-in omp, pi, or opencode's Antigravity plugin keeps; a lapsed
 omp sign-in is asked through `omp usage`, which renews it. Those stores are
@@ -57,7 +58,9 @@ from collectors import (  # noqa: E402
 )
 
 AGENT_ID = "agy"
-AGENT_NAME = "Antigravity"
+# The panel names the subscription, as it does Claude and Grok; Antigravity is
+# the harness that codes on it.
+AGENT_NAME = "Gemini"
 AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or opencode."
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
@@ -129,7 +132,7 @@ def login():
     "expiresAt": expires.timestamp() if expires else 0,
     "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
     "authMethod": str(data.get("auth_method") or "consumer"),
-    "email": email_of(data.get("id_token")),
+    "email": str(data.get("id_token_email") or "") or email_of(data.get("id_token")),
   }
 
 
@@ -212,10 +215,10 @@ def email_of(id_token):
 # Which Google account a sign-in belongs to, so the limits kept for it are
 # its own: the email when the sign-in names one, otherwise its refresh token,
 # which outlives the access tokens it mints. Only a digest of either names
-# the cache file.
+# the cache file. Answers from before Gemini was requested stay separate.
 def limits_cache(entry):
   identity = entry.get("email") or entry.get("refresh") or entry.get("accessToken")
-  return LimitsCache(AGENT_ID, identity) if identity else None
+  return LimitsCache(AGENT_ID, "gemini-quota:" + identity) if identity else None
 
 
 def token_fresh(entry, now):
@@ -289,12 +292,14 @@ def listed(data, key):
 
 
 # The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
-# other groups (Claude/GPT, Argon) are scoped allowances, shown once they have
-# been touched. An answer that lists its buckets without groups lists the
-# Gemini ones. An answer of another shape (not an object, an error, groups or
-# the Gemini buckets that aren't a list) is None, a failed check rather than a
-# plan without quotas; another group's buckets of the wrong shape skip that
-# group.
+# other groups (Claude/GPT and Argon) are scoped allowances, shown once
+# they have been touched. An answer that lists its buckets without groups
+# lists the Gemini ones. One without a Gemini group (Ultra's summary lists only
+# Claude and GPT) never lets those groups stand in for Gemini — collect_limits
+# falls back to retrieveUserQuota for Gemini's own 5-hour bucket. An answer of
+# another shape (not an object, an error, groups or the Gemini buckets that
+# aren't a list) is None, a failed check rather than a plan without quotas;
+# another group's buckets of the wrong shape skip that group.
 def extract_limits(data):
   if not isinstance(data, dict) or "error" in data or not listed(data, "groups") or not listed(data, "buckets"):
     return None
@@ -305,13 +310,13 @@ def extract_limits(data):
     return []
   gemini = next((g for g in groups if str(g.get("displayName") or "").strip().lower() in ("gemini models", "gemini")), None)
   if gemini is None:
-    gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower() and "argon" not in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+    gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower() and "argon" not in str(g.get("displayName") or "").lower()), None)
+  if gemini and not listed(gemini, "buckets"):
     return None
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
+  for bucket in (gemini or {}).get("buckets") or []:
     if not isinstance(bucket, dict) or used(bucket) is None:
       continue
     window = str(bucket.get("window") or "").lower()
@@ -339,12 +344,40 @@ def extract_limits(data):
   return limits
 
 
+# Google AI Ultra omits Gemini from retrieveUserQuotaSummary, while
+# retrieveUserQuota still reports every model's 5-hour bucket. Pick the fullest
+# Gemini bucket — the most constrained one when models don't share a pool — and
+# drop the rolling now+5h reset Google sends on untouched (0% used) buckets.
+def extract_model_limits(data):
+  if not isinstance(data, dict) or "error" in data or not listed(data, "buckets"):
+    return None
+  best_pct = None
+  best_reset = None
+  for bucket in data.get("buckets") or []:
+    if not isinstance(bucket, dict):
+      continue
+    model = str(bucket.get("modelId") or bucket.get("model_id") or "").strip().lower()
+    if model.startswith("models/"):
+      model = model[7:]
+    if not model.startswith("gemini"):
+      continue
+    pct = used(bucket)
+    if pct is None:
+      continue
+    reset = parse_time(bucket.get("resetTime") or bucket.get("reset_time")) if pct > 0 else None
+    if best_pct is None or pct > best_pct or (
+      pct == best_pct and reset is not None and (best_reset is None or reset < best_reset)
+    ):
+      best_pct, best_reset = pct, reset
+  if best_pct is None:
+    return []
+  return [{"label": "Session (5-hour)", "title": "Session", "percent": best_pct, "resetsAt": best_reset.isoformat() if best_reset else ""}]
+
+
 # The bearer token goes wherever CLOUD_CODE_URL points, so a destination
 # named there is taken only over https, and anything else is Google's own.
-# Google's quota summary returns the Gemini Models and Argon groups only when
-# the User-Agent names the Antigravity CLI (antigravity/cli/... with
-# aidev_client), and loadCodeAssist returns the paid tier and Companion
-# project only when the request names the ANTIGRAVITY IDE.
+# Google includes Gemini quota for a versioned CLI client; the IDE metadata
+# in load_code_assist also lets the plan lookup return its paid tier.
 def post(endpoint, token, body=None):
   base = (os.environ.get("CLOUD_CODE_URL") or DEFAULT_CLOUD_CODE_URL).rstrip("/")
   if not base.startswith("https://"):
@@ -382,7 +415,7 @@ def refused_help(entry):
 # one answers. Each account keeps its own last good answer, which stands in,
 # marked stale, when its check fails.
 def collect_limits(entries, force):
-  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False}
+  result = {"limits": [], "tierLabel": "", "accountName": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False}
   now = time.time()
   # Each harness refreshes its own token while it runs, so the one lapsing
   # last was refreshed most recently. A token of unknown expiry comes after
@@ -399,16 +432,17 @@ def collect_limits(entries, force):
     # untouched, not unknown, so it reads zero until Google names the next
     # reset.
     cache = limits_cache(entry) if entry else None
+    account_name = str((entry or {}).get("email") or "")
     if cache:
-      result.update(limits=cache.limits, tierLabel=str(cache.data.get("tierLabel") or ""), fetchedAtMs=cache.fetched_at)
+      result.update(limits=cache.limits, tierLabel=str(cache.data.get("tierLabel") or ""), accountName=account_name, fetchedAtMs=cache.fetched_at)
     else:
-      result.update(limits=[], tierLabel="", fetchedAtMs=0)
+      result.update(limits=[], tierLabel="", accountName=account_name, fetchedAtMs=0)
 
   def answered(entry, tier, limits):
     # A plan with no quota windows to report is healthy, with no meters.
     cache = limits_cache(entry)
     fetched = cache.save(limits, tierLabel=tier) if cache else now_ms()
-    result.update(limits=limits, tierLabel=tier, live=True, fetchedAtMs=fetched)
+    result.update(limits=limits, tierLabel=tier, accountName=str((entry or {}).get("email") or ""), live=True, fetchedAtMs=fetched)
     return result
 
   keep(lead)
@@ -432,9 +466,21 @@ def collect_limits(entries, force):
     try:
       assist = load_code_assist(entry["accessToken"])
       tier = extract_tier(assist)
-      limits = extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"], project_body(assist)))
+      body = project_body(assist)
+      limits = extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"], body))
       if limits is None:
         raise HttpError()
+      if not any(limit.get("title") in ("Session", "Weekly") for limit in limits):
+        try:
+          fallback = extract_model_limits(post("retrieveUserQuota", entry["accessToken"], body))
+        except HttpError as error:
+          if error.status in (400, 404):
+            fallback = []
+          else:
+            raise
+        if fallback is None:
+          raise HttpError()
+        limits = fallback + limits
     except HttpError as error:
       # A refused sign-in gives way to the next one; any other status is
       # Google answering for every sign-in alike.
@@ -455,7 +501,7 @@ def collect_limits(entries, force):
     keep(entry)
     result.update(authHelpText=help_text, retryAdvised=transport)
     if not result["limits"]:
-      result["usageStatusText"] = "Antigravity limits unavailable"
+      result["usageStatusText"] = "Gemini limits unavailable"
     return result
 
   # No token in hand answered, but omp renews its own sign-in when asked
@@ -755,7 +801,7 @@ def main():
   entries = logins()
   ready = bool(entries) or bool(stats.get("hasLocalStats"))
   limits = collect_limits(entries, args.force) if ready else {
-    "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
+    "limits": [], "tierLabel": "", "accountName": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
   }
   tier = limits["tierLabel"]
   agy = next((e for e in entries if e["source"] == "agy"), None)
@@ -777,6 +823,8 @@ def main():
     limitsFetchedAt=limits["fetchedAtMs"],
     retryAdvised=limits["retryAdvised"],
   )
+  if limits["accountName"]:
+    record["accountName"] = limits["accountName"]
   record.update(stats)
   emit(record)
 
