@@ -13,9 +13,11 @@ stub_bin="$test_tmp/bin"
 state_home="$test_tmp/state"
 lock_dir="$state_home/omarchy"
 lock="$lock_dir/omarchy-theme-set-herdr-machines.lock"
-mkdir -p "$test_tmp/home" "$stub_bin"
+mkdir -p "$test_tmp/home/.local/state/omarchy/toggles" "$stub_bin"
+# Sync must be on, or the run exits before it takes the lock.
+touch "$test_tmp/home/.local/state/omarchy/toggles/herdr-theme-sync"
 
-# No machines listed: the run stops after the toggle check, once the lock is held.
+# No machines listed: the run takes the lock, then has nothing to send.
 cat >"$stub_bin/herdr" <<'EOF'
 #!/bin/bash
 exit 0

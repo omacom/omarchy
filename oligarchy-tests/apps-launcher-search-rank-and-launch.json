@@ -1,0 +1,18 @@
+{
+  "name": "apps-launcher-search-rank-and-launch",
+  "kind": "resume",
+  "context": "From the desktop please do the following:\n\n- Super+Alt+Space is `<M-A-SPACE>`. Use the keyboard only.\n- With typed text, the first Escape clears the filter and the second closes.\n- On an edge build: Super+Alt+Space opens an app grid headed \"Search apps…\" instead of a list, and the no-match text is \"No apps match “zzqqxx”\"; Escape and Enter behave the same.",
+  "steps": [
+    "Press Super+Alt+Space. The Apps menu opens.",
+    "Type `btop`. No btop row is shown.",
+    "Press Escape. The filter clears. The menu stays open.",
+    "Press Escape. The menu closes.",
+    "Press Super+Alt+Space. The Apps menu opens.",
+    "Type `omawrite`. Omawrite is the top row.",
+    "Press Enter. Omawrite opens. The menu closes.",
+    "Press Super+W. Omawrite closes.",
+    "Press Super+Alt+Space. The Apps menu opens.",
+    "Type `zzqqxx`. The menu shows \"No matches for “zzqqxx”\". No row is shown."
+  ],
+  "proof": "* On success\n** The final screen shows the Apps menu filtered to `zzqqxx` with the \"No matches for “zzqqxx”\" text and no row, and no app window open\n** Supporting: no btop row for `btop`, the cleared filter and then the closed menu, Omawrite on top for `omawrite`, the Omawrite window, and the desktop after Super+W\n* If unsuccessful\n** The final screen shows a row for `zzqqxx` or the menu closed; or an earlier screen shows a btop row, the menu closing on the first Escape, or no window after Enter"
+}
