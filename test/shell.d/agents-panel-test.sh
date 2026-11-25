@@ -295,6 +295,24 @@ assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running mo
 assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
 assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
 
+// A coding model set up on this machine always gets a line on the panel,
+// even when set up from the CLI and absent from local-models.json; paired
+// machine models still wait to be added (unless pinned as the local default).
+const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const localModelAddedFn = mainSource.match(/function localModelAdded\([^]*?\n  \}/)[0]
+const isAdded = (addedLocalModels, defaultAgent, localDefaultTarget) =>
+  new Function('addedLocalModels', 'defaultAgent', 'localDefaultTarget', localModelAddedFn + '\nreturn localModelAdded')(
+    addedLocalModels, defaultAgent, localDefaultTarget
+  )
+assertEqual(isAdded([], 'agy', '')({ localModel: { target: 'inkling-2-mini-tensorfold', host: '' } }), true,
+  'a local model set up on this machine appears on the panel even when not in local-models.json')
+assertEqual(isAdded([], 'agy', '')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), false,
+  'a paired machine model stays off the panel until added')
+assertEqual(isAdded(['spark/deepseek'], 'agy', '')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), true,
+  'an added paired machine model appears on the panel')
+assertEqual(isAdded([], 'local', 'spark/deepseek')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), true,
+  'the default paired machine model stays on the panel')
+
 // A model being set up or handing off to status.json isn't dropped from the
 // panel's added list even before status.json reloads with it.
 const findRemoved = new Function(fn('findRemovedLocalModels') + '\nreturn findRemovedLocalModels')()
