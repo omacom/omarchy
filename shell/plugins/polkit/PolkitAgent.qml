@@ -97,13 +97,6 @@ Item {
     if (!flow) return
 
     currentMessage = String(flow.message || "")
-    if (currentLabel === "") {
-      var label = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
-      if (label !== "") {
-        currentLabel = label
-        expected = null
-      }
-    }
     currentPrompt = String(flow.inputPrompt || "")
     currentSupplementary = String(flow.supplementaryMessage || "")
     responseRequired = !!flow.isResponseRequired
@@ -115,13 +108,17 @@ Item {
 
   function beginFlow() {
     closeTimer.stop()
-    // A request arriving while the last one's dialog closes is its own.
-    currentLabel = ""
     closing = false
     submitted = false
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
+    // Each request takes the label it was expected with, or none, so one
+    // arriving while the last dialog closes doesn't keep the last label. It is
+    // taken here and not in syncFromFlow, which runs first: Quickshell sets the
+    // flow, and with it isActive, before it says the request started.
+    currentLabel = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
+    if (currentLabel !== "") expected = null
     Qt.callLater(refocus)
   }
 
