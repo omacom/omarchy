@@ -32,6 +32,22 @@ Item {
   // a minute. Taken by the prompt it fits, which keeps it as currentLabel.
   property var expected: null
   property string currentLabel: ""
+  // The coding agent a prompt comes from, by the name of its mark in the
+  // agents plugin, which takes the padlock's place. Looked up per prompt, and
+  // the padlock waits for the answer so it doesn't flash before the mark.
+  property string currentAgent: ""
+  property bool requesterPending: false
+  property int requestSerial: 0
+  readonly property var agentMarkCandidates: {
+    if (currentAgent === "") return []
+    var base = "../agents/assets/" + currentAgent
+    var candidates = []
+    if (PolkitModel.luminance(background) >= 0.5) candidates.push(Qt.resolvedUrl(base + "-light.svg"))
+    candidates.push(Qt.resolvedUrl(base + ".svg"))
+    return candidates
+  }
+  property int agentMarkIndex: 0
+  onAgentMarkCandidatesChanged: agentMarkIndex = 0
   property string currentPrompt: ""
   property string currentSupplementary: ""
   property bool responseRequired: false
@@ -56,12 +72,15 @@ Item {
   // just frames the centered sensor icon.
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
-  // A command's label never stands in for what pkexec runs: the program
-  // stays at the end, which the line keeps in view however it's cut.
+  // A command's label never stands in for what pkexec runs: the program gets
+  // a line of its own under it, which a long label can't push out of view.
   function authorizationLabel(message) {
-    if (currentLabel !== "") return currentLabel + " · " + PolkitModel.promptProgram(message)
+    if (currentLabel !== "") return currentLabel
     return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
   }
+
+  // The program a labelled prompt runs, for the line under the label.
+  readonly property string labelProgram: currentLabel !== "" ? PolkitModel.promptProgram(currentMessage) : ""
 
   ShellIpc {
     target: "omarchy.polkit"
@@ -82,6 +101,8 @@ Item {
   function resetSnapshot() {
     currentMessage = ""
     currentLabel = ""
+    currentAgent = ""
+    requesterPending = false
     currentPrompt = ""
     currentSupplementary = ""
     responseRequired = false
@@ -119,7 +140,28 @@ Item {
     // flow, and with it isActive, before it says the request started.
     currentLabel = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
     if (currentLabel !== "") expected = null
+    findRequester()
     Qt.callLater(refocus)
+  }
+
+  // Only a pkexec prompt names the command line its process can be found by.
+  // A lookup that hangs gives the padlock back after a second.
+  function findRequester() {
+    requestSerial++
+    currentAgent = ""
+    requesterPending = PolkitModel.promptProgram(currentMessage) !== ""
+    if (!requesterPending) return
+    requesterTimeout.restart()
+    lookUpRequester()
+  }
+
+  // One lookup runs at a time: a prompt that starts while the last one's
+  // still runs gets its own when that ends.
+  function lookUpRequester() {
+    if (requesterProc.running) return
+    requesterProc.forSerial = requestSerial
+    requesterProc.command = ["bash", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/polkit/requester.sh", PolkitModel.promptProgram(currentMessage)]
+    requesterProc.running = true
   }
 
   function refocus() {
@@ -188,6 +230,27 @@ Item {
     onLoaded: root.loadPamConfig(text())
     onLoadFailed: root.fingerprintConfigured = false
     onFileChanged: reload()
+  }
+
+  Process {
+    id: requesterProc
+    property int forSerial: 0
+    stdout: StdioCollector { id: requesterOut; waitForEnd: true }
+    onExited: {
+      if (forSerial === root.requestSerial) {
+        if (root.dialogVisible) root.currentAgent = PolkitModel.agentMark(requesterOut.text)
+        root.requesterPending = false
+      } else if (root.requesterPending) {
+        Qt.callLater(root.lookUpRequester)
+      }
+    }
+  }
+
+  Timer {
+    id: requesterTimeout
+    interval: 1000
+    repeat: false
+    onTriggered: root.requesterPending = false
   }
 
   Process {
@@ -319,15 +382,36 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: Style.space(14)
 
-        Text {
-          text: "\uf023"
-          color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.iconLarge
+        Item {
           width: Style.space(26)
           height: root.fieldHeight
-          horizontalAlignment: Text.AlignHCenter
-          verticalAlignment: Text.AlignVCenter
+
+          Image {
+            id: agentMark
+            anchors.centerIn: parent
+            width: Style.font.iconLarge
+            height: width
+            source: root.agentMarkIndex < root.agentMarkCandidates.length ? root.agentMarkCandidates[root.agentMarkIndex] : ""
+            sourceSize.width: width * 2
+            sourceSize.height: height * 2
+            fillMode: Image.PreserveAspectFit
+            visible: status === Image.Ready
+            // Advancing source from inside its own status change trips the
+            // binding-loop detector; defer the step one tick.
+            onStatusChanged: if (status === Image.Error && root.agentMarkIndex < root.agentMarkCandidates.length)
+              Qt.callLater(function() { root.agentMarkIndex++ })
+          }
+
+          Text {
+            anchors.fill: parent
+            visible: !agentMark.visible && !root.requesterPending
+            text: "\uf023"
+            color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.iconLarge
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+          }
         }
 
         Item {
@@ -393,27 +477,52 @@ Item {
     }
 
     Rectangle {
-      width: Math.min(justificationText.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
-      height: Style.space(28)
+      // Measured apart from the lines, whose width follows this one.
+      width: Math.min(Math.ceil(Math.max(labelMetrics.advanceWidth, root.labelProgram !== "" ? programMetrics.advanceWidth : 0)) + Style.space(24), panel.width - Style.gapsOut * 2)
+      height: root.labelProgram !== "" ? justificationLines.implicitHeight + Style.space(16) : Style.space(28)
       anchors.horizontalCenter: card.horizontalCenter
       anchors.bottom: card.top
       anchors.bottomMargin: Style.space(10)
       radius: root.cornerRadius
       color: root.background
 
-      Text {
-        id: justificationText
-        textFormat: Text.PlainText
-        anchors.fill: parent
+      TextMetrics { id: labelMetrics; font: justificationText.font; text: justificationText.text }
+      TextMetrics { id: programMetrics; font: programText.font; text: programText.text }
+
+      Column {
+        id: justificationLines
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: Style.space(12)
         anchors.rightMargin: Style.space(12)
-        text: root.authorizationLabel(root.currentMessage)
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideMiddle
+        spacing: Style.space(3)
+
+        Text {
+          id: justificationText
+          textFormat: Text.PlainText
+          width: parent.width
+          text: root.authorizationLabel(root.currentMessage)
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: root.labelProgram !== "" ? Style.font.body : Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+          elide: root.labelProgram !== "" ? Text.ElideRight : Text.ElideMiddle
+        }
+
+        Text {
+          id: programText
+          textFormat: Text.PlainText
+          width: parent.width
+          visible: text !== ""
+          text: root.labelProgram
+          color: root.foreground
+          opacity: 0.6
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideMiddle
+        }
       }
     }
   }

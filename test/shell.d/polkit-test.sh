@@ -32,6 +32,8 @@ assertEqual(polkit.expectedLabel('Authentication is required to change system se
 assertEqual(polkit.expectedLabel(pacman, expected, 1001), '', 'a label not used within its minute is dropped')
 assertEqual(polkit.expectedLabel(pacman, null, 500), '', 'with nothing expected a prompt keeps its own label')
 assertEqual(polkit.promptProgram(pacman), '/usr/bin/pacman', 'a pkexec prompt names the program it runs, which a label never hides')
+assertEqual(polkit.promptProgram("Authentication is needed to run `/usr/bin/sh -c echo it's' as the super user"), "/usr/bin/sh -c echo it's", 'a command line holding a quote is read up to the quote that closes it')
+assertEqual(polkit.agentMark('../../x'), '', 'a mark is a file name in the agents plugin, never a path')
 
 assert(
   polkit.fingerprintConfiguredFromPamConfig(`
@@ -58,3 +60,64 @@ auth required pam_unix.so
   'polkit reports no fingerprint when pam_fprintd is absent'
 )
 JS
+
+# requester.sh finds the agent a pkexec prompt comes from in OMARCHY_PROC_ROOT:
+# this user's pkexec running the prompt's command line, then up its parents.
+uid=$(id -u)
+proc_dir=$(mktemp -d)
+trap 'rm -rf "$proc_dir"' EXIT
+
+fake_process() { # pid ppid comm uid [arguments...]
+  local pid=$1 ppid=$2 comm=$3 owner=$4
+  shift 4
+  mkdir -p "$proc_dir/$pid"
+  printf '%s\n' "$comm" >"$proc_dir/$pid/comm"
+  printf '%s (%s) S %s 0 0\n' "$pid" "$comm" "$ppid" >"$proc_dir/$pid/stat"
+  printf 'Name:\t%s\nUid:\t%s\t0\t0\t0\n' "$comm" "$owner" >"$proc_dir/$pid/status"
+  printf '%s\0' "$comm" "$@" >"$proc_dir/$pid/cmdline"
+  : >"$proc_dir/$pid/environ"
+}
+
+requester() {
+  OMARCHY_PROC_ROOT="$proc_dir" bash "$ROOT/shell/plugins/polkit/requester.sh" "$1"
+}
+
+long=(/usr/bin/pacman -S --noconfirm valkey redis-cli sidekiq-dashboard postgresql-libs)
+fake_process 100 1 claude "$uid"
+fake_process 101 100 bash "$uid"
+fake_process 102 101 pkexec "$uid" --disable-internal-agent "${long[@]}"
+shown="${long[*]}"
+shown="${shown:0:38} ... ${shown: -37}"
+[[ $(requester "$shown") == claude ]] || fail "polkit names the agent a pkexec runs under, its command line cut as the prompt cuts it"
+pass "polkit names the agent a pkexec runs under, its command line cut as the prompt cuts it"
+
+rm -rf "${proc_dir:?}"/*
+fake_process 100 1 foot "$uid"
+fake_process 101 100 bash "$uid"
+fake_process 102 101 pkexec "$uid" /usr/bin/true
+[[ -z $(requester /usr/bin/true) ]] || fail "polkit names no agent for a pkexec from a terminal"
+pass "polkit names no agent for a pkexec from a terminal"
+
+rm -rf "${proc_dir:?}"/*
+fake_process 100 1 claude "$uid"
+fake_process 101 100 pkexec "$uid" /usr/bin/pacman -Syu
+[[ -z $(requester "/usr/bin/rm -rf /srv") ]] || fail "polkit names no agent when no pkexec runs the prompt's command line"
+pass "polkit names no agent when no pkexec runs the prompt's command line"
+
+rm -rf "${proc_dir:?}"/*
+fake_process 100 1 node "$uid"
+fake_process 101 100 bash "$uid"
+printf 'PATH=/usr/bin\0CLAUDECODE=1\0' >"$proc_dir/101/environ"
+fake_process 102 101 pkexec "$uid" true
+[[ $(requester /usr/local/bin/true) == claude ]] || fail "polkit knows Claude Code by its environment, and a program given by name by the end of the line"
+pass "polkit knows Claude Code by its environment, and a program given by name by the end of the line"
+
+rm -rf "${proc_dir:?}"/*
+fake_process 100 1 claude "$uid"
+fake_process 101 100 pkexec "$uid" /usr/bin/true
+fake_process 200 1 codex "$uid"
+fake_process 201 200 pkexec "$uid" /usr/bin/pacman -Syu
+fake_process 300 1 grok 4242
+fake_process 301 300 pkexec 4242 /usr/bin/pacman -Syu
+[[ $(requester "/usr/bin/pacman -Syu") == codex ]] || fail "polkit picks the pkexec that runs the prompt's command line, of this user"
+pass "polkit picks the pkexec that runs the prompt's command line, of this user"

@@ -17,10 +17,14 @@ function fingerprintConfiguredFromPamConfig(raw) {
   return false
 }
 
+// pkexec's prompt, with its command line between a backtick and a quote. The
+// line can hold quotes of its own, so it runs to the last one before " as".
+var pkexecPrompt = /^Authentication is (?:needed|required) to run [`']([\s\S]+)[`'] as (?:the super user|user )/i
+
 // The program a pkexec prompt asks to run, as its message names it; empty for
 // any other prompt.
 function promptProgram(message) {
-  var match = String(message || "").match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
+  var match = String(message || "").match(pkexecPrompt)
   return match ? match[1] : ""
 }
 
@@ -33,10 +37,28 @@ function expectedLabel(message, expected, nowMs) {
   return program !== "" && program === expected.program ? String(expected.label) : ""
 }
 
+// The mark requester.sh named, as a file name in the agents plugin's assets;
+// empty for anything else.
+function agentMark(text) {
+  var name = String(text || "").trim()
+  return /^[a-z0-9-]+$/.test(name) ? name : ""
+}
+
+// Relative luminance of a Qt color, to pick a mark drawn for light surfaces.
+function luminance(color) {
+  function channel(value) {
+    var c = Number(value)
+    if (!isFinite(c)) return 0
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  }
+  if (!color) return 0
+  return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
+}
+
 function authorizationLabel(message, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
-  var match = text.match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
+  var match = text.match(pkexecPrompt)
   return match ? t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", match[1]) : text
 }
 
@@ -46,6 +68,8 @@ if (typeof module !== "undefined") {
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
     authorizationLabel: authorizationLabel,
     promptProgram: promptProgram,
-    expectedLabel: expectedLabel
+    expectedLabel: expectedLabel,
+    agentMark: agentMark,
+    luminance: luminance
   }
 }
