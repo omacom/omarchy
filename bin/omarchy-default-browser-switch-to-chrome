@@ -9,7 +9,7 @@ set -e
 # Sticky, so the offer stays on screen, across restarts and reboots, until it
 # is taken up or closed. Any button closes the card, so Nevermind runs nothing.
 if [[ ${1:-} == "--offer" ]]; then
-  omarchy-notification-wait || true
+  omarchy-notification-wait || exit 1
   exec omarchy-notification-send --sticky -g 󰊯 "$(omarchy-i18n default.chromeOffer)" "$(omarchy-i18n default.chromeOfferBody)" \
     --action "$(omarchy-i18n default.chromeOfferSwitch)" omarchy-default-browser-switch-to-chrome \
     --action "$(omarchy-i18n default.chromeOfferDismiss)" true
