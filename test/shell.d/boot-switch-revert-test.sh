@@ -143,3 +143,13 @@ pass "the ESP space check counts the installed kernels"
 
 [[ -z $(run 'cmdline_values "$1/no-such-file"') ]] || fail "a missing Limine config has no command line"
 pass "a missing Limine config reads as no command line"
+
+# The boot store's fstab entry copies the root's, naming @omarchy-boot; a
+# subvolid= the root's carries would select the root instead, so it goes.
+for root_options in subvolid=256,subvol=/@ rw,subvolid=256,subvol=/@,compress=zstd subvol=@,subvolid=256 rw,subvol=/@; do
+  entry=$(run 'store_fstab_entry <<<"UUID=x / btrfs '"$root_options"' 0 0"')
+  options=$(awk '{ print $4 }' <<<"$entry")
+  [[ $(awk '{ print $2 }' <<<"$entry") == /var/lib/omarchy/boot && ,$options, == *,subvol=/@omarchy-boot,* && $options != *subvolid=* ]] ||
+    fail "the store's entry selects @omarchy-boot from root options $root_options" "$entry"
+done
+pass "the boot store's fstab entry selects @omarchy-boot, never the root's subvolid"

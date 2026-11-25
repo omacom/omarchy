@@ -296,6 +296,13 @@ root_device() {
   echo "${device%%\[*}"
 }
 
+# The boot store's fstab entry, from the root's on stdin: the same device and
+# options, with subvol= naming @omarchy-boot. The root's subvolid= would
+# select the root whatever subvol= says, so it goes.
+store_fstab_entry() {
+  awk 'BEGIN { OFS = "\t" } { $2 = "/var/lib/omarchy/boot"; gsub(/(^|,)subvolid=[0-9]+/, "", $4); sub(/^,/, "", $4); gsub(/subvol=\/?@(,|$)/, "subvol=/@omarchy-boot,", $4); sub(/,$/, "", $4); $6 = 0; print }'
+}
+
 create_store() {
   local device fstab_line
   device=$(root_device)
@@ -309,8 +316,7 @@ create_store() {
   if ! grep -qE '[[:space:]]/var/lib/omarchy/boot[[:space:]]' /etc/fstab; then
     fstab_line=$(awk '$2 == "/" && $3 == "btrfs"' /etc/fstab | sed -n 1p)
     [[ -n $fstab_line ]] || die "/etc/fstab has no btrfs root line to copy the store's mount from."
-    # The root's subvolid= would select the root, whatever subvol= says.
-    fstab_line=$(awk 'BEGIN { OFS = "\t" } { $2 = "/var/lib/omarchy/boot"; gsub(/(^|,)subvolid=[0-9]+/, "", $4); sub(/^,/, "", $4); gsub(/subvol=\/?@(,|$)/, "subvol=/@omarchy-boot,", $4); sub(/,$/, "", $4); $6 = 0; print }' <<<"$fstab_line")
+    fstab_line=$(store_fstab_entry <<<"$fstab_line")
     printf '# Omarchy boot images (omarchy-boot-switch)\n%s\n' "$fstab_line" >>/etc/fstab
     systemctl daemon-reload 2>/dev/null || true
   fi
