@@ -59,7 +59,7 @@ unset)
 get)
   (($# == 0)) || usage
   if [[ -f $CMDLINE_DIR/$name.conf && ${backends[*]} == *systemd-boot* ]]; then
-    grep -v '^[[:space:]]*#' "$CMDLINE_DIR/$name.conf" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'
+    { grep -v '^[[:space:]]*#' "$CMDLINE_DIR/$name.conf" || true; } | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'
     echo
   elif [[ -f $LIMINE_DIR/$name.conf ]]; then
     sed -n 's/^KERNEL_CMDLINE\[default\]+="[[:space:]]*\(.*\)"[[:space:]]*$/\1/p' "$LIMINE_DIR/$name.conf" | paste -sd' ' -

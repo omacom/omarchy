@@ -148,12 +148,17 @@ set_kernel() {
     exit 1
   fi
 
+  # While a switch to systemd-boot is under way both loaders can start the
+  # machine, so the choice goes to each.
   if (( EUID == 0 )); then
-    if systemd_boot; then
-      omarchy-boot-sync prefer "$kernel"
-    else
-      apply_kernel "$kernel"
-    fi
+    local backend
+    for backend in $(omarchy-boot-backend --managed); do
+      if [[ $backend == systemd-boot ]]; then
+        omarchy-boot-sync prefer "$kernel"
+      else
+        apply_kernel "$kernel"
+      fi
+    done
     return
   fi
 

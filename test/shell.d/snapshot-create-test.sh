@@ -84,6 +84,8 @@ printf '#!/bin/bash\necho systemd-boot\n' >"$fake_bin/omarchy-boot-backend"
 printf '#!/bin/bash\nexit 0\n' >"$fake_bin/omarchy-boot-sync"
 chmod +x "$fake_bin/omarchy-boot-backend" "$fake_bin/omarchy-boot-sync"
 mkdir -p "$test_tmp/store"
+touch "$test_tmp/snapper-plugin"
+export OMARCHY_BOOT_SYSTEMD_MARKER="$test_tmp/snapper-plugin"
 printf 'omarchy\tOmarchy\nsnapshot-9\tSnapshot 9\n' >"$test_tmp/store/entries"
 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" OMARCHY_BOOT_STORE="$test_tmp/store" \
   bash "$snapshot" create >/dev/null 2>&1 || fail "a snapshot with its boot entry succeeds"
@@ -92,8 +94,17 @@ if TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" OMARCHY_BOOT_STORE="$te
   bash "$snapshot" create >/dev/null 2>&1; then
   fail "a snapshot without a boot entry fails"
 fi
-rm "$fake_bin/omarchy-boot-backend" "$fake_bin/omarchy-boot-sync"
 pass "on systemd-boot, snapshot create fails unless the new snapshot has a boot entry"
+
+# Between the trial boot and the finish, systemd-boot starts the machine but
+# nothing pins snapshots to its boot images yet: the update goes ahead on the
+# snapshot Limine lists.
+rm "$test_tmp/snapper-plugin"
+TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" OMARCHY_BOOT_STORE="$test_tmp/store" \
+  bash "$snapshot" create >/dev/null 2>&1 || fail "a snapshot while the switch finishes succeeds without a systemd-boot entry"
+unset OMARCHY_BOOT_SYSTEMD_MARKER
+rm "$fake_bin/omarchy-boot-backend" "$fake_bin/omarchy-boot-sync"
+pass "until the switch finishes, snapshot create needs no systemd-boot entry"
 
 # Snapper being deliberately absent is the one skip that stays quiet, and the
 # update has to keep treating it as such.

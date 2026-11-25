@@ -70,8 +70,10 @@ create)
 
   # On systemd-boot the snapshot's boot entry is built by omarchy-boot-sync;
   # wait for it, and check it is there, so an update only goes ahead once its
-  # rollback point boots.
-  if [[ $backend == "systemd-boot" ]]; then
+  # rollback point boots. Until a switch to systemd-boot finishes, nothing pins
+  # a snapshot to a boot image (omarchy-boot-systemd's snapper plugin comes
+  # with the finish): its rollback point is in Limine's menu.
+  if [[ $backend == "systemd-boot" && -f ${OMARCHY_BOOT_SYSTEMD_MARKER:-/usr/lib/snapper/plugins/20-omarchy-boot} ]]; then
     if ! sudo omarchy-boot-sync sync >/dev/null ||
       { [[ -n $root_number ]] && ! grep -q "^snapshot-$root_number"$'\t' "${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}/entries"; }; then
       echo -e "\e[33m$(omarchy-i18n snapshot.bootEntryFailed)\e[0m" >&2

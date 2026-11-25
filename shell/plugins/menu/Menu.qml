@@ -375,8 +375,10 @@ Item {
     },
     // systemd-boot's snapshot entries, newest first, as omarchy-boot-sync
     // published them. Picking one boots it once; it can be restored from there.
+    // On Limine, omarchy-snapshot list asks sudo for snapper's table, which a
+    // menu has no terminal for.
     "snapshots": {
-      script: "omarchy-snapshot list 2>/dev/null | while IFS=$'\\t' read -r n title; do [[ -z $n ]] && continue; printf '%s\\t%s\\t\\n' \"$title\" \"$n\"; done",
+      script: "[[ $(omarchy-boot-backend) == systemd-boot ]] || exit 0; omarchy-snapshot list 2>/dev/null | while IFS=$'\\t' read -r n title; do [[ -z $n ]] && continue; printf '%s\\t%s\\t\\n' \"$title\" \"$n\"; done",
       icon: "\udb80\udc6f",
       volatile: true,
       actionFor: function(value) { return "omarchy-launch-floating-terminal-with-presentation omarchy-snapshot boot " + Util.shellQuote(value) }
@@ -555,6 +557,8 @@ Item {
       var entry = root.item(root.itemOrder[i])
       if (!entry || !entry.provider || root.providersLoaded[entry.id]) continue
       if (active !== "root" && entry.id !== active && !root.isDescendantOf(entry.id, active)) continue
+      // A submenu its guard hides has no rows to search.
+      if (!root.isVisible(entry)) continue
 
       root.loadProviderForMenu(entry.id)
     }

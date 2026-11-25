@@ -11,6 +11,7 @@
 set -euo pipefail
 
 STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
+PROC_CMDLINE=${OMARCHY_PROC_CMDLINE:-/proc/cmdline}
 seen_file=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/boot-notice-seen
 
 # Empty, not a failure, where there is no boot store yet (a Limine machine).
@@ -20,13 +21,20 @@ state_get() {
 }
 
 # omarchy-boot-confirm, a system service this user unit can't be ordered
-# after, may still be writing this boot's notice (a restore it commits).
+# after, may still be writing this boot's notice (a restore it commits), or
+# not have started yet: it waits for graphical.target, which a quick login
+# can beat.
+confirm_pending() {
+  [[ $(systemctl show -p ActiveState --value omarchy-boot-confirm.service 2>/dev/null) == "activating" ]] ||
+    [[ -n $(systemctl list-jobs --no-legend omarchy-boot-confirm.service 2>/dev/null) ]]
+}
+
 for _ in $(seq 120); do
-  [[ $(systemctl show -p ActiveState --value omarchy-boot-confirm.service 2>/dev/null) == "activating" ]] || break
+  confirm_pending || break
   sleep 1
 done
 
-snapshot=$(sed -n 's#.*rootflags=[^ ]*subvol=[^ ,]*/\.snapshots/\([0-9]*\)/snapshot.*#\1#p' /proc/cmdline)
+snapshot=$(sed -n 's#.*rootflags=[^ ]*subvol=[^ ,]*/\.snapshots/\([0-9]*\)/snapshot.*#\1#p' "$PROC_CMDLINE")
 notice_id=$(state_get notice_id)
 
 [[ -n $snapshot || (-n $notice_id && $(cat "$seen_file" 2>/dev/null) != "$notice_id") ]] || exit 0

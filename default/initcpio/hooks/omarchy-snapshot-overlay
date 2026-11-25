@@ -8,8 +8,8 @@
 run_latehook() {
   local root_mnt=/sysroot
 
-  # mkinitcpio before 41 mounted the root on /new_root.
-  if [ "$(stat -c %D "$root_mnt" 2>/dev/null)" = "$(stat -c %D /)" ]; then
+  # mkinitcpio before 41 mounted the root on /new_root, with no /sysroot.
+  if [ ! -d "$root_mnt" ] || [ "$(stat -c %D "$root_mnt")" = "$(stat -c %D /)" ]; then
     root_mnt=/new_root
   fi
 

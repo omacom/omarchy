@@ -42,6 +42,8 @@ boot_cmdline set resume resume=UUID=1234 resume_offset=42
 [[ $(<"$cmdline/resume.conf") == "resume=UUID=1234 resume_offset=42" && ! -e $limine ]] ||
   fail "on systemd-boot, set writes plain parameters only" "$(cat "$cmdline/resume.conf")"
 [[ $(boot_cmdline get resume) == "resume=UUID=1234 resume_offset=42" ]] || fail "on systemd-boot, get reads them back"
+printf '# kept for later\n' >"$cmdline/later.conf"
+out=$(boot_cmdline get later) && [[ -z $out ]] || fail "on systemd-boot, get reads a group of only comments as empty"
 pass "on systemd-boot, set and get use plain /etc/cmdline.d files"
 
 # While a switch is on trial both loaders boot, so both files are kept, and
