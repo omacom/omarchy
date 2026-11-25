@@ -779,6 +779,8 @@ show_commands_man() {
   local aliases=""
   local alias=""
   local example=""
+  local subcommand_args=""
+  local subcommand_summary=""
 
   [[ -r $OMARCHY_BIN_DIR/../version ]] && version=$(<"$OMARCHY_BIN_DIR/../version")
 
@@ -826,10 +828,18 @@ EOF
       [[ ${COMMAND_GROUP[$key]} == "$group" ]] || continue
 
       printf '.B %s\n' "$(man_escape "${COMMAND_ROUTE[$key]}" true)"
-      [[ -n ${COMMAND_ARGS[$key]} ]] && printf '.I %s\n' "$(man_escape "${COMMAND_ARGS[$key]}" true)"
+      [[ -z ${COMMAND_SUBCOMMANDS[$key]} ]] && printf '.I %s\n' "$(man_escape "${COMMAND_ARGS[$key]}" true)"
       echo ".RS 4"
       man_escape "${COMMAND_SUMMARY[$key]}"
       echo ""
+      if [[ -n ${COMMAND_SUBCOMMANDS[$key]} ]]; then
+        while IFS=$'\t' read -r subcommand_args subcommand_summary; do
+          printf '.br\n.B %s\n.I %s\n\\- %s\n' \
+            "$(man_escape "${COMMAND_ROUTE[$key]}" true)" \
+            "$(man_escape "$subcommand_args" true)" \
+            "$(man_escape "$subcommand_summary")"
+        done <<<"${COMMAND_SUBCOMMANDS[$key]}"
+      fi
 
       notes=""
       [[ ${COMMAND_REQUIRES_SUDO[$key]} == "true" ]] && notes="Requires sudo."
