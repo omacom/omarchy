@@ -28,13 +28,21 @@ function promptProgram(message) {
   return match ? match[1] : ""
 }
 
+// pkexec's prompt cuts a command line longer than 80 bytes to its first 38
+// and last 37, so one expected whole is cut the same way to match it. This
+// counts characters, which are bytes for an ASCII command line.
+function promptLine(line) {
+  var text = String(line || "")
+  return text.length > 80 ? text.slice(0, 38) + " ... " + text.slice(-37) : text
+}
+
 // A label a command asked for its next prompt (omarchy.polkit expect), when
 // this prompt is that one: pkexec running the program it named, before the
 // label went stale. Empty otherwise.
 function expectedLabel(message, expected, nowMs) {
   if (!expected || !expected.label || nowMs > expected.until) return ""
   var program = promptProgram(message)
-  return program !== "" && program === expected.program ? String(expected.label) : ""
+  return program !== "" && (program === expected.program || program === promptLine(expected.program)) ? String(expected.label) : ""
 }
 
 // The mark requester.sh named, as a file name in the agents plugin's assets;
