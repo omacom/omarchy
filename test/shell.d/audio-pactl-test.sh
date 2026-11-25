@@ -77,7 +77,7 @@ OUT
   {
     "index": 2,
     "name": "alsa_output.headphones",
-    "description": "Headphones",
+    "description": "Studio\\DAC Headphones",
     "ports": [{"name": "analog-output-headphones", "availability": "available"}],
     "volume": {"front-left": {"value_percent": "70%"}}
   }
@@ -135,12 +135,15 @@ grep -qx 'C pactl get-sink-volume alsa_output.headphones' "$CALLS" ||
   fail 'audio-output-switch reads sink volume in the C locale' "$(calls)"
 grep -qx 'C pactl get-sink-mute alsa_output.headphones' "$CALLS" ||
   fail 'audio-output-switch reads sink mute in the C locale' "$(calls)"
+grep -Fxq 'omarchy-osd -i volume-medium -m Studio\DAC Headphones' "$CALLS" ||
+  fail 'audio-output-switch preserves backslashes in sink descriptions' "$(calls)"
 pass 'audio-output-switch reads pactl outputs in the C locale'
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 2>/dev/null || true
 grep -qx 'C pactl get-sink-volume alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink volume in the C locale' "$(calls)"
+XDG_RUNTIME_DIR="$work" LC_ALL=en_US.UTF-8 omarchy-audio-output-volume mute-toggle 2>/dev/null || true
 grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
