@@ -168,20 +168,20 @@ assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount:
 const fs = require('fs')
 const vm = require('vm')
 const panelSource = fs.readFileSync(path.join(root, 'shell/plugins/panels/monitor/Panel.qml'), 'utf8')
-assert(
-  /id:\s*textSizeSlider[\s\S]*?onReleased:\s*function\(v\)\s*\{\s*root\.applyTextSizeStop\(v\)\s*\}/.test(panelSource),
-  'text size slider release applies preview stop and reflow guard like keyboard steps'
-)
-const extractFn = (name) => {
+const extractFn = (name, required = true) => {
   const m = panelSource.match(new RegExp(`^( *)function ${name}\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\1\\}`, 'm'))
-  if (!m) throw new Error('missing function ' + name)
+  if (!m) {
+    if (required) throw new Error('missing function ' + name)
+    return ''
+  }
   return m[0]
 }
+const sliderBlock = panelSource.match(/PanelSlider\s*\{\s*id:\s*textSizeSlider[\s\S]*?\n\s*\}/)[0]
+const sliderReleaseMatch = sliderBlock.match(/onReleased:\s*(function\([^)]*\)\s*\{[\s\S]*?\})/)
+assert(sliderReleaseMatch, 'textSizeSlider defines an onReleased handler')
 const procBlock = panelSource.match(/Process\s*\{\s*id:\s*textScaleProc[\s\S]*?\n  \}/)[0]
 const runningMatch = procBlock.match(/onRunningChanged:\s*\{([\s\S]*?)\n    \}/)
-assert(runningMatch, 'textScaleProc drains queued text size changes when it finishes')
 const exitedMatch = procBlock.match(/onExited:\s*function\(exitCode\)\s*\{([\s\S]*?)\n    \}/)
-assert(exitedMatch, 'textScaleProc clears preview on failure')
 
 const commands = []
 const proc = {
@@ -200,7 +200,7 @@ const scope = {
   reflows: 0,
   Style: { font: { baseSize: 12 } },
   textScaleProc: proc,
-  markReflowing: function() { this.reflows += 1 },
+  markReflowing: () => { scope.reflows += 1 },
 }
 scope.root = scope
 vm.createContext(scope)
@@ -208,11 +208,12 @@ vm.runInContext([
   extractFn('nearestTextStop'),
   extractFn('currentTextIndex'),
   extractFn('setTextSize'),
-  extractFn('applyTextSizeStop'),
+  extractFn('applyTextSizeStop', false),
   extractFn('adjustTextSize'),
-  `function onProcRunningChanged(running) { ${runningMatch[1]} }`,
-  `function onProcExited(exitCode) { ${exitedMatch[1]} }`,
-].join('\n'), scope)
+  `var onSliderReleased = ${sliderReleaseMatch[1]}`,
+  `function onProcRunningChanged(running) { ${runningMatch ? runningMatch[1] : ''} }`,
+  `function onProcExited(exitCode) { ${exitedMatch ? exitedMatch[1] : ''} }`,
+].filter(Boolean).join('\n'), scope)
 
 scope.adjustTextSize(1)
 assertEqual(scope.textSizePreviewIndex, 2, 'first step previews 14px stop')
@@ -234,9 +235,11 @@ scope.onProcExited(0)
 scope.onProcRunningChanged(false)
 assertEqual(scope.textSizePreviewIndex, -1, 'preview clears once Style matches the applied stop')
 
-// A failing command clears the preview instead of leaving the slider stuck.
-scope.applyTextSizeStop(4)
+// Releasing the mouse slider previews the target stop, guards reflow, and clears on failure.
+const reflowsBefore = scope.reflows
+scope.onSliderReleased(4)
 assertEqual(scope.textSizePreviewIndex, 4, 'slider release previews target stop')
+assertEqual(scope.reflows, reflowsBefore + 1, 'slider release arms reflow hover guard')
 proc.running = false
 scope.onProcExited(1)
 scope.onProcRunningChanged(false)
