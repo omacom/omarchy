@@ -560,6 +560,44 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
 
+# History reads happen in a single jq call so a concurrent copy shifting array
+# indices between two reads cannot cause the wrong entry to be pasted or opened.
+cat >"$TMPDIR/bin/jq" <<'SH'
+#!/bin/bash
+/usr/bin/jq "$@"
+status=$?
+if [[ -n ${JQ_SHIFT_HISTORY:-} && -f $JQ_SHIFT_HISTORY ]]; then
+  printf '[{"type":"text","text":"shifted-wrong-entry"}]\n' >"$JQ_SHIFT_HISTORY"
+fi
+exit "$status"
+SH
+chmod +x "$TMPDIR/bin/jq"
+
+printf '[{"type":"text","text":"original-entry"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+JQ_SHIFT_HISTORY="$TMPDIR/home/.local/state/omarchy/clipboard-history.json" \
+  WL_COPY_OUT="$TMPDIR/copied" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+[[ $(<"$TMPDIR/copied") == "original-entry" ]] ||
+  fail "clipboard paste reads and validates history entry in a single jq call" "$(<"$TMPDIR/copied")"
+
+printf '[{"type":"text","text":"https://example.com/original"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+rm -f "$TMPDIR/browser"
+JQ_SHIFT_HISTORY="$TMPDIR/home/.local/state/omarchy/clipboard-history.json" \
+  BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-open" --history-index 0
+[[ $(<"$TMPDIR/browser") == "https://example.com/original" ]] ||
+  fail "clipboard open reads and validates history entry in a single jq call" "$(<"$TMPDIR/browser")"
+rm -f "$TMPDIR/bin/jq"
+pass "clipboard history helpers read entries atomically in one jq call"
+
+# Embedded NUL bytes in saved history text must survive extraction into wl-copy.
+printf '[{"type":"text","text":"foo\\u0000bar\\u0000"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+WL_COPY_OUT="$TMPDIR/copied-nul" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+[[ $(od -An -tx1 "$TMPDIR/copied-nul" | tr -d ' \n') == "666f6f0062617200" ]] ||
+  fail "clipboard paste preserves embedded NUL bytes from history entries" "$(od -An -tx1 "$TMPDIR/copied-nul")"
+pass "clipboard paste preserves embedded NUL bytes from history entries"
+
 sweep_dir="$TMPDIR/sweep-images"
 sweep_hist="$TMPDIR/sweep-history.json"
 mkdir -p "$sweep_dir"

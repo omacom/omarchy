@@ -24,7 +24,10 @@ Item {
   property int contentMargin: Style.spacing.panelPadding
   property int fieldHeight: Math.max(Style.space(42), Style.spacing.controlHeight)
 
-  property bool closing: false
+  // Set immediately on polkit auth success or cancel so the overlay drops its
+  // exclusive keyboard focus and pointer grab without waiting for polkitd to
+  // finish tearing down the D-Bus flow.
+  property bool dismissed: false
   property bool submitted: false
   property string currentMessage: ""
   // What a command asked its next prompt to say, as it knows what it's for
@@ -51,7 +54,7 @@ Item {
   // Drives waiting their turn, as { device, label }: one card at a time.
   property var driveQueue: []
 
-  readonly property bool dialogVisible: polkitAgent.isActive || driveDevice !== "" || closing
+  readonly property bool dialogVisible: (polkitAgent.isActive && !dismissed) || driveDevice !== ""
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
@@ -131,7 +134,7 @@ Item {
   }
 
   function nextDrive() {
-    if (driveDevice !== "" || polkitAgent.isActive || closing || driveQueue.length === 0) return
+    if (driveDevice !== "" || (polkitAgent.isActive && !dismissed) || driveQueue.length === 0) return
     var next = driveQueue[0]
     driveQueue = driveQueue.slice(1)
     beginDrive(next.device, next.label)
@@ -156,8 +159,8 @@ Item {
     }
     if (exitCode !== 0) console.warn("omarchy drive unlock failed: " + error.trim())
     driveDevice = ""
-    closing = true
-    closeTimer.restart()
+    resetSnapshot()
+    nextDrive()
   }
 
   function beginFlow() {
@@ -166,15 +169,23 @@ Item {
       driveQueue = [{ device: driveDevice, label: driveLabel }].concat(driveQueue)
       driveDevice = ""
     }
-    closeTimer.stop()
-    // A request arriving while the last one's dialog closes is its own.
+    // A new request starts fresh even if the previous flow is still tearing down.
     currentLabel = ""
-    closing = false
+    dismissed = false
     submitted = false
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
     Qt.callLater(refocus)
+  }
+
+  function dismissPolkit() {
+    dismissed = true
+    // A queued drive may already have taken the card if cancelRequest() ran first.
+    if (driveDevice === "") {
+      resetSnapshot()
+      nextDrive()
+    }
   }
 
   function refocus() {
@@ -210,12 +221,12 @@ Item {
 
   function cancelRequest() {
     var flow = polkitAgent.flow
+    var hadDrive = driveDevice !== ""
     driveDevice = ""
-    passwordInput.text = ""
-    submitted = false
-    closing = true
-    closeTimer.restart()
-    if (flow) flow.cancelAuthenticationRequest()
+    if (!hadDrive && polkitAgent.isActive) dismissed = true
+    resetSnapshot()
+    if (!hadDrive && flow) flow.cancelAuthenticationRequest()
+    nextDrive()
   }
 
   function triggerFailureFeedback() {
@@ -225,17 +236,6 @@ Item {
     errorTimer.restart()
     shakeAnimation.restart()
     Qt.callLater(refocus)
-  }
-
-  Timer {
-    id: closeTimer
-    interval: 300
-    repeat: false
-    onTriggered: {
-      closing = false
-      resetSnapshot()
-      root.nextDrive()
-    }
   }
 
   Timer {
@@ -288,9 +288,12 @@ Item {
     onAuthenticationRequestStarted: root.beginFlow()
     onIsActiveChanged: {
       if (isActive) root.syncFromFlow()
-      else if (!root.closing) {
-        root.resetSnapshot()
-        root.nextDrive()
+      else {
+        root.dismissed = false
+        if (root.driveDevice === "") {
+          root.resetSnapshot()
+          root.nextDrive()
+        }
       }
     }
     onIsRegisteredChanged: {
@@ -319,13 +322,11 @@ Item {
     }
 
     function onAuthenticationSucceeded() {
-      root.closing = true
-      closeTimer.restart()
+      root.dismissPolkit()
     }
 
     function onAuthenticationRequestCancelled() {
-      root.closing = true
-      closeTimer.restart()
+      root.dismissPolkit()
     }
   }
 

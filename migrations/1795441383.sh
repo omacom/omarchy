@@ -22,7 +22,7 @@ installed_version() {
   mise ls "$1" --json | jq -r 'map(.version) | last'
 }
 
-# Everyone gets these. gh comes with Setup > Git, ghui, Hunk, Basecamp, HEY and
+# Everyone gets these. gh comes with Setup > Git, Hunk, Basecamp, HEY and
 # Cloudflare from Install > CLI, and each coding agent from Install > AI > CLI,
 # so one of them becomes its package only if it was in use. The lists are read
 # first and installed in one go, with the terminal still on stdin for sudo.
@@ -35,7 +35,6 @@ while read -r tool package; do
   fi
 done <<'EOF'
 gh github-cli
-ghui ghui
 hunk hunk
 basecamp basecamp-cli
 hey-cli hey-cli
@@ -77,9 +76,12 @@ done
 
 # Node is a runtime projects build on, so one in use stays, at the version it
 # was, in the user's own config, as Install > Development > Node.js sets it up.
-if from_omarchy node; then
-  MISE_OFFLINE=1 mise use -g --quiet "node@$(installed_version node)"
-fi
+# ghui is no longer shipped by Omarchy, so a copy in use stays the same way.
+for tool in node ghui; do
+  if from_omarchy "$tool"; then
+    MISE_OFFLINE=1 mise use -g --quiet "$tool@$(installed_version "$tool")"
+  fi
+done
 
 # Command Code's and Kiro CLI's terms don't allow Omarchy to ship them, so they
 # are no longer Omarchy's agents. A copy in use moves to the user's own mise
