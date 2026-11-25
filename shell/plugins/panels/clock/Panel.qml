@@ -577,13 +577,19 @@ Panel {
               }
 
               onWheel: function(wheel) {
+                const phase = wheel.phase
+                if (phase === Qt.ScrollBegin || phase === Qt.ScrollEnd) {
+                  swipeTimeout.stop()
+                  swipeDistance = 0
+                }
+
                 const pixels = wheel.pixelDelta
                 // Wayland can include a pixel delta even for a wheel notch.
-                const useAngle = wheel.phase === Qt.NoScrollPhase && wheel.angleDelta.x !== 0
+                const useAngle = (phase === Qt.NoScrollPhase && wheel.angleDelta.x !== 0)
                   || (pixels.x === 0 && pixels.y === 0)
                 const delta = useAngle ? wheel.angleDelta : pixels
                 wheel.accepted = Math.abs(delta.x) > Math.abs(delta.y)
-                if (!wheel.accepted) return
+                if (!wheel.accepted || phase === Qt.ScrollEnd || phase === Qt.ScrollMomentum) return
 
                 const direction = LayoutMirroring.enabled ? 1 : -1
                 if (useAngle) {
@@ -593,8 +599,8 @@ Panel {
                   return
                 }
 
-                // A touchpad sends many events for one swipe.
-                swipeTimeout.restart()
+                // Infer swipe boundaries only when the input has no phases.
+                if (phase === Qt.NoScrollPhase) swipeTimeout.restart()
                 if (Math.abs(swipeDistance) >= swipeThreshold) return
                 swipeDistance += delta.x
                 if (Math.abs(swipeDistance) >= swipeThreshold)
