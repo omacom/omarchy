@@ -211,6 +211,17 @@ assertEqual(offerRecommended({ host: '', best: false }, 2), false, 'a non-best m
 assertEqual(offerRecommended({ host: 'spark', best: true }, 2), false, 'a network model never gets the recommended pill')
 assertEqual(offerRecommended({ host: '', best: true, link: { state: 'available' } }, 2), false, 'a cabled Spark link offer never gets the recommended pill')
 
+const sortLocalOffers = new Function(fn('sortLocalOffers') + '\nreturn sortLocalOffers')()
+assertDeepEqual(
+  sortLocalOffers([
+    { target: 'qwen', best: false },
+    { target: 'other', best: false },
+    { target: 'nemotron', best: true }
+  ]).map(o => o.target),
+  ['nemotron', 'qwen', 'other'],
+  'the recommended model sorts at the top even when another model is already installed'
+)
+
 const localMeter = new Function('Commons', 'nowMs', 'downloadRate', fn('phaseProgress') + fn('expectedLoadSeconds') + fn('expectedStopSeconds') + fn('localMeter') + '\nreturn localMeter')(
   { I18n: { t: key => key } },
   10000,

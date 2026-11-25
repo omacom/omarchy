@@ -535,7 +535,7 @@ Panel {
   // What the network and local blocks of the add screen offer: each coding
   // model without a line, a paired machine's first, then one shared on the
   // tailnet by a machine not paired yet, which choosing pairs with. This
-  // machine's are those set up here, then every recipe that fits and isn't,
+  // machine's are those set up here and every recipe that fits and isn't,
   // recommended first, then another DGX Spark cabled to this one. Those
   // being set up or paired with, and the one being started from here, stay,
   // showing how that goes.
@@ -544,15 +544,15 @@ Panel {
     var lines = localModelLines.filter(function(line) {
       return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
     })
-    var offerLine = function(line) {
+    var offerLine = function(targetList, line) {
       var model = localModelState(line.localModel)
       if (model && model.unit === "removing") return
-      offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
-                    host: line.localModel.host, facts: line.localModel,
-                    best: line.localModel.host === "" && line.localModel.best === true,
-                    shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
+      targetList.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
+                        host: line.localModel.host, facts: line.localModel,
+                        best: line.localModel.host === "" && line.localModel.best === true,
+                        shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
     }
-    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
+    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(function(line) { offerLine(offers, line) })
     var network = localModelsService ? localModelsService.networkModels || {} : {}
     for (var nid in network) {
       var shared = network[nid]
@@ -560,21 +560,26 @@ Panel {
       offers.push({ target: nid, name: shared.name || shared.recipe, vendor: shared.vendor || "local", host: shared.host,
                     facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, pair: shared })
     }
-    lines.filter(function(line) { return line.localModel.host === "" }).forEach(offerLine)
+    var localOffers = []
+    lines.filter(function(line) { return line.localModel.host === "" }).forEach(function(line) { offerLine(localOffers, line) })
     var recipes = (localModelsService ? localModelsService.localRecipes || [] : []).filter(function(recipe) {
       return recipe.kind === "text" && recipe.available === true
         && !localModelLines.some(function(line) { return line.localModel.target === String(recipe.id) })
     })
-    recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
     for (var r = 0; r < recipes.length; r++)
-      offers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
-                    host: "", facts: recipes[r], recipe: recipes[r], best: recipes[r].best === true,
-                    shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+      localOffers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
+                         host: "", facts: recipes[r], recipe: recipes[r], best: recipes[r].best === true,
+                         shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+    offers = offers.concat(sortLocalOffers(localOffers))
     var link = localModelsService && localModelsService.localModel ? localModelsService.localModel.link : null
     if (link && link.state === "available")
       offers.push({ target: "", name: link.host ? Commons.I18n.t("localModels.linkOffer").arg(link.host) : Commons.I18n.t("localModels.linkOfferUnnamed"),
                     vendor: "nvidia", host: "", facts: {}, link: link })
     return offers
+  }
+
+  function sortLocalOffers(offers) {
+    return offers.slice().sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
   }
 
   // A model on this machine that the memory free now can't start: one set up
