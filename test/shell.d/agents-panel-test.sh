@@ -42,6 +42,21 @@ assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a pl
 assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
 assertEqual(subscribed({ ...historyOnly, spend: { amount: 1.25, days: [] } }), true, 'spend alone earns a section')
 
+// A line's numbers are as of the record's updatedAt; once two refreshes have
+// passed without a new one, the collector has stopped and the panel says so.
+const fnIn = (source, name) => (source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}')) || [''])[0]
+const displayProvider = new Function('syncedStatsFor', 'aggregateData',
+  ['numberValue', 'balanceValue', 'spendValue', 'recordUpdatedAtMs', 'displayProvider'].map(name => fnIn(mainSource, name)).join('\n') + '\nreturn displayProvider')(() => null, {})
+const written = Date.parse('2026-11-24T18:00:00.123Z')
+assertEqual(displayProvider({ id: 'claude', updatedAt: '2026-11-24T18:00:00.123456+00:00' }).updatedAtMs, written, 'a line carries when its collector wrote the record')
+assertEqual(displayProvider({ id: 'claude' }).updatedAtMs, 0, 'an agent with no record here carries no time')
+const outdatedAt = (minutes, interval) => new Function('nowMs', 'usage', fnIn(panelSource, 'recordAgeMs') + fnIn(panelSource, 'recordOutdated') +
+  '\nreturn typeof recordOutdated === "function" ? recordOutdated : () => null')(written + minutes * 60000, { refreshIntervalSec: interval })
+assertEqual(outdatedAt(29, 900)({ updatedAtMs: written }), false, 'a record within two refreshes is current')
+assertEqual(outdatedAt(31, 900)({ updatedAtMs: written }), true, 'a record two refreshes old is outdated')
+assertEqual(outdatedAt(11, 300)({ updatedAtMs: written }), true, 'the threshold follows the refresh interval')
+assertEqual(outdatedAt(600, 900)({ updatedAtMs: 0 }), false, 'a line with no record is never outdated')
+
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.
 for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
