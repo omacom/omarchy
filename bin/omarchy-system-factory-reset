@@ -521,12 +521,10 @@ rebuild_next_boot() {
     if [[ -d $next/swap ]] && ! btrfs subvolume show "$next/swap" >/dev/null 2>&1; then
       rmdir "$next/swap" 2>/dev/null || true
     fi
-    # The factory root still carries the resume drop-ins from install, which
-    # make hibernation-setup conclude it has nothing to do; with the swapfile
-    # gone they must go so it reconfigures from scratch. The resume-offset
-    # drop-in especially: hibernation-setup only recomputes the physical
-    # offset when it is absent, so a surviving one bakes the old swapfile's
-    # offset into the rebuilt UKI and breaks resume.
+    # The factory root still carries the resume hook and drop-in from install,
+    # which make hibernation-setup conclude it has nothing to do. Remove both
+    # so setup reconfigures from scratch and a failed lookup cannot leave the
+    # old swapfile's offset behind in the rebuilt UKI.
     if [[ ! -f $next/swap/swapfile ]]; then
       rm -f "$next/etc/mkinitcpio.conf.d/omarchy_resume.conf" \
         "$next/etc/limine-entry-tool.d/resume.conf"

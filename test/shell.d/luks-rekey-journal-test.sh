@@ -35,9 +35,11 @@ if (( EUID == 0 )); then
 fi
 runtime=$ROOT
 
-mac_boot=$tmp/lifecycle/usr/lib/omarchy/mac-boot
-mkdir -p "$mac_boot"
-cat >"$tmp/mac-boot-lib.sh" <<'SH'
+install_mac_boot() {
+  local root=$1
+  local dir=$root/lifecycle/usr/lib/omarchy/mac-boot
+  mkdir -p "$dir"
+  cat >"$root/mac-boot-lib.sh" <<'SH'
 ran() { echo "$1" >>"$TMP/mac-boot-ran"; }
 crash() {
   local count
@@ -50,16 +52,16 @@ crash() {
   fi
 }
 SH
-mac_boot_entrypoint() {
-  { printf '#!/bin/bash\nset -euo pipefail\nTMP=%q\nsource "$TMP/mac-boot-lib.sh"\nran %s\n' "$tmp" "$1"; cat; } >"$mac_boot/$1"
-}
-mac_boot_entrypoint provision-prepare <<'SH'
+  mac_boot_entrypoint() {
+    { printf '#!/bin/bash\nset -euo pipefail\nTMP=%q\nsource "$TMP/mac-boot-lib.sh"\nran %s\n' "$root" "$1"; cat; } >"$dir/$1"
+  }
+  mac_boot_entrypoint provision-prepare <<'SH'
 if [[ -e $TMP/prepare-fail ]]; then
   echo "The boot partition is not mounted." >&2
   exit 1
 fi
 SH
-mac_boot_entrypoint provision-commit <<'SH'
+  mac_boot_entrypoint provision-commit <<'SH'
 [[ ! -e $TMP/rebuild-fail ]] || exit 1
 rm -f "$TMP/boot/omarchy/luks-key"
 crash "boot-partition key removed"
@@ -67,16 +69,19 @@ sed -i 's/ rd\.luks\.key=[^" ]*//' "$TMP/etc/default/grub"
 echo rebuild >>"$TMP/rebuilds"
 crash "boot rebuilt"
 SH
-mac_boot_entrypoint provision-verify <<'SH'
+  mac_boot_entrypoint provision-verify <<'SH'
 [[ ! -e $TMP/boot/omarchy/luks-key ]] && ! grep -q 'rd\.luks\.key=' "$TMP/etc/default/grub"
 SH
-mac_boot_entrypoint luks-slots <<'SH'
+  mac_boot_entrypoint luks-slots <<'SH'
 [[ ! -e $TMP/record-fail ]] || exit 1
 printf '%s\n' "$@" >"$TMP/slot-record"
 crash "slots recorded"
 SH
-chmod 755 "$mac_boot"/*
-chmod -R go-w "$tmp/lifecycle"
+  chmod 755 "$dir"/*
+  chmod -R go-w "$root/lifecycle"
+}
+install_mac_boot "$tmp"
+mac_boot=$tmp/lifecycle/usr/lib/omarchy/mac-boot
 
 staged_key=staged-install-key
 seller_key=previous-owner-key
@@ -507,8 +512,9 @@ for run_spec in "${matrix[@]}"; do
       fail "$backend: trace exposes both owner-key and boot-phase crash points" "$(cat "$tmp/trace")"
     steps_to_test=("$owner_step" "$boot_step")
   fi
-  for step in "${steps_to_test[@]}"; do
-    retry_passwords=("$owner_password" other-password)
+  run_step_case() {
+    local step=$1 retry_password
+    local retry_passwords=("$owner_password" other-password)
     [[ $backend == "fake" ]] || retry_passwords=("$owner_password")
     for retry_password in "${retry_passwords[@]}"; do
       fixture "$format"
@@ -543,20 +549,61 @@ for run_spec in "${matrix[@]}"; do
         assert_provisioned "original password after '$point'" "$owner_password"
       fi
     done
-  done
+  }
+
+  assert_platform_dispatch() {
+    if [[ $platform == "x86" ]]; then
+      [[ ! -e $tmp/mac-boot-ran ]] || fail "x86 $backend: no Mac boot entrypoint runs" "$(cat "$tmp/mac-boot-ran")"
+    else
+      [[ ! -e $tmp/limine-ran ]] || fail "apple $backend: the Limine UKI path never runs on Apple"
+      grep -qx provision-commit "$tmp/mac-boot-ran" && grep -qx provision-verify "$tmp/mac-boot-ran" ||
+        fail "apple $backend: the boot package commits and verifies the unlock"
+    fi
+  }
+
+  if [[ $backend == "fake" ]]; then
+    step_pids=()
+    step_logs=()
+    for step in "${steps_to_test[@]}"; do
+      step_log="$tmp/step-$step.log"
+      step_logs+=("$step_log")
+      (
+        parent_tmp=$tmp
+        tmp=$(mktemp -d "$parent_tmp/step-$step.XXXXXX")
+        ln -s "$parent_tmp/x86" "$parent_tmp/apple" "$parent_tmp/attempt.sh" "$tmp/"
+        sed "s|$parent_tmp/etc/|$tmp/etc/|g" "$parent_tmp/unlock.sh" >"$tmp/unlock.sh"
+        sed "s|$parent_tmp/etc/|$tmp/etc/|g" "$parent_tmp/provision.sh" >"$tmp/provision.sh"
+        install_mac_boot "$tmp"
+        run_step_case "$step"
+        assert_platform_dispatch
+        rm -rf "$tmp"
+      ) >"$step_log" 2>&1 &
+      step_pids+=("$!")
+    done
+    step_failed=0
+    for i in "${!step_pids[@]}"; do
+      if ! wait "${step_pids[$i]}"; then
+        cat "${step_logs[$i]}" >&2
+        step_failed=1
+      fi
+      rm -f "${step_logs[$i]}"
+    done
+    (( step_failed == 0 )) || exit 1
+  else
+    for step in "${steps_to_test[@]}"; do
+      run_step_case "$step"
+    done
+  fi
   if [[ $platform == "apple" ]]; then
     pass "apple $backend: killed after each of $total_steps steps, setup resumes to a disk that opens with the account's password, with its slot recorded"
   else
     pass "x86 $backend: killed after each of $total_steps steps, setup resumes to a disk that opens with the account's password"
   fi
 
+  assert_platform_dispatch
   if [[ $platform == "x86" ]]; then
-    [[ ! -e $tmp/mac-boot-ran ]] || fail "x86 $backend: no Mac boot entrypoint runs" "$(cat "$tmp/mac-boot-ran")"
     pass "x86 $backend: dispatch is a no-op and the Limine UKI path runs unchanged"
   else
-    [[ ! -e $tmp/limine-ran ]] || fail "apple $backend: the Limine UKI path never runs on Apple"
-    grep -qx provision-commit "$tmp/mac-boot-ran" && grep -qx provision-verify "$tmp/mac-boot-ran" ||
-      fail "apple $backend: the boot package commits and verifies the unlock"
     pass "apple $backend: the boot package owns the boot-time unlock through dispatch"
   fi
 done

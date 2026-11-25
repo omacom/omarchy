@@ -158,3 +158,84 @@ headless_out=$(
 (( $(wc -l <"$test_dir/hyprctl-calls") == 3 )) ||
   fail "test/headless retries the initial hyprctl probe before failing closed"
 pass "test/headless retries the host probe and fails closed instead of touching the active desktop"
+
+# Group and shard filters partition the suite cleanly with zero overlap or
+# omissions, and --no-cli skips test/cli while forwarding shell flags.
+shard_dir=$(mktemp -d)
+trap 'rm -rf "$test_dir" "$shard_dir"' EXIT
+mkdir -p "$shard_dir/test/shell.d"
+cp "$ROOT/test/"{shell,all,headless} "$shard_dir/test/"
+cp "$SHELL_TEST_DIR/base-test.sh" "$shard_dir/test/shell.d/"
+printf '#!/bin/bash\necho "CLI ran"\n' >"$shard_dir/test/cli"
+chmod +x "$shard_dir/test/cli"
+
+cat >"$shard_dir/test/shell.d/a-noncomp-test.sh" <<'SH'
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+pass "noncomp a"
+SH
+cat >"$shard_dir/test/shell.d/b-noncomp-test.sh" <<'SH'
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+# extra padding so LPT puts b before a
+pass "noncomp b"
+SH
+cat >"$shard_dir/test/shell.d/shell-idle-spawn-test.sh" <<'SH'
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+pass "overlap ran"
+SH
+cat >"$shard_dir/test/shell.d/c-comp-test.sh" <<'SH'
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+require_compositor "comp fixture"
+SH
+{
+  printf '# %s\n' 'omarchy:exclusive'
+  cat <<'SH'
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+pass "runtime smoke ran"
+SH
+} >"$shard_dir/test/shell.d/runtime-smoke-test.sh"
+cat >"$shard_dir/test/shell.d/sleep-lock-test.sh" <<'SH'
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+pass "exclusive budget/sleep ran"
+SH
+
+s1=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/all" --no-cli --group=noncomp --shard=1/2 2>&1)
+s2=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/all" --no-cli --group=noncomp --shard=2/2 2>&1)
+sc=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/all" --group=comp 2>&1)
+se=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/all" --no-cli --group=exclusive 2>&1)
+
+[[ $s1 != *"CLI ran"* && $s2 != *"CLI ran"* && $se != *"CLI ran"* && $sc == *"CLI ran"* ]] ||
+  fail "--no-cli skips test/cli and default runs it"
+[[ $s1 == *"Slowest test files:"* ]] ||
+  fail "test/shell prints the slowest test files summary"
+
+ran_files=$(
+  printf '%s\n%s\n%s\n%s\n' "$s1" "$s2" "$sc" "$se" |
+    sed -n 's/^==> test\/shell\.d\///p' |
+    sort
+)
+expected_files=$(printf '%s\n' \
+  a-noncomp-test.sh \
+  b-noncomp-test.sh \
+  c-comp-test.sh \
+  runtime-smoke-test.sh \
+  shell-idle-spawn-test.sh \
+  sleep-lock-test.sh)
+[[ $ran_files == $expected_files ]] ||
+  fail "CI shards partition every shell test file exactly once" "got:\n$ran_files"
+
+a1=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/shell" --shard=1/2 2>&1)
+a2=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/shell" --shard=2/2 2>&1)
+all_sharded=$(
+  printf '%s\n%s\n' "$a1" "$a2" |
+    sed -n 's/^==> test\/shell\.d\///p' |
+    sort
+)
+[[ $all_sharded == $expected_files ]] ||
+  fail "default --group=all shards partition every shell test file exactly once" "got:\n$all_sharded"
+pass "CI group and shard filters partition every shell test file exactly once and report timings"
