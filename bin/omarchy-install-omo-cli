@@ -7,10 +7,10 @@
 
 case ${1:-} in
 --check)
-  type -P omo >/dev/null
+  omarchy-cmd-present omo
   ;;
 --now)
-  if ! type -P omo >/dev/null; then
+  if omarchy-cmd-missing omo; then
     if omarchy-cmd-missing npm; then
       omarchy-pkg-add npm || exit 1
     fi
