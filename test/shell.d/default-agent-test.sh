@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -963,6 +964,20 @@ fi
 [[ $(launchers) == "omarchy-models-qwen-fast.desktop" && -f $icons/omarchy-models-qwen.svg ]] ||
   fail "a status that can't be read leaves the launchers alone" "$(launchers)"
 pass "a status that can't be read leaves the launchers alone"
+
+# A locale's collation must not hide installed agents or remove model launchers.
+if turkish_locale "$test_tmp/locales"; then
+  rm -f "$applications/omarchy-agent-pi.desktop"
+  in_turkish omarchy-agent-launcher pi
+  [[ -f $applications/omarchy-agent-pi.desktop ]] || fail "a harness with an i gets its launcher under Turkish collation"
+  write_status "$(model minimax-m2 "MiniMax" nvidia inactive)"
+  in_turkish omarchy-models-launchers
+  [[ -f $applications/omarchy-models-minimax-m2.desktop ]] || fail "a model with an i keeps its launcher under Turkish collation"
+  grep -q '^Icon=omarchy-models-nvidia$' "$applications/omarchy-models-minimax-m2.desktop" || fail "a model keeps its vendor logo under Turkish collation"
+  pass "agent and model names keep their launchers and logos under Turkish collation"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the launcher locale check"
+fi
 
 # The warm-up starts a stopped model before its agent opens. Without a
 # terminal it draws nothing and just waits.

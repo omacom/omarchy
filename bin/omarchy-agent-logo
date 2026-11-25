@@ -10,7 +10,8 @@
 id=${1:?Usage: omarchy-agent-logo <claude|codex|grok|vendor>}
 assets="$OMARCHY_PATH/shell/plugins/agents/assets"
 
-if [[ ! $id =~ ^[a-z0-9-]+$ || ! -f $assets/$id.svg ]]; then
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+if ! (LC_ALL=C; [[ $id =~ ^[a-z0-9-]+$ ]]) || [[ ! -f $assets/$id.svg ]]; then
   id="local"
 fi
 

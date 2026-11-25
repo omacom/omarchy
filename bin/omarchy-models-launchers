@@ -78,8 +78,9 @@ declare -A entries=() icons=()
 for model in "${models[@]}"; do
   IFS=$'\t' read -r recipe name vendor <<<"$model"
   # The recipe goes on a command line and the vendor into a file name.
-  [[ $recipe =~ ^[a-z0-9][a-z0-9._-]*$ ]] || continue
-  [[ $vendor =~ ^[a-z0-9-]+$ ]] || vendor="local"
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  (LC_ALL=C; [[ $recipe =~ ^[a-z0-9][a-z0-9._-]*$ ]]) || continue
+  (LC_ALL=C; [[ $vendor =~ ^[a-z0-9-]+$ ]]) || vendor="local"
   [[ -n $name ]] || name=$recipe
 
   entry="$PREFIX$recipe.desktop"

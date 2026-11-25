@@ -34,7 +34,8 @@ for page in "$OMARCHY_PATH/default/games/vibes"/*/index.html "$vibes"/*/index.ht
   [[ -f $page ]] || continue
   dir=${page%/index.html}
   name=${dir##*/}
-  [[ $name =~ ^[a-z0-9][a-z0-9-]*$ ]] && games[$name]=$dir
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  (LC_ALL=C; [[ $name =~ ^[a-z0-9][a-z0-9-]*$ ]]) && games[$name]=$dir
 done
 
 game=${1:-}

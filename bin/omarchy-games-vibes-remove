@@ -26,7 +26,8 @@ fi
 
 # Ensure a game was picked, and that the name cannot climb out of ~/Games/vibes
 # on its way into the rm below.
-if [[ ! $GAME_NAME =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+if ! (LC_ALL=C; [[ $GAME_NAME =~ ^[a-z0-9][a-z0-9-]*$ ]]); then
   exit 1
 fi
 

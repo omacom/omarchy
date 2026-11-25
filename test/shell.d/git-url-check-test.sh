@@ -9,6 +9,7 @@ set -euo pipefail
 # asserted here, alongside every legitimate form a user is likely to paste.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 check() {
   "$ROOT/bin/omarchy-git-url-check" "$@" 2>&1
@@ -77,3 +78,23 @@ for url in \
 done
 
 pass "the URL forms a user pastes are accepted"
+
+# The two shapes are read with POSIX classes, not bracket ranges, because a range
+# follows the locale's collation: under tr_TR.UTF-8 an unpinned `[A-Za-z0-9]`
+# misses `i` and `I`, so a scheme or helper spelled with one matched neither
+# shape and passed as a path, the transport allowlist never consulted.
+locales=$(mktemp -d)
+trap 'rm -rf "$locales"' EXIT
+if turkish_locale "$locales"; then
+  for url in "zzi://a" "hi::x"; do
+    output=$(in_turkish check "$url") &&
+      fail "omarchy-git-url-check refuses '$url' under tr_TR.UTF-8" "$output"
+  done
+  for url in "git://example.com/repo.git" "file:///home/me/repo"; do
+    output=$(in_turkish check "$url") ||
+      fail "omarchy-git-url-check accepts '$url' under tr_TR.UTF-8" "$output"
+  done
+  pass "the URL shapes are read the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi

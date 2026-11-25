@@ -26,7 +26,8 @@ leading_keyboard() {
       value=${BASH_REMATCH[1]}
     fi
     value=${value%%,*}
-    [[ $value =~ ^[A-Za-z0-9_-]*$ ]] || value=""
+    # A bracket range follows the locale's collation, not ASCII; compare in C.
+    (LC_ALL=C; [[ $value =~ ^[A-Za-z0-9_-]*$ ]]) || value=""
     printf '%s\n' "$value"
   done
 }

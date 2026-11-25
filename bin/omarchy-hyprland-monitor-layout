@@ -98,12 +98,13 @@ expr=""
 for arg in "$@"; do
   # The name is written into the Lua string eval'd below, so only a plain
   # connector name may pass; a hostile one could execute otherwise.
-  if [[ ! $arg =~ ^([A-Za-z0-9._-]+)=(-?[0-9]+x-?[0-9]+)$ ]]; then
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  if ! (LC_ALL=C; [[ $arg =~ ^[A-Za-z0-9._-]+=-?[0-9]+x-?[0-9]+$ ]]); then
     usage >&2
     exit 1
   fi
-  name="${BASH_REMATCH[1]}"
-  position="${BASH_REMATCH[2]}"
+  name="${arg%%=*}"
+  position="${arg#*=}"
 
   if ! jq -e --arg name "$name" 'any(.[]; .name == $name)' <<<"$monitors_json" >/dev/null; then
     echo "No such monitor: $name" >&2
