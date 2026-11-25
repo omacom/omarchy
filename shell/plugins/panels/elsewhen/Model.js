@@ -712,6 +712,11 @@ function placeRegion(result) {
   return parts.join(", ")
 }
 
+// The geocoder's ISO country for a result, uppercased; "" when it names none.
+function placeCountry(result) {
+  return String((result && result.country_code) || "").trim().toUpperCase()
+}
+
 // The geocoder's results, or null when the answer is not one. Only a real
 // array, and only as many entries as were asked for: the answer comes off the
 // network, and a `{"length": 1e300}` would otherwise hold the shell's UI thread
@@ -936,13 +941,15 @@ function geocodeUrl(label) {
 // row's own zone; then when it keeps it in the zone the row's legacy id
 // renames to (LEGACY_ZONE_PLACES - the same place under its canonical id);
 // then, only for a zone that is not a known pure rename and only when the
-// geocoder itself names the place, a result named exactly like the row. The
-// top result may be a same-named town on another continent - a geocode search
-// for "Calcutta" answers Calcutta, South Africa first, and never Kolkata - so
-// a row whose zone the geocoder does not echo gets no coordinates here and
-// falls back to the zone table. `answered` is false when the request itself
-// failed.
-function pickGeocode(text, zone, label) {
+// geocoder itself names the place, a result named exactly like the row - but
+// only from a country the zone's zone1970.tab row lists, or from any country
+// when the tab lists no row for the zone and the name is the only signal left.
+// The top result may be a same-named town on another continent - a geocode
+// search for "Calcutta" answers Calcutta, South Africa first, and never
+// Kolkata - so a row whose zone the geocoder does not echo gets no
+// coordinates here and falls back to the zone table. `answered` is false when
+// the request itself failed.
+function pickGeocode(text, zone, label, tabText) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
   var want = String(zone || "")
@@ -954,9 +961,12 @@ function pickGeocode(text, zone, label) {
   for (i = 0; i < results.length && !best; i++) if ((r = results[i]) && r.timezone === want) best = r
   for (i = 0; !best && alias !== "" && i < results.length; i++) if ((r = results[i]) && r.timezone === alias) best = r
   if (!best && alias === "" && wantName !== "") {
+    var countries = zoneTabCountries(tabText, want)
     for (i = 0; i < results.length && !best; i++) {
       r = results[i]
-      if (r && cleanLabel(r.name).toLowerCase() === wantName) best = r
+      if (!r || cleanLabel(r.name).toLowerCase() !== wantName) continue
+      if (countries && countries.indexOf(placeCountry(r)) < 0) continue
+      best = r
     }
   }
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
@@ -1070,6 +1080,20 @@ function zoneTabEntry(tabText, zone) {
     if (!m) return null
     function dec(sign, d, mm, ss) { return (sign === "-" ? -1 : 1) * (Number(d) + Number(mm) / 60 + Number(ss || 0) / 3600) }
     return { lat: Math.round(dec(m[1], m[2], m[3], m[4]) * 1e4) / 1e4, lon: Math.round(dec(m[5], m[6], m[7], m[8]) * 1e4) / 1e4 }
+  }
+  return null
+}
+
+// The zone's country codes from its zone1970.tab row - a zone can span
+// several ("CH,DE,LI" shares Europe/Zurich) - or null when the tab lists no
+// row for it. Unlike zoneTabEntry, a row whose coordinates are unreadable
+// still yields its countries.
+function zoneTabCountries(tabText, zone) {
+  var lines = String(tabText || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var parts = lines[i].split("\t")
+    if (lines[i].charAt(0) === "#" || parts.length < 3 || parts[2] !== zone) continue
+    return parts[0].split(",").map(function(code) { return code.trim().toUpperCase() })
   }
   return null
 }
@@ -1483,6 +1507,7 @@ if (typeof module !== "undefined") {
     geocodeUrl: geocodeUrl,
     pickGeocode: pickGeocode,
     zoneTabCoords: zoneTabCoords,
+    zoneTabCountries: zoneTabCountries,
     forecastUrl: forecastUrl,
     parseForecast: parseForecast,
     weatherStale: weatherStale,
