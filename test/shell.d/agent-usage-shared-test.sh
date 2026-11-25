@@ -824,7 +824,21 @@ before = (db.parent / "opencode-v2.db").read_bytes()
 collectors.scan_opencode(["demo"], accept_demo)
 check("the database is opened read-only", (db.parent / "opencode-v2.db").read_bytes() == before)
 
+# opencode 2 keeps a key it's given in its credential table: the active one
+# of an integration is the key, an inactive one or another integration's isn't.
+with contextlib.closing(sqlite3.connect(db.parent / "opencode-v2.db")) as conn:
+  conn.execute("CREATE TABLE credential (id text PRIMARY KEY, integration_id text, label text NOT NULL, value text NOT NULL, connector_id text, method_id text, active integer, time_created integer NOT NULL, time_updated integer NOT NULL)")
+  conn.executemany("INSERT INTO credential VALUES (?, ?, 'k', ?, NULL, NULL, ?, 1, ?)", [
+    ("old", "fireworks-ai", json.dumps({"type": "key", "key": "fw_old"}), 0, 1),
+    ("new", "fireworks-ai", json.dumps({"type": "key", "key": "fw_new"}), 1, 2),
+    ("or", "openrouter", json.dumps({"type": "oauth", "key": "not-a-key"}), 1, 3),
+  ])
+  conn.commit()
+check("opencode's active credential is the key", collectors.opencode_credential_key("fireworks-ai") == "fw_new")
+check("a credential that isn't a key isn't one", collectors.opencode_credential_key("openrouter") == "")
+
 (db.parent / "opencode-v2.db").write_bytes(b"not a database at all, just bytes" * 200)
+check("an unreadable database has no key", collectors.opencode_credential_key("fireworks-ai") == "")
 rows, complete = collectors.scan_opencode(["demo"], accept_demo)
 check("a database error marks the scan incomplete", not complete and rows == [])
 

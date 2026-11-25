@@ -188,12 +188,12 @@ Item {
   // A window the dock brings forward lands on top of the others, focused; a
   // minimized one first comes back to the workspace in front of the user.
   function bringForward(window) {
-    var address = String(window.address || "")
-    if (!address) {
+    var address = String(window.address || "").trim()
+    if (address && address.indexOf("0x") !== 0) address = "0x" + address
+    if (!/^0x[0-9a-f]+$/i.test(address)) {
       window.toplevel.activate()
       return
     }
-    if (address.indexOf("0x") !== 0) address = "0x" + address
     var target = "window = \"address:" + address + "\""
     var steps = []
     var after = []
