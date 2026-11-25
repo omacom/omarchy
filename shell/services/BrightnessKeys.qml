@@ -18,9 +18,20 @@ Item {
   // The shell host, for summoning the OSD.
   property var host: null
   // The backlight omarchy-hw-display picks. Devices do not come and go at
-  // runtime, but each press refreshes it for the next.
+  // runtime, so maxBrightness is cached per device and omarchy-hw-display is
+  // only re-probed if reading the sysfs files fails.
   property string device: ""
+  property int maxBrightness: 0
   readonly property string devicePath: device ? "/sys/class/backlight/" + device : ""
+
+  onDeviceChanged: maxBrightness = 0
+
+  function ensureMax() {
+    if (root.maxBrightness > 0) return root.maxBrightness
+    var max = readNumber(maxFile)
+    if (max > 0) root.maxBrightness = max
+    return root.maxBrightness
+  }
 
   // Returns false when the focused display is not one to handle here, so the
   // caller falls back to the script.
@@ -34,9 +45,18 @@ Item {
     // repeat cannot race the writes.
     if (setProc.running) return true
 
-    var max = readNumber(maxFile)
-    if (!(max > 0)) return false
-    var current = Math.round(100 * readNumber(brightnessFile) / max)
+    var max = ensureMax()
+    if (!(max > 0)) {
+      if (!deviceProc.running) deviceProc.running = true
+      return false
+    }
+    var level = readNumber(brightnessFile)
+    if (!(level >= 0)) {
+      root.maxBrightness = 0
+      if (!deviceProc.running) deviceProc.running = true
+      return false
+    }
+    var current = Math.round(100 * level / max)
 
     setProc.command = ["brightnessctl", "-q", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]
     setProc.running = true
@@ -54,7 +74,7 @@ Item {
 
   // The payload omarchy-osd builds, from the level read back after the write.
   function showOsd() {
-    var max = readNumber(maxFile)
+    var max = ensureMax()
     if (!host || !(max > 0)) return
     var percent = Math.round(100 * readNumber(brightnessFile) / max)
     host.summon("omarchy.osd", JSON.stringify({
@@ -83,10 +103,7 @@ Item {
 
   Process {
     id: setProc
-    onExited: {
-      root.showOsd()
-      if (!deviceProc.running) deviceProc.running = true
-    }
+    onExited: root.showOsd()
   }
 
   Process {

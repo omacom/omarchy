@@ -24,6 +24,7 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  property bool destroying: false
   property string lastEnableError: ""
 
   signal pluginsChanged()
@@ -703,8 +704,7 @@ QtObject {
   // own command line from matching its search.
   property Process watcherReaper: Process {
     onExited: {
-      localPluginWatcher.running = true
-      registry.rescan()
+      if (!registry.destroying) localPluginWatcher.running = true
     }
   }
 
@@ -723,6 +723,7 @@ QtObject {
   // A graceful stop takes the watcher with it; the reaper above covers the
   // stops that never run this (a killed or crashed shell).
   Component.onDestruction: {
+    destroying = true
     localPluginWatcherRestart.stop()
     localPluginWatcher.running = false
   }
@@ -745,7 +746,9 @@ QtObject {
         if (pluginId) registry.localPluginChanged(pluginId)
       }
     }
-    onExited: localPluginWatcherRestart.restart()
+    onExited: {
+      if (!registry.destroying) localPluginWatcherRestart.restart()
+    }
   }
 
   property Timer localPluginWatcherRestart: Timer {
@@ -795,7 +798,7 @@ QtObject {
   }
 
   function ensureUserDir() {
-    initProcess.command = ["bash", "-c", "mkdir -p \"$0\"", registry.pluginsDir]
+    initProcess.command = ["mkdir", "-p", registry.pluginsDir]
     initProcess.running = true
   }
 
@@ -815,5 +818,8 @@ QtObject {
     return slash === -1 ? relative : relative.slice(0, slash)
   }
 
-  Component.onCompleted: ensureUserDir()
+  Component.onCompleted: {
+    rescan()
+    ensureUserDir()
+  }
 }
