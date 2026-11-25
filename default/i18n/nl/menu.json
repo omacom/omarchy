@@ -1249,7 +1249,8 @@
     "label": "Cloudflare"
   },
   "install.cli.github": {
-    "label": "GitHub"
+    "label": "GitHub",
+    "description": "gh en ghui"
   },
   "install.cli.hey": {
     "label": "HEY"
@@ -1429,7 +1430,8 @@
     "label": "Cloudflare"
   },
   "remove.cli.github": {
-    "label": "GitHub"
+    "label": "GitHub",
+    "description": "gh en ghui"
   },
   "remove.cli.hey": {
     "label": "HEY"
