@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Ověřovací oznámení",
   "notifications.yesterday": "včera",
   "polkit.authenticationNeeded": "Je vyžadováno ověření...",
+  "polkit.authorizeAgentRunning": "Povolit %1 spustit '%2'",
   "polkit.authorizeFormatting": "Povolit formátování %1",
   "polkit.authorizeRunning": "Povolit spuštění '%1'",
   "polkit.checking": "Kontroluji...",

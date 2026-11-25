@@ -471,6 +471,7 @@
   "notifications.redactedSummary": "驗證通知",
   "notifications.yesterday": "昨天",
   "polkit.authenticationNeeded": "需要驗證...",
+  "polkit.authorizeAgentRunning": "授權 %1 執行 '%2'",
   "polkit.authorizeFormatting": "授權格式化 %1",
   "polkit.authorizeRunning": "授權執行 '%1'",
   "polkit.checking": "檢查中...",

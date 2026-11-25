@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Verifikācijas paziņojums",
   "notifications.yesterday": "vakar",
   "polkit.authenticationNeeded": "Nepieciešama autentifikācija...",
+  "polkit.authorizeAgentRunning": "Atļaut %1 palaist '%2'",
   "polkit.authorizeFormatting": "Atļaut formatēt %1",
   "polkit.authorizeRunning": "Atļaut palaist '%1'",
   "polkit.checking": "Pārbauda...",

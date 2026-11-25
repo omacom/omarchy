@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Patvirtinimo pranešimas",
   "notifications.yesterday": "vakar",
   "polkit.authenticationNeeded": "Reikalingas tapatybės patvirtinimas...",
+  "polkit.authorizeAgentRunning": "Leisti %1 vykdyti '%2'",
   "polkit.authorizeFormatting": "Leisti formatuoti %1",
   "polkit.authorizeRunning": "Leisti vykdyti '%1'",
   "polkit.checking": "Tikrinama...",

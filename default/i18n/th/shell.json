@@ -471,6 +471,7 @@
   "notifications.redactedSummary": "แจ้งเตือนยืนยันตัวตน",
   "notifications.yesterday": "เมื่อวาน",
   "polkit.authenticationNeeded": "จำเป็นต้องยืนยันตัวตน...",
+  "polkit.authorizeAgentRunning": "อนุญาตให้ %1 เรียกใช้ '%2'",
   "polkit.authorizeFormatting": "อนุญาตให้ฟอร์แมต %1",
   "polkit.authorizeRunning": "อนุญาตให้เรียกใช้ '%1'",
   "polkit.checking": "กำลังตรวจสอบ...",

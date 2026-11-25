@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Doğrulama bildirimi",
   "notifications.yesterday": "dün",
   "polkit.authenticationNeeded": "Kimlik doğrulama gerekli...",
+  "polkit.authorizeAgentRunning": "%1'in '%2' çalıştırmasına yetki ver",
   "polkit.authorizeFormatting": "%1 biçimlendirmek için yetki ver",
   "polkit.authorizeRunning": "'%1' çalıştırmak için yetki ver",
   "polkit.checking": "Kontrol ediliyor...",

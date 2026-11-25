@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Notificação de verificação",
   "notifications.yesterday": "ontem",
   "polkit.authenticationNeeded": "É necessária autenticação...",
+  "polkit.authorizeAgentRunning": "Autorizar %1 a executar '%2'",
   "polkit.authorizeFormatting": "Autorizar a formatação de %1",
   "polkit.authorizeRunning": "Autorizar a execução de '%1'",
   "polkit.checking": "A verificar...",

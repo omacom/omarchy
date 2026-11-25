@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Vahvistusilmoitus",
   "notifications.yesterday": "eilen",
   "polkit.authenticationNeeded": "Todennus vaaditaan...",
+  "polkit.authorizeAgentRunning": "Valtuuta %1 suorittamaan '%2'",
   "polkit.authorizeFormatting": "Valtuuta %1:n alustaminen",
   "polkit.authorizeRunning": "Valtuuta '%1':n suorittaminen",
   "polkit.checking": "Tarkistetaan...",
