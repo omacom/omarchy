@@ -821,19 +821,20 @@ ensure_hypervisor() {
   ensure_default_network_running
 }
 
-ensure_iso() {
-  local version url sha_url iso_name iso_path tmp dir
-  version=${OMARCHY_LAB_ISO_VERSION:-$(latest_iso_version)}
+ensure_iso() (
+  local version url sha_url iso_name iso_path dir
+  version=${OMARCHY_LAB_ISO_VERSION:-$(latest_iso_version)} || return 1
+  [[ -n $version ]] || return 1
   iso_name="omarchy-${version}.iso"
   iso_path="${IMAGES}/${iso_name}"
-  url=$(iso_url "$version")
+  url=$(iso_url "$version") || return 1
   sha_url="${url}.sha256"
 
-  dir=$(mktemp -d)
-  curl -fsSL -o "$dir/$iso_name.sha256" "$sha_url"
+  dir=$(mktemp -d) || return 1
+  trap 'rm -rf "$dir"' EXIT
+  curl -fsSL -o "$dir/$iso_name.sha256" "$sha_url" || return 1
   if [[ -f $iso_path ]]; then
     if (cd "$IMAGES" && sha256sum -c "$dir/$iso_name.sha256" >/dev/null 2>&1); then
-      rm -rf "$dir"
       echo "Reusing $iso_path" >&2
       printf '%s\n' "$iso_path"
       return 0
@@ -842,15 +843,14 @@ ensure_iso() {
   fi
 
   echo "Downloading $url ..." >&2
-  curl -fL --progress-bar -o "$dir/$iso_name" "$url"
+  curl -fL --progress-bar -o "$dir/$iso_name" "$url" || return 1
   (
-    cd "$dir"
+    cd "$dir" || return 1
     sha256sum -c "$iso_name.sha256" >&2
-  )
-  sudo install -D -m 644 -o libvirt-qemu -g libvirt-qemu "$dir/$iso_name" "$iso_path"
-  rm -rf "$dir"
+  ) || return 1
+  sudo install -D -m 644 -o libvirt-qemu -g libvirt-qemu "$dir/$iso_name" "$iso_path" || return 1
   printf '%s\n' "$iso_path"
-}
+)
 
 install_cidata() {
   local username=$1 password=$2 hostname=$3 timezone=$4 keyboard=$5 disk_spec=$6

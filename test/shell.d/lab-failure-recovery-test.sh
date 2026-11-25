@@ -430,3 +430,38 @@ pass "Lab reconciles forwarding after an uplink change and preserves custom rule
   jq -e --argjson bytes "$(wc -c <"$task_tmp/clipboard-expected")" '.bytes == $bytes and (.text | endswith("\n\n"))' "$task_tmp/from-guest" >/dev/null
 )
 pass "clipboard input, output, JSON and byte counts preserve trailing blank lines"
+
+(
+  source "$ROOT/bin/omarchy-lab-vm"
+  export TMPDIR="$task_tmp/downloads" IMAGES="$task_tmp/images" OMARCHY_LAB_ISO_VERSION=fixture
+  mkdir -p "$TMPDIR" "$IMAGES"
+  iso_url() { printf 'fixture:%s\n' "$1"; }
+  curl() {
+    local target="${@: -2:1}"
+    case "$target" in
+      *.sha256)
+        [[ $failure != manifest ]] || return 1
+        printf '%s  omarchy-fixture.iso\n' "$(printf verified | sha256sum | cut -d ' ' -f1)" >"$target"
+        ;;
+      *.iso)
+        if [[ $failure == download ]]; then printf partial >"$target"; return 1; fi
+        if [[ $failure == checksum ]]; then printf corrupt >"$target"; else printf verified >"$target"; fi
+        ;;
+    esac
+  }
+  sudo() {
+    [[ $failure != install ]] || return 1
+    cp -- "${@: -2}"
+  }
+  for failure in manifest download checksum install; do
+    if downloaded=$(ensure_iso 2>/dev/null); then fail "ISO setup accepted a failed $failure"; fi
+    [[ -z $downloaded && ! -e "$IMAGES/omarchy-fixture.iso" ]] || fail "a failed $failure published an ISO"
+  done
+  failure=none
+  downloaded=$(ensure_iso 2>/dev/null)
+  [[ $downloaded == "$IMAGES/omarchy-fixture.iso" && $(<"$downloaded") == verified ]] || fail "a verified ISO was not published"
+  failure=download
+  [[ $(ensure_iso 2>/dev/null) == "$downloaded" ]] || fail "a verified cached ISO was not reused"
+  [[ -z $(ls -A -- "$TMPDIR") ]] || fail "an ISO download left staging files"
+)
+pass "Lab publishes and reuses only verified ISO downloads"
