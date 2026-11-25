@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Staðfestingartilkynning",
   "notifications.yesterday": "í gær",
   "polkit.authenticationNeeded": "Auðkenningar er krafist...",
+  "polkit.authorizeFormatting": "Heimila forsníðingu á %1",
   "polkit.authorizeRunning": "Heimila keyrslu '%1'",
   "polkit.checking": "Athugar...",
   "polkit.enterPassword": "Sláðu inn lykilorð",

@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "اعلان تأیید",
   "notifications.yesterday": "دیروز",
   "polkit.authenticationNeeded": "احراز هویت لازم است...",
+  "polkit.authorizeFormatting": "مجوز قالب‌بندی %1",
   "polkit.authorizeRunning": "مجوز اجرای '%1'",
   "polkit.checking": "در حال بررسی...",
   "polkit.enterPassword": "گذرواژه را وارد کنید",

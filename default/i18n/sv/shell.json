@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Verifieringsavisering",
   "notifications.yesterday": "i går",
   "polkit.authenticationNeeded": "Autentisering krävs...",
+  "polkit.authorizeFormatting": "Auktorisera formatering av %1",
   "polkit.authorizeRunning": "Auktorisera körning av '%1'",
   "polkit.checking": "Kontrollerar...",
   "polkit.enterPassword": "Ange lösenord",

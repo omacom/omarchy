@@ -541,6 +541,7 @@
   "notifications.redactedSummary": "إشعار التحقق",
   "notifications.yesterday": "أمس",
   "polkit.authenticationNeeded": "يلزم المصادقة...",
+  "polkit.authorizeFormatting": "السماح بتهيئة %1",
   "polkit.authorizeRunning": "السماح بتشغيل '%1'",
   "polkit.checking": "جارٍ التحقق...",
   "polkit.enterPassword": "أدخل كلمة المرور",

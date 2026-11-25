@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Notificació de verificació",
   "notifications.yesterday": "ahir",
   "polkit.authenticationNeeded": "Cal autenticació...",
+  "polkit.authorizeFormatting": "Autoritza el formatatge de %1",
   "polkit.authorizeRunning": "Autoritza l'execució de '%1'",
   "polkit.checking": "S'està comprovant...",
   "polkit.enterPassword": "Introdueix la contrasenya",

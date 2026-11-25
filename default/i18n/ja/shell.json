@@ -471,6 +471,7 @@
   "notifications.redactedSummary": "認証通知",
   "notifications.yesterday": "昨日",
   "polkit.authenticationNeeded": "認証が必要です...",
+  "polkit.authorizeFormatting": "%1 のフォーマットを許可",
   "polkit.authorizeRunning": "'%1' の実行を許可",
   "polkit.checking": "確認中...",
   "polkit.enterPassword": "パスワードを入力",

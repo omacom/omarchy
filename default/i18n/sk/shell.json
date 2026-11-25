@@ -499,6 +499,7 @@
   "notifications.redactedSummary": "Overovacie oznámenie",
   "notifications.yesterday": "včera",
   "polkit.authenticationNeeded": "Vyžaduje sa overenie...",
+  "polkit.authorizeFormatting": "Povoliť formátovanie %1",
   "polkit.authorizeRunning": "Povoliť spustenie '%1'",
   "polkit.checking": "Kontroluje sa...",
   "polkit.enterPassword": "Zadajte heslo",

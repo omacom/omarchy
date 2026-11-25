@@ -485,6 +485,7 @@
   "notifications.redactedSummary": "Kinnitusteavitus",
   "notifications.yesterday": "eile",
   "polkit.authenticationNeeded": "Vaja on autentimist...",
+  "polkit.authorizeFormatting": "Luba %1 vormindamine",
   "polkit.authorizeRunning": "Luba '%1' käivitamine",
   "polkit.checking": "Kontrollib...",
   "polkit.enterPassword": "Sisesta parool",

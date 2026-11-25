@@ -471,6 +471,7 @@
   "notifications.redactedSummary": "인증 알림",
   "notifications.yesterday": "어제",
   "polkit.authenticationNeeded": "인증이 필요합니다...",
+  "polkit.authorizeFormatting": "%1 포맷 승인",
   "polkit.authorizeRunning": "'%1' 실행 승인",
   "polkit.checking": "확인 중...",
   "polkit.enterPassword": "비밀번호 입력",
