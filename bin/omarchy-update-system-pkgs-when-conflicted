@@ -111,7 +111,7 @@ if grep -q 'could not satisfy dependencies' "$errors"; then
 
     hold=$(IFS=,; echo "${!held[*]}")
     if report=$(unsatisfied "$hold"); then
-      echo -e "\e[33m\nHolding back until Omarchy's rebuild against them is out: ${hold//,/ }\e[0m"
+      echo -e "\e[33m\n$(omarchy-i18n update.heldForRebuild "${hold//,/ }")\e[0m"
       OMARCHY_UPDATE_RETRY=1 omarchy-update-system-pkgs --ignore "$hold"
       exit
     fi

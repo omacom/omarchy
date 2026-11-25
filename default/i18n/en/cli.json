@@ -471,6 +471,7 @@
   "update.signingKeys": "Update signing keys",
   "update.keysCorrect": "Keys are correct",
   "update.systemPackages": "Update system packages",
+  "update.heldForRebuild": "Holding back until Omarchy's rebuild against them is out: %1",
   "update.migrationsWaiting": "Waiting for pacman transaction to finish before running Omarchy migrations...",
   "update.migrationsDeferred": "Pacman transaction is still running; Omarchy migrations will retry on next login.",
   "update.migration": "Running migration (%1)",
