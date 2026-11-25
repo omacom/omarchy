@@ -1,9 +1,15 @@
 #!/bin/bash
 
-# omarchy:summary=Clear the internal-monitor-disable toggle if no external display is connected.
+# omarchy:summary=Clear the internal-monitor toggles if no external display is connected.
 
-TOGGLE="$HOME/.local/state/omarchy/toggles/hypr/internal-monitor-disable.lua"
+TOGGLES="$HOME/.local/state/omarchy/toggles/hypr"
 
-if [[ -f $TOGGLE ]] && ! omarchy-hw-external-monitors; then
-  rm -f "$TOGGLE"
+# A clamshell flag outlives the docked session that set it: shutting down with
+# the lid closed leaves it behind, and the next undocked session then starts
+# with the panel disabled and no outputs, dropping the windows Hyprland's
+# autostart maps in that gap (#20169). Like the manual disable toggle, it has
+# no meaning while no external display is connected.
+if [[ -f $TOGGLES/internal-monitor-clamshell.lua || -f $TOGGLES/internal-monitor-disable.lua ]] &&
+  ! omarchy-hw-external-monitors; then
+  rm -f "$TOGGLES/internal-monitor-clamshell.lua" "$TOGGLES/internal-monitor-disable.lua"
 fi
