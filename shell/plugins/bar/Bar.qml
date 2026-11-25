@@ -1697,9 +1697,10 @@ Item {
       }
     }
 
-    // Only the always-on bar reserves space, using the settled surface thickness.
-    exclusionMode: root.barHidden || autohide ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: surfaceThickness
+    // A tucked bar gives the space back. Once revealed, reserve its strip so
+    // tiled windows do not render underneath the bar and hide their contents.
+    exclusionMode: root.barHidden || tucked ? ExclusionMode.Ignore : ExclusionMode.Normal
+    exclusiveZone: thickness
 
     // sameWindow, not identity: the drag records the QsWindow interface of
     // the slot's window, which is not this PanelWindow object itself.
