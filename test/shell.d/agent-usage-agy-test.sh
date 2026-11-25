@@ -89,7 +89,8 @@ expect("untouched Gemini fallback bucket omits synthetic reset time",
        [("Session", 0.0, "")], record)
 
 # When retrieveUserQuotaSummary already carries a Gemini group, retrieveUserQuota
-# is never called.
+# is never called, and requests identify as a versioned CLI release so Google
+# includes the Gemini group.
 machine()
 record, http = agy({
   TIER: {"paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}},
@@ -98,6 +99,43 @@ record, http = agy({
 expect("summary with Gemini group does not call retrieveUserQuota",
        ([w["percent"] for w in record["limits"]], [r["url"] for r in http.requests if r["url"].endswith(QUOTA)]),
        ([0.25], []), record)
+expect("collector identifies as a versioned CLI release so Google returns Gemini quota",
+       {r["headers"].get("user-agent") for r in http.requests},
+       {"antigravity/cli/1.5.17"}, http.requests)
+
+# Gemini 4 Argon is its own scoped allowance, not the plan's Gemini group, even
+# when listed ahead of Gemini Models.
+machine()
+reset_week = iso_in(5 * 24 * 3600)
+record, _ = agy({
+  TIER: {"paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}},
+  SUMMARY: {"groups": [
+    {"displayName": "Gemini 4 Argon", "buckets": [{"window": "weekly", "remainingFraction": 0.8, "resetTime": reset_week}]},
+    {"displayName": "Gemini Models", "buckets": [
+      {"window": "5h", "remainingFraction": 0.75, "resetTime": reset_early},
+      {"window": "weekly", "remainingFraction": 0.6, "resetTime": reset_week},
+    ]},
+    {"displayName": "Claude and GPT models", "buckets": [{"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 1.0}]},
+  ]},
+})
+expect("Gemini 4 Argon stays separate from the primary Gemini Session and Weekly meters",
+       [(w["title"], round(w["percent"], 2), w["resetsAt"]) for w in record["limits"]],
+       [("Session", 0.25, reset_early), ("Weekly", 0.4, reset_week), ("Gemini 4 Argon Weekly", 0.2, reset_week)], record)
+
+# Summary containing only Argon and Claude/GPT (no primary Gemini group) still
+# falls back to retrieveUserQuota for Gemini Session without promoting Argon.
+machine()
+record, _ = agy({
+  TIER: {"paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}},
+  SUMMARY: {"groups": [
+    {"displayName": "Gemini 4 Argon", "buckets": [{"window": "weekly", "remainingFraction": 0.8, "resetTime": reset_week}]},
+    {"displayName": "Claude and GPT models", "buckets": [{"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1.0}]},
+  ]},
+  QUOTA: {"buckets": [{"modelId": "gemini-4-hydrogen-sonar", "remainingFraction": 0.9, "resetTime": reset_early}]},
+})
+expect("summary with only Argon and 3P still uses retrieveUserQuota for Gemini Session",
+       [(w["title"], round(w["percent"], 2), w["resetsAt"]) for w in record["limits"]],
+       [("Session", 0.1, reset_early), ("Gemini 4 Argon Weekly", 0.2, reset_week)], record)
 
 # A 404 on retrieveUserQuota degrades cleanly to the summary's limits instead of
 # failing the whole check.
