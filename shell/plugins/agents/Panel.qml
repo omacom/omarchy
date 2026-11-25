@@ -500,7 +500,8 @@ Panel {
           host: host || "",
           decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
           context: model.ctx != null ? model.ctx : recipe.context,
-          memory_gib: recipe.memory_gib
+          memory_gib: recipe.memory_gib,
+          best: recipe.best === true
         }
       })
     }
@@ -548,6 +549,7 @@ Panel {
       if (model && model.unit === "removing") return
       offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
                     host: line.localModel.host, facts: line.localModel,
+                    best: line.localModel.host === "" && line.localModel.best === true,
                     shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
     }
     lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
@@ -566,7 +568,8 @@ Panel {
     recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
     for (var r = 0; r < recipes.length; r++)
       offers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
-                    host: "", facts: recipes[r], recipe: recipes[r], shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+                    host: "", facts: recipes[r], recipe: recipes[r], best: recipes[r].best === true,
+                    shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
     var link = localModelsService && localModelsService.localModel ? localModelsService.localModel.link : null
     if (link && link.state === "available")
       offers.push({ target: "", name: link.host ? Commons.I18n.t("localModels.linkOffer").arg(link.host) : Commons.I18n.t("localModels.linkOfferUnnamed"),
@@ -596,6 +599,12 @@ Panel {
 
   // The network block's share of the offers, which come first.
   readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
+  // Local models offered for this machine, excluding a cabled-Spark link offer.
+  readonly property int localModelOfferCount: ownModelOffers.filter(function(offer) { return offer.host === "" && !offer.link }).length
+
+  function offerRecommended(offer, localCount) {
+    return !!offer && offer.host === "" && !offer.link && offer.best === true && localCount > 1
+  }
 
   // A model removed from this machine is no longer added, so set up again
   // it's offered on the add screen first. One still being set up or
@@ -2456,6 +2465,7 @@ Panel {
           readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
           // Too big for the memory free now: dimmed, saying so, and not chosen.
           readonly property var shortfall: modelData.shortfall || null
+          readonly property bool recommended: root.offerRecommended(modelData, root.localModelOfferCount)
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
@@ -2482,18 +2492,55 @@ Panel {
             anchors.left: ownModelMark.right
             anchors.leftMargin: Style.space(12)
             anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
 
-            Text {
+            Item {
+              id: ownModelHeader
               width: parent.width
-              text: ownModel.modelData.name
-              textFormat: Text.PlainText
-              color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-              elide: Text.ElideRight
+              implicitHeight: Math.max(ownModelName.implicitHeight, ownModelRecommended.visible ? ownModelRecommended.implicitHeight : 0)
+
+              Text {
+                id: ownModelName
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: ownModelRecommended.visible
+                  ? Math.max(0, Math.min(implicitWidth, parent.width - ownModelRecommended.implicitWidth - Style.space(8)))
+                  : parent.width
+                text: ownModel.modelData.name
+                textFormat: Text.PlainText
+                color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Rectangle {
+                id: ownModelRecommended
+                visible: ownModel.recommended
+                opacity: ownModel.shortfall ? 0.5 : 1
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: ownModelRecommendedLabel.implicitWidth + Style.space(12)
+                implicitHeight: ownModelRecommendedLabel.implicitHeight + Style.space(4)
+                radius: Style.cornerRadius
+                color: root.alpha(Commons.Color.accent, 0.14)
+                border.width: Style.spacing.hairline
+                border.color: root.alpha(Commons.Color.accent, 0.35)
+
+                Text {
+                  id: ownModelRecommendedLabel
+                  anchors.centerIn: parent
+                  text: Commons.I18n.t("localModels.recommended")
+                  textFormat: Text.PlainText
+                  color: Commons.Color.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
             }
 
             // A paired machine's model says whose it is before its facts; a

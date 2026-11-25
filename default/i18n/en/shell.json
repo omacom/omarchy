@@ -151,6 +151,7 @@
   },
   "localModels.networkStopSharing": "Shared on your tailnet · stop sharing",
   "localModels.notEnoughMemory": "Not enough memory",
+  "localModels.recommended": "Recommended",
   "localModels.removingMeter": "Removing",
   "localModels.setupFailed": "Setup failed",
   "localModels.showLogsTip": "Open this model's logs in a terminal",

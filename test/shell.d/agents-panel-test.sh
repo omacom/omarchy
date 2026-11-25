@@ -194,6 +194,23 @@ assertDeepEqual(targets({
   'away/a': { recipe: 'a', host: 'away', kind: 'text', unit: 'active', paired: true, offline: 'offline' }
 }), ['q', 'f', 'n', 'box/d'], 'every coding model here and each setup gets a line, a paired machine\'s only while it runs there')
 
+const builtWithBest = build(
+  { n: { recipe: 'n', kind: 'text', unit: 'inactive' }, q: { recipe: 'q', kind: 'text', unit: 'inactive' } },
+  [],
+  { 'box/n': { recipe: 'n', host: 'box', kind: 'text', unit: 'active', paired: true, offline: '' } },
+  [{ id: 'n', best: true }, { id: 'q', best: false }]
+)
+assertDeepEqual(builtWithBest.map(line => [line.localModel.target, line.localModel.best]),
+  [['n', true], ['q', false], ['box/n', false]],
+  'local model lines carry best from this machine\'s catalog and never for a network model')
+
+const offerRecommended = new Function(fn('offerRecommended') + '\nreturn offerRecommended')()
+assertEqual(offerRecommended({ host: '', best: true }, 2), true, 'the best model gets the recommended pill when multiple local models are offered')
+assertEqual(offerRecommended({ host: '', best: true }, 1), false, 'a single offered local model gets no recommended pill')
+assertEqual(offerRecommended({ host: '', best: false }, 2), false, 'a non-best model gets no recommended pill')
+assertEqual(offerRecommended({ host: 'spark', best: true }, 2), false, 'a network model never gets the recommended pill')
+assertEqual(offerRecommended({ host: '', best: true, link: { state: 'available' } }, 2), false, 'a cabled Spark link offer never gets the recommended pill')
+
 const localActions = new Function(fn('localActions') + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle'], 'a running model can be shared and stopped')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle'], 'without Tailscale set up, sharing is not offered')
