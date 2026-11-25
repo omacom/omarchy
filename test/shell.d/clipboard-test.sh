@@ -590,6 +590,14 @@ JQ_SHIFT_HISTORY="$TMPDIR/home/.local/state/omarchy/clipboard-history.json" \
 rm -f "$TMPDIR/bin/jq"
 pass "clipboard history helpers read entries atomically in one jq call"
 
+# Embedded NUL bytes in saved history text must survive extraction into wl-copy.
+printf '[{"type":"text","text":"foo\\u0000bar\\u0000"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+WL_COPY_OUT="$TMPDIR/copied-nul" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+[[ $(od -An -tx1 "$TMPDIR/copied-nul" | tr -d ' \n') == "666f6f0062617200" ]] ||
+  fail "clipboard paste preserves embedded NUL bytes from history entries" "$(od -An -tx1 "$TMPDIR/copied-nul")"
+pass "clipboard paste preserves embedded NUL bytes from history entries"
+
 sweep_dir="$TMPDIR/sweep-images"
 sweep_hist="$TMPDIR/sweep-history.json"
 mkdir -p "$sweep_dir"

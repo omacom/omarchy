@@ -42,14 +42,14 @@ done
 
 copy_history_entry() {
   local history_path="$HOME/.local/state/omarchy/clipboard-history.json"
-  local entry_text
+  local entry_json
 
   [[ $history_index =~ ^[0-9]+$ ]] || exit
   [[ -r $history_path ]] || exit
-  entry_text=$(jq -ej --argjson index "$history_index" '
-    .[$index] | select(type == "object" and .type == "text" and (.text | type == "string")) | .text + "x"
+  entry_json=$(jq -ce --argjson index "$history_index" '
+    .[$index] | select(type == "object" and .type == "text" and (.text | type == "string")) | .text
   ' "$history_path" 2>/dev/null) || exit
-  printf '%s' "${entry_text%x}" | wl-copy
+  jq -rj '.' <<<"$entry_json" | wl-copy
 }
 
 if [[ -n $history_index ]]; then
