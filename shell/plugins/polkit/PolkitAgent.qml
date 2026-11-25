@@ -44,8 +44,11 @@ Item {
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
   property int shakeOffset: 0
+  // The encrypted drive being asked for (omarchy-drive-unlock), not polkit:
+  // the card unlocks it with the password itself, so a wrong one is asked again.
+  property string driveDevice: ""
 
-  readonly property bool dialogVisible: polkitAgent.isActive || closing
+  readonly property bool dialogVisible: polkitAgent.isActive || driveDevice !== "" || closing
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
@@ -59,6 +62,7 @@ Item {
   // A command's label never stands in for what pkexec runs: the program
   // stays at the end, which the line keeps in view however it's cut.
   function authorizationLabel(message) {
+    if (driveDevice !== "") return currentLabel
     if (currentLabel !== "") return currentLabel + " · " + PolkitModel.promptProgram(message)
     return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
   }
@@ -67,6 +71,11 @@ Item {
     target: "omarchy.polkit"
     function expect(program: string, label: string): string {
       root.expected = { program: program, label: label, until: Date.now() + 60000 }
+      return "ok"
+    }
+    function unlockDrive(device: string, label: string): string {
+      if (polkitAgent.isActive) return "busy"
+      root.beginDrive(device, label)
       return "ok"
     }
   }
@@ -113,7 +122,31 @@ Item {
     if (responseRequired) submitted = false
   }
 
+  function beginDrive(device, label) {
+    closeTimer.stop()
+    closing = false
+    resetSnapshot()
+    driveDevice = device
+    currentLabel = I18n.t("polkit.unlockDrive").replace("%1", label)
+    responseRequired = true
+    Qt.callLater(refocus)
+  }
+
+  function driveChecked(exitCode, error) {
+    if (driveDevice === "") return
+    if (exitCode !== 0 && /Incorrect passphrase|No passphrase/.test(error)) {
+      triggerFailureFeedback()
+      return
+    }
+    if (exitCode !== 0) console.warn("omarchy drive unlock failed: " + error.trim())
+    driveDevice = ""
+    closing = true
+    closeTimer.restart()
+  }
+
   function beginFlow() {
+    // Polkit's own request takes the card from a drive still being asked for.
+    driveDevice = ""
     closeTimer.stop()
     // A request arriving while the last one's dialog closes is its own.
     currentLabel = ""
@@ -134,6 +167,18 @@ Item {
   }
 
   function submitResponse() {
+    if (driveDevice !== "") {
+      if (submitted) return
+      submitted = true
+      errorFlash = false
+      driveUnlock.secret = passwordInput.text
+      driveUnlock.command = ["udisksctl", "unlock", "--no-user-interaction", "--block-device", driveDevice, "--key-file", "/dev/stdin"]
+      driveUnlock.stdinEnabled = true
+      driveUnlock.running = true
+      passwordInput.text = ""
+      keyCatcher.forceActiveFocus()
+      return
+    }
     var flow = polkitAgent.flow
     if (!flow || !flow.isResponseRequired) return
     submitted = true
@@ -145,6 +190,7 @@ Item {
 
   function cancelRequest() {
     var flow = polkitAgent.flow
+    driveDevice = ""
     passwordInput.text = ""
     submitted = false
     closing = true
@@ -198,6 +244,19 @@ Item {
     command: ["bash", "-c", "omarchy-hw-laptop-closed && echo closed || echo open"]
     stdout: StdioCollector { id: laptopClosedOut; waitForEnd: true }
     onExited: root.laptopClosed = String(laptopClosedOut.text || "").trim() === "closed"
+  }
+
+  // The password goes over stdin, never argv, and closing stdin ends it.
+  Process {
+    id: driveUnlock
+    property string secret: ""
+    stderr: StdioCollector { id: driveUnlockError; waitForEnd: true }
+    onStarted: {
+      write(secret)
+      secret = ""
+      stdinEnabled = false
+    }
+    onExited: function(exitCode) { root.driveChecked(exitCode, String(driveUnlockError.text || "")) }
   }
 
   PolkitAgent {
