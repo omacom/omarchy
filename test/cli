@@ -312,7 +312,9 @@ EOF
 done
 # omarchy-font-set validates the family through fc-list; answer for a fixed one.
 printf '#!/bin/bash\necho "Test Font"\n' >"$FONT_TMPDIR/fake-bin/fc-list"
-chmod +x "$FONT_TMPDIR/fake-bin/fc-list"
+# and checks the installed defaults through fc-conflist; point it at this checkout's.
+printf '#!/bin/bash\necho "+ %s: test"\n' "$ROOT/default/fontconfig/conf.avail/50-omarchy.conf" >"$FONT_TMPDIR/fake-bin/fc-conflist"
+chmod +x "$FONT_TMPDIR/fake-bin/fc-list" "$FONT_TMPDIR/fake-bin/fc-conflist"
 
 PATH="$FONT_TMPDIR/fake-bin:$ROOT/bin:$PATH" HOME="$FONT_TMPDIR" \
   "$ROOT/bin/omarchy-font-set" "Test Font" >/dev/null

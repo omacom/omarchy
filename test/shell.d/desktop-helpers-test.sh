@@ -15,6 +15,10 @@ cat >"$tmp/bin/fc-list" <<'SH'
 #!/bin/bash
 printf '%s\n' 'B&H <Mono> "Pro" / 1'\''s'
 SH
+cat >"$tmp/bin/fc-conflist" <<SH
+#!/bin/bash
+printf '+ %s: stub\\n' "$ROOT/default/fontconfig/conf.avail/50-omarchy.conf"
+SH
 for cmd in pkill omarchy-restart-shell pgrep omarchy-hook omarchy-notification-send; do
   printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/$cmd"
 done

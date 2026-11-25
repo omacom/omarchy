@@ -60,7 +60,20 @@ resolves_to() {
 
 resolves_to monospace "$packaged" "with no font chosen, monospace resolves to the packaged family"
 
-env HOME="$test_home" PATH="$test_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-font-set" "$chosen" >/dev/null
+set_font() {
+  env HOME="$test_home" PATH="$test_dir/bin:$ROOT/bin:$PATH" FONTCONFIG_FILE="$test_dir/fonts.conf" \
+    XDG_CACHE_HOME="$test_dir/cache" "$ROOT/bin/omarchy-font-set" "$chosen" >/dev/null 2>&1
+}
+
+# Installed defaults without the placeholder: refuse before writing anything.
+cp "$test_dir/conf.d/50-omarchy.conf" "$test_dir/50-omarchy.conf.new"
+sed -i '/<string>Omarchy Fixed Pitch<\/string>/d' "$test_dir/conf.d/50-omarchy.conf"
+! set_font && [[ ! -e $test_home/.config/fontconfig/fonts.conf ]] ||
+  fail "font set refuses while the installed defaults lack the placeholder"
+pass "font set refuses while the installed defaults lack the placeholder"
+mv "$test_dir/50-omarchy.conf.new" "$test_dir/conf.d/50-omarchy.conf"
+
+set_font || fail "font set succeeds with the defaults under test"
 
 resolves_to monospace "$chosen" "monospace follows the chosen $chosen"
 resolves_to "$named" "$named" "$named remains itself after choosing $chosen"

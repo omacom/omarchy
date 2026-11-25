@@ -41,7 +41,7 @@ if updated == data:
 # monospace chain. Until omarchy-settings ships it, rewriting would drop the
 # chosen family, so stay pending and leave the old rule in place.
 settings = Path("/usr/share/fontconfig/conf.avail/50-omarchy.conf")
-if not settings.is_file() or b"Omarchy Fixed Pitch" not in settings.read_bytes():
+if not settings.is_file() or b"<string>Omarchy Fixed Pitch</string>" not in settings.read_bytes():
   print("Waiting for the omarchy-settings package that ships the Omarchy Fixed Pitch placeholder", file=sys.stderr)
   raise SystemExit(75)
 
