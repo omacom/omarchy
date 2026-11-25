@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Remove ghui, a terminal UI for GitHub pull requests
-# omarchy:requires-sudo=true
-
-set -euo pipefail
-
-omarchy-pkg-drop ghui

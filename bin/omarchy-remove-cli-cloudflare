@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Remove Cloudflare's cf CLI
-# omarchy:requires-sudo=true
-
-set -euo pipefail
-
-omarchy-pkg-drop cloudflare-cli

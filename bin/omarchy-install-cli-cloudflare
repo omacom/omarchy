@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Install Cloudflare's cf CLI
-# omarchy:requires-sudo=true
-
-set -euo pipefail
-
-omarchy-pkg-add-curated cloudflare-cli

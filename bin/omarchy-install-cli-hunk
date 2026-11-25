@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Install Hunk, a review-first terminal diff viewer
-# omarchy:requires-sudo=true
-
-set -euo pipefail
-
-omarchy-pkg-add-curated hunk

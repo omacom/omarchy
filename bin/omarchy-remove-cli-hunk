@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Remove Hunk, a review-first terminal diff viewer
-# omarchy:requires-sudo=true
-
-set -euo pipefail
-
-omarchy-pkg-drop hunk

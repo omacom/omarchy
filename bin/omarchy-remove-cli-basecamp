@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Remove the Basecamp CLI
-# omarchy:requires-sudo=true
-
-set -euo pipefail
-
-omarchy-pkg-drop basecamp-cli
