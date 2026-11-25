@@ -102,15 +102,39 @@ function brightnessProbeCurrent(issued, current, accepted) {
   return !!accepted && issued === current
 }
 
-// Whether a state read may replace the percent on screen. A read that started
-// before the latest write finished, or that came back without a number, keeps
-// the previous one. `reported` is null when this display's read failed.
-function mergeBrightnessLevel(previous, reported, accept) {
+// The percent a relative step for `monitor` builds on while a write is in
+// flight or queued: the latest target for that display. A write for another
+// display does not name it, so the caller reads the live level instead. The
+// queue wins over the running write when both name the display.
+function pendingBrightnessTarget(writeMonitor, writePercent, queued, monitor) {
+  for (var i = 0; queued && i < queued.length; i++) {
+    var item = queued[i]
+    if (item && item.monitor === monitor) {
+      var queuedPercent = Number(item.percent)
+      if (isFinite(queuedPercent)) return Math.max(0, Math.min(100, Math.round(queuedPercent)))
+    }
+  }
+  if (writeMonitor === monitor) {
+    var writeTarget = Number(writePercent)
+    if (isFinite(writeTarget)) return Math.max(0, Math.min(100, Math.round(writeTarget)))
+  }
+  return -1
+}
+
+// The level a state read leaves on screen. `reported` is null when this
+// display's read failed, which falls back to `confirmed`, the last level a
+// read or a successful write proved, so a transient failure does not bounce
+// it. An optimistic level from a write that never succeeded is not kept
+// instead: it was never the display's real level. A non-numeric confirmed
+// level means there is none.
+function mergeBrightnessLevel(previous, reported, accept, confirmed) {
   var known = typeof previous === "number" && isFinite(previous) ? previous : null
   if (!accept) return known
   if (typeof reported === "number" && isFinite(reported))
     return Math.max(0, Math.min(100, Math.round(reported)))
-  return known
+  if (typeof confirmed === "number" && isFinite(confirmed))
+    return Math.max(0, Math.min(100, Math.round(confirmed)))
+  return null
 }
 
 function normalizeScale(scale) {
@@ -483,6 +507,7 @@ if (typeof module !== "undefined") {
     focusedStateAfterRead: focusedStateAfterRead,
     brightnessProbeAction: brightnessProbeAction,
     brightnessProbeCurrent: brightnessProbeCurrent,
+    pendingBrightnessTarget: pendingBrightnessTarget,
     mergeBrightnessLevel: mergeBrightnessLevel,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,

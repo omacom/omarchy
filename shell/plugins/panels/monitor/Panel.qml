@@ -20,10 +20,23 @@ Panel {
   // brightnessLevels.
   property int brightnessPercent: 0
   property bool brightnessAvailable: false
+  // Levels shown in the panel, including one a write has asked for but not
+  // landed yet. brightnessConfirmed is the last level a read or a successful
+  // write proved, so a failed read keeps that one but a failed write's
+  // optimistic level does not survive.
   property var brightnessLevels: ({})
-  property string pendingBrightnessMonitor: ""
-  property int pendingBrightnessPercent: 0
-  property bool brightnessSetQueued: false
+  property var brightnessConfirmed: ({})
+  // Absolute brightness writes, one command at a time. Each display has at
+  // most one queued target; a step updates that display's target instead of
+  // replacing another display's queued write. The running command's display
+  // and target are kept apart so a step during the write can follow it.
+  property var queuedBrightness: []
+  property string brightnessWriteMonitor: ""
+  property int brightnessWritePercent: 0
+  readonly property bool brightnessWritePending: setBrightnessProc.running || queuedBrightness.length > 0
+  // The slider's last preview, waiting for the debounce to send it.
+  property string brightnessPreviewMonitor: ""
+  property int brightnessPreviewPercent: 0
   // Writes finished, and how many had finished when the running state read
   // started. A read from before the latest write must not put the old percent back.
   property int brightnessWritesDone: 0
@@ -370,8 +383,8 @@ Panel {
 
   function brightnessIpc(percent) {
     var value = Number(percent)
-    root.setBrightness(value)
-    return "got " + root.pendingBrightnessPercent
+    if (!root.setBrightness(value)) return "unavailable"
+    return "got " + Model.clampBrightness(value)
   }
 
   function stateIpc() {
@@ -400,9 +413,12 @@ Panel {
     if (!stateProc.running) stateProc.running = true
   }
 
-  // The focused display's brightness, for the bar icon's wheel and IPC.
+  // The focused display's brightness, for the bar icon's wheel and IPC. A
+  // display that reports no brightness control is refused here, before an
+  // optimistic level or a doomed command can be made for it.
   function setBrightness(value) {
-    setDisplayBrightness(root.focusedMonitor, value)
+    if (!root.brightnessAvailable || !root.focusedMonitor) return false
+    return setDisplayBrightness(root.focusedMonitor, value)
   }
 
   // Show a level right away, before the set behind it lands.
@@ -414,24 +430,81 @@ Panel {
     if (name === root.focusedMonitor) root.brightnessPercent = percent
   }
 
+  function rememberBrightness(name, percent) {
+    var confirmed = {}
+    for (var key in brightnessConfirmed) confirmed[key] = brightnessConfirmed[key]
+    confirmed[name] = percent
+    root.brightnessConfirmed = confirmed
+  }
+
+  function forgetBrightness(name) {
+    var levels = {}
+    for (var key in brightnessLevels)
+      if (key !== name) levels[key] = brightnessLevels[key]
+    root.brightnessLevels = levels
+
+    var confirmed = {}
+    for (var key in brightnessConfirmed)
+      if (key !== name) confirmed[key] = brightnessConfirmed[key]
+    root.brightnessConfirmed = confirmed
+
+    if (name === root.focusedMonitor) {
+      root.brightnessPercent = 0
+      root.brightnessAvailable = false
+    }
+  }
+
+  // A failed write keeps the last level a read or write proved, and drops an
+  // optimistic one that was never real.
+  function restoreBrightness(name) {
+    var known = root.brightnessConfirmed[name]
+    if (typeof known === "number" && isFinite(known)) {
+      showBrightness(name, known)
+      return
+    }
+    forgetBrightness(name)
+  }
+
+  // Each display has at most one queued target; the latest request replaces
+  // an older queued target for the same display.
+  function queueBrightness(name, percent) {
+    var queue = []
+    var replaced = false
+    for (var i = 0; i < queuedBrightness.length; i++) {
+      var item = queuedBrightness[i]
+      if (item && item.monitor === name) {
+        if (!replaced) {
+          queue.push({ monitor: name, percent: percent })
+          replaced = true
+        }
+      } else {
+        queue.push(item)
+      }
+    }
+    if (!replaced) queue.push({ monitor: name, percent: percent })
+    root.queuedBrightness = queue
+  }
+
+  function startNextBrightnessWrite() {
+    if (setBrightnessProc.running || queuedBrightness.length === 0) return
+    var next = queuedBrightness[0]
+    root.queuedBrightness = queuedBrightness.slice(1)
+    root.brightnessWriteMonitor = next.monitor
+    root.brightnessWritePercent = next.percent
+    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", next.monitor, next.percent + "%"]
+    setBrightnessProc.running = true
+  }
+
   function setDisplayBrightness(name, value) {
     var monitor = Model.monitorName(name)
-    if (!monitor) return
+    if (!monitor) return false
     // An absolute set wins over a relative step still waiting on its read.
     abandonBrightnessProbe()
     var percent = Model.clampBrightness(value)
     showBrightness(monitor, percent)
-    root.pendingBrightnessMonitor = monitor
-    root.pendingBrightnessPercent = percent
-
-    if (setBrightnessProc.running) {
-      root.brightnessSetQueued = true
-      return
-    }
-
-    root.brightnessSetQueued = false
-    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", monitor, percent + "%"]
-    setBrightnessProc.running = true
+    queueBrightness(monitor, percent)
+    startNextBrightnessWrite()
+    return true
   }
 
   function previewBrightness(name, value) {
@@ -442,8 +515,8 @@ Panel {
     abandonBrightnessProbe()
     var percent = Model.clampBrightness(value)
     showBrightness(monitor, percent)
-    root.pendingBrightnessMonitor = monitor
-    root.pendingBrightnessPercent = percent
+    root.brightnessPreviewMonitor = monitor
+    root.brightnessPreviewPercent = percent
     brightnessDebounce.restart()
   }
 
@@ -458,7 +531,7 @@ Panel {
   // A state read may replace the percents on screen only when nothing we
   // asked for is still in flight, and the read started after the last write.
   function stateReadMayApplyBrightness() {
-    return !setBrightnessProc.running && !brightnessSetQueued && !brightnessProbeRunning
+    return !brightnessWritePending && !brightnessProbeRunning
         && !brightnessDebounce.running && brightnessReadAtWrites === brightnessWritesDone
   }
 
@@ -469,13 +542,16 @@ Panel {
     var monitor = Model.monitorName(name)
     if (!monitor || !delta) return
 
-    var writePending = setBrightnessProc.running || brightnessSetQueued
-    if (writePending && pendingBrightnessMonitor === monitor) {
-      var queued = Model.brightnessStep(true, pendingBrightnessPercent, -1, -1, delta)
+    var pending = Model.pendingBrightnessTarget(
+      brightnessWriteMonitor,
+      brightnessWritePercent,
+      queuedBrightness,
+      monitor
+    )
+    if (pending >= 0) {
+      var queued = Model.brightnessStep(true, pending, -1, -1, delta)
       if (queued.target < 0) return
-      pendingBrightnessPercent = queued.target
-      brightnessSetQueued = true
-      showBrightness(monitor, queued.target)
+      setDisplayBrightness(monitor, queued.target)
       if (showOsd) showBrightnessOsd(queued.target)
       return
     }
@@ -491,7 +567,7 @@ Panel {
 
     // A write for another display is in flight. Stepping this one from the
     // cache, or cancelling that write, is the bug this avoids. Drop the notch.
-    if (setBrightnessProc.running || brightnessSetQueued) return
+    if (brightnessWritePending) return
 
     var action = Model.brightnessProbeAction({
       running: brightnessProbe.running,
@@ -596,23 +672,36 @@ Panel {
   // Brightness is taken from a state read that started after the last write
   // we issued, so a level set elsewhere replaces one shown here, and a read
   // already in flight cannot put the old one back. A display whose read came
-  // back without a number keeps the level it had. The list itself is only
-  // taken when something besides brightness changed: a new one rebuilds the
-  // picker and the layout, which would drop a hover or a drag in progress
+  // back without a number keeps the last level a read or successful write
+  // proved, but not an optimistic level that never landed. The list itself is
+  // only taken when something besides brightness changed: a new one rebuilds
+  // the picker and the layout, which would drop a hover or a drag in progress
   // on each poll.
   function updateDisplays(displaysJson, acceptBrightness) {
     var parsed = Model.parseDisplays(displaysJson)
     if (acceptBrightness) {
       var levels = {}
+      var confirmed = {}
       for (var i = 0; i < parsed.displays.length; i++) {
         var display = parsed.displays[i]
         if (!display || !display.enabled || !display.name) continue
         var reported = typeof display.brightness === "number" ? display.brightness : null
         var previous = brightnessOf(display.name)
-        var merged = Model.mergeBrightnessLevel(previous < 0 ? null : previous, reported, true)
-        if (typeof merged === "number") levels[display.name] = merged
+        var known = root.brightnessConfirmed[display.name]
+        var merged = Model.mergeBrightnessLevel(
+          previous < 0 ? null : previous,
+          reported,
+          true,
+          typeof known === "number" ? known : null
+        )
+        if (typeof merged !== "number") continue
+        levels[display.name] = merged
+        // A merged level is always one a read reported or a confirmed level
+        // that read fell back to.
+        confirmed[display.name] = merged
       }
       root.brightnessLevels = levels
+      root.brightnessConfirmed = confirmed
     }
 
     var shape = JSON.stringify(parsed.displays, function(key, value) { return key === "brightness" ? undefined : value })
@@ -910,7 +999,7 @@ Panel {
     id: brightnessDebounce
     interval: 180
     repeat: false
-    onTriggered: root.setDisplayBrightness(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+    onTriggered: root.setDisplayBrightness(root.brightnessPreviewMonitor, root.brightnessPreviewPercent)
   }
 
   Process {
@@ -923,12 +1012,18 @@ Panel {
     // finished is dropped instead of being parsed as zero. External
     // brightness changes are still picked up by the 5s periodic refresh,
     // the open-time refresh, and Component.onCompleted.
-    onRunningChanged: {
-      if (running) return
+    onExited: function(exitCode) {
+      var monitor = root.brightnessWriteMonitor
       root.brightnessWritesDone++
-      if (root.brightnessSetQueued) {
-        root.setDisplayBrightness(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+      root.brightnessWriteMonitor = ""
+      if (monitor) {
+        if (exitCode === 0) {
+          root.rememberBrightness(monitor, root.brightnessWritePercent)
+        } else if (Model.pendingBrightnessTarget("", -1, root.queuedBrightness, monitor) < 0) {
+          root.restoreBrightness(monitor)
+        }
       }
+      root.startNextBrightnessWrite()
     }
   }
 

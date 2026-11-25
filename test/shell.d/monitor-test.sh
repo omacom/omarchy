@@ -70,10 +70,19 @@ assertEqual(monitor.brightnessProbeAction({ running: true, settled: false, accep
 assertEqual(monitor.brightnessProbeAction({ running: true, settled: false, accepted: true, sameMonitor: false }), 'drop', 'a step for another display leaves the brightness read alone')
 assertEqual(monitor.brightnessProbeAction({ running: false, settled: true, accepted: false }), 'start', 'a finished brightness read leaves the next step free to start')
 
-assertEqual(monitor.mergeBrightnessLevel(57, 62, false), 57, 'a brightness read from before a write does not put the old level back')
-assertEqual(monitor.mergeBrightnessLevel(57, null, true), 57, 'a brightness read that returns nothing keeps the level')
-assertEqual(monitor.mergeBrightnessLevel(57, 40, true), 40, 'a current brightness read replaces the level')
-assertEqual(monitor.mergeBrightnessLevel(null, null, true), null, 'a display with no brightness stays without one')
+assertEqual(monitor.mergeBrightnessLevel(57, 62, false, 57), 57, 'a brightness read from before a write does not put the old level back')
+assertEqual(monitor.mergeBrightnessLevel(57, null, true, 57), 57, 'a brightness read that returns nothing keeps a confirmed level')
+assertEqual(monitor.mergeBrightnessLevel(57, null, true, null), null, 'a brightness read that returns nothing drops an optimistic level')
+assertEqual(monitor.mergeBrightnessLevel(57, null, true, 70), 70, 'a failed read falls back to the last confirmed level, not an unconfirmed one on screen')
+assertEqual(monitor.mergeBrightnessLevel(57, 40, true, 57), 40, 'a current brightness read replaces the level')
+assertEqual(monitor.mergeBrightnessLevel(null, null, true, null), null, 'a display with no brightness stays without one')
+
+// A write for one display does not hide the target of a write for another.
+assertEqual(monitor.pendingBrightnessTarget('eDP-1', 50, [], 'eDP-1'), 50, 'an in-flight write names its own display')
+assertEqual(monitor.pendingBrightnessTarget('eDP-1', 50, [{ monitor: 'DP-1', percent: 60 }], 'eDP-1'), 50, 'another display\'s queued write leaves the in-flight target alone')
+assertEqual(monitor.pendingBrightnessTarget('eDP-1', 50, [{ monitor: 'DP-1', percent: 60 }], 'DP-1'), 60, 'a queued write names its own display')
+assertEqual(monitor.pendingBrightnessTarget('eDP-1', 50, [{ monitor: 'eDP-1', percent: 55 }], 'eDP-1'), 55, 'the latest queued target for a display wins over its running write')
+assertEqual(monitor.pendingBrightnessTarget('eDP-1', 50, [{ monitor: 'DP-1', percent: 60 }], 'HDMI-A-1'), -1, 'a display with no pending write has no target')
 
 assertEqual(monitor.normalizeScale('1.250'), '1.25', 'monitor normalizes fractional scale')
 assertEqual(monitor.normalizeScale('nope'), '', 'monitor rejects invalid scale')
@@ -307,4 +316,150 @@ proc.running = false
 scope.onProcExited(1)
 scope.onProcRunningChanged(false)
 assertEqual(scope.textSizePreviewIndex, -1, 'failed text size update clears preview')
+
+// A state read must drop an optimistic level that no write proved, while a
+// confirmed level survives a transient read failure. This is the phantom row
+// on a display with no brightness control.
+const brightness = {
+  brightnessLevels: {},
+  brightnessConfirmed: {},
+  queuedBrightness: [],
+  brightnessWriteMonitor: "",
+  brightnessWritePercent: 0,
+  brightnessPreviewMonitor: "",
+  brightnessPreviewPercent: 0,
+  brightnessWritesDone: 0,
+  brightnessAvailable: true,
+  focusedMonitor: "eDP-1",
+  brightnessProbeRunning: false,
+  brightnessProbeMonitor: "",
+  brightnessProbeDelta: 0,
+  brightnessProbeShowOsd: false,
+  brightnessProbe: { running: false },
+  brightnessProbeSettled: true,
+  brightnessProbeRestart: false,
+  brightnessProbeRestartMonitor: "",
+  brightnessProbeRestartDelta: 0,
+  brightnessProbeRestartShowOsd: false,
+  brightnessDebounce: { running: false },
+  setBrightnessProc: { running: false, command: [] },
+  Model: monitor,
+  readInternalBrightness: () => 70,
+  showBrightnessOsd: () => {},
+  startBrightnessProbe: () => {},
+  abandonBrightnessProbe: () => {},
+  brightnessOf: (name) => {
+    const level = brightness.brightnessLevels[name]
+    return level === undefined || level === null ? -1 : level
+  },
+}
+const brightnessProcBlock = panelSource.match(/Process\s*\{\s*id:\s*setBrightnessProc[\s\S]*?\n  \}/)[0]
+const brightnessExitedMatch = brightnessProcBlock.match(/onExited:\s*function\(exitCode\)\s*\{([\s\S]*?)\n    \}/)
+assert(brightnessExitedMatch, 'setBrightnessProc defines an onExited handler')
+
+brightness.root = brightness
+vm.createContext(brightness)
+vm.runInContext([
+  extractFn('showBrightness'),
+  extractFn('rememberBrightness'),
+  extractFn('forgetBrightness'),
+  extractFn('restoreBrightness'),
+  extractFn('queueBrightness'),
+  extractFn('startNextBrightnessWrite'),
+  extractFn('setDisplayBrightness'),
+  extractFn('stepDisplayBrightness'),
+  extractFn('setBrightness'),
+  extractFn('updateDisplays'),
+  `function onBrightnessExited(exitCode) { ${brightnessExitedMatch[1]} }`,
+].join('\n'), brightness)
+
+brightness.brightnessLevels = { 'eDP-1': 50 }
+brightness.updateDisplays(JSON.stringify([{ name: 'eDP-1', enabled: true, brightness: null }]), true)
+assertEqual(brightness.brightnessLevels['eDP-1'], undefined, 'an unconfirmed level is dropped when its display reports no brightness')
+assertDeepEqual(brightness.brightnessConfirmed, {}, 'a dropped optimistic level is not remembered')
+
+brightness.brightnessLevels = { 'eDP-1': 50 }
+brightness.brightnessConfirmed = { 'eDP-1': 50 }
+brightness.updateDisplays(JSON.stringify([{ name: 'eDP-1', enabled: true, brightness: null }]), true)
+assertEqual(brightness.brightnessLevels['eDP-1'], 50, 'a confirmed level survives a transient empty read')
+
+brightness.brightnessLevels = { 'eDP-1': 50 }
+brightness.brightnessConfirmed = { 'eDP-1': 70 }
+brightness.updateDisplays(JSON.stringify([{ name: 'eDP-1', enabled: true, brightness: null }]), true)
+assertEqual(brightness.brightnessLevels['eDP-1'], 70, 'a failed read falls back to the confirmed level')
+
+brightness.updateDisplays(JSON.stringify([{ name: 'eDP-1', enabled: true, brightness: 40 }]), true)
+assertEqual(brightness.brightnessLevels['eDP-1'], 40, 'a numeric state read replaces the level')
+assertEqual(brightness.brightnessConfirmed['eDP-1'], 40, 'a numeric state read confirms the level')
+
+// A failed write drops its optimistic level, or restores the last one a read
+// or successful write proved.
+brightness.setBrightnessProc.running = false
+brightness.queuedBrightness = []
+brightness.brightnessLevels = { 'eDP-1': 50 }
+brightness.brightnessConfirmed = {}
+brightness.brightnessWriteMonitor = 'eDP-1'
+brightness.brightnessWritePercent = 50
+brightness.brightnessAvailable = true
+brightness.onBrightnessExited(1)
+assertEqual(brightness.brightnessLevels['eDP-1'], undefined, 'a failed unconfirmed write drops its optimistic level')
+assertEqual(brightness.brightnessAvailable, false, 'a failed unconfirmed write clears focused availability')
+
+brightness.brightnessLevels = { 'eDP-1': 50 }
+brightness.brightnessConfirmed = { 'eDP-1': 70 }
+brightness.brightnessWriteMonitor = 'eDP-1'
+brightness.brightnessWritePercent = 50
+brightness.brightnessAvailable = true
+brightness.onBrightnessExited(1)
+assertEqual(brightness.brightnessLevels['eDP-1'], 70, 'a failed write restores the last confirmed level')
+assertEqual(brightness.brightnessAvailable, true, 'a restored level stays controllable')
+
+brightness.brightnessLevels = { 'eDP-1': 55 }
+brightness.brightnessConfirmed = {}
+brightness.brightnessWriteMonitor = 'eDP-1'
+brightness.brightnessWritePercent = 55
+brightness.onBrightnessExited(0)
+assertEqual(brightness.brightnessConfirmed['eDP-1'], 55, 'a successful write confirms its level')
+
+// A step for the display whose write is running must follow that write's
+// target even when another display's set is queued behind it.
+brightness.setBrightnessProc.running = true
+brightness.brightnessWriteMonitor = 'eDP-1'
+brightness.brightnessWritePercent = 50
+brightness.queuedBrightness = [{ monitor: 'DP-1', percent: 60 }]
+brightness.stepDisplayBrightness('eDP-1', 5, false)
+assertDeepEqual(
+  brightness.queuedBrightness,
+  [{ monitor: 'DP-1', percent: 60 }, { monitor: 'eDP-1', percent: 55 }],
+  'a step follows the in-flight target instead of reading stale hardware'
+)
+assertEqual(brightness.brightnessLevels['eDP-1'], 55, 'the stepped target is shown')
+
+// A step for the queued display updates its target in place.
+brightness.stepDisplayBrightness('DP-1', 5, false)
+assertDeepEqual(
+  brightness.queuedBrightness,
+  [{ monitor: 'DP-1', percent: 65 }, { monitor: 'eDP-1', percent: 55 }],
+  'a queued display keeps one latest target'
+)
+
+// With nothing in flight, a step reads live and starts the write.
+brightness.setBrightnessProc.running = false
+brightness.brightnessWriteMonitor = ''
+brightness.queuedBrightness = []
+brightness.readInternalBrightness = () => 62
+brightness.stepDisplayBrightness('eDP-1', 5, false)
+assertDeepEqual(
+  brightness.setBrightnessProc.command,
+  ['omarchy-brightness-display', '--no-osd', '--monitor', 'eDP-1', '67%'],
+  'a step with no write in flight uses the live level'
+)
+
+// The IPC absolute set is refused for a display with no brightness control.
+brightness.setBrightnessProc.running = false
+brightness.queuedBrightness = []
+brightness.brightnessAvailable = false
+const accepted = brightness.setBrightness(50)
+assertEqual(accepted, false, 'an absolute set is refused when the focused display has no brightness control')
+assertEqual(brightness.queuedBrightness.length, 0, 'a refused absolute set queues no write')
 JS
