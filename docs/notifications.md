@@ -59,6 +59,8 @@ Icons are resolved in the shell, the way the dock resolves its own, by each card
 3. The icon of a desktop entry matching the hint, source or app (`DesktopEntries.heuristicLookup`); for a site, only the browser's, since a fuzzy match on a domain label would put Google Contacts on `mail.google.com`.
 4. The glyph an Omarchy sender asked for, else the first letter of the source.
 
+When Qt's themed lookup misses a name, the card also checks the app library's file index, which refreshes when desktop entries change. This picks up newly installed app icons without restarting the shell, including names whose earlier lookup failed. The index contains app and device icons across installed themes and `/usr/share/pixmaps`; it is checked only when the active theme misses. Copying an icon file alone does not trigger a rescan. A missing name still falls through to the glyph or letter.
+
 An icon named `*-symbolic`, or a file under a `symbolic/` directory, is a one-colour mark and is tinted with the theme's text colour.
 
 A site's icon is never fetched: the site name comes from the notification body and a browser is recognised by its self-asserted app name, so fetching would let any sender make the host contact a server of its choosing.

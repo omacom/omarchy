@@ -34,6 +34,9 @@ for item in "$OMARCHY_PATH"/shell/*; do
   [[ $(basename "$item") == "shell.qml" ]] || ln -s "$item" "$work/config/$(basename "$item")"
 done
 
+component_url=$(jq -Rn --arg path "$plugin/$entry" '"file://" + ($path | split("/") | map(@uri) | join("/"))')
+shot_path=$(jq -Rn --arg path "$work/shot.png" '$path')
+
 cat > "$work/config/shell.qml" <<EOF
 import QtQuick
 import Quickshell
@@ -67,7 +70,7 @@ ShellRoot {
     running: true
     onTriggered: {
       if (root.step === 0) {
-        var component = Qt.createComponent("file://$plugin/$entry")
+        var component = Qt.createComponent($component_url)
         if (component.status !== Component.Ready) {
           console.log("PREVIEW_ERROR " + component.errorString())
           Qt.quit()
@@ -83,7 +86,7 @@ ShellRoot {
         root.widget.anchors.right = host.right
       } else if (root.step === 2) {
         frame.grabToImage(function(result) {
-          result.saveToFile("$work/shot.png")
+          result.saveToFile($shot_path)
           console.log("PREVIEW_SAVED " + Math.round(root.widget.width) + "x" + Math.round(root.widget.height))
           Qt.quit()
         })

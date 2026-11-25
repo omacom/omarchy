@@ -1,17 +1,17 @@
 # Fonai
 
-Kiekviena tema pateikiama su savo fonų rinkiniu, o savų papildomų galite pridėti į `~/.config/omarchy/backgrounds/[theme]`. Jei norite pridėti papildomą fono paveikslėlį, tarkim, nord temai, tiesiog įdėkite failą į `~/.config/omarchy/backgrounds/nord`.
+Kiekviena tema pateikiama su savo fonų rinkiniu, o papildomų galite pridėti patys į `~/.config/omarchy/backgrounds/[theme]`. Jei norite pridėti papildomą fono paveikslėlį, tarkim, nord temai, tiesiog įdėkite failą į `~/.config/omarchy/backgrounds/nord`.
 
-Lengviausia tai padaryti Omarchy meniu nuėjus į _Diegimas > Stilius > Fonas_. Bus atidarytas aplankas, kuriame saugomi tos temos fonai. Paspauskite `Super + Shift + F`, kad paleistumėte kitą failų tvarkyklę, suraskite savo foną ir jį nukopijuokite. Dabar jis bus įtrauktas į fonus, iš kurių galite rinktis naudodami `Super + Ctrl + W`.
+Lengviausiai tai padarysite Omarchy meniu pasirinkę _Install > Style > Background_. Tai atvers aplanką, kuriame saugomi tos temos fonai. Paspauskite `Super + Shift + F`, kad paleistumėte kitą failų tvarkyklę, suraskite savo foną ir nukopijuokite jį ten. Dabar jis bus tarp fonų, kuriuos galite rinktis naudodami `Super + Ctrl + W`.
 
-Fonai gali būti ne tik nejudantys paveikslėliai, bet ir vaizdo įrašai. Į tą patį aplanką įdėkite `mp4`, `m4v`, `mov`, `webm`, `mkv` arba `avi` failą ir jis atsiras greta paveikslėlių. Vaizdo įrašus leidžia OWE wallpaper engine. Jis vieną kartą išdekoduoja vaizdo įrašą visiems monitoriams ir leidžia jo garsą per numatytąją garso išvestį, o atkūrimą sustabdo, kai niekas jo nemato. Vaizdo fonas vis tiek eikvoja gerokai daugiau energijos nei nejudantis.
+Fonai gali būti ne tik paveikslėliai, bet ir vaizdo įrašai. Įdėkite `mp4`, `m4v`, `mov`, `webm`, `mkv` arba `avi` failą į tą patį aplanką, ir jis atsiras greta paveikslėlių. Vaizdo įrašus leidžia OWE fonų variklis. Jis vieną kartą iškoduoją vaizdo įrašą visiems monitoriams, jo garsą leidžia per numatytąjį garso išvesties įrenginį ir sustabdo atkūrimą, kai jo niekas nemato. Vaizdo fonas vis tiek naudoja daug daugiau energijos nei statinis.
 
-Temose nejudančiam fonui gali būti numatyta trumpa įžanga. `backgrounds/road.webp` atveju atitinkamas vaizdo įrašas yra `backgrounds/intros/road.mp4`. Jis automatiškai leidžiamas paleidžiant sistemą, perjungiant į temą su pasirinktu tuo fonu ir pasirinkus tą foną, o paskui grįžtama prie nejudančio paveikslėlio. Įžangos vaizdo įrašai nerodomi fonų pasirinkime ir niekada nesikartoja.
+Temos gali turėti trumpą statinio fono įvadą. Failui `backgrounds/road.webp` atitinkamas vaizdo įrašas yra `backgrounds/intros/road.mp4`. Jis automatiškai leidžiamas paleidžiant sistemą, perjungiant į temą, kurioje pasirinktas tas fonas, ir pasirenkant tą foną, o tada grįžtama prie statinio paveikslėlio. Įvadiniai vaizdo įrašai nerodomi fonų pasirinkimo sąraše ir niekada neleidžiami ciklu.
 
-Išjungus _Išvaizda > Animacijos_, taip pat išjungiamos fonų įžangos. Omarchy tai pagal numatytuosius nustatymus daro virtualioje mašinoje. Komanda `omarchy theme bg intro toggle` įžangas leidžia perjungti atskirai. Atnaujinant temą įžanga neleidžiama.
+Pasirinkus _Appearance > Animations Off_, taip pat išjungiami fonų įvadai. Omarchy tai pagal numatytuosius nustatymus daro virtualioje mašinoje. Komanda `omarchy theme bg intro toggle` gali atskirai perjungti įvadus. Atnaujinant temą įvadas neleidžiamas.
 
-Nejudantis paveikslėlis taip pat gali turėti ciklą – ramią to paties paveikslėlio versiją, kuri nuolat juda, esančią `backgrounds/loops/road.mp4`. Ji leidžiama nejudančio paveikslėlio vietoje, po jo įžangos, jei tokią turi, ir sustabdoma išjungus animacijas. Ciklai nerodomi fonų pasirinkime ir, kaip ir bet kuris vaizdo fonas, eikvoja daugiau energijos nei nejudantis paveikslėlis.
+Statinis paveikslėlis taip pat gali turėti ciklą, ramią to paties paveikslėlio versiją, kuri nuolat juda, faile `backgrounds/loops/road.mp4`. Jis leidžiamas vietoj statinio paveikslėlio, po jo įvado, jei toks yra, ir sustoja, kai išjungiamos animacijos. Veikiant nuo baterijos, vietoj jo rodomas statinis paveikslėlis, o ciklas grįžta, kai tik prijungiate įrenginį prie maitinimo. Ciklai nerodomi fonų pasirinkimo sąraše.
 
-Didžiulę kruopščiai atrinktų šaunių fonų kolekciją rasite [dharmx/walls](https://github.com/dharmx/walls).
+Didelę šaunių, kruopščiai atrinktų fonų kolekciją rasite [dharmx/walls](https://github.com/dharmx/walls).
 
-Užrakto ekranas rodo nejudantį vaizdo fono kadrą, kaip ir nejudantį animuoto GIF kadrą.
+Užrakto ekrane rodomas statinis vaizdo fono kadras, lygiai taip pat, kaip rodomas statinis animuoto GIF kadras.

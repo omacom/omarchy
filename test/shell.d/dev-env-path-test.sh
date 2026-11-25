@@ -102,3 +102,53 @@ mapfile -t reordered_result < <(run_bootstrap bash "$bootstrap" "$home" "$inheri
 [[ ${reordered_result[1]} == "$home/.local/share/mise/command-wrappers/bin:$tmpdir/active/bin:$tmpdir/managed/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] ||
   fail "bootstrap moves existing wrappers ahead of inherited managed tool paths without duplication" "${reordered_result[1]}"
 pass "bootstrap moves existing wrappers ahead of inherited managed tool paths without duplication"
+
+# Interactive shell startup caches static starship/zoxide init output keyed by
+# binary fingerprint (invalidating on both newer and older-timestamp replacements)
+# and lazy-loads bash_completion on first completion request.
+init_bin="$tmpdir/init-bin"
+init_cache="$tmpdir/init-cache"
+init_calls="$tmpdir/init-calls"
+mkdir -p "$init_bin"
+cat >"$init_bin/starship" <<'SH'
+#!/bin/bash
+echo starship >>"$OMARCHY_TEST_INIT_CALLS"
+echo 'OMARCHY_TEST_STARSHIP=v1'
+SH
+cat >"$init_bin/zoxide" <<'SH'
+#!/bin/bash
+echo zoxide >>"$OMARCHY_TEST_INIT_CALLS"
+echo 'OMARCHY_TEST_ZOXIDE=v1'
+SH
+chmod +x "$init_bin/starship" "$init_bin/zoxide"
+
+run_init() {
+  TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+    OMARCHY_TEST_INIT_CALLS="$init_calls" PATH="$init_bin:/usr/bin" \
+    bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s:%s\n" "${OMARCHY_TEST_STARSHIP:-}" "${OMARCHY_TEST_ZOXIDE:-}"' 2>/dev/null
+}
+
+[[ $(run_init) == "v1:v1" ]] || fail "first interactive shell populates starship and zoxide init caches"
+: >"$init_calls"
+[[ $(run_init) == "v1:v1" ]] || fail "subsequent interactive shell loads cached starship and zoxide init"
+[[ ! -s $init_calls ]] || fail "cached starship and zoxide init avoids re-executing the binaries" "$(<"$init_calls")"
+
+cat >"$init_bin/starship" <<'SH'
+#!/bin/bash
+echo starship >>"$OMARCHY_TEST_INIT_CALLS"
+echo 'OMARCHY_TEST_STARSHIP=v2'
+SH
+chmod +x "$init_bin/starship"
+touch -d "2020-01-01 00:00:00" "$init_bin/starship"
+[[ $(run_init) == "v2:v1" ]] || fail "replacement starship binary with older timestamp invalidates its cached init script"
+pass "starship and zoxide init scripts cache across shells and invalidate on replacement"
+
+if [[ -f /usr/share/bash-completion/bash_completion ]]; then
+  TERM=xterm-256color OMARCHY_PATH="$ROOT" bash --norc -ic '
+    source "$OMARCHY_PATH/default/bash/shell"
+    [[ ! -v BASH_COMPLETION_VERSINFO ]] || exit 1
+    _omarchy_lazy_bash_completion git || rc=$?
+    [[ ${rc:-0} == 124 && -v BASH_COMPLETION_VERSINFO ]]
+  ' 2>/dev/null || fail "bash_completion lazy-loads on first completion request"
+  pass "bash_completion lazy-loads on first completion request"
+fi

@@ -505,7 +505,9 @@ BarWidget {
       id: indicatorSource
 
       anchors.fill: parent
-      source: indicatorSlot.indicatorId ? Qt.resolvedUrl("../indicators/" + indicatorSlot.indicatorId + ".qml") : ""
+      source: /^[A-Za-z0-9_-]+$/.test(indicatorSlot.indicatorId)
+        ? Qt.resolvedUrl("../indicators/" + indicatorSlot.indicatorId + ".qml")
+        : ""
       onLoaded: {
         indicatorSlot.injectProps()
         indicatorSlot.syncActiveState()
