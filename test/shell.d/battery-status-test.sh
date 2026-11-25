@@ -68,6 +68,20 @@ grep -Fx $'threshold\t75-80%' <<<"$shell_output" >/dev/null || fail "battery sta
 line_output=$(OMARCHY_TEST_NATIVE_PATH=macsmc-battery OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $line_output == *$' '"10.8W"$' / '"56Wh" ]] || fail "a draw signed negative still shows in the status line" "$line_output"
 
+# UPower names the pair it would apply even with its limit switched off, and
+# knows nothing of a cap set behind its back. The battery's own files decide.
+sed -i '/percentage:           51%/a\  charge-end-threshold:          80%\n  charge-threshold-supported:    yes' "$tmp_dir/bin/upower"
+printf '100\n' >"$tmp_dir/power/macsmc-battery/charge_control_end_threshold"
+limit_output=$(OMARCHY_TEST_NATIVE_PATH=macsmc-battery OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'limit\toff' <<<"$limit_output" >/dev/null || fail "a limit UPower lists but the battery is not holding reads as off" "$limit_output"
+grep -Fx $'limit-at\t80%' <<<"$limit_output" >/dev/null || fail "a limit that is off names the cap UPower would apply" "$limit_output"
+printf '60\n' >"$tmp_dir/power/macsmc-battery/charge_control_end_threshold"
+limit_output=$(OMARCHY_TEST_NATIVE_PATH=macsmc-battery OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'limit\ton' <<<"$limit_output" >/dev/null || fail "a limit set outside UPower reads as on" "$limit_output"
+grep -Fx $'limit-at\t60%' <<<"$limit_output" >/dev/null || fail "a limit that is on names the cap the battery holds" "$limit_output"
+sed -i '/charge-end-threshold:/d; /charge-threshold-supported:/d' "$tmp_dir/bin/upower"
+printf '80\n' >"$tmp_dir/power/macsmc-battery/charge_control_end_threshold"
+
 # The BAT* name the script used to key on is one of many; CMB0 is another.
 mkdir -p "$tmp_dir/power/CMB0"
 printf '7300000\n' >"$tmp_dir/power/CMB0/power_now"
@@ -211,3 +225,28 @@ printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
 sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
 pass "battery status leaves out readings it doesn't have"
+
+# The limit command asks UPower, then believes the battery rather than the
+# reply: some firmware accepts the request and keeps charging to full.
+mkdir -p "$tmp_dir/limit/bin" "$tmp_dir/limit/power/BAT0"
+printf '100\n' >"$tmp_dir/limit/power/BAT0/charge_control_end_threshold"
+printf '#!/bin/bash\necho /org/freedesktop/UPower/devices/battery_BAT0\n' >"$tmp_dir/limit/bin/upower"
+cat >"$tmp_dir/limit/bin/busctl" <<'STUB'
+#!/bin/bash
+
+case "$*" in
+  *ChargeThresholdSupported) echo "b true" ;;
+  *NativePath) echo 's "BAT0"' ;;
+  *"EnableChargeThreshold b true") [[ -z $FIRMWARE_OBEYS ]] || echo 80 >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/charge_control_end_threshold" ;;
+esac
+STUB
+printf '#!/bin/bash\necho "$1" >"%s"\n' "$tmp_dir/limit/notified" >"$tmp_dir/limit/bin/omarchy-notification-send"
+chmod +x "$tmp_dir/limit/bin/upower" "$tmp_dir/limit/bin/busctl" "$tmp_dir/limit/bin/omarchy-notification-send"
+
+FIRMWARE_OBEYS=1 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/limit/power" PATH="$tmp_dir/limit/bin:$PATH" "$ROOT/bin/omarchy-battery-limit" on || fail "battery limit succeeds once the battery holds the cap"
+printf '100\n' >"$tmp_dir/limit/power/BAT0/charge_control_end_threshold"
+if OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/limit/power" PATH="$tmp_dir/limit/bin:$PATH" "$ROOT/bin/omarchy-battery-limit" on 2>/dev/null; then
+  fail "battery limit fails when the battery ignores the request"
+fi
+[[ -s $tmp_dir/limit/notified ]] || fail "battery limit says so on the desktop when no terminal can show the failure"
+pass "battery limit believes the battery, not the reply"

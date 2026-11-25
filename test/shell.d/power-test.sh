@@ -8,8 +8,11 @@ run_node_test <<'JS'
 const power = requireFromRoot('shell/plugins/panels/power/Model.js')
 const states = { Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4 }
 
-assertEqual(power.selectProfileIndex(0, 1, ['balanced', 'performance']), 1, 'power advances profile selection')
-assertEqual(power.selectProfileIndex(1, 1, ['balanced', 'performance']), 1, 'power clamps profile selection')
+assertDeepEqual(power.moveCursor(0, -1, 1, 2, 0), { profileIndex: 1, limitIndex: -1 }, 'power advances profile selection')
+assertDeepEqual(power.moveCursor(1, -1, 1, 2, 0), { profileIndex: 1, limitIndex: -1 }, 'power clamps profile selection')
+assertDeepEqual(power.moveCursor(1, -1, 1, 2, 2), { profileIndex: 1, limitIndex: 0 }, 'power steps from the last profile onto the charge limit')
+assertDeepEqual(power.moveCursor(0, -1, 1, 0, 0), { profileIndex: 0, limitIndex: -1 }, 'power keeps the cursor off a charge limit that is not shown')
+assertDeepEqual(power.moveCursor(1, 0, -1, 2, 2), { profileIndex: 1, limitIndex: -1 }, 'power steps from the charge limit back to the profiles')
 
 assertDeepEqual(power.parseKeyValue('time\t2:00\nenergy\t42\n'), { time: '2:00', energy: '42' }, 'power parses key-value output')
 assertDeepEqual(

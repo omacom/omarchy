@@ -20,6 +20,11 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  // The charge limit choices follow the profiles under the keyboard cursor;
+  // -1 while the cursor is on a profile.
+  property int limitIndex: -1
+  readonly property bool limitSupported: batteryInfo.limit !== undefined
+  readonly property bool limitOn: batteryInfo.limit === "on"
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -40,10 +45,16 @@ Panel {
   }
 
   function selectProfileByDelta(delta) {
-    profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+    var next = Model.moveCursor(profileIndex, limitIndex, delta, profiles.length, limitSupported ? 2 : 0)
+    profileIndex = next.profileIndex
+    limitIndex = next.limitIndex
   }
 
   function activateSelectedProfile() {
+    if (limitSupported && limitIndex >= 0) {
+      setLimit(limitIndex === 0)
+      return
+    }
     if (profileIndex < 0 || profileIndex >= profiles.length) return
     setProfile(profiles[profileIndex])
   }
@@ -190,6 +201,12 @@ Panel {
     actionProc.running = true
   }
 
+  function setLimit(on) {
+    if (actionProc.running) return
+    actionProc.command = ["omarchy-battery-limit", on ? "on" : "off"]
+    actionProc.running = true
+  }
+
   function togglePercentage() {
     root.settings = Object.assign({}, root.settings, { showPercentage: !root.showPercentage })
     if (root.bar && root.bar.shell) root.bar.shell.updateEntryInline(root.moduleName, root.settings)
@@ -219,6 +236,7 @@ Panel {
       refresh()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
+      limitIndex = -1
       cursorActive = false
     }
   }
@@ -517,12 +535,66 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.limitIndex < 0 && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
                     root.profileIndex = index
+                    root.limitIndex = -1
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // ---------- Charge limit picker ----------
+        // Shown only where the limit can be switched and read back. The first
+        // choice names the cap the battery holds, or would hold.
+        PanelSeparator {
+          visible: root.limitSupported
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.limitSupported
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: Commons.I18n.t("power.chargeLimitTitle")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Row {
+            id: limitRow
+            width: parent.width
+            spacing: Style.space(6)
+
+            Repeater {
+              model: 2
+              Button {
+                required property int index
+                readonly property bool limits: index === 0
+                width: (limitRow.width - limitRow.spacing) / 2
+                iconText: Model.levelIcon(limits ? root.batteryInfo["limit-at"] : 100)
+                iconSize: Style.font.title
+                text: limits ? root.reading(root.batteryInfo["limit-at"]) : Commons.I18n.t("power.chargeLimitFull")
+                fontSize: Style.font.bodySmall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                horizontalPadding: Style.spacing.controlPaddingX
+                verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                bordered: true
+                active: root.limitOn === limits
+                hasCursor: root.cursorActive && root.limitIndex === index
+                onClicked: root.setLimit(limits)
+                onHovered: function(h) {
+                  if (h) {
+                    root.cursorActive = true
+                    root.limitIndex = index
                   }
                 }
               }
