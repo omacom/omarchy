@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "Δραστηριότητα",
   "Agent": "Πράκτορας",
   "Agents": "Πράκτορες",
@@ -21,6 +20,7 @@
   "Calculator": "Αριθμομηχανή",
   "Calendar": "Ημερολόγιο",
   "Capture menu": "Μενού λήψης",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Εκκαθάριση υπενθυμίσεων",
   "Clipboard manager": "Διαχείριση προχείρου",
   "Close all windows": "Κλείσιμο όλων των παραθύρων",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Έλεγχος ειδοποιήσεων με πληκτρολόγιο",
   "Cycle workspace layout": "Εναλλαγή διάταξης χώρου εργασίας",
   "Cycle workspace layout back": "Εναλλαγή διάταξης προς τα πίσω",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Άμεση εισαγωγή προθέματος τερματικού",
   "Disable touchpad": "Απενεργοποίηση επιφάνειας αφής",
   "Dismiss all notifications": "Απόρριψη όλων των ειδοποιήσεων",

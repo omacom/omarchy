@@ -121,7 +121,8 @@ if (( first_install )); then
   done
 fi
 omarchy-refresh-applications
-env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser google-chrome.desktop
+XDG_CURRENT_DESKTOP= xdg-mime default google-chrome.desktop \
+  text/html x-scheme-handler/http x-scheme-handler/https x-scheme-handler/about x-scheme-handler/unknown
 
 if (( first_install )); then
   mkdir -p "$state_dir/migrations"

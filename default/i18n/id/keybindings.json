@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "Aktivitas",
   "Agent": "Agen",
   "Agents": "Agen",
@@ -21,6 +20,7 @@
   "Calculator": "Kalkulator",
   "Calendar": "Kalender",
   "Capture menu": "Menu tangkapan",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Hapus pengingat",
   "Clipboard manager": "Pengelola clipboard",
   "Close all windows": "Tutup semua jendela",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Kontrol notifikasi dengan keyboard",
   "Cycle workspace layout": "Tata letak ruang kerja berikutnya",
   "Cycle workspace layout back": "Tata letak ruang kerja sebelumnya",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Input langsung awalan terminal",
   "Disable touchpad": "Nonaktifkan touchpad",
   "Dismiss all notifications": "Tutup semua notifikasi",

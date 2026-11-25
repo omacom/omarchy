@@ -54,6 +54,17 @@ if [[ -b $device ]]; then
   (( rc != 0 )) && grep -q '^mkfs.exfat' "$SUDO_LOG" && ! grep -q "formatted" "$work/out" ||
     fail "format-drive reports a failed format as a failure" "$(cat "$work/out")"
   pass "format-drive stops when wipefs fails and never reports a failed format as done"
+
+  for case_spec in "sda:${work}/sda1" "nvme0n1:${work}/nvme0n1p1" "mmcblk0:${work}/mmcblk0p1" "loop0:${work}/loop0p1"; do
+    name="${case_spec%%:*}"
+    expected_part="${case_spec#*:}"
+    ln -sf "$device" "$work/$name"
+    : >"$SUDO_LOG"
+    run_format "$work/$name" POC
+    (( rc == 0 )) && grep -Fxq "mkfs.exfat -n POC $expected_part" "$SUDO_LOG" ||
+      fail "format-drive uses expected partition path for $name" "$(cat "$SUDO_LOG")"
+  done
+  pass "format-drive uses p1 suffix for numeric-ending devices (nvme, mmcblk, loop) and 1 for letters"
 else
   skip "format-drive: no block device for the failure paths"
 fi

@@ -1,5 +1,4 @@
 {
-  "AI": "IA",
   "Activity": "Activitat",
   "Agent": "Agent",
   "Agents": "Agents",
@@ -21,6 +20,7 @@
   "Calculator": "Calculadora",
   "Calendar": "Calendari",
   "Capture menu": "Menú de captura",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Esborra els recordatoris",
   "Clipboard manager": "Gestor del porta-retalls",
   "Close all windows": "Tanca totes les finestres",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Controla les notificacions amb el teclat",
   "Cycle workspace layout": "Alterna la disposició",
   "Cycle workspace layout back": "Alterna la disposició enrere",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Entrada directa per al prefix del terminal",
   "Disable touchpad": "Desactiva el panel tàctil",
   "Dismiss all notifications": "Descarta totes les notificacions",

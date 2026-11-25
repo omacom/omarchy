@@ -36,13 +36,34 @@ stale_wireplumber="$config_home/wireplumber/wireplumber.conf.d/90-omarchy-speake
 stale_shared="$config_home/pipewire/filter-chain.conf.d/90-omarchy-speaker-tuning.conf"
 
 sink_name=omarchy_speaker_tuning
+sink_wait_tries="${OMARCHY_AUDIO_TUNING_WAIT_TRIES:-20}"
+sink_wait_delay="${OMARCHY_AUDIO_TUNING_WAIT_DELAY:-0.5}"
 
 action="${1:-status}"
 force=0
 [[ ${2:-} == "--force" ]] && force=1
 
+audio_server_running() {
+  pactl info >/dev/null 2>&1
+}
+
 sink_matching() {
   pactl list sinks short 2>/dev/null | awk -v p="$1" '$2 ~ p {print $2; exit}'
+}
+
+wait_for_sink() {
+  local pattern="$1" tries="$2" delay="$3" try found=""
+  for ((try = 0; try < tries; try++)); do
+    found="$(sink_matching "$pattern")"
+    if [[ -n $found ]]; then
+      printf '%s\n' "$found"
+      return 0
+    fi
+    if (( try + 1 < tries )); then
+      sleep "$delay"
+    fi
+  done
+  return 1
 }
 
 # Dell keys its Cirrus speaker firmware on the DMI product SKU, which makes it the
@@ -261,17 +282,36 @@ case "$action" in
     source "$selected/tuning.conf"
 
     # At first-run the session is up but the sink can still be settling.
-    for _ in {1..20}; do
-      speaker_sink="$(sink_matching "$sink_pattern")"
-      [[ -n $speaker_sink ]] && break
-      sleep 0.5
-    done
-    [[ -n ${speaker_sink:-} ]] || {
-      echo "A tuning applies to this laptop but no sink matching $sink_pattern" >&2
-      echo "is present, so there is no audio server yet. Re-run after login:" >&2
-      echo "  omarchy audio tuning on" >&2
+    speaker_sink="$(wait_for_sink "$sink_pattern" "$sink_wait_tries" "$sink_wait_delay")" || speaker_sink=""
+
+    # On SoundWire laptops, WirePlumber can drop a card's HiFi profile if it
+    # probed before every peripheral finished enumerating at boot. If PipeWire
+    # is running but the speaker sink is still missing, restarting WirePlumber
+    # once re-probes UCM without dropping PipeWire clients.
+    restarted_wireplumber=0
+    if [[ -z $speaker_sink ]] && audio_server_running &&
+      systemctl --user is-active --quiet wireplumber.service 2>/dev/null; then
+      restarted_wireplumber=1
+      systemctl --user try-restart wireplumber.service >/dev/null 2>&1 || true
+      speaker_sink="$(wait_for_sink "$sink_pattern" "$sink_wait_tries" "$sink_wait_delay")" || speaker_sink=""
+    fi
+
+    if [[ -z $speaker_sink ]]; then
+      if audio_server_running; then
+        echo "A tuning applies to this laptop but no sink matching $sink_pattern" >&2
+        if (( restarted_wireplumber )); then
+          echo "is present, even after restarting WirePlumber. Recover audio and re-run:" >&2
+        else
+          echo "is present. Recover audio and re-run:" >&2
+        fi
+        echo "  omarchy restart audio && omarchy audio tuning on" >&2
+      else
+        echo "A tuning applies to this laptop but no audio server is running yet." >&2
+        echo "Re-run after login:" >&2
+        echo "  omarchy audio tuning on" >&2
+      fi
       exit 1
-    }
+    fi
 
     if easyeffects_running; then
       cat >&2 <<'EOF'

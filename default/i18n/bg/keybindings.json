@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "Активност",
   "Agent": "Агент",
   "Agents": "Агенти",
@@ -21,6 +20,7 @@
   "Calculator": "Калкулатор",
   "Calendar": "Календар",
   "Capture menu": "Меню за заснемане",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Изчисти напомнянията",
   "Clipboard manager": "Мениджър на клипборда",
   "Close all windows": "Затвори всички прозорци",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Управлявай известията с клавиатурата",
   "Cycle workspace layout": "Следваща подредба на работното пространство",
   "Cycle workspace layout back": "Предишна подредба на работното пространство",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Директно въвеждане за терминалния префикс",
   "Disable touchpad": "Изключи тъчпада",
   "Dismiss all notifications": "Затвори всички известия",

@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "ක්‍රියාකාරකම්",
   "Agent": "ඒජන්ට්",
   "Agents": "ඒජන්ට්වරු",
@@ -21,6 +20,7 @@
   "Calculator": "ගණක යන්ත්‍රය",
   "Calendar": "දිනදර්ශනය",
   "Capture menu": "ග්‍රහණ මෙනුව",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "මතක් කිරීම් හිස් කරන්න",
   "Clipboard manager": "පසුරු පුවරු කළමනාකරු",
   "Close all windows": "සियලු කවුළු වසන්න",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "යතුරුපුවරුවෙන් දැනුම්දීම් පාලනය කරන්න",
   "Cycle workspace layout": "වැඩබිම් සැකසුම මාරු කරන්න",
   "Cycle workspace layout back": "වැඩබිම් සැකසුම ආපස්සට මාරු කරන්න",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "ටර්මිනල් උපසර්ගයට සෘජු ආදානය",
   "Disable touchpad": "ටච්පෑඩය අක්‍රිය කරන්න",
   "Dismiss all notifications": "සියලු දැනුම්දීම් ඉවතලන්න",
