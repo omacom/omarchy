@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Par défaut"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Navigateur",
     "title": "Navigateur par défaut"

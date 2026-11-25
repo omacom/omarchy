@@ -21,7 +21,7 @@ The design goal is:
 
 | Path | Owner | Purpose |
 | --- | --- | --- |
-| `${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.lock` | user | Prevent overlapping update runs. Owned by `omarchy-update-lock`; compatibility wrappers inherit/respect it. |
+| `${XDG_RUNTIME_DIR}/omarchy-update.lock` | user | Prevent overlapping update runs. Owned by `omarchy-update-lock`; compatibility wrappers inherit/respect it. If no runtime directory is available, the helper uses the validated mode-0700 `/tmp/omarchy-$UID/` fallback. |
 | `${XDG_RUNTIME_DIR}/omarchy-update-stay-awake/` | user | Private mode-0700 inhibitor coordination state. If no runtime directory is available, the helper uses the validated mode-0700 `/tmp/omarchy-$UID/` fallback. |
 | `/tmp/omarchy-update.log` | user | Transcript of `omarchy update`, used by `omarchy-update-analyze-logs`. |
 | `~/.local/state/omarchy/current/` | user | Generated active theme, selected theme name, and current background symlink. |
@@ -194,11 +194,7 @@ definition already being applied a step away. It checks again after waiting for
 the notification server, since that wait is long enough for an update to start
 underneath it.
 
-The notifier reads only its own user's runtime directory, never the `/tmp` path
-`omarchy-update` falls back to when `XDG_RUNTIME_DIR` is unset. A shared lock
-file belongs to whoever created it first, so honouring it would let one user
-silence another user's notification. Missing an update and showing a redundant
-toast is the better failure.
+The notifier reads only its own user's runtime directory. When `XDG_RUNTIME_DIR` is unset, `omarchy-update-lock` falls back to `/tmp/omarchy-$UID/omarchy-update.lock` in a validated mode-0700 directory; the notifier does not probe that fallback. An update started without a runtime directory can therefore leave a redundant migration toast, while never trusting a shared `/tmp` lock.
 
 Suppression is why `omarchy-update-stay-awake` starts its sleep inhibitor with
 the lock descriptor closed. That inhibitor outlives the step that starts it, so

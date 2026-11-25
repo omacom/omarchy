@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "الافتراضية"
   },
-  "agent": {
-    "label": "الوكيل"
-  },
   "setup.default.browser": {
     "label": "المتصفح",
     "title": "المتصفح الافتراضي"

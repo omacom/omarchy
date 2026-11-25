@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Numatytosios"
   },
-  "agent": {
-    "label": "Agentas"
-  },
   "setup.default.browser": {
     "label": "Naršyklė",
     "title": "Numatytoji naršyklė"

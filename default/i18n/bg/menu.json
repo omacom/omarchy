@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "По подразбиране"
   },
-  "agent": {
-    "label": "Агент"
-  },
   "setup.default.browser": {
     "label": "Браузър",
     "title": "Браузър по подразбиране"

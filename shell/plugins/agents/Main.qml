@@ -258,8 +258,8 @@ Item {
 
   readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines.filter(localModelAdded)))
 
-  // A line for each coding model you can open, here or on a paired machine,
-  // built by the panel from the local models service.
+  // A line for each coding model set up here or running on a paired
+  // machine, built by the panel from the local models service.
   property var localModelLines: []
 
   // The local models added from the add screen, by target (the recipe, or
@@ -340,6 +340,7 @@ Item {
           lineId: p.providerId + "/" + (a.email || a.id),
           account: a,
           accounts: [],
+          accountName: String(a.email || ""),
           limits: a.limits || [],
           limitsStale: a.stale === true,
           limitsFetchedAt: Number(a.fetchedAt || 0),
@@ -493,6 +494,7 @@ Item {
       limitsStale: record.limitsStale === true,
       limitsFetchedAt: numberValue(record.limitsFetchedAt),
       tierLabel: String(record.tierLabel || ""),
+      accountName: String(record.accountName || ""),
       // Every subscription account's own limits, once there's more than one.
       accounts: Array.isArray(record.accounts) ? record.accounts : [],
       accountSwitch: record.accountSwitch || ({ threshold: 95 }),

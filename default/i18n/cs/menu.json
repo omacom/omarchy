@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Výchozí"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Prohlížeč",
     "title": "Výchozí prohlížeč"

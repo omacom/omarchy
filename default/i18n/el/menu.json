@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Προεπιλογές"
   },
-  "agent": {
-    "label": "Πράκτορας"
-  },
   "setup.default.browser": {
     "label": "Περιηγητής",
     "title": "Προεπιλεγμένος περιηγητής"

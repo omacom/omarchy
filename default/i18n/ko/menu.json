@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "기본값"
   },
-  "agent": {
-    "label": "에이전트"
-  },
   "setup.default.browser": {
     "label": "브라우저",
     "title": "기본 브라우저"

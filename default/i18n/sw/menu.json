@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Chaguomsingi"
   },
-  "agent": {
-    "label": "Ajenti"
-  },
   "setup.default.browser": {
     "label": "Kivinjari",
     "title": "Kivinjari chaguomsingi"

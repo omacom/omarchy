@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Sjálfgildi"
   },
-  "agent": {
-    "label": "Fulltrúi"
-  },
   "setup.default.browser": {
     "label": "Vafri",
     "title": "Sjálfgefinn vafri"
