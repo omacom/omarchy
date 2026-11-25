@@ -14,6 +14,10 @@
 -- mode floated it or it was floating already. Titlebars, shadows, and full
 -- opacity follow that tag, so a dialog on a floating workspace can be dragged by
 -- its titlebar too, and a window carried out to a tiled one loses it.
+--
+-- A window minimized while maximized or fullscreen waits at its own size, and
+-- omarchy-hyprland-window-minimize tags it with what it gave up. The tag gives
+-- it back when the window returns to a workspace.
 
 require("default.hypr.helpers")
 local paths = require("default.hypr.paths")
@@ -21,6 +25,8 @@ local paths = require("default.hypr.paths")
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
 local OPENED_TAG = "omarchy-mode-opened"
+-- Followed by the fullscreen mode the window gave up: maximized or fullscreen.
+local MINIMIZED_TAG = "omarchy-minimized-"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
@@ -297,6 +303,20 @@ local function unmaximize_others(window)
   end
 end
 
+-- A window back from the minimized ones fills the screen again if it did when
+-- it was minimized.
+local function restore_from_minimized(window)
+  for _, mode in ipairs({ "maximized", "fullscreen" }) do
+    for _, tag in ipairs(window.tags or {}) do
+      if tag == MINIMIZED_TAG .. mode then
+        hl.dispatch(hl.dsp.window.tag({ tag = "-" .. tag, window = window }))
+        hl.dispatch(hl.dsp.window.fullscreen({ mode = mode, action = "set", window = window }))
+        break
+      end
+    end
+  end
+end
+
 -- The workspace is passed in when a window is still on its way to it.
 local function arrange(windows, workspace)
   local floating = {}
@@ -306,6 +326,8 @@ local function arrange(windows, workspace)
     local id = tonumber(workspace and workspace.id or (window.workspace and window.workspace.id))
 
     if id and id >= 1 then
+      restore_from_minimized(window)
+
       if floating_workspace(id) then
         table.insert(floating, window)
       else

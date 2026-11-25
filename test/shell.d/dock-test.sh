@@ -245,6 +245,24 @@ grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-7", window = "addr
   fail "minimize remembers the workspace it leaves this time" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize remembers only the workspace the window is leaving"
 
+# A maximized window gives that up before it leaves, so the hidden workspace
+# never holds one, and is tagged once it is there, to get it back on return.
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":3},"fullscreen":1}]\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+minimize 0xabc
+in_order='hl.dsp.window.fullscreen({ mode = "maximized", action = "unset", window = "address:0xabc" })
+hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })
+hl.dsp.window.tag({ tag = "+omarchy-minimized-maximized", window = "address:0xabc" })'
+[[ $(grep -E 'fullscreen|special:minimized|omarchy-minimized-maximized' "$TMPDIR/hyprctl.log") == "$in_order" ]] ||
+  fail "minimize brings a maximized window to its own size before it leaves, and remembers it after" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize brings a maximized window to its own size before it leaves, and remembers it after"
+
 # A tiled workspace has no dock to bring a window back from, so nothing there
 # is minimized.
 cat >"$mock_bin/hyprctl" <<STUB

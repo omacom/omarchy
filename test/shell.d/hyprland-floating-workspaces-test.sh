@@ -673,6 +673,25 @@ assert(not moving.floating, "a window carried to a tiled workspace kept floating
 fi
 pass "the mode leaves windows on their way to a special workspace alone"
 
+# A window minimized while maximized comes back maximized, and only that once.
+printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+if ! run_lua '
+local returning = window("0x1", -98, { floating = true, tags = { "omarchy-minimized-maximized" } })
+require("default.hypr.workspace-layouts")
+local moved = state().subscriptions["window.move_to_workspace"][1]
+assert(returning.fullscreen == 0, "a window was maximized while it was still minimized")
+
+moved(returning, { id = 1 })
+assert(returning.fullscreen == 1, "a window minimized while maximized came back at its own size")
+
+returning.fullscreen = 0
+moved(returning, { id = 1 })
+assert(returning.fullscreen == 0, "a window brought back to size was maximized again by a later move")
+'; then
+  fail "a window minimized while maximized comes back maximized"
+fi
+pass "a window minimized while maximized comes back maximized"
+
 # Titlebars: asked for only when installed, and themed once loaded.
 if ! run_lua '
 window("0x1", 1)
