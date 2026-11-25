@@ -15,13 +15,21 @@ if set_up && [[ ! -e /etc/systemd/system/yoga-slim7x-hibernate.service ]]; then
   exit 0
 fi
 
+# The hook comes with omarchy-settings, which can land after this package.
+# Until it has, this stays pending.
+if [[ ! -f $OMARCHY_PATH/default/systemd/system-sleep/omarchy-qualcomm-hibernate-recover ]]; then
+  echo "Waiting for the omarchy-settings package that ships the Snapdragon X1 hibernation hook" >&2
+  exit 75
+fi
+
 # The Yoga Slim 7x had a unit of its own, which the family's replaces.
 if [[ -e /etc/systemd/system/yoga-slim7x-hibernate.service ]]; then
   sudo systemctl disable yoga-slim7x-hibernate.service
   sudo rm -f /etc/systemd/system/yoga-slim7x-hibernate.service /usr/lib/systemd/system-sleep/yoga-slim7x-hibernate-recover
 fi
 
-sudo OMARCHY_PATH="$OMARCHY_PATH" bash "$OMARCHY_PATH/install/hardware/qualcomm/hibernation.sh"
+# Under errexit, as the installer runs it, so a failed step stops here.
+sudo OMARCHY_PATH="$OMARCHY_PATH" bash -e "$OMARCHY_PATH/install/hardware/qualcomm/hibernation.sh"
 sudo systemctl daemon-reload
 
 if ! set_up; then

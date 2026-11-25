@@ -14,11 +14,12 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree qcom,x1e80100 qco
   # the helper's longest path, all its waits running out: a unit killed while
   # the drivers come back leaves the watchdog unfed and resets the laptop.
   # The hook that stops the unit after a failed hibernation goes in first, so
-  # the unit never runs without it.
-  if install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/omarchy-qualcomm-hibernate-recover" \
-    "$sleep_hook_dir/omarchy-qualcomm-hibernate-recover"; then
-    mkdir -p "$systemd_dir"
-    cat >"$systemd_dir/omarchy-qualcomm-hibernate.service" <<'UNIT'
+  # a failed copy stops this step (it runs under errexit) before the unit
+  # exists.
+  install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/omarchy-qualcomm-hibernate-recover" \
+    "$sleep_hook_dir/omarchy-qualcomm-hibernate-recover"
+  mkdir -p "$systemd_dir"
+  cat >"$systemd_dir/omarchy-qualcomm-hibernate.service" <<'UNIT'
 [Unit]
 Description=Stop the Snapdragon X1 DSPs and Wi-Fi around hibernation
 Before=systemd-hibernate.service systemd-hybrid-sleep.service systemd-suspend-then-hibernate.service
@@ -36,6 +37,5 @@ TimeoutStopSec=300
 WantedBy=hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 RequiredBy=systemd-hibernate.service systemd-hybrid-sleep.service systemd-suspend-then-hibernate.service
 UNIT
-    systemctl enable omarchy-qualcomm-hibernate.service
-  fi
+  systemctl enable omarchy-qualcomm-hibernate.service
 fi
