@@ -240,3 +240,20 @@ touch "$toggle"
 PATH="$command_bin:$PATH" HOME="$intro_home" OMARCHY_PATH="$prepare_root" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --prepare-theme demo
 [[ ! -s $command_log ]] || fail "disabled intros do not warm the renderer"
 pass "picker preparation respects the remembered background, login startup, and intro toggle"
+
+checkout="$test_tmp/checkout"
+packaged="$test_tmp/packaged"
+mkdir -p "$checkout/themes/solitude/backgrounds" "$packaged/solitude/backgrounds/intros"
+printf 'still\n' >"$checkout/themes/solitude/backgrounds/1-on-pole.webp"
+printf 'intro\n' >"$packaged/solitude/backgrounds/intros/1-on-pole.mp4"
+printf '%s\n' "$intro_state/theme/backgrounds/1-on-pole.webp" >"$intro_home/.local/state/omarchy/theme-backgrounds/solitude"
+rm -f "$toggle"
+: >"$command_log"
+PATH="$command_bin:$PATH" HOME="$intro_home" OMARCHY_PATH="$checkout" OMARCHY_THEME_INTROS_PATH="$packaged" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --prepare-theme solitude
+grep -Fxq "owe: intro-prepare $packaged/solitude/backgrounds/intros/1-on-pole.mp4" "$command_log" || fail "picker preparation takes a checkout theme's intro from the package"
+mkdir -p "$intro_home/.config/omarchy/themes/solitude/backgrounds"
+printf 'custom still\n' >"$intro_home/.config/omarchy/themes/solitude/backgrounds/1-on-pole.webp"
+: >"$command_log"
+PATH="$command_bin:$PATH" HOME="$intro_home" OMARCHY_PATH="$checkout" OMARCHY_THEME_INTROS_PATH="$packaged" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --prepare-theme solitude
+! grep -q "intro-prepare $packaged/" "$command_log" || fail "a user theme's still does not inherit a packaged intro"
+pass "themes in a checkout prepare their intros from the package"
