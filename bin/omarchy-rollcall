@@ -346,12 +346,34 @@ switched_to_digital() {
   return 1
 }
 
-# ALSA PCMs in one direction, all of them or only the analog ones.
+# The sound cards that count: every card on a desktop, where a USB DAC is a
+# real output; on a laptop only the built-in ones, so a webcam, a headset or a
+# dock cannot stand in for dead speakers or a dead microphone. Internal USB
+# codecs sit on fixed ports.
+counted_cards() {
+  local card
+  local -a cards=()
+  if ! laptop; then
+    echo all
+    return
+  fi
+  for card in "$sys"/class/sound/card[0-9]*; do
+    [[ -e $card ]] || continue
+    on_removable_usb "$card" && continue
+    cards+=("$((10#${card##*card}))")
+  done
+  echo "${cards[*]}"
+}
+
+# Analog ALSA PCMs in one direction, on the given cards.
 alsa_pcms() {
-  local digital=$DIGITAL_AUDIO
-  [[ $1 == "playback" ]] && digital+='|digital'
+  local direction=$1 cards=${2-all} digital=$DIGITAL_AUDIO line
+  [[ $direction == "playback" ]] && digital+='|digital'
   [[ -r $proc/asound/pcm ]] || return 0
-  grep -E ": $1 [0-9]" "$proc/asound/pcm" | grep -viE "$digital" || true
+  while IFS= read -r line; do
+    # 01-00 is device 0 of card 1.
+    [[ $cards == "all" || " $cards " == *" $((10#${line%%-*})) "* ]] && echo "$line"
+  done < <(grep -E ": $direction [0-9]" "$proc/asound/pcm" | grep -viE "$digital")
 }
 
 # The drivers behind the sound cards, as /proc/asound/cards names them.
@@ -360,19 +382,24 @@ alsa_drivers() {
   sed -nE 's/^ *[0-9]+ \[[^]]*\]: ([^ ]+) - .*/\1/p' "$proc/asound/cards" | sort -u | paste -sd, -
 }
 
-# PipeWire's analog ALSA nodes of one kind.
+# PipeWire's analog ALSA nodes of one kind, on the given cards.
 pipewire_nodes() {
-  timeout 5s pactl list short "$1" 2>/dev/null | awk '{print $2}' | grep "^$2" | grep -v '\.monitor$' | grep -viE "$DIGITAL_AUDIO"
+  timeout 5s pactl -f json list "$1" 2>/dev/null | jq -r --arg prefix "$2" --arg cards "${3-all}" '
+    ($cards | split(" ") | map(select(. != ""))) as $counted
+    | .[] | select((.name | startswith($prefix)) and (.name | endswith(".monitor") | not))
+      | select($cards == "all" or ((.properties["alsa.card"] // null) as $card | $card != null and ($counted | index($card) != null)))
+      | .name' 2>/dev/null | grep -viE "$DIGITAL_AUDIO"
 }
 
 # One direction of audio: ALSA has to have the device, and PipeWire a node for
 # it. Every laptop has speakers and a microphone, so on a laptop their absence
 # is a failure whatever bus the audio sits on.
 check_audio() {
-  local direction=$1 node_kind=$2 prefix=$3 noun=$4 device drivers count
+  local direction=$1 node_kind=$2 prefix=$3 noun=$4 device drivers count cards
   local -a pcms=() nodes=() controllers=()
 
-  mapfile -t pcms < <(alsa_pcms "$direction")
+  cards=$(counted_cards)
+  mapfile -t pcms < <(alsa_pcms "$direction" "$cards")
   drivers=$(alsa_drivers)
   drivers=${drivers:-no sound card}
 
@@ -409,7 +436,7 @@ check_audio() {
   # always has them open, unless the card's profile was switched to HDMI or
   # DisplayPort, which on one shared HDA card closes them; a desktop's jack may
   # simply be empty.
-  mapfile -t nodes < <(pipewire_nodes "$node_kind" "$prefix")
+  mapfile -t nodes < <(pipewire_nodes "$node_kind" "$prefix" "$cards")
   count=${#nodes[@]}
   if (( count )); then
     echo "$count in PipeWire ($drivers)"

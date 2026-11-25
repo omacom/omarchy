@@ -70,6 +70,12 @@ case "$*" in
   info) exit 0 ;;
   "list short sinks") printf '%b' "${PA_SINKS:-}" ;;
   "list short sources") printf '%b' "${PA_SOURCES:-}" ;;
+  # The same nodes as JSON; a third column is the node's ALSA card.
+  "-f json list sinks" | "-f json list sources")
+    nodes=${PA_SINKS:-}
+    [[ $* == *sources ]] && nodes=${PA_SOURCES:-}
+    printf '%b' "$nodes" | jq -R 'split("\t") | {name: .[1], properties: {"alsa.card": (.[2] // "")}}' | jq -s .
+    ;;
   "-f json list cards") printf '%s' "${PA_CARDS:-[]}" ;;
 esac
 SH
@@ -273,8 +279,28 @@ expect "AVS's debug probe card does not stand in for a board that never came up"
 new_root
 make_laptop
 expect "a laptop with no built-in microphone fails" "fail: no built-in microphone (no sound card)" "$(outcome audio-input)"
+pci 0000:00:1f.3 0x040300 8086:7a50 snd_hda_intel
+sound_card 0000:00:1f.3 0
 printf '00-00: Analog : Analog : playback 1 : capture 1\n' >>"$fake/proc/asound/pcm"
 expect "a laptop microphone PipeWire has not opened fails" "fail: PipeWire has not opened the built-in microphone (no sound card)" "$(outcome audio-input)"
+
+# A USB headset on a plugged-in port cannot stand in for the built-in microphone.
+mkdir -p "$fake/sys/devices/usb3/3-1/3-1:1.0/sound/card2" "$fake/sys/class/sound"
+ln -s "$fake/sys/devices/usb3/3-1/3-1:1.0/sound/card2" "$fake/sys/class/sound/card2"
+ln -s "$fake/sys/devices/usb3/3-1/3-1:1.0" "$fake/sys/devices/usb3/3-1/3-1:1.0/sound/card2/device"
+printf 'removable\n' >"$fake/sys/devices/usb3/3-1/removable"
+printf '02-00: USB Audio : USB Audio : playback 1 : capture 1\n' >>"$fake/proc/asound/pcm"
+expect "a USB headset's microphone does not stand in for the built-in one" "fail: PipeWire has not opened the built-in microphone (no sound card)" \
+  "$(PA_SOURCES='60\talsa_input.usb-Headset-00.mono-fallback\t2\n' outcome audio-input)"
+expect "the built-in microphone in PipeWire passes" "pass: 1 in PipeWire (no sound card)" \
+  "$(PA_SOURCES='60\talsa_input.usb-Headset-00.mono-fallback\t2\n61\talsa_input.pci-0000_00_1f.3.analog-stereo\t0\n' outcome audio-input)"
+expect "a node with no ALSA card does not stand in for the built-in microphone" "fail: PipeWire has not opened the built-in microphone (no sound card)" \
+  "$(PA_SOURCES='62\talsa_input.usb-Headset-00.mono-fallback\n' outcome audio-input)"
+
+# With the built-in card gone, only the headset is left, and it does not count.
+rm -r "$fake/sys/bus/pci/devices/0000:00:1f.3/sound" "$fake/sys/class/sound/card0"
+expect "a laptop whose only sound card is a USB headset fails on its own controller" "fail: audio controller 8086:7a50 (snd_hda_intel) has no sound card" \
+  "$(PA_SOURCES='60\talsa_input.usb-Headset-00.mono-fallback\t2\n' outcome audio-input)"
 
 # Graphics
 new_root
