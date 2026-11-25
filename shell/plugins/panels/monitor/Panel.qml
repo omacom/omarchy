@@ -15,6 +15,21 @@ Panel {
 
   // manageIpc: false so this panel can own the single IpcHandler the target
   // permits — needed for the brightness + state methods below.
+  readonly property bool layoutsAvailable: {
+    var registry = root.bar && "pluginRegistry" in root.bar ? root.bar.pluginRegistry : null
+    if (!registry) return false
+    var revision = registry.registryRevision
+    return Model.layoutEditorAvailable(registry)
+  }
+
+  property string layoutsError: ""
+
+  function openLayouts() {
+    root.layoutsError = ""
+    if (root.layoutsAvailable && root.bar.shell.summon("crmne.hyprmoncfg", "{}")) root.close()
+    else root.layoutsError = "Could not open layouts. Check that hyprmoncfg is enabled."
+  }
+
   // brightnessPercent and brightnessAvailable are the focused display's, which
   // the bar icon's wheel follows; each display's own level lives in
   // brightnessLevels.
@@ -240,6 +255,7 @@ Panel {
     if (current && current.resolutions.length > 0) list.push("resolution")
     if (current && current.refreshes.length > 0) list.push("refresh")
     if (mirrorAvailable) list.push("mirror")
+    if (layoutsAvailable) list.push("layouts")
     if (layoutMovable) list.push("layout")
     return list
   }
@@ -251,6 +267,7 @@ Panel {
     if (section === "refresh") return current ? current.refreshes.length : 0
     if (section === "mirror") return mirrorModes.length
     if (section === "layout") return 1
+    if (section === "layouts") return 1
     return 0  // sliders: only the sentinel at -1
   }
 
@@ -299,6 +316,7 @@ Panel {
   }
 
   function activateCursor() {
+    if (focusSection === "layouts") { root.openLayouts(); return }
     if (focusSection === "mirror" && selectedIndex >= 0 && selectedIndex < mirrorModes.length) {
       setMirror(mirrorModes[selectedIndex] === "mirror")
       return
@@ -1290,6 +1308,42 @@ Panel {
                 }
               }
             }
+          }
+
+          // ---------- Layouts & profiles ----------
+          PanelSeparator {
+            visible: root.layoutsAvailable
+            foreground: root.bar.foreground
+          }
+
+          Button {
+            id: layoutsButton
+            visible: root.layoutsAvailable
+            width: parent.width
+            text: "Layouts & profiles"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            bordered: true
+            hasCursor: root.cursorActive && root.focusSection === "layouts"
+            onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(layoutsButton)
+            onClicked: root.openLayouts()
+            onHovered: function(hovered) {
+              if (!hovered || root.reflowingText) return
+              root.cursorActive = true
+              root.focusSection = "layouts"
+              root.selectedIndex = 0
+            }
+          }
+
+          Text {
+            width: parent.width
+            visible: root.layoutsError !== ""
+            text: root.layoutsError
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            color: Commons.Color.urgent
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
           }
 
           // ---------- Layout ----------
