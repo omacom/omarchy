@@ -116,36 +116,92 @@ init_calls="$tmpdir/init-calls"
 mkdir -p "$init_bin"
 cat >"$init_bin/starship" <<'SH'
 #!/bin/bash
-echo starship >>"$OMARCHY_TEST_INIT_CALLS"
-echo 'OMARCHY_TEST_STARSHIP=v1'
+echo "starship $*" >>"$OMARCHY_TEST_INIT_CALLS"
+if [[ $1 == "prompt" && $2 == "--continuation" ]]; then
+  printf '%s' "${OMARCHY_TEST_PS2:-.. }"
+  exit 0
+fi
+if [[ $1 == "time" ]]; then
+  echo 1234567890000
+  exit 0
+fi
+cat <<EOF
+OMARCHY_TEST_STARSHIP=v1
+starship_preexec() { STARSHIP_START_TIME=\$($0 time); }
+starship_precmd() { STARSHIP_END_TIME=\$($0 time); }
+if [[ "\${PS0-}" != *"starship_preexec_ps0"* ]]; then
+    PS0='\${STARSHIP_START_TIME:\$((STARSHIP_START_TIME="\$(starship_preexec_ps0)",STARSHIP_PREEXEC_READY=0,0)):0}'"\${PS0-}"
+fi
+STARSHIP_START_TIME=\$($0 time)
+PS2="\$($0 prompt --continuation)"
+EOF
 SH
 cat >"$init_bin/zoxide" <<'SH'
 #!/bin/bash
-echo zoxide >>"$OMARCHY_TEST_INIT_CALLS"
+echo "zoxide $*" >>"$OMARCHY_TEST_INIT_CALLS"
 echo 'OMARCHY_TEST_ZOXIDE=v1'
 SH
-chmod +x "$init_bin/starship" "$init_bin/zoxide"
+cat >"$init_bin/mise" <<'SH'
+#!/bin/bash
+echo "mise $*" >>"$OMARCHY_TEST_INIT_CALLS"
+if [[ $1 == "activate" ]]; then
+  cat <<'EOF'
+export __MISE_ORIG_PATH='/stale/path'
+export PATH='/stale/shims:/stale/path'
+_mise_hook() {
+  eval "$(mise hook-env -s bash "$@")"
+}
+_mise_hook --force
+EOF
+elif [[ $1 == "hook-env" ]]; then
+  printf "export PATH='%s:%s'\n" "$OMARCHY_TEST_MISE_TOOL_BIN" "$PATH"
+fi
+SH
+chmod +x "$init_bin/starship" "$init_bin/zoxide" "$init_bin/mise"
+mkdir -p "$tmpdir/mise-tool/bin"
+starship_cfg="$tmpdir/starship.toml"
+printf 'add_newline = true\n' >"$starship_cfg"
 
 run_init() {
-  TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
-    OMARCHY_TEST_INIT_CALLS="$init_calls" PATH="$init_bin:/usr/bin" \
-    bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s:%s\n" "${OMARCHY_TEST_STARSHIP:-}" "${OMARCHY_TEST_ZOXIDE:-}"' 2>/dev/null
+  HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+    STARSHIP_CONFIG="$starship_cfg" OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" \
+    OMARCHY_TEST_INIT_CALLS="$init_calls" PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+    bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s:%s:%s:%s\n" "${OMARCHY_TEST_STARSHIP:-}" "${OMARCHY_TEST_ZOXIDE:-}" "$PS2" "${PATH%%:*}"' 2>/dev/null
 }
 
-[[ $(run_init) == "v1:v1" ]] || fail "first interactive shell populates starship and zoxide init caches"
+[[ $(run_init) == "v1:v1:.. :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
+  fail "first interactive shell populates mise, starship, and zoxide init caches and preserves agent-accounts precedence" "$(run_init)"
 : >"$init_calls"
-[[ $(run_init) == "v1:v1" ]] || fail "subsequent interactive shell loads cached starship and zoxide init"
-[[ ! -s $init_calls ]] || fail "cached starship and zoxide init avoids re-executing the binaries" "$(<"$init_calls")"
+[[ $(run_init) == "v1:v1:.. :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
+  fail "subsequent interactive shell loads cached init scripts with baked PS2 and agent-accounts first on PATH"
+! grep -q '^starship ' "$init_calls" || fail "cached starship init avoids re-executing starship (including time and continuation)" "$(<"$init_calls")"
+! grep -q '^zoxide ' "$init_calls" || fail "cached zoxide init avoids re-executing zoxide" "$(<"$init_calls")"
+! grep -q '^mise activate' "$init_calls" || fail "cached mise init avoids re-executing mise activate" "$(<"$init_calls")"
+
+# Verify PS0/preexec/precmd timing uses EPOCHREALTIME (dot or comma decimal) without calling starship time
+: >"$init_calls"
+time_check=$(HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+  STARSHIP_CONFIG="$starship_cfg" OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" \
+  OMARCHY_TEST_INIT_CALLS="$init_calls" PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; : "${PS0@P}"; ps0_t="$STARSHIP_START_TIME"; starship_preexec; starship_precmd; printf "%s:%s:%s\n" "$ps0_t" "$STARSHIP_START_TIME" "$STARSHIP_END_TIME"' 2>/dev/null)
+[[ $time_check =~ ^[0-9]{13}:[0-9]{13}:[0-9]{13}$ ]] || fail "rewritten starship time produces 13-digit epoch milliseconds" "$time_check"
+! grep -q '^starship time' "$init_calls" || fail "starship preexec/precmd do not fork starship time" "$(<"$init_calls")"
+
+# Updating starship.toml invalidates cached PS2
+printf 'continuation_prompt = ">> "\n' >"$starship_cfg"
+out_after_cfg=$(OMARCHY_TEST_PS2=">> " run_init)
+[[ $out_after_cfg == "v1:v1:>> :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
+  fail "editing STARSHIP_CONFIG invalidates cached starship PS2" "$out_after_cfg"
 
 cat >"$init_bin/starship" <<'SH'
 #!/bin/bash
-echo starship >>"$OMARCHY_TEST_INIT_CALLS"
+echo "starship $*" >>"$OMARCHY_TEST_INIT_CALLS"
 echo 'OMARCHY_TEST_STARSHIP=v2'
 SH
 chmod +x "$init_bin/starship"
 touch -d "2020-01-01 00:00:00" "$init_bin/starship"
-[[ $(run_init) == "v2:v1" ]] || fail "replacement starship binary with older timestamp invalidates its cached init script"
-pass "starship and zoxide init scripts cache across shells and invalidate on replacement"
+[[ $(run_init) == "v2:v1:"* ]] || fail "replacement starship binary with older timestamp invalidates its cached init script" "$(run_init)"
+pass "mise, starship (zero-fork time + PS2), and zoxide init scripts cache across shells, invalidate on changes, and keep agent-accounts first on PATH"
 
 if [[ -f /usr/share/bash-completion/bash_completion ]]; then
   TERM=xterm-256color OMARCHY_PATH="$ROOT" bash --norc -ic '
