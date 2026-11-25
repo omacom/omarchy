@@ -16,7 +16,7 @@
   "agents.added": "Додано %1.",
   "agents.addedNotSelected": "Додано %1, але не вдалося переключити нові сеанси на нього.",
   "agents.allOver": "Усі облікові записи %1 перевищують %2%",
-  "agents.apiKeyHint": "Його буде перевірено за допомогою %1, а потім збережено для pi та opencode.",
+  "agents.apiKeyHint": "Його перевіряють у %1, а потім зберігають в OpenCode.",
   "agents.atLimit": "%1: %2% ліміту %3",
   "agents.chooseForPrompt": "Оберіть агента для цього завдання",
   "agents.durationDaysHours": "%1д %2год",

@@ -14,7 +14,7 @@
   "agents.added": "Lade till %1.",
   "agents.addedNotSelected": "Lade till %1, men kunde inte byta nya sessioner till det.",
   "agents.allOver": "Alla %1-konton är över %2%",
-  "agents.apiKeyHint": "Den kontrolleras med %1 och sparas sedan för pi och opencode.",
+  "agents.apiKeyHint": "Den kontrolleras med %1 och sparas sedan i OpenCode.",
   "agents.atLimit": "%1 ligger på %2% av %3-gränsen",
   "agents.chooseForPrompt": "Välj en agent för uppgiften",
   "agents.durationDaysHours": "%1d %2tim",

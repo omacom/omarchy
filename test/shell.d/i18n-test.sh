@@ -655,6 +655,68 @@ else
 fi
 assert_bash_equal "$(jq -r '.da | has("shell:a.two")' "$fix/default/i18n/translation-manifest.json")" "false" "a pruned unit leaves the manifest"
 
+# Collect must reject patches that introduce symlinks, executable modes, or
+# renames from outside the locale's paths, leaving the tree clean.
+rm -f "$work/artifacts/da.done.json"
+cat >"$work/artifacts/da.patch" <<'PATCH'
+diff --git a/default/i18n/da/escape b/default/i18n/da/escape
+new file mode 120000
+--- /dev/null
++++ b/default/i18n/da/escape
+@@ -0,0 +1 @@
++../../../outside
+\ No newline at end of file
+PATCH
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  fail "collect rejects a patch that creates a symlink"
+else
+  pass "collect rejects a patch that creates a symlink"
+fi
+[[ ! -L $fix/default/i18n/da/escape ]] || fail "rejected symlink patch leaves no symlink in tree"
+
+cat >"$work/artifacts/da.patch" <<'PATCH'
+diff --git a/default/i18n/da/run.sh b/default/i18n/da/run.sh
+new file mode 100755
+--- /dev/null
++++ b/default/i18n/da/run.sh
+@@ -0,0 +1 @@
++#!/bin/sh
+PATCH
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  fail "collect rejects a patch that creates an executable file"
+else
+  pass "collect rejects a patch that creates an executable file"
+fi
+[[ ! -e $fix/default/i18n/da/run.sh ]] || fail "rejected executable patch leaves no file in tree"
+
+cat >"$work/artifacts/da.patch" <<'PATCH'
+diff --git a/default/i18n/en/shell.json b/default/i18n/da/moved.json
+similarity index 100%
+rename from default/i18n/en/shell.json
+rename to default/i18n/da/moved.json
+PATCH
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  fail "collect rejects a rename patch from outside the locale"
+else
+  pass "collect rejects a rename patch from outside the locale"
+fi
+[[ -f $fix/default/i18n/en/shell.json && ! -e $fix/default/i18n/da/moved.json ]] || fail "rejected rename patch leaves tree unchanged"
+
+# A valid non-empty patch combining regular-file edit, creation, and deletion
+# passes validate_patch and applies cleanly.
+printf '{\n  "a.one": "En opdateret"\n}\n' >"$fix/default/i18n/da/shell.json"
+printf '# Ny\n' >"$fix/manual/da/02-new.md"
+rm "$fix/manual/da/01-hello.md"
+python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" pack da "$work/artifacts" >/dev/null
+git -C "$fix" reset --hard -q HEAD
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  pass "collect accepts a valid patch with regular-file edit, creation, and deletion"
+else
+  fail "collect accepts a valid patch with regular-file edit, creation, and deletion"
+fi
+assert_bash_equal "$(jq -r '."a.one"' "$fix/default/i18n/da/shell.json")" "En opdateret" "valid edit patch updates existing translation"
+[[ -f $fix/manual/da/02-new.md && ! -e $fix/manual/da/01-hello.md ]] || fail "valid create and delete hunks apply cleanly"
+
 # Every registry locale must be one glibc can actually generate.
 if [[ -f /usr/share/i18n/SUPPORTED ]]; then
   unsupported=""

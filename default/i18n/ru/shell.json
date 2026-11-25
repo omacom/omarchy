@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "По подписке, по использованию или локально",
-  "agents.addProviderAccount": "Добавить аккаунт %1",
   "agents.addTitle": "Добавить агента",
   "agents.app": "Приложение",
   "agents.backToLimits": "Назад к лимитам",
@@ -76,6 +75,7 @@
   "agents.outOfCredits": "Кредиты закончились",
   "agents.pasteCode": "Если страница показывает код вместо завершения, вставьте его сюда.",
   "agents.pasteCodeLink": "Вместо этого страница с кодом?",
+  "agents.placeholderApiKey": "Ключ API",
   "agents.placeholderCode": "Код",
   "agents.placeholderWork": "Работа",
   "agents.plugin": "Плагин",

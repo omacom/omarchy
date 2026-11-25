@@ -15,7 +15,7 @@
   "agents.added": "S-a adăugat %1.",
   "agents.addedNotSelected": "S-a adăugat %1, dar nu s-a putut trece sesiunile noi pe acesta.",
   "agents.allOver": "Toate conturile %1 sunt peste %2%",
-  "agents.apiKeyHint": "Este verificată cu %1, apoi salvată pentru pi și opencode.",
+  "agents.apiKeyHint": "Este verificată cu %1, apoi salvată în OpenCode.",
   "agents.atLimit": "%1 este la %2% dintr-o limită de %3",
   "agents.chooseForPrompt": "Alege un agent pentru această sarcină",
   "agents.durationDaysHours": "%1z %2h",

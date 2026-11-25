@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Assinatura, por uso ou local",
-  "agents.addProviderAccount": "Adicionar conta %1",
   "agents.addTitle": "Adicionar um agente",
   "agents.app": "Aplicativo",
   "agents.backToLimits": "Voltar aos limites",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Sem créditos",
   "agents.pasteCode": "Se a página mostrar um código em vez de concluir, cole-o aqui.",
   "agents.pasteCodeLink": "A página está mostrando um código?",
+  "agents.placeholderApiKey": "Chave de API",
   "agents.placeholderCode": "Código",
   "agents.placeholderWork": "Trabalho",
   "agents.plugin": "Plugin",

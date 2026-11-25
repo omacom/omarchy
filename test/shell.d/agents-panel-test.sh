@@ -278,4 +278,44 @@ assertEqual(cancelled, true, 'choosing a network model returns to the panel inde
 assertEqual(closed, false, 'choosing a network model keeps the panel open')
 assertDeepEqual(execs, [], 'choosing a network model does not launch a terminal')
 assertEqual(selectedDefault, '', 'choosing a network model leaves an existing default agent alone')
+
+// Pasting a sign-in code hides the field and switches to checking for both
+// Claude and Gemini; a later re-prompt brings the field back.
+const writes = []
+let refocused = 0
+const pasteState = {
+  addProcess: { running: true, write: s => writes.push(s) },
+  addNeedsPaste: true,
+  addPasteHint: '',
+  addKeyEntry: false,
+  addCheckingCode: false,
+  addStatus: '',
+  addCode: '',
+  addUrl: '',
+  addDownloading: false,
+  addPhase: 'signin',
+  addFetched: false,
+  addHeldStatus: '',
+  addResult: '',
+  addStage: 'running',
+  addProvider: 'claude',
+  addProviderEntry: null,
+  addFetchTimer: { stop() {}, restart() {} },
+  beginSignIn(s) { this.addStatus = s; this.addPhase = 'signin' },
+  reopenSignIn() {},
+  setProviderShown() {},
+  usage: { refreshLimits() {}, enabledProviders: [{}] },
+  checkProcess: { running: false },
+  root: { focusKeys() { refocused++ } }
+}
+const submitPaste = new Function('with (this) { ' + fn('submitPaste') + '\nreturn submitPaste }').call(pasteState)
+const handleAddLine = new Function('with (this) { ' + fn('handleAddLine') + '\nreturn handleAddLine }').call(pasteState)
+submitPaste('secret-code')
+assertDeepEqual(writes, ['secret-code\n'], 'submitting a code sends it to the login process')
+assertEqual(pasteState.addNeedsPaste, false, 'submitting a Claude code hides the paste field like Gemini and API keys')
+assertEqual(pasteState.addCheckingCode, true, 'submitting a code enters the checking state')
+assertEqual(refocused, 1, 'submitting a code returns keyboard focus to the panel')
+handleAddLine('Paste code here:')
+assertEqual(pasteState.addNeedsPaste, true, 'a re-prompt brings the paste field back')
+assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking state')
 JS

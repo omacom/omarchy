@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "サブスクリプション、従量制、またはローカル",
-  "agents.addProviderAccount": "%1 アカウントを追加",
   "agents.addTitle": "エージェントを追加",
   "agents.app": "アプリ",
   "agents.backToLimits": "上限に戻る",
@@ -67,6 +66,7 @@
   "agents.outOfCredits": "クレジット不足",
   "agents.pasteCode": "完了せずにコードが表示された場合は、ここに貼り付けてください。",
   "agents.pasteCodeLink": "コードが表示されるページですか？",
+  "agents.placeholderApiKey": "APIキー",
   "agents.placeholderCode": "コード",
   "agents.placeholderWork": "仕事用",
   "agents.plugin": "プラグイン",

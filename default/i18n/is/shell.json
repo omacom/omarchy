@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Áskrift, greitt eftir notkun eða staðbundið",
-  "agents.addProviderAccount": "Bæta við %1-reikningi",
   "agents.addTitle": "Bæta við umboðsmanni",
   "agents.app": "Forrit",
   "agents.backToLimits": "Til baka í takmarkanirnar",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Inneign búin",
   "agents.pasteCode": "Ef síðan sýnir kóða í stað þess að ljúka, límdu hann hér.",
   "agents.pasteCodeLink": "Sýnir síðan kóða í staðinn?",
+  "agents.placeholderApiKey": "API-lykill",
   "agents.placeholderCode": "Kóði",
   "agents.placeholderWork": "Vinna",
   "agents.plugin": "Viðbót",

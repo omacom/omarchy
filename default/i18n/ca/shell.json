@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Subscripció, per ús o local",
-  "agents.addProviderAccount": "Afegeix un compte de %1",
   "agents.addTitle": "Afegeix un agent",
   "agents.app": "Aplicació",
   "agents.backToLimits": "Torna als límits",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Sense crèdits",
   "agents.pasteCode": "Si la pàgina mostra un codi en comptes d'acabar, enganxa'l aquí.",
   "agents.pasteCodeLink": "La pàgina mostra un codi?",
+  "agents.placeholderApiKey": "Clau d'API",
   "agents.placeholderCode": "Codi",
   "agents.placeholderWork": "Feina",
   "agents.plugin": "Complement",

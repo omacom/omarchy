@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Tellimus, kasutuspõhine või kohalik",
-  "agents.addProviderAccount": "Lisa %1 konto",
   "agents.addTitle": "Lisa agent",
   "agents.app": "Rakendus",
   "agents.backToLimits": "Tagasi limiitide juurde",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Krediit otsas",
   "agents.pasteCode": "Kui leht näitab lõpetamise asemel koodi, kleebi see siia.",
   "agents.pasteCodeLink": "Leht näitab hoopis koodi?",
+  "agents.placeholderApiKey": "API võti",
   "agents.placeholderCode": "Kood",
   "agents.placeholderWork": "Töö",
   "agents.plugin": "Plugin",

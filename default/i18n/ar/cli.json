@@ -18,7 +18,7 @@
   "agents.added": "تمت إضافة %1.",
   "agents.addedNotSelected": "تمت إضافة %1، لكن تعذّر تبديل الجلسات الجديدة إليه.",
   "agents.allOver": "جميع حسابات %1 تجاوزت %2%",
-  "agents.apiKeyHint": "يُتحقق منه باستخدام %1، ثم يُحفظ لـ pi و opencode.",
+  "agents.apiKeyHint": "يتم التحقق منه مع %1، ثم يُحفظ في OpenCode.",
   "agents.atLimit": "%1 عند %2% من حد %3",
   "agents.chooseForPrompt": "اختر وكيلًا لهذه المهمة",
   "agents.durationDaysHours": "%1ي %2س",

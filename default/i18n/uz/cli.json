@@ -14,7 +14,7 @@
   "agents.added": "%1 qoʻshildi.",
   "agents.addedNotSelected": "%1 qoʻshildi, lekin yangi sessiyalarni unga oʻtkazib boʻlmadi.",
   "agents.allOver": "Barcha %1 hisoblari %2% dan oshgan",
-  "agents.apiKeyHint": "U %1 bilan tekshiriladi, keyin pi va opencode uchun saqlanadi.",
+  "agents.apiKeyHint": "%1 bilan tekshiriladi, soʻng OpenCode’da saqlanadi.",
   "agents.atLimit": "%1 %3 limitining %2% darajasida",
   "agents.chooseForPrompt": "Bu vazifa uchun agent tanlang",
   "agents.durationDaysHours": "%1k %2s",

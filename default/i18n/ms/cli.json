@@ -13,7 +13,7 @@
   "agents.added": "%1 ditambah.",
   "agents.addedNotSelected": "%1 ditambah, tetapi tidak dapat menukar sesi baharu kepadanya.",
   "agents.allOver": "Semua akaun %1 melebihi %2%",
-  "agents.apiKeyHint": "Ia disemak dengan %1, kemudian disimpan untuk pi dan opencode.",
+  "agents.apiKeyHint": "Ia disemak dengan %1, kemudian disimpan dalam OpenCode.",
   "agents.atLimit": "%1 berada pada %2% daripada had %3",
   "agents.chooseForPrompt": "Pilih ejen untuk tugasan ini",
   "agents.durationDaysHours": "%1h %2j",

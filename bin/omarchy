@@ -324,17 +324,16 @@ register_command() {
   register_route "$route" "$key"
   register_route "$fallback_route" "$key"
 
-  local old_ifs="$IFS"
   local alias_route=""
-  IFS='|'
-  for alias_route in $aliases; do
+  local alias_routes=()
+  IFS='|' read -ra alias_routes <<<"$aliases"
+  for alias_route in "${alias_routes[@]}"; do
     alias_route="${alias_route# }"
     alias_route="${alias_route% }"
     [[ -z $alias_route || $alias_route == "$route" ]] && continue
     register_route "$alias_route" "$key" true
     COMMAND_ALIASES["$key"]=$(append_pipe_value "${COMMAND_ALIASES[$key]}" "$alias_route")
   done
-  IFS="$old_ifs"
 }
 
 reset_commands() {
@@ -438,13 +437,14 @@ command_takes_only_flags() {
   local key="$1"
   local args="${COMMAND_ARGS[$key]}"
   local token=""
-
+  local tokens=()
   local in_option=false
 
   [[ -n $args ]] || return 1
+  read -ra tokens <<<"$args"
   # An optional flag may name its value, as in [--model <name>]; the value
   # placeholder belongs to the flag and isn't a positional argument.
-  for token in $args; do
+  for token in "${tokens[@]}"; do
     if [[ $token == -* || $token == "[-"* ]]; then
       if [[ $token == "[-"* && $token != *"]" ]]; then
         in_option=true
@@ -573,34 +573,21 @@ sorted_group_keys() {
   done | sort -u | cut -f2-
 }
 
-examples_as_lines() {
-  local examples="$1"
-  local old_ifs="$IFS"
-  local example=""
-  IFS='|'
-
-  for example in $examples; do
-    example="${example# }"
-    example="${example% }"
-    [[ -n $example ]] && printf '%s\n' "$example"
-  done
-
-  IFS="$old_ifs"
-}
-
 pipe_values_as_lines() {
   local values="$1"
-  local old_ifs="$IFS"
   local value=""
-  IFS='|'
+  local items=()
 
-  for value in $values; do
+  IFS='|' read -ra items <<<"$values"
+  for value in "${items[@]}"; do
     value="${value# }"
     value="${value% }"
     [[ -n $value ]] && printf '%s\n' "$value"
   done
+}
 
-  IFS="$old_ifs"
+examples_as_lines() {
+  pipe_values_as_lines "$1"
 }
 
 show_group_list() {
@@ -935,7 +922,7 @@ show_prefix_help() {
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    if [[ ${COMMAND_USAGE[$key]} == $prefix_with_space* ]]; then
+    if [[ ${COMMAND_USAGE[$key]} == "$prefix_with_space"* ]]; then
       append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
     fi
   done < <(sorted_keys false)

@@ -15,7 +15,7 @@
   "agents.added": "S'ha afegit %1.",
   "agents.addedNotSelected": "S'ha afegit %1, però no s'hi han pogut passar les sessions noves.",
   "agents.allOver": "Tots els comptes de %1 superen el %2%",
-  "agents.apiKeyHint": "Es comprova amb %1 i després es desa per a pi i opencode.",
+  "agents.apiKeyHint": "Es comprova amb %1 i després es desa a OpenCode.",
   "agents.atLimit": "%1 és al %2% d'un límit %3",
   "agents.chooseForPrompt": "Tria un agent per a aquesta tasca",
   "agents.durationDaysHours": "%1d %2h",

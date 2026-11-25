@@ -16,7 +16,7 @@
   "agents.added": "Dodano: %1.",
   "agents.addedNotSelected": "Dodano: %1, vendar novih sej ni bilo mogoče preklopiti nanj.",
   "agents.allOver": "Vsi računi %1 so nad %2%",
-  "agents.apiKeyHint": "Preveri se pri %1 in nato shrani za pi in opencode.",
+  "agents.apiKeyHint": "Preveri se z %1, nato se shrani v OpenCode.",
   "agents.atLimit": "%1 je pri %2% %3 omejitve",
   "agents.chooseForPrompt": "Izberite agenta za to nalogo",
   "agents.durationDaysHours": "%1d %2h",

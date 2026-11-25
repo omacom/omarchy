@@ -14,7 +14,7 @@
   "agents.added": "%1 যোগ করা হয়েছে।",
   "agents.addedNotSelected": "%1 যোগ করা হয়েছে, কিন্তু নতুন সেশন এতে বদলানো যায়নি।",
   "agents.allOver": "সব %1 অ্যাকাউন্ট %2%-এর ওপরে",
-  "agents.apiKeyHint": "এটি %1 দিয়ে যাচাই করা হয়, তারপর pi ও opencode-এর জন্য সংরক্ষণ করা হয়।",
+  "agents.apiKeyHint": "%1 দিয়ে যাচাই করা হয়, তারপর OpenCode-এ সংরক্ষণ করা হয়।",
   "agents.atLimit": "%1 %3 সীমার %2%-এ রয়েছে",
   "agents.chooseForPrompt": "এই কাজের জন্য একটি এজেন্ট বেছে নিন",
   "agents.durationDaysHours": "%1দিন %2ঘণ্টা",

@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Abonnement, per gebruik of lokaal",
-  "agents.addProviderAccount": "%1-account toevoegen",
   "agents.addTitle": "Agent toevoegen",
   "agents.app": "App",
   "agents.backToLimits": "Terug naar de limieten",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Tegoed op",
   "agents.pasteCode": "Als de pagina een code toont in plaats van af te ronden, plak die hier.",
   "agents.pasteCodeLink": "Toont de pagina in plaats daarvan een code?",
+  "agents.placeholderApiKey": "API-sleutel",
   "agents.placeholderCode": "Code",
   "agents.placeholderWork": "Werk",
   "agents.plugin": "Plugin",

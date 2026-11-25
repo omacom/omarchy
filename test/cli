@@ -1021,3 +1021,15 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+# Routing and prefix help must not glob against filenames in the current
+# working directory or treat glob metacharacters in arguments as wildcards.
+make_tmpdir GLOB_PWD
+: >"$GLOB_PWD/i"
+output=$(cd "$GLOB_PWD" && "$ROOT/bin/omarchy" agent account --help)
+assert_output_contains "flag-only parent metadata does not glob against files in PWD" "$output" "agent account commands:"
+
+if output=$("$ROOT/bin/omarchy" '*' 2>&1); then
+  fail "wildcard input must not match prefix help"
+fi
+assert_output_contains "wildcard input reports unknown command" "$output" "Unknown Omarchy command"

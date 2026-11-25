@@ -3,7 +3,11 @@
 # omarchy:summary=Print the detected Hyprland touchpad or trackpad device name
 
 mice=$(hyprctl devices -j | jq -r '.mice[].name')
-device=$(grep -iE -m1 'touchpad|trackpad' <<<"$mice")
+# iptsd (Surface touchpads) takes the raw device and creates its own, which is
+# the one that moves the pointer. The raw one stays silent, so disabling it
+# would leave the touchpad working.
+device=$(grep -iE -m1 '^iptsd-virtual-touchpad' <<<"$mice")
+[[ -n $device ]] || device=$(grep -iE -m1 'touchpad|trackpad' <<<"$mice")
 
 # Some touchpads carry neither word (Apple Silicon's is "apple-mtp-multi-touch"),
 # so ask udev which mouse is one. The name alone can't say: some touchscreens'

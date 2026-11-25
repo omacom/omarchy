@@ -14,7 +14,7 @@
   "agents.added": "La til %1.",
   "agents.addedNotSelected": "La til %1, men kunne ikke bytte nye økter til den.",
   "agents.allOver": "Alle %1-kontoer er over %2%",
-  "agents.apiKeyHint": "Den sjekkes med %1 og lagres deretter for pi og opencode.",
+  "agents.apiKeyHint": "Den sjekkes med %1 og lagres deretter i OpenCode.",
   "agents.atLimit": "%1 er på %2% av en %3-grense",
   "agents.chooseForPrompt": "Velg en agent for denne oppgaven",
   "agents.durationDaysHours": "%1d %2t",

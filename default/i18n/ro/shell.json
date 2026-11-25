@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Abonament, plată pe utilizare sau local",
-  "agents.addProviderAccount": "Adaugă cont %1",
   "agents.addTitle": "Adaugă un agent",
   "agents.app": "Aplicație",
   "agents.backToLimits": "Înapoi la limite",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Credite epuizate",
   "agents.pasteCode": "Dacă pagina arată un cod în loc să finalizeze, lipește-l aici.",
   "agents.pasteCodeLink": "Vezi în schimb o pagină cu cod?",
+  "agents.placeholderApiKey": "Cheie API",
   "agents.placeholderCode": "Cod",
   "agents.placeholderWork": "Lucru",
   "agents.plugin": "Plugin",
