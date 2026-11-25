@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Move this machine from the Limine boot loader to systemd-boot, the boot loader Secure Boot needs
-# omarchy:args=[--check] [--yes] | status | revert | install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]
+# omarchy:args=[--check] [--yes] | status | revert | install [--no-efi-register] [--no-fallback] [--prefer PKGBASE] [--initramfs PKGBASE=FILE]
 # omarchy:examples=omarchy-boot-switch --check | omarchy-boot-switch | omarchy-boot-switch status
 # omarchy:requires-sudo=true
 
@@ -611,15 +611,22 @@ adopt_cmdline() {
 
 # --no-efi-register leaves NVRAM to the caller, --no-fallback leaves the
 # firmware's fallback loader path alone on an ESP shared with another system,
-# and --prefer boots that kernel first.
+# --prefer boots that kernel first, and --initramfs hands omarchy-boot-rebuild
+# an initramfs already built for that kernel (the installer's, from its image).
 install_fresh() {
   local register=1 fallback=1 prefer="" num store_was_mounted=0
+  local -a rebuild=()
   while (($#)); do
     case $1 in
     --no-efi-register) register=0 ;;
     --no-fallback) fallback=0 ;;
     --prefer) prefer=${2:-}; [[ -n $prefer ]] || die "--prefer needs a kernel package"; shift ;;
-    *) die "Usage: omarchy-boot-switch install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]" ;;
+    --initramfs)
+      [[ ${2:-} == ?*=?* ]] || die "--initramfs needs PKGBASE=FILE"
+      rebuild+=(--initramfs "$2")
+      shift
+      ;;
+    *) die "Usage: omarchy-boot-switch install [--no-efi-register] [--no-fallback] [--prefer PKGBASE] [--initramfs PKGBASE=FILE]" ;;
     esac
     shift
   done
@@ -640,7 +647,7 @@ install_fresh() {
   [[ -z $prefer ]] || state_set preferred "$prefer"
 
   install_loader
-  omarchy-boot-rebuild || die "Building the boot images failed."
+  omarchy-boot-rebuild "${rebuild[@]}" || die "Building the boot images failed."
   omarchy-boot-sync verify || die "The boot images don't match the installed kernels."
   # The firmware's fallback loader, unless another system put its own there.
   if ((fallback)) && { [[ ! -f $ESP/$FALLBACK ]] || grep -qaE 'systemd-boot|[Ll]imine' "$ESP/$FALLBACK"; }; then
@@ -799,7 +806,7 @@ EOF
   fi
   ;;
 *)
-  echo "Usage: omarchy-boot-switch [--check] [--yes] | status | revert | install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]" >&2
+  echo "Usage: omarchy-boot-switch [--check] [--yes] | status | revert | install [--no-efi-register] [--no-fallback] [--prefer PKGBASE] [--initramfs PKGBASE=FILE]" >&2
   exit 2
   ;;
 esac

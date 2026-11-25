@@ -60,11 +60,12 @@ The pipeline:
 
 ## Installed with systemd-boot
 
-`omarchy-boot-switch install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]` sets up a machine that never had Limine, straight to `active`. The ISO runs it in the new root once every boot drop-in is written, after swapping the image's `omarchy-boot` for `omarchy-boot-systemd` and registering the "Omarchy Boot" entry itself. It:
+`omarchy-boot-switch install [--no-efi-register] [--no-fallback] [--prefer PKGBASE] [--initramfs PKGBASE=FILE]` sets up a machine that never had Limine, straight to `active`. The ISO runs it in the new root once every boot drop-in is written, after swapping the image's `omarchy-boot` for `omarchy-boot-systemd` and registering the "Omarchy Boot" entry itself. It:
 
 - creates the store and its fstab line;
 - takes `/etc/kernel/cmdline` (or `/etc/default/limine`'s command line, if that's all there is) and moves any drop-ins written in Limine's format to `/etc/cmdline.d/`;
 - copies systemd-boot and `loader.conf` to the ESP, builds and verifies the images, and takes the fallback path unless told not to or another system's loader is there;
+- with `--initramfs PKGBASE=FILE`, stores FILE as that kernel's initramfs instead of running mkinitcpio for it (`omarchy-boot-rebuild --initramfs`). The ISO passes the generic initramfs its root image carries, built without autodetect, when nothing on the machine changed what the initramfs is built from. A missing file or a kernel that isn't installed builds as usual, and the first kernel update builds the machine's own with autodetect;
 - registers and puts first the NVRAM entry, unless the caller does.
 
 `omarchy-boot-backend` recognises such a machine by `omarchy-boot-systemd`'s snapper plugin, even where the store isn't mounted (a factory clone). A factory reset of it runs the same install in the clone, into a fresh `@omarchy-boot-next` store that replaces the old owner's `@omarchy-boot` once the clone is at `@`; the old owner's images leave the ESP then too. BIOS installs keep Limine: systemd-boot can't start on BIOS firmware. `OMARCHY_ISO_BOOT_LOADER=limine` keeps a UEFI install on Limine.
