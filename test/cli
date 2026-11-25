@@ -69,7 +69,7 @@ output=$("$CLI" commands)
 assert_output_contains "commands lists documented commands" "$output" "omarchy theme set <theme-name>"
 
 row=$(grep -m1 '^  omarchy theme set <theme-name> ' <<<"$output")
-if [[ $row =~ ^("  omarchy theme set <theme-name>"[ ]+) ]] && (( ${#BASH_REMATCH[1]} <= 52 )); then
+if [[ $row =~ ^("  omarchy theme set <theme-name>"[ ]+) ]] && ((${#BASH_REMATCH[1]} <= 52)); then
   pass "commands pads the usage column to at most 48 characters"
 else
   fail "commands pads the usage column to at most 48 characters"
@@ -95,6 +95,24 @@ pass "commands --check passes"
 
 "$CLI" commands --all >/dev/null
 pass "commands --all does not crash"
+
+output=$("$CLI" commands --man)
+[[ $output == ".TH OMARCHY 1 "* ]] || fail "commands --man renders a man page"
+pass "commands --man renders a man page"
+[[ $output == *'.B omarchy hyprland window gaps toggle'* ]] || fail "commands --man lists documented commands"
+pass "commands --man lists documented commands"
+
+[[ $output != *'agent account exec'* ]] || fail "commands --man omits hidden commands"
+pass "commands --man omits hidden commands"
+
+[[ $output == *'\- Install and configure the Windows VM'* ]] || fail "commands --man lists subcommands with their own summaries"
+pass "commands --man lists subcommands with their own summaries"
+
+if command -v groff >/dev/null; then
+  warnings=$(groff -man -ww -z <<<"$output" 2>&1)
+  [[ -z $warnings ]] || fail "commands --man renders without groff warnings"
+  pass "commands --man renders without groff warnings"
+fi
 
 jq -e '.commands[] | select(.route == "omarchy hyprland window gaps toggle" and .summary != "undocumented")' "$commands_all_json_file" >/dev/null
 pass "fallback commands are inferred and documented"
@@ -170,14 +188,14 @@ assert_output_contains "menu group includes share fallback route" "$output" "oma
 
 status=0
 output=$("$CLI" share) || status=$?
-(( status == 1 )) || fail "bare required-arg alias exits 1"
+((status == 1)) || fail "bare required-arg alias exits 1"
 pass "bare required-arg alias exits 1"
 assert_output_contains "bare required-arg alias renders CLI help" "$output" "Usage:"
 assert_output_contains "bare share help uses canonical route" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
 status=0
 output=$("$CLI" menu share) || status=$?
-(( status == 1 )) || fail "bare required-arg filename route exits 1"
+((status == 1)) || fail "bare required-arg filename route exits 1"
 pass "bare required-arg filename route exits 1"
 assert_output_contains "bare required-arg filename route renders CLI help" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
@@ -506,7 +524,10 @@ pass "legacy short palette renders the complete generated theme"
 touch "$PI_TMPDIR/1-my-background.jpg"
 ln -s "$PI_TMPDIR/1-my-background.jpg" "$PI_TMPDIR/.local/state/omarchy/current/background"
 # The marker keeps the final newline, which $(...) would otherwise strip.
-bg_current=$(HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-bg-current"; printf 'x')
+bg_current=$(
+  HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-bg-current"
+  printf 'x'
+)
 [[ $bg_current == $'My Background\nx' ]] || fail "theme bg current prints the background name on its own line"
 pass "theme bg current prints the background name on its own line"
 
@@ -961,7 +982,7 @@ for locale in C "$(locale -a 2>/dev/null | grep -iE '^en_US\.utf-?8$' | head -1)
   [[ -n $locale ]] || continue
   ran=$(LC_ALL=$locale "$TMPDIR/omarchy" collideprobe)
   helped=$(LC_ALL=$locale "$TMPDIR/omarchy" collideprobe --help)
-  expected=$( [[ $helped == *omarchy-zz-aa* ]] && echo collide-aa-ran || echo collide-a-b-ran )
+  expected=$([[ $helped == *omarchy-zz-aa* ]] && echo collide-aa-ran || echo collide-a-b-ran)
   [[ $ran == "$expected" ]] || fail "a colliding alias runs the command help names under LC_ALL=$locale"
 done
 pass "a colliding alias runs the command help names"
@@ -971,7 +992,7 @@ pass "a colliding alias runs the command help names"
 # whole table, trips over it.
 # Root reads through the permission, so this check only means something for
 # an ordinary user.
-if (( EUID != 0 )); then
+if ((EUID != 0)); then
   printf '#!/bin/bash\n\n# omarchy:summary=Unreadable unrelated command\necho unrelated\n' >"$TMPDIR/omarchy-zz-unreadable"
   chmod 111 "$TMPDIR/omarchy-zz-unreadable"
   stderr=$("$TMPDIR/omarchy" fastalias one 2>&1 >/dev/null)
@@ -1005,8 +1026,8 @@ fastest_ms() {
     read -r start _ </proc/uptime
     "$@" >/dev/null 2>&1
     read -r end _ </proc/uptime
-    elapsed=$(( (${end/./} - ${start/./}) * 10 ))
-    if [[ -z $best ]] || (( elapsed < best )); then
+    elapsed=$(((${end/./} - ${start/./}) * 10))
+    if [[ -z $best ]] || ((elapsed < best)); then
       best=$elapsed
     fi
   done
@@ -1016,7 +1037,7 @@ fastest_ms() {
 [[ $("$ROUTER_BIN/omarchy" screenshot) == "screenshot-stub-ran" ]] || fail "omarchy screenshot dispatches to the capture command"
 alias_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot)
 full_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot --help)
-if (( alias_ms * 4 > full_ms )); then
+if ((alias_ms * 4 > full_ms)); then
   printf 'omarchy screenshot took %dms; loading the whole table for its help took %dms.\n' "$alias_ms" "$full_ms" >&2
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi

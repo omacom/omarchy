@@ -195,10 +195,10 @@ register_command() {
   local has_summary="false"
   local metadata_errors=""
 
-  while IFS= read -r line && (( line_count < METADATA_SCAN_LIMIT )); do
+  while IFS= read -r line && ((line_count < METADATA_SCAN_LIMIT)); do
     line_count=$((line_count + 1))
 
-    if (( line_count == 1 )) && [[ $line == "#!"* ]]; then
+    if ((line_count == 1)) && [[ $line == "#!"* ]]; then
       continue
     fi
 
@@ -485,7 +485,7 @@ resolve_direct_route() {
   local binary=""
   local candidate=""
 
-  for (( prefix_count = argc; prefix_count >= 1; prefix_count-- )); do
+  for ((prefix_count = argc; prefix_count >= 1; prefix_count--)); do
     route="omarchy $(join_words " " "${args[@]:0:prefix_count}")"
 
     binary="omarchy-$(join_words "-" "${args[@]:0:prefix_count}")"
@@ -633,7 +633,7 @@ EOF
 show_commands_help() {
   cat <<'EOF'
 Usage:
-  omarchy commands [--all] [--json] [--markdown] [--check]
+  omarchy commands [--all] [--json] [--markdown] [--man] [--check]
 
 List commands known to the Omarchy command center.
 
@@ -641,6 +641,7 @@ Options:
   --all       Include commands explicitly marked hidden
   --json      Emit machine-readable JSON
   --markdown  Emit a Markdown command table
+  --man       Emit an omarchy(1) man page of non-hidden commands
   --check     Validate command metadata and route collisions
 EOF
 }
@@ -656,12 +657,12 @@ print_command_table() {
   while IFS=$'\t' read -r command rest; do
     [[ -n $command ]] || continue
     width=${#command}
-    (( width > max_width )) && max_width=$width
+    ((width > max_width)) && max_width=$width
   done <<<"$rows"
 
   # Cap the column so a usage longer than 48 characters pushes only its own summary
   # along, rather than padding every row out past the edge of a normal terminal.
-  (( max_width > 48 )) && max_width=48
+  ((max_width > 48)) && max_width=48
 
   while IFS=$'\t' read -r command rest; do
     [[ -n $command ]] || continue
@@ -732,6 +733,140 @@ show_commands_markdown() {
         "$(markdown_escape "$summary")"
     done <<<"${rows%$'\n'}"
   done < <(sorted_keys "$include_all")
+}
+
+# Escapes text for groff. Byte-wise under LC_ALL=C so it behaves the same in any build locale.
+# Nerd Font glyphs (Private Use Area) become <icon> rather than vanishing, so a flag keeps its value.
+# Code mode also turns hyphens into \- (after backslashes became \e, so never \e-), lets long
+# a|b|c enums break at each pipe, and keeps quotes from splitting .B/.I arguments.
+man_escape() {
+  local LC_ALL=C
+  local value="$1"
+  local code="${2:-false}"
+  local icon=$'((\xee[\x80-\xbf]|\xef[\x80-\xa3])[\x80-\xbf]|(\xf3[\xb0-\xbf]|\xf4[\x80-\x8f])[\x80-\xbf][\x80-\xbf])+'
+
+  while [[ $value =~ $icon ]]; do
+    value="${value/"${BASH_REMATCH[0]}"/<icon>}"
+  done
+
+  value="${value//\\/'\e'}"
+  value="${value//—/'\(em'}"
+  value="${value//–/'\(en'}"
+  value="${value//‘/'\(oq'}"
+  value="${value//’/'\(cq'}"
+  value="${value//“/'\(lq'}"
+  value="${value//”/'\(rq'}"
+  value="${value//…/...}"
+  [[ $value == [.\']* ]] && value='\&'"$value"
+
+  if [[ $code == "true" ]]; then
+    value="${value//-/'\-'}"
+    value="${value//|/'|\:'}"
+    value="${value//\"/'\(dq'}"
+  fi
+
+  printf '%s' "$value"
+}
+
+show_commands_man() {
+  local version="Omarchy"
+  local keys=()
+  local groups=()
+  local group=""
+  local key=""
+  local title=""
+  local notes=""
+  local aliases=""
+  local alias=""
+  local example=""
+  local subcommand_args=""
+  local subcommand_summary=""
+
+  [[ -r $OMARCHY_BIN_DIR/../version ]] && version=$(<"$OMARCHY_BIN_DIR/../version")
+
+  mapfile -t keys < <(sorted_keys false)
+  mapfile -t groups < <(for key in "${keys[@]}"; do printf '%s\n' "${COMMAND_GROUP[$key]}"; done | LC_ALL=C sort -u)
+
+  TZ=UTC printf '.TH OMARCHY 1 "%(%Y-%m-%d)T" "%s" "Omarchy Manual"\n' "${SOURCE_DATE_EPOCH:--1}" "$(man_escape "$version")"
+  cat <<'EOF'
+.SH NAME
+omarchy \- Omarchy command center
+.SH SYNOPSIS
+.B omarchy
+.I command
+[args...]
+.br
+.B omarchy commands
+[\-\-all] [\-\-json] [\-\-markdown] [\-\-man] [\-\-check]
+.br
+.B omarchy
+.I group
+\-\-help
+.br
+.B omarchy
+.I group command
+\-\-help
+.SH DESCRIPTION
+.B omarchy
+is the command center for an Omarchy system: a single entry point routing to the group and command binaries that manage themes, hardware, Hyprland, packages, and general system state.
+.PP
+Run
+.B omarchy commands
+for a live list,
+.B omarchy commands \-\-all
+to include hidden commands, or
+.BI "omarchy " group " \-\-help"
+for help on a specific group.
+.SH COMMANDS
+EOF
+
+  for group in "${groups[@]}"; do
+    title="${GROUP_DESCRIPTIONS[$group]:-${group^} commands}"
+    printf '.SS %s \\- %s\n' "$(man_escape "$group")" "$(man_escape "$title")"
+
+    for key in "${keys[@]}"; do
+      [[ ${COMMAND_GROUP[$key]} == "$group" ]] || continue
+
+      printf '.B %s\n' "$(man_escape "${COMMAND_ROUTE[$key]}" true)"
+      [[ -z ${COMMAND_SUBCOMMANDS[$key]} ]] && printf '.I %s\n' "$(man_escape "${COMMAND_ARGS[$key]}" true)"
+      echo ".RS 4"
+      man_escape "${COMMAND_SUMMARY[$key]}"
+      echo ""
+      if [[ -n ${COMMAND_SUBCOMMANDS[$key]} ]]; then
+        while IFS=$'\t' read -r subcommand_args subcommand_summary; do
+          printf '.br\n.B %s\n.I %s\n\\- %s\n' \
+            "$(man_escape "${COMMAND_ROUTE[$key]}" true)" \
+            "$(man_escape "$subcommand_args" true)" \
+            "$(man_escape "$subcommand_summary")"
+        done <<<"${COMMAND_SUBCOMMANDS[$key]}"
+      fi
+
+      notes=""
+      [[ ${COMMAND_REQUIRES_SUDO[$key]} == "true" ]] && notes="Requires sudo."
+      if [[ -n ${COMMAND_ALIASES[$key]} ]]; then
+        aliases=""
+        while IFS= read -r alias; do
+          aliases+="${aliases:+, }$(man_escape "$alias" true)"
+        done < <(pipe_values_as_lines "${COMMAND_ALIASES[$key]}")
+        notes+="${notes:+ }Alias: $aliases"
+      fi
+      [[ -n $notes ]] && printf '.br\n%s\n' "$notes"
+
+      while IFS= read -r example; do
+        printf '.br\nExample: %s\n' "$(man_escape "$example" true)"
+      done < <(examples_as_lines "${COMMAND_EXAMPLES[$key]}")
+
+      echo ".RE"
+      echo ".PP"
+    done
+  done
+
+  cat <<'EOF'
+.SH SEE ALSO
+.UR https://manual.omarchy.org
+Omarchy Manual
+.UE
+EOF
 }
 
 emit_command_record() {
@@ -818,7 +953,7 @@ show_commands_check() {
     fi
   done
 
-  if (( failures > 0 )); then
+  if ((failures > 0)); then
     echo "Command metadata check failed ($failures issues)" >&2
     return 1
   fi
@@ -834,11 +969,12 @@ parse_commands_args() {
   local include_all="false"
   local json="false"
   local markdown="false"
+  local man="false"
   local check="false"
 
   shift
 
-  while (( $# > 0 )); do
+  while (($# > 0)); do
     case "$1" in
     --all)
       include_all="true"
@@ -848,6 +984,9 @@ parse_commands_args() {
       ;;
     --markdown)
       markdown="true"
+      ;;
+    --man)
+      man="true"
       ;;
     --check)
       check="true"
@@ -871,6 +1010,8 @@ parse_commands_args() {
     show_commands_json "$include_all"
   elif [[ $markdown == "true" ]]; then
     show_commands_markdown "$include_all"
+  elif [[ $man == "true" ]]; then
+    show_commands_man
   else
     show_commands "$include_all"
   fi
@@ -1015,7 +1156,7 @@ resolve_route() {
   local route=""
   local key=""
 
-  for (( prefix_count = argc; prefix_count >= 1; prefix_count-- )); do
+  for ((prefix_count = argc; prefix_count >= 1; prefix_count--)); do
     route="omarchy $(join_words " " "${args[@]:0:prefix_count}")"
     key="${ROUTE_TO_KEY[$route]}"
 
@@ -1055,8 +1196,8 @@ dispatch_fast_or_help() {
     remaining=("${args[@]:DIRECT_RESOLVED_COUNT}")
     binary_path="$OMARCHY_BIN_DIR/$DIRECT_RESOLVED_BINARY"
 
-    if (( ${#remaining[@]} == 1 || ${#remaining[@]} == 2 )) && [[ ${remaining[0]} != -* ]] &&
-      { (( ${#remaining[@]} == 1 )) || remaining_has_help_flag "${remaining[1]}"; } &&
+    if ((${#remaining[@]} == 1 || ${#remaining[@]} == 2)) && [[ ${remaining[0]} != -* ]] &&
+      { ((${#remaining[@]} == 1)) || remaining_has_help_flag "${remaining[1]}"; } &&
       group_has_child_commands "${DIRECT_RESOLVED_BINARY#omarchy-}-${remaining[0]}"; then
       load_command_by_binary "$DIRECT_RESOLVED_BINARY"
       key="${BINARY_TO_KEY[$DIRECT_RESOLVED_BINARY]}"
@@ -1072,7 +1213,7 @@ dispatch_fast_or_help() {
         return 127
       fi
 
-      if (( DIRECT_RESOLVED_COUNT == 1 )); then
+      if ((DIRECT_RESOLVED_COUNT == 1)); then
         load_child_commands_by_binary "$DIRECT_RESOLVED_BINARY"
       fi
 
@@ -1085,12 +1226,12 @@ dispatch_fast_or_help() {
       return 0
     fi
 
-    if (( ${#remaining[@]} == 0 )); then
+    if ((${#remaining[@]} == 0)); then
       load_command_by_binary "$DIRECT_RESOLVED_BINARY"
       key="${BINARY_TO_KEY[$DIRECT_RESOLVED_BINARY]}"
 
       if [[ -n $key ]] && command_requires_args "$key"; then
-        if (( DIRECT_RESOLVED_COUNT == 1 )) && group_has_child_commands "$1"; then
+        if ((DIRECT_RESOLVED_COUNT == 1)) && group_has_child_commands "$1"; then
           load_group_commands "$1"
           show_group_help "$1"
           return 0
@@ -1104,13 +1245,13 @@ dispatch_fast_or_help() {
     exec "$binary_path" "${remaining[@]}"
   fi
 
-  if (( $# == 1 )) && group_has_binary_commands "$1"; then
+  if (($# == 1)) && group_has_binary_commands "$1"; then
     load_group_commands "$1"
     show_group_help "$1"
     return 0
   fi
 
-  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" ]] && group_has_binary_commands "$1"; then
+  if (($# >= 2)) && [[ $2 == "--help" || $2 == "-h" ]] && group_has_binary_commands "$1"; then
     load_group_commands "$1"
     show_group_help "$1"
     return 0
@@ -1119,7 +1260,7 @@ dispatch_fast_or_help() {
   # Help lists related commands from the whole table, so only a route that runs
   # its command takes the candidates-only path.
   if ! remaining_has_help_flag "$@" && load_route_candidates "$1" && resolve_route "$#" "$@" &&
-    ! { (( RESOLVED_COUNT == $# )) && command_requires_args "$RESOLVED_KEY"; }; then
+    ! { ((RESOLVED_COUNT == $#)) && command_requires_args "$RESOLVED_KEY"; }; then
     dispatch_or_help "$@"
     return
   fi
@@ -1155,8 +1296,8 @@ dispatch_or_help() {
       return 127
     fi
 
-    if (( ${#remaining[@]} == 0 )) && command_requires_args "$key"; then
-      if (( RESOLVED_COUNT == 1 )) && group_exists "$1"; then
+    if ((${#remaining[@]} == 0)) && command_requires_args "$key"; then
+      if ((RESOLVED_COUNT == 1)) && group_exists "$1"; then
         show_group_help "$1"
         return 0
       else
@@ -1168,12 +1309,12 @@ dispatch_or_help() {
     exec "$binary_path" "${remaining[@]}"
   fi
 
-  if (( $# == 1 )) && group_exists "$1"; then
+  if (($# == 1)) && group_exists "$1"; then
     show_group_help "$1"
     return 0
   fi
 
-  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" ]] && group_exists "$1"; then
+  if (($# >= 2)) && [[ $2 == "--help" || $2 == "-h" ]] && group_exists "$1"; then
     show_group_help "$1"
     return 0
   fi
@@ -1192,7 +1333,7 @@ dispatch_or_help() {
 }
 
 main() {
-  if (( $# == 0 )); then
+  if (($# == 0)); then
     show_main_help
     return 0
   fi
