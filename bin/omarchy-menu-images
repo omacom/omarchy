@@ -212,7 +212,7 @@ generate_thumbnail() {
 }
 
 load_index() {
-  [[ $index_loaded == true ]] && return
+  [[ $index_loaded == "true" ]] && return
   index_loaded=true
   [[ -r $index_file ]] || return
   local idx_path idx_sig idx_hash

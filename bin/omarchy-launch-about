@@ -105,7 +105,10 @@ write_about_config() {
   fi
 
   stamp_file="$ABOUT_CONFIG.stamp"
-  stamp="$language:$(stat -c '%Y:%s' "$OMARCHY_FASTFETCH_DIR/config.jsonc" 2>/dev/null || echo 0)"
+  stamp=$(printf '%s\n' "$language"; stat -c '%y:%s' \
+    "$OMARCHY_FASTFETCH_DIR/config.jsonc" \
+    "$OMARCHY_PATH/default/i18n/$language/cli.json" \
+    "$OMARCHY_PATH/default/i18n/en/cli.json" 2>/dev/null || true)
   if [[ -f $ABOUT_CONFIG && -f $stamp_file && $(<"$stamp_file") == "$stamp" ]]; then
     return 0
   fi
@@ -425,7 +428,7 @@ if [[ ${1:-} == "--render" ]]; then
 
   # Give the compositor a moment to apply the window rules before measuring cells,
   # unless presize_window already sized the window from a cached fit.
-  [[ $presized == true ]] || settle_grid
+  [[ $presized == "true" ]] || settle_grid
 
   fitted=false
   passes=0
