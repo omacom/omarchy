@@ -1,12 +1,24 @@
 [Default Applications]
 inode/directory=folio.desktop
 
-image/png=imv.desktop
-image/jpeg=imv.desktop
-image/gif=imv.desktop
-image/webp=imv.desktop
-image/bmp=imv.desktop
-image/tiff=imv.desktop
+image/png=omaview.desktop
+image/jpeg=omaview.desktop
+image/gif=omaview.desktop
+image/webp=omaview.desktop
+image/bmp=omaview.desktop
+image/tiff=omaview.desktop
+image/svg+xml=omaview.desktop
+image/x-icon=omaview.desktop
+image/x-tga=omaview.desktop
+image/x-portable-pixmap=omaview.desktop
+image/x-portable-graymap=omaview.desktop
+image/x-portable-bitmap=omaview.desktop
+image/x-xbitmap=omaview.desktop
+image/x-xpixmap=omaview.desktop
+image/heif=omaview.desktop
+image/heic=omaview.desktop
+image/avif=omaview.desktop
+image/jxl=omaview.desktop
 
 application/pdf=org.gnome.Papers.desktop
 
@@ -14,21 +26,37 @@ x-scheme-handler/http=google-chrome.desktop
 x-scheme-handler/https=google-chrome.desktop
 x-scheme-handler/mailto=HEY.desktop
 
-video/mp4=mpv.desktop
-video/x-msvideo=mpv.desktop
-video/x-matroska=mpv.desktop
-video/x-flv=mpv.desktop
-video/x-ms-wmv=mpv.desktop
-video/mpeg=mpv.desktop
-video/ogg=mpv.desktop
-video/webm=mpv.desktop
-video/quicktime=mpv.desktop
-video/3gpp=mpv.desktop
-video/3gpp2=mpv.desktop
-video/x-ms-asf=mpv.desktop
-video/x-ogm+ogg=mpv.desktop
-video/x-theora+ogg=mpv.desktop
-application/ogg=mpv.desktop
+video/mp4=omaview.desktop
+video/x-msvideo=omaview.desktop
+video/x-matroska=omaview.desktop
+video/x-flv=omaview.desktop
+video/x-ms-wmv=omaview.desktop
+video/mpeg=omaview.desktop
+video/ogg=omaview.desktop
+video/webm=omaview.desktop
+video/quicktime=omaview.desktop
+video/3gpp=omaview.desktop
+video/3gpp2=omaview.desktop
+video/x-ms-asf=omaview.desktop
+video/x-ogm+ogg=omaview.desktop
+video/x-theora+ogg=omaview.desktop
+video/mp2t=omaview.desktop
+video/x-m4v=omaview.desktop
+application/ogg=omaview.desktop
+
+audio/mpeg=omaview.desktop
+audio/flac=omaview.desktop
+audio/ogg=omaview.desktop
+audio/x-wav=omaview.desktop
+audio/wav=omaview.desktop
+audio/mp4=omaview.desktop
+audio/aac=omaview.desktop
+audio/opus=omaview.desktop
+audio/x-vorbis+ogg=omaview.desktop
+audio/x-matroska=omaview.desktop
+
+text/markdown=omawrite.desktop
+text/x-markdown=omawrite.desktop
 
 text/plain=omarchy-launch-editor.desktop
 text/english=omarchy-launch-editor.desktop

@@ -22,6 +22,10 @@ fi
 managed_begin="# BEGIN OMARCHY QUALCOMM DEVICE TREES"
 managed_end="# END OMARCHY QUALCOMM DEVICE TREES"
 uki_config=${OMARCHY_QUALCOMM_UKI_CONFIG:-/etc/kernel/uki.conf}
+# Each tree is a PE section of its own, and ukify writes every section's header
+# into the room the stub reserves. Arch Linux ARM's stub has room for about 119
+# trees; systemd-stub-omarchy's is the same release built with room for 1024.
+uki_stub=${OMARCHY_QUALCOMM_UKI_STUB:-/usr/lib/systemd-stub-omarchy/linuxaa64.efi.stub}
 
 # Arch Linux ARM's kernel keeps every board's device trees in /boot/dtbs.
 # Omarchy's own kernel keeps its Snapdragon ones under its package name, and
@@ -38,9 +42,15 @@ for kernel_dtb_dir in "$dtb_root"/linux-omarchy/qcom "$dtb_root"/linux-omarchy*/
 done
 dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-$dtb_dir}
 
+# The 835, 7c and Snapdragon C laptops are named by maker, so Arch Linux
+# ARM's phone and Chromebook trees of those families stay out.
 dtbs=()
 for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb "$dtb_dir"/purwa*.dtb \
-  "$dtb_dir"/glymur*.dtb "$dtb_dir"/mahua*.dtb "$dtb_dir"/sc8280xp*.dtb; do
+  "$dtb_dir"/glymur*.dtb "$dtb_dir"/mahua*.dtb "$dtb_dir"/kalambo*.dtb \
+  "$dtb_dir"/sc8280xp*.dtb "$dtb_dir"/sc8180x*.dtb "$dtb_dir"/sdm850*.dtb \
+  "$dtb_dir"/msm8998-{asus,hp,lenovo}*.dtb \
+  "$dtb_dir"/sc7180-{acer,apcsilmic,ecs,lenovo,samsung,tcl}*.dtb \
+  "$dtb_dir"/sc7280-{hp,samsung}*.dtb; do
   if [[ -f $dtb && $dtb != *-el2.dtb ]]; then
     dtbs+=("$dtb")
   fi
@@ -103,6 +113,11 @@ else
   chmod 0644 "$uki_tmp" || written=0
 fi
 
+uki_stub_line=""
+if [[ -f $uki_stub ]]; then
+  uki_stub_line="Stub=$uki_stub"
+fi
+
 if (( written )) && [[ -n $own_dtb ]]; then
   printf '%s\n' \
     "$managed_begin" \
@@ -111,6 +126,7 @@ if (( written )) && [[ -n $own_dtb ]]; then
     "# own, matched by its running compatible, when none fits. limine refreshes" \
     "# both before every boot image build (omarchy-update-qualcomm-device-trees)." \
     "[UKI]" \
+    ${uki_stub_line:+"$uki_stub_line"} \
     "DeviceTree=$own_dtb" \
     "DeviceTreeAuto=${dtbs[*]}" \
     "$managed_end" >>"$uki_tmp" || written=0
@@ -121,6 +137,7 @@ elif (( written )); then
     "# systemd-stub selects a device tree from SMBIOS data. limine refreshes" \
     "# this list before every boot image build (omarchy-update-qualcomm-device-trees)." \
     "[UKI]" \
+    ${uki_stub_line:+"$uki_stub_line"} \
     "DeviceTreeAuto=${dtbs[*]}" \
     "$managed_end" >>"$uki_tmp" || written=0
 fi
