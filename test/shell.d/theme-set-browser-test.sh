@@ -149,3 +149,20 @@ refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 [[ $refreshed == "brave " ]] ||
   fail "setter refreshes plain Brave on its executable (got: $refreshed)"
 pass "setter refreshes plain Brave on its executable"
+
+# When both plain Brave and Brave Origin are running, both are refreshed.
+cat >"$browser_bin/ps" <<'FAKE'
+#!/bin/bash
+printf '%s\n' \
+  'brave /opt/brave-origin-bin/brave --profile' \
+  'brave /opt/brave-bin/brave'
+FAKE
+rm -f "$refresh_log"
+HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" REFRESH_LOG="$refresh_log" BROWSER_BIN="$browser_bin" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+
+refreshed=$(sort "$refresh_log" | tr '\n' ' ')
+[[ $refreshed == "brave brave-origin " ]] ||
+  fail "setter refreshes both Brave variants when both run (got: $refreshed)"
+pass "setter refreshes both Brave variants when both run"
