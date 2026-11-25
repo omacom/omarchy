@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Remove OmO installed through npm in the user's home directory
+# omarchy:args=[--check]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+prefix="$HOME/.local"
+package_manifest="$prefix/lib/node_modules/omo-ai/package.json"
+
+if [[ ${1:-} == "--check" ]]; then
+  [[ -f $package_manifest ]]
+  exit
+fi
+
+if (( $# != 0 )); then
+  echo "Usage: omarchy-remove-omo-cli [--check]" >&2
+  exit 1
+fi
+
+if [[ -f $package_manifest ]]; then
+  npm uninstall --global --prefix "$prefix" omo-ai
+fi
+
+applications="$HOME/.local/share/applications"
+rm -f "$applications/omarchy-agent-omo.desktop"
+if [[ -d $applications ]]; then
+  update-desktop-database "$applications" 2>/dev/null || true
+fi
+
+agent_file="$HOME/.config/omarchy/defaults/agent"
+if [[ -f $agent_file ]] && grep -qx omo "$agent_file"; then
+  rm -f "$agent_file"
+fi

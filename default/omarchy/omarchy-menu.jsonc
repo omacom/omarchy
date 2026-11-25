@@ -442,6 +442,7 @@
   "remove.ai.cli.minimax": {"icon":"","iconFont":"omarchy","label":"MiniMax Code","when":"omarchy-pkg-present minimax-code","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-ai-cli mcode'"},
   "remove.ai.cli.muse": {"icon":"","iconFont":"omarchy","label":"Muse Code","when":"omarchy-pkg-present muse-code","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-ai-cli muse'"},
   "remove.ai.cli.oh-my-pi": {"icon":"","iconFont":"omarchy","label":"Oh My Pi","when":"omarchy-pkg-present oh-my-pi","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-ai-cli omp'"},
+  "remove.ai.cli.omo": {"icon":"","label":"OmO","when":"omarchy-remove-omo-cli --check","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-omo-cli"},
   "remove.ai.cli.ori": {"icon":"","iconFont":"omarchy","label":"Ori","when":"omarchy-pkg-present openrouter-ori","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-ai-cli ori'"},
   "remove.ai.cli.qwen": {"icon":"","iconFont":"omarchy","label":"Qwen Code","when":"omarchy-pkg-present qwen-code","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-ai-cli qwen'"},
   "remove.ai.cli.ollama": {"icon":"","iconFont":"omarchy","label":"Ollama","when":"omarchy-pkg-present ollama","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-ollama"},
