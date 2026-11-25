@@ -105,6 +105,8 @@ SH
 chmod +x "$work/bin"/*
 
 export MIC_STATE="$work/mic" CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
+# Keep the volume command's pending steps away from the live session's.
+export XDG_RUNTIME_DIR="$work"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 calls() {
@@ -144,6 +146,83 @@ grep -qx 'C pactl get-sink-volume alsa_output.speakers' "$CALLS" ||
 grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
+
+# Key repeat starts runs faster than one finishes. A pactl that keeps the volume
+# in a file, and is slow like the real one, shows whether every step lands.
+mkdir -p "$work/slow"
+cat >"$work/slow/pactl" <<'SH'
+#!/bin/bash
+sleep 0.02
+case "$*" in
+  "get-default-sink") echo "alsa_output.speakers" ;;
+  "get-sink-volume "*)
+    if [[ -n ${READ_GATE:-} ]]; then
+      touch "$READ_GATE/entered"
+      for ((i = 0; i < 500; i++)); do
+        [[ ! -e $READ_GATE/release ]] || exit 1
+        sleep 0.01
+      done
+      exit 1
+    fi
+    echo "Volume: front-left: 0 /  $(<"$VOLUME")% / 0 dB"
+    ;;
+  "set-sink-volume "*) echo "${3%\%}" >"$VOLUME" ;;
+  "get-sink-mute "*) echo "Mute: no" ;;
+esac
+SH
+chmod +x "$work/slow/pactl"
+echo 50 >"$work/volume"
+(
+  export PATH="$work/slow:$PATH" VOLUME="$work/volume"
+  for _ in {1..10}; do
+    omarchy-audio-output-volume -1 >/dev/null 2>&1 &
+    sleep 0.01
+  done
+  wait
+)
+[[ $(<"$work/volume") == 40 ]] ||
+  fail 'audio-output-volume applies every step of a held key' "ten -1 steps from 50 left $(<"$work/volume")"
+pass 'audio-output-volume applies every step of a held key'
+
+# A failed holder must not leave other presses queued for an unrelated key.
+echo 50 >"$work/volume"
+mkdir "$work/read-gate"
+(
+  export PATH="$work/slow:$PATH" VOLUME="$work/volume"
+  READ_GATE="$work/read-gate" omarchy-audio-output-volume -1 >/dev/null 2>&1 &
+  holder=$!
+  for ((i = 0; i < 500; i++)); do
+    [[ ! -e $work/read-gate/entered ]] || break
+    sleep 0.01
+  done
+  if [[ ! -e $work/read-gate/entered ]]; then
+    touch "$work/read-gate/release"
+    wait "$holder" || true
+    fail 'audio-output-volume reaches the failed read'
+  fi
+  omarchy-audio-output-volume -5 >/dev/null 2>&1
+  touch "$work/read-gate/release"
+  if wait "$holder"; then
+    fail 'audio-output-volume reports a failed volume read'
+  fi
+  omarchy-audio-output-volume +1 >/dev/null 2>&1
+)
+[[ $(<"$work/volume") == 51 ]] ||
+  fail 'audio-output-volume discards stale steps after a failed read' "expected 51, got $(<"$work/volume")"
+pass 'audio-output-volume discards stale steps after a failed read'
+
+echo 120 >"$work/volume"
+PATH="$work/slow:$PATH" VOLUME="$work/volume" omarchy-audio-output-volume -1 >/dev/null 2>&1
+[[ $(<"$work/volume") == 119 ]] ||
+  fail 'audio-output-volume lowers boosted volume gradually' "expected 119, got $(<"$work/volume")"
+pass 'audio-output-volume lowers boosted volume gradually'
+
+# The pending total is read back from a file; only a plain number may reach
+# arithmetic, which would otherwise run a command substitution inside it.
+printf 'a[$(touch %s)]\n' "$work/ran" >"$work/omarchy-audio-output-volume.alsa_output.speakers.pending"
+omarchy-audio-output-volume +1 >/dev/null 2>&1 || true
+[[ ! -e $work/ran ]] || fail 'audio-output-volume never evaluates a tampered pending file'
+pass 'audio-output-volume never evaluates a tampered pending file'
 
 : >"$CALLS"
 (

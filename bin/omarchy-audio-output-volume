@@ -40,8 +40,34 @@ case "$action" in
   lower) action="-5" ;;
 esac
 
+show_osd() {
+  local percent icon
+
+  percent=$(volume_percent)
+  if volume_muted || ((${percent:-0} == 0)); then
+    icon="volume-muted"
+  else
+    icon="volume-high"
+  fi
+
+  omarchy-osd -i "$icon" -p "${percent:-0}"
+}
+
+# Only ever do arithmetic on a plain number read back from the file.
+read_pending() {
+  local value
+
+  read -r value <"$pending_file" 2>/dev/null || true
+  if [[ $value =~ ^-?(0|[1-9][0-9]*)$ ]]; then
+    echo "$value"
+  else
+    echo 0
+  fi
+}
+
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+
 if [[ $action == "mute-toggle" ]]; then
-  runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
   debounce_file="$runtime_dir/omarchy-audio-output-volume-mute-toggle.last"
   now=$(date +%s%3N)
   last=0
@@ -52,36 +78,59 @@ if [[ $action == "mute-toggle" ]]; then
   printf '%s\n' "$now" >"$debounce_file"
 
   pactl set-sink-mute "$sink" toggle
-elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
-  direction="${BASH_REMATCH[1]}"
-  step="${BASH_REMATCH[2]}"
+  show_osd
+elif [[ $action =~ ^[+-][0-9]+$ ]]; then
+  # Key repeat starts runs faster than one finishes, and each run reads the
+  # volume and writes it back. So every run adds its step to a pending total,
+  # and only the run holding the apply lock reads and writes the volume. It
+  # lets the lock go only once the total is empty, both under the pending lock,
+  # so no step is left behind. Each output keeps its own total, so a step
+  # always lands on the output it was pressed for.
+  state="$runtime_dir/omarchy-audio-output-volume.${sink//[^A-Za-z0-9._-]/_}"
+  pending_file="$state.pending"
+  exec {pending_fd}>"$state.pending.lock" {apply_fd}>"$state.apply.lock"
 
-  current="$(volume_percent)"
-  if [[ -z $current ]]; then
-    echo "Could not read volume for $sink." >&2
-    exit 1
-  fi
+  applying=false
+  flock "$pending_fd"
+  pending=$(read_pending)
+  printf '%s\n' $((pending + action)) >"$pending_file"
+  flock -n "$apply_fd" && applying=true
+  flock -u "$pending_fd"
 
-  if [[ $direction == "+" ]]; then
-    next=$((current + step))
-    ((next <= 100)) || next=100
-  else
-    next=$((current - step))
-    ((next >= 0)) || next=0
-  fi
+  while [[ $applying == "true" ]]; do
+    flock "$pending_fd"
+    step=$(read_pending)
+    printf '0\n' >"$pending_file"
+    if ((step == 0)); then
+      flock -u "$apply_fd"
+      applying=false
+    fi
+    flock -u "$pending_fd"
 
-  pactl set-sink-mute "$sink" 0
-  pactl set-sink-volume "$sink" "${next}%"
+    if ((step != 0)); then
+      current="$(volume_percent)"
+      if [[ -z $current ]]; then
+        echo "Could not read volume for $sink." >&2
+        flock "$pending_fd"
+        printf '0\n' >"$pending_file"
+        flock -u "$apply_fd"
+        flock -u "$pending_fd"
+        exit 1
+      fi
+
+      next=$((current + step))
+      if ((step > 0)); then
+        ((next <= 100)) || next=100
+      else
+        ((next >= 0)) || next=0
+      fi
+
+      pactl set-sink-mute "$sink" 0
+      pactl set-sink-volume "$sink" "${next}%"
+      show_osd
+    fi
+  done
 else
   echo "Unknown volume action: $action"
   exit 1
 fi
-
-percent=$(volume_percent)
-if volume_muted || ((${percent:-0} == 0)); then
-  icon="volume-muted"
-else
-  icon="volume-high"
-fi
-
-omarchy-osd -i "$icon" -p "${percent:-0}"
