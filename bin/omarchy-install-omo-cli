@@ -10,16 +10,16 @@ case ${1:-} in
   type -P omo >/dev/null
   ;;
 --now)
-  if type -P omo >/dev/null; then
-    exit 0
+  if ! type -P omo >/dev/null; then
+    if omarchy-cmd-missing npm; then
+      omarchy-pkg-add npm || exit 1
+    fi
+
+    npm install --global --prefix "$HOME/.local" --engine-strict omo-ai || exit 1
+    [[ -x $HOME/.local/bin/omo ]] || exit 1
   fi
 
-  if omarchy-cmd-missing npm; then
-    omarchy-pkg-add npm || exit 1
-  fi
-
-  npm install --global --prefix "$HOME/.local" --engine-strict omo-ai || exit 1
-  [[ -x $HOME/.local/bin/omo ]]
+  omarchy-agent-launcher omo
   ;;
 *)
   echo "Usage: omarchy-install-omo-cli <--check|--now>" >&2

@@ -919,6 +919,9 @@
   "install.ai.cli.oh-my-pi": {
     "label": "Oh My Pi"
   },
+  "install.ai.cli.omo": {
+    "label": "OmO"
+  },
   "install.ai.cli.ori": {
     "label": "Ori"
   },
