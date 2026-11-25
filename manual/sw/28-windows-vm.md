@@ -1,22 +1,22 @@
 # Windows VM
 
-Omarchy inatoa njia rahisi ya kuendesha Windows kupitia VM ya Docker. Unaweza kuisakinisha kwa kutumia _Sakinisha > Windows_ kutoka menyu ya Omarchy (`Super + Space`).
+Omarchy inatoa njia rahisi ya kuendesha Windows kupitia Docker VM kwenye mashine za x86_64. Unaweza kuisakinisha kwa kutumia _Install > Windows_ kutoka kwenye menyu ya Omarchy (`Super + Space`).
 
-Mashine yako inahitaji uwazi wa KVM kwa hili, ambayo nyingine nyingi zinao — lakini wakati mwingine imezimwa katika BIOS, na kisakinishi kitakuambia kama ndivyo ilivyo. Utahitaji pia nafasi ya diski: chochote unachoipa Windows, pamoja na takriban 10GB kwa picha yenyewe.
+Mashine yako inahitaji upepe wa KVM kwa hili, ambao mashine nyingi zinao — lakini wakati mwingine umezimwa kwenye BIOS, na kisakinishi kitakuambia ikiwa ndivyo ilivyo. Pia utahitaji nafasi ya diski: kiasi chochote unachoipa Windows, pamoja na takriban 10GB kwa ajili ya taswira yenyewe.
 
-Kisakinishi huuliza RAM kiasi gani, chembe ngapi za CPU, na diski kiasi gani cha kukabidhi (64GB au zaidi ndicho kiwango cha chini chenye maana), kisha jina la mtumiaji na nenosiri la Windows. Acha hizo tupu na unapata `docker` / `admin`. Upakuaji unachukua muda — dakika 10-15 ni kawaida — na unaweza kufuata maendeleo katika kivinjari kwenye `http://127.0.0.1:8006`. Kivinjari huomba jina lile lile la mtumiaji na nenosiri kabla ya kufungua dashibodi.
+Kisakinishi kinauliza kiasi gani cha RAM, cores ngapi za CPU, na nafasi ngapi ya diski ya kutoa (64GB au zaidi ndio kiwango cha chini kinachofaa), kisha jina la mtumiaji na nenosiri la Windows. Viache wazi na utapata `docker` / `admin`. Upakuaji huchukua muda — dakika 10-15 ni kawaida — na unaweza kufuatilia maendeleo kwenye kivinjari katika `http://127.0.0.1:8006`. Kivinjari kinaomba jina la mtumiaji na nenosiri sawa kabla ya kufungua konsoli.
 
  ![windows-vm](images/windows-vm.webp)
 
 ## Kuitumia
 
-Mara inaposakinishwa, zindua _Windows_ kutoka kizinduzi cha programu. Hiyo huanzisha VM kama haifanyi kazi bado na kukuunganisha kupitia RDP, skrini nzima. Ipe sekunde 15-30 kwa kuanza baridi.
+Ikishasakinishwa, zindua _Windows_ kutoka kwenye kizindua programu. Hiyo huianzisha VM ikiwa bado haifanyi kazi na kukuunganisha kupitia RDP, skrini nzima. Ipe sekunde 15-30 kwenye uanzishaji baridi.
 
-Kikao cha RDP hubeba sauti, maikrofoni yako, na ubao wa kunakili ulioshirikiwa, hivyo kunakili maandishi kati ya Linux na Windows hufanya kazi tu. Ubora hufuata dirisha lako, na Omarchy hupitisha upanuzi wako wa onyesho kupitia, hivyo si fujo isiyo wazi kwenye skrini ya HiDPI.
+Kipindi cha RDP hubeba sauti, maikrofoni yako, na ubao wa kunakili ulioshirikiwa, kwa hivyo kunakili maandishi kati ya Linux na Windows hufanya kazi tu. Ubora wa picha hufuata dirisha lako, na Omarchy hupitisha upanuzi wa onyesho lako, kwa hivyo si fujo yenye ukungu kwenye skrini ya HiDPI.
 
-Unapofunga dirisha la RDP, VM huzimwa kiotomatiki. Kama ungependa kuiwacha ikifanya kazi — tuseme una kitu kinachofanya kazi humo — izindue kwa `omarchy windows vm launch --keep-alive` badala yake.
+Unapofunga dirisha la RDP, VM hujizima yenyewe kiotomatiki. Ikiwa ungependa kuiwacha ikiendelea kufanya kazi — tuseme una kitu kinachofanya kazi humo ndani — izindue kwa `omarchy windows vm launch --keep-alive` badala yake.
 
-Vidhibiti vingine viko kwenye amri ile ile:
+Vidhibiti vingine viko kwenye amri hiyohiyo:
 
 ```bash
 omarchy windows vm status    # is it running?
@@ -26,24 +26,24 @@ omarchy windows vm launch    # start and connect
 
 ## Kushiriki faili
 
-Saraka ya `~/Windows` katika saraka yako ya nyumbani hushirikiwa kiotomatiki na VM. Weka faili hapo kama unataka ziweze kufikiwa na Windows. VM haina ufikiaji wa sehemu nyingine yoyote ya mfumo wako wa faili, hivyo uko salama kutokana na chochote kibaya upande wa Windows. Diski yake pepe inapatikana katika `~/.windows`.
+Saraka ya `~/Windows` katika saraka yako ya nyumbani hushirikiwa kiotomatiki na VM. Weka faili hapo ikiwa unataka zifikike na Windows. VM haina ufikiaji kwa sehemu yoyote nyingine ya mfumo wako wa faili, kwa hivyo uko salama dhidi ya chochote kibaya upande wa Windows. Diski yake pepe yenyewe inapatikana katika `~/.windows`.
 
-Njia hizo za nyumbani zinazojulikana hubakia kwenye mifumo yao ya faili. Zinaweza pia kuwa viungo vya kiishara (symlinks) kwa saraka unazozimiliki, ambalo ni muhimu wakati diski pepe hukaa kwenye hifadhi kubwa zaidi. Kisakinishi hupima nafasi ya bure kwenye mfumo wa faili ambao kwa kweli una `~/.windows`, si lazima mfumo wa faili unaokuwa na saraka yako ya nyumbani.
+Njia hizo zinazojulikana za nyumbani hubaki kwenye mifumo yao ya faili. Zinaweza pia kuwa symlinks kwa saraka unazomiliki, jambo ambalo ni muhimu wakati diski pepe iko kwenye hifadhi kubwa zaidi. Kisakinishi hupima nafasi iliyo wazi kwenye mfumo wa faili ambao kwa hakika una `~/.windows`, si lazima mfumo wa faili ulio na saraka yako ya nyumbani.
 
-Weka njia za diski na zilizoshirikiwa kama saraka tofauti, zisizoingiliana. Uondoaji humwaga saraka ya diski kimakusudi lakini huhifadhi saraka iliyoshirikiwa. Mara kabla ya kufuta, Omarchy hufanya ukaguzi wa ufungaji wenye mipaka na hukataa kuondoa kitu chochote kama ukaguzi huo utakawia au hauwezi kuthibitisha kwamba miti miwili imetengana.
+Weka njia za diski na zilizoshirikiwa kama saraka tofauti, zisizoingiliana. Uondoaji huifanya saraka ya diski kuwa tupu kwa makusudi lakini huhifadhi saraka iliyoshirikiwa. Mara moja kabla ya kufuta, Omarchy hufanya ukaguzi wa kuzuia wenye mipaka na hukataa kuondoa chochote ikiwa ukaguzi huo utaisha muda au hauwezi kuthibitisha kuwa miti miwili ni tofauti.
 
-Kabla VM kuanza, Omarchy hufungua na kubana saraka hizo mbili, kisha hupakia-kufunga (bind-mounts) inodi kamili za saraka kwenye nanga za faragha kwa kila mtumiaji zilizo chini ya `/var/lib/omarchy/windows/mounts`. Docker huona tu nanga hizo zilizolindwa na mzizi. Hii huhifadhi maeneo maalum ya diski huku ikizuia mchakato mwingine unaoendeshwa kama wewe kubadilishana njia iliyokaguliwa kabla kipachiko chenye marupurupu kukitumia. Saraka zilizopo za diski na zilizoshirikiwa hukazwa hadi hali ya `0700` wakati wa uhamaji ili akaunti nyingine za ndani ziweze kuvinjari yaliyomo.
+Kabla VM haijaanza, Omarchy hufungua na kubandika saraka hizo mbili, kisha huunganisha inodes halisi za saraka kwenye nanga za faragha za kila mtumiaji zilizo chini ya `/var/lib/omarchy/windows/mounts`. Docker huona tu nanga hizo zilizolindwa na root. Hii huhifadhi maeneo maalum ya diski huku ikizuia mchakato mwingine unaofanya kazi kama wewe kubadilisha njia iliyokaguliwa kabla ya kontena yenye upendeleo kuitumia. Saraka zilizopo za diski na zilizoshirikiwa huimarishwa hadi hali ya `0700` wakati wa uhamiaji ili akaunti nyingine za ndani zisiweze kuvinjari yaliyomo.
 
-Milango ya VM imefungwa kwa localhost tu, hivyo hakuna kitu kwenye mtandao wako kinachoweza kufikia mashine ya Windows. Dashibodi ya wavuti pia inahitaji jina la mtumiaji na nenosiri la Windows lililosanidiwa, kuzuia akaunti nyingine ya ndani kuendesha VM kupitia mlango 8006.
+Milango ya VM imefungwa kwa localhost pekee, kwa hivyo hakuna chochote kwenye mtandao wako kinachoweza kufikia mashine ya Windows. Konsoli ya wavuti pia huhitaji jina la mtumiaji na nenosiri la Windows vilivyosanidiwa, na kuzuia akaunti nyingine ya ndani kuendesha VM kupitia mlango 8006.
 
-## Vikomo na leseni
+## Vikomo na utoaji leseni
 
-Hakuna upitishaji wa GPU na usanidi huu, hivyo haufai kwa michezo au uhariri wa video. Ni njia bora ya kuendesha Microsoft Office au chochote kingine ambacho lazima kabisa uwe nacho.
+Hakuna upitishaji wa GPU katika usanidi huu, kwa hivyo haufai kwa michezo au uhariri wa video. Ni njia bora ya kuendesha Microsoft Office au chochote kingine ambacho lazima uwe nacho kabisa.
 
-Toleo lililosakinishwa ni Windows 11 Pro, halijawashwa leseni. Utahitaji ufunguo wako mwenyewe wa leseni kutumia vipengele vilivyowekewa lango.
+Toleo lililosakinishwa ni Windows 11 Pro, halijaamilishwa. Utahitaji ufunguo wako mwenyewe wa leseni ili kutumia vipengele vilivyofungwa.
 
-Kama kompyuta hii ilikuja na Windows, ufunguo wa OEM bado uko katika firmware hata baada ya kusakinisha Omarchy. Ichapishe kwa `omarchy windows key`. Ufunguo huo umefungwa kwa mashine hii — utawasha Windows iliyosakinishwa upya kwenye vifaa hivi, lakini kwa kawaida hautawasha VM.
+Ikiwa kompyuta hii ilikuja na Windows, ufunguo wa OEM bado uko kwenye firmware hata baada ya kusakinisha Omarchy. Ichapishe kwa `omarchy windows key`. Ufunguo huo umefungwa kwa mashine hii — utaamilisha Windows iliyosakinishwa upya kwenye maunzi haya, lakini kwa kawaida hautaamilisha VM.
 
-Unaweza kubadilisha mgao wa rasilimali baadaye kwa kuendesha tena `omarchy-windows-vm install`, ambayo huandika upya usanidi wa VM kutoka majibu yako. Faili ya compose yenyewe sasa hukaa katika `/var/lib/omarchy/windows/docker-compose.yml` na inamilikiwa na mzizi — hiyo ni kimakusudi, hivyo mchakato unaoendeshwa kama wewe hauwezi kuiandika upya na kufanya kuanzisha chenye marupurupu kupakia diski yako nzima kwenye kipachiko. Kama unahitaji kuihariri kwa mikono (kwa mfano kupakia kifaa cha USB), ihariri kwa `sudo` na uone chaguo zote kwenye [mradi wa Dockur Windows](https://github.com/dockur/windows).
+Unaweza kubadilisha ugawaji wa rasilimali baadaye kwa kuendesha `omarchy windows vm install` kwenye terminali, ambayo huandika upya usanidi wa VM kutoka kwa majibu yako. Faili ya compose yenyewe sasa iko katika `/var/lib/omarchy/windows/docker-compose.yml` na inamilikiwa na root — hiyo ni kwa makusudi, ili mchakato unaofanya kazi kama wewe usiweze kuiandika upya na kufanya uanzishaji wenye upendeleo kuunganisha diski yako yote kwenye kontena. Ikiwa unahitaji kuihariri mwenyewe (kwa mfano kuunganisha kifaa cha USB), ihariri kwa `sudo` na uone chaguo zote kwenye [mradi wa Dockur Windows](https://github.com/dockur/windows).
 
-Ili kuondoa yote, tumia _Ondoa > Windows_ kutoka menyu ya Omarchy. Hiyo hufuta diski ya VM na data yake yote, hivyo hakikisha chochote unachojali kimetoka katika `~/Windows` kwanza.
+Ili kuiondoa kabisa, tumia _Remove > Windows_ kutoka kwenye menyu ya Omarchy. Hiyo hufuta diski ya VM katika `~/.windows` na kila kitu kilichosakinishwa ndani ya Windows, kwa hivyo nakili chochote unachohitaji kutoka kwenye VM kwanza. Folda yako iliyoshirikiwa ya `~/Windows` inaachwa kama ilivyo.
