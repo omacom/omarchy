@@ -257,7 +257,7 @@ install_cli() {
 # other way). Installing a declared tool leaves the user's config alone; a
 # user who opted out of the defaults selects it instead.
 cli_missing() {
-  mise where "$package" &>/dev/null && return 1
+  MISE_OFFLINE=1 mise where "$package" &>/dev/null && return 1
 
   local mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
   local dir path=""
