@@ -631,10 +631,10 @@ Panel {
     return findRemovedLocalModels(usage.addedLocalModels, localModels, localModelsService.setupRows(),
       localModelsService.localRecipes || [], settingUpLocal, localModelsService.handingOff || [])
   }
-  onRemovedLocalModelsChanged: {
+  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) Qt.callLater(function() {
     var dropped = removedLocalModels
-    if (dropped.length > 0) Qt.callLater(function() { usage.removeLocalModels(dropped) })
-  }
+    if (dropped.length > 0) usage.removeLocalModels(dropped)
+  })
 
   // A model set up or started from the add screen keeps its row there,
   // showing how that goes, until it runs. Then it becomes the default if
