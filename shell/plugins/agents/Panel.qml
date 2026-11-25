@@ -169,7 +169,7 @@ Panel {
       for (var r = 0; r < more.length; r++) rows.push([{ kind: "choice", index: more[r].providerId }])
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
-      if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
+      if (addUrl !== "" && !addCheckingCode) rows.push([{ kind: "reopenSignIn", index: 0 }])
     } else if (addStage === "") {
       for (var p = 0; p < providers.length; p++) {
         // Every line is a stop, so Ctrl+Up/Down can move it: its terminal
@@ -500,7 +500,8 @@ Panel {
           host: host || "",
           decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
           context: model.ctx != null ? model.ctx : recipe.context,
-          memory_gib: recipe.memory_gib
+          memory_gib: recipe.memory_gib,
+          best: recipe.best === true
         }
       })
     }
@@ -534,7 +535,7 @@ Panel {
   // What the network and local blocks of the add screen offer: each coding
   // model without a line, a paired machine's first, then one shared on the
   // tailnet by a machine not paired yet, which choosing pairs with. This
-  // machine's are those set up here, then every recipe that fits and isn't,
+  // machine's are those set up here and every recipe that fits and isn't,
   // recommended first, then another DGX Spark cabled to this one. Those
   // being set up or paired with, and the one being started from here, stay,
   // showing how that goes.
@@ -543,14 +544,15 @@ Panel {
     var lines = localModelLines.filter(function(line) {
       return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
     })
-    var offerLine = function(line) {
+    var offerLine = function(targetList, line) {
       var model = localModelState(line.localModel)
       if (model && model.unit === "removing") return
-      offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
-                    host: line.localModel.host, facts: line.localModel,
-                    shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
+      targetList.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
+                        host: line.localModel.host, facts: line.localModel,
+                        best: line.localModel.host === "" && line.localModel.best === true,
+                        shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
     }
-    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
+    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(function(line) { offerLine(offers, line) })
     var network = localModelsService ? localModelsService.networkModels || {} : {}
     for (var nid in network) {
       var shared = network[nid]
@@ -558,20 +560,26 @@ Panel {
       offers.push({ target: nid, name: shared.name || shared.recipe, vendor: shared.vendor || "local", host: shared.host,
                     facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, pair: shared })
     }
-    lines.filter(function(line) { return line.localModel.host === "" }).forEach(offerLine)
+    var localOffers = []
+    lines.filter(function(line) { return line.localModel.host === "" }).forEach(function(line) { offerLine(localOffers, line) })
     var recipes = (localModelsService ? localModelsService.localRecipes || [] : []).filter(function(recipe) {
       return recipe.kind === "text" && recipe.available === true
         && !localModelLines.some(function(line) { return line.localModel.target === String(recipe.id) })
     })
-    recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
     for (var r = 0; r < recipes.length; r++)
-      offers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
-                    host: "", facts: recipes[r], recipe: recipes[r], shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+      localOffers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
+                         host: "", facts: recipes[r], recipe: recipes[r], best: recipes[r].best === true,
+                         shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+    offers = offers.concat(sortLocalOffers(localOffers))
     var link = localModelsService && localModelsService.localModel ? localModelsService.localModel.link : null
     if (link && link.state === "available")
       offers.push({ target: "", name: link.host ? Commons.I18n.t("localModels.linkOffer").arg(link.host) : Commons.I18n.t("localModels.linkOfferUnnamed"),
                     vendor: "nvidia", host: "", facts: {}, link: link })
     return offers
+  }
+
+  function sortLocalOffers(offers) {
+    return offers.slice().sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
   }
 
   // A model on this machine that the memory free now can't start: one set up
@@ -596,20 +604,37 @@ Panel {
 
   // The network block's share of the offers, which come first.
   readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
+  // Local models offered for this machine, excluding a cabled-Spark link offer.
+  readonly property int localModelOfferCount: ownModelOffers.filter(function(offer) { return offer.host === "" && !offer.link }).length
+
+  function offerRecommended(offer, localCount) {
+    return !!offer && offer.host === "" && !offer.link && offer.best === true && localCount > 1
+  }
 
   // A model removed from this machine is no longer added, so set up again
-  // it's offered on the add screen first. One still being set up or
-  // downloaded isn't installed yet either, and stays.
-  readonly property var removedLocalModels: {
-    if (!localModelsService) return []
-    var recipes = localModelsService.localRecipes || []
-    var setups = localModelsService.setupRows()
-    return usage.addedLocalModels.filter(function(target) {
-      return target.indexOf("/") < 0 && !localModels[target] && !setups.some(function(row) { return row.recipe === target })
-        && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
+  // it's offered on the add screen first. One still being set up, handing off
+  // to the background unit, or downloading isn't installed yet either, and stays.
+  function findRemovedLocalModels(added, models, setups, recipes, settingUp, handingOff) {
+    var pending = handingOff || []
+    return (added || []).filter(function(target) {
+      return target.indexOf("/") < 0
+        && target !== settingUp
+        && pending.indexOf(target) < 0
+        && !(models && models[target])
+        && !(setups || []).some(function(row) { return row.recipe === target })
+        && (recipes || []).some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
     })
   }
-  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) usage.removeLocalModels(removedLocalModels)
+
+  readonly property var removedLocalModels: {
+    if (!localModelsService) return []
+    return findRemovedLocalModels(usage.addedLocalModels, localModels, localModelsService.setupRows(),
+      localModelsService.localRecipes || [], settingUpLocal, localModelsService.handingOff || [])
+  }
+  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) Qt.callLater(function() {
+    var dropped = removedLocalModels
+    if (dropped.length > 0) usage.removeLocalModels(dropped)
+  })
 
   // A model set up or started from the add screen keeps its row there,
   // showing how that goes, until it runs. Then it becomes the default if
@@ -655,9 +680,12 @@ Panel {
   onLocalSetupChanged: {
     if (!localSetup || localSetup.unit !== "active" || localSetup.sub_state !== "running") return
     var target = settingUpLocal
-    settingUpLocal = ""
-    if (usage.defaultAgent === "") selectLocalDefault(target)
-    if (pairingLocal === "" && addStage === "pick") cancelAdd()
+    Qt.callLater(function() {
+      if (settingUpLocal !== target) return
+      settingUpLocal = ""
+      if (usage.defaultAgent === "") selectLocalDefault(target)
+      if (pairingLocal === "" && addStage === "pick") cancelAdd()
+    })
   }
 
   // What a model on this machine is doing, as a meter: its title, how far
@@ -679,8 +707,8 @@ Panel {
     if (model.unit === "installing" && install.phase === "dependencies") return timed(Commons.I18n.t("localModels.installingMeter"), 30)
     if (model.unit === "installing") {
       var total = Number(install.total_bytes) || 0
-      return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
-               rate: downloadRate(Number(install.rate_bytes_s) || 0) }
+      return { title: "", value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
+               rate: downloadRate(Number(install.rate_bytes_s) || 0), downloading: true }
     }
     if (model.unit === "activating") return timed(Commons.I18n.t("localModels.loadingMeter"), expectedLoadSeconds(model))
     if (model.unit === "deactivating") return timed(Commons.I18n.t("localModels.stoppingMeter"), expectedStopSeconds(model))
@@ -904,6 +932,7 @@ Panel {
   property string addPasteHint: ""
   // An API key is the whole sign-in, with no browser login to speak of.
   property bool addKeyEntry: false
+  property bool addCheckingCode: false
   property string addResult: ""
   // The CLI's own download, when it isn't installed yet: the first sign-in
   // installs it before the browser opens.
@@ -932,8 +961,8 @@ Panel {
   }
   property bool addReauth: false
   // Signing in takes over the hero: the provider's mark and name, with what's
-  // being set up below.
-  readonly property bool setupShown: addStage === "running" && addProviderEntry !== null
+  // being set up below, from naming through sign-in or failure.
+  readonly property bool setupShown: (addStage === "name" || addStage === "running" || addStage === "error") && addProviderEntry !== null
   readonly property var addProviderEntry: {
     for (var i = 0; i < signInProviders.length; i++)
       if (signInProviders[i].providerId === addProvider) return signInProviders[i]
@@ -941,19 +970,15 @@ Panel {
   }
   // Claude only needs a code pasted back when its page shows one, so the
   // field waits behind a link until then.
-  readonly property bool pasteLinkShown: addProvider === "claude" && !addNeedsPaste && !addDownloading
+  readonly property bool pasteLinkShown: addProvider === "claude" && !addNeedsPaste && !addDownloading && !addCheckingCode
   // Whether the sign-in in progress opened a private window, so reopening its
   // page does too.
   property bool addPrivate: false
 
-  function addProviderName(id) {
-    for (var i = 0; i < signInProviders.length; i++)
-      if (signInProviders[i].providerId === id) return signInProviders[i].providerName
-    return id
-  }
-
   function addAccount() {
     if (addStage === "running") return
+    addProvider = ""
+    addReauth = false
     addStage = "pick"
     addChecks = ({})
     if (!checkProcess.running) checkProcess.running = true
@@ -980,8 +1005,9 @@ Panel {
     else startAdd("")
   }
 
-  function startAdd(label) {
-    addPrivate = (addChecks[addProvider] || "") === "additional"
+  function beginAdd(providerId, isPrivate, isReauth, command) {
+    addProvider = providerId
+    addPrivate = isPrivate
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
@@ -991,15 +1017,22 @@ Panel {
     addNeedsPaste = false
     addPasteHint = ""
     addKeyEntry = false
+    addCheckingCode = false
     addDownloading = false
     addPhase = ""
     addFetched = false
     addFetchTimer.stop()
-    addReauth = false
+    addReauth = isReauth
     addResult = ""
     addStage = "running"
-    addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
+    addProcess.command = command
     addProcess.running = true
+    root.focusKeys()
+  }
+
+  function startAdd(label) {
+    beginAdd(addProvider, (addChecks[addProvider] || "") === "additional", false,
+      ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : []))
   }
 
   function cancelAdd() {
@@ -1010,6 +1043,9 @@ Panel {
     }
     if (addProcess.running) addProcess.signal(15)
     addFetchTimer.stop()
+    addCheckingCode = false
+    addProvider = ""
+    addReauth = false
     addStage = ""
     root.focusKeys()
   }
@@ -1018,15 +1054,15 @@ Panel {
   function openOpenCodeLogin() {
     root.close()
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
-                   'opencode auth login && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select opencode; }'])
+                   'omarchy-install-ai-cli opencode && opencode auth login && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select opencode; }'])
   }
 
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    // A code or key that was asked for is the one answer, so its field goes.
-    if (addPasteHint !== "") addNeedsPaste = false
-    if (!addKeyEntry) addStatus = Commons.I18n.t("agents.checkingCode")
+    addNeedsPaste = false
+    if (!addKeyEntry) addCheckingCode = true
+    root.focusKeys()
   }
 
   // The add command's own lines are tagged; everything else is the CLI
@@ -1040,6 +1076,7 @@ Panel {
         addPasteHint = tagged[2]
         addNeedsPaste = true
         addKeyEntry = tagged[1] === "key"
+        addCheckingCode = false
       } else if (tagged[1] === "progress") {
         var bytes = tagged[2].split(" ")
         addDoneBytes = Number(bytes[0]) || 0
@@ -1063,27 +1100,33 @@ Panel {
         addFetchTimer.stop()
         addFetched = false
         addDownloading = false
+        addCheckingCode = false
         addResult = tagged[2]
         // A sign-in that finishes goes straight back to the page, where the
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
           setProviderShown(addProvider, true)
+          addProvider = ""
+          addReauth = false
           usage.refreshLimits()
-          root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
           if (usage.enabledProviders.length === 0 && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
         }
+        root.focusKeys()
       }
       return
     }
     // On a line of its own, or after OpenCode's "Enter code:".
     var code = text.match(/(?:^|code:)\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
     if (code) addCode = code[1]
-    if (/paste code/i.test(text)) addNeedsPaste = true
+    if (/paste code/i.test(text)) {
+      addCheckingCode = false
+      addNeedsPaste = true
+    }
     var url = text.match(/(https:\/\/\S+)/)
     if (url && addUrl === "") {
       addUrl = url[1]
@@ -1093,6 +1136,7 @@ Panel {
 
   // The field takes the keys from here, so the cursor lets go of the links.
   function openPasteField() {
+    addCheckingCode = false
     addNeedsPaste = true
     cursorActive = false
   }
@@ -1313,27 +1357,9 @@ Panel {
   // add view just like adding one.
   function signInAgain(p, account) {
     if (!supportsSignIn(p) || addStage === "running") return
-    addProvider = p.providerId
-    addPrivate = !!account && account.primary !== true
-    addStatus = Commons.I18n.t("agents.starting")
-    addCode = ""
-    addUrl = ""
-    // Claude's login usually finishes on its own once the browser hands back
-    // to it. When its page shows a code instead, its prompt for it has no
-    // newline to read it by, so the field stays a link away the whole time.
-    addNeedsPaste = false
-    addPasteHint = ""
-    addKeyEntry = false
-    addDownloading = false
-    addPhase = ""
-    addFetched = false
-    addFetchTimer.stop()
-    addReauth = true
-    addResult = ""
-    addStage = "running"
-    addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
-      account && account.primary !== true ? String(account.id) : ":primary", p.providerId]
-    addProcess.running = true
+    beginAdd(p.providerId, !!account && account.primary !== true, true,
+      ["omarchy-agent-account-add", "--events", "--reauth",
+        account && account.primary !== true ? String(account.id) : ":primary", p.providerId])
   }
 
   function resetCreditsText(credits) {
@@ -1795,29 +1821,15 @@ Panel {
     return ""
   }
 
-  // Agents that ship a white mark carry an `assets/<id>-light.svg` twin for
-  // light surfaces; marks that work on both (Claude's brand-orange) ship one
-  // file. The luminance check decides which candidate to try first.
-  function colorChannelLuminance(value) {
-    var channel = Number(value)
-    if (!isFinite(channel)) return 0
-    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4)
-  }
-
-  function colorLuminance(color) {
-    return 0.2126 * colorChannelLuminance(color.r)
-      + 0.7152 * colorChannelLuminance(color.g)
-      + 0.0722 * colorChannelLuminance(color.b)
-  }
-
   // Marks resolve by convention, so a new agent's data file needs nothing
   // from this panel: assets/<id>.svg if it ships one, the module's bar glyph
-  // if it doesn't.
+  // if it doesn't. Agents that ship a white mark carry an `assets/<id>-light.svg`
+  // twin for light surfaces.
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var id = p.iconId || p.providerId
     var candidates = []
-    if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
+    if (Util.luminance(surfaceColor || Commons.Color.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + id + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + id + ".svg"))
     return candidates
@@ -1852,9 +1864,7 @@ Panel {
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: setupShown
     ? (addReauth ? Commons.I18n.t("agents.signingInAgain") : Commons.I18n.t("agents.settingUp"))
-    : picking || addProvider === ""
-    ? (blankSlate ? Commons.I18n.t("agents.firstBecomesDefault") : Commons.I18n.t("agents.addKinds"))
-    : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
+    : (blankSlate ? Commons.I18n.t("agents.firstBecomesDefault") : Commons.I18n.t("agents.addKinds"))
   onAddStageChanged: {
     phraseSwap.stop()
     if (hero) hero.metaOpacity = 1.0
@@ -1892,7 +1902,11 @@ Panel {
     makesOpenIndex = -1
   } else {
     deleteTarget = null
-    if (addStage !== "running") addStage = ""
+    if (addStage !== "running") {
+      addStage = ""
+      addProvider = ""
+      addReauth = false
+    }
     resetKeys()
     if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
@@ -1956,8 +1970,10 @@ Panel {
     stdout: SplitParser { onRead: function(line) { root.handleAddLine(line) } }
     onExited: {
       if (root.addStage === "running") {
+        root.addCheckingCode = false
         root.addResult = Commons.I18n.t("agents.signInUnfinished")
         root.addStage = "error"
+        root.focusKeys()
       }
     }
   }
@@ -2086,10 +2102,10 @@ Panel {
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
       }
       onDeleteRequested: root.deleteSelected()
-      // A code field keeps its own keys: Qt passes Return on after accepting
-      // it, and here that would press the Cancel under the cursor too,
-      // stopping the sign-in just handed its code.
-      blocked: root.renaming || root.deleteTarget !== null || addView.pasteFocused
+      // A text field keeps its own keys: Qt passes Return on after accepting
+      // it, and here that would press the Cancel under the cursor too, or
+      // steal letters like j/k/x from an account name.
+      blocked: root.renaming || root.deleteTarget !== null || addView.inputFocused
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
@@ -2346,7 +2362,7 @@ Panel {
     id: add
     spacing: Style.space(14)
     // The panel's key catcher can't see inside this component, so it asks here.
-    readonly property bool pasteFocused: pasteField.activeFocus
+    readonly property bool inputFocused: pasteField.activeFocus || addNameField.activeFocus
 
     PanelSeparator { foreground: root.foreground }
 
@@ -2454,6 +2470,9 @@ Panel {
           readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
           // Too big for the memory free now: dimmed, saying so, and not chosen.
           readonly property var shortfall: modelData.shortfall || null
+          readonly property bool recommended: root.offerRecommended(modelData, root.localModelOfferCount)
+          readonly property var offerMeterState: modelData.pair ? (modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(modelData)
+          readonly property bool downloading: !!offerMeterState && offerMeterState.downloading === true
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
@@ -2480,24 +2499,63 @@ Panel {
             anchors.left: ownModelMark.right
             anchors.leftMargin: Style.space(12)
             anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(4)
 
-            Text {
+            Item {
+              id: ownModelHeader
               width: parent.width
-              text: ownModel.modelData.name
-              textFormat: Text.PlainText
-              color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-              elide: Text.ElideRight
+              implicitHeight: Math.max(ownModelName.implicitHeight, ownModelRecommended.visible ? ownModelRecommended.implicitHeight : 0)
+
+              Text {
+                id: ownModelName
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: ownModelRecommended.visible
+                  ? Math.max(0, Math.min(implicitWidth, parent.width - ownModelRecommended.implicitWidth - Style.space(8)))
+                  : parent.width
+                text: ownModel.modelData.name
+                textFormat: Text.PlainText
+                color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Rectangle {
+                id: ownModelRecommended
+                visible: ownModel.recommended
+                opacity: ownModel.shortfall ? 0.5 : 1
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: ownModelRecommendedLabel.implicitWidth + Style.space(12)
+                implicitHeight: ownModelRecommendedLabel.implicitHeight + Style.space(4)
+                radius: Style.cornerRadius
+                color: root.alpha(Commons.Color.accent, 0.14)
+                border.width: Style.spacing.hairline
+                border.color: root.alpha(Commons.Color.accent, 0.35)
+
+                Text {
+                  id: ownModelRecommendedLabel
+                  anchors.centerIn: parent
+                  text: Commons.I18n.t("localModels.recommended")
+                  textFormat: Text.PlainText
+                  color: Commons.Color.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
             }
 
             // A paired machine's model says whose it is before its facts; a
             // cabled Spark, what setting it up does; one too big for the
-            // memory free now, in red, why it can't start.
+            // memory free now, in red, why it can't start. While downloading,
+            // the progress bar takes this line's place.
             Text {
+              visible: !ownModel.downloading
               width: parent.width
               text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
                 : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
@@ -2512,10 +2570,10 @@ Panel {
             // The setup or start begun here: installing, downloading, then
             // loading, as its line will show it; or the pairing.
             LocalMeterRow {
-              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
+              meter: ownModel.offerMeterState
               visible: !!meter
               width: parent.width
-              topPadding: Style.space(6)
+              topPadding: ownModel.downloading ? Style.space(2) : Style.space(6)
             }
           }
 
@@ -2690,8 +2748,9 @@ Panel {
         Text {
           width: parent.width
           textFormat: Text.PlainText
-          text: !root.addKeyEntry ? Commons.I18n.t("agents.loginBrowser")
-            : root.addNeedsPaste ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.checkingKey")
+          text: root.addKeyEntry
+            ? (root.addNeedsPaste ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.checkingKey"))
+            : (root.addCheckingCode ? Commons.I18n.t("agents.checkingCode") : Commons.I18n.t("agents.loginBrowser"))
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -2700,9 +2759,9 @@ Panel {
         }
 
         // Only what the plain line doesn't say: which window to use when it's
-        // a private one, or that a pasted code is being checked.
+        // a private one.
         Text {
-          visible: root.addPrivate || root.addStatus === Commons.I18n.t("agents.checkingCode")
+          visible: root.addPrivate && !root.addCheckingCode
           width: parent.width
           textFormat: Text.PlainText
           text: root.addStatus
@@ -2754,8 +2813,8 @@ Panel {
           TextField {
             id: pasteField
             width: parent.width
-            placeholderText: root.addPasteHint === "" ? Commons.I18n.t("agents.placeholderCode") : ""
-            password: root.addKeyEntry
+            placeholderText: root.addKeyEntry ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
+            password: true
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -2766,6 +2825,11 @@ Panel {
             onVisibleChanged: {
               root.pasteFieldItem = visible ? pasteField : null
               if (visible) forceActiveFocus()
+            }
+            Connections {
+              target: root
+              function onAddStageChanged() { if (root.addStage !== "running") pasteField.text = "" }
+              function onAddNeedsPasteChanged() { if (!root.addNeedsPaste) pasteField.text = "" }
             }
             Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
             Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
@@ -2781,7 +2845,7 @@ Panel {
         }
 
         TextLink {
-          visible: root.addUrl !== ""
+          visible: root.addUrl !== "" && !root.addCheckingCode
           picked: root.hasKey("reopenSignIn")
           onHovered: root.hoverAt("reopenSignIn")
           text: Commons.I18n.t("agents.reopenSignIn")
@@ -3241,9 +3305,10 @@ Panel {
     }
 
     // The machine a local model runs on when that isn't this one, then its
-    // memory, speed, and context.
+    // memory, speed, and context. While downloading, the progress bar takes
+    // this line's place.
     Text {
-      visible: !!section.local && text !== ""
+      visible: !!section.local && text !== "" && !(section.localMeter && section.localMeter.downloading === true)
       width: parent.width
       textFormat: Text.PlainText
       text: section.local ? [section.local.host, root.ownModelFacts(section.local)].filter(function(part) { return part !== "" }).join(" · ") : ""
@@ -3584,10 +3649,13 @@ Panel {
     readonly property bool failed: !!meter && meter.failed === true
     // A step with no measure of its own, like a pairing, is its title alone.
     readonly property bool barless: !meter || failed || meter.value < 0
-    implicitHeight: Math.max(meterTitle.implicitHeight, meterRate.implicitHeight) + topPadding
+    readonly property bool titled: !!meter && String(meter.title || "") !== ""
+    readonly property bool hasRate: meterRate.text !== ""
+    implicitHeight: Math.max(titled ? meterTitle.implicitHeight : 0, meterRate.implicitHeight, meterBar.implicitHeight) + topPadding
 
     Text {
       id: meterTitle
+      visible: meterRow.titled
       width: meterRow.barless ? parent.width : parent.width * 0.3
       anchors.bottom: parent.bottom
       textFormat: Text.PlainText
@@ -3600,24 +3668,25 @@ Panel {
     }
 
     Meter {
+      id: meterBar
       visible: !meterRow.barless
-      anchors.left: meterTitle.right
-      anchors.right: meterRate.left
-      anchors.rightMargin: Style.space(20)
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.left: meterRow.titled ? meterTitle.right : parent.left
+      anchors.right: meterRow.hasRate ? meterRate.left : parent.right
+      anchors.rightMargin: meterRow.hasRate ? (meterRow.titled ? Style.space(20) : Style.space(10)) : 0
+      anchors.verticalCenter: meterRow.titled ? meterTitle.verticalCenter : meterRate.verticalCenter
       value: meterRow.meter ? meterRow.meter.value : 0
     }
 
     Text {
       id: meterRate
       anchors.right: parent.right
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       horizontalAlignment: Text.AlignRight
       text: meterRow.meter && !meterRow.failed ? meterRow.meter.rate : ""
       color: root.dim
       font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: meterRow.titled ? Style.font.bodySmall : Style.font.caption
     }
   }
 

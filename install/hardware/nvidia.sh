@@ -3,7 +3,7 @@
 # system firmware and on the DKMS build, and there are no 32-bit libraries.
 if omarchy-hw-aarch64-n1x; then
   echo "NVIDIA N1x platform detected; GPU driver policy is owned by hardware/n1x.sh"
-elif lspci | grep -qi 'nvidia'; then
+elif omarchy-hw-nvidia; then
   # No 32-bit libraries here. Only Steam and the other game launchers run
   # 32-bit code, and their installers add the driver's
   # (omarchy-install-gaming-gpu-lib32). Installed with the driver, they and

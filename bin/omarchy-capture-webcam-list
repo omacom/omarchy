@@ -6,10 +6,15 @@
 capture_capable() {
   local device="$1"
 
+  # A node with the I/O MC capability (a Snapdragon's qcom-camss, an ISP's raw
+  # stream) is one stage of a media-controller pipeline: it has no picture of its
+  # own until the pipeline is configured, and plain apps cannot open it as a
+  # camera. The camera is the libcamera relay or loopback node built on top.
   v4l2-ctl --device "$device" --info 2>/dev/null | awk '
     /^[[:space:]]*Device Caps[[:space:]]*:/ { inspect = 1; next }
     inspect && /^[[:space:]]*Video Capture/ { found = 1 }
-    END { exit !found }
+    inspect && /^[[:space:]]*I\/O MC/ { io_mc = 1 }
+    END { exit !(found && !io_mc) }
   '
 }
 
