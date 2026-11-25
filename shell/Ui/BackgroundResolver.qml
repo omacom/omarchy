@@ -28,6 +28,7 @@ Item {
   property color fillColor: Commons.Color.background
   property real focalX: 0.5
   property real focalY: 0.5
+  property real rasterScale: 1
   // True once the current inputs have a published resolution (a fallback
   // counts: it means the resolution settled, not that an image exists).
   property bool ready: false
@@ -109,6 +110,7 @@ Item {
     fillColor = Commons.Color.background
     focalX = 0.5
     focalY = 0.5
+    rasterScale = 1
     usedFallback = true
     ready = true
     resolveVersion += 1
@@ -142,6 +144,7 @@ Item {
     fillColor = parseFillColor(meta.fill_color)
     focalX = isFinite(Number(meta.focal_x)) ? Util.clamp(meta.focal_x, 0, 1) : 0.5
     focalY = isFinite(Number(meta.focal_y)) ? Util.clamp(meta.focal_y, 0, 1) : 0.5
+    rasterScale = meta.responsive_raster === true ? Math.max(1, devicePixelRatio) : 1
     usedFallback = false
     ready = true
     resolveVersion += 1

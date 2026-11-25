@@ -234,6 +234,8 @@ dims=$(magick identify -ping -format '%wx%h' "$rendered")
 center=$(magick "$rendered" -format '%[pixel:p{100,100}]' info:)
 [[ $center == "srgb(0,0,255)" ]] || fail "a responsive SVG keeps relative sibling assets available" "got $center"
 
+HOME="$home" "$ROOT/bin/omarchy-theme-bg-resolve" --screen 200x200 --canonical "$backgrounds/5-responsive.svg" |
+  jq -e '.responsive_raster == true' >/dev/null || fail "responsive raster output identifies its physical size"
 pass "responsive SVG backgrounds render against the exact screen viewport"
 
 mkdir -p "$backgrounds/assets/textures"

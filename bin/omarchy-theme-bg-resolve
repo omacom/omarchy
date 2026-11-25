@@ -434,9 +434,11 @@ PYXML
 }
 
 RESOLVED="$SELECTED"
+RESPONSIVE_RASTER=false
 if [[ -n $SCREEN && ${SELECTED,,} == *.svg ]] && (( METADATA_ONLY == 0 )); then
   if rasterized=$(rasterize_svg "$SELECTED") && [[ -n $rasterized ]]; then
     RESOLVED="$rasterized"
+    if [[ $SVG_LAYOUT == "responsive" ]]; then RESPONSIVE_RASTER=true; fi
   else
     # Never hand a failed SVG to Qt: that would bypass the bounded renderer.
     # Keep the incoming metadata and show its solid fallback until a later
@@ -538,7 +540,7 @@ if [[ $OUTPUT == "fields" ]]; then
   printf 'focal_x\t%s\n' "$FOCAL_X"
   printf 'focal_y\t%s\n' "$FOCAL_Y"
 else
-  printf '{"path":"%s","canonical":"%s","fill":"%s","backdrop":"%s","fill_color":"%s","focal_x":%s,"focal_y":%s}\n' \
+  printf '{"path":"%s","canonical":"%s","fill":"%s","backdrop":"%s","fill_color":"%s","focal_x":%s,"focal_y":%s,"responsive_raster":%s}\n' \
     "$(json_escape "$RESOLVED")" "$(json_escape "$CANONICAL")" "$FILL" "$BACKDROP" \
-    "$(json_escape "$FILL_COLOR")" "$FOCAL_X" "$FOCAL_Y"
+    "$(json_escape "$FILL_COLOR")" "$FOCAL_X" "$FOCAL_Y" "$RESPONSIVE_RASTER"
 fi
