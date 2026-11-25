@@ -55,7 +55,7 @@ case ${1-} in
     ;;
 esac
 
-if [[ $1 == "choose" && $# == 1 ]]; then
+if [[ ${1-} == "choose" && $# == 1 ]]; then
   labels=("$(omarchy-i18n layout.tiling)" "$(omarchy-i18n layout.scrolling)" "$(omarchy-i18n layout.floating)")
   selected=()
   for i in "${!layouts[@]}"; do
@@ -64,7 +64,21 @@ if [[ $1 == "choose" && $# == 1 ]]; then
     fi
   done
 
-  result=$(omarchy-menu-select "$(omarchy-i18n layout.cycleTitle)" "${labels[@]}" -- --multiple "${selected[@]}") || exit $?
+  result=$(omarchy-menu-select "$(omarchy-i18n layout.cycleTitle)" "${labels[@]}" -- --multiple \
+    --on-change '["omarchy-hyprland-workspace-layout-cycle","--selection"]' "${selected[@]}") || exit $?
+  set --
+  for i in "${!layouts[@]}"; do
+    if jq -e --arg label "${labels[i]}" 'index($label) != null' <<<"$result" >/dev/null; then
+      set -- "$@" "${layouts[i]}"
+    fi
+  done
+elif [[ ${1-} == "--selection" && $# == 2 ]]; then
+  result=$2
+  if ! jq -e 'type == "array" and all(.[]; type == "string")' <<<"$result" >/dev/null; then
+    echo "Invalid workspace layout selection" >&2
+    exit 1
+  fi
+  labels=("$(omarchy-i18n layout.tiling)" "$(omarchy-i18n layout.scrolling)" "$(omarchy-i18n layout.floating)")
   set --
   for i in "${!layouts[@]}"; do
     if jq -e --arg label "${labels[i]}" 'index($label) != null' <<<"$result" >/dev/null; then
@@ -93,6 +107,23 @@ temp=$(mktemp "$file.XXXXXX")
 trap 'rm -f "$temp"' EXIT
 printf '%s\n' "$@" >"$temp"
 mv -fT "$temp" "$file"
+
+if [[ ${result+x} ]]; then
+  omarchy-restart-hyprctl
+  omarchy-shell -q omarchy.workspaces refresh >/dev/null 2>&1 || true
+  omarchy-shell -q omarchy.dock refresh >/dev/null 2>&1 || true
+  selected_labels=()
+  for layout in "$@"; do
+    for i in "${!layouts[@]}"; do
+      if [[ ${layouts[i]} == "$layout" ]]; then
+        selected_labels+=("${labels[i]}")
+        break
+      fi
+    done
+  done
+  jq -cn '$ARGS.positional' --args "${selected_labels[@]}"
+  exit 0
+fi
 
 omarchy-restart-hyprctl
 omarchy-shell -q omarchy.workspaces refresh || true

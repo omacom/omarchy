@@ -46,6 +46,31 @@ printf '%s\n' "$*" >>"$NOTIFICATION_LOG"
 EOF
 chmod +x "$stub_dir/omarchy-shell"
 
+cat >"$stub_dir/omarchy-restart-hyprctl" <<'EOF'
+#!/bin/bash
+printf '%s\n' restart >>"$NOTIFICATION_LOG"
+EOF
+chmod +x "$stub_dir/omarchy-restart-hyprctl"
+
+cat >"$stub_dir/omarchy-i18n" <<'EOF'
+#!/bin/bash
+case $1 in
+  layout.tiling) echo Tiling ;;
+  layout.scrolling) echo Scrolling ;;
+  layout.floating) echo Floating ;;
+  *) echo Title ;;
+esac
+EOF
+chmod +x "$stub_dir/omarchy-i18n"
+
+cat >"$stub_dir/omarchy-menu-select" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >>"$MENU_LOG"
+"$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" --selection '["Tiling","Floating"]' >"$MENU_RESULT"
+exit 1
+EOF
+chmod +x "$stub_dir/omarchy-menu-select"
+
 layout_file="$home_dir/.local/state/omarchy/workspace-layouts/3.lua"
 notification_log="$tmpdir/notifications.log"
 
@@ -78,6 +103,7 @@ applied() {
 cycle() {
   env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
     HYPRCTL_LOG="$log_file" NOTIFICATION_LOG="$notification_log" \
+    MENU_LOG="$tmpdir/menu.log" MENU_RESULT="$tmpdir/menu-result.json" ROOT="$ROOT" \
     PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" "$@"
 }
 
@@ -92,6 +118,21 @@ toggle
 [[ ! -s $log_file ]] || fail "a single current layout needs no dispatch"
 cycle dwindle scrolling floating
 pass "the shortcut follows the enabled layouts"
+
+# Selecting a checkbox saves immediately, even when closing the picker cancels
+# the old Apply flow. Reopening it receives the saved selection as checkmarks.
+: >"$tmpdir/menu.log"
+if cycle choose; then
+  fail "closing the layout picker does not cancel an already saved choice"
+fi
+[[ $(cat "$home_dir/.local/state/omarchy/workspace-layout-cycle") == $'dwindle\nfloating' ]] ||
+  fail "the picker saves each changed selection" "saved: $(cat "$home_dir/.local/state/omarchy/workspace-layout-cycle")"
+grep -q -- '--on-change' "$tmpdir/menu.log" || fail "the picker persists checkbox changes immediately"
+grep -q -- '--selected Tiling' "$tmpdir/menu.log" || fail "the picker restores the saved tiling checkmark"
+grep -q -- '--selected Floating' "$tmpdir/menu.log" || fail "the picker restores the saved floating checkmark"
+[[ $(cat "$tmpdir/menu-result.json") == '["Tiling","Floating"]' ]] ||
+  fail "the picker returns the applied selection to its checkmarks"
+pass "the layout picker saves and restores its selection"
 
 # Nothing saved yet, so the cycle starts from the layout Hyprland reports.
 : >"$notification_log"
