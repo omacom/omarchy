@@ -1,17 +1,19 @@
 # Arka Planlar
 
-Her tema kendi arka plan setiyle birlikte gelir ve `~/.config/omarchy/backgrounds/[theme]` içine kendinizinkileri de ekleyebilirsiniz. Örneğin nord temasına ekstra bir arka plan görseli eklemek isterseniz, dosyayı `~/.config/omarchy/backgrounds/nord` içine koymanız yeterlidir.
+Her tema kendi arka plan setiyle gelir ve `~/.config/omarchy/backgrounds/[theme]` içine kendi ekstralarınızı ekleyebilirsiniz. Örneğin nord temasına fazladan bir arka plan görüntüsü eklemek isterseniz, dosyayı `~/.config/omarchy/backgrounds/nord` içine koymanız yeterlidir.
 
-Bunu en kolay şekilde Omarchy Menu içinde _Install > Style > Background_ yolunu izleyerek yapabilirsiniz. Bu, o temanın arka planlarının saklandığı klasörü açar. Başka bir dosya yöneticisi başlatmak için `Super + Shift + F` tuşlarına basın, arka planınızı bulun ve karşıya kopyalayın. Artık `Super + Ctrl + W` ile aralarında seçim yapabileceğiniz arka plan seçeneklerine dahil edilecektir.
+Bunu en kolay şekilde Omarchy Menu içinde _Install > Style > Background_ yoluna giderek yapabilirsiniz. Bu, o temanın arka planlarının saklandığı klasörü açacaktır. Başka bir dosya yöneticisi başlatmak için `Super + Shift + F` tuşuna basın, arka planınızı bulun, oraya kopyalayın. Artık `Super + Ctrl + W` kullanarak aralarında seçim yapabileceğiniz arka plan seçeneklerine dahil edilecektir.
 
-Arka planlar hareketsiz görsellerin yanı sıra videolar da olabilir. Aynı klasöre bir `mp4`, `m4v`, `mov`, `webm`, `mkv` veya `avi` dosyası bırakın; görsellerin yanında görünecektir. Videolar OWE wallpaper engine tarafından oynatılır. Videoyu tüm monitörler için bir kez çözer, sesini varsayılan ses çıkışından oynatır ve hiçbir şey onu göremediğinde oynatmayı durdurur. Video duvar kağıdı yine de hareketsiz bir duvar kağıdından çok daha fazla güç tüketir.
+Kendine ait hiç arka planı olmayan bir tema, renklerinden çizilmiş bir tane alır: temanın arka plan rengi üzerinde, temanın vurgu renginde Omarchy logosu. Onun yerine geçmesi için kendinizinkini ekleyin.
 
-Temalar, hareketsiz bir arka plan için kısa bir giriş içerebilir. `backgrounds/road.webp` için eşleşen video `backgrounds/intros/road.mp4` konumunda bulunur. Açılışta, o arka planın seçili olduğu bir temaya geçildiğinde ve o arka plan seçildiğinde otomatik olarak oynar, ardından hareketsiz görsele döner. Giriş videoları arka plan seçicinin dışında kalır ve asla döngüye girmez.
+Arka planlar hareketsiz görüntülerin yanı sıra videolar da olabilir. Aynı klasöre bir `mp4`, `m4v`, `mov`, `webm`, `mkv` veya `avi` dosyası bırakın, görüntülerin yanında görünecektir. Videolar OWE duvar kağıdı motoru tarafından oynatılır. Videoyu tüm monitörler için bir kez çözer, sesini varsayılan ses çıkışından oynatır ve hiçbir şey onu göremediğinde oynatmayı durdurur. Video duvar kağıdı yine de hareketsiz olandan çok daha fazla güce mal olur.
 
-_Appearance > Animations Off_ seçeneğini seçmek arka plan girişlerini de kapatır. Omarchy bunu bir virtual machine içinde varsayılan olarak yapar. `omarchy theme bg intro toggle` komutu girişleri ayrı olarak açıp kapatabilir. Bir temayı yenilemek giriş oynatmaz.
+Temalar, hareketsiz bir arka plan için kısa bir giriş içerebilir. `backgrounds/road.webp` için eşleşen video `backgrounds/intros/road.mp4` konumunda bulunur. Açılışta, o arka planın seçili olduğu bir temaya geçildiğinde ve o arka plan seçildiğinde otomatik olarak oynar, ardından hareketsiz görüntüye döner. Giriş videoları arka plan seçicinin dışında kalır ve asla döngüye girmez.
 
-Hareketsiz bir görselin bir döngüsü de olabilir; aynı resmin sürekli hareket eden sessiz bir sürümü, `backgrounds/loops/road.mp4` konumunda bulunur. Varsa girişinden sonra hareketsiz görselin yerine oynar ve animasyonlar kapatıldığında durur. Pil ile çalışırken bunun yerine hareketsiz görsel gösterilir ve fişe taktığınızda döngü geri gelir. Döngüler arka plan seçicinin dışında kalır.
+_Appearance > Animations Off_ seçeneğini seçmek arka plan girişlerini de kapatır. Omarchy bunu bir sanal makinede varsayılan olarak yapar. `omarchy theme bg intro toggle` komutu girişleri ayrı olarak açıp kapatabilir. Bir temayı yenilemek bir giriş oynatmaz.
 
-[dharmx/walls](https://github.com/dharmx/walls) içinde özenle seçilmiş, harika arka planlardan oluşan devasa bir koleksiyon bulabilirsiniz.
+Hareketsiz bir görüntünün bir döngüsü de olabilir, aynı resmin hareket etmeye devam eden sakin bir sürümü, `backgrounds/loops/road.mp4` konumunda. Hareketsiz görüntünün yerine, varsa girişinden sonra oynar ve animasyonlar kapatıldığında durur. Pille çalışırken bunun yerine hareketsiz görüntü görünür ve fişe taktığınızda döngü geri gelir. Döngüler arka plan seçicinin dışında kalır.
 
-Kilit ekranı, animasyonlu bir GIF'in hareketsiz bir karesini gösterdiği gibi, video arka planın da hareketsiz bir karesini gösterir.
+[dharmx/walls](https://github.com/dharmx/walls) içinde devasa bir özenle seçilmiş harika arka plan koleksiyonu bulabilirsiniz.
+
+Kilit ekranı, bir video arka planının hareketsiz bir karesini gösterir, tıpkı animasyonlu bir GIF'in hareketsiz bir karesini gösterdiği gibi.
