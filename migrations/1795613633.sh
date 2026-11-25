@@ -11,6 +11,14 @@ if [[ ! -r $OMARCHY_PATH/default/audio/tunings/dell-xps-16-n1x/tuning.conf ]]; t
 fi
 
 omarchy-pkg-add lsp-plugins-lv2
+
+# An update from a TTY or SSH has no audio session yet, so keep this migration
+# pending for the next graphical login without failing the update.
+if ! pactl info >/dev/null 2>&1; then
+  echo "Waiting for an audio session to apply speaker tuning"
+  exit 75
+fi
+
 if ! omarchy-audio-tuning on; then
   echo "Speaker tuning not applied yet. After logging in or rebooting, run: omarchy audio tuning on" >&2
   exit 1
