@@ -5,6 +5,6 @@
 
 SOUND_FILE="/usr/share/sounds/freedesktop/stereo/dialog-warning.oga"
 
-if omarchy-cmd-present mpv && [[ -f $SOUND_FILE ]]; then
-  mpv --no-video "$SOUND_FILE" >/dev/null 2>&1
+if omarchy-cmd-present pw-play && [[ -f $SOUND_FILE ]]; then
+  pw-play "$SOUND_FILE" >/dev/null 2>&1
 fi

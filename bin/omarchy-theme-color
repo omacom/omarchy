@@ -29,7 +29,11 @@ usage() {
 while (( $# > 0 )); do
   case "$1" in
     --file)
-      COLORS_FILE="${2:-}"
+      if (( $# < 2 )); then
+        usage >&2
+        exit 1
+      fi
+      COLORS_FILE="$2"
       shift 2
       ;;
     --all)
@@ -267,6 +271,7 @@ resolve_theme_colors() {
   for key in "${!ansi_alias[@]}"; do
     alias_theme_color "$key" "${ansi_alias[$key]}"
   done
+  alias_theme_color accent color4
 
   # Keep canonical themes compatible with old user templates and consumers
   # that still query the short palette names directly.

@@ -2,6 +2,10 @@
 
 Read this before adding or changing a mise-managed tool. Default tools belong in `etc/mise/conf.d/omarchy-tools.toml`, which the settings package installs; `install/user/mise.sh` creates their native mise shims during user setup.
 
+## Leave the user's config alone
+
+Omarchy does not write `~/.config/mise/config.toml`; it is the user's, for overriding what Omarchy ships. Settings go in `etc/mise/conf.d/omarchy.toml`, which still loads after a user opts out of the default tools, and tools in `omarchy-tools.toml`. A command that installs a default tool runs `mise install <tool>` when `omarchy-mise-default-tools declares <tool>`, and `mise use -g` only for a user who opted out. `mise use -g` on a declared tool would copy the declaration's options, `lazy = true` included, into the user's config.
+
 ## Declare a default tool
 
 Use a registry shorthand and set `lazy = true` so the first command invocation installs the tool. Follow the existing defaults' release policy: `minimum_release_age = "0s"` makes new releases eligible immediately.
@@ -40,5 +44,7 @@ When an explicit backend has no registry binary metadata, declare the commands m
 [tools]
 "npm:cf" = { version = "latest", lazy = true, lazy_bins = ["cf"], minimum_release_age = "0s" }
 ```
+
+A registry shorthand whose first backend is `npm:` and whose registry entry lists its commands (`mise registry --json`) also goes in `auto_install_disable_tools` in the `[settings]` of `omarchy-tools.toml`, not `omarchy.toml`: it must go with the declarations when a user opts out, or it would stop a tool the user declares themselves from installing. mise's shim installs such a tool on its own, without the lazy Node it needs, and fails; kept out of the shim's automatic install, its first command takes the lazy install, which brings Node with it. Explicit `npm:` keys and entries that list no command already take the lazy install. The list can go once mise takes the lazy install for these.
 
 After changing declarations, verify that `mise reshim --system` creates the expected commands in an isolated test environment. Test first-use installation as well as an already-installed tool; a declaration alone does not prove its shim works.
