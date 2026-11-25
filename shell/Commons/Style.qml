@@ -1,6 +1,8 @@
 pragma Singleton
 import QtQuick
+import qs.Commons as Commons
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 // Shared structural style tokens for the shell. Color is the palette
@@ -67,6 +69,10 @@ QtObject {
     return v.length > 0 ? v : fallback
   }
 
+  // Touchpad deltas reach shell layers already scaled by Hyprland's touchpad
+  // scroll_factor, without the per-window boost terminals get; 3.0 feels like foot at 1.5.
+  readonly property real touchpadScrollFactor: 3.0
+
   readonly property string normalColorToken: styleString("normal-color", "foreground")
   readonly property string hoverColorToken: styleString("hover-cursor-color", "foreground")
   readonly property string selectedColorToken: styleString("selected-color", "foreground")
@@ -113,27 +119,27 @@ QtObject {
   }
 
   function resolveStateColor(token, foreground, accent, urgent, fallback) {
-    var fb = fallback || foreground || Color.foreground
+    var fb = fallback || foreground || Commons.Color.foreground
     var s = String(token || "").replace(/^\s+|\s+$/g, "")
     var role = s.toLowerCase()
-    if (role === "foreground" || role === "text") return foreground || Color.foreground
-    if (role === "accent") return accent || Color.accent
-    if (role === "urgent") return urgent || Color.urgent
-    if (role === "background") return Color.background
+    if (role === "foreground" || role === "text") return foreground || Commons.Color.foreground
+    if (role === "accent") return accent || Commons.Color.accent
+    if (role === "urgent") return urgent || Commons.Color.urgent
+    if (role === "background") return Commons.Color.background
     if (role === "transparent") return Qt.rgba(0, 0, 0, 0)
     return colorFromHex(s, fb)
   }
 
   function normalStateColor(foreground, accent, urgent) {
-    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function hoverStateColor(foreground, accent, urgent) {
-    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function selectedStateColor(foreground, accent, urgent) {
-    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function pressedStateColor(foreground, accent, urgent) {
@@ -148,7 +154,7 @@ QtObject {
   }
 
   function selectionStateColor(foreground, accent, urgent) {
-    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function normalFillFor(foreground, accent, urgent) { return Util.alpha(normalStateColor(foreground, accent, urgent), normalFillAlpha) }
@@ -186,17 +192,17 @@ QtObject {
   }
 
   // Convenience colors resolved against the foundational palette.
-  readonly property color normalFill: normalFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color hoverFill: hoverFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color selectedFill: selectedFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color pressedFill: pressedFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color focusFillColor: focusFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color normalBorderColor: normalBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color hoverBorderColor: hoverBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color selectedBorderColor: selectedBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color focusBorderColor: focusBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color selectedAccentFill: Util.alpha(Color.accent, selectedFillAlpha)
-  readonly property color selectionFill: selectionFillFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color normalFill: normalFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color hoverFill: hoverFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color selectedFill: selectedFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color pressedFill: pressedFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color focusFillColor: focusFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color normalBorderColor: normalBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color hoverBorderColor: hoverBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color selectedBorderColor: selectedBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color focusBorderColor: focusBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color selectedAccentFill: Util.alpha(Commons.Color.accent, selectedFillAlpha)
+  readonly property color selectionFill: selectionFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
 
   // ---------------------------------------------------------- spacing
   //
@@ -341,26 +347,63 @@ QtObject {
   readonly property QtObject bar: QtObject {
     readonly property int sizeHorizontal: root.barToken("size-horizontal", 26)
     readonly property int sizeVertical:   root.barToken("size-vertical",   28)
+    // Calibrated notch cutout height in logical px, for panels whose real
+    // cutout differs from the derived default (see BarModel.notchHeight).
+    // 0 means derive it. Physical alignment, so it never scales with font.
+    readonly property int notchHeight: {
+      var v = Number(root.barOverrides["notch-height"])
+      return (isFinite(v) && v > 0) ? Math.round(v) : 0
+    }
     readonly property int iconSlot:       root.barToken("icon-slot",       27)
     readonly property int iconCanvas:     root.barToken("icon-canvas",     16)
     readonly property int iconFont:       root.barToken("icon-font",       13)
+    readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
   }
 
+  // Off with Hyprland's own animations, as `omarchy toggle animations` turns
+  // them off for machines that render on the CPU. Every shell animation runs
+  // for Style.duration(ms), which is then 0, so nothing is drawn in between.
+  property bool reduceMotion: false
+
+  function duration(ms) {
+    return reduceMotion ? 0 : ms
+  }
+
+  // A strong ease-out, for anything appearing or moving in answer to the
+  // pointer: it starts at once and settles without a bounce.
+  readonly property var easeOut: [0.23, 1.0, 0.32, 1.0, 1.0, 1.0]
+
+  property bool refreshPending: false
+  property bool fontResolvePending: false
+
   function refresh() {
+    if (hyprctlProc.running) {
+      refreshPending = true
+      return
+    }
     hyprctlProc.running = true
-    gapsOutProc.running = true
   }
 
   function scheduleRefresh() {
     refreshTimer.restart()
   }
 
+  function applyRoundingOption(json) {
+    var n = Number(json.int)
+    if (isFinite(n) && n >= 0) cornerRadius = n
+  }
+
+  function applyGapsOutOption(json) {
+    var css = String(json.css || "")
+    var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
+    var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
+    if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+  }
+
   function applyRoundingJson(raw) {
     try {
-      var json = JSON.parse(raw || "{}")
-      var n = Number(json.int)
-      if (isFinite(n) && n >= 0) cornerRadius = n
+      applyRoundingOption(JSON.parse(raw || "{}"))
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
@@ -368,18 +411,30 @@ QtObject {
 
   function applyGapsOutJson(raw) {
     try {
-      var json = JSON.parse(raw || "{}")
-      var css = String(json.css || "")
-      var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
-      var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
-      if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+      applyGapsOutOption(JSON.parse(raw || "{}"))
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
   }
 
+  function applyBatchOptionsJson(raw) {
+    var chunks = String(raw || "").trim().split(/\n\s*\n/)
+    for (var i = 0; i < chunks.length; i++) {
+      var chunk = chunks[i].trim()
+      if (!chunk) continue
+      try {
+        var json = JSON.parse(chunk)
+        if (json.option === "decoration:rounding") applyRoundingOption(json)
+        else if (json.option === "general:gaps_out") applyGapsOutOption(json)
+        else if (json.option === "animations:enabled") root.reduceMotion = json.bool === false
+      } catch (e) {
+        // hyprctl missing / Hyprland not running — leave the previous value.
+      }
+    }
+  }
+
   // Pull typography, bar dimensions, state tokens, and spacing out of the
-  // shell.toml dict that Color already parsed. Called by Color.loadShell so
+  // shell.toml dict that Color already parsed. Called by Commons.Color.loadShell so
   // a single parse pass feeds both singletons.
   function applyShellValues(values) {
     var fontOut = {}
@@ -405,7 +460,9 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
-        } else if (key === "size-horizontal" || key === "size-vertical") {
+        } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
+          || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
+          || key === "icon-size" || key === "status-slot") {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }
@@ -441,19 +498,25 @@ QtObject {
 
   property Process hyprctlProc: Process {
     id: hyprctlProc
-    command: ["hyprctl", "-j", "getoption", "decoration:rounding"]
+    command: ["hyprctl", "-j", "--batch", "getoption decoration:rounding ; getoption general:gaps_out ; getoption animations:enabled"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.applyRoundingJson(text)
+      onStreamFinished: root.applyBatchOptionsJson(text)
+    }
+    onExited: {
+      if (root.refreshPending) {
+        root.refreshPending = false
+        running = true
+      }
     }
   }
 
-  property Process gapsOutProc: Process {
-    id: gapsOutProc
-    command: ["hyprctl", "-j", "getoption", "general:gaps_out"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyGapsOutJson(text)
+  // A reload is when the animations toggle, a theme or the user's own config
+  // lands, and Hyprland only announces it once the new values are in effect.
+  property Connections hyprlandEvents: Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event && String(event.name) === "configreloaded") root.refresh()
     }
   }
 
@@ -461,6 +524,10 @@ QtObject {
   // set <name>` rewrites ~/.config/fontconfig/fonts.conf and restarts the
   // shell, but rerun on file change anyway so manual edits propagate too.
   function resolveFontFamily() {
+    if (fcMatchProc.running) {
+      fontResolvePending = true
+      return
+    }
     fcMatchProc.running = true
   }
 
@@ -474,15 +541,23 @@ QtObject {
         if (name.length > 0) root.resolvedFontFamily = name
       }
     }
+    onExited: {
+      if (root.fontResolvePending) {
+        root.fontResolvePending = false
+        running = true
+      }
+    }
   }
 
   property FileView fontconfigFile: FileView {
     path: Quickshell.env("HOME") + "/.config/fontconfig/fonts.conf"
     watchChanges: true
+    preload: false
     printErrors: false
-    onFileChanged: root.resolveFontFamily()
-    onLoaded: root.resolveFontFamily()
-    onLoadFailed: root.resolveFontFamily()
+    onFileChanged: {
+      reload()
+      root.resolveFontFamily()
+    }
   }
 
   // Re-poll Hyprland a beat after either input file changes. Hyprland's
@@ -502,10 +577,12 @@ QtObject {
   property FileView windowNoGapsToggle: FileView {
     path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles/hypr/window-no-gaps.lua"
     watchChanges: true
+    preload: false
     printErrors: false
-    onFileChanged: refreshTimer.restart()
-    onLoaded: refreshTimer.restart()
-    onLoadFailed: refreshTimer.restart()
+    onFileChanged: {
+      reload()
+      refreshTimer.restart()
+    }
   }
 
   Component.onCompleted: {
