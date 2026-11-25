@@ -160,10 +160,16 @@ if [[ ! -s $work/shot.png ]]; then
   exit 1
 fi
 magick "$work/shot.png" -resize '200%' "$out"
+size=$(grep -oE 'PREVIEW_SAVED [0-9]+x[0-9]+' "$work/log" | cut -d' ' -f2)
 echo "screenshot: $out"
-echo "widget: $(grep -oE 'PREVIEW_SAVED [0-9]+x[0-9]+' "$work/log" | cut -d' ' -f2), shown at 2x on a strip of bar"
+echo "widget: $size, shown at 2x on a strip of bar"
+# The bar lays widgets out by their size, so one with none draws over its
+# neighbours, though its own label may still show in the picture.
+if [[ $size == 0x* || $size == *x0 ]]; then
+  problems=$(printf '%s\n' "${problems:+$problems}" "the widget is $size, so the bar gives it no room and it draws over its neighbours: size the BarWidget to its content, as implicitWidth: button.implicitWidth and implicitHeight: button.implicitHeight do" | sed '/^$/d')
+fi
 if [[ -n $problems ]]; then
-  echo "problems from the plugin's QML:"
+  echo "problems:"
   echo "$problems"
   exit 1
 fi
