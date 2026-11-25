@@ -991,11 +991,12 @@ configure_timezone() {
   configure_region
 }
 
-# A deferred install from one market's media took that market's region before
-# anyone chose a timezone, and left it as REGION in the form defaults. Settle it
-# against the owner's choice: a timezone a region profile lists picks that
-# region, Hong Kong, Macau and Taiwan are always World, and any other timezone
-# keeps the media's region.
+# A deferred install took its media's region before anyone chose a timezone,
+# and left it as REGION in the form defaults: a market's code, or global from
+# the global ISO. Settle it against the owner's choice: a timezone a region
+# profile lists picks that region, Hong Kong, Macau and Taiwan are always World,
+# and any other timezone keeps the media's region. Media that left no REGION
+# keep whatever region the install wrote.
 configure_region() {
   local defaults=${OMARCHY_FORM_DEFAULTS:-/etc/omarchy/form-defaults} marker=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
   local pacman_conf=${OMARCHY_PACMAN_CONF:-/etc/pacman.conf} key value fallback="" region current=global profile channel
@@ -1003,7 +1004,7 @@ configure_region() {
   while IFS='=' read -r key value; do
     [[ $key == "REGION" ]] && fallback=$value
   done <"$defaults"
-  [[ $fallback =~ ^[a-z]{2}$ ]] || return 0
+  [[ $fallback == "global" || $fallback =~ ^[a-z]{2}$ ]] || return 0
   case "$timezone" in
     Asia/Hong_Kong | Hongkong | Asia/Macau | Asia/Macao | Asia/Taipei | ROC) region=global ;;
     *)

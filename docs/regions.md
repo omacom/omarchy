@@ -34,7 +34,7 @@ A profile adds mirrors of repositories every install already uses, never a repos
 
 Each market gets its own media: the global ISO, and one per region profile (a China ISO for `cn`). The companion `omarchy-iso` repository reads the profiles from the runtime it bundles, so a region and its defaults can never disagree. A profile adds no package, so a market's media is the global ISO with its region preset.
 
-- **Build:** the builder bundles the profiles with the runtime; it adds no repository, key or package for them. A market's media sets `REGION=<code>` in its form defaults (`/etc/omarchy/form-defaults`).
+- **Build:** the builder bundles the profiles with the runtime; it adds no repository, key or package for them. A deferred install from any media sets `REGION=<code>` in its form defaults (`/etc/omarchy/form-defaults`), `global` from the global ISO.
 - **Install:** the region follows the timezone the user picked: one a profile's `timezones` lists picks that region; Hong Kong, Macau and Taiwan are always `global`; any other timezone keeps the media's region, so China media used abroad stays `cn`. The installer shows the result on the summary screen. Unattended installs can set the region explicitly instead. For a regional install it writes `/etc/omarchy/region` before finalization, so the pacman fragments, launchers and theme all follow it.
 - **Deferred installs** have no timezone until first boot. `omarchy-provision-owner` settles the region from the media's `REGION` and the owner's timezone by the same rule before it provisions the user (`configure_region`).
 

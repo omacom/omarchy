@@ -84,6 +84,24 @@ for case in Asia/Shanghai:cn UTC:cn Europe/Copenhagen:cn Asia/Hong_Kong:global H
     [[ ! -s $REGION_LOG ]] || fail "keeping the region leaves pacman alone"
   fi
 done
+# The global ISO's deferred install: a China timezone picks China, any other
+# stays World.
+printf 'REGION=global\n' >"$OMARCHY_FORM_DEFAULTS"
+settle_global() {
+  timezone=$1
+  rm -f "$OMARCHY_REGION_FILE"
+  : >"$REGION_LOG"
+  OMARCHY_PATH=$region_root/omarchy configure_region
+  [[ -e $OMARCHY_REGION_FILE ]] && cat "$OMARCHY_REGION_FILE" || echo global
+}
+for case in Asia/Shanghai:cn Asia/Urumqi:cn UTC:global America/New_York:global Asia/Hong_Kong:global Asia/Taipei:global Asia/Macau:global; do
+  [[ $(settle_global "${case%%:*}") == "${case#*:}" ]] || fail "an owner in ${case%%:*} on global media gets the ${case#*:} region"
+  if [[ ${case#*:} == cn ]]; then
+    grep -qx "apply stable $region_root" "$REGION_LOG" || fail "entering China re-renders pacman for the installed channel" "$(cat "$REGION_LOG")"
+  else
+    [[ ! -s $REGION_LOG ]] || fail "staying World leaves pacman alone"
+  fi
+done
 printf 'KEYBOARD=English (US)\n' >"$OMARCHY_FORM_DEFAULTS"
 [[ $(settle Asia/Taipei) == cn && ! -s $REGION_LOG ]] || fail "a region the media did not choose is left alone"
-pass "a deferred install settles the media's region against the owner's timezone, and Hong Kong, Macau and Taiwan are always World"
+pass "a deferred install from China or global media settles its region against the owner's timezone, and Hong Kong, Macau and Taiwan are always World"
