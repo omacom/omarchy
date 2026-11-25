@@ -264,3 +264,22 @@ assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'i
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
+
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+mkdir -p "$test_tmp/bin"
+for command in omarchy-pkg-add sudo systemctl; do
+  printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/$command"
+done
+printf '#!/bin/bash\nexit 1\n' >"$test_tmp/bin/omarchy-plugin-enable"
+cat >"$test_tmp/bin/omarchy-webapp-install" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >"$OMARCHY_TEST_WEBAPP_LOG"
+SH
+chmod +x "$test_tmp/bin"/*
+PATH="$test_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_WEBAPP_LOG="$test_tmp/webapp" \
+  "$ROOT/bin/omarchy-install-service-tailscale" >"$test_tmp/output" 2>&1 ||
+  fail "Tailscale install finishes when its optional bar plugin is unavailable" "$(<"$test_tmp/output")"
+[[ $(<"$test_tmp/webapp") == "Tailscale" ]] || fail "Tailscale still installs its admin web app without the bar plugin"
+pass "Tailscale completes installation when its optional bar plugin is unavailable"

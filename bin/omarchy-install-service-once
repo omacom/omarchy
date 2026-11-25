@@ -4,6 +4,7 @@
 # omarchy:requires-sudo=true
 
 set -e
+trap 'exit 130' INT
 
 echo "Installing ONCE..."
 omarchy-pkg-add once-bin
