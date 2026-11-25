@@ -16,6 +16,36 @@ _omarchy_starship_now() {
   printf -v "$1" '%s' "${t%???}"
 }
 
+_omarchy_has_local_mise_config() {
+  local dir="$PWD"
+  while true; do
+    if [[ -e $dir/mise.toml || -e $dir/.mise.toml || -e $dir/mise.local.toml || -e $dir/.mise.local.toml || -d $dir/.mise ]]; then
+      return 0
+    fi
+    [[ $dir == "/" || $dir != */* ]] && break
+    dir="${dir%/*}"
+    [[ -n $dir ]] || dir="/"
+  done
+  return 1
+}
+
+_omarchy_starship_ps2_is_static() {
+  local cfg="$1"
+  [[ -z $cfg || ! -r $cfg ]] && return 0
+  local line
+  while IFS= read -r line || [[ -n $line ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -z $line || $line == "#"* ]] && continue
+    if [[ $line == continuation_prompt* ]]; then
+      if [[ $line =~ ^continuation_prompt[[:space:]]*=[[:space:]]*(\'[^\'\$\r]*\'|\"[^\"\$\\\r]*\")[[:space:]]*(#.*)?$ ]]; then
+        continue
+      fi
+      return 1
+    fi
+  done <"$cfg"
+  return 0
+}
+
 _omarchy_transform_mise_init() {
   local output="$1"
   local line
@@ -48,7 +78,7 @@ _omarchy_transform_starship_init() {
   output="${output//'if [[ "${PS0-}" != *"starship_preexec_ps0"* ]]; then'/'if [[ "${PS0-}" != *"STARSHIP_START_TIME"* ]]; then'}"
   output="${output//'STARSHIP_START_TIME="$(starship_preexec_ps0)"'/'STARSHIP_START_TIME=${EPOCHREALTIME/[.,]/},STARSHIP_START_TIME/=1000'}"
 
-  if [[ $output == *"PS2=\"\$($bin prompt --continuation)\""* ||
+  if _omarchy_starship_ps2_is_static "${_omarchy_effective_starship_cfg:-}" && [[ $output == *"PS2=\"\$($bin prompt --continuation)\""* ||
     $output == *"PS2=\"\$('$bin' prompt --continuation)\""* ||
     $output == *"PS2=\"\$($bin_q prompt --continuation)\""* ]]; then
     if ps2=$(STARSHIP_SHELL=bash "$bin" prompt --continuation 2>/dev/null); then
@@ -100,12 +130,26 @@ _omarchy_source_cached_init() {
 
 _omarchy_init_paths=()
 _omarchy_mise=""
+_omarchy_mise_cfg=""
+_omarchy_mise_sys_cfg=""
 _omarchy_starship=""
 _omarchy_starship_cfg=""
 _omarchy_starship_cfg_path=""
 _omarchy_zoxide=""
 
-_omarchy_mise=$(type -P mise) && _omarchy_init_paths+=("$_omarchy_mise")
+if _omarchy_mise=$(type -P mise); then
+  _omarchy_init_paths+=("$_omarchy_mise")
+  _omarchy_mise_cfg="${MISE_GLOBAL_CONFIG_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/mise/config.toml}"
+  if [[ -e $_omarchy_mise_cfg ]]; then
+    _omarchy_init_paths+=("$_omarchy_mise_cfg")
+  else
+    _omarchy_mise_cfg=""
+  fi
+  if [[ -e /etc/mise/conf.d/omarchy.toml ]]; then
+    _omarchy_mise_sys_cfg="/etc/mise/conf.d/omarchy.toml"
+    _omarchy_init_paths+=("$_omarchy_mise_sys_cfg")
+  fi
+fi
 if [[ $- == *i* ]] && [[ ${TERM:-} != "dumb" ]]; then
   if _omarchy_starship=$(type -P starship); then
     _omarchy_init_paths+=("$_omarchy_starship")
@@ -122,10 +166,33 @@ if (( ${#_omarchy_init_paths[@]} > 0 )); then
   mapfile -t _omarchy_init_stamps < <(stat -Lc '%d:%i:%s:%y' "${_omarchy_init_paths[@]}" 2>/dev/null)
   _omarchy_stamp_idx=0
   if [[ -n $_omarchy_mise ]]; then
-    _omarchy_mise_transform() { _omarchy_transform_mise_init "$2"; }
-    _omarchy_source_cached_init mise "$_omarchy_mise" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}:v1" _omarchy_mise_transform activate bash
-    unset -f _omarchy_mise_transform
+    _omarchy_mise_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
     (( _omarchy_stamp_idx++ ))
+    if [[ -n $_omarchy_mise_cfg ]]; then
+      _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
+      (( _omarchy_stamp_idx++ ))
+    else
+      _omarchy_mise_stamp+=":none"
+    fi
+    if [[ -n $_omarchy_mise_sys_cfg ]]; then
+      _omarchy_mise_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
+      (( _omarchy_stamp_idx++ ))
+    else
+      _omarchy_mise_stamp+=":none"
+    fi
+    if _omarchy_has_local_mise_config; then
+      _omarchy_mise_stamp=""
+    else
+      for _omarchy_mise_var in "${!MISE_@}"; do
+        [[ $_omarchy_mise_var == "MISE_SHELL" ]] && continue
+        printf -v _omarchy_mise_val '%q' "${!_omarchy_mise_var}"
+        _omarchy_mise_stamp+="|${_omarchy_mise_var}=${_omarchy_mise_val}"
+      done
+      _omarchy_mise_stamp+=":v2"
+    fi
+    _omarchy_mise_transform() { _omarchy_transform_mise_init "$2"; }
+    _omarchy_source_cached_init mise "$_omarchy_mise" "$_omarchy_mise_stamp" _omarchy_mise_transform activate bash
+    unset -f _omarchy_mise_transform
   fi
   if [[ -n $_omarchy_starship ]]; then
     _omarchy_starship_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
@@ -143,15 +210,15 @@ if (( ${#_omarchy_init_paths[@]} > 0 )); then
         _omarchy_starship_cfg_stamp="none"
       fi
     fi
-    _omarchy_starship_stamp+=":${_omarchy_starship_cfg_stamp}"
-    _omarchy_source_cached_init starship "$_omarchy_starship" "${_omarchy_starship_stamp}:v1" _omarchy_transform_starship_init init bash --print-full-init
+    _omarchy_starship_stamp+=":${_omarchy_starship_cfg_stamp}:${NO_COLOR+1}:v2"
+    _omarchy_source_cached_init starship "$_omarchy_starship" "$_omarchy_starship_stamp" _omarchy_transform_starship_init init bash --print-full-init
   fi
   if [[ -n $_omarchy_zoxide ]]; then
     _omarchy_source_cached_init zoxide "$_omarchy_zoxide" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}" "" init bash
   fi
 fi
-unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_mise _omarchy_starship _omarchy_starship_cfg _omarchy_starship_cfg_path _omarchy_starship_cfg_stamp _omarchy_effective_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
-unset -f _omarchy_source_cached_init _omarchy_transform_mise_init _omarchy_transform_starship_init
+unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_mise _omarchy_mise_cfg _omarchy_mise_sys_cfg _omarchy_mise_stamp _omarchy_mise_var _omarchy_mise_val _omarchy_starship _omarchy_starship_cfg _omarchy_starship_cfg_path _omarchy_starship_cfg_stamp _omarchy_effective_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
+unset -f _omarchy_source_cached_init _omarchy_transform_mise_init _omarchy_transform_starship_init _omarchy_has_local_mise_config _omarchy_starship_ps2_is_static
 
 if command -v try &> /dev/null; then
   try() {

@@ -153,6 +153,11 @@ _mise_hook() {
 }
 _mise_hook --force
 EOF
+  if [[ ${MISE_NOT_FOUND_AUTO_INSTALL:-1} != "0" ]]; then
+    echo "OMARCHY_TEST_MISE_CNF=1"
+  else
+    echo "OMARCHY_TEST_MISE_CNF=0"
+  fi
 elif [[ $1 == "hook-env" ]]; then
   printf "export PATH='%s:%s'\n" "$OMARCHY_TEST_MISE_TOOL_BIN" "$PATH"
   if [[ -n ${OMARCHY_TEST_MISE_STARSHIP_CONFIG:-} ]]; then
@@ -209,6 +214,41 @@ printf 'continuation_prompt = "## "\n' >"$starship_proj_cfg"
 out_mise_cfg=$(OMARCHY_TEST_MISE_STARSHIP_CONFIG="$starship_proj_cfg" OMARCHY_TEST_PS2="## " run_init)
 [[ $out_mise_cfg == "v1:v1:## :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
   fail "STARSHIP_CONFIG exported by mise activation invalidates cached starship PS2" "$out_mise_cfg"
+
+# Dynamic continuation_prompt containing $ tokens is evaluated per shell rather than baked into cache
+starship_dyn_cfg="$tmpdir/starship-dynamic.toml"
+printf 'continuation_prompt = "$directory> "\n' >"$starship_dyn_cfg"
+out_dyn_a=$(STARSHIP_CONFIG="$starship_dyn_cfg" OMARCHY_TEST_PS2="dirA> " \
+  HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "$PS2"' 2>/dev/null)
+out_dyn_b=$(STARSHIP_CONFIG="$starship_dyn_cfg" OMARCHY_TEST_PS2="dirB> " \
+  HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "$PS2"' 2>/dev/null)
+[[ $out_dyn_a == "dirA> " && $out_dyn_b == "dirB> " ]] ||
+  fail "dynamic continuation_prompt with template tokens is evaluated live per shell" "$out_dyn_a | $out_dyn_b"
+
+# Changing MISE_* activation settings invalidates cached mise init
+cnf_off=$(MISE_NOT_FOUND_AUTO_INSTALL=0 HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+  STARSHIP_CONFIG="$starship_cfg" OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
+cnf_on=$(HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+  STARSHIP_CONFIG="$starship_cfg" OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
+[[ $cnf_off == "0" && $cnf_on == "1" ]] ||
+  fail "MISE_NOT_FOUND_AUTO_INSTALL change invalidates cached mise init" "$cnf_off | $cnf_on"
+
+# Local mise.toml in cwd bypasses shared mise cache so local settings take effect
+mkdir -p "$tmpdir/local-proj"
+printf '[settings]\nnot_found_auto_install = false\n' >"$tmpdir/local-proj/mise.toml"
+: >"$init_calls"
+(cd "$tmpdir/local-proj" && run_init >/dev/null)
+grep -q '^mise activate' "$init_calls" || fail "local mise.toml bypasses shared mise activation cache" "$(<"$init_calls")"
 
 cat >"$init_bin/starship" <<'SH'
 #!/bin/bash
