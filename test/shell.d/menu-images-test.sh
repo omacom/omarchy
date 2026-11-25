@@ -215,6 +215,24 @@ else
   fail "background switcher with no backgrounds says so instead of opening an empty picker" "exit $status: $(cat "$tmp/bg-calls" 2>/dev/null)"
 fi
 
+# --print-rows lets the shell preload backgrounds without notifying on an empty
+# theme and prints the resolved row list when images exist.
+: >"$tmp/bg-calls"
+empty_rows=$(HOME="$bg_home" OMARCHY_PATH="$ROOT" PATH="$bg_bin:$ROOT/bin:$PATH" XDG_CACHE_HOME="$cache_home" BG_CALLS="$tmp/bg-calls" \
+  "$ROOT/bin/omarchy-theme-bg-switcher" --print-rows)
+if [[ -z $empty_rows && ! -s $tmp/bg-calls ]]; then
+  pass "background switcher --print-rows prints nothing silently when no backgrounds exist"
+else
+  fail "background switcher --print-rows prints nothing silently when no backgrounds exist" "rows=$empty_rows calls=$(cat "$tmp/bg-calls" 2>/dev/null)"
+fi
+
+printf 'bg' >"$bg_home/.local/state/omarchy/current/theme/backgrounds/wall.png"
+bg_rows=$(HOME="$bg_home" OMARCHY_PATH="$ROOT" PATH="$stub_bin:$ROOT/bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-theme-bg-switcher" --print-rows)
+grep -q "$bg_home/.local/state/omarchy/current/theme/backgrounds/wall.png" <<<"$bg_rows" ||
+  fail "background switcher --print-rows prints the current theme's backgrounds" "$bg_rows"
+pass "background switcher --print-rows prints the current theme's backgrounds"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"

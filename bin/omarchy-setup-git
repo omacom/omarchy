@@ -85,15 +85,13 @@ if [[ -f ~/.XCompose ]]; then
   omarchy-restart-xcompose >/dev/null 2>&1 || true
 fi
 
+# Signing in to GitHub brings the GitHub CLI, which isn't installed until then.
 if (( interactive )); then
   echo
-  if omarchy-cmd-missing gh; then
-    omarchy-i18n gitSetup.ghMissing
-  # Only a gh that has signed in before is asked, as running the lazy shim installs it.
-  elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml" &&
-    gh auth status --hostname github.com >/dev/null 2>&1; then
+  if omarchy-cmd-present gh && gh auth status --hostname github.com >/dev/null 2>&1; then
     omarchy-i18n gitSetup.ghSignedIn
   elif gum confirm --no-show-help --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n gitSetup.ghSignIn)"; then
+    omarchy-pkg-add-curated github-cli
     gh auth login
   fi
 fi

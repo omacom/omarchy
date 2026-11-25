@@ -52,36 +52,56 @@ scratch=$(mktemp -d "$CURRENT/.icons.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 mkdir "$scratch/set" "$scratch/out"
 
+# Run a file command in bounded argv chunks so very large custom icon sets
+# cannot hit ARG_MAX and abort mid-sync.
+run_batched() {
+  local -a cmd=()
+  while (( $# )) && [[ $1 != "--" ]]; do
+    cmd+=("$1")
+    shift
+  done
+  (( $# )) && shift
+  (( $# > 0 )) || return 0
+  printf '%s\0' "$@" | xargs -0 -r "${cmd[@]}" --
+}
+
 # The user's set goes over the built-in one of the same name. An icon is given
 # once, so the user's drawing replaces the built-in template of that name and
 # the other way around. A set cloned from a git repo holds whatever its author
 # pushed, so its symlinks, which point wherever they chose, are left out.
+declare -A selected=()
 for dir in "$BUILT_IN_SET" "$USER_SET"; do
   for icon in "$dir"/*.svg "$dir"/*.svg.tpl; do
     [[ -f $icon ]] || continue
     [[ -L $icon && -e $dir/.git ]] && continue
     name=${icon##*/}
     name=${name%.tpl}
-    rm -f "$scratch/set/$name" "$scratch/set/$name.tpl"
-    cp "$icon" "$scratch/set/"
+    selected[$name]=$icon
   done
 done
 
-for icon in "$scratch/set"/*.svg; do
-  mv "$icon" "$scratch/out/"
-done
+run_batched cp -t "$scratch/set" -- "${selected[@]}" || exit 1
+
+static_svgs=("$scratch/set"/*.svg)
+run_batched mv -t "$scratch/out" -- "${static_svgs[@]}" || exit 1
 omarchy-theme-set-templates --icons "$THEME" "$scratch/out" "$scratch/set"
 
 mkdir -p "$ICONS" "$LINKS"
 declare -A drawn=()
-for icon in "$scratch/out"/*.svg; do
+rendered_svgs=("$scratch/out"/*.svg)
+missing_links=()
+run_batched mv -f -t "$ICONS" -- "${rendered_svgs[@]}" || exit 1
+for icon in "${rendered_svgs[@]}"; do
   name=${icon##*/}
-  link="$LINKS/$name"
   drawn[$name]=1
-  mv -f "$icon" "$ICONS/$name"
   # A working icon of the user's own stays; a dangling link at the name goes.
-  [[ -e $link ]] || ln -sfn "$ICONS/$name" "$link"
+  [[ -e $LINKS/$name ]] || missing_links+=("$ICONS/$name")
 done
+links_changed=0
+if (( ${#missing_links[@]} > 0 )); then
+  run_batched ln -sfn -t "$LINKS" -- "${missing_links[@]}"
+  links_changed=1
+fi
 
 # What the last run drew and this one didn't.
 for icon in "$ICONS"/*.svg; do
@@ -89,7 +109,20 @@ for icon in "$ICONS"/*.svg; do
   link="$LINKS/$name"
   [[ -z ${drawn[$name]:-} ]] || continue
   rm -f "$icon"
-  [[ -L $link && $(readlink "$link") == "$icon" ]] && rm "$link"
+  if [[ -L $link && $(readlink "$link") == "$icon" ]]; then
+    rm "$link"
+    links_changed=1
+  fi
 done
 
-printf '%s\n' "${EPOCHREALTIME//[!0-9]/}" >"$CURRENT/icons.revision"
+draw_rev=${EPOCHREALTIME//[!0-9]/}
+links_rev=0
+if [[ -r $CURRENT/icons.revision ]]; then
+  IFS=$'\t ' read -r _ prev_links_rev _ <"$CURRENT/icons.revision" || true
+  [[ $prev_links_rev =~ ^[0-9]+$ ]] && links_rev=$prev_links_rev
+fi
+if (( links_changed )); then
+  links_rev=$draw_rev
+fi
+
+printf '%s\t%s\n' "$draw_rev" "$links_rev" >"$CURRENT/icons.revision"
