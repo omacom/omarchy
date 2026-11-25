@@ -109,10 +109,11 @@ per local coding model added.
   other provider; every key is checked like Fireworks'), each a
   large mark four across, then _Use a network model_: a line for each coding model not added yet
   that a paired, online machine is running, then one for each a machine on
-  the tailnet shares but isn't paired with yet, and _Use a local model_: each
-  coding model set up on this machine and not added, then every one in the
-  local models catalog that fits this computer and isn't set up, the
-  recommended one first, then another DGX Spark cabled to this one, which
+  the tailnet shares but isn't paired with yet, and _Use a local model_: the
+  recommended coding model first (marked Recommended when more than one local
+  model is offered), then any others set up on this machine and not added or in
+  the local models catalog that fit this computer, then another DGX Spark cabled
+  to this one, which
   sets both up in a terminal (`omarchy models link setup`). The first one is
   focused and the hero reads Add an agent. A model on this machine the
   memory free now can't start, set up or not, is dimmed, says so (what it

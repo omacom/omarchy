@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "Etkinlik",
   "Agent": "Ajan",
   "Agents": "Ajanlar",
@@ -21,6 +20,7 @@
   "Calculator": "Hesap makinesi",
   "Calendar": "Takvim",
   "Capture menu": "Yakalama menüsü",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Hatırlatıcıları temizle",
   "Clipboard manager": "Pano yöneticisi",
   "Close all windows": "Tüm pencereleri kapat",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Bildirimleri klavyeyle kontrol et",
   "Cycle workspace layout": "Sonraki çalışma alanı düzeni",
   "Cycle workspace layout back": "Önceki çalışma alanı düzeni",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Terminal öneki için doğrudan giriş",
   "Disable touchpad": "Dokunmatik yüzeyi devre dışı bırak",
   "Dismiss all notifications": "Tüm bildirimleri kapat",

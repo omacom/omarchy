@@ -127,7 +127,7 @@ fresh_home="$tmpdir/fresh-home"
 mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default application bindings include essentials"
-grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
+grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
 grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default application bindings include the preinstalled calculator"
 grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
@@ -137,7 +137,7 @@ mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
 removed_output=$(run_omarchy_bindings "$removed_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$removed_output" || fail "preinstall removal keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$removed_output"; then
+if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$removed_output"; then
   fail "preinstall removal skips preinstalled web app bindings"
 fi
 if grep -Fq $'	Calculator' <<<"$removed_output"; then
@@ -149,7 +149,7 @@ variable_home="$tmpdir/variable-home"
 mkdir -p "$variable_home"
 variable_output=$(run_omarchy_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$variable_output" || fail "preinstalled binding variable keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$variable_output"; then
+if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
   fail "preinstalled binding variable skips optional application bindings"
 fi
 if grep -Fq $'	Calculator' <<<"$variable_output"; then
@@ -161,7 +161,7 @@ echo cn >"$tmpdir/region-cn"
 region_output=$(OMARCHY_REGION_FILE="$tmpdir/region-cn" run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$region_output" || fail "a region keeps the hotkeys that aren't web apps"
 grep -Fq $'SUPER + SHIFT + Y	Bilibili' <<<"$region_output" || fail "China binds its own web apps"
-for binding in $'SUPER + SHIFT + ALT + A	Grok' $'SUPER + SHIFT + E	Email' $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + M	Music' $'SUPER + SHIFT + G	Signal'; do
+for binding in $'SUPER + SHIFT + A	ChatGPT' $'SUPER + SHIFT + E	Email' $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + M	Music' $'SUPER + SHIFT + G	Signal'; do
   if grep -Fq "$binding" <<<"$region_output"; then fail "China binds none of the global web app hotkeys" "$binding"; fi
 done
 pass "the region picks its web app hotkeys file"
@@ -175,18 +175,14 @@ pass "default binding variable disables all Omarchy bindings"
 
 dictation_home="$tmpdir/dictation-home"
 missing_bin="$tmpdir/missing-bin"
-mkdir -p "$dictation_home" "$missing_bin"
+mkdir -p "$dictation_home/.config/omarchy/defaults" "$missing_bin"
 ln -s "$(command -v lua)" "$missing_bin/lua"
 ln -s "$(command -v lspci)" "$missing_bin/lspci"
 ln -s "$(command -v sort)" "$missing_bin/sort"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
   fail "unconfigured dictation leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "unconfigured dictation leaves application shortcuts available"; fi
-cat > "$missing_bin/omarchy-default-dictation" <<'SH'
-#!/bin/bash
-echo future-backend
-SH
-chmod +x "$missing_bin/omarchy-default-dictation"
+printf 'future-backend\n' > "$dictation_home/.config/omarchy/defaults/dictation"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
   fail "a selected backend that is not installed leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a selected backend that is not installed leaves application shortcuts available"; fi

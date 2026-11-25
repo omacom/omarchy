@@ -54,7 +54,7 @@ README.md  LICENSE  .gitignore
 - Use `QGuiApplication`, not `QApplication`. Call `app.setDesktopFileName("<name>")` so the compositor and launcher match the window to its `.desktop` file and icon.
 - Use the Material style, light or dark as the theme is, with the theme's colors as `Material.accent`, `Material.background`, and `Material.foreground`.
 - Heavy media work goes through the `ffmpeg`/`ffprobe` command-line tools via `QProcess`, not by linking libav.
-- Open and save dialogs go through xdg-desktop-portal over D-Bus (`org.freedesktop.portal.FileChooser`), never `QFileDialog`. Copy Omacut's `src/portalfilepicker.{h,cpp}` behind its abstract `src/filepicker.h`, with its attribution: it is the one that survives a portal that stops answering or is replaced mid-dialog, and the other apps' copies have drifted from it. The abstract picker lets tests inject a fake.
+- Open and save dialogs go through xdg-desktop-portal over D-Bus (`org.freedesktop.portal.FileChooser`), never `QFileDialog` or `QtQuick.Dialogs`: both can fall back to Qt's own non-native dialog, and overriding `QT_QPA_PLATFORMTHEME` to work around it breaks the desktop's Qt platform theme. Copy Omacut's `src/portalfilepicker.{h,cpp}` behind its abstract `src/filepicker.h`, with its attribution: it is the one that survives a portal that stops answering or is replaced mid-dialog, and the other apps' copies have drifted from it. The abstract picker lets tests inject a fake.
 
 ## Omarchy conventions
 

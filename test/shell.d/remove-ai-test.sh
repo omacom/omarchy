@@ -243,7 +243,7 @@ pass "Grok Bot removal keeps the Grok CLI's state"
 # Every acceleration variant depends on the base package, so package presence is
 # the test the remover can actually act on; the command alone is also provided by
 # builds omarchy-pkg-drop will not touch.
-ollama_row=$(grep '^  "remove.ai.ollama":' "$ROOT/default/omarchy/omarchy-menu.jsonc")
+ollama_row=$(grep '^  "remove.ai.cli.ollama":' "$ROOT/default/omarchy/omarchy-menu.jsonc")
 [[ $ollama_row == *'"when":"omarchy-pkg-present ollama"'* ]] ||
   fail "Ollama removal is offered only where the package is installed" "$ollama_row"
 pass "Ollama removal is offered only where the package is installed"
