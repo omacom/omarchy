@@ -12,6 +12,8 @@ ShellRoot {
   readonly property string rootPath: Quickshell.env("OMARCHY_PATH")
   property var failures: []
   property var panel: null
+  property int phase: 0
+  property real deadline: 0
 
   function fail(message) {
     failures.push(String(message))
@@ -26,41 +28,56 @@ ShellRoot {
     if (resultPath) Quickshell.execDetached(["bash", "-lc", "printf '%s' " + shellQuote(payload) + " > " + shellQuote(resultPath)])
   }
 
+  function finish() {
+    poll.stop()
+    writeResult()
+  }
+
+  function load() {
+    var component = Qt.createComponent(rootPath + "/shell/plugins/panels/audio/Panel.qml", Component.PreferSynchronous)
+    if (component.status !== Component.Ready) {
+      fail("audio panel failed to load: " + component.errorString())
+      return false
+    }
+    panel = component.createObject(host, {})
+    if (!panel) {
+      fail("audio panel failed to instantiate: " + component.errorString())
+      return false
+    }
+    return true
+  }
+
   Item { id: host }
 
-  // The stub's write takes 400ms: queue the first value, then two more while
-  // it runs, then wait well past both writes.
-  property int step: 0
+  // Queue a first value; once its write is running, queue two more; then wait
+  // for the queue to drain. Each phase waits on the panel's own state, so a
+  // slow machine changes how long this takes, not what it checks.
   Timer {
-    interval: 150
+    id: poll
+    interval: 25
     running: true
     repeat: true
     onTriggered: {
-      root.step++
-      if (root.step === 1) {
-        var component = Qt.createComponent(root.rootPath + "/shell/plugins/panels/audio/Panel.qml", Component.PreferSynchronous)
-        if (component.status !== Component.Ready) {
-          root.fail("audio panel failed to load: " + component.errorString())
-          stop()
-          root.writeResult()
-          return
-        }
-        root.panel = component.createObject(host, {})
-        if (!root.panel) {
-          root.fail("audio panel failed to instantiate: " + component.errorString())
-          stop()
-          root.writeResult()
-          return
-        }
+      if (root.phase === 0) {
+        if (!root.load()) return root.finish()
+        root.deadline = Date.now() + 5000
         root.panel.queueOutputVolumeWrite("bluez_output.test", [20])
-      } else if (root.step === 2) {
+        root.phase = 1
+        return
+      }
+
+      var state = root.panel.outputVolumeWriteState
+      if (Date.now() > root.deadline) {
+        root.fail("volume writes did not drain (phase " + root.phase + "): " + JSON.stringify(state))
+        return root.finish()
+      }
+
+      if (root.phase === 1 && state.running) {
         root.panel.queueOutputVolumeWrite("bluez_output.test", [45])
         root.panel.queueOutputVolumeWrite("bluez_output.test", [80, 60])
-      } else if (root.step === 12) {
-        var state = root.panel.outputVolumeWriteState
-        if (state.running || state.pendingSink !== "") root.fail("volume writes still queued: " + JSON.stringify(state))
-        stop()
-        root.writeResult()
+        root.phase = 2
+      } else if (root.phase === 2 && !state.running && state.pendingSink === "") {
+        root.finish()
       }
     }
   }
