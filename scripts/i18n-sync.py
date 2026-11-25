@@ -164,8 +164,13 @@ def compute_pending(root, only=None):
     english = english_units(root)
     manifest = read_json(manifest_path(root), {})
     result = {}
-    for code in locales(root):
-        if only and code != only:
+    for code, entry in locales(root).items():
+        if only:
+            if code != only:
+                continue
+        elif entry.get("community"):
+            # A community-translated language is filled by hand, never by the
+            # sync; asking for it by name still shows its queue.
             continue
         pending, prune = pending_for(root, code, english, manifest)
         if pending or prune:

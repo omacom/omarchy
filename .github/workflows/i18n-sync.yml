@@ -63,9 +63,10 @@ jobs:
           scan = json.loads((directory / 'scan.json').read_text())
           extract = bool(scan['candidates'] or scan['menuCatalogStale'] or scan.get('keybindingsCatalogStale'))
           if extract:
-              # New English keys make every language pending.
+              # New English keys make every language pending, except the
+              # community-translated ones, which the sync never translates.
               registry = json.loads(Path('default/i18n/locales.json').read_text())
-              locales = sorted(code for code in registry if code != 'en')
+              locales = sorted(code for code, entry in registry.items() if code != 'en' and not entry.get('community'))
           else:
               locales = pending['locales']
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:

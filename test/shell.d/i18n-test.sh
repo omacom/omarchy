@@ -559,6 +559,14 @@ printf '# New\n' >"$fix/manual/02-new.md"
 pending_units=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" pending | jq -c '.jobs.da.pending | sort')
 assert_bash_equal "$pending_units" '["manual:02-new.md","shell:a.one"]' "sync detects changed English and missing chapters"
 
+# A community-translated language is left out of the sync's queue, but its
+# translator can still ask for it by name.
+cp "$fix/default/i18n/locales.json" "$work/locales.json"
+jq '.da.community = true' "$work/locales.json" >"$fix/default/i18n/locales.json"
+assert_bash_equal "$(python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" pending | jq -c '.locales')" "[]" "the sync skips a community-translated language"
+assert_bash_equal "$(python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" pending --locale da | jq -c '.locales')" '["da"]' "a community-translated language still lists its pending work by name"
+cp "$work/locales.json" "$fix/default/i18n/locales.json"
+
 printf 'Text {\n  text: "Brand new string"\n}\n' >"$fix/shell/Panel.qml"
 scan_strings=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" extract-scan | jq -c '[.candidates[].string]')
 assert_bash_equal "$scan_strings" '["Brand new string"]' "extract-scan finds embedded English literals"
