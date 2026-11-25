@@ -10,12 +10,8 @@
 
 theme=${1:?Usage: omarchy-theme-bg-generate <theme-dir>}
 
-color() {
-  sed -n "s/^$1 *= *\"\(#[0-9a-fA-F]\{6\}\)\".*/\1/p" "$theme/colors.toml" 2>/dev/null
-}
-
-background=$(color background)
-accent=$(color accent)
+background=$(omarchy-theme-color --file "$theme/colors.toml" background 2>/dev/null)
+accent=$(omarchy-theme-color --file "$theme/colors.toml" accent 2>/dev/null)
 if [[ -z $background || -z $accent ]]; then
   echo "omarchy-theme-bg-generate: $theme/colors.toml names no background and accent" >&2
   exit 1

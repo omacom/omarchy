@@ -615,8 +615,11 @@ expected_background="$THEME_TMPDIR/.local/state/omarchy/current/theme/background
 [[ ! -e $THEME_TMPDIR/.config/omarchy/current ]] || fail "headless theme set avoids config current state"
 pass "headless theme set takes a dev-linked theme's stills from the package"
 
-# Without the package, the theme's background is drawn from its colors.
+# Without the package, the theme's background is drawn from its colors, even
+# beside a file that can't be a background.
 make_tmpdir NOBG_TMPDIR
+mkdir -p "$NOBG_TMPDIR/.config/omarchy/backgrounds/tokyo-night"
+touch "$NOBG_TMPDIR/.config/omarchy/backgrounds/tokyo-night/README.md"
 PATH="$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" HOME="$NOBG_TMPDIR" OMARCHY_PACKAGED_THEMES_PATH="$NOBG_TMPDIR/none" \
   OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$NOBG_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
