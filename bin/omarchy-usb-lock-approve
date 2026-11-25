@@ -1,0 +1,29 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Manage saved USB device approvals
+
+# Fixed approval operations accept no caller-supplied file paths.
+# Privileged Bash prevents startup files and exported functions running as root.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 && $# > 0 )) || exit 126
+case $1 in
+  always) (( $# == 4 )) || exit 64 ;;
+  list) (( $# == 1 )) || exit 64 ;;
+  forget) (( $# == 2 )) || exit 64 ;;
+  *) exit 64 ;;
+esac
+export PATH=/usr/bin:/bin LC_ALL=C
+unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
+source /usr/share/omarchy/install/helpers/usb-lock.sh
+exec 9>/run/lock/omarchy-usb-lock.lock
+flock -w 4 -x 9
+case $1 in
+  always) usb_lock_approve "$@" ;;
+  list) usb_lock_list_approved ;;
+  forget) usb_lock_forget "$2" ;;
+esac

@@ -77,7 +77,8 @@ request_lock() {
 # secure: done. locking: the shell has the request and is working on it, so
 # leave it alone. Anything else, unreadable replies included, means ask again.
 lock_state() {
-  jq -r 'if .secure == true then "secure"
+  jq -r 'if .secure == true and .usbPolicyReady != false then "secure"
+         elif .secure == true then "usb-pending"
          elif .requested == true then "locking"
          else "idle" end' \
     <<<"$(lock_ipc "$status_timeout_ms" lock status 2>/dev/null)" 2>/dev/null
@@ -112,9 +113,12 @@ sync_clamshell
 
 # The trailing sleep can overshoot the deadline by one interval, which is well
 # inside the reserve derive_budget_ms already held back for logind.
+last_state=""
 while (( $(remaining_ms) > 0 )); do
-  case $(lock_state) in
+  last_state=$(lock_state)
+  case "$last_state" in
     secure) exit 0 ;;
+    usb-pending) ;;
     locking) ;;
     *) request_lock ;;
   esac
@@ -122,4 +126,11 @@ while (( $(remaining_ms) > 0 )); do
   sleep "$poll_interval"
 done
 
+if [[ $last_state == "usb-pending" ]]; then
+  echo "omarchy-system-sleep-lock: screen locked, but USB/Thunderbolt protection was not confirmed before suspend" >&2
+  omarchy-notification-send -u critical -g 󰌾 \
+    "$(omarchy-i18n lock.usbProtectionNotReady)" \
+    "$(omarchy-i18n lock.usbProtectionUnconfirmed)" >/dev/null 2>&1 || true
+  exit 1
+fi
 report_unsecured "the shell did not secure the session within ${budget_ms}ms" "$(omarchy-i18n lock.unlockedTimeout "$budget_ms")"

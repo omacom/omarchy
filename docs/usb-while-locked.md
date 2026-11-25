@@ -1,0 +1,70 @@
+# USB and Thunderbolt while locked
+
+This change builds on the removal of default device approval in #15091. It enables USB and Thunderbolt/USB4 PCIe protection while locked by default, adds optional approval for devices connected while unlocked, and repairs the existing removal migration's failure path. It does not restore boot-time authorization.
+
+Fresh installations enable the dedicated services without starting them in the installer. A migration enables it for existing installations after legacy cleanup. Explicit machine-wide opt-outs and independently managed USBGuard services are preserved, including when another user runs migrations. Setup > Security > USB & Thunderbolt selects lock-only or optional unlocked approval; Remove > Security > USB & Thunderbolt disables it.
+
+## User behavior
+
+- Boot and the initial login work normally; no kernel boot parameters change.
+- By default, USB and Thunderbolt devices work without approval prompts while unlocked, preserving independently restricted devices.
+- Optional unlocked approval blocks devices newly attached during an unlocked session. Review offers Always allow or Keep blocked. Explicit approvals persist across ports, hubs and reboots while retaining all device identity constraints. Devices present when optional mode first takes effect are admitted until reboot so initial input remains usable.
+- Setup > Security > USB Devices can forget a saved approval, including for disconnected devices. Confirmation removes the permanent and temporary copies and blocks the device if connected. It may be admitted again by the normal boot or unlock behavior; forgetting is not a permanent ban.
+- Locking captures the identities of devices currently allowed and retains prior temporary and permanent approvals. In both modes, devices captured at lock or admitted on unlock remain trusted until reboot, including disconnection across later lock/unlock cycles. They may reconnect through another port or hub while locked; a changed identity still requires unlocking.
+- Unfamiliar devices connected while locked stay blocked. An existing keyboard or another existing authentication method is needed to unlock; plugging in a new keyboard cannot unlock the machine.
+- In both modes, successful unlock automatically allows devices that arrived while locked. Devices already awaiting approval before locking remain blocked. This is a deliberate UX tradeoff: an attacker can leave a malicious device connected and have it reach its driver when the user unlocks. This policy does not fix the Pegasus driver vulnerability, provide boot protection, or authenticate forgeable USB descriptors.
+- Bolt governs Thunderbolt/USB4 PCIe authorization; USB functions of a dock follow USBGuard. Already connected PCIe devices stay attached across locking and forgetting approval, so mounted storage is not forcibly removed. Unfamiliar devices require firmware security `user` or `secure` for software to block their PCIe tunnels. Firmware mode `none` and firmware-authorized boot connections remain explicit limitations.
+
+## Implementation
+
+An independent USBGuard service owns a root-only policy under `/run/omarchy-usb-lock`. It refuses to coexist with an enabled manually managed USBGuard service. No existing `/etc/usbguard` rules or IPC grants are reused or rewritten. Root-owned permanent approvals live separately under `/var/lib/omarchy/usb-lock`; automatic allowances until reboot live in the runtime directory. Factory reset clears previous-owner approvals and restores the default mode. The policy starts with `allow` after reboot; the service preserves its runtime directory across stops and restarts within the same boot.
+
+Before acknowledging a lock, a protected Bash helper writes a frozen identity policy, restarts USBGuard with it and verifies service/IPC availability. The kernel default for new devices remains deny during the restart. USBGuard applies the policy to devices present at restart as well as new arrivals. Retrying a lock never recaptures devices. A local identity parser strips only port and parent-hub constraints; it has no dependency on the removed approval commands.
+
+The Quickshell lock requests these transitions through a narrow Polkit helper. Only active local wheel users can invoke its fixed `lock` and `unlock` operations; administrative enable/disable still requires sudo. Software already running as that user can request unlock policy; this is an unattended physical-access policy, not a boundary against a compromised user session. The screen itself locks immediately and never waits on USB. There is a transition window until the helper acknowledges enforcement, exposed as `usbPolicyReady` in lock status; suspend preparation waits for both the screen and USB policy, within the existing delay budget. Errors trigger a visible notification and retries without unlocking the screen.
+
+Setup pushes a refresh to the running shell after installation and waits for the current policy to be acknowledged. If the screen locked during installation, protection starts without requiring another unlock/lock. Each request has a generation so an earlier disabled reply cannot acknowledge newly enabled protection. Removal also refreshes the shell's state.
+
+No startup signal implicitly clears a locked policy. A recovered compositor lock reuses the saved snapshot. A new session releases inherited policy only after the compositor reports an unlocked session. Rapid requests are serialized so an older unlock cannot finish after a newer lock transition. An unsuccessful daemon restart leaves the frozen policy on disk for recovery. Lock retries reset systemd failure limits and restart that frozen policy without recapturing devices. Unlock retries can also restart an inactive daemon with the saved policy. The first lock still requires a live device inventory; an unavailable inventory never becomes implicit trust.
+
+The earlier removal migration makes an Omarchy-owned USBGuard permissive before attempting boot or Bolt restoration. Its temporary service override survives reboot if restoration fails, so existing and new USB devices remain usable without the removed approval UI. Original USBGuard rules and configuration stay intact. The override and recovery files are removed after verified boot cleanup and package removal; independently managed USBGuard is left alone.
+
+## Optional approval
+
+Wheel users receive only USBGuard list/listen privileges. The review terminal uses sudo to call a separate protected Bash helper, which checks the exact device ID, complete rule snapshot, daemon invocation and active approval policy before allowing a device. All transitions and approvals share a root-owned lock. Permanent rules remove only port and parent-hub constraints; all device identity attributes remain. Rules are parsed with USBGuard before atomic publication. Manual USBGuard rules are never migrated into this separate policy store. Forgetting identifies a saved approval by its complete rule digest, removes it from the running policy, and verifies the daemon restart before deleting the saved entry. Failed enforcement leaves the entry available for retry.
+
+The packaged user watcher handles final PolicyApplied events rather than initial PresenceChanged events. Every IPC reconnect rescans currently blocked devices, including daemon and watcher restarts. Notifications open a fresh inventory instead of retaining a stale device reference. Device text is display-only and is never interpolated into a shell command. Setup requires a working watcher before enabling optional approval.
+
+A real locked-to-unlocked transition admits new waiting identities until reboot. Repeated unlock requests and shell recovery while already unlocked preserve pending approvals. Previously denied canonical identities are compared without location constraints and excluded from this automatic admission, even if moved to another port. The optional mode resumes its default-deny policy for subsequent unlocked arrivals.
+
+## Thunderbolt policy
+
+The dedicated `omarchy-thunderbolt-lock.service` keeps Bolt's `AuthMode=disabled` while protection is enabled. This prevents both stored-policy auto-authorization and IOMMU auto-enrollment; `DefaultPolicy=manual` alone is insufficient. A Bolt startup guard restores this mode before enumeration after every restart. The Bash policy service individually authorizes eligible devices through Bolt's D-Bus API. It subscribes before its initial scan and reconciles on device/property/owner signals. Session notifications use a systemd path unit watching the published snapshot, rather than polling inventories.
+
+Permanent consent lives in `/var/lib/omarchy/thunderbolt-lock`. Runtime mode, temporary trust, prior denials and a frozen lock snapshot live under `/run/omarchy-thunderbolt-lock` and survive service restarts, not reboot. A new boot starts unlocked so connected input can work. Daemon initialization and lock/unlock transitions share USBGuard's root lock, and the shell acknowledges only after both policies are applied. Optional approval admits new locked arrivals on unlock while retaining devices denied beforehand. Repeated transitions do not recapture new devices.
+
+The shared transition helper applies USB first, then attempts Bolt even when USB fails. A Bolt startup or inventory failure cannot skip USB enforcement or release; a slow Bolt startup cannot consume USB's transition budget. Failure from either policy suppresses the success reply and keeps the shell's warning and retry active.
+
+An approval binds Bolt's unique bus owner, the policy daemon's generation, the device object, sysfs inode, connection time and identity. Permanent trust pins UID, name, vendor and secure capability and requires Bolt's saved key. Secure-capable devices admitted temporarily receive a private boot key under `/run/omarchy-thunderbolt-lock/keys`, without a Bolt enrollment or permanent approval. Initial provisioning is allowed only for an unlocked admission; locked reconnection must pass the kernel's secure challenge with that same key. Missing keys, changed identities, weaker capabilities and failed challenges cannot initialize a replacement key while locked. Both sysfs attributes are pinned to the revalidated connection before writing. Keys survive daemon restarts and expire at reboot or removal. Existing active keyless secure accessories may require safe reconnection while unlocked to provision a key. Failed challenges are remembered per connection so their own error signals cannot create a retry loop.
+
+Always allow enrolls new Bolt records with manual policy, verifies authorization/key storage and records enrollment ownership separately from consent. Existing manual records are preserved. Automatic unlocked admission does not override an independently restricted manual device. A separately managed global `AuthMode=disabled` is preserved by default setup. No firmware boot allowlists are deliberately changed when enabling this feature.
+
+Thunderbolt Devices offers Always allow, Keep blocked and saved-approval management. Forgetting removes permanent and temporary trust while retaining the active PCIe connection and secure keys. It affects the next connection; the UI asks the user to disconnect safely. Notifications use the current snapshot and full connection identity, dismiss on lock/removal and refresh when either daemon changes. Controllers that bypass software authorization produce a visible limitation notice.
+
+Removal changes only matching, successfully approved Omarchy-owned manual records to auto before restoring the original Bolt mode. Ownership includes StoreTime, so manual or externally replaced records are not promoted. Setup/removal checkpoints include configuration, persistent consent, runtime frozen policy and boot keys, service state, stored policies and firmware ACLs affected by that handoff. Temporary consent and keys are restored only within the same boot; recovery after reboot restores durable configuration without reviving them. Failure restores matching previous state or retains a recovery checkpoint; `sudo /usr/bin/omarchy-thunderbolt-lock-admin recover` retries recovery. Factory reset clears previous-owner Bolt identities, keys and consent in staged and retained roots.
+
+Factory reset checks USBGuard enablement in the target root, including `usbguard-dbus.service`. If an independent service is enabled, both reset paths preserve its unit links and rules, remove Omarchy's enable markers, and disable the Omarchy policy services. Otherwise the new owner receives the default locked protection. Old Omarchy consent is cleared in either case.
+
+## Validation
+
+Run `bash test/shell.d/thunderbolt-lock-test.sh` and the existing USB, menu, factory-reset and suspend suites. Optional real-Bolt testing uses upstream's UMockdev fixture on a private D-Bus; Python only simulates hardware, and policy behavior/assertions execute Bash:
+
+```sh
+BOLT_TEST_SOURCE=/path/to/bolt umockdev-wrapper python test/shell.d/fixtures/thunderbolt-lock/integration.py "$PWD"
+```
+
+This requires Bolt, umockdev, python-gobject and python-dbusmock. It covers user/secure authorization, stored-key challenges, temporary and permanent consent, locked arrivals, prior denials, daemon restarts, forgetting and fresh runtime policy. Installed-service and UI tests run separately in Omarchy Lab. Simulated firmware does not prove physical hardware enforcement. Kernel security-level and deauthorization behavior is described in [the Thunderbolt documentation](https://docs.kernel.org/admin-guide/thunderbolt.html).
+
+## Review and validation gates
+
+Automatic allowance after unlock is the selected behavior. The default and optional approval UX require product review. Physical docking, suspend/resume, replacement input, multiple sessions/seats, controller hotplug and daemon/compositor crash scenarios need review and hardware coverage before rollout. A new controller during a daemon outage may enumerate before userspace can change its default; this is not boot-level protection.

@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Review blocked USB devices or forget saved approvals
+# omarchy:args=[--manage]
+
+set -euo pipefail
+[[ -e /etc/omarchy/usb-lock.approval ]] || { echo "USB approval while unlocked is disabled."; exit 0; }
+action="review"
+if (( $# == 1 )) && [[ $1 == "--manage" ]]; then
+  action=$(gum choose --label-delimiter $'\t' --header "$(omarchy-i18n devices.usbTitle)" \
+    "$(omarchy-i18n devices.reviewBlocked)"$'\treview' \
+    "$(omarchy-i18n devices.forgetApproved)"$'\tforget') || exit 0
+elif (( $# != 0 )); then
+  echo "Usage: omarchy-usb-lock-review [--manage]" >&2
+  exit 64
+fi
+case "$action" in
+  review) header=$(omarchy-i18n devices.reviewBlocked) ;;
+  forget) header=$(omarchy-i18n devices.forgetApproved) ;;
+  *) exit 0 ;;
+esac
+if [[ $action == "forget" ]]; then
+  inventory=$(sudo /usr/bin/omarchy-usb-lock-approve list)
+  [[ -n $inventory ]] || { echo "No saved USB approvals."; exit 0; }
+else
+  generation=$(systemctl show omarchy-usb-lock.service --property=InvocationID --value)
+  [[ $generation =~ ^[0-9a-f]{32}$ ]] || exit 1
+  inventory=$(usbguard list-devices --blocked)
+  [[ -n $inventory ]] || { echo "No USB devices are waiting for approval."; exit 0; }
+fi
+# Device names are untrusted. Strip control characters before displaying them;
+# use the original snapshot for validation and never evaluate it as a command.
+mapfile -t devices <<<"$inventory"
+choices=()
+for index in "${!devices[@]}"; do
+  if [[ $action == "forget" ]]; then
+    summary=${devices[index]#*$'\t'allow }
+  else
+    summary=${devices[index]#*: block }
+  fi
+  summary=${summary%% hash *}
+  summary=$(printf '%s' "$summary" | LC_ALL=C tr -cd '[:print:]')
+  choices+=("$((index + 1)). ${summary:0:100}")
+done
+selected=$(gum choose --header "$header" -- "${choices[@]}") || exit 0
+index=${selected%%.*}
+[[ $index =~ ^[0-9]+$ ]] && (( index > 0 && index <= ${#devices[@]} )) || exit 1
+line=${devices[index-1]}
+printf '%s\n' "$selected"
+if [[ $action == "forget" ]]; then
+  gum confirm "$(omarchy-i18n devices.usbForgetConfirm)" || exit 0
+  if sudo /usr/bin/omarchy-usb-lock-approve forget "${line%%$'\t'*}"; then
+    echo "USB approval forgotten."
+  else
+    echo "Could not forget this approval. Unlock the screen and try again." >&2
+    exit 1
+  fi
+  exit 0
+fi
+[[ $line =~ ^([0-9]+):[[:space:]](block[[:space:]].*)$ ]] || exit 1
+id=${BASH_REMATCH[1]} rule=${BASH_REMATCH[2]}
+echo "Device names and identities can be forged. Approve only a device you recognize."
+choice=$(gum choose --label-delimiter $'\t' \
+    "$(omarchy-i18n devices.alwaysAllow)"$'\talways' \
+    "$(omarchy-i18n devices.keepBlocked)"$'\tblocked') || exit 0
+[[ $choice == "always" ]] || exit 0
+if sudo /usr/bin/omarchy-usb-lock-approve always "$id" "$rule" "$generation"; then
+  echo "USB device approved."
+else
+  echo "Approval was not confirmed. The device or screen policy may have changed. Open USB Devices to review again." >&2
+  exit 1
+fi
