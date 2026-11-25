@@ -1038,11 +1038,11 @@ import subprocess, sys, time
 cmd = sys.argv[1:]
 best = None
 for _ in range(5):
-    start = time.monotonic_ns()
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-    elapsed = (time.monotonic_ns() - start) // 1000
-    if best is None or elapsed < best:
-        best = elapsed
+  start = time.monotonic_ns()
+  subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+  elapsed = (time.monotonic_ns() - start) // 1000
+  if best is None or elapsed < best:
+    best = elapsed
 print(best)
 PY
 }
