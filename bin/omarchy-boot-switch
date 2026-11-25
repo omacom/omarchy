@@ -489,7 +489,7 @@ finalize() {
   if [[ $step == "packages" ]]; then
     # A rollback point on the new loader before Limine's goes away.
     local number
-    number=$(snapper -c root create -c number -p -d "Boot loader switched to systemd-boot")
+    number=$(snapper -c root create -c number -p -d "Switched to systemd-boot")
     omarchy-boot-sync pin "$number"
     omarchy-boot-sync sync
     grep -q "^snapshot-$number	" "$STORE/entries" || {

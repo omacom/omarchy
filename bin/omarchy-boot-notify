@@ -43,7 +43,7 @@ if [[ -n $notice_id && $(cat "$seen_file" 2>/dev/null) != "$notice_id" ]]; then
   trialUp) title=$(omarchy-i18n boot.notice.trialUp.title) body=$(omarchy-i18n boot.notice.trialUp.body) ;;
   trialFailed) title=$(omarchy-i18n boot.notice.trialFailed.title) body=$(omarchy-i18n boot.notice.trialFailed.body) ;;
   firmwareKeptLimine) title=$(omarchy-i18n boot.notice.firmwareKeptLimine.title) body=$(omarchy-i18n boot.notice.firmwareKeptLimine.body) ;;
-  restored) title=$(omarchy-i18n boot.notice.restored.title) body=$(omarchy-i18n boot.notice.restored.body "$arg") ;;
+  restored) title=$(omarchy-i18n boot.notice.restored.title "$arg") body=$(omarchy-i18n boot.notice.restored.body) ;;
   restoreFailed) title=$(omarchy-i18n boot.notice.restoreFailed.title) body=$(omarchy-i18n boot.notice.restoreFailed.body "$arg") ;;
   finishNoPackage) title=$(omarchy-i18n boot.notice.finishNoPackage.title) body=$(omarchy-i18n boot.notice.finishNoPackage.body) ;;
   finishInstallFailed) title=$(omarchy-i18n boot.notice.finishInstallFailed.title) body=$(omarchy-i18n boot.notice.finishInstallFailed.body) ;;

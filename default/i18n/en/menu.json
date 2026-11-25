@@ -58,10 +58,9 @@
     "label": "Shutdown"
   },
   "system.snapshots": {
-    "label": "Snapshots",
-    "title": "Boot Into Snapshot"
+    "label": "Snapshots"
   },
-  "system.snapshot-restore": {
+  "system.snapshots.restore": {
     "label": "Restore This Snapshot"
   },
   "learn.keybindings": {
