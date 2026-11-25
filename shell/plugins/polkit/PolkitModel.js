@@ -55,11 +55,24 @@ function luminance(color) {
   return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
 }
 
-function authorizationLabel(message, tr) {
+// What the prompt calls an agent requester.sh named, by its mark.
+var agentNames = { claude: "Claude", codex: "Codex", grok: "Grok", opencode: "OpenCode", cursor: "Cursor", copilot: "Copilot" }
+
+function agentName(mark) {
+  return Object.prototype.hasOwnProperty.call(agentNames, mark) ? agentNames[mark] : ""
+}
+
+// A pkexec prompt names the agent it comes from, when that's known. The parts
+// go in through functions, so a $ in a command line stays as it is.
+function authorizationLabel(message, tr, agent) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
   var match = text.match(pkexecPrompt)
-  return match ? t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", match[1]) : text
+  if (!match) return text
+  var name = agentName(agent)
+  if (name !== "")
+    return t("polkit.authorizeAgentRunning", "Authorize %1 to run '%2'").replace("%1", function() { return name }).replace("%2", function() { return match[1] })
+  return t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", function() { return match[1] })
 }
 
 if (typeof module !== "undefined") {
@@ -70,6 +83,7 @@ if (typeof module !== "undefined") {
     promptProgram: promptProgram,
     expectedLabel: expectedLabel,
     agentMark: agentMark,
+    agentName: agentName,
     luminance: luminance
   }
 }

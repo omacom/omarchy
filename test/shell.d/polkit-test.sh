@@ -17,6 +17,16 @@ assertEqual(
   'polkit shortens the standard pkexec message'
 )
 assertEqual(
+  polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, 'claude'),
+  "Authorize Claude to run '/usr/bin/true'",
+  'polkit names the agent a pkexec prompt comes from'
+)
+assertEqual(
+  polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, 'unknown'),
+  "Authorize running '/usr/bin/true'",
+  'polkit names no agent it has no name for'
+)
+assertEqual(
   polkit.authorizationLabel('Authentication is required to change system settings'),
   'Authentication is required to change system settings',
   'polkit preserves custom authorization messages'

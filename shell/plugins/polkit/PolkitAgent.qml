@@ -85,7 +85,7 @@ Item {
   // a line of its own under it, which a long label can't push out of view.
   function authorizationLabel(message) {
     if (currentLabel !== "") return currentLabel
-    return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
+    return message ? PolkitModel.authorizationLabel(message, I18n.t, currentAgent) : I18n.t("polkit.authenticationNeeded")
   }
 
   // The program a labelled prompt runs, for the line under the label.
@@ -566,6 +566,8 @@ Item {
     }
 
     Rectangle {
+      // Waits for the agent with the mark, as its line names it.
+      visible: !root.requesterPending
       // Measured apart from the lines, whose width follows this one.
       width: Math.min(Math.ceil(Math.max(labelMetrics.advanceWidth, root.labelProgram !== "" ? programMetrics.advanceWidth : 0)) + Style.space(24), panel.width - Style.gapsOut * 2)
       height: root.labelProgram !== "" ? justificationLines.implicitHeight + Style.space(16) : Style.space(28)
