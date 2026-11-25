@@ -80,6 +80,8 @@ omarchy agent look page ~/Games/vibes/<name>/index.html#seed=1 --keys "Space Arr
 
 `#seed=1` plays the same round every time, so a change you made is what changed. In a game that runs on its own, the world should have moved between the first two shots, and the score risen if your keys did what scores; in a turn-based one, the shots should show the moves your keys made. If the round is already over, or nothing changed, find out why before adding anything else. Without `--theme` a game shows in the template's stand-in colours.
 
+Keys go a quarter of a second apart. To steer, put a wait between them, `+600` for 600ms, and hold a key down with `ArrowLeft:800`, as a player would: `--keys "Space +900 ArrowUp +600 ArrowLeft"` turns up after almost a second and left a little later. A round that keeps ending against a wall because the keys came too early needs waits, not a change to the game. When you need to win, lose or reach some state to look at it, don't hunt for the right key sequence: make it happen at once in a scratch copy (below).
+
 Then check the way back, from the list as a player comes in, mid-round: start a round, pause it, and leave. The shot must show the Game Vibes list, not the game.
 
 ```bash
