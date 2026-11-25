@@ -55,3 +55,23 @@ out=$(commit restored-uuid) || fail "the restored root commits"
 [[ -f $test_tmp/store/restore/done-1 ]] || fail "the journal is done"
 [[ $(readlink "$test_tmp/store/current/linux-omarchy") == ../images/restored ]] || fail "the restored image is current"
 pass "the restored root's own boot commits the restore"
+
+# Staged from @, cancelled from a booted snapshot: the hibernation block the
+# staging wrote into @ goes, not only the overlay's copy.
+new_store
+sed -i 's/^STATE=swapped$/STATE=pending/' "$test_tmp/store/restore/journal"
+mkdir -p "$test_tmp/top/@/etc/systemd/sleep.conf.d"
+touch "$test_tmp/top/@/etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf"
+bash -c '
+  set -euo pipefail
+  source "$1/functions"
+  STORE=$1/store TOP=$1/top
+  check_store() { :; }
+  mount_top() { :; }
+  cmd_sync() { :; }
+  bootctl() { :; }
+  cmd_restore_cancel
+' _ "$test_tmp" >/dev/null || fail "a pending restore is cancelled"
+[[ -f $test_tmp/store/restore/cancelled-1 ]] || fail "the journal is set aside"
+[[ ! -e $test_tmp/top/@/etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf ]] || fail "the hibernation block leaves @"
+pass "cancelling a restore lifts the hibernation block in @"
