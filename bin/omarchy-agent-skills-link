@@ -45,6 +45,8 @@ for dir in "${dirs[@]}"; do
     pending+=("$skill")
   done
   if (( ${#pending[@]} > 0 )); then
-    ln -sfn -t "$dir" -- "${pending[@]}"
+    # The trailing slash makes ln resolve $dir when it is itself a symlink to
+    # a folder, while -n keeps it from following the per-skill links inside.
+    ln -sfn -t "$dir/" -- "${pending[@]}"
   fi
 done

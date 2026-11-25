@@ -55,6 +55,8 @@ ln -s "$test_tmp/package/default/agents/skills/retired" "$test_tmp/relink/.claud
 ln -s /opt/elsewhere/skill "$test_tmp/relink/.claude/skills/theirs"
 ln -s /opt/elsewhere/game "$test_tmp/relink/.claude/skills/omarchy-make-game"
 mkdir -p "$test_tmp/relink/.claude/skills/omarchy-make-app"
+mkdir -p "$test_tmp/relink/.codex" "$test_tmp/relink/dotfiles/codex-skills"
+ln -s "$test_tmp/relink/dotfiles/codex-skills" "$test_tmp/relink/.codex/skills"
 HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "omarchy-agent-skills-link links a checkout"
 [[ $(readlink "$test_tmp/relink/.claude/skills/omarchy") == "$ROOT/default/agents/skills/omarchy" ]] ||
   fail "a skill linked from the package now links to the checkout" "$(readlink "$test_tmp/relink/.claude/skills/omarchy")"
@@ -66,6 +68,8 @@ HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "o
   fail "a folder of the user's own named like an Omarchy skill stays, with no link put inside it"
 [[ $(readlink "$test_tmp/relink/.agents/skills/omarchy-make-game") == "$ROOT/default/agents/skills/omarchy-make-game" ]] ||
   fail "every skill in the checkout is linked, including ones the package lacks"
+[[ $(readlink "$test_tmp/relink/dotfiles/codex-skills/omarchy-make-game") == "$ROOT/default/agents/skills/omarchy-make-game" ]] ||
+  fail "a harness skills dir that is a symlink to a folder gets every skill linked"
 pass "omarchy-agent-skills-link moves Omarchy's skill links to the tree in use and keeps the user's"
 
 # Pi's extension package follows the same rules as the skills.
