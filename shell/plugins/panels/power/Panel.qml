@@ -162,8 +162,14 @@ Panel {
     }
   }
 
-  function syncActiveProfile(name) {
-    if (!name || actionProc.running) return
+  property string deferredProfile: ""
+
+  function syncActiveProfile(name, force) {
+    if (!name) return
+    if (!force && actionProc.running) {
+      deferredProfile = name
+      return
+    }
     activeProfile = name
     if (opened && !cursorActive) {
       var idx = profiles.indexOf(activeProfile)
@@ -204,6 +210,7 @@ Panel {
     if (!profile || actionProc.running) return
     // Reflect the chosen profile immediately; on failure or daemon change, the
     // exit/reactive handlers reconcile back to the true active profile.
+    deferredProfile = ""
     activeProfile = profile
     var idx = profiles.indexOf(profile)
     if (idx >= 0) profileIndex = idx
@@ -279,9 +286,17 @@ Panel {
   Process {
     id: actionProc
     onExited: function(exitCode) {
-      if (exitCode !== 0 && !profilesProc.running) profilesProc.running = true
-      else if (root.batteryService) root.batteryService.refreshPowerProfile()
-      else if (!profilesProc.running) profilesProc.running = true
+      var deferred = root.deferredProfile
+      root.deferredProfile = ""
+      if (exitCode !== 0) {
+        if (root.batteryService && root.batteryService.activePowerProfile)
+          root.syncActiveProfile(root.batteryService.activePowerProfile, true)
+        if (!profilesProc.running) profilesProc.running = true
+      } else {
+        if (deferred !== "") root.syncActiveProfile(deferred, true)
+        if (root.batteryService) root.batteryService.refreshPowerProfile()
+        else if (!profilesProc.running) profilesProc.running = true
+      }
     }
   }
 
