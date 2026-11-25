@@ -38,7 +38,18 @@ local function chosen_for(output)
   return chosen[""]
 end
 
-if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64-apple")) then
+local function has_apple_device_tree()
+  local file = io.open(os.getenv("OMARCHY_DEVICE_TREE_COMPATIBLE") or "/proc/device-tree/compatible", "r")
+  if not file then
+    return false
+  end
+
+  local content = file:read("*a") or ""
+  file:close()
+  return content:find("apple,", 1, true) ~= nil
+end
+
+if has_apple_device_tree() and o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64-apple")) then
   local monitor = hl.monitor
 
   hl.monitor = function(rule)
