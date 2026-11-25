@@ -39,9 +39,12 @@ function promptLine(line) {
 function matchesProgram(shown, want) {
   if (!shown || !want) return false
   if (want.charAt(0) === "/") return shown === want || shown === promptLine(want)
-  var bare = "/" + want.replace(/^\.\//, "")
-  if (shown.slice(-bare.length) === bare) return true
-  return shown.length === 80 && shown.indexOf(" ... ") === 38 && shown.slice(-37) === bare.slice(-37)
+  var clean = want.replace(/^\.\//, "")
+  var bare = "/" + clean
+  if (shown.slice(-bare.length) === bare && shown.slice(0, shown.length - bare.length).indexOf(" ") === -1) return true
+  var wantExe = "/" + clean.split(" ")[0]
+  var shownExe = shown.split(" ")[0]
+  return shown.length === 80 && shown.indexOf(" ... ") === 38 && shownExe.slice(-wantExe.length) === wantExe && shown.slice(-37) === bare.slice(-37)
 }
 
 // A label a command asked for its next prompt (omarchy.polkit expect), when

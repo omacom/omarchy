@@ -46,6 +46,7 @@ const cutPrompt = "Authentication is needed to run `" + longLine.slice(0, 38) + 
 assertEqual(polkit.expectedLabel(cutPrompt, { program: longLine, label: 'Claude needs to install Valkey', until: 1000 }, 500), 'Claude needs to install Valkey', 'a long command line expected whole matches the prompt that cuts it')
 assertEqual(polkit.expectedLabel("Authentication is needed to run `/usr/bin/pacman -S valkey' as the super user", { program: 'pacman -S valkey', label: 'Install Valkey', until: 1000 }, 500), 'Install Valkey', 'a bare program name matches the resolved path in the prompt')
 assertEqual(polkit.expectedLabel("Authentication is needed to run `/usr/bin/unpacman -S valkey' as the super user", { program: 'pacman -S valkey', label: 'Install Valkey', until: 1000 }, 500), '', 'a bare program name does not match a different program suffix')
+assertEqual(polkit.expectedLabel("Authentication is needed to run `/usr/bin/echo /usr/bin/pacman -S valkey' as the super user", { program: 'pacman -S valkey', label: 'Install Valkey', until: 1000 }, 500), '', 'a bare program name does not match when appearing inside arguments')
 assertEqual(polkit.promptProgram(pacman), '/usr/bin/pacman', 'a pkexec prompt names the program it runs, which a label never hides')
 assertEqual(polkit.promptProgram("Authentication is needed to run `/usr/bin/sh -c echo it's' as the super user"), "/usr/bin/sh -c echo it's", 'a command line holding a quote is read up to the quote that closes it')
 assertEqual(JSON.stringify(polkit.parseRequester('claude\tClaude\t0\n')), JSON.stringify({ mark: 'claude', name: 'Claude', light: false }), 'parseRequester reads mark, display name, and light flag')
@@ -249,6 +250,8 @@ printf 'PATH=/usr/bin\0CLAUDECODE=1\0' >"$proc_dir/101/environ"
 fake_process 102 101 pkexec "$uid" true
 [[ $(requester /usr/local/bin/true) == $'claude\tClaude\t0' ]] || fail "polkit knows Claude Code by its environment, and a program given by name by the end of the line"
 pass "polkit knows Claude Code by its environment, and a program given by name by the end of the line"
+[[ -z $(requester "/usr/bin/echo /usr/local/bin/true") ]] || fail "polkit does not match a bare program name when it appears in arguments"
+pass "polkit does not match a bare program name when it appears in arguments"
 
 rm -rf "${proc_dir:?}"/*
 fake_process 100 1 node "$uid" /usr/bin/copilot --stdio

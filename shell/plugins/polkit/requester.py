@@ -82,11 +82,18 @@ def runs_shown(pdir: Path, shown: str) -> bool:
     raw = (program + rest).encode()
     line = (raw[:38] + b" ... " + raw[-37:]).decode(errors="replace") if len(raw) > 80 else program + rest
     return line == shown
-  bare = "/" + program.removeprefix("./") + rest
-  if shown.endswith(bare):
+  clean = program.removeprefix("./")
+  bare = "/" + clean + rest
+  if shown.endswith(bare) and " " not in shown[: len(shown) - len(bare)]:
     return True
   raw_shown = shown.encode()
-  return len(raw_shown) == 80 and raw_shown[38:43] == b" ... " and raw_shown.endswith(bare.encode()[-37:])
+  shown_exe = shown.split(" ", 1)[0]
+  return (
+    len(raw_shown) == 80
+    and raw_shown[38:43] == b" ... "
+    and shown_exe.endswith("/" + clean)
+    and raw_shown.endswith(bare.encode()[-37:])
+  )
 
 
 def real_uid(pdir: Path) -> int | None:
