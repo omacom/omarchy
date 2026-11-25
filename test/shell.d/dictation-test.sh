@@ -274,17 +274,23 @@ wait "$reader" || fail "concurrent readers always see a complete selection"
 printf '%s\n' voxtype > "$config"
 pass "selection updates are atomic for concurrent readers"
 
-mkdir -p "$XDG_CONFIG_HOME/omarchy"
+mkdir -p "$XDG_CONFIG_HOME/omarchy/defaults"
 printf 'XKBLAYOUT=us\n' > "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
+rm -f "$config"
 lua - <<'LUA' || fail "dictation shortcuts require a selection without limiting backend names"
 local root = os.getenv("ROOT")
+local cfg = os.getenv("XDG_CONFIG_HOME") .. "/omarchy/defaults/dictation"
 package.path = root .. "/?.lua;" .. package.path
 local selected, expected_cmd, installed, bindings = nil, nil, true, {}
-local popen = io.popen
-io.popen = function(command, mode)
-  if command:find("^xkbcli") then return popen(command, mode) end
-  assert(command == "omarchy-default-dictation 2>/dev/null")
-  return { read = function() return selected end, close = function() end }
+local function set_selected(value)
+  selected = value
+  if value then
+    local f = assert(io.open(cfg, "w"))
+    f:write(value .. "\n")
+    f:close()
+  else
+    os.remove(cfg)
+  end
 end
 o = {
   cmd_missing = function(command)
@@ -299,7 +305,8 @@ o = {
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
-selected, expected_cmd = "some-backend", "omarchy-dictation-some-backend"
+set_selected("some-backend")
+expected_cmd = "omarchy-dictation-some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 local function binds(keys, command)
   for _, binding in ipairs(bindings) do
@@ -315,7 +322,8 @@ bindings, installed = {}, false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "a selected custom backend without an adapter leaves application keys available")
 assert(not o.dictation_installed(), "personal dictation keys release their keys once the custom adapter is gone")
-bindings, selected, expected_cmd, installed = {}, "superwhisper", "superwhisper", true
+bindings, expected_cmd, installed = {}, "superwhisper", true
+set_selected("superwhisper")
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 3, "a built-in backend checks its own program and binds when present")
 assert(o.dictation_installed(), "personal dictation keys see an installed built-in backend")
@@ -330,16 +338,12 @@ pass "Alt + Space toggles dictation and Right Alt records while held, once a bac
 # US leads and ISO_Level3_Shift when an AltGr layout does. Where any layout
 # types with AltGr, Right Alt records only once held alone, so AltGr + 2 still
 # types @. Prints each push-to-talk key, and "hold" when it waits like that.
+printf 'some-backend\n' > "$config"
 push_to_talk() {
   printf 'XKBLAYOUT=%s\nXKBVARIANT=%s\n' "$1" "${2:-}" > "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
   lua - <<'LUA'
 local root = os.getenv("ROOT")
 package.path = root .. "/?.lua;" .. package.path
-local popen = io.popen
-io.popen = function(command, mode)
-  if command:find("^xkbcli") then return popen(command, mode) end
-  return { read = function() return "some-backend" end, close = function() end }
-end
 o = {
   cmd_missing = function() return false end,
   bind = function() end,
@@ -374,12 +378,12 @@ package.loaded["default.hypr.paths"] = { config_home = "/config" }
 local selected, available, loaded = "superwhisper", true, {}
 local missing = false
 o = { cmd_missing = function() return missing end }
-local real_open, real_popen, real_dofile = io.open, io.popen, dofile
-io.popen = function(command)
-  assert(command == "omarchy-default-dictation 2>/dev/null")
-  return { read = function() return selected end, close = function() end }
-end
+local real_open, real_dofile = io.open, dofile
 io.open = function(path)
+  if path == "/config/omarchy/defaults/dictation" then
+    if selected then return { read = function() return selected end, close = function() end } end
+    return nil
+  end
   assert(path == "/config/" .. selected .. "/shortcuts.lua")
   if available then return { close = function() end } end
 end
@@ -410,7 +414,7 @@ assert(#loaded == 2, "a backend must not escape the config directory")
 selected = nil
 load_backend()
 assert(#loaded == 2, "no installed backend must leave configuration usable")
-io.open, io.popen, dofile = real_open, real_popen, real_dofile
+io.open, dofile = real_open, real_dofile
 LUA
 pass "desktop integration follows the selected backend without personal Hyprland config"
 

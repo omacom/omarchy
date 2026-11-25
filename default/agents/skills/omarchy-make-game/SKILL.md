@@ -93,7 +93,23 @@ Open every screenshot with your tool for viewing images; reading the path is not
 - Does it look like the game you set out to make, with enough in it to be worth playing, not a few shapes on an empty field?
 - In the light theme, is it as readable and as good-looking?
 
-Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Check with `look page` only; the user sees the game once, when it's done (step 5).
+Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that.
+
+When a fixed key sequence isn't enough, play it step by step with `playwright-cli`: one headless Chrome session that stays open between commands, so you can press, click, read the game's state and look again. It writes its screenshots and logs under `.playwright-cli/` in the current directory, and opens local files only when told to:
+
+```bash
+cd ~/Games/vibes/<name>
+PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS=1 playwright-cli open "file://$PWD/index.html#seed=1"
+playwright-cli press Space                # keydown / keyup <key> hold a key
+playwright-cli click <ref>                # refs come from playwright-cli snapshot
+playwright-cli eval "() => document.querySelector('#score').textContent"
+playwright-cli screenshot --filename=shot.png
+playwright-cli console error              # console errors and uncaught exceptions
+playwright-cli reload                     # after editing the file
+playwright-cli close
+```
+
+Delete `.playwright-cli/` when you're done. Either way, check it yourself; the user sees the game once, when it's done (step 5).
 
 ## 5. Give it an icon and open it in Game Vibes
 

@@ -9,18 +9,30 @@ local function shipped_adapter(backend)
   return false
 end
 
+local function default_dictation()
+  local file = io.open(paths.config_home .. "/omarchy/defaults/dictation", "r")
+  if not file then
+    return nil
+  end
+
+  local backend = file:read("*l")
+  file:close()
+
+  if backend and backend:match("^[a-z0-9][a-z0-9-]*$") then
+    return backend
+  end
+
+  return nil
+end
+
 -- Dictation keys are bound only once the chosen backend is installed: built-in
 -- backends ship their adapter with Omarchy, so check the backend's own program
 -- to release Right Alt (AltGr) and Alt + Space when its package is removed;
 -- custom backends may provide only an omarchy-dictation-<backend> adapter.
 -- Personal bindings.lua dictation keys use the same check.
 function o.dictation_installed()
-  local pipe = io.popen("omarchy-default-dictation 2>/dev/null", "r")
-  local backend = pipe and pipe:read("*l")
-  if pipe then
-    pipe:close()
-  end
-  if not backend or not backend:match("^[%w%-]+$") then
+  local backend = default_dictation()
+  if not backend then
     return false
   end
   if shipped_adapter(backend) then

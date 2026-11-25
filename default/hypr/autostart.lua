@@ -11,7 +11,10 @@ hl.on("hyprland.start", function()
 
   -- Defer background daemons that aren't needed for the first frame so
   -- omarchy-shell brings up the desktop without competing for CPU and I/O.
-  hl.exec_cmd("sleep 2 && " .. o.launch("udiskie --automount --no-notify --no-tray"))
+  -- Encrypted drives ask for their password in the shell (omarchy-drive-unlock).
+  hl.exec_cmd(
+    "sleep 2 && " .. o.launch("udiskie --automount --no-notify --no-tray --password-prompt 'omarchy-drive-unlock {device_file}'")
+  )
 
   -- Start the herdr server inside the graphical session so its panes inherit
   -- WAYLAND_DISPLAY. Otherwise the first SSH login from a remote herdr starts
