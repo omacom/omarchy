@@ -75,8 +75,7 @@ ShellRoot {
     function() {
       // A card too short for its content (a short screen) scrolls to keep the
       // cursor in view.
-      panel.testKeys.anchors.fill = undefined
-      panel.testKeys.height = Style.space(160)
+      panel.testCardCap = Style.space(160)
       panel.cursorActive = true
       panel.focusSection = "vpn"
       panel.setVpnCursor(panel.vpnList.length, 0)
@@ -87,9 +86,22 @@ ShellRoot {
       var top = add.mapToItem(flick.contentItem, 0, 0).y
       check(flick.contentY > 0 && top >= flick.contentY && top + add.height <= flick.contentY + flick.height,
         "a short card scrolls Add VPN into view (contentY " + flick.contentY + ", top " + top + ")")
-      panel.testKeys.anchors.fill = panel.testKeys.parent
+      panel.focusSection = "wifi"
+      panel.selectedIndex = 0
     },
-    function() {},
+    function() {
+      // Opening the password prompt grows the row past the card's bottom.
+      panel.openPasswordPrompt("Guest Wi-Fi")
+    },
+    function() {
+      var flick = panel.testKeys.panelFlick
+      var row = panel.testKeys.networkList.itemAtIndex(0)
+      var bottom = row.mapToItem(flick.contentItem, 0, 0).y + row.height
+      check(bottom <= flick.contentY + flick.height + 1,
+        "a short card scrolls an opened password prompt into view (bottom " + bottom + ", view " + (flick.contentY + flick.height) + ")")
+      panel.cancelPasswordPrompt()
+      panel.testCardCap = 0
+    },
     function() {
       check(panel.vpnPendingId === "", "the switch clears once the command is done")
       var home = panel.vpnList.find(function(v) { return v.id === "u-home" })

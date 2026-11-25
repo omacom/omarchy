@@ -2014,6 +2014,7 @@ Panel {
           // (which doesn't bind into nested `component` declarations like
           // NetworkRow) and passes them down explicitly.
           delegate: Item {
+            id: wifiDelegate
             required property var modelData
             required property int index
             readonly property string sectionTitle: root.wifiSectionTitle(index)
@@ -2021,9 +2022,12 @@ Panel {
             height: delegateColumn.implicitHeight
 
             // Opening the passphrase prompt grows the row, which can push the
-            // field below the list's clip on the bottom rows; scroll it in.
+            // field below the list's clip on the bottom rows, or below the
+            // card on a short screen; scroll it into view in both.
             function revealPrompt() {
-              if (row.isPasswordOpen) networkList.positionViewAtIndex(index, ListView.Contain)
+              if (!row.isPasswordOpen) return
+              networkList.positionViewAtIndex(index, ListView.Contain)
+              root.scrollItemIntoView(wifiDelegate)
             }
             onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
 

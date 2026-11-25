@@ -47,7 +47,10 @@ source = source.replace('  id: root', `  id: root
   property alias testPoll: connectivityPoll
   property alias testLimitedSettle: limitedSettle
   property alias testApPoll: activeApSignalPoll
-  property alias testBarButton: button`)
+  property alias testBarButton: button
+  // Caps the card as a short screen would.
+  property real testCardCap: 0`)
+source = source.replace('contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)', 'contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, root.testCardCap)')
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
