@@ -146,7 +146,8 @@ launch --private
 pass "a private launch passes the browser's private flag"
 
 printf '[Desktop Entry]\r\nName=Work Chromium\r\nExec=chromium --name %%c %%U\r\nStartupWMClass=chromium-crlf\r\n' >"$test_home/.local/share/applications/chromium.desktop"
-launch "https://example.test/crlf"
+rm -f "$focus_log"
+HYPRLAND_INSTANCE_SIGNATURE=test launch "https://example.test/crlf"
 expected=$(printf '%s\n' chromium --name "Work Chromium" https://example.test/crlf)
 [[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
   fail "a CRLF entry passes its decoded name and URL without carriage returns" "$(cat "$launch_log")"
