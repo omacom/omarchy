@@ -6,11 +6,9 @@
 
 set -e
 
-# The offer waits for a running update to finish, so it is not taken up while
-# packages are still changing. Outside an update the lock is free.
+# Sticky, so the offer stays on screen, across restarts and reboots, until it
+# is taken up or closed.
 if [[ ${1:-} == "--offer" ]]; then
-  lock="${XDG_RUNTIME_DIR:-/tmp/omarchy-$EUID}/omarchy-update.lock"
-  [[ ! -f $lock ]] || flock "$lock" true
   omarchy-notification-wait || true
   exec omarchy-notification-send --sticky -g 󰊯 "$(omarchy-i18n default.chromeOffer)" "$(omarchy-i18n default.chromeOfferBody)" \
     --action "$(omarchy-i18n default.chromeOfferSwitch)" omarchy-default-browser-switch-to-chrome
@@ -20,6 +18,14 @@ fi
 # it needs a password, so the whole switch runs where one can be entered.
 if [[ ! -t 0 ]]; then
   exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser-switch-to-chrome
+fi
+
+# The offer arrives during the update that brings it, so the switch waits for
+# that update to finish before installing anything or closing Chromium.
+lock="${XDG_RUNTIME_DIR:-/tmp/omarchy-$EUID}/omarchy-update.lock"
+if [[ -f $lock ]] && ! flock -n "$lock" true; then
+  echo "Waiting for the update to finish..."
+  flock "$lock" true
 fi
 
 # Chrome is installed and the default before Chromium closes, so a failed

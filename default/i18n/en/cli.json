@@ -119,7 +119,7 @@
   "crash.processCrashed": "Process crashed: %1",
   "default.browserSet": "%1 is now the default browser",
   "default.chromeOffer": "Switch to Google Chrome?",
-  "default.chromeOfferBody": "It's about 50% faster than Chromium, but you'll be logged out of all sites.",
+  "default.chromeOfferBody": "It's faster and the new Omarchy default, but you'll be logged out of all sites.",
   "default.chromeOfferSwitch": "Switch to Chrome",
   "default.editorSet": "%1 is now the default editor",
   "default.terminalSet": "%1 is now the default terminal",
