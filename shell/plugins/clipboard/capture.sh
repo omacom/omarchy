@@ -5,44 +5,64 @@
 # arguments, it snapshots the current selection itself.
 
 set -o pipefail
+umask 077
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 IMAGE_DIR="$STATE_DIR/clipboard-images"
 mkdir -p "$IMAGE_DIR"
+chmod 700 "$IMAGE_DIR"
 
-types=$(wl-paste --list-types 2>/dev/null || true)
+types=$(timeout 2s wl-paste --list-types 2>/dev/null || true)
 
 if [[ ${CLIPBOARD_STATE:-} == "sensitive" ]] || grep -qx 'x-kde-passwordManagerHint' <<<"$types"; then
   exit 0
 fi
 
+tmp=
+trap 'rm -f -- "$tmp"' EXIT
+
+# The clipboard owner streams the copy and can stall without closing its end, so
+# every read is bounded, and a copy cut off at the deadline is dropped, not kept.
+read_copy() {
+  timeout 2s "$@" >"$tmp" 2>/dev/null && [[ -s $tmp ]]
+}
+
 emit_image() {
   local mime="$1"
-  local ext tmp hash file
+  local ext hash file meta inode gen
+  shift
 
   ext=${mime#image/}
-  [[ $ext == jpeg ]] && ext=jpg
+  [[ $ext == "jpeg" ]] && ext=jpg
+  [[ $ext =~ ^[A-Za-z0-9]+$ ]] || return 0
 
   tmp=$(mktemp --tmpdir="$IMAGE_DIR" clipboard.XXXXXX) || return 0
-  cat >"$tmp"
-  if [[ ! -s $tmp ]]; then
-    rm -f "$tmp"
-    return 0
-  fi
+  read_copy "$@" || return
 
   hash=$(sha256sum "$tmp" | awk '{print $1}')
   file="$IMAGE_DIR/$hash.$ext"
-  if [[ -e $file ]]; then
-    rm -f "$tmp"
-  else
-    mv "$tmp" "$file"
-  fi
+  meta=$(
+    {
+      flock 9 || exit 1
+      mv -f -- "$tmp" "$file" || exit 1
+      gen=0
+      [[ -f $IMAGE_DIR/.gen ]] && read -r gen <"$IMAGE_DIR/.gen" || true
+      [[ $gen =~ ^[0-9]+$ ]] || gen=0
+      gen=$((gen + 1))
+      printf '%s\n' "$gen" >"$IMAGE_DIR/.gen"
+      printf '%s %s\n' "$(stat -c '%i' -- "$file")" "$gen"
+    } 9>"$IMAGE_DIR/.lock"
+  ) || return 0
+  read -r inode gen <<<"$meta"
 
-  jq -cn --arg mime "$mime" --arg path "$file" --arg captured_at "$(date +'%A %H:%M')" \
-    '{type:"image", mime:$mime, path:$path, capturedAt:$captured_at}'
+  jq -cn --arg mime "$mime" --arg path "$file" --arg inode "$inode" --argjson gen "$gen" --arg captured_at "$(LC_TIME="$(omarchy-language locale 2>/dev/null)" date +'%A %H:%M')" \
+    '{type:"image", mime:$mime, path:$path, inode:$inode, gen:$gen, capturedAt:$captured_at}'
 }
 
 emit_text() {
+  tmp=$(mktemp --tmpdir="$STATE_DIR" clipboard.XXXXXX) || return 0
+  read_copy "$@" || return
+
   perl -MEncode=decode,FB_CROAK,LEAVE_SRC -MJSON::PP=encode_json -0777 -e '
     my $raw = <STDIN>;
     exit unless length $raw;
@@ -86,21 +106,21 @@ emit_text() {
     }
     $text = decode("UTF-8", $raw) unless defined $text;
     print "{\"type\":\"text\",\"text\":", encode_json($text), "}\n";
-  '
+  ' <"$tmp"
 }
 
 case "${1:-}" in
-text) emit_text; exit 0 ;;
-image/*) emit_image "$1"; exit 0 ;;
+text) emit_text cat; exit 0 ;;
+image/*) emit_image "$1" cat; exit 0 ;;
 esac
 
 for mime in image/png image/jpeg image/webp image/gif image/bmp image/tiff; do
   if grep -qx "$mime" <<<"$types"; then
-    timeout 2s wl-paste --type "$mime" 2>/dev/null | emit_image "$mime"
+    emit_image "$mime" wl-paste --type "$mime"
     exit 0
   fi
 done
 
 if grep -q '^text/' <<<"$types" || grep -qx 'UTF8_STRING' <<<"$types" || grep -qx 'STRING' <<<"$types"; then
-  wl-paste --type text --no-newline 2>/dev/null | emit_text
+  emit_text wl-paste --type text --no-newline
 fi

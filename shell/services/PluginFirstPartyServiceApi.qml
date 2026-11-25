@@ -11,6 +11,8 @@ QtObject {
   property bool doNotDisturb: false
   property var activePlayer: null
   property var sourcePlayers: []
+  property bool active: false
+  property var peers: []
 
   property var _setIdleEnabled: null
   property var _setNightlight: null
@@ -18,6 +20,7 @@ QtObject {
   property var _runAction: null
   property var _playerKey: null
   property var _selectPlayer: null
+  property var _refresh: null
 
   function setIdleEnabled(value) {
     if (serviceId === "omarchy.idle" && _setIdleEnabled) _setIdleEnabled(!!value)
@@ -42,5 +45,9 @@ QtObject {
 
   function selectPlayer(playerId) {
     if (serviceId === "omarchy.media" && _selectPlayer) _selectPlayer(String(playerId || ""))
+  }
+
+  function refresh() {
+    if (serviceId === "omarchy.remote-session" && _refresh) _refresh()
   }
 }
