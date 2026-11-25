@@ -118,16 +118,21 @@ exit 0
 EOF
 chmod +x "$stub_bin/omarchy-menu-images"
 
+omarchy_path_env=()
+if [[ -d $OMARCHY_ROOT/themes ]]; then
+  omarchy_path_env=("OMARCHY_PATH=$OMARCHY_ROOT")
+fi
+
 benchmark_env=(
   env
-  "OMARCHY_PATH=$OMARCHY_ROOT"
+  "${omarchy_path_env[@]}"
   "XDG_CACHE_HOME=$benchmark_cache"
   "PATH=$stub_bin:$OMARCHY_BIN_DIR:$PATH"
 )
 
 thumbnail_env=(
   env
-  "OMARCHY_PATH=$OMARCHY_ROOT"
+  "${omarchy_path_env[@]}"
   "XDG_CACHE_HOME=$thumbnail_cache"
   "PATH=$stub_bin:$OMARCHY_BIN_DIR:$PATH"
 )
