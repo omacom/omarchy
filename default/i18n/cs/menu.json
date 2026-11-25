@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualizovat"
   },
-  "about": {
-    "label": "O aplikaci"
-  },
   "system": {
     "label": "Systém"
+  },
+  "system.about": {
+    "label": "O aplikaci"
   },
   "system.screensaver": {
     "label": "Spořič obrazovky"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Vstup"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jazyk"
+  },
+  "setup.region.timezone": {
+    "label": "Časové pásmo"
   },
   "setup.network": {
     "label": "Síť"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "Výchozí"
-  },
-  "agent": {
-    "label": "Agent"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Prohlížeč",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Přímé spuštění"
-  },
-  "setup.reset": {
-    "label": "Reset počítače"
+  "remove.factory-reset": {
+    "label": "Tovární reset"
   },
   "install.package": {
     "label": "Balíček"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Heslo"
   },
-  "update.timezone": {
-    "label": "Časové pásmo"
-  },
   "update.time": {
     "label": "Čas"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
-  },
-  "update.password.drive": {
-    "label": "Šifrování disku"
-  },
-  "update.password.user": {
-    "label": "Uživatel"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Zobrazit % baterie"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Vypnout dotykovou obrazovku"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Prostý"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Výchozí harness"
-  },
-  "agent.instructions": {
-    "label": "Pokyny"
-  },
-  "agent.make": {
-    "label": "Vytvořit něco"
-  },
-  "agent.make.theme": {
-    "label": "Vytvořit motiv"
-  },
-  "agent.make.plugin": {
-    "label": "Vytvořit plugin"
-  },
-  "agent.make.app": {
-    "label": "Vytvořit aplikaci"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikony"
+  },
+  "install.style.icons": {
+    "label": "Ikony"
+  },
+  "remove.icons": {
+    "label": "Ikony"
+  },
+  "update.icons": {
+    "label": "Ikony navíc"
+  },
+  "system.firmware": {
+    "label": "Restart do BIOSu",
+    "description": "Restartovat do nastavení firmwaru UEFI"
+  },
+  "setup.region": {
+    "label": "Oblast"
+  },
+  "setup.region.formats": {
+    "label": "Formáty",
+    "description": "Jak se píší data, časy, čísla a jednotky"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Hra Game Vibes"
+  },
+  "update.games": {
+    "label": "Hry Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Název hostitele"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

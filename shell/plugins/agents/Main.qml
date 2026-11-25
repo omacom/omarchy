@@ -16,158 +16,6 @@ Item {
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
 
-  // Server lifecycle is independent of the local usage collector. Keep the
-  // watch alive even before the panel's content has been built.
-  property var localModel: ({})
-
-  FileView {
-    id: localModelFile
-    path: root.home + "/.local/state/omarchy/agent-local/status.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      root.parseLocalModel(text())
-      // Sharing starts and stops the share proxy, which makes and removes
-      // clients.json: a file that can't be watched before it exists.
-      clientsFile.reload()
-    }
-  }
-
-  // The catalog's recipes as this machine sees them (fits, best, installed),
-  // which Add another › Local AI offers from.
-  property var localRecipes: []
-
-  FileView {
-    id: localRecipesFile
-    path: root.home + "/.local/state/omarchy/agent-local/list.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      try {
-        var parsed = JSON.parse(text())
-        if (Array.isArray(parsed)) root.localRecipes = parsed
-      } catch (e) {
-        // A half-written listing keeps the last good one.
-      }
-    }
-  }
-
-  // Rewrites the listing and status, which a package upgrade may have
-  // changed. On a fresh account neither file exists until this first run, and
-  // a missing file can't be watched, so both are loaded once it finishes.
-  function refreshLocal() {
-    if (!localRefresh.running) localRefresh.running = true
-  }
-
-  Process {
-    id: localRefresh
-    command: ["omarchy-agent-local", "refresh", "--quiet"]
-    onExited: {
-      localRecipesFile.reload()
-      localModelFile.reload()
-    }
-  }
-
-  // Models other machines share on the tailnet, as omarchy-agent-local
-  // network last surveyed them: running, stopped, or offline with the host
-  // away. The survey runs while the panel is open; this only follows its file.
-  property var networkModels: ({})
-  // The last survey's models, but for when each was last seen, which every
-  // survey moves on: an unchanged tailnet leaves the panel's lines alone.
-  property string networkKey: ""
-  // Whether this machine can share its own models: Tailscale running with
-  // MagicDNS and HTTPS certificates, as the last survey found it.
-  property bool canShare: false
-
-  FileView {
-    id: networkFile
-    path: root.home + "/.local/state/omarchy/agent-local/network.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: root.parseNetwork(text())
-  }
-
-  // How many machines use each shared model, as omarchy-agent-local's share
-  // proxy counts them: those whose request it served in the last five
-  // minutes. The proxy rewrites the file only when a count changes.
-  property var shareClients: ({})
-
-  FileView {
-    id: clientsFile
-    path: root.home + "/.local/state/omarchy/agent-local/clients.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: root.shareClients = root.parseClients(text())
-    // No proxy running, so nobody is using anything.
-    onLoadFailed: root.shareClients = ({})
-  }
-
-  function parseClients(content) {
-    try {
-      var models = JSON.parse(content).models
-      var counts = {}
-      if (models && typeof models === "object" && !Array.isArray(models))
-        for (var id in models)
-          if (Number.isInteger(models[id]) && models[id] > 0) counts[id] = models[id]
-      return counts
-    } catch (e) {
-      return {}
-    }
-  }
-
-  function refreshNetwork() {
-    if (!networkRefresh.running) networkRefresh.running = true
-  }
-
-  Process {
-    id: networkRefresh
-    command: ["omarchy-agent-local", "network", "--write"]
-    // A first survey creates the file, which can't be watched before it exists.
-    onExited: networkFile.reload()
-  }
-
-  function parseNetwork(content) {
-    try {
-      var parsed = JSON.parse(content)
-      if (!parsed || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
-      var models = {}
-      for (var id in parsed.models) {
-        var model = parsed.models[id]
-        if (!model || model.id !== id || id !== model.host + "/" + model.recipe) return
-        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
-        models[id] = model
-      }
-      var key = JSON.stringify(models, function(field, value) { return field === "last_seen_ms" ? undefined : value })
-      if (key !== root.networkKey) {
-        root.networkKey = key
-        root.networkModels = models
-      }
-      root.canShare = parsed.can_share === true
-    } catch (e) {
-      // A missing or partially written survey keeps the last good one.
-    }
-  }
-
-  function parseLocalModel(content) {
-    try {
-      var parsed = JSON.parse(content)
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
-      if (!parsed.models || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
-      for (var id in parsed.models) {
-        var model = parsed.models[id]
-        if (!model || model.recipe !== id || id === "") return
-        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
-      }
-      root.localModel = parsed
-    } catch (e) {
-      // A missing or partially written file leaves the last good state intact.
-    }
-  }
-
   // ------------------------------------------------------------- discovery
 
   property var agentIds: []
@@ -408,51 +256,125 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: {
-    var list = subscribedProviders.slice()
-    var models = localModel.models || {}
-    for (var id in models)
-      list.push({ providerId: "local:" + id, localModel: models[id] })
-    // The tailnet's models line up with this machine's own, hidden ones aside.
-    var network = networkModels || {}
-    for (var nid in network)
-      if (providerEnabled("net:" + nid)) list.push({ providerId: "net:" + nid, localModel: network[nid] })
-    var offer = localOffer(localRecipes, models, providerEnabled)
-    if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
-    var ordered = orderedProviders(list)
-    // Another DGX Spark cabled to this one and not set up yet (omarchy-agent-local's status.json
-    // `link`) is offered like a recommended model, always first: its line opens link setup.
-    var link = localModel.link
-    if (link && link.state === "available" && providerEnabled("local:link"))
-      ordered.unshift({ providerId: "local:link", providerName: link.host || "DGX Spark", localOffer: { id: "link", vendor: "nvidia", link: link } }) // i18n: ignore
-    return ordered
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines.filter(localModelAdded)))
+
+  // A line for each coding model set up here or running on a paired
+  // machine, built by the panel from the local models service.
+  property var localModelLines: []
+
+  // The local models added from the add screen, by target (the recipe, or
+  // host/recipe for a paired machine's). Only these get a line, and the one
+  // a default of "local" opens, so the default never goes missing.
+  property var addedLocalModels: []
+
+  function localModelAdded(line) {
+    var target = line.localModel.target
+    return addedLocalModels.indexOf(target) >= 0 || (defaultAgent === "local" && target === localDefaultTarget)
   }
 
-  // A machine with no local model yet is offered the one the catalog
-  // recommends for it, ready to download from the first page. It shares its
-  // id with the model it becomes, so it keeps its place once set up, and
-  // hiding it hides the offer, not the model.
-  function localOffer(recipes, models, enabled) {
-    if (Object.keys(models || {}).length > 0) return null
-    for (var i = 0; i < (recipes || []).length; i++) {
-      var recipe = recipes[i]
-      if (recipe && recipe.best && recipe.available && !recipe.installed && enabled("local:" + recipe.id)) return recipe
+  function addLocalModel(target) {
+    if (addedLocalModels.indexOf(target) >= 0) return
+    saveLocalModels(addedLocalModels.concat([target]))
+  }
+
+  // A model taken off the panel, or removed from this machine, is offered
+  // on the add screen again.
+  function removeLocalModels(targets) {
+    var kept = addedLocalModels.filter(function(target) { return targets.indexOf(target) < 0 })
+    if (kept.length !== addedLocalModels.length) saveLocalModels(kept)
+  }
+
+  function saveLocalModels(targets) {
+    addedLocalModels = targets
+    addedLocalModelsFile.setText(JSON.stringify(targets) + "\n")
+  }
+
+  // Set by the panel, which knows what is running.
+  property string localDefaultTarget: ""
+
+  FileView {
+    id: addedLocalModelsFile
+    path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/omarchy/agents/local-models.json"
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.addedLocalModels = Array.isArray(parsed) ? parsed.map(String) : []
     }
-    return null
+    onLoadFailed: root.addedLocalModels = []
+    onFileChanged: reload()
   }
 
+  // The local model a default of "local" opens, as `omarchy default agent
+  // local <model>` pins it. Empty when none is: it opens the one started last.
+  property string localPin: ""
+
+  FileView {
+    id: localPinFile
+    path: root.home + "/.config/omarchy/defaults/local-model"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.localPin = text().trim()
+    onLoadFailed: root.localPin = ""
+    onFileChanged: reload()
+  }
+
+  // The panel shows a line for each subscription account: an agent with
+  // several is split into one per account, carrying that account's limits,
+  // plan and sign-in, so each is ordered, dragged, starred and opened on its
+  // own.
+  function accountLines(list) {
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      var accounts = p.accounts || []
+      if (accounts.length < 2) {
+        out.push(p)
+        continue
+      }
+      for (var j = 0; j < accounts.length; j++) {
+        var a = accounts[j]
+        out.push(Object.assign({}, p, {
+          lineId: p.providerId + "/" + (a.email || a.id),
+          account: a,
+          accounts: [],
+          accountName: String(a.email || ""),
+          limits: a.limits || [],
+          limitsStale: a.stale === true,
+          limitsFetchedAt: Number(a.fetchedAt || 0),
+          tierLabel: String(a.plan || ""),
+          resetCredits: a.resetCredits || null,
+          usageStatusText: String(a.usageStatusText || ""),
+          authHelpText: String(a.authHelpText || "")
+        }))
+      }
+    }
+    return out
+  }
+
+  function lineId(p) {
+    return p.lineId || p.providerId
+  }
+
+  // Where each line was put, and the ones never moved after them in the
+  // order they arrive.
   function orderedProviders(list) {
     var order = providerOrder
     var rank = function(p) {
-      var i = order.indexOf(p.providerId)
+      var i = order.indexOf(lineId(p))
+      if (i < 0) i = order.indexOf(p.providerId)
       return i < 0 ? order.length : i
     }
-    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
+    var lines = list.map(function(p, at) { return { p: p, at: at } })
+    lines.sort(function(a, b) { return rank(a.p) - rank(b.p) || a.at - b.at })
+    return lines.map(function(line) { return line.p })
   }
 
   // Moves one agent to a position among the ones shown, and saves the result.
   function moveProvider(id, to) {
-    var ids = panelProviders.map(function(p) { return p.providerId })
+    var ids = panelProviders.map(lineId)
     var from = ids.indexOf(id)
     if (from < 0) return
     to = Math.max(0, Math.min(ids.length - 1, to))
@@ -462,6 +384,26 @@ Item {
       if (ids.indexOf(providerOrder[i]) < 0) ids.push(providerOrder[i])
     providerOrder = ids
     orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
+  // The default agent, as `omarchy default agent` keeps it: a harness id, or
+  // "local" for the local model. Empty until one is chosen.
+  property string defaultAgent: ""
+
+  // The default and the local model pin, read again after they're written.
+  function reloadDefaults() {
+    defaultAgentFile.reload()
+    localPinFile.reload()
+  }
+
+  FileView {
+    id: defaultAgentFile
+    path: root.home + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.defaultAgent = text().trim()
+    onLoadFailed: root.defaultAgent = ""
+    onFileChanged: reload()
   }
 
   FileView {
@@ -525,6 +467,10 @@ Item {
       cap: isFinite(cap) && cap > 0 ? cap : 0,
       currency: String(raw.currency || "USD"),
       days: days,
+      // The last day's date, and whether the days are UTC ones: Fireworks
+      // counts in UTC, the estimates in local days.
+      through: String(raw.through || ""),
+      utc: raw.utc === true,
       // Counted from this machine's sessions, not rated by the provider.
       estimated: raw.estimated === true
     }
@@ -548,9 +494,10 @@ Item {
       limitsStale: record.limitsStale === true,
       limitsFetchedAt: numberValue(record.limitsFetchedAt),
       tierLabel: String(record.tierLabel || ""),
+      accountName: String(record.accountName || ""),
       // Every subscription account's own limits, once there's more than one.
       accounts: Array.isArray(record.accounts) ? record.accounts : [],
-      accountSwitch: record.accountSwitch || ({ mode: "manual", threshold: 95 }),
+      accountSwitch: record.accountSwitch || ({ threshold: 95 }),
       // Codex's free full resets of its rate limits, when it has any.
       resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),

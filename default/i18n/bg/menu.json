@@ -26,11 +26,11 @@
   "update": {
     "label": "Обнови"
   },
-  "about": {
-    "label": "За"
-  },
   "system": {
     "label": "Система"
+  },
+  "system.about": {
+    "label": "За"
   },
   "system.screensaver": {
     "label": "Скрийнсейвър"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Въвеждане"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Език"
+  },
+  "setup.region.timezone": {
+    "label": "Часова зона"
   },
   "setup.network": {
     "label": "Мрежа"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "По подразбиране"
-  },
-  "agent": {
-    "label": "Агент"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Браузър",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Директно стартиране"
-  },
-  "setup.reset": {
-    "label": "Нулирай компютъра"
+  "remove.factory-reset": {
+    "label": "Фабрично нулиране"
   },
   "install.package": {
     "label": "Пакет"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Парола"
   },
-  "update.timezone": {
-    "label": "Часова зона"
-  },
   "update.time": {
     "label": "Време"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Тракпад"
-  },
-  "update.password.drive": {
-    "label": "Криптиране на диска"
-  },
-  "update.password.user": {
-    "label": "Потребител"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Покажи % на батерията"
@@ -1195,7 +1138,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Заснемане при срив Вкл."
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1237,33 +1180,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Изключи сензорен екран"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.default.dictation.hex": {
     "label": "Hex"
   },
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Обикновен"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Harness по подразбиране"
-  },
-  "agent.instructions": {
-    "label": "Инструкции"
-  },
-  "agent.make": {
-    "label": "Създай нещо"
-  },
-  "agent.make.theme": {
-    "label": "Създай тема"
-  },
-  "agent.make.plugin": {
-    "label": "Създай плъгин"
-  },
-  "agent.make.app": {
-    "label": "Създай приложение"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Икони"
+  },
+  "install.style.icons": {
+    "label": "Икони"
+  },
+  "remove.icons": {
+    "label": "Икони"
+  },
+  "update.icons": {
+    "label": "Допълнителни икони"
+  },
+  "system.firmware": {
+    "label": "Рестартиране в BIOS",
+    "description": "Рестартиране в настройките на UEFI фърмуера"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Формати",
+    "description": "Как се изписват датите, часовете, числата и мерните единици"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра Game Vibes"
+  },
+  "update.games": {
+    "label": "Игри Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Име на хоста"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

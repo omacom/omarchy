@@ -26,11 +26,11 @@
   "update": {
     "label": "আপডেট"
   },
-  "about": {
-    "label": "সম্পর্কে"
-  },
   "system": {
     "label": "সিস্টেম"
+  },
+  "system.about": {
+    "label": "সম্পর্কে"
   },
   "system.screensaver": {
     "label": "স্ক্রিনসেভার"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ইনপুট"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "ভাষা"
+  },
+  "setup.region.timezone": {
+    "label": "সময় অঞ্চল"
   },
   "setup.network": {
     "label": "নেটওয়ার্ক"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "ডিফল্টসমূহ"
-  },
-  "agent": {
-    "label": "এজেন্ট"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "ব্রাউজার",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "সরাসরি বুট"
-  },
-  "setup.reset": {
-    "label": "কম্পিউটার রিসেট"
+  "remove.factory-reset": {
+    "label": "ফ্যাক্টরি রিসেট"
   },
   "install.package": {
     "label": "প্যাকেজ"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "পাসওয়ার্ড"
   },
-  "update.timezone": {
-    "label": "সময় অঞ্চল"
-  },
   "update.time": {
     "label": "সময়"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "ট্র্যাকপ্যাড"
-  },
-  "update.password.drive": {
-    "label": "ড্রাইভ এনক্রিপশন"
-  },
-  "update.password.user": {
-    "label": "ব্যবহারকারী"
   },
   "appearance.windows.gaps-on": {
     "label": "উইন্ডো ফাঁক চালু"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "টাচস্ক্রিন বন্ধ করুন"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "সাধারণ"
   },
-  "agent.harness": {
-    "label": "হার্নেস",
-    "title": "ডিফল্ট হার্নেস"
-  },
-  "agent.instructions": {
-    "label": "নির্দেশাবলী"
-  },
-  "agent.make": {
-    "label": "কিছু বানান"
-  },
-  "agent.make.theme": {
-    "label": "থিম বানান"
-  },
-  "agent.make.plugin": {
-    "label": "প্লাগইন বানান"
-  },
-  "agent.make.app": {
-    "label": "অ্যাপ বানান"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "আইকন"
+  },
+  "install.style.icons": {
+    "label": "আইকন"
+  },
+  "remove.icons": {
+    "label": "আইকন"
+  },
+  "update.icons": {
+    "label": "অতিরিক্ত আইকন"
+  },
+  "system.firmware": {
+    "label": "BIOS-এ রিবুট",
+    "description": "UEFI ফার্মওয়্যার সেটআপে রিস্টার্ট করুন"
+  },
+  "setup.region": {
+    "label": "অঞ্চল"
+  },
+  "setup.region.formats": {
+    "label": "বিন্যাস",
+    "description": "তারিখ, সময়, সংখ্যা ও একক কীভাবে লেখা হয়"
+  },
+  "install.gaming.vibes": {
+    "label": "গেমের আমেজ"
+  },
+  "remove.gaming.vibes": {
+    "label": "গেমের আমেজ গেম"
+  },
+  "update.games": {
+    "label": "গেমের আমেজ গেমগুলো"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "হোস্টনেম"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
