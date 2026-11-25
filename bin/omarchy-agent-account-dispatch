@@ -12,8 +12,8 @@
 
 dir="$HOME/.local/state/omarchy/agent-accounts/bin"
 # They were in ~/.local/share/omarchy once, and a session from before they
-# moved still has that directory on PATH, so the ones in it stay to hand over
-# to the CLI for as long as it is installed.
+# moved still has that directory on PATH. The ones in it hand over to the CLI
+# until the machine restarts, and are never taken for the CLI themselves.
 old_dir="$HOME/.local/share/omarchy/agent-accounts/bin"
 
 # The real CLI is whatever PATH finds past the dispatchers.
