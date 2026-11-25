@@ -425,7 +425,7 @@ Item {
     onTriggered: root.flushPendingTrackOsd(false)
   }
 
-  PwObjectTracker { objects: root.playbackStreams }
+  SettledPwObjectTracker { objects: root.playbackStreams }
 
   // ------------------------------------------------------------- volume keys
   //
@@ -474,7 +474,7 @@ Item {
     return true
   }
 
-  PwObjectTracker { objects: root.defaultSink ? [root.defaultSink] : [] }
+  SettledPwObjectTracker { objects: root.defaultSink ? [root.defaultSink] : [] }
 
   function statusJson() {
     var p = activePlayer
