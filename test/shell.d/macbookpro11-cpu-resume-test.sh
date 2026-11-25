@@ -31,9 +31,10 @@ run_hook() {
 cpus
 run_hook "$tmp/marker" pre suspend
 [[ $(state) == 000 ]] || fail "pre takes the online cores offline" "$(state)"
+run_hook "$tmp/marker" pre suspend
 run_hook "$tmp/marker" post suspend
 [[ $(state) == 101 && ! -e $tmp/marker ]] || fail "post puts back only the cores pre took offline" "$(state)"
-pass "suspend puts back the cores that were online and leaves the owner's offline core alone"
+pass "a repeated pre still restores online cores and leaves the owner's offline core alone"
 
 cpus
 run_hook "$tmp/marker" pre hibernate

@@ -10,14 +10,13 @@ cpu_dir=${OMARCHY_MBP11_CPU_DIR:-/sys/devices/system/cpu}
 marker=${OMARCHY_MBP11_CPU_MARKER:-/run/omarchy-macbookpro11-cpus-offlined}
 
 if [[ $1 == "pre" && ${SYSTEMD_SLEEP_ACTION:-$2} == "suspend" ]]; then
-  # Resume can only put back the cores it has a record of, so a core is taken
-  # offline only once the record can be written, and comes straight back if
-  # writing its line fails.
-  if { : >"$marker"; } 2>/dev/null; then
+  # Keep an earlier attempt's record until post restores it, and record each
+  # core before offlining it so an interrupted hook can recover on the next try.
+  if { : >>"$marker"; } 2>/dev/null; then
     for online in "$cpu_dir"/cpu[0-9]*/online; do
       [[ -w $online && $(<"$online") == "1" ]] || continue
-      if echo 0 >"$online" 2>/dev/null && ! { echo "$online" >>"$marker"; } 2>/dev/null; then
-        echo 1 >"$online" 2>/dev/null || true
+      if { echo "$online" >>"$marker"; } 2>/dev/null; then
+        echo 0 >"$online" 2>/dev/null || true
       fi
     done
   fi
