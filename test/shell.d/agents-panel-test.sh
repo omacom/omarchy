@@ -194,6 +194,50 @@ assertDeepEqual(targets({
   'away/a': { recipe: 'a', host: 'away', kind: 'text', unit: 'active', paired: true, offline: 'offline' }
 }), ['q', 'f', 'n', 'box/d'], 'every coding model here and each setup gets a line, a paired machine\'s only while it runs there')
 
+const builtWithBest = build(
+  { n: { recipe: 'n', kind: 'text', unit: 'inactive' }, q: { recipe: 'q', kind: 'text', unit: 'inactive' } },
+  [],
+  { 'box/n': { recipe: 'n', host: 'box', kind: 'text', unit: 'active', paired: true, offline: '' } },
+  [{ id: 'n', best: true }, { id: 'q', best: false }]
+)
+assertDeepEqual(builtWithBest.map(line => [line.localModel.target, line.localModel.best]),
+  [['n', true], ['q', false], ['box/n', false]],
+  'local model lines carry best from this machine\'s catalog and never for a network model')
+
+const offerRecommended = new Function(fn('offerRecommended') + '\nreturn offerRecommended')()
+assertEqual(offerRecommended({ host: '', best: true }, 2), true, 'the best model gets the recommended pill when multiple local models are offered')
+assertEqual(offerRecommended({ host: '', best: true }, 1), false, 'a single offered local model gets no recommended pill')
+assertEqual(offerRecommended({ host: '', best: false }, 2), false, 'a non-best model gets no recommended pill')
+assertEqual(offerRecommended({ host: 'spark', best: true }, 2), false, 'a network model never gets the recommended pill')
+assertEqual(offerRecommended({ host: '', best: true, link: { state: 'available' } }, 2), false, 'a cabled Spark link offer never gets the recommended pill')
+
+const sortLocalOffers = new Function(fn('sortLocalOffers') + '\nreturn sortLocalOffers')()
+assertDeepEqual(
+  sortLocalOffers([
+    { target: 'qwen', best: false },
+    { target: 'other', best: false },
+    { target: 'nemotron', best: true }
+  ]).map(o => o.target),
+  ['nemotron', 'qwen', 'other'],
+  'the recommended model sorts at the top even when another model is already installed'
+)
+
+const localMeter = new Function('Commons', 'nowMs', 'downloadRate', fn('phaseProgress') + fn('expectedLoadSeconds') + fn('expectedStopSeconds') + fn('localMeter') + '\nreturn localMeter')(
+  { I18n: { t: key => key } },
+  10000,
+  rate => rate > 0 ? Math.round(rate / 1e6) + ' MB/s' : ''
+)
+assertDeepEqual(
+  localMeter({ unit: 'installing', install: { phase: 'downloading', done_bytes: 20e9, total_bytes: 40e9, rate_bytes_s: 84e6 } }, false),
+  { title: '', value: 0.5, rate: '84 MB/s', downloading: true },
+  'a downloading model shows a titleless progress bar with speed and marks downloading'
+)
+assertEqual(
+  localMeter({ unit: 'installing', install: { phase: 'dependencies' } }, false).downloading,
+  undefined,
+  'dependency installation keeps its titled meter'
+)
+
 const localActions = new Function(fn('localActions') + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle'], 'a running model can be shared and stopped')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle'], 'without Tailscale set up, sharing is not offered')

@@ -24,7 +24,10 @@ Item {
   property int contentMargin: Style.spacing.panelPadding
   property int fieldHeight: Math.max(Style.space(42), Style.spacing.controlHeight)
 
-  property bool closing: false
+  // Set immediately on polkit auth success or cancel so the overlay drops its
+  // exclusive keyboard focus and pointer grab without waiting for polkitd to
+  // finish tearing down the D-Bus flow.
+  property bool dismissed: false
   property bool submitted: false
   property string currentMessage: ""
   // What a command asked its next prompt to say, as it knows what it's for
@@ -60,8 +63,14 @@ Item {
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
   property int shakeOffset: 0
+  // The encrypted drive being asked for (omarchy-drive-unlock), not polkit:
+  // the card unlocks it with the password itself, so a wrong one is asked again.
+  property string driveDevice: ""
+  property string driveLabel: ""
+  // Drives waiting their turn, as { device, label }: one card at a time.
+  property var driveQueue: []
 
-  readonly property bool dialogVisible: polkitAgent.isActive || closing
+  readonly property bool dialogVisible: (polkitAgent.isActive && !dismissed) || driveDevice !== ""
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
@@ -88,6 +97,10 @@ Item {
       root.expected = { program: program, label: label, until: Date.now() + 60000 }
       return "ok"
     }
+    function unlockDrive(device: string, label: string): string {
+      root.queueDrive(device, label)
+      return "ok"
+    }
   }
 
   function loadPamConfig(raw) {
@@ -103,6 +116,9 @@ Item {
     currentLabel = ""
     currentAgent = ""
     requesterPending = false
+    // A lookup still running is for a prompt that's gone, not for what comes
+    // next, a drive's card included.
+    requestSerial++
     currentPrompt = ""
     currentSupplementary = ""
     responseRequired = false
@@ -127,9 +143,51 @@ Item {
     if (responseRequired) submitted = false
   }
 
+  function queueDrive(device, label) {
+    if (device === driveDevice || driveQueue.some(function(d) { return d.device === device })) return
+    driveQueue = driveQueue.concat([{ device: device, label: label }])
+    nextDrive()
+  }
+
+  function nextDrive() {
+    if (driveDevice !== "" || (polkitAgent.isActive && !dismissed) || driveQueue.length === 0) return
+    var next = driveQueue[0]
+    driveQueue = driveQueue.slice(1)
+    beginDrive(next.device, next.label)
+  }
+
+  function beginDrive(device, label) {
+    resetSnapshot()
+    driveDevice = device
+    driveLabel = label
+    currentLabel = I18n.t("polkit.unlockDrive").replace("%1", label)
+    responseRequired = true
+    Qt.callLater(refocus)
+  }
+
+  function driveChecked(device, exitCode, error) {
+    if (exitCode === 0) driveQueue = driveQueue.filter(function(d) { return d.device !== device })
+    // An answer for a drive no longer asked for (cancelled, or set aside for polkit).
+    if (device !== driveDevice) return
+    if (exitCode !== 0 && /Incorrect passphrase|No passphrase/.test(error)) {
+      triggerFailureFeedback()
+      return
+    }
+    if (exitCode !== 0) console.warn("omarchy drive unlock failed: " + error.trim())
+    driveDevice = ""
+    resetSnapshot()
+    nextDrive()
+  }
+
   function beginFlow() {
-    closeTimer.stop()
-    closing = false
+    // Polkit's own request takes the card; a drive being asked for waits first in line.
+    if (driveDevice !== "") {
+      driveQueue = [{ device: driveDevice, label: driveLabel }].concat(driveQueue)
+      driveDevice = ""
+    }
+    // A new request starts fresh even if the previous flow is still tearing down.
+    currentLabel = ""
+    dismissed = false
     submitted = false
     passwordInput.text = ""
     refreshLidState()
@@ -164,6 +222,15 @@ Item {
     requesterProc.running = true
   }
 
+  function dismissPolkit() {
+    dismissed = true
+    // A queued drive may already have taken the card if cancelRequest() ran first.
+    if (driveDevice === "") {
+      resetSnapshot()
+      nextDrive()
+    }
+  }
+
   function refocus() {
     if (!dialogVisible) return
     // In fingerprint mode there is no field to type into — park focus on the
@@ -173,6 +240,19 @@ Item {
   }
 
   function submitResponse() {
+    if (driveDevice !== "") {
+      if (submitted) return
+      submitted = true
+      errorFlash = false
+      driveUnlock.secret = passwordInput.text
+      driveUnlock.device = driveDevice
+      driveUnlock.command = ["udisksctl", "unlock", "--no-user-interaction", "--block-device", driveDevice, "--key-file", "/dev/stdin"]
+      driveUnlock.stdinEnabled = true
+      driveUnlock.running = true
+      passwordInput.text = ""
+      keyCatcher.forceActiveFocus()
+      return
+    }
     var flow = polkitAgent.flow
     if (!flow || !flow.isResponseRequired) return
     submitted = true
@@ -184,11 +264,12 @@ Item {
 
   function cancelRequest() {
     var flow = polkitAgent.flow
-    passwordInput.text = ""
-    submitted = false
-    closing = true
-    closeTimer.restart()
-    if (flow) flow.cancelAuthenticationRequest()
+    var hadDrive = driveDevice !== ""
+    driveDevice = ""
+    if (!hadDrive && polkitAgent.isActive) dismissed = true
+    resetSnapshot()
+    if (!hadDrive && flow) flow.cancelAuthenticationRequest()
+    nextDrive()
   }
 
   function triggerFailureFeedback() {
@@ -198,16 +279,6 @@ Item {
     errorTimer.restart()
     shakeAnimation.restart()
     Qt.callLater(refocus)
-  }
-
-  Timer {
-    id: closeTimer
-    interval: 300
-    repeat: false
-    onTriggered: {
-      closing = false
-      resetSnapshot()
-    }
   }
 
   Timer {
@@ -260,6 +331,20 @@ Item {
     onExited: root.laptopClosed = String(laptopClosedOut.text || "").trim() === "closed"
   }
 
+  // The password goes over stdin, never argv, and closing stdin ends it.
+  Process {
+    id: driveUnlock
+    property string secret: ""
+    property string device: ""
+    stderr: StdioCollector { id: driveUnlockError; waitForEnd: true }
+    onStarted: {
+      write(secret)
+      secret = ""
+      stdinEnabled = false
+    }
+    onExited: function(exitCode) { root.driveChecked(device, exitCode, String(driveUnlockError.text || "")) }
+  }
+
   PolkitAgent {
     id: polkitAgent
     path: "/org/omarchy/PolkitAgent"
@@ -267,7 +352,13 @@ Item {
     onAuthenticationRequestStarted: root.beginFlow()
     onIsActiveChanged: {
       if (isActive) root.syncFromFlow()
-      else if (!root.closing) root.resetSnapshot()
+      else {
+        root.dismissed = false
+        if (root.driveDevice === "") {
+          root.resetSnapshot()
+          root.nextDrive()
+        }
+      }
     }
     onIsRegisteredChanged: {
       if (isRegistered) console.log("omarchy polkit agent registered")
@@ -295,13 +386,11 @@ Item {
     }
 
     function onAuthenticationSucceeded() {
-      root.closing = true
-      closeTimer.restart()
+      root.dismissPolkit()
     }
 
     function onAuthenticationRequestCancelled() {
-      root.closing = true
-      closeTimer.restart()
+      root.dismissPolkit()
     }
   }
 

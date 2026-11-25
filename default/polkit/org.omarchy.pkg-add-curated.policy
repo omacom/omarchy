@@ -243,17 +243,6 @@
     <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
     <annotate key="org.freedesktop.policykit.exec.argv1">cloudflare-cli</annotate>
   </action>
-  <action id="org.omarchy.pkg-add-curated.ghui">
-    <description>Install ghui</description>
-    <message>Authorize to install ghui</message>
-    <defaults>
-      <allow_any>auth_admin</allow_any>
-      <allow_inactive>auth_admin</allow_inactive>
-      <allow_active>yes</allow_active>
-    </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
-    <annotate key="org.freedesktop.policykit.exec.argv1">ghui</annotate>
-  </action>
   <action id="org.omarchy.pkg-add-curated.hey_cli">
     <description>Install the HEY CLI</description>
     <message>Authorize to install the HEY CLI</message>

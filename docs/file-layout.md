@@ -138,6 +138,7 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ systemd/user/*.service                             /usr/lib/systemd/user/
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
   ├─ systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf  /usr/lib/systemd/user/wireplumber.service.d/
+  ├─ systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf      /usr/lib/systemd/user/wireplumber.service.d/
   ├─ systemd/system-sleep/unmount-fuse                  /usr/lib/systemd/system-sleep/
   ├─ systemd/zram-generator.conf.d/90-omarchy.conf      /usr/lib/systemd/zram-generator.conf.d/
   ├─ systemd/timesyncd.conf.d/10-omarchy.conf          /usr/lib/systemd/timesyncd.conf.d/

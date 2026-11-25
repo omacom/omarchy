@@ -1000,6 +1000,19 @@ if (( EUID != 0 )); then
   chmod 755 "$TMPDIR/omarchy-zz-unreadable"
   rm -f "$TMPDIR/omarchy-zz-unreadable"
   pass "an alias dispatch reads only the commands that can own its route"
+
+  # An unreadable executable earlier in the sorted glob must not abort the
+  # batch header scan and hide subsequent readable commands.
+  printf '#!/bin/bash\n\n# omarchy:summary=Unreadable first command\necho unreadable\n' >"$TMPDIR/omarchy-aa-unreadable"
+  printf '#!/bin/bash\n\n# omarchy:summary=Readable later command\necho readable\n' >"$TMPDIR/omarchy-zz-readable"
+  chmod 111 "$TMPDIR/omarchy-aa-unreadable"
+  chmod 755 "$TMPDIR/omarchy-zz-readable"
+  output=$("$TMPDIR/omarchy" commands 2>"$TMPDIR/unreadable.err")
+  [[ $(<"$TMPDIR/unreadable.err") == *"Permission denied"* ]] ||
+    fail "an unreadable command still reports permission denied" "$(<"$TMPDIR/unreadable.err")"
+  assert_output_contains "an unreadable command does not hide later commands" "$output" "omarchy zz readable"
+  chmod 755 "$TMPDIR/omarchy-aa-unreadable"
+  rm -f "$TMPDIR/omarchy-aa-unreadable" "$TMPDIR/omarchy-zz-readable" "$TMPDIR/unreadable.err"
 fi
 
 # The same guarantee against the real command table, timed: an alias dispatch
@@ -1024,7 +1037,7 @@ fastest_ms() {
     read -r start _ </proc/uptime
     "$@" >/dev/null 2>&1
     read -r end _ </proc/uptime
-    elapsed=$(( (${end/./} - ${start/./}) * 10 ))
+    elapsed=$(( (10#${end/./} - 10#${start/./}) * 10 ))
     if [[ -z $best ]] || (( elapsed < best )); then
       best=$elapsed
     fi
