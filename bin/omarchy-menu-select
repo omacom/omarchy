@@ -18,6 +18,9 @@
 # command may print a JSON array of actual selections to update the checkmarks.
 # --selected takes a returned value (label plus any subtext), and can be repeated.
 
+# Options piped in on stdin stay off every command line, where any user on the
+# machine could read them; options given as arguments are on this one's.
+
 set -euo pipefail
 
 if (( $# < 1 )); then
@@ -106,15 +109,23 @@ fi
 
 work_dir=$(mktemp -d)
 selection_file="$work_dir/selection"
+options_file="$work_dir/options"
 done_file="$work_dir/done"
 : >"$selection_file"
 trap 'rm -rf "$work_dir"' EXIT
+
+# The options reach the shell in a private file rather than in the payload:
+# Linux refuses a single argument of 128 KiB or more, and every user on the
+# machine can read a process's arguments in /proc/<pid>/cmdline. printf is a
+# builtin, so they reach jq through a pipe, not as its arguments.
+printf '%s\0' "${options[@]}" | jq -Rsc 'split("\u0000")[:-1]' >"$options_file"
 
 payload=$(
   if (( ${#selected[@]} > 0 )); then
     printf '%s\0' "${selected[@]}"
   fi | jq -Rsc \
     --arg prompt "$prompt" \
+    --arg optionsFile "$options_file" \
     --arg selectionFile "$selection_file" \
     --arg doneFile "$done_file" \
     --arg width "$menu_width" \
@@ -126,17 +137,18 @@ payload=$(
       {
         mode: "select",
         prompt: $prompt,
-        options: $ARGS.positional,
+        optionsFile: $optionsFile,
         multiple: $multiple,
         selected: (if length == 0 then [] else split("\u0000")[:-1] end),
         onChange: $onChange,
         changeKey: $changeKey,
         selectionFile: $selectionFile,
+        selectionFileCreated: true,
         doneFile: $doneFile
       }
       + (if ($width | length) > 0 then { width: ($width | tonumber? // 0 | trunc) } else {} end)
       + (if ($maxHeight | length) > 0 then { maxHeight: ($maxHeight | tonumber? // 0 | trunc) } else {} end)
-    ' --args -- "${options[@]}"
+    '
 )
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
