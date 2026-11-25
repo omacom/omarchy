@@ -441,7 +441,8 @@
     "formatLocale": "eo",
     "locale": "eo.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.org/"
   },
   "lv": {
     "name": "Latviešu",
