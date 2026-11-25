@@ -39,6 +39,7 @@ report.
 
 ```bash
 omarchy capture text    # Select a region; extracted text goes to the clipboard
+omarchy capture qr      # Select a QR code; its contents go to the clipboard
 ```
 
 ## Sharing Files
@@ -48,12 +49,12 @@ omarchy share clipboard               # Share the clipboard via LocalSend
 omarchy share file <path...>          # Share files with nearby devices
 omarchy share folder <path>           # Share a folder
 
-omarchy tailscale send <machine> <file...>    # Taildrop to a tailnet machine
-omarchy tailscale receive [directory]         # Save incoming Taildrop files
+omarchy tailscale send <machine> [file...]    # Taildrop to a tailnet machine (picker without files)
+omarchy tailscale receive [--once] [directory]  # Save incoming Taildrop files
 ```
 
 Shrink large captures before sharing them:
 
 ```bash
-omarchy transcode <input> [format] [resolution]   # Re-encode pictures/videos for sharing
+omarchy transcode [input] [format] [resolution]   # Re-encode pictures/videos for sharing (picker without input)
 ```

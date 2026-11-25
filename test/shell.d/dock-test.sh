@@ -90,6 +90,13 @@ const terminalEntries = [
 ]
 assertEqual(dock.claimingEntryId('org.omarchy.nvim', terminalEntries), 'nvim', 'dock gives Neovim launched by the TUI launcher its own entry')
 assertEqual(dock.claimingEntryId('org.omarchy.btop', terminalEntries), 'btop', 'dock matches a terminal entry by its program name')
+
+const standIns = ['omarchy-terminal', 'omarchy-browser']
+assertEqual(dock.standInKey('foot', ['System', 'TerminalEmulator'], standIns), 'omarchy-terminal', 'a pinned Terminal claims the terminal it opened')
+assertEqual(dock.standInKey('google-chrome', ['Network', 'WebBrowser'], standIns), 'omarchy-browser', 'a pinned Browser claims the browser it opened')
+assertEqual(dock.standInKey('foot', ['TerminalEmulator'], ['foot', 'omarchy-terminal']), 'foot', 'a terminal pinned itself keeps its own windows')
+assertEqual(dock.standInKey('foot', ['TerminalEmulator'], []), 'foot', 'an unpinned Terminal claims nothing')
+assertEqual(dock.standInKey('YouTube', ['Network'], standIns), 'YouTube', 'a web app keeps its own windows')
 assertEqual(dock.claimingEntryId('org.omarchy.hey', terminalEntries), 'HEY TUI', 'dock matches an entry that hands the terminal its app id')
 assertEqual(dock.claimingEntryId('org.omarchy.agent', terminalEntries), '', 'dock leaves an app id no entry claims unclaimed')
 assertEqual(dock.claimingEntryId('Alacritty', terminalEntries), '', 'dock leaves a terminal of its own to its own entry')
@@ -108,6 +115,34 @@ assertEqual(dock.pickWindow(foot, 4), 2, 'dock brings forward the window on the 
 assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window before leaving for another workspace')
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
+assertEqual(dock.pickClickWindow('', foot, 3), 1, 'a click on a running app brings a window forward')
+assertEqual(dock.pickClickWindow('new', foot, 4), 1, 'a click on an app that asks for new windows restores a minimized one first')
+assertEqual(dock.pickClickWindow('new', [foot[0], foot[2]], 4), -1, 'a click on an app that asks for new windows starts another')
+assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspace app brings forward the one on this workspace')
+assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
+assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
+
+const fs = require('fs')
+const vm = require('vm')
+const dockQml = fs.readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
+const bringForwardFn = dockQml.match(/function bringForward\(window\) \{[\s\S]*?\n  \}/)[0]
+const commands = []
+const dockCtx = {
+  Hyprland: { focusedMonitor: { activeWorkspace: { id: 2 } } },
+  Util: {
+    shellQuote: s => `'${s}'`,
+    execDetached(cmd) { commands.push(cmd) }
+  }
+}
+vm.runInNewContext(bringForwardFn, dockCtx)
+
+let fallbackActivated = 0
+dockCtx.bringForward({ address: '0x1" }); os.execute("id"); --', minimized: false, toplevel: { activate() { fallbackActivated += 1 } } })
+assertEqual(commands.length, 0, 'dock bringForward rejects non-hex window addresses before Lua dispatch')
+assertEqual(fallbackActivated, 1, 'dock bringForward falls back to toplevel.activate on invalid address')
+
+dockCtx.bringForward({ address: 'deadbeef', minimized: false, toplevel: { activate() {} } })
+assert(commands.length === 1 && commands[0].includes('address:0xdeadbeef'), 'dock bringForward dispatches valid hex addresses')
 
 JS
 

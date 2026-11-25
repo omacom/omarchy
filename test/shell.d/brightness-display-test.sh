@@ -32,6 +32,10 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
   printf 'mock_backlight,backlight,40,40%%\n'
+elif [[ ${3:-} == "max" ]]; then
+  echo 10
+elif [[ ${3:-} == "get" ]]; then
+  echo 5
 fi
 SH
 
@@ -220,3 +224,16 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# Unknown keyboard directions must fail before reading or changing a device.
+mkdir -p "$test_tmp/leds/mock_kbd_backlight"
+keyboard="$test_tmp/omarchy-brightness-keyboard"
+sed "s|/sys/class/leds|$test_tmp/leds|g" "$ROOT/bin/omarchy-brightness-keyboard" >"$keyboard"
+: >"$call_log"
+status=0
+CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" PATH="$mock_bin:$PATH" \
+  bash "$keyboard" --no-osd status 2>"$test_tmp/keyboard-error" || status=$?
+(( status == 1 )) || fail "an unknown keyboard direction exits with an error" "exit $status"
+grep -q '^Usage:' "$test_tmp/keyboard-error" || fail "an unknown keyboard direction prints usage"
+[[ ! -s $call_log ]] || fail "an unknown keyboard direction never accesses the backlight" "$(<"$call_log")"
+pass "an unknown keyboard direction is refused without touching the backlight"

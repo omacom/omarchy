@@ -7,7 +7,16 @@ if [[ ${1:-} == --app-id=* ]]; then
   APP_ID="${1#--app-id=}"
   shift
 else
-  APP_ID="org.omarchy.$(basename $1)"
+  APP_ID="org.omarchy.$(basename -- "$1")"
 fi
 
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=$APP_ID -e "$1" "${@:2}"
+# An agent runs its commands with colors and paging switched off (NO_COLOR=1 with
+# PAGER=cat), and a window it opens would inherit both and come up without
+# colors. The window is for a person, so that pair stops here. NO_COLOR or a
+# pager the user chose for themselves stays.
+if [[ ${NO_COLOR:-} == "1" && ${PAGER:-} == "cat" ]]; then
+  unset NO_COLOR PAGER
+  [[ ${GIT_PAGER:-} == "cat" ]] && unset GIT_PAGER
+fi
+
+exec setsid uwsm-app -- xdg-terminal-exec --app-id="$APP_ID" -e "$1" "${@:2}"

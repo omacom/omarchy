@@ -1,85 +1,85 @@
-# ゲーミング
+# ゲーム
 
-Omarchy は _pRoDUcTiVItY_（生産性）のためだけのものではなく、楽しむためのものでもあります。そしてゲームほど楽しいものはないでしょう。Omarchy にはゲームの選択肢一式が同梱されています — ネイティブとレトロなプレイには Steam と RetroArch、Steam 以外のストアには Battle.net、Lutris、Heroic、PC ストリーミングには Moonlight、クラウドには Xbox Cloud Gaming + NVIDIA GeForce NOW、そして常連の Minecraft です。
+Omarchyは_pRoDUcTiVItY_のためだけにあるんじゃない。楽しむためのものでもあるし、ゲームより楽しいものなんてあるだろうか？Omarchyにはゲームのオプションが一式そろっている。ネイティブなプレイとレトロなプレイのためのSteamとRetroArch、Steam以外のストアのためのBattle.net、Lutris、Heroic、PCストリーミングのためのMoonlight、クラウドのためのXbox Cloud Gaming + NVIDIA GeForce NOW、そして定番のMinecraftだ。
 
-Valve による [プロトン互換レイヤー](https://en.wikipedia.org/wiki/Proton_(software)) への素晴らしい取り組みのおかげで、今や数万のモダンなゲームが Linux でプレイできるようになりました。ああ、それから [Steam Deck](https://store.steampowered.com/steamdeck/) が実際に Arch を動かしているのをご存知でしたか！
+Valveが[Proton互換レイヤー](https://en.wikipedia.org/wiki/Proton_(software))で成し遂げた素晴らしい仕事のおかげで、今ではLinuxでプレイできるモダンなゲームが何万本もある。ああ、それから、[Steam Deck](https://store.steampowered.com/steamdeck/)が実はArchで動いているって知っていた？
 
-すべてのゲーミングインストーラーは Omarchy メニュー（`Super + Space`）の _インストール > Gaming_ の下にあります。いつか取り消したくなったら _削除 > Gaming_ を使ってください。
+すべてのゲーム用インストーラーは、Omarchyメニュー（`Super + Space`）の_Install > Gaming_にある。元に戻したくなったら、_Remove > Gaming_を使おう。Minecraft、NVIDIA GeForce NOW、Battle.net、Lutris、Heroicは、x86マシンでのみ提供される。
 
 ## Steam
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > Steam_ を選んで [Steam](https://store.steampowered.com/) をインストールしてください。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Steam_を選んで、[Steam](https://store.steampowered.com/)をインストールしよう。
 
-インストールしたら、`Super + Space` で Steam を起動できます。
+インストールすれば、`Super + Space`でSteamを起動できるようになる。
 
-Steam は起動に10〜20秒かかることがあり、ロード中であるという視覚的フィードバックは一切提供しません。
+Steamは起動に10〜20秒かかることがあり、読み込み中であることを示す視覚的なフィードバックは何も表示されない点に注意しよう。
 
  ![gaming-steam](images/gaming-steam.webp)
 
 ## RetroArch
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > RetroArch_ を選んで [RetroArch](https://www.retroarch.com/) をインストールしてください。libretro コアの完全なセットが付属しているため、すべてのクラシックなシステムをカバーします。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > RetroArch_を選んで、[RetroArch](https://www.retroarch.com/)をインストールしよう。libretroコア一式が入っているので、定番のシステムはすべてカバーされる。
 
-RetroArch は完璧なレトロな見た目を目指す美しい CRT Royale シェーダーで完全に事前構成されています。
+RetroArchは美しいCRT Royaleシェーダーで完全に事前設定されており、完璧なレトロな見た目が楽しめる。
 
-始め方：
+始めるには：
 
-1. BIOS ファイルを `~/Games/bios` に、ROM を `~/Games/roms` に入れてください。
-2. `Super + Space` で RetroArch を起動し、`retro` と入力してください。
-3. `~/Games/roms` ディレクトリをスキャンすれば、プレイの準備完了です。
+1. BIOSファイルを`~/Games/bios`に、ROMを`~/Games/roms`に入れる。
+2. `Super + Space`でRetroArchを起動し、`retro`と入力する。
+3. `~/Games/roms`ディレクトリをスキャンすれば、プレイする準備は完了だ。
 
-お気に入りのゲームにアプリランチャーへの独自のエントリを与えることもでき、_インストール > Gaming > RetroArch Game Launcher_ でコアと ROM を選んで、`Super + Space` からゲームへ直接ジャンプできます。
+_Install > Gaming > RetroArch Game Launcher_で、お気に入りのゲームにアプリランチャー専用の項目を与えることもできる。コアとROMを選べば、`Super + Space`からそのままゲームに飛び込める。
 
  ![gaming-retroarch](images/gaming-retroarch.webp)
 
 ## Xbox Cloud Gaming
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > Xbox Cloud Gaming_ を選んで Xbox Cloud Gaming の Web アプリをインストールしてください。これはサービス向けの「単なる」Web アプリですが、起動が速く、1080p で素晴らしく動作します。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Xbox Cloud Gaming_を選んで、Xbox Cloud GamingのWebアプリをインストールしよう。これはサービスの『ただの』Webアプリだが、起動は速いし、1080pでも素晴らしく動く。
 
-すでに Xbox Game Pass がある場合、これは Fortnite や Linux のネイティブで動かせない他のタイトルをプレイする確実な方法です。
+すでにXbox Game Passを持っているなら、Fortniteや、Linuxでネイティブには動かせないその他のタイトルをプレイするのに、これは確実な方法だ。
 
  ![gaming-xbox-cloud](images/gaming-xbox-cloud.webp)
 
 ## NVIDIA GeForce Now
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > NVIDIA GeForce NOW_ を選んでクラウドゲーミングサービス [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/) をインストールしてください。Linux のネイティブで利用できないタイトルをプレイするもう1つの素晴らしい方法です。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > NVIDIA GeForce NOW_を選んで、クラウドゲーミングサービスの[NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/)をインストールしよう。Linuxでネイティブには利用できないタイトルをプレイする、もう一つの素晴らしい方法だ。
 
  ![gaming-geforce-now](images/gaming-geforce-now.webp)
 
 ## Minecraft
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > Minecraft_ を選んで Minecraft をインストールしてください。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Minecraft_を選んで、Minecraftをインストールしよう。
 
-Steam と同様、ログインや起動の後、次の画面が現れるまでしばらくかかることがあり、待っている間フィードバックは一切得られない点に注意してください。
+Steamと同じく、ログイン後や起動後に次の画面が表示されるまで時間がかかることがあり、待っている間は何のフィードバックも得られない点に注意しよう。
 
  ![gaming-minecraft](images/gaming-minecraft.webp)
 
-## Xbox コントローラー
+## Xboxコントローラー
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > Xbox Controllers_ を選んで Bluetooth Xbox コントローラーへのサポートをインストールしてください。Bluetooth（`Super + Ctrl + B`）経由でコントローラーをペアリングすれば、すべてのゲームで使えるようになります。USB-C ケーブルでコントローラーを有線接続するだけならこれは不要です。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Xbox Controllers_を選んで、Bluetooth Xboxコントローラーのサポートをインストールしよう。Bluetooth（`Super + Ctrl + B`）でコントローラーをペアリングすれば、すべてのゲームで使えるようになる。USB-Cケーブルでコントローラーを有線接続するだけなら、これは要らない。
 
-## Moonlight（PC からのゲームストリーミング）
+## Moonlight（PCからのゲームストリーミング）
 
-[Moonlight クライアント](https://github.com/moonlight-stream/moonlight-qt) は Omarchy にプリインストールされているため、[Sunshine](https://app.lizardbyte.dev/Sunshine/) を動かす Windows PC からすぐにゲームをストリーミングできます。Moonlight は `Super + Space` で起動してください。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Moonlight_を選んで、[Moonlightクライアント](https://github.com/moonlight-stream/moonlight-qt)をインストールすれば、[Sunshine](https://app.lizardbyte.dev/Sunshine/)を実行しているWindows PCからゲームをストリーミングできる。
 
-あなたの Omarchy マシンとリモートゲーミング PC の両方が有線接続されている場合、その体験はローカルでプレイすることと見分けがつきません。解像度をネイティブへ上げ、リフレッシュを 120Hz に設定し、ビットレートを最大にしてください — これが Linux で Fortnite のような競技性シューターをプレイする最良の方法です。
+OmarchyマシンとリモートのゲーミングPCの両方が有線接続なら、体験はローカルでプレイするのと見分けがつかない。解像度をネイティブまで上げ、リフレッシュレートを120Hzに設定し、ビットレートを最大にしよう。これがLinuxでFortniteのような対戦型シューターをプレイする最良の方法だ。
 
-`omarchy install service sunshine` を実行して Omarchy マシンをホストに変えることもでき、Sunshine がインストールされ、あなたの LAN と Tailscale 向けに Moonlight のストリーミングポートが開かれます。
+`omarchy install service sunshine`を実行して、Omarchyマシンをホストにすることもできる。これでSunshineがインストールされ、LANとTailscale向けにMoonlightのストリーミングポートが開かれる。
 
 ## Battle.net
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > Battle.net_ を選んで [Battle.net](https://eu.shop.battle.net/en-us) をインストールしてください。Diablo、Starcraft、World of Warcraft のようなタイトルを GE-Proton の下で動作するスタンドアロンインストールとして得られます — Steam、Lutris、Heroic は一切不要です。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Battle.net_を選んで、[Battle.net](https://eu.shop.battle.net/en-us)をインストールしよう。これで、Diablo、Starcraft、World of Warcraftといったタイトルを、GE-Protonで動くスタンドアロンのインストールとして手に入れられる。Steamも、Lutrisも、Heroicも要らない。
 
  ![gaming-starcraft](images/gaming-starcraft.webp)
 
-## Lutris（Windows ゲーム）
+## Lutris（Windowsゲーム）
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > Lutris_ を選んで [Lutris](https://lutris.net/) をインストールしてください。Lutris は上記に独自のインストーラーがない EA や Ubisoft Connect のようなストアから Windows ゲームをプレイするための手段です。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Lutris_を選んで、[Lutris](https://lutris.net/)をインストールしよう。Lutrisは、EAやUbisoft Connectのように上で紹介した独自のインストーラーがないストアのWindowsゲームをプレイするための方法だ。
 
-インストールは少し不安定で、ときどき何も起こっていないように見えます — ただ我慢してください、バックグラウンドで動いています。
+インストールは少しぎこちなく、時には何も起きていないように見える。ただ辛抱しよう。裏ではちゃんと動いている。
 
 ## Heroic Launcher（Epic Games）
 
-Omarchy メニュー（`Super + Space`）の _インストール > Gaming > Heroic (Epic Games)_ を選んで [Heroic Launcher](https://heroicgameslauncher.com/) をインストールしてください。Heroic は OddSparks のようなアンチチートに依存しない Epic Games のタイトル — それに GOG と Amazon Prime Gaming のゲーム — を動かせるようにします。悲しいことに、それは Fortnite も Rocket League もないことを意味します — Tim Sweeney が Linux に来る日までは、これが最も近いのです。
+Omarchyメニュー（`Super + Space`）から_Install > Gaming > Heroic (Epic Games)_を選んで、[Heroic Launcher](https://heroicgameslauncher.com/)をインストールしよう。Heroicでは、OddSparksのようなアンチチートに依存しないEpic Gamesのタイトルに加え、GOGやAmazon Prime Gamingのゲームも動かせる。残念ながら、それはFortniteもRocket Leagueもないということだ。Tim SweeneyがLinuxに来るまでは、これが精一杯だ。
 
-Lutris と同様、ゲームのインストール中は遅く、不安定に感じることがあります。時間をあげてください。
+Lutrisと同じく、ゲームのインストール中は動作が遅くぎこちなく感じることがある。時間をかけよう。

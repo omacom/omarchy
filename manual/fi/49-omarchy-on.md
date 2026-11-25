@@ -1,28 +1,28 @@
 # Omarchy käytössä...
 
-### Apple M1/M2 -sirut
+### Apple Silicon -Macit
 
-[Asahi Alarm](https://asahi-alarm.org/) on versio Archista Apple M1/M2 -tietokoneille, rakennettu [Asahi Linuxin](https://asahilinux.org/) päälle. Saat Omarchyn toimimaan sen päällä hieman vaivaa nähden. Katso [käyttäjien tekemää opasta](https://github.com/omarchy-mac/omarchy-mac).
+Apple Siliconille tarkoitettu Omarchy toimii M1-, M2- ja M3-Maceissa ja asentuu macOS:n rinnalle. Katso [Omarchy Apple Siliconille](44-mac-support.md#omarchy-for-apple-silicon) Mac-tukea käsittelevästä luvusta.
 
-### Apple-virtuaalikone
+### Kokeile Omarchya Macilla
 
-Voit asentaa Omarchyn myös Parallels VM:ään. Melko työläs prosessi, mutta siihenkin on [käyttäjien tekemä opas](https://github.com/omacom/omarchy/discussions/452).
+[Kokeile Omarchya](https://github.com/omacom/try-omarchy) ajaa Omarchya virtuaalikoneessa millä tahansa Apple Silicon -Macilla, jossa on macOS 15 tai uudempi, ilman että mitään tarvitsee osioida tai asentaa macOS:n rinnalle.
 
 ### VirtualBox
 
-VirtualBox on suosittu VM-ajuri. [Voit ajaa Omarchyn myös siinä](https://github.com/omacom/omarchy/discussions/176). Mutta suorituskyky ei todennäköisesti ole hääppöinen.
+VirtualBox on suosittu VM-ajoympäristö. [Voit ajaa Omarchya myös sen sisällä](https://github.com/omacom/omarchy/discussions/176). Mutta suorituskyky ei todennäköisesti ole kovin hyvä.
 
 ### VMware Workstation Windows 11:ssä
 
-Toinen suosittu VM-ajuri Windowsille. [Omarchy on asetettu myös sen sisään](https://github.com/omacom/omarchy/discussions/572).
+Toinen suosittu VM-ajoympäristö Windowsille. [Omarchy on saatu toimimaan myös sen sisällä](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-Steam Deck toimii Archilla, mikä tarkoittaa, että voit ajaa Omarchyn Steam Deckilläsi. Altynbek Orumbayevilla on [koko asennusskripti ja selitys, miten se tehdään](https://github.com/aorumbayev/deckarchy). Kuinka hienoa se onkaan!
+Steam Deck toimii Archilla, mikä tarkoittaa, että voit ajaa Omarchya Steam Deckilläsi. Altynbek Orumbayevilla on [täydellinen asennusskripti ja selitys siitä, miten se tehdään](https://github.com/aorumbayev/deckarchy). Kuinka siistiä!
 
 ### NixOS
 
-Omarchy on oikeastaan Arch + Hyprland, mutta Henry Sipp on [siirtänyt asennuksen ytimen NixOS:ään](https://github.com/henrysipp/omarchy-nix). Joten jos olet ottanut nix-pillerin, tässä on hyvä lähtökohta. Se ei välttämättä pysy ajan tasalla uusimpien Omarchy-muutosten kanssa, mutta se on silti aika hienoa!
+Omarchy on pohjimmiltaan Arch + Hyprland, mutta Henry Sipp on [siirtänyt kokoonpanon ytimen NixOS:lle](https://github.com/henrysipp/omarchy-nix). Joten jos olet ottanut nix-pillerin, tässä on hyvä lähtökohta. Se saattaa pysyä tai olla pysymättä ajan tasalla Omarchyn viimeisimpien muutosten kanssa, mutta se on silti aika siistiä!
 
 ### Jotain muuta!
 

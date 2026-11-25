@@ -26,11 +26,11 @@
   "update": {
     "label": "Uppdatera"
   },
-  "about": {
-    "label": "Om"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Om"
   },
   "system.screensaver": {
     "label": "Skärmsläckare"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inmatning"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Språk"
+  },
+  "setup.region.timezone": {
+    "label": "Tidszon"
   },
   "setup.network": {
     "label": "Nätverk"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "Standarder"
-  },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Standardagent"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Webbläsare",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direktstart"
-  },
-  "setup.reset": {
-    "label": "Återställ datorn"
+  "remove.factory-reset": {
+    "label": "Fabriksåterställning"
   },
   "install.package": {
     "label": "Paket"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium-konto"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "Lösenord"
   },
-  "update.timezone": {
-    "label": "Tidszon"
-  },
   "update.time": {
     "label": "Tid"
   },
@@ -1139,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Styrplatta"
   },
-  "update.password.drive": {
-    "label": "Enhetskryptering"
-  },
-  "update.password.user": {
-    "label": "Användare"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Kraschloggning av"
   },
@@ -1178,34 +1114,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Inaktivera pekskärm"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Enkel"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoner"
+  },
+  "install.style.icons": {
+    "label": "Ikoner"
+  },
+  "remove.icons": {
+    "label": "Ikoner"
+  },
+  "update.icons": {
+    "label": "Extra ikoner"
+  },
+  "system.firmware": {
+    "label": "Starta om till BIOS",
+    "description": "Starta om till UEFI-firmwareinställningarna"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Format",
+    "description": "Hur datum, tider, siffror och enheter skrivs"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Värdnamn"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

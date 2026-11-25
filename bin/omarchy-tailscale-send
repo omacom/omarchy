@@ -6,6 +6,11 @@
 
 set -euo pipefail
 
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy-tailscale-send <machine> [file...]"
+  exit 0
+fi
+
 if (($# < 1)); then
   echo "Usage: omarchy-tailscale-send <machine> [file...]" >&2
   exit 1

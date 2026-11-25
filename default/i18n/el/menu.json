@@ -26,11 +26,11 @@
   "update": {
     "label": "Ενημέρωση"
   },
-  "about": {
-    "label": "Σχετικά"
-  },
   "system": {
     "label": "Σύστημα"
+  },
+  "system.about": {
+    "label": "Σχετικά"
   },
   "system.screensaver": {
     "label": "Προφύλαξη οθόνης"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Είσοδος"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Γλώσσα"
+  },
+  "setup.region.timezone": {
+    "label": "Ζώνη ώρας"
   },
   "setup.network": {
     "label": "Δίκτυο"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "Προεπιλογές"
-  },
-  "setup.default.agent": {
-    "label": "Πράκτορας",
-    "title": "Προεπιλεγμένος πράκτορας"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Περιηγητής",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Απευθείας εκκίνηση"
-  },
-  "setup.reset": {
-    "label": "Επαναφορά υπολογιστή"
+  "remove.factory-reset": {
+    "label": "Εργοστασιακή επαναφορά"
   },
   "install.package": {
     "label": "Πακέτο"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Λογαριασμός Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "Κωδικός"
   },
-  "update.timezone": {
-    "label": "Ζώνη ώρας"
-  },
   "update.time": {
     "label": "Ώρα"
   },
@@ -1139,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Επιφάνεια αφής"
   },
-  "update.password.drive": {
-    "label": "Κρυπτογράφηση δίσκου"
-  },
-  "update.password.user": {
-    "label": "Χρήστης"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Καταγραφή σφαλμάτων ανενεργή"
   },
@@ -1178,34 +1114,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Απενεργοποίηση οθόνης αφής"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Απλό"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Εικονίδια"
+  },
+  "install.style.icons": {
+    "label": "Εικονίδια"
+  },
+  "remove.icons": {
+    "label": "Εικονίδια"
+  },
+  "update.icons": {
+    "label": "Πρόσθετα εικονίδια"
+  },
+  "system.firmware": {
+    "label": "Επανεκκίνηση στο BIOS",
+    "description": "Επανεκκίνηση στις ρυθμίσεις υλικολογισμικού UEFI"
+  },
+  "setup.region": {
+    "label": "Περιοχή"
+  },
+  "setup.region.formats": {
+    "label": "Μορφές",
+    "description": "Πώς γράφονται ημερομηνίες, ώρες, αριθμοί και μονάδες"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Παιχνίδι Game Vibes"
+  },
+  "update.games": {
+    "label": "Παιχνίδια Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Όνομα υπολογιστή"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
