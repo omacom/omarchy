@@ -366,6 +366,18 @@ mkdir -p "$old_dispatchers"
 cp "$dispatchers/claude" "$old_dispatchers/claude"
 [[ $(PATH="$old_dispatchers:$PATH" timeout 10 "$old_dispatchers/claude" --version) == "claude home=default args=--version" ]] ||
   fail "a dispatcher left in the old directory runs the real CLI"
+# Nor is it taken for the CLI once that is gone: it goes too.
+if [[ ! -e /usr/bin/grok ]]; then
+  mv "$mock_bin/grok" "$test_tmp/grok-aside"
+  cp "$dispatchers/grok" "$old_dispatchers/grok"
+  PATH="$old_dispatchers:$cli_only_path" omarchy-install-ai-cli --check grok >/dev/null &&
+    fail "a dispatcher left in the old directory doesn't make its CLI installed"
+  PATH="$old_dispatchers:$cli_only_path" omarchy-agent-account-dispatch grok
+  [[ ! -e $dispatchers/grok && ! -e $old_dispatchers/grok ]] ||
+    fail "a dispatcher left in the old directory isn't taken for its CLI"
+  mv "$test_tmp/grok-aside" "$mock_bin/grok"
+  PATH=$cli_only_path omarchy-agent-account-dispatch grok
+fi
 rm -rf "$HOME/.local/share/omarchy" "$package_tree"
 pass "dispatchers live outside ~/.local/share/omarchy"
 

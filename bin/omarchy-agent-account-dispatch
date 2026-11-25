@@ -11,12 +11,16 @@
 # Omarchy runs this; with no agents named, every one is brought in line.
 
 dir="$HOME/.local/state/omarchy/agent-accounts/bin"
+# They were in ~/.local/share/omarchy once, and a session from before they
+# moved still has that directory on PATH, so the ones in it stay to hand over
+# to the CLI for as long as it is installed.
+old_dir="$HOME/.local/share/omarchy/agent-accounts/bin"
 
 # The real CLI is whatever PATH finds past the dispatchers.
 cli_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for entry in "${dirs[@]}"; do
-  [[ $entry == "$dir" ]] || cli_path+="${cli_path:+:}$entry"
+  [[ $entry == "$dir" || $entry == "$old_dir" ]] || cli_path+="${cli_path:+:}$entry"
 done
 
 agents=("$@")
@@ -36,6 +40,6 @@ for agent in "${agents[@]}"; do
     chmod +x "$dir/.$agent.new"
     mv -f "$dir/.$agent.new" "$dir/$agent"
   else
-    rm -f "$dir/$agent"
+    rm -f "$dir/$agent" "$old_dir/$agent"
   fi
 done
