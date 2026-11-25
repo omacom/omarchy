@@ -1,3 +1,3 @@
 if omarchy-hw-dell-xps-haptic-touchpad; then
-  omarchy-pkg-add dell-xps-touchpad-haptics
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add dell-xps-touchpad-haptics
 fi

@@ -63,7 +63,7 @@ set_base_size() {
 
   local tmp
   tmp="$(mktemp)"
-  awk -v val="$size" '
+  if awk -v val="$size" '
     function emit_base() { print "base-size = " val; done = 1 }
     /^[[:space:]]*\[/ {
       if (in_font && !done) emit_base()
@@ -84,8 +84,10 @@ set_base_size() {
         emit_base()
       }
     }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  ' "$shell_config" >"$tmp"; then
+    cat "$tmp" >"$shell_config"
+  fi
+  rm -f "$tmp"
 }
 
 # Drop the base-size line, returning the shell to the theme/default size.
@@ -93,12 +95,14 @@ reset_base_size() {
   [[ -f $shell_config ]] || return 0
   local tmp
   tmp="$(mktemp)"
-  awk '
+  if awk '
     /^[[:space:]]*\[/ { in_font = ($0 ~ /^[[:space:]]*\[font\]([[:space:]]|$)/) }
     in_font && /^[[:space:]]*base-size[[:space:]]*=/ { next }
     { print }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  ' "$shell_config" >"$tmp"; then
+    cat "$tmp" >"$shell_config"
+  fi
+  rm -f "$tmp"
 }
 
 # ---- GTK text-scaling-factor ----
@@ -137,7 +141,7 @@ set_terminal_size() {
   local pt="$1"
 
   if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
-    sed -i -E "s/^size[[:space:]]*=.*/size = $pt/" ~/.config/alacritty/alacritty.toml
+    sed --follow-symlinks -i -E "s/^size[[:space:]]*=.*/size = $pt/" ~/.config/alacritty/alacritty.toml
   fi
 
   if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
@@ -151,12 +155,12 @@ set_terminal_size() {
   fi
 
   if [[ -f ~/.config/ghostty/config ]]; then
-    sed -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
+    sed --follow-symlinks -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
     pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
   if [[ -f ~/.config/foot/foot.ini ]]; then
-    sed -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
+    sed --follow-symlinks -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
     # Foot has no config-reload signal, so a running instance keeps its startup
     # size until relaunched (new windows pick up the change). Nudge the user —
     # but reuse the same notification id (freedesktop replaces_id) so dragging

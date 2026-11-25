@@ -43,6 +43,10 @@ done
 
 pass "omarchy-provision-user provisions Antigravity and Hermes skills"
 
+grep -qxF "xdg-mime default google-chrome.desktop text/html x-scheme-handler/http x-scheme-handler/https x-scheme-handler/about x-scheme-handler/unknown" "$TEST_COMMAND_LOG" ||
+  fail "omarchy-provision-user sets the default browser via xdg-mime" "$(cat "$TEST_COMMAND_LOG")"
+pass "omarchy-provision-user sets the default browser via xdg-mime"
+
 # Linking a checkout (omarchy dev link) moves the links out of the package,
 # drops one to a skill the checkout doesn't have, and keeps the user's own.
 mkdir -p "$test_tmp/relink/.claude/skills" "$test_tmp/package/default/agents/skills/omarchy" "$test_tmp/package/default/agents/skills/retired"
