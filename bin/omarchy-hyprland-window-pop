@@ -20,21 +20,36 @@ hypr_dispatch() {
 }
 
 hypr_batch() {
-  local joined="" cmd
+  local joined="" cmd out line total=0 ok_count=0
   for cmd in "$@"; do
     joined+="${joined:+ ; }dispatch $cmd"
   done
-  hyprctl --batch "$joined" >/dev/null 2>&1
+  out=$(hyprctl --batch "$joined" 2>/dev/null) || return 1
+  while IFS= read -r line; do
+    [[ -n $line ]] || continue
+    (( ++total ))
+    [[ $line == "ok" ]] && (( ++ok_count ))
+  done <<<"$out"
+  if (( total == $# && ok_count == $# )); then
+    return 0
+  elif (( ok_count == 0 )); then
+    return 1
+  fi
+  return 2
 }
 
 if [[ $pinned == "true" ]]; then
-  if ! hypr_batch \
+  status=0
+  hypr_batch \
     "hl.dsp.window.pin({ window = \"$window\" })" \
     "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" \
-    "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })"; then
+    "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" || status=$?
+  if (( status == 1 )); then
     hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
     hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
     hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
+  elif (( status != 0 )); then
+    exit 1
   fi
 else
   if [[ -n $x && -n $y ]]; then
@@ -43,13 +58,15 @@ else
     move_lua="hl.dsp.window.center({ window = \"$window\" })"
   fi
 
-  if ! hypr_batch \
+  status=0
+  hypr_batch \
     "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" \
     "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" \
     "$move_lua" \
     "hl.dsp.window.pin({ window = \"$window\" })" \
     "hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })" \
-    "hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })"; then
+    "hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })" || status=$?
+  if (( status == 1 )); then
     hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
     hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizeactive exact "$width" "$height" "$window"
 
@@ -62,5 +79,7 @@ else
     hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
     hypr_dispatch "hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })" alterzorder top "$window"
     hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })" tagwindow +pop "$window"
+  elif (( status != 0 )); then
+    exit 1
   fi
 fi
