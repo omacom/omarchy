@@ -85,7 +85,7 @@ default/polkit/*.policy        ──►  omarchy             /usr/share/polkit-
 
 install/**                     ──►  omarchy             /usr/share/omarchy/install/
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/
-themes/**                      ──►  omarchy             /usr/share/omarchy/themes/
+themes/**                      ──►  omarchy             /usr/share/omarchy/themes/   (stills, intros and loops ship from omarchy-themes-backgrounds, -intros and -loops)
 icons/**                       ──►  omarchy             /usr/share/omarchy/icons/    (icon sets, see theming.md "App icons")
 shell/**                       ──►  omarchy             /usr/share/omarchy/shell/
 version                        ──►  omarchy             /usr/share/omarchy/version
