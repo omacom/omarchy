@@ -8,9 +8,8 @@ height=${2:-900}
 x=${3:-}
 y=${4:-}
 
-active=$(hyprctl activewindow -j)
-pinned=$(echo "$active" | jq ".pinned")
-addr=$(echo "$active" | jq -r ".address")
+read -r pinned addr < <(hyprctl activewindow -j | jq -r '"\(.pinned // false) \(.address // "")"')
+[[ -n $addr ]] || exit 0
 window="address:$addr"
 
 hypr_dispatch() {
@@ -20,21 +19,48 @@ hypr_dispatch() {
   hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
 }
 
-if [[ $pinned == "true" ]]; then
-  hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
-  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
-  hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
-elif [[ -n $addr ]]; then
-  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
-  hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizeactive exact "$width" "$height" "$window"
+hypr_batch() {
+  local joined="" cmd
+  for cmd in "$@"; do
+    joined+="${joined:+ ; }dispatch $cmd"
+  done
+  hyprctl --batch "$joined" >/dev/null 2>&1
+}
 
+if [[ $pinned == "true" ]]; then
+  if ! hypr_batch \
+    "hl.dsp.window.pin({ window = \"$window\" })" \
+    "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" \
+    "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })"; then
+    hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
+    hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+    hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
+  fi
+else
   if [[ -n $x && -n $y ]]; then
-    hypr_dispatch "hl.dsp.window.move({ window = \"$window\", x = $x, y = $y })" moveactive "$x" "$y" "$window"
+    move_lua="hl.dsp.window.move({ window = \"$window\", x = $x, y = $y })"
   else
-    hypr_dispatch "hl.dsp.window.center({ window = \"$window\" })" centerwindow "$window"
+    move_lua="hl.dsp.window.center({ window = \"$window\" })"
   fi
 
-  hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
-  hypr_dispatch "hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })" alterzorder top "$window"
-  hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })" tagwindow +pop "$window"
+  if ! hypr_batch \
+    "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" \
+    "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" \
+    "$move_lua" \
+    "hl.dsp.window.pin({ window = \"$window\" })" \
+    "hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })" \
+    "hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })"; then
+    hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+    hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizeactive exact "$width" "$height" "$window"
+
+    if [[ -n $x && -n $y ]]; then
+      hypr_dispatch "$move_lua" moveactive "$x" "$y" "$window"
+    else
+      hypr_dispatch "$move_lua" centerwindow "$window"
+    fi
+
+    hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
+    hypr_dispatch "hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })" alterzorder top "$window"
+    hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"+pop\" })" tagwindow +pop "$window"
+  fi
 fi

@@ -112,3 +112,19 @@ HOME="$tmp/home" PATH="$tmp/bin:$ROOT/bin:$PATH" \
 [[ $(<"$tmp/wl-copy-out") == "file://$tmp/pics/My%20Photo%20100%25%20%231-low.jpg" ]] ||
   fail "omarchy-transcode percent-encodes special characters in clipboard file URIs" "$(<"$tmp/wl-copy-out")"
 pass "omarchy-transcode percent-encodes clipboard file URIs"
+
+# omarchy-hyprland-window-pop exits cleanly without dispatching on an empty workspace.
+cat >"$tmp/bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "activewindow" ]]; then
+  echo '{}'
+else
+  printf '%s\n' "\$*" >>"$tmp/hyprctl-pop-calls"
+fi
+SH
+chmod +x "$tmp/bin/hyprctl"
+rm -f "$tmp/hyprctl-pop-calls"
+PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop"
+[[ ! -e "$tmp/hyprctl-pop-calls" ]] ||
+  fail "omarchy-hyprland-window-pop does not dispatch when no window is focused" "$(<"$tmp/hyprctl-pop-calls")"
+pass "omarchy-hyprland-window-pop exits cleanly on an empty workspace"
