@@ -224,7 +224,7 @@ case "$1" in
   PATH="$TEST_ROOT_TOOLS:/usr/bin:/bin" \
     /bin/bash -c "$code" "$shell_name" "$@"
   ;;
-plymouth-set-default-theme | limine-mkinitcpio | mkinitcpio)
+plymouth-set-default-theme | omarchy-boot-rebuild | mkinitcpio)
   printf 'command %s\n' "$*" >>"$TEST_SUDO_LOG"
   exit 0
   ;;
@@ -297,9 +297,9 @@ destination=${@: -1}
 [[ $source == "$destination" ]] || /usr/bin/cp -- "$source" "$destination"
 SH
 
-cat >"$fake_bin/omarchy-cmd-present" <<'SH'
+cat >"$fake_bin/omarchy-boot-backend" <<'SH'
 #!/bin/bash
-exit 1
+echo none
 SH
 
 chmod +x "$fake_bin"/* "$root_tools"/*
@@ -354,20 +354,12 @@ setup_run() {
 }
 
 setup_fresh_run() {
-  local asset destination
-
   setup_run
-  for asset in "${plymouth_default_assets[@]}"; do
-    destination="$theme/$asset"
-    rm -f -- "$destination"
-    /usr/bin/install -m 0644 -- "$ROOT/default/plymouth/$asset" "$destination"
-  done
-  for asset in "${sddm_default_assets[@]}"; do
-    destination="$sddm/$asset"
-    rm -f -- "$destination"
-    /usr/bin/install -m 0644 -- "$ROOT/default/sddm/omarchy/$asset" "$destination"
-  done
-  rm -f -- "$sddm/logo.svg"
+  rm -rf -- "$theme" "$sddm"
+  cp -a -- "$ROOT/default/plymouth" "$theme"
+  cp -a -- "$ROOT/default/sddm/omarchy" "$sddm"
+  chmod 0755 "$theme" "$theme/logos" "$sddm"
+  find "$theme" "$sddm" -type f -exec chmod 0644 {} +
 }
 
 run_in_fake_root() {
@@ -432,82 +424,109 @@ assert_packaged_assets() {
   done
 }
 
-for requested_umask in 022 027 077; do
-  setup_fresh_run
-  output=$(run_set "$requested_umask" env 2>&1)
+# Run independent publication scenario batches in parallel: each calls
+# setup_run/setup_fresh_run into its own mktemp directory and only batch 2
+# mutates the shared $test_tmp/logo.png and $secret fixtures.
+batch_pids=()
+batch_logs=()
+run_batch() {
+  local idx=$(( ${#batch_pids[@]} + 1 ))
+  local batch_log="$test_tmp/batch-$idx.log"
+  batch_logs+=("$batch_log")
+  "$1" >"$batch_log" 2>&1 &
+  batch_pids+=("$!")
+}
+
+batch_fresh_and_migrated() {
+  for requested_umask in 022 077; do
+    setup_fresh_run
+    output=$(run_set "$requested_umask" env 2>&1)
+    status=$?
+    (( status == 0 )) || fail "Plymouth publisher succeeds under umask $requested_umask" "$output"
+
+    for asset in "${plymouth_theme_assets[@]}"; do
+      destination="$theme/$asset"
+      [[ -f $destination && ! -L $destination ]] || fail "Plymouth $asset is a regular file under umask $requested_umask"
+      [[ $(stat -c %a "$destination") == 644 ]] || fail "Plymouth $asset is mode 0644 under umask $requested_umask"
+      [[ -s $destination ]] || fail "Plymouth $asset is nonempty under umask $requested_umask"
+    done
+    for asset in "${sddm_theme_assets[@]}"; do
+      destination="$sddm/$asset"
+      [[ -f $destination && ! -L $destination ]] || fail "SDDM $asset is a regular file under umask $requested_umask"
+      [[ $(stat -c %a "$destination") == 644 ]] || fail "SDDM $asset is mode 0644 under umask $requested_umask"
+      [[ -s $destination ]] || fail "SDDM $asset is nonempty under umask $requested_umask"
+    done
+
+    cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "Plymouth receives the selected logo under umask $requested_umask"
+    cmp -s "$test_tmp/logo.png" "$sddm/logo.png" || fail "SDDM receives the selected logo under umask $requested_umask"
+    grep -Fq '#1d2021' "$sddm/Main.qml" || fail "SDDM Main.qml receives the selected background under umask $requested_umask"
+    grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "Plymouth script receives the selected background under umask $requested_umask"
+
+    cmp -s "$ROOT/default/plymouth/logos/oma.png" "$theme/logos/oma.png" || fail "theme set leaves the packaged nested logo unchanged"
+    cmp -s "$ROOT/default/sddm/omarchy/metadata.desktop" "$sddm/metadata.desktop" || fail "theme set leaves packaged SDDM metadata unchanged"
+    cmp -s "$ROOT/default/sddm/omarchy/theme.conf" "$sddm/theme.conf" || fail "theme set leaves packaged SDDM configuration unchanged"
+    [[ ! -s $leak_log ]] || fail "no privileged command receives a user-writable staged pathname" "$(cat "$leak_log")"
+    [[ $(stat -c %a "$theme") == 755 && $(stat -c %a "$sddm") == 755 && $(stat -c %a "$theme/logos") == 755 ]] || fail "publication preserves destination directory modes under umask $requested_umask"
+    grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "theme set activates the published Plymouth theme"
+    grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "theme set rebuilds the initramfs"
+    assert_no_temporary_files "$fake_root"
+  done
+
+  pass "a fresh installation receives complete mode-0644 Plymouth and SDDM theme files across restrictive umasks"
+
+  # An upgraded machine may already contain restrictive modes, destination
+  # symlinks, and the legacy SDDM logo. Setting a theme must replace only the
+  # destination entries and must never write through those symlinks.
+  setup_run
+  output=$(run_set 022 env 2>&1)
   status=$?
-  (( status == 0 )) || fail "Plymouth publisher succeeds under umask $requested_umask" "$output"
 
-  for asset in "${plymouth_theme_assets[@]}"; do
-    destination="$theme/$asset"
-    [[ -f $destination && ! -L $destination ]] || fail "Plymouth $asset is a regular file under umask $requested_umask"
-    [[ $(stat -c %a "$destination") == 644 ]] || fail "Plymouth $asset is mode 0644 under umask $requested_umask"
-    [[ -s $destination ]] || fail "Plymouth $asset is nonempty under umask $requested_umask"
-  done
-  for asset in "${sddm_theme_assets[@]}"; do
-    destination="$sddm/$asset"
-    [[ -f $destination && ! -L $destination ]] || fail "SDDM $asset is a regular file under umask $requested_umask"
-    [[ $(stat -c %a "$destination") == 644 ]] || fail "SDDM $asset is mode 0644 under umask $requested_umask"
-    [[ -s $destination ]] || fail "SDDM $asset is nonempty under umask $requested_umask"
-  done
-
-  cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "Plymouth receives the selected logo under umask $requested_umask"
-  cmp -s "$test_tmp/logo.png" "$sddm/logo.png" || fail "SDDM receives the selected logo under umask $requested_umask"
-  grep -Fq '#1d2021' "$sddm/Main.qml" || fail "SDDM Main.qml receives the selected background under umask $requested_umask"
-  grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "Plymouth script receives the selected background under umask $requested_umask"
-
-  cmp -s "$ROOT/default/plymouth/logos/oma.png" "$theme/logos/oma.png" || fail "theme set leaves the packaged nested logo unchanged"
-  cmp -s "$ROOT/default/sddm/omarchy/metadata.desktop" "$sddm/metadata.desktop" || fail "theme set leaves packaged SDDM metadata unchanged"
-  cmp -s "$ROOT/default/sddm/omarchy/theme.conf" "$sddm/theme.conf" || fail "theme set leaves packaged SDDM configuration unchanged"
-  [[ ! -s $leak_log ]] || fail "no privileged command receives a user-writable staged pathname" "$(cat "$leak_log")"
-  [[ $(stat -c %a "$theme") == 755 && $(stat -c %a "$sddm") == 755 && $(stat -c %a "$theme/logos") == 755 ]] || fail "publication preserves destination directory modes under umask $requested_umask"
-  grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "theme set activates the published Plymouth theme"
-  grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "theme set rebuilds the initramfs"
+  (( status == 0 )) || fail "theme set repairs migrated Plymouth and SDDM destinations" "$output"
+  [[ -f $theme/omarchy.script && ! -L $theme/omarchy.script ]] || fail "theme set replaces a migrated Plymouth destination symlink"
+  [[ -f $sddm/Main.qml && ! -L $sddm/Main.qml ]] || fail "theme set replaces a migrated SDDM destination symlink"
+  [[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' && $(stat -c %a "$plymouth_victim") == 600 ]] || fail "theme set never changes a Plymouth symlink victim"
+  [[ $(cat "$sddm_victim") == 'SDDM VICTIM' && $(stat -c %a "$sddm_victim") == 600 ]] || fail "theme set never changes an SDDM symlink victim"
+  [[ $(cat "$legacy_victim") == 'LEGACY VICTIM' && $(stat -c %a "$legacy_victim") == 600 ]] || fail "theme set never changes the legacy logo victim"
+  [[ ! -e $sddm/logo.svg && ! -L $sddm/logo.svg ]] || fail "theme set removes the legacy SDDM logo"
   assert_no_temporary_files "$fake_root"
-done
 
-pass "a fresh installation receives complete mode-0644 Plymouth and SDDM theme files across restrictive umasks"
+  pass "theme set repairs migrated destinations without following existing symlinks"
 
-# An upgraded machine may already contain restrictive modes, destination
-# symlinks, and the legacy SDDM logo. Setting a theme must replace only the
-# destination entries and must never write through those symlinks.
-setup_run
-output=$(run_set 022 env 2>&1)
-status=$?
+  # White uses #ffffff behind #000000 text. A direct two-expression sed first
+  # writes the white background and then consumes it as if it were the template's
+  # text placeholder, producing a black-on-black greeter.
+  setup_run
+  output=$(run_set_colors 022 '#ffffff' '#000000' env 2>&1)
+  status=$?
+  (( status == 0 )) || fail "White theme publishes through the safe asset pipeline" "$output"
+  grep -Fq 'color: "#ffffff"' "$sddm/Main.qml" || fail "White theme preserves its SDDM background color"
+  if grep -Fq '__OMARCHY_SDDM_' "$sddm/Main.qml"; then
+    fail "SDDM color substitution left an intermediate token behind"
+  fi
+  pass "White theme keeps a white SDDM background instead of becoming black-on-black"
+}
 
-(( status == 0 )) || fail "theme set repairs migrated Plymouth and SDDM destinations" "$output"
-[[ -f $theme/omarchy.script && ! -L $theme/omarchy.script ]] || fail "theme set replaces a migrated Plymouth destination symlink"
-[[ -f $sddm/Main.qml && ! -L $sddm/Main.qml ]] || fail "theme set replaces a migrated SDDM destination symlink"
-[[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' && $(stat -c %a "$plymouth_victim") == 600 ]] || fail "theme set never changes a Plymouth symlink victim"
-[[ $(cat "$sddm_victim") == 'SDDM VICTIM' && $(stat -c %a "$sddm_victim") == 600 ]] || fail "theme set never changes an SDDM symlink victim"
-[[ $(cat "$legacy_victim") == 'LEGACY VICTIM' && $(stat -c %a "$legacy_victim") == 600 ]] || fail "theme set never changes the legacy logo victim"
-[[ ! -e $sddm/logo.svg && ! -L $sddm/logo.svg ]] || fail "theme set removes the legacy SDDM logo"
-assert_no_temporary_files "$fake_root"
+batch_logo_swaps_and_bounds() {
+  local batch_tmp=$test_tmp/logo-batch
+  mkdir -p "$batch_tmp"
+  local secret="$batch_tmp/secret"
+  printf 'caller-selected logo\n' >"$batch_tmp/logo.png"
+  run_set_colors() {
+    local requested_umask="$1" background="$2" text="$3"
+    shift 3
+    run_in_fake_root "$requested_umask" "$@" \
+      /bin/bash "$ROOT/bin/omarchy-plymouth-set" "$background" "$text" "$batch_tmp/logo.png"
+  }
 
-pass "theme set repairs migrated destinations without following existing symlinks"
-
-# White uses #ffffff behind #000000 text. A direct two-expression sed first
-# writes the white background and then consumes it as if it were the template's
-# text placeholder, producing a black-on-black greeter.
-setup_run
-output=$(run_set_colors 022 '#ffffff' '#000000' env 2>&1)
-status=$?
-(( status == 0 )) || fail "White theme publishes through the safe asset pipeline" "$output"
-grep -Fq 'color: "#ffffff"' "$sddm/Main.qml" || fail "White theme preserves its SDDM background color"
-if grep -Fq '__OMARCHY_SDDM_' "$sddm/Main.qml"; then
-  fail "SDDM color substitution left an intermediate token behind"
-fi
-pass "White theme keeps a white SDDM background instead of becoming black-on-black"
-
-# Swap the selected logo to an unreadable file in the DEBUG hook immediately
-# before Bash opens its descriptor. The caller-side open must fail, so sudo
-# never starts and nothing is published.
-setup_run
-preopen_hook="$run_dir/preopen-hook"
-preopen_marker="$run_dir/preopen-marker"
-printf 'ROOT ONLY\n' >"$secret"
-chmod 000 "$secret"
-cat >"$preopen_hook" <<'SH'
+  # Swap the selected logo to an unreadable file in the DEBUG hook immediately
+  # before Bash opens its descriptor. The caller-side open must fail, so sudo
+  # never starts and nothing is published.
+  setup_run
+  preopen_hook="$run_dir/preopen-hook"
+  preopen_marker="$run_dir/preopen-marker"
+  printf 'ROOT ONLY\n' >"$secret"
+  chmod 000 "$secret"
+  cat >"$preopen_hook" <<'SH'
 if [[ $0 == */bin/omarchy-plymouth-set ]]; then
   set -T
   trap '
@@ -521,31 +540,31 @@ if [[ $0 == */bin/omarchy-plymouth-set ]]; then
 fi
 SH
 
-output=$(TEST_PREOPEN_MARKER="$preopen_marker" TEST_SECRET="$secret" BASH_ENV="$preopen_hook" run_set 077 env 2>&1)
-status=$?
-chmod 0600 "$secret"
-rm -f "$test_tmp/logo.png"
-mv "$test_tmp/logo.png.before-preopen-swap" "$test_tmp/logo.png"
+  output=$(TEST_PREOPEN_MARKER="$preopen_marker" TEST_SECRET="$secret" BASH_ENV="$preopen_hook" run_set 077 env 2>&1)
+  status=$?
+  chmod 0600 "$secret"
+  rm -f "$batch_tmp/logo.png"
+  mv "$batch_tmp/logo.png.before-preopen-swap" "$batch_tmp/logo.png"
 
-(( status != 0 )) || fail "an unreadable pre-open source swap aborts publication"
-[[ -s $preopen_marker ]] || fail "the pre-open source swap ran deterministically" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' && $(stat -c %a "$theme/bullet.png") == 600 ]] || fail "pre-open failure leaves the live destination unchanged"
-[[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "pre-open failure leaves destination-link victims unchanged"
-if [[ -e $sudo_log ]] && grep -Fq 'root transaction' "$sudo_log"; then
-  fail "sudo started despite the caller-side open failure"
-fi
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "an unreadable pre-open source swap aborts publication"
+  [[ -s $preopen_marker ]] || fail "the pre-open source swap ran deterministically" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' && $(stat -c %a "$theme/bullet.png") == 600 ]] || fail "pre-open failure leaves the live destination unchanged"
+  [[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "pre-open failure leaves destination-link victims unchanged"
+  if [[ -e $sudo_log ]] && grep -Fq 'root transaction' "$sudo_log"; then
+    fail "sudo started despite the caller-side open failure"
+  fi
+  assert_no_temporary_files "$fake_root"
 
-pass "an unreadable source swap before open fails without publication"
+  pass "an unreadable source swap before open fails without publication"
 
-# Opening a directory read-only succeeds on Linux, but the resulting descriptor
-# is not a regular file. Swap one in immediately before exec: this gets past the
-# open itself and makes the /proc descriptor check the only caller-side control
-# that can stop sudo from starting.
-setup_run
-nonregular_hook="$run_dir/nonregular-hook"
-nonregular_marker="$run_dir/nonregular-marker"
-cat >"$nonregular_hook" <<'SH'
+  # Opening a directory read-only succeeds on Linux, but the resulting descriptor
+  # is not a regular file. Swap one in immediately before exec: this gets past the
+  # open itself and makes the /proc descriptor check the only caller-side control
+  # that can stop sudo from starting.
+  setup_run
+  nonregular_hook="$run_dir/nonregular-hook"
+  nonregular_marker="$run_dir/nonregular-marker"
+  cat >"$nonregular_hook" <<'SH'
 if [[ $0 == */bin/omarchy-plymouth-set ]]; then
   set -T
   trap '
@@ -559,410 +578,435 @@ if [[ $0 == */bin/omarchy-plymouth-set ]]; then
 fi
 SH
 
-output=$(TEST_NONREGULAR_MARKER="$nonregular_marker" BASH_ENV="$nonregular_hook" run_set 077 env 2>&1)
-status=$?
-rmdir "$test_tmp/logo.png"
-mv "$test_tmp/logo.png.before-nonregular-swap" "$test_tmp/logo.png"
+  output=$(TEST_NONREGULAR_MARKER="$nonregular_marker" BASH_ENV="$nonregular_hook" run_set 077 env 2>&1)
+  status=$?
+  rmdir "$batch_tmp/logo.png"
+  mv "$batch_tmp/logo.png.before-nonregular-swap" "$batch_tmp/logo.png"
 
-(( status != 0 )) || fail "a non-regular opened logo descriptor aborts publication"
-[[ -s $nonregular_marker ]] || fail "the non-regular pre-open source swap ran deterministically" "$output"
-[[ $output == *"no longer a regular file"* ]] || fail "the descriptor check says why it refused the opened directory" "$output"
-if [[ -e $sudo_log ]] && grep -Fq 'root transaction' "$sudo_log"; then
-  fail "sudo started despite the non-regular opened logo descriptor"
-fi
-[[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "a non-regular opened logo leaves the live logo unchanged"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a non-regular opened logo descriptor aborts publication"
+  [[ -s $nonregular_marker ]] || fail "the non-regular pre-open source swap ran deterministically" "$output"
+  [[ $output == *"no longer a regular file"* ]] || fail "the descriptor check says why it refused the opened directory" "$output"
+  if [[ -e $sudo_log ]] && grep -Fq 'root transaction' "$sudo_log"; then
+    fail "sudo started despite the non-regular opened logo descriptor"
+  fi
+  [[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "a non-regular opened logo leaves the live logo unchanged"
+  assert_no_temporary_files "$fake_root"
 
-pass "the caller refuses an opened descriptor that is not a regular file"
+  pass "the caller refuses an opened descriptor that is not a regular file"
 
-# Plant both a malicious script and a root-file symlink where the old
-# caller-owned stage lived. The privileged transaction must ignore that tree:
-# executable/config assets come only from its root-trusted source and are built
-# in its own root-owned stage.
-setup_run
-attacker_stage="$stages/tmp.attacker"
-mkdir -p "$attacker_stage/plymouth"
-printf 'MALICIOUS BOOT SCRIPT\n' >"$attacker_stage/plymouth/omarchy.script"
-ln -s "$secret" "$attacker_stage/plymouth/logo.png"
+  # The caller streams the logo to root over a descriptor, so root is the only
+  # place its length can be judged. An empty selection must not become an empty
+  # published logo.
+  setup_run
+  cp -- "$batch_tmp/logo.png" "$batch_tmp/logo.png.keep"
+  : >"$batch_tmp/logo.png"
+  output=$(run_set 022 env 2>&1)
+  status=$?
+  mv -f -- "$batch_tmp/logo.png.keep" "$batch_tmp/logo.png"
 
-output=$(run_set 022 env 2>&1)
-status=$?
+  (( status != 0 )) || fail "an empty logo is rejected" "$output"
+  [[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an empty logo leaves the live logo unchanged"
+  assert_no_temporary_files "$fake_root"
 
-(( status == 0 )) || fail "a planted caller-owned stage cannot disrupt publication" "$output"
-! grep -Rqs 'MALICIOUS BOOT SCRIPT' "$fake_root" || fail "caller-owned staged content reached the boot theme"
-[[ -f $theme/omarchy.script && ! -L $theme/omarchy.script ]] || fail "the trusted Plymouth script replaces the planted destination symlink"
-grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "the installed script was derived from the trusted packaged source"
-unexpected_stages=$(find "$stages" -mindepth 1 -maxdepth 1 ! -name tmp.attacker -print)
-[[ -z $unexpected_stages ]] || fail "the caller created an authoritative staging directory" "$unexpected_stages"
-assert_no_temporary_files "$fake_root"
+  pass "an empty logo cannot be published"
 
-pass "caller-owned content cannot enter the root-owned boot-image stage"
+  # Bound the descriptor read as well as the final destination. A sparse file
+  # makes the real 64 MiB + 1 byte boundary deterministic without storing a
+  # large fixture in the repository.
+  setup_run
+  cp -- "$batch_tmp/logo.png" "$batch_tmp/logo.png.keep"
+  truncate -s "$((64 * 1024 * 1024 + 1))" "$batch_tmp/logo.png"
+  output=$(run_set 022 env 2>&1)
+  status=$?
+  mv -f -- "$batch_tmp/logo.png.keep" "$batch_tmp/logo.png"
 
-# A user-owned source checkout would put the same pre-hash race on the input
-# side of the root stage. Refuse it before any fixed destination is replaced.
-setup_run
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT/default/plymouth" 2>&1)
-status=$?
+  (( status != 0 )) || fail "an oversized logo is rejected" "$output"
+  [[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an oversized logo leaves the live logo unchanged"
+  assert_no_temporary_files "$fake_root"
 
-(( status != 0 )) || fail "a user-owned packaged source tree is rejected"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "an untrusted packaged source leaves the live theme unchanged"
-[[ -L $theme/omarchy.script && $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "an untrusted source cannot replace executable Plymouth content"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected packaged source says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  pass "a logo larger than the publication bound cannot be published"
+}
 
-pass "root rejects packaged assets that a desktop process could rewrite"
+batch_source_trust() {
+  # Plant both a malicious script and a root-file symlink where the old
+  # caller-owned stage lived. The privileged transaction must ignore that tree:
+  # executable/config assets come only from its root-trusted source and are built
+  # in its own root-owned stage.
+  setup_run
+  attacker_stage="$stages/tmp.attacker"
+  mkdir -p "$attacker_stage/plymouth"
+  printf 'MALICIOUS BOOT SCRIPT\n' >"$attacker_stage/plymouth/omarchy.script"
+  ln -s "$secret" "$attacker_stage/plymouth/logo.png"
 
-# A packaged filename may not redirect root to some other readable file. Use
-# the explicitly authorized development-source path so its ordinary file-mode
-# checks are intentionally skipped and only the leaf symlink/canonical-file
-# checks can decide this case.
-setup_run
-symlink_source_root=$(mktemp -d "$test_tmp/symlink-source.XXXXXXXX")
-symlink_source_root=$(realpath -e -- "$symlink_source_root")
-mkdir -p "$symlink_source_root/default"
-cp -a "$ROOT/default/plymouth" "$ROOT/default/sddm" "$symlink_source_root/default/"
-rm -f "$symlink_source_root/default/plymouth/bullet.png"
-ln -s "$secret" "$symlink_source_root/default/plymouth/bullet.png"
-printf 'export OMARCHY_PATH="%s"\n' "$symlink_source_root" >"$omarchy_conf"
-chmod 0644 "$omarchy_conf"
-output=$(run_set 022 env OMARCHY_PATH="$symlink_source_root" TEST_UNTRUSTED_SOURCE="$symlink_source_root" 2>&1)
-status=$?
+  output=$(run_set 022 env 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "a symlinked packaged asset is rejected" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a packaged source symlink leaves the live theme unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected packaged source symlink says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  (( status == 0 )) || fail "a planted caller-owned stage cannot disrupt publication" "$output"
+  ! grep -Rqs 'MALICIOUS BOOT SCRIPT' "$fake_root" || fail "caller-owned staged content reached the boot theme"
+  [[ -f $theme/omarchy.script && ! -L $theme/omarchy.script ]] || fail "the trusted Plymouth script replaces the planted destination symlink"
+  grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "the installed script was derived from the trusted packaged source"
+  unexpected_stages=$(find "$stages" -mindepth 1 -maxdepth 1 ! -name tmp.attacker -print)
+  [[ -z $unexpected_stages ]] || fail "the caller created an authoritative staging directory" "$unexpected_stages"
+  assert_no_temporary_files "$fake_root"
 
-pass "root never follows a packaged asset symlink"
+  pass "caller-owned content cannot enter the root-owned boot-image stage"
 
-# A random user-owned OMARCHY_PATH remains untrusted. Only the exact canonical
-# checkout recorded by root in /etc/omarchy.conf is the supported dev-link
-# exception; an unrelated or stale authorization must not weaken the check.
-setup_run
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
-status=$?
+  # A user-owned source checkout would put the same pre-hash race on the input
+  # side of the root stage. Refuse it before any fixed destination is replaced.
+  setup_run
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT/default/plymouth" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "a user-owned OMARCHY_PATH is rejected"
-[[ $output == *"user-owned"* ]] || fail "the refusal names the untrusted source tree" "$output"
-[[ $output == *"omarchy dev link"* ]] || fail "the refusal names how to authorize a development checkout" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a user-owned OMARCHY_PATH leaves the live theme unchanged"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a user-owned packaged source tree is rejected"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "an untrusted packaged source leaves the live theme unchanged"
+  [[ -L $theme/omarchy.script && $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "an untrusted source cannot replace executable Plymouth content"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected packaged source says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-setup_run
-printf 'export OMARCHY_PATH="/some/other/checkout"\n' >"$omarchy_conf"
-chmod 0644 "$omarchy_conf"
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
-status=$?
+  pass "root rejects packaged assets that a desktop process could rewrite"
 
-(( status != 0 )) || fail "a stale dev-link authorization is rejected"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a stale dev-link authorization leaves the live theme unchanged"
-# The refusal has to name the authorization. Validating /etc/omarchy.conf walks
-# its parents and leaves that walk's subject in failure_context, so without
-# restoring ours this refuses with "directory / must be root-owned and not
-# group- or world-writable" -- accusing a directory that passed and pointing the
-# reader at a filesystem problem that does not exist.
-[[ $output == *"$omarchy_conf"* ]] || fail "a stale dev-link refusal names the authorization it rejected" "$output"
-[[ $output != *"directory / "* ]] || fail "a stale dev-link refusal does not blame the root directory" "$output"
-assert_no_temporary_files "$fake_root"
+  # A packaged filename may not redirect root to some other readable file. Use
+  # the explicitly authorized development-source path so its ordinary file-mode
+  # checks are intentionally skipped and only the leaf symlink/canonical-file
+  # checks can decide this case.
+  setup_run
+  symlink_source_root=$(mktemp -d "$test_tmp/symlink-source.XXXXXXXX")
+  symlink_source_root=$(realpath -e -- "$symlink_source_root")
+  mkdir -p "$symlink_source_root/default"
+  cp -a "$ROOT/default/plymouth" "$ROOT/default/sddm" "$symlink_source_root/default/"
+  rm -f "$symlink_source_root/default/plymouth/bullet.png"
+  ln -s "$secret" "$symlink_source_root/default/plymouth/bullet.png"
+  printf 'export OMARCHY_PATH="%s"\n' "$symlink_source_root" >"$omarchy_conf"
+  chmod 0644 "$omarchy_conf"
+  output=$(run_set 022 env OMARCHY_PATH="$symlink_source_root" TEST_UNTRUSTED_SOURCE="$symlink_source_root" 2>&1)
+  status=$?
 
-setup_run
-printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$omarchy_conf"
-chmod 0666 "$omarchy_conf"
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
-status=$?
+  (( status != 0 )) || fail "a symlinked packaged asset is rejected" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a packaged source symlink leaves the live theme unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected packaged source symlink says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-(( status != 0 )) || fail "a writable dev-link authorization is rejected"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable dev-link authorization leaves the live theme unchanged"
-assert_no_temporary_files "$fake_root"
+  pass "root never follows a packaged asset symlink"
 
-setup_run
-authorization_target="$run_dir/authorization-target"
-printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$authorization_target"
-chmod 0644 "$authorization_target"
-ln -s "$authorization_target" "$omarchy_conf"
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
-status=$?
+  # A random user-owned OMARCHY_PATH remains untrusted. Only the exact canonical
+  # checkout recorded by root in /etc/omarchy.conf is the supported dev-link
+  # exception; an unrelated or stale authorization must not weaken the check.
+  setup_run
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "a symlinked dev-link authorization is rejected"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a symlinked dev-link authorization leaves the live theme unchanged"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a user-owned OMARCHY_PATH is rejected"
+  [[ $output == *"user-owned"* ]] || fail "the refusal names the untrusted source tree" "$output"
+  [[ $output == *"omarchy dev link"* ]] || fail "the refusal names how to authorize a development checkout" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a user-owned OMARCHY_PATH leaves the live theme unchanged"
+  assert_no_temporary_files "$fake_root"
 
-setup_run
-printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$omarchy_conf"
-chmod 0644 "$omarchy_conf"
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" TEST_UNTRUSTED_CONFIGURATION="$omarchy_conf" 2>&1)
-status=$?
+  setup_run
+  printf 'export OMARCHY_PATH="/some/other/checkout"\n' >"$omarchy_conf"
+  chmod 0644 "$omarchy_conf"
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "a user-owned dev-link authorization is rejected"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a user-owned dev-link authorization leaves the live theme unchanged"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a stale dev-link authorization is rejected"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a stale dev-link authorization leaves the live theme unchanged"
+  # The refusal has to name the authorization. Validating /etc/omarchy.conf walks
+  # its parents and leaves that walk's subject in failure_context, so without
+  # restoring ours this refuses with "directory / must be root-owned and not
+  # group- or world-writable" -- accusing a directory that passed and pointing the
+  # reader at a filesystem problem that does not exist.
+  [[ $output == *"$omarchy_conf"* ]] || fail "a stale dev-link refusal names the authorization it rejected" "$output"
+  [[ $output != *"directory / "* ]] || fail "a stale dev-link refusal does not blame the root directory" "$output"
+  assert_no_temporary_files "$fake_root"
 
-setup_run
-printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$omarchy_conf"
-chmod 0644 "$omarchy_conf"
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
-status=$?
+  setup_run
+  printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$omarchy_conf"
+  chmod 0666 "$omarchy_conf"
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
+  status=$?
 
-(( status == 0 )) || fail "the root-authorized development checkout can publish Plymouth assets" "$output"
-cmp -s "$ROOT/default/plymouth/bullet.png" "$theme/bullet.png" || fail "the authorized development checkout supplies the packaged assets"
+  (( status != 0 )) || fail "a writable dev-link authorization is rejected"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable dev-link authorization leaves the live theme unchanged"
+  assert_no_temporary_files "$fake_root"
 
-pass "only a regular root-owned authorization may name the exact development checkout"
+  setup_run
+  authorization_target="$run_dir/authorization-target"
+  printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$authorization_target"
+  chmod 0644 "$authorization_target"
+  ln -s "$authorization_target" "$omarchy_conf"
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
+  status=$?
 
-# Root rejects both a symlinked parent and a group/world-writable parent before
-# it creates a temporary file or touches the live destination.
-setup_run
-mv "$theme" "$theme.real"
-ln -s "$theme.real" "$theme"
-output=$(run_set 022 env 2>&1)
-status=$?
-(( status != 0 )) || fail "a symlinked destination parent is rejected"
-[[ $(cat "$theme.real/bullet.png") == 'old plymouth bullet.png' ]] || fail "a symlinked parent leaves its target unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected symlinked parent says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a symlinked dev-link authorization is rejected"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a symlinked dev-link authorization leaves the live theme unchanged"
+  assert_no_temporary_files "$fake_root"
 
-setup_run
-chmod 0777 "$theme"
-output=$(run_set 022 env 2>&1)
-status=$?
-(( status != 0 )) || fail "a writable destination parent is rejected"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable parent leaves its live destination unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected writable parent says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  setup_run
+  printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$omarchy_conf"
+  chmod 0644 "$omarchy_conf"
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" TEST_UNTRUSTED_CONFIGURATION="$omarchy_conf" 2>&1)
+  status=$?
 
-pass "publication rejects symlinked and non-root-writable destination parents"
+  (( status != 0 )) || fail "a user-owned dev-link authorization is rejected"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a user-owned dev-link authorization leaves the live theme unchanged"
+  assert_no_temporary_files "$fake_root"
 
-# Walking the whole chain, not just the immediate parent, is what closes the
-# rename race: a writable ancestor lets an attacker swap an entire validated
-# directory out from under the leaf. Leave the destination itself pristine so
-# only the ancestor can be at fault.
-setup_run
-chmod 0777 "$fake_root/usr/share/plymouth"
-output=$(run_set 022 env 2>&1)
-status=$?
-chmod 0755 "$fake_root/usr/share/plymouth"
+  setup_run
+  printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$omarchy_conf"
+  chmod 0644 "$omarchy_conf"
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "a writable destination ancestor is rejected" "$output"
-[[ $(stat -c %a "$theme") == 755 ]] || fail "only the ancestor, not the destination, was untrustworthy"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable ancestor leaves the live destination unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected ancestor says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  (( status == 0 )) || fail "the root-authorized development checkout can publish Plymouth assets" "$output"
+  cmp -s "$ROOT/default/plymouth/bullet.png" "$theme/bullet.png" || fail "the authorized development checkout supplies the packaged assets"
 
-pass "publication walks the whole parent chain, not only the immediate parent"
+  pass "only a regular root-owned authorization may name the exact development checkout"
+}
 
-# Mode is not the only thing that decides a destination directory. One that is
-# merely user-owned still lets its owner put the file back after we publish, so
-# ownership has to refuse it even when 0755 looks harmless.
-setup_run
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$theme" 2>&1)
-status=$?
+batch_dest_and_asset_trust() {
+  # Root rejects both a symlinked parent and a group/world-writable parent before
+  # it creates a temporary file or touches the live destination.
+  setup_run
+  mv "$theme" "$theme.real"
+  ln -s "$theme.real" "$theme"
+  output=$(run_set 022 env 2>&1)
+  status=$?
+  (( status != 0 )) || fail "a symlinked destination parent is rejected"
+  [[ $(cat "$theme.real/bullet.png") == 'old plymouth bullet.png' ]] || fail "a symlinked parent leaves its target unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected symlinked parent says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-(( status != 0 )) || fail "a user-owned destination directory is rejected" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a user-owned destination directory keeps its live file"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected destination directory says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  setup_run
+  chmod 0777 "$theme"
+  output=$(run_set 022 env 2>&1)
+  status=$?
+  (( status != 0 )) || fail "a writable destination parent is rejected"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable parent leaves its live destination unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected writable parent says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-pass "publication refuses a destination directory root does not own"
+  pass "publication rejects symlinked and non-root-writable destination parents"
 
-# The packaged tree is validated file by file, not only directory by directory.
-# A single user-owned asset inside an otherwise root-owned directory is still
-# content a desktop process can rewrite, and the directory check cannot see it.
-setup_run
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT/default/plymouth/bullet.png" 2>&1)
-status=$?
+  # Walking the whole chain, not just the immediate parent, is what closes the
+  # rename race: a writable ancestor lets an attacker swap an entire validated
+  # directory out from under the leaf. Leave the destination itself pristine so
+  # only the ancestor can be at fault.
+  setup_run
+  chmod 0777 "$fake_root/usr/share/plymouth"
+  output=$(run_set 022 env 2>&1)
+  status=$?
+  chmod 0755 "$fake_root/usr/share/plymouth"
 
-(( status != 0 )) || fail "a single user-owned packaged asset is rejected" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "one untrusted asset leaves the live theme unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected packaged asset says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a writable destination ancestor is rejected" "$output"
+  [[ $(stat -c %a "$theme") == 755 ]] || fail "only the ancestor, not the destination, was untrustworthy"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable ancestor leaves the live destination unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected ancestor says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-pass "root checks every packaged asset, not only its directory"
+  pass "publication walks the whole parent chain, not only the immediate parent"
 
-# Keep every file root-owned and mode 0644 while making only its containing
-# directory writable. Per-file checks cannot close the rename race in that
-# state; the packaged source parent-chain walk must reject it.
-setup_run
-writable_directory_root=$(mktemp -d "$test_tmp/writable-directory-source.XXXXXXXX")
-writable_directory_root=$(realpath -e -- "$writable_directory_root")
-mkdir -p "$writable_directory_root/default"
-cp -a "$ROOT/default/plymouth" "$ROOT/default/sddm" "$writable_directory_root/default/"
-chmod 0777 "$writable_directory_root/default/plymouth"
-output=$(run_set 022 env OMARCHY_PATH="$writable_directory_root" 2>&1)
-status=$?
+  # Mode is not the only thing that decides a destination directory. One that is
+  # merely user-owned still lets its owner put the file back after we publish, so
+  # ownership has to refuse it even when 0755 looks harmless.
+  setup_run
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$theme" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "a writable packaged source directory is rejected" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable packaged directory leaves the live theme unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected packaged directory says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a user-owned destination directory is rejected" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a user-owned destination directory keeps its live file"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected destination directory says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-pass "root validates the packaged source parent chain before copying"
+  pass "publication refuses a destination directory root does not own"
 
-# Ownership is not the only way a packaged asset stays rewritable: a group- or
-# world-writable mode does it too. Stage a tree the shim reports as root-owned
-# so only the real mode can decide, then loosen one asset.
-setup_run
-writable_root=$(mktemp -d "$test_tmp/writable-source.XXXXXXXX")
-writable_root=$(realpath -e -- "$writable_root")
-mkdir -p "$writable_root/default"
-cp -a "$ROOT/default/plymouth" "$ROOT/default/sddm" "$writable_root/default/"
-chmod 0666 "$writable_root/default/plymouth/bullet.png"
-output=$(run_set 022 env OMARCHY_PATH="$writable_root" 2>&1)
-status=$?
+  # The packaged tree is validated file by file, not only directory by directory.
+  # A single user-owned asset inside an otherwise root-owned directory is still
+  # content a desktop process can rewrite, and the directory check cannot see it.
+  setup_run
+  output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$ROOT/default/plymouth/bullet.png" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "a world-writable packaged asset is rejected" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable packaged asset leaves the live theme unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected writable asset says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a single user-owned packaged asset is rejected" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "one untrusted asset leaves the live theme unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected packaged asset says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-pass "root refuses a packaged asset its own mode leaves rewritable"
+  pass "root checks every packaged asset, not only its directory"
 
-# The caller streams the logo to root over a descriptor, so root is the only
-# place its length can be judged. An empty selection must not become an empty
-# published logo.
-setup_run
-cp -- "$test_tmp/logo.png" "$test_tmp/logo.png.keep"
-: >"$test_tmp/logo.png"
-output=$(run_set 022 env 2>&1)
-status=$?
-mv -f -- "$test_tmp/logo.png.keep" "$test_tmp/logo.png"
+  # Keep every file root-owned and mode 0644 while making only its containing
+  # directory writable. Per-file checks cannot close the rename race in that
+  # state; the packaged source parent-chain walk must reject it.
+  setup_run
+  writable_directory_root=$(mktemp -d "$test_tmp/writable-directory-source.XXXXXXXX")
+  writable_directory_root=$(realpath -e -- "$writable_directory_root")
+  mkdir -p "$writable_directory_root/default"
+  cp -a "$ROOT/default/plymouth" "$ROOT/default/sddm" "$writable_directory_root/default/"
+  chmod 0777 "$writable_directory_root/default/plymouth"
+  output=$(run_set 022 env OMARCHY_PATH="$writable_directory_root" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "an empty logo is rejected" "$output"
-[[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an empty logo leaves the live logo unchanged"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a writable packaged source directory is rejected" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable packaged directory leaves the live theme unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected packaged directory says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-pass "an empty logo cannot be published"
+  pass "root validates the packaged source parent chain before copying"
 
-# Bound the descriptor read as well as the final destination. A sparse file
-# makes the real 64 MiB + 1 byte boundary deterministic without storing a
-# large fixture in the repository.
-setup_run
-cp -- "$test_tmp/logo.png" "$test_tmp/logo.png.keep"
-truncate -s "$((64 * 1024 * 1024 + 1))" "$test_tmp/logo.png"
-output=$(run_set 022 env 2>&1)
-status=$?
-mv -f -- "$test_tmp/logo.png.keep" "$test_tmp/logo.png"
+  # Ownership is not the only way a packaged asset stays rewritable: a group- or
+  # world-writable mode does it too. Stage a tree the shim reports as root-owned
+  # so only the real mode can decide, then loosen one asset.
+  setup_run
+  writable_root=$(mktemp -d "$test_tmp/writable-source.XXXXXXXX")
+  writable_root=$(realpath -e -- "$writable_root")
+  mkdir -p "$writable_root/default"
+  cp -a "$ROOT/default/plymouth" "$ROOT/default/sddm" "$writable_root/default/"
+  chmod 0666 "$writable_root/default/plymouth/bullet.png"
+  output=$(run_set 022 env OMARCHY_PATH="$writable_root" 2>&1)
+  status=$?
 
-(( status != 0 )) || fail "an oversized logo is rejected" "$output"
-[[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an oversized logo leaves the live logo unchanged"
-assert_no_temporary_files "$fake_root"
+  (( status != 0 )) || fail "a world-writable packaged asset is rejected" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a writable packaged asset leaves the live theme unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "a rejected writable asset says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
 
-pass "a logo larger than the publication bound cannot be published"
+  pass "root refuses a packaged asset its own mode leaves rewritable"
+}
 
-# Refresh uses the same publisher but its explicit contract includes the
-# packaged nested logos/oma.png asset. It must not touch the SDDM theme.
-setup_run
-output=$(run_refresh_plymouth 2>&1)
-status=$?
-(( status == 0 )) || fail "Plymouth refresh succeeds through the safe publisher" "$output"
+batch_refreshes_and_fresh_reset() {
+  # Refresh uses the same publisher but its explicit contract includes the
+  # packaged nested logos/oma.png asset. It must not touch the SDDM theme.
+  setup_run
+  output=$(run_refresh_plymouth 2>&1)
+  status=$?
+  (( status == 0 )) || fail "Plymouth refresh succeeds through the safe publisher" "$output"
 
-assert_packaged_assets "Plymouth refresh" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
-[[ -L $sddm/Main.qml && $(cat "$sddm_victim") == 'SDDM VICTIM' ]] || fail "Plymouth refresh leaves SDDM unchanged"
-! grep -Fq 'transaction /usr/share/sddm/' "$sudo_log" || fail "Plymouth refresh does not publish SDDM assets"
-[[ ! -s $leak_log ]] || fail "refresh never gives root a user-writable source pathname" "$(cat "$leak_log")"
-grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "Plymouth refresh activates the restored theme"
-grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "Plymouth refresh rebuilds the initramfs"
+  assert_packaged_assets "Plymouth refresh" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
+  [[ -L $sddm/Main.qml && $(cat "$sddm_victim") == 'SDDM VICTIM' ]] || fail "Plymouth refresh leaves SDDM unchanged"
+  ! grep -Fq 'transaction /usr/share/sddm/' "$sudo_log" || fail "Plymouth refresh does not publish SDDM assets"
+  [[ ! -s $leak_log ]] || fail "refresh never gives root a user-writable source pathname" "$(cat "$leak_log")"
+  grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "Plymouth refresh activates the restored theme"
+  grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "Plymouth refresh rebuilds the initramfs"
 
-pass "refresh safely publishes its complete fixed asset set, including logos/oma.png"
+  pass "refresh safely publishes its complete fixed asset set, including logos/oma.png"
 
-# SDDM refresh has the same fixed-file contract but must leave Plymouth and the
-# boot image alone. It also replaces legacy destination symlinks without
-# changing their victims.
-setup_run
-output=$(run_refresh_sddm 2>&1)
-status=$?
-(( status == 0 )) || fail "SDDM refresh succeeds through the safe publisher" "$output"
+  # SDDM refresh has the same fixed-file contract but must leave Plymouth and the
+  # boot image alone. It also replaces legacy destination symlinks without
+  # changing their victims.
+  setup_run
+  output=$(run_refresh_sddm 2>&1)
+  status=$?
+  (( status == 0 )) || fail "SDDM refresh succeeds through the safe publisher" "$output"
 
-assert_packaged_assets "SDDM refresh" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
-[[ -L $theme/omarchy.script && $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "SDDM refresh leaves Plymouth unchanged"
-[[ $(cat "$sddm_victim") == 'SDDM VICTIM' && $(stat -c %a "$sddm_victim") == 600 ]] || fail "SDDM refresh never changes a destination symlink victim"
-[[ $(cat "$legacy_victim") == 'LEGACY VICTIM' && $(stat -c %a "$legacy_victim") == 600 ]] || fail "SDDM refresh never changes the legacy logo victim"
-[[ ! -e $sddm/logo.svg && ! -L $sddm/logo.svg ]] || fail "SDDM refresh removes the legacy logo.svg"
-! grep -Fq 'command plymouth-set-default-theme' "$sudo_log" || fail "SDDM refresh does not activate Plymouth"
-! grep -Fq 'command mkinitcpio' "$sudo_log" || fail "SDDM refresh does not rebuild the initramfs"
-[[ ! -s $leak_log ]] || fail "SDDM refresh never gives root a user-writable source pathname" "$(cat "$leak_log")"
+  assert_packaged_assets "SDDM refresh" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
+  [[ -L $theme/omarchy.script && $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "SDDM refresh leaves Plymouth unchanged"
+  [[ $(cat "$sddm_victim") == 'SDDM VICTIM' && $(stat -c %a "$sddm_victim") == 600 ]] || fail "SDDM refresh never changes a destination symlink victim"
+  [[ $(cat "$legacy_victim") == 'LEGACY VICTIM' && $(stat -c %a "$legacy_victim") == 600 ]] || fail "SDDM refresh never changes the legacy logo victim"
+  [[ ! -e $sddm/logo.svg && ! -L $sddm/logo.svg ]] || fail "SDDM refresh removes the legacy logo.svg"
+  ! grep -Fq 'command plymouth-set-default-theme' "$sudo_log" || fail "SDDM refresh does not activate Plymouth"
+  ! grep -Fq 'command mkinitcpio' "$sudo_log" || fail "SDDM refresh does not rebuild the initramfs"
+  [[ ! -s $leak_log ]] || fail "SDDM refresh never gives root a user-writable source pathname" "$(cat "$leak_log")"
 
-pass "SDDM refresh safely restores its complete packaged asset set without rebuilding Plymouth"
+  pass "SDDM refresh safely restores its complete packaged asset set without rebuilding Plymouth"
 
-# A fresh package installation already contains the complete default file set.
-# Reset must be safe and idempotent in that ordinary state.
-setup_fresh_run
-output=$(run_reset 2>&1)
-status=$?
-(( status == 0 )) || fail "reset succeeds on a fresh installation" "$output"
+  # A fresh package installation already contains the complete default file set.
+  # Reset must be safe and idempotent in that ordinary state.
+  setup_fresh_run
+  output=$(run_reset 2>&1)
+  status=$?
+  (( status == 0 )) || fail "reset succeeds on a fresh installation" "$output"
 
-assert_packaged_assets "fresh reset Plymouth" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
-assert_packaged_assets "fresh reset SDDM" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
-grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "fresh reset activates the packaged Plymouth theme"
-grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "fresh reset rebuilds the initramfs"
-assert_no_temporary_files "$fake_root"
+  assert_packaged_assets "fresh reset Plymouth" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
+  assert_packaged_assets "fresh reset SDDM" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
+  grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "fresh reset activates the packaged Plymouth theme"
+  grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "fresh reset rebuilds the initramfs"
+  assert_no_temporary_files "$fake_root"
 
-pass "reset is safe and idempotent on a fresh package installation"
+  pass "reset is safe and idempotent on a fresh package installation"
+}
 
-# Exercise an existing hostile state: destination symlinks stand in for an
-# upgraded machine that may already contain artifacts planted through the old
-# paths. Each refresh must replace its own entries without following them.
-setup_run
-output=$(run_reset 2>&1)
-status=$?
-(( status == 0 )) || fail "combined Plymouth and SDDM reset succeeds" "$output"
+batch_resets_and_refusals() {
+  # Exercise an existing hostile state: destination symlinks stand in for an
+  # upgraded machine that may already contain artifacts planted through the old
+  # paths. Each refresh must replace its own entries without following them.
+  setup_run
+  output=$(run_reset 2>&1)
+  status=$?
+  (( status == 0 )) || fail "combined Plymouth and SDDM reset succeeds" "$output"
 
-assert_packaged_assets "migrated reset Plymouth" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
-assert_packaged_assets "migrated reset SDDM" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
-[[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' && $(stat -c %a "$plymouth_victim") == 600 ]] || fail "reset never changes a Plymouth destination symlink victim"
-[[ $(cat "$sddm_victim") == 'SDDM VICTIM' && $(stat -c %a "$sddm_victim") == 600 ]] || fail "reset never changes an SDDM destination symlink victim"
-[[ $(cat "$legacy_victim") == 'LEGACY VICTIM' && $(stat -c %a "$legacy_victim") == 600 ]] || fail "reset never changes the legacy logo victim"
-[[ ! -e $sddm/logo.svg && ! -L $sddm/logo.svg ]] || fail "reset removes the legacy logo.svg"
-grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "reset activates the restored Plymouth theme"
-grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "reset rebuilds the initramfs"
-[[ ! -s $leak_log ]] || fail "reset never gives root a user-writable source pathname" "$(cat "$leak_log")"
+  assert_packaged_assets "migrated reset Plymouth" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
+  assert_packaged_assets "migrated reset SDDM" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
+  [[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' && $(stat -c %a "$plymouth_victim") == 600 ]] || fail "reset never changes a Plymouth destination symlink victim"
+  [[ $(cat "$sddm_victim") == 'SDDM VICTIM' && $(stat -c %a "$sddm_victim") == 600 ]] || fail "reset never changes an SDDM destination symlink victim"
+  [[ $(cat "$legacy_victim") == 'LEGACY VICTIM' && $(stat -c %a "$legacy_victim") == 600 ]] || fail "reset never changes the legacy logo victim"
+  [[ ! -e $sddm/logo.svg && ! -L $sddm/logo.svg ]] || fail "reset removes the legacy logo.svg"
+  grep -Fq 'command plymouth-set-default-theme omarchy' "$sudo_log" || fail "reset activates the restored Plymouth theme"
+  grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "reset rebuilds the initramfs"
+  [[ ! -s $leak_log ]] || fail "reset never gives root a user-writable source pathname" "$(cat "$leak_log")"
 
-pass "reset safely repairs a migrated Plymouth and SDDM installation"
+  pass "reset safely repairs a migrated Plymouth and SDDM installation"
 
-# A damaged installation may retain its package-owned directories while some
-# destination files are missing. Reset must recreate every allowlisted leaf.
-setup_run
-for asset in "${plymouth_default_assets[@]}"; do
-  rm -f -- "$theme/$asset"
+  # A damaged installation may retain its package-owned directories while some
+  # destination files are missing. Reset must recreate every allowlisted leaf.
+  setup_run
+  for asset in "${plymouth_default_assets[@]}"; do
+    rm -f -- "$theme/$asset"
+  done
+  for asset in "${sddm_default_assets[@]}"; do
+    rm -f -- "$sddm/$asset"
+  done
+  rm -f -- "$sddm/logo.svg"
+  output=$(run_reset 2>&1)
+  status=$?
+  (( status == 0 )) || fail "reset repairs missing Plymouth and SDDM destinations" "$output"
+  assert_packaged_assets "missing-file reset Plymouth" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
+  assert_packaged_assets "missing-file reset SDDM" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
+
+  pass "reset recreates missing files in package-owned destination trees"
+
+  # The two refreshes are independently hardened. If Plymouth succeeds and SDDM
+  # then refuses its unsafe destination, the completed Plymouth refresh remains
+  # valid while SDDM and its symlink victims remain unchanged.
+  setup_run
+  chmod 0777 "$sddm"
+  output=$(run_reset 2>&1)
+  status=$?
+
+  (( status != 0 )) || fail "reset rejects an unsafe SDDM destination" "$output"
+  assert_packaged_assets "Plymouth before SDDM refusal" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
+  [[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "the successful Plymouth refresh never changes its old symlink victim"
+  [[ -L $sddm/Main.qml && $(cat "$sddm_victim") == 'SDDM VICTIM' ]] || fail "a rejected reset leaves SDDM unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "an unsafe reset destination says why it refused" "$output"
+  assert_no_temporary_files "$fake_root"
+
+  pass "an SDDM refusal cannot make either refresh follow an unsafe destination"
+
+  # A packaged source that fails the root trust checks must stop the combined
+  # reset; it cannot fall through into a second legacy SDDM copy.
+  setup_run
+  output=$(run_reset env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
+  status=$?
+
+  (( status != 0 )) || fail "reset rejects an untrusted packaged source" "$output"
+  [[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "an untrusted reset source leaves Plymouth unchanged"
+  [[ -L $sddm/Main.qml && $(cat "$sddm_victim") == 'SDDM VICTIM' ]] || fail "an untrusted reset source leaves SDDM unchanged"
+  [[ $output == *"refusing to publish"* ]] || fail "an untrusted reset source says why it refused" "$output"
+  [[ $(grep -c '^root transaction$' "$sudo_log") == 1 ]] || fail "reset stops before SDDM when Plymouth refuses"
+  assert_no_temporary_files "$fake_root"
+
+  pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+}
+
+run_batch batch_fresh_and_migrated
+run_batch batch_logo_swaps_and_bounds
+run_batch batch_source_trust
+run_batch batch_dest_and_asset_trust
+run_batch batch_refreshes_and_fresh_reset
+run_batch batch_resets_and_refusals
+
+batch_failed=0
+for i in "${!batch_pids[@]}"; do
+  if ! wait "${batch_pids[$i]}"; then
+    batch_failed=1
+  fi
+  cat "${batch_logs[$i]}"
 done
-for asset in "${sddm_default_assets[@]}"; do
-  rm -f -- "$sddm/$asset"
-done
-rm -f -- "$sddm/logo.svg"
-output=$(run_reset 2>&1)
-status=$?
-(( status == 0 )) || fail "reset repairs missing Plymouth and SDDM destinations" "$output"
-assert_packaged_assets "missing-file reset Plymouth" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
-assert_packaged_assets "missing-file reset SDDM" "$ROOT/default/sddm/omarchy" "$sddm" "${sddm_default_assets[@]}"
-
-pass "reset recreates missing files in package-owned destination trees"
-
-# The two refreshes are independently hardened. If Plymouth succeeds and SDDM
-# then refuses its unsafe destination, the completed Plymouth refresh remains
-# valid while SDDM and its symlink victims remain unchanged.
-setup_run
-chmod 0777 "$sddm"
-output=$(run_reset 2>&1)
-status=$?
-
-(( status != 0 )) || fail "reset rejects an unsafe SDDM destination" "$output"
-assert_packaged_assets "Plymouth before SDDM refusal" "$ROOT/default/plymouth" "$theme" "${plymouth_default_assets[@]}"
-[[ $(cat "$plymouth_victim") == 'PLYMOUTH VICTIM' ]] || fail "the successful Plymouth refresh never changes its old symlink victim"
-[[ -L $sddm/Main.qml && $(cat "$sddm_victim") == 'SDDM VICTIM' ]] || fail "a rejected reset leaves SDDM unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "an unsafe reset destination says why it refused" "$output"
-assert_no_temporary_files "$fake_root"
-
-pass "an SDDM refusal cannot make either refresh follow an unsafe destination"
-
-# A packaged source that fails the root trust checks must stop the combined
-# reset; it cannot fall through into a second legacy SDDM copy.
-setup_run
-output=$(run_reset env TEST_UNTRUSTED_SOURCE="$ROOT" 2>&1)
-status=$?
-
-(( status != 0 )) || fail "reset rejects an untrusted packaged source" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "an untrusted reset source leaves Plymouth unchanged"
-[[ -L $sddm/Main.qml && $(cat "$sddm_victim") == 'SDDM VICTIM' ]] || fail "an untrusted reset source leaves SDDM unchanged"
-[[ $output == *"refusing to publish"* ]] || fail "an untrusted reset source says why it refused" "$output"
-[[ $(grep -c '^root transaction$' "$sudo_log") == 1 ]] || fail "reset stops before SDDM when Plymouth refuses"
-assert_no_temporary_files "$fake_root"
-
-pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+(( batch_failed == 0 )) || exit 1

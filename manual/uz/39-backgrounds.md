@@ -1,15 +1,19 @@
 # Fonlar
 
-Har bir mavzu o'z fonlar to'plami bilan birga keladi, siz esa `~/.config/omarchy/backgrounds/[theme]` ichiga o'zingiznikilarni qo'shishingiz mumkin. Agar, aytaylik, nord mavzusiga qo'shimcha fon rasmi qo'shmoqchi bo'lsangiz, faylni shunchaki `~/.config/omarchy/backgrounds/nord` ichiga joylashtirasiz.
+Har bir mavzu o‘z fonlari to‘plami bilan birga keladi, siz esa `~/.config/omarchy/backgrounds/[theme]` ichiga o‘zingiznikilarni ham qo‘shishingiz mumkin. Masalan, nord mavzusiga qo‘shimcha fon rasmi qo‘shmoqchi bo‘lsangiz, faylni shunchaki `~/.config/omarchy/backgrounds/nord` ichiga qo‘yasiz.
 
-Buni eng oson yo'li bilan Omarchy menyusida _Install > Style > Background_ bo'limiga o'tib amalga oshirishingiz mumkin. Bu o'sha mavzuning fonlari saqlanadigan papkani ochadi. Boshqa fayl menejerini ishga tushirish uchun `Super + Shift + F` tugmalarini bosing, foningizni toping va uni nusxalab o'tkazing. Endi u `Super + Ctrl + W` yordamida tanlashingiz mumkin bo'lgan fonlar qatoriga qo'shiladi.
+Buni eng osoni Omarchy menyusida _O‘rnatish > Uslub > Fon_ bo‘limiga o‘tish. Shu bilan o‘sha mavzuning fonlari saqlanadigan papka ochiladi. Yana bir fayl boshqaruvchisini ishga tushirish uchun `Super + Shift + F` tugmalarini bosing, foningizni toping va uni shu papkaga nusxalang. Endi u `Super + Ctrl + W` yordamida tanlashingiz mumkin bo‘lgan fonlar qatoriga qo‘shiladi.
 
-Fonlar harakatsiz rasmlar bo'lgani kabi videolar ham bo'lishi mumkin. Xuddi shu papkaga `mp4`, `m4v`, `mov`, `webm`, `mkv` yoki `avi` faylini tashlang va u rasmlar bilan bir qatorda paydo bo'ladi. Videolar OWE fon dvigateli tomonidan ijro etiladi. U videoni barcha monitorlar uchun bir marta dekodlaydi va uning ovozini standart audio chiqishi orqali ijro etadi, hech narsa uni ko'ra olmaganida esa ijroni to'xtatadi. Video fon baribir harakatsiz fondan ancha ko'proq quvvat sarflaydi.
+O‘z fonlari bo‘lmagan mavzuga uning ranglaridan chizilgan bitta fon beriladi: mavzuning fon rangida, urg‘u rangidagi Omarchy logotipi. Uni almashtirish uchun o‘zingiznikini qo‘shing.
 
-Mavzular harakatsiz fon uchun qisqa kirish qismini o'z ichiga olishi mumkin. `backgrounds/road.webp` uchun mos video `backgrounds/intros/road.mp4` manzilida joylashgan. U yuklanish paytida va o'sha fon tanlangan mavzuga o'tilganda avtomatik ravishda ijro etiladi, so'ngra harakatsiz rasmga qaytadi. Kirish videolari fon tanlagichida ko'rinmaydi va hech qachon takrorlanmaydi.
+Fonlar harakatsiz rasmlar ham, videolar ham bo‘lishi mumkin. Xuddi shu papkaga `mp4`, `m4v`, `mov`, `webm`, `mkv` yoki `avi` faylini tashlang, u rasmlar qatorida paydo bo‘ladi. Videolarni OWE fon dvigateli ijro etadi. U videoni barcha monitorlar uchun bir marta dekodlaydi, ovozini standart audio chiqishi orqali chiqaradi va uni hech narsa ko‘ra olmaydigan paytda ijroni to‘xtatadi. Video fon baribir harakatsiz fondan ancha ko‘p quvvat sarflaydi.
 
-_Appearance > Animations_ opsiyasini o'chirish fon kirishlarini ham o'chiradi. Omarchy virtual mashinada buni standart holatda shunday qiladi. `omarchy theme bg intro toggle` buyrug'i kirishlarni alohida yoqib-o'chirishi mumkin. Mavzuni yangilash yoki xuddi shu mavzu ichida boshqa fonni tanlash kirishni ijro etmaydi.
+Mavzularda harakatsiz fon uchun qisqa intro ham bo‘lishi mumkin. `backgrounds/road.webp` uchun mos video `backgrounds/intros/road.mp4` manzilida joylashadi. U tizim yuklanganda, o‘sha fon tanlangan mavzuga o‘tganda va o‘sha fon tanlanganda avtomatik ijro etiladi, so‘ng harakatsiz rasmga qaytadi. Intro videolar fon tanlagichda ko‘rinmaydi va hech qachon takrorlanmaydi.
 
-Ajoyib, saralangan fonlarning ulkan to'plamini [dharmx/walls](https://github.com/dharmx/walls) ichida topishingiz mumkin.
+_Tashqi ko‘rinish > Animatsiyalarni o‘chirish_ ni tanlash fon introlarini ham o‘chiradi. Omarchy virtual mashinada buni sukut bo‘yicha shunday qiladi. `omarchy theme bg intro toggle` buyrug‘i introlarni alohida yoqib-o‘chirishi mumkin. Mavzuni yangilash intro ijro etmaydi.
 
-Qulflash ekrani video fonning harakatsiz kadrini xuddi animatsiyalangan GIF ning harakatsiz kadrini ko'rsatgani kabi ko'rsatadi.
+Harakatsiz rasmning sikli ham bo‘lishi mumkin — xuddi shu rasmning tinchgina harakatlanib turadigan versiyasi — `backgrounds/loops/road.mp4` manzilida. U harakatsiz rasm o‘rnida, agar introsi bo‘lsa, introsidan keyin ijro etiladi va animatsiyalar o‘chirilganda to‘xtaydi. Batareyada uning o‘rniga harakatsiz rasm ko‘rsatiladi, quvvatga ulashingiz bilan sikl qaytadi. Sikllar fon tanlagichda ko‘rinmaydi.
+
+Ajoyib saralangan fonlarning ulkan to‘plamini [dharmx/walls](https://github.com/dharmx/walls) da topishingiz mumkin.
+
+Qulflash ekrani video fonning harakatsiz kadrini ko‘rsatadi, xuddi animatsiyalanuvchi GIF ning harakatsiz kadrini ko‘rsatgani kabi.

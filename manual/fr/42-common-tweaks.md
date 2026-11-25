@@ -1,16 +1,16 @@
 # Ajustements courants
 
-Voici une collection d'adaptations courantes de la configuration Omarchy. Sachez qu'il peut occasionnellement être nécessaire pour les mises à jour système de restaurer certaines configurations dans leur état d'origine. Si cela se produit, vos changements ne seront pas perdus, mais placés dans un fichier `.bak` dans le même répertoire.
+Voici une collection d'ajustements courants de la configuration d'Omarchy. Sachez qu'il peut parfois être nécessaire, lors de mises à jour du système, de restaurer certaines configurations dans leur état d'origine. Si cela se produit, vos modifications ne seront pas perdues, mais placées dans un fichier `.bak.<timestamp>` à côté de l'original.
 
-Si vous cassez quelque chose, vous pouvez restaurer les configurations individuelles dans leur état d'origine via _Mettre à jour > Config_ dans le menu Omarchy. Si vous cassez _vraiment_ tout, vous pouvez réinitialiser toutes les configurations via `omarchy-reinstall`.
+Si vous cassez quelque chose, vous pouvez restaurer les configurations individuelles dans leur configuration d'origine via _Update > Config_ dans le menu Omarchy. Si vous cassez *vraiment* tout, vous pouvez réinitialiser toutes les configurations via `omarchy reinstall configs`, ou réinstaller tous les paquets et toutes les configurations par défaut avec `omarchy reinstall`.
 
-### Révéler toutes les icônes de la zone de notification en permanence
+### Afficher toutes les icônes de la zone de notification en permanence
 
-Par défaut, les icônes de la zone de notification, comme Dropbox, 1Password ou Steam, sont cachées derrière la flèche d'expansion, qui les révèle quand vous la survolez. Si vous voulez les avoir exposées en permanence, cliquez droit sur la flèche d'expansion pour ouvrir le gestionnaire d'icônes, puis épinglez les icônes que vous voulez garder visibles (vous pouvez aussi masquer celles que vous ne voulez jamais voir).
+Par défaut, les icônes de la zone de notification, comme Dropbox, 1password ou Steam, sont masquées derrière la flèche d'extension de la zone de notification, qui les révèle lorsque vous la survolez. Si vous souhaitez qu'elles restent affichées en permanence, cliquez avec le bouton droit sur la flèche d'extension pour ouvrir le gestionnaire d'icônes de la zone de notification, puis épinglez les icônes que vous voulez garder visibles (vous pouvez aussi masquer celles que vous ne voulez jamais voir).
 
-### Coins de fenêtres arrondis
+### Coins de fenêtre arrondis
 
-Le design par défaut d'Omarchy mise sur les coins carrés, mais si vous voulez adoucir un peu cela, vous pouvez modifier `~/.config/hypr/looknfeel.lua` pour que l'arrondi ne soit plus commenté :
+Le design par défaut d'Omarchy repose sur des coins carrés, mais si vous aimez adoucir un peu tout ça, choisissez _Appearance > Windows > Window Corners > Rounded Corners_ dans le menu Omarchy, ou exécutez `omarchy hyprland corners rounded`. _Theme Corners_ revient à ce que le thème utilise. Pour choisir votre propre rayon, restez sur _Theme Corners_ (`omarchy hyprland corners theme`), puisque Rounded et Sharp se chargent après votre configuration et la remplacent, et décommentez l'arrondi dans `~/.config/hypr/looknfeel.lua` :
 
 ```
 hl.config({
@@ -21,9 +21,9 @@ hl.config({
 })
 ```
 
-### Retirer les espacements entre fenêtres
+### Supprimer les espaces entre les fenêtres
 
-Sur les écrans de portable, certains préfèrent ne gaspiller aucun pixel dans les espacements entre fenêtres (ni même une barre du haut, que vous pouvez masquer avec `Super + Shift + Space`). Vous pouvez désactiver tous les espacements et bordures avec `Super + Shift + Backspace`, ou les retirer définitivement en enlevant les commentaires de cette section de `~/.config/hypr/looknfeel.lua` :
+Sur les écrans d'ordinateurs portables, certaines personnes préfèrent ne gaspiller aucun pixel pour les espaces entre les fenêtres (ni même pour une barre supérieure, que vous pouvez désactiver avec `Super + Shift + Space`). Vous pouvez désactiver tous les espaces et toutes les bordures avec `Super + Shift + Backspace`, ou les supprimer définitivement en retirant les commentaires dans cette section de `~/.config/hypr/looknfeel.lua` :
 
 ```
 hl.config({

@@ -10,9 +10,9 @@ You can then hit `Super + J` to stack them on top of each other instead of side 
 
  ![navigation-stacked](images/navigation-stacked.webp)
 
-Hit `Super + J` again to return them to their side-by-side positions. Then try `Super + Shift + Arrow Right` while on the browser to swap the windows.
+Hit `Super + J` again to return them to their side-by-side positions. Then try `Super + Shift + Arrow Right` while in the browser to swap the windows.
 
-Now try `Super + Shift + T` to start the Activity monitor. That'll appear as a floating window. You can tile it using `Super + T` (and hit that again to make it floating again). Now press `Super + Shift + F` to open the files manager. You'll have a neat four-way setup:
+Now try `Super + Shift + T` to start the Activity monitor. That will appear as a floating window. You can tile it using `Super + T` (and hit that again to make it floating again). Now press `Super + Shift + F` to open the file manager. You'll have a neat four-way setup:
 
  ![navigation-fourway-tiling](images/navigation-fourway-tiling.webp)
 
@@ -24,19 +24,19 @@ With more than one monitor, every monitor has workspaces 1 through 10 of its own
 
 If you hold down `Super` and use the mouse to click on a window, you'll be able to rearrange where it sits. If you hold `Super` and use the right button on the mouse, you can freely resize the window.
 
-You close a window on `Super + W` or `Super + Q` (and close all windows on `Ctrl + Alt + Delete`).
+You close a window with `Super + W` or `Super + Q` (and close all windows with `Ctrl + Alt + Delete`).
 
 You can also go full screen with `Super + F` or even just full-width (keeping the top bar) with `Super + Alt + F` or full-screen within a window with `Super + Ctrl + F` (good for YouTube!).
 
 ### Dwindle vs scrolling layout
 
-Omarchy's default layout is called dwindle. It keeps all the windows you open on a single workspace visible at all time, even if it has to shrink them down.
+Omarchy's default layout is called dwindle. It keeps all the windows you open on a single workspace visible at all times, even if it has to shrink them down.
 
  ![navigation-dwindle-layout](images/navigation-dwindle-layout.webp)
 
 But you can also choose to turn a workspace into the scrolling layout where windows are lined up side-by-side, beyond the visible edge of the display. You turn a single workspace into this layout via `Super + L`.
 
-Pressing `Super + L` again turns the workspace floating, where windows overlap freely and you place them yourself, and a third press returns it to dwindle. `Super + Alt + L` goes through them the other way. A window that floats anyway — one you popped out with `Super + T`, or an app that always opens floating — keeps floating when the workspace goes back to tiling. The top bar marks the workspace you're on with its layout: a square for dwindle, a circle for scrolling, and a triangle for floating. Clicking that mark cycles the layout too.
+Pressing `Super + L` again turns the workspace floating, where windows overlap freely and you place them yourself, and a third press returns it to dwindle. `Super + Alt + L` goes through them the other way. A window that floats anyway — one you popped out with `Super + T`, or an app that always opens floating — keeps floating when the workspace goes back to tiling. The top bar marks the workspace you're on with its layout: a square for dwindle, a circle for scrolling, and a triangle for floating. Clicking that mark cycles the layout too, and so does the display key on laptops that have one.
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
@@ -54,15 +54,15 @@ hl.config({
 
 ### Floating workspaces
 
-A floating workspace works like a traditional desktop: windows overlap, and you move and size them yourself. Each window gets a titlebar in your theme's colors, with buttons to minimize, maximize, and close. `Super + M` minimizes the focused window too. A minimized window waits in the dock; click its app to bring it back. Click a window to bring it forward. Resize it from any edge or corner. Double-click a titlebar to maximize the window while keeping the top bar in view, and again to get its old size back.
+A floating workspace works like a traditional desktop: windows overlap, and you move and size them yourself. Each window gets a titlebar in your theme's colors, with buttons to minimize, maximize, and close. `Super + M` minimizes the focused window too. A minimized window waits in the dock; click its app to bring it back. Click a window to bring it forward. Resize it from any edge or corner. Double-click a titlebar to maximize the window while keeping the top bar in view, and again to get its old size back. Chrome and other Chromium-based browsers, Disks and Document Viewer skip the titlebar and use their own header instead; `Super + Alt + F` maximizes them, and `Super + M` minimizes them.
 
-A floating workspace also shows a dock, with your pinned apps, everything that's running, and a grid of every app behind the apps button, which `Super + Alt + Space` and _Apps_ in the Omarchy menu open too. Right-click an app on the grid, or press `Delete`, to uninstall it. Click an app to open it, or to bring its window forward; click again to cycle through its windows. Middle-click opens a new window. Drag an icon along the dock to move it; dragging a running app in among the others keeps it there. Right-click to keep an app in the dock, take it out, or quit it. The dock gets out of the way of a fullscreen window. Right-click the apps button to move the dock to another edge or have it hide until the pointer reaches its edge. The position is also under _Appearance > Dock > Dock Position_, and `omarchy dock position left` and `omarchy dock autohide on` set both from a terminal. Apps you keep in the dock are faded while they aren't running.
+A floating workspace also shows a dock, with your pinned apps, everything that's running, and a grid of every app behind the apps button, which `Super + Alt + Space` and _Apps_ in the Omarchy menu open too. Right-click an app on the grid, or press `Delete`, to uninstall it. Click an app to open it, or to bring its window forward; click again to cycle through its windows. Files only brings back a window from the workspace you're on and otherwise opens a new one, and Terminal and Agent always start another, though a minimized window comes back first. Middle-click opens a new window. Drag an icon along the dock to move it; dragging a running app in among the others keeps it there. Right-click to keep an app in the dock, take it out, or quit it. The dock gets out of the way of a fullscreen window. Right-click the apps button to move the dock to another edge or have it hide until the pointer reaches its edge. The position is also under _Appearance > Dock > Dock Position_, and `omarchy dock position left` and `omarchy dock autohide on` set both from a terminal. Apps you keep in the dock are faded while they aren't running.
 
-New workspaces, and any you haven't given a layout of their own with `Super + L`, use the default layout. Changing the default resets every workspace without windows to it, while one with windows on it keeps the layout it has. A window minimized to the dock still counts as a window on the workspace it left. Pick it under _Appearance > Workspace Layout_: Tiling, Scrolling, or Floating. `omarchy-hyprland-workspace-layout-default scrolling` sets it from a terminal.
+New workspaces, and any you haven't given a layout of their own with `Super + L`, use the default layout. Changing the default resets every workspace without windows to it, while one with windows on it keeps the layout it has. A window minimized to the dock still counts as a window on the workspace it left. Pick it under _Appearance > Workspace Layout_: Tiling, Scrolling, or Floating. `omarchy hyprland workspace layout default scrolling` sets it from a terminal.
 
 ### Grouping windows
 
-Windows can be grouped using `Super + G`. Once you're in a group, every window you start while that's active will belong to the group. You can move between these grouped windows using `Super + Ctrl + Arrow Left/Right` or `Super + Alt + 1/2/3/4` to go directly to grouped window in order.
+Windows can be grouped using `Super + G`. Once you're in a group, every window you start while that's active will belong to the group. You can move between these grouped windows using `Super + Ctrl + Arrow Left/Right` or `Super + Alt + 1/2/3/4` to go directly to grouped windows in order.
 
 You can move a window out of the grouping with `Super + Alt + G` or disassemble the entire group by hitting `Super + G` again. Finally, you can move windows outside the group into it with `Super + Alt + Arrows`.
 
@@ -80,9 +80,9 @@ It works well for controls or a terminal you want to interact with quickly witho
 
 ### Quake console
 
-Finally, there's a half-height Quake console that drops down over whatever workspace you're currently on. Toggle it with `Super + Grave`, and place a window there using `Super + Shift + Grave`.
+Finally, there's a half-height Quake console that drops down over whatever workspace you're currently on. Toggle it with `Super + the key above Tab` (grave on US layouts), and place a window there using `Super + Shift + the key above Tab`.
 
-It opens with your default agent ready to go. While the console holds a single window, it drops down as a centered panel rather than spanning the screen. Put a second app on it and it goes back to the full width, so the two have room to sit side by side.
+The first time it opens, it starts your default agent, or asks you to pick one if you haven't chosen one yet. While the console holds a single window, it drops down as a centered panel rather than spanning the screen. Put a second app on it and it goes back to the full width, so the two have room to sit side by side.
 
 To move a window off either the scratchpad or the console, send it directly to another workspace with something like `Super + Shift + 1`.
 

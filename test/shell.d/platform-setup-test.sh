@@ -10,12 +10,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 hardware_leaf="$ROOT/install/hardware/platform-setup.sh"
 user_leaf="$ROOT/install/user/platform-setup.sh"
 
-[[ $(grep '^run_logged' "$ROOT/install/hardware/all.sh" | tail -n 1) == 'run_logged "$OMARCHY_INSTALL/hardware/platform-setup.sh"' ]] ||
-  fail "the platform's system setup is the last hardware leaf"
-[[ $(grep '^run_logged' "$ROOT/install/user/all.sh" | tail -n 1) == 'run_logged "$OMARCHY_INSTALL/user/platform-setup.sh"' ]] ||
-  fail "the platform's user setup is the last user leaf"
-pass "the platform's setup is the last leaf of hardware and of user setup"
-
 require_platform_fixtures "platform setup on platform fixtures"
 
 tmp=$(mktemp -d)

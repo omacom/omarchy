@@ -78,6 +78,35 @@ load
 [[ ${args[9]} == "42" ]] || fail "notification wrapper sets replaces_id from -r" "${args[9]}"
 pass "notification wrapper supports -p (print id) and -r (replace id)"
 
+# --transient is a flag: it adds the hint and takes nothing after it.
+: >"$args_file"
+send --transient "Pending migrations" "Click to run 2" >/dev/null
+load
+[[ $(hint_value transient) == "true" ]] || fail "notification wrapper sets the transient hint from --transient" "$(hint_value transient)"
+[[ ${args[11]} == "Pending migrations" && ${args[12]} == "Click to run 2" ]] || fail "--transient takes no value" "${args[11]} / ${args[12]}"
+# A flag takes no value: --transient=false must not switch it on. A valued form
+# is not a flag, so it is text wherever it stands, like any unknown word.
+: >"$args_file"
+send --transient=false "Body" >/dev/null
+load
+! has_hint transient || fail "--transient=… before the headline does not set the hint"
+[[ ${args[11]} == "--transient=false" ]] || fail "--transient=… before the headline is the headline" "${args[11]}"
+: >"$args_file"
+send "Head" --transient=false -p >/dev/null
+load
+! has_hint transient || fail "--transient=… after the headline does not set the hint"
+[[ ${args[12]} == "--transient=false" ]] || fail "--transient=… after the headline is the description" "${args[12]}"
+[[ $(send --print-id=1 "Body") != "42" ]] || fail "--print-id=… does not print the id"
+pass "notification wrapper supports --transient"
+
+# --sticky keeps a toast up until it's clicked or closed, a flag like --transient.
+: >"$args_file"
+send --sticky "Codex is ready" "Make something cool" >/dev/null
+load
+[[ $(hint_value omarchy-sticky) == "true" ]] || fail "notification wrapper sets the sticky hint from --sticky" "$(hint_value omarchy-sticky)"
+[[ ${args[11]} == "Codex is ready" ]] || fail "--sticky takes no value" "${args[11]}"
+pass "notification wrapper supports --sticky"
+
 # Options may follow the headline and description (Taildrop appends -u critical
 # and -g after the two positionals); they still land on the call, and urgency
 # stays a single hint rather than doubling.
@@ -108,6 +137,16 @@ load
 has_hint omarchy-exec-argv && fail "notification wrapper adds no click hint without --exec"
 [[ ${args[11]} == "Plain" ]] || fail "notification wrapper still sends a plain toast"
 pass "notification wrapper omits the click hint when no command is given"
+
+# --help before the headline prints usage and sends nothing; after it, it is the
+# description, so a reminder whose message is "--help" is still sent.
+: >"$args_file"
+output=$(send --help 2>/dev/null) || fail "notification wrapper exits 0 for --help"
+[[ $output == "Usage: omarchy-notification-send"* && ! -s $args_file ]] || fail "notification wrapper prints usage for --help and sends nothing" "$output"
+send "Reminder" --help >/dev/null
+load
+[[ ${args[12]-} == "--help" ]] || fail "notification wrapper sends --help after the headline as the description" "${args[12]-}"
+pass "notification wrapper prints usage for a leading --help and sends one after the headline"
 
 # ------------------------------------------------ rest-of-line --exec is literal
 : >"$args_file"

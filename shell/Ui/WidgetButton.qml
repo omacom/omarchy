@@ -33,7 +33,10 @@ Item {
   property var registeredBar: null
   // Set by the bar while its own press handler, laid over the widget for
   // dragging, holds this button down; mouseArea never sees that press.
-  property bool held: false
+  property int heldButtons: Qt.NoButton
+  // The mouse buttons the mark gives under; none for a label that is read
+  // rather than pressed, like the clock.
+  property int pressFeedbackButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
   signal pressed(int button)
   signal wheelMoved(int delta)
@@ -102,7 +105,7 @@ Item {
   // Only the label and glyph shrink, never the button, so the hit area and
   // the bar's layout hold still. A bar glyph is small, so it gives more than
   // a panel button's 0.97, or nothing would show.
-  property real pressScale: root.pressable && (mouseArea.pressed || root.held) ? 0.9 : 1
+  property real pressScale: root.pressable && ((mouseArea.pressedButtons | root.heldButtons) & root.pressFeedbackButtons) ? 0.9 : 1
   Behavior on pressScale {
     NumberAnimation {
       duration: Style.duration(160)
