@@ -81,6 +81,44 @@ if grep -q 'unresolvable package conflicts detected' "$errors"; then
   exit 0
 fi
 
+# A package from Omarchy's repository can lag a library Arch just moved: Arch
+# ships a new soname, Omarchy's build still needs the old one, and pacman
+# refuses the whole upgrade over it until Omarchy's rebuild is published, hours
+# later. Hold back what the lagging package blocks, and what needs what's held,
+# and upgrade everything else. The next update brings them once the rebuild is
+# out. Only Omarchy's own packages qualify: those are rebuilt for this, while a
+# stale AUR build would hold Arch back for good.
+#
+# Pacman names the packages on stdout, which the upgrade leaves on the terminal,
+# so a dry run that needs no root asks again for each step of the hold.
+if grep -q 'could not satisfy dependencies' "$errors"; then
+  unsatisfied() {
+    LC_ALL=C pacman -Su --print --noconfirm ${1:+--ignore "$1"} 2>/dev/null
+  }
+
+  report=$(unsatisfied) && exit 1
+  lagging=$(grep -oP "^:: (installing \S+ \(\S+\) breaks|unable to satisfy) dependency '[^']+' required by \K\S+$" <<<"$report" | sort -u)
+  [[ -n $lagging ]] || exit 1
+  [[ -z $(comm -23 <(echo "$lagging") <(pacman -Sl | awk '$1 ~ /^omarchy/ { print $2 }' | sort -u)) ]] || exit 1
+
+  declare -A held=()
+  for round in {1..10}; do
+    progress=0
+    for package in $(grep -oP "^:: installing \K\S+(?= \(\S+\) breaks dependency )|^:: unable to satisfy dependency '[^']+' required by \K\S+$" <<<"$report"); do
+      [[ -v held[$package] ]] || { held[$package]=1; progress=1; }
+    done
+    ((progress)) || exit 1
+
+    hold=$(IFS=,; echo "${!held[*]}")
+    if report=$(unsatisfied "$hold"); then
+      echo -e "\e[33m\nHolding back until Omarchy's rebuild against them is out: ${hold//,/ }\e[0m"
+      OMARCHY_UPDATE_RETRY=1 omarchy-update-system-pkgs --ignore "$hold"
+      exit
+    fi
+  done
+  exit 1
+fi
+
 # Paths one of these packages installs that pacman doesn't own. Moving them out
 # of the way is what lets the upgrade through, and works on a leftover directory
 # as well as a file.

@@ -161,3 +161,50 @@ fi
 [[ $(call_line 1 args) == *"--noconfirm"* ]] ||
   fail "a caller can ask for an interactive upgrade directly"
 pass "only the conflict handler can hand the upgrade to a person"
+
+# An Omarchy package that lags a library Arch just moved: pacman refuses the
+# upgrade and names the breakage on stdout, and holding back the new library
+# surfaces the next package that needs it. The stub answers the dry runs the way
+# pacman did when hyprgraphics 0.7.0 outran Omarchy's Hyprland.
+lagging_bin="$test_tmp/lagging-bin"
+mkdir -p "$lagging_bin"
+cat >"$lagging_bin/pacman" <<'STUB'
+#!/bin/bash
+args="$*"
+case $args in
+  -Sl) printf 'omarchy hyprland 0.57.2-4\nextra hyprgraphics 0.7.0-1\nextra hyprtoolkit 0.7.0-1\n' ;;
+  *--print*hyprgraphics,hyprtoolkit* | *--print*hyprtoolkit,hyprgraphics*) ;;
+  *--print*hyprgraphics*)
+    echo ":: unable to satisfy dependency 'libhyprgraphics.so=6-64' required by hyprtoolkit"
+    exit 1
+    ;;
+  *--print*)
+    echo ":: installing hyprgraphics (0.7.0-1) breaks dependency 'libhyprgraphics.so=5-64' required by $LAGGING"
+    exit 1
+    ;;
+  *-Syu*--ignore*) echo "upgrade $args" >>"$PACMAN_CALLS" ;;
+  *-Syu*)
+    echo "upgrade $args" >>"$PACMAN_CALLS"
+    echo "error: failed to prepare transaction (could not satisfy dependencies)" >&2
+    exit 1
+    ;;
+esac
+STUB
+chmod +x "$lagging_bin/pacman"
+
+run_lagging() {
+  : >"$test_tmp/calls"
+  env LAGGING="$1" PACMAN_CALLS="$test_tmp/calls" PATH="$lagging_bin:$stub_bin:$ROOT/bin:$PATH" \
+    bash "$ROOT/bin/omarchy-update-system-pkgs" </dev/null >"$test_tmp/out" 2>"$test_tmp/err"
+}
+
+run_lagging hyprland || fail "an Omarchy package lagging an Arch library stops the update"
+grep -Eq -- '--ignore (hyprgraphics,hyprtoolkit|hyprtoolkit,hyprgraphics)' "$test_tmp/calls" ||
+  fail "the update does not hold back the library and what needs it"
+grep -q 'hyprgraphics' "$test_tmp/out" || fail "the update does not say what it held back"
+pass "an Omarchy package lagging an Arch library holds that library back instead of stopping the update"
+
+if run_lagging some-aur-package; then
+  fail "a stale package from outside Omarchy's repository holds Arch back"
+fi
+pass "only Omarchy's own packages can hold Arch packages back"

@@ -23,8 +23,10 @@ trap 'rm -f "$errors"' EXIT
 #
 # Progress bars stay on stdout. Errors are on stderr, kept for the conflict
 # handler below; LC_ALL=C is what keeps them parseable in any locale.
+#
+# Arguments go to pacman: the handler passes --ignore for what it holds back.
 if LC_ALL=C omarchy-update-pacman -Syu --noconfirm \
-  --overwrite '/usr/share/omarchy/*' 2>"$errors"; then
+  --overwrite '/usr/share/omarchy/*' "$@" 2>"$errors"; then
   cat "$errors" >&2
   exit 0
 fi
