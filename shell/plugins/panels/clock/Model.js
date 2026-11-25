@@ -410,6 +410,13 @@ function stopwatchElapsed(watch, now) {
   return watch.running ? before + Math.max(0, (Number(now) - Number(watch.startedAt)) / 1000) : before
 }
 
+// A vertical bar is one icon slot wide, so a reading stacks one unit per
+// line ("1:00:00" becomes "1", "00", "00"), the way the clock stacks HH over mm.
+function verticalTimerLines(reading) {
+  var text = String(reading || "")
+  return text === "" ? [] : text.split(":")
+}
+
 // Like formatTimer, but rounding down: a stopwatch reads "0:00" for its first
 // second, where a countdown reads "0:01" until it is actually done.
 function formatElapsed(seconds) {
@@ -504,6 +511,7 @@ if (typeof module !== "undefined") {
     parseBool: parseBool,
     stopwatchElapsed: stopwatchElapsed,
     formatElapsed: formatElapsed,
+    verticalTimerLines: verticalTimerLines,
     restoreTimers: restoreTimers,
     barTimerLabel: barTimerLabel
   }

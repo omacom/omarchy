@@ -44,7 +44,7 @@ BarWidget {
   readonly property string timerSegment: timerText !== "" ? timerGlyph + " " + timerText : ""
   readonly property bool showsTimer: !vertical && timerSegment !== ""
   readonly property var verticalLines: timerText !== ""
-    ? displayText.split("\n").concat([timerGlyph, panelLoader.item.barTimerTime])
+    ? displayText.split("\n").concat([timerGlyph], Model.verticalTimerLines(panelLoader.item.barTimerTime))
     : displayText.split("\n")
 
   // ---- Scrolling over the label steps through the timers. The segment
