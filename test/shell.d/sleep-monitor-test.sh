@@ -11,9 +11,11 @@ trap 'rm -rf "$tmpdir"' EXIT
 mock_bin="$tmpdir/bin"
 mock_omarchy="$tmpdir/omarchy"
 producer_pid_file="$tmpdir/producer-pid"
-lock_log="$tmpdir/lock-log"
+event_log="$tmpdir/event-log"
 mkdir -p "$mock_bin" "$mock_omarchy/bin"
 
+# Logs when the delay inhibitor is taken and released, which is for as long as
+# the command it runs lives.
 cat >"$mock_bin/systemd-inhibit" <<'SH'
 #!/bin/bash
 
@@ -21,47 +23,84 @@ while [[ $1 == --* ]]; do
   shift
 done
 
-exec "$@"
-SH
+if [[ -n ${INHIBIT_FAILS:-} ]]; then
+  exit 1
+fi
 
-cat >"$mock_bin/dbus-monitor" <<'SH'
-#!/bin/bash
-
-echo "$$" >"$PRODUCER_PID_FILE"
-printf '   boolean true\n'
-exec sleep 30
+echo "inhibitor taken" >>"$EVENT_LOG"
+"$@"
+status=$?
+echo "inhibitor released" >>"$EVENT_LOG"
+exit "$status"
 SH
 
 cat >"$mock_omarchy/bin/omarchy-system-sleep-lock" <<'SH'
 #!/bin/bash
 
-echo locked >>"$LOCK_LOG"
+echo "locked" >>"$EVENT_LOG"
 SH
 
 chmod +x \
   "$mock_bin/systemd-inhibit" \
-  "$mock_bin/dbus-monitor" \
   "$mock_omarchy/bin/omarchy-system-sleep-lock"
 ln -s "$sleep_monitor" "$mock_omarchy/bin/omarchy-system-sleep-monitor"
 
+# logind's signals for one suspend and the wake after it, then the bus goes away.
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+echo "$$" >"$PRODUCER_PID_FILE"
+printf 'signal time=1 member=PrepareForSleep\n   boolean true\n'
+printf 'signal time=2 member=PrepareForSleep\n   boolean false\n'
+SH
+chmod +x "$mock_bin/dbus-monitor"
+
+run_monitor() {
+  OMARCHY_PATH="$mock_omarchy" \
+    PATH="$mock_bin:$PATH" \
+    PRODUCER_PID_FILE="$producer_pid_file" \
+    EVENT_LOG="$event_log" \
+    "$sleep_monitor"
+}
+
+run_monitor || true
+
+mapfile -t events <"$event_log"
+[[ ${events[0]:-} == "inhibitor taken" && ${events[1]:-} == "locked" && ${events[2]:-} == "inhibitor released" ]] ||
+  fail "sleep monitor locks while holding the inhibitor, then releases it" "$(<"$event_log")"
+pass "sleep monitor locks while holding the inhibitor, then releases it"
+
+[[ ${events[3]:-} == "inhibitor taken" ]] ||
+  fail "sleep monitor takes the inhibitor again after the wake" "$(<"$event_log")"
+pass "sleep monitor takes the inhibitor again after the wake"
+
+# A failed inhibit (logind still finishing a sleep, say) must end the monitor
+# so systemd retries it, without orphaning the event producer.
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+echo "$$" >"$PRODUCER_PID_FILE"
+exec sleep 30
+SH
+chmod +x "$mock_bin/dbus-monitor"
+rm -f "$producer_pid_file" "$event_log"
+
 start_us=${EPOCHREALTIME//[!0-9]/}
-OMARCHY_PATH="$mock_omarchy" \
-  PATH="$mock_bin:$PATH" \
-  PRODUCER_PID_FILE="$producer_pid_file" \
-  LOCK_LOG="$lock_log" \
-  "$sleep_monitor"
+if INHIBIT_FAILS=1 run_monitor; then
+  fail "sleep monitor exits with an error when the inhibitor cannot be taken"
+fi
 elapsed_us=$((10#${EPOCHREALTIME//[!0-9]/} - 10#$start_us))
-
-[[ $(<"$lock_log") == "locked" ]] ||
-  fail "sleep monitor invokes the lock helper for a sleep event"
-pass "sleep monitor invokes the lock helper for a sleep event"
-
 (( elapsed_us < 2000000 )) ||
-  fail "sleep monitor releases the inhibitor after locking" "elapsed: ${elapsed_us}us"
-pass "sleep monitor releases the inhibitor after locking"
+  fail "sleep monitor exits with an error when the inhibitor cannot be taken" "elapsed: ${elapsed_us}us"
+pass "sleep monitor exits with an error when the inhibitor cannot be taken"
 
+for _ in {1..100}; do
+  [[ -s $producer_pid_file ]] && break
+  sleep 0.01
+done
 producer_pid=$(<"$producer_pid_file")
 if kill -0 "$producer_pid" 2>/dev/null; then
+  kill "$producer_pid" 2>/dev/null || true
   fail "sleep monitor reaps its event producer" "producer still running: $producer_pid"
 fi
 pass "sleep monitor reaps its event producer"
@@ -81,7 +120,7 @@ rm -f "$producer_pid_file"
 OMARCHY_PATH="$mock_omarchy" \
   PATH="$mock_bin:$PATH" \
   PRODUCER_PID_FILE="$producer_pid_file" \
-  LOCK_LOG="$lock_log" \
+  EVENT_LOG="$event_log" \
   "$sleep_monitor" &
 monitor_pid=$!
 
