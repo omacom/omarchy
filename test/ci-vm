@@ -4,7 +4,7 @@
 # VM image, booted for this run, the checkouts copied in, the tests run in the
 # desktop session as the logged-in user. Nothing is left behind.
 #
-#   test/ci-vm <image_dir> <sources_dir> <out_dir>
+#   test/ci-vm <image_dir> <sources_dir> <out_dir> [test/all args...]
 #
 #   image_dir    base.qcow2 with vmlinuz, initrd and cmdline beside it: a VM
 #                image omarchy-iso publishes, and its unpacked/ files
@@ -12,7 +12,8 @@
 #   out_dir      gets run.log (every test file's output, whole) and the boot analysis
 #
 # Env: SMP (default 4), MEM (default 8G), VM_STATE_DIR (where the run's disk
-# and sockets go, default /var/tmp).
+# and sockets go, default /var/tmp), OMARCHY_TEST_COMP_JOBS (parallel
+# compositor test workers inside the VM).
 
 set -euo pipefail
 
@@ -20,6 +21,8 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/ci-failure-logs"
 
 image=$1 sources=$2 out=$3
+shift 3
+suite_args=("$@")
 state=$(mktemp -d "${VM_STATE_DIR:-/var/tmp}/ci-vm.XXXXXX") # the socket's path has to stay under 108 bytes
 port=$(( 20000 + RANDOM % 10000 ))
 mkdir -p "$out"
@@ -41,7 +44,8 @@ pull_shell_logs() {
 # meanwhile report from its log directory, where each file leaves a .code file
 # the moment it ends: how many are done, and which have failed so far.
 shell_progress() {
-  ssh_vm 'total=$(( $(ls ~/src/omarchy/test/shell.d/*-test.sh | wc -l) - 1 ))
+  ssh_vm 'total=$(sed -n "/^==> test\/shell\$/,\$ s/^Running \([0-9][0-9]*\) test files$/\1/p" ~/run.log | head -n 1)
+    [[ -n $total ]] || total=$(( $(ls ~/src/omarchy/test/shell.d/*-test.sh | wc -l) - 1 ))
     dir=$(sed -n "/^==> test\/shell\$/,\$ s/^Logging every file to //p" ~/run.log | head -n 1)
     if [[ -n $dir ]]; then
       finished=$(find "$dir" -maxdepth 1 -name "*.code" | wc -l)
@@ -80,7 +84,7 @@ qemu-system-x86_64 -cpu host -enable-kvm -machine q35,accel=kvm -smp "${SMP:-4}"
   -kernel "$image/vmlinuz" -initrd "$image/initrd" \
   -append "$(cat "$image/cmdline") systemd.tty.term.console=dumb" \
   -uuid "$(cat /proc/sys/kernel/random/uuid)" \
-  -drive "file=$state/run.qcow2,format=qcow2,if=none,id=d0" -device virtio-blk-pci,drive=d0 \
+  -drive "file=$state/run.qcow2,format=qcow2,if=none,id=d0,cache=unsafe,discard=unmap" -device virtio-blk-pci,drive=d0 \
   -smbios "type=11,value=io.systemd.credential.binary:tmpfiles.extra=$keys" \
   -device virtio-vga -device virtio-rng-pci -display none \
   -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$port-:22" -device virtio-net-pci,netdev=n0 \
@@ -125,7 +129,15 @@ fi
 # neither the commands nor the files added since.
 # The exit status goes to a file of its own, renamed into place whole: the
 # tests print lines like "rc=0" themselves, so the log cannot carry it.
-command='export OMARCHY_PATH=~/src/omarchy PATH=~/src/omarchy/bin:$PATH; cd ~/src/omarchy && date +%s.%N >~/started && ./test/all >~/run.log 2>&1; echo "$?" >~/rc.next && mv ~/rc.next ~/rc'
+args_quoted=""
+if (( ${#suite_args[@]} > 0 )); then
+  printf -v args_quoted ' %q' "${suite_args[@]}"
+fi
+comp_jobs_env=""
+if [[ -n ${OMARCHY_TEST_COMP_JOBS:-} ]]; then
+  printf -v comp_jobs_env ' OMARCHY_TEST_COMP_JOBS=%q' "$OMARCHY_TEST_COMP_JOBS"
+fi
+command="export OMARCHY_PATH=~/src/omarchy PATH=~/src/omarchy/bin:\$PATH OMARCHY_TEST_USE_LIVE_COMPOSITOR=1${comp_jobs_env}; cd ~/src/omarchy && date +%s.%N >~/started && ./test/all${args_quoted} >~/run.log 2>&1; echo \"\$?\" >~/rc.next && mv ~/rc.next ~/rc"
 ssh_vm "systemd-run --user --quiet --collect --same-dir \
   -E OMARCHY_PKGS_PATH=\$HOME/src/omarchy-pkgs bash -c $(printf %q "$command")"
 last_report="" next_report=0
@@ -162,6 +174,6 @@ ssh_vm 'systemd-analyze; systemd-analyze blame | head -25' >"$out/boot.txt" 2>&1
 ssh_vm 'echo "source tree: $(cd ~/src/omarchy && git status --porcelain | wc -l) changed files"'
 pull_kernel_log
 
-sed -n '/^Skipped checks in/,$p' "$out/run.log"
+sed -n '/^\(Skipped checks in\|All [0-9][0-9]* test files passed\.\|[0-9][0-9]* test files completed without failures\|[0-9][0-9]* of [0-9][0-9]* test files failed:\|Slowest test files:\)/,$p' "$out/run.log"
 # The tests' verdict is the run's verdict.
 [[ $rc == "0" ]]

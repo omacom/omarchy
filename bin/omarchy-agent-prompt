@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent with a prompt
-# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>] <prompt...>
+# omarchy:args=[--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <id>] <prompt...>
 # omarchy:examples=omarchy agent prompt "Review this project" | omarchy agent prompt --agent codex "Review this project"
 
 # Prompts live here rather than on `omarchy agent`, where a bare prompt would
@@ -12,7 +12,7 @@ set -euo pipefail
 flags=()
 while (($#)); do
   case "$1" in
-    --inline|--pick|--local|--prefer-local)
+    --inline|--pick)
       flags+=("$1")
       shift
       ;;
@@ -22,6 +22,10 @@ while (($#)); do
       ;;
     --agent)
       flags+=(--agent "${2:?--agent needs an agent id}")
+      shift 2
+      ;;
+    --provider)
+      flags+=(--provider "${2:?--provider needs a provider id}")
       shift 2
       ;;
     --)
@@ -35,7 +39,7 @@ while (($#)); do
 done
 
 if [[ -z $* ]]; then
-  echo "Usage: omarchy agent prompt [--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>] <prompt...>" >&2
+  echo "Usage: omarchy agent prompt [--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <id>] <prompt...>" >&2
   exit 1
 fi
 

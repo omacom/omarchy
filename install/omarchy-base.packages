@@ -44,6 +44,7 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+flowtunes
 folio
 fontconfig
 foot
@@ -74,6 +75,7 @@ inxi
 networkmanager
 jq
 kernel-modules-hook
+kmscon
 lazygit
 less
 libsecret
@@ -88,8 +90,9 @@ mariadb-libs
 mise-bin
 monologue
 gnome-disk-utility
+nodejs
 noto-fonts
-noto-fonts-cjk
+noto-fonts-cjk-vf
 noto-fonts-emoji
 nss-mdns
 nvim
@@ -114,8 +117,10 @@ owe
 pacman-contrib
 pamixer
 papers
+pi-coding-agent
 pinta
 plain
+playwright-cli
 plocate
 plymouth
 podman
@@ -150,7 +155,6 @@ tldr
 tree-sitter-cli
 tmux
 tobi-try
-ttf-ia-writer
 ttf-jetbrains-mono-nerd-basic
 tzupdate
 udiskie
@@ -158,6 +162,7 @@ ufw
 ufw-docker
 unzip
 usage
+uv
 uwsm
 vi
 whois

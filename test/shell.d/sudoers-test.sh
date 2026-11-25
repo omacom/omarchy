@@ -16,7 +16,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 # (which sudoers reads as "any arguments"), widens a grant and fails here. A new
 # drop-in needs a row: the grant it carries is reviewed here or nowhere.
 declare -A expected=(
-  [omarchy-dns]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-dns Cloudflare, /usr/bin/omarchy-dns Google, /usr/bin/omarchy-dns DHCP'
+  [omarchy-dns]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-dns Cloudflare, /usr/bin/omarchy-dns Google, /usr/bin/omarchy-dns AliDNS, /usr/bin/omarchy-dns DHCP'
   [omarchy-locale-generate]="%wheel ALL=(root) NOPASSWD: $(jq -rs 'add | keys | map("/usr/bin/omarchy-locale-generate " + .) | join(", ")' "$registry" "$ROOT/default/i18n/regions.json")"
   [omarchy-passwd-tries]='Defaults passwd_tries=10'
   [omarchy-sudo-timeout]='Defaults timestamp_timeout=10'
@@ -292,6 +292,7 @@ while IFS='|' read -r dropin command arg want; do
 done <<'ROWS'
 omarchy-dns|omarchy-dns|Cloudflare|sudo /usr/bin/omarchy-dns Cloudflare
 omarchy-dns|omarchy-dns|Google|sudo /usr/bin/omarchy-dns Google
+omarchy-dns|omarchy-dns|AliDNS|sudo /usr/bin/omarchy-dns AliDNS
 omarchy-dns|omarchy-dns|DHCP|sudo /usr/bin/omarchy-dns DHCP
 omarchy-dns|omarchy-dns|cloudflare|sudo /usr/bin/omarchy-dns Cloudflare
 omarchy-dns|omarchy-dns|Custom|pkexec /usr/bin/omarchy-dns Custom
