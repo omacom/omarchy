@@ -71,7 +71,7 @@ chmod +x "$stub_bin"/*
 export PATH="$stub_bin:$PATH"
 
 {
-  sed -n '/^keyboard_form() {/,/^}/p; /^keyboard_xkb_settings() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner"
+  sed -n '/^keyboard_form() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner"
   sed -n '/^omarchy_persist_input_selection() {/,/^}/p' "$ROOT/install/provisioning/setup-form.sh"
   cat "$ROOT/install/provisioning/kmscon.sh"
 } | sed "s|/etc/|$root/etc/|g" >"$tmp/keyboard.sh"
@@ -195,17 +195,18 @@ grep -qx 'XKBLAYOUT=bg,us' "$conf" && grep -qx 'XKBVARIANT=phonetic,' "$conf" ||
 pass "a keymap systemd-firstboot has no XKB layout for gets one from setup"
 
 # Every layout the form offers must end with an XKB layout: kbd-model-map's, or
-# setup's own. A keymap in neither could never finish the keyboard step.
+# the form's own. The ISO reads the form's own from setup-form.sh alone, so look
+# it up there in a clean shell. A keymap in neither could never finish the
+# keyboard step, and an ISO install with it would type US on the desktop.
 model_map=/usr/share/systemd/kbd-model-map
 if [[ -r $model_map ]]; then
   source "$ROOT/install/provisioning/setup-form.sh"
-  source "$tmp/keyboard.sh"
   while IFS='|' read -r label keymap _; do
     awk -v k="$keymap" '$1 == k { found = 1 } END { exit !found }' "$model_map" ||
-      { declare -F keyboard_xkb_settings >/dev/null && keyboard_xkb_settings "$keymap" >/dev/null; } ||
-      fail "the $label layout ($keymap) gets an XKB layout"
+      bash -c 'source "$1" && omarchy_keymap_xkb_settings "$2"' bash "$ROOT/install/provisioning/setup-form.sh" "$keymap" >/dev/null ||
+      fail "the $label layout ($keymap) gets an XKB layout from setup-form.sh"
   done <<<"$OMARCHY_KEYBOARD_LAYOUTS"
-  pass "every layout the form offers gets an XKB layout"
+  pass "every layout the form offers gets an XKB layout from setup-form.sh"
 else
   echo "ok - # SKIP no $model_map to check the form's layouts against"
 fi
@@ -891,6 +892,7 @@ pass "console font rejects non-VT paths"
 
 kms=$tmp/kmscon
 mkdir -p "$kms/bin"
+source "$ROOT/install/provisioning/setup-form.sh"
 source "$ROOT/install/provisioning/kmscon.sh"
 
 [[ $(omarchy_keymap_xkb us) == "us pc105+inet - terminate:ctrl_alt_bksp" ]] || fail "a US keymap types US in kmscon" "$(omarchy_keymap_xkb us)"
@@ -939,6 +941,7 @@ pass "kmscon is started under the keymap's layout, in the language's font and an
 sed -n '/^keyboard_form() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" >"$kms/keyboard.sh"
 cat >"$kms/form.sh" <<SH
 set -euo pipefail
+source "$ROOT/install/provisioning/setup-form.sh"
 source "$ROOT/install/provisioning/kmscon.sh"
 source "$kms/keyboard.sh"
 KMSCON_RESUME=$kms/resume
