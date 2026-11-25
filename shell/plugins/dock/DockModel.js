@@ -208,6 +208,20 @@ function pickClickWindow(mode, windows, workspaceId) {
   return picked < 0 ? -1 : candidates[picked]
 }
 
+// The Lua that runs a bring-forward's dispatches with Hyprland's pointer warp
+// off, so a window the dock raises in front of the pointer leaves it where it
+// is. The user's own setting is saved once and put back on the next tick, so
+// two clicks landing before that tick still restore it rather than the "off"
+// the first one left.
+function keepPointerLua(steps) {
+  return [
+    "if o.dock_saved_no_warps == nil then o.dock_saved_no_warps = hl.get_config(\"cursor.no_warps\") end",
+    "hl.config({ cursor = { no_warps = true } })"
+  ].concat((steps || []).map(function(step) { return "hl.dispatch(" + step + ")" })).concat([
+    "hl.timer(function() if o.dock_saved_no_warps ~= nil then hl.config({ cursor = { no_warps = o.dock_saved_no_warps } }); o.dock_saved_no_warps = nil end end, { timeout = 1, type = \"oneshot\" })"
+  ]).join("; ")
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
@@ -224,6 +238,7 @@ if (typeof module !== "undefined") {
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
     pickWindow: pickWindow,
-    pickClickWindow: pickClickWindow
+    pickClickWindow: pickClickWindow,
+    keepPointerLua: keepPointerLua
   }
 }
