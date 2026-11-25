@@ -239,3 +239,19 @@ all_sharded=$(
 [[ $all_sharded == $expected_files ]] ||
   fail "default --group=all shards partition every shell test file exactly once" "got:\n$all_sharded"
 pass "CI group and shard filters partition every shell test file exactly once and report timings"
+
+# A test file that only mentions require_compositor inside a heredoc or indented
+# inline script must stay in noncomp rather than being classified as comp.
+cat >"$shard_dir/test/shell.d/heredoc-mention-test.sh" <<'SH'
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+cat >/dev/null <<'FIXTURE'
+require_compositor "inside heredoc"
+FIXTURE
+pass "heredoc mention ran"
+SH
+sc_heredoc=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/shell" --group=comp 2>&1)
+sn_heredoc=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/shell" --group=noncomp 2>&1)
+[[ $sc_heredoc != *"heredoc-mention-test.sh"* && $sn_heredoc == *"heredoc-mention-test.sh"* ]] ||
+  fail "heredoc require_compositor fixtures stay in noncomp" "comp:\n$sc_heredoc\nnoncomp:\n$sn_heredoc"
+pass "heredoc require_compositor fixtures stay in noncomp"
