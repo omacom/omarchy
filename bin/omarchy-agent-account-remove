@@ -1,30 +1,142 @@
 #!/bin/bash
 
-# omarchy:summary=Forget an added Claude, Codex, or Grok account
-# omarchy:args=[claude|codex|grok] <account>
-# omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side
+# omarchy:summary=Forget an agent sign-in, handing a Claude, Codex, or Grok account's sessions to another
+# omarchy:args=[--yes] [--agent] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [account]
+# omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side | omarchy agent account remove openrouter
 
 set -uo pipefail
 
+# --yes skips the confirmation, for a caller that already asked. --agent
+# says the first argument is the agent, never an account by that name, for a
+# caller that knows which it means.
+confirm=true
+explicit=false
+while [[ ${1:-} == "--yes" || ${1:-} == "--agent" ]]; do
+  [[ $1 == "--yes" ]] && confirm=false
+  [[ $1 == "--agent" ]] && explicit=true
+  shift
+done
+
+accounts_provider() {
+  [[ $1 == "claude" || $1 == "codex" || $1 == "grok" ]]
+}
+
+has_account() {
+  omarchy-agent-account-state registry "$1" 2>/dev/null | jq -e --arg id "$2" '.accounts[] | select(.id == $id)' >/dev/null
+}
+
 # The provider can be left out when it's your default agent:
-# `omarchy agent account use work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
-  default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+# `omarchy agent account remove work`. An account of the default agent named
+# like another agent (`cursor`) is still that account.
+default=$(omarchy-default-agent)
+if [[ $explicit == "false" ]] && {
+  [[ ! ${1:-} =~ ^(agy|gemini|claude|codex|copilot|cursor|cursor-agent|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]] ||
+    { (( $# == 1 )) && ! accounts_provider "$1" && accounts_provider "$default" && has_account "$default" "$1"; }
+}; then
+  accounts_provider "$default" && set -- "$default" "$@"
 fi
 
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]] || [[ -z ${2:-} ]]; then
-  echo "Usage: omarchy-agent-account-remove [claude|codex|grok] <account>" >&2
+provider=${1:-}
+case $provider in
+gemini) provider="agy" ;;
+cursor-agent) provider="cursor" ;;
+esac
+
+if [[ ! $provider =~ ^(agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]] ||
+  { accounts_provider "$provider" && [[ -z ${2:-} ]]; }; then
+  echo "Usage: omarchy-agent-account-remove [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [account]" >&2
   exit 1
 fi
 
-# Removing only deletes the account's home here. It never logs out, which
-# would revoke the sign-in for every other copy of it too.
-if [[ -t 0 ]] && ! gum confirm "Forget the $1 account $2? You'd have to sign in again to add it back."; then
+# Every OpenCode credential under the integrations the agent's usage is read
+# from, as `omarchy agent account add` saves a key there. The export carries
+# the secrets, which stay in the pipe.
+opencode_logout() {
+  local credentials integration id
+  credentials=$(opencode auth export 2>/dev/null | jq -r '.[]? | select(.integrationID == ($ARGS.positional[])) | "\(.integrationID)\t\(.id)"' --args "$@") || return 1
+  while IFS=$'\t' read -r integration id; do
+    [[ -n $id ]] || continue
+    opencode auth logout "$integration" "$id" >/dev/null 2>&1 || return 1
+  done <<<"$credentials"
+}
+
+case $provider in
+claude | codex | grok) name=$2 ;;
+agy) name="Gemini" ;;
+deepseek) name="DeepSeek" ;;
+minimax) name="MiniMax" ;;
+opencode) name="OpenCode" ;;
+openrouter) name="OpenRouter" ;;
+zai) name="Z.ai" ;;
+*) name=${provider^} ;;
+esac
+
+# Removing deletes the sign-in here. Where a CLI's logout would revoke it for
+# every other copy too, its saved credential is deleted instead.
+if [[ $confirm == "true" && -t 0 ]] && ! gum confirm "Forget $name? You'd have to sign in again to add it back."; then
   exit 130
 fi
 
-account=$(omarchy-agent-account-state remove "$1" "$2") || exit 1
-echo "Forgot $(jq -r .label <<<"$account")."
-# The panel reads which accounts exist from the usage record.
-omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
+# 0 when the keyring holds Gemini's sign-in, 1 when it doesn't (a quiet
+# miss), 2 when the keyring couldn't be asked (it says why on stderr).
+gemini_in_keyring() {
+  local error
+  if error=$(secret-tool lookup service gemini username antigravity 2>&1 >/dev/null); then
+    return 0
+  elif [[ -z $error ]]; then
+    return 1
+  else
+    return 2
+  fi
+}
+
+hides=true
+case $provider in
+claude | codex | grok)
+  # The removal says, under the registry's lock, whether it was the last.
+  account=$(omarchy-agent-account-state remove "$provider" "$2") || exit 1
+  name=$(jq -r .label <<<"$account")
+  [[ $(jq -r .last <<<"$account") == "true" ]] || hides=false
+  ;;
+agy)
+  # agy keeps its sign-in in the keyring, or in a file where there's none,
+  # and has no logout of its own.
+  gemini_in_keyring
+  keyring=$?
+  if (( keyring == 2 )); then
+    echo "Couldn't check the keyring for Gemini's sign-in." >&2
+    exit 1
+  elif (( keyring == 0 )); then
+    secret-tool clear service gemini username antigravity 2>/dev/null
+    gemini_in_keyring
+    if (( $? != 1 )); then
+      echo "Couldn't clear Gemini's sign-in from the keyring." >&2
+      exit 1
+    fi
+  fi
+  rm -f "${AGY_DIR:-$HOME/.gemini/antigravity-cli}/antigravity-oauth-token" || exit 1
+  ;;
+muse) muse logout >/dev/null || exit 1 ;;
+cursor) cursor-agent logout >/dev/null || exit 1 ;;
+copilot)
+  # Copilot signs out only from inside a session, which needs a terminal.
+  if [[ -t 0 ]]; then
+    copilot -i /logout || exit 1
+  else
+    echo "Copilot signs out from its own session: run omarchy agent account remove copilot in a terminal." >&2
+    exit 1
+  fi
+  ;;
+fireworks) opencode_logout fireworks-ai || exit 1 ;;
+minimax) opencode_logout minimax minimax-cn minimax-coding-plan minimax-cn-coding-plan || exit 1 ;;
+opencode) opencode_logout opencode opencode-go || exit 1 ;;
+zai) opencode_logout zai zhipuai || exit 1 ;;
+*) opencode_logout "$provider" || exit 1 ;;
+esac
+
+# Hidden once its last sign-in is gone, so a key it still reads from the
+# environment, pi, or omp doesn't bring it back. Signing in again shows it.
+[[ $hides == "false" ]] || omarchy-shell omarchy.agents showAgent "$provider" false >/dev/null 2>&1
+echo "Forgot $name."
+# The panel reads which sign-ins exist from the usage record.
+omarchy-agent-usage-update --limits-only "$provider" >/dev/null 2>&1 &

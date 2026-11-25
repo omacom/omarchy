@@ -12,7 +12,7 @@ const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'app-icon-scan-'))
 process.on('exit', () => fs.rmSync(scratch, { recursive: true, force: true }))
 
 const home = path.join(scratch, 'home')
-const local = path.join(scratch, 'local')
+const local = path.join(scratch, 'local share')
 const system = path.join(scratch, 'system')
 const pixmaps = path.join(scratch, 'pixmaps')
 const files = [
