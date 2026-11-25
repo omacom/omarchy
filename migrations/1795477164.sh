@@ -35,6 +35,10 @@ for pattern in patterns:
 if updated == original:
   raise SystemExit(0)
 
+if not Path("/etc/xkb/symbols/omarchy").is_file():
+  print("Waiting for the omarchy-settings package that provides the Caps Lock XKB option")
+  raise SystemExit(75)
+
 target = path.resolve()
 with tempfile.NamedTemporaryFile(dir=path.parent, prefix=path.name + ".before-caps-lock-", delete=False) as backup_file:
   backup = Path(backup_file.name)
