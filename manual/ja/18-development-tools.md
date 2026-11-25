@@ -2,63 +2,38 @@
 
 ## 代替エディター
 
-Omarchy は新しいインストールではデフォルトのエディターとして Plain を搭載し、[Neovim](https://neovim.io/) もプリインストールされていますが、もう少し主流で馴染みのあるものがよければ、Omarchy Menu（`Super + Space`）を開いて _Install > Editor_ の下にある選択肢を見てみてください。VSCode、Cursor、Zed、Sublime Text、Helix、Vim、Emacs がそこに並んでいます。探しているものが見つからなければ、_Install > Package_ を調べて、Arch パッケージにないか確認してみてください（それでもなければ、_Install > AUR_ で AUR を調べてみてください）。
+Omarchy は新規インストール時のデフォルトエディターとして Plain を搭載し、[Neovim](https://neovim.io/) もプリインストールされていますが、もう少し主流で馴染みのあるものがよければ、Omarchy Menu（`Super + Space`）を開いて _Install > Editor_ の下にある選択肢を確認してください。VSCode、Cursor、Zed、Sublime Text、Helix、Vim、Emacs が並んでいます。探しているものが見つからなければ、_Install > Package_ を確認して Arch パッケージにないか探してください（なければ _Install > AUR_ で AUR も確認してください）。
 
-オリジナルの `vi` エディターもそのまま使えます。ターミナルでファイルを編集するには `vi filename` を実行してください。
+オリジナルの `vi` エディターもそのまま使えます。ターミナルで `vi filename` を実行すればファイルを編集できます。
 
-テーマのマッチングは `VSCode`、`Cursor`、`VSCodium`、`Helix` 向けに提供されています。
+テーマのマッチングは `VSCode`、`Cursor`、`VSCodium`、`Helix` に対応しています。
 
 システム全体のデフォルトエディターは `Setup > Defaults > Editor` で設定できます。
 
-## 開発環境
+## 環境
 
-Omarchy は Omarchy Menu（`Super + Space`）の _Install > Development_ セクションから、数多くの開発環境のセットアップに対応しています。もちろん _Ruby on Rails_ がありますが、JavaScript の主要な 3 つのランタイム（Node.js、Bun、Deno）も、Laravel や Symfony のような人気の PHP フレームワークもあります。ああ、それに Go、Rust、Python、Java、Elixir（Phoenix 付き）、.NET、OCaml、Zig、Clojure、Scala もあります。実に幅広いラインナップです！
+Omarchy では、Omarchy Menu（`Super + Space`）の _Install > Development_ セクションから、数多くの開発環境をセットアップできます。もちろん _Ruby on Rails_ がありますし、JavaScript の主要な 3 つのランタイム（Node.js、Bun、Deno）や、Laravel、Symfony といった人気の PHP フレームワークもあります。ああ、それに Go、Rust、Python、Java、Elixir（Phoenix 付き）、.NET、OCaml、Zig、Clojure、Scala もあります。非常に幅広いラインナップです！
 
-これらの環境の大半は [Mise](https://mise.jdx.dev/) で管理されています。これは、同じマシンにプログラミング言語の複数のバージョンをインストールして実行できるツールです。Ruby 向けの rbenv や rvm、Python 向けの virtualenv のようなものですが、さまざまな環境で使えます。
+これらの環境の大部分は [Mise](https://mise.jdx.dev/) で管理されます。これは、同じマシンにプログラミング言語の複数のバージョンをインストールして実行できるツールです。Ruby 向けの rbenv や rvm、Python 向けの virtualenv のようなものですが、さまざまな環境で使えます。
 
 たとえば Ruby をインストールするには `mise use -g ruby` を実行します。これで Ruby のインストールとグローバルなデフォルトへの設定の両方が行われます。あるいは、プロジェクトに .ruby-version ファイルがある場合は、そのプロジェクトのルートで `mise i` を実行するだけです。
 
-## プリインストール済み CLI ツール
+## プリインストール済みの CLI ツール
 
-Omarchy では `gh`、`uv`、そしてほとんどの[コーディングエージェント](17-ai.md) のようなツールを [mise の遅延インストール](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools) 経由で利用できます。初めて実行したときに mise がインストールします。その後、コーディングエージェントは実行前に、最大で 4 時間に 1 回だけアップデートを確認します。`gh` や `uv` のような他のツールは、あなたがアップデートするまでインストール済みのバージョンを使い続けます。
+`uv`、Node.js、`playwright-cli`（エージェントがインストール済みの Chrome を使ってブラウザを操作するためのもの）はパッケージとしてインストールされており、`omarchy update` でシステムの他部分と一緒に最新状態に保たれます。`ghui`、[Hunk](https://github.com/modem-dev/hunk)、Basecamp、Cloudflare、HEY の CLI は _Install > CLI_ からすぐに選べますし、[コーディングエージェント](17-ai.md) は _Install > AI > CLI_ にあります。
 
-デフォルトを確認したり、事前にインストールしたりもできます：
-
-```bash
-mise ls --current              # List the tools configured for this directory
-mise install gh               # Install one tool now
-mise install --include-lazy    # Install all configured tools, including lazy tools
-```
-
-`omarchy update` を実行すると、Omarchy の残りの部分と一緒にインストール済みツールもアップデートされます。`mup` エイリアスは mise で管理されているツールだけをアップデートします。自分の設定に別のツールを追加するには `mise use -g <tool>` を使ってください。
-
-Python のセットアップでは mise 経由で `uv` もインストールされます。Python の開発環境を削除しても、`uv` は独立したツールとして利用できるまま残ります。
-
-### 独自のインストールを使う
-
-mise のコマンドは `PATH` 上で `~/.local/bin` より前に来るため、たとえば Claude Code や Cursor 独自のインストーラーで自分でインストールしたツールでも、mise のコピーが実行されます。デスクトップから起動したアプリもシステムパッケージより前に mise のコマンドを見つけるため、`gh` を実行するアプリは、pacman で `github-cli` をインストールしていても mise のコピーを使い、mise は初回にそのコピーをインストールします。代わりに自分のものを使いたい場合は、`~/.config/mise/config.toml` で mise のコピーを無効にしてください。たとえば、Cursor CLI を自分でインストールした場合は次のようにします：
-
-```toml
-[settings]
-disable_tools = ["cursor-agent"]
-```
-
-すでに `[settings]` テーブルがある場合は、そこに項目を追加してください。既存の `disable_tools` リストがある場合は、置き換えるのではなく拡張してください。自分のインストールが `PATH` 上にあることを確認してください。mise のツール名を使ってください。コマンド名と異なる場合があります。たとえば `oh-my-pi` が提供するのは `omp` です。デフォルトエージェントのランチャーも、`~/.local/bin` にあるユーザーがインストールした Cursor や Muse を優先します。
-
-### デフォルトの削除と復元
-
-_Remove > Preinstalls_ は Omarchy のプリインストール済み Web アプリ、TUI、アプリを削除し、`~/.config/mise/miserc.toml` の `ignored_config_paths` に追加することで、mise があなたのユーザー向けの Omarchy のツール宣言をスキップするようにします。_Install > Preinstalls_ はそれらを元に戻し、その行を再び削除します。あなた自身の設定やプロジェクトの `mise.toml` で自分で宣言したツールは、どちらの場合でも動作し続けます。プリインストールを削除した後にデフォルトエージェントを選んだり Python をセットアップしたりすると、そのツールはあなた自身の設定に追加されます。mise の設定はあなたのユーザーにのみ適用され、他のユーザーは各自の選択を保持します。ただしアプリはパッケージなので、削除や復元はマシン上の全員に影響します。
+mise が管理するのは _Install > Development_ からセットアップしたランタイムだけです。Omarchy が mise 経由で勝手に何かをインストールすることはありません。`omarchy update` を実行すれば、Omarchy の他の部分と一緒にそれらも更新されます。`mup` エイリアスは mise が管理するツールだけを更新します。自分の設定に別のツールを追加するには `mise use -g <tool>` を使ってください。
 
 ## Docker
 
-[Docker](https://www.docker.com/) の紹介はほとんど不要でしょう。隔離されたコンテナを実行でき、Omarchy は Docker 自体と [Docker Compose](https://docs.docker.com/compose/) を含め、快適に実行するために必要なものをすべてインストールします。
+[Docker](https://www.docker.com/) は今さら紹介するまでもないでしょう。分離されたコンテナーを実行でき、Omarchy には Docker 自体や [Docker Compose](https://docs.docker.com/compose/) など、それをきちんと実行するために必要なものがすべてインストールされます。
 
-デフォルトでは、あなたのユーザーは `docker` グループに*含まれていません*。そのグループは実質的にパスワードなしの root です。そのグループに属するものは何でも `docker run -v /:/host` を実行してマシンを乗っ取れるため、あなたとして実行される不正なスクリプトや依存関係が 1 つあるだけで、root まであとコマンド 1 つという状態になってしまいます。そのため、コマンドラインでは Docker を `sudo` で実行し（`sudo docker ps`、`sudo docker compose up`）、デーモンと通信するグラフィカルツール ― Windows VM ― は必要なときに認証を求めます。利便性のためにグループなしのセットアップに戻したい場合、そのトレードオフを理解しているなら、**Setup > Security > Sudoless Docker** から有効にする（または `omarchy-setup-security-sudoless-docker` を実行する）ことで、警告の後にあなたが `docker` グループに追加され、再び `sudo` なしでプレーンな `docker` と `d` エイリアスが使えるようになります。
+デフォルトでは、あなたのユーザーは `docker` グループに *入っていません*。そのグループは実質的にパスワードなしの root です。グループ内のものなら何でも `docker run -v /:/host` でマシンを乗っ取れてしまうため、あなたとして実行される不正なスクリプトや依存関係が 1 つあるだけで、root まであとコマンド 1 つという状態になってしまいます。そのためコマンドラインでは Docker を `sudo` 付きで実行し（`sudo docker ps`、`sudo docker compose up`）、デーモンと通信するグラフィカルツール、つまり Windows VM は、必要なときに認可を求めます。トレードオフを理解したうえで、グループなしの手軽さを取り戻したい場合は、**Setup > Security > Sudoless Docker** から有効化してください（あるいは `omarchy-setup-security-sudoless-docker` を実行してください）。警告のあとにあなたが `docker` グループに追加され、素の `docker` と `d` エイリアスが再び `sudo` なしで使えるようになります。
 
-ローカル開発用の一般的なデータベースは、Omarchy メニューの _Install > Development > Docker DB_ を使って Docker でセットアップできます。
+ローカル開発でよく使うデータベースは、Omarchy メニューの _Install > Development > Docker DB_ から Docker でセットアップできます。
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) は `gh` として利用でき、ターミナルからリポジトリ、issue、プルリクエストを扱えます。初回利用時にインストールして認証するには `gh auth login` を実行し、リポジトリをクローンするには `gh repo clone org/repo` を実行してください。そのコマンドを調べるには `gh --help` を実行してください。
+[GitHub CLI](https://cli.github.com/) は `gh` です。ターミナルからリポジトリ、issue、pull request を操作できます。_Setup > Git_ では、そこで GitHub にサインインすることを選ぶとインストールされます。そのあとは `gh repo clone org/repo` でリポジトリを clone できます。`gh --help` を実行すればコマンドを調べられます。
 
-プルリクエスト向けのターミナルインターフェースには `ghui` を実行してください。mise がこれも初回利用時にインストールします。[Lazygit](https://github.com/jesseduffield/lazygit) は Git 自体を扱うためにプリインストールされています。
+_Install > CLI > GitHub_ では GitHub CLI の `gh` と、pull request 用のターミナルインターフェースである `ghui` がインストールされます。[Lazygit](https://github.com/jesseduffield/lazygit) は Git 自体を操作するためにプリインストールされています。

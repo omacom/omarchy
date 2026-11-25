@@ -10,7 +10,8 @@ usage() {
 }
 
 proc_root=${OMARCHY_PROC_ROOT:-/proc}
-wanted=" "
+wanted_pids=()
+declare -A wanted_seen=()
 signal=""
 
 while (($#)); do
@@ -20,7 +21,11 @@ while (($#)); do
       [[ ${2-} =~ ^0*([0-9]+)$ ]] || usage
       pid=${BASH_REMATCH[1]}
       ((${#pid} <= 10 && 10#$pid <= 4194304)) || usage
-      wanted+="$((10#$pid)) "
+      pid=$((10#$pid))
+      if [[ -z ${wanted_seen[$pid]:-} ]]; then
+        wanted_seen[$pid]=1
+        wanted_pids+=("$pid")
+      fi
       shift 2
       ;;
     --signal)
@@ -43,15 +48,36 @@ is_recorder() {
   [[ $exe == "gpu-screen-recorder" || $exe == "wf-recorder" ]]
 }
 
+comm_is_recorder() {
+  local comm
+  { IFS= read -r comm <"$proc_root/$1/comm"; } 2>/dev/null || return 1
+  [[ $comm == "gpu-screen-reco" || $comm == "gpu-screen-recorder" || $comm == "wf-recorder" ]]
+}
+
 # Linux truncates a process name to 15 characters: gpu-screen-recorder runs as
 # gpu-screen-reco, which any executable sharing that prefix also matches, and a
 # process can rename itself, so the executable path confirms each candidate.
+# Reading $proc_root/*/comm directly avoids pgrep's full /proc stat/status walk.
 matched=()
-while read -r pid; do
-  if [[ $wanted == " " || $wanted == *" $pid "* ]] && is_recorder "$pid"; then
-    matched+=("$pid")
+if ((${#wanted_pids[@]} > 0)); then
+  for pid in "${wanted_pids[@]}"; do
+    if [[ -O $proc_root/$pid ]] && comm_is_recorder "$pid" && is_recorder "$pid"; then
+      matched+=("$pid")
+    fi
+  done
+else
+  shopt -s nullglob
+  comm_files=("$proc_root"/[0-9]*/comm)
+  if ((${#comm_files[@]} > 0)); then
+    while IFS= read -r file; do
+      pid=${file#"$proc_root"/}
+      pid=${pid%/comm}
+      if [[ -O $proc_root/$pid ]] && is_recorder "$pid"; then
+        matched+=("$pid")
+      fi
+    done < <(grep -lE '^(gpu-screen-reco(rder)?|wf-recorder)$' "${comm_files[@]}" 2>/dev/null)
   fi
-done < <(pgrep -u "$UID" -x 'gpu-screen-reco(rder)?|wf-recorder')
+fi
 
 if ((${#matched[@]} == 0)); then
   exit 1

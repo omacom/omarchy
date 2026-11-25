@@ -2,9 +2,9 @@
 
 ## Omarchy Apple Siliconile
 
-Omarchy for Apple Silicon on ametlik Omacomi lahendus, mis ilmus esmakordselt koos Omarchy 4.5-ga. See installitakse macOS-i kõrvale ja sa valid nende kahe vahel, kui su Mac käivitub.
+Omarchy Apple Siliconile on Omacomi ametlik lahendus, mis ilmus esimest korda koos Omarchy 4.5-ga. See paigaldatakse macOS-i kõrvale ja sa valid nende kahe vahel, kui sinu Mac käivitub.
 
-Said teate Omarchy Maci kohta? Mine jaotisse [Omarchy Macilt tulemine](#coming-from-omarchy-mac).
+Said teate Omarchy Maci kohta? Mine jaotisse [Omarchy Macilt tulek](#coming-from-omarchy-mac).
 
 See töötab neil Macidel:
 
@@ -18,92 +18,98 @@ See töötab neil Macidel:
 | iMac | M1, M3 |
 | Mac Pro | M2 Ultra |
 
-M4 ja uuemaid Mace veel ei toetata. M4 tugi on edge-kanalil testimises ja tuleb järgmisena. Installer kontrollib su Maci enne, kui see midagi muudab.
+M4 ja uuemaid Mace veel ei toetata. M4 tugi on edge-kanalis testimisel ja tuleb järgmisena. Paigaldaja kontrollib sinu Maci enne, kui see midagi muudab.
 
-Igal Apple Siliconi Macil, ka M4 ja uuemal, saad Omarchyt virtuaalmasinas käitada rakendusega [Try Omarchy](https://github.com/omacom/try-omarchy).
+Igal Apple Silicon Macil, kaasa arvatud M4 ja uuematel, saad Omarchy't käitada virtuaalmasinas [Try Omarchy](https://github.com/omacom/try-omarchy) abil.
 
 ### Mida sul vaja on
 
-- macOS 15 Sequoia või uuem ja administraatori konto
-- Vaba kettaruumi Omarchy jaoks. Installer soovitab suuruse ja laseb sul seda muuta.
-- Maci varukoopia, toide ja internetiühendus. Installimine laadib alla mitu gigabaiti.
+- macOS 15 Sequoia või uuem ning administraatori konto
+- Vaba kettaruumi Omarchy jaoks. Paigaldaja soovitab suuruse ja laseb sul seda muuta.
+- Oma Maci varukoopia, toide ja internetiühendus. Paigaldus laadib alla mitu gigabaiti.
 
-### Installimine
+### Paigaldamine
 
-Installid macOS-ist. Installi Omarchy Installer [Homebrew](https://brew.sh) abil:
+Paigaldad macOS-ist. Paigalda Omarchy Installer [Homebrew](https://brew.sh) abil:
 
 ```sh
 brew install omacom/mac/omarchy
 ```
 
-Või laadi alla uusim Omarchy Installer selle [väljalasete lehelt](https://github.com/omacom/omarchy-mac-installer/releases) ja ava see.
+Või laadi uusim Omarchy Installer alla selle [väljalasete lehelt](https://github.com/omacom/omarchy-mac-installer/releases) ja ava see.
 
-Installer kontrollib su Maci, näitab sulle plaani ja teeb Omarchyle ruumi, kahandades macOS-i partitsiooni. macOS jääb kettale alles ja USB-mäluseadet pole vaja. Kui esimene etapp on valmis, juhatab see sind läbi seadistuse lõpetamise macOS Recoverys: lülita arvuti välja, hoia toitenuppu all, kuni ilmub "Loading startup options", vali Omarchy ja järgi juhiseid.
+Paigaldaja kontrollib sinu Maci, näitab sulle plaani ja teeb macOS-i partitsiooni kahandades Omarchy jaoks ruumi. macOS jääb kettale alles ja USB-mäluseadet pole vaja. Kui esimene etapp on valmis, juhendab see sind seadistuse lõpetamisel macOS Recovery's: lülita välja, hoia toitenuppu all, kuni ilmub „Loading startup options“, vali Omarchy ja järgi juhiseid.
 
-Esimesel käivitusel küsib Omarchy parooli, mis krüptib selle ketta. Taastevõtit pole: kui parooli unustad, ei saa su Omarchy faile taastada.
+Esimesel käivitamisel küsib Omarchy parooli, mis krüpteerib selle ketta. Taastevõtit pole: kui parooli unustad, ei saa sinu Omarchy faile taastada.
 
-Et hiljem Omarchy ja macOS-i vahel vahetada, lülita arvuti välja, seejärel hoia toitenuppu all, kuni ilmuvad käivitusvalikud, ja vali üks.
+Et hiljem Omarchy ja macOS-i vahel vahetada, lülita välja, seejärel hoia toitenuppu all, kuni ilmuvad käivitusvalikud, ja vali üks.
 
-### Omarchy Macilt tulemine
+### Omarchy Macilt tulek
 
-Omarchy Mac on nüüd osa Omarchy for Apple Siliconist ja iga Mac, millel see töötas, on toetatud. Sinu praegune install töötab edasi ja selle süsteemipaketid uuenevad endiselt, kuid see ei saa enam Omarchy uuendusi. Tähtaega pole ja kohapealset uuendamist pole: teed varukoopia, eemaldad vana installi, installid puhtalt ja taastad. Sammud 2 kuni 5 toimuvad macOS-is, nii et ava see leht oma telefonis enne taaskäivitamist.
+Omarchy Mac on nüüd osa Omarchy Apple Siliconile lahendusest ja iga Mac, millel see töötas, on toetatud. Sinu praegune paigaldus töötab edasi ja selle süsteemipaketid uuenevad endiselt, kuid see ei saa enam Omarchy uuendusi. Tähtaega pole ja kohapealset uuendamist pole: teed varukoopia, eemaldad vana paigalduse, paigaldad puhtalt ja taastad. Sammud 2 kuni 5 toimuvad macOS-is, nii et ava see leht oma telefonis enne taaskäivitamist.
 
-1. **Tee Omarchyst varukoopia, Macist välja.** Vana installi eemaldamine kustutab selle ja macOS ei suuda Omarchy ketast lugeda. Kopeeri oma kodukataloog välisele kettale või teise arvutisse, kaasa arvatud SSH- ja GPG-võtmed, brauseri profiilid ja üles laadimata töö. Salvesta oma pakettide loend käsuga `pacman -Qqe > ~/packages.txt`. Tee varukoopia ka macOS-ist, sest nii eemaldamine kui ka installimine muudavad selle ketta suurust.
-2. **Käivita Mac macOS-is.** Lülita arvuti välja, hoia toitenuppu all, kuni ilmuvad käivitusvalikud, ja vali macOS.
-3. **Installi Omarchy Installer**, nagu on näidatud jaotises [Installimine](#installing).
-4. **Eemalda vana install.** Ava Omarchy Installer ja vali Installation > Remove Omarchy. See näitab, mida see kustutab, ja tagastab ruumi macOS-ile. Kui see sinu installi ära ei tunne, peatub see ketast muutmata. Küsi abi [Discordis](https://discord.gg/tXFUdasqhY), selle asemel et partitsioone käsitsi kustutada, mis võib macOS-i ära kustutada.
-5. **Installi Omarchy for Apple Silicon** installeri abil.
+1. **Tee varukoopia Omarchy'st, Macist välja.** Vana paigalduse eemaldamine kustutab selle ja macOS ei oska Omarchy ketast lugeda. Kopeeri oma kodukataloog välisele kettale või teise arvutisse, kaasa arvatud SSH- ja GPG-võtmed, brauseri profiilid ja push'imata töö. Salvesta oma pakettide loend käsuga `pacman -Qqe > ~/packages.txt`. Tee varukoopia ka macOS-ist, sest nii eemaldamine kui ka paigaldamine muudavad selle ketta suurust.
+2. **Käivita oma Mac macOS-is.** Lülita välja, hoia toitenuppu all, kuni ilmuvad käivitusvalikud, ja vali macOS.
+3. **Paigalda Omarchy Installer** nagu näidatud jaotises [Paigaldamine](#installing).
+4. **Eemalda vana paigaldus.** Ava Omarchy Installer ja vali Installation > Remove Omarchy. See näitab, mida see kustutab, ja tagastab ruumi macOS-ile. Kui see sinu paigaldust ära ei tunne, peatub see ketast muutmata. Küsi abi [Discordis](https://discord.gg/tXFUdasqhY), selle asemel et partitsioone käsitsi kustutada, mis võib macOS-i kustutada.
+5. **Paigalda Omarchy Apple Siliconile** paigaldaja abil.
 6. **Taasta oma failid.** Too oma seaded tagasi tükkhaaval, selle asemel et kopeerida kogu `~/.config` uute vaikeseadete peale, sest vanad seaded võivad need üle kirjutada.
 
 ### Hea teada
 
-- M1 ja M2 MacBookidel ärata arvuti unerežiimist kaant avades või toitenuppu vajutades.
+- M1 ja M2 MacBookidel ärata unerežiimist kaane avamisega või toitenupu vajutamisega.
 - Küsimused või probleemid: küsi meie [Discordis](https://discord.gg/tXFUdasqhY).
 
-[Installeri README](https://github.com/omacom/omarchy-mac-installer#readme) käsitleb väljalaskekanaleid, installeri uuendamist ja Omarchy eemaldamist.
+[Paigaldaja README](https://github.com/omacom/omarchy-mac-installer#readme) käsitleb väljalaskekanaleid, paigaldaja uuendamist ja Omarchy eemaldamist.
 
 ## Inteli Macid
 
-Lihtsas testis õnnestus meil 2019. aasta MacBook Prol saavutada 36% jõudluse kasv pelgalt Omarchy installimisega.
+Lihtsas testis suutsime 2019. aasta MacBook Prol saavutada 36% jõudluse kasvu ainuüksi Omarchy paigaldamisega.
 
  ![macbook-omarchy](images/macbook-omarchy.webp)
 
-### Omarchy installimine Macile
+### Omarchy paigaldamine Macile
 
-Omarchy toetab praegu ainult seda, et see on **ainus** installitud OS. Installimise ajal pühitakse ketas puhtaks ja MacOS ei ole enam käivitatav.
+Omarchy toetab praegu ainult **ainsa** operatsioonisüsteemina paigaldamist. Paigaldamise ajal tühjendatakse ketas ja MacOS ei ole enam käivitatav.
 
-Saad selle soovi korral hiljem Internet Recovery kaudu siiski taastada.
+Soovi korral saad selle hiljem Internet Recovery kaudu siiski taastada.
 
-Selle osa puhul eeldame, et oled juba üle vaadanud [Alustamine](02-getting-started.md) ja sul on USB-mäluseade valmis. Kui ei ole, tee seda kohe.
+Selle osa jaoks eeldame, et oled juba üle vaadanud [Alustamise](02-getting-started.md) ja sul on USB-mäluseade valmis. Kui ei ole, mine tee seda kohe.
 
 #### Secure Booti keelamine
 
-Apple'i Secure Boot tuleb keelata, et käivitada käivitatav USB-mäluseade ja ka OS. Selle keelamiseks tee järgmist:
+Apple'i Secure Booti keelamine on vajalik, et käivitada käivitatav USB, samuti operatsioonisüsteem. Selle keelamiseks tee järgmist:
 
-1. Lülita Mac välja
+1. Lülita oma Mac välja
 2. Lülita see sisse ja vajuta _kohe_ ning hoia all Command-R, kuni näed laadimisekraani ilmumist
-3. Vali oma kasutaja ja sisesta küsimisel parool
+3. Vali oma kasutaja ja sisesta küsimisel oma parool
 4. Kui oled taasteekraanil, vali menüüribalt **Utilities > Startup Security Utility**
-5. Sisesta autentimiseks küsimisel parool
-6. Vali Secure Booti valikute hulgast "No Security"
-7. Vali External Booti valikute hulgast "Allow booting from external or removable media"
+5. Sisesta autentimiseks küsimisel oma parool
+6. Vali Secure Booti valikutest „No Security“
+7. Vali External Booti valikutest „Allow booting from external or removable media“
 
-#### Installimise alustamine
+#### Alusta paigaldamist
 
 1. Sisesta USB-mäluseade
-2. Taaskäivita Mac ja vajuta _kohe_ ning hoia all Option, kuni näed käivitusseadmete ekraani
+2. Taaskäivita oma Mac ja vajuta _kohe_ ning hoia all Option, kuni näed käivitusseadmete ekraani
 3. Vali oranž EFI Boot seade
-4. Jätka [tavalise installimisega](02-getting-started.md)
+4. Jätka [tavapärase paigaldusega](02-getting-started.md)
 
-Installer tuvastab Maci riistvara ja rakendab vajalikud parandused automaatselt: Broadcomi Wi-Fi draiverid ja püsivara, SPI klaviatuuridraiveri nendel MacBooki mudelitel, mis seda vajavad, ja NVMe unerežiimi paranduse samadele mudelitele.
+Paigaldaja tuvastab Maci riistvara ja rakendab vajalikud parandused automaatselt: Broadcomi Wi-Fi draiverid ja püsivara, FaceTime HD kaamera draiver masinatel, millel on Broadcom 1570 (selle püsivara laaditakse Apple'ilt alla, kui Mac on võrgus, sest paigaldaja töötab võrguühenduseta), SPI klaviatuuri draiver MacBooki mudelitel, mis seda vajavad, ja NVMe unerežiimi parandus neil samadel mudelitel.
 
 ### Teadaolevad piirangud
 
-Kogukonna liikmed töötavad pidevalt nende väljakutsete lahenduste kallal, nii et kui need on sinu jaoks problemaatilised, liitu meie [Discordis](https://discord.gg/tXFUdasqhY) kanaliga #omarchy-on-other ja vaata, kas nende lahendamiseks on ajakohaseid meetodeid.
+Kogukonna liikmed töötavad pidevalt nende väljakutsete lahenduste kallal, nii et kui need on sinu jaoks probleemsed, liitu meie [Discordis](https://discord.gg/tXFUdasqhY) kanaliga #omarchy-on-other ja vaata, kas nende lahendamiseks on ajakohaseid meetodeid.
 
-#### T1-kiibiga seadmed
+#### FaceTime HD kaamera
 
-Apple'i T1-kiip toodi turule 2016. aasta lõpus ja seda kasutati eranditult esimese põlvkonna Touch Bariga MacBook Pro mudelites.
+Kaamera draiver paneb masina kinni jooksma, kui see on laaditud, kui Mac läheb talveunne, nii et see laaditakse enne maha. Seda ei saa maha laadida, kui mõnel rakendusel on kaamera avatud, nii et talveuni tühistatakse teavitusega, mis nimetab rakenduse: sulge see ja mine uuesti talveunne. See hõlmab automaatset talveunne minekut kriitilise aku korral ja suspend-then-hibernate'i, millest keeldutakse enne unerežiimi minekut. Tavalise unerežiimi keelab draiver ise, kui kaamera on avatud, ilma teavituseta.
+
+Kaamera püsivara laaditakse Apple'ilt alla, nii et kaamera töötab alles siis, kui Mac on võrgus käinud. Allalaadimine algab käivitamisel ja seda proovitakse iga 15 minuti järel uuesti, kui probleem on võrgus; kui Apple'i fail on muutunud, see peatub ja ootab Omarchy uuendust. Kui kaamera ei ilmu, ütleb `journalctl -u facetimehd-firmware-fetcher`, miks, `sudo systemctl restart facetimehd-firmware-fetcher` proovib uuesti ja taaskäivitamine laadib draiveri, kui allalaadimine lõppes, kuid kaamerat ikka pole.
+
+#### T1 kiibiga seadmed
+
+Apple T1 kiip toodi turule 2016. aasta lõpus ja seda kasutati ainult Touch Bariga esimese põlvkonna MacBook Pro mudelites.
 - MacBook Pro 13-tolline (2016, kaks Thunderbolt 3 porti) – Mudel: A1706
 - MacBook Pro 13-tolline (2016, neli Thunderbolt 3 porti) – Mudel: A1708
 - MacBook Pro 15-tolline (2016) – Mudel: A1707
@@ -113,9 +119,9 @@ Apple'i T1-kiip toodi turule 2016. aasta lõpus ja seda kasutati eranditult esim
 - Touch Bar ei tööta
 - Heli ei tööta
 
-#### T2-kiibiga seadmed
+#### T2 kiibiga seadmed
 
-Apple'i T2 turvakiip toodi turule 2017. aastal. T2-kiibi tootmine lõpetati üleminekuga Apple Siliconile (M-seeria kiibid) alates 2020. aastast.
+Apple T2 Security Chip toodi turule 2017. aastal. T2 kiibi tootmine lõpetati üleminekuga Apple siliconile (M-seeria kiibid) alates 2020. aastast.
 
 - iMac Pro (2017) – Mudel: A1862
 - MacBook Pro 13-tolline (2018, neli Thunderbolt 3 porti) – Mudel: A1989
@@ -129,19 +135,19 @@ Apple'i T2 turvakiip toodi turule 2017. aastal. T2-kiibi tootmine lõpetati üle
 - MacBook Pro 13-tolline (2020, kaks Thunderbolt 3 porti) – Mudel: A2265
 - MacBook Pro 15-tolline (2020) – Mudel: A1990
 
-Nendel mudelitel seadistab installer automaatselt paigatud `linux-t2` kerneli, T2 heli konfiguratsiooni, Apple'i Broadcomi Wi-Fi/Bluetoothi püsivara ja ventilaatori juhtimise `t2fanrd` kaudu. Touch Bar töötab kerneli sisseehitatud Boot Campi stiilis toega.
+Neil mudelitel seadistab paigaldaja automaatselt paigatud `linux-t2` kerneli, T2 heli konfiguratsiooni, Apple'i Broadcomi Wi-Fi/Bluetoothi püsivara ja ventilaatori juhtimise `t2fanrd` kaudu. Touch Bar töötab kerneli sisseehitatud Boot Campi stiilis toel.
 
 #### iMac Retina 5K (2017)
 
-2017. aasta 27-tollisel iMacil pole T2-kiipi, nii et installer seadistab selle nagu teised Inteli Macid.
+2017. aasta 27-tollisel iMacil pole T2 kiipi, nii et paigaldaja seadistab selle nagu teised Inteli Macid.
 
 - iMac (Retina 5K, 27-tolline, 2017) – Mudel: A1419
 
 #### Teadaolevad probleemid
 
-- Ekraan ei tööta oma loomulikul eraldusvõimel 5120×2880: paneel on kahest plaadist ja tavapärane draiver paneb tööle ainult ühe
+- Ekraan ei tööta selle omase 5120×2880 eraldusvõimega: paneel koosneb kahest plaadist ja tavapärane draiver valgustab ainult ühte
 - Heli ei tööta
-- Heleduse juhtimine ei mõju
-- Unerežiim hangutab masina; selle taastab ainult toite väljalülitamine ja uuesti sisselülitamine
+- Heleduse reguleerimisel pole mõju
+- Unerežiim paneb masina kinni jooksma; sellest taastab ainult toite välja ja uuesti sisse lülitamine
 
 Selle mudeli kogukonna paigaja parandab ekraani, heli ja heleduse: [omarchy-imac18-3](https://github.com/ahmadtv/omarchy-imac18-3).

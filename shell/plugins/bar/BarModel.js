@@ -653,17 +653,23 @@ function barSizeFor(sizes, screenName, fallback) {
   return size > 0 ? size : fallback
 }
 
-// Whether a workspace holds a real fullscreen window, which fades the bar out
-// and has to take the clicks along its edge. Hyprland reports a maximized
-// window as fullscreen 1 and a real one with bit 2 set; only the latter hides
-// the bar. `toplevels` are Quickshell's Hyprland toplevels.
-function fullscreenOn(toplevels, workspaceId) {
+// Only a real fullscreen window covering the output takes the bar's clicks.
+// Scrolling keeps fullscreen flags on columns outside the viewport.
+function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceName, screen) {
+  if (!specialWorkspaceName && !hasFullscreen) return false
   var list = toplevels || []
   for (var i = 0; i < list.length; i++) {
     var toplevel = list[i]
-    if (!toplevel || !toplevel.workspace || toplevel.workspace.id !== workspaceId) continue
+    if (!toplevel || !toplevel.workspace) continue
+    if (specialWorkspaceName) {
+      if (toplevel.workspace.name !== specialWorkspaceName) continue
+    } else if (toplevel.workspace.id !== workspaceId) continue
     var ipc = toplevel.lastIpcObject
-    if (ipc && (Number(ipc.fullscreen) & 2) !== 0) return true
+    if (!ipc || (Number(ipc.fullscreen) & 2) === 0 || !ipc.at || !ipc.size) continue
+    // IPC geometry rounds logical pixels at fractional scales.
+    if (ipc.at[0] <= screen.x + 1 && ipc.at[1] <= screen.y + 1
+        && ipc.at[0] + ipc.size[0] >= screen.x + screen.width - 1
+        && ipc.at[1] + ipc.size[1] >= screen.y + screen.height - 1) return true
   }
   return false
 }
