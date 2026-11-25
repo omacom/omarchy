@@ -63,7 +63,7 @@ set_base_size() {
 
   local tmp
   tmp="$(mktemp)"
-  awk -v val="$size" '
+  if awk -v val="$size" '
     function emit_base() { print "base-size = " val; done = 1 }
     /^[[:space:]]*\[/ {
       if (in_font && !done) emit_base()
@@ -84,8 +84,10 @@ set_base_size() {
         emit_base()
       }
     }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  ' "$shell_config" >"$tmp"; then
+    cat "$tmp" >"$shell_config"
+  fi
+  rm -f "$tmp"
 }
 
 # Drop the base-size line, returning the shell to the theme/default size.
@@ -93,12 +95,14 @@ reset_base_size() {
   [[ -f $shell_config ]] || return 0
   local tmp
   tmp="$(mktemp)"
-  awk '
+  if awk '
     /^[[:space:]]*\[/ { in_font = ($0 ~ /^[[:space:]]*\[font\]([[:space:]]|$)/) }
     in_font && /^[[:space:]]*base-size[[:space:]]*=/ { next }
     { print }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  ' "$shell_config" >"$tmp"; then
+    cat "$tmp" >"$shell_config"
+  fi
+  rm -f "$tmp"
 }
 
 # ---- GTK text-scaling-factor ----
@@ -129,28 +133,34 @@ term_pt_for() {
     'BEGIN { printf "%d", int(s * p / b + 0.5) }'
 }
 
-# Set the font point size in every terminal config that exists. Family is left
+# Set the font point size in terminal configs, creating Kitty overrides when
+# it inherits its size from the system config. Family is left
 # untouched — that is omarchy-font-set's job. Live-reload signals mirror
 # omarchy-font-set; foot has no reload signal, so running instances are nudged.
 set_terminal_size() {
   local pt="$1"
 
   if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
-    sed -i -E "s/^size[[:space:]]*=.*/size = $pt/" ~/.config/alacritty/alacritty.toml
+    sed --follow-symlinks -i -E "s/^size[[:space:]]*=.*/size = $pt/" ~/.config/alacritty/alacritty.toml
   fi
 
-  if [[ -f ~/.config/kitty/kitty.conf ]]; then
-    sed -i -E "s/^font_size[[:space:]]+.*/font_size $pt.0/" ~/.config/kitty/kitty.conf
+  if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
+    mkdir -p ~/.config/kitty
+    if grep -qE '^[[:space:]]*font_size[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
+      sed --follow-symlinks -i -E "s/^[[:space:]]*font_size[[:space:]]+.*/font_size $pt.0/" ~/.config/kitty/kitty.conf
+    else
+      printf '\nfont_size %s.0\n' "$pt" >>~/.config/kitty/kitty.conf
+    fi
     pkill -USR1 kitty 2>/dev/null || true
   fi
 
   if [[ -f ~/.config/ghostty/config ]]; then
-    sed -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
+    sed --follow-symlinks -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
     pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
   if [[ -f ~/.config/foot/foot.ini ]]; then
-    sed -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
+    sed --follow-symlinks -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
     # Foot has no config-reload signal, so a running instance keeps its startup
     # size until relaunched (new windows pick up the change). Nudge the user —
     # but reuse the same notification id (freedesktop replaces_id) so dragging
@@ -163,7 +173,7 @@ set_terminal_size() {
       [[ $prev_id =~ ^[0-9]+$ ]] && replace=(-r "$prev_id")
       local new_id
       new_id="$(omarchy-notification-send \
-        "Restart Foot to apply the new terminal font size" \
+        "$(omarchy-i18n display.restartFootForFontSize)" \
         "${replace[@]}" -p 2>/dev/null)" || true
       [[ $new_id =~ ^[0-9]+$ ]] && printf '%s\n' "$new_id" >"$id_file"
     fi
@@ -177,9 +187,13 @@ term_current_pt() {
   elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
     grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml | head -1
   elif [[ -f ~/.config/kitty/kitty.conf ]]; then
-    grep -oP '^font_size[[:space:]]+\K[0-9.]+' ~/.config/kitty/kitty.conf | head -1
+    local pt
+    pt=$(grep -oP '^[[:space:]]*font_size[[:space:]]+\K[0-9.]+' ~/.config/kitty/kitty.conf | tail -1)
+    echo "${pt:-$TERM_DEFAULT_PT}"
   elif [[ -f ~/.config/foot/foot.ini ]]; then
     grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini | head -1
+  elif omarchy-cmd-present kitty; then
+    echo "$TERM_DEFAULT_PT"
   fi
 }
 
