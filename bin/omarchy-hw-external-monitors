@@ -5,8 +5,8 @@
 drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 
 for status in "$drm_path"/card*-*/status; do
-  [[ -e $status ]] || continue
+  [[ -r $status ]] || continue
   [[ $status =~ -(eDP|LVDS|DSI)-[^/]+/status$ ]] && continue
-  [[ $(< $status) == "connected" ]] && exit 0
+  [[ $(< "$status") == "connected" ]] && exit 0
 done
 exit 1

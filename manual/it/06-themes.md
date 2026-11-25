@@ -1,12 +1,12 @@
 # Temi
 
-Omarchy include ventidue bellissimi temi. Puoi scegliere tra di essi tramite _Aspetto > Tema_ nel Menu Omarchy (`Super + Space`) o passare direttamente al selettore dei temi usando `Super + Ctrl + T`.
+Omarchy viene fornito con ventitré bellissimi temi. Puoi scegliere tra di essi tramite _Aspetto > Tema_ nel Menu Omarchy (`Super + Space`) o passare direttamente al selettore dei temi usando `Super + Ctrl + T`.
 
-Ogni tema personalizza il desktop, il terminale, neovim, la schermata delle attività (btop), Chromium e l'intera shell di Omarchy: barra superiore, menu, notifiche, OSD e schermata di blocco. (Per Obsidian, devi selezionare manualmente il tema Omarchy tramite _Aspetto > Temi_ all'interno dell'app).
+Ogni tema definisce lo stile del desktop, del terminale, di neovim, della schermata delle attività (btop), del tuo browser (Chrome, Chromium, Edge o Brave) e dell'intera shell Omarchy: barra superiore, menu, notifiche, OSD e schermata di blocco. (Per Obsidian, devi selezionare manualmente il tema Omarchy tramite _Aspetto > Temi_ all'interno dell'app).
 
-I temi hanno una serie di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + W`.
+I temi hanno un set di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + W`.
 
-Puoi trovare ancora più temi sulla [pagina dei temi extra](https://omarchy.org/themes/) o persino [creare un tema tutto tuo](43-making-your-own-theme.md).
+Puoi trovare ancora più temi sulla [pagina dei temi extra](https://omarchy.org/themes/) o persino [creare il tuo tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,21 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
 ### Icone delle app
 
-Le icone nel launcher delle app e nel dock sono disegnate con i colori del tuo tema, quindi cambiano insieme a esso. Provengono da un set di icone, che scegli separatamente dal tema in _Aspetto > Icone_, dalle anteprime di ciascun set, nello stesso modo in cui scegli un tema:
+Le icone nel lanciatore di app e nel dock sono disegnate nei colori del tuo tema, quindi cambiano insieme a esso. Provengono da un set di icone, che scegli separatamente dal tema in _Aspetto > Icone_, dalle anteprime di ciascun set, nello stesso modo in cui scegli un tema:
 
-- _Papercraft_ è il set predefinito: tutto ciò che viene installato, disegnato in un unico stile. Le app conosciute per il loro logo, come Chrome, HEY o YouTube, ne mantengono la forma e assumono i colori del tema.
-- _Arcade_ disegna le stesse app in pixel art a 8 bit, come farebbe una vecchia console da gioco.
-- _Original_ mostra ogni app con l'icona che le ha dato il suo creatore.
+- _Papercraft_ è il predefinito: tutto ciò che viene installato, disegnato in un unico stile. Le app conosciute per il loro logo, come Chrome, HEY o YouTube, mantengono la propria forma e assumono i colori del tema.
+- _Arcade_ disegna le stesse app in pixel art a 8 bit, come farebbe una vecchia console di gioco.
+- _Original_ mostra ogni app con l'icona che le è stata data dal suo creatore.
 
-Puoi installare un set di icone creato da qualcun altro con _Installa > Stile > Icone_ (oppure `omarchy icons install <git url>`), e rimuoverlo di nuovo da _Rimuovi > Icone_. _Aggiorna > Icone extra_ recupera l'ultima versione dei set che hai installato.
+Puoi installare un set di icone creato da qualcun altro con _Installa > Stile > Icone_ (o `omarchy icons install <git url>`), e rimuoverlo di nuovo in _Rimuovi > Icone_. _Aggiorna > Icone extra_ recupera l'ultima versione dei set che hai installato.
 
-Per creare il tuo set, inserisci le tue icone in `~/.config/omarchy/icons/<name>/`, un file per app, con il nome tratto dalla riga `Icon=` del file `.desktop` dell'app. Un file che termina con `.svg` viene mostrato così com'è. Un file che termina con `.svg.tpl` viene disegnato con i colori del tema: scrivi `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` dove va un colore. Il set predefinito in `/usr/share/omarchy/icons/papercraft/` è un buon punto di partenza. Aggiungi un `preview.png` per mostrare il tuo set nel selettore; senza di esso, Omarchy disegna un'anteprima a partire dalle tue icone. Per cambiare una singola icona del set predefinito, inserisci la tua versione in `~/.config/omarchy/icons/papercraft/`.
+Per crearne uno tuo, metti le tue icone in `~/.config/omarchy/icons/<name>/`, un file per app, con il nome tratto dalla riga `Icon=` del file `.desktop` dell'app. Un file che termina con `.svg` viene mostrato così com'è. Un file che termina con `.svg.tpl` viene disegnato nei colori del tema: scrivi `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` dove va un colore. Il set predefinito in `/usr/share/omarchy/icons/papercraft/` è un buon punto da cui partire. Aggiungi un `preview.png` per mostrare il tuo set nel selettore; senza, Omarchy disegna un'anteprima a partire dalle tue icone. Per cambiare una singola icona del set predefinito, metti la tua versione in `~/.config/omarchy/icons/papercraft/`.
 
-### Sblocco
+### Sblocchi
 
-I temi possono anche avere un design di sblocco personalizzato, usato per il processo di decrittazione all'avvio. Puoi selezionarne uno in _Aspetto > Sblocco_. Ecco come appaiono:
+I temi possono anche avere un design di sblocco personalizzato, utilizzato per il processo di decrittografia all'avvio. Puoi selezionarne uno di questi in _Aspetto > Sblocco_. Hanno questo aspetto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -108,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -128,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

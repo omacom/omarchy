@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=MiniMax Code
+Comment=Start MiniMax Code in a terminal
+Exec=omarchy-agent --agent mcode --app-id=org.omarchy.mcode
+Icon=omarchy-agent-mcode
+StartupWMClass=org.omarchy.mcode
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
