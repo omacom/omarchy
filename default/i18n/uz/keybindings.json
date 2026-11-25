@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "Faoliyat",
   "Agent": "Agent",
   "Agents": "Agentlar",
@@ -21,6 +20,7 @@
   "Calculator": "Kalkulyator",
   "Calendar": "Taqvim",
   "Capture menu": "Tasvirga olish menyusi",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "Eslatmalarni tozalash",
   "Clipboard manager": "Bufer boshqaruvi",
   "Close all windows": "Barcha oynalarni yopish",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "Bildirishnomalarni klaviatura bilan boshqarish",
   "Cycle workspace layout": "Ish maydoni joylashuvini almashtirish",
   "Cycle workspace layout back": "Ish maydoni joylashuvini orqaga almashtirish",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Terminal prefiksi uchun bevosita kiritish",
   "Disable touchpad": "Touchpadni oʻchirish",
   "Dismiss all notifications": "Barcha bildirishnomalarni yopish",

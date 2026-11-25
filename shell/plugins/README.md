@@ -71,9 +71,9 @@ Two ways to drive it:
   uses. Colors come from the central shell theme singleton; there is no
   per-call override surface.
 
-The selection round-trip remains file-based: callers create a
-`selection_file` and `done_file` (both `mktemp`), pass the paths, and
-poll `done_file` for existence. The plugin writes the chosen path into
+The selection round-trip remains file-based: callers create a private
+temp directory (`mktemp -d`) for `selection_file` and `done_file`, pass
+the paths, and poll `done_file` for existence. The plugin writes the chosen path into
 `selection_file` and touches `done_file` when it's done. `cancel` IPC
 clears it without writing a selection.
 
