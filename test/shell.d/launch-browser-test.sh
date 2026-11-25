@@ -52,6 +52,7 @@ SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+pwd -P >"$OMARCHY_TEST_BROWSER_LAUNCH.cwd"
 SH
 cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
@@ -144,6 +145,16 @@ launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
 grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+mkdir "$test_tmp/gone"
+(
+  cd "$test_tmp/gone"
+  rmdir "$test_tmp/gone"
+  launch "https://example.test/deleted-cwd" 2>/dev/null
+)
+[[ $(cat "$launch_log.cwd") == "$test_home" ]] ||
+  fail "a launch from a deleted directory falls back to home"
+pass "a launch from a deleted directory falls back to home"
 
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
 # from the same ones; a browser outside ~/.local and /usr used to resolve and
