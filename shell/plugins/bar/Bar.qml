@@ -62,6 +62,9 @@ Item {
   property string glassSyncedLook: ""
   property int barConfigSerial: 0
   property string position: "top"
+  // A locked bar stays where it is: widgets can't be dragged and the bar
+  // can't be moved, so its surface only needs to cover the strip (BarPanel).
+  property bool locked: false
   // Resolves through fontconfig at paint time (Style.font.family defaults
   // to "monospace"), so changing the system font (via `omarchy-font-set`)
   // updates the bar without a reload.
@@ -778,6 +781,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    locked = config.locked === true
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -1744,8 +1748,13 @@ Item {
     // (layer-shell reserves space from the one anchored edge) and drop tiled
     // windows behind the bar. Glassy blur stays on the strip: Hyprland's
     // ignore_alpha leaves the clear rest of the surface unblurred.
-    implicitWidth: root.vertical ? (screen ? screen.width : thickness) : 0
-    implicitHeight: root.vertical ? 0 : (screen ? screen.height : thickness)
+    //
+    // A locked bar has no drags, so it keeps only the strip. The clear expanse
+    // is not free: on a 4K screen at 1.5x it holds ~155 MiB of VRAM.
+    readonly property real spanWidth: root.locked ? thickness : (screen ? screen.width : thickness)
+    readonly property real spanHeight: root.locked ? thickness : (screen ? screen.height : thickness)
+    implicitWidth: root.vertical ? spanWidth : 0
+    implicitHeight: root.vertical ? 0 : spanHeight
     color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
@@ -2430,7 +2439,7 @@ Item {
     pressAndHoldInterval: 200
 
     function startDrag(x, y) {
-      if (dragging) return
+      if (dragging || root.locked) return
       dragging = true
       root.beginBarMove(root.targetWindow(gestureArea))
       var scenePoint = gestureArea.mapToItem(null, x, y)
@@ -3010,7 +3019,7 @@ Item {
       property var heldTarget: null
       property real pressedX: 0
       property real pressedY: 0
-      readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
+      readonly property bool canReorder: !root.locked && root.shell && typeof root.shell.mutateShellConfig === "function"
       readonly property real dragThreshold: Style.space(4)
 
       anchors.fill: parent

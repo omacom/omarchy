@@ -110,6 +110,12 @@ omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
+## Locking the bar
+
+Once the bar is how you want it, you can lock it: **Appearance → Menu Bar → Lock Bar**, or `omarchy bar locked true`. A locked bar can't be dragged to another edge and its widgets can't be dragged around, so nothing moves by accident. The `omarchy bar` commands still rearrange it, and **Unlock Bar** (or `omarchy bar locked false`) brings the dragging back.
+
+Locking also saves video memory. To keep hold of a drag wherever the pointer goes, an unlocked bar quietly covers the whole screen with a see-through layer. A locked bar doesn't need it and covers only the strip it draws. On a 4K screen at 150% scaling that's about 155 MB of VRAM per screen, which is worth having back on a graphics card with little memory.
+
 ## Hiding the bar
 
 `Super + Shift + Space` toggles the bar off and back on without killing the shell — panels and hotkeys keep working, you just get the pixels back. It's also in the menu under **Appearance → Menu Bar → Hide Bar**.

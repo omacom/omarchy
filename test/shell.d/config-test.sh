@@ -347,6 +347,25 @@ jq -e '.bar.background == "glassy" and (.bar | has("transparent") | not)' "$TMPD
   fail "setting a background drops the older transparent flag"
 pass "the older transparent form still sets and reads as the bar background"
 
+# A locked bar can't be moved or have its widgets dragged, so the shell sizes
+# its surface to the strip. Unlocking drops the key rather than storing false.
+bar_locked() { HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar locked "$@"; }
+[[ $(bar_locked) == "false" ]] || fail "a bar is unlocked until it is locked"
+bar_locked true >/dev/null
+jq -e '.bar.locked == true and .bar.background == "glassy"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "locking the bar stores it and leaves the rest of the bar alone"
+[[ $(bar_locked) == "true" ]] || fail "a locked bar is reported"
+bar_locked toggle >/dev/null
+jq -e '.bar | has("locked") | not' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "unlocking the bar drops the locked key"
+bar_locked toggle >/dev/null
+[[ $(bar_locked) == "true" ]] || fail "toggling an unlocked bar locks it"
+if bar_locked maybe 2>/dev/null; then
+  fail "an unknown locked value is refused"
+fi
+bar_locked false >/dev/null
+pass "shell config locks and unlocks the bar"
+
 # Restoring the default bar also restores its opaque background, and the blur
 # behind a glassy one goes with it.
 bar_background glassy >/dev/null

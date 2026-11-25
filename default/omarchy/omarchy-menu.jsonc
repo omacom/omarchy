@@ -64,6 +64,8 @@
   "appearance.top-bar": {"icon":"󰍜","label":"Menu Bar"},
   "appearance.top-bar.hide": {"icon":"󰈉","label":"Hide Bar","when":"! omarchy-toggle-enabled bar-off","action":"omarchy-toggle-bar"},
   "appearance.top-bar.show": {"icon":"󰈈","label":"Show Bar","when":"omarchy-toggle-enabled bar-off","action":"omarchy-toggle-bar"},
+  "appearance.top-bar.lock": {"icon":"󰌾","label":"Lock Bar","when":"[[ $(omarchy-bar locked) != true ]]","action":"omarchy-bar locked true"},
+  "appearance.top-bar.unlock": {"icon":"󰌿","label":"Unlock Bar","when":"[[ $(omarchy-bar locked) == true ]]","action":"omarchy-bar locked false"},
   "appearance.top-bar.position": {"icon":"","label":"Position Bar"},
   "appearance.top-bar.background": {"icon":"󰂵","label":"Bar Background"},
   "appearance.top-bar.background.opaque": {"icon":"󰝤","label":"Opaque Bar","checked":"[[ $(omarchy-bar background) == \"opaque\" ]]","action":"omarchy-bar background opaque"},

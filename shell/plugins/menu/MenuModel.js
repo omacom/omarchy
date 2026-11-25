@@ -454,6 +454,7 @@ var GUARD_READERS = [
   "omarchy-bar get omarchy.power showPercentage",
   "omarchy-bar get omarchy.clock format",
   "omarchy-bar get omarchy.clock verticalFormat",
+  "omarchy-bar locked",
   "omarchy-bar position",
   "omarchy-channel-current",
   "omarchy-default-agent",

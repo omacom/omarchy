@@ -105,6 +105,12 @@
   "appearance.top-bar.show": {
     "label": "Show Bar"
   },
+  "appearance.top-bar.lock": {
+    "label": "Lock Bar"
+  },
+  "appearance.top-bar.unlock": {
+    "label": "Unlock Bar"
+  },
   "appearance.top-bar.position": {
     "label": "Position Bar"
   },

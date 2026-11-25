@@ -24,6 +24,7 @@ ShellRoot {
   // The slot the pointer is holding.
   property var held: null
   property string counts: ""
+  property string layoutBefore: ""
   property var steps: []
   property int step: 0
 
@@ -254,6 +255,23 @@ ShellRoot {
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
+
+        // A locked bar takes no drags, so its surface covers only its strip.
+        host.mutateShellConfig(function(config) { config.bar.locked = true })
+      }, 250],
+      [function() {
+        root.check(root.bar.locked === true, "the bar reads locked from its config")
+        root.check(root.surface && root.surface.implicitHeight === root.surface.thickness, "a locked bar's surface is only as tall as its strip: " + (root.surface ? root.surface.implicitHeight + " against " + root.surface.thickness : "no surface"))
+        root.layoutBefore = JSON.stringify(host.config.bar.layout)
+        root.lift(root.slotOf("test.a", "left"))
+      }, 180],
+      [function() { root.pointAt(root.slotOf("test.c", "right"), 0.8) }, 180],
+      [function() {
+        root.check(root.bar.barDragSource === null, "pulling a widget on a locked bar starts no drag")
+        root.letGo(root.slotOf("test.c", "right"), 0.8)
+      }, 400],
+      [function() {
+        root.check(JSON.stringify(host.config.bar.layout) === root.layoutBefore, "a widget let go of on a locked bar stays where it was: " + JSON.stringify(host.config.bar.layout))
       }, 100]
     ]
     stepper.start()

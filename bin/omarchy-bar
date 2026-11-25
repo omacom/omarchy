@@ -7,6 +7,7 @@
 # omarchy:subcommand=defaults — Restore the default bar and service widgets
 # omarchy:subcommand=position [top|bottom|left|right] — Set the bar position, or print it when given none
 # omarchy:subcommand=background [opaque|glassy|none|cycle] — Set the bar background, or print it when given none
+# omarchy:subcommand=locked [true|false|toggle] — Lock the bar against dragging and moving, or print whether it is when given none
 # omarchy:subcommand=put <id> [placement] — Put a widget on the bar, leaving one already there where it is
 # omarchy:subcommand=move <id> [placement] — Move a widget within or between sections
 # omarchy:subcommand=set <id> <key> <value> [--json] [placement] — Set a per-widget option
@@ -31,6 +32,11 @@ Usage: omarchy bar <command> [args...]
                                        behind the bar blurred, cycle steps
                                        none, glassy, opaque; prints the
                                        current one when given none
+  locked [true|false|toggle]           A locked bar can't be moved and its
+                                       widgets can't be dragged, which lets
+                                       it skip its full-screen surface and
+                                       save VRAM; prints the current state
+                                       when given none
   put <id> [placement]                 Put a widget on the bar, leaving one
                                        that is already there where it is
   move <id> [placement]                Move a widget within or between sections
@@ -261,6 +267,39 @@ cmd_background() {
     fail "could not change the blur behind the bar"
   fi
   echo "Bar background set to $background"
+}
+
+# A locked bar can't be moved and its widgets can't be dragged. Without drags
+# to keep the pointer on, the bar's surface shrinks from the whole screen to
+# its strip. 'omarchy bar move' and 'put' still rearrange a locked bar.
+current_locked() {
+  jq -r 'if .bar.locked == true then "true" else "false" end' "$(source_file)"
+}
+
+cmd_locked() {
+  if (( $# == 0 )); then
+    current_locked
+    return
+  fi
+
+  local locked="$1"
+  (( $# == 1 )) || fail "locked takes a single value"
+  [[ $locked =~ ^(true|false|toggle)$ ]] || fail "locked must be true, false, or toggle"
+  if [[ $locked == "toggle" ]]; then
+    if [[ $(current_locked) == "true" ]]; then
+      locked="false"
+    else
+      locked="true"
+    fi
+  fi
+
+  if [[ $locked == "true" ]]; then
+    commit "$NORMALIZE | .bar.locked = true"
+    echo "Bar locked"
+  else
+    commit "$NORMALIZE | del(.bar.locked)"
+    echo "Bar unlocked"
+  fi
 }
 
 # The older on/off form of the background, kept for scripts and dotfiles:
@@ -502,6 +541,9 @@ case "$command" in
     ;;
   background)
     cmd_background "$@"
+    ;;
+  locked)
+    cmd_locked "$@"
     ;;
   # Internal: the shell runs this when it loads a bar background, so one set
   # by editing shell.json gets its blur too.
