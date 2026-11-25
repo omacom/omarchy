@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "สแนปชอต"
+  },
+  "system.snapshots.restore": {
+    "label": "กู้คืนสแนปชอตนี้"
   }
 }

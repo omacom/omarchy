@@ -1445,5 +1445,11 @@
   },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "system.snapshots": {
+    "label": "Snapshots"
+  },
+  "system.snapshots.restore": {
+    "label": "Diesen Snapshot wiederherstellen"
   }
 }
