@@ -1024,7 +1024,7 @@ fastest_ms() {
     read -r start _ </proc/uptime
     "$@" >/dev/null 2>&1
     read -r end _ </proc/uptime
-    elapsed=$(( (${end/./} - ${start/./}) * 10 ))
+    elapsed=$(( (10#${end/./} - 10#${start/./}) * 10 ))
     if [[ -z $best ]] || (( elapsed < best )); then
       best=$elapsed
     fi
