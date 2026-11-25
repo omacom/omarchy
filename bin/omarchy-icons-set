@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Apply an icon set
+# omarchy:args=<icon-set-name>
+# omarchy:examples=omarchy icons list | omarchy icons set "Original"
+
+if [[ -z $1 ]]; then
+  echo "Usage: omarchy-icons-set <icon-set-name>"
+  exit 1
+fi
+
+CURRENT="$HOME/.local/state/omarchy/current"
+
+# A set is named as omarchy-icons-list prints it or as its directory is.
+SET_NAME=$(tr '[:upper:]' '[:lower:]' <<<"$1" | tr ' ' '-')
+
+# The name is joined into paths, so it is held to what a set name needs.
+if ! (LC_ALL=C; [[ $SET_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]); then
+  echo "Error: '$1' is not an icon set name."
+  exit 1
+fi
+
+if [[ $SET_NAME != "original" && ! -d $HOME/.config/omarchy/icons/$SET_NAME && ! -d $OMARCHY_PATH/icons/$SET_NAME ]]; then
+  echo "Icon set '$SET_NAME' does not exist"
+  exit 1
+fi
+
+# The name is written under the lock omarchy-theme-set-icons draws under, so a
+# draw reads the set it is about to draw, and through a file of this run's own,
+# so two picks at once never move each other's. The lock is let go before the
+# draw below takes it.
+mkdir -p "$CURRENT"
+exec 7>"$CURRENT/.icons.lock"
+flock 7
+next=$(mktemp "$CURRENT/.icons.name.XXXXXX")
+printf '%s\n' "$SET_NAME" >"$next"
+mv -f "$next" "$CURRENT/icons.name"
+exec 7>&-
+
+# The theme in use supplies the colors the set is drawn in.
+omarchy-theme-set-icons

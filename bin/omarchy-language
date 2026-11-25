@@ -1,0 +1,142 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set the Omarchy language and the session's locale
+# omarchy:args=[<code>|list|locale [<code>]|seed <code>]
+# omarchy:examples=omarchy language | omarchy language da | omarchy language list
+
+set -euo pipefail
+
+locales_json=${OMARCHY_LOCALES_JSON:-$OMARCHY_PATH/default/i18n/locales.json}
+language_file=${OMARCHY_LANGUAGE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/language}
+
+# Root always writes the real file; the override is for unprivileged tests
+# (same convention as install/config/locale.sh).
+locale_gen=/etc/locale.gen
+if (( EUID != 0 )); then
+  locale_gen=${OMARCHY_LOCALE_GEN:-$locale_gen}
+fi
+
+known_language() {
+  jq -e --arg code "$1" 'has($code)' "$locales_json" >/dev/null 2>&1
+}
+
+current_language() {
+  local code=""
+  if [[ -f $language_file ]]; then
+    code=$(head -n 1 "$language_file" | tr -d '[:space:]')
+  fi
+
+  if [[ -n $code ]] && known_language "$code"; then
+    echo "$code"
+  else
+    echo "en"
+  fi
+}
+
+locale_for() {
+  jq -r --arg code "$1" '.[$code].locale // empty' "$locales_json"
+}
+
+name_for() {
+  jq -r --arg code "$1" '.[$code].name // empty' "$locales_json"
+}
+
+list_languages() {
+  # One tab-delimited row per language: native name, code, English name.
+  # English first, the rest sorted by English name so the picker is findable
+  # in any language.
+  jq -r '
+    to_entries
+    | map({code: .key, name: .value.name, englishName: .value.englishName})
+    | sort_by(if .code == "en" then "" else .englishName end)
+    | .[]
+    | [.name, .code, .englishName] | @tsv
+  ' "$locales_json"
+}
+
+source omarchy-locale-session
+
+# The session's LANG lives with the user, beside the language choice:
+# uwsm sources this at login and exports it to every app it launches.
+session_env=${XDG_CONFIG_HOME:-$HOME/.config}/uwsm/env.d/50-omarchy-language
+
+# Sets LANG for the next login, and for the apps opened from now on.
+apply_session_locale() {
+  local locale=$1
+  mkdir -p "$(dirname "$session_env")"
+  printf '# The session language, set by omarchy-language (Setup > Region > Language).\nexport LANG=%s\n' "$locale" >"$session_env"
+  apply_session_env "LANG=$locale"
+}
+
+# A Chinese, Japanese or Korean language brings its input method and glyph
+# forms, unless the user already has an input method or chose the forms.
+seed_typing() {
+  local method
+  case $1 in
+  ja) method=mozc ;;
+  ko) method=hangul ;;
+  zh-CN) method=pinyin ;;
+  zh-TW) method=chewing ;;
+  *) return 0 ;;
+  esac
+  /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" seed-language "$method" || true
+}
+
+set_language() {
+  local code=$1
+  if ! known_language "$code"; then
+    echo "Usage: omarchy-language [<code>|list|locale [<code>]]" >&2
+    echo "Unknown language code: $code" >&2
+    echo "Run 'omarchy-language list' to see the available codes." >&2
+    exit 1
+  fi
+
+  local locale name
+  locale=$(locale_for "$code")
+  name=$(name_for "$code")
+
+  generate_locale "$code" "$locale"
+
+  # The choice is only persisted once the locale exists, so a cancelled
+  # password prompt cannot leave the interface switched with LANG behind it.
+  mkdir -p "$(dirname "$language_file")"
+  echo "$code" >"$language_file"
+  seed_typing "$code"
+  apply_session_locale "$locale"
+
+  omarchy-notification-send -g  "$(omarchy-i18n language.changed "$name")" "$(omarchy-i18n language.newApps)"
+}
+
+case "${1:-}" in
+"")
+  current_language
+  ;;
+list)
+  list_languages
+  ;;
+seed)
+  # Install finalization: the system step already generated the locale and
+  # there is no session yet, so only files are written, and a language the
+  # user already chose is kept: the preset is a default, never an override.
+  code=${2:-}
+  if ! known_language "$code"; then
+    echo "Unknown language code: $code" >&2
+    exit 1
+  fi
+  [[ -s $language_file ]] && exit 0
+  mkdir -p "$(dirname "$session_env")" "$(dirname "$language_file")"
+  printf '# The session language, set by omarchy-language (Setup > Region > Language).\nexport LANG=%s\n' "$(locale_for "$code")" >"$session_env"
+  echo "$code" >"$language_file"
+  ;;
+locale)
+  code=${2:-$(current_language)}
+  if ! known_language "$code"; then
+    echo "Unknown language code: $code" >&2
+    exit 1
+  fi
+  locale_for "$code"
+  ;;
+*)
+  set_language "$1"
+  ;;
+esac

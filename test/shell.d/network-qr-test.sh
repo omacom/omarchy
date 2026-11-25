@@ -7,6 +7,14 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
+export QR_ROUTE_EXIT=0
+
+# Loopback is never wireless, so exercise the connected-Wi-Fi fallback.
+cat >"$tmp/bin/ip" <<'EOF'
+#!/bin/bash
+[[ $QR_ROUTE_EXIT == "0" ]] || exit "$QR_ROUTE_EXIT"
+printf '1.1.1.1 dev lo\n'
+EOF
 
 cat >"$tmp/bin/nmcli" <<'EOF'
 #!/bin/bash
@@ -28,13 +36,13 @@ payload=$(</dev/stdin)
 printf '%s' "$payload" >"$QR_PAYLOAD_FILE"
 printf '##    \n  ##  \n    ##\n'
 EOF
-chmod +x "$tmp/bin/nmcli" "$tmp/bin/qrencode"
+chmod +x "$tmp/bin/ip" "$tmp/bin/nmcli" "$tmp/bin/qrencode"
 
 run_success_case() {
   local description=$1 fields=$2 expected_payload=$3
   shift 3
   local output meta matrix payload arg with_meta=false
-  local expected_matrix expected_security expected_ssid expected_iface="*"
+  local expected_matrix expected_security expected_ssid expected_iface="wlan0"
 
   for arg in "$@"; do
     [[ $arg == "--meta" ]] && with_meta=true || expected_iface=$arg
@@ -49,9 +57,8 @@ run_success_case() {
     meta=$(head -n1 <<<"$output")
     matrix=$(tail -n +2 <<<"$output")
 
-    # The meta line leads with the shared interface, security, and SSID. With
-    # no interface argument the helper detects one from the live host, so that
-    # field is only pinned when the case pinned it.
+    # The metadata reports the requested interface, or the connected Wi-Fi
+    # interface supplied by the nmcli stub when no interface was requested.
     expected_security=${expected_payload#WIFI:T:}
     expected_security=${expected_security%%;*}
     expected_ssid=$(head -n1 <<<"$fields")
@@ -88,6 +95,12 @@ run_success_case \
   'WIFI:T:WPA;S:Cafe Detected;P:secret;;' \
   --meta
 
+QR_ROUTE_EXIT=2 run_success_case \
+  "network QR helper detects Wi-Fi when route lookup fails" \
+  $'Cafe No Route\nwpa-psk\nsecret\nno\n' \
+  'WIFI:T:WPA;S:Cafe No Route;P:secret;;' \
+  --meta
+
 run_success_case \
   "network QR helper supports open networks" \
   $'Cafe Open\nnone\n\nno\n' \
@@ -118,3 +131,46 @@ expected_error="Enterprise Wi-Fi cannot be shared with a password QR code"
 [[ $enterprise_error == "$expected_error" ]] || fail "network QR helper rejects enterprise networks" "expected: $expected_error\nactual: $enterprise_error"
 [[ ! -e $QR_PAYLOAD_FILE ]] || fail "network QR helper rejects enterprise networks" "qrencode unexpectedly ran"
 pass "network QR helper rejects enterprise networks"
+
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+
+const wifiqrQml = fs.readFileSync(path.join(root, 'shell/plugins/panels/wifiqr/Panel.qml'), 'utf8')
+const fns = [
+  wifiqrQml.match(/function safeIface\(value\) \{[\s\S]*?\n  \}/)[0],
+  wifiqrQml.match(/function close\(\) \{[\s\S]*?\n  \}/)[0],
+  wifiqrQml.match(/function generate\(requestedIface\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+
+const ctx = {
+  opened: true,
+  pendingShow: false,
+  expectedStop: false,
+  pwExpectedStop: false,
+  qrSize: 3,
+  qrRows: ['101', '010', '101'],
+  error: '',
+  loading: false,
+  iface: 'wlan0',
+  ssid: 'Cafe',
+  secured: true,
+  password: 'old-secret',
+  passwordVisible: true,
+  passwordError: '',
+  I18n: { t: k => k },
+  qrProc: { running: false, command: [] },
+  pwProc: { running: true, command: [] }
+}
+ctx.root = ctx
+vm.runInNewContext(fns, ctx)
+
+ctx.close()
+assert(ctx.pwExpectedStop === true && !ctx.pwProc.running, 'wifiqr close marks an in-flight password fetch as expectedStop')
+assertEqual(ctx.password, '', 'wifiqr close clears the password from memory')
+
+ctx.generate('--bad-flag')
+assert(!ctx.qrProc.running && ctx.error === 'wifiqr.generateFailed', 'wifiqr rejects dash-prefixed interface names')
+ctx.generate('wlan0')
+assertDeepEqual(ctx.qrProc.command, ['omarchy-network-qr', '--meta', 'wlan0'], 'wifiqr runs generator for valid interface names')
+JS

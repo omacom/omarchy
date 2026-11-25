@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Detect a Broadcom FaceTime HD PCIe webcam (14e4:1570).
+
+# Read sysfs PCI IDs directly rather than lspci, which wakes suspended devices.
+omarchy-hw-pci 14e4:1570

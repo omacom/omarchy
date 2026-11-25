@@ -10,16 +10,16 @@ if (( $# == 0 )); then
   mapfile -t cores < <(omarchy-games-retro-cores)
 
   if (( ${#cores[@]} == 0 )); then
-    omarchy-notification-send -g 󰯉 "No RetroArch cores found" "/usr/lib/libretro"
+    omarchy-notification-send -g 󰯉 "$(omarchy-i18n games.noCores)" "/usr/lib/libretro"
     exit 1
   fi
 
-  core=$(omarchy-menu-select "RetroArch core" "${cores[@]}") || exit 0
+  core=$(omarchy-menu-select "$(omarchy-i18n games.corePrompt)" "${cores[@]}") || exit 0
   [[ -n $core ]] || exit 0
   core="${core##*(}"
   core="${core%)}"
 
-  game_path=$(omarchy-menu-file "Retro game" "$HOME/Games/roms" "7z bin ccd chd cue dmg elf fds gb gba gbc iso lha m3u md n64 nds nes pbp sfc smc swc zip z64") || exit 0
+  game_path=$(omarchy-menu-file "$(omarchy-i18n games.pickGame)" "$HOME/Games/roms" "7z bin ccd chd cue dmg elf fds gb gba gbc iso lha m3u md n64 nds nes pbp sfc smc swc zip z64") || exit 0
   [[ -n $game_path ]] || exit 0
 elif (( $# == 2 )); then
   core="$1"
@@ -46,19 +46,52 @@ if [[ ! -f $core_path ]]; then
   exit 1
 fi
 
+core_path=$(realpath -- "$core_path")
+game_path=$(realpath -- "$game_path")
+
+desktop_string_escape() {
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//$'\t'/\\t}
+  value=${value//$'\r'/\\r}
+  value=${value//$'\n'/\\n}
+  [[ $value == " "* ]] && value="\\s${value# }"
+
+  printf '%s' "$value"
+}
+
+desktop_exec_arg() {
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//\`/\\\`}
+  value=${value//\$/\\\$}
+  value=${value//%/%%}
+
+  printf '"%s"' "$value"
+}
+
 game_name=$(printf '%s' "${game_path##*/}" | sed 's/\.[^.]*$//; s/[[:space:]]*([^)]*)//g; s/[[:space:]]\+/ /g; s/^ //; s/ $//' | perl -Mopen=locale -pe 's/(^|[[:space:]])([^[:space:]])/$1\U$2/g')
+[[ -n $game_name ]] || game_name="${game_path##*/}"
 desktop_name="$game_name"
 desktop_id=$(printf '%s' "$desktop_name" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | sed 's/^-//; s/-$//')
+[[ -n $desktop_id ]] || desktop_id="retroarch-$(printf '%s' "$game_path" | md5sum | cut -c1-12)"
 desktop_dir="$HOME/.local/share/applications"
 desktop_file="$desktop_dir/$desktop_id.desktop"
 mkdir -p "$desktop_dir"
 
+name_field=$(desktop_string_escape "$desktop_name")
+comment_field=$(desktop_string_escape "Play $game_name with RetroArch")
+exec_field=$(desktop_string_escape "retroarch -L $(desktop_exec_arg "$core_path") $(desktop_exec_arg "$game_path")")
+
 cat >"$desktop_file" <<EOF
 [Desktop Entry]
 Version=1.0
-Name=$desktop_name
-Comment=Play $game_name with RetroArch
-Exec=retroarch -L "$core_path" "$game_path"
+Name=$name_field
+Comment=$comment_field
+Exec=$exec_field
 Terminal=false
 Type=Application
 Icon=retro-gaming
@@ -69,4 +102,4 @@ EOF
 chmod +x "$desktop_file"
 update-desktop-database "$desktop_dir" &>/dev/null || true
 
-omarchy-notification-send -g 󰯉 "$game_name installed" "Start it with Super + Space"
+omarchy-notification-send -g 󰯉 "$(omarchy-i18n games.installed "$game_name")" "$(omarchy-i18n games.startHint)"

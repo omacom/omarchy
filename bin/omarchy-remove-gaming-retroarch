@@ -25,6 +25,7 @@ omarchy-pkg-drop \
   libretro-vice-x128-git libretro-vice-x64-git libretro-vice-x64dtv-git libretro-vice-x64sc-git \
   libretro-vice-xcbm2-git libretro-vice-xcbm5x0-git libretro-vice-xpet-git \
   libretro-vice-xplus4-git libretro-vice-xscpu64-git libretro-vice-xvic-git \
+  libretro-database-git \
   retroarch-joypad-autoconfig-git
 
 rm -rf \
@@ -35,3 +36,4 @@ rm -rf \
 echo ""
 echo "RetroArch and its cores have been removed."
 echo "ROMs and BIOS files at ~/Games/roms and ~/Games/bios were left in place."
+
