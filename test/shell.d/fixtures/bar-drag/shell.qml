@@ -254,7 +254,23 @@ ShellRoot {
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
-      }, 100]
+      }, 100],
+      [function() {
+        // Reload-during-drag: a stale bar-move must never reach shell.json.
+        // A drag began (candidate left over from updateBarMove), then the host
+        // set pluginReloading while reloadPlugins() tears the bar down.
+        root.bar.beginBarMove(root.bar.targetWindow(root.surface))
+        root.bar.barMoveCandidate = "left"
+        var wroteDuringReload = false
+        var realShell = root.bar.shell
+        root.bar.shell = { pluginReloading: true, mutateShellConfig: function(mutator) {
+          wroteDuringReload = true
+        } }
+        root.bar.finishBarMove()
+        root.check(wroteDuringReload === false, "no shell.json write during a plugin reload")
+        root.check(root.bar.barMoveActive === false, "the stale move is dropped, not committed")
+        root.bar.shell = realShell
+      }, 300]
     ]
     stepper.start()
   }
