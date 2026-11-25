@@ -12,56 +12,56 @@ Item {
   // Keep in sync with bin/omarchy-toggle-nightlight, which sets the same
   // temperatures for callers outside the shell (keybindings, menu, ssh).
   readonly property int nightTemperature: 4000
-  readonly property int dayTemperature: 6500
 
   property bool stateLoaded: false
   property var temperature: null
-  readonly property bool enabled: stateLoaded && NightlightModel.isNightlight(temperature)
+  property bool identity: false
+  readonly property bool enabled: stateLoaded && NightlightModel.isNightlight(temperature, identity)
 
-  property bool hasPendingTemperature: false
-  property int pendingTemperature: 0
+  property bool hasPendingValue: false
+  property bool pendingValue: false
 
   function refresh() {
     if (!statusProbe.running) statusProbe.running = true
   }
 
   function setNightlight(value) {
-    applyTemperature(value ? nightTemperature : dayTemperature)
+    // hyprsunset keeps the temperature while identity is on.
+    root.temperature = nightTemperature
+    root.identity = !value
+    root.stateLoaded = true
+
+    if (applyProcess.running) {
+      root.pendingValue = value
+      root.hasPendingValue = true
+      return
+    }
+
+    runApply(value)
   }
 
   function toggle() {
     setNightlight(!enabled)
   }
 
-  function applyTemperature(temp) {
-    root.temperature = temp
-    root.stateLoaded = true
-
-    if (applyProcess.running) {
-      root.pendingTemperature = temp
-      root.hasPendingTemperature = true
-      return
-    }
-
-    runApply(temp)
-  }
-
-  function runApply(temp) {
+  function runApply(value) {
     applyProcess.command = ["bash", "-lc",
       "pgrep -x hyprsunset >/dev/null || { setsid uwsm-app -- hyprsunset >/dev/null 2>&1 & sleep 1; }; " +
-      "hyprctl hyprsunset temperature " + Number(temp) +
-      // Even daylight tints the screen, so off also restores the identity matrix
-      (temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")]
+      // Off is one identity request, so Hyprland fades straight back from the
+      // warm matrix; stepping through daylight first restarts the fade there.
+      (value ? "hyprctl hyprsunset temperature " + root.nightTemperature : "hyprctl hyprsunset identity")]
     applyProcess.running = true
   }
 
   Process {
     id: statusProbe
-    command: ["hyprctl", "hyprsunset", "temperature"]
+    command: ["sh", "-c", "hyprctl hyprsunset temperature && echo --- && hyprctl hyprsunset identity get"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        root.temperature = NightlightModel.temperatureFromOutput(text)
+        var parts = text.split("---")
+        root.temperature = NightlightModel.temperatureFromOutput(parts[0])
+        root.identity = NightlightModel.identityFromOutput(parts[1])
         root.stateLoaded = true
       }
     }
@@ -76,9 +76,9 @@ Item {
   Process {
     id: applyProcess
     onExited: function() {
-      if (root.hasPendingTemperature) {
-        root.hasPendingTemperature = false
-        root.runApply(root.pendingTemperature)
+      if (root.hasPendingValue) {
+        root.hasPendingValue = false
+        root.runApply(root.pendingValue)
         return
       }
 
