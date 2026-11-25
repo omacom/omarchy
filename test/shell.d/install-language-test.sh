@@ -60,7 +60,9 @@ eval "$(sed -n '/^configure_region() {$/,/^}$/p' "$ROOT/bin/omarchy-provision-ow
 region_root=$scratch/region
 mkdir -p "$region_root/omarchy/default/regions/cn" "$region_root/omarchy/bin" "$region_root/etc/omarchy"
 printf 'Asia/Shanghai\nAsia/Urumqi\n' >"$region_root/omarchy/default/regions/cn/timezones"
-printf '#!/bin/bash\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
+# omarchy-apply-pacman needs OMARCHY_PATH, which owner setup, a systemd
+# service, does not inherit; it fails without it, as the real one does.
+printf '#!/bin/bash\nset -u\n: "$OMARCHY_PATH"\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
 chmod +x "$region_root/omarchy/bin/omarchy-apply-pacman"
 mkdir -p "$region_root/omarchy/install/config"
 printf 'echo region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
@@ -87,17 +89,21 @@ done
 # The global ISO's deferred install: a China timezone picks China, any other
 # stays World.
 printf 'REGION=global\n' >"$OMARCHY_FORM_DEFAULTS"
-settle_global() {
+settle_global() (
   timezone=$1
   rm -f "$OMARCHY_REGION_FILE"
   : >"$REGION_LOG"
-  OMARCHY_PATH=$region_root/omarchy configure_region
+  # Set, not exported, as owner setup has it.
+  export -n OMARCHY_PATH
+  OMARCHY_PATH=$region_root/omarchy
+  configure_region >/dev/null
   [[ -e $OMARCHY_REGION_FILE ]] && cat "$OMARCHY_REGION_FILE" || echo global
-}
+)
 for case in Asia/Shanghai:cn Asia/Urumqi:cn UTC:global America/New_York:global Asia/Hong_Kong:global Asia/Taipei:global Asia/Macau:global; do
   [[ $(settle_global "${case%%:*}") == "${case#*:}" ]] || fail "an owner in ${case%%:*} on global media gets the ${case#*:} region"
   if [[ ${case#*:} == cn ]]; then
     grep -qx "apply stable $region_root" "$REGION_LOG" || fail "entering China re-renders pacman for the installed channel" "$(cat "$REGION_LOG")"
+    grep -qx "region" "$REGION_LOG" || fail "entering China applies the region's mirrors" "$(cat "$REGION_LOG")"
   else
     [[ ! -s $REGION_LOG ]] || fail "staying World leaves pacman alone"
   fi
