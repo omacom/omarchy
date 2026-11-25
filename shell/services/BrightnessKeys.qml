@@ -67,16 +67,22 @@ Item {
   // still hold the previous reading, and a level changed elsewhere (the
   // monitor panel, a script) would step from the wrong place.
   function readNumber(file) {
+    file.failed = false
     file.reload()
     file.waitForJob()
-    return Number(String(file.text() || "").trim())
+    if (file.failed) return NaN
+    var raw = String(file.text() || "").trim()
+    if (!raw) return NaN
+    return Number(raw)
   }
 
   // The payload omarchy-osd builds, from the level read back after the write.
   function showOsd() {
     var max = ensureMax()
     if (!host || !(max > 0)) return
-    var percent = Math.round(100 * readNumber(brightnessFile) / max)
+    var level = readNumber(brightnessFile)
+    if (!(level >= 0)) return
+    var percent = Math.round(100 * level / max)
     host.summon("omarchy.osd", JSON.stringify({
       icon: "brightness",
       message: "",
@@ -89,16 +95,20 @@ Item {
 
   FileView {
     id: brightnessFile
+    property bool failed: false
     path: root.devicePath ? root.devicePath + "/brightness" : ""
     blockLoading: true
     printErrors: false
+    onLoadFailed: failed = true
   }
 
   FileView {
     id: maxFile
+    property bool failed: false
     path: root.devicePath ? root.devicePath + "/max_brightness" : ""
     blockLoading: true
     printErrors: false
+    onLoadFailed: failed = true
   }
 
   Process {

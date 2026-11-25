@@ -709,7 +709,9 @@ QtObject {
   // own command line from matching its search.
   property Process watcherReaper: Process {
     onExited: {
-      if (!registry.destroying) localPluginWatcher.running = true
+      if (registry.destroying) return
+      localPluginWatcher.running = true
+      registry.rescan()
     }
   }
 
