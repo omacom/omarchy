@@ -115,4 +115,14 @@ for icon in "$ICONS"/*.svg; do
   fi
 done
 
-printf '%s\t%d\n' "${EPOCHREALTIME//[!0-9]/}" "$links_changed" >"$CURRENT/icons.revision"
+draw_rev=${EPOCHREALTIME//[!0-9]/}
+links_rev=0
+if [[ -r $CURRENT/icons.revision ]]; then
+  IFS=$'\t ' read -r _ prev_links_rev _ <"$CURRENT/icons.revision" || true
+  [[ $prev_links_rev =~ ^[0-9]+$ ]] && links_rev=$prev_links_rev
+fi
+if (( links_changed )); then
+  links_rev=$draw_rev
+fi
+
+printf '%s\t%s\n' "$draw_rev" "$links_rev" >"$CURRENT/icons.revision"

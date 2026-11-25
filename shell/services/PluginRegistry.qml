@@ -24,6 +24,7 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  property bool rescanQueued: false
   property bool destroying: false
   property string lastEnableError: ""
 
@@ -683,6 +684,10 @@ QtObject {
     onExited: function(exitCode) {
       var output = scanStdout.text || ""
       registry.parseScanOutput(output)
+      if (registry.rescanQueued && !registry.destroying) {
+        registry.rescanQueued = false
+        registry.rescan()
+      }
     }
     stdout: StdioCollector {
       id: scanStdout
@@ -757,8 +762,12 @@ QtObject {
   }
 
   function rescan() {
-    if (scanning) return
+    if (scanning) {
+      registry.rescanQueued = true
+      return
+    }
     scanning = true
+    registry.rescanQueued = false
     // $0 = first-party dir, $1 = third-party dir. Some bash versions need the explicit -- separator.
     // First-party plugins may be grouped one level deeper, e.g. panels/audio
     // or services/battery.
@@ -819,7 +828,7 @@ QtObject {
   }
 
   Component.onCompleted: {
-    rescan()
+    if (firstPartyDir) rescan()
     ensureUserDir()
   }
 }

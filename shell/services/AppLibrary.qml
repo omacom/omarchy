@@ -38,6 +38,8 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string userIconsPath: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/icons/"
   property int themeRevision: 0
+  property string lastLinksRevision: ""
+  property bool iconsRevisionInitialized: false
 
   // Maps a desktop id to the version of the package that owns it. Rescanned
   // each time the app grid opens, since upgrades leave desktop entries alone.
@@ -350,17 +352,26 @@ Item {
   FileView {
     path: root.home + "/.local/state/omarchy/current/icons.revision"
     watchChanges: true
-    preload: false
+    preload: true
     printErrors: false
     onFileChanged: reload()
+    onLoadFailed: root.iconsRevisionInitialized = true
     onLoaded: {
-      root.themeRevision++
       var parts = String(text() || "").trim().split(/\s+/)
+      var linksRev = parts.length >= 2 ? parts[1] : ""
+      if (!root.iconsRevisionInitialized) {
+        root.iconsRevisionInitialized = true
+        root.lastLinksRevision = linksRev
+        return
+      }
+      root.themeRevision++
       // Theme switches redraw existing icon files in place; only rescan the
-      // icon tree when symlinks were added or removed (or if an older writer
-      // omitted the flag, or the index has not been populated yet).
-      if (parts.length < 2 || parts[1] !== "0" || Object.keys(root.iconIndex).length === 0)
+      // icon tree when the link-change revision advances (or if an older writer
+      // omitted it, or the index has not been populated yet).
+      if (linksRev === "" || linksRev !== root.lastLinksRevision || Object.keys(root.iconIndex).length === 0) {
+        root.lastLinksRevision = linksRev
         root.refreshIcons()
+      }
     }
   }
 

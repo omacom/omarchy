@@ -26,7 +26,7 @@ find_preview() {
 
   shopt -s nullglob nocaseglob
   for ext in png jpg jpeg webp gif bmp mp4 m4v mov webm mkv avi; do
-    matches=("$theme_path/preview.$ext")
+    matches=("$theme_path/"[p]review."$ext")
     for match in "${matches[@]}"; do
       if [[ -f $match ]]; then
         shopt -u nocaseglob
