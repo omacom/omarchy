@@ -177,6 +177,9 @@ run_init() {
     bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s:%s:%s:%s\n" "${OMARCHY_TEST_STARSHIP:-}" "${OMARCHY_TEST_ZOXIDE:-}" "$PS2" "${PATH%%:*}"' 2>/dev/null
 }
 
+mkdir -p "$home"
+cd "$home"
+
 [[ $(run_init) == "v1:v1:.. :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
   fail "first interactive shell populates mise, starship, and zoxide init caches and preserves agent-accounts precedence" "$(run_init)"
 : >"$init_calls"
@@ -215,25 +218,28 @@ out_mise_cfg=$(OMARCHY_TEST_MISE_STARSHIP_CONFIG="$starship_proj_cfg" OMARCHY_TE
 [[ $out_mise_cfg == "v1:v1:## :$home/.local/share/omarchy/agent-accounts/bin" ]] ||
   fail "STARSHIP_CONFIG exported by mise activation invalidates cached starship PS2" "$out_mise_cfg"
 
-# Dynamic continuation_prompt containing $ tokens is evaluated per shell rather than baked into cache
-starship_dyn_cfg="$tmpdir/starship-dynamic.toml"
-printf 'continuation_prompt = "$directory> "\n' >"$starship_dyn_cfg"
-out_dyn_a=$(STARSHIP_CONFIG="$starship_dyn_cfg" OMARCHY_TEST_PS2="dirA> " \
-  HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
-  OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
-  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
-  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "$PS2"' 2>/dev/null)
-out_dyn_b=$(STARSHIP_CONFIG="$starship_dyn_cfg" OMARCHY_TEST_PS2="dirB> " \
-  HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
-  OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
-  PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
-  bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "$PS2"' 2>/dev/null)
-[[ $out_dyn_a == "dirA> " && $out_dyn_b == "dirB> " ]] ||
-  fail "dynamic continuation_prompt with template tokens is evaluated live per shell" "$out_dyn_a | $out_dyn_b"
+# Dynamic continuation_prompt (bare or quoted TOML key) is evaluated per shell rather than baked
+for dyn_line in 'continuation_prompt = "$directory> "' '"continuation_prompt" = "$directory> "'; do
+  starship_dyn_cfg="$tmpdir/starship-dynamic.toml"
+  printf '%s\n' "$dyn_line" >"$starship_dyn_cfg"
+  out_dyn_a=$(STARSHIP_CONFIG="$starship_dyn_cfg" OMARCHY_TEST_PS2="dirA> " \
+    HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+    OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+    PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+    bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "$PS2"' 2>/dev/null)
+  out_dyn_b=$(STARSHIP_CONFIG="$starship_dyn_cfg" OMARCHY_TEST_PS2="dirB> " \
+    HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
+    OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+    PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
+    bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "$PS2"' 2>/dev/null)
+  [[ $out_dyn_a == "dirA> " && $out_dyn_b == "dirB> " ]] ||
+    fail "dynamic continuation_prompt ($dyn_line) is evaluated live per shell" "$out_dyn_a | $out_dyn_b"
+done
 
-# Changing MISE_* activation settings invalidates cached mise init
-cnf_off=$(MISE_NOT_FOUND_AUTO_INSTALL=0 HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
-  STARSHIP_CONFIG="$starship_cfg" OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
+# MISE_* env overrides bypass cache and never persist secrets to cache files
+cnf_off=$(MISE_NOT_FOUND_AUTO_INSTALL=0 MISE_GITHUB_TOKEN=secret-token-value HOME="$home" TERM=xterm-256color \
+  XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" STARSHIP_CONFIG="$starship_cfg" \
+  OMARCHY_TEST_MISE_TOOL_BIN="$tmpdir/mise-tool/bin" OMARCHY_TEST_INIT_CALLS="$init_calls" \
   PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
   bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
 cnf_on=$(HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_PATH="$ROOT" \
@@ -241,14 +247,24 @@ cnf_on=$(HOME="$home" TERM=xterm-256color XDG_CACHE_HOME="$init_cache" OMARCHY_P
   PATH="$home/.local/share/omarchy/agent-accounts/bin:$init_bin:/usr/bin" \
   bash --norc -ic 'source "$OMARCHY_PATH/default/bash/init"; printf "%s" "${OMARCHY_TEST_MISE_CNF:-}"' 2>/dev/null)
 [[ $cnf_off == "0" && $cnf_on == "1" ]] ||
-  fail "MISE_NOT_FOUND_AUTO_INSTALL change invalidates cached mise init" "$cnf_off | $cnf_on"
+  fail "MISE_NOT_FOUND_AUTO_INSTALL override bypasses cached mise init" "$cnf_off | $cnf_on"
+! grep -rq 'secret-token-value' "$init_cache" || fail "MISE_* credentials are never written to init cache"
 
-# Local mise.toml in cwd bypasses shared mise cache so local settings take effect
-mkdir -p "$tmpdir/local-proj"
+# Project mise.toml, project .config/mise.toml, and global conf.d bypass shared mise cache
+mkdir -p "$tmpdir/local-proj" "$tmpdir/dotconfig-proj/.config" "$home/.config/mise/conf.d"
 printf '[settings]\nnot_found_auto_install = false\n' >"$tmpdir/local-proj/mise.toml"
+printf '[settings]\nnot_found_auto_install = false\n' >"$tmpdir/dotconfig-proj/.config/mise.toml"
 : >"$init_calls"
 (cd "$tmpdir/local-proj" && run_init >/dev/null)
 grep -q '^mise activate' "$init_calls" || fail "local mise.toml bypasses shared mise activation cache" "$(<"$init_calls")"
+: >"$init_calls"
+(cd "$tmpdir/dotconfig-proj" && run_init >/dev/null)
+grep -q '^mise activate' "$init_calls" || fail "project .config/mise.toml bypasses shared mise activation cache" "$(<"$init_calls")"
+printf '[settings]\nnot_found_auto_install = false\n' >"$home/.config/mise/conf.d/custom.toml"
+: >"$init_calls"
+run_init >/dev/null
+grep -q '^mise activate' "$init_calls" || fail "global mise conf.d bypasses shared mise activation cache" "$(<"$init_calls")"
+rm -rf "$home/.config/mise/conf.d"
 
 cat >"$init_bin/starship" <<'SH'
 #!/bin/bash
