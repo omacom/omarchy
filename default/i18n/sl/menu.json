@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "Posnetki"
+  },
+  "system.snapshots.restore": {
+    "label": "Obnovi ta posnetek"
   }
 }
