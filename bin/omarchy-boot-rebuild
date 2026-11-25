@@ -12,7 +12,7 @@
 # exits non-zero.
 #
 # --pacman-install / --pacman-remove are the pacman hooks' entry points on
-# systemd-boot machines; they read the hook targets on stdin.
+# systemd-boot machines; --pacman-install reads the hook targets on stdin.
 
 set -euo pipefail
 
@@ -104,15 +104,9 @@ case ${1:-} in
   rebuild_systemd_boot "${kernels[@]}"
   ;;
 --pacman-remove)
-  # Pre-transaction, the kernel is still installed. It leaves the live entries;
-  # a snapshot pinned to its image keeps that image.
-  store=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
-  while read -r target; do
-    [[ $target == usr/lib/modules/*/vmlinuz ]] || continue
-    kver=${target#usr/lib/modules/}
-    kver=${kver%/vmlinuz}
-    [[ -f $MODULES/$kver/pkgbase ]] && rm -f "$store/current/$(<"$MODULES/$kver/pkgbase")"
-  done
+  # After the transaction: the sync drops the live entries of a kernel that is
+  # no longer installed, and an upgraded kernel keeps its published image until
+  # the install hook replaces it. A snapshot pinned to an image keeps it.
   omarchy-boot-sync sync
   ;;
 *)

@@ -31,7 +31,7 @@ A snapshot is pinned to the image that was current when it was taken (`/.snapsho
 
 The pipeline:
 
-- **Pacman.** `omarchy-boot-systemd` owns `/etc/pacman.d/hooks/90-mkinitcpio-install.hook` and `60-mkinitcpio-remove.hook`. They override mkinitcpio's with the same triggers and run `omarchy-boot-rebuild --pacman-install`/`--pacman-remove`.
+- **Pacman.** `omarchy-boot-systemd` owns `/etc/pacman.d/hooks/90-mkinitcpio-install.hook` and `60-mkinitcpio-remove.hook`. They override mkinitcpio's with the same triggers and run `omarchy-boot-rebuild --pacman-install`/`--pacman-remove`. Both run after the transaction: a kernel upgrade removes the old version's `vmlinuz` too, and its image stays published until the new one is built. The sync drops the current image of a kernel that is no longer installed.
 - **Snapper.** The plugin `/usr/lib/snapper/plugins/20-omarchy-boot` pins each new root snapshot and starts `omarchy-boot-sync.service`. Snapper plugins must stay fast and not call snapper.
 - **`omarchy snapshot create`.** Waits for the sync, so an update only goes ahead once its rollback point has a boot entry.
 - **kernel-install.** Its `50-mkinitcpio` and `90-uki-copy` plugins are masked in `/etc/kernel/install.d/`, so nothing else publishes UKIs.

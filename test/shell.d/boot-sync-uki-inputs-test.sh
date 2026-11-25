@@ -4,8 +4,9 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# A published boot image is rebuilt when uki.conf or a device tree it names
-# changes, not only when the kernel, initramfs or command line do.
+# A boot image's inputs include uki.conf and every device tree it names, so a
+# changed tree reaches the next boot (boot-sync-test.sh has the sync rebuild
+# the published image).
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -38,5 +39,4 @@ third=$(inputs)
 printf 'tree-3\n' >"$test_tmp/dtbs/other.dtb"
 [[ $(inputs) != "$third" ]] || fail "every tree a list names counts"
 
-grep -q '^        uki_inputs$' "$ROOT/bin/omarchy-boot-sync" || fail "the published image's key includes uki_inputs"
 pass "uki.conf and the device trees it names are part of a boot image's key"

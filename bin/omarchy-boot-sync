@@ -101,6 +101,13 @@ check_store() {
     die "$STORE is $fstype $fsroot, not the @omarchy-boot subvolume"
 }
 
+# Likewise the ESP: written while it isn't mounted, the images would land on
+# the root, and verify would pass on them while the firmware boots stale ones.
+check_esp() {
+  [[ ${OMARCHY_BOOT_TEST:-} == "1" ]] && return 0
+  [[ $(stat -f -c %T "$ESP" 2>/dev/null) == "msdos" ]] || die "the EFI system partition is not mounted at $ESP"
+}
+
 # The btrfs top level, where @, its snapshots and the store live side by side.
 # Mounted on its own so this works the same from the live system and from a
 # booted snapshot, whose / is an overlay.
@@ -198,7 +205,7 @@ current_image() {
 root_kernels() {
   local root=$1 pkgbase
   for pkgbase in "$root"/usr/lib/modules/*/pkgbase; do
-    [[ -f $pkgbase ]] && printf '%s %s\n' "$(<"$pkgbase")" "$(basename "$(dirname "$pkgbase")")"
+    if [[ -f $pkgbase ]]; then printf '%s %s\n' "$(<"$pkgbase")" "$(basename "$(dirname "$pkgbase")")"; fi
   done | sort -u
 }
 
@@ -208,14 +215,31 @@ preferred_kernel() {
   if [[ -n $preferred && -L $STORE/current/$preferred ]]; then
     echo "$preferred"
   else
-    # Among the kernels with a current image: one being removed has lost its
-    # pointer while its modules are still on disk.
+    # Among the kernels with a current image.
     local kernels
     kernels=$(root_kernels "${1:-/}" | awk '{ print $1 }' | while read -r k; do
       [[ -L $STORE/current/$k || ! -d $STORE/current ]] && echo "$k"
     done)
     grep -x linux-omarchy <<<"$kernels" || sed -n 1p <<<"$kernels"
   fi
+}
+
+# A kernel that is no longer installed loses its current image: its live entry
+# goes, and snapshots pinned to the image keep booting it. A kernel upgrade
+# removes the old version's vmlinuz too, so this runs after the transaction,
+# when the upgraded kernel is installed again. A root that shows no kernels at
+# all is a mount gone wrong, not a machine without any.
+prune_current() {
+  local kernels link
+  kernels=$(root_kernels "$1" | awk '{ print $1 }')
+  [[ -n $kernels ]] || return 0
+  for link in "$STORE"/current/*; do
+    [[ -L $link ]] || continue
+    if ! grep -qxF "$(basename "$link")" <<<"$kernels"; then
+      rm -f "$link"
+      log "$(basename "$link") is no longer installed; its live entry goes"
+    fi
+  done
 }
 
 cmd_import() {
@@ -260,7 +284,7 @@ derive_image() {
     rm -rf "$dir.new"
     mkdir -p "$dir.new"
     cp --reflink=auto "$(image_dir "$source")/vmlinuz" "$(image_dir "$source")/initramfs.img" "$dir.new/"
-    sed "s|^CMDLINE=.*|CMDLINE=$cmdline|" "$(image_dir "$source")/manifest" >"$dir.new/manifest"
+    { grep -v '^CMDLINE=' "$(image_dir "$source")/manifest" || true; printf 'CMDLINE=%s\n' "$cmdline"; } >"$dir.new/manifest"
     mv "$dir.new" "$dir"
   fi
   echo "$image"
@@ -268,7 +292,9 @@ derive_image() {
 
 # --- snapshots ---------------------------------------------------------------------
 
-snapshots_dir() { echo "$TOP/@/.snapshots"; }
+# The live root's snapshots: @'s, or those of the root a factory reset builds,
+# never the old owner's.
+snapshots_dir() { echo "$(live_root)/.snapshots"; }
 
 cmd_pin() {
   (($# == 1)) && [[ $1 =~ ^[0-9]+$ ]] || die "usage: pin NUMBER"
@@ -407,6 +433,7 @@ build_uki() {
 
 cmd_sync() {
   check_store
+  check_esp
   mount_top
   mkdir -p "$STORE/tmp" "$STORE/published" "$ESP/EFI/Linux"
   rm -rf "$STORE"/tmp/build.*
@@ -415,6 +442,7 @@ cmd_sync() {
   local -A profiles=() wanted=()
   local entries=()
   ns=$(namespace)
+  prune_current "$(live_root)"
   preferred=$(preferred_kernel "$(live_root)")
 
   # The live system: one profile per installed kernel with a stored image.
@@ -435,7 +463,7 @@ cmd_sync() {
 
   # A pending restore adds the maintenance boot that swaps the roots and the
   # entry that boots the restored root once it is in place.
-  local journal=$STORE/restore/journal
+  local journal=$STORE/restore/journal restoring=0
   if [[ -f $journal ]] && [[ $(kv_get "$journal" STATE) =~ ^(pending|swapping|swapped)$ ]]; then
     local tx restored live_image
     tx=$(kv_get "$journal" TX)
@@ -445,6 +473,7 @@ cmd_sync() {
       profiles[$live_image]+=$(printf 'omarchy-restore\x1fRestoring a snapshot\x1f\x1f0\x1f%s' \
         "$(image_get "$live_image" CMDLINE) noresume omarchy.restore=$tx")$'\n'
       profiles[$restored]+=$(printf 'omarchy-restored\x1fOmarchy (restored)\x1f\x1f0\x1f%s' "$(image_get "$restored" CMDLINE)")$'\n'
+      restoring=1
     fi
   fi
 
@@ -511,6 +540,16 @@ cmd_sync() {
 
   printf '%s\n' "${entries[@]}" | sort >"$STORE/entries.new"
   mv -f "$STORE/entries.new" "$STORE/entries"
+
+  # The restored root's entry is profile 0 of its image or not, depending on
+  # the snapshots that image carries, which can change before the reboot: the
+  # journal names the one just published, for the maintenance boot to arm.
+  if ((restoring)); then
+    id=$(entry_id omarchy-restored)
+    if [[ -n $id && $id != "$(kv_get "$journal" ONESHOT)" ]]; then
+      kv_set "$journal" ONESHOT "$id"
+    fi
+  fi
 
   local live
   live=$(current_image "$preferred")
@@ -586,6 +625,7 @@ cmd_prefer() {
 
 cmd_verify() {
   check_store
+  check_esp
   local ns pkgbase kver image file status=0
   ns=$(namespace)
   while read -r pkgbase kver; do
@@ -705,7 +745,8 @@ cmd_restore_stage() {
   cmdline=$(image_get "$image" CMDLINE)
   if [[ $cmdline == *resume_offset=* && -f $TOP/@/swap/swapfile ]]; then
     offset=$(btrfs inspect-internal map-swapfile -r "$TOP/@/swap/swapfile")
-    if [[ $cmdline != *"resume_offset=$offset"* ]]; then
+    # Whole parameters: an offset of 1234 is not resume_offset=12345.
+    if [[ " $cmdline " != *" resume_offset=$offset "* ]]; then
       image=$(derive_image "$image" "$(sed -E "s/resume_offset=[0-9]+/resume_offset=$offset/" <<<"$cmdline")")
       sed -i -E "s/resume_offset=[0-9]+/resume_offset=$offset/" "$TOP/$staged"/etc/cmdline.d/*.conf "$TOP/$staged/etc/kernel/cmdline" 2>/dev/null || true
     fi
@@ -748,6 +789,13 @@ cmd_restore_stage() {
   log "snapshot $source is staged; it becomes the system on the next reboot"
 }
 
+# The hibernation block restore-stage wrote: in / of the system it ran on,
+# which is @ unless that was a booted snapshot, whose overlay forgets it. Run
+# from a booted snapshot, the copy in @ goes too.
+drop_hibernation_block() {
+  rm -f /etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf "$TOP/@/etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf"
+}
+
 cmd_restore_cancel() {
   check_store
   mount_top
@@ -757,7 +805,7 @@ cmd_restore_cancel() {
   staged=$(kv_get "$journal" STAGED)
   [[ -n $staged && -d $TOP/$staged ]] && btrfs -q subvolume delete "$TOP/$staged" >/dev/null
   mv -f "$journal" "$STORE/restore/cancelled-$(kv_get "$journal" TX)"
-  rm -f /etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf
+  drop_hibernation_block
   bootctl set-oneshot "" >/dev/null 2>&1 || true
   cmd_sync
   log "restore cancelled"
@@ -779,7 +827,7 @@ cmd_restore_commit() {
     staged=$(kv_get "$journal" STAGED)
     [[ -d $TOP/$staged ]] && btrfs -q subvolume delete "$TOP/$staged" >/dev/null || true
     mv -f "$journal" "$STORE/restore/failed-$tx"
-    rm -f /etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf
+    drop_hibernation_block
     cmd_sync >&2
     echo "failed: $(kv_get "$STORE/restore/failed-$tx" ERROR)"
     return 0
