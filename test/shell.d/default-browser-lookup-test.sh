@@ -38,6 +38,7 @@ echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/brave-browser.desktop"
 # a system copy that the launchers would never read.
 echo "Exec=removed-browser %U" >"$XDG_DATA_HOME/applications/removed.desktop"
 echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/removed.desktop"
+echo "Exec=env DRI_PRIME=0 removed-browser %U" >"$XDG_DATA_HOME/applications/env-removed.desktop"
 
 cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
 [Added Associations]
@@ -45,7 +46,7 @@ x-scheme-handler/http=firefox.desktop;
 
 [Default Applications]   
 text/html=firefox.desktop
-x-scheme-handler/http=missing.desktop;removed.desktop;chromium.desktop;
+x-scheme-handler/http=missing.desktop;removed.desktop;env-removed.desktop;chromium.desktop;
 EOF
 
 [[ $(omarchy-cmd-default-browser) == "chromium.desktop" ]] ||
@@ -119,3 +120,28 @@ chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime"
   fail "default browser skips an xdg-settings answer that is not installed" "$(omarchy-cmd-default-browser)"
 
 pass "default browser checks that fallback answers are installed"
+
+# An env prefix may quote a value with spaces and provide its own browser PATH.
+mkdir -p "$test_tmp/opt/bin"
+printf '#!/bin/bash\n' >"$test_tmp/opt/bin/custom-browser"
+chmod +x "$test_tmp/opt/bin/custom-browser"
+echo 'Exec=env "CHROME_CONFIG_HOME=/home/alex/Browser Profiles" chromium %U' >"$XDG_DATA_HOME/applications/quoted.desktop"
+echo "Exec=env PATH=$test_tmp/opt/bin:/usr/bin custom-browser %U" >"$XDG_DATA_HOME/applications/custom-path.desktop"
+
+# Flatpak exports name a host wrapper, not an executable for the app ID.
+printf '#!/bin/bash\n' >"$mock_bin/flatpak"
+chmod +x "$mock_bin/flatpak"
+echo 'Exec=flatpak run org.mozilla.firefox %u' >"$XDG_DATA_HOME/applications/flatpak.desktop"
+
+# Equals signs in env options must not turn those options into assignments.
+echo 'Exec=env "--split-string=A=1 firefox" %u' >"$XDG_DATA_HOME/applications/env-options.desktop"
+
+printf 'Exec=chromium\r\n' >"$XDG_DATA_HOME/applications/crlf.desktop"
+
+for entry in quoted.desktop custom-path.desktop flatpak.desktop env-options.desktop crlf.desktop; do
+  printf '[Default Applications]\nx-scheme-handler/http=%s\n' "$entry" >"$XDG_CONFIG_HOME/mimeapps.list"
+  [[ $(omarchy-cmd-default-browser) == "$entry" ]] ||
+    fail "default browser accepts $entry" "$(omarchy-cmd-default-browser)"
+done
+
+pass "default browser checks quoted env prefixes, their PATH, Flatpak wrappers and CRLF entries"
