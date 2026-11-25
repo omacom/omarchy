@@ -298,6 +298,18 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' <<<"$records_out" ||
   fail "--records prints tab-separated display, dispatcher, and arg" "$records_out"
 pass "--records prints tab-separated display, dispatcher, and arg"
 
+# Editing a Lua bind's command in ~/.config/hypr/bindings.lua leaves `hyprctl
+# binds` unchanged (it only reports an opaque dispatcher), so the cache key must
+# include the Lua config files rather than serving stale dispatch commands.
+printf '\nhl.bind("SUPER + RETURN", hl.dsp.exec_cmd("custom-terminal"), { description = "Terminal" })\n' >>"$home/.config/hypr/bindings.lua"
+records_updated=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --records)
+grep -qP '→ Terminal\texec\tcustom-terminal$' <<<"$records_updated" ||
+  fail "editing a Lua binding invalidates the keybindings cache" "$records_updated"
+cp "$ROOT/config/hypr/bindings.lua" "$home/.config/hypr/bindings.lua"
+pass "editing a Lua binding invalidates the keybindings cache"
+
 # Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
 # or function: 0x..., with a display-only number as its arg, so picking a row
 # has to run what the Lua source says, never that name and number.
