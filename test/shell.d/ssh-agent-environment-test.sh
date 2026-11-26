@@ -27,40 +27,70 @@ session_env_file="$config/uwsm/env.d/90-omarchy-ssh-agent"
 touch "$systemd_env_file"
 
 prepare_session() {
-  local initial_socket=$1 output=$2 marker=omarchy-uwsm-test-env
-  local aux_file="$test_dir/uwsm-aux"
-
-  cat >"$aux_file" <<EOF
-__SELF_NAME__=uwsm
-__WM_BIN_ID__=hyprland
-__WM_DESKTOP_NAMES__=Hyprland
-__WM_FIRST_DESKTOP_NAME__=Hyprland
-__OIFS__=" \t\n"
-__LOAD_PROFILE__=false
-__RANDOM_MARK__=$marker
-EOF
   env HOME=$home XDG_CONFIG_HOME=$config XDG_CONFIG_DIRS="$test_dir/no-system-config" \
     XDG_DATA_DIRS="$test_dir/no-system-data" XDG_RUNTIME_DIR=$runtime \
-    SSH_AUTH_SOCK=$initial_socket PATH="$stub_bin:/usr/bin:/bin" \
-    /bin/sh /usr/lib/uwsm/prepare-env.sh "$aux_file" >"$output"
-  python3 - "$output" "$marker" <<'PY'
-import pathlib
+    SSH_AUTH_SOCK="$1" PATH="$stub_bin:/usr/bin:/bin" \
+    python3 "$test_dir/uwsm-manager-test.py"
+}
+
+cat >"$test_dir/uwsm-manager-test.py" <<'PY'
+import contextlib
+import io
+import os
 import sys
 
-data = pathlib.Path(sys.argv[1]).read_bytes().split(sys.argv[2].encode(), 1)[1]
-for item in data.rstrip(b"\0").split(b"\0"):
-    if item.startswith(b"SSH_AUTH_SOCK="):
-        print(item.split(b"=", 1)[1].decode())
-        raise SystemExit
-print("unset")
-PY
+sys.path.insert(0, "/usr/share/uwsm/modules")
+from uwsm import main
+
+manager = {
+    key: os.environ[key]
+    for key in ("HOME", "PATH", "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS", "XDG_DATA_DIRS", "XDG_RUNTIME_DIR")
 }
+manager["SSH_AUTH_SOCK"] = os.environ["SSH_AUTH_SOCK"]
+
+
+class FakeManager:
+    def get_systemd_vars(self):
+        return dict(manager)
+
+    def get_unit_property(self, unit, prop):
+        return "dbus-broker.service"
+
+    def list_units_by_patterns(self, states, patterns):
+        return ["wayland-session-bindpid@1.service"]
+
+    def set_systemd_vars(self, values):
+        manager.update(values)
+
+    def unset_systemd_vars(self, names):
+        for name in names:
+            manager.pop(name, None)
+
+
+fake_manager = FakeManager()
+main.DbusInteractions = lambda bus: fake_manager
+main.BaseDirectory.load_data_paths = lambda *args, **kwargs: []
+main.load_env = lambda *args, **kwargs: {}
+main.get_fg_vt = lambda: 1
+main.get_session_by_vt = lambda *args, **kwargs: ("1", "seat0")
+main.random_hex = lambda size: "ssh-agent-test"
+main.CompGlobals.name = "uwsm"
+main.CompGlobals.bin_name = "uwsm"
+main.CompGlobals.id = "hyprland"
+main.CompGlobals.id_unit_string = "hyprland"
+main.CompGlobals.bin_id = "hyprland"
+main.CompGlobals.desktop_names = ["Hyprland"]
+main.CompGlobals.cli_desktop_names_exclusive = False
+with contextlib.redirect_stdout(io.StringIO()):
+    main.prepare_env()
+print(manager.get("SSH_AUTH_SOCK", "unset"))
+PY
 
 HOME=$home XDG_CONFIG_HOME=$config XDG_RUNTIME_DIR=$runtime PATH="$stub_bin:$PATH" \
   "$ROOT/bin/omarchy-setup-security-ssh-agent" >"$test_dir/setup.log"
 [[ -f $session_env_file ]] || fail "setup writes the UWSM session environment"
 ! grep -q '^unset SSH_AUTH_SOCK$' "$session_env_file" || fail "setup exports the agent socket"
-[[ $(prepare_session "$runtime/old-agent" "$test_dir/setup-environment") == "$runtime/gcr/ssh" ]] ||
+[[ $(prepare_session "$runtime/old-agent") == "$runtime/gcr/ssh" ]] ||
   fail "UWSM session preparation exports the active gcr socket over an old value"
 [[ ! -e $systemd_env_file ]] || fail "setup retires the manager-start-only environment file"
 pass "setup exports the socket from the UWSM session environment"
@@ -69,9 +99,9 @@ HOME=$home XDG_CONFIG_HOME=$config XDG_RUNTIME_DIR=$runtime PATH="$stub_bin:$PAT
   "$ROOT/bin/omarchy-remove-service-ssh-agent" >"$test_dir/remove.log"
 [[ -f $session_env_file ]] || fail "removal keeps a UWSM environment override"
 grep -Fq 'unset SSH_AUTH_SOCK' "$session_env_file" || fail "removal explicitly clears the saved socket"
-[[ $(prepare_session "$runtime/gcr/ssh" "$test_dir/removed-environment") == "unset" ]] ||
+[[ $(prepare_session "$runtime/gcr/ssh") == "unset" ]] ||
   fail "UWSM session preparation removes the stale socket restored from the prior login"
-[[ $(prepare_session "$runtime/other-agent/ssh" "$test_dir/other-agent-environment") == "$runtime/other-agent/ssh" ]] ||
+[[ $(prepare_session "$runtime/other-agent/ssh") == "$runtime/other-agent/ssh" ]] ||
   fail "UWSM session preparation preserves another agent's socket"
 [[ ! -e $systemd_env_file ]] || fail "removal leaves no environment.d socket setting"
 pass "removal clears only the stale gcr socket during UWSM session preparation"
