@@ -165,8 +165,10 @@ grep -q '^Could not resolve an audio sink to control\.$' "$work/parked-err" ||
 pass 'unresolved DSP volume adjustment writes nothing to the processor input'
 
 : >"$CALLS"
-DEFAULT_SINK=bluez_output.00_11_22_33_44_55.1 omarchy-audio-output-volume lower
-DEFAULT_SINK=bluez_output.00_11_22_33_44_55.1 omarchy-audio-output-volume mute-toggle
+DEFAULT_SINK=bluez_output.00_11_22_33_44_55.1 omarchy-audio-output-volume lower ||
+  fail 'direct Bluetooth volume command succeeds' "$(calls)"
+DEFAULT_SINK=bluez_output.00_11_22_33_44_55.1 XDG_RUNTIME_DIR="$work" omarchy-audio-output-volume mute-toggle ||
+  fail 'direct Bluetooth mute command succeeds' "$(calls)"
 grep -q 'pactl set-sink-volume bluez_output.00_11_22_33_44_55.1 45%' "$CALLS" &&
   grep -q 'pactl set-sink-mute bluez_output.00_11_22_33_44_55.1 toggle' "$CALLS" ||
   fail 'direct Bluetooth volume and mute commands still reach the selected sink' "$(calls)"
