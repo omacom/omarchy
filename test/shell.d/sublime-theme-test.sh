@@ -151,6 +151,17 @@ python3 "$ROOT/default/sublime/set-preferences.py" "$nested" theme=Omarchy.subli
 
 pass "Sublime settings leave nested keys alone"
 
+dotfiles="$test_tmp/dotfiles"
+mkdir -p "$dotfiles"
+printf '{"theme":"Old"}\n' >"$dotfiles/Preferences.sublime-settings"
+linked="$test_tmp/linked.sublime-settings"
+ln -s "$dotfiles/Preferences.sublime-settings" "$linked"
+python3 "$ROOT/default/sublime/set-preferences.py" --backup "$linked" theme=Omarchy.sublime-theme
+[[ -L $linked ]] || fail "a symlinked settings file stays a link"
+grep -q '"theme":"Omarchy.sublime-theme"' "$dotfiles/Preferences.sublime-settings" || fail "the link target receives the setting"
+
+pass "Sublime settings write through a symlink"
+
 typed="$test_tmp/typed.sublime-settings"
 printf '{\n  "theme": null,\n  "ignored_packages": ["Vintage", {"theme": 1}], /* } */\n}\n' >"$typed"
 python3 "$ROOT/default/sublime/set-preferences.py" "$typed" theme=Omarchy.sublime-theme color_scheme=Omarchy.sublime-color-scheme

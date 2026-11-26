@@ -102,17 +102,19 @@ except ValueError as error:
   sys.exit(f'Cannot update {preferences}: {error}')
 
 if updated != original:
-  preferences.parent.mkdir(parents=True, exist_ok=True)
-  if backup and preferences.exists():
+  # Write through a symlink (dotfiles), so the link stays and its target changes.
+  target = preferences.resolve()
+  target.parent.mkdir(parents=True, exist_ok=True)
+  if backup and target.exists():
     copy = preferences.with_name(preferences.name + '.bak.' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-    shutil.copy2(preferences, copy)
-  if preferences.exists():
-    mode = preferences.stat().st_mode & 0o777
+    shutil.copy2(target, copy)
+  if target.exists():
+    mode = target.stat().st_mode & 0o777
   else:
     umask = os.umask(0)
     os.umask(umask)
     mode = 0o666 & ~umask
-  with tempfile.NamedTemporaryFile(mode='w', dir=preferences.parent, prefix='.' + preferences.name + '.', delete=False) as tmp:
+  with tempfile.NamedTemporaryFile(mode='w', dir=target.parent, prefix='.' + target.name + '.', delete=False) as tmp:
     tmp.write(updated)
   os.chmod(tmp.name, mode)
-  os.replace(tmp.name, preferences)
+  os.replace(tmp.name, target)
