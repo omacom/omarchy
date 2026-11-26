@@ -504,7 +504,18 @@ ShellRoot {
   function mark(name) { stepFile.setText(name) }
 
   Agents.Main { id: usage }
-  Component.onCompleted: services = ({ "omarchy.agents": usage })
+  QtObject {
+    id: localModels
+    property var localModel: ({ models: { fixture: { recipe: "fixture", kind: "text", unit: "active" } }, last: "fixture" })
+    property var localRecipes: []
+    property var networkModels: ({})
+    function setupRows() { return [] }
+  }
+  Component.onCompleted: services = ({ "omarchy.agents": usage, "omarchy.local-models": localModels })
+  function checkLocalModels() {
+    if (usage.panelProviders.length !== 1 || usage.panelProviders[0].localModel.target !== "fixture" || usage.localDefaultTarget !== "fixture")
+      console.error("shared usage lost the panel's local model inputs")
+  }
 
   // The same stand-in bar the bar-widget contract fixture uses.
   QtObject {
@@ -540,6 +551,7 @@ ShellRoot {
         test.panels = [panelComponent.createObject(test), panelComponent.createObject(test)]
         break
       case 2:
+        test.checkLocalModels()
         test.mark("widget off every bar")
         test.panels.forEach(function(p) { p.destroy() })
         test.panels = []
@@ -549,7 +561,7 @@ ShellRoot {
         test.mark("widget back on a bar")
         test.panels = [panelComponent.createObject(test)]
         break
-      default: Qt.quit()
+      default: test.checkLocalModels(); Qt.quit()
       }
     }
   }
@@ -563,6 +575,10 @@ output=$(HOME="$stage/home" XDG_STATE_HOME="$stage/home/state" PATH="$stage/bin:
 if rg -q 'agents/(Main|Panel)\.qml.*(ReferenceError|TypeError|Unable to assign|Binding loop)|is not a type' <<<"$output"; then
   fail "agents poll fixture has no QML errors" "$output"
 fi
+if [[ $output == *"shared usage lost the panel's local model inputs"* ]]; then
+  fail "shared usage keeps local model lines and the default target from its panel" "$output"
+fi
+pass "shared usage keeps local model lines and the default target from its panel"
 expected=$'poll during two bars\npoll during widget back on a bar'
 [[ $(cat "$stage/polls") == "$expected" ]] || fail "agents usage polls once per shell and only while the widget is on a bar" "$(cat "$stage/polls")"
 pass "agents usage polls once per shell, waits for a bar, and stops when the widget leaves the last bar"
