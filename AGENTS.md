@@ -13,6 +13,7 @@ matching guide before starting:
 - [`agents/skills/motion.md`](agents/skills/motion.md) - adding or changing any animation or transition in `shell/`
 - [`agents/skills/visual-verification.md`](agents/skills/visual-verification.md) - verifying any change with a visual effect in the running UI
 - [`agents/skills/migrations.md`](agents/skills/migrations.md) - creating or changing migrations under `migrations/`
+- [`agents/skills/audio-tuning.md`](agents/skills/audio-tuning.md) - authoring, measuring, and verifying laptop speaker tunings under `default/audio/tunings/`
 
 # Documentation Layout
 
