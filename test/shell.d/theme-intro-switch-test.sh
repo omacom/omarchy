@@ -241,6 +241,15 @@ handed_over "$sky  false" || fail "a theme switch during an intro hands its cove
 ! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "the theme's still without an intro plays none"
 pass "a theme switch to a still without an intro while one plays keeps its cover"
 
+# While an outro plays the link names a black stand-in; the theme left keeps
+# the selection the shell knows instead.
+previous=$(<"$state/theme.name")
+if [[ $previous == "alpha" ]]; then next_theme=beta; else next_theme=alpha; fi
+ln -nsf "$ROOT/default/omarchy/black.png" "$state/background"
+TEST_SELECTED="$road" set_theme "$next_theme"
+[[ $(<"$home/.local/state/omarchy/theme-backgrounds/$previous") == "$road" ]] || fail "a theme switch during an outro remembers the selection, not the black stand-in" "$(<"$home/.local/state/omarchy/theme-backgrounds/$previous")"
+pass "a theme switch during an outro remembers the real selection"
+
 # The built-in intros ship only in the omarchy-themes-intros package, so a
 # theme staged from a checkout without them takes them from the installed tree.
 packaged="$test_tmp/packaged"
