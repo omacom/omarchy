@@ -31,8 +31,12 @@ list() {
   ((found)) || echo "No programs muted. Crashes all notify."
 }
 
-# A program may be named -h, and the router answers that with its own help
-# before this ever runs. `omarchy crash mute -- -h` is the way through.
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+# A program may be named -h; a leading -- lets it pass the help and option checks.
 had_separator=0
 if [[ ${1:-} == "--" ]]; then
   shift
