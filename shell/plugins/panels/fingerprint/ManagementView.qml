@@ -29,13 +29,20 @@ FocusScope {
     return entry.name || Commons.I18n.t("fingerprint.numbered").arg(Commons.I18n.formatNumber(entry.number))
   }
   function reveal(item) {
-    if (!item.parent || item.parent === retryActions || (item.parent === homeActions && !stage.scrollSettings)) return
     const flick = scroll.contentItem
+    let ancestor = item
+    while (ancestor && ancestor !== flick.contentItem) ancestor = ancestor.parent
+    if (!ancestor || !item.visible) return
     const y = item.mapToItem(flick.contentItem, 0, 0).y
-    if (y < flick.contentY) flick.contentY = Math.max(0, y)
-    else if (y + item.height > flick.contentY + flick.height)
-      flick.contentY = Math.min(flick.contentHeight - flick.height, y + item.height - flick.height)
+    const target = item.height > flick.height || y < flick.contentY ? y
+                 : Math.max(flick.contentY, y + item.height - flick.height)
+    flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, target))
   }
+  function revealFocus() {
+    if (view.Window.window && scroll.activeFocus) reveal(view.Window.window.activeFocusItem)
+  }
+  onSelectedChanged: if (scroll.contentItem) scroll.contentItem.contentY = 0
+
   function back() {
     if (ctl.mismatch) ctl.clearMismatch()
     else if (confirming) confirming = false
@@ -116,6 +123,7 @@ FocusScope {
         opacity: checked ? 1 : 0.48
         foreground: view.ink
         accent: view.visibleAccent
+        checkedKnobColor: view.visibleAccent
         checked: setting.checked
         trackHeight: Style.space(16)
       }
@@ -195,6 +203,8 @@ FocusScope {
 
     Controls.ScrollView {
       id: scroll
+      onHeightChanged: Qt.callLater(view.revealFocus)
+      onWidthChanged: Qt.callLater(view.revealFocus)
       anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: footer.top }
       anchors.topMargin: stage.topGap
       anchors.bottomMargin: stage.bottomGap
