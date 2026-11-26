@@ -1,19 +1,21 @@
 # Sistemos miegas
 
-Omarchy pagal numatytuosius įjungia pristabdymą ir užmigdymą, bet jei tavo kompiuteryje su kuriuo nors kyla problemų, gali juos išjungti.
+Omarchy pagal numatytuosius nustatymus įjungia pristabdymą, o sukonfigūravus – ir sulaikytąją veikseną, bet jei jūsų kompiuteryje kyla problemų dėl kurio nors iš jų, galite juos išjungti.
 
-### Maitinimo profiliai
+Kompiuteriuose su NVIDIA GB10, tokiuose kaip DGX Spark ir ASUS Ascent GX10, pristabdymas ir sulaikytoji veiksena yra išjungti, kaip ir NVIDIA DGX OS, nes dar neįrodyta, kad miego režimas veiktų šioje aparatinėje įrangoje. Tas pats galioja ir ASUS Zenbook A16 (UX3607OA), kuriame pristabdymas dar neperjungia lusto į visišką miego režimą ir gali užstrigti per naktį. Pristabdymo jungiklis ir sulaikytosios veiksenos sąranka ten netaikomi. Norėdami vėl įjungti miego režimą, pašalinkite `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` naudodami `sudo rm`; tada Suspend vėl atsiras meniu, o sulaikytąją veikseną bus galima nustatyti kaip ir kituose kompiuteriuose. Paleidus `sudo omarchy apply hardware --install-user "$USER"`, failas bus atkurtas.
 
-Nešiojamajame kompiuteryje Omarchy tavo maitinimo profilį prisimena atskirai prijungtam prie tinklo ir veikiančiam nuo akumuliatoriaus, ir persijungia tarp jų, kai įjungi ir atjungi laidą. Iš karto tai reiškia našumą nuo tinklo ir subalansuotą nuo akumuliatoriaus.
+### Galios profiliai
 
-Gali pamatyti, ką tavo kompiuteris siūlo, su `omarchy powerprofiles list`, ir nustatyti norimą tai būsenai, kurioje dabar esi, su `omarchy powerprofiles set autodetect power-saver`. Kad nustatytum kitą būseną nieko neatjungdamas, pavadink ją tiesiogiai: `omarchy powerprofiles set battery power-saver`. Kad ir ką pasirinksi, tai gausi atgal kitą kartą būdamas toje būsenoje.
+Nešiojamajame kompiuteryje Omarchy įsimena jūsų galios profilį atskirai, kai kompiuteris prijungtas prie maitinimo ir kai veikia nuo baterijos, ir persijungia tarp jų jums prijungiant ir atjungiant maitinimą. Iš karto tai reiškia našumo režimą, kai maitinama iš tinklo, ir subalansuotą režimą, kai maitinama iš baterijos.
 
-### Pristabdymo perjungimas
+Galite peržiūrėti, ką siūlo jūsų kompiuteris, naudodami `omarchy powerprofiles list`, ir nustatyti norimą profilį dabartinei būsenai naudodami `omarchy powerprofiles set autodetect power-saver`. Norėdami nustatyti kitą būseną nieko neatjungdami, nurodykite ją tiesiogiai: `omarchy powerprofiles set battery power-saver`. Kad ir ką pasirinktumėte, tą ir gausite kitą kartą būdami toje būsenoje.
 
-Pristabdymą perjungi terminale paleidęs `omarchy toggle suspend`. Tai tiesiog parodo / paslepia parinktį po _Sistema_ (arba `Super + Esc`), ir tada gali pamatyti, ar tavo sistemoje ji veikia stabiliai. Jei ne, gali ją vėl paslėpti ta pačia komanda.
+### Pristabdymo įjungimas ir išjungimas
 
-### Užmigdymo perjungimas
+Pristabdymą įjungsite arba išjungsite terminale paleidę `omarchy toggle suspend`. Tai tiesiog parodo / paslepia parinktį skiltyje _System_ (arba `Super + Esc`), ir tada galite patikrinti, ar ji jūsų sistemoje veikia nuosekliai. Jei ne, galite ją vėl paslėpti ta pačia komanda.
 
-Užmigdymą nustatai terminale paleidęs `omarchy hibernation setup`. Užmigdymas sukuria /swap povolumį tavo įkrovos diske tavo fizinės RAM dydžio, todėl įsitikink, kad turi pakankamai laisvos vietos. 32GB kompiuteryje šiam volumiui visada reikės 32GB+ laisvų. Užmigdymui taip pat reikia numatytojo Limine įkroviklio.
+### Sulaikytosios veiksenos įjungimas ir išjungimas
 
-Kai nustatysi, užmigdymo parinktį matysi po _Sistema_ (arba `Super + Esc`), ir tada gali pamatyti, ar tavo sistemoje ji veikia stabiliai. Jei ne, gali ją vėl pašalinti paleidęs `omarchy hibernation remove`.
+Sulaikytąją veikseną nustatysite terminale paleidę `omarchy hibernation setup` (ji nepasiekiama Apple Silicon Mac kompiuteriuose). Sulaikytoji veiksena jūsų įkrovos diske sukuria /swap podiskį, kurio dydis lygus jūsų fizinės RAM apimčiai, todėl įsitikinkite, kad turite pakankamai laisvos vietos. 32GB kompiuteryje šiam tomui visada reikės 32GB+ laisvos vietos. Sulaikytajai veiksenai taip pat reikalinga numatytoji Limine įkrovos tvarkyklė.
+
+Kai ji bus nustatyta, sulaikytosios veiksenos parinktį matysite skiltyje _System_ (arba `Super + Esc`), ir tada galėsite patikrinti, ar ji jūsų sistemoje veikia nuosekliai. Jei ne, galite ją vėl pašalinti paleidę `omarchy hibernation remove`.

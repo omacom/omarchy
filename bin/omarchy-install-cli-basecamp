@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Basecamp CLI and set it up
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-add-curated basecamp-cli
+
+# Signs in and connects the coding agents it finds.
+basecamp setup
