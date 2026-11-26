@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=AFK
+Comment=Start AFK, the browser-first coding agent
+Exec=omarchy-agent --agent afk --app-id=org.omarchy.afk
+Icon=omarchy-agent-afk
+StartupWMClass=org.omarchy.afk
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
