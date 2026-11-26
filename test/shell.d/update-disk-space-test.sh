@@ -79,13 +79,16 @@ for command in \
   omarchy-update-aur-pkgs \
   omarchy-update-mise \
   omarchy-update-orphan-pkgs \
+  omarchy-update-boot \
   omarchy-hook \
   omarchy-update-analyze-logs \
+  omarchy-restart-shell \
   omarchy-shell \
   omarchy-update-restart; do
   write_stub "$command" 'exit 0'
 done
 write_stub omarchy-update-available 'exit 1'
+write_stub omarchy-done 'exit 0'
 write_stub pkexec 'exec "$@"'
 
 set +e
@@ -133,7 +136,7 @@ pass "disk-space threshold includes the exact boundary"
 
 rm -f "$snapshot_marker" "$gum_marker"
 GUM_STATUS=0 TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) run_update >/dev/null
-grep -q "confirm Continue with update?" "$gum_marker" ||
+grep -q "confirm --affirmative Yes --negative No Continue with update?" "$gum_marker" ||
   fail "interactive update with enough space uses the normal confirmation prompt"
 [[ -f $snapshot_marker ]] || fail "accepting the normal confirmation starts the update"
 pass "interactive update keeps the normal confirmation prompt when space is sufficient"

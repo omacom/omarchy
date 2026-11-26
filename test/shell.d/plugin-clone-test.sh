@@ -182,6 +182,15 @@ remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT
   fail "removing a clone leaves it installed when the shell stops answering"
 pass "removing a clone succeeds when the shell stops answering after the rescan"
 
+require_command script
+mkdir -p "$TMPDIR/empty-home/.config/omarchy/plugins"
+status=0
+remove_output=$(HOME="$TMPDIR/empty-home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  script -qec omarchy-plugin-remove /dev/null 2>&1) || status=$?
+(( status == 1 )) && [[ $remove_output == *"no plugins installed"* ]] ||
+  fail "remove with no plugins left says so instead of opening an empty picker" "$remove_output"
+pass "remove with no plugins left says so instead of opening an empty picker"
+
 clone_plugin omarchy.active-window >/dev/null
 [[ -f $TMPDIR/home/.config/omarchy/plugins/tester.active-window/ActiveWindow.qml ]] ||
   fail "flat bar plugin clone is incomplete"

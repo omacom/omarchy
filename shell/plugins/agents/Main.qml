@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -64,6 +65,13 @@ Item {
     onObjectRemoved: (index, object) => root.rebuildAgents()
   }
 
+  // Each record's FileView follows its file on its own; this catches the ones
+  // whose watch was lost when an update replaced the file underneath them.
+  function reloadRecords() {
+    for (var i = 0; i < agents.length; i++)
+      if (agents[i]) agents[i].reload()
+  }
+
   function rebuildAgents() {
     var result = []
     for (var i = 0; i < agentInstantiator.count; i++) {
@@ -117,12 +125,32 @@ Item {
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
 
+  // A fifteen-minute interval can't catch an account crossing its switch
+  // threshold, so while any provider with several accounts has its active one
+  // within 15 points of that threshold (80% at the default 95%), the limits
+  // are checked every three minutes. Those runs
+  // reuse the transcript scans; only the limits probes are new, and any more
+  // often than this Anthropic starts refusing them.
+  readonly property bool nearLimit: {
+    var rev = dataRevision
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (!record || !Array.isArray(record.accounts) || record.accounts.length < 2) continue
+      var limits = Array.isArray(record.limits) ? record.limits : []
+      var threshold = Number(record.accountSwitch && record.accountSwitch.threshold || 95)
+      var from = Math.min(0.8, (threshold - 15) / 100)
+      for (var j = 0; j < limits.length; j++)
+        if (Number(limits[j] && limits[j].percent) >= from) return true
+    }
+    return false
+  }
+
   Timer {
-    interval: root.refreshIntervalSec * 1000
+    interval: root.nearLimit ? Math.min(180, root.refreshIntervalSec) * 1000 : root.refreshIntervalSec * 1000
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.runUpdate("normal")
+    onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
   }
 
   Process {
@@ -130,6 +158,7 @@ Item {
     running: false
     onExited: {
       root.rescanAgents()
+      root.reloadRecords()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
         root.pendingUpdateKind = ""
@@ -206,7 +235,191 @@ Item {
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
-    return result
+    return orderedProviders(result)
+  }
+
+  // The panel gives a section only to an agent with a subscription to show:
+  // limits, a balance, spend, a plan, or accounts. Local history alone still counts
+  // toward the summary, but would leave an empty section.
+  readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
+
+  function providerHasSubscription(p) {
+    return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
+      || !!p.balance || !!p.spend || p.tierLabel !== ""
+  }
+
+  // ----------------------------------------------------------------- order
+  //
+  // The panel's agents in the order someone dragged them into, kept beside the
+  // usage records. An agent the order doesn't name yet keeps its place after
+  // the ones it does.
+  readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
+  property var providerOrder: []
+
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines.filter(localModelAdded)))
+
+  // A line for each coding model set up here or running on a paired
+  // machine, built by the panel from the local models service.
+  property var localModelLines: []
+
+  // Every coding model set up on this machine gets a line, whether it was set
+  // up from the add screen or from the CLI. Paired machines' models are kept
+  // here (by host/recipe) so unlinking one takes it off the panel while it
+  // keeps running there; the default local target always keeps a line too.
+  property var addedLocalModels: []
+
+  function localModelAdded(line) {
+    if (line.localModel.host === "") return true
+    var target = line.localModel.target
+    return addedLocalModels.indexOf(target) >= 0 || (defaultAgent === "local" && target === localDefaultTarget)
+  }
+
+  function addLocalModel(target) {
+    if (addedLocalModels.indexOf(target) >= 0) return
+    saveLocalModels(addedLocalModels.concat([target]))
+  }
+
+  // A model taken off the panel, or removed from this machine, is offered
+  // on the add screen again.
+  function removeLocalModels(targets) {
+    var kept = addedLocalModels.filter(function(target) { return targets.indexOf(target) < 0 })
+    if (kept.length !== addedLocalModels.length) saveLocalModels(kept)
+  }
+
+  function saveLocalModels(targets) {
+    addedLocalModels = targets
+    addedLocalModelsFile.setText(JSON.stringify(targets) + "\n")
+  }
+
+  // Set by the panel, which knows what is running.
+  property string localDefaultTarget: ""
+
+  FileView {
+    id: addedLocalModelsFile
+    path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/omarchy/agents/local-models.json"
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.addedLocalModels = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onLoadFailed: root.addedLocalModels = []
+    onFileChanged: reload()
+  }
+
+  // The local model a default of "local" opens, as `omarchy default agent
+  // local <model>` pins it. Empty when none is: it opens the one started last.
+  property string localPin: ""
+
+  FileView {
+    id: localPinFile
+    path: root.home + "/.config/omarchy/defaults/local-model"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.localPin = text().trim()
+    onLoadFailed: root.localPin = ""
+    onFileChanged: reload()
+  }
+
+  // The panel shows a line for each subscription account: an agent with
+  // several is split into one per account, carrying that account's limits,
+  // plan and sign-in, so each is ordered, dragged, starred and opened on its
+  // own.
+  function accountLines(list) {
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      var accounts = p.accounts || []
+      if (accounts.length < 2) {
+        out.push(p)
+        continue
+      }
+      for (var j = 0; j < accounts.length; j++) {
+        var a = accounts[j]
+        out.push(Object.assign({}, p, {
+          lineId: p.providerId + "/" + (a.email || a.id),
+          account: a,
+          accounts: [],
+          accountName: String(a.email || ""),
+          limits: a.limits || [],
+          limitsStale: a.stale === true,
+          limitsFetchedAt: Number(a.fetchedAt || 0),
+          tierLabel: String(a.plan || ""),
+          resetCredits: a.resetCredits || null,
+          usageStatusText: String(a.usageStatusText || ""),
+          authHelpText: String(a.authHelpText || "")
+        }))
+      }
+    }
+    return out
+  }
+
+  function lineId(p) {
+    return p.lineId || p.providerId
+  }
+
+  // Where each line was put, and the ones never moved after them in the
+  // order they arrive.
+  function orderedProviders(list) {
+    var order = providerOrder
+    var rank = function(p) {
+      var i = order.indexOf(lineId(p))
+      if (i < 0) i = order.indexOf(p.providerId)
+      return i < 0 ? order.length : i
+    }
+    var lines = list.map(function(p, at) { return { p: p, at: at } })
+    lines.sort(function(a, b) { return rank(a.p) - rank(b.p) || a.at - b.at })
+    return lines.map(function(line) { return line.p })
+  }
+
+  // Moves one agent to a position among the ones shown, and saves the result.
+  function moveProvider(id, to) {
+    var ids = panelProviders.map(lineId)
+    var from = ids.indexOf(id)
+    if (from < 0) return
+    to = Math.max(0, Math.min(ids.length - 1, to))
+    if (from === to) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    for (var i = 0; i < providerOrder.length; i++)
+      if (ids.indexOf(providerOrder[i]) < 0) ids.push(providerOrder[i])
+    providerOrder = ids
+    orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
+  // The default agent, as `omarchy default agent` keeps it: a harness id, or
+  // "local" for the local model. Empty until one is chosen.
+  property string defaultAgent: ""
+
+  // The default and the local model pin, read again after they're written.
+  function reloadDefaults() {
+    defaultAgentFile.reload()
+    localPinFile.reload()
+  }
+
+  FileView {
+    id: defaultAgentFile
+    path: root.home + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.defaultAgent = text().trim()
+    onLoadFailed: root.defaultAgent = ""
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: orderFile
+    path: root.orderPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.providerOrder = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onFileChanged: reload()
   }
 
   function providerEnabled(id) {
@@ -215,12 +428,15 @@ Item {
   }
 
   // All-time keeps a quiet day from hiding an agent; today's counts admit a
-  // machine whose only source is history.jsonl, which knows nothing older.
+  // machine whose only source is history.jsonl, which knows nothing older. A
+  // signed-in agent with a plan shows before its first numbers arrive, so a
+  // lapsed sign-in still has somewhere to say so.
   function providerHasData(p) {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
-      || !!p.balance
+      || (p.accounts && p.accounts.length > 0) || !!p.balance || !!p.spend
+      || (p.ready === true && p.tierLabel !== "")
   }
 
   // A prepaid agent's credit ledger. Like rate limits, the balance is
@@ -235,6 +451,29 @@ Item {
       funded: isFinite(funded) && funded > 0 ? funded : 0,
       spent: Math.max(0, Number(raw.spent) || 0),
       currency: String(raw.currency || "USD"),
+      estimated: raw.estimated === true
+    }
+  }
+
+  // A pay-as-you-go agent's spend over the last 30 days, or this month's
+  // against the monthly cap when the account has one. Per-account, like
+  // the balance.
+  function spendValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var amount = Number(raw.amount)
+    var cap = Number(raw.cap)
+    if (!isFinite(amount) || amount < 0) return null
+    var days = Array.isArray(raw.days) ? raw.days.map(function(d) { return Math.max(0, Number(d) || 0) }) : []
+    return {
+      amount: amount,
+      cap: isFinite(cap) && cap > 0 ? cap : 0,
+      currency: String(raw.currency || "USD"),
+      days: days,
+      // The last day's date, and whether the days are UTC ones: Fireworks
+      // counts in UTC, the estimates in local days.
+      through: String(raw.through || ""),
+      utc: raw.utc === true,
+      // Counted from this machine's sessions, not rated by the provider.
       estimated: raw.estimated === true
     }
   }
@@ -254,8 +493,17 @@ Item {
       // Rate limits and balances stay per-account and are never merged
       // across devices.
       limits: Array.isArray(record.limits) ? record.limits : [],
+      limitsStale: record.limitsStale === true,
+      limitsFetchedAt: numberValue(record.limitsFetchedAt),
       tierLabel: String(record.tierLabel || ""),
+      accountName: String(record.accountName || ""),
+      // Every subscription account's own limits, once there's more than one.
+      accounts: Array.isArray(record.accounts) ? record.accounts : [],
+      accountSwitch: record.accountSwitch || ({ threshold: 95 }),
+      // Codex's free full resets of its rate limits, when it has any.
+      resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),
+      spend: spendValue(record.spend),
 
       todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
       todaySessions: synced ? numberValue(stats.todaySessions) : numberValue(record.todaySessions),
@@ -317,7 +565,7 @@ Item {
     onRunningChanged: root.updateSyncRunning()
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        if (root.syncConfigured()) root.syncStatusText = "Usage sync mkdir failed"
+        if (root.syncConfigured()) root.syncStatusText = I18n.t("agents.syncMkdirFailed")
         root.finishSyncRun()
         return
       }
@@ -330,7 +578,7 @@ Item {
     running: false
     onRunningChanged: root.updateSyncRunning()
     onExited: function(exitCode) {
-      if (exitCode !== 0 && root.syncConfigured()) root.syncStatusText = "Usage sync scan failed"
+      if (exitCode !== 0 && root.syncConfigured()) root.syncStatusText = I18n.t("agents.syncScanFailed")
       root.finishSyncRun()
     }
 
@@ -707,11 +955,11 @@ Item {
   // ---------------------------------------------------------------- format
 
   function formatTokenCount(n) {
-    if (n === undefined || n === null) return "0"
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + "B"
-    if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"
-    return String(n)
+    if (n === undefined || n === null) return I18n.formatNumber(0)
+    if (n >= 1e9) return I18n.formatNumber(n / 1e9, 1) + "B"
+    if (n >= 1e6) return I18n.formatNumber(n / 1e6, 1) + "M"
+    if (n >= 1e3) return I18n.formatNumber(n / 1e3, 1) + "K"
+    return I18n.formatNumber(n)
   }
 
   function modelWordCase(word) {
@@ -724,7 +972,7 @@ Item {
   // (`claude-opus-4-8`, `gpt-5.6-sol`). Rejoin the numeric run into one
   // version and title-case the words around it.
   function friendlyModelName(id) {
-    if (!id) return "Unknown"
+    if (!id) return I18n.t("agents.unknownModel")
     var name = String(id).replace(/^claude-/, "").replace(/-\d{8}$/, "")
     var parts = name.split("-")
     var words = []
@@ -743,6 +991,6 @@ Item {
       words.push(modelWordCase(part))
     }
     if (version.length > 0) words.push(version.join("."))
-    return words.length > 0 ? words.join(" ") : "Unknown"
+    return words.length > 0 ? words.join(" ") : I18n.t("agents.unknownModel")
   }
 }

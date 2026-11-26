@@ -7,6 +7,17 @@ import QtQuick
 QtObject {
   id: root
 
+  // Manual click forwarding must honor the same clipping as Qt's hit test.
+  // Collapsed drawers keep their children laid out beyond the visible edge.
+  function itemContainsPoint(target, source, x, y) {
+    if (!target || !target.contains(target.mapFromItem(source, x, y))) return false
+    for (var item = target; item; item = item.parent) {
+      if (!item.visible || item.opacity === 0 || !item.enabled) return false
+      if (item.clip && !item.contains(item.mapFromItem(source, x, y))) return false
+    }
+    return true
+  }
+
   function clamp(value, min, max) {
     var n = Number(value)
     if (!isFinite(n)) return min
@@ -37,6 +48,17 @@ QtObject {
     return Qt.rgba(c.r, c.g, c.b, a)
   }
 
+  // Relative luminance (WCAG) of a Qt color, in 0..1.
+  function luminance(color) {
+    if (!color) return 0
+    function channel(value) {
+      var c = Number(value)
+      if (!isFinite(c)) return 0
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
+  }
+
   // file:// URL with each path segment percent-encoded so spaces and
   // special chars in user paths don't break Image.source.
   function fileUrl(path) {
@@ -61,7 +83,7 @@ QtObject {
   // Run an argv vector without a shell interpreting it: the constant `exec "$@"`
   // means the args only ever land in positional parameters, which bash expands
   // without re-tokenizing — so untrusted data ($(id), a filename) stays literal.
-  // The login shell (-l) keeps the PATH/session env GUI targets (omasnap, mpv,
+  // The login shell (-l) keeps the PATH/session env GUI targets (omasnap, omaview,
   // xdg-open) need. Prefer this over execDetached for anything built from input.
   function execArgv(argv) {
     Quickshell.execDetached(["bash", "-lc", 'exec "$@"', "bash"].concat(argv))
@@ -108,6 +130,20 @@ QtObject {
   // True only when the event would actually change the text, so an empty
   // filter never swallows the key — panels keep their own empty-filter
   // fallbacks (e.g. menu back-navigation) in later branches.
+  // The arrow a horizontal key press means along the reading direction: in a
+  // right-to-left layout, mirrored, Left moves forward and Right back. With
+  // vim set, h and l count as Left and Right too.
+  function readingKey(event, vim) {
+    var key = event.key
+    if (vim && (key === Qt.Key_H || event.text === "h")) key = Qt.Key_Left
+    else if (vim && (key === Qt.Key_L || event.text === "l")) key = Qt.Key_Right
+    if (I18n.rightToLeft) {
+      if (key === Qt.Key_Left) return Qt.Key_Right
+      if (key === Qt.Key_Right) return Qt.Key_Left
+    }
+    return key
+  }
+
   function editsFilter(event, text) {
     if (!text) return false
     // Alt/Meta-modified sequences belong to other shortcuts — never edit here.
@@ -148,12 +184,16 @@ QtObject {
     return out
   }
 
+  // The bar's sections in the order they run along it, and tray, drawn
+  // inside the tray's drawer. The center box sits in the middle of the bar;
+  // centerBegin and centerEnd hang off its two edges.
+  readonly property var barSections: ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
+
   function normalizeLayout(layout) {
     var src = isPlainObject(layout) ? layout : {}
-    return {
-      left:   normalizeLayoutSection(src.left),
-      center: normalizeLayoutSection(src.center),
-      right:  normalizeLayoutSection(src.right)
-    }
+    var out = {}
+    for (var i = 0; i < barSections.length; i++)
+      out[barSections[i]] = normalizeLayoutSection(src[barSections[i]])
+    return out
   }
 }

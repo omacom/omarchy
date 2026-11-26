@@ -10,6 +10,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 marker="$test_home/.local/state/omarchy/preinstalls-removed"
+mise_config="$test_tmp/etc/mise/config.toml"
 pkg_log="$test_tmp/packages"
 mkdir -p "$mock_bin" "$test_home/.local/state/omarchy"
 
@@ -34,12 +35,35 @@ cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 printf '%s\n' "$@" >"$OMARCHY_TEST_PKG_LOG"
 SH
 
+cat >"$mock_bin/mise" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_LOG"
+[[ $* == 'reshim --system' ]] && exit "${OMARCHY_TEST_RESHIM_STATUS:-0}"
+exit 0
+SH
+
+cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+exit 1
+SH
+
 chmod +x "$mock_bin"/*
 
 # $ROOT/bin after the mocks, so the real helpers answer wherever a mock does not
 # shadow them.
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export HOME="$test_home"
+export OMARCHY_PATH="$ROOT"
+export OMARCHY_MISE_CONFIG_PATH="$mise_config"
+export OMARCHY_TEST_MISE_LOG="$test_tmp/mise-log"
+mkdir -p "$(dirname "$mise_config")"
+cp "$ROOT/etc/mise/conf.d/omarchy-tools.toml" "$mise_config"
+# The user's own setting must survive the opt-out round trip, and the opt-out
+# line must start on a line of its own.
+miserc="$test_home/.config/mise/miserc.toml"
+ignore_line="ignored_config_paths = [\"$mise_config\"]"
+mkdir -p "$(dirname "$miserc")"
+printf 'env = ["work"]' >"$miserc"
 export OMARCHY_TEST_PKG_LOG="$pkg_log"
 
 # Both scripts restore and remove the same set, and every package in it has to be
@@ -49,9 +73,39 @@ mapfile -t shipped < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$RO
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 mapfile -t restored <"$pkg_log"
-
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 mapfile -t dropped <"$pkg_log"
+[[ $(<"$miserc") == 'env = ["work"]' ]] || fail "Remove Preinstalls leaves the user's mise settings alone" "$(<"$miserc")"
+pass "Remove Preinstalls leaves the user's mise settings alone"
+
+rm "$miserc"
+"$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
+"$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
+[[ $(<"$miserc") == "$ignore_line" ]] || fail "opting out twice adds the line once" "$(<"$miserc")"
+"$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null
+[[ ! -e $miserc ]] || fail "opting back in removes a miserc that held only the opt-out"
+pass "opting out is idempotent and reversible"
+
+# A list the user wrote is theirs to edit. Once it names the file, both
+# directions agree that the user has opted out.
+printf 'ignored_config_paths = ["~/old"]\n' >"$miserc"
+"$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null 2>&1 && status=0 || status=$?
+((status == 1)) || fail "opting out refuses to add a second ignored_config_paths" "exit status was $status"
+[[ $(<"$miserc") == 'ignored_config_paths = ["~/old"]' ]] || fail "opting out leaves the user's list alone"
+printf 'ignored_config_paths = ["~/old", "%s"]\n' "$mise_config" >"$miserc"
+"$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null || fail "opting out accepts the file in the user's own list"
+"$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null 2>&1 && status=0 || status=$?
+((status == 1)) || fail "opting back in reports a list it cannot edit" "exit status was $status"
+rm "$miserc"
+pass "an existing ignored_config_paths is left to the user"
+
+printf '# %s\n' "$ignore_line" >"$miserc"
+"$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
+grep -qxF "$ignore_line" "$miserc" || fail "opting out is not skipped by a commented-out opt-out"
+"$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null || fail "opting back in succeeds past a commented-out opt-out"
+rm "$miserc"
+pass "a commented-out opt-out does not count"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 
 [[ ${restored[*]} == "${dropped[*]}" ]] ||
   fail "Install and Remove Preinstalls cover the same packages" \
@@ -60,13 +114,13 @@ dropped:  ${dropped[*]}"
 pass "Install and Remove Preinstalls cover the same packages"
 
 for package in "${restored[@]}"; do
-  printf '%s\n' "${shipped[@]}" | grep -qxF "$package" ||
+  grep -qxF "$package" <<<"$(printf '%s\n' "${shipped[@]}")" ||
     fail "every preinstall is shipped in omarchy-base.packages" "$package is not shipped"
 done
 pass "every preinstall is shipped in omarchy-base.packages"
 
-for package in omacut monologue omacalc omawrite hype; do
-  printf '%s\n' "${restored[@]}" | grep -qxF "$package" ||
+for package in omacut monologue omacalc omawrite hype signed; do
+  grep -qxF "$package" <<<"$(printf '%s\n' "${restored[@]}")" ||
     fail "preinstalls cover the Omacom apps" "$package is missing"
 done
 pass "preinstalls cover the Omacom apps"
@@ -91,3 +145,36 @@ pass "declining Remove Preinstalls changes nothing"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $marker ]] || fail "Remove Preinstalls records the opt-out"
 pass "Remove Preinstalls records the opt-out"
+
+# The real launcher refresh, with only the desktop database stubbed.
+refresh_bin="$test_tmp/refresh-bin"
+mkdir -p "$refresh_bin"
+printf '#!/bin/bash\nexit 0\n' >"$refresh_bin/update-desktop-database"
+printf '#!/bin/bash\nexit 1\n' >"$refresh_bin/omarchy-cmd-present"
+chmod +x "$refresh_bin"/*
+echo cn >"$test_tmp/region"
+region_home="$test_tmp/region-home"
+launchers="$region_home/.local/share/applications"
+mkdir -p "$launchers"
+cp "$ROOT/applications/YouTube.desktop" "$launchers/" # as /etc/skel seeds it
+refresh_region() {
+  HOME="$region_home" PATH="$refresh_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_REGION_FILE="$test_tmp/region" "$ROOT/bin/omarchy-refresh-applications" "$@"
+}
+refresh_region
+[[ -f "$launchers/Bilibili.desktop" && -f "$launchers/Zoom.desktop" ]] || fail "a region installs the launchers on its list"
+for missing in X "Google Maps" Spotify HEY; do
+  [[ ! -e "$launchers/$missing.desktop" ]] || fail "a region installs no launcher its list leaves off" "$missing"
+done
+[[ -f "$launchers/YouTube.desktop" ]] || fail "a region refresh keeps launchers an existing home already has"
+pass "a region installs exactly the launchers on its list"
+
+# Every shipped launcher is on some region's list, and every list names only
+# shipped launchers, so a new launcher can't silently never install.
+shipped=$(cd "$ROOT/applications" && ls -- *.desktop | sed 's/\.desktop$//' | sort)
+listed() { sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$1" | sort; }
+[[ $(cat "$ROOT"/default/regions/*/applications | listed /dev/stdin | uniq) == "$shipped" ]] || fail "every shipped launcher is on some region's list"
+for list in "$ROOT"/default/regions/*/applications; do
+  unknown=$(comm -13 <(echo "$shipped") <(listed "$list"))
+  [[ -z $unknown ]] || fail "a regional launcher list names only shipped launchers" "$list: $unknown"
+done
+pass "launcher lists match the shipped launchers"
