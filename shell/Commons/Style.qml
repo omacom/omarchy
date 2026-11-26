@@ -19,9 +19,9 @@ import "BorderGeometry.js" as Geometry
 // halved gap for one edge, so whatever sits against that edge (a bar's
 // panels, the notification deck) keeps the spacing the user gave the
 // windows there. `gapsOut` is the top edge, for everything placed
-// without regard to a particular edge. Themes and user Hyprland config own those values; the
-// shell picks them up by re-running `hyprctl getoption` on startup and
-// after theme IPC applies a theme.
+// without regard to a particular edge. Themes and user Hyprland config own
+// those values; the shell picks them up by re-running `hyprctl getoption`
+// on startup and after theme IPC applies a theme.
 //
 // Typography, spacing, and bar size come from theme/shell.toml.
 // `[font] base-size` is the rem root; every `Style.font.<token>` derives
