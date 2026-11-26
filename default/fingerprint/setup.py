@@ -475,6 +475,9 @@ class Window(Gtk.ApplicationWindow):
             back.set_halign(Gtk.Align.CENTER)
             self.box.append(back)
             back.grab_focus()
+        elif result == "verify-unknown-error":
+          self.show_failure(tr("fingerprintApp.verifyReaderError", "Fingerprint reader error"),
+                            tr("fingerprintApp.noVerdict", "The reader stopped before returning a verification result."), retry)
         else:
           self.show_failure(failure_title, detail or self.explain(result), retry)
       else:
