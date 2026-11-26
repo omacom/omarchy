@@ -245,6 +245,8 @@ ApplicationWindow {
     LayoutMirroring.enabled: win.appearance.rightToLeft
     LayoutMirroring.childrenInherit: true
     anchors.fill: parent
+    anchors.bottomMargin: doneBar.height
+    clip: true
     contentWidth: availableWidth
     onAvailableWidthChanged: Qt.callLater(win.revealFocus)
     onAvailableHeightChanged: Qt.callLater(win.revealFocus)
@@ -273,6 +275,30 @@ ApplicationWindow {
       }
     }
   }
+  Item {
+    id: doneBar
+    visible: win.v.page === "home" || win.v.page === "unavailable" || win.v.page === "added"
+    anchors.bottom: parent.bottom
+    anchors.horizontalCenter: parent.horizontalCenter
+    width: body.width
+    height: visible ? finish.implicitHeight + 24 : 0
+    LayoutMirroring.enabled: win.appearance.rightToLeft
+    LayoutMirroring.childrenInherit: true
+    Action {
+      id: finish
+      anchors.right: parent.right
+      anchors.rightMargin: Math.min(28, Math.round(parent.width * 0.06))
+      anchors.top: parent.top
+      anchors.topMargin: 8
+      text: win.t("fingerprintApp.done")
+      primary: win.v.page === "added"
+      onClicked: {
+        if (primary) body.item.saveName()
+        else win.close()
+      }
+    }
+  }
+
   component Page: ColumnLayout {
     spacing: 12
     // The loader owns the width. The spacers supply the scrollable insets.
@@ -368,7 +394,7 @@ ApplicationWindow {
               spacing: 0
               RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 56
+                Layout.preferredHeight: 48
                 spacing: 8
                 Label {
                   textFormat: Text.PlainText
@@ -438,15 +464,14 @@ ApplicationWindow {
           Rule {}
         }
         Action { visible: !hp.ready || win.v.consent; Layout.topMargin: 4; text: win.t("fingerprintApp.prepare"); onClicked: win.backend.prepare() }
-        Action { Layout.alignment: Qt.AlignRight; Layout.topMargin: 8; text: win.t("fingerprintApp.done"); onClicked: win.close() }
       }
-      Item { Layout.preferredHeight: 16 }
     }
   }
 
   component NameEditor: ColumnLayout {
     id: editor
     property bool added: false
+    function save() { win.backend.saveName(nameInput.text) }
     Layout.fillWidth: true
     spacing: 8
     Label {
@@ -473,7 +498,7 @@ ApplicationWindow {
       font.pixelSize: 15
       Accessible.name: win.t("fingerprintApp.name")
       Component.onCompleted: { forceActiveFocus(); selectAll() }
-      onAccepted: win.backend.saveName(text)
+      onAccepted: editor.save()
       background: Rectangle {
         radius: win.corner(height)
         color: win.panel
@@ -486,16 +511,18 @@ ApplicationWindow {
       Layout.topMargin: 8
       spacing: 8
       Item { Layout.fillWidth: true }
-      Action { visible: !editor.added; text: win.t("fingerprintApp.cancel"); onClicked: win.backend.refresh() }
-      Action { primary: true; text: win.t(editor.added ? "fingerprintApp.done" : "fingerprintApp.save"); onClicked: win.backend.saveName(nameInput.text) }
+      visible: !editor.added
+      Action { text: win.t("fingerprintApp.cancel"); onClicked: win.backend.refresh() }
+      Action { primary: true; text: win.t("fingerprintApp.save"); onClicked: editor.save() }
     }
   }
   Component {
     id: scanning
     Page {
       id: sp
+      function saveName() { nameForm.item.save() }
       // Keep the reader in place as the form appears. The inset scrolls with the page.
-      topInset: 24 + Math.round(Math.max(0, scroll.availableHeight - win.minimumHeight) / 4)
+      topInset: 24 + Math.round(Math.max(0, win.height - win.minimumHeight) / 4)
       readonly property bool complete: win.v.page === "added" || win.v.page === "matched"
       ColumnLayout {
         Layout.fillWidth: true; Layout.leftMargin: sp.inset; Layout.rightMargin: sp.inset
@@ -542,7 +569,7 @@ ApplicationWindow {
           horizontalAlignment: Text.AlignHCenter
           text: win.v.samples ? win.t("fingerprintApp.scans").arg(win.v.samples) : win.v.mode === "Enroll" && !win.v.swipe ? win.t("fingerprintApp.angle") : ""
         }
-        Loader { Layout.fillWidth: true; Layout.topMargin: 24; active: win.v.page === "added"; visible: active; sourceComponent: NameEditor { added: true } }
+        Loader { id: nameForm; Layout.fillWidth: true; Layout.topMargin: 24; active: win.v.page === "added"; visible: active; sourceComponent: NameEditor { added: true } }
         Action {
           visible: win.v.page !== "added"
           Layout.alignment: Qt.AlignHCenter
