@@ -196,6 +196,7 @@ BarWidget {
       root.pendingSave = true
       return
     }
+    persistDebounceTimer.stop()
     root.pendingSave = false
     if (root.pendingReset) {
       root.pendingReset = false
@@ -209,7 +210,11 @@ BarWidget {
     if (root.dirtyKeys.gamma) args.push("gamma=" + formatArg(root.savedGamma))
     if (root.dirtyKeys.contrast) args.push("contrast=" + formatArg(root.savedContrast))
     if (root.dirtyKeys.saturation) args.push("saturation=" + formatArg(root.savedSaturation))
-    if (args.length <= 2) return
+    if (args.length <= 2) {
+      root.saving = false
+      envFile.reload()
+      return
+    }
 
     root.dirtyKeys = ({})
     root.saving = true
