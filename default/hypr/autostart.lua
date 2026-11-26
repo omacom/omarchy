@@ -1,4 +1,31 @@
-hl.on("hyprland.start", function()
+local runtime = os.getenv("XDG_RUNTIME_DIR")
+local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+local started = false
+local marker = runtime and signature and runtime .. "/hypr/" .. signature .. "/omarchy-autostart"
+
+local function start_once()
+  if marker then
+    local existing = io.open(marker, "r")
+    if existing then
+      existing:close()
+      return
+    end
+
+    -- Hyprland starts a fresh Lua state on every reload. This marker keeps a
+    -- config.reloaded callback from repeating session services and post-boot
+    -- hooks, while a restarted compositor gets a new instance directory.
+    local file = io.open(marker, "w")
+    if not file then
+      return
+    end
+    file:write("started\n")
+    file:close()
+  elseif started then
+    return
+  end
+
+  started = true
+
   -- Slow app launch fix -- set systemd and D-Bus activation vars before
   -- starting session services.
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
@@ -32,4 +59,11 @@ hl.on("hyprland.start", function()
 
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
-end)
+end
+
+hl.on("hyprland.start", start_once)
+
+-- Hyprland's safe-mode dialog can load the user config after hyprland.start
+-- already fired. Run the same session startup then, guarded by the instance
+-- marker above so ordinary config reloads do not repeat it.
+hl.on("config.reloaded", start_once)
