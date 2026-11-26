@@ -1,25 +1,37 @@
 # Süsteemi hetktõmmised
 
-Me loome hetktõmmiseid automaatselt iga Omarchy värskenduse korral, aga kui tahad oma luua, saad kasutada käsku `omarchy-snapshot create`.
+Loome hetktõmmised automaatselt iga Omarchy uuendusega, aga kui soovid luua oma, saad kasutada käsku `omarchy-snapshot create`.
 
-Hetktõmmise alglaadimiseks ja taastamiseks valid selle Limine alglaadurist. (Kui alglaadid praegu otse Omarchy dekrüptimise kuvale, pead esmalt BIOS-i kaudu alglaadimisvalikuks valima Limine).
+Kuidas sa hetktõmmise käivitad ja taastad, sõltub alglaadurist, millega sinu masin käivitub. Uued UEFI installid kasutavad systemd-boot; vanemad installid ja BIOS masinad kasutavad Limine'i. `omarchy-boot-backend` ütleb sulle, kumb sul on.
 
-Sellelt kuvalt vali kuupäeva ja versiooni põhjal hetktõmmis, millesse alglaadida tahad. Omarchy versiooni hetktõmmise ajal näeb vasakus allnurgas.
+## systemd-boot korral
+
+Vali Omarchy menüüs _System > Snapshots_ ja vali hetktõmmis, millelt soovid käivituda. Masin taaskäivitub sellelt ühe korra. Või hoia masina käivitumise ajal Space all, et näha alglaadimismenüüd, kus iga hetktõmmis on loetletud uusimast vanimani koos selle Omarchy versiooni ja kuupäevaga.
+
+Hetktõmmis käivitub peal oleva ajutise kihiga, nii et saad seda tavapäraselt kasutada, aga kõik, mida muudad, on järgmisel taaskäivitusel kadunud. Et see alles hoida, tee see oma süsteemiks: klõpsa teavitust, mis ilmub sisselogimisel, vali _System > Snapshots > Restore This Snapshot_ või käivita `omarchy-snapshot restore`. Taastamine toimub masina taaskäivitumise ajal. Süsteem sellisena, nagu see enne oli, jääb alglaadimismenüüsse nimega _Before restore_ ja `omarchy-snapshot restore backup` paneb selle tagasi.
+
+Terminalist:
+
+- `omarchy-snapshot list` loetleb hetktõmmised, millelt saad käivituda;
+- `omarchy-snapshot boot 12` taaskäivitub üks kord hetktõmmisesse 12;
+- `omarchy-snapshot restore 12` teeb hetktõmmisest 12 järgmisel taaskäivitusel süsteemi ja `omarchy-snapshot restore --cancel` muudab enne seda taaskäivitust sinu meelt.
+
+## Limine korral
+
+Hetktõmmise käivitamiseks ja taastamiseks valid selle Limine alglaadurist. Alglaadimismenüü jääb vaikimisi peidetuks, nii et vajuta kohe Limine käivitumisel suvalist klahvi, et see esile tuua.
+
+Sellelt ekraanilt vali kuupäeva ja versiooni põhjal hetktõmmis, millelt soovid käivituda. Omarchy versiooni hetktõmmise tegemise ajal näeb vasakus alanurgas.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Kui sisse jõuad, ilmub teavitus, mis annab sulle teada, et oled alglaaditavas hetktõmmises, ja kui sellel klõpsad, algab taastamisprotsess. Teise võimalusena saad kasutada käsku `omarchy-snapshot restore`.
+Kui oled sisse jõudnud, ilmub teavitus, mis annab sulle teada, et oled käivitatavas hetktõmmises, ja kui sellel klõpsad, alustab see taastamisprotsessi. Teise võimalusena saad kasutada käsku `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-See taastab sinu juurfailisüsteemi, aga mitte `/home`. Nii et see töötab katkise süsteemivärskenduse tagasipööramiseks, aga mitte kaotatud isiklike failide taastamiseks.
+## Mida taastamine hõlmab
 
-See tähendab ka, et sinu `~/.config` kaust säilitatakse sellisena, nagu on. Nii et kui pöörad tagasi teegi või rakenduse varasemale versioonile, mis salvestab seadistusfailid uues vormingus, pead selle käsitsi korda ajama.
+Taastamine toob tagasi sinu juurfailisüsteemi, aga mitte sinu `/home`. Nii et see töötab katki läinud süsteemiuuenduse tagasipööramiseks, aga mitte kaotatud isiklike failide taastamiseks.
 
-_Märkus: see funktsioon on saadaval ainult paigaldustes, mis kasutavad Limine alglaadurit, mis on vaikimisi alates Omarchy 2.0-st. See pole saadaval, kui oled GRUB-il või systemd-bootil._
+See tähendab ka seda, et sinu `~/.config` kataloog jääb selliseks, nagu see on. Nii et kui pöördud tagasi teegi või rakenduse varasema versiooni juurde, mis salvestab konfiguratsioonifaile uues vormingus, pead sellega käsitsi tegelema.
 
-### Alglaadimismenüü vahelejätmine
-
-Kui sa alglaadimismenüüd kunagi ei puuduta ja tahad lihtsalt, et masin läheks otse dekrüptimise kuvale, käivita Omarchy menüüs _Seaded > Otsealglaadimine_. See lisab EFI kirje, mis osutab otse Omarchyle, nii et püsivara alglaadib selle Limines peatumata.
-
-Kompromiss on see, mida ülal mainiti: kui otsealglaadimine on sees, tähendab hetktõmmiseni jõudmine esmalt Limine valimist BIOS-i alglaadimismenüüst. Käivita _Seaded > Otsealglaadimine_ uuesti, et kirje eemaldada ja minna tagasi Limine kaudu alglaadimisele. Mõni püsivara ei suhtu kohandatud EFI kirjetesse hästi, nii et seadistus keeldub töötamast American Megatrendsi ja Apple'i püsivaral.
+Sama kehtib Omarchy enda arvestuse kohta selle üle, millised migratsioonid on juba käivitatud: see elab sinu kodukataloogis, nii et see jääb taastamisest puutumata. Migratsioonid, mis käivitati pärast hetktõmmise tegemist, jäävad tehtuks märgituks, kuigi nende juurfailisüsteemis tehtud muudatused on tagasi pööratud, ja järgmine `omarchy update` ei käivita neid uuesti. Nii et kui uuendad pärast taastamist uuesti ja midagi, mille varasem uuendus oli seadistanud, on endiselt puudu, on see tõenäoline põhjus.
