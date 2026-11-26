@@ -132,6 +132,8 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   const state = { volumeSinkName: '', volumeSinkStale: false, volumeSinkGeneration: 0, volumeSinkRequest: -1 }
   resolve({ name: 'alsa_output.pci-0000_00_1f.3.analog-stereo' }, proc, state)
   assert(!proc.running && state.volumeSinkName === 'alsa_output.pci-0000_00_1f.3.analog-stereo', 'a hardware output resolves to itself without the script')
+  resolve({ name: 'bluez_output.AA_BB_CC_DD_EE_FF.1' }, proc, state)
+  assert(!proc.running && state.volumeSinkName === 'bluez_output.AA_BB_CC_DD_EE_FF.1', 'a bluetooth output resolves to itself without the script')
   resolve({ name: 'omarchy_speaker_tuning' }, proc, state)
   assert(proc.running, 'a DSP output resolves through the script')
   resolve({ name: 'omarchy_speaker_tuning' }, proc, state)
