@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Save the fingerprint setup choice for this account
+# omarchy:args=<requested|skipped>
+# omarchy:hidden=true
+
+set -e
+case ${1:-} in
+  requested) chosen=fingerprint-setup-requested; opposite=fingerprint-setup-invitation ;;
+  skipped) chosen=fingerprint-setup-invitation; opposite=fingerprint-setup-requested ;;
+  *) echo "Usage: omarchy-provision-fingerprint-choice <requested|skipped>" >&2; exit 1 ;;
+esac
+omarchy-done clear "$opposite"
+omarchy-done mark "$chosen"
