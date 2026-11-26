@@ -30,6 +30,7 @@ AGENTS = {
   "muse": ("muse", "Muse"),
   "dsh": ("deepseek", "DeepSeek"),
   "mcode": ("minimax", "MiniMax"),
+  "pi": ("pi", "Pi"),
 }
 
 INTERPRETERS = {"node", "bun", "deno", "python", "python3"}
