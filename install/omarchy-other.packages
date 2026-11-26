@@ -97,6 +97,7 @@ asus-proart-pz13-audio
 asus-zenbook-a16-audio
 asus-zenbook-14-ux3480qa-audio
 asus-zenbook-a16-firmware
+asus-zenbook-a16-support
 
 # Qualcomm Wi-Fi board data for cards linux-firmware does not list
 ath12k-board-fallback
