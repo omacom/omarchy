@@ -1,0 +1,283 @@
+#!/bin/bash
+
+# omarchy:summary=Screenshot a web page an agent built and report its console errors
+# omarchy:args=<file.html|url> [--keys "Space ArrowLeft"] [--after ms] [--theme <name>] [--size WxH] [--out file.png]
+# omarchy:examples=omarchy agent look page index.html | omarchy agent look page game.html --keys "Space ArrowLeft" --after 5000
+
+# Renders the page in a throwaway headless Chrome, driven over its DevTools
+# protocol, so an agent can see what it built and read the errors a browser
+# console would show, without opening a window on the user's desktop or
+# leaving a browser running. The page runs in real time on the GPU, so a game plays as it would
+# for a player: --keys presses each key once a page has loaded, and --after
+# waits that long before the screenshot. --theme passes a theme's palette in
+# the URL fragment, as omarchy-games-vibes-launch does, so a game from the omarchy-make-game
+# template shows in that theme. Prints the screenshot's path and exits 1 when
+# the page logged errors.
+
+set -uo pipefail
+
+target=${1:-}
+if [[ -z $target || $target == -* ]]; then
+  echo "Usage: omarchy agent look page <file.html|url> [--keys \"Space ArrowLeft\"] [--after ms] [--theme <name>] [--size WxH] [--out file.png]" >&2
+  exit 2
+fi
+shift
+
+keys="" after=3000 size=1280x720 out="" theme=""
+while (( $# )); do
+  case $1 in
+    --keys) keys=$2; shift 2 ;;
+    --after) after=$2; shift 2 ;;
+    --theme) theme=$2; shift 2 ;;
+    --size) size=$2; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+if [[ ! $after =~ ^(0|[1-9][0-9]*)$ ]] || (( after > 60000 )); then
+  echo "--after takes milliseconds up to 60000, like 3000" >&2
+  exit 2
+fi
+if [[ ! $size =~ ^[0-9]+x[0-9]+$ ]]; then
+  echo "--size takes a width and height, like 1280x720" >&2
+  exit 2
+fi
+[[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+# An image left from an earlier look must never pass for this one.
+rm -f "$out"
+
+# A file may carry a fragment, like game.html#seed=1.
+url=$target
+file=${target%%#*}
+[[ -f $file ]] && url="file://$(realpath "$file")${target:${#file}}"
+if [[ -n $theme ]]; then
+  colors="$(omarchy-theme-dir "$theme")/colors.toml"
+  if [[ ! -f $colors ]]; then
+    echo "No theme $theme with a colors.toml" >&2
+    exit 2
+  fi
+  # In place of a palette the address already has, which the page would read first.
+  fragment=""
+  [[ $url == *"#"* ]] && fragment=$(sed -E 's/(^|&)palette=[^&]*//g; s/^&//' <<<"${url#*#}")
+  url="${url%%#*}#${fragment:+$fragment&}palette=$(omarchy-theme-color --file "$colors" --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')"
+fi
+
+# An image from before Chrome was the default browser has Chromium, which
+# takes the same DevTools protocol.
+if ! chrome=$(type -P google-chrome-stable || type -P chromium); then
+  echo "Neither Chrome nor Chromium is installed" >&2
+  exit 1
+fi
+
+log=$(mktemp)
+# Prints "error: <text>" for each console error, uncaught exception and
+# failed load, then "saved" once the screenshot is written. Node speaks
+# Chrome's DevTools protocol over its own WebSocket, so nothing else is needed;
+# Arch's Node, since a project's mise version may be anything.
+timeout $(( after / 1000 + 60 )) /usr/bin/node - \
+  "$chrome" "$url" "$keys" "$after" "${size%x*}" "${size#*x}" "$out" >"$log" 2>&1 <<'JS'
+const { spawn } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { StringDecoder } = require("string_decoder");
+
+const [, , chrome, url, keys, after, width, height, out] = process.argv;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), "look-chrome-"));
+let child;
+
+// Chrome writes its profile until it has exited, so it's removed only after.
+async function stopChrome() {
+  if (child && child.exitCode === null && child.signalCode === null) {
+    const exited = new Promise((resolve) => child.once("exit", resolve));
+    child.kill("SIGKILL");
+    await exited;
+  }
+}
+async function cleanup() {
+  await stopChrome();
+  fs.rmSync(profile, { recursive: true, force: true });
+}
+
+// The timeout around this script stops it with SIGTERM, which would otherwise
+// leave Chrome and its profile behind.
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.on(signal, async () => {
+    await cleanup();
+    process.exit(3);
+  });
+}
+
+// Chrome speaks DevTools over a pipe of its own, fds 3 and 4, rather than a
+// port: a port on localhost has no password, so another account on the machine
+// could drive this Chrome and read the user's files through it. Messages are
+// JSON, each ended by a NUL. send() answers a command, on() hears events.
+function connect(chromeProcess) {
+  const input = chromeProcess.stdio[3];
+  const output = chromeProcess.stdio[4];
+  const decoder = new StringDecoder("utf8");
+  const pending = new Map();
+  const listeners = new Map();
+  let id = 0;
+  let buffer = "";
+  // A Chrome that goes away fails whatever was waiting on it, and anything
+  // asked of it later, at once.
+  let closed;
+  const lost = () => {
+    closed ??= new Error("lost Chrome's DevTools connection");
+    pending.forEach(({ fail }) => fail(closed));
+    pending.clear();
+  };
+  output.on("data", (chunk) => {
+    buffer += decoder.write(chunk);
+    let end;
+    while ((end = buffer.indexOf("\0")) >= 0) {
+      const message = JSON.parse(buffer.slice(0, end));
+      buffer = buffer.slice(end + 1);
+      if (message.id && pending.has(message.id)) {
+        const { done, fail } = pending.get(message.id);
+        pending.delete(message.id);
+        message.error ? fail(new Error(message.error.message)) : done(message.result);
+      } else if (message.method) {
+        (listeners.get(message.method) || []).forEach((listener) => listener(message.params));
+      }
+    }
+  });
+  output.on("close", lost);
+  input.on("error", lost);
+  chromeProcess.once("exit", lost);
+  return {
+    send: (method, params = {}, sessionId) => closed ? Promise.reject(closed) : new Promise((done, fail) => {
+      pending.set(++id, { done, fail });
+      input.write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + "\0");
+    }),
+    on: (method, listener) => listeners.set(method, [...(listeners.get(method) || []), listener]),
+  };
+}
+
+// Chrome keeps its own sandbox wherever it can start with one. It's up once it
+// answers on the pipe.
+async function launch(sandbox) {
+  const args = ["--headless=new", "--remote-debugging-pipe", `--user-data-dir=${profile}`,
+    "--use-angle=gl-egl", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
+    "--mute-audio", `--window-size=${width},${height}`, ...(sandbox ? [] : ["--no-sandbox"]), "about:blank"];
+  child = spawn(chrome, args, { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
+  const browser = connect(child);
+  try {
+    await Promise.race([browser.send("Browser.getVersion"), sleep(10000).then(() => { throw new Error("timeout"); })]);
+    return browser;
+  } catch {
+    // The next try reuses the profile, so this Chrome has to be gone first.
+    await stopChrome();
+    return null;
+  }
+}
+
+// What a key name means to Chrome: the names Playwright took, like Space,
+// ArrowLeft, Enter or a single character.
+const named = {
+  Space: [" ", "Space", 32], Enter: ["Enter", "Enter", 13], Escape: ["Escape", "Escape", 27],
+  Tab: ["Tab", "Tab", 9], Backspace: ["Backspace", "Backspace", 8], Delete: ["Delete", "Delete", 46],
+  ArrowLeft: ["ArrowLeft", "ArrowLeft", 37], ArrowUp: ["ArrowUp", "ArrowUp", 38],
+  ArrowRight: ["ArrowRight", "ArrowRight", 39], ArrowDown: ["ArrowDown", "ArrowDown", 40],
+  Shift: ["Shift", "ShiftLeft", 16], Control: ["Control", "ControlLeft", 17], Alt: ["Alt", "AltLeft", 18],
+};
+function keyEvent(name) {
+  // KeyQ and Digit1 are the q and 1 keys.
+  name = name.replace(/^Key([A-Z])$/, (_, letter) => letter.toLowerCase()).replace(/^Digit([0-9])$/, "$1");
+  if (named[name]) {
+    const [key, code, keyCode] = named[name];
+    return { key, code, windowsVirtualKeyCode: keyCode, text: key === " " || key === "Enter" ? (key === " " ? " " : "\r") : undefined };
+  }
+  const upper = name.toUpperCase();
+  const code = /^[A-Z]$/.test(upper) ? `Key${upper}` : /^[0-9]$/.test(name) ? `Digit${name}` : name;
+  return { key: name, code, windowsVirtualKeyCode: upper.charCodeAt(0), text: name.length === 1 ? name : undefined };
+}
+
+(async () => {
+  const browser = (await launch(true)) || (await launch(false));
+  if (!browser) {
+    console.log("launch failed: Chrome didn't start");
+    await cleanup();
+    process.exit(3);
+  }
+  // The blank page Chrome opened on, driven through a session of its own.
+  const { targetInfos } = await browser.send("Target.getTargets");
+  const target = targetInfos.find((candidate) => candidate.type === "page");
+  const targetId = target ? target.targetId : (await browser.send("Target.createTarget", { url: "about:blank" })).targetId;
+  const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
+  const page = { send: (method, params) => browser.send(method, params, sessionId), on: browser.on };
+
+  const report = (text) => {
+    if (!/chrome-extension:\/\/|lastError/.test(text)) console.log("error: " + String(text).replace(/\s+/g, " ").slice(0, 300));
+  };
+  const requests = new Map();
+  page.on("Network.requestWillBeSent", ({ requestId, request }) => requests.set(requestId, request.url));
+  page.on("Network.loadingFailed", ({ requestId, errorText, canceled }) => {
+    if (!canceled) report(`failed to load ${requests.get(requestId)}: ${errorText}`);
+  });
+  page.on("Runtime.consoleAPICalled", ({ type, args }) => {
+    if (type === "error") report(args.map((arg) => arg.value ?? arg.description ?? "").join(" "));
+  });
+  page.on("Runtime.exceptionThrown", ({ exceptionDetails }) => {
+    const message = exceptionDetails.exception?.description?.split("\n")[0] || exceptionDetails.text;
+    report(message.startsWith("Uncaught") ? message : "Uncaught " + message);
+  });
+  // A 404 or 500 reaches only the browser's log, as "Failed to load resource",
+  // with the resource's URL beside its text.
+  page.on("Log.entryAdded", ({ entry }) => {
+    if (entry.level === "error" && entry.source === "network") report(entry.url ? `${entry.text} (${entry.url})` : entry.text);
+  });
+  let loaded = () => {};
+  page.on("Page.loadEventFired", () => loaded());
+
+  await Promise.all(["Page", "Runtime", "Network", "Log"].map((domain) => page.send(`${domain}.enable`)));
+  await page.send("Emulation.setDeviceMetricsOverride", { width: Number(width), height: Number(height), deviceScaleFactor: 1, mobile: false });
+  // Only a load after the navigation counts, not the blank page Chrome opened on.
+  const load = new Promise((resolve) => (loaded = resolve));
+  const navigation = await page.send("Page.navigate", { url });
+  if (navigation.errorText) report("page didn't load: " + navigation.errorText);
+  const timedOut = await Promise.race([load.then(() => false), sleep(30000).then(() => true)]);
+  if (timedOut) report("page didn't load: no load event within 30s");
+
+  // Real key presses, held across a few frames as a player's are, so a game
+  // reads both the press and the key held down.
+  await sleep(800);
+  for (const name of keys.split(" ").filter(Boolean)) {
+    const key = keyEvent(name);
+    await page.send("Input.dispatchKeyEvent", { type: key.text ? "keyDown" : "rawKeyDown", ...key });
+    await sleep(100);
+    await page.send("Input.dispatchKeyEvent", { type: "keyUp", ...key, text: undefined });
+    await sleep(150);
+  }
+  await sleep(Number(after));
+  const { data } = await page.send("Page.captureScreenshot", { format: "png" });
+  fs.writeFileSync(out, Buffer.from(data, "base64"));
+  console.log("saved");
+  await cleanup();
+  process.exit(0);
+})().catch(async (error) => {
+  console.log("look failed: " + String(error.message).split("\n")[0]);
+  await cleanup();
+  process.exit(3);
+});
+JS
+status=$?
+errors=$(grep '^error: ' "$log" | sed 's/^error: //' | head -20)
+
+if [[ ! -s $out ]]; then
+  echo "Chrome produced no screenshot (exit $status)" >&2
+  grep -v '^error: ' "$log" | head -5 >&2
+  rm -f "$log"
+  exit 1
+fi
+rm -f "$log"
+magick "$out" -resize '1280x>' "$out"
+echo "screenshot: $out"
+if [[ -n $errors ]]; then
+  echo "console errors:"
+  echo "$errors"
+  exit 1
+fi
+echo "console errors: none"

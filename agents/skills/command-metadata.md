@@ -12,6 +12,7 @@ Supported metadata keys:
 - `# omarchy:name=...` - override the command name inferred from the filename
 - `# omarchy:summary=...` - short help text
 - `# omarchy:args=...` - usage arguments
+- `# omarchy:subcommand=<args> — <summary>` - one line per subcommand, for a command that takes subcommands (`omarchy bar use <id>`, `omarchy bar reset`, ...); listings and help show each on its own row with its own summary, and `args` is derived from them
 - `# omarchy:examples=...` - examples separated with ` | `
 - `# omarchy:alias=...` / `# omarchy:aliases=...` - alternate routes
 - `# omarchy:hidden=true` - hide from default command listings

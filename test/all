@@ -3,21 +3,37 @@
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-tests=(
-  "$ROOT/test/cli"
-  "$ROOT/test/shell"
-)
+
+run_cli=1
+shell_args=()
+while (( $# > 0 )); do
+  case "$1" in
+    --no-cli) run_cli=0 ;;
+    *) shell_args+=("$1") ;;
+  esac
+  shift
+done
+
+suites=()
+if (( run_cli )); then
+  suites+=("test/cli")
+fi
+suites+=("test/shell")
 
 # Run every suite even when an earlier one fails, so a single failure can't
 # hide whole suites behind it.
 failed=()
-for test in "${tests[@]}"; do
-  printf '==> %s\n' "${test#$ROOT/}"
-  "$test" || failed+=("${test#$ROOT/}")
+for suite in "${suites[@]}"; do
+  printf '==> %s\n' "$suite"
+  if [[ $suite == "test/shell" ]]; then
+    "$ROOT/$suite" "${shell_args[@]}" || failed+=("$suite")
+  else
+    "$ROOT/$suite" || failed+=("$suite")
+  fi
 done
 
 if (( ${#failed[@]} > 0 )); then
-  printf '\n%d of %d suites failed:\n' "${#failed[@]}" "${#tests[@]}" >&2
+  printf '\n%d of %d suites failed:\n' "${#failed[@]}" "${#suites[@]}" >&2
   printf '  %s\n' "${failed[@]}" >&2
   exit 1
 fi

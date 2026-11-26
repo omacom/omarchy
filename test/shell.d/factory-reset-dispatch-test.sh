@@ -47,6 +47,7 @@ cat >"$tmp/reset" <<'SH'
 set -euo pipefail
 source "$TMP/functions"
 TOP_MNT=$TMP/top
+ESP_MNT=$TMP/esp-mount
 NEXT_NAME=@omarchy-reset-next
 PROVISIONING_DIR=/var/lib/omarchy/provisioning
 LOG_FILE=$TMP/reset.log
@@ -79,6 +80,7 @@ verify_limine_hashes() { :; }
 btrfs() {
   case "$1 $2" in
     "subvolume snapshot") cp -a "$3" "$4" ;;
+    "subvolume create") mkdir -p "${!#}" ;;
     "subvolume delete") rm -rf "${!#}" ;;
     "subvolume show") return 1 ;;
   esac
@@ -204,17 +206,46 @@ grep -qx 'chroot /usr/bin/limine-update' "$tmp/calls" || fail "x86: limine-updat
 ! grep -q '^reset-' "$tmp/calls" || fail "x86: no boot-package entrypoint runs" "$(cat "$tmp/calls")"
 pass "x86: dispatch is a no-op and the generic Limine UKI path resets the machine"
 
-# A failed activation on the generic path puts the previous root back and
-# revokes the throwaway slot. The ESP already holds the factory root's UKI, so
-# the screen says to rebuild the boot files rather than claiming nothing changed.
+# A factory root installed with systemd-boot is built by its own install, into
+# a boot store of its own that replaces this system's once it is at @.
+fixture
+mkdir -p "$tmp/top/@factory/usr/lib/snapper/plugins" "$tmp/top/@omarchy-boot"
+touch "$tmp/top/@factory/usr/lib/snapper/plugins/20-omarchy-boot"
+touch "$tmp/top/@omarchy-boot/old-owner-image"
+run reset x86 || fail "x86 systemd-boot: an encrypted reset stages" "$(cat "$tmp/out" "$tmp/reset.log")"
+activated || fail "x86 systemd-boot: the factory root is activated"
+grep -qx 'chroot env OMARCHY_PATH=/usr/share/omarchy OMARCHY_BOOT_DEFER_DEFAULT=1 /usr/bin/omarchy-boot-switch install --no-efi-register' "$tmp/calls" ||
+  fail "x86 systemd-boot: the factory root's own install builds its boot images" "$(cat "$tmp/calls")"
+! grep -q 'limine' "$tmp/calls" || fail "x86 systemd-boot: nothing of Limine runs" "$(cat "$tmp/calls")"
+grep -q "mount --bind $tmp/top/@omarchy-boot-next $tmp/top/@omarchy-reset-next/var/lib/omarchy/boot" "$tmp/calls" ||
+  fail "x86 systemd-boot: the build gets a fresh boot store" "$(cat "$tmp/calls")"
+[[ -d $tmp/top/@omarchy-boot && ! -e $tmp/top/@omarchy-boot/old-owner-image && ! -e $tmp/top/@omarchy-boot-next ]] ||
+  fail "x86 systemd-boot: the fresh store replaces the old owner's" "$(ls -R "$tmp/top" | head -20)"
+[[ $(cat "$tmp/top/@/etc/cmdline.d/99-omarchy-provisioning-unlock.conf") == 'cryptkey=rootfs:/etc/omarchy/provisioning.key' &&
+  ! -e $tmp/top/@/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf ]] ||
+  fail "x86 systemd-boot: the auto-unlock is in systemd-boot's command line"
+pass "x86: a factory root installed with systemd-boot resets onto a fresh boot store"
+
+fixture
+mkdir -p "$tmp/top/@factory/usr/lib/snapper/plugins" "$tmp/top/@omarchy-boot"
+touch "$tmp/top/@factory/usr/lib/snapper/plugins/20-omarchy-boot"
+touch "$tmp/top/@omarchy-boot/old-owner-image" "$tmp/activate-fail"
+if run reset x86; then fail "x86 systemd-boot: a failed activation fails the reset"; fi
+untouched || fail "x86 systemd-boot: a failed activation puts the previous root back"
+[[ -f $tmp/top/@omarchy-boot/old-owner-image && ! -e $tmp/top/@omarchy-boot-next ]] ||
+  fail "x86 systemd-boot: a failed reset keeps this system's store and drops the new one" "$(ls "$tmp/top")"
+pass "x86: a failed systemd-boot reset keeps this system's boot store"
+
+# A failed activation on the generic path puts the previous root back,
+# restores its boot files on the ESP and revokes the throwaway slot.
 fixture
 touch "$tmp/activate-fail"
 if run reset x86; then fail "x86: a failed activation fails the reset"; fi
 untouched || fail "x86: a failed activation puts the previous root back and revokes the throwaway slot" "$(ls "$tmp/top"; cat "$tmp/slots")"
 ! grep -q '^reset-' "$tmp/calls" || fail "x86: a failed activation runs no boot-package entrypoint" "$(cat "$tmp/calls")"
-grep -q "run 'sudo limine-update' before rebooting" "$tmp/screen" ||
-  fail "x86: a failed activation says the boot files need rebuilding" "$(cat "$tmp/screen")"
-pass "x86: a failed activation puts the previous root back, revokes the throwaway slot and says to rebuild the boot files"
+grep -q 'the current root is back at @' "$tmp/screen" && grep -q "Restored this system's boot files" "$tmp/screen" ||
+  fail "x86: a failed activation says the current root is back and its boot files restored" "$(cat "$tmp/screen")"
+pass "x86: a failed activation puts the previous root back, restores its boot files and revokes the throwaway slot"
 
 # Apple: the boot package prepares and verifies the factory root before the
 # throwaway slot exists, and gets the key only once the factory root is active.

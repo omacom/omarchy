@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Grok Build
+Comment=Start Grok Build in a terminal
+Exec=omarchy-agent --agent grok --app-id=org.omarchy.grok
+Icon=omarchy-agent-grok
+StartupWMClass=org.omarchy.grok
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
