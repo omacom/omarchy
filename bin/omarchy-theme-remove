@@ -22,7 +22,7 @@ THEMES_DIR="$HOME/.config/omarchy/themes"
 
 # The name omarchy-theme-list shows (My Theme) finds its folder (my-theme) when no folder has that exact name.
 if [[ ! -d $THEMES_DIR/$THEME_NAME && ! -d $OMARCHY_PATH/themes/$THEME_NAME ]]; then
-  THEME_NAME=$(echo "$THEME_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+  THEME_NAME=$(echo "$THEME_NAME" | LC_ALL=C tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 fi
 THEME_PATH="$THEMES_DIR/$THEME_NAME"
 

@@ -119,6 +119,20 @@ if [[ $sorted_c != "$sorted_turkish" ]]; then
 fi
 pass "theme list capitalizes i-prefixed names across hyphens in both locales"
 
+# The ASCII display name must find the same directory when it is used again.
+cp "$ROOT/themes/tokyo-night/colors.toml" "$home_dir/.config/omarchy/themes/iceberg-indigo/colors.toml"
+env LC_ALL="$turkish_locale" HOME="$home_dir" XDG_CONFIG_HOME="$config_home" \
+  XDG_STATE_HOME="$state_home" XDG_RUNTIME_DIR="$work" OMARCHY_PATH="$ROOT" \
+  PATH="$stub_dir:$command_bin:$ROOT/bin:$PATH" OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+  "$command_bin/omarchy-theme-set" "Iceberg Indigo" >"$work/theme-set.log" 2>&1 ||
+  fail "a listed theme can be set under Turkish" "$(cat "$work/theme-set.log")"
+[[ $(cat "$home_dir/.local/state/omarchy/current/theme.name") == "iceberg-indigo" ]] ||
+  fail "the listed theme name resolves to its directory under Turkish"
+run_command "$turkish_locale" omarchy-theme-remove "Iceberg Indigo" >"$work/theme-remove.log" 2>&1
+[[ ! -d $home_dir/.config/omarchy/themes/iceberg-indigo ]] ||
+  fail "a listed theme can be removed under Turkish" "$(cat "$work/theme-remove.log")"
+pass "listed theme names can be set and removed under Turkish"
+
 preference="$config_home/fontconfig/conf.d/50-omarchy-input-method.conf"
 mkdir -p "${preference%/*}"
 printf '<family>Noto Sans CJK JP</family>\n' >"$preference"
