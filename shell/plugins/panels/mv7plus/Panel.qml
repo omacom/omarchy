@@ -491,7 +491,30 @@ Panel {
 
     signal picked(string value)
 
-    controlWidth: Style.space(120)
+    FontMetrics {
+      id: dropMetrics
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.body
+    }
+
+    readonly property int widestOptionWidth: {
+      var widest = 0
+      for (var i = 0; i < options.length; i++) {
+        var o = options[i]
+        var lbl = (o && typeof o === "object") ? String(o.label) : String(o)
+        widest = Math.max(widest, Math.ceil(dropMetrics.advanceWidth(lbl)))
+      }
+      return widest
+    }
+
+    controlWidth: Math.min(
+      root.controlColumn,
+      widestOptionWidth
+        + Math.ceil(dropMetrics.advanceWidth("󰅀"))
+        + Style.spacing.controlPaddingX * 2
+        + Style.spacing.md
+        + Style.space(4)
+    )
 
     Dropdown {
       id: rowDropdown
