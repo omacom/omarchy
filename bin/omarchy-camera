@@ -158,7 +158,7 @@ def read_state() -> dict:
                     val = max(lo, min(hi, parsed))
             except ValueError:
                 pass
-        values[key] = round(val, 4)
+        values[key] = round(val, 6)
 
     width = int(env["WIDTH"]) if env.get("WIDTH", "").isdigit() else 1920
     height = int(env["HEIGHT"]) if env.get("HEIGHT", "").isdigit() else 1080
@@ -173,13 +173,23 @@ def read_state() -> dict:
         "format": env.get("FORMAT") or "NV12",
         "framerate": env.get("FRAMERATE") or "30/1",
         "values": values,
-        "defaults": {k: round(v, 4) for k, v in defaults.items()},
+        "defaults": {k: round(v, 6) for k, v in defaults.items()},
     }
 
 
+def format_wire_value(value: float) -> str:
+    num = 0.0 if abs(value) < 1e-6 else float(value)
+    text = f"{num:.6f}".rstrip("0").rstrip(".")
+    return "0" if text in ("", "-0") else text
+
+
 def format_value(key: str, value: float, include_plus: bool = False) -> str:
-    num = 0.0 if abs(value) < 0.0001 else float(value)
-    text = f"{num:.2f}"
+    num = 0.0 if abs(value) < 1e-6 else float(value)
+    wire = format_wire_value(num)
+    if "." in wire and len(wire.split(".", 1)[1]) > 2:
+        text = wire
+    else:
+        text = f"{num:.2f}"
     if include_plus and CONTROL_MAP[key][5] and num > 0:
         return "+" + text
     return text
@@ -195,13 +205,13 @@ def parse_control_value(key: str, raw: str) -> float:
         raise UsageError(f"invalid {key} value '{raw}'")
     if val < lo or val > hi:
         raise UsageError(f"{key} value {val:g} out of range [{lo:g}, {hi:g}]")
-    return 0.0 if abs(val) < 0.0001 else val
+    return 0.0 if abs(val) < 1e-6 else val
 
 
 def send_live_datagram(updates: dict[str, float], sock: socket.socket | None = None) -> bool:
     if not updates:
         return True
-    payload = " ".join(f"{k}={format_value(k, v)}" for k, v in updates.items()).encode("utf-8")
+    payload = " ".join(f"{k}={format_wire_value(v)}" for k, v in updates.items()).encode("utf-8")
     sock_path = relay_socket_path()
     owned = sock is None
     if owned:
@@ -218,7 +228,7 @@ def send_live_datagram(updates: dict[str, float], sock: socket.socket | None = N
 
 def persist_updates(updates: dict[str, float]) -> None:
     cmd = [tuning_bin_path(), "set"] + [
-        f"{k}={format_value(k, v)}" for k, v in updates.items()
+        f"{k}={format_wire_value(v)}" for k, v in updates.items()
     ]
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if proc.returncode != 0:

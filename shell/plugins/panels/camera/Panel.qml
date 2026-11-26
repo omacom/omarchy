@@ -25,6 +25,7 @@ BarWidget {
   property bool saving: false
   property bool pendingSave: false
   property bool pendingReset: false
+  property bool pendingStatusRefresh: false
 
   property string cameraLabel: Commons.I18n.t("camera.title")
   property string resolutionBadge: ""
@@ -222,7 +223,12 @@ BarWidget {
   }
 
   function refreshStatus() {
-    if (root.previewMode || statusProc.running) return
+    if (root.previewMode) return
+    if (statusProc.running) {
+      root.pendingStatusRefresh = true
+      return
+    }
+    root.pendingStatusRefresh = false
     statusProc.outputBuffer = ""
     statusProc.running = true
   }
@@ -375,6 +381,10 @@ BarWidget {
     onExited: function(code) {
       if (code === 0 && statusProc.outputBuffer !== "") {
         root.applyStatusJson(statusProc.outputBuffer)
+      }
+      if (root.pendingStatusRefresh) {
+        root.pendingStatusRefresh = false
+        root.refreshStatus()
       }
     }
   }

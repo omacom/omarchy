@@ -269,6 +269,10 @@ grep -qx "warmth=0.45" "$live_rx2" || fail "omarchy-camera --live sent expected 
 [[ $(run_camera warmth) == "0.00" ]] || fail "omarchy-camera --live does not overwrite saved config"
 rm -f "$live_sock2"
 
+# Fine decimal adjustments (>2 decimal places) are preserved end-to-end
+run_camera brightness 0.004 >/dev/null
+[[ $(run_camera brightness) == "0.004" ]] || fail "omarchy-camera preserves fine decimal adjustments"
+
 # Full reset via omarchy-camera restores defaults
 run_camera reset >/dev/null
 [[ ! -e $work/config/omarchy/camera.conf ]] || fail "omarchy-camera reset removes override file"
