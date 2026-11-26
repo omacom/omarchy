@@ -194,42 +194,13 @@ Item {
 
   function selectActivePlayer() {
     var preferred = null
-    var trackPlayer = null
-    var trackProxy = null
-    var streamPlayer = null
-    var streamProxy = null
-    var controllablePlayer = null
-    var controllableProxy = null
-    var identityPlayer = null
-    var identityProxy = null
-
     for (var i = 0; i < players.length; i++) {
       var p = players[i]
-      if (!p) continue
-
-      var proxy = isProxyPlayer(p)
-
-      if (preferredPlayerKey && playerKey(p) === preferredPlayerKey && hasMetadata(p)) preferred = p
-
-      if (playerHasPlaybackStream(p)) {
-        if (!proxy && !streamPlayer) streamPlayer = p
-        else if (proxy && !streamProxy) streamProxy = p
-      } else if (hasTrackMetadata(p)) {
-        if (!proxy && !trackPlayer) trackPlayer = p
-        else if (proxy && !trackProxy) trackProxy = p
-      } else if (playerCanControl(p)) {
-        if (!proxy && !controllablePlayer) controllablePlayer = p
-        else if (proxy && !controllableProxy) controllableProxy = p
-      } else if (hasMetadata(p)) {
-        if (!proxy && !identityPlayer) identityPlayer = p
-        else if (proxy && !identityProxy) identityProxy = p
-      }
+      if (p && preferredPlayerKey && playerKey(p) === preferredPlayerKey && hasMetadata(p)) preferred = p
     }
 
     if (preferred && preferred.isPlaying) return preferred
-    var streamCandidate = streamPlayer || streamProxy
-    var streamPreferred = preferred && playerHasPlaybackStream(preferred) ? preferred : null
-    return oldestPlayingPlayer(true) || oldestPlayingPlayer(false) || streamPreferred || streamCandidate || preferred || trackPlayer || trackProxy || controllablePlayer || controllableProxy || identityPlayer || identityProxy || null
+    return oldestPlayingPlayer(true) || oldestPlayingPlayer(false) || MediaModel.idlePlayer(players, preferred, playerHasPlaybackStream)
   }
 
   function labelFor(player) {
@@ -462,11 +433,10 @@ Item {
   // with no process per press, stepping, clamping, unmuting and debouncing the
   // way omarchy-audio-output-volume does, so either path lands on the same
   // volume and OSD. That script resolves a DSP sink through to the physical
-  // sink it feeds on every press, from the live routing. An ALSA sink is its
-  // own physical sink, so only then do the keys act here; any other default
-  // sink falls back to the script.
+  // An ALSA or Bluetooth sink is its own physical sink, so keys act here; any
+  // other default sink (such as a DSP filter-chain) falls back to the script.
   readonly property var defaultSink: Pipewire.defaultAudioSink
-  readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null
+  readonly property var volumeSink: defaultSink && (String(defaultSink.name).indexOf("alsa_output.") === 0 || String(defaultSink.name).indexOf("bluez_output.") === 0) ? defaultSink : null
   property double lastMuteToggle: 0
 
   // Returns false when the default sink is not one to control here, so the

@@ -8,11 +8,11 @@
   "learn": {
     "label": "Learn"
   },
+  "appearance": {
+    "label": "Appearance"
+  },
   "trigger": {
     "label": "Trigger"
-  },
-  "style": {
-    "label": "Style"
   },
   "setup": {
     "label": "Setup"
@@ -26,11 +26,11 @@
   "update": {
     "label": "Update"
   },
-  "about": {
-    "label": "About"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "About"
   },
   "system.screensaver": {
     "label": "Screensaver"
@@ -50,11 +50,18 @@
   "system.reboot": {
     "label": "Reboot"
   },
-  "system.reboot-boot-menu": {
-    "label": "Reboot to Boot Menu"
+  "system.firmware": {
+    "label": "Reboot to BIOS",
+    "description": "Restart into the UEFI firmware setup"
   },
   "system.shutdown": {
     "label": "Shutdown"
+  },
+  "system.snapshots": {
+    "label": "Snapshots"
+  },
+  "system.snapshots.restore": {
+    "label": "Restore This Snapshot"
   },
   "learn.keybindings": {
     "label": "Keybindings"
@@ -83,186 +90,252 @@
   "learn.community": {
     "label": "Community"
   },
-  "trigger.appearance": {
-    "label": "Appearance"
+  "appearance.theme": {
+    "label": "Theme"
   },
-  "trigger.appearance.animations": {
-    "label": "Animations"
+  "appearance.background": {
+    "label": "Background"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Font"
+  },
+  "appearance.icons": {
+    "label": "Icons"
+  },
+  "appearance.top-bar": {
     "label": "Menu Bar"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Hide Bar"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Show Bar"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Position Bar"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Bar Background"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Opaque Bar"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Glassy Bar"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Clear Bar"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Bar Indicators"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Battery Percentage"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Show Battery %"
   },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Hide Battery %"
+  },
+  "appearance.top-bar.indicators.clock": {
     "label": "Clock"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Sunday 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Sunday 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Sunday 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Sunday 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Sun 3 May 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Sun 3 May 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 May W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 May W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Top Bar"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Bottom Bar"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Left Bar"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Right Bar"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
+  "appearance.windows": {
+    "label": "Windows"
   },
-  "trigger.appearance.dock.autohide": {
-    "label": "Auto-hide Dock"
+  "appearance.windows.gaps-on": {
+    "label": "Window Gaps On"
   },
-  "trigger.appearance.dock.always-on": {
-    "label": "Always-on Dock"
+  "appearance.windows.gaps-off": {
+    "label": "Window Gaps Off"
   },
-  "trigger.appearance.dock.position": {
-    "label": "Dock Position"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Top Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Bottom Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Left Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Right Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Window Gaps"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Window Corners"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Theme Corners"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Sharp Corners"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Rounded Corners"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Window Opacity"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Opaque Windows"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Transparent Windows"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Glassy Windows"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-Window Ratio"
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-Window Ratio On"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-Window Ratio Off"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Screensaver"
+  },
+  "appearance.branding.about": {
+    "label": "About"
+  },
+  "appearance.branding.about.text": {
+    "label": "Edit Text"
+  },
+  "appearance.branding.about.image": {
+    "label": "Set From Image"
+  },
+  "appearance.branding.about.default": {
+    "label": "Restore Default"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Edit Text"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Set From Image"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Restore Default"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Auto-hide Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Always-on Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock Position"
+  },
+  "appearance.dock.position.top": {
+    "label": "Top Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Bottom Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Left Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Right Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "Workspace Layout",
     "title": "Default Workspace Layout"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Tiling"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Scrolling"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Floating"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr Theme Sync"
+  "appearance.animations-on": {
+    "label": "Animations On"
+  },
+  "appearance.animations-off": {
+    "label": "Animations Off"
+  },
+  "appearance.unlock": {
+    "label": "Unlock"
   },
   "trigger.toggle": {
     "label": "Toggle"
   },
-  "trigger.toggle.idle-lock": {
+  "trigger.toggle.idle-lock-on": {
     "label": "Stay Awake"
   },
-  "trigger.toggle.notifications": {
-    "label": "Notifications"
+  "trigger.toggle.idle-lock-off": {
+    "label": "Allow Sleep"
   },
-  "trigger.toggle.nightlight": {
-    "label": "Nightlight"
+  "trigger.toggle.notifications-on": {
+    "label": "Notifications On"
   },
-  "trigger.toggle.screensaver": {
-    "label": "Screensaver"
+  "trigger.toggle.notifications-off": {
+    "label": "Silence Notifications"
   },
-  "trigger.toggle.crash-capture": {
-    "label": "Crash Capture"
+  "trigger.toggle.nightlight-on": {
+    "label": "Nightlight On"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nightlight Off"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Screensaver On"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Screensaver Off"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Crash Capture On"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Crash Capture Off"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -318,17 +391,29 @@
   "trigger.tests": {
     "label": "Speed Test"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Laptop Display"
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptop Display On"
   },
-  "trigger.hardware.mirror-display": {
-    "label": "Mirror Display"
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptop Display Off"
   },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hybrid GPU"
+  "trigger.hardware.mirror-display-on": {
+    "label": "Display Mirroring On"
   },
-  "trigger.hardware.touchpad": {
-    "label": "Touchpad"
+  "trigger.hardware.mirror-display-off": {
+    "label": "Display Mirroring Off"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Switch to Hybrid GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Switch to Integrated GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Enable Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Disable Touchpad"
   },
   "trigger.hardware.touchpad-haptics": {
     "label": "Touchpad Haptics"
@@ -342,8 +427,11 @@
   "trigger.hardware.touchpad-haptics.high": {
     "label": "high"
   },
-  "trigger.hardware.touchscreen": {
-    "label": "Touchscreen"
+  "trigger.hardware.touchscreen-on": {
+    "label": "Enable Touchscreen"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Disable Touchscreen"
   },
   "trigger.reminder.set": {
     "label": "Set one"
@@ -372,87 +460,33 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
-  "style.theme": {
-    "label": "Theme"
+  "setup.keyboard": {
+    "label": "Keyboard"
   },
-  "style.background": {
-    "label": "Background"
-  },
-  "style.unlock": {
-    "label": "Unlock"
-  },
-  "style.font": {
-    "label": "Font"
-  },
-  "style.font.cjk": {
-    "label": "Chinese, Japanese, Korean",
-    "title": "Chinese, Japanese, and Korean Glyphs"
-  },
-  "style.font.cjk.auto": {
-    "label": "Automatic"
-  },
-  "style.font.cjk.jp": {
-    "label": "Japanese"
-  },
-  "style.font.cjk.kr": {
-    "label": "Korean"
-  },
-  "style.font.cjk.sc": {
-    "label": "Simplified Chinese"
-  },
-  "style.font.cjk.tc": {
-    "label": "Taiwan"
-  },
-  "style.font.cjk.hk": {
-    "label": "Hong Kong"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Screensaver"
-  },
-  "style.about": {
-    "label": "About"
-  },
-  "style.about.text": {
-    "label": "Edit Text"
-  },
-  "style.about.image": {
-    "label": "Set From Image"
-  },
-  "style.about.default": {
-    "label": "Restore Default"
-  },
-  "style.screensaver.text": {
-    "label": "Edit Text"
-  },
-  "style.screensaver.image": {
-    "label": "Set From Image"
-  },
-  "style.screensaver.default": {
-    "label": "Restore Default"
-  },
-  "setup.monitors": {
-    "label": "Monitors"
-  },
-  "setup.keybindings": {
+  "setup.keyboard.keybindings": {
     "label": "Keybindings"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Keyboard Inputs"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Input Methods"
   },
   "setup.input": {
     "label": "Input"
   },
-  "setup.typing": {
-    "label": "Typing"
+  "setup.region": {
+    "label": "Region"
   },
-  "setup.typing.keyboard": {
-    "label": "Keyboard Layouts"
-  },
-  "setup.typing.input": {
-    "label": "Input Methods"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Language"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "How dates, times, numbers and units are written"
+  },
+  "setup.region.timezone": {
+    "label": "Timezone"
   },
   "setup.network": {
     "label": "Network"
@@ -469,63 +503,20 @@
   "setup.network.dns.google": {
     "label": "Google"
   },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
   "setup.network.dns.custom": {
     "label": "Custom"
+  },
+  "setup.network.hostname": {
+    "label": "Hostname"
   },
   "setup.network.qr": {
     "label": "QR Code"
   },
   "setup.default": {
     "label": "Defaults"
-  },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Default Agent"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -556,6 +547,9 @@
     "label": "Dictation",
     "title": "Default Dictation"
   },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
   "setup.default.dictation.superwhisper": {
     "label": "Superwhisper"
   },
@@ -581,6 +575,9 @@
   "setup.default.editor": {
     "label": "Editor",
     "title": "Default Editor"
+  },
+  "setup.default.editor.plain": {
+    "label": "Plain"
   },
   "setup.default.editor.neovim": {
     "label": "Neovim"
@@ -648,6 +645,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
+  "setup.git": {
+    "label": "Git"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -657,17 +657,23 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direct Boot"
-  },
-  "setup.reset": {
-    "label": "Reset Computer"
+  "remove.factory-reset": {
+    "label": "Factory Reset"
   },
   "install.package": {
     "label": "Package"
   },
   "install.ai": {
     "label": "AI"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "Desktop"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
   },
   "install.service": {
     "label": "Service"
@@ -686,6 +692,9 @@
   },
   "install.style.background": {
     "label": "Background"
+  },
+  "install.style.icons": {
+    "label": "Icons"
   },
   "install.style.font": {
     "label": "Font"
@@ -732,6 +741,9 @@
   "install.preinstalls": {
     "label": "Preinstalls"
   },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
   "install.browser.chrome": {
     "label": "Chrome"
   },
@@ -756,8 +768,8 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   },
   "install.service.signal": {
     "label": "Signal"
@@ -768,8 +780,14 @@
   "install.service.tailscale": {
     "label": "Tailscale"
   },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
   "install.service.nordvpn": {
     "label": "NordVPN"
+  },
+  "install.service.notion": {
+    "label": "Notion"
   },
   "install.service.once": {
     "label": "ONCE"
@@ -779,9 +797,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium Account"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -816,31 +831,115 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
-  "install.ai.chatgpt": {
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
     "label": "ChatGPT Desktop"
   },
-  "install.ai.claude": {
+  "install.ai.desktop.claude": {
     "label": "Claude Desktop"
   },
-  "install.ai.grok-bot": {
+  "install.ai.desktop.grok-bot": {
     "label": "Grok Bot"
   },
-  "install.ai.hermes": {
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
     "label": "Hermes Desktop"
   },
-  "install.ai.lm-studio": {
+  "install.ai.desktop.lm-studio": {
     "label": "LM Studio"
   },
-  "install.ai.ollama": {
+  "install.ai.cli.ollama": {
     "label": "Ollama"
   },
-  "install.ai.openclaw": {
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
     "label": "OpenClaw"
   },
-  "install.ai.perplexity": {
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
     "label": "Perplexity"
   },
-  "install.ai.t3-code": {
+  "install.ai.desktop.t3-code": {
     "label": "T3 Code"
   },
   "install.gaming.steam": {
@@ -852,6 +951,9 @@
   "install.gaming.minecraft": {
     "label": "Minecraft"
   },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
   "install.gaming.geforce-now": {
     "label": "NVIDIA GeForce NOW"
   },
@@ -860,6 +962,9 @@
   },
   "install.gaming.xbox-controllers": {
     "label": "Xbox Controllers"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "install.gaming.battlenet": {
     "label": "Battle.net"
@@ -946,6 +1051,18 @@
     "label": "AI",
     "title": "Remove"
   },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "Remove"
+  },
+  "remove.ai.desktop": {
+    "label": "Desktop",
+    "title": "Remove"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "Remove"
+  },
   "remove.dictation": {
     "label": "Dictation"
   },
@@ -959,6 +1076,9 @@
   },
   "remove.theme": {
     "label": "Theme"
+  },
+  "remove.icons": {
+    "label": "Icons"
   },
   "remove.gaming": {
     "label": "Gaming",
@@ -996,8 +1116,11 @@
   "remove.security.sudoless-docker": {
     "label": "Sudoless Docker"
   },
-  "remove.ai.hermes": {
+  "remove.ai.desktop.hermes": {
     "label": "Hermes Desktop"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
   },
   "remove.browser.chrome": {
     "label": "Chrome"
@@ -1017,6 +1140,9 @@
   "remove.browser.zen": {
     "label": "Zen"
   },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
   "remove.service.dropbox": {
     "label": "Dropbox"
   },
@@ -1029,11 +1155,20 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
-  "remove.ai.chatgpt": {
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
     "label": "ChatGPT Desktop"
   },
-  "remove.ai.claude": {
+  "remove.ai.desktop.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
@@ -1041,22 +1176,97 @@
   "remove.dictation.voxtype": {
     "label": "Voxtype"
   },
-  "remove.ai.grok-bot": {
+  "remove.ai.desktop.grok-bot": {
     "label": "Grok Bot"
   },
-  "remove.ai.lm-studio": {
+  "remove.ai.desktop.lm-studio": {
     "label": "LM Studio"
   },
-  "remove.ai.ollama": {
+  "remove.ai.cli.ollama": {
     "label": "Ollama"
   },
-  "remove.ai.openclaw": {
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
     "label": "OpenClaw"
   },
-  "remove.ai.perplexity": {
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "remove.ai.desktop.perplexity": {
     "label": "Perplexity"
   },
-  "remove.ai.t3-code": {
+  "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
   },
   "remove.gaming.steam": {
@@ -1077,6 +1287,9 @@
   "remove.gaming.xbox-controllers": {
     "label": "Xbox Controllers (󰂯)"
   },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
   "remove.gaming.battlenet": {
     "label": "Battle.net"
   },
@@ -1085,6 +1298,9 @@
   },
   "remove.gaming.heroic": {
     "label": "Heroic (Epic Games)"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
   },
   "remove.development.rails": {
     "label": "Ruby on Rails"
@@ -1158,12 +1374,21 @@
   "update.channel": {
     "label": "Channel"
   },
+  "update.kernel": {
+    "label": "Kernel"
+  },
   "update.config": {
     "label": "Config",
     "title": "Reset to default"
   },
   "update.themes": {
     "label": "Extra Themes"
+  },
+  "update.icons": {
+    "label": "Extra Icons"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
   },
   "update.process": {
     "label": "Process",
@@ -1178,9 +1403,6 @@
   },
   "update.password": {
     "label": "Password"
-  },
-  "update.timezone": {
-    "label": "Timezone"
   },
   "update.time": {
     "label": "Time"
@@ -1229,11 +1451,5 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
-  },
-  "update.password.drive": {
-    "label": "Drive Encryption"
-  },
-  "update.password.user": {
-    "label": "User"
   }
 }

@@ -1,12 +1,12 @@
-# Pārlūkprogrammas
+# Pārlūki
 
-Omarchy kā noklusējuma pārlūkprogrammu piegādā [Chromium](https://www.chromium.org/). Tā ir vienkārša atvērtā pirmkoda būve, kas motīva ziņā saskaņota ar pārējo jūsu sistēmu, un tieši to atver `Super + Shift + Return` un tieši tajā darbojas katra [tīmekļa lietotne](25-web-apps.md).
+Omarchy komplektā ir [Google Chrome](https://www.google.com/chrome/) kā noklusējuma pārlūks. Tas ir noformēts atbilstoši pārējai jūsu sistēmai, un tieši to atver `Super + Shift + Return` (vai `Super + Shift + B`), ar `Super + Shift + Alt + B` privātam logam, un tajā darbojas katra [tīmekļa lietotne](25-web-apps.md). Tas atveras uzreiz pārlūka logā: nav nekāda sagaidīšanas ekrāna vai pierakstīšanās aicinājuma, lietošanas statistika un avāriju ziņojumi netiek sūtīti Google, un reklāmu privātuma aicinājumi ir izslēgti. Jūs joprojām varat pierakstīties savā Google kontā no profila pogas jebkurā laikā, kad vēlaties sinhronizāciju.
 
-Ja Chromium nav pēc jūsu gaumes, jūs neesat pie tā iesprūdis. Omarchy izvēlnē sadaļā _Instalēt > Browser_ atradīsiet Chrome, Edge, Brave, Brave Origin, Firefox un [Zen](https://zen-browser.app/). Izvēlieties vienu, un Omarchy to instalēs, iestatīs tās politikas direktoriju un piemēros tai jūsu pašreizējo tēmu.
+Ja Chrome nav jūsu gaumē, jūs neesat pie tā piesaistīts. Omarchy izvēlnē sadaļā _Install > Browser_ atradīsiet [Chromium](https://www.chromium.org/) (vienkāršo atvērtā koda versiju, no kuras ir izveidots Chrome), Edge, Brave, Brave Origin, Firefox un [Zen](https://zen-browser.app/) (Edge tikai x86 datoros). Izvēlieties vienu, un Omarchy to instalēs, iestatīs tā politikas direktoriju un piemēros tam jūsu pašreizējo tēmu.
 
-## Vienas padarīšana par noklusējumu
+## Kā iestatīt noklusējumu
 
-Pārlūkprogrammas instalēšana to nepadara par galveno. Kad tā ir datorā, dodieties uz _Iestatīšana > Defaults > Browser_ un izvēlieties to — izvēlne uzskaita tikai tās pārlūkprogrammas, kuras jums patiesībā ir instalētas, un pašreizējo noklusējumu atzīmē ar ķeksīti.
+Pārlūka instalēšana to nepadara par noklusējumu. Lai pārslēgtos, dodieties uz _Setup > Defaults > Browser_ un izvēlieties vienu. Pašreizējais noklusējums ir atzīmēts ar ķeksīti, un, izvēloties pārlūku, kura jums vēl nav, tas vispirms tiek instalēts.
 
 No termināļa tas ir:
 
@@ -14,26 +14,28 @@ No termināļa tas ir:
 omarchy default browser firefox
 ```
 
-Palaidiet to bez argumenta, un tas pateiks pašreizējo noklusējumu. Tas iestata XDG apstrādātāju, tāpēc līdzi seko ne tikai Omarchy karstie taustiņi — viss, kas atver saiti, sākot no tērzēšanas lietotnes un beidzot ar termināļa komandu, nonāk jūsu izvēlētajā pārlūkprogrammā.
+Palaidiet to bez argumenta, un tas parādīs pašreizējo noklusējumu. Tas iestata XDG apstrādātāju, tāpēc ne tikai Omarchy karstie taustiņi seko līdzi — viss, kas atver saiti, no tērzēšanas lietotnes līdz termināļa komandai, dodas uz jūsu izvēlēto pārlūku.
 
-## Copy URL un Download Video
+## URL kopēšana un video lejupielāde
 
-Chromium dzimtas pārlūkprogrammām (pats Chromium, Chrome, Edge un Brave) nāk līdzi divi Omarchy paplašinājumi, kas no pārlūkprogrammas sniedzas pārējā jūsu sistēmā.
+Chromium saimes pārlūkiem (pašam Chromium, Chrome, Edge, Brave un Brave Origin) ir trīs Omarchy paplašinājumi: divi, kas sniedzas ārpus pārlūka un pārējā jūsu sistēmā, un viens, kas sakārto WhatsApp.
 
-**Copy URL** pašreizējās cilnes adresi ievieto starpliktuvē ar `Alt + Shift + L`. Tas ir ātrāk nekā klikšķināt adrešu joslā un kopēt, un, tā kā tas notiek caur sistēmas starpliktuvi, nevis pārlūkprogrammas starpliktuvi, jūs saņemat Omarchy paziņojumu, kas to apstiprina, un vietrādis (URL) uzreiz ir pieejams [starpliktuves vēsturē](08-unified-clipboard-history.md) un katrā citā lietotnē. Ja labprāt klikšķināt, ir arī rīkjoslas poga.
+**Copy URL** ievieto pašreizējās cilnes adresi jūsu starpliktuvē ar `Alt + Shift + L`. Tas ir ātrāk nekā noklikšķināt adreses joslā un kopēt, un, tā kā tas iet caur sistēmas starpliktuvi, nevis pārlūka starpliktuvi, jūs saņemat Omarchy paziņojumu, kas to apstiprina, un URL ir nekavējoties pieejams [starpliktuves vēsturē](08-unified-clipboard-history.md) un katrā citā lietotnē. Ir arī rīkjoslas poga, ja dodat priekšroku klikšķināšanai.
 
-**Download Video** ar `Alt + Shift + D` satver video, kas atskaņojas jūsu skatītajā lapā. Tas vietrādi nodod [yt-dlp](https://github.com/yt-dlp/yt-dlp), tāpēc darbojas daudz plašāk nekā tikai vietnē YouTube, un lejupielāde nonāk mapē `~/Videos`. Progress parādās tajā pašā ekrāna rādītājā, ko izmanto skaļums un spilgtums, atjauninoties tajā pašā vietā, nevis kraujot paziņojumus kaudzē. Iestatiet `OMARCHY_YTDLP_DIR`, ja vēlaties, lai faili nonāktu citviet — to, kur likt vides mainīgos, skatiet [BUJ](46-faq.md).
+**Download Video** satver video, kas tiek atskaņots lapā, kuru skatāties, ar `Alt + Shift + D`. Tas nodod URL [yt-dlp](https://github.com/yt-dlp/yt-dlp), tāpēc tas darbojas daudz vairāk nekā tikai YouTube, un lejupielāde nonāk `~/Videos`. Progress tiek parādīts tajā pašā ekrāna displejā, ko izmanto skaļums un spilgtums, atjauninoties uz vietas, nevis krājot paziņojumus. Iestatiet `OMARCHY_YTDLP_DIR`, ja vēlaties, lai faili nonāktu citur — skatiet [BUJ](46-faq.md), kur ievietot vides mainīgos.
 
-Abi paplašinājumi ar Omarchy sazinās caur nelielu vietējās ziņojumapmaiņas resursdatoru, kas tiek instalēts kopā ar pārlūkprogrammu. Tas ir tas gabaliņš, kas ļauj tīmekļa lapas video nonākt jūsu mājas direktorijā un vietrādim nonākt jūsu starpliktuves pārvaldniekā, ko parasts paplašinājums viens pats nevar izdarīt.
+Abi paplašinājumi sazinās ar Omarchy, izmantojot nelielu vietējās ziņojumapmaiņas resursdatoru, kas jums tiek instalēts kopā ar pārlūku. Tā ir daļa, kas ļauj tīmekļa lapas video nonākt jūsu mājas direktorijā un URL nonākt jūsu starpliktuves pārvaldniekā, ko parasts paplašinājums pats nevar izdarīt.
 
-Tie darbojas tikai Chromium dzimtā. Firefox un Zen tos nesaņem.
+**WhatsApp Slim** liek WhatsApp Web sekot jūsu sistēmas tēmai un sakļauj tā tērzēšanas sarakstu, kad logs ir šaurs.
+
+Tie ir pieejami tikai Chromium saimei. Firefox un Zen tos nesaņem.
 
 ## Firefox un Zen
 
-Firefox un Zen ir cita dzimta, tāpēc pret tiem izturas citādi: Omarchy instalē politiku failu, lai iegūtu sakarīgus noklusējumus, un pārslēdz tās vietējā Wayland režīmā, ko vēlaties daļveida mērogošanai un plūdenai skārienpaliktņa ritināšanai.
+Firefox un Zen ir cita saime, tāpēc tiem ir cita pieeja: Omarchy instalē politiku failu saprātīgiem noklusējumiem un pārslēdz tos vietējā Wayland režīmā, ko vēlaties daļējai mērogošanai un vienmērīgai skārienpaliktņa ritināšanai.
 
-Tie nesaņem iepriekš minētos Chromium paplašinājumus, un Omarchy tiem nepiešķir motīvu, tāpēc šīs pieredzes daļas jums jāiestata pašam.
+Tie nesaņem iepriekš minētos Chromium paplašinājumus, un Omarchy tos nenoformē, tāpēc šīs pieredzes daļas jums jāiestata pašam.
 
-## Vienas atkal noņemšana
+## Pārlūka noņemšana
 
-Visu, ko šeit instalējāt, var atkal noņemt sadaļā _Noņemt > Browser_. Chromium šajā sarakstā nav — tas ir daļa no pamata sistēmas.
+Jebkuru no šiem pārlūkiem, ieskaitot Chrome, var atkal noņemt sadaļā _Remove > Browser_. Saites tad dodas uz Chrome vai Chromium, ja otrs joprojām ir instalēts.

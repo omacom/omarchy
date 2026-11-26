@@ -1,25 +1,37 @@
 # Sistem anlık görüntüleri
 
-Her Omarchy güncelleştirmesinde otomatik olarak anlık görüntüler oluşturuyoruz, ancak kendi anlık görüntünüzü oluşturmak isterseniz, `omarchy-snapshot create` kullanabilirsiniz.
+Her Omarchy güncellemesinde otomatik olarak anlık görüntüler oluşturuyoruz, ancak kendi anlık görüntünüzü oluşturmak isterseniz `omarchy-snapshot create` komutunu kullanabilirsiniz.
 
-Bir anlık görüntüyü önyüklemek ve geri yüklemek için onu Limine önyükleyicisinden seçersiniz. (Şu anda doğrudan Omarchy şifre çözme ekranına önyükleme yapıyorsanız, önce BIOS aracılığıyla bir önyükleme seçeneği olarak Limine'yi seçmeniz gerekir).
+Bir anlık görüntüyü nasıl başlatacağınız ve geri yükleyeceğiniz, makinenizin hangi önyükleyiciyle başladığına bağlıdır. Yeni UEFI kurulumları systemd-boot kullanır; eski kurulumlar ve BIOS makineleri Limine kullanır. `omarchy-boot-backend` komutu sizde hangisinin olduğunu söyler.
 
-O ekrandan, tarihe ve sürüme göre önyüklemek istediğiniz anlık görüntüyü seçin. Anlık görüntü sırasındaki Omarchy sürümü sol alt köşede görülebilir.
+## systemd-boot ile
+
+Omarchy menüsünde _Sistem > Anlık Görüntüler_ seçeneğini seçin ve başlatmak istediğiniz anlık görüntüyü seçin. Makine bir kez o anlık görüntüyle yeniden başlar. Ya da makine başlarken Space tuşunu basılı tutarak önyükleme menüsünü görün; burada her anlık görüntü, Omarchy sürümü ve tarihiyle birlikte en yeniden en eskiye doğru listelenir.
+
+Bir anlık görüntü üstte geçici bir katmanla başlar, bu yüzden onu normal şekilde kullanabilirsiniz, ancak yaptığınız her şey bir sonraki yeniden başlatmada kaybolur. Onu kalıcı yapmak için sisteminiz haline getirin: oturum açtığınızda görünen bildirime tıklayın, _Sistem > Anlık Görüntüler > Bu Anlık Görüntüyü Geri Yükle_ seçeneğini seçin ya da `omarchy-snapshot restore` komutunu çalıştırın. Geri yükleme, makine yeniden başlarken gerçekleşir. Sistemin önceki hali önyükleme menüsünde _Geri yükleme öncesi_ olarak kalır ve `omarchy-snapshot restore backup` komutu onu geri getirir.
+
+Terminalden:
+
+- `omarchy-snapshot list` başlatabileceğiniz anlık görüntüleri listeler;
+- `omarchy-snapshot boot 12` bir kez 12 numaralı anlık görüntüyle yeniden başlatır;
+- `omarchy-snapshot restore 12` bir sonraki yeniden başlatmada 12 numaralı anlık görüntüyü sistem yapar ve `omarchy-snapshot restore --cancel` o yeniden başlatmadan önce fikrinizi değiştirmenizi sağlar.
+
+## Limine ile
+
+Bir anlık görüntüyü başlatmak ve geri yüklemek için onu Limine önyükleyicisinden seçersiniz. Önyükleme menüsü varsayılan olarak gizli kalır, bu yüzden Limine başlar başlamaz herhangi bir tuşa basarak onu açın.
+
+O ekrandan, tarihe ve sürüme göre başlatmak istediğiniz anlık görüntüyü seçin. Anlık görüntü alındığı sırada kullanılan Omarchy sürümü sol alt köşede görülebilir.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-İçeri vardığınızda, önyüklenebilir bir anlık görüntüde olduğunuzu bildiren bir bildirim açılır ve ona tıklarsanız, geri yükleme işlemini başlatır. Alternatif olarak, `omarchy-snapshot restore` kullanabilirsiniz.
+İçeri girdiğinizde, başlatılabilir bir anlık görüntüde olduğunuzu bildiren bir bildirim açılır ve ona tıklarsanız geri yükleme işlemi başlar. Alternatif olarak `omarchy-snapshot restore` komutunu kullanabilirsiniz.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Bu, kök dosya sisteminizi geri yükleyecektir, ancak `/home` dizininizi değil. Yani bozuk bir sistem güncelleştirmesini geri almak için çalışır, ancak kayıp kişisel dosyaları kurtarmak için çalışmaz.
+## Geri yükleme neleri kapsar
 
-Bu ayrıca `~/.config` dizininizin olduğu gibi tutulduğu anlamına gelir. Yani yapılandırma dosyalarını yeni bir biçimde saklayan bir kütüphanenin veya uygulamanın daha önceki bir sürümüne geri dönüyorsanız, bunu el ile halletmeniz gerekecektir.
+Geri yükleme, kök dosya sisteminizi geri getirir, ancak `/home` dizininizi getirmez. Bu yüzden bozuk bir sistem güncellemesini geri almak için işe yarar, ancak kayıp kişisel dosyaları kurtarmak için yaramaz.
 
-_Not: Bu özellik yalnızca Omarchy 2.0'dan beri varsayılan olan Limine önyükleyicisini kullanan kurulumlarda kullanılabilir. GRUB veya systemd-boot kullanıyorsanız kullanılamaz._
+Bu aynı zamanda `~/.config` dizininizin olduğu gibi korunduğu anlamına gelir. Yani yapılandırma dosyalarını yeni bir biçimde saklayan bir kütüphanenin ya da uygulamanın daha eski bir sürümüne geri dönüyorsanız, bunu elle halletmeniz gerekir.
 
-### Önyükleme menüsünü atlama
-
-Önyükleme menüsüne asla dokunmuyor ve yalnızca makinenin doğrudan şifre çözme ekranına gitmesini istiyorsanız, Omarchy menüsünde _Ayarlar > Doğrudan Önyükleme_ yolunu çalıştırın. Bu, doğrudan Omarchy'ye işaret eden bir EFI girişi ekler, böylece bellenim Limine'de durmadan onu önyükler.
-
-Dezavantaj, en üstte söz edilenle aynıdır: doğrudan önyükleme açıkken, bir anlık görüntüye ulaşmak, önce BIOS önyükleme menünüzden Limine'yi seçmek anlamına gelir. Girişi kaldırmak ve Limine üzerinden önyüklemeye geri dönmek için _Ayarlar > Doğrudan Önyükleme_ yolunu tekrar çalıştırın. Bazı bellenimler özel EFI girişlerine iyi davranmaz, bu yüzden kurulum American Megatrends ve Apple belleniminde çalışmayı reddeder.
+Aynı durum, hangi geçişlerin zaten çalıştırıldığına dair Omarchy'nin kendi kaydı için de geçerlidir: bu kayıt ev dizininizde yaşar, bu yüzden geri yüklemeden sağ çıkar. Anlık görüntü alındıktan sonra çalıştırılan geçişler, kök dosya sisteminde yaptıkları değişiklikler geri alınmış olsa bile yapılmış olarak işaretli kalır ve bir sonraki `omarchy update` onları tekrar çalıştırmaz. Yani bir geri yüklemeden sonra tekrar güncelleme yaparsanız ve daha önceki bir güncellemenin kurduğu bir şey hâlâ eksikse, muhtemel sebep budur.

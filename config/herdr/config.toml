@@ -96,3 +96,8 @@ tab_bar_right = [{ type = "zoom" }, { type = "hostname" }]
 # the basename of the pane cwd. This is what Hyprland shows in the group bar,
 # and it resolves on the server so remote sessions name the remote host.
 window_title = "{hostname}: {workspace}"
+
+[update]
+# pacman installs and updates herdr. Its own check would tell you to run
+# `herdr update`, which can't replace the packaged /usr/bin/herdr.
+version_check = false
