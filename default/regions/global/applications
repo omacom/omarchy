@@ -1,6 +1,7 @@
 # The launchers a fresh install gets, by file name in applications/ without
 # .desktop.
 Activity Monitor
+org.omarchy.FingerprintSetup
 Basecamp
 ChatGPT
 Discord

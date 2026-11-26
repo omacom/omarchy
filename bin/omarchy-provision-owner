@@ -1291,6 +1291,10 @@ cleanup_oem_state() {
 run_provisioning() {
   log_step "creating user $username"
   create_user
+  case ${fingerprint_setup:-} in
+    requested) runuser -u "$username" -- omarchy-done mark fingerprint-setup-requested ;;
+    skipped) runuser -u "$username" -- omarchy-done mark fingerprint-setup-invitation ;;
+  esac
   record_eula
   install_authorized_keys
   configure_login
@@ -1405,6 +1409,7 @@ run_setup() {
     break
   done
 
+  omarchy_prompt_fingerprint
   load_tips
 
   touch "$LOG_FILE"

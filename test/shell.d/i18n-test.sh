@@ -122,6 +122,7 @@ const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
 for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'etc'), ['.jsonc'], cliKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'default/fingerprint'), ['.py'], /tr\("(fingerprintApp\.[a-zA-Z0-9]+)"/g)) cliKeys.add(key)
 const formKeyPattern = /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
 for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh', 'oem.sh'], formKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'bin'), ['omarchy-provision-owner'], formKeyPattern)) cliKeys.add(key)

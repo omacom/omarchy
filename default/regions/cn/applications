@@ -1,6 +1,7 @@
 # The launchers a fresh install in China gets: the global ones that work there,
 # and China's own web apps in place of those blocked in mainland China.
 Activity Monitor
+org.omarchy.FingerprintSetup
 Amap
 Bilibili
 DeepSeek

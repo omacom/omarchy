@@ -433,3 +433,35 @@ for confirmation in 0 1 130; do
   grep -qF -- $'table -s \t -p' "$GUM_ARGS" || fail "review tells gum to use tab-separated input"
 done
 pass "review uses tab-separated cells and propagates confirmation status"
+
+# Install-time consent queues the graphical manager for the owner. A
+# machine without a reader must not ask or record a choice.
+(
+  source "$ROOT/install/provisioning/setup-form.sh"
+  gum() { [[ $1 == "confirm" ]] && return "$answer"; }
+  answer=0
+  omarchy_prompt_fingerprint true
+  [[ $fingerprint_setup == "requested" ]] || exit 1
+  answer=1
+  omarchy_prompt_fingerprint true
+  [[ $fingerprint_setup == "skipped" ]] || exit 1
+  omarchy_prompt_fingerprint false
+  [[ -z $fingerprint_setup ]]
+) || fail "the fingerprint question distinguishes requested, skipped and no reader"
+
+(
+  export HOME="$tmp_dir/fingerprint-owner"
+  mkdir -p "$HOME"
+  omarchy-done() { "$ROOT/bin/omarchy-done" "$@"; }
+  systemd-run() { echo "${*: -1}" >>"$HOME/launched"; }
+  omarchy-hw-fingerprint() { return 0; }
+  omarchy-notification-send() { echo unexpected >>"$HOME/launched"; }
+  export -f omarchy-done systemd-run omarchy-hw-fingerprint omarchy-notification-send
+  hook="$ROOT/install/user/first-run/setup-fingerprint.hook"
+  omarchy-done mark fingerprint-setup-requested
+  bash "$hook" --requested
+  bash "$hook" --requested
+  bash "$hook"
+  [[ $(cat "$HOME/launched") == "omarchy-launch-fingerprint" ]]
+) || fail "the requested manager opens once at first login even without a network"
+pass "fingerprint setup respects the install choice and opens once for the desktop owner"

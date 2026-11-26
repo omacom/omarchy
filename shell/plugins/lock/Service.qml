@@ -23,6 +23,7 @@ Item {
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
+  property bool fingerprintChoiceChecked: false
   property bool fingerprintConfigured: false
   property int fingerprintUnreachedStreak: 0
   property bool fingerprintAttemptReachedDevice: false
@@ -159,9 +160,14 @@ Item {
 
   // Only definitive enrollment results may disable authentication.
   function applyFingerprintProbe(text) {
+    const firstProbe = !fingerprintChoiceChecked
+    fingerprintChoiceChecked = true
     var status = FingerprintModel.classifyProbe(text)
     if (status === "unknown") {
-      if (fingerprintConfigured) return
+      if (fingerprintConfigured) {
+        if (firstProbe && lockRequested && !fingerprintRetryTimer.running) startFingerprint()
+        return
+      }
       fingerprintProbeStreak += 1
       if (lockRequested) {
         fingerprintRecheckTimer.interval = FingerprintModel.retryDelayMs(fingerprintProbeStreak)
@@ -221,6 +227,7 @@ Item {
     }
 
     resetAuthenticationState()
+    fingerprintChoiceChecked = false
     lockRequested = true
     armBlankTimer()
     logEvent("lock-requested")
@@ -391,7 +398,7 @@ Item {
   }
 
   function startFingerprint() {
-    if (!lockRequested || !sessionLock.secure || !fingerprintConfigured || fingerprintPaused) return
+    if (!lockRequested || !sessionLock.secure || !fingerprintChoiceChecked || !fingerprintConfigured || fingerprintPaused) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
@@ -738,7 +745,7 @@ Item {
   // Keep fprintd errors distinguishable from an explicit empty enrollment.
   Process {
     id: fingerprintCheckProc
-    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C fprintd-list \"$USER\" 2>&1; else echo no; fi"]
+    command: ["bash", "-c", "if [[ ! -f $HOME/.local/state/omarchy/toggles/lock-fingerprint-off && -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C fprintd-list \"$USER\" 2>&1; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
     onExited: root.applyFingerprintProbe(fingerprintCheckStdout.text)
   }
@@ -925,6 +932,7 @@ Item {
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
+        fingerprintPreferenceSupported: true,
         fingerprintUnavailable: root.fingerprintUnavailable,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,

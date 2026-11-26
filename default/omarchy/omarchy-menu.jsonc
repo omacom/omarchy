@@ -223,7 +223,7 @@
   "setup.security": {"icon":"","label":"Security"},
   "setup.git": {"icon":"","label":"Git","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-git"},
   "setup.config": {"icon":"","label":"Config"},
-  "setup.security.fingerprint": {"icon":"󰈷","label":"Fingerprint","when":"omarchy-hw-fingerprint","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fingerprint"},
+  "setup.security.fingerprint": {"icon":"󰈷","label":"Fingerprint","when":"omarchy-hw-fingerprint","action":"omarchy-launch-fingerprint"},
   "setup.security.fido2": {"icon":"","label":"Fido2","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fido2"},
   "setup.security.sshd": {"icon":"󰣀","label":"SSHD","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sshd"},
   "setup.security.ssh-agent": {"icon":"󰣀","label":"SSH Agent","when":"! systemctl --user -q is-enabled gcr-ssh-agent.socket","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-ssh-agent"},

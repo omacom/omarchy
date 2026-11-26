@@ -2,11 +2,23 @@
 
 set -e
 
+# A choice made in the installer opens the manager in the owner's desktop,
+# even offline. A skipped invitation can always be opened later under Setup.
+if omarchy-done check fingerprint-setup-requested; then
+  if [[ ${1:-} == "--requested" ]] && ! omarchy-done check fingerprint-setup-invitation; then
+    systemd-run --user --collect --service-type=exec --unit=omarchy-fingerprint-setup omarchy-launch-fingerprint
+    omarchy-done mark fingerprint-setup-invitation
+  fi
+  exit 0
+elif [[ ${1:-} == "--requested" ]]; then
+  exit 0
+fi
+
 # Only invite when there's a reader to use and it isn't set up yet (the lock
 # PAM file is the last thing the setup writes on success).
 if omarchy-hw-fingerprint && [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]] &&
   omarchy-done ensure fingerprint-setup-invitation; then
   omarchy-notification-send -u critical -g 󰈷 "$(omarchy-i18n firstRun.fingerprintTitle)" \
     "$(omarchy-i18n firstRun.fingerprintBody)" \
-    --exec omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fingerprint
+    --exec omarchy-launch-fingerprint
 fi

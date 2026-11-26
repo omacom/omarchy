@@ -48,3 +48,6 @@ o.window({ tag = "pop" }, { rounding = 8 })
 
 -- Prevent idle while open.
 o.window({ tag = "noidle" }, { idle_inhibit = "always" })
+
+-- The enrollment assistant opens at its natural size alongside the setup menus.
+o.window("org.omarchy.FingerprintSetup", { float = true, center = true })

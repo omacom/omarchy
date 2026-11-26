@@ -11,7 +11,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
-mkdir -p "$scratch/bin"
+export HOME="$scratch/home"
+mkdir -p "$scratch/bin" "$HOME/.local/state/omarchy/toggles"
 export CALL_LOG="$scratch/calls"
 export PATH="$scratch/bin:$ROOT/bin:$PATH"
 
@@ -103,6 +104,8 @@ STUB
 chmod +x "$scratch/bin/omarchy-apply-lock"
 
 export TEST_LOCK_PAM="$scratch/omarchy-lock-fingerprint"
+mkdir -p "$scratch/default/fingerprint"
+cp "$ROOT/default/fingerprint/prepare-reader" "$scratch/default/fingerprint/"
 setup_script="$scratch/omarchy-setup-security-fingerprint"
 sed "s|/etc/pam.d/omarchy-lock-fingerprint|$TEST_LOCK_PAM|g" "$ROOT/bin/omarchy-setup-security-fingerprint" > "$setup_script"
 chmod +x "$setup_script"
@@ -156,11 +159,13 @@ HARDWARE_STATUS=1 run_setup
 pass "missing hardware performs no package operations"
 
 # Successful setup must reuse the same lock/recovery installer as updates.
+touch "$HOME/.local/state/omarchy/toggles/lock-fingerprint-off"
 : > "$CALL_LOG"
 OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 \
   "$setup_script" > "$scratch/output" 2>&1 || fail "successful enrollment configures authentication"
 [[ $(grep -E '^(enroll|verify|apply-lock)$' "$CALL_LOG") == $'enroll\nverify\napply-lock' ]] ||
   fail "setup configures lock recovery once, after enrollment and verification"
+[[ ! -e $HOME/.local/state/omarchy/toggles/lock-fingerprint-off ]] || fail "successful terminal setup enables screen unlock for the owner"
 pass "setup reuses apply-lock after enrollment and verification"
 
 # A reader its platform keeps off until the owner agrees is turned on before
@@ -369,3 +374,10 @@ pass "stock libfprint is still replaced by libfprint-git"
 LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
 assert_installs "an existing libfprint-git still completes the package set"
 pass "an existing libfprint-git still completes the package set"
+
+if /usr/bin/python3 -c 'import dbus; from gi.repository import Gio' 2>/dev/null; then
+  dbus-run-session -- /usr/bin/python3 "$ROOT/test/shell.d/fixtures/fingerprint-setup/reader-test.py"
+  pass "the graphical reader handles touch, lift, early completion and occupied slots over D-Bus"
+else
+  echo "skip - graphical reader tests need Python GObject and dbus-python"
+fi

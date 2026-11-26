@@ -2,9 +2,11 @@
 
 ### Fingerprint authentication
 
-A lot of laptops come with a fingerprint sensor to do authentication. You can use this with Omarchy by running _Setup > Security > Fingerprint_ in the Omarchy menu (`Super + Space`).
+On a computer with a supported reader, the installer offers to open _Fingerprint Setup_ at first login. You can also open it from _Setup > Security > Fingerprint_. On a Mac, open the lid to use the built-in Touch ID sensor. If the app asks you to prepare the reader, follow the platform's consent and backup instructions first.
 
-That'll install the fingerprint package, collect your print, verify it, and you'll be set to go using your fingerprint to unlock from the lock screen (which you can trigger with `Super + Ctrl + L`), enter sudo mode, and authorize system prompts.
+Choose an unused finger and select _Enroll selected finger_. Follow the touch and lift prompts until the app confirms that the fingerprint was added. Select _Continue_ to see the saved fingers, add another, or verify one. To use an enrolled finger at the lock screen, choose _Enable fingerprint unlock_, verify a saved finger and confirm the administrator prompt. Lock the desktop with `Super + Ctrl + L`. Your password remains available.
+
+For the terminal workflow that also configures `sudo` and system authorization prompts, run `omarchy setup security fingerprint`.
 
 Once the lock screen has turned the display off, the sensor rests to save power, so wake the screen with any key or the touchpad before touching it.
 

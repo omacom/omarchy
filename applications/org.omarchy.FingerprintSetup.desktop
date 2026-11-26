@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Fingerprint Setup
+GenericName=Touch ID and fingerprint settings
+Comment=Add fingers and set up fingerprint screen unlock
+Exec=omarchy-launch-fingerprint
+Icon=auth-fingerprint-symbolic
+Terminal=false
+Categories=Settings;Security;
+Keywords=Touch ID;fingerprint;biometrics;unlock;
