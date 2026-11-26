@@ -486,10 +486,12 @@ end
 
 -- The dock brings a window forward by focusing it, and focusing the window
 -- that has the focus already changes nothing Hyprland reports, so the dock
--- asks here too: `hyprctl eval 'o.bring_forward("0x…")'`.
+-- asks here too: `hyprctl eval 'o.bring_forward("0x…")'`. That call comes from
+-- a process of its own and can arrive after the user has picked another window,
+-- which then stays in front.
 function o.bring_forward(address)
-  local window = hl.get_window("address:" .. address)
-  if maximized_on_floating_workspace(window) then
+  local window, active = hl.get_window("address:" .. address), hl.get_active_window()
+  if active and window and active.address == window.address and maximized_on_floating_workspace(window) then
     bring_forward(window)
   end
 end

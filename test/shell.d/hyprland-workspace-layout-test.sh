@@ -738,6 +738,12 @@ assert(browser.allowed_over_fullscreen, "a click on a true fullscreen window res
 -- which Hyprland reports nothing for, still brings it in front of the browser.
 maximized.fullscreen = 1
 asks_for_focus(browser)
+
+-- A dock request that arrives after the user has picked another window leaves
+-- that window in front.
+o.bring_forward("0xA")
+assert(browser.allowed_over_fullscreen, "a late dock request hid the window the user picked after it")
+
 asks_for_focus(maximized)
 o.bring_forward("0xA")
 assert(not browser.allowed_over_fullscreen, "the dock left the browser over the focused maximized window")
