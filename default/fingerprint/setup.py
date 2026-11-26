@@ -304,22 +304,21 @@ class Window(Gtk.ApplicationWindow):
     sudo_enabled = sudo_pam.enabled()
     security = self.group(tr("fingerprintApp.authentication", "Authentication"))
     if fingers:
-      row = self.setting_row(tr("fingerprintApp.useUnlock", "Unlock with a fingerprint"),
-                             tr("fingerprintApp.password", "You can also use your password."))
+      title = tr("fingerprintApp.useUnlock", "Unlock with a fingerprint")
+      description = (tr("fingerprintApp.password", "You can also use your password.") if preferences else
+                     tr("fingerprintApp.unlockNeedsShell", "After updating Omarchy, restart its shell and reopen Fingerprint Setup."))
+      row = self.setting_row(title, description)
       enabled = PAM.exists() and (not preferences or not DISABLED.exists())
-      if preferences or not enabled:
-        switch = Gtk.Switch(active=enabled, valign=Gtk.Align.CENTER)
-        switch.update_property([Gtk.AccessibleProperty.LABEL], [tr("fingerprintApp.useUnlock", "Unlock with a fingerprint")])
-        def toggle(widget, state):
-          if state:
-            self.scan("Verify", "any", self.enable)
-          else:
-            self.disable()
-          return True
-        switch.connect("state-set", toggle)
-        row.append(switch)
-      else:
-        row.append(label(tr("fingerprintApp.on", "On")))
+      switch = Gtk.Switch(active=enabled, sensitive=preferences, valign=Gtk.Align.CENTER)
+      switch.update_property([Gtk.AccessibleProperty.LABEL], [title])
+      def toggle(widget, state):
+        if state:
+          self.scan("Verify", "any", self.enable)
+        else:
+          self.disable()
+        return True
+      switch.connect("state-set", toggle)
+      row.append(switch)
       security.append(row)
     self.sudo_row(security, fingers, sudo_enabled)
     if self.needs_consent:
