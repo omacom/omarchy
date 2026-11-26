@@ -44,6 +44,7 @@ printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 printf 'watcher=%s popup=%s crash-handler-off=%s background=%s\n' \
   "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" \
   "${QS_DISABLE_CRASH_HANDLER:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
+printf '%s %s\n' "$HYPRLAND_INSTANCE_SIGNATURE" "$WAYLAND_DISPLAY" >>"$OMARCHY_TEST_QS_INSTANCE_LOG"
 
 launches=$(wc -l <"$OMARCHY_TEST_QS_LOG")
 status=$(awk -v n="$launches" 'NR == n { print; found = 1 } END { if (!found) print "0" }' <<<"$OMARCHY_TEST_QS_STATUSES")
@@ -71,8 +72,29 @@ cat >"$fake_bin/hyprctl" <<'SH'
 
 [[ ${OMARCHY_TEST_COMPOSITOR_GONE:-0} == 1 ]] && exit 4
 
+if [[ ${OMARCHY_TEST_SESSIONS:-0} == 1 ]]; then
+  case "$*" in
+    "instances -j")
+      printf '[{"instance":"other","pid":200,"wl_socket":"wayland-1"},{"instance":"inherited","pid":100,"wl_socket":"wayland-2"},{"instance":"replacement","pid":300,"wl_socket":"wayland-3"}]\n'
+      exit 0
+      ;;
+    eval*)
+      printf '%s\n' "$HYPRLAND_INSTANCE_SIGNATURE" >>"$OMARCHY_TEST_EVAL_LOG"
+      printf 'ok\n'
+      exit 0
+      ;;
+  esac
+  if [[ $HYPRLAND_INSTANCE_SIGNATURE == "inherited" && ${OMARCHY_TEST_CRASHED:-0} == 1 && -s $OMARCHY_TEST_QS_LOG ]]; then
+    exit 4
+  fi
+  if [[ $HYPRLAND_INSTANCE_SIGNATURE == "replacement" ]]; then
+    printf '[{"name":"eDP-1","solitaryBlockedBy":["LOCK"]}]\n'
+    exit 0
+  fi
+fi
+
 # Refuse the first OMARCHY_TEST_HYPRCTL_MISSES queries, then answer.
-if (( ${OMARCHY_TEST_HYPRCTL_MISSES:-0} > 0 )); then
+if (( ${OMARCHY_TEST_HYPRCTL_MISSES:-0} > 0 )) && [[ $* == "-j monitors" && -s $OMARCHY_TEST_QS_LOG ]]; then
   misses=$(cat "$OMARCHY_TEST_HYPRCTL_MISS_COUNT" 2>/dev/null || printf '0')
   if (( misses < OMARCHY_TEST_HYPRCTL_MISSES )); then
     printf '%s\n' "$(( misses + 1 ))" >"$OMARCHY_TEST_HYPRCTL_MISS_COUNT"
@@ -90,24 +112,48 @@ shift 2
 printf '%s\n' "$*" >>"$OMARCHY_TEST_LOGGER_LOG"
 SH
 
-chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fake_bin/logger"
+cat >"$fake_bin/ps" <<'SH'
+#!/bin/bash
+
+if [[ ${OMARCHY_TEST_SESSIONS:-0} == 1 ]]; then
+  case "$*" in
+    "-o comm= -p 900") printf 'start-hyprland\n'; exit 0 ;;
+    "-o ppid= -p 100") printf '800\n'; exit 0 ;;
+    "-o ppid= -p 200") printf '800\n'; exit 0 ;;
+    "-o ppid= -p 300") printf '900\n'; exit 0 ;;
+    "-o ppid= -p "*) printf '900\n'; exit 0 ;;
+  esac
+fi
+
+exec /usr/bin/ps "$@"
+SH
+
+chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fake_bin/logger" "$fake_bin/ps"
+ln -s "$ROOT/bin/omarchy-hyprland-session-locked" "$fake_bin/omarchy-hyprland-session-locked"
 
 qs_log="$test_tmp/quickshell.log"
 qs_env_log="$test_tmp/quickshell-env.log"
 logger_log="$test_tmp/logger.log"
 qs_terminated="$test_tmp/quickshell-terminated"
 hyprctl_misses="$test_tmp/hyprctl-misses"
+qs_instance_log="$test_tmp/quickshell-instances.log"
+eval_log="$test_tmp/hyprctl-eval.log"
+export HYPRLAND_INSTANCE_SIGNATURE=inherited WAYLAND_DISPLAY=wayland-2
 
 launch_shell() {
   : >"$qs_log"
   : >"$qs_env_log"
   : >"$logger_log"
+  : >"$qs_instance_log"
+  : >"$eval_log"
 
   PATH="$fake_bin:$PATH" \
   HOME="$launch_home" \
   OMARCHY_PATH="$shell_root" \
   OMARCHY_TEST_QS_LOG="$qs_log" \
   OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+  OMARCHY_TEST_QS_INSTANCE_LOG="$qs_instance_log" \
+  OMARCHY_TEST_EVAL_LOG="$eval_log" \
   OMARCHY_TEST_QS_STATUSES="$1" \
   OMARCHY_TEST_COMPOSITOR_GONE="${2:-0}" \
   OMARCHY_TEST_LOGGER_LOG="$logger_log" \
@@ -156,6 +202,19 @@ launch_shell $'255\n0' 0 2 || fail "a shell survives a compositor that misses a 
 [[ $(launches) == 2 ]] || fail "a missed compositor query does not end supervision" "$(<"$qs_log")"
 pass "a compositor too busy to answer is not mistaken for one that is gone"
 
+OMARCHY_TEST_SESSIONS=1 launch_shell $'255\n0' || fail "a shell beside another session is relaunched"
+[[ $(sed -n 2p "$qs_instance_log") == "inherited wayland-2" ]] ||
+  fail "a relaunched shell stays on the compositor that started it" "$(<"$qs_instance_log")"
+pass "a relaunched shell stays on its own compositor while it answers"
+
+# A crash while locked comes back as a safe-mode compositor under a new
+# signature, and safe mode does not start the shell itself.
+OMARCHY_TEST_SESSIONS=1 OMARCHY_TEST_CRASHED=1 launch_shell $'255\n0' || fail "a shell outliving a compositor crash is relaunched"
+[[ $(sed -n 2p "$qs_instance_log") == "replacement wayland-3" ]] ||
+  fail "the shell follows the watchdog's replacement compositor" "$(<"$qs_instance_log")"
+[[ $(<"$eval_log") == "replacement" ]] || fail "lock restore is enabled on the locked replacement only" "$(<"$eval_log")"
+pass "the shell follows a watchdog restart to its replacement compositor"
+
 # A signal mid-backoff only reaches the trap once the sleep is over.
 : >"$qs_log"
 : >"$qs_env_log"
@@ -165,6 +224,8 @@ PATH="$fake_bin:$PATH" \
 OMARCHY_PATH="$shell_root" \
 OMARCHY_TEST_QS_LOG="$qs_log" \
 OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+OMARCHY_TEST_QS_INSTANCE_LOG="$qs_instance_log" \
+OMARCHY_TEST_EVAL_LOG="$eval_log" \
 OMARCHY_TEST_QS_STATUSES=$'255\n0' \
 OMARCHY_TEST_COMPOSITOR_GONE=0 \
 OMARCHY_TEST_LOGGER_LOG="$logger_log" \
@@ -194,6 +255,8 @@ PATH="$fake_bin:$PATH" \
 OMARCHY_PATH="$shell_root" \
 OMARCHY_TEST_QS_LOG="$qs_log" \
 OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+OMARCHY_TEST_QS_INSTANCE_LOG="$qs_instance_log" \
+OMARCHY_TEST_EVAL_LOG="$eval_log" \
 OMARCHY_TEST_QS_STATUSES='run' \
 OMARCHY_TEST_COMPOSITOR_GONE=0 \
 OMARCHY_TEST_LOGGER_LOG="$logger_log" \
