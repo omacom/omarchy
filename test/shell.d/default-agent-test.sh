@@ -662,14 +662,26 @@ assert_approval_prompt_with_task qwen qwen "--prompt-interactive=Review this pro
 assert_approval_prompt_with_task kilo kilo "--prompt=Review this project"
 assert_approval_prompt_with_task devin devin -- "Review this project"
 assert_approval_prompt_with_task amp bash -c 'printf "%s\n" "$1" | exec "$0"' amp "Review this project"
+: >"$notification_history"
 assert_approval_prompt_with_task crush crush
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Crush receives the task through the clipboard in approval mode"
+grep -Fq "To keep you in control, the task for Crush is on the clipboard." "$notification_history" ||
+  fail "Crush's approval-mode notice explains why the task is withheld"
+: >"$notification_history"
+assert_approval_prompt_with_task pi pi
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "Pi receives the task through the clipboard in approval mode"
+grep -Fq "To keep you in control, the task for Pi is on the clipboard." "$notification_history" ||
+  fail "Pi's approval-mode notice explains why the task is withheld"
 assert_approval_prompt_with_task kimi kimi
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Kimi receives the task through the clipboard in approval mode"
+grep -Fq "To keep you in control, the task for Kimi Code is on the clipboard." "$notification_history" ||
+  fail "Kimi's approval-mode notice explains why the task is withheld"
 assert_approval_prompt_with_task dsh dsh web
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "DSH receives the task through the clipboard in approval mode"
 assert_approval_prompt_with_task openclaw omarchy-launch-openclaw --tui
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "OpenClaw receives the task through the clipboard in approval mode"
+grep -Fq "To keep you in control, the task for OpenClaw is on the clipboard." "$notification_history" ||
+  fail "OpenClaw's approval-mode notice explains why the task is withheld"
 pass "crash diagnosis can launch every supported agent with its automatic approval bypass disabled"
 
 crash_agent_bin="$test_tmp/crash-agent-bin"

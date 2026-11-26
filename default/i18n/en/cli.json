@@ -28,6 +28,7 @@
   "agents.localMissingBody": "Set one up with: omarchy models use best text",
   "agents.chooseForPrompt": "Choose an agent for this task",
   "agents.promptOnClipboard": "%1 takes no starting prompt",
+  "agents.promptApprovalOnClipboard": "To keep you in control, the task for %1 is on the clipboard.",
   "agents.promptOnClipboardBody": "Your prompt is on the clipboard. Paste it into the session.",
   "agents.runningStayOn": "Running sessions stay on %1.",
   "agents.runningFollow": "Running sessions use it too.",
