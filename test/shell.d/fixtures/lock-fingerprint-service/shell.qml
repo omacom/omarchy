@@ -249,6 +249,12 @@ ShellRoot {
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
+
+      service.lockRequested = false
+      service.passwordPamConfigured = true
+      check(service.beginLock(), "a configured password lock starts")
+      check(blankTimer.interval === 15000,
+        "a newly requested lock gets a display-wake grace before it can blank")
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()

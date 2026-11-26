@@ -222,7 +222,8 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
-    armBlankTimer()
+    // A new lock can start before a slow display has finished waking.
+    armBlankTimer(idleBlankTimer.initialMs)
     logEvent("lock-requested")
     queueSessionLock()
 
@@ -785,6 +786,8 @@ Item {
     // panel lights (on NVIDIA it waits out a VT switch and a modeset), so the
     // idle run-up blanked the lock just as it appeared.
     readonly property int resumeMs: 15000
+    // The lock may start while the display is still waking from the greeter.
+    readonly property int initialMs: 15000
     interval: idleMs
     repeat: false
     property double armedAt: 0
