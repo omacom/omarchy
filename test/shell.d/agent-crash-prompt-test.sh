@@ -68,7 +68,7 @@ grep -Fq 'binary:   /usr/lib/firefox/firefox' <<<"$PROMPT" ||
   fail "the crash's binary is missing from the prompt"
 grep -Fq 'signal:   SIGSEGV' <<<"$PROMPT" ||
   fail "the crash's signal is missing from the prompt"
-grep -Fq "$ROOT/default/agents/skills/diagnose-crash/SKILL.md" <<<"$PROMPT" ||
+grep -Fq "$ROOT/default/agents/skills/omarchy-diagnose-crash/SKILL.md" <<<"$PROMPT" ||
   fail "the prompt no longer points at the diagnose-crash skill"
 pass "the crash record still reaches the agent intact"
 
