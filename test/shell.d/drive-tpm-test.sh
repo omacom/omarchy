@@ -18,6 +18,9 @@ export OMARCHY_MKINITCPIO_DIR="$tmp/etc/mkinitcpio.conf.d"
 export OMARCHY_SECURE_BOOT_VAR="$tmp/no-secure-boot-var"
 export OMARCHY_CRYPTTAB_INITRAMFS="$tmp/etc/crypttab.initramfs"
 export OMARCHY_LIMINE_DROP_INS="$tmp/etc/limine-entry-tool.d"
+export OMARCHY_LIMINE_USR_DROP_INS="$tmp/usr/share/limine-entry-tool.d"
+export OMARCHY_LIMINE_ENTRY_CONF="$tmp/etc/limine-entry-tool.conf"
+export OMARCHY_LIMINE_DEFAULT_CONF="$tmp/etc/default/limine"
 export OMARCHY_SDDM_AUTOLOGIN="$tmp/etc/sddm.conf.d/autologin.conf"
 export OMARCHY_TPM_STATE_DIR="$tmp/var/lib/omarchy/drive-tpm"
 export OMARCHY_PROC_CMDLINE="$tmp/proc-cmdline"
@@ -274,6 +277,7 @@ fi
 if [[ ${1:-} == "--wipe-slot=tpm2" ]]; then
   rm -f "$TEST_ENROLLED_FLAG"
 else
+  [[ -z ${FAKE_CRYPTENROLL_FAIL:-} ]] || exit 1
   touch "$TEST_ENROLLED_FLAG"
 fi
 exit 0
@@ -335,6 +339,9 @@ cmdline_original=$(<"$OMARCHY_PROC_CMDLINE")
 
 reset_root() {
   rm -f "$tpm_drop_in" "$cmdline_drop_in" "$OMARCHY_CRYPTTAB_INITRAMFS" "$TEST_ENROLLED_FLAG" "$TEST_REBUILD_FAILED"
+  rm -rf "$OMARCHY_LIMINE_USR_DROP_INS" "$OMARCHY_LIMINE_ENTRY_CONF" "$(dirname "$OMARCHY_LIMINE_DEFAULT_CONF")"
+  mkdir -p "$(dirname "$OMARCHY_LIMINE_DEFAULT_CONF")"
+  printf 'KERNEL_CMDLINE[default]+="%s"\n' "$cmdline_original" >"$OMARCHY_LIMINE_DEFAULT_CONF"
   rm -rf "$OMARCHY_TPM_STATE_DIR"
   printf '%s\n' "$busybox_conf" >"$OMARCHY_MKINITCPIO_CONF"
   printf '%s\n' "$cmdline_original" >"$OMARCHY_PROC_CMDLINE"
@@ -440,6 +447,34 @@ assert_refused "an rd.luks unlock already on the command line" "rd.luks.name="
 reset_root
 printf 'data UUID=1234 none\n' >"$OMARCHY_CRYPTTAB_INITRAMFS"
 assert_refused "a crypttab.initramfs already in use" "already sets up volumes"
+
+# /etc/default/limine is read after the drop-ins, so a plain = there replaces
+# the rd.luks.* the drop-in appends.
+reset_root
+printf 'KERNEL_CMDLINE[default]="%s"\n' "$cmdline_original" >"$OMARCHY_LIMINE_DEFAULT_CONF"
+assert_refused "a later KERNEL_CMDLINE[default]= replacing the drop-in" "for: default"
+
+reset_root
+printf 'KERNEL_CMDLINE[fallback]+=" quiet"\n' >>"$OMARCHY_LIMINE_DEFAULT_CONF"
+assert_refused "a fallback command line that never gets rd.luks.*" "for: fallback"
+
+reset_root
+mkdir -p "$OMARCHY_LIMINE_USR_DROP_INS"
+printf 'KERNEL_CMDLINE[default]=" early"\n' >"$OMARCHY_LIMINE_USR_DROP_INS/00-early.conf"
+"$drive_tpm" enroll --allow-unsafe --yes >/dev/null
+[[ -f $cmdline_drop_in ]] || fail "a plain = read before the drop-in is fine"
+pass "a plain = read before the drop-in is fine"
+
+# The token is added after autologin is off; a failed enrollment before the
+# boot switch brings autologin back, since busybox images ignore the token.
+reset_root
+status=0
+err=$(FAKE_CRYPTENROLL_FAIL=1 "$drive_tpm" enroll --allow-unsafe --yes 2>&1) || status=$?
+(( status != 0 )) || fail "a failed enrollment fails enroll" "$err"
+assert_output_contains "autologin is off before the token is added" "$err" "Turned off SDDM autologin."
+[[ $(<"$OMARCHY_SDDM_AUTOLOGIN") == "$autologin_original" && ! -e $autologin_backup ]] || fail "a failed enrollment restores autologin"
+[[ ! -e $tpm_drop_in && ! -e $cmdline_drop_in && ! -s $TEST_REBUILD_CALLS ]] || fail "a failed enrollment switches nothing"
+pass "a failed enrollment restores autologin and switches nothing"
 
 reset_root
 status=0

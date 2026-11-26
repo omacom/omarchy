@@ -17,6 +17,9 @@ TPM_HOOKS_DROP_IN="$MKINITCPIO_DIR/omarchy_tpm_unlock.conf"
 TPM_HOOKS_SOURCE="${OMARCHY_PATH:-}/default/mkinitcpio/omarchy_tpm_unlock.conf"
 LIMINE_DROP_INS="${OMARCHY_LIMINE_DROP_INS:-/etc/limine-entry-tool.d}"
 TPM_CMDLINE_DROP_IN="$LIMINE_DROP_INS/99-omarchy-tpm-unlock.conf"
+LIMINE_USR_DROP_INS="${OMARCHY_LIMINE_USR_DROP_INS:-/usr/share/limine-entry-tool.d}"
+LIMINE_ENTRY_CONF="${OMARCHY_LIMINE_ENTRY_CONF:-/etc/limine-entry-tool.conf}"
+LIMINE_DEFAULT_CONF="${OMARCHY_LIMINE_DEFAULT_CONF:-/etc/default/limine}"
 CRYPTTAB_INITRAMFS="${OMARCHY_CRYPTTAB_INITRAMFS:-/etc/crypttab.initramfs}"
 SDDM_AUTOLOGIN="${OMARCHY_SDDM_AUTOLOGIN:-/etc/sddm.conf.d/autologin.conf}"
 TPM_STATE_DIR="${OMARCHY_TPM_STATE_DIR:-/var/lib/omarchy/drive-tpm}"
@@ -302,14 +305,64 @@ rebuild_boot_images() {
 # switch or after a drop-in went missing, still finds root and asks for the
 # passphrase, and the tools that read cryptdevice= from /proc/cmdline keep
 # working. The systemd image ignores it.
+tpm_cmdline_drop_in() {
+  printf '# Written by omarchy-drive-tpm enroll; omarchy-drive-tpm wipe removes it.\nKERNEL_CMDLINE[default]+=" %s"\n' "$1"
+}
+
 install_tpm_boot() {
   local cmdline=$1 staged
   sudo rm -f "$BOOT_SWITCHED"
   staged=$(mktemp)
-  printf '# Written by omarchy-drive-tpm enroll; omarchy-drive-tpm wipe removes it.\nKERNEL_CMDLINE[default]+=" %s"\n' "$cmdline" >"$staged"
+  tpm_cmdline_drop_in "$cmdline" >"$staged"
   sudo install -Dm644 "$staged" "$TPM_CMDLINE_DROP_IN"
   rm -f "$staged"
   sudo install -Dm644 "$TPM_HOOKS_SOURCE" "$TPM_HOOKS_DROP_IN"
+}
+
+# limine-entry-tool reads its settings in this order, a later file winning:
+# /usr/share/limine-entry-tool.d/*.conf, /etc/limine-entry-tool.conf,
+# /etc/limine-entry-tool.d/*.conf, then /etc/default/limine. A plain
+# KERNEL_CMDLINE[key]= (not +=) after the drop-in replaces what it appended, and
+# a fallback or kernel-specific key never gets it; either would leave a systemd
+# image with no rd.luks.* to open root. Replay that order with the drop-in in
+# place and print each key whose command line lacks $1.
+limine_cmdlines_missing() {
+  local wanted=$1 drop_in_line=$2 file line key op value content
+  local re='^[[:space:]]*KERNEL_CMDLINE\[([^]]*)\][[:space:]]*(\+?=)[[:space:]]*(.*)$'
+  local -A cmdlines=()
+  local -a etc_d=() files=()
+
+  shopt -s nullglob
+  etc_d=("$LIMINE_DROP_INS"/*.conf)
+  files=("$LIMINE_USR_DROP_INS"/*.conf)
+  shopt -u nullglob
+  files+=("$LIMINE_ENTRY_CONF")
+  mapfile -t etc_d < <(printf '%s\n' "${etc_d[@]}" "$TPM_CMDLINE_DROP_IN" | sort -u)
+  files+=("${etc_d[@]}" "$LIMINE_DEFAULT_CONF")
+
+  for file in "${files[@]}"; do
+    if [[ $file == "$TPM_CMDLINE_DROP_IN" ]]; then
+      content=$drop_in_line
+    else
+      sudo test -f "$file" || continue
+      content=$(sudo cat "$file")
+    fi
+    while IFS= read -r line; do
+      [[ $line =~ $re ]] || continue
+      key=${BASH_REMATCH[1]} op=${BASH_REMATCH[2]} value=${BASH_REMATCH[3]}
+      key=${key//\"/} key=${key//\'/}
+      value=${value%\"} value=${value#\"}
+      if [[ $op == "+=" ]]; then
+        cmdlines[$key]+=" $value"
+      else
+        cmdlines[$key]=$value
+      fi
+    done <<<"$content"
+  done
+
+  for key in "${!cmdlines[@]}"; do
+    [[ " ${cmdlines[$key]} " == *" $wanted "* ]] || echo "$key"
+  done
 }
 
 # Two rebuilds, so that no boot image is ever a systemd one without rd.luks.*
@@ -536,6 +589,14 @@ cmd_enroll() {
     fi
 
     cmdline="rd.luks.name=$luks_uuid=$name rd.luks.options=$luks_uuid=tpm2-device=auto$options"
+
+    local dropped
+    dropped=$(limine_cmdlines_missing "rd.luks.name=$luks_uuid=$name" "$(tpm_cmdline_drop_in "$cmdline")")
+    if [[ -n $dropped ]]; then
+      echo "Refusing: the Limine settings would leave rd.luks.* off the kernel command line for: $(echo $dropped)." >&2
+      echo "A KERNEL_CMDLINE[...]= (not +=) in $LIMINE_DEFAULT_CONF or a later drop-in replaces it, or a fallback or kernel-specific entry never gets it." >&2
+      return 1
+    fi
   fi
 
   local autologin_on=0
@@ -576,13 +637,21 @@ cmd_enroll() {
     return 1
   fi
 
-  if [[ -z $existing ]]; then
-    enroll_token "$drive" "$pcrs" || return 1
-  fi
-
+  # Autologin goes first: with an sd-encrypt image already in place, the token
+  # unlocks the next boot as soon as it exists.
   if (( autologin_on )) && [[ $keep_autologin != "1" ]]; then
     autologin_disable
     echo "Turned off SDDM autologin."
+  fi
+
+  if [[ -z $existing ]] && ! enroll_token "$drive" "$pcrs"; then
+    # A busybox image ignores the token, so autologin can safely come back.
+    if (( switch_boot )); then
+      autologin_restore
+    elif (( autologin_on )) && [[ $keep_autologin != "1" ]]; then
+      echo "Autologin stays off: a TPM key may have been enrolled. 'omarchy drive tpm wipe' restores it." >&2
+    fi
+    return 1
   fi
 
   if (( switch_boot )); then
