@@ -229,8 +229,7 @@ Panel {
 
   function toggleNetwork() {
     if (!networkManagerAvailable) return
-    Networking.wifiEnabled = !Networking.wifiEnabled
-    Qt.callLater(function() { root.refresh(true) })
+    Quickshell.execDetached(["omarchy-network-wifi", Networking.wifiEnabled ? "off" : "on"])
   }
 
   ShellIpc {
@@ -796,7 +795,7 @@ Panel {
     if (!band || actionProc.running) return
 
     root.pendingBand = band
-    actionProc.command = ["omarchy-network-band", band]
+    actionProc.command = ["omarchy-network-wifi", "band", band]
     actionProc.running = true
   }
 
@@ -864,7 +863,7 @@ Panel {
   }
 
   function runNetworkAction(kind, network, callback) {
-    if (actionKind !== "" || !network) return
+    if (actionKind !== "" || wifiAction.running || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
     switchingNetwork = kind === "connect" && root.kind !== "disconnected"
@@ -873,19 +872,20 @@ Panel {
     actionKind = kind
     failureSsid = ""
     failureReason = ""
-    // Already in the asked-for state: Quickshell ignores such a call, so nothing
-    // would ever signal, and the enterprise script would reconnect a live link.
+    // Already in the asked-for state: no-op without spawning the CLI.
     checkActionCompletion(network)
     if (actionKind === "") return
     callback(network)
-    // Safety net: if onExited never fires (process death, signal handler
-    // throws, etc.), clear the busy state so the row doesn't get stuck on
-    // "Connecting…" / "Disconnecting…" forever.
+    // Safety net: if neither NM nor the CLI settles the action, clear the busy
+    // state so the row doesn't get stuck on "Connecting…" / "Disconnecting…" forever.
     actionTimeout.restart()
   }
 
   function clearNetworkAction() {
     actionTimeout.stop()
+    actionCancelFallback.stop()
+    wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
     if (actionKind === "connect" && passwordSsid === actionSsid) passwordSsid = ""
     failureSsid = ""
     failureReason = ""
@@ -897,6 +897,9 @@ Panel {
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
+    actionCancelFallback.stop()
+    wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
     failureSsid = actionSsid
     failureKind = actionKind
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
@@ -931,36 +934,125 @@ Panel {
     else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
   }
 
+  function runWifiCli(ssid, command, secret) {
+    wifiAction.targetSsid = ssid
+    wifiAction.sendSecret = secret !== undefined
+    wifiAction.secret = secret !== undefined ? secret : ""
+    wifiAction.timedOut = false
+    wifiAction.command = command
+    wifiAction.running = true
+  }
+
+  function wifiConnectCommand(ssid, extraArgs) {
+    var cmd = ["omarchy-network-wifi", "connect"]
+    if (extraArgs) {
+      for (var i = 0; i < extraArgs.length; i++) cmd.push(extraArgs[i])
+    }
+    if (wifiDevice && wifiDevice.name) {
+      cmd.push("--interface")
+      cmd.push(wifiDevice.name)
+    }
+    cmd.push("--")
+    cmd.push(ssid)
+    return cmd
+  }
+
   function connectDirectly(ssid) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid))
+    })
   }
 
   function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid, ["--password-stdin"]), passphrase)
+    })
   }
 
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
-      enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
-      enterpriseConnect.running = true
+      runWifiCli(
+        network.name || ssid,
+        wifiConnectCommand(network.name || ssid, ["--identity", identity, "--password-stdin"]),
+        passphrase
+      )
     })
   }
 
-  // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).
-  // The password goes over stdin, never argv.
+  // Runs Wi-Fi connect/disconnect/forget actions through `omarchy-network-wifi`.
+  // Passphrases travel over stdin, never argv.
   Process {
-    id: enterpriseConnect
+    id: wifiAction
+    property string targetSsid: ""
     property string secret: ""
+    property bool sendSecret: false
+    property bool timedOut: false
     stdinEnabled: true
+    stderr: StdioCollector { id: wifiActionStderr; waitForEnd: true }
     onStarted: {
-      write(secret + "\n")
+      if (sendSecret) write(secret + "\n")
       secret = ""
+      sendSecret = false
+    }
+    onExited: function(exitCode) {
+      var ssid = targetSsid
+      var wasTimedOut = timedOut
+      var errText = String(wifiActionStderr.text || "").trim()
+      targetSsid = ""
+      secret = ""
+      sendSecret = false
+      timedOut = false
+      if (wasTimedOut) {
+        actionCancelFallback.stop()
+        root.finishActionTimeout()
+        return
+      }
+      if (exitCode !== 0 && root.actionKind !== "" && root.actionSsid === ssid) {
+        // Give NetworkManager's own connectionFailed signal a short head start
+        // so specific reasons (Wrong password, reprompt) win over a generic fallback.
+        wifiActionFailDelay.failedSsid = ssid
+        wifiActionFailDelay.failedReason = errText.indexOf("Secrets were required") >= 0
+          ? root.connectionFailReasons.NoSecrets
+          : -1
+        wifiActionFailDelay.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: wifiActionFailDelay
+    property string failedSsid: ""
+    property int failedReason: -1
+    interval: 750
+    repeat: false
+    onTriggered: {
+      if (root.actionKind === "" || root.actionSsid !== failedSsid) return
+      var net = root.networkForSsid(failedSsid)
+      var reason = failedReason
+      if (net) {
+        var ours = root.actionKind === "connect"
+        root.failNetworkAction(net, reason)
+        if (ours && root.shouldRepromptPassphrase(reason, root.requiresCredentials(net.security)))
+          root.openPasswordPrompt(failedSsid)
+      } else {
+        actionTimeout.stop()
+        root.failureSsid = failedSsid
+        root.failureKind = root.actionKind
+        root.failureReason = root.networkFailureReason(reason, false)
+        root.actionSsid = ""
+        root.actionKind = ""
+        root.refresh()
+      }
     }
   }
 
   function disconnect(network) {
-    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) { net.disconnect() })
+    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) {
+      var cmd = wifiDevice && wifiDevice.name
+        ? ["omarchy-network-wifi", "disconnect", "--", wifiDevice.name]
+        : ["omarchy-network-wifi", "disconnect"]
+      runWifiCli(net.name || "", cmd)
+    })
   }
 
   // Disconnect from a row's SSID. Rows are primitive snapshots that can outlive
@@ -973,7 +1065,9 @@ Panel {
   }
 
   function forget(net) {
-    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) {
+      runWifiCli(network.name || "", ["omarchy-network-wifi", "forget", "--ssid", "--", network.name])
+    })
   }
 
   implicitWidth: button.implicitWidth
@@ -1060,8 +1154,7 @@ Panel {
     }
   }
 
-  // Action runner for DNS provider changes. Wi-Fi actions use the
-  // Quickshell.Networking NetworkManager backend directly.
+  // Action runner for DNS provider and Wi-Fi band changes.
   Process {
     id: actionProc
     stdout: StdioCollector { id: actionStdout; waitForEnd: true }
@@ -1126,26 +1219,49 @@ Panel {
     }
   }
 
+  function finishActionTimeout() {
+    if (!root.actionKind) return
+    var reason
+    if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+    else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+    else reason = Commons.I18n.t("network.timedOutForgetting")
+    root.failureSsid = root.actionSsid
+    root.failureKind = root.actionKind
+    root.failureReason = reason
+    root.actionSsid = ""
+    root.actionKind = ""
+    root.refresh()
+  }
+
   Timer {
     id: actionTimeout
-    // Must outlast NetworkManager's 25s supplicant timeout: a wrong saved
-    // PSK fails with WifiAuthTimeout at ~25s, and that failure has to land
-    // while the action is still tracked to show "Wrong password" and reopen
-    // the passphrase prompt.
-    interval: 30000
+    // Must outlast both NetworkManager's 25s supplicant timeout and
+    // omarchy-network-wifi's 28s nmcli wait + cleanup so the CLI settles and
+    // rolls back on its own; if this fires while wifiAction is still running,
+    // signal SIGTERM and wait for cleanup to exit before releasing the action.
+    interval: 35000
     repeat: false
     onTriggered: {
       if (!root.actionKind) return
-      var reason
-      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
-      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
-      else reason = Commons.I18n.t("network.timedOutForgetting")
-      root.failureSsid = root.actionSsid
-      root.failureKind = root.actionKind
-      root.failureReason = reason
-      root.actionSsid = ""
-      root.actionKind = ""
-      root.refresh()
+      wifiActionFailDelay.stop()
+      if (wifiAction.running) {
+        wifiAction.timedOut = true
+        wifiAction.signal(15)
+        actionCancelFallback.restart()
+        return
+      }
+      root.finishActionTimeout()
+    }
+  }
+
+  Timer {
+    id: actionCancelFallback
+    interval: 8000
+    repeat: false
+    onTriggered: {
+      wifiAction.timedOut = false
+      wifiAction.running = false
+      root.finishActionTimeout()
     }
   }
 

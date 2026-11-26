@@ -21,6 +21,10 @@
 # whose boot chain the Limine UKI path can't drive rebuilds, verifies and
 # unlocks it through omarchy-lifecycle-dispatch.
 #
+# A machine that switched to systemd-boot goes back to Limine, which its factory
+# root was installed with, and can switch again afterwards. One installed with
+# systemd-boot stays on it, with a fresh boot store.
+#
 # Honest limitations:
 #  - On unencrypted disks this is deletion, not forensic erasure. fstrim helps
 #    on SSDs; use blkdiscard + a reinstall if you need certainty.
@@ -128,6 +132,170 @@ reset_boot_op() {
   return 1
 }
 
+# A machine that switched to systemd-boot (omarchy-boot-switch) returns to the
+# boot loader its factory root was installed with: Limine. Its boot entry and
+# binary went when the switch finished, so the reset puts them back next to
+# systemd-boot, and only once the factory root is in place does Limine go first
+# and systemd-boot's entry, files and boot store go. A reset that fails before
+# that leaves the machine booting systemd-boot as before.
+boot_store() {
+  printf '%s\n' "${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}"
+}
+
+# A root installed with systemd-boot carries omarchy-boot-systemd's snapper plugin.
+boots_systemd_boot() {
+  [[ -f $1/usr/lib/snapper/plugins/20-omarchy-boot ]]
+}
+
+systemd_boot_host() {
+  [[ $(omarchy-boot-backend 2>/dev/null) == systemd-boot ]]
+}
+
+boot_state() {
+  sed -n "s/^$1=//p" "$(boot_store)/state" 2>/dev/null | tail -1
+}
+
+# The NVRAM entry starting a loader at a path on the ESP being reset. awk reads
+# to the end, so efibootmgr is never cut off under pipefail.
+efi_entry_for() {
+  local path=$1 partuuid
+  partuuid=$(lsblk -no PARTUUID "$esp_device" 2>/dev/null)
+  [[ -n $partuuid ]] || return 0
+  efibootmgr -v | OMARCHY_UUID=${partuuid,,} OMARCHY_LOADER=${path,,} awk '
+    !found && $1 ~ /^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]\*?$/ &&
+      index(tolower($0), ENVIRON["OMARCHY_UUID"]) && index(tolower($0), ENVIRON["OMARCHY_LOADER"]) {
+      sub(/^Boot/, "", $1); sub(/\*$/, "", $1); print $1; found = 1
+    }'
+}
+
+# Puts Limine's binary back from the factory root and gives it a boot entry,
+# without changing which loader starts until commit_systemd_boot_return.
+prepare_limine_return() {
+  local next="$1" disk part binary
+  log "Putting the Limine boot loader back"
+  chroot "$next" /usr/bin/limine-install --no-efi-register >>"$LOG_FILE" 2>&1 ||
+    fail "could not put Limine back on the boot partition (see $LOG_FILE)"
+  binary=$(cd "$ESP_MNT" && find EFI/limine -maxdepth 1 -iname 'limine_*.efi' | sed -n 1p)
+  [[ -n $binary ]] || fail "Limine's boot loader is missing from the boot partition"
+  limine_loader="\\${binary//\//\\}"
+
+  limine_entry=$(efi_entry_for "$limine_loader")
+  if [[ -z $limine_entry ]]; then
+    limine_boot_order=$(efibootmgr | sed -n 's/^BootOrder: //p')
+    disk=/dev/$(lsblk -no PKNAME "$esp_device")
+    part=$(lsblk -no PARTN "$esp_device")
+    efibootmgr --quiet --create-only --disk "$disk" --part "$part" --label Limine --loader "$limine_loader" ||
+      fail "the firmware refused a boot entry for Limine"
+    limine_entry_created=1
+    limine_entry=$(efi_entry_for "$limine_loader")
+    [[ -n $limine_entry ]] || fail "the firmware didn't keep the boot entry for Limine"
+  fi
+}
+
+# The factory root is at @: Limine starts it from now on.
+commit_systemd_boot_return() {
+  local sd_entry order other_install=0
+  # Another installation on this ESP booted through systemd-boot before the
+  # switch: the switch saved its loader and loader.conf, which go back, and
+  # reused its boot entry, which stays.
+  [[ -d $(boot_store)/backup/esp/systemd ]] && other_install=1
+  sd_entry=$(efi_entry_for '\EFI\systemd\')
+  ((other_install)) && [[ $(boot_state loader_entry_created) != 1 ]] && sd_entry=""
+  order=$(efibootmgr | sed -n 's/^BootOrder: //p' | tr ',' '\n' | grep -vxF -e "$limine_entry" -e "${sd_entry:-none}" | paste -sd, -)
+  efibootmgr --quiet --bootorder "$limine_entry${order:+,$order}" || log "Could not put Limine first in the boot order"
+  if [[ -n $sd_entry ]]; then
+    efibootmgr --quiet --delete-bootnum --bootnum "$sd_entry" || log "Could not remove systemd-boot's boot entry"
+  fi
+  limine_entry_created=0
+  # The switch made systemd-boot the firmware's fallback loader too. By now
+  # limine-install (here and in limine-update) has made Limine the fallback,
+  # whatever was there, so the copy taken before the reset decides: one that
+  # was systemd-boot's stays Limine's, another system's goes back.
+  local fallback before loader foreign fallback_taken=0
+  for fallback in "$ESP_MNT"/EFI/BOOT/BOOT*.EFI; do
+    [[ -f $fallback ]] || continue
+    before=${esp_backup:-}/${fallback#"$ESP_MNT"/}
+    foreign=0
+    if [[ -f $before ]] && ! grep -qa '[Ll]imine' "$before"; then
+      foreign=1
+      ((other_install)) || for loader in "$ESP_MNT"/EFI/systemd/systemd-boot*.efi; do
+        if [[ -f $loader ]] && cmp -s "$before" "$loader"; then foreign=0; fi
+      done
+    fi
+    if ((foreign)); then
+      cp "$before" "$fallback" || log "Could not put back the fallback boot loader"
+    else
+      cp "$ESP_MNT/${limine_loader//\\//}" "$fallback" && fallback_taken=1 ||
+        log "Could not make Limine the fallback boot loader"
+    fi
+  done
+  rm -rf "${ESP_MNT:?}/EFI/systemd" "$ESP_MNT/loader/loader.conf"
+  if ((other_install)); then
+    cp -a "$(boot_store)/backup/esp/systemd" "$ESP_MNT/EFI/systemd" || log "Could not put back the other installation's systemd-boot"
+    if [[ -f $(boot_store)/backup/esp/loader.conf ]]; then
+      cp -a "$(boot_store)/backup/esp/loader.conf" "$ESP_MNT/loader/loader.conf" || log "Could not put back the other installation's loader.conf"
+    fi
+  fi
+  drop_stale_limine_entries "$ESP_MNT/limine.conf" "$fallback_taken" || log "Could not tidy Limine's menu"
+  [[ -z ${esp_old_id:-} ]] || rm -f "$ESP_MNT"/EFI/Linux/omarchy-"${esp_old_id:0:8}"-*.efi
+}
+
+# limine-update found systemd-boot, and the fallback loader it still was, on
+# the ESP and listed both in Limine's menu. Neither is there any more: the
+# fallback is Limine itself now, when $2 is 1.
+drop_stale_limine_entries() {
+  local conf="$1" fallback_taken="$2"
+  [[ -f $conf ]] || return 0
+  awk -v fallback="$fallback_taken" '
+    function flush() { if (!stale) printf "%s", block; block = ""; stale = 0 }
+    /^\/[^\/]/ { flush() }
+    {
+      block = block $0 "\n"
+      if (/^[[:space:]]*path: boot\(\):\/EFI\/systemd\//) stale = 1
+      if (fallback == 1 && /^[[:space:]]*path: boot\(\):\/EFI\/BOOT\/BOOT[^\/]*\.EFI[[:space:]]*$/) stale = 1
+    }
+    END { flush() }
+  ' "$conf" >"$conf.new" && mv "$conf.new" "$conf"
+}
+
+# The boot store and the roots snapshot restores replaced hold the old system:
+# its boot images, its signing key, and the seller's files in a replaced root.
+# The finish worker comes from the factory root, which predates them, so they go
+# here, once the factory root is in place.
+retire_boot_store() {
+  local subvolume
+  umount "$(boot_store)" 2>/dev/null || umount -l "$(boot_store)" 2>/dev/null || true
+  # A factory root installed with systemd-boot mounts its own store at the old
+  # one's name. One atomic exchange puts it there and the old one at the new
+  # one's name, so the factory root's fstab always finds a store; two renames
+  # where the exchange isn't available.
+  local retired=""
+  if [[ -d $TOP_MNT/@omarchy-boot && -d $TOP_MNT/@omarchy-boot-next ]]; then
+    retired=@omarchy-boot-retired-$(date +%s)
+    if mv -T --exchange "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/@omarchy-boot" 2>/dev/null; then
+      mv "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/$retired" || true
+    else
+      mv "$TOP_MNT/@omarchy-boot" "$TOP_MNT/$retired" || retired=""
+    fi
+  fi
+  if [[ -d $TOP_MNT/@omarchy-boot-next ]]; then
+    if [[ -e $TOP_MNT/@omarchy-boot ]] || ! mv "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/@omarchy-boot"; then
+      log "Could not put the factory system's boot store in place; from a live USB, rename @omarchy-boot-next to @omarchy-boot"
+    fi
+  fi
+  sync
+  for subvolume in "$TOP_MNT"/@omarchy-boot-retired-* "$TOP_MNT"/@backup-* "$TOP_MNT"/@restore-*; do
+    [[ -d $subvolume ]] || continue
+    btrfs subvolume delete --recursive "$subvolume" >>"$LOG_FILE" 2>&1 ||
+      log "Could not delete $(basename "$subvolume"); remove it to finish the reset"
+  done
+  # Without a store of its own (a Limine factory root) the old one goes.
+  if [[ ! -d $TOP_MNT/@omarchy-boot-next && -z $retired && -d $TOP_MNT/@omarchy-boot ]] && ! boots_systemd_boot "$TOP_MNT/@"; then
+    btrfs subvolume delete --recursive "$TOP_MNT/@omarchy-boot" >>"$LOG_FILE" 2>&1 ||
+      log "Could not delete @omarchy-boot; remove it to finish the reset"
+  fi
+}
+
 # Resolve the crypto_LUKS partition backing the root, or return non-zero if
 # the root is not on LUKS. Prefers the cmdline cryptdevice= spec (archinstall
 # writes PARTUUID=, the pre-mounted path UUID=), and falls back to walking the
@@ -188,12 +356,26 @@ cleanup() {
     rm -rf "$esp_backup" || true
   fi
 
+  # A boot entry for Limine this attempt added goes too, so the machine keeps
+  # starting systemd-boot.
+  if [[ ${limine_entry_created:-0} == 1 && -n ${limine_entry:-} ]]; then
+    efibootmgr --quiet --delete-bootnum --bootnum "$limine_entry" >/dev/null 2>&1 || true
+    [[ -z ${limine_boot_order:-} ]] || efibootmgr --quiet --bootorder "$limine_boot_order" >/dev/null 2>&1 || true
+  fi
+
   if mountpoint -q "$ESP_MNT" 2>/dev/null; then
     umount -R "$ESP_MNT" 2>/dev/null || true
   fi
   rmdir "$ESP_MNT" 2>/dev/null || true
 
+  if [[ ${next_store_mounted:-0} == 1 ]]; then
+    umount "$TOP_MNT/$NEXT_NAME/var/lib/omarchy/boot" 2>/dev/null || true
+  fi
+
   if mountpoint -q "$TOP_MNT" 2>/dev/null; then
+    if [[ ${reset_committed:-0} == 0 && -d $TOP_MNT/@omarchy-boot-next ]]; then
+      btrfs subvolume delete "$TOP_MNT/@omarchy-boot-next" >/dev/null 2>&1 || true
+    fi
     # Never delete the staged root while there is no @: after a root switch
     # that could not be undone, it is one of the two systems left to recover.
     if [[ -d $TOP_MNT/$NEXT_NAME && ${swap_done:-0} == 0 && -d $TOP_MNT/@ ]]; then
@@ -312,9 +494,15 @@ stage_luks_rekey() {
   printf '%s' "$passphrase" >"$next/etc/omarchy/provisioning.key"
   chmod 600 "$next/etc/omarchy/provisioning.key"
 
-  install -d "$next/etc/limine-entry-tool.d" "$next/etc/mkinitcpio.conf.d"
-  echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
-    >"$next/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf"
+  install -d "$next/etc/mkinitcpio.conf.d"
+  if boots_systemd_boot "$next"; then
+    install -d "$next/etc/cmdline.d"
+    echo 'cryptkey=rootfs:/etc/omarchy/provisioning.key' >"$next/etc/cmdline.d/99-omarchy-provisioning-unlock.conf"
+  else
+    install -d "$next/etc/limine-entry-tool.d"
+    echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
+      >"$next/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf"
+  fi
   echo 'FILES+=(/etc/omarchy/provisioning.key)' \
     >"$next/etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf"
 }
@@ -403,7 +591,7 @@ reset_limine_config() {
 # fails before its entry verifies leaves this system booting as it did, and a
 # retry starts again from this system's own entry.
 esp_boot_paths() {
-  printf '%s\n' limine.conf EFI/Linux EFI/limine EFI/BOOT
+  printf '%s\n' limine.conf EFI/Linux EFI/limine EFI/BOOT EFI/systemd loader
 }
 
 backup_esp() {
@@ -492,7 +680,7 @@ rebuild_next_boot() {
   esp_source=$(awk '$3 == "vfat" && $2 ~ /^\/(boot|efi)/ { print $1; exit }' "$next/etc/fstab")
   [[ -n $esp_mount && -n $esp_source ]] || fail "could not find the ESP in $next/etc/fstab"
 
-  local esp_device=$esp_source
+  esp_device=$esp_source
   if [[ $esp_source == UUID=* ]]; then
     esp_device="/dev/disk/by-uuid/${esp_source#UUID=}"
   fi
@@ -521,13 +709,13 @@ rebuild_next_boot() {
     if [[ -d $next/swap ]] && ! btrfs subvolume show "$next/swap" >/dev/null 2>&1; then
       rmdir "$next/swap" 2>/dev/null || true
     fi
-    # The factory root still carries the resume hook and drop-in from install,
-    # which make hibernation-setup conclude it has nothing to do. Remove both
-    # so setup reconfigures from scratch and a failed lookup cannot leave the
-    # old swapfile's offset behind in the rebuilt UKI.
+    # The factory root still carries the resume hook and parameters from
+    # install, which make hibernation-setup conclude it has nothing to do.
+    # Remove them so setup reconfigures from scratch and a failed lookup
+    # cannot leave the old swapfile's offset behind in the rebuilt UKI.
     if [[ ! -f $next/swap/swapfile ]]; then
       rm -f "$next/etc/mkinitcpio.conf.d/omarchy_resume.conf" \
-        "$next/etc/limine-entry-tool.d/resume.conf"
+        "$next/etc/limine-entry-tool.d/resume.conf" "$next/etc/cmdline.d/resume.conf"
     fi
     if ! chroot "$next" env OMARCHY_PATH=/usr/share/omarchy \
       /usr/bin/omarchy-hibernation-setup --force --no-rebuild >>"$LOG_FILE" 2>&1; then
@@ -535,6 +723,9 @@ rebuild_next_boot() {
     fi
     [[ -f $next/swap/swapfile ]] ||
       fail "hibernation setup did not recreate $next/swap/swapfile (see $LOG_FILE)"
+    # Setup switched the new swapfile on; the factory root does that itself
+    # when it boots, and an active swapfile keeps its subvolume busy.
+    swapoff "$next/swap/swapfile" 2>/dev/null || true
   fi
 
   # The running system's identity is the one the reset replaces.
@@ -547,19 +738,50 @@ rebuild_next_boot() {
   backup_esp "$ESP_MNT" "$esp_backup"
   esp_restore=$ESP_MNT
 
-  reset_limine_config "$next" "$esp_mount" "$esp_old_id"
+  if boots_systemd_boot "$next"; then
+    rebuild_next_boot_systemd "$next"
+  else
+    reset_limine_config "$next" "$esp_mount" "$esp_old_id"
+    if systemd_boot_host; then
+      prepare_limine_return "$next"
+    fi
 
-  log "Rebuilding boot files from the factory system (this can take a minute)"
-  if ! chroot "$next" /usr/bin/limine-update >>"$LOG_FILE" 2>&1; then
-    fail "limine-update failed in the factory root (see $LOG_FILE)"
+    log "Rebuilding boot files from the factory system (this can take a minute)"
+    if ! chroot "$next" /usr/bin/limine-update >>"$LOG_FILE" 2>&1; then
+      fail "limine-update failed in the factory root (see $LOG_FILE)"
+    fi
+
+    verify_limine_hashes "$next" "$esp_mount"
   fi
-
-  verify_limine_hashes "$next" "$esp_mount"
 
   for dir in run dev sys proc; do
     umount -R "$next/$dir" 2>/dev/null || true
   done
   umount "$next$esp_mount"
+}
+
+# A factory root installed with systemd-boot gets a boot store of its own, which
+# replaces this system's at activation, and its boot images built and verified
+# by the same install that set it up. Its root has to be a mount for the boot
+# tooling to find the btrfs device it lives on.
+
+rebuild_next_boot_systemd() {
+  local next="$1" store="$TOP_MNT/@omarchy-boot-next"
+  if [[ -d $store ]]; then
+    btrfs subvolume delete "$store" >>"$LOG_FILE" 2>&1 || fail "could not clear a previous attempt's boot store"
+  fi
+  btrfs subvolume create "$store" >>"$LOG_FILE" || fail "could not create the factory system's boot store"
+  mkdir -p "$next/var/lib/omarchy/boot"
+  mount --bind "$store" "$next/var/lib/omarchy/boot"
+  next_store_mounted=1
+
+  log "Rebuilding boot files from the factory system (this can take a minute)"
+  if ! chroot "$next" env OMARCHY_PATH=/usr/share/omarchy OMARCHY_BOOT_DEFER_DEFAULT=1 \
+    /usr/bin/omarchy-boot-switch install --no-efi-register >>"$LOG_FILE" 2>&1; then
+    fail "building the factory system's boot images failed (see $LOG_FILE)"
+  fi
+  umount "$next/var/lib/omarchy/boot"
+  next_store_mounted=0
 }
 
 # The boot package stages the factory root's boot files and unlock, then proves
@@ -584,6 +806,24 @@ rebuild_next_boot_platform() {
 # reset is staged by now: a leftover directory or mount only costs space
 # until the reboot, so neither may report the reset as failed.
 commit_next_boot() {
+  if [[ -n ${limine_entry:-} ]]; then
+    commit_systemd_boot_return || true
+  elif [[ -d $TOP_MNT/@omarchy-boot-next ]]; then
+    # The factory root is in place: its default goes into loader.conf, then
+    # the old owner's images leave the ESP.
+    local default
+    default=$(cat "$TOP_MNT/@omarchy-boot-next/pending-default" 2>/dev/null || true)
+    if [[ -n $default && -f $ESP_MNT/EFI/Linux/$default ]]; then
+      { grep -v '^default ' "$ESP_MNT/loader/loader.conf" 2>/dev/null || true; echo "default $default"; } >"$ESP_MNT/loader/loader.conf.new" &&
+        mv -f "$ESP_MNT/loader/loader.conf.new" "$ESP_MNT/loader/loader.conf"
+      rm -f "$TOP_MNT/@omarchy-boot-next/pending-default"
+    else
+      log "The factory system's boot default is missing; systemd-boot picks the first entry"
+    fi
+    if [[ ${esp_old_id:-} =~ ^[0-9a-f]{32}$ && $esp_old_id != "${esp_new_id:-}" ]]; then
+      rm -f "$ESP_MNT"/EFI/Linux/omarchy-"${esp_old_id:0:8}"-*.efi
+    fi
+  fi
   commit_esp_staging "$ESP_MNT" "${esp_old_id:-}" "${esp_new_id:-}" || true
   umount "$ESP_MNT" 2>/dev/null || true
 }
@@ -686,6 +926,7 @@ stage_full_reset() {
   reset_committed=1
   swap_done=1
   commit_next_boot
+  retire_boot_store
   sync
 
   # The boot package that prepared the reset gets the key on standard input,
@@ -711,6 +952,15 @@ require_factory_snapshot() {
 }
 
 main() {
+  # Half a switch to systemd-boot, or a snapshot restore waiting for its reboot,
+  # would leave the reset rebuilding a boot chain that is about to change.
+  case $(boot_state phase) in
+  staged | trial | trial-failed) fail "$(omarchy-i18n reset.switchPending)" ;;
+  esac
+  if [[ $(sed -n 's/^STATE=//p' "$(boot_store)/restore/journal" 2>/dev/null) =~ ^(pending|swapping|swapped)$ ]]; then
+    fail "$(omarchy-i18n reset.restorePending)"
+  fi
+
   omarchy-cmd-present btrfs || { echo "Error: btrfs-progs is required" >&2; exit 1; }
 
   root_is_btrfs_at || fail "reset requires the standard Omarchy Btrfs layout (subvol=@)"
@@ -739,6 +989,9 @@ main() {
   # trigger it). The runtime mask evaporates on the reboot that follows.
   systemctl mask --runtime --now limine-snapper-sync.service >/dev/null 2>&1 || true
   systemctl mask --runtime --now limine-snapper-sync.path >/dev/null 2>&1 || true
+  # Nor may systemd-boot's sync write boot images to the ESP the reset hands to
+  # Limine.
+  systemctl mask --runtime --now omarchy-boot-sync.service >/dev/null 2>&1 || true
 
   stage_full_reset
 

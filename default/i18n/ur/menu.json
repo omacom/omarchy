@@ -1445,5 +1445,11 @@
   },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "system.snapshots": {
+    "label": "اسنیپ شاٹس"
+  },
+  "system.snapshots.restore": {
+    "label": "یہ اسنیپ شاٹ بحال کریں"
   }
 }

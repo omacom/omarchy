@@ -522,3 +522,20 @@ jq -e '
   and .width == 400
 ' "$select_tmp/input.json" >/dev/null || fail "omarchy-menu-input builds the expected JSON payload" "$(cat "$select_tmp/input.json")"
 pass "omarchy-menu-input builds the expected JSON payload"
+
+# The Snapshots provider lists systemd-boot's entries. On Limine its menu is
+# hidden, and a search must not run omarchy-snapshot list there: it asks sudo
+# for snapper's table, with no terminal to ask in.
+snapshots_script=$(node -e '
+  const src = require("fs").readFileSync(process.argv[1], "utf8")
+  process.stdout.write(JSON.parse(src.match(/"snapshots": \{\s*script: ("(?:[^"\\]|\\.)*")/)[1]))
+' "$ROOT/shell/plugins/menu/Menu.qml")
+mkdir -p "$select_tmp/snapshots"
+printf '#!/bin/bash\necho "$BOOT_BACKEND"\n' >"$select_tmp/snapshots/omarchy-boot-backend"
+printf '#!/bin/bash\necho "omarchy-snapshot $*" >>"$CALLS"\nprintf "12\\tSnapshot 12 (update)\\n"\n' >"$select_tmp/snapshots/omarchy-snapshot"
+chmod +x "$select_tmp/snapshots/"*
+rows=$(BOOT_BACKEND=limine CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/snapshots:$PATH" bash -c "$snapshots_script")
+[[ -z $rows && ! -e $select_tmp/snapshot-calls ]] || fail "on Limine the Snapshots provider runs nothing" "$rows"
+rows=$(BOOT_BACKEND=systemd-boot CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/snapshots:$PATH" bash -c "$snapshots_script")
+[[ $rows == $'Snapshot 12 (update)\t12\t' ]] || fail "on systemd-boot the Snapshots provider lists the entries" "$rows"
+pass "the Snapshots provider lists systemd-boot's entries and asks nothing of Limine"
