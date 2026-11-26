@@ -1729,58 +1729,89 @@ Item {
     // empty workspace (held-pointer-without-keyboard-focus.patch); stock
     // Hyprland drops it there unless something holds keyboard focus.
     //
-    // A resize, turning to a side edge or changing thickness, commits the new
+    // A resize, moving to a side edge or changing thickness, commits the new
     // size with the last buffer still attached, and Hyprland draws that
     // buffer across the new size until a frame at it lands: the strip laid
     // out for its new size, stretched or squeezed into the box. So a resize
     // settles: the strip turns clear, the surface resizes behind a clear
     // buffer, and the strip comes back once a frame at the new size is up.
-    // Bound until completion, then held.
+    // Until its first frame is up the surface follows the bar directly, so a
+    // bar that waits for its notch floor maps at it.
     property string surfaceEdge: root.position
     property int surfaceThickness: thickness
     readonly property bool surfaceVertical: surfaceEdge === "left" || surfaceEdge === "right"
     implicitWidth: surfaceVertical ? surfaceThickness : 0
     implicitHeight: surfaceVertical ? 0 : surfaceThickness
 
+    property bool presented: false
     // clearing: waiting on a clear frame before resizing. revealing: waiting
     // on a frame at the new size before showing the strip again.
     property string settle: ""
     property int settleFrames: 0
-
-    // A function, not a binding: it runs inside the position and thickness
-    // change handlers, where a binding on either may not have caught up yet.
-    function resizes() {
-      var vertical = root.position === "left" || root.position === "right"
-      return vertical !== surfaceVertical || thickness !== surfaceThickness
-    }
+    // A binding, so the strip is clear in the next frame whatever order the
+    // position and thickness handlers run in.
+    readonly property bool resizeDue: presented && (root.vertical !== surfaceVertical || thickness !== surfaceThickness)
 
     function holdSurface() {
       surfaceEdge = root.position
       surfaceThickness = thickness
     }
 
+    function finishSettle() {
+      settleWatchdog.stop()
+      holdSurface()
+      settle = ""
+    }
+
+    function requestFrame() {
+      var window = barStrip.Window.window
+      if (window) window.update()
+    }
+
+    // Runs once every binding on the position and thickness has caught up.
     // Mid-settle, the resize takes whatever is current when it lands. Moving
-    // between opposite edges keeps the size, and hidden, unmapped or never
-    // sized nothing shows, so none of those needs a settle.
+    // between opposite edges keeps the size, and with nothing on screen to
+    // stretch, a resize needs no settle either.
     function follow() {
-      if (settle !== "") return
-      if (resizes() && visible && !root.barHidden && surfaceThickness > 0) {
+      if (!presented || settle !== "") return
+      if (resizeDue && visible && !root.barHidden && !underFullscreen && surfaceThickness > 0 && thickness > 0) {
         settle = "clearing"
         settleFrames = 0
-        barStrip.Window.window.update()
+        settleWatchdog.restart()
+        requestFrame()
       } else {
         holdSurface()
       }
     }
 
-    Component.onCompleted: {
-      holdSurface()
-      if (!cutoutPending) cutoutWaitOver = true
-    }
-    onThicknessChanged: follow()
+    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
+    onThicknessChanged: followLater.restart()
     Connections {
       target: root
-      function onPositionChanged() { barWindow.follow() }
+      function onPositionChanged() { followLater.restart() }
+      function onBarHiddenChanged() { if (root.barHidden && barWindow.settle !== "") barWindow.finishSettle() }
+    }
+
+    Timer {
+      id: followLater
+      interval: 0
+      onTriggered: barWindow.follow()
+    }
+
+    // Frames stop for a surface Hyprland isn't showing, such as one on an
+    // output that went to sleep mid-settle.
+    Timer {
+      id: settleWatchdog
+      interval: 500
+      onTriggered: if (barWindow.settle !== "") barWindow.finishSettle()
+    }
+
+    Connections {
+      target: !barWindow.presented && barWindow.visible ? barStrip.Window.window : null
+      function onFrameSwapped() {
+        barWindow.holdSurface()
+        barWindow.presented = true
+      }
     }
 
     // Counts this window's own presented frames, asking for the next each
@@ -1796,18 +1827,18 @@ Item {
             barWindow.settle = "revealing"
             barWindow.settleFrames = 0
           }
-        } else if (barWindow.resizes()) {
+        } else if (barWindow.resizeDue) {
           barWindow.settle = "clearing"
           barWindow.settleFrames = 0
+          settleWatchdog.restart()
         } else {
-          barWindow.holdSurface()
           var span = barWindow.surfaceVertical ? barWindow.width : barWindow.height
           if (span === barWindow.surfaceThickness && barWindow.settleFrames >= 1) {
-            barWindow.settle = ""
+            barWindow.finishSettle()
             return
           }
         }
-        barStrip.Window.window.update()
+        barWindow.requestFrame()
       }
     }
 
@@ -1851,7 +1882,7 @@ Item {
     // The bar itself, along its screen edge.
     Item {
       id: barStrip
-      opacity: barWindow.settle === "" ? 1 : 0
+      opacity: barWindow.settle === "" && !barWindow.resizeDue ? 1 : 0
 
       x: root.position === "right" ? parent.width - barWindow.thickness : 0
       y: root.position === "bottom" ? parent.height - barWindow.thickness : 0

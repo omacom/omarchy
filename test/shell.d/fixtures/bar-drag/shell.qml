@@ -26,6 +26,8 @@ ShellRoot {
   property var held: null
   property string counts: ""
   property int thinner: 0
+  // Every settle state the bar's surface passes through, in order.
+  property var settles: []
   property var steps: []
   property int step: 0
 
@@ -264,10 +266,12 @@ ShellRoot {
         // Moving to a side edge resizes the surface, so the strip turns clear
         // until the surface has its new size.
         host.mutateShellConfig(function(config) { config.bar.position = "left" })
-        root.check(root.surface.settle === "clearing" && root.surface.surfaceEdge === "top", "a strip moving to a side edge clears before its surface moves: " + root.surface.settle + " " + root.surface.surfaceEdge)
+        root.check(root.surface.resizeDue && root.surface.surfaceEdge === "top", "a strip moving to a side edge clears before its surface moves: " + root.surface.resizeDue + " " + root.surface.surfaceEdge)
       }, 1200],
       [function() {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left", "the surface settles on the left edge: " + root.surface.settle + " " + root.surface.surfaceEdge)
+        root.check(root.settles.join(",") === "clearing,revealing,", "moving to a side edge clears, then reveals: " + root.settles.join(","))
+        root.settles = []
         root.check(root.surface.implicitWidth === root.surface.thickness && root.surface.width === root.surface.thickness, "a side bar's surface is only as wide as its strip: " + root.surface.width + " against " + root.surface.thickness)
 
         // A thicker bar on the same edge resizes the surface too, so it
@@ -275,10 +279,11 @@ ShellRoot {
         root.thinner = root.surface.surfaceThickness
         Style.barOverrides = { "size-vertical": 44 }
         root.check(root.surface.thickness > root.thinner, "the theme thickens the side bar: " + root.surface.thickness)
-        root.check(root.surface.settle === "clearing" && root.surface.surfaceThickness === root.thinner && root.surface.surfaceEdge === "left", "a thicker strip clears before its surface grows, on the same edge: " + root.surface.settle + " " + root.surface.surfaceThickness + " " + root.surface.surfaceEdge)
+        root.check(root.surface.resizeDue && root.surface.surfaceThickness === root.thinner && root.surface.surfaceEdge === "left", "a thicker strip clears before its surface grows, on the same edge: " + root.surface.resizeDue + " " + root.surface.surfaceThickness + " " + root.surface.surfaceEdge)
       }, 1200],
       [function() {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left" && root.surface.surfaceThickness === root.surface.thickness && root.surface.width === root.surface.thickness, "the surface settles at the new thickness: " + root.surface.settle + " " + root.surface.width + " against " + root.surface.thickness)
+        root.check(root.settles.join(",") === "clearing,revealing,", "a thicker strip clears, then reveals: " + root.settles.join(","))
       }, 100]
     ]
     stepper.start()
@@ -302,6 +307,11 @@ ShellRoot {
       interval = current[1]
       restart()
     }
+  }
+
+  Connections {
+    target: root.surface
+    function onSettleChanged() { root.settles.push(root.surface.settle) }
   }
 
   Timer {
