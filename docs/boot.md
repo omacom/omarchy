@@ -27,7 +27,7 @@ On systemd-boot, every kernel build is a boot image.
 - **Published state.** `$STORE/entries` maps profile IDs to entry IDs. The sync sets `loader.conf`'s `default` to the preferred kernel's live entry (`omarchy-boot-sync prefer PKGBASE`, used by `omarchy-kernel set`).
 - **Writing and cleanup.** Images are written beside the old file and renamed over it, after checking ESP space. The sync deletes only its own namespace's files, and never the image a pending one-shot boot points at.
 
-A snapshot is pinned to the image that was current when it was taken (`/.snapshots/N/omarchy-boot-image`), not just to a kernel version. Rolling back from a broken kernel, initramfs or command-line change therefore boots the old ones. Images stay while a pin, the current pointer, the backup or a pending restore needs them.
+A snapshot is pinned to the image that was current when it was taken (`/.snapshots/N/omarchy-boot-image`), not just to a kernel version. Rolling back from a broken kernel, initramfs or command-line change therefore boots the old ones. Images stay while a pin, the current pointer, the backup or a pending restore needs them. Snapper leaves the pin of a snapshot it deletes behind, since it only removes its own files; the next sync drops it.
 
 The pipeline:
 
