@@ -1,7 +1,13 @@
 #!/bin/bash
 
-# omarchy:summary=Install a small mise-backed wrapper for a given tool.
+# omarchy:summary=Retire a mise wrapper an older Omarchy release left in ~/.local/bin
 # omarchy:args=<package> [command-name [bin-name]]
+# omarchy:hidden=true
+
+# This once wrote a ~/.local/bin wrapper that installed a tool through mise the
+# first time it ran. Omarchy installs nothing that way anymore, but migrations
+# from then still call this to create or rewrite such wrappers. So it removes
+# the wrapper it would have written, and writes nothing.
 
 if [[ -z $1 ]]; then
   echo "Usage: omarchy-mise-install <package> [command-name [bin-name]]"
@@ -12,18 +18,20 @@ package=$1
 command=${2:-$1}
 bin=${3:-$command}
 
-mkdir -p "$HOME/.local/bin"
+# The command name is a file name under ~/.local/bin, so a slash, a leading dot
+# or a leading dash would reach somewhere else.
+case "$command" in
+  */* | .* | -* | *[[:cntrl:]]*)
+    echo "omarchy-mise-install: '$command' is not usable as a command name" >&2
+    exit 1
+    ;;
+esac
 
-# These tools install and upgrade on first run, so mise's release cooldown would
-# hold a new version back for days after it ships. Exported rather than set on
-# the install line alone, so resolving the version to execute agrees with the
-# one just installed.
-rm -f "$HOME/.local/bin/$command"
-cat >"$HOME/.local/bin/$command" <<EOF
-#!/bin/bash
-export MISE_MINIMUM_RELEASE_AGE=0
-mise use -g --quiet "$package" || exit 1
-exec mise x "$package" -- "$bin" "\$@"
-EOF
-
-chmod +x "$HOME/.local/bin/$command"
+# Only an exact copy of the wrapper goes. Anything else at the path, including
+# one the user changed, is theirs.
+wrapper="$HOME/.local/bin/$command"
+if [[ -f $wrapper && ! -L $wrapper ]] && cmp -s "$wrapper" <(
+  printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$package" "$package" "$bin"
+); then
+  rm -f "$wrapper"
+fi

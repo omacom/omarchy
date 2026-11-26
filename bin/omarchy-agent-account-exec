@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Run Claude, Codex, or Grok as the selected subscription account
+# omarchy:args=<claude|codex|grok> [args...]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+case "${1:-}" in
+  claude) account_env="CLAUDE_CONFIG_DIR" ;;
+  codex) account_env="CODEX_HOME" ;;
+  grok) account_env="GROK_HOME" ;;
+  *)
+    echo "Usage: omarchy-agent-account-exec <claude|codex|grok> [args...]" >&2
+    exit 1
+    ;;
+esac
+
+provider=$1
+shift
+
+# Pin the resolved home for children, including an implicit Main account.
+# Explicit provider homes still take precedence.
+if [[ -z ${!account_env:-} ]]; then
+  account_home=$(omarchy-agent-account-home "$provider")
+  export "OMARCHY_AGENT_${provider^^}_HOME=$account_home"
+  if [[ -n $account_home ]]; then
+    export "$account_env=$account_home"
+  fi
+fi
+
+# The real CLI is whatever PATH finds past the dispatchers, the directory this
+# was started from. A dispatcher exists only while its CLI is installed, so one
+# left by a CLI removed outside Omarchy takes itself away and answers the way
+# a shell would.
+dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
+cli_path=""
+IFS=: read -r -a dirs <<<"$PATH"
+for dir in "${dirs[@]}"; do
+  [[ $dir == "$dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
+done
+if ! agent_binary=$(PATH=$cli_path type -P "$provider"); then
+  rm -f "$dispatchers/$provider"
+  echo "$provider: command not found" >&2
+  exit 127
+fi
+
+# The agent's own subprocesses dispatch too, so another provider they start
+# runs as its selected account.
+export PATH="$dispatchers:$cli_path"
+exec "$agent_binary" "$@"
