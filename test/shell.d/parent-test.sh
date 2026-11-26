@@ -211,6 +211,20 @@ fi
 grep -q '"update.password.parent": {[^}]*"when":"omarchy-profile-child"' "$menu" || fail "Update > Password > Parent stays on a child install"
 pass "the menu keeps the grants that would land on the kid account off a child install"
 
+# Search lists every entry whose own guard passes, whatever its parents'
+# guards say, so the entries under a menu kept off a child install carry the
+# guard too, or a search would still find them there.
+MENU_JSONC="$menu" run_node_test <<'JS'
+const fs = require('fs')
+const MenuModel = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const items = MenuModel.parseMenuJsonc(fs.readFileSync(process.env.MENU_JSONC, 'utf8'))
+const keptOff = item => /(^|&&\s*)!\s*omarchy-profile-child(\s|$)/.test(item.when || '')
+const guarded = items.filter(keptOff).map(item => item.id)
+assert(guarded.includes('update.channel'), 'the menu keeps Update > Channel off a child install')
+const leaks = items.filter(item => !keptOff(item) && guarded.some(id => item.id.startsWith(id + '.')))
+assert(leaks.length === 0, 'every entry under a menu kept off a child install is kept off too', JSON.stringify(leaks.map(item => item.id)))
+JS
+
 # Install and Remove stay: a kid needs editors, toolchains and coding agents,
 # and anything there that touches system packages goes through sudo, which asks
 # for the parent password; mise toolchains and agents land in the kid's home.
