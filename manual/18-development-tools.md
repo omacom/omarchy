@@ -2,7 +2,7 @@
 
 ## Alternative Editors
 
-Omarchy ships with [Neovim](https://neovim.io/) by default, but if you'd like something a bit more mainstream and familiar, you can run the Omarchy Menu (`Super + Space`) and see the options under _Install > Editor_. We have VSCode, Cursor, Zed, Sublime Text, Helix, Vim, and Emacs listed there. If you don't find what you're looking for, checkout _Install > Package_, and see if it isn't in an Arch package (and if not, try _Install > AUR_ to check the AUR).
+Omarchy ships with Plain as the default editor on new installs and [Neovim](https://neovim.io/) preinstalled, but if you'd like something a bit more mainstream and familiar, you can run the Omarchy Menu (`Super + Space`) and see the options under _Install > Editor_. We have VSCode, Cursor, Zed, Sublime Text, Helix, Vim, and Emacs listed there. If you don't find what you're looking for, checkout _Install > Package_, and see if it isn't in an Arch package (and if not, try _Install > AUR_ to check the AUR).
 
 The original `vi` editor is also available out of the box. Run `vi filename` to edit a file in the terminal.
 
@@ -18,6 +18,12 @@ The majority of these environments are managed by [Mise](https://mise.jdx.dev/).
 
 To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Ruby and set it as the global default. Or, if your project has a .ruby-version file, you can just run `mise i` in the root of that project.
 
+## Preinstalled CLI tools
+
+`uv`, Node.js, and `playwright-cli` (for agents to drive a browser, using the installed Chrome) come installed as packages, and `omarchy update` keeps them current with the rest of the system. [Hunk](https://github.com/modem-dev/hunk) and the GitHub, Basecamp, Cloudflare and HEY CLIs are a pick away under _Install > CLI_, and [coding agents](17-ai.md) under _Install > AI > CLI_.
+
+mise only manages the runtimes you set up from _Install > Development_; Omarchy installs nothing through it on its own. Run `omarchy update` to update them with the rest of Omarchy; the `mup` alias updates mise-managed tools only. To add another tool to your own configuration, use `mise use -g <tool>`.
+
 ## Docker
 
 [Docker](https://www.docker.com/) hardly needs any introduction. It allows you to run isolated containers, and Omarchy installs everything needed to run it well, including Docker itself and [Docker Compose](https://docs.docker.com/compose/).
@@ -28,8 +34,6 @@ You can setup the common databases for local development in Docker using _Instal
 
 ## GitHub CLI
 
-[The GitHub CLI](https://cli.github.com/) let's you authenticate with your GitHub account and clone private repositories using it. It's wired up as one of the lazy-loading mise stubs, so the first time you run `gh`, it installs itself. To authenticate, run `gh auth login`. Then you can checkout private repositories using `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) is `gh`, for working with repositories, issues, and pull requests from the terminal. _Setup > Git_ installs it when you choose to sign in to GitHub there, or install it on its own from _Install > CLI > GitHub_. Then `gh repo clone org/repo` clones a repository; run `gh --help` to explore its commands.
 
-You can also perform a bunch of other GitHub operations using this command. Just run `gh` to see everything that's possible.
-
-There's a lazy-installing stub for `ghui` for managing your pull requests in a TUI too. And [lazygit](https://github.com/jesseduffield/lazygit) is preinstalled, if you'd like to drive git itself from a TUI as well.
+[Lazygit](https://github.com/jesseduffield/lazygit) is preinstalled for working with Git itself.

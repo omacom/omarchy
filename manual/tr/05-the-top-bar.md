@@ -1,117 +1,122 @@
-# Üst Çubuk
+# Üst Bar
 
-Ekranınızın üstü boyunca uzanan şerit Omarchy çubuğudur. Sonradan eklenmiş bir durum çubuğu değildir; menüyü, bildirimleri, OSD açılır pencerelerini ve kilit ekranını da çizen tek, uzun ömürlü Quickshell süreci olan Omarchy kabuğunun bir parçasıdır. Bu yüzden her şeyle mükemmel uyum içinde tema uygular ve bir panel yeni bir uygulama başlatmak yerine anında açılır.
+Ekranınızın üstündeki şerit Omarchy barıdır. Üzerine sonradan eklenmiş bir durum çubuğu değil, Omarchy shell'inin bir parçasıdır; menüyü, bildirimleri, OSD açılır pencerelerini ve kilit ekranını da çizen, uzun ömürlü tek Quickshell sürecidir. Bu yüzden her şeyle mükemmel uyumlu tema alır ve bir panel, yeni bir uygulama başlatmak yerine anında açılır.
 
-Aynı zamanda masaüstünde her zaman ekranda olan tek parçadır, bu yüzden o küçük simgelerin ne yaptığını bilmeye değer.
+Aynı zamanda masaüstünün her zaman ekranda olan tek parçasıdır, bu yüzden o küçük gliflerin ne işe yaradığını bilmeye değer.
 
 ## Varsayılan olarak üzerinde neler var
 
-Çubuğun üç bölümü vardır. Solda Omarchy logosu (menü başlatıcı) ve çalışma alanı göstergeleri bulunur. Merkezde durum göstergelerini, saati, Elsewhen'i (dünya saati), hava durumunu ve bir Omarchy güncelleme rozetini alırsınız. Sağda: klavye düzeni (birden fazla yapılandırıldığında), sistem tepsisi, ajanlar, bluetooth, ağ, ses, ekran ve güç.
+Barın üç bölümü vardır. Solunda Omarchy logosu (menü başlatıcı) ve çalışma alanı göstergeleri bulunur. Merkezde durum göstergelerini, saati, Elsewhen'u (bir dünya saati), hava durumunu ve bir Omarchy güncelleme rozetini alırsınız. Sağda: sistem tepsisi, klavye düzeni (birden fazla düzen veya giriş yöntemi yapılandırıldığında), agents, bluetooth, ağ, ses, ekran ve güç.
 
-Bunlardan birkaçı yalnızca söyleyecek bir şeyleri olduğunda ortaya çıkar. Klavye düzeni, yalnızca birden fazla düzen yapılandırdıysanız görünür. Güncelleme rozeti, yalnızca bekleyen bir Omarchy güncellemesi olduğunda görünür. Ve ajanlar simgesi, Omarchy makinede AI kodlama kullanımını ilk kez bulduğunda görünür (bkz. [AI](17-ai.md)).
+Bunlardan birkaçı yalnızca söyleyecek bir şeyleri olduğunda görünür. Klavye düzeni yalnızca birden fazla düzen veya giriş yöntemi yapılandırdıysanız görünür. Güncelleme rozeti yalnızca bekleyen bir Omarchy güncellemesi olduğunda görünür.
 
 ## Etrafta tıklamak
 
-Hemen hemen her widget sol, sağ ve orta tıklamada bir şey yapar ve birkaç tanesi kaydırma işlemine yanıt verir. İnsanların kaçırdığı kısım budur — sağ ve orta düğmeler, birçok iyi şeyin saklandığı yerdir.
+Neredeyse her widget sol, sağ ve orta tıklamada bir şey yapar ve birçoğu kaydırmaya yanıt verir. İnsanların kaçırdığı kısım burasıdır — iyi şeylerin çoğu sağ ve orta düğmelerde saklanır.
 
 | Widget | Sol | Sağ | Orta / kaydırma |
 | --- | --- | --- | --- |
 | Menü | Omarchy menüsü | Yeni terminal | — |
-| Çalışma alanları | O çalışma alanına odaklan | — | Kaydır: sonraki/önceki çalışma alanı |
-| Saat | Takvim açılır penceresi | Etiket biçimini döndür | Orta: saat dilimi seçici |
-| Hava durumu | Tahmin açılır penceresi | Tam hava durumu bildirim olarak | Orta: yenile |
-| Ses | Ses paneli | Sessize al | Orta: panel · kaydır: ses düzeyi |
-| Mikrofon | Mikrofonu sessize al | — | Orta: ses paneli · kaydır: giriş ses düzeyi |
+| Çalışma Alanları | Bu monitörde o çalışma alanına odaklan | — | Kaydırma: sonraki/önceki çalışma alanı |
+| Saat | Takvim açılır penceresi | Etiket biçimini döngüsel olarak değiştir | Orta: saat dilimi seçici |
+| Dünya saati | Dünya saati paneli | Yenile | Orta: yenile |
+| Hava Durumu | Tahmin açılır penceresi | Tam hava durumunu bildirim olarak göster | Orta: yenile |
+| Ses | Ses paneli | Sessize al | Orta: panel · kaydırma: ses seviyesi |
+| Mikrofon | Mikrofonu sessize al | — | Orta: ses paneli · kaydırma: giriş ses seviyesi |
 | Ağ | Ağ paneli | — | — |
 | Bluetooth | Bluetooth paneli | Radyoyu aç/kapat | — |
-| Ekran | Ekran paneli | — | Kaydır: parlaklık |
+| Ekran | Ekran paneli | — | Kaydırma: parlaklık |
 | Güç | Güç paneli | Pil yüzdesini aç/kapat | — |
-| Medya | Oynat/duraklat | Kapak resmi açılır penceresi | Orta: sonraki · kaydır: önceki/sonraki |
-| Ajanlar | Ajanlar paneli | Ajanınızı başlatın | Orta: sonraki abonelik |
-| Tepsi | Çekmeceyi göstermek için üzerine gelin | Yönetmek için köşe işaretine sağ tıklayın | — |
+| Medya | Oynat/duraklat | Kapak resmi açılır penceresi | Orta: sonraki · kaydırma: önceki/sonraki |
+| Agents | Agents paneli | Agent'ınızı başlatın | Orta: kullanımı yenile |
+| Tepsi | Çekmeceyi göstermek için üzerine gelin | Yönetmek için chevron'a sağ tıklayın | — |
 | Omarchy güncellemesi | Güncellemeyi çalıştır | — | — |
 
-Bu tablodaki her şey kutudan çıktığı haliyle çubuğunuzda değil. Medya widget'ı (kayan parça ve sanatçı ile MPRIS şu anda çalınan) ve mikrofon widget'ı ikisi de yerleşik ancak varsayılan olarak kapalıdır — istiyorsanız aşağıda açıklandığı gibi ekleyin.
+Bu tablodaki her şey kutudan çıktığı haliyle barınızda değildir. Medya widget'ı (MPRIS şimdi çalıyor, kayan bir parça ve sanatçı bilgisiyle) ve mikrofon widget'ı, ikisi de yerleşik olarak gelir ancak varsayılan olarak kapalıdır — isterseniz aşağıda anlatıldığı gibi ekleyin.
 
 ## Paneller
 
-Bir çubuk simgesine tıklamak bir panel açar; bu, bir araç ipucu yerine kaydırıcılar, listeler ve klavye gezinmesi olan gerçek bir açılır penceredir. Her birinin de bir kısayolu vardır, böylece asla 16 piksellik bir simgeye nişan almanız gerekmez:
+Bir bar simgesine tıklamak bir panel açar; bu, bir araç ipucu değil, kaydırıcılar, listeler ve klavye navigasyonu içeren düzgün bir açılır penceredir. Her birinin bir kısayolu da vardır, böylece 16 piksellik bir glife nişan almak zorunda kalmazsınız:
 
 | Kısayol | Panel |
 | --- | --- |
 | `Super + Ctrl + A` | Ses |
-| `Super + Ctrl + W` | Ağ |
+| `Super + Ctrl + N` | Ağ |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Ekran |
 | `Super + Ctrl + P` | Güç |
 | `Super + Ctrl + Alt + D` | Takvim |
 | `Super + Ctrl + Alt + E` | Dünya saati |
+| `Super + Ctrl + X` | Agents |
 | `Super + Ctrl + 1-9` | Sağ bölümdeki n'inci paneli aç/kapat |
 
-Paneller salt okunur değildir. Bir şeyi aslında yaptığınız yer onlardır:
+Paneller salt gösterge değildir. İşi gerçekten yaptığınız yer onlardır:
 
-- **Ses**, bir ana ses düzeyi kaydırıcısına, bir çıkış cihazı seçicisine ve uygulama başına miksere sahiptir, böylece o tek tarayıcı sekmesini her şeye dokunmadan kısabilirsiniz.
-- **Ağ**, Wi-Fi için tarar, sinyal gücünü gösterir, bağlanır ve bir DNS sağlayıcısı seçmenize izin verir.
-- **Bluetooth**, cihazlarınızı bağlan/bağlantıyı kes ve pil düzeyleri ile listeler.
-- **Güç**, pil istatistiklerini gösterir, güç profillerini değiştirir (pil ve AC için ayrı bir seçimi hatırlar) ve bazı sistem bilgilerini yazar.
-- **Ekran**, bir parlaklık kaydırıcısı, metin boyutu, monitör ölçeklendirme ön ayarları ve — birden fazla ekranınız olduğunda — monitör başına kontroller taşır. Daha derin hikaye için bkz. [monitörler](33-monitors.md).
-- **Saat**, ISO hafta numaraları ve ay adım atma ile bir ay ızgarası açar.
+- **Ses** içinde bir ana ses seviyesi kaydırıcısı, bir çıkış cihazı seçici ve uygulama başına bir mikser bulunur, böylece diğer her şeyi etkilemeden o tek tarayıcı sekmesinin sesini kısabilirsiniz.
+- **Ağ**, Wi-Fi taraması yapar, sinyal gücünü gösterir, bağlanır ve bir DNS sağlayıcısı seçmenize olanak tanır.
+- **Bluetooth**, cihazlarınızı bağlanma/bağlantı kesme ve pil seviyeleriyle birlikte listeler.
+- **Güç**, pil istatistiklerini gösterir, güç profillerini değiştirir (pil ve AC için ayrı bir tercihi hatırlar) ve bazı sistem bilgilerini gösterir.
+- **Ekran**, bir parlaklık kaydırıcısı, metin boyutu, monitör ölçeklendirme hazır ayarları ve — birden fazla ekranınız olduğunda — monitör başına kontroller içerir. Daha derin hikâye için [monitörler](33-monitors.md) sayfasına bakın.
+- **Saat**, ISO hafta numaraları ve aylar arasında gezinme içeren bir ay ızgarası açar.
+- **Dünya saati**, her şehir için bir satır tutar, o şehrin hava durumunu ve gününün nasıl geçtiğini gösterir. Arama, kasabaları da saat dilimleri kadar bulur, bu yüzden Fort Lauderdale, New York değil Fort Lauderdale'dir. Üstteki satır yanlış şehri adlandırıyorsa, üzerine tıklayın ve nerede olduğunuzu söyleyin; başka bir saat dilimindeki bir yeri seçerseniz sistem saati de oraya taşınır, bu da seyahat ederken kullanışlıdır. Bir şehrin üzerine gelin ve orada kimin yaşadığını söylemek için kişi düğmesine tıklayın — düz isimler veya yüzlerini de getirmek için `@` GitHub kullanıcı adları.
 
-Her panel fare kadar klavyeyi de kabul eder: oklar hareket eder, Return etkinleştirir, Tab komşu panele adım atar ve Escape kapatır.
+Her panel fare kadar klavyeyi de kabul eder: ok tuşları hareket eder, Return etkinleştirir, Tab komşu panele geçer ve Escape kapatır.
 
-`Super + Ctrl + 1-9`, panelleri sağ bölümde soldan sağa sayar, tepsiyi kendi paneli olmadığı için atlar. Böylece numara işaret edeceğiniz simgeyle eşleşir.
+`Super + Ctrl + 1-9`, sağ bölümdeki panelleri soldan sağa sayar, kendi paneli olmadığı için tepsiyi atlar. Böylece sayı, işaret edeceğiniz simgeyle eşleşir.
 
 ### Tailscale ve Dropbox
 
-İki widget daha, yalnızca eşleşen hizmeti **Kur → Hizmet** seçeneğinden kurduğunuzda çubukta ortaya çıkar ve ikisini de bilmeye değer, çünkü yalnızca durum bildirmekten daha fazlasını yaparlar.
+**Install → Service** üzerinden eşleşen hizmeti kurduğunuzda barda iki widget daha görünür ve ikisini de bilmeye değer çünkü durum bildirmekten fazlasını yaparlar.
 
-**Tailscale** paneli tailnet'i bağlar ve bağlantısını keser, hesaplar arasında geçiş yapar ve bir çıkış düğümü seçer (kendi makineleriniz ve Mullvad bölgelerinin ikisi de bu listede görünür). Ayrıca makinelerinize göz atar — ve biri seçiliyken, `s` dosyaları Taildrop üzerinden ona gönderir ki bu, bir dosyayı telefonunuza veya başka bir dizüstü bilgisayara taşımanın en hızlı yoludur. `c` makinenin IP'sini kopyalar, `n` adını ve `d` tam DNS adını. Tıklamayı tercih edersiniz diye her makine satırında bir gönder düğmesi de var. Terminalden aynısı `omarchy tailscale send <machine> [file...]` şeklindedir.
+**Tailscale** paneli tailnet'e bağlanır ve bağlantıyı keser, hesaplar arasında geçiş yapar ve bir çıkış düğümü seçer (kendi makineleriniz ve Mullvad bölgeleri de o listede görünür). Ayrıca makinelerinize göz atar — ve biri seçiliyken, `s` ona Taildrop üzerinden dosya gönderir, bu da bir dosyayı telefonunuza veya başka bir dizüstü bilgisayara taşımanın en hızlı yoludur. `c` makinenin IP adresini, `n` adını ve `d` tam DNS adını kopyalar. İsterseniz tıklamak için her makine satırında bir gönder düğmesi de vardır. Aynı şey terminalden `omarchy tailscale send <machine> [file...]` şeklindedir.
 
-**Dropbox** paneli oturum açmayı sağlar, ne kadar depolama kullandığınızı gösterir ve yakın zamanda eşitlenen dosyaları listeler.
+**Dropbox** paneli girişi yönetir, ne kadar depolama kullandığınızı gösterir ve yakın zamanda senkronize edilen dosyaları listeler.
 
-Hizmetlerden herhangi birini kaldırmak, widget'ını çubuktan geri alır.
+Her iki hizmeti de kaldırmak, widget'ını bardan geri kaldırır.
 
 ## Göstergeler
 
-Merkezdeki küçük küme göstergeler widget'ıdır. Bunlar açtığınız modlar için durum simgeleridir: rahatsız etme, gece ışığı, sıraya alınmış bir [hatırlatıcı](09-reminders.md), aktif bir ekran kaydı, uyanık tut ve [dikte](11-text-extraction-dictation.md). Mod aktifken yanarlar ve aksi halde yoldan uzak dururlar — aktif olmayanlara göz atmak için saatin soluna (dikey çubukta üzerine) gelin. Bir göstergeye tıklamak o modu açıp kapatır. Bir tanesi daha yalnızca durum amaçlıdır: birisi gliff üzerinden bu makineye bağlıyken uzak oturum kırmızıyla yanar.
+Merkezdeki küçük küme, göstergeler widget'ıdır. Bunlar açtığınız modlar için durum glifleridir: rahatsız etmeyin, gece ışığı, kuyruğa alınmış bir [hatırlatıcı](09-reminders.md), aktif bir ekran kaydı ve uyanık kalma, ayrıca parolasız sudo açıkken veya biri uzak bir oturuma bağlıyken uyarılar. Mod aktif olduğunda yanarlar ve aksi hâlde göz önünden uzak dururlar — pasif olanların duracağı yerde, hemen yanlarına gelerek onlara göz atın. Bir göstergeye tıklamak o modu açıp kapatır. Bir tane daha yalnızca durum içindir: biri gliff üzerinden bu makineye bağlıyken uzak oturum kırmızı yanar.
 
-Her zaman görünür olmalarını tercih ederseniz, widget üzerinde `alwaysShow` seçeneğini `true` olarak ayarlayın. Ve yalnızca bazılarını önemsiyorsanız, istediklerinizi `items` içinde listeleyin: `["Dnd", "Reminder", "NightLight"]`. Birden fazla göstergeler widget'ına sahip olabilirsiniz, böylece farklı bölümler farklı alt kümeler gösterebilir.
+Her zaman görünür olmalarını tercih ederseniz, widget üzerinde `alwaysShow` değerini `true` olarak ayarlayın. Ve yalnızca bazılarını önemsiyorsanız, istediklerinizi `items` içinde listeleyin: `["Dnd", "Reminder", "NightLight"]`. Birden fazla göstergeler widget'ına sahip olabilirsiniz, böylece farklı bölümler farklı alt kümeleri gösterebilir.
 
-## Çubuğu yeniden düzenleme
+## Barı yeniden düzenleme
 
-Çubuk kendini yapılandırır. Bir şeyleri taşımak için bir yapılandırma dosyası açmak zorunda değilsiniz.
+Bar kendini yapılandırır. Bir şeyleri taşımak için bir yapılandırma dosyası açmanız gerekmez.
 
-Çubuğun merkezinin etrafındaki boş bir yeri tutun ve başka bir ekran kenarına doğru sürükleyin; çubuk oraya taşınır — sol, sağ, üst veya alt hepsi çalışır ve her widget buna uyum sağlar (dikey çubuklar kompakt yalnızca simge biçimlerine döner). T tıklayıp basılı tutmak aynı sürüklemeyi başlatır. Çubuk arka planını şeffaftan camlıya ve opaklıya döndürmek için aynı boş alana çift sol tıklayın. Ve herhangi bir widget'ı sürükleyerek yeniden sıralayın veya başka bir bölüme atın.
+Barın merkezinin etrafındaki boş bir alanı tutun ve başka bir ekran kenarına doğru sürükleyin, bar oraya taşınır — sol, sağ, üst veya alt, hepsi çalışır ve her widget uyum sağlar (dikey barlar kompakt, yalnızca simge formlarına geri döner). Tıklayıp basılı tutmak da aynı sürüklemeyi başlatır. Aynı boş alana çift sol tıklamak, bar arka planını şeffaftan camsıdan opak hâle döngüsel olarak değiştirir. Ve herhangi bir widget'ı yeniden sıralamak veya başka bir bölüme atmak için sürükleyin; diğer widget'lar, ineceği yerde yer açmak için kayarak ayrılır.
 
-El altında olmasını ancak her zaman görünmesini istemediğiniz bir widget tepsinin çekmecesinde durabilir: onu tepsinin üzerine sürükleyin, çekmece açılıp onu içine alır. Orada uygulama simgelerinin arkasında oturur, çekmece her açıldığında görünür ve kendi paneli açık olduğu sürece çekmeceyi de açık tutar. Geri koymak için onu çubuğun üzerine geri sürükleyin.
+Barın ortası bir kutudur: içinde ne varsa tek bir grup olarak ortalı kalır ve iki yanındaki widget'lar onun kenarlarına asılır. Bir widget'ı sürüklerken kutu bir ana hat olarak, boş olduğunda ise bar boyunca bir çizgi olarak görünür ve içine veya yanına bırakabilirsiniz. Bırakma kutunun içine denk gelecekse, kutu widget'ı içine alacak şekilde büyür.
 
-Bir menüden seçmeyi tercih ederseniz, **Tetikle → Görünüm → Menü Çubuğu** konumuna sahiptir ve **Çubuk Arka Planı** çubuğun nasıl çizileceğini seçer: **Opak Çubuk**, **Cam Çubuk** (arkasındaki bulanıklaştırılmış olarak görülebilen) veya **Şeffaf Çubuk**.
+Etrafta olmasını istediğiniz ancak her zaman görünür olmasını istemediğiniz bir widget, tepsinin çekmecesine gidebilir: onu tepsinin üzerine sürükleyin, çekmece onu almak için açılır. Orada uygulama simgelerinin arkasında durur, çekmece ne zaman görünürse o da görünür ve paneli açıkken çekmecesini açık tutar. Geri koymak için bara geri sürükleyin.
 
-Aynı şeyler komutlara sahiptir; bu bir [dotfiles](31-dotfiles.md) kurulumu için isteyeceğiniz şeydir:
+Bir menüden seçmeyi tercih ederseniz, **Appearance → Menu Bar** konum seçeneğini içerir ve **Bar Background**, barın nasıl çizileceğini seçer: **Opaque Bar**, **Glassy Bar** (arkasındakiler bulanıklaştırılmış, şeffaf) veya **Clear Bar**.
+
+Aynı şeylerin komutları da vardır, ki bu bir [dotfiles](31-dotfiles.md) kurulumu için istediğiniz şeydir:
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Bir widget'ı tamamen eklemek veya kaldırmak için eklenti komutlarını kullanın. `omarchy plugin list` kabuğun bildiği her widget'ı kimliğiyle yazar ve ardından:
+Bir widget'ı tamamen eklemek veya kaldırmak için plugin komutlarını kullanın. `omarchy plugin list`, shell'in bildiği her widget'ı kimliğiyle birlikte yazdırır ve ardından:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
-## Çubuğu gizleme
+## Barı gizleme
 
-`Super + Shift + Space` kabuğu öldürmeden çubuğu kapatıp tekrar açar — paneller ve kısayollar çalışmaya devam eder, sadece pikselleri geri alırsınız. Bu aynı zamanda menüde **Tetikle → Görünüm → Menü Çubuğu → Çubuğu Gizle** altındadır.
+`Super + Shift + Space`, shell'i öldürmeden barı kapatıp tekrar açar — paneller ve kısayollar çalışmaya devam eder, sadece pikselleri geri alırsınız. Ayrıca menüde **Appearance → Menu Bar → Hide Bar** altında da bulunur.
 
 ## Yapılandırma dosyası
 
-Tüm bunlar `~/.config/omarchy/shell.json` içinde, `bar` anahtarının altında saklanır. İşte kısaltılmış bir sürüm:
+Hepsi `~/.config/omarchy/shell.json` içinde, `bar` anahtarı altında saklanır. İşte kırpılmış bir sürümü:
 
 ```json
 {
@@ -119,20 +124,21 @@ Tüm bunlar `~/.config/omarchy/shell.json` içinde, `bar` anahtarının altında
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Her widget, üç düzen dizisinden birindeki tek bir girdidir ve ayarları o girdinin üzerinde satır içinde oturur — ayrı bir ayar dosyası ve `config` alt nesnesi yoktur. Saatin `format`, `formatAlt` (sağ tıklamanın döndürdüğü şey) ve `verticalFormat` değerlerinin hepsi `{ "id": "omarchy.clock" }` üzerinde tam orada yaşar.
+Her widget, beş düzen dizisinden birindeki bir girdidir ve ayarları o girdinin üzerinde satır içi olarak bulunur — ayrı bir ayar dosyası ve `config` alt nesnesi yoktur. Saatin `format`, `formatAlt` (sağ tıklamanın döngüsel olarak geçtiği şey) ve `verticalFormat` değerlerinin hepsi tam orada, `{ "id": "omarchy.clock" }` üzerinde yaşar.
 
-`centerAnchor`, ekranın tam merkezine sabitlenecek tek merkez widget'ı adlandırır, diğerleri onun yanlarına dizilir. Saat, hava durumu ve güncelleme rozeti gelip giderken bile tam merkezde böyle kalır. Onu boş bir dizeye ayarlayın, merkez listesi bunun yerine bir grup olarak ortalanır.
+`center`, barın ortasındaki kutudur: içindeki her şey ekranda tek bir grup olarak ortalanır. `centerBegin` ve `centerEnd`, kutunun iki yanına asılır, bu da hava durumu ve güncelleme rozeti gelip giderken bile saatin tam ortada kalmasını sağlar. `center` içine birden fazla widget koyarsanız birlikte ortalanırlar; boş bırakırsanız `centerBegin` ve `centerEnd` barın ortasında buluşur.
 
-İçselleştirmeye değer bir kural: **kendi `shell.json` dosyanıza sahip olduğunuzda, o kanoniktir**. Herhangi bir şeyi özelleştirene kadar, kabuk Omarchy'nin varsayılan dosyasını okur. Bir widget'ı sürüklediğiniz, `omarchy bar` çalıştırdığınız veya dosyayı kendiniz düzenlediğiniz anda, ona sahip olursunuz — derin birleştirme yoktur, bu yüzden gelecekteki Omarchy sürümlerindeki yeni varsayılan widget'lar çubuğunuzda otomatik olarak görünmez. `omarchy bar defaults`, temiz bir sayfa istediğinizde gönderilen düzeni geri koyar.
+İçselleştirmeye değer bir kural: **kendi `shell.json` dosyanıza sahip olduğunuzda, o kanoniktir**. Bir şeyi özelleştirene kadar shell, Omarchy'nin varsayılan dosyasını okur. Bir widget'ı sürüklediğiniz, `omarchy bar` çalıştırdığınız veya dosyayı kendiniz düzenlediğiniz anda, o artık sizindir — derin birleştirme yoktur, bu yüzden gelecekteki Omarchy sürümlerindeki yeni varsayılan widget'lar barınızda otomatik olarak görünmez. Temiz bir sayfa istediğinizde `omarchy bar defaults`, gelen düzeni geri koyar.
 
-Aynı dosya, boşta kalma zamanlamalarınızı da üst düzeyde, `bar` anahtarının dışında tutar: `idle.screensaver` ve `idle.lock`, ikisi de boşta kaldığınız andan itibaren saniye cinsindendir. Böylece varsayılan ekran koruyucu 150 saniyede ve kilit 300 saniyede devreye girer.
+Aynı dosya, boşta kalma sürelerinizi de üst seviyede, `bar` anahtarının dışında tutar: `idle.screensaver` ve `idle.lock`, ikisi de boşta kaldığınızdan bu yana geçen saniye cinsindendir. Böylece varsayılan ekran koruyucu 150 saniyede devreye girer ve kilit 300 saniyede.

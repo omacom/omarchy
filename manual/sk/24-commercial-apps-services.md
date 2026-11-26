@@ -1,41 +1,47 @@
 # Komerčné aplikácie/služby
 
-Omarchy sa väčšinou zameriava na poskytovanie bezplatného open-source softvéru, ale nie je v tom náboženský. Niekedy je najlepším riešením komerčná ponuka a to je úplne v poriadku. Tu sú niektoré z možností, pre ktoré poskytujeme jednoduchú inštaláciu.
+Omarchy sa väčšinou zameriava na poskytovanie bezplatného open source softvéru, ale nie je v tom dogmatické. Niekedy je najlepším riešením komerčná ponuka a to je úplne v poriadku. Tu sú niektoré z možností, pre ktoré poskytujeme jednoduchú inštaláciu.
 
 ## 1Password
 
-Uchovávanie hesiel v správcovi hesiel je najlepší postup. Dvojnásobne, ak pracuješ s tímom. A [1password](https://1password.com/) je skvelé riešenie, ktoré sa dodáva aj s nástrojom príkazového riadka na integráciu vyhľadávania kľúčov do skriptov.
+Uchovávanie hesiel v správcovi hesiel je osvedčený postup. Dvojnásobne to platí, ak pracujete v tíme. A [1password](https://1password.com/) je skvelé riešenie, ktoré sa dodáva aj s nástrojom príkazového riadka na integráciu vyhľadávania kľúčov v skriptoch.
 
-1Password spúšťaš pomocou `Super + Shift + /`. Ak ešte nie je nainštalovaný, táto klávesová skratka najprv spustí inštaláciu (môžeš použiť aj _Inštalovať > Služba > 1Password_ z menu Omarchy). Inštalátor nastaví aj rozšírenie 1Password pre Chromium.
+1Password spustíte pomocou `Super + Shift + /`. Ak ešte nie je nainštalovaná, táto klávesová skratka najprv spustí inštaláciu (môžete tiež použiť _Install > Service > 1Password_ z ponuky Omarchy). Inštalátor prináša aj nástroj príkazového riadka 1Password a nastaví rozšírenie 1Password pre Chrome a Chromium; reštartujte prehliadač, aby sa načítalo.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) je open-source alternatíva v oblasti správcov hesiel s bezplatnou úrovňou, ktorá pokrýva väčšinu osobného použitia. Nainštaluj ho pomocou _Inštalovať > Služba > Bitwarden_ z menu Omarchy, čím sa prinesie aj nástroj príkazového riadka Bitwarden.
+[Bitwarden](https://bitwarden.com/) je open source alternatíva v oblasti správcov hesiel s bezplatnou úrovňou, ktorá pokrýva väčšinu osobného použitia. Nainštalujte si ho pomocou _Install > Service > Bitwarden_ z ponuky Omarchy, čo prináša aj nástroj príkazového riadka Bitwarden.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) je najpopulárnejšia služba na streamovanie hudby na svete. A linuxová aplikácia poskytuje všetko, čo by si čakal, vrátane prehrávania offline.
-
-Spotify spúšťaš pomocou `Super + Shift + M`. Podobne ako 1Password, aj táto klávesová skratka najprv spustí inštaláciu, ak Spotify ešte nie je nainštalované (alebo použij _Inštalovať > Služba > Spotify_ z menu Omarchy).
+[Spotify](https://spotify.com/) je najpopulárnejšia služba na streamovanie hudby na svete. Omarchy ho dodáva ako webovú aplikáciu, ktorá vám poskytne plnohodnotný prehrávač, mediálne klávesy a Spotify Connect, ale nie sťahovanie offline. Spustíte ho pomocou `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) je miesto, kde veľa tímov chatuje, vnútri firmy aj s externými spolupracovníkmi. Nainštaluj ho pomocou _Inštalovať > Služba > Slack_ z menu Omarchy a otvorí sa hneď, ako bude pripravený.
+[Slack](https://slack.com/) je miesto, kde mnohé tímy chatujú, interne v rámci firmy aj s externými spolupracovníkmi. Nainštalujte si ho pomocou _Install > Service > Slack_ z ponuky Omarchy a otvorí sa hneď, ako bude pripravený.
+
+## Notion
+
+[Notion](https://www.notion.com/) je pracovný priestor na poznámky, dokumenty a projekty. Jeho desktopovú aplikáciu nainštalujete pomocou _Install > Service > Notion_ z ponuky Omarchy.
+
+## WeChat
+
+[WeChat](https://www.wechat.com/) je aplikácia na odosielanie správ, na ktorej beží väčšina Číny, na chatovanie, hovory a udržiavanie kontaktu s každým, kto tam žije. Oficiálneho Linux klienta od spoločnosti Tencent nainštalujete pomocou _Install > Service > WeChat_ z ponuky Omarchy a otvorí sa hneď, ako bude pripravený. Je dostupný len na počítačoch x86.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) je skvelý spôsob, ako synchronizovať súbory medzi počítačmi a zároveň uchovávať zálohu v cloude. Ak ho chceš nastaviť, vyber _Inštalovať > Služba > Dropbox_ z menu Omarchy. Keď už beží, podrž kurzor nad oznamovacou oblasťou v pravom hornom rohu lišty a klikni pravým tlačidlom myši na ikonu Dropboxu, aby si dokončil nastavenie.
+[Dropbox](https://www.dropbox.com/) je skvelý spôsob, ako synchronizovať súbory medzi počítačmi a zároveň si uchovávať zálohu v cloude. Ak ho chcete nastaviť, vyberte _Install > Service > Dropbox_ z ponuky Omarchy. Pridá ikonu Dropbox do lišty: kliknutím na ňu sa prihlásite a potom pomocou toho istého panela skontrolujete svoje úložisko a otvoríte nedávno synchronizované súbory.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) je mesh VPN, ktorá mimoriadne zjednodušuje bezpečný prístup ku všetkým tvojim počítačom a serverom cez internet. Ak ju chceš nastaviť, vyber _Inštalovať > Služba > Tailscale_ z menu Omarchy.
+[Tailscale](https://tailscale.com/) je mesh VPN, vďaka ktorej je bezpečný prístup ku všetkým vašim počítačom a serverom cez internet super jednoduchý. Ak ho chcete nastaviť, vyberte _Install > Service > Tailscale_ z ponuky Omarchy.
 
-Získa panel v lište, webovú aplikáciu pre administrátorskú konzolu a Taildrop na odosielanie súborov medzi tvojimi počítačmi — pozri si časť [sieťovanie](35-networking.md).
+Získa panel v lište, webovú aplikáciu pre administračnú konzolu a Taildrop na odosielanie súborov medzi vašimi zariadeniami — pozri [networking](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) je rad softvéru od 37signals, ktorý si kúpiš raz a prevádzkuješ na vlastnom serveri, napríklad chatovací systém Campfire. Ak ho chceš nainštalovať, vyber _Inštalovať > Služba > ONCE_ z menu Omarchy, čím sa povolí jeho služba na pozadí a vtiahne ťa do terminálového rozhrania ONCE, odkiaľ môžeš pokračovať.
+[ONCE](https://once.com/) je rad softvéru od 37signals, ktorý si kúpite raz a prevádzkujete na vlastnom serveri, ako je chatovací systém Campfire. Ak ho chcete nainštalovať, vyberte _Install > Service > ONCE_ z ponuky Omarchy, čo povolí jeho službu na pozadí a prenesie vás do terminálového rozhrania ONCE, odkiaľ môžete pokračovať.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) je štandardná služba VPN, ktorá ti umožňuje smerovať svoju prevádzku von z väčšiny regiónov sveta. Ak ju chceš nastaviť, vyber _Inštalovať > Služba > NordVPN_ z menu Omarchy. Po reštarte, o ktorý požiada, spusti `nordvpn login`, aby si sa overil.
+[NordVPN](https://nordvpn.com/) je štandardná služba VPN, ktorá vám umožňuje smerovať vašu prevádzku z väčšiny regiónov sveta. Ak ho chcete nastaviť, vyberte _Install > Service > NordVPN_ z ponuky Omarchy. Po reštarte, ktorý si vyžiada, spustite `nordvpn login` na overenie.

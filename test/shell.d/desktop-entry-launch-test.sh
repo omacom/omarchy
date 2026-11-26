@@ -39,6 +39,8 @@ cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 printf '%s\n' "$1" >"$OMARCHY_TEST_PRESENTATION"
 SH
 
+# The curated installer is omarchy-pkg-add here: what it installs is what is checked.
+ln -s omarchy-pkg-add "$mock_bin/omarchy-pkg-add-curated"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
@@ -65,9 +67,7 @@ assert_detached_installer_launch() {
   bash "$ROOT/bin/$script"
 
   wait_for_launch "launch:uwsm-app -- gtk-launch $desktop_id" ||
-    fail "$script launches its desktop entry through gtk-launch in a UWSM scope"
-  grep -Fqx "setsid uwsm-app -- gtk-launch $desktop_id >/dev/null 2>&1 &" "$ROOT/bin/$script" ||
-    fail "$script detaches its scoped desktop-entry launch"
+    fail "$script launches its desktop entry through setsid and gtk-launch in a UWSM scope"
   pass "$script detaches its scoped desktop-entry launch"
 }
 
@@ -82,7 +82,7 @@ presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
 
 [[ $presentation_command == *'echo Installing\ Example\ App...;'* ]] ||
   fail "generic installer shell-quotes the display name" "$presentation_command"
-[[ $presentation_command == *'omarchy-pkg-add alpha beta && (setsid uwsm-app -- gtk-launch Disk\ Usage >/dev/null 2>&1 &)'* ]] ||
+[[ $presentation_command == *'omarchy-pkg-add-curated alpha beta && (setsid uwsm-app -- gtk-launch Disk\ Usage >/dev/null 2>&1 &)'* ]] ||
   fail "generic installer waits for packages and detaches only the scoped launch" "$presentation_command"
 pass "generic installer waits for packages and detaches only the scoped launch"
 
@@ -111,13 +111,13 @@ bash "$ROOT/bin/omarchy-install-app" "LM Studio" "lmstudio-bin"
 presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
 [[ $presentation_command == *'echo Installing\ LM\ Studio...;'* ]] ||
   fail "install-app shell-quotes the display name" "$presentation_command"
-[[ $presentation_command == *'omarchy-pkg-add lmstudio-bin'* ]] ||
+[[ $presentation_command == *'omarchy-pkg-add-curated lmstudio-bin'* ]] ||
   fail "install-app still passes the package list through" "$presentation_command"
 pass "install-app shell-quotes the display name"
 
 bash "$ROOT/bin/omarchy-install-app" "Example App" "alpha beta"
 presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
-[[ $presentation_command == 'echo Installing\ Example\ App...; omarchy-pkg-add alpha beta' ]] ||
+[[ $presentation_command == 'echo Installing\ Example\ App...; omarchy-pkg-add-curated alpha beta' ]] ||
   fail "install-app builds the presentation command with no stray argument" "$presentation_command"
 : >"$OMARCHY_TEST_LOG"
 run_presentation
@@ -198,11 +198,11 @@ pass "install-app keeps every package when the list is newline-separated"
 
 env SHELLOPTS=errexit bash "$ROOT/bin/omarchy-install-app" "Example App" "alpha beta" ||
   fail "install-app builds its command under an inherited errexit"
-[[ $(<"$OMARCHY_TEST_PRESENTATION") == 'echo Installing\ Example\ App...; omarchy-pkg-add alpha beta' ]] ||
+[[ $(<"$OMARCHY_TEST_PRESENTATION") == 'echo Installing\ Example\ App...; omarchy-pkg-add-curated alpha beta' ]] ||
   fail "install-app builds the same command under an inherited errexit" "$(<"$OMARCHY_TEST_PRESENTATION")"
 env SHELLOPTS=errexit bash "$ROOT/bin/omarchy-install-and-launch" "Example App" "alpha beta" "Disk Usage" ||
   fail "install-and-launch builds its command under an inherited errexit"
-grep -Fq 'omarchy-pkg-add alpha beta' "$OMARCHY_TEST_PRESENTATION" ||
+grep -Fq 'omarchy-pkg-add-curated alpha beta' "$OMARCHY_TEST_PRESENTATION" ||
   fail "install-and-launch keeps its package list under an inherited errexit" "$(<"$OMARCHY_TEST_PRESENTATION")"
 pass "the installers build their command under an inherited errexit"
 
@@ -234,4 +234,8 @@ if grep -Fxq 'PWNED' "$test_tmp/launch-pkg-inject.out"; then
 fi
 grep -Fxq 'pkg:alpha; echo PWNED' "$OMARCHY_TEST_LOG" ||
   fail "install-and-launch hands a hostile package list to the package helper as arguments" "$(<"$OMARCHY_TEST_LOG")"
+# The launch is detached; wait for it, or it can still be writing the log
+# while the EXIT trap removes the directory.
+wait_for_launch 'launch:uwsm-app -- gtk-launch Disk Usage' ||
+  fail "install-and-launch launches after installing a hostile package list" "$(<"$OMARCHY_TEST_LOG")"
 pass "install-and-launch does not run extra commands from a package list"
