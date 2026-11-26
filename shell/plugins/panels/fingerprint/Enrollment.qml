@@ -190,7 +190,8 @@ Item {
 
   Process {
     id: statusProc
-    command: [root.helper, "status"]
+    // Its stderr starts the log, for a status that fails.
+    command: ["bash", "-c", 'mkdir -p "${0%/*}" && exec "$@" 2>"$0"', root.logPath, root.helper, "status"]
     stdout: SplitParser {
       onRead: function(line) {
         var event = Model.parseEvent(line)
@@ -198,6 +199,11 @@ Item {
         if (event.kind === "scan") root.scanType = event.value
         else if (event.kind === "finger") root.pendingEnrolled = root.pendingEnrolled.concat([event.value])
         else if (event.kind === "ready") root.ready()
+        else if (event.kind === "fail") {
+          // The enrolled fingers couldn't be read, so none is picked.
+          root.pendingStart = false
+          root.fail(event.value)
+        }
       }
     }
     // A status that never said ready (the helper is missing, say) still goes

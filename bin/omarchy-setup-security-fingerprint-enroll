@@ -134,18 +134,26 @@ status() {
   local device
   device=$(default_device)
   emit "scan $(device_string "$device" scan-type)"
-  # fprintd isn't installed before the first setup. Where it is, a list that
-  # fails (the daemon still starting) is not an empty one: ask again before
-  # letting the panel pick a finger the reader may already hold.
-  local listed attempt
+  # fprintd isn't installed before the first setup, and a reader it can't see
+  # is the run's to report. Otherwise a list that fails (the daemon still
+  # starting) is not an empty one: ask again, and stop rather than let the
+  # panel pick a finger the reader may already hold.
+  local listed="" attempt known=0
   if omarchy-cmd-present fprintd-list; then
     for attempt in 1 2 3; do
-      if listed=$(fprintd-list "$(id -un)" 2>/dev/null); then
+      if listed=$(fprintd-list "$(id -un)" 2>&1); then
         sed -n 's/^ - #[0-9]*: \([a-z-]*\)$/finger \1/p' <<<"$listed"
-        break
+        known=1
+      elif [[ $listed == *"No devices available"* ]]; then
+        known=1
       fi
+      (( known )) && break
       sleep 0.5
     done
+    if (( ! known )); then
+      echo "$listed" >&2
+      fail status
+    fi
   fi
   emit "ready"
 }
