@@ -21,6 +21,7 @@ FocusScope {
     return entry.name || Commons.I18n.t("fingerprint.numbered").arg(Commons.I18n.formatNumber(entry.number))
   }
   function reveal(item) {
+    if (item.parent === footer) return
     const flick = scroll.contentItem
     const y = item.mapToItem(flick.contentItem, 0, 0).y
     if (y < flick.contentY) flick.contentY = Math.max(0, y)
@@ -76,15 +77,16 @@ FocusScope {
   Rectangle {
     anchors.centerIn: parent
     width: Math.min(parent.width - Style.space(32), Style.space(450))
-    height: Math.min(parent.height - Style.space(32), content.implicitHeight + 2 * Style.space(24))
+    height: Math.min(parent.height - Style.space(32), content.implicitHeight + footer.implicitHeight + Style.space(10) + 2 * Style.space(24))
     color: Commons.Color.background
     border.color: Commons.Color.foreground
     radius: Style.cornerRadius
 
     Controls.ScrollView {
       id: scroll
-      anchors.fill: parent
+      anchors { top: parent.top; left: parent.left; right: parent.right; bottom: footer.top }
       anchors.margins: Style.space(24)
+      anchors.bottomMargin: Style.space(10)
       contentWidth: availableWidth
       clip: true
       ColumnLayout {
@@ -191,20 +193,26 @@ FocusScope {
           text: Commons.I18n.t("fingerprint.removeSaved")
           onClicked: ctl.run("remove", [ctl.helper, "remove", ctl.state.reader, view.selected])
         }
-        Line {
-          visible: ctl.notice !== ""
-          readonly property var requestedPrint: ctl.action === "verify" && ctl.state.prints.find(p => p.slot === ctl.verifyFinger)
-          text: requestedPrint ? Commons.I18n.t("fingerprint.useSaved").arg(view.label(requestedPrint)).arg(ctl.notice) : ctl.notice
-        }
-        Action {
-          text: ctl.action === "verify" ? Commons.I18n.t("common.cancel")
-                : view.entry ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")
-          enabled: !ctl.busy || ctl.action === "verify"
-          onClicked: {
-            if (ctl.action === "verify") ctl.cancelVerify()
-            else if (view.entry) view.back()
-            else view.closeRequested()
-          }
+      }
+    }
+
+    ColumnLayout {
+      id: footer
+      anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Style.space(24) }
+      spacing: Style.space(10)
+      Line {
+        visible: ctl.notice !== ""
+        readonly property var requestedPrint: ctl.action === "verify" && ctl.state.prints.find(p => p.slot === ctl.verifyFinger)
+        text: requestedPrint ? Commons.I18n.t("fingerprint.useSaved").arg(view.label(requestedPrint)).arg(ctl.notice) : ctl.notice
+      }
+      Action {
+        text: ctl.action === "verify" ? Commons.I18n.t("common.cancel")
+              : view.entry ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")
+        enabled: !ctl.busy || ctl.action === "verify"
+        onClicked: {
+          if (ctl.action === "verify") ctl.cancelVerify()
+          else if (view.entry) view.back()
+          else view.closeRequested()
         }
       }
     }
