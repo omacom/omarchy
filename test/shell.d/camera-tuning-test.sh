@@ -110,8 +110,8 @@ bash -n "$ROOT/bin/omarchy-camera-relay" || fail "omarchy-camera-relay has valid
 bash -n "$ROOT/bin/omarchy-camera-guard" || fail "omarchy-camera-guard has valid syntax"
 bash -n "$ROOT/install/user/first-run/camera-tuning.sh" || fail "camera-tuning first-run has valid syntax"
 bash -n "$ROOT/migrations/1795705800.sh" || fail "camera-tuning migration has valid syntax"
+python3 -m py_compile "$ROOT/bin/omarchy-camera" || fail "omarchy-camera has valid syntax"
 python3 -m py_compile "$ROOT/bin/omarchy-camera-relay-daemon" || fail "omarchy-camera-relay-daemon has valid syntax"
-python3 -m py_compile "$ROOT/shell/plugins/panels/camera/camera-watch.py" || fail "camera-watch.py has valid syntax"
 
 # 2. Non-matching laptop is a clean no-op
 ! MOCK_DT_MATCH="other,board" run_tuning match >/dev/null || fail "match fails on unrelated boards"
@@ -212,7 +212,73 @@ PATH="$work/bin:$PATH" \
   OMARCHY_DEV_PATH="$work/dev" \
   "$ROOT/bin/omarchy-camera-relay" --wait-ready || fail "--wait-ready succeeds on Video Capture"
 
-# 6. 'reset' restores shipped defaults, 'off' removes units and env
+# 6. First-class 'omarchy-camera' CLI controls read, set, reset, and live-apply
+run_camera() {
+  PATH="$work/bin:$PATH" \
+    OMARCHY_PATH="$work/omarchy" \
+    XDG_CONFIG_HOME="$work/config" \
+    MOCK_DT_MATCH="${MOCK_DT_MATCH:-anduril,bluechip}" \
+    MOCK_ACTIVE_FILE="$work/relay-active" \
+    "$ROOT/bin/omarchy-camera" "$@"
+}
+
+status_json="$(run_camera status --json)"
+jq -e '.installed == true and .label == "Front Camera" and .values.gamma == 1.65 and .defaults.gamma == 1.5' <<<"$status_json" >/dev/null ||
+  fail "omarchy-camera status --json reports current values and shipped defaults"
+[[ $(run_camera gamma) == "1.65" ]] || fail "omarchy-camera gamma prints current value"
+
+# Individual control setters (including negative values) persist through omarchy-camera-tuning
+run_camera brightness -- -0.15 >/dev/null
+run_camera warmth 0.30 >/dev/null
+run_camera tint -0.20 >/dev/null
+[[ $(run_camera brightness) == "-0.15" ]] || fail "omarchy-camera brightness sets negative value"
+[[ $(run_camera warmth) == "0.30" ]] || fail "omarchy-camera warmth sets value"
+[[ $(run_camera tint) == "-0.20" ]] || fail "omarchy-camera tint sets negative value"
+
+# Single-control reset restores only that control
+run_camera reset warmth >/dev/null
+[[ $(run_camera warmth) == "0.00" ]] || fail "omarchy-camera reset warmth restores default warmth"
+[[ $(run_camera brightness) == "-0.15" ]] || fail "omarchy-camera reset warmth leaves brightness untouched"
+
+# Range validation rejects out-of-bounds values
+! run_camera brightness 2.0 2>/dev/null || fail "omarchy-camera rejects out-of-range brightness"
+! run_camera gamma 0.1 2>/dev/null || fail "omarchy-camera rejects out-of-range gamma"
+! run_camera unknown 1.0 2>/dev/null || fail "omarchy-camera rejects unknown command"
+
+# --live sends directly to the relay socket without modifying camera.conf
+live_sock2="$work/relay2.sock"
+live_rx2="$work/live-rx2"
+python3 - "$live_sock2" "$live_rx2" <<'PY' &
+import socket, sys
+s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+s.bind(sys.argv[1])
+s.settimeout(5.0)
+data = s.recv(1024).decode("utf-8")
+with open(sys.argv[2], "w", encoding="utf-8") as fh:
+    fh.write(data)
+s.close()
+PY
+rx_pid2=$!
+for _ in {1..30}; do
+  [[ -S $live_sock2 ]] && break
+  sleep 0.05
+done
+OMARCHY_CAMERA_RELAY_SOCKET="$live_sock2" run_camera warmth --live 0.45 >/dev/null
+wait "$rx_pid2" || fail "omarchy-camera --live delivered datagram"
+grep -qx "warmth=0.45" "$live_rx2" || fail "omarchy-camera --live sent expected payload"
+[[ $(run_camera warmth) == "0.00" ]] || fail "omarchy-camera --live does not overwrite saved config"
+rm -f "$live_sock2"
+
+# Fine decimal adjustments (>2 decimal places) are preserved end-to-end
+run_camera brightness 0.004 >/dev/null
+[[ $(run_camera brightness) == "0.004" ]] || fail "omarchy-camera preserves fine decimal adjustments"
+
+# Full reset via omarchy-camera restores defaults
+run_camera reset >/dev/null
+[[ ! -e $work/config/omarchy/camera.conf ]] || fail "omarchy-camera reset removes override file"
+[[ $(run_camera brightness) == "0.00" && $(run_camera gamma) == "1.50" ]] || fail "omarchy-camera reset restores defaults"
+
+# 7. 'reset' restores shipped defaults, 'off' removes units and env
 run_tuning reset >/dev/null
 [[ ! -e $work/config/omarchy/camera.conf ]] || fail "reset removes user override file"
 [[ $(cat "$work/config/omarchy/camera-relay.env") == "$default_env" ]] || fail "reset restores original rendered env"

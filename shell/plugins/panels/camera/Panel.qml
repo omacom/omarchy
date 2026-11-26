@@ -13,9 +13,7 @@ BarWidget {
   readonly property bool previewMode: moduleName === "preview"
   readonly property string homeDir: Quickshell.env("HOME") || ""
   readonly property string configHome: Quickshell.env("XDG_CONFIG_HOME") || (homeDir + "/.config")
-  readonly property string tuningsRoot: Quickshell.env("OMARCHY_PATH") + "/default/camera/tunings"
   readonly property string envFilePath: configHome + "/omarchy/camera-relay.env"
-  readonly property string watcherPath: Qt.resolvedUrl("camera-watch.py").toString().replace(/^file:\/\//, "")
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.popups.text
   readonly property color dim: Qt.darker(foreground, 1.4)
@@ -27,8 +25,8 @@ BarWidget {
   property bool saving: false
   property bool pendingSave: false
   property bool pendingReset: false
+  property bool pendingStatusRefresh: false
 
-  property string tuningName: ""
   property string cameraLabel: Commons.I18n.t("camera.title")
   property string resolutionBadge: ""
 
@@ -39,8 +37,8 @@ BarWidget {
   property real warmthValue: 0.00
   property real tintValue: 0.00
 
-  // Raw values as saved in camera-relay.env (unclamped), so CLI overrides
-  // outside the slider bounds stay visible to isModified and are never
+  // Raw values as saved by `omarchy-camera status --json` (unclamped), so CLI
+  // overrides outside slider bounds stay visible to isModified and are never
   // clobbered when the user adjusts a different slider.
   property real savedBrightness: 0.00
   property real savedGamma: 1.50
@@ -171,111 +169,77 @@ BarWidget {
     return isSigned && rounded > 0 ? ("+" + formatted) : formatted
   }
 
-  function unescapeShellValue(raw) {
-    var s = String(raw || "").trim()
-    if (s.length >= 2 && ((s[0] === "'" && s[s.length - 1] === "'") || (s[0] === "\"" && s[s.length - 1] === "\""))) {
-      return s.slice(1, -1)
+  function applyStatusJson(raw) {
+    var data
+    try {
+      data = JSON.parse(String(raw || ""))
+    } catch (e) {
+      return
     }
-    return s.replace(/\\(.)/g, "$1")
-  }
-
-  function parseEnvText(text) {
-    var lines = String(text || "").split(/\r?\n/)
-    var map = {}
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim()
-      if (!line || line.charAt(0) === "#") continue
-      var eq = line.indexOf("=")
-      if (eq <= 0) continue
-      var key = line.slice(0, eq).trim()
-      var val = unescapeShellValue(line.slice(eq + 1))
-      map[key] = val
-    }
-
-    if (!map.CAMERA_NAME && !map.TUNING_NAME) {
+    if (!data || !data.installed) {
       root.tuningInstalled = false
       return
     }
 
     root.tuningInstalled = true
-    if (map.TUNING_NAME) root.tuningName = map.TUNING_NAME
-    if (map.CARD_LABEL) root.cameraLabel = map.CARD_LABEL
-    root.resolutionBadge = map.HEIGHT ? (map.HEIGHT + "p") : ""
+    if (data.label) root.cameraLabel = String(data.label)
+    root.resolutionBadge = data.height ? (String(data.height) + "p") : ""
 
-    if (!root.saving && !root.pendingSave && !root.anyDragging) {
-      var b = parseFloat(map.BRIGHTNESS)
-      var g = parseFloat(map.GAMMA)
-      var c = parseFloat(map.CONTRAST)
-      var s = parseFloat(map.SATURATION)
-      var w = parseFloat(map.WARMTH)
-      var t = parseFloat(map.TINT)
-      if (!isNaN(b)) {
-        root.savedBrightness = b
-        root.brightnessValue = snapStep(b, -0.50, 0.50, 0.05)
+    if (data.defaults) {
+      if (data.defaults.brightness !== undefined) root.defaultBrightness = Number(data.defaults.brightness)
+      if (data.defaults.gamma !== undefined) root.defaultGamma = Number(data.defaults.gamma)
+      if (data.defaults.contrast !== undefined) root.defaultContrast = Number(data.defaults.contrast)
+      if (data.defaults.saturation !== undefined) root.defaultSaturation = Number(data.defaults.saturation)
+      if (data.defaults.warmth !== undefined) root.defaultWarmth = Number(data.defaults.warmth)
+      if (data.defaults.tint !== undefined) root.defaultTint = Number(data.defaults.tint)
+    }
+
+    if (data.values && !root.saving && !root.pendingSave && !root.anyDragging) {
+      if (data.values.brightness !== undefined) {
+        root.savedBrightness = Number(data.values.brightness)
+        root.brightnessValue = snapStep(root.savedBrightness, -0.50, 0.50, 0.05)
       }
-      if (!isNaN(g)) {
-        root.savedGamma = g
-        root.gammaValue = snapStep(g, 1.00, 2.40, 0.05)
+      if (data.values.gamma !== undefined) {
+        root.savedGamma = Number(data.values.gamma)
+        root.gammaValue = snapStep(root.savedGamma, 1.00, 2.40, 0.05)
       }
-      if (!isNaN(c)) {
-        root.savedContrast = c
-        root.contrastValue = snapStep(c, 0.50, 2.00, 0.05)
+      if (data.values.contrast !== undefined) {
+        root.savedContrast = Number(data.values.contrast)
+        root.contrastValue = snapStep(root.savedContrast, 0.50, 2.00, 0.05)
       }
-      if (!isNaN(s)) {
-        root.savedSaturation = s
-        root.saturationValue = snapStep(s, 0.00, 2.00, 0.05)
+      if (data.values.saturation !== undefined) {
+        root.savedSaturation = Number(data.values.saturation)
+        root.saturationValue = snapStep(root.savedSaturation, 0.00, 2.00, 0.05)
       }
-      if (!isNaN(w)) {
-        root.savedWarmth = w
-        root.warmthValue = snapStep(w, -1.00, 1.00, 0.05)
+      if (data.values.warmth !== undefined) {
+        root.savedWarmth = Number(data.values.warmth)
+        root.warmthValue = snapStep(root.savedWarmth, -1.00, 1.00, 0.05)
       }
-      if (!isNaN(t)) {
-        root.savedTint = t
-        root.tintValue = snapStep(t, -1.00, 1.00, 0.05)
+      if (data.values.tint !== undefined) {
+        root.savedTint = Number(data.values.tint)
+        root.tintValue = snapStep(root.savedTint, -1.00, 1.00, 0.05)
       }
     }
   }
 
-  function parseDefaultsText(text) {
-    var lines = String(text || "").split(/\r?\n/)
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim()
-      if (!line || line.charAt(0) === "#") continue
-      var eq = line.indexOf("=")
-      if (eq <= 0) continue
-      var key = line.slice(0, eq).trim()
-      var val = parseFloat(unescapeShellValue(line.slice(eq + 1)))
-      if (isNaN(val)) continue
-      if (key === "brightness") root.defaultBrightness = val
-      else if (key === "gamma") root.defaultGamma = val
-      else if (key === "contrast") root.defaultContrast = val
-      else if (key === "saturation") root.defaultSaturation = val
-      else if (key === "warmth") root.defaultWarmth = val
-      else if (key === "tint") root.defaultTint = val
+  function refreshStatus() {
+    if (root.previewMode) return
+    if (statusProc.running) {
+      root.pendingStatusRefresh = true
+      return
     }
+    root.pendingStatusRefresh = false
+    statusProc.outputBuffer = ""
+    statusProc.running = true
   }
 
-  // Send 0ms live property updates for only the changed control(s) through the
-  // already-running watcher bridge to the relay's Unix datagram socket.
+  // Send 0ms live updates through `omarchy-camera watch` stdin while dragging.
   function sendLiveKey(key, value, force) {
     if (root.previewMode || !watcherProc.running) return
     var now = Date.now()
     if (!force && (now - root.lastLiveSentMs) < 33) return
     root.lastLiveSentMs = now
-    watcherProc.write(key + "=" + formatArg(value) + "\n")
-  }
-
-  function sendLiveAll() {
-    if (root.previewMode || !watcherProc.running) return
-    root.lastLiveSentMs = Date.now()
-    watcherProc.write(
-      "brightness=" + formatArg(root.savedBrightness)
-      + " gamma=" + formatArg(root.savedGamma)
-      + " contrast=" + formatArg(root.savedContrast)
-      + " saturation=" + formatArg(root.savedSaturation)
-      + " warmth=" + formatArg(root.savedWarmth)
-      + " tint=" + formatArg(root.savedTint) + "\n"
-    )
+    watcherProc.write(key + " " + formatArg(value) + "\n")
   }
 
   function markDirty(key) {
@@ -309,26 +273,28 @@ BarWidget {
     if (root.pendingReset) {
       root.pendingReset = false
       root.saving = true
-      saveProc.command = ["omarchy-camera-tuning", "reset"]
+      saveProc.outputBuffer = ""
+      saveProc.command = ["omarchy-camera", "--json", "reset"]
       saveProc.running = true
       return
     }
 
-    var args = ["omarchy-camera-tuning", "set"]
+    var args = ["omarchy-camera", "--json", "set"]
     if (root.dirtyKeys.brightness) args.push("brightness=" + formatArg(root.savedBrightness))
     if (root.dirtyKeys.gamma) args.push("gamma=" + formatArg(root.savedGamma))
     if (root.dirtyKeys.contrast) args.push("contrast=" + formatArg(root.savedContrast))
     if (root.dirtyKeys.saturation) args.push("saturation=" + formatArg(root.savedSaturation))
     if (root.dirtyKeys.warmth) args.push("warmth=" + formatArg(root.savedWarmth))
     if (root.dirtyKeys.tint) args.push("tint=" + formatArg(root.savedTint))
-    if (args.length <= 2) {
+    if (args.length <= 3) {
       root.saving = false
-      envFile.reload()
+      root.refreshStatus()
       return
     }
 
     root.dirtyKeys = ({})
     root.saving = true
+    saveProc.outputBuffer = ""
     saveProc.command = args
     saveProc.running = true
   }
@@ -349,26 +315,30 @@ BarWidget {
     root.warmthValue = snapStep(root.defaultWarmth, -1.00, 1.00, 0.05)
     root.tintValue = snapStep(root.defaultTint, -1.00, 1.00, 0.05)
     root.dirtyKeys = ({})
-    root.sendLiveAll()
+    if (watcherProc.running) {
+      root.lastLiveSentMs = Date.now()
+      watcherProc.write("reset\n")
+    }
     root.pendingReset = true
     root.flushPersist()
   }
 
+  // Gate all CLI invocations on camera-relay.env existing so machines without
+  // camera tuning spawn zero processes.
   FileView {
     id: envFile
     path: root.envFilePath
     watchChanges: true
-    onLoaded: root.parseEnvText(text())
+    onLoaded: {
+      if (String(text() || "").trim() === "") {
+        root.tuningInstalled = false
+      } else {
+        root.tuningInstalled = true
+        root.refreshStatus()
+      }
+    }
     onLoadFailed: root.tuningInstalled = false
     onFileChanged: reload()
-  }
-
-  FileView {
-    id: defaultsFile
-    path: root.tuningName !== "" && root.tuningsRoot !== "/default/camera/tunings"
-      ? (root.tuningsRoot + "/" + root.tuningName + "/tuning.conf")
-      : ""
-    onLoaded: root.parseDefaultsText(text())
   }
 
   // Brief grace period only when hiding, so a mode switch never flickers the
@@ -393,7 +363,7 @@ BarWidget {
     }
   }
 
-  // Coalesce persistent writes to ~/.config/omarchy/camera.conf after release.
+  // Coalesce persistent CLI writes after slider release.
   Timer {
     id: persistDebounceTimer
     interval: 350
@@ -402,10 +372,28 @@ BarWidget {
   }
 
   Process {
+    id: statusProc
+    property string outputBuffer: ""
+    command: ["omarchy-camera", "status", "--json"]
+    stdout: SplitParser {
+      onRead: function(line) { statusProc.outputBuffer += line }
+    }
+    onExited: function(code) {
+      if (code === 0 && statusProc.outputBuffer !== "") {
+        root.applyStatusJson(statusProc.outputBuffer)
+      }
+      if (root.pendingStatusRefresh) {
+        root.pendingStatusRefresh = false
+        root.refreshStatus()
+      }
+    }
+  }
+
+  Process {
     id: watcherProc
-    running: !root.previewMode && root.tuningInstalled && root.watcherPath !== ""
+    running: !root.previewMode && root.tuningInstalled
     stdinEnabled: true
-    command: ["python3", "-u", root.watcherPath]
+    command: ["omarchy-camera", "watch"]
     stdout: SplitParser {
       onRead: function(line) {
         var status = String(line || "").trim()
@@ -426,14 +414,22 @@ BarWidget {
 
   Process {
     id: saveProc
-    onExited: {
+    property string outputBuffer: ""
+    stdout: SplitParser {
+      onRead: function(line) { saveProc.outputBuffer += line }
+    }
+    onExited: function(code) {
       if (root.pendingSave || root.pendingReset || root.hasDirtyKeys()) {
         root.pendingSave = false
         root.flushPersist()
         return
       }
       root.saving = false
-      envFile.reload()
+      if (code === 0 && saveProc.outputBuffer !== "") {
+        root.applyStatusJson(saveProc.outputBuffer)
+      } else {
+        root.refreshStatus()
+      }
     }
   }
 
@@ -485,191 +481,191 @@ BarWidget {
         width: contentFlick.width
         spacing: Style.space(12)
 
-      PanelHero {
-        width: parent.width
-        title: root.cameraLabel
-        meta: {
-          var status = Commons.I18n.t("camera.liveMeta")
-          return root.resolutionBadge !== "" ? (status + " · " + root.resolutionBadge) : status
-        }
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-
-        iconComponent: Component {
-          Text {
-            textFormat: Text.PlainText
-            text: "󰄀"
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.display
+        PanelHero {
+          width: parent.width
+          title: root.cameraLabel
+          meta: {
+            var status = Commons.I18n.t("camera.liveMeta")
+            return root.resolutionBadge !== "" ? (status + " · " + root.resolutionBadge) : status
           }
-        }
+          foreground: root.foreground
+          fontFamily: root.fontFamily
 
-        trailingControl: Component {
-          PanelActionButton {
-            iconText: "󰑐"
-            tooltipText: Commons.I18n.t("camera.resetTooltip")
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            bordered: true
-            enabled: root.isModified
-            onClicked: root.resetAll()
+          iconComponent: Component {
+            Text {
+              textFormat: Text.PlainText
+              text: "󰄀"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.display
+            }
           }
-        }
-      }
 
-      PanelSeparator {
-        foreground: root.foreground
-      }
-
-      Column {
-        width: parent.width
-        spacing: Style.space(8)
-
-        SliderRow {
-          id: brightnessRow
-          label: Commons.I18n.t("camera.brightness")
-          minimum: -0.50
-          maximum: 0.50
-          step: 0.05
-          value: root.brightnessValue
-          signed: true
-          onMoved: function(v) { root.sendLiveKey("brightness", v, false) }
-          onCommitted: function(v) {
-            root.brightnessValue = v
-            root.savedBrightness = v
-            root.sendLiveKey("brightness", v, true)
-            root.queuePersist("brightness")
-          }
-          onResetRequested: {
-            root.savedBrightness = root.defaultBrightness
-            root.brightnessValue = root.snapStep(root.defaultBrightness, minimum, maximum, step)
-            root.sendLiveKey("brightness", root.savedBrightness, true)
-            root.queuePersist("brightness")
+          trailingControl: Component {
+            PanelActionButton {
+              iconText: "󰑐"
+              tooltipText: Commons.I18n.t("camera.resetTooltip")
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              enabled: root.isModified
+              onClicked: root.resetAll()
+            }
           }
         }
 
-        SliderRow {
-          id: gammaRow
-          label: Commons.I18n.t("camera.gamma")
-          minimum: 1.00
-          maximum: 2.40
-          step: 0.05
-          value: root.gammaValue
-          onMoved: function(v) { root.sendLiveKey("gamma", v, false) }
-          onCommitted: function(v) {
-            root.gammaValue = v
-            root.savedGamma = v
-            root.sendLiveKey("gamma", v, true)
-            root.queuePersist("gamma")
+        PanelSeparator {
+          foreground: root.foreground
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(8)
+
+          SliderRow {
+            id: brightnessRow
+            label: Commons.I18n.t("camera.brightness")
+            minimum: -0.50
+            maximum: 0.50
+            step: 0.05
+            value: root.brightnessValue
+            signed: true
+            onMoved: function(v) { root.sendLiveKey("brightness", v, false) }
+            onCommitted: function(v) {
+              root.brightnessValue = v
+              root.savedBrightness = v
+              root.sendLiveKey("brightness", v, true)
+              root.queuePersist("brightness")
+            }
+            onResetRequested: {
+              root.savedBrightness = root.defaultBrightness
+              root.brightnessValue = root.snapStep(root.defaultBrightness, minimum, maximum, step)
+              root.sendLiveKey("brightness", root.savedBrightness, true)
+              root.queuePersist("brightness")
+            }
           }
-          onResetRequested: {
-            root.savedGamma = root.defaultGamma
-            root.gammaValue = root.snapStep(root.defaultGamma, minimum, maximum, step)
-            root.sendLiveKey("gamma", root.savedGamma, true)
-            root.queuePersist("gamma")
+
+          SliderRow {
+            id: gammaRow
+            label: Commons.I18n.t("camera.gamma")
+            minimum: 1.00
+            maximum: 2.40
+            step: 0.05
+            value: root.gammaValue
+            onMoved: function(v) { root.sendLiveKey("gamma", v, false) }
+            onCommitted: function(v) {
+              root.gammaValue = v
+              root.savedGamma = v
+              root.sendLiveKey("gamma", v, true)
+              root.queuePersist("gamma")
+            }
+            onResetRequested: {
+              root.savedGamma = root.defaultGamma
+              root.gammaValue = root.snapStep(root.defaultGamma, minimum, maximum, step)
+              root.sendLiveKey("gamma", root.savedGamma, true)
+              root.queuePersist("gamma")
+            }
+          }
+
+          SliderRow {
+            id: contrastRow
+            label: Commons.I18n.t("camera.contrast")
+            minimum: 0.50
+            maximum: 2.00
+            step: 0.05
+            value: root.contrastValue
+            onMoved: function(v) { root.sendLiveKey("contrast", v, false) }
+            onCommitted: function(v) {
+              root.contrastValue = v
+              root.savedContrast = v
+              root.sendLiveKey("contrast", v, true)
+              root.queuePersist("contrast")
+            }
+            onResetRequested: {
+              root.savedContrast = root.defaultContrast
+              root.contrastValue = root.snapStep(root.defaultContrast, minimum, maximum, step)
+              root.sendLiveKey("contrast", root.savedContrast, true)
+              root.queuePersist("contrast")
+            }
           }
         }
 
-        SliderRow {
-          id: contrastRow
-          label: Commons.I18n.t("camera.contrast")
-          minimum: 0.50
-          maximum: 2.00
-          step: 0.05
-          value: root.contrastValue
-          onMoved: function(v) { root.sendLiveKey("contrast", v, false) }
-          onCommitted: function(v) {
-            root.contrastValue = v
-            root.savedContrast = v
-            root.sendLiveKey("contrast", v, true)
-            root.queuePersist("contrast")
-          }
-          onResetRequested: {
-            root.savedContrast = root.defaultContrast
-            root.contrastValue = root.snapStep(root.defaultContrast, minimum, maximum, step)
-            root.sendLiveKey("contrast", root.savedContrast, true)
-            root.queuePersist("contrast")
-          }
-        }
-      }
-
-      PanelSeparator {
-        foreground: root.foreground
-      }
-
-      Column {
-        width: parent.width
-        spacing: Style.space(8)
-
-        SliderRow {
-          id: saturationRow
-          label: Commons.I18n.t("camera.saturation")
-          minimum: 0.00
-          maximum: 2.00
-          step: 0.05
-          value: root.saturationValue
-          onMoved: function(v) { root.sendLiveKey("saturation", v, false) }
-          onCommitted: function(v) {
-            root.saturationValue = v
-            root.savedSaturation = v
-            root.sendLiveKey("saturation", v, true)
-            root.queuePersist("saturation")
-          }
-          onResetRequested: {
-            root.savedSaturation = root.defaultSaturation
-            root.saturationValue = root.snapStep(root.defaultSaturation, minimum, maximum, step)
-            root.sendLiveKey("saturation", root.savedSaturation, true)
-            root.queuePersist("saturation")
-          }
+        PanelSeparator {
+          foreground: root.foreground
         }
 
-        SliderRow {
-          id: warmthRow
-          label: Commons.I18n.t("camera.warmth")
-          minimum: -1.00
-          maximum: 1.00
-          step: 0.05
-          value: root.warmthValue
-          signed: true
-          onMoved: function(v) { root.sendLiveKey("warmth", v, false) }
-          onCommitted: function(v) {
-            root.warmthValue = v
-            root.savedWarmth = v
-            root.sendLiveKey("warmth", v, true)
-            root.queuePersist("warmth")
-          }
-          onResetRequested: {
-            root.savedWarmth = root.defaultWarmth
-            root.warmthValue = root.snapStep(root.defaultWarmth, minimum, maximum, step)
-            root.sendLiveKey("warmth", root.savedWarmth, true)
-            root.queuePersist("warmth")
-          }
-        }
+        Column {
+          width: parent.width
+          spacing: Style.space(8)
 
-        SliderRow {
-          id: tintRow
-          label: Commons.I18n.t("camera.tint")
-          minimum: -1.00
-          maximum: 1.00
-          step: 0.05
-          value: root.tintValue
-          signed: true
-          onMoved: function(v) { root.sendLiveKey("tint", v, false) }
-          onCommitted: function(v) {
-            root.tintValue = v
-            root.savedTint = v
-            root.sendLiveKey("tint", v, true)
-            root.queuePersist("tint")
+          SliderRow {
+            id: saturationRow
+            label: Commons.I18n.t("camera.saturation")
+            minimum: 0.00
+            maximum: 2.00
+            step: 0.05
+            value: root.saturationValue
+            onMoved: function(v) { root.sendLiveKey("saturation", v, false) }
+            onCommitted: function(v) {
+              root.saturationValue = v
+              root.savedSaturation = v
+              root.sendLiveKey("saturation", v, true)
+              root.queuePersist("saturation")
+            }
+            onResetRequested: {
+              root.savedSaturation = root.defaultSaturation
+              root.saturationValue = root.snapStep(root.defaultSaturation, minimum, maximum, step)
+              root.sendLiveKey("saturation", root.savedSaturation, true)
+              root.queuePersist("saturation")
+            }
           }
-          onResetRequested: {
-            root.savedTint = root.defaultTint
-            root.tintValue = root.snapStep(root.defaultTint, minimum, maximum, step)
-            root.sendLiveKey("tint", root.savedTint, true)
-            root.queuePersist("tint")
+
+          SliderRow {
+            id: warmthRow
+            label: Commons.I18n.t("camera.warmth")
+            minimum: -1.00
+            maximum: 1.00
+            step: 0.05
+            value: root.warmthValue
+            signed: true
+            onMoved: function(v) { root.sendLiveKey("warmth", v, false) }
+            onCommitted: function(v) {
+              root.warmthValue = v
+              root.savedWarmth = v
+              root.sendLiveKey("warmth", v, true)
+              root.queuePersist("warmth")
+            }
+            onResetRequested: {
+              root.savedWarmth = root.defaultWarmth
+              root.warmthValue = root.snapStep(root.defaultWarmth, minimum, maximum, step)
+              root.sendLiveKey("warmth", root.savedWarmth, true)
+              root.queuePersist("warmth")
+            }
+          }
+
+          SliderRow {
+            id: tintRow
+            label: Commons.I18n.t("camera.tint")
+            minimum: -1.00
+            maximum: 1.00
+            step: 0.05
+            value: root.tintValue
+            signed: true
+            onMoved: function(v) { root.sendLiveKey("tint", v, false) }
+            onCommitted: function(v) {
+              root.tintValue = v
+              root.savedTint = v
+              root.sendLiveKey("tint", v, true)
+              root.queuePersist("tint")
+            }
+            onResetRequested: {
+              root.savedTint = root.defaultTint
+              root.tintValue = root.snapStep(root.defaultTint, minimum, maximum, step)
+              root.sendLiveKey("tint", root.savedTint, true)
+              root.queuePersist("tint")
+            }
           }
         }
-      }
       }
     }
   }
