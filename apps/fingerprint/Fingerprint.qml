@@ -105,8 +105,8 @@ Canvas {
     },
     // Flanks
     Impression {
-      from: Qt.point(103, 109)
-      to: Qt.point(37, 22)
+      from: Qt.point(94, 33)
+      to: Qt.point(31, 55)
       outline: `M46 91.5 C44.5 94.5 47.5 98.5 51 98
                 M50.5 43 C49 45 47.5 47.5 47 50
                 M84.5 52.5 C84.5 50 84 47 83.5 44.5
@@ -118,8 +118,8 @@ Canvas {
     },
     // Outer arches
     Impression {
-      from: Qt.point(42, 23)
-      to: Qt.point(92, 100)
+      from: Qt.point(83, 13)
+      to: Qt.point(59, 93)
       outline: `M80 55.5 C80 53.5 80 51.5 79.5 49.5
                 M37 71 C35.5 75.5 31.5 79.5 30.5 84.5
                 M94 59.5 C95.5 51.5 90.5 45 86.5 39
@@ -132,8 +132,8 @@ Canvas {
     },
     // Crown
     Impression {
-      from: Qt.point(28, 57)
-      to: Qt.point(109, 84)
+      from: Qt.point(51, 25)
+      to: Qt.point(109, 89)
       outline: `M47 110.5 C53.5 112.5 60.5 112 66 108.5
                 M65.5 19.5 C60.5 20 55.5 22.5 51.5 25
                 M79 22.5 C75 20 70 19 65.5 19.5
@@ -145,8 +145,8 @@ Canvas {
     },
     // Remaining edge ridges
     Impression {
-      from: Qt.point(60, 68)
-      to: Qt.point(60, 124)
+      from: Qt.point(64, 79)
+      to: Qt.point(52, 120)
       outline: `M32.5 70.5 C30 75.5 28 79.5 27 83.5
                 M52.5 120 C61 121 69.5 118 75.5 112.5
                 M37 80.5 C33.5 85.5 30.5 93.5 33 100 C35 105 41 109 47.5 110
@@ -177,7 +177,7 @@ Canvas {
     const edges = impressions.length - padAreas
     const rounds = Math.floor(touches / edges)
     const visits = rounds + Math.min(touches - rounds * edges, 1)
-    return visits / (visits + 3)
+    return 1 - Math.pow(0.86, visits)
   }
   Accessible.ignored: true
 

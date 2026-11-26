@@ -50,7 +50,7 @@ private slots:
     auto *art = view.rootObject();
     QSignalSpy painted(art, SIGNAL(painted()));
     QSet<QPoint> previous;
-    for (int accepted : {0, 1, 2, 4, 7, 8, 17, 18, 36, 37, -1}) {
+    for (int accepted : {0, 1, 2, 4, 7, 8, 17, 18, 26, 27, 36, 37, -1}) {
       if (accepted < 0) art->setProperty("complete", true);
       else art->setProperty("samples", accepted);
       QTRY_COMPARE(art->property("shownScans").toDouble(), art->property("samples").toDouble());
