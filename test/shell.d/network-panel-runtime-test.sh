@@ -35,6 +35,7 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 // the content root and mirrored on the panel once the test builds it.
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
+      property alias testNetworkList: networkList
       property alias testTitle: heroSsid
 `)
 source = source.replace('  id: root', `  id: root
@@ -43,11 +44,13 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
+  readonly property Item testNetworkList: panel.loadedContent ? panel.loadedContent.testNetworkList : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
   property alias testPoll: connectivityPoll
   property alias testLimitedSettle: limitedSettle
   property alias testApPoll: activeApSignalPoll
-  property alias testBarButton: button`)
+  property alias testBarButton: button
+  property alias testActionTimeout: actionTimeout`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
@@ -104,3 +107,7 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 stage_panel live-rows
 run_panel "network live rows"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+stage_panel password-scan
+run_panel "network password scan"
+pass "network scans keep live held ordering and release credential entry when its network or device disappears"
