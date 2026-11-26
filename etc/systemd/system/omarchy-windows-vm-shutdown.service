@@ -1,0 +1,19 @@
+# Omarchy gives every system service 5 seconds to stop (10-faster-shutdown.conf),
+# Docker included, so a reboot or power-off with the Windows VM running killed
+# it partway through its shutdown, every time: a hard power-off for Windows.
+# Docker pulls this unit in (docker.service.d/windows-vm-shutdown.conf), and
+# being ordered after Docker it is stopped first: it resumes a paused VM, which
+# couldn't shut down otherwise, and gives Windows the compose file's 2 minutes.
+# With the VM off or not installed, both commands fail at once and cost nothing.
+[Unit]
+Description=Shut the Windows VM down before Docker stops
+BindsTo=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/true
+ExecStop=-/usr/bin/docker unpause omarchy-windows
+ExecStop=-/usr/bin/docker stop --timeout 120 omarchy-windows
+TimeoutStopSec=150
