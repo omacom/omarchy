@@ -12,12 +12,22 @@ instance_dir="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE"
 
 claim="$instance_dir/omarchy-autostart"
 
-# Before this guard existed, a shell process was launched directly from the
-# compositor config. On an update-triggered reload, adopt that running shell
-# instead of replaying post-boot hooks while it is still starting.
-if [[ ! -e $claim ]] && pgrep -u "$UID" -x quickshell >/dev/null 2>&1; then
-  mkdir -- "$claim" 2>/dev/null || true
-  exit 1
+# Before this guard existed, Omarchy's shell was launched directly from the
+# compositor config. On an update-triggered reload, adopt that shell instead
+# of replaying post-boot hooks while it is still starting. Other Quickshell
+# instances may belong to another compositor or a preview, so match both the
+# current Hyprland instance and Omarchy's shell path.
+if [[ ! -e $claim ]]; then
+  proc_root=${OMARCHY_PROC_ROOT:-/proc}
+  for pid in $(pgrep -u "$UID" -x quickshell 2>/dev/null); do
+    process_dir="$proc_root/$pid"
+    if [[ -r $process_dir/environ && -r $process_dir/cmdline ]] &&
+      tr '\0' '\n' <"$process_dir/environ" | grep -Fxq "HYPRLAND_INSTANCE_SIGNATURE=$HYPRLAND_INSTANCE_SIGNATURE" &&
+      tr '\0' '\n' <"$process_dir/cmdline" | grep -Fxq "$OMARCHY_PATH/shell"; then
+      mkdir -- "$claim" 2>/dev/null || true
+      exit 1
+    fi
+  done
 fi
 
 mkdir -- "$claim" 2>/dev/null

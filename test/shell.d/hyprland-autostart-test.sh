@@ -101,20 +101,23 @@ runtime_dir="$tmpdir/runtime"
 instance_dir="$runtime_dir/hypr/test-instance"
 mkdir -p "$instance_dir"
 mock_bin="$tmpdir/mock-bin"
-mkdir -p "$mock_bin"
+proc_root="$tmpdir/proc"
+mkdir -p "$mock_bin" "$proc_root/123"
 cat >"$mock_bin/pgrep" <<'SH'
 #!/bin/bash
-[[ ${OMARCHY_TEST_QUICKSHELL_RUNNING:-false} == "true" ]]
+[[ ${OMARCHY_TEST_QUICKSHELL_RUNNING:-false} == "true" ]] && printf '123\n'
 SH
 chmod +x "$mock_bin/pgrep"
-if PATH="$mock_bin:$PATH" OMARCHY_TEST_QUICKSHELL_RUNNING=false \
+printf 'HYPRLAND_INSTANCE_SIGNATURE=test-instance\0' >"$proc_root/123/environ"
+printf 'quickshell\0-n\0-p\0%s/shell\0' "$ROOT" >"$proc_root/123/cmdline"
+if PATH="$mock_bin:$PATH" OMARCHY_PROC_ROOT="$proc_root" OMARCHY_PATH="$ROOT" OMARCHY_TEST_QUICKSHELL_RUNNING=false \
   XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
   "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
   pass "the first Hyprland autostart claim succeeds"
 else
   fail "the first Hyprland autostart claim succeeds"
 fi
-if PATH="$mock_bin:$PATH" OMARCHY_TEST_QUICKSHELL_RUNNING=false \
+if PATH="$mock_bin:$PATH" OMARCHY_PROC_ROOT="$proc_root" OMARCHY_PATH="$ROOT" OMARCHY_TEST_QUICKSHELL_RUNNING=false \
   XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
   "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
   fail "a repeated Hyprland autostart claim is rejected"
@@ -123,7 +126,8 @@ pass "a repeated Hyprland autostart claim is rejected across processes"
 
 legacy_runtime_dir="$tmpdir/legacy-runtime"
 mkdir -p "$legacy_runtime_dir/hypr/legacy-instance"
-if PATH="$mock_bin:$PATH" OMARCHY_TEST_QUICKSHELL_RUNNING=true \
+printf 'HYPRLAND_INSTANCE_SIGNATURE=legacy-instance\0' >"$proc_root/123/environ"
+if PATH="$mock_bin:$PATH" OMARCHY_PROC_ROOT="$proc_root" OMARCHY_PATH="$ROOT" OMARCHY_TEST_QUICKSHELL_RUNNING=true \
   XDG_RUNTIME_DIR="$legacy_runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=legacy-instance \
   "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
   fail "a pre-marker shell is adopted instead of claiming fresh startup"
@@ -131,3 +135,14 @@ fi
 [[ -d $legacy_runtime_dir/hypr/legacy-instance/omarchy-autostart ]] ||
   fail "adopting a pre-marker shell persists the startup claim"
 pass "a pre-marker shell is adopted and its startup claim is persisted"
+
+unrelated_runtime_dir="$tmpdir/unrelated-runtime"
+mkdir -p "$unrelated_runtime_dir/hypr/unrelated-instance"
+printf 'HYPRLAND_INSTANCE_SIGNATURE=other-instance\0' >"$proc_root/123/environ"
+if PATH="$mock_bin:$PATH" OMARCHY_PROC_ROOT="$proc_root" OMARCHY_PATH="$ROOT" OMARCHY_TEST_QUICKSHELL_RUNNING=true \
+  XDG_RUNTIME_DIR="$unrelated_runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=unrelated-instance \
+  "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
+  pass "an unrelated Quickshell process does not suppress session startup"
+else
+  fail "an unrelated Quickshell process does not suppress session startup"
+fi
