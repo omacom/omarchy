@@ -23,6 +23,7 @@ Panel {
   // Items inside the panel's lazily built content, null until it first opens.
   readonly property Item panelFlick: panel.loadedContent ? panel.loadedContent.panelFlick : null
   readonly property Item panelColumn: panel.loadedContent ? panel.loadedContent.panelColumn : null
+  readonly property Item hpfDropdown: panel.loadedContent ? panel.loadedContent.hpfDropdown : null
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color background: bar ? bar.background : Commons.Color.background
@@ -177,6 +178,7 @@ Panel {
   onCursorRowsChanged: if (cursorRows.indexOf(cursorRow) < 0) cursorRow = "mode"
 
   function setCursor(key) {
+    if (hpfDropdown && hpfDropdown.popupOpen) return
     cursorActive = true
     cursorRow = key
   }
@@ -214,7 +216,7 @@ Panel {
     switch (cursorRow) {
     case "mute": toggleMute(); break
     case "mode": setBool("autoLevel", "auto_level", !autoLevel); break
-    case "hpf": setNumber("hpfMode", "hpf", (hpfMode + 1) % 3); break
+    case "hpf": if (hpfDropdown) hpfDropdown.toggle(); break
     case "denoiser": setBool("denoiserOn", "denoiser", !denoiserOn); break
     case "popper": setBool("popperStopperOn", "popper_stopper", !popperStopperOn); break
     case "limiter": setBool("limiterOn", "limiter", !limiterOn); break
@@ -284,6 +286,8 @@ Panel {
       cursorRow = "mode"
       if (panelFlick) panelFlick.contentY = 0
       refresh()
+    } else if (hpfDropdown) {
+      hpfDropdown.close()
     }
   }
 
@@ -389,6 +393,7 @@ Panel {
     property string label: ""
     property string hint: ""
     property bool clickable: false
+    property int controlWidth: root.controlColumn
     default property alias control: slot.data
 
     signal activated()
@@ -422,7 +427,7 @@ Panel {
       anchors.rightMargin: root.rowInset
       anchors.top: parent.top
       anchors.bottom: parent.bottom
-      width: root.controlColumn
+      width: row.controlWidth
     }
 
     HoverHandler {
@@ -471,6 +476,49 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       fontSize: Style.font.bodySmall
       onPicked: function(v) { segRow.picked(v) }
+    }
+  }
+
+  component DropdownRow: SettingRow {
+    id: dropRow
+
+    property alias options: rowDropdown.options
+    property string value: ""
+    readonly property alias popupOpen: rowDropdown.popupOpen
+    function open() { rowDropdown.open() }
+    function close() { rowDropdown.close() }
+    function toggle() { rowDropdown.toggle() }
+
+    signal picked(string value)
+
+    controlWidth: Style.space(120)
+
+    Dropdown {
+      id: rowDropdown
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      showLabel: false
+      rowHeight: Style.space(26)
+      popupRowHeight: Style.space(26)
+      foreground: root.foreground
+      background: root.background
+      accent: root.accent
+      fontFamily: root.fontFamily
+      hasCursor: dropRow.hasCursor
+      onHovered: function(h) { if (h) root.setCursor(dropRow.rowKey) }
+      onChanged: function(v) { dropRow.picked(v) }
+      onPopupOpenChanged: {
+        if (!popupOpen && root.opened && panel.loadedContent) panel.loadedContent.forceActiveFocus()
+      }
+
+      // Dropdown.selectCurrent() assigns `value = v` directly, which would
+      // break a plain binding when a preset later resets the setting.
+      Binding {
+        target: rowDropdown
+        property: "value"
+        value: dropRow.value
+      }
     }
   }
 
@@ -604,6 +652,8 @@ Panel {
       id: keyCatcher
       property alias panelFlick: panelFlick
       property alias panelColumn: column
+      property alias hpfDropdown: hpfRow
+      blocked: hpfRow.popupOpen
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
@@ -627,7 +677,7 @@ Panel {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
-        interactive: contentHeight > height
+        interactive: contentHeight > height && !hpfRow.popupOpen
         ScrollBar.vertical: ScrollBar { policy: panelFlick.interactive ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff }
 
         Column {
@@ -748,10 +798,11 @@ Panel {
 
             SectionTitle { text: Commons.I18n.t("mv7plus.sectionDsp") }
 
-            SegmentedRow {
+            DropdownRow {
+              id: hpfRow
               rowKey: "hpf"
               label: Commons.I18n.t("mv7plus.hpfLabel")
-              hint: Commons.I18n.t("mv7plus.hpfDesc")
+              hint: hpfRow.popupOpen ? "" : Commons.I18n.t("mv7plus.hpfDesc")
               value: String(root.hpfMode)
               options: [
                 { value: "0", label: Commons.I18n.t("mv7plus.hpfOff") },
