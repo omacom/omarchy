@@ -477,7 +477,7 @@ BarWidget {
       clip: true
       boundsBehavior: Flickable.StopAtBounds
       flickableDirection: Flickable.VerticalFlick
-      interactive: contentHeight > height
+      interactive: contentHeight > height && !root.anyDragging
       ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
       Column {
