@@ -29,6 +29,7 @@ steps=(
   omarchy-update-mise
   omarchy-update-orphan-pkgs
   omarchy-update-analyze-logs
+  omarchy-done
   omarchy-shell
   omarchy-update-available
   omarchy-update-restart
@@ -90,6 +91,7 @@ expected_steps() {
     omarchy-migrate \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
+    omarchy-done \
     omarchy-shell \
     omarchy-update-restart \
     omarchy-hook \
@@ -146,3 +148,50 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# Multiple Hyprland PIDs must not break the deleted-executable reboot check.
+restart_bin="$test_tmp/restart-bin"
+restart_home="$test_tmp/restart-home"
+mkdir -p "$restart_bin" "$restart_home" "$test_tmp/modules/6.14.0-test"
+: >"$test_tmp/modules/6.14.0-test/modules.builtin"
+
+cat >"$restart_bin/uname" <<'SH'
+#!/bin/bash
+printf '6.14.0-test\n'
+SH
+cat >"$restart_bin/pacman" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$restart_bin/pgrep" <<'SH'
+#!/bin/bash
+printf '101\n202\n'
+SH
+cat >"$restart_bin/readlink" <<'SH'
+#!/bin/bash
+case "$*" in
+  /proc/101/exe) printf '/usr/bin/Hyprland\n' ;;
+  /proc/202/exe) printf '/usr/bin/Hyprland (deleted)\n' ;;
+  *) exit 1 ;;
+esac
+SH
+cat >"$restart_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1"
+SH
+cat >"$restart_bin/gum" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$RESTART_PROMPTS"
+exit 1
+SH
+chmod +x "$restart_bin"/*
+
+: >"$test_tmp/restart-prompts"
+HOME="$restart_home" \
+  OMARCHY_KERNEL_MODULES_PATH="$test_tmp/modules" \
+  RESTART_PROMPTS="$test_tmp/restart-prompts" \
+  PATH="$restart_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-restart" --reboot-only >/dev/null
+grep -q "update.hyprlandReboot" "$test_tmp/restart-prompts" ||
+  fail "omarchy-update-restart offers a reboot when a later Hyprland PID runs a deleted binary" "$(cat "$test_tmp/restart-prompts")"
+pass "omarchy-update-restart checks every Hyprland PID for a deleted executable"

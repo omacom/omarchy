@@ -50,6 +50,7 @@ for _ in 1 2 3; do
   if [[ -z $best ]] || (( elapsed < best )); then
     best=$elapsed
   fi
+  (( best <= BUDGET_MS )) && break
 done
 
 (( best <= BUDGET_MS )) || fail "menu opens within ${BUDGET_MS}ms" "Fastest of three opens took ${best}ms."

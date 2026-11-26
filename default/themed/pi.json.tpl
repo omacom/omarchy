@@ -81,10 +81,10 @@
     "syntaxPunctuation": "mutedText",
     "thinkingOff": "borderMuted",
     "thinkingMinimal": "accent",
-    "thinkingLow": "color4",
-    "thinkingMedium": "color5",
-    "thinkingHigh": "color3",
-    "thinkingXhigh": "color1",
+    "thinkingLow": "accent",
+    "thinkingMedium": "accent",
+    "thinkingHigh": "accent",
+    "thinkingXhigh": "accent",
     "bashMode": "color3"
   },
   "export": {
