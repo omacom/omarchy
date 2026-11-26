@@ -7,10 +7,13 @@ set -euo pipefail
 
 # oo7-daemon unlocks every keyring with the credential omarchy-keyring-seal sealed.
 # A keyring with a password of its own, from gnome-keyring or from an earlier
-# unlock prompt, stays locked at every login instead, and until it's unlocked apps'
-# searches don't find its items: a browser then asks to write a new Safe Storage key.
-# This asks for each such keyring's password once and re-keys it to the credential.
-# An empty answer skips that keyring, which keeps its own password.
+# unlock prompt, stays locked at every login instead. Apps then ask for its password,
+# or, once oo7 has converted it, don't find its items until it's unlocked
+# (linux-credentials/oo7#614): a browser then asks to write a new Safe Storage key.
+# This asks for each such keyring's password once and re-keys it to the credential,
+# all over D-Bus with the daemon running: since 0.7.2, oo7 converts a gnome-keyring
+# file it's waiting to convert when it's unlocked or re-keyed with its password, and
+# rejects a wrong one. An empty answer skips that keyring, which keeps its own password.
 
 keyrings_dir="${XDG_DATA_HOME:-$HOME/.local/share}/keyrings"
 credential="${XDG_CONFIG_HOME:-$HOME/.config}/credstore.encrypted/oo7.keyring-encryption-password"
@@ -22,11 +25,14 @@ fi
 # gnome-keyring files with a password, which oo7 hasn't converted yet. Plain ones
 # have no binary header, and oo7 converts them with the credential by itself.
 legacy=()
+declare -A waiting=()
 for keyring in "$keyrings_dir"/*.keyring; do
   [[ -f $keyring && ! -e $keyring.migrated && ! -e $keyrings_dir/v1/${keyring##*/} ]] || continue
   [[ $(head -c 12 "$keyring") == "GnomeKeyring" ]] || continue
   name=${keyring##*/}
-  legacy+=("${name%.keyring}")
+  name=${name%.keyring}
+  legacy+=("$name")
+  waiting[$name]=1
 done
 
 # Without a session, as on a TTY update, only the files say whether anything waits.
@@ -113,38 +119,18 @@ else:
 PY
 )
 
-# oo7 0.7.1 only converts a gnome-keyring file through an unlock prompt: unlocking
-# or re-keying it over D-Bus reaches an empty placeholder instead. So it's converted
-# here, with the daemon stopped, and stamped the way the daemon stamps the files it
-# converts, so that it isn't loaded a second time. The converted keyring keeps the
-# typed password until the daemon re-keys it below. oo7-cli only takes the secret
-# as an argument, so for the moment it runs, other local users could read it there.
-convert_legacy() {
-  oo7-cli --secret "$2" migrate "$keyrings_dir/$1.keyring" >/dev/null 2>&1
-}
-
-if (( ${#legacy[@]} )); then
-  systemctl --user stop oo7-daemon.service
-  for name in "${legacy[@]}"; do
-    if open_with_password "$name" convert_legacy; then
-      touch "$keyrings_dir/$name.keyring.migrated"
-      echo "Converted the keyring \"$name\"."
-    fi
-  done
-fi
-
 systemctl --user start oo7-daemon.service
 
 change_to_sealed() {
   printf '%s\0%s' "$2" "$sealed" | secret_service change "/org/freedesktop/secrets/collection/$1" >/dev/null 2>&1
 }
 
-# Every keyring oo7 has converted, locked or not: one unlocked at a prompt keeps the
-# password typed there. A skipped one still waits as an empty placeholder, and
-# re-keying that would leave an empty keyring in its place.
+# Every keyring oo7 has converted, locked or not, since one unlocked at a prompt keeps
+# the password typed there, and every gnome-keyring file it's waiting to convert, which
+# the re-key converts. Other collections, like the in-memory session one, have no file.
 while read -r collection; do
   name=${collection##*/}
-  [[ -f $keyrings_dir/v1/$name.keyring ]] || continue
+  [[ -f $keyrings_dir/v1/$name.keyring || -v waiting[$name] ]] || continue
   printf '%s' "$sealed" | secret_service opens "$collection" >/dev/null 2>&1 && continue
   if open_with_password "$name" change_to_sealed; then
     echo "The keyring \"$name\" now unlocks at login."

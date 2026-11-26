@@ -15,21 +15,23 @@ stub() {
 }
 
 # A v1 keyring here is a file holding "key=<secret>". session-gone stands for an update
-# without a desktop session. A keyring's password sits in passwords/<name>.
+# without a desktop session. A gnome-keyring file's password sits in ~/.passwords/<name>.
 stub systemctl "[[ \$* != *is-active*default.target* || ! -e $test_tmp/session-gone ]]"
 stub systemd-creds "printf SEALED"
-stub oo7-cli "[[ \$1 == --secret && \$3 == migrate ]] || exit 2
-file=\$4 name=\${4##*/}; name=\${name%.keyring}
-[[ \$2 == \"\$(<$test_tmp/passwords/\$name)\" ]] || exit 1
-mkdir -p \"\${file%/*}/v1\"
-echo \"key=\$2\" >\"\${file%/*}/v1/\$name.keyring\""
-# The daemon. A converted keyring opens with the secret its file is keyed to, and
-# ChangeWithMasterPassword re-keys it given that secret. A gnome-keyring file it hasn't
-# converted is an empty placeholder, which any secret opens and any change empties, as
-# in oo7 0.7.1.
+# The daemon, as in oo7 0.7.3. A converted keyring opens with the secret its file is
+# keyed to, and ChangeWithMasterPassword re-keys it given that secret. A gnome-keyring
+# file it hasn't converted is converted, and stamped, by either call given its password,
+# and a wrong one is refused.
 cat >"$stubs/python3" <<'STUB'
 #!/bin/bash
 dir=$HOME/.local/share/keyrings v1=$HOME/.local/share/keyrings/v1
+# Converts the gnome-keyring file of collection $1 if $2 is its password.
+convert() {
+  [[ -f $dir/$1.keyring && ! -e $dir/$1.keyring.migrated && $2 == "$(<"$HOME/.passwords/$1")" ]] || return 1
+  mkdir -p "$v1"
+  echo "key=$2" >"$v1/$1.keyring"
+  touch "$dir/$1.keyring.migrated"
+}
 case $3 in
 collections)
   for f in "$v1"/*.keyring; do
@@ -41,15 +43,16 @@ collections)
   done
   ;;
 opens)
-  f="$v1/${4##*/}.keyring"
-  [[ ! -e $f || $(<"$f") == "key=$(cat)" ]]
+  name=${4##*/} secret=$(cat)
+  [[ -e $v1/$name.keyring ]] || convert "$name" "$secret" || exit 1
+  [[ $(<"$v1/$name.keyring") == "key=$secret" ]]
   ;;
 change)
   IFS= read -rd '' old || true; IFS= read -rd '' new || true
-  f="$v1/${4##*/}.keyring"
-  if [[ ! -e $f ]]; then mkdir -p "$v1"; echo "key=$new" >"$f"; exit 0; fi
-  [[ $(<"$f") == "key=$old" ]] || exit 1
-  echo "key=$new" >"$f"
+  name=${4##*/}
+  [[ -e $v1/$name.keyring ]] || convert "$name" "$old" || exit 1
+  [[ $(<"$v1/$name.keyring") == "key=$old" ]] || exit 1
+  echo "key=$new" >"$v1/$name.keyring"
   ;;
 esac
 STUB
@@ -64,9 +67,9 @@ new_home() {
 
 # An encrypted gnome-keyring file, with the password that opens it.
 encrypted_keyring() {
-  mkdir -p "$test_tmp/passwords"
+  mkdir -p "$1/.passwords"
   printf 'GnomeKeyring\n\r\0\n' >"$1/.local/share/keyrings/$2.keyring"
-  echo "$3" >"$test_tmp/passwords/$2"
+  echo "$3" >"$1/.passwords/$2"
 }
 
 # Runs the command in a terminal, typing the given lines at its prompts.
@@ -79,9 +82,9 @@ run_rekey() {
 
 keyed() { [[ $(<"$1/.local/share/keyrings/v1/$2.keyring") == "key=SEALED" ]]; }
 
-# Encrypted keyrings are converted with the typed password, stamped so oo7 doesn't
-# load them twice, and re-keyed to the credential. A password typed once is tried
-# on the next keyring before asking, and a wrong one is asked again.
+# Encrypted keyrings are converted with the typed password and re-keyed to the
+# credential. A password typed once is tried on the next keyring before asking, and a
+# wrong one is asked again.
 home=$(new_home converts)
 encrypted_keyring "$home" login secret-a
 encrypted_keyring "$home" work secret-a
@@ -90,7 +93,6 @@ echo "[keyring]" >"$home/.local/share/keyrings/Plain.keyring"
 output=$(run_rekey "$home" wrong secret-a secret-b) || fail "rekey succeeds: $output"
 for name in login work other; do
   keyed "$home" "$name" || fail "$name is keyed to the credential"
-  [[ -e $home/.local/share/keyrings/$name.keyring.migrated ]] || fail "$name is stamped as converted"
 done
 [[ ! -e $home/.local/share/keyrings/v1/Plain.keyring ]] || fail "a plain keyring is left to oo7"
 (( $(grep -c 'Password for the keyring' <<<"$output") == 3 )) || fail "asks again after a wrong password, and only for a new one: $output"
@@ -112,8 +114,7 @@ output=$(run_rekey "$home") || fail "rekey succeeds when there's nothing to re-k
 ! grep -q 'Password' <<<"$output" || fail "no password is asked for a keyring that opens with the credential: $output"
 pass "rekey leaves keyrings keyed to the credential alone"
 
-# An empty answer skips the keyring: it isn't converted, stamped or re-keyed, even with
-# a password typed for another keyring, and the user is told.
+# An empty answer skips the keyring: it isn't converted or re-keyed, and the user is told.
 home=$(new_home skip)
 encrypted_keyring "$home" login secret-a
 encrypted_keyring "$home" other secret-b

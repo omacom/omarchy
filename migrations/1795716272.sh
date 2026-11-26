@@ -106,8 +106,8 @@ if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} != 1 ]] && systemctl --user is-activ
 fi
 
 # A keyring with a password of its own doesn't open with the sealed credential, so
-# it would stay locked at every login, its items hidden from apps' searches until
-# then. Its secrets are safe either way, so a skip or a failure here doesn't hold
+# it would stay locked at every login, and apps would ask for its password or miss
+# its items. Its secrets are safe either way, so a skip or a failure here doesn't hold
 # the migration back; the command says how to finish later.
 omarchy-keyring-rekey || true
 
