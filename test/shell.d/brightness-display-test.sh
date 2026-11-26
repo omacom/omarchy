@@ -220,11 +220,20 @@ grep -Fx 'brightnessctl -q -d gmux_backlight set +0' "$call_log" >/dev/null ||
 : >"$call_log"
 (
   exec {held_fd}>"$runtime_dir/omarchy-brightness-display.lock"
-  flock -n "$held_fd"
-  run_wake
-)
-[[ ! -s $call_log ]] ||
-  fail "wake skips gmux_backlight write while a brightness change holds the lock" "$(<"$call_log")"
+  flock "$held_fd"
+  touch "$test_tmp/wake-lock-held"
+  sleep 0.2
+  touch "$test_tmp/wake-lock-released"
+) &
+lock_holder=$!
+while [[ ! -e $test_tmp/wake-lock-held ]]; do sleep 0.01; done
+run_wake
+waited_for_lock=0
+[[ -e $test_tmp/wake-lock-released ]] && waited_for_lock=1
+wait "$lock_holder"
+(( waited_for_lock )) || fail "wake waits for an external brightness change to finish"
+grep -Fx 'brightnessctl -q -d gmux_backlight set +0' "$call_log" >/dev/null ||
+  fail "wake restores gmux_backlight after an external brightness change releases the lock" "$(<"$call_log")"
 
 printf '9830\n' >"$test_tmp/backlight/gmux_backlight/actual_brightness"
 : >"$call_log"

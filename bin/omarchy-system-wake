@@ -23,7 +23,7 @@ restore_gmux_backlight() {
   # brightnessctl re-reads the current requested level instead of writing a
   # stale value if a brightness key ran concurrently.
   exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-  if flock -n "$lock_fd"; then
+  if flock "$lock_fd"; then
     brightnessctl -q -d gmux_backlight set +0 >/dev/null 2>&1 || true
   fi
   exec {lock_fd}>&-
