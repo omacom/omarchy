@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+# shellcheck source=base-test.sh
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
 SCRIPT="$ROOT/bin/omarchy-upload-log"
 
 work=$(mktemp -d)
@@ -26,9 +28,9 @@ chmod +x "$work/bin/curl" "$work/bin/journalctl"
 # 1. Without fastfetch and without omarchy-cmd-present: must not emit command-not-found.
 err="$work/stderr-nofastfetch"
 out=$(PATH="$work/bin" "$SCRIPT" this-boot 2>"$err")
-[[ ! -s $err ]] || { echo "FAIL: unexpected stderr without fastfetch: $(cat "$err")" >&2; exit 1; }
-[[ $out == *"https://logs.omarchy.org/test-id"* ]] || { echo "FAIL: upload failed: $out" >&2; exit 1; }
-echo "ok - omarchy-upload-log succeeds without omarchy-cmd-present or fastfetch"
+[[ ! -s $err ]] || fail "omarchy-upload-log runs without stderr when fastfetch is absent" "$(cat "$err")"
+[[ $out == *"https://logs.omarchy.org/test-id"* ]] || fail "omarchy-upload-log uploads without fastfetch" "$out"
+pass "omarchy-upload-log succeeds without omarchy-cmd-present or fastfetch"
 
 # 2. With fastfetch present and omarchy-cmd-present absent: must invoke fastfetch.
 cat >"$work/bin/fastfetch" <<'STUB'
@@ -39,7 +41,7 @@ STUB
 chmod +x "$work/bin/fastfetch"
 err="$work/stderr-fastfetch"
 out=$(WORK_DIR="$work" PATH="$work/bin" "$SCRIPT" this-boot 2>"$err")
-[[ ! -s $err ]] || { echo "FAIL: unexpected stderr with fastfetch: $(cat "$err")" >&2; exit 1; }
-[[ -f "$work/fastfetch.ran" ]] || { echo "FAIL: fastfetch was not invoked when present on PATH" >&2; exit 1; }
-[[ $out == *"https://logs.omarchy.org/test-id"* ]] || { echo "FAIL: upload failed with fastfetch: $out" >&2; exit 1; }
-echo "ok - omarchy-upload-log uses fastfetch when available without omarchy-cmd-present"
+[[ ! -s $err ]] || fail "omarchy-upload-log runs without stderr when fastfetch is present" "$(cat "$err")"
+[[ -f $work/fastfetch.ran ]] || fail "fastfetch was invoked when present on PATH"
+[[ $out == *"https://logs.omarchy.org/test-id"* ]] || fail "omarchy-upload-log uploads with fastfetch" "$out"
+pass "omarchy-upload-log uses fastfetch when available without omarchy-cmd-present"
