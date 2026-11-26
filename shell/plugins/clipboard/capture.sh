@@ -62,6 +62,7 @@ emit_image() {
 emit_text() {
   tmp=$(mktemp --tmpdir="$STATE_DIR" clipboard.XXXXXX) || return 0
   read_copy "$@" || return
+  (( $(stat -c '%s' -- "$tmp") <= 1048576 )) || return 0
 
   perl -MEncode=decode,FB_CROAK,LEAVE_SRC -MJSON::PP=encode_json -0777 -e '
     my $raw = <STDIN>;

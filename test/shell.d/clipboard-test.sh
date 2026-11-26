@@ -338,6 +338,16 @@ capture_output=$(printf 'closing app copy' | WL_PASTE_TEXT="stale read" XDG_RUNT
 [[ $capture_output == '{"type":"text","text":"closing app copy"}' ]] || fail "clipboard capture records watched text from stdin"
 pass "clipboard capture records watched text from stdin"
 
+head -c 1048576 /dev/zero | tr '\0' 'a' >"$TMPDIR/text-at-limit"
+capture_output=$(XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text <"$TMPDIR/text-at-limit")
+[[ -n $capture_output ]] || fail "clipboard capture records text up to 1 MiB"
+pass "clipboard capture records text up to 1 MiB"
+
+printf 'a' >>"$TMPDIR/text-at-limit"
+capture_output=$(XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text <"$TMPDIR/text-at-limit")
+[[ -z $capture_output ]] || fail "clipboard capture skips text over 1 MiB"
+pass "clipboard capture skips text over 1 MiB"
+
 # The stall scenarios below rely on the timeout stub shortening capture.sh's
 # 2s read bounds; the outer 4s timeout only guards against them not firing.
 if capture_output=$(printf 'watched copy after stalled types' | WL_PASTE_STALL="list-types" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh" text); then
