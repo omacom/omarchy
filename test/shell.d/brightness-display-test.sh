@@ -205,7 +205,8 @@ done
 chmod +x "$wake_bin"/*
 
 run_wake() {
-  CALL_LOG="$call_log" OMARCHY_BACKLIGHT_PATH="$test_tmp/backlight" \
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
+    OMARCHY_BACKLIGHT_PATH="$test_tmp/backlight" \
     PATH="$wake_bin:$mock_bin:$PATH" "$ROOT/bin/omarchy-system-wake"
 }
 
@@ -213,8 +214,17 @@ printf '9830\n' >"$test_tmp/backlight/gmux_backlight/brightness"
 printf '52428\n' >"$test_tmp/backlight/gmux_backlight/actual_brightness"
 : >"$call_log"
 run_wake
-grep -Fx 'brightnessctl -d gmux_backlight set 9830' "$call_log" >/dev/null ||
+grep -Fx 'brightnessctl -q -d gmux_backlight set +0' "$call_log" >/dev/null ||
   fail "wake re-applies requested gmux_backlight level after hardware reset" "$(<"$call_log")"
+
+: >"$call_log"
+(
+  exec {held_fd}>"$runtime_dir/omarchy-brightness-display.lock"
+  flock -n "$held_fd"
+  run_wake
+)
+[[ ! -s $call_log ]] ||
+  fail "wake skips gmux_backlight write while a brightness change holds the lock" "$(<"$call_log")"
 
 printf '9830\n' >"$test_tmp/backlight/gmux_backlight/actual_brightness"
 : >"$call_log"

@@ -11,7 +11,7 @@
 # Re-apply the requested level on wake when the hardware level has diverged.
 restore_gmux_backlight() {
   local dir="${OMARCHY_BACKLIGHT_PATH:-/sys/class/backlight}/gmux_backlight"
-  local requested actual
+  local requested actual lock_fd
 
   [[ -r $dir/brightness && -r $dir/actual_brightness ]] || return 0
   read -r requested <"$dir/brightness" || return 0
@@ -19,7 +19,14 @@ restore_gmux_backlight() {
   [[ $requested =~ ^[0-9]+$ && $actual =~ ^[0-9]+$ ]] || return 0
   (( requested == actual )) && return 0
 
-  brightnessctl -d gmux_backlight set "$requested" >/dev/null 2>&1 || true
+  # Coordinate with omarchy-brightness-display and use a +0 delta so
+  # brightnessctl re-reads the current requested level instead of writing a
+  # stale value if a brightness key ran concurrently.
+  exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
+  if flock -n "$lock_fd"; then
+    brightnessctl -q -d gmux_backlight set +0 >/dev/null 2>&1 || true
+  fi
+  exec {lock_fd}>&-
 }
 
 omarchy-brightness-display on
