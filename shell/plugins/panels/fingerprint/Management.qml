@@ -11,7 +11,9 @@ Item {
   property var state: ({ readers: [], reader: "", prints: [], capacity: 0, lock: false, sudo: "custom" })
   property string reader: ""
   property string action: ""
-  property string afterMatch: ""
+  property var verification: null
+  property bool mismatch: false
+  property bool matched: false
   property string notice: ""
   readonly property bool busy: list.running || action !== ""
   property bool scanning: false
@@ -28,23 +30,31 @@ Item {
   Component.onCompleted: refresh(reader)
 
   function run(name, command) {
+    matched = false
     action = name
     worker.command = command
     worker.running = true
   }
 
   function verify(slot, next) {
-    afterMatch = next || ""
+    mismatch = false
+    verification = { reader: state.reader, slot: slot, next: next || "" }
     scanning = false
-    verifyFinger = ""
+    verifyFinger = slot
     notice = Commons.I18n.t("fingerprint.preparing")
     run("verify", [helper, "verify", state.reader, slot])
   }
 
   function cancelVerify() {
-    afterMatch = ""
+    verification = null
     action = "cancel"
     worker.running = false
+  }
+
+  function clearMismatch() {
+    mismatch = false
+    verification = null
+    notice = ""
   }
 
   function changeLock(on) {
@@ -77,6 +87,12 @@ Item {
         root.state = { readers: [], reader: "", prints: [], capacity: 0, lock: false, sudo: "custom" }
         root.notice = Commons.I18n.t("fingerprint.manageFailed")
       }
+      // A retry belongs to one reader and one slot, even after a hot unplug.
+      if (root.mismatch && (root.state.reader !== root.verification.reader ||
+            !root.state.prints.some(p => root.verification.slot === "any" || p.slot === root.verification.slot))) {
+        root.clearMismatch()
+        root.notice = Commons.I18n.t("fingerprint.manageFailed")
+      }
       root.refreshed()
     }
   }
@@ -103,12 +119,14 @@ Item {
       root.action = ""
       if (action === "cancel") root.notice = ""
       else if (code !== 0) {
-        root.afterMatch = ""
-        root.notice = action === "verify" && code === 3
+        root.mismatch = action === "verify" && code === 3
+        if (!root.mismatch) root.verification = null
+        root.notice = root.mismatch
           ? Commons.I18n.t("fingerprint.savedNoMatch") : Commons.I18n.t("fingerprint.manageFailed")
       } else if (action === "verify") {
-        const next = root.afterMatch
-        root.afterMatch = ""
+        const next = root.verification.next
+        root.verification = null
+        root.matched = true
         root.notice = Commons.I18n.t("fingerprint.matched")
         if (next === "sudo-on") { root.sudoPam(true); return }
         if (next === "lock-on") {

@@ -18,7 +18,8 @@ FocusScope {
   property string selected: ""
   property bool confirming: false
   property bool renaming: false
-  readonly property bool verifying: ctl.action === "verify"
+  readonly property bool verifying: ctl.action === "verify" || ctl.mismatch
+  readonly property bool home: !entry && !verifying
   readonly property var entry: ctl.state.prints.find(p => p.slot === selected)
   readonly property bool hasPrints: ctl.state.prints.length > 0
 
@@ -26,7 +27,7 @@ FocusScope {
     return entry.name || Commons.I18n.t("fingerprint.numbered").arg(Commons.I18n.formatNumber(entry.number))
   }
   function reveal(item) {
-    if (item.parent === footer) return
+    if (!item.parent || item.parent === footer || item.parent === homeActions || item.parent === retryActions) return
     const flick = scroll.contentItem
     const y = item.mapToItem(flick.contentItem, 0, 0).y
     if (y < flick.contentY) flick.contentY = Math.max(0, y)
@@ -34,7 +35,8 @@ FocusScope {
       flick.contentY = Math.min(flick.contentHeight - flick.height, y + item.height - flick.height)
   }
   function back() {
-    if (confirming) confirming = false
+    if (ctl.mismatch) ctl.clearMismatch()
+    else if (confirming) confirming = false
     else if (renaming) renaming = false
     else selected = ""
     forceActiveFocus()
@@ -47,15 +49,19 @@ FocusScope {
     focusable: true
     foreground: view.ink
     accent: view.ink
-    borderSpec: activeFocus ? Border.flat(view.muted, 1) : Border.none()
+    borderSpec: activeFocus ? Border.flat(view.ink, 1) : bordered ? Border.flat(Qt.rgba(1, 1, 1, 0.25), 1) : Border.none()
     color: hot || activeFocus ? Qt.rgba(1, 1, 1, 0.07) : "transparent"
     Layout.alignment: Qt.AlignHCenter
     Accessible.role: Accessible.Button
     Accessible.name: text
     Accessible.onPressAction: if (enabled) clicked()
   }
-  component Setting: Controls.AbstractButton {
+  component Setting: Controls.CheckBox {
     id: setting
+    // A match or administrator approval can fail. Only the refreshed backend
+    // state changes the native checkbox, including for accessibility actions.
+    nextCheckState: () => checkState
+    indicator: null
     required property string label
     property string description: ""
     Layout.fillWidth: true
@@ -94,7 +100,8 @@ FocusScope {
           visible: setting.description !== ""
           text: setting.description
           horizontalAlignment: Text.AlignLeft
-          font.pixelSize: Style.font.caption
+          color: view.ink
+          font.pixelSize: Style.font.body
         }
       }
       Line {
@@ -124,6 +131,7 @@ FocusScope {
   focus: true
   Keys.onEscapePressed: {
     if (ctl.action === "verify") ctl.cancelVerify()
+    else if (ctl.mismatch) back()
     else if (ctl.busy || selected === "") closeRequested()
     else back()
   }
@@ -164,7 +172,8 @@ FocusScope {
         readonly property real preferred: view.verifying ? Style.space(264) : Style.space(150)
         width: Math.max(0, Math.min(preferred, parent.width, view.verifying ? available : Math.max(Style.space(40), available - controlsHeight)))
         height: width
-        filled: view.verifying || !!view.entry ? 1 : 0
+        // These are saved prints. The ridges light on an actual match.
+        filled: !view.verifying && !!view.entry && ctl.matched && ctl.verifyFinger === view.selected && ctl.notice !== "" ? 1 : 0
       }
 
       Line {
@@ -181,6 +190,21 @@ FocusScope {
       anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: footer.top }
       anchors.topMargin: stage.topGap
       anchors.bottomMargin: stage.bottomGap
+      readonly property bool overflows: contentHeight > height + 1
+      rightPadding: overflows ? Style.space(8) : 0
+      Controls.ScrollBar.horizontal.policy: Controls.ScrollBar.AlwaysOff
+      Controls.ScrollBar.vertical: Controls.ScrollBar {
+        parent: scroll
+        anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
+        visible: scroll.overflows
+        policy: scroll.overflows ? Controls.ScrollBar.AlwaysOn : Controls.ScrollBar.AlwaysOff
+        active: scroll.overflows
+        implicitWidth: Style.space(4)
+        minimumSize: Math.min(1, Style.space(14) / Math.max(1, height))
+        padding: 0
+        contentItem: Rectangle { color: view.muted; radius: width / 2 }
+        background: null
+      }
       contentWidth: availableWidth
       clip: true
       ColumnLayout {
@@ -189,7 +213,7 @@ FocusScope {
         spacing: Style.space(10)
 
         ColumnLayout {
-          visible: !view.entry && !view.verifying
+          visible: view.home
           Layout.fillWidth: true
           spacing: Style.space(2)
           Repeater {
@@ -230,38 +254,12 @@ FocusScope {
               }
             }
           }
-          Action {
-            Layout.fillWidth: true
-            leftAlign: true
-            iconText: "+"
-            text: Commons.I18n.t("fingerprint.add")
-            enabled: !ctl.busy && ctl.state.reader !== "" && ctl.state.prints.length < ctl.state.capacity
-            onClicked: view.addRequested(ctl.state.reader, Model.suggestFinger(ctl.state.prints.map(p => p.slot)))
-          }
-          Rectangle {
-            Layout.fillWidth: true
-            Layout.topMargin: Style.space(7)
-            Layout.bottomMargin: Style.space(4)
-            implicitHeight: 1
-            color: Qt.rgba(1, 1, 1, 0.16)
-          }
-          Setting {
-            label: Commons.I18n.t("fingerprint.unlockSetting")
-            checked: ctl.state.lock
-            enabled: !ctl.busy && (checked || view.hasPrints)
-            onClicked: ctl.changeLock(!checked)
-          }
-          Setting {
-            label: Commons.I18n.t("fingerprint.sudoSetting")
-            description: ctl.state.sudo === "custom" ? Commons.I18n.t("fingerprint.customSudo") : Commons.I18n.t("fingerprint.sudoScope")
-            checked: ctl.state.sudo === "on"
-            enabled: !ctl.busy && ctl.state.sudo !== "custom" && (checked || view.hasPrints)
-            onClicked: ctl.changeSudo(!checked)
-          }
+
         }
 
         ColumnLayout {
           visible: !!view.entry && !view.confirming && !view.verifying
+          Layout.alignment: Qt.AlignHCenter
           Layout.fillWidth: true
           enabled: !ctl.busy
           ColumnLayout {
@@ -285,6 +283,7 @@ FocusScope {
             }
           }
           GridLayout {
+            Layout.fillWidth: false
             visible: !view.renaming
             Layout.alignment: Qt.AlignHCenter
             columnSpacing: Style.space(4)
@@ -292,12 +291,14 @@ FocusScope {
             columns: verify.implicitWidth + remove.implicitWidth + (rename.visible ? rename.implicitWidth + columnSpacing : 0) + columnSpacing <= stage.width ? 3 : 1
             Action {
               id: verify
+              bordered: true
               text: Commons.I18n.t("fingerprint.verifySaved")
               onClicked: ctl.verify(view.selected)
             }
             Action {
               id: rename
               visible: !!ctl.state.canRename
+              bordered: true
               text: Commons.I18n.t("fingerprint.rename")
               onClicked: {
                 ctl.notice = ""
@@ -309,6 +310,8 @@ FocusScope {
             }
             Action {
               id: remove
+              foreground: "#ffc2bb"
+              bordered: true
               text: Commons.I18n.t("fingerprint.removeSaved")
               onClicked: { ctl.notice = ""; view.confirming = true }
             }
@@ -333,20 +336,68 @@ FocusScope {
       id: footer
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
       spacing: Style.space(10)
+      ColumnLayout {
+        id: homeActions
+        visible: view.home
+        spacing: Style.space(2)
+        Layout.fillWidth: true
+        Action {
+          Layout.fillWidth: true
+          leftAlign: true
+          readonly property bool full: ctl.state.capacity > 0 && ctl.state.prints.length >= ctl.state.capacity
+          iconText: full ? "" : "+"
+          text: full ? Commons.I18n.t("fingerprint.readerFull") : Commons.I18n.t("fingerprint.add")
+          enabled: !ctl.busy && ctl.state.reader !== "" && !full
+          onClicked: view.addRequested(ctl.state.reader, Model.suggestFinger(ctl.state.prints.map(p => p.slot)))
+        }
+        Rectangle {
+          Layout.fillWidth: true
+          Layout.topMargin: Style.space(7)
+          Layout.bottomMargin: Style.space(4)
+          implicitHeight: 1
+          color: Qt.rgba(1, 1, 1, 0.16)
+        }
+        Setting {
+          label: Commons.I18n.t("fingerprint.unlockSetting")
+          checked: ctl.state.lock
+          enabled: !ctl.busy && (checked || view.hasPrints)
+          onClicked: ctl.changeLock(!checked)
+        }
+        Setting {
+          label: Commons.I18n.t("fingerprint.sudoSetting")
+          description: ctl.state.sudo === "custom" ? Commons.I18n.t("fingerprint.customSudo") : Commons.I18n.t("fingerprint.sudoScope")
+          checked: ctl.state.sudo === "on"
+          enabled: !ctl.busy && ctl.state.sudo !== "custom" && (checked || view.hasPrints)
+          onClicked: ctl.changeSudo(!checked)
+        }
+      }
+
       Line {
         visible: ctl.notice !== ""
         font.pixelSize: view.verifying ? Style.font.heading : Style.font.body
-        readonly property var requestedPrint: ctl.action === "verify" && ctl.state.prints.find(p => p.slot === ctl.verifyFinger)
-        text: requestedPrint ? Commons.I18n.t("fingerprint.useSaved").arg(view.label(requestedPrint)).arg(ctl.notice) : ctl.notice
+        readonly property var requestedPrint: view.verifying && ctl.state.prints.find(p => p.slot === ctl.verifyFinger)
+        color: ctl.mismatch ? "#ff9999" : view.muted
+        text: ctl.mismatch && requestedPrint ? Commons.I18n.t("fingerprint.namedNoMatch").arg(view.label(requestedPrint))
+              : requestedPrint && ctl.verification && ctl.verification.slot === "any" ? Commons.I18n.t("fingerprint.useSaved").arg(view.label(requestedPrint)).arg(ctl.notice) : ctl.notice
       }
-      Action {
-        text: ctl.action === "verify" ? Commons.I18n.t("common.cancel")
-              : view.entry ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")
-        enabled: !ctl.busy || ctl.action === "verify"
-        onClicked: {
-          if (ctl.action === "verify") ctl.cancelVerify()
-          else if (view.entry) view.back()
-          else view.closeRequested()
+      RowLayout {
+        id: retryActions
+        Layout.alignment: Qt.AlignHCenter
+        Action {
+          visible: ctl.mismatch
+          text: Commons.I18n.t("fingerprint.tryAgain")
+          enabled: !ctl.busy
+          onClicked: ctl.verify(ctl.verification.slot, ctl.verification.next)
+        }
+        Action {
+          text: ctl.action === "verify" ? Commons.I18n.t("common.cancel")
+                : view.entry || ctl.mismatch ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")
+          enabled: !ctl.busy || ctl.action === "verify"
+          onClicked: {
+            if (ctl.action === "verify") ctl.cancelVerify()
+            else if (view.entry || ctl.mismatch) view.back()
+            else view.closeRequested()
+          }
         }
       }
     }
