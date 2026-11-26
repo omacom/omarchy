@@ -120,6 +120,10 @@ omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter
 omarchy bar put alice.counter --section right
 ```
 
+## Agent Harness Integrations
+
+Built-in harnesses always appear under _Setup > Defaults > Agent_. A third-party plugin may include declarative `agentHarness` metadata to add another choice; install it through the normal plugin flow with `omarchy plugin add <git-url>`, and never create a separate agent installer. A harness-only integration may declare empty `kinds` and `entryPoints`; it is available immediately on installation, the registry never loads QML for it, and it cannot be enabled. Ordinary plugins still need a supported shell `kind` and matching QML `entryPoint`. Third-party harnesses are limited to a `mise` package and argv launch templates using only `{project}` and `{prompt}`; never add arbitrary shell install hooks. Keep harness IDs and aliases unique: add/update rejects collisions, while legacy collisions are listed deterministically with a warning.
+
 ## Plugin UI Safety
 
 Plugins run inside Omarchy's long-lived, unsandboxed shell. Treat text from network responses, files, IPC, settings, environment variables, and command output as untrusted.
