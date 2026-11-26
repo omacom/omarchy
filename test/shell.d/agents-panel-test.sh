@@ -553,18 +553,24 @@ ShellRoot {
         break
       case 2:
         test.checkLocalModels()
+        test.panels[0].destroy()
+        test.panels = [test.panels[1]]
+        break
+      case 3:
+        if (usage.panels.length !== 1)
+          console.error("shared usage kept a destroyed panel")
         test.mark("bar detached")
         fakeBar.shell = null
         break
-      case 3:
+      case 4:
         if (usage.panels.length !== 0 || usage.settings !== null)
           console.error("shared usage kept a detached panel")
         test.mark("widget off every bar")
         test.panels.forEach(function(p) { p.destroy() })
         test.panels = []
         break
-      case 4: test.mark("refresh with no widget"); usage.refreshAll(true); break
-      case 5:
+      case 5: test.mark("refresh with no widget"); usage.refreshAll(true); break
+      case 6:
         test.mark("widget back on a bar")
         fakeBar.shell = test
         test.panels = [panelComponent.createObject(test)]
@@ -587,6 +593,10 @@ if [[ $output == *"shared usage lost the panel's local model inputs"* ]]; then
   fail "shared usage keeps local model lines and the default target from its panel" "$output"
 fi
 pass "shared usage keeps local model lines and the default target from its panel"
+if [[ $output == *"shared usage kept a destroyed panel"* ]]; then
+  fail "shared usage detaches a destroyed panel while its bar remains" "$output"
+fi
+pass "shared usage detaches a destroyed panel while its bar remains"
 if [[ $output == *"shared usage kept a detached panel"* ]]; then
   fail "shared usage detaches when the panel loses its bar's service" "$output"
 fi
