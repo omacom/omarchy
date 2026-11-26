@@ -42,6 +42,8 @@ Item {
   // Set when the authorization prompt was dismissed, until the next run.
   property bool dismissed: false
   property bool cancelling: false
+  signal managementRequested()
+  property bool configured: false
   property bool pendingStart: false
   // A registration asked for while the last run's helper was still stopping.
   property bool pendingBegin: false
@@ -69,6 +71,7 @@ Item {
     failure = ""
     dismissed = false
     pendingStart = true
+    configured = false
     pendingEnrolled = []
     statusProc.running = true
   }
@@ -77,12 +80,16 @@ Item {
     if (!pendingStart) return
     pendingStart = false
     enrolled = pendingEnrolled
+    if (!demo && (enrolled.length || configured)) {
+      managementRequested()
+      return
+    }
     start()
   }
 
-  function start() {
+  function start(reader, slot) {
     if (run.running) return
-    finger = Model.suggestFinger(enrolled)
+    finger = slot || Model.suggestFinger(enrolled)
     if (finger === "") {
       phase = "full"
       return
@@ -92,8 +99,11 @@ Item {
     var command = demo ? [helper, demoFails ? "demo-fail" : "demo", finger] : ["pkexec", helper, "enroll", finger]
     // The polkit agent labels the prompt for this exact command line with the
     // reason. The helper's stderr, and pkexec's own, is the log of this run.
+    if (reader) {
+      command = [Quickshell.env("OMARCHY_PATH") + "/default/fingerprint/manage.py", "add", reader, finger]
+    }
     run.command = ["bash", "-c", 'mkdir -p "${0%/*}"; [[ -z $1 ]] || omarchy-shell -q omarchy.polkit expect "$1" "$2"; shift 2; exec "$@" 2>"$0"',
-      logPath, demo ? "" : helper + " enroll " + finger, reason].concat(command)
+      logPath, (demo || reader) ? "" : helper + " enroll " + finger, reason].concat(command)
     run.running = true
   }
 
@@ -195,7 +205,8 @@ Item {
       onRead: function(line) {
         var event = Model.parseEvent(line)
         if (!event || !root.pendingStart) return
-        if (event.kind === "scan") root.scanType = event.value
+        if (event.kind === "configured") root.configured = true
+        else if (event.kind === "scan") root.scanType = event.value
         else if (event.kind === "finger") root.pendingEnrolled = root.pendingEnrolled.concat([event.value])
         else if (event.kind === "ready") root.ready()
       }

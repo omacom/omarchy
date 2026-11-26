@@ -52,6 +52,10 @@ ShellRoot {
       var reach = timer(service, 20000, false)
       var recheck = timer(service, 1000, false)
       service.lockRequested = true
+      const previousLock = service.fingerprintLockGeneration
+      service.fingerprintLockGeneration++
+      service.applyFingerprintProbe("Fingerprints for user test on Goodix:\n - #0: right-index-finger", previousLock)
+      check(!service.fingerprintChoiceChecked && !service.fingerprintConfigured, "a previous lock's enrollment cannot start authentication")
 
       service.applyFingerprintProbe("Could not activate remote peer")
       check(!service.fingerprintConfigured, "unknown cannot invent an enrollment")

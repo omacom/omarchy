@@ -19,7 +19,7 @@ function parseEvent(line) {
   var value = parts.length > 1 ? parts[1] : ""
   var count = /^[0-9]+$/.test(value) ? parseInt(value, 10) : 0
   // An event is its name alone or its name and one value, nothing more.
-  var bare = ["enrolled", "matched", "done", "ready"].indexOf(kind) !== -1
+  var bare = ["enrolled", "matched", "done", "ready", "configured"].indexOf(kind) !== -1
   if (parts.length !== (bare ? 1 : 2)) return null
   switch (kind) {
   case "step":
@@ -38,6 +38,7 @@ function parseEvent(line) {
   case "enrolled":
   case "matched":
   case "done":
+  case "configured":
   case "ready":
     return { kind: kind, value: "" }
   }
