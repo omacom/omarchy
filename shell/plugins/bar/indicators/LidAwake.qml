@@ -30,6 +30,9 @@ BarIndicator {
   Process {
     id: toggler
     command: ["omarchy-toggle-lid-awake", "toggle"]
+    // The file watch can miss a state file whose folder appeared after the
+    // shell started, so re-read the state once the toggle has run.
+    onExited: function() { stateWatcher.reload() }
   }
 
   onPressed: function() { toggler.running = true }
