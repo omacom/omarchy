@@ -13,6 +13,7 @@ FocusScope {
   readonly property bool authorizing: ctl.authorizing
   property string selected: ""
   property bool confirming: false
+  readonly property bool verifying: ctl.action === "verify"
   readonly property var entry: ctl.state.prints.find(p => p.slot === selected)
   readonly property bool hasPrints: ctl.state.prints.length > 0
 
@@ -92,13 +93,14 @@ FocusScope {
         spacing: Style.space(10)
 
         Line {
-          text: view.entry ? view.label(view.entry) : Commons.I18n.t("fingerprint.saved")
+          text: view.verifying ? Commons.I18n.t("fingerprint.verifySaved")
+                : view.entry ? view.label(view.entry) : Commons.I18n.t("fingerprint.saved")
           font.pixelSize: Style.font.heading
           font.bold: true
         }
 
         ColumnLayout {
-          visible: !view.entry
+          visible: !view.entry && !view.verifying
           Layout.fillWidth: true
           spacing: Style.space(8)
           Repeater {
@@ -150,7 +152,7 @@ FocusScope {
         }
 
         ColumnLayout {
-          visible: !!view.entry && !view.confirming
+          visible: !!view.entry && !view.confirming && !view.verifying
           Layout.fillWidth: true
           enabled: !ctl.busy
           TextField {

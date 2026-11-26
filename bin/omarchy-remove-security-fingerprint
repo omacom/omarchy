@@ -83,6 +83,16 @@ remove_resume_hook
 
 sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"
 
+# A freshly enrolled print can reuse any of these slots. Remove the display
+# names as their owner, including when this command came through sudo.
+if (( EUID == 0 )); then
+  sudo -H -u "#${SUDO_UID:-0}" -- /bin/sh -c 'exec /usr/bin/rm -f -- "${1:-$HOME/.local/share}/omarchy/fingerprint-names.sqlite3"' sh "${XDG_DATA_HOME:-}" ||
+    echo "Could not remove the saved fingerprint names." >&2
+else
+  rm -f -- "${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/fingerprint-names.sqlite3" ||
+    echo "Could not remove the saved fingerprint names." >&2
+fi
+
 # A platform that turned its reader on for setup turns it off again. Failing to
 # doesn't stop the removal, but the owner is told the reader may stay on.
 if ! disable_hook=$(omarchy-lifecycle-dispatch --resolve disable-fingerprint) ||

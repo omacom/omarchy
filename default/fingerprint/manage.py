@@ -199,5 +199,13 @@ if __name__ == "__main__":
       sys.exit(2)
   except (ValueError, GLib.Error, OSError, sqlite3.Error) as error:
     print(error, file=sys.stderr)
-    print("fail", str(error) if isinstance(error, ValueError) else "stopped", flush=True)
-    sys.exit(3 if isinstance(error, ValueError) and str(error) == "no-match" else 1)
+    reason = str(error) if isinstance(error, ValueError) else "stopped"
+    if isinstance(error, GLib.Error):
+      remote = Gio.DBusError.get_remote_error(error)
+      if remote == "org.freedesktop.PolicyKit1.Error.Cancelled":
+        sys.exit(126)
+      if remote in (SERVICE + ".Error.PermissionDenied", "org.freedesktop.DBus.Error.AccessDenied",
+                    "org.freedesktop.PolicyKit1.Error.NotAuthorized"):
+        reason = "denied"
+    print("fail", reason, flush=True)
+    sys.exit(3 if reason == "no-match" else 1)

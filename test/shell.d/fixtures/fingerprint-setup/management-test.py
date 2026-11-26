@@ -43,6 +43,9 @@ def serve(ready):
       elif name in ("EnrollStart", "VerifyStart"):
         slot = values[0]
         if name == "EnrollStart":
+          if slot == "left-little-finger":
+            reply.return_dbus_error(SERVICE + ".Error.PermissionDenied", "Authorization declined")
+            return
           assert slot not in fingers and len(fingers) < 3
           fingers.append(slot)
           signal, status = "EnrollStatus", "enroll-completed"
@@ -100,6 +103,7 @@ def exercise():
       run("rename", reader, finger, "Right index")
       assert snapshot()["prints"][0]["name"] == "Right index"
       assert "matched" in run("verify", reader, finger)
+      assert "fail denied" in run("add", reader, "left-little-finger", ok=False)
       assert "done" in run("add", reader, "left-thumb")
       assert "selected " + finger in run("verify", reader, "any")
       run("add", reader, "right-thumb")
