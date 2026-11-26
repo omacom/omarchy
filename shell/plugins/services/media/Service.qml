@@ -447,7 +447,7 @@ Item {
 
     var steps = { "raise": 1, "lower": -1, "raise-precise": 1, "lower-precise": -1 }[action]
     if (!steps && action !== "mute-toggle") return false
-    var scale = AudioVolume.scale(shell.shellConfig)
+    var scale = AudioVolume.scale(shell.shellConfig || { audio: shell.audioConfig })
     var volume = steps ? AudioVolume.step(audio.volume, steps, scale, action.endsWith("-precise")) : audio.volume
     var muted = steps ? false : !audio.muted
 

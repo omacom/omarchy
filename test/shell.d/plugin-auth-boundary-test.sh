@@ -116,6 +116,10 @@ qml_matches "$shell_qml" 'shellApi\.idleConfig *= *shell\.publicIdleConfigFor\( 
   fail "cloned idle service configuration does not refresh"
 qml_matches "$idle_service" 'shell *&& *shell\.idleConfig *\? *shell\.idleConfig *: *\(\{\}\)' ||
   fail "the idle service does not consume its scoped configuration"
+qml_matches "$shell_qml" 'audioConfig: *shell\.publicAudioConfigFor\( *manifest *\)' ||
+  fail "cloned audio plugins do not receive their volume scale"
+qml_matches "$shell_qml" 'shellApi\.audioConfig *= *shell\.publicAudioConfigFor\( *shellManifest *\)' ||
+  fail "cloned audio plugin configuration does not refresh"
 bar_entry_shell=$(sed -n '/^  function pluginShellForBarEntry(/,/^  function pluginShellFor(/p' "$shell_qml")
 tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
   grep -Eq 'var id *= *shell\.pluginRegistry\.resolveEnabledId\( *target *\)[^}]*return shell\.pluginRegistry\.installedPlugins\[id\] *\|\| *null' ||

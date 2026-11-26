@@ -20,11 +20,14 @@ Panel {
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
   readonly property var mediaService: bar?.shell?.firstPartyServiceFor("omarchy.media")
   readonly property var activeMediaPlayer: mediaService ? mediaService.activePlayer : null
-  readonly property string volumeScale: AudioVolume.scale(bar?.shell?.shellConfig)
+  // A clone reads the scale from its narrow audioConfig and cannot change it.
+  readonly property bool volumeScaleWritable: !!bar?.shell?.shellConfig
+  readonly property string volumeScale: AudioVolume.scale(bar?.shell?.shellConfig || { audio: bar?.shell?.audioConfig })
   readonly property real shownOutputVolume: outputSlider.dragging
     ? AudioVolume.volume(outputSlider.liveValue, volumeScale) : outputVolume
 
   function toggleVolumeScale() {
+    if (!volumeScaleWritable) return
     var next = volumeScale === "decibel" ? "linear" : "decibel"
     bar.shell.mutateShellConfig(function(config) {
       if (!Util.isPlainObject(config.audio)) config.audio = {}
@@ -909,7 +912,8 @@ Panel {
               Button {
                 id: outputPercent
                 text: AudioVolume.readout(root.shownOutputVolume, root.volumeScale)
-                tooltipText: root.volumeScale === "decibel" ? Commons.I18n.t("audio.scale.toPercent") : Commons.I18n.t("audio.scale.toDecibels")
+                tooltipText: !root.volumeScaleWritable ? ""
+                  : root.volumeScale === "decibel" ? Commons.I18n.t("audio.scale.toPercent") : Commons.I18n.t("audio.scale.toDecibels")
                 foreground: Qt.darker(root.bar.foreground, 1.4)
                 fontFamily: root.bar.fontFamily
                 fontSize: Style.font.caption
