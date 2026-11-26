@@ -205,4 +205,100 @@ expect("Antigravity gives a database-only turn the model in effect at its step, 
          "claude-sonnet-4.6-thinking": {"inputTokens": 24, "outputTokens": 6, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
          "unknown": {"inputTokens": 1, "outputTokens": 1, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
        }, record)
+
+# The desktop app keeps no history log, so its typed prompts are USER_INPUT
+# steps, and a completed turn's exact counts replace the transcript's own.
+sandbox()
+freeze_today()
+STAMP = today_stamp()
+SECONDS = int(fixture_now().timestamp())
+
+transcript("desk", [
+  {"step_index": 0, "type": "USER_INPUT", "content": "desktop prompt", "created_at": STAMP},
+  {"step_index": 1, "type": "PLANNER_RESPONSE", "created_at": STAMP, "model": "gemini-3.9-desktop",
+   "usage": {"prompt_token_count": 100, "candidates_token_count": 20}},
+])
+conversation("desk", [(1, step_metadata(SECONDS, 11, 7, 3, 1))], model="gemini-3.9-desktop")
+
+record = collect("agy", "--force")
+expect("Antigravity counts a desktop prompt from its USER_INPUT step with no history log",
+       [record["totalPrompts"], record["todayPrompts"]], [1, 1], record)
+expect("Antigravity takes a completed turn's exact database counts over the transcript's",
+       record["modelUsage"].get("gemini-3.9-desktop"),
+       {"inputTokens": 11, "outputTokens": 7, "cacheReadInputTokens": 3, "cacheCreationInputTokens": 1}, record)
+
+# A turn the database adds beside the transcript's counted step counts once.
+sandbox()
+freeze_today()
+STAMP = today_stamp()
+SECONDS = int(fixture_now().timestamp())
+
+transcript("dbonly", [
+  {"step_index": 0, "type": "PLANNER_RESPONSE", "created_at": STAMP, "model": "gemini-3.9-only",
+   "usage": {"prompt_token_count": 5, "candidates_token_count": 1}},
+])
+conversation("dbonly", [(0, step_metadata(SECONDS, 5, 1)), (1, step_metadata(SECONDS, 4, 2))], model="gemini-3.9-only")
+
+record = collect("agy", "--force")
+expect("Antigravity counts a database-only turn once, not again beside the transcript",
+       record["modelUsage"].get("gemini-3.9-only"),
+       {"inputTokens": 9, "outputTokens": 3, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0}, record)
+
+# Metadata that trails off, or carries a wire type the parser doesn't know,
+# is no exact usage; the transcript's own counts stand and nothing crashes.
+sandbox()
+freeze_today()
+STAMP = today_stamp()
+SECONDS = int(fixture_now().timestamp())
+
+transcript("meta", [
+  {"step_index": 1, "type": "PLANNER_RESPONSE", "created_at": STAMP, "model": "gemini-3.9-meta",
+   "usage": {"prompt_token_count": 5, "candidates_token_count": 1}},
+  {"step_index": 2, "type": "PLANNER_RESPONSE", "created_at": STAMP, "model": "gemini-3.9-meta",
+   "usage": {"prompt_token_count": 6, "candidates_token_count": 2}},
+])
+conversation("meta", [
+  (1, b"\x4a\x05\x02"),  # field 9, five bytes promised, one there
+  (2, b"\x4b\x00"),  # field 9, wire type 3
+], model="gemini-3.9-meta")
+
+record = collect("agy", "--force")
+expect("Antigravity ignores truncated and unsupported turn metadata without crashing",
+       record["modelUsage"].get("gemini-3.9-meta"),
+       {"inputTokens": 11, "outputTokens": 3, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0}, record)
+
+# A count too large to be real is not usage, so it cannot inflate the totals.
+sandbox()
+freeze_today()
+STAMP = today_stamp()
+SECONDS = int(fixture_now().timestamp())
+
+transcript("damaged", [
+  {"step_index": 0, "type": "PLANNER_RESPONSE", "created_at": STAMP, "model": "gemini-3.9-damaged",
+   "usage": {"prompt_token_count": 7, "candidates_token_count": 2}},
+])
+conversation("damaged", [(0, step_metadata(SECONDS, 2**63, 0))], model="gemini-3.9-damaged")
+
+record = collect("agy", "--force")
+expect("Antigravity drops a damaged exact count rather than inflating the totals",
+       [record["modelUsage"].get("gemini-3.9-damaged"),
+        max((bucket["inputTokens"] for bucket in record["modelUsage"].values()), default=0)],
+       [{"inputTokens": 7, "outputTokens": 2, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0}, 7], record)
+
+# A conversation database that exists but can't be read is a problem, so its
+# missing turns are never cached as a complete scan.
+sandbox()
+broken = home() / ".gemini" / "antigravity" / "conversations" / "broken.db"
+broken.parent.mkdir(parents=True, exist_ok=True)
+broken.write_text("not a database\n")
+
+agy = load_collector("agy")
+problems = []
+expect("Antigravity reads no exact turns from a conversation database it cannot read",
+       agy.read_conversation_db(broken, problems), ({}, ""))
+expect("Antigravity reports a conversation database it cannot read", problems, [str(broken)])
+
+record = collect("agy", "--force")
+expect("Antigravity never caches a scan whose conversation database it cannot read",
+       scan_cache_files("agy"), [], record)
 PY
