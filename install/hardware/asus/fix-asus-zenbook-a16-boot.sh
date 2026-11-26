@@ -1,4 +1,4 @@
-# Disk unlock and sleep on the ASUS Zenbook A16 UX3607OA (Snapdragon X2 Elite).
+# Disk unlock, display power and sleep on the ASUS Zenbook A16 UX3607OA (Snapdragon X2 Elite).
 
 mkinitcpio_dir=${OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 limine_config_dir=${OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
@@ -45,6 +45,8 @@ unset firmware directory suffix
 CONF
 
   # Plymouth leaves the panel black at the unlock prompt, so ask for the
-  # passphrase on the text console instead.
-  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set zenbook-a16 console=tty0 plymouth.enable=0
+  # passphrase on the text console instead. Enable Panel Self Refresh
+  # (msm.psr_enabled=1, covering eDP and DP sinks) so the display controller
+  # suspends on static screens (~2-2.5 W saved on the internal OLED panel).
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set zenbook-a16 console=tty0 plymouth.enable=0 msm.psr_enabled=1
 fi
