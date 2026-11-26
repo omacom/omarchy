@@ -1174,6 +1174,21 @@ indexed_accept = lambda provider, model, entry: provider == "demo"  # noqa: E731
 def opencode_signature(rows):
   return sorted(json.dumps(row._asdict(), sort_keys=True) for row in rows)
 
+untracked_db = work / "untracked-opencode.db"
+conn = sqlite3.connect(untracked_db)
+conn.execute("CREATE TABLE session_v2 (id text PRIMARY KEY, parent_id text, fork_session_id text, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE event_sequence (aggregate_id text PRIMARY KEY, seq integer NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL, type text NOT NULL, seq integer NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("INSERT INTO session_v2 VALUES ('ses_tracked', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO event_sequence VALUES ('ses_tracked', 1)")
+conn.execute("INSERT INTO session_message VALUES ('msg_untracked', 'ses_without_marker', 'assistant', 1, ?, ?, ?)", (now_ms, now_ms, v2("demo", {"input": 7})))
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(untracked_db)
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+check("OpenCode sessions without declared session coverage use the full reader", complete and [(row.session, row.input_tokens) for row in rows] == [("opencode:ses_without_marker", 7)])
+os.environ["OPENCODE_DB"] = str(indexed_db)
+
 rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
 initial_indexed = sorted((row.session, row.input_tokens, row.prompts) for row in rows)
 check(
@@ -1224,6 +1239,40 @@ conn.commit()
 conn.close()
 rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
 check("changed OpenCode fork boundaries reread copied history consistently", complete and sorted((row.session, row.input_tokens, row.prompts) for row in rows) == [("opencode:ses_v1_index", 32, 1), ("opencode:ses_v2_fork", 9, 1), ("opencode:ses_v2_index", 42, 1)] and opencode_signature(rows) == opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0]))
+
+conn = sqlite3.connect(indexed_db)
+conn.execute("CREATE TABLE unrelated_index_probe (id integer)")
+conn.commit()
+conn.close()
+expected_after_unrelated_change = opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0])
+version_reads = 0
+collectors._opencode_session_versions = count_opencode_session_versions
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+rows, complete_again = collectors.scan_opencode(["demo"], indexed_accept)
+collectors._opencode_session_versions = real_opencode_session_versions
+check("OpenCode source changes with no session changes advance the fingerprint", complete and complete_again and version_reads == 1 and opencode_signature(rows) == expected_after_unrelated_change)
+
+# Rows without either JSON or database timestamps mean "today" to the live
+# reader; cached results must follow the day as it advances.
+untimed_db = work / "untimed-opencode.db"
+conn = sqlite3.connect(untimed_db)
+conn.execute("PRAGMA foreign_keys = ON")
+conn.execute("CREATE TABLE session_v2 (id text PRIMARY KEY, parent_id text, fork_session_id text, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE event_sequence (aggregate_id text PRIMARY KEY, seq integer NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL REFERENCES session_v2(id), type text NOT NULL, seq integer NOT NULL, time_created integer, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("INSERT INTO session_v2 VALUES ('ses_untimed', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO event_sequence VALUES ('ses_untimed', 1)")
+conn.execute("INSERT INTO session_message VALUES ('msg_untimed', 'ses_untimed', 'assistant', 1, NULL, ?, ?)", (now_ms, json.dumps({"model": {"providerID": "demo", "id": "v2-model"}, "tokens": {"input": 5}})))
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(untimed_db)
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+old_today = collectors.today
+collectors.today = lambda: "2030-01-01"
+rows, next_day_complete = collectors.scan_opencode(["demo"], indexed_accept)
+collectors.today = old_today
+check("cached OpenCode rows with no timestamp roll over to the current day", complete and next_day_complete and [(row.day, row.input_tokens) for row in rows] == [("2030-01-01", 5)])
+os.environ["OPENCODE_DB"] = str(indexed_db)
 
 conn = sqlite3.connect(indexed_db)
 conn.execute("PRAGMA foreign_keys = ON")

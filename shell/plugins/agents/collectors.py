@@ -65,7 +65,7 @@ PROBE_MIN_INTERVAL_SECONDS = 15
 SCAN_CACHE_VERSION = 2
 # Persistent, per-session OpenCode scan index. Bump when its saved row shape
 # or change-detection contract changes.
-OPENCODE_SESSION_CACHE_VERSION = 2
+OPENCODE_SESSION_CACHE_VERSION = 3
 # How many days, today last, a record's spend covers.
 SPEND_DAYS = 30
 STATS_KEYS = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
@@ -1370,24 +1370,25 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
         per_session.setdefault(session_id, []).append(row)
       for session_id in changed:
         current[session_id] = {"version": versions[session_id], "rows": per_session.get(session_id, [])}
-      if complete:
-        if source_fingerprint == _opencode_source_fingerprint(db_identity):
-          try:
-            write_json(cache, {
-              "schemaVersion": OPENCODE_SESSION_CACHE_VERSION,
-              "database": [info.st_dev, info.st_ino],
-              "schema": schema,
-              "zone": _opencode_zone(),
-              "query": query,
-              "sourceFingerprint": source_fingerprint,
-              "sessions": current,
-            })
-          except Exception as exc:
-            warn(f"could not write OpenCode session index ({exc})")
-        else:
-          complete = False
     else:
       rows = []
+
+    if complete:
+      if source_fingerprint == _opencode_source_fingerprint(db_identity):
+        try:
+          write_json(cache, {
+            "schemaVersion": OPENCODE_SESSION_CACHE_VERSION,
+            "database": [info.st_dev, info.st_ino],
+            "schema": schema,
+            "zone": _opencode_zone(),
+            "query": query,
+            "sourceFingerprint": source_fingerprint,
+            "sessions": current,
+          })
+        except Exception as exc:
+          warn(f"could not write OpenCode session index ({exc})")
+      else:
+        complete = False
 
     result = _opencode_rows_from_cache(current)
     return (result or []), complete
@@ -1447,7 +1448,10 @@ def _opencode_rows_from_cache(sessions: dict[str, Any]) -> list[UsageRow] | None
       continue
     seen.add(message_id)
     try:
-      result.append(UsageRow(**entry["row"]))
+      row_data = entry["row"]
+      if entry.get("todayIfUntimed"):
+        row_data = {**row_data, "day": today()}
+      result.append(UsageRow(**row_data))
     except (KeyError, TypeError):
       return None
   return result
@@ -1481,6 +1485,14 @@ def _opencode_session_versions(conn: sqlite3.Connection, tables: set[str]) -> tu
       continue
     columns = _table_columns(conn, table)
     schema[table] = sorted(columns)
+    if "session_id" not in columns:
+      continue
+    foreign_keys = [list(row[2:5]) for row in conn.execute(f'PRAGMA foreign_key_list("{table}")')]
+    schema[f"{table}_session_fks"] = foreign_keys
+    if not any(local == "session_id" and target == "id" and target_table in ("session", "session_v2") for target_table, local, target in foreign_keys):
+      # Session-filtered scans are safe only when the database schema ties
+      # every message row to a session row carrying a usable change marker.
+      return {}, schema
   versions = {
     key: {"sessions": value}
     for key, value in session_versions.items()
@@ -1571,7 +1583,8 @@ def _scan_opencode_db(
     rows.append(row)
     turns.append((turn, (spent_at, str(message_id))))
     if include_ids:
-      indexed_rows.append((str(session_id), {"id": str(message_id), "table": source_table, "row": row._asdict()}))
+      today_if_untimed = obj(obj(entry).get("time")).get("created") is None and created is None
+      indexed_rows.append((str(session_id), {"id": str(message_id), "table": source_table, "todayIfUntimed": today_if_untimed, "row": row._asdict()}))
 
   def answered() -> list[UsageRow]:
     first: dict[Any, int] = {}
@@ -1756,7 +1769,8 @@ def _scan_opencode_db(
           rows.append(row)
           turns.append((("asked", session_id, str(message_id)), (0, str(message_id))))
           if include_ids:
-            indexed_rows.append((session_id, {"id": str(message_id), "table": source_table, "row": row._asdict()}))
+            today_if_untimed = obj(obj(entry).get("time")).get("created") is None
+            indexed_rows.append((session_id, {"id": str(message_id), "table": source_table, "todayIfUntimed": today_if_untimed, "row": row._asdict()}))
   except sqlite3.Error:
     # Transient lock, schema migration, corruption: the numbers stop here,
     # incomplete.
