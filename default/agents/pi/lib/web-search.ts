@@ -28,7 +28,6 @@ export interface SearchOutcome {
 
 export interface SearchOptions {
   query: string;
-  objective?: string;
   numResults?: number;
   signal: AbortSignal;
   env?: Record<string, string | undefined>;
@@ -150,7 +149,6 @@ function formatEntries(
 async function searchExa(
   endpoint: string,
   query: string,
-  objective: string,
   numResults: number,
   signal: AbortSignal,
   apiKey?: string,
@@ -174,7 +172,7 @@ async function searchExa(
         name: "web_search_exa",
         arguments: {
           query,
-          objective,
+          objective: query,
           numResults,
         },
       },
@@ -341,7 +339,6 @@ export async function runSearch(options: SearchOptions): Promise<SearchOutcome> 
   const query = options.query.trim();
   if (!query) throw new Error("query must not be empty");
 
-  const objective = options.objective?.trim() || query;
   const numResults = Math.min(Math.max(Math.round(options.numResults ?? DEFAULT_NUM_RESULTS), 1), MAX_NUM_RESULTS);
 
   const searxngUrl = env.SEARXNG_URL?.trim();
@@ -358,7 +355,7 @@ export async function runSearch(options: SearchOptions): Promise<SearchOutcome> 
     if (braveKey) {
       return await searchBrave(options.endpoints?.brave ?? BRAVE_SEARCH_URL, braveKey, query, numResults, options.signal);
     }
-    return await searchExa(options.endpoints?.exa ?? EXA_MCP_URL, query, objective, numResults, options.signal, exaKey);
+    return await searchExa(options.endpoints?.exa ?? EXA_MCP_URL, query, numResults, options.signal, exaKey);
   } catch (error) {
     if (error instanceof Error) {
       const cause = (error.cause as Error | undefined)?.message ?? error.message;

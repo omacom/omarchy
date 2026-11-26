@@ -27,14 +27,8 @@ import {
 const WebSearchParams = Type.Object({
   query: Type.String({
     description:
-      "What to search for. Natural language descriptions of the ideal page work well (e.g. 'Omarchy Linux keybindings documentation').",
+      "What to search for. Clear, descriptive queries work well (e.g. 'Omarchy Linux keybindings documentation').",
   }),
-  objective: Type.Optional(
-    Type.String({
-      description:
-        "Optional goal for this search: which sources should rank first, what to exclude, or what specific facts to extract.",
-    }),
-  ),
   num_results: Type.Optional(
     Type.Number({
       description: `Number of results to return (default ${DEFAULT_NUM_RESULTS}, max ${MAX_NUM_RESULTS})`,
@@ -100,7 +94,6 @@ export default function (pi: ExtensionAPI) {
       try {
         outcome = await runSearch({
           query,
-          objective: params.objective,
           numResults: params.num_results,
           signal: combined,
         });

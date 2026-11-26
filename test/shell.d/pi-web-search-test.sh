@@ -5,21 +5,18 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command node
-require_command jq
-
-jq -e '.pi.extensions | index("./extensions/web-search.ts") != null' "$ROOT/default/agents/pi/package.json" >/dev/null ||
-  fail "Pi defaults package registers web-search.ts"
-pass "Pi defaults package registers web-search.ts"
 
 node --input-type=module - "$ROOT" <<'EOF'
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as http from "node:http";
+import { registerHooks } from "node:module";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const root = process.argv[2];
-const mod = await import(pathToFileURL(path.join(root, "default/agents/pi/lib/web-search.ts")).href);
+const piDir = path.join(root, "default/agents/pi");
+const mod = await import(pathToFileURL(path.join(piDir, "lib/web-search.ts")).href);
 const { BYOK_HINT, buildSearxngUrl, parseMcpResponse, runSearch, sanitizeError } = mod;
 
 // 1. SSE and JSON MCP parsing
@@ -48,7 +45,7 @@ assert.equal(
 );
 console.log("ok - sanitizeError redacts raw and URL-encoded API keys");
 
-// 4. Live HTTP tests against a local mock server for every backend
+// 4. Live HTTP tests against a local mock server for every backend and the Pi extension
 let lastRequest = null;
 const server = http.createServer((req, res) => {
   const chunks = [];
@@ -100,6 +97,20 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    if (req.url.startsWith("/huge/search?")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          results: Array.from({ length: 10 }, (_, i) => ({
+            title: `Entry ${i + 1}`,
+            url: `https://example.test/${i + 1}`,
+            content: `line ${i + 1}\n`.repeat(5),
+          })),
+        }),
+      );
+      return;
+    }
+
     if (req.url === "/tavily") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
@@ -129,6 +140,7 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const { port } = server.address();
 const base = `http://127.0.0.1:${port}`;
 
+const savedDirs = [];
 try {
   // Default keyless Exa MCP over SSE
   const exaFree = await runSearch({
@@ -224,12 +236,102 @@ try {
     /must not be empty/i,
   );
   console.log("ok - empty queries are rejected");
+
+  // 5. Load and execute the extension entry declared in package.json with Pi module stubs
+  const virtualModules = {
+    "@earendil-works/pi-coding-agent": `
+      export const DEFAULT_MAX_LINES = 5;
+      export const DEFAULT_MAX_BYTES = 200;
+      export const formatSize = (n) => n + " B";
+      export function truncateHead(text, { maxLines, maxBytes }) {
+        const lines = text.split("\\n");
+        const sliced = lines.slice(0, maxLines).join("\\n").slice(0, maxBytes);
+        const truncated = sliced.length < text.length;
+        return {
+          content: sliced,
+          truncated,
+          outputLines: sliced.split("\\n").length,
+          totalLines: lines.length,
+          outputBytes: Buffer.byteLength(sliced, "utf8"),
+          totalBytes: Buffer.byteLength(text, "utf8"),
+        };
+      }
+    `,
+    "@earendil-works/pi-tui": `
+      export class Text {
+        constructor(text) { this.text = text; }
+      }
+    `,
+    typebox: `
+      export const Type = {
+        Object: (props) => ({ type: "object", properties: props }),
+        String: (opts) => ({ type: "string", ...opts }),
+        Number: (opts) => ({ type: "number", ...opts }),
+        Optional: (inner) => ({ optional: true, ...inner }),
+      };
+    `,
+  };
+  registerHooks({
+    resolve(specifier, context, nextResolve) {
+      if (Object.hasOwn(virtualModules, specifier)) {
+        return { url: `pi-stub:${specifier}`, shortCircuit: true };
+      }
+      return nextResolve(specifier, context);
+    },
+    load(url, context, nextLoad) {
+      if (url.startsWith("pi-stub:")) {
+        return { format: "module", source: virtualModules[url.slice("pi-stub:".length)], shortCircuit: true };
+      }
+      return nextLoad(url, context);
+    },
+  });
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(piDir, "package.json"), "utf8"));
+  const tools = new Map();
+  const fakePi = {
+    registerTool(def) {
+      tools.set(def.name, def);
+    },
+  };
+  for (const rel of pkg.pi.extensions) {
+    if (!rel.endsWith("web-search.ts")) continue;
+    const ext = await import(pathToFileURL(path.resolve(piDir, rel)).href);
+    ext.default(fakePi);
+  }
+  const tool = tools.get("web_search");
+  assert.ok(tool, "package.json extensions register the web_search tool");
+
+  const theme = { fg: (_c, s) => s, bold: (s) => s };
+  assert.match(tool.renderCall({ query: "omarchy", num_results: 3 }, theme).text, /web_search omarchy \(3\)/);
+
+  const prevSearx = process.env.SEARXNG_URL;
+  try {
+    process.env.SEARXNG_URL = `${base}/sub`;
+    const okResult = await tool.execute("id-1", { query: "omarchy", num_results: 2 });
+    assert.ok(!okResult.isError);
+    assert.equal(okResult.details.backend, "searxng");
+    assert.equal(okResult.details.resultCount, 2);
+    assert.match(okResult.content[0].text, /Query: omarchy\nBackend: searxng/);
+    assert.match(tool.renderResult(okResult, { expanded: false }, theme).text, /searxng · 2 results/);
+
+    const emptyResult = await tool.execute("id-2", { query: "   " });
+    assert.equal(emptyResult.isError, true);
+    assert.match(tool.renderResult(emptyResult, { expanded: false }, theme).text, /Error:/);
+
+    process.env.SEARXNG_URL = `${base}/huge`;
+    const truncResult = await tool.execute("id-3", { query: "huge", num_results: 10 });
+    assert.equal(truncResult.details.truncated, true);
+    assert.ok(truncResult.details.savedTo && fs.existsSync(truncResult.details.savedTo));
+    savedDirs.push(path.dirname(truncResult.details.savedTo));
+    assert.equal(fs.statSync(truncResult.details.savedTo).mode & 0o777, 0o600);
+    assert.match(truncResult.content[0].text, /Full results saved to:/);
+  } finally {
+    if (prevSearx === undefined) delete process.env.SEARXNG_URL;
+    else process.env.SEARXNG_URL = prevSearx;
+  }
+  console.log("ok - web-search extension loads via package.json, executes searches, truncates overflow, and renders output");
 } finally {
   server.close();
+  for (const dir of savedDirs) fs.rmSync(dir, { recursive: true, force: true });
 }
-
-// Verify the Pi extension file parses cleanly (syntax check via import of lib + file existence)
-const extSource = fs.readFileSync(path.join(root, "default/agents/pi/extensions/web-search.ts"), "utf8");
-assert.ok(extSource.includes('name: "web_search"'));
-console.log("ok - web-search.ts extension registers the web_search tool");
 EOF
