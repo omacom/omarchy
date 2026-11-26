@@ -1445,5 +1445,11 @@
   },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "system.snapshots": {
+    "label": "Pillanatképek"
+  },
+  "system.snapshots.restore": {
+    "label": "Pillanatkép visszaállítása"
   }
 }

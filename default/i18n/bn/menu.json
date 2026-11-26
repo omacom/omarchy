@@ -1445,5 +1445,11 @@
   },
   "install.ai.cli.codex": {
     "label": "Codex"
+  },
+  "system.snapshots": {
+    "label": "স্ন্যাপশট"
+  },
+  "system.snapshots.restore": {
+    "label": "এই স্ন্যাপশট পুনরুদ্ধার করুন"
   }
 }
