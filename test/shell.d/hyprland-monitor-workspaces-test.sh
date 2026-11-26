@@ -22,7 +22,7 @@ cat >"$tmpdir/fake.lua" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 
 -- Neighbours map a monitor to the one in each direction, l, r, u or d.
-world = { monitors = {}, workspaces = {}, windows = {}, neighbours = {}, focused = nil, active_window = nil, swaps = 0, handlers = {} }
+world = { monitors = {}, workspaces = {}, windows = {}, neighbours = {}, focused = nil, active_window = nil, swaps = 0, handlers = {}, timers = {}, calls = 0 }
 
 o = {
   bind_expressions = {},
@@ -50,7 +50,9 @@ local function create(id, monitor)
 end
 
 local function activate(workspace)
-  monitor_named(workspace.monitor).active = workspace.id
+  local monitor = monitor_named(workspace.monitor)
+  assert(monitor, "Workspace has no monitor")
+  monitor.active = workspace.id
 end
 
 local function windows_on(id)
@@ -110,6 +112,7 @@ function monitor_object(monitor)
   if not monitor then return nil end
   return setmetatable({
     set_workspace = function(_, spec)
+      world.calls = world.calls + 1
       local workspace = workspace_numbered(tonumber(spec.workspace))
       if workspace and workspace.monitor == monitor.name then
         monitor.active = workspace.id
@@ -131,7 +134,11 @@ end
 
 hl = {
   on = function(name, handler) world.handlers[name] = handler end,
-  dispatch = function(dispatcher) return dispatcher() end,
+  dispatch = function(dispatcher)
+    world.calls = world.calls + 1
+    return dispatcher()
+  end,
+  timer = function(callback) world.timers[#world.timers + 1] = callback end,
   get_monitors = function()
     local list = {}
     for _, monitor in ipairs(world.monitors) do list[#list + 1] = monitor_object(monitor) end
@@ -232,6 +239,14 @@ hl = {
   },
 }
 
+-- Run the callbacks hl.timer queued, as Hyprland's event loop does once the
+-- handler that queued them has returned.
+function fire_timers()
+  local timers = world.timers
+  world.timers = {}
+  for _, callback in ipairs(timers) do callback() end
+end
+
 -- A fresh config load, as a reload or the next session gives.
 function load_module()
   package.loaded["default.hypr.monitor-workspaces"] = nil
@@ -271,7 +286,7 @@ function shows(name)
 end
 
 function state_file()
-  local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitor-workspaces")
+  local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/workspaces")
   local content = file and file:read("a") or ""
   if file then file:close() end
   return content
@@ -361,6 +376,27 @@ check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the laptop falls back to on
 ' || fail "a workspace an unplug left elsewhere comes home on its key"
 pass "a workspace an unplug left elsewhere comes home on its key"
 
+run_lua reclaim_monitorless '
+plug("DP-1", 0, "Dell", 1)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 2)
+world.workspaces[#world.workspaces].monitor = nil
+
+hl.dispatch(m.focus(2))
+check(shows("DP-1") == 2 and on(2) == "DP-1", "Super + 2 brings a monitorless workspace home")
+check(world.windows["0xa"].workspace == 2, "the orphaned window keeps its workspace")
+
+window("0xb", 3)
+world.workspaces[#world.workspaces].monitor = nil
+world.active_window = "0xa"
+hl.dispatch(m.move_window(3))
+check(shows("DP-1") == 3 and on(3) == "DP-1", "moving a window reclaims a monitorless destination")
+check(world.windows["0xa"].workspace == 3 and world.windows["0xb"].workspace == 3, "both windows stay reachable")
+' || fail "workspace actions reclaim a workspace left without a monitor"
+pass "workspace actions reclaim a workspace left without a monitor"
+
 # --- Monitors coming and going -------------------------------------------------
 
 run_lua hotplug '
@@ -378,6 +414,7 @@ world.active_window = "0xa"
 
 unplug("DP-1")
 world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
 check(world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "an unplugged monitor'"'"'s workspace joins another'"'"'s after its own, not " .. world.windows["0xb"].workspace)
 check(shows("eDP-1") == 1, "the other monitor stays where it was")
 
@@ -396,6 +433,28 @@ check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the laptop is back on its o
 ' || fail "an unplugged monitor's workspaces come back with it, whatever the connector"
 pass "an unplugged monitor's workspaces come back with it, whatever the connector"
 
+run_lua removed-deferred '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xb", 11)
+world.active_window = "0xb"
+
+-- Hyprland crashes when the handler moves workspaces or focus while the
+-- monitor it reports is still being torn down.
+unplug("DP-1")
+world.calls = 0
+world.handlers["monitor.removed"]({ name = "DP-1" })
+check(world.calls == 0, "the handler changed workspaces or focus during the teardown")
+check(#world.timers == 1, "the handler left the reconcile for later")
+
+fire_timers()
+check(world.calls > 0 and world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "the reconcile ran once the teardown returned")
+' || fail "a removed monitor is reconciled after its teardown, not during it"
+pass "a removed monitor is reconciled after its teardown, not during it"
+
 run_lua return-visible '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
@@ -407,6 +466,7 @@ window("0xb", 11)
 world.active_window = "0xb"
 unplug("DP-1")
 world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
 hl.dispatch(hl.dsp.focus({ workspace = "2" }))
 check(world.windows["0xb"].workspace == 2 and shows("eDP-1") == 2, "the workspace joined the laptop'"'"'s and is in view")
 
@@ -435,6 +495,7 @@ world.focused = "eDP-1"
 
 unplug("DP-1")
 world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
 check(world.windows["0xc"].workspace == 6 and world.windows["0xd"].workspace == 7 and world.windows["0xe"].workspace == 8,
   "the workspaces follow the laptop'"'"'s own, in order")
 check(m.workspace_id(hl.get_monitor("eDP-1"), 7) == 7, "Super + 7 reaches them")
@@ -475,6 +536,7 @@ world.focused = "eDP-1"
 
 unplug("DP-1")
 world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
 check(m.workspace_id(hl.get_monitor("DP-2"), 1) == 21, "the remaining twin took the unplugged one'"'"'s block")
 check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the remaining twin'"'"'s workspace moved to " .. world.windows["0xb"].workspace)
 check(world.windows["0xa"].workspace == 2 and on(2) == "eDP-1", "the unplugged twin'"'"'s workspace joined the laptop'"'"'s")
@@ -508,6 +570,7 @@ world.focused = "eDP-1"
 
 unplug("DP-1")
 world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
 check(world.windows["0xb"].workspace == 2, "the workspace joined the laptop'"'"'s")
 world.windows["0xb"] = nil
 hl.dispatch(hl.dsp.focus({ workspace = "1" }))
@@ -538,6 +601,7 @@ world.focused = "eDP-1"
 
 unplug("DP-1")
 world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
 check(world.windows["0xb"].workspace == 12 and on(12) == "eDP-1", "with all ten taken it waits as a guest")
 
 plug("DP-3", 3, "LG", 13)
@@ -547,9 +611,10 @@ check(on(12) == "DP-3", "and goes home all the same")
 -- A new session starts with nothing to bring back.
 unplug("DP-3")
 world.handlers["monitor.removed"]({ name = "DP-3" })
+fire_timers()
 load_module()
 world.handlers["hyprland.start"]()
-local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitor-workspaces-merged")
+local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/workspaces-merged")
 check(file:read("a") == "", "a new session forgot where workspaces came from")
 file:close()
 ' || fail "a workspace with no room to join waits as a guest"
