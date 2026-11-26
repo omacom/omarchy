@@ -194,3 +194,37 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# Wake restores gmux_backlight only when hardware has diverged from the
+# kernel's requested level (e.g. post-suspend 80% reset on dual-GPU Macs).
+wake_bin="$test_tmp/wake-bin"
+mkdir -p "$wake_bin" "$test_tmp/backlight/gmux_backlight"
+for helper in omarchy-brightness-display omarchy-brightness-keyboard omarchy-hyprland-monitor-clamshell; do
+  printf '#!/bin/bash\nexit 0\n' >"$wake_bin/$helper"
+done
+chmod +x "$wake_bin"/*
+
+run_wake() {
+  CALL_LOG="$call_log" OMARCHY_BACKLIGHT_PATH="$test_tmp/backlight" \
+    PATH="$wake_bin:$mock_bin:$PATH" "$ROOT/bin/omarchy-system-wake"
+}
+
+printf '9830\n' >"$test_tmp/backlight/gmux_backlight/brightness"
+printf '52428\n' >"$test_tmp/backlight/gmux_backlight/actual_brightness"
+: >"$call_log"
+run_wake
+grep -Fx 'brightnessctl -d gmux_backlight set 9830' "$call_log" >/dev/null ||
+  fail "wake re-applies requested gmux_backlight level after hardware reset" "$(<"$call_log")"
+
+printf '9830\n' >"$test_tmp/backlight/gmux_backlight/actual_brightness"
+: >"$call_log"
+run_wake
+[[ ! -s $call_log ]] ||
+  fail "wake skips gmux_backlight write when hardware already matches" "$(<"$call_log")"
+
+rm -rf "$test_tmp/backlight/gmux_backlight"
+: >"$call_log"
+run_wake
+[[ ! -s $call_log ]] ||
+  fail "wake does nothing for backlight on machines without gmux_backlight" "$(<"$call_log")"
+pass "wake restores gmux_backlight only when hardware diverges"
