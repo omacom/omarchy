@@ -36,6 +36,27 @@ assertEqual(
   'Authentication is required to change system settings',
   'polkit preserves custom authorization messages'
 )
+const multilineSh = "Authentication is needed to run `/usr/bin/sh -c\nfor f in /sys/device ... [ -w \"$f\" ] && echo 1 > \"$f\"\ndone\n' as the super user"
+assertEqual(
+  polkit.authorizationLabel(multilineSh),
+  "Authorize running '/usr/bin/sh -c for f in /sys/device ... [ -w \"$f\" ] && echo 1 > \"$f\" done'",
+  'polkit collapses embedded newlines in a multi-line pkexec command'
+)
+assertEqual(
+  polkit.authorizationLabel(multilineSh, undefined, 'Antigravity'),
+  "Authorize Antigravity to run '/usr/bin/sh -c for f in /sys/device ... [ -w \"$f\" ] && echo 1 > \"$f\" done'",
+  'polkit collapses embedded newlines in a multi-line agent pkexec command'
+)
+assertEqual(
+  polkit.authorizationLabel("Authentication is required\nto update\tfirmware\n"),
+  'Authentication is required to update firmware',
+  'polkit collapses embedded newlines in custom authorization messages'
+)
+assertEqual(
+  polkit.promptProgram(multilineSh),
+  "/usr/bin/sh -c\nfor f in /sys/device ... [ -w \"$f\" ] && echo 1 > \"$f\"\ndone\n",
+  'promptProgram preserves raw newlines so requester matching stays exact'
+)
 
 // A command that knows what its pkexec is for labels the prompt for that
 // program once, within its minute; any other prompt keeps its own.
@@ -90,6 +111,7 @@ const fs = require('fs')
 const vm = require('vm')
 const agentSource = fs.readFileSync(path.join(root, 'shell/plugins/polkit/PolkitAgent.qml'), 'utf8')
 const dialogExpr = agentSource.match(/readonly property bool dialogVisible:\s*([^\n]+)/)[1]
+const labelProgramExpr = agentSource.match(/readonly property string labelProgram:\s*([^\n]+)/)[1]
 const extractFn = (name, required = true) => {
   const m = agentSource.match(new RegExp(`^( *)function ${name}\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\1\\}`, 'm'))
   if (!m) {
@@ -139,6 +161,7 @@ const makeScope = () => {
   scope.root = scope
   vm.createContext(scope)
   vm.runInContext([
+    extractFn('authorizationLabel'),
     extractFn('clearRequester'),
     extractFn('resetSnapshot'),
     extractFn('syncFromFlow'),
@@ -153,6 +176,7 @@ const makeScope = () => {
     `function onAgentActiveChanged(isActive) { ${activeHandler} }`,
   ].filter(Boolean).join('\n'), scope)
   scope.isDialogVisible = () => vm.runInContext(`(${dialogExpr})`, scope)
+  scope.getLabelProgram = () => vm.runInContext(`(${labelProgramExpr})`, scope)
   return scope
 }
 
@@ -202,6 +226,21 @@ const makeScope = () => {
   assertEqual(s.currentLabel, 'Unlock Backup', 'delayed polkit teardown preserves the drive label')
   s.driveChecked('/dev/sdb1', 0, '')
   assert(!s.isDialogVisible(), 'successful drive unlock hides the overlay immediately')
+}
+{
+  // Multi-line labels and commands collapse to a single line in the pill,
+  // and whitespace-only messages fall back to the default prompt.
+  const s = makeScope()
+  s.currentLabel = 'Apply\nGPU   workaround'
+  s.currentMessage = multilineSh
+  assertEqual(s.authorizationLabel(multilineSh), 'Apply GPU workaround', 'agent authorizationLabel flattens multi-line custom labels')
+  assertEqual(
+    s.getLabelProgram(),
+    '/usr/bin/sh -c for f in /sys/device ... [ -w "$f" ] && echo 1 > "$f" done',
+    'agent labelProgram flattens multi-line commands for display'
+  )
+  s.currentLabel = '   \n  '
+  assertEqual(s.authorizationLabel('  \n\t '), 'polkit.authenticationNeeded', 'whitespace-only label and message fall back to default authentication prompt')
 }
 JS
 
@@ -288,3 +327,12 @@ fake_process 200 1 foot "$uid"
 fake_process 201 200 pkexec "$uid" /usr/bin/true
 [[ -z $(requester /usr/bin/true) ]] || fail "polkit names no agent when two waiting pkexecs disagree"
 pass "polkit names no agent when two waiting pkexecs disagree"
+
+rm -rf "${proc_dir:?}"/*
+multiline_script=$'for f in /sys/devices/system/cpu/cpu*/cpufreq/boost; do\n  [ -w "$f" ] && echo 1 > "$f"\ndone'
+fake_process 100 1 agy "$uid"
+fake_process 101 100 pkexec "$uid" /usr/bin/sh -c "$multiline_script"
+multiline_raw="/usr/bin/sh -c $multiline_script"
+multiline_shown="${multiline_raw:0:38} ... ${multiline_raw: -37}"
+[[ $(requester "$multiline_shown") == $'agy\tAntigravity\t1' ]] || fail "polkit still recognizes the agent behind a multi-line pkexec command"
+pass "polkit still recognizes the agent behind a multi-line pkexec command"

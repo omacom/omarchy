@@ -79,12 +79,14 @@ Item {
   // A command's label never stands in for what pkexec runs: the program gets
   // a line of its own under it, which a long label can't push out of view.
   function authorizationLabel(message) {
-    if (currentLabel !== "") return currentLabel
-    return message ? PolkitModel.authorizationLabel(message, I18n.t, currentAgent ? currentAgent.name : "") : I18n.t("polkit.authenticationNeeded")
+    var label = PolkitModel.singleLine(currentLabel)
+    if (label !== "") return label
+    var text = message ? PolkitModel.authorizationLabel(message, I18n.t, currentAgent ? currentAgent.name : "") : ""
+    return text !== "" ? text : I18n.t("polkit.authenticationNeeded")
   }
 
   // The program a labelled prompt runs, for the line under the label.
-  readonly property string labelProgram: currentLabel !== "" ? PolkitModel.promptProgram(currentMessage) : ""
+  readonly property string labelProgram: PolkitModel.singleLine(currentLabel) !== "" ? PolkitModel.singleLine(PolkitModel.promptProgram(currentMessage)) : ""
 
   ShellIpc {
     target: "omarchy.polkit"
@@ -566,15 +568,21 @@ Item {
     Rectangle {
       // Waits for the agent with the mark when its line names it, unless a
       // label is already known.
-      visible: !root.requesterPending || root.currentLabel !== ""
+      visible: !root.requesterPending || PolkitModel.singleLine(root.currentLabel) !== ""
       // Measured apart from the lines, whose width follows this one.
-      width: Math.min(Math.ceil(Math.max(labelMetrics.advanceWidth, root.labelProgram !== "" ? programMetrics.advanceWidth : 0)) + Style.space(24), panel.width - Style.gapsOut * 2)
-      height: root.labelProgram !== "" ? justificationLines.implicitHeight + Style.space(16) : Style.space(28)
+      width: {
+        var labelWidth = Math.max(labelMetrics.advanceWidth, labelMetrics.boundingRect.width)
+        var programWidth = root.labelProgram !== "" ? Math.max(programMetrics.advanceWidth, programMetrics.boundingRect.width) : 0
+        var naturalWidth = Math.ceil(Math.max(labelWidth, programWidth)) + Style.space(24)
+        return panel.width > 0 ? Math.min(naturalWidth, Math.max(0, panel.width - Style.gapsOut * 2)) : naturalWidth
+      }
+      height: Math.max(Style.space(28), justificationLines.implicitHeight + Style.space(root.labelProgram !== "" ? 16 : 10))
       anchors.horizontalCenter: card.horizontalCenter
       anchors.bottom: card.top
       anchors.bottomMargin: Style.space(10)
       radius: root.cornerRadius
       color: root.background
+      clip: true
 
       TextMetrics { id: labelMetrics; font: justificationText.font; text: justificationText.text }
       TextMetrics { id: programMetrics; font: programText.font; text: programText.text }
@@ -592,6 +600,7 @@ Item {
           id: justificationText
           textFormat: Text.PlainText
           width: parent.width
+          maximumLineCount: 1
           text: root.authorizationLabel(root.currentMessage)
           color: root.foreground
           font.family: root.fontFamily
@@ -604,6 +613,7 @@ Item {
           id: programText
           textFormat: Text.PlainText
           width: parent.width
+          maximumLineCount: 1
           visible: text !== ""
           text: root.labelProgram
           color: root.foreground
