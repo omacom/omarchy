@@ -105,8 +105,6 @@ ShellRoot {
     }
   }
 
-  // A tray as far as the bar sees one: it hosts the tray section, and says
-  // which edge the section's widgets grow from.
   Component {
     id: testButton
 
@@ -119,9 +117,13 @@ ShellRoot {
       fixedWidth: 30
       fixedHeight: 20
       onPressed: root.taps++
+      onModuleNameChanged: if (moduleName) root.bump("made", moduleName)
+      Component.onDestruction: root.bump("gone", moduleName)
     }
   }
 
+  // A tray as far as the bar sees one: it hosts the tray section, and says
+  // which edge the section's widgets grow from.
   Component {
     id: testTray
 
