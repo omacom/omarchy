@@ -1005,8 +1005,7 @@ Item {
 
   function moduleDropAtScene(scenePoint, sourceSlot) {
     var sourceWindow = root.slotWindow(sourceSlot) || root.barDragWindow
-    // A drop lands only over the bar strip. The window spans its whole
-    // screen, so its own bounds are not the bar's.
+    // A drop lands only over the bar strip.
     if (moduleRemoveDistance(windowScreenPoint(scenePoint, sourceWindow)) > 0) return null
 
     // The tray cannot go into its own drawer.
@@ -1309,8 +1308,6 @@ Item {
 
   // How far past the bar the drag point sits, in screen coordinates: past
   // the strip its screen's bar surface draws, thickness deep along its edge.
-  // The strip, not the window, is the boundary: the window spans the whole
-  // screen (BarPanel).
   function moduleRemoveDistance(screenPoint) {
     var screen = barDragScreen
     if (!screen) return 0
@@ -1683,39 +1680,30 @@ Item {
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
     visible: cutoutWaitOver || !cutoutPending
-    // An explicit zone instead of Auto: the reserved area stays the strip's
-    // thickness though the window spans its screen.
+    // An explicit zone instead of Auto, so it moves with the surface's
+    // thickness in the same commit (settle below).
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: thickness
+    exclusiveZone: surfaceThickness
 
-    // While this window's widget or bar-move drag is live, the whole surface
-    // takes input (mask below), so the pointer never leaves the bar surface
-    // however far the drag goes. That is what keeps the gesture alive: while
-    // nothing on the workspace holds keyboard focus (an empty workspace),
-    // Hyprland picks a pointer target again on a surface commit, and a
-    // pointer that has strayed onto another surface is pulled off the bar
-    // mid-drag, ending the gesture with a synthesized release.
     // sameWindow, not identity: the drag records the QsWindow interface of
     // the slot's window, which is not this PanelWindow object itself.
     readonly property bool dragActive: (root.barDragSource !== null && root.sameWindow(root.barDragWindow, barWindow)) ||
       (root.barMoveActive && root.sameWindow(root.barMoveWindow, barWindow))
 
-    // Parked by the whole surface, which spans its screen, so none of it
-    // stays on screen: not the strip, however thick a notch floor makes it,
-    // nor the clear rest that a drag takes input on.
-    readonly property real parkDistance: root.vertical ? implicitWidth : implicitHeight
+    // Parked by its whole thickness, so none of it stays on screen however
+    // thick a notch floor makes it.
     margins {
-      top: root.barHidden && root.position === "top" ? -barWindow.parkDistance : 0
-      bottom: root.barHidden && root.position === "bottom" ? -barWindow.parkDistance : 0
-      left: root.barHidden && root.position === "left" ? -barWindow.parkDistance : 0
-      right: root.barHidden && root.position === "right" ? -barWindow.parkDistance : 0
+      top: root.barHidden && barWindow.surfaceEdge === "top" ? -barWindow.surfaceThickness : 0
+      bottom: root.barHidden && barWindow.surfaceEdge === "bottom" ? -barWindow.surfaceThickness : 0
+      left: root.barHidden && barWindow.surfaceEdge === "left" ? -barWindow.surfaceThickness : 0
+      right: root.barHidden && barWindow.surfaceEdge === "right" ? -barWindow.surfaceThickness : 0
     }
 
     anchors {
-      top: root.position === "top" || root.vertical
-      bottom: root.position === "bottom" || root.vertical
-      left: root.position === "left" || !root.vertical
-      right: root.position === "right" || !root.vertical
+      top: barWindow.surfaceEdge === "top" || barWindow.surfaceVertical
+      bottom: barWindow.surfaceEdge === "bottom" || barWindow.surfaceVertical
+      left: barWindow.surfaceEdge === "left" || !barWindow.surfaceVertical
+      right: barWindow.surfaceEdge === "right" || !barWindow.surfaceVertical
     }
 
     readonly property var panelMode: root.panelModeFor(screen)
@@ -1725,7 +1713,6 @@ Item {
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false
     onCutoutPendingChanged: if (!cutoutPending) cutoutWaitOver = true
-    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
 
     Timer {
       interval: 2000
@@ -1736,16 +1723,94 @@ Item {
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
 
-    // The surface spans its screen at all times, transparent past the strip
-    // it paints; a drag toggles only its input region. Growing the surface
-    // for a drag instead flashes the strip's stale buffer stretched across
-    // the new size until the next frame lands, and the size can't come from
-    // anchoring all four edges either, which would void the exclusive zone
-    // (layer-shell reserves space from the one anchored edge) and drop tiled
-    // windows behind the bar. Glassy blur stays on the strip: Hyprland's
-    // ignore_alpha leaves the clear rest of the surface unblurred.
-    implicitWidth: root.vertical ? (screen ? screen.width : thickness) : 0
-    implicitHeight: root.vertical ? 0 : (screen ? screen.height : thickness)
+    // The surface is the strip and nothing more: a drag that strays off it
+    // keeps the pointer because the compositor holds a pressed surface's
+    // pointer focus until release. Omarchy's Hyprland carries that for an
+    // empty workspace (held-pointer-without-keyboard-focus.patch); stock
+    // Hyprland drops it there unless something holds keyboard focus.
+    //
+    // A resize, turning to a side edge or changing thickness, commits the new
+    // size with the last buffer still attached, and Hyprland draws that
+    // buffer across the new size until a frame at it lands: the strip laid
+    // out for its new size, stretched or squeezed into the box. So a resize
+    // settles: the strip turns clear, the surface resizes behind a clear
+    // buffer, and the strip comes back once a frame at the new size is up.
+    // Bound until completion, then held.
+    property string surfaceEdge: root.position
+    property int surfaceThickness: thickness
+    readonly property bool surfaceVertical: surfaceEdge === "left" || surfaceEdge === "right"
+    implicitWidth: surfaceVertical ? surfaceThickness : 0
+    implicitHeight: surfaceVertical ? 0 : surfaceThickness
+
+    // clearing: waiting on a clear frame before resizing. revealing: waiting
+    // on a frame at the new size before showing the strip again.
+    property string settle: ""
+    property int settleFrames: 0
+
+    // A function, not a binding: it runs inside the position and thickness
+    // change handlers, where a binding on either may not have caught up yet.
+    function resizes() {
+      var vertical = root.position === "left" || root.position === "right"
+      return vertical !== surfaceVertical || thickness !== surfaceThickness
+    }
+
+    function holdSurface() {
+      surfaceEdge = root.position
+      surfaceThickness = thickness
+    }
+
+    // Mid-settle, the resize takes whatever is current when it lands. Moving
+    // between opposite edges keeps the size, and hidden, unmapped or never
+    // sized nothing shows, so none of those needs a settle.
+    function follow() {
+      if (settle !== "") return
+      if (resizes() && visible && !root.barHidden && surfaceThickness > 0) {
+        settle = "clearing"
+        settleFrames = 0
+        barStrip.Window.window.update()
+      } else {
+        holdSurface()
+      }
+    }
+
+    Component.onCompleted: {
+      holdSurface()
+      if (!cutoutPending) cutoutWaitOver = true
+    }
+    onThicknessChanged: follow()
+    Connections {
+      target: root
+      function onPositionChanged() { barWindow.follow() }
+    }
+
+    // Counts this window's own presented frames, asking for the next each
+    // time. Two after the strip turns clear, the clear one is up even with
+    // an opaque frame already in flight.
+    Connections {
+      target: barWindow.settle !== "" ? barStrip.Window.window : null
+      function onFrameSwapped() {
+        barWindow.settleFrames++
+        if (barWindow.settle === "clearing") {
+          if (barWindow.settleFrames >= 2) {
+            barWindow.holdSurface()
+            barWindow.settle = "revealing"
+            barWindow.settleFrames = 0
+          }
+        } else if (barWindow.resizes()) {
+          barWindow.settle = "clearing"
+          barWindow.settleFrames = 0
+        } else {
+          barWindow.holdSurface()
+          var span = barWindow.surfaceVertical ? barWindow.width : barWindow.height
+          if (span === barWindow.surfaceThickness && barWindow.settleFrames >= 1) {
+            barWindow.settle = ""
+            return
+          }
+        }
+        barStrip.Window.window.update()
+      }
+    }
+
     color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
@@ -1771,19 +1836,13 @@ Item {
       }
     }
 
-    // Idle, only the strip takes input, so the clear expanse passes clicks
-    // through to the windows and desktop below. Under a fullscreen window
-    // nothing does: Hyprland 0.56 passes the pointer through a faded top
-    // layer only while it holds the layer below fullscreen, and it lifts
-    // every layer on the monitor back above whenever a window on any other
-    // workspace leaves fullscreen, or the layer remaps. The invisible strip
-    // would then take the clicks meant for the top of the fullscreen window.
-    mask: dragActive ? null : (underFullscreen ? noInputRegion : stripInputRegion)
-
-    Region {
-      id: stripInputRegion
-      item: barStrip
-    }
+    // Under a fullscreen window the strip takes no input: Hyprland 0.56
+    // passes the pointer through a faded top layer only while it holds the
+    // layer below fullscreen, and it lifts every layer on the monitor back
+    // above whenever a window on any other workspace leaves fullscreen, or
+    // the layer remaps. The invisible strip would then take the clicks meant
+    // for the top of the fullscreen window.
+    mask: underFullscreen && !dragActive ? noInputRegion : null
 
     Region {
       id: noInputRegion
@@ -1792,6 +1851,7 @@ Item {
     // The bar itself, along its screen edge.
     Item {
       id: barStrip
+      opacity: barWindow.settle === "" ? 1 : 0
 
       x: root.position === "right" ? parent.width - barWindow.thickness : 0
       y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
