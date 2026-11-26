@@ -55,13 +55,13 @@ Item {
   property string backgroundPath: ""
   property string videoPosterPath: ""
   property int backgroundVersion: 0
-  // The wallpaper file's mtime and size. The lock caches its wallpaper by
-  // version, so a file overwritten in place must bump the version too.
   // The layout being typed in, shown under the field when there is more than one.
   property string keyboardLayout: ""
   property bool multipleKeyboardLayouts: false
   property string switchedKeyboardName: ""
   property bool keyboardLayoutRefreshPending: false
+  // The wallpaper file's mtime and size. The lock caches its wallpaper by
+  // version, so a file overwritten in place must bump the version too.
   property string backgroundSignature: ""
   property string lastEvent: "init"
   property string lastEventAt: ""

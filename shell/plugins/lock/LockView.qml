@@ -245,9 +245,6 @@ Item {
       }
     }
 
-    // The crossed-out icon has no meaning to a user who has never seen it — it
-    // is not intuitive that it signals a broken reader — so the words carry the
-    // explanation and the icon only reinforces it.
     // The layout a masked password is going in, for a seat that has more than
     // one: their digits and letters differ, and a guess reads as a wrong password.
     Text {
@@ -265,6 +262,9 @@ Item {
       horizontalAlignment: Text.AlignHCenter
     }
 
+    // The crossed-out icon has no meaning to a user who has never seen it — it
+    // is not intuitive that it signals a broken reader — so the words carry the
+    // explanation and the icon only reinforces it.
     Text {
       objectName: "fingerprintUnavailableNotice"
       textFormat: Text.PlainText
