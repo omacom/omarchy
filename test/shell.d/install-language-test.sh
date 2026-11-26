@@ -58,8 +58,9 @@ pass "seeding sets the user's language and session LANG without elevating or not
 # timezone; the function is taken from owner setup itself. Owner setup exports
 # OMARCHY_PATH, which the scripts it runs need and a systemd service has none
 # of.
-grep -qxF 'export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"' "$ROOT/bin/omarchy-provision-owner" ||
-  fail "owner setup exports OMARCHY_PATH to the scripts it runs"
+preamble=$(sed '/^if (( EUID != 0 )); then$/,$d' "$ROOT/bin/omarchy-provision-owner")
+[[ $(env -u OMARCHY_PATH bash -c "$preamble"$'\n''printenv OMARCHY_PATH') == "/usr/share/omarchy" ]] ||
+  fail "owner setup hands OMARCHY_PATH to the scripts it runs"
 eval "$(sed -n '/^configure_region() {$/,/^}$/p' "$ROOT/bin/omarchy-provision-owner")"
 region_root=$scratch/region
 mkdir -p "$region_root/omarchy/bin" "$region_root/omarchy/install/config" "$region_root/etc/omarchy"
@@ -74,7 +75,7 @@ printf '[omarchy]\nServer = https://pkgs.omarchy.cn/stable/$arch\nServer = https
 # settle <installed region> <timezone>: the region the owner ends up with.
 settle() {
   timezone=$2
-  if [[ $1 == global ]]; then rm -f "$OMARCHY_REGION_FILE"; else printf '%s\n' "$1" >"$OMARCHY_REGION_FILE"; fi
+  if [[ $1 == "global" ]]; then rm -f "$OMARCHY_REGION_FILE"; else printf '%s\n' "$1" >"$OMARCHY_REGION_FILE"; fi
   : >"$REGION_LOG"
   configure_region >/dev/null
   [[ -e $OMARCHY_REGION_FILE ]] && cat "$OMARCHY_REGION_FILE" || echo global
