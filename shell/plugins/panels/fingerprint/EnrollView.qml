@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import qs.Commons
 import qs.Commons as Commons
+import qs.Ui as Ui
 import "EnrollmentModel.js" as Model
 
 // A big fingerprint on a dark scrim with one status line under it. It arrives
@@ -113,9 +114,9 @@ Item {
 
   focus: true
   Keys.onEscapePressed: view.closeRequested()
-  // Enter tries again after a failure. A finished run signs off by itself.
-  Keys.onReturnPressed: if (view.ctl.phase === "failed") view.ctl.begin()
-  Keys.onEnterPressed: if (view.ctl.phase === "failed") view.ctl.begin()
+  // Enter follows the same recovery action as the button for a managed add.
+  Keys.onReturnPressed: if (view.ctl.phase === "failed") view.ctl.resumeAfterFailure()
+  Keys.onEnterPressed: if (view.ctl.phase === "failed") view.ctl.resumeAfterFailure()
 
   Column {
     anchors.centerIn: parent
@@ -248,6 +249,19 @@ Item {
       font.pixelSize: Style.font.heading
       horizontalAlignment: Text.AlignHCenter
       wrapMode: Text.Wrap
+    }
+
+    Ui.Button {
+      anchors.horizontalCenter: parent.horizontalCenter
+      visible: view.ctl.phase === "failed" && !!view.ctl.managedReader
+      text: Commons.I18n.t("fingerprint.backToSaved")
+      foreground: "white"
+      bordered: true
+      focusable: true
+      Accessible.role: Accessible.Button
+      Accessible.name: text
+      Accessible.onPressAction: clicked()
+      onClicked: view.ctl.resumeAfterFailure()
     }
   }
 }

@@ -137,6 +137,7 @@ Item {
       anchors.fill: parent
       active: root.opened && root.managing
       sourceComponent: ManagementView {
+        initialReader: enrollment.managedReader
         onCloseRequested: root.dismiss()
         onAddRequested: function(reader, finger) {
           root.managing = false

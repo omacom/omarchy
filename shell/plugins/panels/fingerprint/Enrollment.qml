@@ -35,6 +35,7 @@ Item {
   // (full: the reader already holds all ten fingers)
   property string phase: "idle"
   property string finger: ""
+  property string managedReader: ""
   property int stage: 0
   property int stages: 0
   property string hint: ""
@@ -89,6 +90,7 @@ Item {
 
   function start(reader, slot) {
     if (run.running) return
+    managedReader = reader || ""
     if (reader) {
       stage = 0
       stages = 0
@@ -116,6 +118,7 @@ Item {
   }
 
   function cancel() {
+    managedReader = ""
     if (run.running) {
       cancelling = true
       // The line reaches a helper pkexec has made root; the signal reaches
@@ -129,6 +132,13 @@ Item {
     statusProc.running = false
     phase = "idle"
     hint = ""
+  }
+
+  function resumeAfterFailure() {
+    // A failed verifying touch may follow a successful enrollment. List the
+    // same reader again so its newly saved print is available to verify.
+    if (managedReader) managementRequested()
+    else begin()
   }
 
   function fail(code) {

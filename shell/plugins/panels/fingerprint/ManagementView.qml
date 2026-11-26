@@ -8,6 +8,7 @@ import "EnrollmentModel.js" as Model
 
 FocusScope {
   id: view
+  property string initialReader: ""
   signal closeRequested()
   signal addRequested(string reader, string finger)
   readonly property bool authorizing: ctl.authorizing
@@ -71,6 +72,7 @@ FocusScope {
 
   Management {
     id: ctl
+    reader: view.initialReader
     onRefreshed: if (!view.entry) { view.selected = ""; view.confirming = false; editor.text = "" }
   }
 

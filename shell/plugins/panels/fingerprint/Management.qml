@@ -24,7 +24,7 @@ Item {
     list.command = [helper, "list", reader]
     list.running = true
   }
-  Component.onCompleted: refresh("")
+  Component.onCompleted: refresh(reader)
 
   function run(name, command) {
     action = name
