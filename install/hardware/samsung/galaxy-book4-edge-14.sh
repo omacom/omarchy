@@ -14,13 +14,10 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree samsung,galaxy-bo
   # usbcore is built into linux-omarchy, so the usb-autosuspend modprobe option
   # never reaches it; hubs then autosuspend after 2 s and the USB-C hub drops
   # off the bus.
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/samsung-galaxy-book4-edge-14.conf" <<'CONF'
-# Keep the AOSS out of sleep, which this laptop doesn't resume from.
-KERNEL_CMDLINE[default]+=" qcom_aoss.prevent_aoss_sleep=1"
-# Keep USB hubs from autosuspending; usbcore is built in, so modprobe.d can't.
-KERNEL_CMDLINE[default]+=" usbcore.autosuspend=-1"
-CONF
+  # Keep the AOSS out of sleep, which this laptop doesn't resume from, and
+  # USB hubs from autosuspending (usbcore is built in, so modprobe.d can't).
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set samsung-galaxy-book4-edge-14 \
+    qcom_aoss.prevent_aoss_sleep=1 usbcore.autosuspend=-1
 
   # The disk unlock prompt stays black when msm is in the initramfs. It binds
   # the display, which ends the firmware framebuffer's scanout, but can't

@@ -1445,5 +1445,11 @@
   },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "system.snapshots": {
+    "label": "ஸ்னாப்ஷாட்கள்"
+  },
+  "system.snapshots.restore": {
+    "label": "இந்த ஸ்னாப்ஷாட்டை மீட்டமை"
   }
 }
