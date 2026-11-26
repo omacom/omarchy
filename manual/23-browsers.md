@@ -4,6 +4,10 @@ Omarchy ships with [Google Chrome](https://www.google.com/chrome/) as the defaul
 
 If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find [Chromium](https://www.chromium.org/) (the plain open-source build Chrome is made from), Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/) (Edge on x86 machines only). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
 
+## Coming from Chromium
+
+Installs from before Chrome became the default keep Chromium. If it's still your default, the update that brings Chrome offers the move once, in a notification that stays on screen, across reboots, until you answer it. _Switch to Chrome_ installs Chrome, makes it the default, closes Chromium, swaps it for Chrome in the dock, and opens Chrome. Chrome starts with a profile of its own, so you'll be signed out of every site, but Chromium stays installed with everything in it. _Nevermind_ keeps Chromium, and you can still switch later under _Setup > Defaults > Browser_.
+
 ## Making one the default
 
 Installing a browser doesn't promote it. To switch, go to _Setup > Defaults > Browser_ and pick one. The current default is marked with a check, and picking a browser you don't have yet installs it first.
