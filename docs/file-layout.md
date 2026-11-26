@@ -346,7 +346,7 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-boot-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
+- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-boot-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`, `omarchy-clock-resync.timer`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
 - `omarchy-lifecycle-dispatch setup-user` — the platform's own user setup,
   now with the session up (a no-op where the platform registers none; see
   [lifecycle-dispatch.md](lifecycle-dispatch.md)).
