@@ -406,7 +406,7 @@ Item {
         Text {
           anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: Style.spacing.sm
           visible: root.selectedPreviewImages.length > 1
-          text: (root.previewIndex + 1) + " / " + root.selectedPreviewImages.length
+          text: Commons.I18n.t("marketplace.previewPosition").arg(Commons.I18n.formatNumber(root.previewIndex + 1, 0)).arg(Commons.I18n.formatNumber(root.selectedPreviewImages.length, 0))
           textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
       }
