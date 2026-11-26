@@ -341,10 +341,12 @@ def read_band_info_for(iface: str, ssid: str, freq_mhz: int | None, con_uuid: st
     return {"current": current, "selected": selected, "available": available}
 
 
+def omarchy_bin(name: str) -> str:
+    return os.path.join(os.environ["OMARCHY_PATH"], "bin", name)
+
+
 def read_band_info() -> dict:
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    band_bin = os.path.join(script_dir, "omarchy-network-band")
-    proc = run_cmd([band_bin])
+    proc = run_cmd([omarchy_bin("omarchy-network-band")])
     info = {"current": "", "selected": "auto", "available": []}
     if proc.returncode != 0:
         return info
@@ -976,10 +978,8 @@ def cmd_band(args: list[str], as_json: bool) -> int:
         raise UsageError("Usage: omarchy network wifi band [auto|2.4|5|6]")
     if pos and pos[0] not in ("auto", "2.4", "5", "6"):
         raise UsageError(f"invalid band '{pos[0]}' (expected auto, 2.4, 5, or 6)")
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    band_bin = os.path.join(script_dir, "omarchy-network-band")
     if pos:
-        run_cmd([band_bin, pos[0]], check=True)
+        run_cmd([omarchy_bin("omarchy-network-band"), pos[0]], check=True)
     info = read_band_info()
     if as_json:
         print(json.dumps(info))
@@ -1101,9 +1101,7 @@ def main(argv: list[str]) -> int:
         dev = pick_wifi_device(pos[0] if pos else None)
         if dev is None or dev["state"] != "connected":
             raise RuntimeError("no active Wi-Fi connection")
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        pw_bin = os.path.join(script_dir, "omarchy-network-password")
-        proc = run_cmd([pw_bin, dev["device"]], check=True)
+        proc = run_cmd([omarchy_bin("omarchy-network-password"), dev["device"]], check=True)
         pw = proc.stdout.rstrip("\r\n")
         if as_json:
             print(json.dumps({"interface": dev["device"], "ssid": dev["connection"], "password": pw}))
