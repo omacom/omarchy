@@ -13,7 +13,7 @@ from gi.repository import GLib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "default/fingerprint"))
 from names import Names
-from reader import DEVICE, SERVICE, Reader, ScanGuide
+from reader import APPLE_READER, DEVICE, SERVICE, Reader, ScanGuide, enrollment_capacity
 
 PATH = "/net/reactivated/Fprint/Device/0"
 PROPS = "org.freedesktop.DBus.Properties"
@@ -36,6 +36,11 @@ class Device(dbus.service.Object):
   def ListEnrolledFingers(self, user):
     assert user == ""
     return self.fingers
+
+  @dbus.service.method(DEVICE, in_signature="s")
+  def DeleteEnrolledFinger(self, finger):
+    self.calls.append("delete " + str(finger))
+    self.fingers.remove(finger)
 
   @dbus.service.signal(PROPS, signature="sa{sv}as")
   def PropertiesChanged(self, interface, changed, invalidated):
@@ -90,7 +95,7 @@ class ReaderTest(unittest.TestCase):
     cls.bus = dbus.SessionBus()
     cls.device = Device(cls.bus)
 
-  def scan(self, mode, finger):
+  def scan(self, mode, finger, **kwargs):
     results = []
     loop = GLib.MainLoop()
     def update(status, detail, done):
@@ -99,11 +104,24 @@ class ReaderTest(unittest.TestCase):
         loop.quit()
     reader = Reader(os.environ["DBUS_SESSION_BUS_ADDRESS"], PATH, update)
     timeout = GLib.timeout_add_seconds(4, lambda: loop.quit())
-    reader.start(mode, finger)
+    reader.start(mode, finger, **kwargs)
     loop.run()
     GLib.source_remove(timeout)
     self.assertTrue(reader.closed, results)
     return results
+
+  def test_full_apple_reader_can_replace_only_the_chosen_print(self):
+    original = list(self.device.fingers)
+    self.addCleanup(setattr, self.device, "fingers", original)
+    self.device.fingers = ["right-index-finger", "left-index-finger", "left-middle-finger"]
+    capacity = enrollment_capacity(APPLE_READER)
+    self.assertEqual(self.scan("Enroll", "right-thumb", capacity=capacity), ["enroll-data-full"])
+    self.assertEqual(self.device.calls[-2:], ["claim", "release"])
+    self.assertEqual(self.scan("Delete", "left-index-finger"), ["removed"])
+    self.assertEqual(self.device.calls[-3:], ["claim", "delete left-index-finger", "release"])
+    self.assertEqual(self.device.fingers, ["right-index-finger", "left-middle-finger"])
+    self.assertEqual(self.scan("Enroll", "right-thumb", capacity=capacity)[-1], "enroll-completed")
+    self.assertEqual(self.scan("Enroll", "left-thumb", capacity=enrollment_capacity("USB reader"))[-1], "enroll-completed")
 
   def test_new_finger_preserves_existing_and_uses_reader_completion(self):
     self.assertEqual(self.scan("Enroll", "left-index-finger"),

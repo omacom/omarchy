@@ -8,6 +8,16 @@ FINGERS = [side + "-" + finger for side in ("right", "left") for finger in
            ("index-finger", "thumb", "middle-finger", "ring-finger", "little-finger")]
 
 
+APPLE_READER = "Apple secure enclave fingerprint sensor"
+
+
+def enrollment_capacity(reader_name):
+  # Apple's Aurora driver uses one SEP user context with three slots
+  # (drivers/soc/apple/bio.rs, SEP_USER_CAPACITY). fprintd exposes ten
+  # finger names, but does not expose the device's physical capacity.
+  return 3 if reader_name == APPLE_READER else len(FINGERS)
+
+
 class ScanGuide:
   """Interpret capture results without guessing whether the finger lifted."""
 
@@ -62,7 +72,7 @@ class Reader:
     self.bus.call(SERVICE, self.path, DEVICE, method, args, None,
                   Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION, 120000, None, reply)
 
-  def start(self, mode, finger):
+  def start(self, mode, finger, capacity=len(FINGERS)):
     self.mode = mode
     def claimed(_, error):
       if error:
@@ -71,7 +81,10 @@ class Reader:
       self.claimed = True
       # Check while holding the claim. Someone else may have enrolled this
       # slot between opening the window and clicking Add.
-      if mode == "Enroll":
+      if mode == "Delete":
+        self.call("DeleteEnrolledFinger", GLib.Variant("(s)", (finger,)),
+                  lambda _, error: self.done("error", error.message) if error else self.done("removed", ""))
+      elif mode == "Enroll":
         self.call("ListEnrolledFingers", GLib.Variant("(s)", ("",)), listed)
       else:
         begin()
@@ -80,6 +93,8 @@ class Reader:
         self.done("error", error.message)
       elif reply and finger in reply[0]:
         self.done("enroll-duplicate", "")
+      elif reply and len(set(reply[0])) >= capacity:
+        self.done("enroll-data-full", "")
       else:
         begin()
     def begin():

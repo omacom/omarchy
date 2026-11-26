@@ -6,6 +6,8 @@ On a computer with a supported reader, the installer offers to open _Fingerprint
 
 Select _Add fingerprint_ and touch the reader with the finger you want to enroll. After each accepted scan, lift and touch again at a slightly different angle. The reader decides when it has enough scans. Keep the suggested name, such as _Finger 1_, or enter your own. You can rename a saved fingerprint with its pencil button and check it with _Verify_. The names belong to your Omarchy account. Other fprintd tools may show their own finger names. To enable desktop unlock, turn on _Unlock with a fingerprint_, verify a saved finger and confirm the administrator prompt if asked. Lock the desktop with `Super + Ctrl + L`. Your password remains available.
 
+The current Apple Touch ID driver has room for three fingerprints in its Linux reader context. If the reader is full, select the pencil beside the fingerprint you want to replace, choose _Remove fingerprint_, and confirm the name. You can then add a new fingerprint. _Verify_ lets you check which finger a saved name belongs to before removing it.
+
 For the terminal workflow that also configures `sudo` and system authorization prompts, run `omarchy setup security fingerprint`.
 
 Once the lock screen has turned the display off, the sensor rests to save power, so wake the screen with any key or the touchpad before touching it.
