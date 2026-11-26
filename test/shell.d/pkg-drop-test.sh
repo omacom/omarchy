@@ -212,6 +212,7 @@ hw_qcom=$(list_hw_executed "$hw_qcom_bin")
 hw_enum=$(list_hw_enumerated "$hw_x86_bin")
 
 ! grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_x86" || fail "x86 execution must skip Qualcomm leaves"
+! grep -qx 'hardware/microsoft/surface-pro-12.sh' <<<"$hw_x86" || fail "x86 execution must skip the Surface Pro 12in leaf"
 ! grep -qx 'hardware/qualcomm/hibernation.sh' <<<"$hw_x86" || fail "x86 execution must skip Qualcomm hibernation leaf"
 ! grep -qx 'hardware/gb10/sleep.sh' <<<"$hw_x86" || fail "x86 execution must skip GB10 leaves"
 ! grep -qx 'hardware/n1x.sh' <<<"$hw_x86" || fail "x86 execution must skip N1x leaf"
@@ -219,12 +220,15 @@ grep -qx 'hardware/nvidia.sh' <<<"$hw_x86" || fail "x86 execution must keep mixe
 grep -qx 'hardware/fix-fkeys.sh' <<<"$hw_x86" || fail "x86 execution must keep fix-fkeys.sh"
 grep -qx 'hardware/apple/fix-brcmfmac-supplicant.sh' <<<"$hw_x86" || fail "x86 execution must keep Intel Apple Broadcom leaf"
 grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_enum" || fail "image enumeration on x86 must include ARM leaves"
+grep -qx 'hardware/microsoft/surface-pro-12.sh' <<<"$hw_enum" || fail "image enumeration must include the Surface Pro 12in leaf"
+grep -qx 'hardware/microsoft/surface-pro-12.sh' <<<"$hw_qcom" || fail "Qualcomm execution must keep the Surface Pro 12in leaf"
 
 grep -qx 'hardware/n1x.sh' <<<"$hw_n1x" || fail "N1x execution must keep N1x leaf"
 grep -qx 'hardware/dell-xps-touchpad-haptics.sh' <<<"$hw_n1x" || fail "N1x execution must keep Dell XPS haptic touchpad leaf"
 ! grep -qx 'hardware/intel/lpmd.sh' <<<"$hw_n1x" || fail "N1x execution must skip Intel leaves"
 ! grep -qx 'hardware/apple/fix-t2.sh' <<<"$hw_n1x" || fail "N1x execution must skip Intel Apple leaves"
 ! grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_n1x" || fail "N1x execution must skip Qualcomm leaves"
+! grep -qx 'hardware/microsoft/surface-pro-12.sh' <<<"$hw_n1x" || fail "N1x execution must skip the Surface Pro 12in leaf"
 ! grep -qx 'hardware/gb10/sleep.sh' <<<"$hw_n1x" || fail "N1x execution must skip GB10 leaves"
 ! grep -qx 'hardware/raspberrypi/raspberry-pi-4.sh' <<<"$hw_n1x" || fail "N1x execution must skip Raspberry Pi leaves"
 
