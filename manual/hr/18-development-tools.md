@@ -1,35 +1,39 @@
-# Alati za razvoj
+# Razvojni alati
 
 ## Alternativni uređivači
 
-Omarchy dolazi s [Neovim](https://neovim.io/) prema zadanim postavkama, ali ako želiš nešto malo mainstream i poznatije, možeš pokrenuti izbornik Omarchy (`Super + Space`) i vidjeti opcije pod _Instaliraj > Editor_. Tamo imamo VSCode, Cursor, Zed, Sublime Text, Helix, Vim i Emacs. Ako ne pronađeš ono što tražiš, pogledaj _Instaliraj > Package_ i provjeri je li u Arch paketu (a ako nije, probaj _Instaliraj > AUR_ za provjeru AUR-a).
+Omarchy na novim instalacijama dolazi s uređivačem Plain kao zadanim uređivačem i unaprijed instaliranim [Neovimom](https://neovim.io/), ali ako želite nešto malo uobičajenije i poznatije, možete pokrenuti Omarchy Menu (`Super + Space`) i pogledati opcije pod _Install > Editor_. Ondje su navedeni VSCode, Cursor, Zed, Sublime Text, Helix, Vim i Emacs. Ako ne pronađete ono što tražite, pogledajte _Install > Package_ i provjerite nije li u nekom Arch paketu (a ako nije, pokušajte s _Install > AUR_ da provjerite AUR).
 
-Izvorni uređivač `vi` također je dostupan odmah po instalaciji. Pokreni `vi filename` za uređivanje datoteke u terminalu.
+Izvorni uređivač `vi` također je dostupan odmah po instalaciji. Pokrenite `vi filename` da biste uredili datoteku u terminalu.
 
 Usklađivanje teme nudi se za `VSCode`, `Cursor`, `VSCodium` i `Helix`.
 
-Zadani uređivač za cijeli sustav možeš postaviti pod `Postavke > Defaults > Editor`.
+Zadani uređivač za cijeli sustav možete postaviti pod `Setup > Defaults > Editor`.
 
 ## Okruženje
 
-Omarchy podržava postavljanje cijelog niza razvojnih okruženja putem odjeljka _Instaliraj > Development_ u izborniku Omarchy (`Super + Space`). Naravno, tamo ćeš pronaći _Ruby on Rails_, ali i sva tri glavna runtimea za JavaScript (Node.js, Bun, Deno), kao i popularne PHP framewokre poput Laravela i Symfonyja. Oh, a tu su i Go, Rust, Python, Java, Elixir (s Phoenixom), .NET, OCaml, Zig, Clojure i Scala. Vrlo širok izbor!
+Omarchy podržava postavljanje cijelog niza razvojnih okruženja putem odjeljka _Install > Development_ u izborniku Omarchy Menu (`Super + Space`). Ondje ćete, naravno, pronaći _Ruby on Rails_, ali i sva tri glavna runtime okruženja za JavaScript (Node.js, Bun, Deno), kao i popularne PHP frameworke poput Laravela i Symfonyja. Oh, a tu su i Go, Rust, Python, Java, Elixir (s Phoenixom), .NET, OCaml, Zig, Clojure i Scala. Izbor je doista vrlo širok!
 
-Većinu ovih okruženja upravlja [Mise](https://mise.jdx.dev/). To je alat koji ti omogućuje instalaciju i pokretanje više verzija programskog jezika na istom računalu. Nešto je poput rbenv ili rvm za Ruby ili virtualenv za Python, ali radi za hrpu različitih okruženja.
+Većinom tih okruženja upravlja [Mise](https://mise.jdx.dev/). To je alat koji vam omogućuje instaliranje i pokretanje više verzija programskog jezika na istom računalu. Poput je rbenva ili rvma za Ruby ili virtualenva za Python, ali radi za hrpu različitih okruženja.
 
-Za instalaciju, recimo, Rubyja, pokreni `mise use -g ruby`, što će instalirati Ruby i postaviti ga kao globalni zadani. Ili, ako tvoj projekt ima datoteku .ruby-version, možeš jednostavno pokrenuti `mise i` u korijenu tog projekta.
+Da biste instalirali, recimo, Ruby, pokrenuli biste `mise use -g ruby`, čime ćete Ruby i instalirati i postaviti kao globalno zadani. Ili, ako vaš projekt ima datoteku .ruby-version, možete jednostavno pokrenuti `mise i` u korijenu tog projekta.
+
+## Unaprijed instalirani CLI alati
+
+`uv`, Node.js i `playwright-cli` (da agenti mogu upravljati preglednikom pomoću instaliranog Chromea) dolaze instalirani kao paketi, a `omarchy update` održava ih ažurnima zajedno s ostatkom sustava. [Hunk](https://github.com/modem-dev/hunk) te GitHub, Basecamp, Cloudflare i HEY CLI-jevi udaljeni su samo jedan odabir pod _Install > CLI_, a [agenti za programiranje](17-ai.md) pod _Install > AI > CLI_.
+
+mise upravlja samo runtime okruženjima koja postavite iz _Install > Development_; Omarchy sam putem njega ništa ne instalira. Pokrenite `omarchy update` da biste ih ažurirali zajedno s ostatkom Omarchyja; alias `mup` ažurira samo alate kojima upravlja mise. Da biste u vlastitu konfiguraciju dodali još jedan alat, upotrijebite `mise use -g <tool>`.
 
 ## Docker
 
-[Docker](https://www.docker.com/) jedva treba uvod. Omogućuje ti pokretanje izoliranih spremnika, a Omarchy instalira sve što je potrebno za dobro pokretanje, uključujući sam Docker i [Docker Compose](https://docs.docker.com/compose/).
+[Docker](https://www.docker.com/) teško da treba ikakvo predstavljanje. Omogućuje vam pokretanje izoliranih spremnika, a Omarchy instalira sve što je potrebno da bi dobro radio, uključujući sam Docker i [Docker Compose](https://docs.docker.com/compose/).
 
-Prema zadanim postavkama tvoj korisnik *nije* u grupi `docker`. Ta grupa je zapravo root bez zaporke — bilo što u njoj može `docker run -v /:/host` i preuzeti računalo — pa bi jedan jedini odmetnuti skript ili ovisnost koja se pokreće kao ti inače bio jednu naredbu udaljen od roota. Zato u naredbenom retku Docker pokrećeš sa `sudo` (`sudo docker ps`, `sudo docker compose up`), a grafički alati koji komuniciraju s daemonom — Windows VM — traže autorizaciju kad im je potrebna. Ako želiš udobnost postave bez grupe natrag i razumiješ kompromis, omogući je iz **Postavke > Security > Sudoless Docker** (ili pokreni `omarchy-setup-security-sudoless-docker`), što te dodaje u grupu `docker` nakon upozorenja; tada obični `docker` i alias `d` opet rade bez `sudo`.
+Vaš korisnik prema zadanim postavkama *nije* u grupi `docker`. Ta je grupa zapravo root bez lozinke — sve što je u njoj može pokrenuti `docker run -v /:/host` i preuzeti računalo — pa bi inače jedna jedina zlonamjerna skripta ili ovisnost koja se pokreće pod vašim korisnikom bila samo jednu naredbu udaljena od roota. Zato u naredbenom retku Docker pokrećete sa `sudo` (`sudo docker ps`, `sudo docker compose up`), a grafički alati koji komuniciraju s demonom — Windows VM — traže autorizaciju kada im je potrebna. Ako želite natrag praktičnost postavke bez grupe i razumijete kompromis, omogućite je iz **Setup > Security > Sudoless Docker** (ili pokrenite `omarchy-setup-security-sudoless-docker`), čime ćete nakon upozorenja biti dodani u grupu `docker`; tada običan `docker` i alias `d` ponovno rade bez `sudo`.
 
-Uobičajene baze podataka za lokalni razvoj u Dockeru možeš postaviti koristeći _Instaliraj > Development > Docker DB_ u izborniku Omarchy.
+Uobičajene baze podataka za lokalni razvoj u Dockeru možete postaviti pomoću _Install > Development > Docker DB_ u izborniku Omarchy.
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) omogućuje ti autentifikaciju s tvojim GitHub računom i kloniranje privatnih repozitorija koristeći ga. Spojen je kao jedan od mise stubova s lijenim učitavanjem, pa se prvi put kad pokreneš `gh`, sam instalira. Za autentifikaciju pokreni `gh auth login`. Zatim možeš preuzeti privatne repozitorije koristeći `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) je `gh`, za rad s repozitorijima, issueima i pull requestovima iz terminala. _Setup > Git_ instalira ga kada se ondje odlučite prijaviti na GitHub, ili ga instalirajte zasebno iz _Install > CLI > GitHub_. Zatim `gh repo clone org/repo` klonira repozitorij; pokrenite `gh --help` da biste istražili njegove naredbe.
 
-S ovom naredbom možeš izvršiti i hrpu drugih GitHub operacija. Samo pokreni `gh` da vidiš sve što je moguće.
-
-Tu je i stub s lijenom instalacijom za `ghui` za upravljanje tvojim pull requestovima u TUI-ju. A [lazygit](https://github.com/jesseduffield/lazygit) je predinstaliran, ako želiš upravljati i samim gitom iz TUI-ja.
+[Lazygit](https://github.com/jesseduffield/lazygit) unaprijed je instaliran za rad sa samim Gitom.

@@ -1,36 +1,36 @@
-# Instalações autônomas
+# Instalações não assistidas
 
-A ISO do Omarchy pode se instalar sozinha, sem ninguém no teclado. Se o instalador encontrar um segundo disco rotulado `cidata` carregando seus arquivos de configuração, ele os copia, pula completamente o assistente de configuração e reinicia no sistema pronto por conta própria. Sem uma compilação especial da ISO, sem uma entrada extra no menu de boot — sem esse disco conectado, nada muda e você tem o assistente normal.
+A ISO do Omarchy pode se instalar sem ninguém no teclado. Se o instalador encontrar um segundo drive com o rótulo `cidata` contendo seus arquivos de configuração, ele os copia, pula o assistente de configuração por completo e reinicia sozinho já no sistema pronto. Nenhum build especial da ISO, nenhuma entrada extra no menu de boot — sem um drive desses conectado, nada muda e você recebe o assistente normal.
 
-Isso torna o Omarchy ótimo como imagem base para ambientes de desenvolvimento descartáveis: crie uma VM no Proxmox ou com o Packer, inicialize-a, vá embora, entre por SSH. `cidata` é o rótulo `NoCloud` do cloud-init, então todas as ferramentas comuns de virtualização já sabem como conectar um disco assim.
+Isso faz do Omarchy uma ótima imagem base para ambientes de desenvolvimento descartáveis: crie uma VM no Proxmox ou com o Packer, inicialize, saia de perto e acesse via SSH. `cidata` é o rótulo `NoCloud` do cloud-init, então todas as ferramentas de virtualização comuns já sabem como anexar um drive assim.
 
 ## Os arquivos de configuração
 
-Os arquivos são exatamente o que o próprio assistente do instalador escreve, então a maneira mais fácil de obter um conjunto inicial é executar uma instalação interativa (em uma VM, digamos) e copiar o que ele escreveu em `/root`:
+Os arquivos são exatamente aqueles que o próprio assistente do instalador grava, então a maneira mais fácil de conseguir um conjunto inicial é executar uma instalação interativa (em uma VM, por exemplo) e copiar o que ele gravou em `/root`:
 
 | Arquivo | Obrigatório | Finalidade |
 |------|----------|---------|
-| `user_configuration.json` | Sim | Disco, hostname, fuso horário, teclado |
-| `user_credentials.json` | Sim | Nome de usuário e hash da senha |
-| `user_full_name.txt` | Não | Nome completo no Git |
-| `user_email_address.txt` | Não | E-mail do Git |
+| `user_configuration.json` | Sim | Disco, nome do host, fuso horário, teclado |
+| `user_credentials.json` | Sim | Nome de usuário e hash da senha, e a frase secreta do LUKS para uma instalação criptografada |
 | `user_encrypt_installation.txt` | Não | `true` quando a configuração carrega um bloco `disk_encryption` |
 | `authorized_keys` | Não | Chaves públicas SSH, uma por linha |
 | `tailscale_authkey` | Não | Chave de autenticação do Tailscale para entrar na sua tailnet na primeira inicialização |
 
-Gere o hash da senha para `user_credentials.json` com `openssl passwd -6 "yourpassword"`.
+Gere o hash da senha para o `user_credentials.json` com `openssl passwd -6 "yourpassword"`.
 
-Você também pode colocar um arquivo vazio chamado `defer-provisioning` no lugar de `user_credentials.json`. Isso executa a mesma [instalação preparada para outro dono](02-getting-started.md) que você pode acionar interativamente: a máquina é instalada sem nenhum dado pessoal, e quem a inicializar primeiro escolhe seu teclado e cria seu usuário. Esse é o modo para plataformas de geração de imagem, onde o disco não deve carregar as credenciais de ninguém.
+O nome e o e-mail para os commits do git não fazem parte da instalação. Defina-os assim que a máquina estiver no ar, via SSH, por exemplo, com `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+Você também pode colocar um arquivo vazio chamado `defer-provisioning` no lugar do `user_credentials.json`. Isso executa a mesma [instalação para preparar para outro proprietário](02-getting-started.md) que você pode acionar interativamente: a máquina é instalada sem nenhum dado pessoal, e quem inicializá-la primeiro escolhe o teclado e cria seu usuário. É o modo para estações de criação de imagens, em que o drive não deve carregar as credenciais de ninguém.
 
 ## Acesso SSH
 
-Quando `authorized_keys` está presente, a instalação configura as chaves como o `~/.ssh/authorized_keys` do usuário, ativa o `sshd` e abre o firewall para ele. (Uma instalação padrão do Omarchy traz o openssh com o serviço desativado e a porta fechada, então uma máquina autônoma ficaria inacessível de outra forma.) A instalação só adiciona suas chaves — ela não afrouxa nenhuma das outras configurações de autenticação do daemon SSH.
+Quando o `authorized_keys` está presente, a instalação configura as chaves como o `~/.ssh/authorized_keys` do usuário, habilita o `sshd` e abre o firewall para ele. (Uma instalação padrão do Omarchy vem com o openssh com o serviço desabilitado e a porta fechada, então uma máquina não assistida ficaria, de outro modo, inacessível.) A instalação só adiciona as suas chaves — ela não afrouxa nenhuma das outras configurações de autenticação do daemon SSH.
 
-Quando `tailscale_authkey` está presente, a máquina entra na sua tailnet na primeira inicialização em vez disso: o Tailscale é instalado a partir dos pacotes incluídos na ISO, o firewall permite a interface da tailnet, e um trabalho em segundo plano executa a entrada assim que a máquina realmente tem rede, tentando de novo até conseguir. Use uma chave reutilizável e pré-autorizada para que uma imagem de disco possa servir a muitas máquinas.
+Quando o `tailscale_authkey` está presente, a máquina entra na sua tailnet na primeira inicialização: o Tailscale é instalado a partir dos pacotes incluídos na ISO, o firewall permite a interface da tailnet e um trabalho em segundo plano executa a entrada assim que a máquina realmente tiver rede, tentando de novo até conseguir. Use uma chave reutilizável e pré-autorizada para que uma única imagem de drive possa servir a muitas máquinas.
 
-## Construindo o disco cidata
+## Criando o drive cidata
 
-Qualquer sistema de arquivos com o rótulo certo funciona. Uma ISO minúscula é o caminho fácil:
+Qualquer sistema de arquivos com o rótulo certo funciona. Uma ISO minúscula é o jeito fácil:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Depois conecte-a à VM ao lado da ISO do Omarchy. Aqui está um exemplo completo no Proxmox:
+Depois anexe-o à VM junto com a ISO do Omarchy. Aqui está um exemplo completo no Proxmox:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-A ordem de boot lista o disco primeiro de propósito: o disco vazio cai para a ISO na primeira inicialização, e o sistema instalado inicializa do disco para sempre depois disso.
+A ordem de boot coloca o disco primeiro de propósito: o disco vazio cai para a ISO na primeira inicialização, e o sistema instalado inicializa a partir do disco para sempre depois disso.
 
-## Dois avisos
+## Duas ressalvas
 
-Instalações autônomas criptografadas não são totalmente autônomas — alguém ainda precisa digitar a senha do LUKS na primeira inicialização. E o bloco `disk_encryption` em `user_configuration.json` carrega essa senha em texto simples, então trate um disco cidata construído a partir de uma instalação criptografada como o segredo que ele é.
+Instalações criptografadas não assistidas não são totalmente não assistidas — alguém ainda precisa digitar a frase secreta do LUKS na primeira inicialização. E essa frase secreta fica no nível superior do `user_credentials.json` como `encryption_password` — o archinstall a lê ali, não do bloco `disk_encryption` no `user_configuration.json` — então trate um drive cidata criado a partir de uma instalação criptografada como o segredo que ele é.

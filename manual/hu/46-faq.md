@@ -2,7 +2,7 @@
 
 ### Hogyan válthatok a billentyűzetkiosztások között?
 
-Szerkeszd a `~/.config/hypr/input.lua` fájlod, és add hozzá ezt a `Left Alt + Right Alt` kombinációval való váltáshoz:
+Szerkeszd a `~/.config/hypr/input.lua` fájlt, és add hozzá az alábbiakat, hogy a `Left Alt + Right Alt` billentyűkombinációval válthass a kiosztások között:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-A sáv automatikusan megmutatja az aktuális billentyűzetkiosztásod, amint több kiosztást konfiguráltál (és rá is kattinthatsz a váltáshoz).
+A sáv automatikusan mutatni fogja az aktuális billentyűzetkiosztást, amint több kiosztást is beállítottál (és kattintással is válthatsz közöttük).
 
-### Hogyan változtathatom 12 órásra az óraformátumot?
+### Hogyan állíthatom az óra formátumát 12 órásra?
 
-Kattints jobb gombbal a sávban lévő órára, hogy végiglapozd a gyakori formátumokat, köztük a 12 órásakat is. A formátumot közvetlenül is beállíthatod:
+Kattints jobb gombbal az órára a sávban, hogy végiglépegethess a gyakori formátumokon, köztük a 12 órásakon is. A formátumot közvetlenül is beállíthatod:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Ez Sunday 10:55 AM formátumot mutat.
+Ez a következőt jeleníti meg: Vasárnap 10:55 AM.
 
-### Hogyan változtathatom meg az időzónám?
+### Hogyan módosíthatom az időzónámat?
 
-Futtasd az Omarchy menü _Frissítés > Időzóna_ pontját, és válassz a listából. Ha az időzóna jó, de maga az óra elcsúszott, a _Frissítés > Idő_ újraindítja számodra az időszinkronizálást.
+Indítsd el a _Setup > Region > Timezone_ menüpontot az Omarchy menüben, és válassz a listából. Ha az időzóna helyes, de maga az óra eltért, az _Update > Time_ újraindítja neked az időszinkronizálást.
 
-### Hogyan változtathatom meg a DNS-em, oszthatom meg a Wi-Fi-met, vagy ellenőrizhetem a kapcsolatsebességem?
+### Hogyan módosíthatom a DNS-emet, oszthatom meg a Wi-Fi-met, vagy ellenőrizhetem a kapcsolatom sebességét?
 
-Ezek mind a [hálózatkezelésben](35-networking.md) vannak.
+Mindez a [hálózatkezelés](35-networking.md) részben található.
 
 ### Hogyan ellenőrizhetem, milyen gyors a lemezem?
 
-Az _Indító > Sebességteszt > Lemez sebességteszt_ élő olvasási és írási sebességet mér a meghajtódon, vagy az `omarchy disk speedtest` a terminálból.
-
-### Miért nem tudok bejelentkezni a Google-fiókomba Chromiumban?
-
-A sima nyílt forráskódú Chromium build nem szállítja azokat az OAuth-hitelesítőadatokat, amelyeket a Google a fiókba való bejelentkezéshez megkövetel. Futtasd az Omarchy menü _Telepítés > Szolgáltatás > Chromium-fiók_ pontját ezek hozzáadásához, indítsd újra a böngészőt, és a bejelentkezés végigmegy.
+A _Trigger > Speed Test > Disk Speed Test_ valós időben méri a meghajtód olvasási és írási sebességét, vagy használd az `omarchy disk speedtest` parancsot a terminálból.
 
 ### Hogyan adhatok hozzá nyomtatót?
 
-A nyomtatás alapból be van állítva és fut, és minden nyomtatót magad adsz hozzá az alkalmazásindító (`Super + Space`) _Print Settings_ pontjából.
+A nyomtatás gyárilag be van állítva és működik, és minden nyomtatót magad adhatsz hozzá az alkalmazásindító _Print Settings_ menüpontjából (`Super + Alt + Space`).
 
-Válaszd az _Add_ lehetőséget, és adj neki egy pillanatot a keresésre: egy USB-n bedugott nyomtatót és a legtöbb hálózati nyomtatót megtalál helyetted. Ha a tied nincs a listában, válaszd a _Network Printer > Internet Printing Protocol (ipp)_ pontot, és add meg a címét — a nyomtató saját kijelzője vagy a weboldala megmondja, mi az, általában valami olyasmi, mint `192.168.1.50` `ipp/print` várólistával. A _Forward_ ezután illesztőprogramot kínál, ahol egy modern nyomtató a legjobban illesztőprogram nélküli _IPP Everywhere_ profilon működik, egy régebbi pedig a modell saját illesztőprogramját akarja.
+Válaszd az _Add_ lehetőséget, és adj neki egy pillanatot a keresésre: az USB-n keresztül csatlakoztatott nyomtatót és a legtöbb hálózati nyomtatót automatikusan megtalálja neked. Ha a tiéd nincs a listán, válaszd a _Network Printer > Internet Printing Protocol (ipp)_ lehetőséget, és add meg a címét — a nyomtató saját kijelzője vagy weboldala megmondja, mi az, általában valami olyasmi, mint `192.168.1.50`, `ipp/print` várólistával. A _Forward_ ezután felajánl egy illesztőprogramot, ahol egy modern nyomtató a legjobban az illesztőprogram nélküli _IPP Everywhere_ profillal működik, egy régebbihez pedig a modell saját illesztőprogramja kell.
 
-Kattints jobb gombbal egy nyomtatóra, és válaszd a _Set as Default_ lehetőséget annak kiválasztásához, hogy melyiket érik el először az alkalmazásaid, és a _Properties_ lehetőséget a papírméret, a duplex és a minőség beállításához.
+Kattints jobb gombbal egy nyomtatóra, és válaszd a _Set as Default_ lehetőséget annak kiválasztásához, melyiket használják először az alkalmazásaid, a _Properties_ lehetőséget pedig a papírméret, a duplex és a minőség beállításához.
 
-Az automatikus felderítés, ahol a hálózaton lévő nyomtatók hozzáadás nélkül jelennek meg, ideiglenesen ki van kapcsolva, amíg átdolgozzák, ezért a fenti első lépés a tied, nem automatikus. A PDF-fájlba nyomtatás bármilyen nyomtató nélkül is működik.
+Az automatikus felderítés, amelynek során a hálózaton lévő nyomtatók hozzáadás nélkül jelennek meg, átmenetileg ki van kapcsolva, amíg átdolgozzuk, ezért a fenti első lépés a tiéd, nem automatikus. A PDF-fájlba nyomtatás nyomtató nélkül is működik.
 
-### Hogyan változtathatom meg, hová mentődjenek a képernyőképek vagy a képernyőfelvételek?
+### Hogyan módosíthatom, hova mentődjenek a képernyőképek vagy a képernyőfelvételek?
 
-A mentett képernyőképek alapértelmezetten a `~/Pictures/Screenshots` mappába mennek. Más könyvtár használatához add hozzá ezt egy fájlhoz a `~/.config/uwsm/env.d/` alatt (például `~/.config/uwsm/env.d/capture`):
+A mentett képernyőképek alapértelmezés szerint a `~/Pictures/Screenshots` mappába kerülnek. Másik könyvtár használatához add hozzá az alábbiakat a `~/.config/uwsm/env.d/` alatti egyik fájlhoz (például a `~/.config/uwsm/env.d/capture` fájlhoz):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Ugyanezt megteheted a képernyőfelvételekhez az `OMARCHY_SCREENRECORD_DIR` használatával.
+Ugyanezt megteheted a képernyőfelvételeknél is az `OMARCHY_SCREENRECORD_DIR` használatával.
 
-Az Omasnap automatikusan létrehozza a képernyőkép-könyvtárát. Hozd létre a képernyőfelvételi könyvtárat saját kézzel, majd indítsd újra az Omarchyt, hogy bármelyik környezeti változás életbe lépjen.
+Az Omasnap automatikusan létrehozza a képernyőképek könyvtárát. A képernyőfelvételek könyvtárát magad hozd létre, majd indítsd újra az Omarchy rendszert, hogy bármelyik környezeti változtatás érvénybe lépjen.
 
-### Hogyan működtethetem a hangszórókat + webkamerát az Apple Studio Displayemen?
+### Hogyan hozhatom működésre a hangszórókat + webkamerát az Apple Studio Display monitoromon?
 
-Azt hinné az ember, hogy mindennek működnie kell az USB C bedugásával, de sajnos ez nem így van. Az a megoldás, amelyet találtam, és megbízhatóan működik, [a WJESOG DisplayPort + USB-A => USB-C kábel](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) használata. Akkor a hangszórók és a webkamera úgy működnek, mint a karikacsapás.
+Azt hinné az ember, hogy minden működik, ha egyszerűen bedugja az USB C-t, de sajnos nem ez a helyzet. A megoldás, amely nálam megbízhatóan működik, [a WJESOG DisplayPort + USB-A => USB-C kábel](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) használata. Onnantól a hangszórók és a webkamera remekül működnek.
 
-Ne feledd, hogy az Omarchyban beépített fényerőszabályozás van az Apple kijelzőkhöz (mind a Studio, mind az XDR) a szokásos billentyűzetes fényerőgombokkal.
+Ne feledd, hogy az Omarchy beépített fényerő-szabályozással rendelkezik az Apple Displays monitorokhoz (Studio és XDR esetén egyaránt) a szokásos billentyűzeti fényerőgombokkal.
 
-### Hogyan szabadulhatok meg az összes extra szoftvertől?
+### Hogyan szabadulhatok meg az összes felesleges szoftvertől?
 
-Ha nem akarsz olyan programokat, mint az Obsidian vagy a LibreOffice, vagy bármelyik más előre telepített dolgot, nagyon könnyen eltávolíthatod.
+Ha nem kérsz olyan programokból, mint az Obsidian vagy a LibreOffice, vagy bármelyik másik előre telepített cuccból, nagyon könnyen eltávolíthatod őket.
 
-Futtasd az _Eltávolítás > Csomag_ pontot, hogy megnézd minden telepített csomagot. Ezután a tabulátorral kiválaszthatsz minden eltávolítandó csomagot, és a return billentyűvel elindíthatod minden kiválasztott dolog eltávolítását.
+Indítsd el a _Remove > Package_ menüpontot, hogy lásd az összes telepített csomagot. Ezután a tab billentyűvel kiválaszthatod bármelyik eltávolítani kívánt csomagot, és a return billentyűvel elkezdheted az összes kiválasztott elem eltávolítását.
 
-És az Omarchy menü _Eltávolítás > Webalkalmazás_ pontját is használhatod bármely előre telepített webalkalmazás eltávolítására, amelyet nem akarsz.
+Az Omarchy menü _Remove > Web App_ menüpontjával pedig eltávolíthatod bármelyik előre telepített webalkalmazást, amelyre nincs szükséged.
 
-Vagy futtasd az _Eltávolítás > Előtelepített elemek_ pontot, hogy minden előre telepített extrát — webalkalmazásokat, TUI-kat és opcionális alkalmazásokat — egy menetben kitakaríts. Az őket indító gyorsbillentyűk velük együtt eltűnnek, így tiszta billentyűkiosztási lappal maradsz, amelyet a sajátjaiddal tölthetsz fel a `~/.config/hypr/bindings.lua` fájlban.
+Vagy indítsd el a _Remove > Preinstalls_ menüpontot, hogy egy menetben kisöpörhesd az összes előre telepített extrát — webalkalmazásokat, TUI-kat és opcionális alkalmazásokat. Az őket indító gyorsbillentyűk velük együtt eltűnnek, így tiszta lappal indulhatsz a billentyűkiosztások terén, amelyeket a sajátjaiddal tölthetsz meg a `~/.config/hypr/bindings.lua` fájlban.
 
 ---
 
-A hibákról és a tört részekről lásd [a Hibaelhárítás szakaszt](45-troubleshooting.md).
+Hibák és elromlott dolgok esetén lásd [a Hibaelhárítás szakaszt](45-troubleshooting.md).

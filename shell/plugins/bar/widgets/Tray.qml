@@ -47,9 +47,11 @@ BarWidget {
   readonly property bool holdOpen: trayMenuOpen || managePopupOpen || barDragging || (!!bar && bar.traySectionPopoutOpen === true)
   // The mark under the bar sits under the icon whose menu is open.
   readonly property Item openPanelIndicatorItem: trayMenuOpen ? activeTrayAnchor : null
-  // Match Waybar's group/tray-expander drawer transition-duration.
-  readonly property int animationDuration: 600
-  property real revealProgress: expanded || holdOpen ? 1 : 0
+  // Expand briskly on hover and collapse slightly faster so the drawer stays crisp.
+  readonly property int expandDuration: 200
+  readonly property int collapseDuration: 135
+  readonly property bool drawerOpen: expanded || holdOpen
+  property real revealProgress: 0
   readonly property real revealExtent: drawerExtent * revealProgress
   // The pinned icons sit against the tray's fixed edge with the chevron past
   // them. Opening, the drawer grows the tray between the two and pushes the
@@ -142,7 +144,17 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
+    if (!item) return
+
+    // Apps that draw their own context menu (Windows apps under Wine) publish
+    // no D-Bus menu, and Quickshell can only show D-Bus menus. Ask the app
+    // for its menu instead.
+    if (!item.hasMenu) {
+      Util.execArgv(["omarchy-tray-context-menu", item.id])
+      return
+    }
+
+    if (!item.menu) {
       var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
       item.display(anchorItem.QsWindow.window, point.x, point.y)
       return
@@ -167,7 +179,7 @@ BarWidget {
     return String(icon || "")
   }
 
-  // Symbolic icons ship a fixed fill (often near-white) that the host is meant
+  // Symbolic icons ship a fixed fill (light or dark) that the host is meant
   // to recolor to its foreground; detect them by the freedesktop "-symbolic"
   // name suffix so they can be tinted instead of rendered as-is.
   function iconIsSymbolic(icon) {
@@ -242,8 +254,27 @@ BarWidget {
   implicitWidth: root.vertical ? root.barSize : trayContent.implicitWidth
   implicitHeight: root.vertical ? trayContent.implicitHeight : root.barSize
 
-  Behavior on revealProgress {
-    NumberAnimation { duration: Style.duration(root.animationDuration); easing.type: Easing.OutCubic }
+  Component.onCompleted: revealProgress = drawerOpen ? 1 : 0
+
+  onDrawerOpenChanged: {
+    revealAnimation.stop()
+    var target = drawerOpen ? 1 : 0
+    var duration = Style.duration(drawerOpen ? expandDuration : collapseDuration)
+    if (duration <= 0) {
+      revealProgress = target
+      return
+    }
+    revealAnimation.to = target
+    revealAnimation.duration = duration
+    revealAnimation.start()
+  }
+
+  NumberAnimation {
+    id: revealAnimation
+    target: root
+    property: "revealProgress"
+    easing.type: Easing.Bezier
+    easing.bezierCurve: Style.easeOut
   }
 
   // The section from `start`, `length` long along the bar, as far as the
@@ -841,12 +872,19 @@ BarWidget {
       layer.enabled: trayIconRoot.symbolic
     }
 
-    MultiEffect {
+    // Paint the foreground through the icon's alpha. MultiEffect's colorization
+    // keeps the source's lightness, so a dark fill stayed dark on a dark bar.
+    Rectangle {
       anchors.fill: trayIconImage
-      source: trayIconImage
+      color: root.foreground
       visible: trayIconRoot.symbolic
-      colorization: 1.0
-      colorizationColor: root.foreground
+      layer.enabled: trayIconRoot.symbolic
+      layer.effect: MultiEffect {
+        maskEnabled: true
+        maskSource: trayIconImage
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+      }
     }
   }
 
@@ -878,8 +916,8 @@ BarWidget {
     }
 
     TrayIcon {
-      x: (parent.width - width) / 2
-      y: (parent.height - height) / 2
+      x: Math.round((parent.width - width) / 2)
+      y: Math.round((parent.height - height) / 2)
       width: Style.bar.iconSize
       height: Style.bar.iconSize
       icon: trayItemRoot.modelData.icon
@@ -909,6 +947,11 @@ BarWidget {
         } else {
           trayItemRoot.modelData.activate()
         }
+      }
+      // A double-click's second click lands here, not in onClicked.
+      onDoubleClicked: function(mouse) {
+        if (mouse.button === Qt.LeftButton && TrayModel.activatesOnDoubleClick(trayItemRoot.modelData))
+          trayItemRoot.modelData.activate()
       }
       onWheel: function(wheel) {
         trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)
