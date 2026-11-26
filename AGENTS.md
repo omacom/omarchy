@@ -87,7 +87,7 @@ Ask a helper; don't read `uname -m` or the device tree in feature code:
 
 Where platform code lives:
 
-- Packages: `install/omarchy-base.packages` for everyone, `install/omarchy-aarch64.packages` for every ARM machine, `install/omarchy-<platform>.packages` for one family, and base packages with no aarch64 build in `install/omarchy-x86_64-only.packages`. `omarchy-pkg-defaults` composes them.
+- Packages: `install/omarchy-base.packages` for everyone, `install/omarchy-aarch64.packages` for every ARM machine, `install/omarchy-<platform>.packages` for one family, and base packages with no aarch64 build in `install/omarchy-x86_64-only.packages`. `omarchy-pkg-defaults` composes them. Optional and hardware-specific packages for the ISO offline mirror go in `install/omarchy-other.packages` (or `install/omarchy-other-aarch64.packages` for packages built for aarch64 only, so x86_64 ISO builds never try to resolve them).
 - Pacman templates: `default/pacman/` for x86, `default/pacman/<platform>/` for each ARM platform.
 - Hardware setup: `install/hardware/<vendor-or-family>/`, gated by a predicate. `install/hardware/apple/` holds Intel Mac quirks; Apple Silicon's own setup ships in the omarchy-mac packages.
 - Boot chains Omarchy can't drive generically: a platform package behind `omarchy-lifecycle-dispatch` ([`docs/lifecycle-dispatch.md`](docs/lifecycle-dispatch.md)). Platforms that boot Limine with UKIs like x86 keep the generic path. x86 machines can move to systemd-boot ([`docs/boot.md`](docs/boot.md)): change the kernel command line with `omarchy-boot-cmdline` and rebuild with `omarchy-boot-rebuild`, never with Limine tools directly, so both loaders stay current.
