@@ -1,39 +1,39 @@
-# TUI-d
+# TUIs
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) on meeldiv alternatiiv millelegi nagu GitHub Desktop rakendus ja see töötab terminali sees.
+[Lazygit](https://github.com/jesseduffield/lazygit) on võluv alternatiiv millelegi nagu GitHub Desktopi rakendus ja see töötab terminali sees.
 
-Saad selle käivitada otse, minnes suvalisse giti hallatud kausta ja käivitades `lazygit`. Või saad selle käivitada Neovimi sees, kus selle saab käivitada kombinatsiooniga `Space G G`.
+Saad selle käivitada otse, minnes mis tahes giti hallatavasse kataloogi ja käivitades `lazygit`. Või saad selle käivitada Neovimis, kus selle saab käivitada klahvikombinatsiooniga `Space G G`.
 
-Erinevate paanide vahel hüppad klahviga `Tab`. Paanil Files valisid faile lavastamiseks klahviga `Space` ja seejärel saad luua uue commiti klahviga `c`. Kõiki saadaolevaid käske näed klahviga `?`.
+Paanide vahel liigud klahviga `Tab`. Failide paanis valite failid ettevalmistamiseks klahviga `Space` ja seejärel saate luua uue commiti klahviga `c`. Kõiki saadaolevaid käske näete klahviga `?`.
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) on kaunis ressursihaldur, mis näitab mälu, CPU, ketta ja võrgu kasutust. See loetleb ka kõik aktiivsed protsessid ja võimaldab sul neid hallata.
+[Btop](https://github.com/aristocratos/btop) on ilus ressursihaldur, mis näitab mälu, CPU, ketta ja võrgu kasutust. See loetleb ka kõik aktiivsed protsessid ja võimaldab teil neid hallata.
 
-Omarchy nimetab seda Activity ja käivitad selle vajutades `Super + Ctrl + T`. See avaneb ujuva aknana, mille saad plaadistada kombinatsiooniga `Super + T`.
+Omarchy kutsub seda nimega Activity Monitor ja selle käivitate rakenduste käivitajast või vajutades `Super + Shift + T`. See avaneb hõljuva aknana, mille saate paanida klahvikombinatsiooniga `Super + T`.
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) on terminali tööruumi haldur, mis annab sulle tööalad, vahelehed ja paanid ning hoiab need kõik töötamas püsivas seansis, millest saad lahti ühenduda ja hiljem tagasi tulla.
+[Herdr](https://herdr.dev) on terminali tööruumihaldur, mis annab teile tööruumid, vahekaardid ja paanid ning hoiab need kõik töös püsivas sessioonis, millest saate lahti ühendada ja hiljem tagasi tulla.
 
-Käivitad selle (või ühendud uuesti oma olemasoleva seansiga) kombinatsiooniga `Super + Ctrl + Return`. Omarchy tuleb Herdr'i konfiguratsiooniga, mis peegeldab selle Tmuxi konfiguratsiooni, nii et eesliiteklahv on ka siin `Ctrl + Space`. Kõiki kiirklahve saad sirvida kombinatsiooniga `Super + Ctrl + K`.
+Selle käivitate (või ühendute uuesti oma olemasoleva sessiooniga) rakenduste käivitajast või klahvikombinatsiooniga `Super + Ctrl + Return`. Omarchy tarnib Herdr konfiguratsiooni, mis peegeldab selle Tmuxi konfiguratsiooni, nii et ka siin on eesliiteklahv `Ctrl + Space`. Kõiki klahvisidemeid saate sirvida klahvikombinatsiooniga `Super + Ctrl + K`.
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) näitab süsteemiteavet, nagu kerneli versioon, tööaeg, teema, CPU, mälu ja muud. See on populaarse neofetch tööriista järeltulija.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) näitab süsteemiteavet, nagu kerneli versioon, tööaeg, teema, CPU, mälu ja palju muud. See on populaarse tööriista neofetch järeltulija.
 
-Omarchy on pakkinud selle Omarchy menüüsse (`Super + Space`) nime all _Teave_.
+Omarchy on selle pakendanud kui _System > About_ Omarchy menüüs (`Super + Space`).
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) on Winamp 2.x-st inspireeritud retro terminali muusikapleier koos sisseehitatud raadiojaamadega lo-fi rütmide jaoks. Käivita see kombinatsiooniga `Super + Shift + Alt + M` või Omarchy menüüst jaotises _Rakendused_. Vajuta `?`, et näha täielikku kiirklahvide loendit.
+[Cliamp](https://www.cliamp.stream/) on retro terminali muusikapleier, mis on inspireeritud Winamp 2.x-ist, koos sisseehitatud raadiojaamadega lo-fi biitide jaoks. Käivitage see klahvikombinatsiooniga `Super + Shift + Alt + M` või Omarchy menüüst jaotise _Apps_ alt. Täieliku klahvisidemete loendi jaoks vajutage `?`.
 
 ## Aga Wi-Fi ja Bluetooth?
 
-Wi-Fi ja Bluetoothi jaoks TUI-sid ei leia — need tööd kuuluvad Omarchy kestale. Klõpsa ülemisel ribal Wi-Fi ikooni (või vajuta `Super + Ctrl + W`), et näha võrke ja ühenduda, ning klõpsa Bluetoothi ikooni (või vajuta `Super + Ctrl + B`), et seadmeid siduda ja ühendada. Kogu lugu vaata jaotisest [võrk](35-networking.md).
+Wi-Fi ja Bluetoothi jaoks te TUIsid ei leia — need tööd kuuluvad Omarchy kesta juurde. Võrkude nägemiseks ja ühendamiseks klõpsake ülaribal Wi-Fi ikoonil (või vajutage `Super + Ctrl + N`) ning seadmete sidumiseks ja ühendamiseks klõpsake Bluetoothi ikoonil (või vajutage `Super + Ctrl + B`). Kogu loo leiate jaotisest [võrgundus](35-networking.md).
 
 ## Oma lisamine
 
-Iga terminaliprogramm saab täieliku rakenduse käsitluse. Mine Omarchy menüüs (`Super + Space`) jaotisesse _Paigalda > TUI_, anna sellele nimi, käivituskäsk, akna stiil ja ikoon ning see ilmub rakenduste käivitajasse nagu iga teine rakendus. Saad selle uuesti eemaldada jaotises _Eemalda > TUI_.
+Iga terminaliprogramm võib saada täieliku rakenduse kohtlemise. Minge Omarchy menüüs (`Super + Space`) jaotisse _Install > TUI_, andke sellele nimi, käivitamiskäsk, akna stiil ja ikoon ning see ilmub rakenduste käivitajasse nagu iga teine rakendus. Saate selle uuesti eemaldada jaotise _Remove > TUI_ alt.
