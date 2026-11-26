@@ -18,6 +18,7 @@ Item {
   property string verifyFinger: ""
   readonly property bool authorizing: (action === "verify" && !scanning) || action === "remove" || action === "sudo-on" || action === "sudo-off" || action === "prepare-lock"
   signal refreshed()
+  signal renamed()
 
   function refresh(token) {
     reader = token || ""
@@ -121,7 +122,10 @@ Item {
       } else if (action === "prepare-lock") {
         root.run("lock-on", ["omarchy-toggle", "lock-fingerprint-off", "off"])
         return
-      } else root.notice = ""
+      } else {
+        root.notice = ""
+        if (action === "rename") root.renamed()
+      }
       root.refresh(root.reader)
     }
   }
