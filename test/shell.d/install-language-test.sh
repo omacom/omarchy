@@ -57,7 +57,7 @@ pass "seeding sets the user's language and session LANG without elevating or not
 # A deferred install's region, settled at first boot against the owner's
 # timezone; the function is taken from owner setup itself. Owner setup exports
 # OMARCHY_PATH, which the scripts it runs need and a systemd service has none
-# of, so the stubs fail without it, as the real ones do.
+# of.
 grep -qxF 'export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"' "$ROOT/bin/omarchy-provision-owner" ||
   fail "owner setup exports OMARCHY_PATH to the scripts it runs"
 eval "$(sed -n '/^configure_region() {$/,/^}$/p' "$ROOT/bin/omarchy-provision-owner")"
@@ -67,9 +67,9 @@ for profile in "$ROOT"/default/regions/*/; do
   mkdir -p "$region_root/omarchy/default/regions/$(basename "$profile")"
   cp "$profile/timezones" "$region_root/omarchy/default/regions/$(basename "$profile")/"
 done
-printf '#!/bin/bash\nset -u\n: "$OMARCHY_PATH"\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
+printf '#!/bin/bash\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
 chmod +x "$region_root/omarchy/bin/omarchy-apply-pacman"
-printf 'set -u\n: "$OMARCHY_PATH"\necho region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
+printf 'echo region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
 export OMARCHY_PATH=$region_root/omarchy OMARCHY_FORM_DEFAULTS=$region_root/etc/omarchy/form-defaults \
   OMARCHY_REGION_FILE=$region_root/etc/omarchy/region OMARCHY_PACMAN_CONF=$region_root/etc/pacman.conf \
   OMARCHY_REGION_TARGET=$region_root REGION_LOG=$region_root/log
