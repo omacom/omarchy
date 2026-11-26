@@ -48,6 +48,17 @@ QtObject {
     return Qt.rgba(c.r, c.g, c.b, a)
   }
 
+  // Relative luminance (WCAG) of a Qt color, in 0..1.
+  function luminance(color) {
+    if (!color) return 0
+    function channel(value) {
+      var c = Number(value)
+      if (!isFinite(c)) return 0
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
+  }
+
   // file:// URL with each path segment percent-encoded so spaces and
   // special chars in user paths don't break Image.source.
   function fileUrl(path) {

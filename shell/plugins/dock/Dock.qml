@@ -185,6 +185,33 @@ Item {
     root.bringForward(item.windows[index])
   }
 
+  property var pendingNoAnimUnsets: []
+
+  function scheduleNoAnimUnset(address) {
+    if (pendingNoAnimUnsets.indexOf(address) < 0)
+      pendingNoAnimUnsets = pendingNoAnimUnsets.concat([address])
+    noAnimUnsetTimer.restart()
+  }
+
+  function flushNoAnimUnsets() {
+    noAnimUnsetTimer.stop()
+    var addresses = pendingNoAnimUnsets
+    pendingNoAnimUnsets = []
+    for (var i = 0; i < addresses.length; i++)
+      Hyprland.dispatch("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"unset\", window = \"address:" + addresses[i] + "\" })")
+  }
+
+  // If the dock is disabled or reloaded within 400ms of restoring a minimized
+  // window, flush pending resets immediately so no_anim isn't left stuck on.
+  Component.onDestruction: flushNoAnimUnsets()
+
+  Timer {
+    id: noAnimUnsetTimer
+    interval: 400
+    repeat: false
+    onTriggered: root.flushNoAnimUnsets()
+  }
+
   // A window the dock brings forward lands on top of the others, focused; a
   // minimized one first comes back to the workspace in front of the user.
   function bringForward(window) {
@@ -195,23 +222,17 @@ Item {
       return
     }
     var target = "window = \"address:" + address + "\""
-    var steps = []
-    var after = []
     if (window.minimized) {
       var monitor = Hyprland.focusedMonitor
       var workspace = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
       if (!(workspace >= 1)) return
       // A restored window is simply there again, without animating in.
-      steps.push("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"1\", " + target + " })")
-      steps.push("hl.dsp.window.move({ workspace = \"" + workspace + "\", " + target + " })")
-      after.push("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"unset\", " + target + " })")
+      Hyprland.dispatch("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"1\", " + target + " })")
+      Hyprland.dispatch("hl.dsp.window.move({ workspace = \"" + workspace + "\", " + target + " })")
+      scheduleNoAnimUnset(address)
     }
-    steps.push("hl.dsp.focus({ " + target + " })")
-    steps.push("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
-    var dispatch = function(step) { return "hyprctl dispatch " + Util.shellQuote(step) }
-    var command = steps.map(dispatch).join(" && ")
-    if (after.length > 0) command += "; sleep 0.4; " + after.map(dispatch).join("; ")
-    Util.execDetached(command)
+    Hyprland.dispatch("hl.dsp.focus({ " + target + " })")
+    Hyprland.dispatch("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
   }
 
   function quit(item) {

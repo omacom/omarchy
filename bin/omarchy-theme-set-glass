@@ -89,20 +89,34 @@ glass() {
   append_block "$file" "#" "" "${section:+$section$'\n'}$lines"
 }
 
-glass foot.ini '[colors-dark]' \
-  '^[[:space:]]*blur[[:space:]]*=' 'blur=yes' || status=1
-# GTK only asks Hyprland for blur under a CSS backdrop-filter, which Ghostty
-# takes as custom CSS and reloads live; its background-blur speaks only KDE's
-# blur protocol.
-glass ghostty.conf '' \
-  '' "gtk-custom-css = $OMARCHY_PATH/default/gtk/glass.css" || status=1
+if [[ $GLASSY == "true" ]]; then
+  glass foot.ini '[colors-dark]' \
+    '^[[:space:]]*blur[[:space:]]*=' 'blur=yes' || status=1
+  # GTK only asks Hyprland for blur under a CSS backdrop-filter, which Ghostty
+  # takes as custom CSS and reloads live; its background-blur speaks only KDE's
+  # blur protocol.
+  glass ghostty.conf '' \
+    '' "gtk-custom-css = $OMARCHY_PATH/default/gtk/glass.css" || status=1
 
-# Glassy used to give these a see-through background of their own as well,
-# which doubled up with the window fade. Glassing them with no settings takes
-# out a block an earlier glassy left in the current theme.
-for file in alacritty.toml kitty.conf btop.theme; do
-  glass "$file" '' || status=1
-done
+  # Glassy used to give these a see-through background of their own as well,
+  # which doubled up with the window fade. Glassing them with no settings takes
+  # out a block an earlier glassy left in the current theme.
+  for file in alacritty.toml kitty.conf btop.theme; do
+    glass "$file" '' || status=1
+  done
+else
+  # When glassy is off, scan all theme files in a single grep rather than
+  # forking once per file on every theme switch.
+  candidates=()
+  for file in foot.ini ghostty.conf alacritty.toml kitty.conf btop.theme; do
+    [[ -f $THEME_DIR/$file ]] && candidates+=("$THEME_DIR/$file")
+  done
+  if (( ${#candidates[@]} > 0 )); then
+    while IFS= read -r matched; do
+      remove_block "$matched" "#" "" || status=1
+    done < <(grep -lF "# omarchy-glass begin" "${candidates[@]}" 2>/dev/null || true)
+  fi
+fi
 
 # Other GTK apps, such as Nautilus, read the user's gtk.css at launch, so the
 # same backdrop blur is imported there. It follows the mode alone, so a theme
