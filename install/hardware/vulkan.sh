@@ -18,6 +18,12 @@ if omarchy-hw-aarch64-qualcomm; then
   PACKAGES+=(vulkan-freedreno)
 fi
 
+# QEMU/virtio guests match no vendor above, so without a CPU driver Vulkan
+# applications (Zed, games) find no device and cannot start.
+if (( ${#PACKAGES[@]} == 0 )) && omarchy-hw-vm && ! omarchy-hw-nvidia; then
+  PACKAGES+=(vulkan-swrast)
+fi
+
 if (( ${#PACKAGES[@]} > 0 )); then
   OMARCHY_PKG_DEFER=1 omarchy-pkg-add "${PACKAGES[@]}"
 fi
