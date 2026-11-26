@@ -714,6 +714,7 @@
   "marketplace.close": "Close",
   "marketplace.by": "by %1",
   "marketplace.version": "v%1",
+  "marketplace.previewPosition": "%1 / %2",
   "marketplace.stars": {
     "one": "%1 star",
     "other": "%1 stars"

@@ -138,7 +138,10 @@ Item {
     if (visiblePlugins.length === 0) { selectedIndex = 0; return }
     selectedIndex = Math.max(0, Math.min(visiblePlugins.length - 1, selectedIndex + delta))
   }
-  function resetSelection() { selectedIndex = 0 }
+  // Resetting the selection does not always change it - a filter that keeps
+  // row zero selected still changes which plugin that row is - so the preview
+  // resets here rather than waiting for selectedIndex to change.
+  function resetSelection() { selectedIndex = 0; resetPreview() }
   function resetPreview() { previewIndex = 0; previewExpanded = false }
   function previousPreview() {
     if (selectedPreviewImages.length > 1) previewIndex = (previewIndex + selectedPreviewImages.length - 1) % selectedPreviewImages.length
@@ -342,7 +345,7 @@ Item {
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: Style.spacing.xs
                   visible: root.selectedPreviewImages.length > 1
-                  text: (root.previewIndex + 1) + " / " + root.selectedPreviewImages.length
+                  text: Commons.I18n.t("marketplace.previewPosition").arg(Commons.I18n.formatNumber(root.previewIndex + 1, 0)).arg(Commons.I18n.formatNumber(root.selectedPreviewImages.length, 0))
                   textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.caption
                 }
               }
