@@ -24,6 +24,7 @@ units=(
   omarchy-boot-notify.service
   omarchy-fcitx5.service
   omarchy-crash-watch.service
+  reach.service
 )
 
 failed=0
