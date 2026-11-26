@@ -157,13 +157,15 @@ Canvas {
     }
   ]
 
-  // Readers can report many more stages than they eventually need. Leave the
-  // last ridges for completion while continuing to show progress on long runs.
+  // The first touches reveal one area apiece. Readers can need many additional
+  // scans, so spread those across all remaining edges until fprintd completes.
+  readonly property int firstTouches: 7
   readonly property real targetCoverage: {
     if (compact || complete) return 1
-    if (samples <= 7) return samples / impressions.length
-    const extra = samples - 7
-    return (7 + 2.8 * extra / (extra + 4)) / impressions.length
+    if (samples <= firstTouches) return samples / impressions.length
+    const extra = samples - firstTouches
+    const edges = impressions.length - firstTouches
+    return (firstTouches + edges * Math.sqrt(extra / (extra + 18))) / impressions.length
   }
   property real coverage: targetCoverage
   Behavior on coverage {
@@ -222,8 +224,10 @@ Canvas {
         c.stroke()
       }
 
+      const progress = coverage * impressions.length
+      const edgeProgress = (progress - firstTouches) / (impressions.length - firstTouches)
       for (let i = 0; i < impressions.length; ++i) {
-        const amount = coverage * impressions.length - i
+        const amount = i < firstTouches ? progress - i : edgeProgress
         if (amount <= 0) break
         const impression = impressions[i]
         if (amount >= 1) {
@@ -233,10 +237,11 @@ Canvas {
           // The geometry stays fixed, including the antialiasing at the tips.
           const dx = impression.to.x - impression.from.x
           const dy = impression.to.y - impression.from.y
-          const lead = amount * 1.25 - 0.25
+          const feather = i < firstTouches ? 0.25 : 0.12
+          const lead = amount * (1 + feather) - feather
           const x = impression.from.x + lead * dx
           const y = impression.from.y + lead * dy
-          const brush = c.createLinearGradient(x, y, x + dx / 4, y + dy / 4)
+          const brush = c.createLinearGradient(x, y, x + dx * feather, y + dy * feather)
           brush.addColorStop(0, ink)
           brush.addColorStop(1, Qt.alpha(ink, 0))
           c.strokeStyle = brush
