@@ -13,7 +13,7 @@ if [[ ${OMARCHY_UPDATE_CONFLICT:-} == 1 && ${OMARCHY_UPDATE_INTERACTIVE:-} == 1 
   exec omarchy-update-pacman -Syu --overwrite '/usr/share/omarchy/*'
 fi
 
-echo -e "\e[32m\nUpdate system packages\e[0m"
+echo -e "\e[32m\n$(omarchy-i18n update.systemPackages)\e[0m"
 
 errors=$(mktemp)
 trap 'rm -f "$errors"' EXIT

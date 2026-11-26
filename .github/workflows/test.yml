@@ -1,10 +1,11 @@
 name: Tests
 
 # Runs ./test/all on a real Omarchy install: the VM image of the current
-# release, booted fresh for the run, with this checkout's code copied in.
-# The package recipes are checked out beside it, because some tests hold
-# this repository's scripts against them. Nothing it runs holds a secret, so
-# a fork's pull request runs the same way as ours.
+# release, booted fresh for each shard, with this checkout's code copied in.
+# The package recipes are checked out beside it, because some tests hold this
+# repository's scripts against them. Same-repo branches and pushes to quattro
+# run on Namespace 16x32 runners (inline, avoiding a separate trust job); fork
+# pull requests run the same sharded suite on GitHub's ubuntu-26.04 runners.
 
 on:
   pull_request:
@@ -20,10 +21,24 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    name: test (${{ matrix.shard }})
+    runs-on: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && 'namespace-profile-linux-amd64-16x32' || 'ubuntu-26.04' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: noncomp-1
+            args: --no-cli --group=noncomp --shard=1/2
+          - shard: noncomp-2
+            args: --no-cli --group=noncomp --shard=2/2
+          - shard: comp
+            args: --group=comp
+          - shard: exclusive
+            args: --no-cli --group=exclusive
     env:
       SITE: https://nightly.omarchy.org
+      PREBUILT_QEMU_IMAGE: ghcr.io/omacom/omarchy-ci-qemu:latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,63 +50,141 @@ jobs:
           path: src/omarchy-pkgs
           persist-credentials: false
 
-      - name: Install the fetch tools
+      # Fetch the current release VM image and pull the prebuilt QEMU container
+      # concurrently. On Namespace runners with a bundled cache volume, the
+      # release image is reused across runs keyed by its sha256 (~0.2 s hit)
+      # and the container image stays warm in Namespace's container cache. On
+      # GitHub-hosted runners, the image lands in /dev/shm (RAM) while the
+      # container pulls in parallel.
+      - name: Prepare VM image and QEMU container
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends aria2 jq
+          set -euo pipefail
+          docker pull -q "$PREBUILT_QEMU_IMAGE" >/tmp/qemu-pull.log 2>&1 &
+          pull_pid=$!
 
-      # The image of the current release: an installed Omarchy with user
-      # omarchy, built and boot-tested by omarchy-iso. It is fetched from
-      # Cloudflare on every run, into RAM: runners write their disk at 200
-      # or 400 MB/s, which bound the fetch to 15-31 s, and /dev/shm took it
-      # in 7-12 s on eight runners. Restoring it from the Actions cache took
-      # 27-62 s.
-      - name: Fetch the VM image
-        run: |
-          mkdir -p /dev/shm/image && cd /dev/shm/image
-          curl -fsS --retry 3 -o latest.json "$SITE/stable/latest.json"
-          jq -r '"Image: Omarchy \(.omarchy_version), kernel \(.kernel)"' latest.json | tee -a "$GITHUB_STEP_SUMMARY"
-          unpacked=$(jq -r .vm.unpacked latest.json)
-          for file in vmlinuz initrd cmdline; do
-            curl -fsS --retry 3 -o "$file" "$unpacked$file"
-          done
-          url=$(jq -r .vm.url latest.json)
-          started=$SECONDS
-          aria2c --quiet -x 16 -s 16 -o base.qcow2 "$url"
-          echo "Fetched $(stat -c %s base.qcow2) bytes in $(( SECONDS - started )) s" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "$(jq -r .vm.sha256 latest.json)  base.qcow2" | sha256sum -c -
+          curl -fsS --retry 3 -o /tmp/latest.json "$SITE/stable/latest.json"
+          jq -r '"Image: Omarchy \(.omarchy_version), kernel \(.kernel)"' /tmp/latest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          sha=$(jq -r .vm.sha256 /tmp/latest.json)
+          unpacked=$(jq -r .vm.unpacked /tmp/latest.json)
+          url=$(jq -r .vm.url /tmp/latest.json)
 
-      # QEMU runs in an Arch container on the runner's KVM: Arch's current
-      # QEMU (11) instead of the runner's older one, the same as
-      # omarchy-iso's install test and an Omarchy workstation.
-      - name: Run the tests in the VM
-        run: |
-          sudo chmod 0666 /dev/kvm
-          docker run --rm --device /dev/kvm -v "$PWD:/w" -v /dev/shm/image:/image:ro -w /w -e VM_STATE_DIR=/tmp -e MEM=6G \
-            ghcr.io/archlinux/archlinux:latest bash -euo pipefail -c '
-              # pacman 7 fails every sync on a kernel without Landlock, which
-              # these runners have; omarchy-iso does the same.
-              if ! grep -qw landlock /sys/kernel/security/lsm 2>/dev/null; then
-                printf "#!/bin/sh\nexec /usr/bin/pacman --disable-sandbox \"\$@\"\n" >/usr/local/bin/pacman
-                chmod 0755 /usr/local/bin/pacman
+          download_image() {
+            local dest=$1
+            local -a curl_pids=()
+            mkdir -p "$dest"
+            if ! command -v aria2c >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq --no-install-recommends aria2
+            fi
+            for file in vmlinuz initrd cmdline; do
+              curl -fsS --retry 3 -o "$dest/$file" "$unpacked$file" &
+              curl_pids+=("$!")
+            done
+            local started=$SECONDS
+            aria2c --quiet -x 16 -s 16 -d "$dest" -o base.qcow2 "$url"
+            for pid in "${curl_pids[@]}"; do
+              wait "$pid"
+            done
+            echo "Fetched $(stat -c %s "$dest/base.qcow2") bytes in $(( SECONDS - started )) s" | tee -a "$GITHUB_STEP_SUMMARY"
+            (cd "$dest" && echo "$sha  base.qcow2" | sha256sum -c -)
+          }
+
+          if [[ -n ${NSC_CACHE_PATH:-} && -d $NSC_CACHE_PATH && -w $NSC_CACHE_PATH ]]; then
+            cache_root="$NSC_CACHE_PATH/omarchy-vm"
+            cache_dir="$cache_root/$sha"
+            if [[ -f $cache_dir/.ready ]]; then
+              echo "Image cache hit ($sha)" | tee -a "$GITHUB_STEP_SUMMARY"
+            else
+              mkdir -p "$cache_root"
+              stage="$cache_root/.tmp.$$"
+              trap 'rm -rf "$stage"' EXIT
+              download_image "$stage"
+              touch "$stage/.ready"
+              if [[ ! -d $cache_dir ]]; then
+                mv "$stage" "$cache_dir" 2>/dev/null || rm -rf "$stage"
+              else
+                rm -rf "$stage"
               fi
-              # Our own Arch mirror first, the public ones after it; a mirror
-              # that drops one file must not fail the run: try again.
-              sed -i "1i Server = https://mirror.omarchy.org/\$repo/os/\$arch" /etc/pacman.d/mirrorlist
-              for attempt in 1 2 3; do
-                if pacman -Syu --noconfirm --needed qemu-system-x86 qemu-hw-display-virtio-gpu qemu-hw-display-virtio-vga qemu-img openssh >/dev/null; then
-                  break
-                elif (( attempt < 3 )); then
-                  echo "pacman failed, attempt $attempt of 3; trying again in 15 s"
-                  sleep 15
-                else
-                  echo "::error::the test container could not install QEMU"
-                  exit 1
-                fi
+              trap - EXIT
+              # Keep only the current release in the cache volume.
+              for entry in "$cache_root"/*; do
+                [[ -d $entry && $(basename "$entry") != $sha ]] && rm -rf "$entry"
               done
+            fi
+            image_dir="$cache_dir"
+          else
+            image_dir="/dev/shm/image"
+            download_image "$image_dir"
+          fi
+
+          if wait "$pull_pid"; then
+            echo "QEMU_IMAGE=$PREBUILT_QEMU_IMAGE" >>"$GITHUB_ENV"
+            echo "QEMU_PREBUILT=1" >>"$GITHUB_ENV"
+          else
+            echo "Prebuilt $PREBUILT_QEMU_IMAGE unavailable; falling back to archlinux + pacman"
+            echo "QEMU_IMAGE=ghcr.io/archlinux/archlinux:latest" >>"$GITHUB_ENV"
+            echo "QEMU_PREBUILT=0" >>"$GITHUB_ENV"
+          fi
+          echo "IMAGE_DIR=$image_dir" >>"$GITHUB_ENV"
+
+      # QEMU runs in an Arch container on the runner's KVM: Arch's current QEMU
+      # (11) instead of Ubuntu's older one, sized to the runner's CPUs and RAM,
+      # with its throwaway overlay in a RAM tmpfs and cache=unsafe.
+      - name: Run the tests in the VM
+        env:
+          SHARD_ARGS: ${{ matrix.args }}
+        run: |
+          set -euo pipefail
+          sudo chmod 0666 /dev/kvm
+          smp=$(nproc)
+          ram_kb=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
+          if (( ram_kb >= 24000000 )); then
+            mem=16G
+            tmpfs_size=4g
+          else
+            mem=6G
+            tmpfs_size=2g
+          fi
+          if (( smp >= 8 )); then
+            comp_jobs=4
+          else
+            comp_jobs=2
+          fi
+
+          # shellcheck disable=SC2086 # SHARD_ARGS is intentional word-split flags
+          docker run --rm --device /dev/kvm \
+            --tmpfs "/tmp:rw,nosuid,nodev,size=$tmpfs_size" \
+            -v "$PWD:/w" -v "$IMAGE_DIR:/image:ro" -w /w \
+            -e VM_STATE_DIR=/tmp -e SMP="$smp" -e MEM="$mem" \
+            -e CI_VM_TIMEOUT=900 \
+            -e OMARCHY_TEST_COMP_JOBS="$comp_jobs" \
+            -e QEMU_PREBUILT="$QEMU_PREBUILT" \
+            "$QEMU_IMAGE" bash -euo pipefail -c '
+              if [[ $QEMU_PREBUILT != "1" ]]; then
+                # pacman 7 fails every sync on a kernel without Landlock, which
+                # these runners have; omarchy-iso does the same.
+                if ! grep -qw landlock /sys/kernel/security/lsm 2>/dev/null; then
+                  printf "#!/bin/sh\nexec /usr/bin/pacman --disable-sandbox \"\$@\"\n" >/usr/local/bin/pacman
+                  chmod 0755 /usr/local/bin/pacman
+                fi
+                # Our own Arch mirror first, the public ones after it; a mirror
+                # that drops one file must not fail the run: try again.
+                sed -i "1i Server = https://mirror.omarchy.org/\$repo/os/\$arch" /etc/pacman.d/mirrorlist
+                for attempt in 1 2 3; do
+                  if pacman -Syu --noconfirm --needed qemu-system-x86 qemu-hw-display-virtio-gpu qemu-hw-display-virtio-vga qemu-img openssh >/dev/null; then
+                    break
+                  elif (( attempt < 3 )); then
+                    echo "pacman failed, attempt $attempt of 3; trying again in 15 s"
+                    sleep 15
+                  else
+                    echo "::error::the test container could not install QEMU"
+                    exit 1
+                  fi
+                done
+              fi
               qemu-system-x86_64 --version | head -n 1
-              src/omarchy/test/ci-vm /image src out
-            '
+              src/omarchy/test/ci-vm /image src out "$@"
+            ' _ $SHARD_ARGS
 
       # The container ran as root: its output belongs to root until here.
       - name: Hand the results to the runner's user
@@ -104,15 +197,21 @@ jobs:
           if [[ -f out/run.log ]]; then
             {
               echo '```'
-              sed -n '/^Skipped checks in/,$p' out/run.log
+              sed -n '/^\(Skipped checks in\|All [0-9][0-9]* test files passed\.\|[0-9][0-9]* test files completed without failures\|[0-9][0-9]* of [0-9][0-9]* test files failed:\|Slowest test files:\)/,$p' out/run.log
               echo '```'
             } >>"$GITHUB_STEP_SUMMARY"
           fi
 
+      # Only a failed run's logs are kept, and test/ci-vm has already printed
+      # the failing files' output into the job log. GitHub's artifact service
+      # can fail on its own, so the upload never changes the verdict and
+      # never holds the job for long.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
+        if: failure()
+        continue-on-error: true
+        timeout-minutes: 2
         with:
-          name: tests-${{ github.run_id }}-${{ github.run_attempt }}
+          name: tests-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: out/
           if-no-files-found: ignore
           retention-days: 14

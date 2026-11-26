@@ -13,11 +13,11 @@ fi
 
 upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
 if [[ -z $upstream ]]; then
-  echo -e "\e[33m\nSkip Omarchy dev checkout update (current branch has no upstream)\e[0m"
+  echo -e "\e[33m\n$(omarchy-i18n update.devCheckoutSkipped)\e[0m"
   exit 0
 fi
 
-echo -e "\e[32m\nUpdate Omarchy dev checkout\e[0m"
+echo -e "\e[32m\n$(omarchy-i18n update.devCheckout)\e[0m"
 # A filtered fetch makes a full clone blobless once; git saves the filter, so
 # pulls then only fetch the file contents the new checkout needs.
 remote=$(git -C "$OMARCHY_PATH" for-each-ref --format='%(upstream:remotename)' "$(git -C "$OMARCHY_PATH" symbolic-ref -q HEAD)")

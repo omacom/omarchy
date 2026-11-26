@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy wird in der Regel über die Hotkeys und das Omarchy-Menü (`Super + Space`) gesteuert. Du kannst es aber auch über die `omarchy`-CLI steuern. Das ist besonders hilfreich, wenn ein KI-Agent mit dir an Anpassungen oder Konfiguration arbeitet.
+Omarchy wird normalerweise über die Hotkeys und das Omarchy-Menü (`Super + Space`) gesteuert. Du kannst es aber auch über die `omarchy` CLI steuern. Das ist besonders hilfreich, wenn ein KI-Agent mit dir an Anpassungen oder an der Konfiguration arbeitet.
 
-Die CLI hat Zugriff auf alle internen Werkzeuge, die sowohl über das Menü als auch anderweitig verwendet werden. Du kannst alles Verfügbare sehen, indem du `omarchy` im Terminal ausführst.
+Die CLI hat Zugriff auf alle internen Tools, die sowohl über das Menü als auch anderweitig verwendet werden. Alles, was verfügbar ist, siehst du, wenn du `omarchy` im Terminal ausführst.
 
-Das sieht ungefähr so aus:
+So sieht das ungefähr aus:
 
 ```
 ~ ❯ omarchy
@@ -22,10 +22,11 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -38,9 +39,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
+
+Zur Diagnose führst du direkt `omarchy-debug --no-sudo --print` aus. Es gibt Diagnosen aus und schreibt `/tmp/omarchy-debug.log`, ohne nach sudo zu fragen, auch bei Paketinstallationen, bei denen `omarchy debug` mit "Unknown Omarchy command" fehlschlagen kann.
 
 Und du kannst bei jeder Gruppe tiefer einsteigen:
 
@@ -48,15 +50,15 @@ Und du kannst bei jeder Gruppe tiefer einsteigen:
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Jeder Befehl akzeptiert auch `--help`, egal ob du eine ganze Gruppe (`omarchy capture --help`) oder einen einzelnen Befehl (`omarchy capture screenshot --help`) abfragst.
+Jeder Befehl akzeptiert auch `--help`, egal ob du eine ganze Gruppe abfragst (`omarchy capture --help`) oder einen einzelnen Befehl (`omarchy capture screenshot --help`).
 
 ### Das Menü vom Terminal aus öffnen
 
-Das Omarchy-Menü ist ebenfalls skriptbar, was für deine eigenen Tastenkombinationen praktisch ist. `omarchy menu` öffnet es auf der obersten Ebene, und du kannst direkt zu jedem Punkt im Baum springen, indem du ihn benennst: `omarchy menu summon appearance.theme` führt direkt zur Theme-Auswahl, `omarchy menu toggle system` öffnet das Systemmenü und schließt es wieder, wenn es bereits geöffnet ist, und `omarchy menu close` schließt es.
+Das Omarchy-Menü ist ebenfalls skriptbar, was für deine eigenen Tastenkombinationen praktisch ist. `omarchy menu` öffnet es an der Wurzel, und du kannst direkt zu jedem Punkt im Baum springen, indem du ihn benennst: `omarchy menu summon appearance.theme` führt direkt zur Theme-Auswahl, `omarchy menu toggle system` öffnet das Systemmenü und schließt es wieder, wenn es bereits geöffnet ist, und `omarchy menu close` schließt es.
