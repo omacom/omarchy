@@ -262,8 +262,6 @@ ApplicationWindow {
       // A readable measure on wide tiled windows; the page scrolls when the window is short.
       width: Math.min(scroll.availableWidth, 560)
       x: Math.round((scroll.availableWidth - width) / 2)
-      // Keep the reader in place when the success form appears below it.
-      y: sourceComponent === scanning ? Math.round(Math.max(0, scroll.availableHeight - win.minimumHeight) / 4) : 0
       sourceComponent: {
         switch (win.v.page) {
         case "home": case "unavailable": return home
@@ -279,7 +277,8 @@ ApplicationWindow {
     spacing: 12
     // The loader owns the width. The spacers supply the scrollable insets.
     property int inset: Math.min(28, Math.round(width * 0.06))
-    Item { Layout.preferredHeight: 24; Layout.fillWidth: true }
+    property int topInset: 24
+    Item { Layout.preferredHeight: topInset; Layout.fillWidth: true }
   }
 
   Component {
@@ -495,6 +494,8 @@ ApplicationWindow {
     id: scanning
     Page {
       id: sp
+      // Keep the reader in place as the form appears. The inset scrolls with the page.
+      topInset: 24 + Math.round(Math.max(0, scroll.availableHeight - win.minimumHeight) / 4)
       readonly property bool complete: win.v.page === "added" || win.v.page === "matched"
       ColumnLayout {
         Layout.fillWidth: true; Layout.leftMargin: sp.inset; Layout.rightMargin: sp.inset

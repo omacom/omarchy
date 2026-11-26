@@ -167,6 +167,12 @@ private slots:
     QTRY_COMPARE(read(b, "page"), "added");
     QVERIFY(calls().contains("enroll stop"));
     screenshot(win, "added");
+    win->resize(484, 510);
+    auto *save = button(win->contentItem(), "Done");
+    QVERIFY(save);
+    save->forceActiveFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(save->mapToScene(QPointF(0, save->height())).y() <= win->height());
+    win->resize(normalSize);
     b.saveName("Travel");
     QTRY_COMPARE(read(b, "page"), "home");
     b.edit(added);
