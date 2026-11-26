@@ -1,15 +1,19 @@
 # Taustad
 
-Iga teemaga tuleb kaasa oma taustade komplekt ja sa saad omi juurde lisada kausta `~/.config/omarchy/backgrounds/[teema]`. Kui tahad lisada lisatausta näiteks nord teemale, pane fail lihtsalt kausta `~/.config/omarchy/backgrounds/nord`.
+Iga teema sisaldab oma taustade komplekti ja sa saad lisada oma lisasid kausta `~/.config/omarchy/backgrounds/[theme]`. Kui soovid lisada täiendava taustapildi näiteks nord teemale, pane fail lihtsalt kausta `~/.config/omarchy/backgrounds/nord`.
 
-Kõige lihtsam on seda teha Omarchy menüüs jaotise _Paigalda > Stiil > Taust_ kaudu. See avab kausta, kus selle teema taustad asuvad. Vajuta `Super + Shift + F`, et käivitada teine failihaldur, leia oma taust ja kopeeri see üle. Nüüd on see taustade valikus, mille hulgast saad valida klahvikombinatsiooniga `Super + Ctrl + Space`.
+Kõige lihtsamalt saad seda teha, kui lähed Omarchy Menu menüüs valikuni _Install > Style > Background_. See avab kausta, kus selle teema taustu hoitakse. Vajuta `Super + Shift + F`, et käivitada teine failihaldur, leia oma taust üles ja kopeeri see sinna. Nüüd on see nende taustade hulgas, mille vahel saad valida klahvikombinatsiooniga `Super + Ctrl + W`.
 
-Taustad võivad olla lisaks piltidele ka videod. Pane samasse kausta `mp4`, `m4v`, `mov`, `webm`, `mkv` või `avi` fail ja see ilmub piltide kõrvale. Videoid esitab OWE taustapildi mootor. See dekodeerib video üks kord kõigi kuvarite jaoks ja esitab selle heli vaikimisi heliväljundi kaudu ning peatab taasesituse alati, kui miski seda näha ei saa. Lukuekraan joonistab sama dekoodi vaigistatult läbi OWE. Videotaust kulutab ikka tunduvalt rohkem energiat kui liikumatult taust.
+Teema, millel ei ole ühtegi oma tausta, saab ühe, mis joonistatakse selle värvidest: Omarchy logo teema aktsendivärvis selle taustavärvil. Lisa oma, et see asendada.
 
-Teemad võivad liikumatule taustale lisada lühikese sissejuhatuse. Faili `backgrounds/road.webp` puhul asub vastav video aadressil `backgrounds/intros/road.mp4`. See esitatakse automaatselt alglaadimisel ja selle taustaga teemale lülitumisel ning pöördub siis tagasi liikumatu pildi juurde. Sissejuhatavad videod jäävad taustavalikust välja ega kordu kunagi.
+Taustad võivad olla nii videod kui ka liikumatud pildid. Pane samasse kausta `mp4`, `m4v`, `mov`, `webm`, `mkv` või `avi` fail ja see ilmub piltide kõrvale. Videoid esitab OWE taustapildimootor. See dekodeerib video üks kord kõigi monitoride jaoks ja esitab selle heli vaikeheliväljundi kaudu ning peatab esituse iga kord, kui seda ei ole näha. Videotaustapilt kulutab ikkagi palju rohkem energiat kui liikumatu pilt.
 
-Valiku _Käivita > Välimus > Animatsioonid_ väljalülitamine lülitab välja ka tausta sissejuhatused. Virtuaalmasinas teeb Omarchy seda vaikimisi. Käsk `omarchy theme bg intro toggle` saab sissejuhatusi eraldi lülitada. Teema värskendamine või teise tausta valimine sama teema sees sissejuhatust ei esita.
+Teemad võivad sisaldada liikumatu tausta jaoks lühikest sissejuhatust. Faili `backgrounds/road.webp` puhul asub sobiv video kohal `backgrounds/intros/road.mp4`. See esitatakse automaatselt käivitamisel, selle taustaga valitud teemale lülitumisel ja selle tausta valimisel, seejärel naaseb liikumatu pilt. Sissejuhatusvideod jäävad taustavalijast välja ja neid ei esitata kunagi korduvalt.
 
-Suure koguse lahedaid kureeritud taustu leiad aadressilt https://github.com/dharmx/walls.
+Valik _Appearance > Animations Off_ lülitab välja ka taustade sissejuhatused. Omarchy teeb seda virtuaalmasinas vaikimisi. Käsk `omarchy theme bg intro toggle` saab sissejuhatusi eraldi sisse ja välja lülitada. Teema värskendamine sissejuhatust ei esita.
 
-Videotaustad hoiavad lukuekraanil vahemällu salvestatud liikumatut pilti, kui taasesitus on peatatud või kättesaamatu. Animeeritud GIF-id esitatakse töölaual ja näitavad lukuekraanil liikumatut kaadrit.
+Liikumatul pildil võib olla ka silmus, sama pildi rahulik versioon, mis liigub pidevalt, kohal `backgrounds/loops/road.mp4`. Seda esitatakse liikumatu pildi asemel, pärast selle sissejuhatust, kui sellel see on, ja see peatub, kui animatsioonid välja lülitatakse. Aku peal näidatakse selle asemel liikumatut pilti ja silmus naaseb, kui toite ühendad. Silmused jäävad taustavalijast välja.
+
+Suure kogumiku lahedaid kureeritud taustu leiad kogumikust [dharmx/walls](https://github.com/dharmx/walls).
+
+Lukustuskuva näitab videotausta liikumatut kaadrit samamoodi, nagu see näitab animeeritud GIF-i liikumatut kaadrit.

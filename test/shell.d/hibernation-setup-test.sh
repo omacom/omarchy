@@ -4,6 +4,257 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Resume device: the real command, with every system path it writes moved into
+# a scratch directory, so these cases run without hibernation on the machine.
+# The kernel parameters go through the real omarchy-boot-cmdline and
+# omarchy-boot-rebuild on a Limine machine, pointed at the scratch directory.
+rtmp=$(mktemp -d)
+trap 'rm -rf "$rtmp"' EXIT
+mkdir -p "$rtmp/bin" "$rtmp/sys" "$rtmp/sleep"
+sed -e "s|/sys/power/|$rtmp/sys/|g" \
+  -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
+  -e "s|/etc/fstab|$rtmp/fstab|g" \
+  -e "s|/swap/swapfile|$rtmp/swapfile|g" \
+  -e "s|/usr/lib/systemd/system-sleep|$rtmp/sleep|g" \
+  -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
+  "$ROOT/bin/omarchy-hibernation-setup" >"$rtmp/setup"
+
+for command in omarchy-hw-aarch64-apple omarchy-hw-aarch64 omarchy-sleep-disabled omarchy-cmd-missing gum; do
+  printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/$command"
+done
+printf '#!/bin/bash\necho limine\n' >"$rtmp/bin/omarchy-boot-backend"
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
+printf '#!/bin/bash\n[[ $1 == --show ]] && echo "$SWAP_FILE_PATH"\nexit 0\n' >"$rtmp/bin/swapon"
+printf '#!/bin/bash\nif [[ $1 == inspect-internal ]]; then [[ ${LOOKUP:-} == fail ]] && exit 1; echo 4242; fi\nexit 0\n' >"$rtmp/bin/btrfs"
+printf '#!/bin/bash\n[[ $2 == SOURCE ]] && echo "$SWAP_SOURCE"\n[[ $2 == UUID ]] && echo "$SWAP_UUID"\nexit 0\n' >"$rtmp/bin/findmnt"
+
+# Root ownership is not the test's to give.
+cat >"$rtmp/bin/sudo" <<'SH'
+#!/bin/bash
+if [[ $1 == */install ]]; then
+  args=()
+  while (($#)); do
+    case $1 in
+      -o | -g) shift 2 ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+  set -- "${args[@]}"
+fi
+exec "$@"
+SH
+
+# Records the drop-in each build reads. limine-mkinitcpio 1.40 reports a kernel
+# whose image failed to build and still exits 0; "interrupt" kills the rebuild
+# midway, as closing the update terminal does.
+cat >"$rtmp/bin/limine-mkinitcpio" <<'SH'
+#!/bin/bash
+case ${REBUILD_RESULT:-ok} in
+  skip) echo "==> ERROR: mkinitcpio failed for kernel 7.2.8-9-omarchy, skipping." >&2 ;;
+  interrupt) kill -TERM "$PPID"; exit 0 ;;
+esac
+if [[ -f $DROP_IN ]]; then
+  cat "$DROP_IN" >>"$REBUILD_LOG"
+else
+  echo "built-without-drop-in" >>"$REBUILD_LOG"
+fi
+exit 0
+SH
+chmod +x "$rtmp/bin/"*
+
+uuid=0f3c5a1e-7d2b-4c8e-9a61-2b7e4d9c1f08
+uuid_line="KERNEL_CMDLINE[default]+=\" resume=UUID=$uuid resume_offset=4242\""
+drop_in=$rtmp/limine-entry-tool.d/resume.conf
+
+# Fresh state; given a drop-in line, a machine hibernation was set up on before.
+machine() {
+  rm -rf "$rtmp/limine-entry-tool.d" "$rtmp/mkinitcpio.conf.d" "$rtmp/var-lib"
+  : >"$rtmp/sys/image_size"
+  : >"$rtmp/swapfile"
+  : >"$rtmp/fstab"
+  : >"$rtmp/rebuilds"
+  if (($#)); then
+    mkdir -p "$rtmp/limine-entry-tool.d" "$rtmp/mkinitcpio.conf.d"
+    printf 'HOOKS+=(resume)\n' >"$rtmp/mkinitcpio.conf.d/omarchy_resume.conf"
+    printf '%s\n' "$1" >"$drop_in"
+  fi
+}
+
+setup() {
+  env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="${SWAP_UUID-$uuid}" \
+    OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
+    DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" \
+    bash "$rtmp/setup" "$@" >"$rtmp/out" 2>&1
+}
+
+# A kernel name such as nvme0n1p2 follows probe order, so with two NVMe disks it
+# can name the other disk at the next boot. The filesystem UUID does not move,
+# and neither does a device-mapper name.
+machine
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "setup on an unencrypted root" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] || fail "setup names an unencrypted root by its filesystem UUID" "$(<"$drop_in")"
+machine
+SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild || fail "setup on an encrypted root" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' ]] ||
+  fail "setup keeps the device-mapper name of an encrypted root" "$(<"$drop_in")"
+pass "setup names the resume device by filesystem UUID, or by its device-mapper name"
+
+# An earlier remove could leave the drop-in behind, naming the deleted swapfile's offset.
+machine
+mkdir -p "$rtmp/limine-entry-tool.d"
+printf '%s\n' 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=1929151"' >"$drop_in"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "setup over a leftover drop-in" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] || fail "setup rewrites a drop-in left by an earlier setup" "$(<"$drop_in")"
+pass "setup rewrites a drop-in left by an earlier setup"
+
+# A failed offset or device lookup warns without aborting unattended callers
+# (--force --no-rebuild), writes neither hook nor drop-in, and stays retryable.
+machine
+mkdir -p "$rtmp/limine-entry-tool.d"
+printf '%s\n' "$uuid_line" >"$drop_in"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" LOOKUP=fail setup --force --no-rebuild ||
+  fail "a failed offset lookup does not abort unattended setup" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -s $rtmp/rebuilds && $(<"$drop_in") == "$uuid_line" ]] ||
+  fail "a failed offset lookup leaves no hook, no rebuild and the drop-in as it was" "$(<"$rtmp/out")"
+SWAP_SOURCE="" SWAP_UUID="" setup --force --no-rebuild ||
+  fail "a failed device lookup does not abort unattended setup" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -s $rtmp/rebuilds && $(<"$drop_in") == "$uuid_line" ]] ||
+  fail "a failed device lookup leaves no hook, no rebuild and the drop-in as it was" "$(<"$rtmp/out")"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force || fail "setup after the lookup recovers" "$(<"$rtmp/out")"
+[[ $(tail -n1 "$rtmp/rebuilds") == "$uuid_line" ]] || fail "the retry rebuilds with the resume parameters" "$(<"$rtmp/rebuilds")"
+pass "a failed offset or device lookup warns non-fatally and leaves setup retryable"
+
+# A machine set up before: a rerun renames the device and rebuilds from the
+# renamed drop-in, once. An empty offset is filled in first.
+for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/nvme1n1p2 resume_offset=4242"' \
+  'KERNEL_CMDLINE[default]+=" resume=/dev/nvme1n1p2 resume_offset="'; do
+  machine "$line"
+  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "setup reruns on '$line'" "$(<"$rtmp/out")"
+  [[ $(<"$drop_in") == "$uuid_line" && $(tail -n1 "$rtmp/rebuilds") == "$uuid_line" ]] ||
+    fail "a rerun renames '$line' and rebuilds the boot image from it" "$(<"$rtmp/rebuilds")"
+  builds=$(wc -l <"$rtmp/rebuilds")
+  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "a second rerun succeeds" "$(<"$rtmp/out")"
+  (( $(wc -l <"$rtmp/rebuilds") == builds )) || fail "a second rerun leaves a renamed drop-in alone"
+done
+pass "a rerun renames a kernel-name resume device once"
+
+# If a kernel's image is not rebuilt, or the rebuild is interrupted, the drop-in
+# is already renamed; the next run sees the pending rebuild and does it, once.
+for result in skip interrupt; do
+  machine 'KERNEL_CMDLINE[default]+=" resume=/dev/sda2 resume_offset=4242"'
+  # A subshell, so the shell reporting the killed setup does not print to the log.
+  if (SWAP_SOURCE="/dev/sda2[/@]" REBUILD_RESULT=$result setup) 2>/dev/null; then
+    fail "setup reports a boot image it did not rebuild ($result)"
+  fi
+  : >"$rtmp/rebuilds"
+  SWAP_SOURCE="/dev/sda2[/@]" setup || fail "a rerun after a failed rebuild succeeds ($result)" "$(<"$rtmp/out")"
+  SWAP_SOURCE="/dev/sda2[/@]" setup || fail "a third run succeeds ($result)" "$(<"$rtmp/out")"
+  [[ $(<"$rtmp/rebuilds") == "$uuid_line" ]] ||
+    fail "the next run rebuilds the boot image a $result left behind, and only once" "$(<"$rtmp/rebuilds")"
+done
+pass "a rebuild that failed or was interrupted is retried on the next run"
+
+# Encrypted installs are stable already, and a drop-in edited by hand belongs to
+# whoever edited it.
+for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' \
+  $'KERNEL_CMDLINE[default]+=" resume=/dev/nvme0n1p2\tresume_offset=4242"'; do
+  machine "$line"
+  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "setup on a drop-in it does not own" "$(<"$rtmp/out")"
+  [[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup leaves a drop-in it does not own alone" "$(<"$drop_in")"
+done
+pass "setup leaves device-mapper and hand-edited drop-ins alone"
+
+# An ARM computer is set up like any other when its owner asks. No installer
+# sets hibernation up by itself.
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/omarchy-hw-aarch64"
+machine
+SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild || fail "setup on an ARM computer" "$(<"$rtmp/out")"
+[[ -f $drop_in && $(<"$drop_in") == 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' ]] ||
+  fail "setup sets hibernation up on an ARM computer" "$(<"$rtmp/out")"
+printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/omarchy-hw-aarch64"
+pass "an ARM computer gets hibernation when its owner asks"
+
+# Removing hibernation must also drop the resume parameters (Limine's drop-in
+# here, through omarchy-boot-cmdline) and pending rebuild marker so a later setup writes a fresh offset for the new swapfile.
+sed -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
+  -e "s|/etc/fstab|$rtmp/fstab|g" \
+  -e "s|SWAP_SUBVOLUME=\"/swap\"|SWAP_SUBVOLUME=\"$rtmp/swap\"|g" \
+  -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
+  "$ROOT/bin/omarchy-hibernation-remove" >"$rtmp/remove"
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/gum"
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swapoff"
+chmod +x "$rtmp/bin/gum" "$rtmp/bin/swapoff"
+machine "$uuid_line"
+mkdir -p "$rtmp/var-lib"
+: >"$rtmp/var-lib/hibernation-resume-rebuild"
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove succeeds" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -e $drop_in && ! -e $rtmp/var-lib/hibernation-resume-rebuild ]] ||
+  fail "hibernation remove deletes resume hook, Limine drop-in, and pending rebuild marker"
+[[ $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
+  fail "hibernation remove deletes resume.conf before rebuilding the boot image" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove cleans up the Limine resume drop-in and rebuild marker"
+
+# A machine an older remove left half-removed (no hook, stale resume.conf) is repaired too.
+machine
+mkdir -p "$rtmp/limine-entry-tool.d"
+printf '%s\n' "$uuid_line" >"$drop_in"
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove repairs a half-removed machine" "$(<"$rtmp/out")"
+[[ ! -e $drop_in && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
+  fail "hibernation remove deletes a leftover resume.conf before rebuilding" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove repairs a machine left with only resume.conf"
+
+# If deleting resume.conf fails, remove stops before rebuilding the boot image.
+machine "$uuid_line"
+cat >"$rtmp/bin/rm" <<'SH'
+#!/bin/bash
+for arg in "$@"; do
+  [[ $arg == */limine-entry-tool.d/resume.conf ]] && exit 1
+done
+exec /usr/bin/rm "$@"
+SH
+chmod +x "$rtmp/bin/rm"
+if env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1; then
+  rm -f "$rtmp/bin/rm"
+  fail "hibernation remove reports failure when resume.conf cannot be deleted"
+fi
+/usr/bin/rm -f "$rtmp/bin/rm"
+[[ ! -s $rtmp/rebuilds ]] ||
+  fail "hibernation remove does not rebuild when resume.conf deletion fails" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove stops before rebuilding if resume.conf deletion fails"
+
+# If only the pending rebuild marker remains after a partial failure, retry still rebuilds.
+machine
+mkdir -p "$rtmp/var-lib"
+: >"$rtmp/var-lib/hibernation-resume-rebuild"
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove retries when only rebuild marker remains" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/var-lib/hibernation-resume-rebuild && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
+  fail "hibernation remove clears a leftover rebuild marker and rebuilds" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove finishes cleanup when only the rebuild marker remains"
+
+# If setup stopped after creating the swapfile and fstab entry (before writing
+# hook or drop-in), remove still cleans them up without rebuilding initramfs.
+machine
+mkdir -p "$rtmp/swap"
+: >"$rtmp/swap/swapfile"
+printf '# Btrfs swapfile for system hibernation\n%s none swap defaults,pri=0 0 0\n' "$rtmp/swap/swapfile" >"$rtmp/fstab"
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove cleans up partial swapfile/fstab setup" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/swap/swapfile && ! -s $rtmp/rebuilds ]] ||
+  fail "hibernation remove deletes partial swapfile without unnecessary rebuild" "$(<"$rtmp/out")"
+! grep -Fq "$rtmp/swap/swapfile" "$rtmp/fstab" ||
+  fail "hibernation remove deletes partial fstab entry" "$(<"$rtmp/fstab")"
+pass "hibernation remove cleans up a partial swapfile and fstab setup"
+rm -rf "$rtmp"
+
 if [[ ! -f /sys/power/image_size ]]; then
   skip "hibernation is unavailable; skipping setup prompt test"
   exit 0
@@ -13,10 +264,11 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 mkdir -p "$tmpdir/bin"
 
-cat >"$tmpdir/bin/omarchy-cmd-missing" <<'EOF'
+cat >"$tmpdir/bin/omarchy-boot-backend" <<'EOF'
 #!/bin/bash
-exit 1
+echo limine
 EOF
+printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/omarchy-hw-aarch64"
 
 cat >"$tmpdir/bin/grep" <<'EOF'
 #!/bin/bash
