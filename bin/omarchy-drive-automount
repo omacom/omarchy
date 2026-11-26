@@ -1,0 +1,127 @@
+#!/bin/bash
+
+# omarchy:summary=Auto-mount removable drives and prompt to unlock encrypted ones
+# omarchy:hidden=true
+
+# Lightweight replacement for udiskie: listens to udev block events and asks
+# UDisks2 to mount external filesystems or hands external LUKS volumes to
+# omarchy-drive-unlock (which prompts through the shell's password card).
+
+set -uo pipefail
+
+declare -A handled=()
+
+read_udisks_info() {
+  local device=$1
+  local attempt info
+
+  # UDisks2 reacts to the same udev event, so a freshly attached device can
+  # take a moment to appear on its bus.
+  for attempt in 1 2 3 4; do
+    if info=$(udisksctl info -b "$device" 2>/dev/null); then
+      printf '%s\n' "$info"
+      return 0
+    fi
+    (( attempt < 4 )) && sleep 0.2
+  done
+
+  return 1
+}
+
+handle_device() {
+  local device=$1
+  [[ -n $device && -z ${handled[$device]:-} ]] || return 0
+
+  local info
+  info=$(read_udisks_info "$device") || return 0
+
+  local hint_system="" hint_ignore="" id_usage="" id_type="" mount_points="" cleartext=""
+  local line key val
+  while IFS= read -r line; do
+    if [[ $line =~ ^[[:space:]]+([A-Za-z]+):[[:space:]]*(.*)$ ]]; then
+      key=${BASH_REMATCH[1]}
+      val=${BASH_REMATCH[2]}
+      val=${val%"${val##*[![:space:]]}"}
+      case $key in
+        HintSystem) hint_system=$val ;;
+        HintIgnore) hint_ignore=$val ;;
+        IdUsage) id_usage=$val ;;
+        IdType) id_type=$val ;;
+        MountPoints) mount_points=$val ;;
+        CleartextDevice) cleartext=$val ;;
+      esac
+    fi
+  done <<<"$info"
+
+  if [[ $hint_system != "false" || $hint_ignore != "false" ]]; then
+    return 0
+  fi
+
+  if [[ $id_usage == "filesystem" ]]; then
+    handled[$device]=1
+    if [[ -z $mount_points ]]; then
+      udisksctl mount --no-user-interaction -b "$device" >/dev/null 2>&1 || true
+    fi
+  elif [[ $id_usage == "crypto" && $id_type == "crypto_LUKS" ]]; then
+    handled[$device]=1
+    if [[ $cleartext == "'/'" || $cleartext == "/" ]]; then
+      omarchy-drive-unlock "$device" >/dev/null 2>&1 &
+    fi
+  fi
+}
+
+scan_existing() {
+  local device fstype
+  while read -r device fstype; do
+    [[ -n $device && -n $fstype ]] || continue
+    handle_device "$device"
+  done < <(lsblk -nrpo NAME,FSTYPE 2>/dev/null)
+}
+
+udev_pid=""
+
+cleanup() {
+  if [[ -n $udev_pid ]]; then
+    kill "$udev_pid" 2>/dev/null || true
+    wait "$udev_pid" 2>/dev/null || true
+  fi
+  exit 0
+}
+
+monitor_events() {
+  local line action="" devname="" fs_usage=""
+  local fd
+  exec {fd}< <(exec udevadm monitor --udev --subsystem-match=block --property 2>/dev/null)
+  udev_pid=$!
+
+  while IFS= read -r -u "$fd" line; do
+    if [[ -z $line ]]; then
+      if [[ -n $devname ]]; then
+        if [[ $action == "remove" ]]; then
+          unset "handled[$devname]"
+        elif [[ ($action == "add" || $action == "change") && ($fs_usage == "filesystem" || $fs_usage == "crypto") ]]; then
+          handle_device "$devname"
+        fi
+      fi
+      action=""
+      devname=""
+      fs_usage=""
+    else
+      case $line in
+        ACTION=*) action=${line#ACTION=} ;;
+        DEVNAME=*) devname=${line#DEVNAME=} ;;
+        ID_FS_USAGE=*) fs_usage=${line#ID_FS_USAGE=} ;;
+      esac
+    fi
+  done
+
+  exec {fd}<&-
+  wait "$udev_pid" 2>/dev/null || true
+  udev_pid=""
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  trap cleanup HUP INT TERM
+  scan_existing
+  monitor_events
+fi
