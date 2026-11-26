@@ -1246,11 +1246,12 @@ conn.commit()
 conn.close()
 expected_after_unrelated_change = opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0])
 version_reads = 0
+parsed_rows = 0
 collectors._opencode_session_versions = count_opencode_session_versions
 rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
 rows, complete_again = collectors.scan_opencode(["demo"], indexed_accept)
 collectors._opencode_session_versions = real_opencode_session_versions
-check("OpenCode source changes with no session changes advance the fingerprint", complete and complete_again and version_reads == 1 and opencode_signature(rows) == expected_after_unrelated_change)
+check("OpenCode source changes with no session changes advance the fingerprint", complete and complete_again and version_reads == 1 and parsed_rows == 0 and opencode_signature(rows) == expected_after_unrelated_change)
 
 # Rows without either JSON or database timestamps mean "today" to the live
 # reader; cached results must follow the day as it advances.
