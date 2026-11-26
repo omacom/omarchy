@@ -111,6 +111,7 @@ FocusScope {
       }
       ToggleSwitch {
         interactive: false
+        opacity: checked ? 1 : 0.48
         foreground: view.ink
         accent: Commons.Color.accent
         checked: setting.checked
@@ -278,6 +279,7 @@ FocusScope {
             }
             Action {
               id: save
+              bordered: true
               text: Commons.I18n.t("fingerprint.saveName")
               onClicked: ctl.run("rename", [ctl.helper, "rename", ctl.state.reader, view.selected, editor.text])
             }
@@ -288,7 +290,7 @@ FocusScope {
             Layout.alignment: Qt.AlignHCenter
             columnSpacing: Style.space(4)
             rowSpacing: Style.space(2)
-            columns: verify.implicitWidth + remove.implicitWidth + (rename.visible ? rename.implicitWidth + columnSpacing : 0) + columnSpacing <= stage.width ? 3 : 1
+            columns: rename.visible && verify.implicitWidth + rename.implicitWidth + columnSpacing <= stage.width ? 2 : 1
             Action {
               id: verify
               bordered: true
@@ -309,7 +311,8 @@ FocusScope {
               }
             }
             Action {
-              id: remove
+              Layout.columnSpan: parent.columns
+              Layout.topMargin: Style.space(6)
               foreground: "#ffc2bb"
               bordered: true
               text: Commons.I18n.t("fingerprint.removeSaved")
@@ -325,6 +328,7 @@ FocusScope {
         Action {
           visible: view.confirming
           foreground: "#ff6b6b"
+          bordered: true
           enabled: !ctl.busy
           text: Commons.I18n.t("fingerprint.removeSaved")
           onClicked: ctl.run("remove", [ctl.helper, "remove", ctl.state.reader, view.selected])
@@ -385,11 +389,13 @@ FocusScope {
         Layout.alignment: Qt.AlignHCenter
         Action {
           visible: ctl.mismatch
+          bordered: true
           text: Commons.I18n.t("fingerprint.tryAgain")
           enabled: !ctl.busy
           onClicked: ctl.verify(ctl.verification.slot, ctl.verification.next)
         }
         Action {
+          bordered: true
           text: ctl.action === "verify" ? Commons.I18n.t("common.cancel")
                 : view.entry || ctl.mismatch ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")
           enabled: !ctl.busy || ctl.action === "verify"

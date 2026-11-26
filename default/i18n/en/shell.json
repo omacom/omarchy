@@ -154,7 +154,7 @@
   "fingerprint.manageFailed": "The change could not be completed.",
   "fingerprint.matched": "Fingerprint matched",
   "fingerprint.name": "Fingerprint name",
-  "fingerprint.namedNoMatch": "No match for %1.",
+  "fingerprint.namedNoMatch": "No match for %1",
   "fingerprint.numbered": "Finger %1",
   "fingerprint.off": "Off",
   "fingerprint.on": "On",
