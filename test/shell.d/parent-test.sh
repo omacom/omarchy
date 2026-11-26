@@ -118,6 +118,8 @@ stock=$(<"$faillock_tmp/system-auth")
 )
 rm -rf "$faillock_tmp"
 [[ $apply_body == *lock_root_prompts* ]] || fail "apply has faillock count root"
+[[ $apply_body == *'rm -f "$POLKIT_RULES_DIR/$STALE_WIFI_RULE"'* ]] && grep -qx 'STALE_WIFI_RULE=45-omarchy-parent-wifi.rules' "$parent" ||
+  fail "apply deletes the Wi-Fi rule older builds wrote"
 
 # Removal takes every account grant apply wrote before the rootpw drop-in,
 # whatever --user says: without rootpw a grant left behind takes the kid's own
@@ -128,9 +130,10 @@ for name in omarchy-parent omarchy-parent-kid omarchy-parent-renamed 00-omarchy-
   printf 'x\n' >"$remove_tmp/sudoers.d/$name"
 done
 printf 'x\n' >"$remove_tmp/rules.d/40-omarchy-parent.rules"
+printf 'x\n' >"$remove_tmp/rules.d/45-omarchy-parent-wifi.rules"
 (
   SUDOERS_DIR="$remove_tmp/sudoers.d" POLKIT_RULES_DIR="$remove_tmp/rules.d"
-  eval "$(sed -n '/^remove_posture() {/,/^}/p' "$parent")"
+  eval "$(sed -n '/^STALE_WIFI_RULE=/p; /^remove_posture() {/,/^}/p' "$parent")"
   unmask_consoles() { :; }
   unlock_root_prompts() { :; }
   rm() {
@@ -145,6 +148,7 @@ printf 'x\n' >"$remove_tmp/rules.d/40-omarchy-parent.rules"
 [[ ! -e $remove_tmp/sudoers.d/omarchy-parent && ! -e $remove_tmp/rules.d/40-omarchy-parent.rules ]] ||
   fail "a removal deletes the rootpw drop-in and the polkit admin rule"
 [[ -e $remove_tmp/sudoers.d/00-omarchy-wheel ]] || fail "a removal keeps %wheel's grant for the machine's next administrator"
+[[ ! -e $remove_tmp/rules.d/45-omarchy-parent-wifi.rules ]] || fail "a removal deletes the Wi-Fi rule older builds wrote"
 grant_line=$(grep -n 'omarchy-parent-kid$' "$remove_tmp/removed" | cut -d: -f1)
 rootpw_line=$(grep -n 'sudoers.d/omarchy-parent$' "$remove_tmp/removed" | cut -d: -f1)
 [[ -n $grant_line && -n $rootpw_line ]] && (( grant_line < rootpw_line )) ||
@@ -308,7 +312,10 @@ run_parent() {
   PATH="$stub_bin:$PATH" unshare --user --map-root-user bash "$parent" "$@"
 }
 
+# An older build's Wi-Fi rule, as wifi=kid left it.
+printf 'polkit.addRule(function(action, subject) { return polkit.Result.YES; });\n' >"$test_tmp/rules.d/45-omarchy-parent-wifi.rules"
 run_parent apply --user kid >/dev/null || fail "omarchy-parent apply succeeds on a child install"
+[[ ! -e $test_tmp/rules.d/45-omarchy-parent-wifi.rules ]] || fail "apply deletes the Wi-Fi rule an older build wrote"
 [[ $(grep -v '^#' "$test_tmp/sudoers.d/omarchy-parent") == $'Defaults rootpw\nDefaults passprompt="[sudo] parent password: "' ]] ||
   fail "apply writes the system sudoers drop-in"
 [[ $(stat -c %a "$test_tmp/sudoers.d/omarchy-parent") == 440 ]] || fail "the sudoers drop-in is mode 440"

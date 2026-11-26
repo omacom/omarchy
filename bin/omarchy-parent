@@ -212,12 +212,19 @@ unlock_root_prompts() {
   sed -i -E "/pam_faillock\.so/ s/[[:space:]]+$ROOT_LOCKOUT\$//" "$SYSTEM_AUTH"
 }
 
+# Builds of kids mode before its Wi-Fi delegation was dropped wrote this rule
+# on every apply, and with wifi=kid it let the kid change every system network
+# connection without the parent password. Nothing writes it any more, so apply
+# and --remove delete it.
+STALE_WIFI_RULE=45-omarchy-parent-wifi.rules
+
 apply_posture() {
   local user="$1"
 
   require_root_password
   install_sudoers omarchy-parent "$(system_sudoers)"
   install_polkit_rule
+  rm -f "$POLKIT_RULES_DIR/$STALE_WIFI_RULE"
   lock_root_prompts
 
   # The account's own grant lands, validated, before it leaves wheel, so there
@@ -246,7 +253,7 @@ remove_posture() {
     [[ -e $grant ]] || continue
     rm -f -- "$grant"
   done
-  rm -f "$SUDOERS_DIR/omarchy-parent" "$POLKIT_RULES_DIR/40-omarchy-parent.rules"
+  rm -f "$SUDOERS_DIR/omarchy-parent" "$POLKIT_RULES_DIR/40-omarchy-parent.rules" "$POLKIT_RULES_DIR/$STALE_WIFI_RULE"
   unmask_consoles
   unlock_root_prompts
   echo "Parental sudo and polkit configuration removed, the text consoles reopened, and root left out of faillock's count again. wheel membership is left as it is."
