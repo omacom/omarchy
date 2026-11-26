@@ -488,6 +488,11 @@ write_credentials carol 'p=a$$w"x'
 [[ $(stat -c '%a' "$credentials_dir") == 700 && $(stat -c '%a' "$CREDENTIALS_FILE") == 600 ]] || fail "credentials path is not private"
 [[ $(cat "$credentials_victim") == victim ]] || fail "credentials write changed a symlink victim"
 [[ $(read_credential USERNAME) == carol && $(read_credential PASSWORD) == 'p=a$$w"x' ]] || fail "credentials did not round-trip"
+for password in 'base64ish=' 'two==' '='; do
+  write_credentials carol "$password"
+  [[ $(read_credential PASSWORD) == "$password" ]] || fail "a password ending in = came back as '$(read_credential PASSWORD)', not '$password'"
+done
+write_credentials carol 'p=a$$w"x'
 credentials_before=$(cat "$CREDENTIALS_FILE")
 mv() { return 1; }
 write_credentials changed replacement 2>/dev/null && fail "forced credentials rename failure succeeded"
