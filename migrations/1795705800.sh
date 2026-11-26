@@ -42,5 +42,7 @@ if [[ ! -e $override_file ]]; then
   done
 fi
 
-omarchy-camera-tuning on ||
-  echo "Camera tuning not applied yet. After logging in, run: omarchy camera tuning on"
+if ! omarchy-camera-tuning on; then
+  echo "Camera tuning not applied yet. After logging in, run: omarchy camera tuning on" >&2
+  exit 1
+fi

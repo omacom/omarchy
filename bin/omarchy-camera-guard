@@ -20,7 +20,7 @@ COOLDOWN=4
 
 log() { echo "camera-guard: $*"; }
 
-if [[ ${1-} == --needed ]]; then
+if [[ ${1-} == "--needed" ]]; then
   v=$(pacman -Q libcamera 2>/dev/null) && (( $(vercmp "${v#* }" 0.8.0) >= 0 )) &&
     { log "libcamera ${v#* } fixes both faults; standing down"; exit 1; }
   exit 0

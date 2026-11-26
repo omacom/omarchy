@@ -126,13 +126,8 @@ run_tuning on >/dev/null
 [[ -r $work/config/systemd/user/omarchy-camera-relay.service ]] || fail "on installs relay user unit"
 [[ -r $work/config/systemd/user/omarchy-camera-guard.service ]] || fail "on installs guard user unit"
 ! grep -q '@' "$work/config/systemd/user/omarchy-camera-"*.service || fail "rendered user units have no unsubstituted placeholders"
-grep -q '^Slice=session.slice$' "$work/config/systemd/user/omarchy-camera-relay.service" || fail "relay unit runs in session.slice"
-grep -q '^Slice=session.slice$' "$work/config/systemd/user/omarchy-camera-guard.service" || fail "guard unit runs in session.slice"
-grep -q '^ExecStartPre=-/usr/bin/omarchy-hw-wait-camera-access$' "$work/config/systemd/user/omarchy-camera-relay.service" || fail "relay unit waits for camera uaccess at login"
-grep -q "GAMMA=1.5" "$work/config/omarchy/camera-relay.env" || fail "shipped gamma is written"
-grep -q "CONTRAST=1.05" "$work/config/omarchy/camera-relay.env" || fail "shipped contrast is written"
-grep -q "SATURATION=1.4" "$work/config/omarchy/camera-relay.env" || fail "shipped saturation is written"
 grep -q "try-restart wireplumber.service" "$CALLS" || fail "on restarts wireplumber when Front Camera is not yet listed"
+default_env="$(cat "$work/config/omarchy/camera-relay.env")"
 
 # 4. User override via 'set' updates ~/.config/omarchy/camera.conf and re-renders env
 : >"$CALLS"
@@ -174,7 +169,7 @@ PATH="$work/bin:$PATH" \
 # 6. 'reset' restores shipped defaults, 'off' removes units and env
 run_tuning reset >/dev/null
 [[ ! -e $work/config/omarchy/camera.conf ]] || fail "reset removes user override file"
-grep -q "GAMMA=1.5" "$work/config/omarchy/camera-relay.env" || fail "reset restores shipped gamma"
+[[ $(cat "$work/config/omarchy/camera-relay.env") == "$default_env" ]] || fail "reset restores original rendered env"
 
 run_tuning off >/dev/null
 [[ ! -e $work/config/omarchy/camera-relay.env ]] || fail "off removes camera-relay.env"

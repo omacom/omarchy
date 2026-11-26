@@ -13,8 +13,7 @@
 set -uo pipefail
 
 script_dir="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-omarchy_root="${OMARCHY_PATH:-$(cd -- "$script_dir/.." && pwd)}"
-tunings_dir="$omarchy_root/default/camera/tunings"
+tunings_dir="$OMARCHY_PATH/default/camera/tunings"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 env_file="$config_home/omarchy/camera-relay.env"
@@ -25,8 +24,8 @@ relay_unit_name=omarchy-camera-relay.service
 guard_unit_name=omarchy-camera-guard.service
 relay_unit="$config_home/systemd/user/$relay_unit_name"
 guard_unit="$config_home/systemd/user/$guard_unit_name"
-relay_unit_source="$omarchy_root/default/systemd/user/$relay_unit_name"
-guard_unit_source="$omarchy_root/default/systemd/user/$guard_unit_name"
+relay_unit_source="$OMARCHY_PATH/default/systemd/user/$relay_unit_name"
+guard_unit_source="$OMARCHY_PATH/default/systemd/user/$guard_unit_name"
 
 relay_bin="$script_dir/omarchy-camera-relay"
 guard_bin="$script_dir/omarchy-camera-guard"
