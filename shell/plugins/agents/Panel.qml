@@ -643,8 +643,8 @@ Panel {
   property string settingUpLocal: ""
   readonly property var localSetup: settingUpLocal === "" ? null : localModelState({ target: settingUpLocal, host: "" })
 
-  // A tailnet model being paired with keeps its row too, its meter saying
-  // how the pairing goes; once paired, it has its line in the panel and
+  // A tailnet model being paired with keeps its row too, its metadata line
+  // saying how the pairing goes; once paired, it has its line in the panel and
   // becomes the default if nothing else was finished first.
   property string pairingLocal: ""
   onLocalModelLinesChanged: {
@@ -654,15 +654,15 @@ Panel {
     if (settingUpLocal === "" && addStage === "pick") cancelAdd()
   }
 
-  // The pairing's meter: under way, or why it failed.
-  readonly property var pairingMeter: {
+  // How the pairing is going: under way, or why it failed.
+  readonly property var pairingStatus: {
     if (pairingLocal === "" || !localModelsService) return null
     var host = pairingLocal.split("/")[0]
     if (localModelsService.pairingId === pairingLocal)
-      return { title: Commons.I18n.t("localModels.networkPairing").arg(host), value: -1, rate: "" }
+      return { text: Commons.I18n.t("localModels.networkPairing").arg(host), failed: false }
     var failure = localModelsService.pairFailures[pairingLocal]
     if (failure)
-      return { title: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), value: -1, rate: "", failed: true }
+      return { text: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), failed: true }
     return null
   }
 
@@ -1172,7 +1172,7 @@ Panel {
   readonly property bool starterAgentReady: localModelRunning || localModelStopped || providers.some(function(p) {
     return harnessFor(p) !== "" && !signedOut(p)
   })
-  readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
+  readonly property bool starterShown: indexShown && starterAgentReady
 
   function startPrompt(kind) {
     root.close()
@@ -1785,7 +1785,7 @@ Panel {
   // refreshes each agent in turn. Indexing the live list would swap the line
   // on each of those, so the hero holds what it shows until the next fade.
   property string shownPhrase: ""
-  readonly property string heroPhrase: addStage !== "" || blankSlate
+  readonly property string heroPhrase: !indexShown
     ? addHeading
     : (shownPhrase !== "" ? shownPhrase : Commons.I18n.t("agents.letsMakeSomethingCool"))
 
@@ -1844,8 +1844,16 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  // So does a running local model, which the starters can hand their task to.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !localModelRunning
+  // So does any local or paired coding model on the index (running, stopped,
+  // loading, stopping, failed, or removing), while a model still being set up
+  // or started from the picker stays on the blank-slate picker.
+  readonly property bool hasIndexLocalModel: localModelLines.some(function(line) {
+    return usage.localModelAdded(line)
+      && line.localModel.target !== settingUpLocal
+      && !localSettingUp(localModelState(line.localModel))
+  })
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !hasIndexLocalModel
+  readonly property bool indexShown: addStage === "" && !blankSlate
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -1989,7 +1997,7 @@ Panel {
 
   Timer {
     interval: 2800
-    running: root.opened && root.summaryPhrases.length > 1 && root.addStage === "" && !root.blankSlate
+    running: root.opened && root.summaryPhrases.length > 1 && root.indexShown
     repeat: true
     onTriggered: phraseSwap.restart()
   }
@@ -2090,7 +2098,7 @@ Panel {
       }
       implicitHeight: column.implicitHeight
       anchors.fill: parent
-      reorderable: root.addStage === "" && !root.renaming
+      reorderable: root.indexShown && !root.renaming
       onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
@@ -2115,7 +2123,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
+        else if (root.indexShown && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
       }
 
       Flickable {
@@ -2220,13 +2228,13 @@ Panel {
 
           AddView {
             id: addView
-            visible: root.addStage !== "" || root.blankSlate
+            visible: !root.indexShown
             width: column.width
           }
 
           Repeater {
             id: providerSections
-            model: root.addStage === "" ? root.providers : []
+            model: root.indexShown ? root.providers : []
 
             ProviderSection {
               required property var modelData
@@ -2471,7 +2479,8 @@ Panel {
           // Too big for the memory free now: dimmed, saying so, and not chosen.
           readonly property var shortfall: modelData.shortfall || null
           readonly property bool recommended: root.offerRecommended(modelData, root.localModelOfferCount)
-          readonly property var offerMeterState: modelData.pair ? (modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(modelData)
+          readonly property var pairingState: modelData.pair && modelData.target === root.pairingLocal ? root.pairingStatus : null
+          readonly property var offerMeterState: modelData.pair ? null : root.offerMeter(modelData)
           readonly property bool downloading: !!offerMeterState && offerMeterState.downloading === true
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
@@ -2552,23 +2561,27 @@ Panel {
 
             // A paired machine's model says whose it is before its facts; a
             // cabled Spark, what setting it up does; one too big for the
-            // memory free now, in red, why it can't start. While downloading,
+            // memory free now, in red, why it can't start; one being paired
+            // with, that it's pairing or why pairing failed. While downloading,
             // the progress bar takes this line's place.
             Text {
               visible: !ownModel.downloading
               width: parent.width
-              text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
+              text: ownModel.pairingState ? ownModel.pairingState.text
+                : ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
                 : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
                 : [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
               textFormat: Text.PlainText
-              color: ownModel.shortfall ? root.urgent : root.dim
+              color: ownModel.pairingState ? (ownModel.pairingState.failed ? root.urgent : root.foreground)
+                : ownModel.shortfall ? root.urgent : root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
+              wrapMode: ownModel.pairingState && ownModel.pairingState.failed ? Text.Wrap : Text.NoWrap
+              elide: ownModel.pairingState && ownModel.pairingState.failed ? Text.ElideNone : Text.ElideRight
             }
 
             // The setup or start begun here: installing, downloading, then
-            // loading, as its line will show it; or the pairing.
+            // loading, as its line will show it.
             LocalMeterRow {
               meter: ownModel.offerMeterState
               visible: !!meter
@@ -3647,7 +3660,7 @@ Panel {
     property var meter: null
     property real topPadding: 0
     readonly property bool failed: !!meter && meter.failed === true
-    // A step with no measure of its own, like a pairing, is its title alone.
+    // A failed step has no measure of its own, only its reason.
     readonly property bool barless: !meter || failed || meter.value < 0
     readonly property bool titled: !!meter && String(meter.title || "") !== ""
     readonly property bool hasRate: meterRate.text !== ""

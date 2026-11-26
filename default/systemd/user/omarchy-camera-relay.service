@@ -1,0 +1,21 @@
+[Unit]
+Description=Omarchy webcam relay and image tuning
+# Open the v4l2loopback output side before WirePlumber probes V4L2 devices at
+# login so WirePlumber immediately sees Video Capture and exposes the webcam
+# without needing a root udevadm trigger.
+Before=wireplumber.service
+ConditionPathExists=%E/omarchy/camera-relay.env
+
+[Service]
+Type=simple
+Slice=session.slice
+# Wait for logind uaccess grants on /dev/video* and /dev/media* before opening.
+ExecStartPre=-/usr/bin/omarchy-hw-wait-camera-access
+ExecStart=@RELAY_BIN@
+ExecStartPost=-@RELAY_BIN@ --wait-ready
+TimeoutStartSec=10
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=pipewire.service

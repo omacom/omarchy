@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.opencode": {
     "label": "OpenCode Desktop"
+  },
+  "system.snapshots": {
+    "label": "Στιγμιότυπα"
+  },
+  "system.snapshots.restore": {
+    "label": "Αποκατάσταση αυτού του στιγμιότυπου"
   }
 }

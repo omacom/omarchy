@@ -40,10 +40,10 @@ per local coding model added.
   into these; each is keyed by the account's email, or its id without one,
   so a renamed account keeps its place. Click an account's name to rename it
   in place. Only the account in use can turn the bar icon urgent.
-- **Local models** — each coding model added from the add screen gets a
-  line: one set up on this machine, in whatever state, or one a paired
-  machine that's online is running, as does the one a default of "local"
-  opens. The models added are kept in
+- **Local models** — every coding model set up on this machine (from the add
+  screen or the CLI) gets a line, in whatever state, as does each coding model
+  added from a paired machine that's online and running, and the one a default
+  of "local" opens. The paired models added are kept in
   `~/.local/state/omarchy/agents/local-models.json`. A line shows its
   maker's mark, its name, the machine for a paired one, and its memory,
   speed, and context where a subscription shows limits. While it runs, its
