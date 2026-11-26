@@ -39,6 +39,12 @@ local written = nil
 -- Connector -> identity for the monitors plugged in now.
 local current = {}
 
+-- The output Hyprland stands up while no real monitor is connected. Nobody
+-- sees it, so it owns no block: given one, it took 1-10 from the monitor a
+-- session started without, and an unplugged only monitor's workspaces were
+-- renumbered into its block and came back under other numbers.
+local FALLBACK = "FALLBACK"
+
 local function load_blocks()
   local file = io.open(STATE_FILE, "r")
   if not file then
@@ -47,7 +53,8 @@ local function load_blocks()
 
   for line in file:lines() do
     local block, connector, identity = line:match("^(%d+)\t([^\t]*)\t(.+)$")
-    if block then
+    -- Sessions before FALLBACK was left out saved it a block of its own.
+    if block and identity ~= FALLBACK then
       blocks[identity] = tonumber(block)
       if connector ~= "" then
         current[connector] = identity
@@ -154,7 +161,7 @@ local function connected(gone)
   local monitors = {}
 
   for _, monitor in ipairs(hl.get_monitors()) do
-    if not monitor.is_mirror and monitor.name ~= gone then
+    if not monitor.is_mirror and monitor.name ~= gone and monitor.name ~= FALLBACK then
       monitors[#monitors + 1] = monitor
     end
   end
