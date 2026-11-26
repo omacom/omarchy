@@ -2514,7 +2514,7 @@ Item {
     property bool suppressClick: false
     property real pressedX: 0
     property real pressedY: 0
-    readonly property real dragThreshold: Style.space(4)
+    readonly property real dragThreshold: Application.styleHints.startDragDistance
 
     acceptedButtons: Qt.LeftButton
     cursorShape: dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
@@ -3102,7 +3102,7 @@ Item {
       property real pressedX: 0
       property real pressedY: 0
       readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
-      readonly property real dragThreshold: Style.space(4)
+      readonly property real dragThreshold: Application.styleHints.startDragDistance
 
       anchors.fill: parent
       acceptedButtons: Qt.LeftButton
