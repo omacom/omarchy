@@ -151,7 +151,7 @@ Item {
   // titles) get the wide card, and so does a search that shows their rows.
   readonly property var wideMenus: ({ "trigger.capture.screenrecord": true, "appearance.font": true, "update.kernel": true, "system.snapshots": true })
   property bool wideDisplay: false
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideDisplay ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideDisplay ? Style.space(520) : Style.space(340)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, filterText) : rowListHeight(layoutSerial, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
