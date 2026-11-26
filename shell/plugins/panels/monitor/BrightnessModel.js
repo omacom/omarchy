@@ -72,31 +72,11 @@ function finish(state, request, success) {
       revision: state.revision + 1
     }),
     verified: current && success && !latest && (request.osd || (state.latest && state.latest.osd))
-      ? request.target : null
+      ? request.target : null,
+    // A verified level belongs to the display it was written to, even after
+    // the panel has moved on to another one.
+    written: success ? { monitor: request.epoch.monitor, percent: request.target } : null
   }
-}
-
-// Every display's level from a poll. The display the controller owned when the
-// poll started keeps its earlier level unless nothing changed since then, so a
-// read from before a write cannot bring back the old level.
-function knownLevels(previous, polled, state, monitor, generation) {
-  var known = Object.assign({}, polled)
-  var fresh = generation !== -1 && generation === readGeneration(state)
-  if (monitor && !fresh) {
-    if (previous[monitor] === undefined) delete known[monitor]
-    else known[monitor] = previous[monitor]
-  }
-  return known
-}
-
-// Record the level the controller's display last confirmed, so showing it
-// again starts from what the hardware holds.
-function remember(levels, state) {
-  var monitor = state.epoch.monitor
-  if (!monitor || !state.available || levels[monitor] === state.confirmed) return levels
-  var known = Object.assign({}, levels)
-  known[monitor] = state.confirmed
-  return known
 }
 
 if (typeof module !== "undefined") {
@@ -106,8 +86,6 @@ if (typeof module !== "undefined") {
     acceptRead: acceptRead,
     request: request,
     start: start,
-    finish: finish,
-    knownLevels: knownLevels,
-    remember: remember
+    finish: finish
   }
 }

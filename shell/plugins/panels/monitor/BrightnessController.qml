@@ -10,6 +10,7 @@ Item {
   readonly property int percent: state.percent
   readonly property bool available: state.available
   signal verified(int percent)
+  signal written(string monitor, int percent)
 
   function readGeneration() {
     return BrightnessModel.readGeneration(state)
@@ -45,6 +46,7 @@ Item {
     var result = BrightnessModel.finish(state, request, success)
     if (result.state === state) return
     state = result.state
+    if (result.written) written(result.written.monitor, result.written.percent)
     if (result.verified !== null) verified(result.verified)
     if (state.latest) Qt.callLater(startLatest)
   }

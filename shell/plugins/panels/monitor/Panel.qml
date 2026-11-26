@@ -6,7 +6,6 @@ import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
 import "Model.js" as Model
-import "BrightnessModel.js" as BrightnessModel
 
 Panel {
   id: root
@@ -18,7 +17,8 @@ Panel {
   // permits — needed for the brightness + state methods below.
   // The controller owns the shown display's brightness: the focused one,
   // unless the picker shows another. brightnessLevels keeps every display's
-  // last polled level, so showing another display adopts its level at once.
+  // last polled or verified level, so showing another display adopts its level
+  // at once.
   readonly property int brightnessPercent: brightnessController.percent
   readonly property bool brightnessAvailable: brightnessController.available
   property var brightnessLevels: ({})
@@ -376,8 +376,8 @@ Panel {
 
   function refresh() {
     if (!stateProc.running) {
-      stateProc.brightnessMonitor = brightnessController.state.epoch.monitor
       stateProc.brightnessGeneration = brightnessController.readGeneration()
+      stateProc.writtenLevels = ({})
       stateProc.running = true
     }
   }
@@ -418,8 +418,8 @@ Panel {
       if (display && display.enabled && typeof display.brightness === "number")
         levels[display.name] = display.brightness
     }
-    root.brightnessLevels = BrightnessModel.knownLevels(root.brightnessLevels, levels, brightnessController.state,
-                                                        stateProc.brightnessMonitor, stateProc.brightnessGeneration)
+    // A write verified while this poll ran is newer than what the poll read.
+    root.brightnessLevels = Object.assign(levels, stateProc.writtenLevels)
 
     var shape = JSON.stringify(parsed.displays, function(key, value) { return key === "brightness" ? undefined : value })
     if (shape === root.displaysJson) return
@@ -667,8 +667,8 @@ Panel {
 
   Process {
     id: stateProc
-    property string brightnessMonitor: ""
     property int brightnessGeneration: -1
+    property var writtenLevels: ({})
     command: ["omarchy-monitor-state"]
     onRunningChanged: {
       if (running) {
@@ -711,7 +711,12 @@ Panel {
   BrightnessController {
     id: brightnessController
     onVerified: function(percent) { root.showBrightnessOsd(percent) }
-    onStateChanged: root.brightnessLevels = BrightnessModel.remember(root.brightnessLevels, state)
+    onWritten: function(monitor, percent) {
+      var level = {}
+      level[monitor] = percent
+      root.brightnessLevels = Object.assign({}, root.brightnessLevels, level)
+      stateProc.writtenLevels = Object.assign({}, stateProc.writtenLevels, level)
+    }
   }
 
   Timer {

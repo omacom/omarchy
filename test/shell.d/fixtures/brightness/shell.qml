@@ -31,6 +31,12 @@ FloatingWindow {
     signalName: "verified"
   }
 
+  SignalSpy {
+    id: written
+    target: brightness
+    signalName: "written"
+  }
+
   TestCase {
     name: "BrightnessRuntime"
     when: root.visible
@@ -53,6 +59,8 @@ FloatingWindow {
       brightness.request(70)
       tryCompare(verified, "count", 1)
       compare(verified.signalArguments[0][0], 70, "normal exit confirms the trailing target and preserves wheel OSD")
+      var lastWrite = written.signalArguments[written.count - 1]
+      compare(lastWrite[0] + " " + lastWrite[1], "A 70", "a verified write reports its display and level")
       brightness.request(80, true)
       tryCompare(brightness, "percent", 70)
       compare(verified.count, 1, "failure rolls back without an OSD")
