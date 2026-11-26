@@ -141,6 +141,14 @@ receive 1 env HOME="$WORKDIR"
 assert_notification "$downloads/home.png" "Received home.png" "Saved to ~/downloads"
 pass "taildrop receive shortens a save location under HOME"
 
+# A broken symlink at the target name counts as taken and advances the suffix.
+ln -s "$WORKDIR/does-not-exist" "$downloads/broken.txt"
+printf 'delivered' >"$WORKDIR/outbox/broken.txt"
+receive 1 env
+[[ -f $downloads/broken-1.txt && $(<"$downloads/broken-1.txt") == "delivered" ]] ||
+  fail "taildrop receive advances past a broken symlink" "$(ls -la "$downloads")"
+pass "taildrop receive advances past a broken symlink"
+
 # Without an explicit directory the receiver must honor a customized XDG
 # download dir instead of recreating ~/Downloads on every login.
 cat >"$WORKDIR/bin/xdg-user-dir" <<SH

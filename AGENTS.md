@@ -5,10 +5,12 @@ matching guide before starting:
 
 - [`agents/skills/command-metadata.md`](agents/skills/command-metadata.md) - adding or changing commands in `bin/`
 - [`agents/skills/install-scripts.md`](agents/skills/install-scripts.md) - working under `install/` or on system/user setup commands
-- [`agents/skills/mise-tools.md`](agents/skills/mise-tools.md) - adding or changing mise-managed tools
+- [`agents/skills/mise-tools.md`](agents/skills/mise-tools.md) - adding a tool to Omarchy, and what Omarchy still uses mise for
 - [`agents/skills/shell-dev.md`](agents/skills/shell-dev.md) - editing the Quickshell desktop under `shell/`
 - [`agents/skills/icon-font.md`](agents/skills/icon-font.md) - adding branded glyphs to `default/fonts/omarchy/omarchy.ttf`
 - [`agents/skills/acceptance-tests.md`](agents/skills/acceptance-tests.md) - writing or running graphical acceptance tests under `test/acceptance.d/`
+- [`agents/skills/oligarchy-tests.md`](agents/skills/oligarchy-tests.md) - full omarchy tests that run in qemu to validate behavior
+- [`agents/skills/motion.md`](agents/skills/motion.md) - adding or changing any animation or transition in `shell/`
 - [`agents/skills/visual-verification.md`](agents/skills/visual-verification.md) - verifying any change with a visual effect in the running UI
 - [`agents/skills/migrations.md`](agents/skills/migrations.md) - creating or changing migrations under `migrations/`
 
@@ -87,7 +89,7 @@ Where platform code lives:
 - Packages: `install/omarchy-base.packages` for everyone, `install/omarchy-aarch64.packages` for every ARM machine, `install/omarchy-<platform>.packages` for one family, and base packages with no aarch64 build in `install/omarchy-x86_64-only.packages`. `omarchy-pkg-defaults` composes them.
 - Pacman templates: `default/pacman/` for x86, `default/pacman/<platform>/` for each ARM platform.
 - Hardware setup: `install/hardware/<vendor-or-family>/`, gated by a predicate. `install/hardware/apple/` holds Intel Mac quirks; Apple Silicon's own setup ships in the omarchy-mac packages.
-- Boot chains Omarchy can't drive generically: a platform package behind `omarchy-lifecycle-dispatch` ([`docs/lifecycle-dispatch.md`](docs/lifecycle-dispatch.md)). Platforms that boot Limine with UKIs like x86 keep the generic path.
+- Boot chains Omarchy can't drive generically: a platform package behind `omarchy-lifecycle-dispatch` ([`docs/lifecycle-dispatch.md`](docs/lifecycle-dispatch.md)). Platforms that boot Limine with UKIs like x86 keep the generic path. x86 machines can move to systemd-boot ([`docs/boot.md`](docs/boot.md)): change the kernel command line with `omarchy-boot-cmdline` and rebuild with `omarchy-boot-rebuild`, never with Limine tools directly, so both loaders stay current.
 
 The experience should be the same on every platform. When a package or feature is missing or broken on one, the default is to get it fixed upstream (an aarch64 build, a bug report, a patch to the maintainer) and leave the gap visible meanwhile, not to paper over it. When asked for a platform workaround, say so and propose the upstream fix first. Hiding a menu entry or skipping a package is fine only for things that can't exist there (an x86 guest VM, an x86-only proprietary binary). Alternative packages and platform-only replacements are a last resort, used only when upstream can't or won't fix it, with the reason written next to the code.
 
@@ -129,6 +131,10 @@ Exceptions are allowed for migration and package-helper scripts where the helper
 - Do not add `aliases` to new menu entries. Aliases are reserved for
   established alternate names users already type, kept for compatibility.
 
+# Keybindings
+
+- Default hotkeys follow the planes in [`manual/07-hotkeys.md`](manual/07-hotkeys.md#how-hotkeys-are-laid-out). Pick the plane from what the binding does, never move an existing binding to make room for a new one, and use `Alt` only for a variant of the same binding without it. Hold new and changed bindings in review to the same rules.
+
 # Config Structure
 
 - `config/` - default configs copied to `~/.config/`
@@ -163,7 +169,8 @@ When to add a test. A test earns its place only by catching a regression nothing
 - No change-detectors: snapshots of large output, file lists, or exact counts that break whenever someone adds an unrelated entry.
 - Extend the area's existing test file (`git grep` the command or function under `test/`) rather than adding a new `*-test.sh`, and follow its style.
 - Keep tests in proportion to the change. A few lines of change rarely justify more than a few lines of test, and usually none.
-- Do test real logic: parsing, routing, a migration's idempotence and no-op paths, a guard on hardware without the feature, the edge case a fix handles. A bug fix with logic in it gets the one test that fails on the base branch and passes with the fix.
+- No test for a migration. It runs once and is frozen once it ships; test logic it needs by moving that logic into a `bin/` command.
+- Do test real logic: parsing, routing, a guard on hardware without the feature, the edge case a fix handles. A bug fix with logic in it gets the one test that fails on the base branch and passes with the fix.
 
 New Omarchy shell tests should live in `test/shell.d/*-test.sh` so `./test/shell` picks them up automatically. Source `test/shell.d/base-test.sh` for shared root-path discovery, assertions, and Node test helpers.
 
@@ -181,6 +188,4 @@ To copy a default config to user config with automatic backup:
 omarchy-refresh-config hypr/hyprland.lua
 ```
 
-This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument
-is interpolated into both paths and only checked with `[[ -e ]]`, so pass a plain relative path: a
-name containing `..` resolves and copies, landing outside `~/.config` rather than being rejected.
+This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument must be a plain relative path: an absolute path or any `..` segment is rejected before anything is copied. That check is lexical, so a symlink under `~/.config` is still followed and its target rewritten — which is what keeps symlink-managed dotfiles working.

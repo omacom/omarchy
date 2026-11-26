@@ -7,7 +7,7 @@ require_command xkbcli
 
 resolved_input_for() {
   local module="$1"
-  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua <<'LUA'
+  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local vconsole = os.getenv("OMARCHY_VCONSOLE")
@@ -77,9 +77,9 @@ assert_resolved_input() {
   local actual
 
   if (( $# > 3 )); then
-    actual=$("$resolver" "$4")
+    actual=$("$resolver" "$4") || fail "$description" "$actual"
   else
-    actual=$("$resolver")
+    actual=$("$resolver") || fail "$description" "$actual"
   fi
 
   [[ $actual == "$expected" ]] ||
@@ -186,3 +186,28 @@ TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_input "men
 TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_greeter_input "menu selections leave the greeter keyboard unchanged" "[jp] [] []" $'XKBLAYOUT=jp\n'
 
 TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,ru\nXKBVARIANT=,phonetic\n' assert_input "saved non-Latin selections retain the layout shortcut" "[us,ru] [,phonetic] [$toggle_options]" $'XKBLAYOUT=us\n'
+
+altgr_calls=$(OMARCHY_PATH="$ROOT" lua - <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local real_open = io.open
+io.open = function(path, mode)
+  if path:match("/omarchy/keyboard%-layouts$") then
+    local f = io.tmpfile(); f:write("XKBLAYOUT=de,de\nXKBVARIANT=nodeadkeys,nodeadkeys\n"); f:seek("set"); return f
+  elseif path:match("/fcitx5/profile$") then
+    local f = io.tmpfile(); f:write("[Groups/0/Items/0]\nName=keyboard-de-nodeadkeys\n"); f:seek("set"); return f
+  end
+  return real_open(path, mode)
+end
+local seen_cmd
+io.popen = function(cmd)
+  seen_cmd = cmd
+  return { read = function() return "key <RALT> { [ ISO_Level3_Shift ] };" end, close = function() end }
+end
+local keyboard = require("default.hypr.keyboard")
+assert(keyboard.altgr(), "AltGr layout is detected")
+local _, count = seen_cmd:gsub("xkbcli compile%-keymap", "")
+print(count)
+LUA
+)
+[[ $altgr_calls == "1" ]] || fail "keyboard.altgr deduplicates identical layouts across Hyprland and Fcitx" "got $altgr_calls calls"
+pass "keyboard.altgr deduplicates identical layouts across Hyprland and Fcitx"
