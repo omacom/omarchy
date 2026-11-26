@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command jq
 require_command python3
+require_command mise
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -350,6 +351,48 @@ agent_path=$(PATH="$dispatchers:$PATH:$dispatchers" OMARCHY_TEST_SHOW_PATH=1 "$d
 [[ $agent_path == "$dispatchers:"* && :${agent_path#"$dispatchers:"}: != *":$dispatchers:"* ]] ||
   fail "an agent's own subprocesses dispatch too" "$agent_path"
 pass "account dispatch follows the active account"
+
+# Inactive Node installs still contribute npm launchers to real mise shims.
+# They must fall through to the package without losing account dispatch.
+(
+  cd "$test_tmp"
+  export MISE_DATA_DIR="$test_tmp/shim-mise" MISE_SYSTEM_CONFIG_DIR="$test_tmp/shim-etc" MISE_OFFLINE=1 MISE_YES=1
+  export MISE_GLOBAL_CONFIG_FILE="$test_tmp/shim-config.toml"
+  mkdir -p "$test_tmp/old-node/bin" "$test_tmp/active-node/bin" "$MISE_SYSTEM_CONFIG_DIR"
+  for runtime in old-node active-node; do
+    ln -s /usr/bin/node "$test_tmp/$runtime/bin/node"
+  done
+  for provider in claude codex grok; do
+    printf '#!/bin/bash\necho "managed %s ${OMARCHY_TEST_MISE_ENV:-unset} $*"\n' "$provider" >"$test_tmp/old-node/bin/$provider"
+    chmod +x "$test_tmp/old-node/bin/$provider"
+  done
+  mise link node@26.4.0 "$test_tmp/old-node" >/dev/null
+  mise link node@26.13.1 "$test_tmp/active-node" >/dev/null
+  mise use -g node@26.13.1 >/dev/null 2>&1
+  export PATH="$dispatchers:$MISE_DATA_DIR/shims:$cli_only_path"
+  mise reshim
+  for provider in claude codex grok; do
+    [[ $MISE_DATA_DIR/shims/$provider -ef $(type -P mise) ]] || fail "reshim recreates the inactive $provider shim"
+    output=$(timeout 10 "$provider" --version 2>&1) || fail "an inactive mise shim falls through for $provider" "$output"
+    [[ $output == "$provider home="*" args=--version" ]] || fail "an inactive mise shim reaches the installed $provider" "$output"
+  done
+  mise use -g node@26.4.0 >/dev/null 2>&1
+  printf '\n[env]\nOMARCHY_TEST_MISE_ENV = "active"\n' >>"$MISE_GLOBAL_CONFIG_FILE"
+  for provider in claude codex grok; do
+    output=$(timeout 10 "$provider" --version 2>&1) || fail "an active mise provider starts for $provider" "$output"
+    [[ $output == "managed $provider active --version" ]] || fail "an active mise provider keeps its environment and precedence over the package" "$output"
+  done
+  mise use -g node@26.13.1 >/dev/null 2>&1
+  mkdir -p "$test_tmp/shim-tools"
+  ln -s "$(type -P mise)" "$test_tmp/shim-tools/mise"
+  ln -s "$(type -P rm)" "$test_tmp/shim-tools/rm"
+  if PATH="$dispatchers:$MISE_DATA_DIR/shims:$ROOT/bin:$test_tmp/shim-tools" CLAUDE_CONFIG_DIR="$HOME/.claude" \
+    /usr/bin/timeout 10 "$dispatchers/claude" >"$test_tmp/shim-inactive" 2>&1; then
+    fail "a shim with no active provider or fallback reports its error"
+  fi
+  [[ -x $dispatchers/claude ]] || fail "a project-only mise agent keeps its dispatcher outside the project"
+)
+pass "real mise shims preserve installed agents and intentional runtime selections after reshim"
 
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
   fail "omarchy-agent starts Claude in ~/.claude"
@@ -724,6 +767,7 @@ done
 ln -s /usr/bin/true "$lazy_bin/herdr"
 cat >"$lazy_bin/mise" <<SH
 #!/bin/bash
+[[ \${1:-} == "which" ]] && exit 0
 echo "run codex \$1" >>"$test_tmp/lazy-log"
 exec "$mock_bin/codex" "\$@"
 SH
