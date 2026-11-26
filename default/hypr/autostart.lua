@@ -1,29 +1,7 @@
-local runtime = os.getenv("XDG_RUNTIME_DIR")
-local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
 local started = false
-local marker = runtime and signature and runtime .. "/hypr/" .. signature .. "/omarchy-autostart"
 
 local function start_once()
-  if marker then
-    local existing = io.open(marker, "r")
-    if existing then
-      existing:close()
-      return
-    end
-
-    -- Hyprland starts a fresh Lua state on every reload. This marker keeps a
-    -- config.reloaded callback from repeating session services and post-boot
-    -- hooks, while a restarted compositor gets a new instance directory.
-    local file = io.open(marker, "w")
-    if not file then
-      return
-    end
-    file:write("started\n")
-    file:close()
-  elseif started then
-    return
-  end
-
+  if started then return end
   started = true
 
   -- Slow app launch fix -- set systemd and D-Bus activation vars before
@@ -64,6 +42,11 @@ end
 hl.on("hyprland.start", start_once)
 
 -- Hyprland's safe-mode dialog can load the user config after hyprland.start
--- already fired. Run the same session startup then, guarded by the instance
--- marker above so ordinary config reloads do not repeat it.
-hl.on("config.reloaded", start_once)
+-- already fired. On a normal login config.reloaded arrives first, before the
+-- Wayland display exists; on later reloads the shell ping distinguishes a
+-- session whose startup already ran from safe mode, which skips autostart.
+hl.on("config.reloaded", function()
+  if not os.getenv("WAYLAND_DISPLAY") then return end
+  if os.execute("omarchy-shell shell ping >/dev/null 2>&1") == true then return end
+  start_once()
+end)
