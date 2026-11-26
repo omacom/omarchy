@@ -17,8 +17,7 @@
 #   demo-fail <finger> The same, failing at the package install.
 #
 # Events: step <name>, scan <type>, stages <n>, stage <n>, retry <reason>,
-# enrolled, matched, done, fail <code>, and for status: reader <name>,
-# finger <name>, ready.
+# enrolled, matched, done, fail <code>, and for status: finger <name>, ready.
 #
 # A line on stdin (or its end) cancels: once pkexec has made this root, the
 # shell that started it can no longer signal it.
@@ -105,7 +104,7 @@ enroll_events() {
 }
 
 # fprintd-verify marks each result " (done)" or " (not done)"; one that isn't
-# done is a retry, whatever its name.
+# done is a retry, whatever its name. The final result is the caller's to read.
 verify_events() {
   local line
   while IFS= read -r line; do
@@ -113,16 +112,27 @@ verify_events() {
     line=${line#Verify result: }
     if [[ $line == *" (not done)" ]]; then
       emit "retry $(retry_reason "${line% (*}")"
-    elif [[ ${line% (*)} == "verify-disconnected" ]]; then
-      emit "fail disconnected"
     fi
   done
+}
+
+# Ends whatever a run left behind, however it ended.
+cleanup() {
+  [[ -z $watcher ]] || kill "$watcher" 2>/dev/null
+  stop_stages_watcher
+  [[ -z $tool_output ]] || rm -f "$tool_output"
+}
+
+stop_stages_watcher() {
+  [[ -n $stages_watcher ]] || return 0
+  pkill -P "$stages_watcher" 2>/dev/null
+  kill "$stages_watcher" 2>/dev/null
+  stages_watcher=""
 }
 
 status() {
   local device
   device=$(default_device)
-  emit "reader $(device_string "$device" name)"
   emit "scan $(device_string "$device" scan-type)"
   if command -v fprintd-list >/dev/null; then
     fprintd-list "$(id -un)" 2>/dev/null | sed -n 's/^ - #[0-9]*: \([a-z-]*\)$/finger \1/p'
@@ -161,8 +171,8 @@ demo() {
 }
 
 enroll() {
-  local finger=$1 user device hook stages_watcher
-  local packages=(libfprint-git fprintd usbutils) libfprint_owner duplicate_check=0 attempt enroll_output enroll_status
+  local finger=$1 user device hook
+  local packages=(libfprint-git fprintd usbutils) libfprint_owner duplicate_check=0 attempt status
 
   (( EUID == 0 )) || fail not-root
   # pkexec clears the environment, OMARCHY_PATH with it, and root runs only
@@ -175,14 +185,15 @@ enroll() {
   user=$(id -nu "$PKEXEC_UID") || fail not-root
 
   emit "step packages"
-  omarchy-hw-fingerprint || fail no-reader
+  # Only events go to stdout: anything a command prints there would be read as one.
+  omarchy-hw-fingerprint >&2 || fail no-reader
   # libfprint-git conflicts with stock libfprint, which --ask 4 replaces in one
   # transaction. A reader on a vendor's TOD fork keeps that fork instead.
   libfprint_owner=$(pacman -Qqo /usr/lib/libfprint-2.so.2 2>/dev/null || true)
   if [[ -n $libfprint_owner && $libfprint_owner != "libfprint" && $libfprint_owner != "libfprint-git" ]]; then
     packages=(fprintd usbutils)
   fi
-  if omarchy-pkg-missing "${packages[@]}"; then
+  if omarchy-pkg-missing "${packages[@]}" >&2; then
     pacman -S --needed --noconfirm --ask 4 -- "${packages[@]}" </dev/null >&2 || fail packages
   fi
 
@@ -223,26 +234,32 @@ enroll() {
   # The authorization that made this root may itself have been a fingerprint
   # touch, and pam_fprintd can still hold the reader for a moment after it. A
   # claim refused for that is tried again, not reported as a failed scan.
-  enroll_output=$(mktemp)
+  tool_output=$(mktemp)
   for attempt in {1..15}; do
-    fprintd-enroll -f "$finger" "$user" </dev/null 2>&1 | tee "$enroll_output" | enroll_events "$duplicate_check"
-    enroll_status=${PIPESTATUS[0]}
-    grep -v '^Enroll result: ' "$enroll_output" >&2
-    if (( enroll_status == 0 )) || ! grep -qi 'already claimed\|already in use' "$enroll_output"; then
+    fprintd-enroll -f "$finger" "$user" </dev/null 2>&1 | tee "$tool_output" | enroll_events "$duplicate_check"
+    status=${PIPESTATUS[0]}
+    grep -v '^Enroll result: ' "$tool_output" >&2
+    if (( status == 0 )) || ! grep -qi 'already claimed' "$tool_output"; then
       break
     fi
     sleep 1
   done
-  rm -f "$enroll_output"
-  (( enroll_status == 0 )) || { kill "$stages_watcher" 2>/dev/null; fail enroll; }
+  stop_stages_watcher
+  (( status == 0 )) || fail enroll
 
+  # Only a touch that didn't match is worth another try; a reader that went
+  # away, or any other error, ends it there.
   emit "step verify"
   for attempt in 1 2 3; do
-    fprintd-verify -f "$finger" "$user" </dev/null | verify_events
-    if (( PIPESTATUS[0] == 0 )); then
+    fprintd-verify -f "$finger" "$user" </dev/null 2>&1 | tee "$tool_output" | verify_events
+    status=${PIPESTATUS[0]}
+    grep -v '^Verify result: ' "$tool_output" >&2
+    if (( status == 0 )); then
       emit "matched"
       break
     fi
+    grep -q '^Verify result: verify-disconnected' "$tool_output" && fail disconnected
+    grep -q '^Verify result: verify-no-match' "$tool_output" || fail verify
     (( attempt < 3 )) || fail no-match
     emit "retry nomatch"
   done
@@ -269,9 +286,10 @@ if [[ $mode != "enroll" && $mode != "demo" && $mode != "demo-fail" ]] || ! valid
   exit 2
 fi
 
+watcher="" stages_watcher="" tool_output=""
 trap 'exit 130' TERM
+trap cleanup EXIT
 watch_cancel <&0 &
 watcher=$!
-trap 'kill "$watcher" 2>/dev/null' EXIT
 
 "$mode" "$finger"

@@ -18,6 +18,9 @@ function parseEvent(line) {
   var kind = parts[0]
   var value = parts.length > 1 ? parts[1] : ""
   var count = /^[0-9]+$/.test(value) ? parseInt(value, 10) : 0
+  // An event is its name alone or its name and one value, nothing more.
+  var bare = ["enrolled", "matched", "done", "ready"].indexOf(kind) !== -1
+  if (parts.length !== (bare ? 1 : 2)) return null
   switch (kind) {
   case "step":
     return STEPS.indexOf(value) !== -1 ? { kind: kind, value: value } : null
@@ -29,16 +32,14 @@ function parseEvent(line) {
   case "retry":
     return { kind: kind, value: HINTS.indexOf(value) !== -1 ? value : "again" }
   case "fail":
-    return { kind: kind, value: value }
+    return /^[a-z][a-z-]*$/.test(value) ? { kind: kind, value: value } : null
   case "finger":
     return FINGERS.indexOf(value) !== -1 ? { kind: kind, value: value } : null
-  case "reader":
-    return { kind: kind, value: parts.slice(1).join(" ").slice(0, 80) }
   case "enrolled":
   case "matched":
   case "done":
   case "ready":
-    return parts.length === 1 ? { kind: kind, value: "" } : null
+    return { kind: kind, value: "" }
   }
   return null
 }

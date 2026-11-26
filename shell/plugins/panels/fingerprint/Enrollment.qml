@@ -43,6 +43,8 @@ Item {
   property bool dismissed: false
   property bool cancelling: false
   property bool pendingStart: false
+  // A registration asked for while the last run's helper was still stopping.
+  property bool pendingBegin: false
 
   readonly property bool busy: ["auth", "setup", "enroll", "verify", "secure"].indexOf(phase) !== -1
   readonly property real progress: Model.progress(phase, stage, stages)
@@ -51,7 +53,15 @@ Item {
 
   // Registers the next free finger: reads what the reader holds, then starts.
   function begin() {
-    if (busy || run.running) return
+    if (busy) return
+    // A cancelled helper that pkexec made root ends in its own time, and a
+    // status read being stopped has lines still in the pipe: begin once
+    // either has gone.
+    if (run.running || statusProc.running) {
+      pendingBegin = true
+      return
+    }
+    pendingBegin = false
     phase = "idle"
     stage = 0
     stages = 0
@@ -60,8 +70,14 @@ Item {
     dismissed = false
     pendingStart = true
     pendingEnrolled = []
-    statusProc.running = false
     statusProc.running = true
+  }
+
+  function ready() {
+    if (!pendingStart) return
+    pendingStart = false
+    enrolled = pendingEnrolled
+    start()
   }
 
   function start() {
@@ -89,15 +105,17 @@ Item {
       run.write("cancel\n")
       run.running = false
     }
+    stopped.stop()
     pendingStart = false
+    pendingBegin = false
+    statusProc.running = false
     phase = "idle"
     hint = ""
   }
 
   function fail(code) {
-    // The first reason is the specific one; the helper's exit follows it. A
-    // reason that lands after the exit replaces the generic one.
-    if (phase === "done" || (phase === "failed" && failure !== "stopped")) return
+    // The first reason is the one that counts.
+    if (phase === "done" || phase === "failed") return
     failure = code
     phase = "failed"
   }
@@ -132,6 +150,7 @@ Item {
       phase = "done"
       break
     case "fail":
+      stopped.stop()
       fail(event.value)
       break
     }
@@ -144,6 +163,7 @@ Item {
     onExited: function(exitCode) {
       if (root.cancelling) {
         root.cancelling = false
+        if (root.pendingBegin) root.begin()
         return
       }
       if (exitCode === 0 || root.phase === "done" || root.phase === "failed") return
@@ -154,9 +174,18 @@ Item {
       } else if (exitCode === 127 && root.phase === "auth") {
         root.fail("denied")
       } else {
-        root.fail("stopped")
+        stopped.restart()
       }
     }
+  }
+
+  // The exit can beat the helper's last line through the pipe. Give the
+  // reason it printed a moment to land before calling the stop unexplained,
+  // since that opens the log and closes the panel.
+  Timer {
+    id: stopped
+    interval: 400
+    onTriggered: root.fail("stopped")
   }
 
   Process {
@@ -165,17 +194,17 @@ Item {
     stdout: SplitParser {
       onRead: function(line) {
         var event = Model.parseEvent(line)
-        if (!event) return
+        if (!event || !root.pendingStart) return
         if (event.kind === "scan") root.scanType = event.value
         else if (event.kind === "finger") root.pendingEnrolled = root.pendingEnrolled.concat([event.value])
-        else if (event.kind === "ready") {
-          root.enrolled = root.pendingEnrolled
-          if (root.pendingStart) {
-            root.pendingStart = false
-            root.start()
-          }
-        }
+        else if (event.kind === "ready") root.ready()
       }
+    }
+    // A status that never said ready (the helper is missing, say) still goes
+    // on to the run, whose own failure is the one worth reporting.
+    onExited: {
+      if (root.pendingBegin) root.begin()
+      else root.ready()
     }
   }
 }

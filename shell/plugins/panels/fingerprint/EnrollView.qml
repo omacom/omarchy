@@ -122,8 +122,9 @@ Item {
 
   focus: true
   Keys.onEscapePressed: view.closeRequested()
-  Keys.onReturnPressed: view.ctl.begin()
-  Keys.onEnterPressed: view.ctl.begin()
+  // Enter tries again after a failure. A finished run signs off by itself.
+  Keys.onReturnPressed: if (view.ctl.phase === "failed") view.ctl.begin()
+  Keys.onEnterPressed: if (view.ctl.phase === "failed") view.ctl.begin()
 
   Column {
     anchors.centerIn: parent

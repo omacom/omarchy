@@ -16,6 +16,10 @@ assertEqual(model.parseEvent('stages 12abc'), null, 'a count with trailing text 
 assertEqual(model.parseEvent('step <img src=x>'), null, 'an unknown step is dropped')
 assertEqual(model.parseEvent('finger nose'), null, 'an unknown finger is dropped')
 assertEqual(model.parseEvent('Using device /net/reactivated/Fprint/Device/0'), null, 'tool chatter is dropped')
+assertEqual(model.parseEvent('stage 4 5'), null, 'an event with more than its one value is dropped')
+assertEqual(model.parseEvent('done already'), null, 'a bare event with a value is dropped')
+assertEqual(model.parseEvent('fail'), null, 'a failure with no reason is dropped')
+assertEqual(model.parseEvent('fail <b>'), null, 'a failure reason that is not a code is dropped')
 assertEqual(model.parseEvent('retry sideways').value, 'again', 'an unknown retry reason reads as a plain retry')
 assertEqual(model.parseEvent('scan sideways').value, '', 'an unknown scan type names neither touch nor swipe')
 
