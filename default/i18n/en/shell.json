@@ -659,12 +659,15 @@
   "wifiqr.generating": "Generating QR code…",
   "wifiqr.passwordFailed": "Could not read the Wi-Fi password",
   "wifiqr.scanToJoin": "Scan to join this network",
+  "camera.brightness": "Brightness",
   "camera.contrast": "Contrast",
   "camera.gamma": "Gamma",
   "camera.liveMeta": "Live tuning",
   "camera.resetTooltip": "Restore default camera tuning",
   "camera.saturation": "Saturation",
+  "camera.tint": "Tint",
   "camera.title": "Camera",
   "camera.tooltipActive": "Camera active — click to tune image",
+  "camera.warmth": "Warmth",
   "wifiqr.showPassword": "Show password"
 }
