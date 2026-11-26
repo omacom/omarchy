@@ -1,5 +1,29 @@
--- App-specific tweaks.
-local paths = require("default.hypr.paths")
-local require_all = require("default.hypr.require_all")
+-- App-specific tweaks (listed directly so Hyprland reloads avoid shelling out).
+local modules = {
+  "1password",
+  "battlenet",
+  "bitwarden",
+  "browser",
+  "captive-portal",
+  "davinci-resolve",
+  "game-vibes",
+  "geforce",
+  "hermes",
+  "inkscape",
+  "jetbrains",
+  "localsend",
+  "moonlight",
+  "omarchy-shell",
+  "pip",
+  "retroarch",
+  "screenshot-selection",
+  "steam",
+  "system",
+  "telegram",
+  "terminals",
+  "webcam-overlay",
+}
 
-require_all.files(paths.omarchy_path .. "/default/hypr/apps", "default.hypr.apps")
+for _, name in ipairs(modules) do
+  require("default.hypr.apps." .. name)
+end

@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Install, launch, stop, inspect, or remove the Windows VM
-# omarchy:args=<install|remove|launch|stop|status> [options]
+# omarchy:subcommand=install — Install and configure the Windows VM
+# omarchy:subcommand=launch [-k|--keep-alive] — Start the VM if needed and connect over RDP
+# omarchy:subcommand=stop — Stop the running Windows VM
+# omarchy:subcommand=status — Show the current VM status
+# omarchy:subcommand=remove — Remove the Windows VM and optionally its data
 # omarchy:requires-sudo=true
 
 # The VM is an x86_64 Windows guest under KVM, which only an x86_64 host runs.
@@ -1113,6 +1117,8 @@ migrate_legacy_compose() {
   disk=$(read_compose_value DISK_SIZE "$LEGACY_COMPOSE_FILE")
   username=$(read_compose_value USERNAME "$LEGACY_COMPOSE_FILE")
   password=$(read_compose_value PASSWORD "$LEGACY_COMPOSE_FILE")
+  # Compose decoded the YAML escapes and $$ before the guest saw it, so undo them.
+  password=$(unescape "$password")
   tz=$(read_compose_value TZ "$LEGACY_COMPOSE_FILE")
   [[ -z $tz ]] && tz="UTC"
   prepare_user_mount_sources || {

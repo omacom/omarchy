@@ -2,34 +2,38 @@
 
 ## 其他編輯器
 
-Omarchy 預設附帶 [Neovim](https://neovim.io/)，但如果你想要更主流、更熟悉的選擇，可以開啟 Omarchy 選單（`Super + Space`），查看 _安裝 > Editor_ 下的選項。那裡列出了 VSCode、Cursor、Zed、Sublime Text、Helix、Vim 和 Emacs。如果找不到想要的，看看 _安裝 > Package_，確認它是否在某個 Arch 套件裡（如果沒有，試試 _安裝 > AUR_ 查 AUR）。
+Omarchy 新安裝預設搭載 Plain 作為預設編輯器，並預先安裝 [Neovim](https://neovim.io/)，但如果你想要更主流、更熟悉一點的東西，你可以開啟 Omarchy Menu（`Super + Space`），查看 _Install > Editor_ 下的選項。那裡列出了 VSCode、Cursor、Zed、Sublime Text、Helix、Vim 和 Emacs。如果你找不到想要的，看看 _Install > Package_，看它是不是在某個 Arch 套件裡（如果不在，試試 _Install > AUR_ 檢查 AUR）。
 
-原始的 `vi` 編輯器也開箱即用。執行 `vi filename` 即可在終端機中編輯檔案。
+原始的 `vi` 編輯器也開箱即用。在終端機執行 `vi filename` 就能編輯檔案。
 
-`VSCode`、`Cursor`、`VSCodium` 和 `Helix` 都支援主題配對。
+`VSCode`、`Cursor`、`VSCodium` 和 `Helix` 提供主題配對功能。
 
-你可以在 `設定 > 預設值 > Editor` 設定全系統的預設編輯器。
+你可以在 `Setup > Defaults > Editor` 設定全系統預設編輯器。
 
-## 開發環境
+## 環境
 
-Omarchy 可透過 Omarchy 選單（`Super + Space`）的 _安裝 > Development_ 區段設定一大票開發環境。當然有 _Ruby on Rails_，也有 JavaScript 的三大執行階段（Node.js、Bun、Deno），以及 Laravel、Symfony 等熱門 PHP 框架。喔，還有 Go、Rust、Python、Java、Elixir（搭配 Phoenix）、.NET、OCaml、Zig、Clojure 和 Scala。選擇非常豐富！
+Omarchy 支援透過 Omarchy Menu（`Super + Space`）的 _Install > Development_ 區段設定一整套開發環境。你當然會找到 _Ruby on Rails_，還有 JavaScript 的三大主要執行環境（Node.js、Bun、Deno），以及 Laravel 和 Symfony 等熱門 PHP 框架。哦，還有 Go、Rust、Python、Java、Elixir（連 Phoenix）、.NET、OCaml、Zig、Clojure 和 Scala。選擇非常廣泛！
 
-這些環境大多由 [Mise](https://mise.jdx.dev/) 管理。它讓你在同一台機器上安裝並執行某個程式語言的多個版本。就像 Ruby 的 rbenv 或 rvm、Python 的 virtualenv，但它適用於一大堆不同的環境。
+這些環境大多由 [Mise](https://mise.jdx.dev/) 管理。這個工具讓你能在同一台機器上安裝並執行程式語言的多個版本。它有點像 Ruby 的 rbenv 或 rvm，或 Python 的 virtualenv，但它能用在許多不同的環境上。
 
-舉例來說，要安裝 Ruby，執行 `mise use -g ruby`，它會安裝 Ruby 並將其設為全域預設。或者，如果你的專案有 .ruby-version 檔案，只要在專案根目錄執行 `mise i` 即可。
+舉例來說，要安裝 Ruby，你會執行 `mise use -g ruby`，這會同時安裝 Ruby 並將它設為全域預設。或者，如果你的專案有 .ruby-version 檔案，你只要在該專案的根目錄執行 `mise i` 就好。
+
+## 預先安裝的 CLI 工具
+
+`uv`、Node.js 和 `playwright-cli`（供 agents 操作瀏覽器，使用已安裝的 Chrome）會以套件形式預先安裝，而 `omarchy update` 會讓它們與系統其他部分保持最新。[Hunk](https://github.com/modem-dev/hunk) 以及 GitHub、Basecamp、Cloudflare 和 HEY 的 CLI 都在 _Install > CLI_ 下，點一下就能裝，而[編碼 agents](17-ai.md) 則在 _Install > AI > CLI_ 下。
+
+mise 只管理你從 _Install > Development_ 設定的執行環境；Omarchy 本身不會透過它安裝任何東西。執行 `omarchy update` 就能連同 Omarchy 其他部分一起更新它們；`mup` 這個 alias 則只更新 mise 管理的工具。若要把其他工具加到你自己的設定中，使用 `mise use -g <tool>`。
 
 ## Docker
 
-[Docker](https://www.docker.com/) 幾乎不需要介紹。它讓你執行隔離的容器，而 Omarchy 會安裝好好執行它所需的一切，包括 Docker 本身和 [Docker Compose](https://docs.docker.com/compose/)。
+[Docker](https://www.docker.com/) 幾乎不需要介紹。它讓你能執行隔離的容器，而 Omarchy 會安裝讓它好好運行所需的一切，包括 Docker 本身和 [Docker Compose](https://docs.docker.com/compose/)。
 
-預設情況下，你的使用者*不在* `docker` 群組中。該群組實際上等於免密碼的 root——群組中的任何東西都能執行 `docker run -v /:/host` 並接管整台機器——所以否則一個以你身分執行的惡作劇指令碼或相依套件，就只差一條命令便能取得 root。因此在命令列上你用 `sudo` 執行 Docker（`sudo docker ps`、`sudo docker compose up`），而與 daemon 對話的圖形工具——例如 Windows VM——在需要時會要求授權。如果你想恢復無群組設定的便利並了解其中取捨，可以從 **設定 > Security > Sudoless Docker** 啟用（或執行 `omarchy-setup-security-sudoless-docker`），它會在警告後把你加入 `docker` 群組；之後普通的 `docker` 和 `d` 別名就又能不加 `sudo` 使用了。
+預設情況下，你的使用者*不*在 `docker` 群組中。那個群組實際上等同於免密碼的 root——其中任何東西都可以執行 `docker run -v /:/host` 並接管整台機器——所以一個以你的身分運行的惡意指令碼或相依套件，否則只要一個指令就能取得 root。因此在命令列上，你要用 `sudo` 執行 Docker（`sudo docker ps`、`sudo docker compose up`），而與 daemon 通訊的圖形工具——Windows VM——會在需要時要求授權。如果你想要重新享有免 sudo 的方便，並了解其中的取捨，可以從 **Setup > Security > Sudoless Docker** 啟用它（或執行 `omarchy-setup-security-sudoless-docker`），它會在警告後將你加入 `docker` 群組；之後一般的 `docker` 和 `d` 這個 alias 就能再次不加 `sudo` 使用。
 
-你可以在 Omarchy 選單中使用 _安裝 > Development > Docker DB_，在 Docker 中設定常見的本地開發資料庫。
+你可以使用 Omarchy 選單中的 _Install > Development > Docker DB_，在 Docker 中設定本機開發常用的資料庫。
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) 讓你以 GitHub 帳戶驗證身分，並用它複製私人儲存庫。它接入了 mise 的延遲載入 stub 機制，所以你第一次執行 `gh` 時，它會自行安裝。要驗證身分，執行 `gh auth login`。然後你就能用 `gh repo clone org/repo` 取出私人儲存庫。
+[GitHub CLI](https://cli.github.com/) 就是 `gh`，用來在終端機中處理儲存庫、issues 和 pull requests。當你在 _Setup > Git_ 選擇登入 GitHub 時，它會安裝它，或者你可以從 _Install > CLI > GitHub_ 單獨安裝它。接著 `gh repo clone org/repo` 就能複製一個儲存庫；執行 `gh --help` 探索它的指令。
 
-你還能用這個命令執行許多其他 GitHub 操作。只要執行 `gh` 就能看到所有可能的操作。
-
-還有一個延遲安裝的 `ghui` stub，可在 TUI 中管理你的 pull request。另外也預先安裝了 [lazygit](https://github.com/jesseduffield/lazygit)，如果你也想在 TUI 中驅動 git 本身的話。
+[Lazygit](https://github.com/jesseduffield/lazygit) 已預先安裝，用來操作 Git 本身。

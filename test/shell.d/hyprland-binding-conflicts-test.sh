@@ -12,7 +12,7 @@ list_bindings() {
   local home="$1"
   local epilogue="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_EPILOGUE="$epilogue" lua <<'LUA'
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_EPILOGUE="$epilogue" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -146,21 +146,18 @@ trap 'rm -rf "$tmpdir"' EXIT
 # its conditional ones, so the check covers the largest set a user can get.
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
-mkdir -p "$home" "$stub_bin"
-cat > "$stub_bin/omarchy-default-dictation" <<'SH'
-#!/bin/bash
-echo voxtype
-SH
+mkdir -p "$home/.config/omarchy/defaults" "$stub_bin"
+printf 'voxtype\n' > "$home/.config/omarchy/defaults/dictation"
 # The dictation keys are bound only once the selected backend is installed.
 printf '#!/bin/bash\nexit 0\n' > "$stub_bin/voxtype"
-chmod +x "$stub_bin/omarchy-default-dictation" "$stub_bin/voxtype"
+chmod +x "$stub_bin/voxtype"
 
 bindings=$(PATH="$stub_bin:$PATH" list_bindings "$home")
 [[ -n $bindings ]] || fail "default bindings load for the conflict check"
 
 grep -Fq $'SUPER + RETURN\tTerminal' <<<"$bindings" || fail "conflict check sees the essential bindings"
-grep -Fq $'SUPER + SHIFT + A\tChatGPT' <<<"$bindings" || fail "conflict check sees the preinstalled bindings"
-grep -Fq $'F9\tStart dictation (push-to-talk)' <<<"$bindings" || fail "conflict check sees the Voxtype bindings"
+grep -Fq $'SUPER + SHIFT + ALT + A\tGrok' <<<"$bindings" || fail "conflict check sees the preinstalled bindings"
+grep -Fq $'ALT + SPACE\tToggle dictation' <<<"$bindings" || fail "conflict check sees the Voxtype bindings"
 pass "conflict check covers the full default binding set"
 
 duplicates=$(duplicate_signatures <<<"$bindings")
@@ -181,9 +178,9 @@ pass "allowed duplicate chords are still stacked on purpose"
 
 # The press and release halves of a push-to-talk key are separate binds, not a
 # collision.
-(( $(grep -c $'^F9\t' <<<"$bindings") == 1 )) ||
+(( $(grep -c $'^ALT+ALT_R\t' <<<"$bindings") == 1 )) ||
   fail "press and release bindings on one key do not read as a conflict"
-(( $(grep -c $'^F9 (release)\t' <<<"$bindings") == 1 )) ||
+(( $(grep -c $'^ALT+ALT_R (release)\t' <<<"$bindings") == 1 )) ||
   fail "release bindings keep their own signature"
 pass "press and release bindings on one key do not read as a conflict"
 
@@ -209,8 +206,8 @@ rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
 pass "rebinding replaces the default file manager without stacking actions"
 
 rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
-  'o.rebind("F9", "Dictation on release", "voxtype record toggle", { release = true })' | \
-  awk -F'\t' '$2 == "F9"')
-[[ $rebound == $'F9 (release)\tF9\tDictation on release' ]] ||
+  'o.rebind("ALT + SPACE", "Dictation on release", "voxtype record toggle", { release = true })' | \
+  awk -F'\t' '$2 == "ALT + SPACE"')
+[[ $rebound == $'ALT+SPACE (release)\tALT + SPACE\tDictation on release' ]] ||
   fail "rebinding replaces all bindings for a key and preserves binding options" "$rebound"
 pass "rebinding replaces all bindings for a key and preserves binding options"

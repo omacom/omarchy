@@ -1,0 +1,3 @@
+# Managed by Omarchy through the omarchy-settings package.
+# Omarchy declares no mise tools: runtimes are set up from Install > Development, and every other tool is a package.
+# The file stays because migrations from when it declared tools wait for it to exist.

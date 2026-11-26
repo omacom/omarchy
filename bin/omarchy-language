@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Show or set the Omarchy language and the session's locale
-# omarchy:args=[<code>|list|locale [<code>]]
+# omarchy:args=[<code>|list|locale [<code>]|seed <code>]
 # omarchy:examples=omarchy language | omarchy language da | omarchy language list
 
 set -euo pipefail
@@ -54,61 +54,32 @@ list_languages() {
   ' "$locales_json"
 }
 
-locale_generated() {
-  # locale -a normalizes punctuation away (en_US.utf8), so compare squashed.
-  local want available
-  want=$(echo "$1" | tr -cd 'a-zA-Z0-9' | tr '[:upper:]' '[:lower:]')
-  available=" $(locale -a 2>/dev/null | tr -cd 'a-zA-Z0-9\n' | tr '[:upper:]' '[:lower:]' | tr '\n' ' ') "
-  [[ $available == *" $want "* ]]
-}
+source omarchy-locale-session
 
 # The session's LANG lives with the user, beside the language choice:
 # uwsm sources this at login and exports it to every app it launches.
 session_env=${XDG_CONFIG_HOME:-$HOME/.config}/uwsm/env.d/50-omarchy-language
 
-# Generating a locale is the one step that needs root. The helper does it from
-# a registry code alone, at the path etc/sudoers.d/omarchy-locale-generate
-# names, so the passwordless rule matches even where $OMARCHY_PATH points at a
-# checkout; without the package (a bare dev checkout) the checkout's own copy
-# runs, behind a password prompt.
-generator=/usr/bin/omarchy-locale-generate
-[[ -x $generator ]] || generator=$OMARCHY_PATH/bin/omarchy-locale-generate
-
-# True when sudo would run the helper for this code without a password. `sudo
-# -l` alone only says a command is permitted, which the blanket %wheel rule
-# answers yes to; the long listing prints the matched entry's tags, so
-# !authenticate is the grant and nothing else. Under -n it prompts for
-# nothing, so a machine whose omarchy-settings predates the grant falls
-# through to a prompt instead of failing.
-generator_is_passwordless() {
-  sudo -n -l -l "$generator" "$1" 2>/dev/null | grep -q '!authenticate'
-}
-
-generate_locale() {
-  local code=$1 locale=$2
-  locale_generated "$locale" && return
-
-  if (( EUID == 0 )); then
-    "$generator" "$code"
-  elif generator_is_passwordless "$code"; then
-    sudo -n "$generator" "$code"
-  elif [[ -t 0 ]]; then
-    # A terminal can carry sudo's own prompt.
-    sudo "$generator" "$code"
-  else
-    # Picked from the menu there is no terminal, so polkit asks on screen.
-    pkexec "$generator" "$code"
-  fi
-}
-
-# Sets LANG for the next login, and for the apps opened from now on: they
-# start from the systemd user environment, which takes the new value at once.
-# Apps already running keep the language they started with.
+# Sets LANG for the next login, and for the apps opened from now on.
 apply_session_locale() {
   local locale=$1
   mkdir -p "$(dirname "$session_env")"
-  printf '# The session language, set by omarchy-language (Setup > Language).\nexport LANG=%s\n' "$locale" >"$session_env"
-  dbus-update-activation-environment --systemd "LANG=$locale" >/dev/null 2>&1 || true
+  printf '# The session language, set by omarchy-language (Setup > Region > Language).\nexport LANG=%s\n' "$locale" >"$session_env"
+  apply_session_env "LANG=$locale"
+}
+
+# A Chinese, Japanese or Korean language brings its input method and glyph
+# forms, unless the user already has an input method or chose the forms.
+seed_typing() {
+  local method
+  case $1 in
+  ja) method=mozc ;;
+  ko) method=hangul ;;
+  zh-CN) method=pinyin ;;
+  zh-TW) method=chewing ;;
+  *) return 0 ;;
+  esac
+  /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" seed-language "$method" || true
 }
 
 set_language() {
@@ -125,12 +96,13 @@ set_language() {
   name=$(name_for "$code")
 
   generate_locale "$code" "$locale"
-  apply_session_locale "$locale"
 
   # The choice is only persisted once the locale exists, so a cancelled
   # password prompt cannot leave the interface switched with LANG behind it.
   mkdir -p "$(dirname "$language_file")"
   echo "$code" >"$language_file"
+  seed_typing "$code"
+  apply_session_locale "$locale"
 
   omarchy-notification-send -g  "$(omarchy-i18n language.changed "$name")" "$(omarchy-i18n language.newApps)"
 }
@@ -141,6 +113,20 @@ case "${1:-}" in
   ;;
 list)
   list_languages
+  ;;
+seed)
+  # Install finalization: the system step already generated the locale and
+  # there is no session yet, so only files are written, and a language the
+  # user already chose is kept: the preset is a default, never an override.
+  code=${2:-}
+  if ! known_language "$code"; then
+    echo "Unknown language code: $code" >&2
+    exit 1
+  fi
+  [[ -s $language_file ]] && exit 0
+  mkdir -p "$(dirname "$session_env")" "$(dirname "$language_file")"
+  printf '# The session language, set by omarchy-language (Setup > Region > Language).\nexport LANG=%s\n' "$(locale_for "$code")" >"$session_env"
+  echo "$code" >"$language_file"
   ;;
 locale)
   code=${2:-$(current_language)}

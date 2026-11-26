@@ -66,12 +66,12 @@ jq -e '
   if ((.barWidget? | type) == "object" and (.barWidget | has("defaultSection"))) then
     .barWidget.defaultSection as $section
     | ($section | type) == "string"
-      and (["left", "center", "tray", "right"] | index($section)) != null
+      and (["left", "centerBegin", "center", "centerEnd", "tray", "right"] | index($section)) != null
   else
     true
   end
 ' "$MANIFEST" >/dev/null 2>&1 \
-  || fail "'barWidget.defaultSection' must be left, center, tray, or right"
+  || fail "'barWidget.defaultSection' must be left, centerBegin, center, centerEnd, tray, or right"
 
 # Read each entry point as a JSON-encoded string (one per line), then decode it,
 # so a value that itself contains a newline stays one literal path instead of
