@@ -125,10 +125,11 @@ pipewire_source_present() {
 }
 
 render_env() {
-  local selected="$1" out="$2" shipped_ipa=""
+  local selected="$1" out="$2" shipped_ipa="" base_gamma=""
   unset description camera_dt_node camera_name card_label width height format framerate gamma contrast saturation ipa_dir
   # shellcheck disable=SC1090
   source "$selected/tuning.conf"
+  base_gamma="${gamma:-1.5}"
   load_overrides "$override_file"
   [[ -n ${ipa_dir:-} && -d $selected/$ipa_dir ]] && shipped_ipa="$selected/$ipa_dir"
 
@@ -145,11 +146,36 @@ WIDTH=$(printf '%q' "${width:-1920}")
 HEIGHT=$(printf '%q' "${height:-1080}")
 FORMAT=$(printf '%q' "${format:-NV12}")
 FRAMERATE=$(printf '%q' "${framerate:-30/1}")
+BASE_GAMMA=$(printf '%q' "$base_gamma")
 GAMMA=$(printf '%q' "${gamma:-}")
 CONTRAST=$(printf '%q' "${contrast:-}")
 SATURATION=$(printf '%q' "${saturation:-}")
 SHIPPED_IPA_DIR=$(printf '%q' "$shipped_ipa")
 EOF
+}
+
+env_structural_part() {
+  grep -Ev '^(GAMMA|CONTRAST|SATURATION)=' "$1"
+}
+
+live_apply_socket() {
+  local sock="${OMARCHY_CAMERA_RELAY_SOCKET:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omarchy-camera-relay.sock}"
+  [[ -S $sock ]] || return 1
+  python3 - "$sock" "${1:-}" "${2:-}" "${3:-}" <<'PY'
+import socket, sys
+sock_path, gamma, contrast, saturation = sys.argv[1:5]
+parts = []
+if gamma: parts.append(f"gamma={gamma}")
+if contrast: parts.append(f"contrast={contrast}")
+if saturation: parts.append(f"saturation={saturation}")
+if not parts:
+    raise SystemExit(0)
+s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+try:
+    s.sendto(" ".join(parts).encode("utf-8"), sock_path)
+finally:
+    s.close()
+PY
 }
 
 case "$action" in
@@ -250,18 +276,20 @@ case "$action" in
     rm -f "$tmp"
     trap - EXIT
 
-    exec "$0" on --force
+    exec "$0" on --live
     ;;
 
   reset)
     rm -f "$override_file"
     echo "Cleared user overrides ($override_file)."
-    exec "$0" on --force
+    exec "$0" on --live
     ;;
 
   on)
     force=0
+    live=0
     [[ ${1:-} == "--force" ]] && force=1
+    [[ ${1:-} == "--live" ]] && live=1
 
     selected="$(tuning_match)" || {
       echo "No camera tuning matches this laptop."
@@ -298,12 +326,26 @@ case "$action" in
       exit 0
     fi
 
+    # Hot-apply live gamma/contrast/saturation changes over the relay control
+    # socket without restarting the service or interrupting active streams.
+    if ((live)) && [[ -r $env_file ]] &&
+      [[ -r $relay_unit ]] && cmp -s "$rendered_relay" "$relay_unit" &&
+      [[ -r $guard_unit ]] && cmp -s "$rendered_guard" "$guard_unit" &&
+      diff -q <(env_structural_part "$rendered_env") <(env_structural_part "$env_file") >/dev/null 2>&1 &&
+      systemctl --user is-active --quiet "$relay_unit_name" 2>/dev/null &&
+      live_apply_socket "${gamma:-}" "${contrast:-}" "${saturation:-}" 2>/dev/null; then
+      install -Dm644 "$rendered_env" "$env_file"
+      echo "Applied camera tuning live: ${description:-$(basename "$selected")} (gamma=${gamma:-default} contrast=${contrast:-default} saturation=${saturation:-default})"
+      exit 0
+    fi
+
     install -Dm644 "$rendered_env" "$env_file"
     install -Dm644 "$rendered_relay" "$relay_unit"
     install -Dm644 "$rendered_guard" "$guard_unit"
 
     systemctl --user daemon-reload &&
       systemctl --user enable "$relay_unit_name" "$guard_unit_name" &&
+      { systemctl --user reset-failed "$relay_unit_name" >/dev/null 2>&1 || true; } &&
       systemctl --user restart "$relay_unit_name" || {
       echo "Couldn't start $relay_unit_name" >&2
       exit 1

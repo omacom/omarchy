@@ -74,12 +74,19 @@ if ((${#ipa_paths[@]})); then
   export LIBCAMERA_IPA_CONFIG_PATH="${LIBCAMERA_IPA_CONFIG_PATH%:}"
 fi
 
-src_opts=("camera-name=${CAMERA_NAME}")
-[[ -n ${GAMMA:-} ]] && src_opts+=("gamma=${GAMMA}")
-[[ -n ${CONTRAST:-} ]] && src_opts+=("contrast=${CONTRAST}")
-[[ -n ${SATURATION:-} ]] && src_opts+=("saturation=${SATURATION}")
+if [[ -n ${OMARCHY_V4L2_RELAYD_BIN:-} ]]; then
+  src_opts=("camera-name=${CAMERA_NAME}")
+  [[ -n ${GAMMA:-} ]] && src_opts+=("gamma=${GAMMA}")
+  [[ -n ${CONTRAST:-} ]] && src_opts+=("contrast=${CONTRAST}")
+  [[ -n ${SATURATION:-} ]] && src_opts+=("saturation=${SATURATION}")
 
-videosrc="libcamerasrc ${src_opts[*]} ! video/x-raw,width=${WIDTH},height=${HEIGHT} ! videoconvert n-threads=4"
-output="appsrc name=appsrc caps=video/x-raw,format=${FORMAT},width=${WIDTH},height=${HEIGHT},framerate=${FRAMERATE} ! videoconvert ! v4l2sink name=v4l2sink device=${dev_dir}/${node}"
+  videosrc="libcamerasrc ${src_opts[*]} ! video/x-raw,width=${WIDTH},height=${HEIGHT} ! videoconvert n-threads=4"
+  output="appsrc name=appsrc caps=video/x-raw,format=${FORMAT},width=${WIDTH},height=${HEIGHT},framerate=${FRAMERATE} ! videoconvert ! v4l2sink name=v4l2sink device=${dev_dir}/${node}"
 
-exec "${OMARCHY_V4L2_RELAYD_BIN:-/usr/bin/v4l2-relayd}" -i "$videosrc" -o "$output"
+  exec "$OMARCHY_V4L2_RELAYD_BIN" -i "$videosrc" -o "$output"
+fi
+
+script_dir="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+export OMARCHY_CAMERA_DEVICE="${dev_dir}/${node}"
+export CAMERA_NAME WIDTH HEIGHT FORMAT FRAMERATE BASE_GAMMA GAMMA CONTRAST SATURATION
+exec "${OMARCHY_CAMERA_RELAY_DAEMON:-$script_dir/omarchy-camera-relay-daemon}"
