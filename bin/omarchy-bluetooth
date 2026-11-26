@@ -274,7 +274,12 @@ def read_device_info(address: str, fallback_name: str = "") -> dict | None:
     return info
 
 
-def list_devices(*, include_unnamed: bool = False, filters: list[str] | None = None) -> list[dict]:
+def list_devices(
+    *,
+    include_unnamed: bool = False,
+    filters: list[str] | None = None,
+    strict: bool = False,
+) -> list[dict]:
     queries = [["devices", f] for f in filters] if filters else [["devices"]]
     seen: set[str] = set()
     devices: list[dict] = []
@@ -292,6 +297,8 @@ def list_devices(*, include_unnamed: bool = False, filters: list[str] | None = N
             try:
                 info = read_device_info(addr, fallback_name=fallback_name)
             except RuntimeError:
+                if strict:
+                    raise
                 info = None
             if info is None:
                 continue
@@ -340,7 +347,7 @@ def resolve_device(query: str) -> tuple[dict, bool]:
         )
 
     q = raw.lower()
-    devices = list_devices(include_unnamed=True)
+    devices = list_devices(include_unnamed=True, strict=True)
     exact = [
         d
         for d in devices
