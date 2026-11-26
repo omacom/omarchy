@@ -9,6 +9,6 @@ for state_home in "$HOME/.local/state" "${XDG_STATE_HOME:-}"; do
 
   for saved in "$state_home"/omarchy/workspace-layouts/*.lua; do
     [[ -f $saved ]] || continue
-    sed -i --follow-symlinks 's/^hl\.workspace_rule({ workspace = "\([0-9]*\)", layout = "\([a-z]*\)" })$/o.workspace_mode({ workspace = "\1", mode = "\2" })/' "$saved"
+    LC_ALL=C sed -i --follow-symlinks 's/^hl\.workspace_rule({ workspace = "\([0-9]*\)", layout = "\([a-z]*\)" })$/o.workspace_mode({ workspace = "\1", mode = "\2" })/' "$saved"
   done
 done

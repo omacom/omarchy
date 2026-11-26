@@ -21,6 +21,12 @@ if [[ -z $turkish_locale ]]; then
   turkish_locale=tr_TR.UTF-8
 fi
 
+# A locale that matches i in [a-z] cannot expose this regression.
+if [[ -n $(printf 'floating\n' | LC_ALL="$turkish_locale" sed -n '/^[a-z]*$/p') ]]; then
+  skip "this Turkish locale does not expose the ASCII range bug"
+  exit 0
+fi
+
 command_bin=${OMARCHY_LOCALE_TEST_BIN:-$ROOT/bin}
 home_dir="$work/home"
 config_home="$work/config"
@@ -33,7 +39,13 @@ mkdir -p "$home_dir" "$config_home" "$state_home/omarchy/workspace-layouts" \
 
 cat >"$stub_dir/hyprctl" <<'EOF'
 #!/bin/bash
-if [[ $1 == "workspaces" && ${2:-} == "-j" ]]; then
+if [[ $1 == "activeworkspace" && ${2:-} == "-j" ]]; then
+  printf '{"id":3,"tiledLayout":"scrolling"}\n'
+elif [[ $1 == "eval" ]]; then
+  printf '%s\n' "$2" >>"$LOCALE_LAYOUT_LOG"
+elif [[ $1 == "plugin" ]]; then
+  printf '[{"name":"hyprbars"}]\n'
+elif [[ $1 == "workspaces" && ${2:-} == "-j" ]]; then
   printf '[{"id":3,"tiledLayout":"dwindle"}]\n'
 elif [[ $1 == "getoption" && ${2:-} == "general.layout" ]]; then
   printf '{"str":"dwindle"}\n'
@@ -43,11 +55,16 @@ fi
 EOF
 chmod +x "$stub_dir/hyprctl"
 
+for command in omarchy-notification-send omarchy-shell omarchy-i18n; do
+  printf '#!/bin/bash\nexit 0\n' >"$stub_dir/$command"
+  chmod +x "$stub_dir/$command"
+done
+
 run_command() {
   local locale_name="$1" command_name="$2"
   shift 2
   env LC_ALL="$locale_name" HOME="$home_dir" XDG_CONFIG_HOME="$config_home" \
-    XDG_STATE_HOME="$state_home" OMARCHY_PATH="$omarchy_path" \
+    XDG_STATE_HOME="$state_home" OMARCHY_PATH="$omarchy_path" LOCALE_LAYOUT_LOG="$work/layout.log" \
     PATH="$stub_dir:$command_bin:$ROOT/bin:$PATH" \
     "$command_bin/$command_name" "$@"
 }
@@ -106,3 +123,12 @@ preference="$config_home/fontconfig/conf.d/50-omarchy-input-method.conf"
 mkdir -p "${preference%/*}"
 printf '<family>Noto Sans CJK JP</family>\n' >"$preference"
 assert_same_output "CJK font preference parsing" jp omarchy-font-cjk
+
+# The real toggle must advance past floating, even with an underlying scrolling layout.
+rm "$layout_dir/default.lua"
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_dir/3.lua"
+run_command "$turkish_locale" omarchy-hyprland-workspace-layout-toggle
+[[ ! -e $layout_dir/3.lua ]] || fail "Turkish floating cycles back to the default tiling mode"
+grep -Fxq 'o.workspace_mode({ workspace = "3", mode = "dwindle" })' "$work/layout.log" ||
+  fail "Turkish floating applies dwindle"
+pass "the layout toggle advances from floating under Turkish"
