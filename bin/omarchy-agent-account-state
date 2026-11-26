@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Read and change the registry of Claude, Codex, and Grok subscription accounts
-# omarchy:args=<registry|home|homes|list|refresh|begin|register|relogin|recover|use|rename|remove|mode|link|autoswitch> [provider] [args...]
+# omarchy:args=<registry|home|homes|list|refresh|begin|register|relogin|recover|use|rename|remove|threshold|link|alert> [provider] [args...]
 # omarchy:hidden=true
 """The account registry behind `omarchy agent account`.
 
@@ -71,7 +71,6 @@ DEFAULT_THRESHOLD = 95
 # `use next` cycles, a provider name is read as the provider when it comes
 # first, and the menu's Add Account row is `.add`.
 RESERVED_IDS = {"next", "add", "claude", "codex", "grok", "primary"}
-SWITCH_MODES = ("manual", "auto")
 LOGIN_RECEIPT = ".omarchy-login.json"
 
 # Providers whose running sessions follow a switch: Claude Code re-reads its
@@ -223,7 +222,7 @@ def slug(label: str) -> str:
 
 def empty_registry(provider: str) -> dict[str, Any]:
   seated = {"seated": ""} if provider in SEATED else {}
-  return {"active": "main", "switch": "manual", "threshold": DEFAULT_THRESHOLD, "alert": "", "held": "", "accounts": []} | seated
+  return {"active": "main", "threshold": DEFAULT_THRESHOLD, "alert": "", "held": "", "accounts": []} | seated
 
 
 def primary_entry(provider: str) -> dict[str, Any]:
@@ -240,8 +239,6 @@ def normalized(provider: str, data: Any) -> dict[str, Any]:
   if not any(a.get("primary") for a in accounts):
     accounts.insert(0, primary_entry(provider))
   registry["accounts"] = accounts
-  if registry["switch"] not in SWITCH_MODES:
-    registry["switch"] = "manual"
   try:
     registry["threshold"] = max(50, min(100, int(registry["threshold"])))
   except Exception:
@@ -280,7 +277,7 @@ def save(provider: str, registry: dict[str, Any]) -> None:
 
 
 # Every change is read-modify-write under one lock per provider, so the panel,
-# the autoswitch run after each usage update, and a command typed at a prompt
+# the limit alert run after each usage update, and a command typed at a prompt
 # can't interleave and drop each other's edits.
 class Locked:
   def __init__(self, provider: str, save_on_exit: bool = True):
@@ -585,7 +582,7 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], dic
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
-    # Every caller is a person choosing, so autoswitch mustn't overrule it.
+    # Every caller is a person choosing, so nothing is said about how full it is.
     registry["held"] = account["id"]
     followed = follow(provider, registry, account)
     if provider in SEATED:
@@ -614,6 +611,28 @@ def home_users(provider: str, home: Path) -> list[int]:
       if entry.startswith(wanted) and Path(entry[len(wanted):].decode(errors="replace")).resolve() == resolved:
         users.append(pid)
         break
+  return users
+
+
+# The CLI's processes started as the primary, which name no home: they're
+# found by the program they run instead.
+def primary_users(provider: str) -> list[int]:
+  wanted = f"{PROVIDERS[provider]['home_env']}=".encode()
+  users = []
+  for cmdline in Path("/proc").glob("[0-9]*/cmdline"):
+    pid = int(cmdline.parent.name)
+    if pid == os.getpid():
+      continue
+    try:
+      args = cmdline.read_bytes().split(b"\0")[:2]
+      entries = (cmdline.parent / "environ").read_bytes().split(b"\0")
+    except OSError:
+      continue
+    if not any(arg and Path(arg.decode(errors="replace")).stem == provider for arg in args):
+      continue
+    if any(entry.startswith(wanted) and len(entry) > len(wanted) for entry in entries):
+      continue
+    users.append(pid)
   return users
 
 
@@ -843,44 +862,132 @@ def follow(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> 
   return {"seated": registry["seated"] == account["id"], "moved": registry["seated"] != before, "holders": holders, "running": running}
 
 
+def refuse_in_use(provider: str, home: Path, account: dict[str, Any]) -> None:
+  if home_in_use(provider, home):
+    raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {label_of(account)}. Quit it first, then remove the account.")
+
+
+# Only an account's own directory goes. Its links point into the primary home,
+# and rmtree removes a link without following it.
+def remove_home(provider: str, home: Path) -> None:
+  if home.resolve().parent == (accounts_root() / provider).resolve():
+    shutil.rmtree(home, ignore_errors=True)
+
+
+# The files a login is, in a home of Codex or Grok; Claude's is its
+# credentials plus the profile in its account file.
+LOGIN_FILES = {"codex": ["auth.json"], "grok": ["auth.json", "settings_cache.json"]}
+
+
+# Signs a home out here without logging out, which would revoke the sign-in
+# everywhere else it's used too.
+def forget_login(provider: str, home: Path) -> None:
+  if provider == "claude":
+    with LockDirs(claude_locks([home])):
+      # Read first: an account file that can't be read stops this before the
+      # credentials go.
+      path = claude_account_file(home)
+      config = account_config(path)
+      (home / ".credentials.json").unlink(missing_ok=True)
+      if config.pop("oauthAccount", None) is not None:
+        write_private(path, json.dumps(config, indent=2))
+  else:
+    for name in LOGIN_FILES[provider]:
+      (home / name).unlink(missing_ok=True)
+
+
+# The primary home is shared by every account, so it stays: the account taking
+# over as primary puts its login in it. Returns the homes to delete once the
+# registry is saved, so a save that fails leaves every login somewhere a
+# retry finds it.
+def promote(provider: str, registry: dict[str, Any], old: dict[str, Any], successor: dict[str, Any]) -> list[Path]:
+  own = account_home(provider, successor)
+  refuse_in_use(provider, own, successor)
+  if provider in SEATED:
+    # Seated already, so its login is in ~/.claude and the old primary's in
+    # the store primaries keep theirs in, which goes with it.
+    parked = store_home(provider, old)
+    refuse_in_use(provider, parked, old)
+    gone = [parked, own]
+  else:
+    primary = primary_home(provider)
+    refuse_in_use(provider, primary, old)
+    if primary_users(provider):
+      raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {label_of(old)}. Quit it first, then remove the account.")
+    # Copied, not moved: its own home keeps the login until the registry
+    # says the primary home holds it.
+    for name in LOGIN_FILES[provider]:
+      target = (primary / name).resolve()
+      if (own / name).exists():
+        staged = target.with_name(f".{target.name}.omarchy")
+        shutil.copy2(own / name, staged)
+        os.replace(staged, target)
+      else:
+        target.unlink(missing_ok=True)
+    gone = [own]
+  successor.update({"home": "", "primary": True})
+  return gone
+
+
+# Forgets an account. One that sessions use hands them to another account
+# first, the primary hands that role on, and the only one is signed out here.
+# The account comes back with `last` saying whether it was the only one.
 def remove(provider: str, target: str) -> dict[str, Any]:
-  with Locked(provider) as registry:
+  with Locked(provider, save_on_exit=False) as registry:
     settle(provider, registry)
     account = find(registry, target)
     if not account:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
-    if account.get("primary"):
-      raise AccountError(f"{account['label']} is the login this machine started with; it can't be removed here.")
+    others = [a for a in registry["accounts"] if a["id"] != account["id"]]
+    if not others:
+      # The only account is the primary, its login in the primary home.
+      home = primary_home(provider)
+      forget_login(provider, home)
+      account.update(identity(provider, home))
+      registry.update({"alert": "", "held": ""})
+      save(provider, registry)
+      return dict(account, last=True)
+
+    # The account seated in ~/.claude takes over, so no login moves twice;
+    # else the primary, else the next one.
+    successor = (next((a for a in others if provider in SEATED and a["id"] == registry["seated"]), None)
+                 or next((a for a in others if a.get("primary")), None) or others[0])
     if provider in SEATED and registry["seated"] == account["id"]:
-      raise AccountError(f"Running {PROVIDERS[provider]['name']} sessions use {account['label']}. Switch to another account first, then remove it.")
-    home = account_home(provider, account)
-    if home_in_use(provider, home):
-      raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {account['label']}. Quit it first, then remove the account.")
-    # Only the account's own directory goes. Its links point into the primary
-    # home, and rmtree removes a link without following it.
-    if home.resolve().parent == (accounts_root() / provider).resolve():
-      shutil.rmtree(home, ignore_errors=True)
-    registry["accounts"] = [a for a in registry["accounts"] if a["id"] != account["id"]]
+      holders = seat(provider, registry, successor)
+      if registry["seated"] == account["id"]:
+        if holders:
+          raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {label_of(successor)}, so sessions can't move to it. Quit it first, then remove {label_of(account)}.")
+        raise AccountError(f"{label_of(successor)} isn't signed in, so sessions can't move to it. Sign it in again first, then remove {label_of(account)}.")
+
+    if account.get("primary"):
+      gone = promote(provider, registry, account, successor)
+    else:
+      home = account_home(provider, account)
+      refuse_in_use(provider, home, account)
+      gone = [home]
+    registry["accounts"] = others
     if registry["active"] == account["id"]:
-      registry["active"] = registry["accounts"][0]["id"]
-    return account
+      registry["active"] = successor["id"]
+    registry["alert"] = ""
+    if registry["held"] == account["id"]:
+      registry["held"] = ""
+    save(provider, registry)
+    for home in gone:
+      remove_home(provider, home)
+    return dict(account, last=False)
 
 
-def set_mode(provider: str, mode: str, threshold: str | None) -> dict[str, Any]:
-  if mode not in SWITCH_MODES:
-    raise AccountError("Switch mode is manual or auto")
+def set_threshold(provider: str, threshold: str) -> dict[str, Any]:
   with Locked(provider) as registry:
-    registry["switch"] = mode
-    if threshold is not None:
-      try:
-        registry["threshold"] = max(50, min(100, int(threshold)))
-      except ValueError:
-        raise AccountError("The threshold is a percentage between 50 and 100")
+    try:
+      registry["threshold"] = max(50, min(100, int(threshold)))
+    except ValueError:
+      raise AccountError("The threshold is a percentage between 50 and 100")
     registry["alert"] = ""
     return dict(registry)
 
 
-# ------------------------------------------------------------- autoswitch
+# ------------------------------------------------------------ limit alerts
 
 
 def window_open(limit: dict[str, Any], now: dt.datetime) -> bool:
@@ -956,13 +1063,15 @@ def duration(delta: dt.timedelta) -> str:
   return tr("omarchy-i18n battery.durationMinutes", "%1m", minutes)
 
 
-# The whole switching policy, with no I/O: given the registry and the per
-# account limits from the usage record, what should happen. Returns None when
-# nothing should, or {"action": "switch"|"notify"|"exhausted", ...}.
+# The whole alert policy, with no I/O: given the registry and the per
+# account limits from the usage record, what should be said. Returns None when
+# nothing should, or {"action": "notify"|"exhausted"|"clear", ...}. The
+# account never changes here: a notification offers the switch and a person
+# takes it.
 #
-# Only the active account crossing the threshold starts anything, so auto
-# mode never flaps back to an account that just reset. `alert` remembers the
-# last thing said, so a shell restart or the next refresh doesn't repeat it.
+# Only the active account crossing the threshold starts anything. `alert`
+# remembers the last thing said, so a shell restart or the next refresh
+# doesn't repeat it.
 #
 # Numbers kept from an earlier check may be out of date, but a parked account's
 # sign-in lapses within hours and can't be checked again until a session runs
@@ -973,7 +1082,7 @@ def duration(delta: dt.timedelta) -> str:
 #
 # An account chosen by hand is held there however full it is, and nothing is
 # offered or announced about it, until a fresh check sees it under the
-# threshold again; from then on it switches like any other.
+# threshold again; from then on it is announced like any other.
 def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
@@ -997,11 +1106,10 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
 
   if candidates:
     _, _, level, _, target = candidates[0]
-    action = "switch" if registry["switch"] == "auto" else "notify"
-    alert = f"{action}:{current['id']}:{target['id']}"
+    alert = f"notify:{current['id']}:{target['id']}"
     if registry.get("alert") == alert:
       return None
-    return {"action": action, "alert": alert, "from": current, "to": target, "fromPeak": current_peak, "toPeak": level}
+    return {"action": "notify", "alert": alert, "from": current, "to": target, "fromPeak": current_peak, "toPeak": level}
 
   alert = f"exhausted:{current['id']}"
   if registry.get("alert") == alert or len(registry["accounts"]) < 2:
@@ -1079,24 +1187,23 @@ def catch_up(provider: str, registry: dict[str, Any]) -> None:
     )
 
 
-# Returns True when the active account changed.
-def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
+def alert(provider: str, now: dt.datetime | None = None) -> None:
   now = now or dt.datetime.now(dt.timezone.utc)
   name = PROVIDERS[provider]["name"]
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
       registry["held"] = ""
-      return False
+      return
     catch_up(provider, registry)
     usage, stale = usage_by_account(provider)
     decision = decide(registry, usage, now, stale)
     if decision is None:
-      return False
+      return
     if decision["action"] == "clear":
       registry["alert"] = ""
       if decision["release"]:
         registry["held"] = ""
-      return False
+      return
 
     registry["alert"] = decision["alert"]
     source = decision["from"]
@@ -1108,33 +1215,15 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
       else:
         body = tr("omarchy-i18n agents.stayingOn", "Staying on %1.", source["label"])
       notify(tr("omarchy-i18n agents.allOver", "All %1 accounts are over %2%", name, threshold), body)
-      return False
+      return
 
     target = decision["to"]
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
-    if decision["action"] == "switch":
-      registry["active"] = target["id"]
-      try:
-        followed = follow(provider, registry, target)
-      except AccountError:
-        followed = {"seated": False}
-      if provider in SEATED:
-        if not followed["seated"]:
-          prepare_store(provider, target)
-      elif not target.get("primary"):
-        link_shared(provider, account_home(provider, target))
-      if followed["seated"]:
-        notify(headline, tr("omarchy-i18n agents.switchedAllBody", "%1 sessions now use %2 (%3%), running ones included.", name, target["label"], round(decision["toPeak"])))
-      else:
-        running = label_of(find(registry, registry["seated"])) if provider in SEATED else source["label"]
-        notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), running))
-      return True
     notify(
       headline,
       tr("omarchy-i18n agents.offerSwitch", "%1 is at %2%. Click to switch new sessions to it.", target["label"], round(decision["toPeak"])),
       ["omarchy-agent-account-use", provider, target["id"]],
     )
-    return False
 
 
 # --------------------------------------------------------------------- CLI
@@ -1155,7 +1244,6 @@ def summary(provider: str, registry: dict[str, Any]) -> dict[str, Any]:
     "provider": provider,
     "name": PROVIDERS[provider]["name"],
     "active": registry["active"],
-    "switch": registry["switch"],
     "threshold": registry["threshold"],
     "accounts": [
       {key: account.get(key, "") for key in ("id", "label", "email", "org", "plan", "primary")}
@@ -1233,20 +1321,18 @@ def main(argv: list[str]) -> int:
       if len(args) < 3:
         raise AccountError("rename <provider> <account> <label>")
       print(json.dumps(rename(provider, args[1], " ".join(args[2:]))))
-    elif command == "mode":
+    elif command == "threshold":
       provider = provider_arg(args)
       if len(args) < 2:
-        raise AccountError("mode <provider> <manual|auto> [threshold]")
-      set_mode(provider, args[1], args[2] if len(args) > 2 else None)
+        raise AccountError("threshold <provider> <percent>")
+      set_threshold(provider, args[1])
     elif command == "link":
       provider = provider_arg(args)
       link_shared(provider, Path(args[1]))
-    elif command == "autoswitch":
-      # Prints each provider whose active account changed, so the caller
-      # knows which usage records to collect again.
+    elif command == "alert":
       for provider in ([provider_arg(args)] if args else list(PROVIDERS)):
-        if registry_path(provider).exists() and autoswitch(provider):
-          print(provider)
+        if registry_path(provider).exists():
+          alert(provider)
     else:
       raise AccountError(f"Unknown command: {command}")
   except (AccountError, OSError) as error:

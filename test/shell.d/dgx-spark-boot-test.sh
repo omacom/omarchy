@@ -29,6 +29,9 @@ machine() {
   printf '#!/bin/bash\ngrep -qi -- "$1" "%s/dmi/product_name"\n' "$dir" >"$dir/bin/omarchy-hw-match"
   chmod +x "$dir/bin/uname" "$dir/bin/omarchy-hw-match"
 }
+# Limine, unless a test says otherwise.
+printf '#!/bin/bash\necho "${FAKE_BOOT_BACKEND:-limine}"\n' >"$scratch/bin/omarchy-boot-backend"
+chmod +x "$scratch/bin/omarchy-boot-backend"
 machine spark NVIDIA_DGX_Spark 0x2e12
 machine gx10 GX10 0x2e12
 machine other "XPS 13 9350"
@@ -52,6 +55,10 @@ for machine in gx10 other; do
   [[ ! -e $scratch/$machine ]] || fail "the $machine machine keeps its UKI"
 done
 pass "the DGX Spark setting turns off the UKI and leaves other GB10s and other machines alone"
+
+FAKE_BOOT_BACKEND=systemd-boot run spark "$scratch/spark-sdboot" bash "$setup"
+[[ ! -e $scratch/spark-sdboot ]] || fail "a DGX Spark on systemd-boot keeps its UKI"
+pass "a DGX Spark booting systemd-boot keeps its UKI"
 
 # limine-entry-tool reads its drop-ins in glob order, so the last ENABLE_UKI wins.
 # The setting must follow every shipped drop-in that sets ENABLE_UKI, including

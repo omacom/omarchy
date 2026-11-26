@@ -26,7 +26,7 @@ A scheduled night light needs hyprsunset running from login: set the profiles in
 
 ```bash
 omarchy language [<code>|list]     # Display language of Omarchy and its apps
-omarchy region [<code>|list|default]  # How dates, times, numbers, and units are written
+omarchy region formats [<code>|list|default]  # How dates, times, numbers, and units are written
 omarchy menu timezone              # Pick the timezone
 omarchy weather location --set <place>
 ```

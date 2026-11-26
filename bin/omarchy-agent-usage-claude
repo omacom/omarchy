@@ -687,6 +687,11 @@ def current_account_id(home: Path) -> str:
   return str(account.get("accountUuid") or "") if isinstance(account, dict) else ""
 
 
+def current_account_email(home: Path) -> str:
+  account = read_json(profile_path(home)).get("oauthAccount")
+  return str(account.get("emailAddress") or "") if isinstance(account, dict) else ""
+
+
 # Switching moves logins between homes holding this lock, so where each login
 # is and the login itself are read under it together, never either side of a move.
 @contextmanager
@@ -711,7 +716,12 @@ def account_login(account: dict[str, Any]) -> dict[str, Any]:
   access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(home)
   # Who the home is signed in as now, not when it was added: a `claude auth
   # login` run in it by hand makes it a different subscription.
-  return {"token": (access_token, expires_at_ms, refresh_expires_at_ms), "plan": plan, "identity": current_account_id(home)}
+  return {
+    "token": (access_token, expires_at_ms, refresh_expires_at_ms),
+    "plan": plan,
+    "identity": current_account_id(home),
+    "email": current_account_email(home),
+  }
 
 
 def account_limits(account: dict[str, Any], login: dict[str, Any], force: bool) -> dict[str, Any]:
@@ -727,7 +737,8 @@ def account_limits(account: dict[str, Any], login: dict[str, Any], force: bool) 
   else:
     cache_name = f"claude-limits-{key}.json"
   limits = collect_limits(*login["token"], force, cache_name)
-  return account_entry(account, limits, login["plan"])
+  extra = {"email": login["email"]} if login["email"] else {}
+  return account_entry(account, limits, login["plan"], **extra)
 
 
 # -------------------------------------------------------------------- record
@@ -754,6 +765,7 @@ def main() -> int:
     # The top-level fields keep describing the account new sessions use, so
     # the bar icon and anything else reading one set of limits stays right.
     plan = current["plan"]
+    account_name = str(current.get("email") or "")
     limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
     stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
@@ -776,6 +788,7 @@ def main() -> int:
       or number(stats.get("todayPrompts")) > 0
       or len(limits["limits"]) > 0
     )
+    account_name = current_account_email(claude_dir) if in_use else ""
     if not in_use:
       limits = {"limits": [], "usageStatusText": "", "authHelpText": ""}
       stale, fetched_at = False, 0
@@ -794,6 +807,8 @@ def main() -> int:
     limitsStale=stale,
     limitsFetchedAt=fetched_at,
   )
+  if account_name:
+    record["accountName"] = account_name
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
   if accounts:
