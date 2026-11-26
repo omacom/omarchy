@@ -153,11 +153,6 @@ SHIPPED_IPA_DIR=$(printf '%q' "$shipped_ipa")
 EOF
 }
 
-render_unit() {
-  local src="$1" out="$2"
-  sed -e "s|@RELAY_BIN@|$relay_bin|g" -e "s|@GUARD_BIN@|$guard_bin|g" "$src" >"$out"
-}
-
 case "$action" in
   match)
     tuning_match
@@ -290,8 +285,10 @@ case "$action" in
     trap 'rm -f "$rendered_env" "$rendered_relay" "$rendered_guard"' EXIT
 
     render_env "$selected" "$rendered_env"
-    render_unit "$relay_unit_source" "$rendered_relay"
-    render_unit "$guard_unit_source" "$rendered_guard"
+    install -Dm644 "$relay_unit_source" "$rendered_relay"
+    sed -i -e "s|@RELAY_BIN@|$relay_bin|g" "$rendered_relay"
+    install -Dm644 "$guard_unit_source" "$rendered_guard"
+    sed -i -e "s|@GUARD_BIN@|$guard_bin|g" "$rendered_guard"
 
     if ((!force)) && [[ -r $env_file ]] && cmp -s "$rendered_env" "$env_file" &&
       [[ -r $relay_unit ]] && cmp -s "$rendered_relay" "$relay_unit" &&
