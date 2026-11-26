@@ -26,6 +26,11 @@ if [[ $instances == "No running instances." ]]; then
   instances="[]"
 fi
 
+# Empty output parses as no input at all, which would read as no locker alive.
+if ! jq -e 'type == "array"' <<<"$instances" >/dev/null 2>&1; then
+  exit 2
+fi
+
 if ! shells=$(jq -r '.[] | select(.config_path | endswith("/shell/shell.qml")) | "\(.pid) \(.config_path | rtrimstr("/shell/shell.qml"))"' <<<"$instances" 2>/dev/null); then
   exit 2
 fi

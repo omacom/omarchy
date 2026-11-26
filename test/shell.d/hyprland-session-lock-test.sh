@@ -48,7 +48,7 @@ unlocked_monitors='[{"name":"HDMI-A-1","solitaryBlockedBy":["WINDOWED","CANDIDAT
 # The stranded check asks the real omarchy-hyprland-session-locked, so
 # $ROOT/bin follows the stubs on PATH.
 exit_status() {
-  local command="$1" monitors="$2" hyprctl_fails="$3" shells="${4:-No running instances.}" hyprlocks="${5:-}" quickshell_fails="${6:-0}" actual=0
+  local command="$1" monitors="$2" hyprctl_fails="$3" shells="${4-No running instances.}" hyprlocks="${5:-}" quickshell_fails="${6:-0}" actual=0
 
   PATH="$fake_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_MONITORS="$monitors" \
@@ -159,3 +159,5 @@ assert_stranded 2 "$locked_monitors" "$(instances 100 "$ROOT/shell")" \
 # Guessing "no locker" with nothing to read takes a live lock.
 assert_stranded 2 "$locked_monitors" "" "Quickshell that cannot list its instances leaves it undetermined" "" 0 1
 assert_stranded 2 "$locked_monitors" "not json at all" "an unreadable instance list leaves it undetermined"
+assert_stranded 2 "$locked_monitors" "" "an empty instance list leaves it undetermined"
+assert_stranded 2 "$locked_monitors" '{"pid":200}' "an instance list that is not an array leaves it undetermined"
