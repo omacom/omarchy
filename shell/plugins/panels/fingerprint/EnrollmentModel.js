@@ -33,6 +33,8 @@ function parseEvent(line) {
     return { kind: kind, value: HINTS.indexOf(value) !== -1 ? value : "again" }
   case "fail":
     return /^[a-z][a-z-]*$/.test(value) ? { kind: kind, value: value } : null
+  case "selected":
+    return value === "any" || FINGERS.indexOf(value) !== -1 ? { kind: kind, value: value } : null
   case "finger":
     return FINGERS.indexOf(value) !== -1 ? { kind: kind, value: value } : null
   case "enrolled":

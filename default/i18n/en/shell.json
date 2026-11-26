@@ -173,6 +173,7 @@
   "fingerprint.touch": "Touch the sensor",
   "fingerprint.touchAgain": "Lift and touch again",
   "fingerprint.unlockSetting": "Unlock the screen with a fingerprint",
+  "fingerprint.useSaved": "Use %1. %2",
   "fingerprint.verifySaved": "Verify fingerprint",
   "fingerprint.verifySwipe": "Swipe once more to verify",
   "fingerprint.verifyTouch": "Touch once more to verify",

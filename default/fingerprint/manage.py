@@ -65,6 +65,13 @@ class Readers:
     skip = int(props["name"] == APPLE)
     def signal(bus, sender, object_path, interface, name, params):
       nonlocal last, stage
+      if name == "VerifyFingerSelected" and method == "Verify" and finger == "any":
+        selected, = params.unpack()
+        if selected == "any" or selected in FINGERS:
+          print("selected", selected, flush=True)
+        return
+      if name != method + "Status":
+        return
       result, done = params.unpack()
       if done:
         last = result
@@ -78,7 +85,7 @@ class Readers:
                   "remove-and-retry": "lift", "too-fast": "fast"}.get(result.split("-", 1)[-1], "again")
         print("retry", reason, flush=True)
 
-    sub = self.bus.signal_subscribe(self.owner, DEVICE, method + "Status", path, None,
+    sub = self.bus.signal_subscribe(self.owner, DEVICE, None, path, None,
                                     Gio.DBusSignalFlags.NONE, signal)
     watch = Gio.bus_watch_name_on_connection(self.bus, self.owner, Gio.BusNameWatcherFlags.NONE,
                                              None, lambda *_: loop.quit())

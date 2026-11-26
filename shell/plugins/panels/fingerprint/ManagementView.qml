@@ -189,7 +189,11 @@ FocusScope {
           text: Commons.I18n.t("fingerprint.removeSaved")
           onClicked: ctl.run("remove", [ctl.helper, "remove", ctl.state.reader, view.selected])
         }
-        Line { visible: ctl.notice !== ""; text: ctl.notice }
+        Line {
+          visible: ctl.notice !== ""
+          readonly property var requestedPrint: ctl.action === "verify" && ctl.state.prints.find(p => p.slot === ctl.verifyFinger)
+          text: requestedPrint ? Commons.I18n.t("fingerprint.useSaved").arg(view.label(requestedPrint)).arg(ctl.notice) : ctl.notice
+        }
         Action {
           text: ctl.action === "verify" ? Commons.I18n.t("common.cancel")
                 : view.entry ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")

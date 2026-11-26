@@ -48,6 +48,9 @@ def serve(ready):
           signal, status = "EnrollStatus", "enroll-completed"
         else:
           assert slot in fingers or slot == "any"
+          # This reader checks just one template even when the client asks for any.
+          selected = fingers[0] if slot == "any" else slot
+          bus.emit_signal(sender, path, DEVICE, "VerifyFingerSelected", GLib.Variant("(s)", (selected,)))
           signal, status = "VerifyStatus", "verify-match"
         bus.emit_signal(sender, path, DEVICE, signal, GLib.Variant("(sb)", (status, True)))
     reply.return_value(result)
@@ -98,6 +101,7 @@ def exercise():
       assert snapshot()["prints"][0]["name"] == "Right index"
       assert "matched" in run("verify", reader, finger)
       assert "done" in run("add", reader, "left-thumb")
+      assert "selected " + finger in run("verify", reader, "any")
       run("add", reader, "right-thumb")
       assert "fail full" in run("add", reader, "left-index-finger", ok=False)
       # The default reader holds the same slot. Refreshing a stale selection

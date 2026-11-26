@@ -15,6 +15,7 @@ Item {
   property string notice: ""
   readonly property bool busy: list.running || action !== ""
   property bool scanning: false
+  property string verifyFinger: ""
   readonly property bool authorizing: (action === "verify" && !scanning) || action === "remove" || action === "sudo-on" || action === "sudo-off" || action === "prepare-lock"
   signal refreshed()
 
@@ -34,6 +35,7 @@ Item {
   function verify(slot, next) {
     afterMatch = next || ""
     scanning = false
+    verifyFinger = ""
     notice = Commons.I18n.t("fingerprint.preparing")
     run("verify", [helper, "verify", state.reader, slot])
   }
@@ -88,6 +90,8 @@ Item {
         if (event.kind === "step" && event.value === "verify") {
           root.scanning = true
           root.notice = root.state.scanType === "swipe" ? Commons.I18n.t("fingerprint.swipe") : Commons.I18n.t("fingerprint.touch")
+        } else if (event.kind === "selected") {
+          root.verifyFinger = event.value
         } else if (event.kind === "retry") {
           root.notice = Model.retryText(event.value, Commons.I18n)
         }
