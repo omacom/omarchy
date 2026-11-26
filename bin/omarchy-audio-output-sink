@@ -90,8 +90,13 @@ if [[ $sink == "easyeffects_sink" ]]; then
     printf '%s\n' "$linked"
     exit 0
   fi
+
+  # Preserve the existing fallback for EasyEffects when neither its active
+  # links nor its configured output can be resolved.
+  printf '%s\n' "$sink"
+  exit 0
 fi
 
 # Nothing resolvable downstream -- the DSP sink may simply be idle and unlinked.
-# Fall back to the sink itself so callers still have something to act on.
-printf '%s\n' "$sink"
+# Do not return its volume as if it were the physical output: callers should
+# leave the volume untouched until the sink's downstream device is known.

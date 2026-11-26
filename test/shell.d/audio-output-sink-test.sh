@@ -153,10 +153,10 @@ printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_input.Dolby_Balanced.
 pass "exact output wins over a valid legacy fallback"
 
 printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_output.Dolby_Balanced2"\n' >"$test_home/data/sink-inputs"
-[[ $(resolve) == "$filter" ]] || fail "a filter with no exact output falls back to itself"
-pass "filter with no exact output falls back to itself"
+[[ -z $(resolve) ]] || fail "a filter with no exact output is not treated as a volume sink"
+pass "filter with no exact output is not treated as a volume sink"
 
 # A stale sink ID must not turn into a different output.
 printf 'Sink Input #42\n  Sink: 999\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
-[[ $(resolve) == "$filter" ]] || fail "a missing downstream sink falls back to the filter"
-pass "missing downstream sink falls back to the filter"
+[[ -z $(resolve) ]] || fail "a missing downstream sink is not treated as a volume sink"
+pass "missing downstream sink is not treated as a volume sink"
