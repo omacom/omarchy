@@ -131,6 +131,10 @@ function countryUsesImperial(countryName) {
   return false
 }
 
+function measurementLocale(lcAll, lcMeasurement, fallbackLocale) {
+  return String(lcAll || lcMeasurement || fallbackLocale || "").replace(/^\s+|\s+$/g, "")
+}
+
 function shouldUseImperial(unitOverride, localeName, countryName) {
   var unit = normalizedUnit(unitOverride)
   if (unit === "imperial") return true
@@ -300,6 +304,7 @@ if (typeof module !== "undefined") {
     normalizedUnit: normalizedUnit,
     localeUsesImperial: localeUsesImperial,
     countryUsesImperial: countryUsesImperial,
+    measurementLocale: measurementLocale,
     shouldUseImperial: shouldUseImperial,
     dayName: dayName,
     openMeteoForecastDays: openMeteoForecastDays,
