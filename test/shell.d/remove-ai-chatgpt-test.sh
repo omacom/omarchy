@@ -24,7 +24,8 @@ trap 'chmod -R u+w "$work" 2>/dev/null; rm -rf "$work"' EXIT
 stub_bin="$work/stub"
 mkdir -p "$stub_bin"
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-pkg-drop"
-chmod +x "$stub_bin/omarchy-pkg-drop"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/pkill"
+chmod +x "$stub_bin/omarchy-pkg-drop" "$stub_bin/pkill"
 
 # A config and cache tree shaped like the one the artifact runtime leaves
 # behind: user-owned directories without write permission, all the way down.
