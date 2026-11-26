@@ -576,7 +576,6 @@ def connect_enterprise(
     identity: str,
     password: str,
     target_iface: str,
-    pin_iface: str | None = None,
 ) -> None:
     con_uuid = str(uuid_mod.uuid4())
     add_cmd = [
@@ -602,8 +601,6 @@ def connect_enterprise(
         "802-1x.auth-timeout",
         "8",
     ]
-    if pin_iface:
-        add_cmd += ["ifname", pin_iface]
     run_cmd(add_cmd, check=True)
     try:
         nm_set_secret_via_edit(con_uuid, "802-1x.password", password)
@@ -618,7 +615,6 @@ def connect_psk_via_profile(
     password: str,
     hidden: bool,
     target_iface: str,
-    pin_iface: str | None = None,
 ) -> None:
     # Update an existing profile for this SSID if present; otherwise create a
     # fresh profile and set the PSK via `nmcli connection edit` stdin so the
@@ -672,8 +668,6 @@ def connect_psk_via_profile(
         ]
         if hidden:
             add_cmd += ["802-11-wireless.hidden", "yes"]
-        if pin_iface:
-            add_cmd += ["ifname", pin_iface]
         run_cmd(add_cmd, check=True)
         created = True
     try:
@@ -759,9 +753,9 @@ def cmd_connect(args: list[str], as_json: bool) -> int:
                 password = getpass.getpass(f"Password for {identity}@{ssid}: ")
             else:
                 raise UsageError("--identity requires --password or --password-stdin")
-        connect_enterprise(ssid, identity, password, target_iface, pin_iface=iface)
+        connect_enterprise(ssid, identity, password, target_iface)
     elif password is not None:
-        connect_psk_via_profile(ssid, password, hidden, target_iface, pin_iface=iface)
+        connect_psk_via_profile(ssid, password, hidden, target_iface)
     else:
         existing = [p for p in saved_wifi_profiles() if p["ssid"] == ssid]
         if existing:
@@ -776,7 +770,7 @@ def cmd_connect(args: list[str], as_json: bool) -> int:
             needs_pw = sec not in ("OPEN", "OWE", "")
             if needs_pw and sys.stdin.isatty():
                 pw = getpass.getpass(f"Passphrase for {ssid}: ")
-                connect_psk_via_profile(ssid, pw, hidden, target_iface, pin_iface=iface)
+                connect_psk_via_profile(ssid, pw, hidden, target_iface)
             else:
                 cmd = ["nmcli", "device", "wifi", "connect", ssid, "ifname", target_iface]
                 if hidden:

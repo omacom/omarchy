@@ -229,7 +229,7 @@ Panel {
 
   function toggleNetwork() {
     if (!networkManagerAvailable) return
-    Networking.wifiEnabled = !Networking.wifiEnabled
+    Quickshell.execDetached(["omarchy-network-wifi", Networking.wifiEnabled ? "off" : "on"])
     Qt.callLater(function() { root.refresh(true) })
   }
 
@@ -796,7 +796,7 @@ Panel {
     if (!band || actionProc.running) return
 
     root.pendingBand = band
-    actionProc.command = ["omarchy-network-band", band]
+    actionProc.command = ["omarchy-network-wifi", "band", band]
     actionProc.running = true
   }
 
@@ -864,7 +864,7 @@ Panel {
   }
 
   function runNetworkAction(kind, network, callback) {
-    if (actionKind !== "" || !network) return
+    if (actionKind !== "" || wifiAction.running || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
     switchingNetwork = kind === "connect" && root.kind !== "disconnected"
@@ -873,14 +873,12 @@ Panel {
     actionKind = kind
     failureSsid = ""
     failureReason = ""
-    // Already in the asked-for state: Quickshell ignores such a call, so nothing
-    // would ever signal, and the enterprise script would reconnect a live link.
+    // Already in the asked-for state: no-op without spawning the CLI.
     checkActionCompletion(network)
     if (actionKind === "") return
     callback(network)
-    // Safety net: if onExited never fires (process death, signal handler
-    // throws, etc.), clear the busy state so the row doesn't get stuck on
-    // "Connecting…" / "Disconnecting…" forever.
+    // Safety net: if neither NM nor the CLI settles the action, clear the busy
+    // state so the row doesn't get stuck on "Connecting…" / "Disconnecting…" forever.
     actionTimeout.restart()
   }
 
@@ -931,36 +929,92 @@ Panel {
     else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
   }
 
+  function runWifiCli(ssid, command, secret) {
+    wifiAction.targetSsid = ssid
+    wifiAction.sendSecret = secret !== undefined
+    wifiAction.secret = secret !== undefined ? secret : ""
+    wifiAction.command = command
+    wifiAction.running = true
+  }
+
+  function wifiConnectCommand(ssid, extraArgs) {
+    var cmd = ["omarchy-network-wifi", "connect"]
+    if (extraArgs) {
+      for (var i = 0; i < extraArgs.length; i++) cmd.push(extraArgs[i])
+    }
+    if (wifiDevice && wifiDevice.name) {
+      cmd.push("--interface")
+      cmd.push(wifiDevice.name)
+    }
+    cmd.push("--")
+    cmd.push(ssid)
+    return cmd
+  }
+
   function connectDirectly(ssid) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid))
+    })
   }
 
   function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid, ["--password-stdin"]), passphrase)
+    })
   }
 
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
-      enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["omarchy-network-wifi", "connect", "--identity", identity, "--password-stdin", "--", ssid]
-      enterpriseConnect.running = true
+      runWifiCli(
+        network.name || ssid,
+        wifiConnectCommand(network.name || ssid, ["--identity", identity, "--password-stdin"]),
+        passphrase
+      )
     })
   }
 
-  // Creates and activates the 802.1X profile via `omarchy-network-wifi`.
-  // The password goes over stdin, never argv.
+  // Runs Wi-Fi connect/disconnect/forget actions through `omarchy-network-wifi`.
+  // Passphrases travel over stdin, never argv.
   Process {
-    id: enterpriseConnect
+    id: wifiAction
+    property string targetSsid: ""
     property string secret: ""
+    property bool sendSecret: false
     stdinEnabled: true
     onStarted: {
-      write(secret + "\n")
+      if (sendSecret) write(secret + "\n")
       secret = ""
+      sendSecret = false
+    }
+    onExited: function(exitCode) {
+      var ssid = targetSsid
+      targetSsid = ""
+      secret = ""
+      sendSecret = false
+      if (exitCode !== 0 && root.actionKind !== "" && root.actionSsid === ssid) {
+        var net = root.networkForSsid(ssid)
+        if (net) {
+          root.failNetworkAction(net, -1)
+        } else {
+          actionTimeout.stop()
+          root.failureSsid = ssid
+          root.failureKind = root.actionKind
+          root.failureReason = root.networkFailureReason(-1, false)
+          root.actionSsid = ""
+          root.actionKind = ""
+          root.refresh()
+        }
+      }
     }
   }
 
   function disconnect(network) {
-    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) { net.disconnect() })
+    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) {
+      var cmd = wifiDevice && wifiDevice.name
+        ? ["omarchy-network-wifi", "disconnect", "--", wifiDevice.name]
+        : ["omarchy-network-wifi", "disconnect"]
+      runWifiCli(net.name || "", cmd)
+    })
   }
 
   // Disconnect from a row's SSID. Rows are primitive snapshots that can outlive
@@ -973,7 +1027,9 @@ Panel {
   }
 
   function forget(net) {
-    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) {
+      runWifiCli(network.name || "", ["omarchy-network-wifi", "forget", "--", network.name])
+    })
   }
 
   implicitWidth: button.implicitWidth
@@ -1060,8 +1116,7 @@ Panel {
     }
   }
 
-  // Action runner for DNS provider changes. Wi-Fi actions use the
-  // Quickshell.Networking NetworkManager backend directly.
+  // Action runner for DNS provider and Wi-Fi band changes.
   Process {
     id: actionProc
     stdout: StdioCollector { id: actionStdout; waitForEnd: true }
