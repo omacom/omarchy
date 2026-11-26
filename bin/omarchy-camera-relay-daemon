@@ -70,6 +70,7 @@ class LiveCameraRelay:
 
         self.lock = threading.Lock()
         self.stop_requested = False
+        self.exit_code = 0
         self.wake_r, self.wake_w = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
         self.input_pipe = None
         self.input_bus = None
@@ -213,6 +214,8 @@ class LiveCameraRelay:
                 sys.stderr.write(f"omarchy-camera-relay: input error: {err} ({dbg})\n")
                 sys.stderr.flush()
                 self.stop_input()
+                self.exit_code = 1
+                self.stop_requested = True
                 break
 
     def request_stop(self, *_args) -> None:
@@ -282,7 +285,7 @@ class LiveCameraRelay:
                 os.unlink(self.sock_path)
             except FileNotFoundError:
                 pass
-        return 0
+        return self.exit_code
 
 
 def main() -> int:

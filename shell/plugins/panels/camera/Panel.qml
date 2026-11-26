@@ -22,7 +22,7 @@ BarWidget {
 
   property bool tuningInstalled: false
   property bool cameraActive: false
-  property bool popupOpen: false
+  property bool opened: false
   property bool saving: false
   property bool pendingSave: false
   property bool pendingReset: false
@@ -35,27 +35,44 @@ BarWidget {
   property real contrastValue: 1.05
   property real saturationValue: 1.40
 
+  // Raw values as saved in camera-relay.env (unclamped), so CLI overrides
+  // outside the slider bounds stay visible to isModified and are never
+  // clobbered when the user adjusts a different slider.
+  property real savedGamma: 1.50
+  property real savedContrast: 1.05
+  property real savedSaturation: 1.40
+
   property real defaultGamma: 1.50
   property real defaultContrast: 1.05
   property real defaultSaturation: 1.40
 
+  property var dirtyKeys: ({})
   property double lastLiveSentMs: 0
 
   readonly property bool anyDragging: gammaSlider.dragging || contrastSlider.dragging || saturationSlider.dragging
 
   readonly property bool isModified:
-    Math.abs(gammaValue - defaultGamma) > 0.005
-    || Math.abs(contrastValue - defaultContrast) > 0.005
-    || Math.abs(saturationValue - defaultSaturation) > 0.005
+    Math.abs(savedGamma - defaultGamma) > 0.005
+    || Math.abs(savedContrast - defaultContrast) > 0.005
+    || Math.abs(savedSaturation - defaultSaturation) > 0.005
 
   // Visible only while the camera is actively streaming (or while the user
   // still has this popup open), plus in `omarchy agent look plugin` preview.
-  visible: previewMode || (tuningInstalled && (cameraActive || popupOpen))
+  visible: previewMode || (tuningInstalled && (cameraActive || opened))
   implicitWidth: visible ? button.implicitWidth : 0
   implicitHeight: visible ? button.implicitHeight : 0
 
+  function open() {
+    if (root.tuningInstalled || root.previewMode) root.opened = true
+  }
+
   function close() {
-    root.popupOpen = false
+    root.opened = false
+  }
+
+  function toggle() {
+    if (root.opened) root.close()
+    else root.open()
   }
 
   function snapStep(value, minVal, maxVal, stepVal) {
@@ -102,9 +119,18 @@ BarWidget {
       var g = parseFloat(map.GAMMA)
       var c = parseFloat(map.CONTRAST)
       var s = parseFloat(map.SATURATION)
-      if (!isNaN(g)) root.gammaValue = snapStep(g, 1.00, 2.40, 0.05)
-      if (!isNaN(c)) root.contrastValue = snapStep(c, 0.50, 2.00, 0.05)
-      if (!isNaN(s)) root.saturationValue = snapStep(s, 0.00, 2.00, 0.05)
+      if (!isNaN(g)) {
+        root.savedGamma = g
+        root.gammaValue = snapStep(g, 1.00, 2.40, 0.05)
+      }
+      if (!isNaN(c)) {
+        root.savedContrast = c
+        root.contrastValue = snapStep(c, 0.50, 2.00, 0.05)
+      }
+      if (!isNaN(s)) {
+        root.savedSaturation = s
+        root.saturationValue = snapStep(s, 0.00, 2.00, 0.05)
+      }
     }
   }
 
@@ -118,28 +144,42 @@ BarWidget {
       var key = line.slice(0, eq).trim()
       var val = parseFloat(unescapeShellValue(line.slice(eq + 1)))
       if (isNaN(val)) continue
-      if (key === "gamma") root.defaultGamma = snapStep(val, 1.00, 2.40, 0.05)
-      else if (key === "contrast") root.defaultContrast = snapStep(val, 0.50, 2.00, 0.05)
-      else if (key === "saturation") root.defaultSaturation = snapStep(val, 0.00, 2.00, 0.05)
+      if (key === "gamma") root.defaultGamma = val
+      else if (key === "contrast") root.defaultContrast = val
+      else if (key === "saturation") root.defaultSaturation = val
     }
   }
 
-  // Send 0ms live property updates through the already-running watcher bridge
-  // to the relay's Unix datagram socket — zero process spawns, zero restarts.
-  function sendLive(g, c, s, force) {
+  // Send 0ms live property updates for only the changed control(s) through the
+  // already-running watcher bridge to the relay's Unix datagram socket.
+  function sendLiveKey(key, value, force) {
     if (root.previewMode || !watcherProc.running) return
     var now = Date.now()
     if (!force && (now - root.lastLiveSentMs) < 33) return
     root.lastLiveSentMs = now
+    watcherProc.write(key + "=" + formatArg(value) + "\n")
+  }
+
+  function sendLiveAll() {
+    if (root.previewMode || !watcherProc.running) return
+    root.lastLiveSentMs = Date.now()
     watcherProc.write(
-      "gamma=" + formatArg(g)
-      + " contrast=" + formatArg(c)
-      + " saturation=" + formatArg(s) + "\n"
+      "gamma=" + formatArg(root.savedGamma)
+      + " contrast=" + formatArg(root.savedContrast)
+      + " saturation=" + formatArg(root.savedSaturation) + "\n"
     )
   }
 
-  function queuePersist() {
+  function markDirty(key) {
+    var next = {}
+    for (var k in root.dirtyKeys) next[k] = root.dirtyKeys[k]
+    next[key] = true
+    root.dirtyKeys = next
+  }
+
+  function queuePersist(key) {
     if (root.previewMode) return
+    root.markDirty(key)
     root.pendingReset = false
     persistDebounceTimer.restart()
   }
@@ -150,30 +190,38 @@ BarWidget {
       root.pendingSave = true
       return
     }
-    root.saving = true
     root.pendingSave = false
     if (root.pendingReset) {
       root.pendingReset = false
+      root.dirtyKeys = ({})
+      root.saving = true
       saveProc.command = ["omarchy-camera-tuning", "reset"]
-    } else {
-      saveProc.command = [
-        "omarchy-camera-tuning",
-        "set",
-        "gamma=" + formatArg(root.gammaValue),
-        "contrast=" + formatArg(root.contrastValue),
-        "saturation=" + formatArg(root.saturationValue)
-      ]
+      saveProc.running = true
+      return
     }
+
+    var args = ["omarchy-camera-tuning", "set"]
+    if (root.dirtyKeys.gamma) args.push("gamma=" + formatArg(root.savedGamma))
+    if (root.dirtyKeys.contrast) args.push("contrast=" + formatArg(root.savedContrast))
+    if (root.dirtyKeys.saturation) args.push("saturation=" + formatArg(root.savedSaturation))
+    if (args.length <= 2) return
+
+    root.dirtyKeys = ({})
+    root.saving = true
+    saveProc.command = args
     saveProc.running = true
   }
 
   function resetAll() {
     if (root.previewMode) return
     persistDebounceTimer.stop()
-    root.gammaValue = root.defaultGamma
-    root.contrastValue = root.defaultContrast
-    root.saturationValue = root.defaultSaturation
-    root.sendLive(root.gammaValue, root.contrastValue, root.saturationValue, true)
+    root.savedGamma = root.defaultGamma
+    root.savedContrast = root.defaultContrast
+    root.savedSaturation = root.defaultSaturation
+    root.gammaValue = snapStep(root.defaultGamma, 1.00, 2.40, 0.05)
+    root.contrastValue = snapStep(root.defaultContrast, 0.50, 2.00, 0.05)
+    root.saturationValue = snapStep(root.defaultSaturation, 0.00, 2.00, 0.05)
+    root.sendLiveAll()
     root.pendingReset = true
     root.flushPersist()
   }
@@ -265,8 +313,8 @@ BarWidget {
     target: root.bar
     ignoreUnknownSignals: true
     function onActivePopoutChanged() {
-      if (root.popupOpen && root.bar && root.bar.activePopout !== root) {
-        root.popupOpen = false
+      if (root.opened && root.bar && root.bar.activePopout !== root) {
+        root.opened = false
       }
     }
   }
@@ -279,7 +327,7 @@ BarWidget {
     tooltipText: Commons.I18n.t("camera.tooltipActive")
     onPressed: function(btn) {
       if (btn === Qt.LeftButton) {
-        root.popupOpen = !root.popupOpen
+        root.toggle()
       }
     }
   }
@@ -289,7 +337,7 @@ BarWidget {
     anchorItem: button
     bar: root.bar
     owner: root
-    open: root.popupOpen
+    open: root.opened
     contentWidth: card.fittedContentWidth(Style.space(320))
     contentHeight: card.fittedContentHeight(contentColumn.implicitHeight)
 
@@ -380,18 +428,20 @@ BarWidget {
             step: 0.05
             value: root.gammaValue
             onMoved: function(v) {
-              root.sendLive(v, contrastSlider.liveValue, saturationSlider.liveValue, false)
+              root.sendLiveKey("gamma", v, false)
             }
             onReleased: function(v) {
               var next = root.snapStep(v, minimum, maximum, step)
               root.gammaValue = next
-              root.sendLive(root.gammaValue, root.contrastValue, root.saturationValue, true)
-              root.queuePersist()
+              root.savedGamma = next
+              root.sendLiveKey("gamma", next, true)
+              root.queuePersist("gamma")
             }
             onRightClicked: {
-              root.gammaValue = root.defaultGamma
-              root.sendLive(root.gammaValue, root.contrastValue, root.saturationValue, true)
-              root.queuePersist()
+              root.savedGamma = root.defaultGamma
+              root.gammaValue = root.snapStep(root.defaultGamma, minimum, maximum, step)
+              root.sendLiveKey("gamma", root.savedGamma, true)
+              root.queuePersist("gamma")
             }
           }
         }
@@ -437,18 +487,20 @@ BarWidget {
             step: 0.05
             value: root.contrastValue
             onMoved: function(v) {
-              root.sendLive(gammaSlider.liveValue, v, saturationSlider.liveValue, false)
+              root.sendLiveKey("contrast", v, false)
             }
             onReleased: function(v) {
               var next = root.snapStep(v, minimum, maximum, step)
               root.contrastValue = next
-              root.sendLive(root.gammaValue, root.contrastValue, root.saturationValue, true)
-              root.queuePersist()
+              root.savedContrast = next
+              root.sendLiveKey("contrast", next, true)
+              root.queuePersist("contrast")
             }
             onRightClicked: {
-              root.contrastValue = root.defaultContrast
-              root.sendLive(root.gammaValue, root.contrastValue, root.saturationValue, true)
-              root.queuePersist()
+              root.savedContrast = root.defaultContrast
+              root.contrastValue = root.snapStep(root.defaultContrast, minimum, maximum, step)
+              root.sendLiveKey("contrast", root.savedContrast, true)
+              root.queuePersist("contrast")
             }
           }
         }
@@ -494,18 +546,20 @@ BarWidget {
             step: 0.05
             value: root.saturationValue
             onMoved: function(v) {
-              root.sendLive(gammaSlider.liveValue, contrastSlider.liveValue, v, false)
+              root.sendLiveKey("saturation", v, false)
             }
             onReleased: function(v) {
               var next = root.snapStep(v, minimum, maximum, step)
               root.saturationValue = next
-              root.sendLive(root.gammaValue, root.contrastValue, root.saturationValue, true)
-              root.queuePersist()
+              root.savedSaturation = next
+              root.sendLiveKey("saturation", next, true)
+              root.queuePersist("saturation")
             }
             onRightClicked: {
-              root.saturationValue = root.defaultSaturation
-              root.sendLive(root.gammaValue, root.contrastValue, root.saturationValue, true)
-              root.queuePersist()
+              root.savedSaturation = root.defaultSaturation
+              root.saturationValue = root.snapStep(root.defaultSaturation, minimum, maximum, step)
+              root.sendLiveKey("saturation", root.savedSaturation, true)
+              root.queuePersist("saturation")
             }
           }
         }
