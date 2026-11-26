@@ -278,6 +278,22 @@ grep -qxF 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "unset", win
   fail "minimize takes a window out of fullscreen before it leaves, and remembers it" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize takes a window out of fullscreen before it leaves, and remembers it"
 
+# A window whose workspace has no number, as on the scratchpad, stays where it
+# is: its fullscreen state is not taken for a workspace.
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  activewindow) printf '{"address":"0x777","workspace":{"name":"special:scratchpad"},"fullscreen":1}\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+if minimize; then
+  fail "minimize refuses a window whose workspace has no number" "$(cat "$TMPDIR/hyprctl.log")"
+fi
+[[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves a maximized window on the scratchpad alone" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize leaves a maximized window on the scratchpad alone"
+
 # A tiled workspace has no dock to bring a window back from, so nothing there
 # is minimized.
 cat >"$mock_bin/hyprctl" <<STUB

@@ -5,11 +5,15 @@
 
 # The active window when given no address. Minimized windows wait on a special
 # workspace, and the dock brings them back.
+#
+# One value a line: a value Hyprland leaves out, such as the workspace id of a
+# window on the scratchpad, then reads as empty instead of the next one taking
+# its place.
 if [[ -n ${1:-} ]]; then
   ADDRESS=$1
-  read -r WORKSPACE FULLSCREEN < <(hyprctl clients -j | jq -r --arg address "$ADDRESS" 'first(.[] | select(.address == $address) | "\(.workspace.id) \(.fullscreen // 0)") // empty')
+  { read -r WORKSPACE; read -r FULLSCREEN; } < <(hyprctl clients -j | jq -r --arg address "$ADDRESS" 'first(.[] | select(.address == $address)) | .workspace.id // "", .fullscreen // 0')
 else
-  read -r ADDRESS WORKSPACE FULLSCREEN < <(hyprctl activewindow -j | jq -r '"\(.address // "") \(.workspace.id // "") \(.fullscreen // 0)"')
+  { read -r ADDRESS; read -r WORKSPACE; read -r FULLSCREEN; } < <(hyprctl activewindow -j | jq -r '.address // "", .workspace.id // "", .fullscreen // 0')
 fi
 
 [[ -n $ADDRESS && $WORKSPACE =~ ^[0-9]+$ ]] || exit 1
