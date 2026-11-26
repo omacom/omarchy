@@ -15,6 +15,23 @@ function toArray(values) {
   return list
 }
 
+// Delay before the next StartDiscovery after `attempts` in a row went
+// unanswered: 1s, then doubling to a 30s ceiling, so a busy or wedged
+// controller is not asked every second for as long as the panel is open.
+function discoveryRetryInterval(attempts) {
+  var tries = Math.max(1, Math.floor(Number(attempts) || 1))
+  return Math.min(1000 * Math.pow(2, tries - 1), 30000)
+}
+
+// After this many unanswered attempts (about two minutes of backing off) the
+// panel stops asking, and the retry timer stops, until discovery starts, the
+// panel is opened again, or the user turns the radio back on.
+var discoveryRetryLimit = 8
+
+function discoveryRetryAllowed(attempts) {
+  return Math.floor(Number(attempts) || 0) < discoveryRetryLimit
+}
+
 function isUuidLike(value) {
   var text = String(value || "").trim()
   if (text === "") return false
@@ -158,6 +175,9 @@ if (typeof module !== "undefined") {
   module.exports = {
     deviceLabel: deviceLabel,
     toArray: toArray,
+    discoveryRetryInterval: discoveryRetryInterval,
+    discoveryRetryAllowed: discoveryRetryAllowed,
+    discoveryRetryLimit: discoveryRetryLimit,
     isUuidLike: isUuidLike,
     isAddressLike: isAddressLike,
     normalizedAddress: normalizedAddress,

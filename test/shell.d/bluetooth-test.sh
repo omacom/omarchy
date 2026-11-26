@@ -7,6 +7,15 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const bluetooth = requireFromRoot('shell/plugins/panels/bluetooth/Model.js')
 
+// A controller that keeps rejecting StartDiscovery was asked every second for
+// as long as the panel stayed open, which can wedge it (#13447).
+assertDeepEqual([1, 2, 3, 4, 5, 6, 7, 20].map(bluetooth.discoveryRetryInterval),
+  [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000], 'bluetooth backs off discovery retries to a 30s ceiling')
+assertEqual(bluetooth.discoveryRetryInterval(0), 1000, 'bluetooth retries discovery after a second before any attempt')
+assert(bluetooth.discoveryRetryAllowed(0) && bluetooth.discoveryRetryAllowed(bluetooth.discoveryRetryLimit - 1),
+  'bluetooth keeps retrying discovery below the limit')
+assert(!bluetooth.discoveryRetryAllowed(bluetooth.discoveryRetryLimit), 'bluetooth stops retrying discovery at the limit')
+
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')
 assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'bluetooth normalizes BlueZ and PipeWire address formats')
