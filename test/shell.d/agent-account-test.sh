@@ -386,10 +386,11 @@ pass "account dispatch follows the active account"
   mkdir -p "$test_tmp/shim-tools"
   ln -s "$(type -P mise)" "$test_tmp/shim-tools/mise"
   ln -s "$(type -P rm)" "$test_tmp/shim-tools/rm"
-  if PATH="$dispatchers:$MISE_DATA_DIR/shims:$ROOT/bin:$test_tmp/shim-tools" CLAUDE_CONFIG_DIR="$HOME/.claude" \
-    /usr/bin/timeout 10 "$dispatchers/claude" >"$test_tmp/shim-inactive" 2>&1; then
-    fail "a shim with no active provider or fallback reports its error"
-  fi
+  status=0
+  PATH="$dispatchers:$MISE_DATA_DIR/shims:$ROOT/bin:$test_tmp/shim-tools" CLAUDE_CONFIG_DIR="$HOME/.claude" \
+    /usr/bin/timeout 10 "$dispatchers/claude" >"$test_tmp/shim-inactive" 2>&1 || status=$?
+  (( status == 1 )) && grep -q '^mise ERROR .*claude' "$test_tmp/shim-inactive" ||
+    fail "a shim with no active provider or fallback reports its error" "exit $status: $(cat "$test_tmp/shim-inactive")"
   [[ -x $dispatchers/claude ]] || fail "a project-only mise agent keeps its dispatcher outside the project"
 )
 pass "real mise shims preserve installed agents and intentional runtime selections after reshim"
