@@ -13,17 +13,17 @@ assert(!polkit.promptLooksFingerprint('Password:'), 'polkit ignores password pro
 
 assertEqual(
   polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user"),
-  "Authorize running '/usr/bin/true'",
-  'polkit shortens the standard pkexec message'
+  'Authorize running command',
+  'polkit uses a heading for standard pkexec prompts while the command goes on line two'
 )
 assertEqual(
   polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, 'Claude'),
-  "Authorize Claude to run '/usr/bin/true'",
-  'polkit names the agent a pkexec prompt comes from'
+  'Authorize Claude to run command',
+  'polkit names the agent in the heading for pkexec prompts'
 )
 assertEqual(
   polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user", undefined, ''),
-  "Authorize running '/usr/bin/true'",
+  'Authorize running command',
   'polkit falls back when no agent name is given'
 )
 assertEqual(
@@ -39,13 +39,13 @@ assertEqual(
 const multilineSh = "Authentication is needed to run `/usr/bin/sh -c\nfor f in /sys/device ... [ -w \"$f\" ] && echo 1 > \"$f\"\ndone\n' as the super user"
 assertEqual(
   polkit.authorizationLabel(multilineSh),
-  "Authorize running '/usr/bin/sh -c for f in /sys/device ... [ -w \"$f\" ] && echo 1 > \"$f\" done'",
-  'polkit collapses embedded newlines in a multi-line pkexec command'
+  'Authorize running command',
+  'polkit keeps a single-line heading for multi-line pkexec commands'
 )
 assertEqual(
   polkit.authorizationLabel(multilineSh, undefined, 'Antigravity'),
-  "Authorize Antigravity to run '/usr/bin/sh -c for f in /sys/device ... [ -w \"$f\" ] && echo 1 > \"$f\" done'",
-  'polkit collapses embedded newlines in a multi-line agent pkexec command'
+  'Authorize Antigravity to run command',
+  'polkit names the agent in the heading for multi-line pkexec commands'
 )
 assertEqual(
   polkit.authorizationLabel("Authentication is required\nto update\tfirmware\n"),
@@ -239,6 +239,14 @@ const makeScope = () => {
     '/usr/bin/sh -c for f in /sys/device ... [ -w "$f" ] && echo 1 > "$f" done',
     'agent labelProgram flattens multi-line commands for display'
   )
+  s.currentLabel = ''
+  assertEqual(
+    s.getLabelProgram(),
+    '/usr/bin/sh -c for f in /sys/device ... [ -w "$f" ] && echo 1 > "$f" done',
+    'unlabelled pkexec prompt still shows its command on the second line'
+  )
+  s.currentMessage = 'Authentication is required to format Crucial X10 Pro (/dev/sda)'
+  assertEqual(s.getLabelProgram(), '', 'non-pkexec prompts leave the second line empty')
   s.currentLabel = '   \n  '
   assertEqual(s.authorizationLabel('  \n\t '), 'polkit.authenticationNeeded', 'whitespace-only label and message fall back to default authentication prompt')
 }
