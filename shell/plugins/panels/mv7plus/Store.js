@@ -60,9 +60,16 @@ function register(panel) {
 function unregister(panel) {
   listeners = listeners.filter(function(p) { return p !== panel })
   if (leader === panel) {
+    var wasRunning = running
     running = false
     leader = listeners.length > 0 ? listeners[0] : null
-    if (leader && pendingCmds.length > 0) drainNext()
+    if (leader) {
+      if (wasRunning || (leader.pipewireHasMv7 && !state.deviceConnected)) {
+        enqueue(["read"], leader)
+      } else if (pendingCmds.length > 0) {
+        drainNext()
+      }
+    }
   }
 }
 

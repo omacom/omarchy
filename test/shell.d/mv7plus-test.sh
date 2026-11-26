@@ -140,7 +140,27 @@ assertDeepEqual(execLog[1].args, ['set', 'gain_db', '32.0'], 'queued set args pr
 sandbox.finishExec(JSON.stringify({ connected: true, state: { gain_db: 32.0 } }))
 assertEqual(monB.synced.gainDb, 32.0, 'confirmed set updates all monitors')
 
-// Unregistering leader hands off cleanly to remaining monitor.
+// Unregistering leader hands off cleanly to remaining monitor and restarts
+// detection if the MV7+ is present on PipeWire while not yet confirmed.
+const makeHotplugPanel = (id, hasMv7) => ({
+  id,
+  pipewireHasMv7: hasMv7,
+  synced: null,
+  syncFromStore(st) { this.synced = Object.assign({}, st) },
+  execHelper(args) { execLog.push({ id, args }) }
+})
 sandbox.unregister(monA)
 assert(sandbox.isLeader(monB), 'monitor B becomes leader when monitor A disconnects')
+sandbox.unregister(monB)
+
+sandbox.markDisconnected()
+const hotA = makeHotplugPanel('HA', true)
+const hotB = makeHotplugPanel('HB', true)
+sandbox.register(hotA)
+sandbox.register(hotB)
+const beforeHandoff = execLog.length
+sandbox.unregister(hotA)
+assert(sandbox.isLeader(hotB), 'hotB becomes leader when hotA disconnects during hotplug')
+assertEqual(execLog.length, beforeHandoff + 1, 'new leader triggers HID detection when MV7+ is present')
+assertDeepEqual(execLog[execLog.length - 1], { id: 'HB', args: ['read'] }, 'new leader runs read probe')
 JS
