@@ -7,6 +7,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
+const port = { name: 'dock0', type: 'wired', nmManaged: true, hasLink: true, connected: false }
+assertEqual(network.singleLinkedPort([port, {...port, nmManaged: false}, {...port, hasLink: false}, {...port, type: 'wifi'}], 'wired'), port, 'a disconnected linked port remains available to reconnect')
+assertEqual(network.singleLinkedPort([port, {...port, name: 'dock1'}], 'wired'), null, 'a single switch never guesses between two linked ports')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so

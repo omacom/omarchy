@@ -35,6 +35,14 @@ ShellRoot {
     function forget() { calls++ }
   }
 
+  property QtObject dock: QtObject {
+    property int type: DeviceType.Wired
+    property string name: "dock0"
+    property bool nmManaged: true
+    property bool hasLink: true
+    property bool connected: true
+  }
+
   property Net home: Net { name: "Home"; known: true; signalStrength: 0.9 }
   property Net cafe: Net { name: "Cafe"; signalStrength: 0.3 }
   property Net guest: Net { name: "Guest"; security: WifiSecurityType.Open; signalStrength: 0.4 }
@@ -144,6 +152,29 @@ ShellRoot {
     },
     function() {
       check(panel.passwordSsid === "", "a prompt closes once its network connects, with no error left behind it")
+      NetworkMock.devices = { values: [NetworkMock.wifi, dock] }
+      panel.testEnsureContent()
+      const toggle = panel.testContent.testEthernet
+      check(toggle.visible && toggle.checked, "linked Ethernet switch starts on")
+      toggle.clicked()
+    },
+    function() {
+      check(!panel.ethernetFailed && NetworkMock.wifiEnabled, "disconnect succeeds without disabling Wi-Fi")
+      dock.connected = false // NetworkManager reports the completed disconnect
+      const toggle = panel.testContent.testEthernet
+      check(toggle.visible && !toggle.checked, "disconnected cable can be reconnected")
+      toggle.clicked()
+    },
+    function() {
+      check(!panel.ethernetFailed && NetworkMock.wifiEnabled, "reconnect succeeds without disabling Wi-Fi")
+      dock.connected = true
+      const toggle = panel.testContent.testEthernet
+      check(toggle.checked, "reconnect follows NetworkManager state")
+      toggle.clicked() // nmcli returns a failure on this attempt
+    },
+    function() {
+      check(panel.ethernetFailed && panel.testContent.testEthernet.checked && NetworkMock.wifiEnabled,
+        "failed disconnect reports an error and leaves both connections alone")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }
@@ -154,6 +185,9 @@ ShellRoot {
     interval: 100
     running: true
     repeat: true
-    onTriggered: test.steps[test.step++]()
+    onTriggered: {
+      if (panel.testContent && !panel.testContent.testEthernet.enabled) return
+      test.steps[test.step++]()
+    }
   }
 }
