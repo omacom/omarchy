@@ -46,6 +46,12 @@ case ${1:-} in
     [[ ${OWE_FAIL:-} != "interrupted" && ${OWE_FAIL:-} != "unavailable" ]] || exit 1
     [[ -z ${OWE_READY_FILE:-} || -f $OWE_READY_FILE ]] || exit 1
     ;;
+  scene)
+    # What OWE says of a scene file, or an OWE that cannot read one.
+    [[ -n ${OWE_SCENE_INFO:-} ]] || exit 1
+    printf '%s\n' "$OWE_SCENE_INFO"
+    exit 0
+    ;;
   status)
     [[ ${OWE_FAIL:-} != "unavailable" ]] || exit 1
     # OWE comes up on probe OWE_READY_AFTER, first running OWE_WHILE_STARTING:
@@ -70,6 +76,20 @@ printf '{"option":"animations:enabled","int":%s,"bool":%s}\n' \
   "$([[ ${ANIMATIONS:-on} == on ]] && echo 1 || echo 0)" "$([[ ${ANIMATIONS:-on} == on ]] && echo true || echo false)"
 SH
 chmod +x "$command_bin/hyprctl"
+
+scene="$intro_state/theme/backgrounds/scenes/road/scene.jsonc"
+mkdir -p "${scene%/*}"
+printf '{}\n' >"$scene"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" OWE_SCENE_INFO='{"status":"ok","still_matches":true,"arrive":{"seconds":5.2}}' \
+  "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-only)
+[[ $resolved == "$scene" ]] || fail "a scene made for the still arrives in place of its intro clip" "$resolved"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" OWE_SCENE_INFO='{"status":"ok","still_matches":true,"arrive":null}' \
+  "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-only)
+[[ $resolved == "$theme_intro_dir/road.mp4" ]] || fail "a scene with no arrive part leaves the intro to the clip" "$resolved"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-only)
+[[ $resolved == "$theme_intro_dir/road.mp4" ]] || fail "a scene OWE cannot read leaves the intro to the clip" "$resolved"
+rm -r "${scene%/*/*}"
+: >"$command_log"
 
 mkdir -p "$(dirname "$toggle")"
 resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-startup)
