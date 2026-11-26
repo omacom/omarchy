@@ -11,7 +11,8 @@ Item {
   property var shell: null
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
-  readonly property int batteryThreshold: 10
+  // 20 is UPower's own PercentageLow, so a pack that cuts out above 10% still gets a warning.
+  readonly property var batteryThresholds: [20, 10]
   property string pendingPowerSource: ""
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
@@ -25,7 +26,7 @@ Item {
   PersistentProperties {
     id: persisted
     reloadableId: "omarchy-battery"
-    property bool notifiedLowBattery: false
+    property int lowBatteryWarnedAt: 0
   }
 
   function batteryPercentage() {
@@ -37,8 +38,8 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
-    persisted.notifiedLowBattery = state.notifiedLowBattery
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThresholds, persisted.lowBatteryWarnedAt)
+    persisted.lowBatteryWarnedAt = state.warnedAt
     if (state.notify) sendLowBatteryWarning(state.level)
   }
 

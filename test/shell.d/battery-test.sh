@@ -15,47 +15,69 @@ assert(battery.isDischarging({ isPresent: true, state: discharging }, dischargin
 assert(!battery.isDischarging({ isPresent: true, state: charging }, discharging), 'battery ignores non-discharging state')
 assert(!battery.isDischarging({ isPresent: false, state: discharging }, discharging), 'battery requires a present battery')
 
+const thresholds = [20, 10]
+const at = (percentage, state) => ({ isPresent: true, percentage, state })
+
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, discharging, 10, false),
-  { level: 8, notify: true, notifiedLowBattery: true },
+  battery.shouldWarnLowBattery(at(0.08, discharging), discharging, thresholds, 0),
+  { level: 8, notify: true, warnedAt: 10 },
   'battery warns once under threshold, plugged in or not'
 )
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: charging }, discharging, 10, false),
-  { level: 8, notify: false, notifiedLowBattery: false },
+  battery.shouldWarnLowBattery(at(0.08, charging), discharging, thresholds, 0),
+  { level: 8, notify: false, warnedAt: 0 },
   'battery does not warn while charging'
 )
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, discharging, 10, true),
-  { level: 8, notify: false, notifiedLowBattery: true },
+  battery.shouldWarnLowBattery(at(0.08, discharging), discharging, thresholds, 10),
+  { level: 8, notify: false, warnedAt: 10 },
   'battery keeps low-battery notified state'
 )
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.4, state: discharging }, discharging, 10, true),
-  { level: 40, notify: false, notifiedLowBattery: false },
+  battery.shouldWarnLowBattery(at(0.4, discharging), discharging, thresholds, 10),
+  { level: 40, notify: false, warnedAt: 0 },
   'battery clears notified state after recovery'
 )
+assertDeepEqual(
+  battery.shouldWarnLowBattery(at(0.12, discharging), discharging, thresholds, 0),
+  { level: 12, notify: true, warnedAt: 20 },
+  'battery warns at 20% for a pack that cuts out above 10%'
+)
 
-let warned = false
+let warnedAt = 0
+let levels = []
+for (let percent = 30; percent >= 2; percent--) {
+  const result = battery.shouldWarnLowBattery(at(percent / 100, discharging), discharging, thresholds, warnedAt)
+  warnedAt = result.warnedAt
+  if (result.notify) levels.push(result.level)
+}
+assertDeepEqual(levels, [20, 10], 'battery warns once at each threshold through one discharge')
+
+let warned = 0
 let warnings = 0
 for (const state of [discharging, charging, discharging, charging, discharging]) {
-  const result = battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state }, discharging, 10, warned)
-  warned = result.notifiedLowBattery
+  const result = battery.shouldWarnLowBattery(at(0.08, state), discharging, thresholds, warned)
+  warned = result.warnedAt
   warnings += Number(result.notify)
 }
 assertEqual(warnings, 1, 'battery warns only once across AC flaps while low')
 assertEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.1, state: charging }, discharging, 10, true).notifiedLowBattery,
-  true,
+  battery.shouldWarnLowBattery(at(0.1, charging), discharging, thresholds, 10).warnedAt,
+  10,
   'charging at the warning threshold does not re-arm the latch'
 )
 assertEqual(
-  battery.shouldWarnLowBattery(null, discharging, 10, true).notifiedLowBattery,
-  true,
+  battery.shouldWarnLowBattery(null, discharging, thresholds, 10).warnedAt,
+  10,
   'a missing reading does not re-arm the low-battery warning'
 )
-const recovered = battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.11, state: charging }, discharging, 10, true)
-assertEqual(recovered.notifiedLowBattery, false, 'battery re-arms after recovering above the threshold')
+const recovered = battery.shouldWarnLowBattery(at(0.11, charging), discharging, thresholds, 10)
+assertEqual(recovered.warnedAt, 20, 'battery re-arms the 10% warning after recovering above it')
+assertDeepEqual(
+  battery.shouldWarnLowBattery(at(0.1, discharging), discharging, thresholds, recovered.warnedAt),
+  { level: 10, notify: true, warnedAt: 10 },
+  'battery warns at 10% again after recovering above it, without repeating 20%'
+)
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')

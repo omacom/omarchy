@@ -9,16 +9,24 @@ function isDischarging(device, dischargingState) {
   return !!(device && device.isPresent && device.state === dischargingState)
 }
 
-function shouldWarnLowBattery(device, dischargingState, threshold, alreadyNotified) {
+// Warn once at each threshold the battery falls to while discharging. warnedAt is the lowest
+// threshold already warned at (0 for none). Charging does not re-arm it, so an AC flap at a
+// threshold warns once; climbing back above a threshold re-arms that one and those below it.
+function shouldWarnLowBattery(device, dischargingState, thresholds, warnedAt) {
+  var warned = Number(warnedAt) || 0
   var level = batteryPercentage(device)
-  if (level < 0) return { level: level, notify: false, notifiedLowBattery: !!alreadyNotified }
+  if (level < 0) return { level: level, notify: false, warnedAt: warned }
 
-  var low = isDischarging(device, dischargingState) && level <= threshold
-  return {
-    level: level,
-    notify: low && !alreadyNotified,
-    notifiedLowBattery: level <= threshold && !!(alreadyNotified || low)
-  }
+  // The lowest threshold the level is at or under, or 0 when above them all.
+  var reached = 0
+  for (var i = 0; i < thresholds.length; i++)
+    if (level <= thresholds[i] && (!reached || thresholds[i] < reached)) reached = thresholds[i]
+
+  if (warned && level > warned) warned = reached
+
+  var notify = isDischarging(device, dischargingState) && reached > 0 && (!warned || reached < warned)
+  if (notify) warned = reached
+  return { level: level, notify: notify, warnedAt: warned }
 }
 
 function parseActiveProfile(text) {
