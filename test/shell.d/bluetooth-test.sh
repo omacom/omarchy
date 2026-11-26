@@ -51,7 +51,7 @@ assertDeepEqual(arrayLikeLists.discovered.map(bluetooth.deviceLabel), ['Gamepad'
 
 assertDeepEqual(
   bluetooth.deviceRow({ name: 'Deadbeef', address: '1', connected: false }),
-  { address: '1', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },
+  { codec: '', headset: false, address: '1', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },
   'bluetooth projects device rows with primitives only'
 )
 assertEqual(
@@ -97,6 +97,48 @@ assert(
   !bluetooth.bluetoothSinkMatchesDevice({ isSink: false, isStream: false, ready: true, name: 'bluez_output.AA_BB_CC_DD_EE_FF.1', properties: {} }, { address: 'AA:BB:CC:DD:EE:FF', name: 'JBL Go 3' }),
   'bluetooth ignores non-sink nodes when matching audio outputs'
 )
+
+assertDeepEqual(
+  bluetooth.parseBluezNodeName('bluez_input.80_99_e7_4a_ea_a2.0'),
+  { address: '8099e74aeaa2', output: false },
+  'bluetooth reads the headset address from a PipeWire node name'
+)
+assertEqual(bluetooth.parseBluezNodeName('alsa_output.pci-0000_00_1f.3.analog-stereo'), null, 'bluetooth ignores non-Bluetooth nodes')
+
+const headsetNode = (name, codec, profile, extra) => Object.assign(
+  { name, isSink: true, isStream: false, ready: true, properties: { 'api.bluez5.codec': codec, 'api.bluez5.profile': profile } },
+  extra || {}
+)
+assertDeepEqual(
+  bluetooth.codecSnapshot([
+    headsetNode('bluez_input.80_99_E7_4A_EA_A2.0', 'msbc', 'headset-head-unit', { isSink: false }),
+    headsetNode('bluez_output.80_99_E7_4A_EA_A2.1', 'ldac', 'a2dp-sink'),
+    headsetNode('bluez_output.11_22_33_44_55_66.1', 'aac', 'a2dp-sink', { ready: false })
+  ]),
+  { '8099e74aeaa2': { codec: 'ldac', headset: false, output: true } },
+  'bluetooth takes the codec from the playback node and skips unbound nodes'
+)
+assertEqual(
+  bluetooth.deviceRow({ name: 'WH-1000XM5', address: '80:99:E7:4A:EA:A2', connected: true }, { '8099e74aeaa2': { codec: 'aac', headset: false } }).codec,
+  'aac',
+  'bluetooth carries the codec on connected rows'
+)
+assertEqual(bluetooth.codecLabel('sbc_xq'), 'SBC-XQ', 'bluetooth labels known codecs')
+assertEqual(bluetooth.codecLabel('<b>new</b>'), 'BNEWB', 'bluetooth strips markup from unknown codec names')
+
+const codecStatus = bluetooth.parseCodecStatus('mode\tmusic\ncodec\tldac\nselected\tauto\noption\tldac\tLDAC\noption\taac\tAAC\noption\t<img>\tBad\n')
+assertDeepEqual(
+  codecStatus,
+  { mode: 'music', codec: 'ldac', selected: 'auto', options: [{ codec: 'ldac', label: 'LDAC' }, { codec: 'aac', label: 'AAC' }], ldacQuality: 'auto', headsetSwitch: 'on' },
+  'bluetooth parses codec status and drops malformed options'
+)
+assertEqual(bluetooth.codecSectionTitle('auto', 'ldac'), 'CODEC: LDAC', 'bluetooth names the live codec under Automatic')
+assertEqual(bluetooth.codecSectionTitle('aac', 'aac'), 'CODEC', 'bluetooth leaves a pinned codec to the pills')
+assertEqual(bluetooth.codecSectionTitle('aac', 'msbc', null, true), 'CODEC: MSBC · HEADSET MODE', 'bluetooth names the call codec in headset mode')
+const extrasStatus = bluetooth.parseCodecStatus('ldac-quality\thq\nheadset-switch\toff\n')
+assertDeepEqual([extrasStatus.ldacQuality, extrasStatus.headsetSwitch], ['hq', 'off'], 'bluetooth parses LDAC quality and the headset switch')
+const badExtras = bluetooth.parseCodecStatus('ldac-quality\tultra\nheadset-switch\tmaybe\n')
+assertDeepEqual([badExtras.ldacQuality, badExtras.headsetSwitch], ['auto', 'on'], 'bluetooth falls back to defaults for unknown LDAC and switch values')
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
@@ -231,3 +273,139 @@ rm -f "$POWERED_FILE.11:22:33:44:55:66"
 grep -qx "rfkill block bluetooth" "$multi_log" ||
   fail "bluetooth counts a secondary controller as on" "$(cat "$multi_log")"
 pass "bluetooth counts a secondary controller as on"
+
+# omarchy-bluetooth-codec maps codecs onto card profiles. The fixture is a real
+# WH-1000XM5 card: the best codec (LDAC) is the plain a2dp-sink and the rest
+# are a2dp-sink-<codec> variants.
+codec_tmp=$(mktemp -d)
+trap 'rm -rf "$device_tmp" "$codec_tmp"' EXIT
+mkdir -p "$codec_tmp/bin"
+export CODEC_ACTIVE="$codec_tmp/active" CODEC_LOG="$codec_tmp/log"
+
+cat >"$codec_tmp/bin/pactl" <<'SH2'
+#!/bin/bash
+
+if [[ $* == "-f json list cards" ]]; then
+  jq -n --arg active "$(cat "$CODEC_ACTIVE")" '[{
+    name: "bluez_card.80_99_E7_4A_EA_A2",
+    active_profile: $active,
+    profiles: {
+      "off": { description: "Off", priority: 0, available: true },
+      "a2dp-sink-sbc": { description: "High Fidelity Playback (A2DP Sink, codec SBC)", priority: 132, available: true },
+      "a2dp-sink-sbc_xq": { description: "High Fidelity Playback (A2DP Sink, codec SBC-XQ)", priority: 131, available: true },
+      "a2dp-sink-aac": { description: "High Fidelity Playback (A2DP Sink, codec AAC)", priority: 133, available: true },
+      "a2dp-sink": { description: "High Fidelity Playback (A2DP Sink, codec LDAC)", priority: 134, available: true },
+      "headset-head-unit": { description: "Headset Head Unit (HSP/HFP, codec MSBC)", priority: 7, available: true }
+    }
+  }]'
+elif [[ $1 == "set-card-profile" ]]; then
+  echo "$3" >>"$CODEC_LOG"
+  [[ $3 == "a2dp-sink-sbc" ]] && exit 1
+  echo "$3" >"$CODEC_ACTIVE"
+fi
+exit 0
+SH2
+chmod +x "$codec_tmp/bin/pactl"
+
+codec_run() {
+  PATH="$codec_tmp/bin:$PATH" XDG_STATE_HOME="$codec_tmp/state" "$ROOT/bin/omarchy-bluetooth-codec" 80:99:E7:4A:EA:A2 "$@"
+}
+
+echo a2dp-sink >"$CODEC_ACTIVE"
+status=$(codec_run)
+[[ $status == *$'codec\tldac'* && $status == *$'selected\tauto'* ]] ||
+  fail "bluetooth codec reads the plain profile's codec from its description" "$status"
+pass "bluetooth codec reads the plain profile's codec from its description"
+
+[[ $(grep '^option' <<<"$status" | cut -f2 | tr '\n' ' ') == "ldac aac sbc sbc_xq " ]] ||
+  fail "bluetooth codec offers the A2DP codecs best first" "$status"
+pass "bluetooth codec offers the A2DP codecs best first"
+
+codec_run aac
+[[ $(cat "$CODEC_ACTIVE") == "a2dp-sink-aac" && $(codec_run) == *$'selected\taac'* ]] ||
+  fail "bluetooth codec pins a codec by selecting its profile" "$(cat "$CODEC_LOG")"
+pass "bluetooth codec pins a codec by selecting its profile"
+
+# Pinning the codec the plain profile already carries must still read as a pin.
+codec_run ldac
+[[ $(cat "$CODEC_ACTIVE") == "a2dp-sink" && $(codec_run) == *$'selected\tldac'* ]] ||
+  fail "bluetooth codec keeps a pin on the best codec apart from Automatic"
+pass "bluetooth codec keeps a pin on the best codec apart from Automatic"
+
+codec_run auto
+[[ $(codec_run) == *$'selected\tauto'* ]] ||
+  fail "bluetooth codec returns to Automatic"
+pass "bluetooth codec returns to Automatic"
+
+codec_run aptx 2>/dev/null &&
+  fail "bluetooth codec refuses a codec the headset does not offer"
+pass "bluetooth codec refuses a codec the headset does not offer"
+
+echo a2dp-sink-aac >"$CODEC_ACTIVE"
+codec_run sbc 2>/dev/null &&
+  fail "bluetooth codec reports a switch that fails"
+[[ $(cat "$CODEC_ACTIVE") == "a2dp-sink-aac" && $(tail -1 "$CODEC_LOG") == "a2dp-sink-aac" ]] ||
+  fail "bluetooth codec puts the previous codec back when a switch fails" "$(cat "$CODEC_LOG")"
+pass "bluetooth codec puts the previous codec back when a switch fails"
+
+# A failed switch from the plain profile must not leave its codec pinned.
+echo a2dp-sink >"$CODEC_ACTIVE"
+codec_run sbc 2>/dev/null || true
+[[ $(codec_run) == *$'selected\tauto'* ]] ||
+  fail "bluetooth codec records no pin for a switch that failed" "$(codec_run)"
+pass "bluetooth codec records no pin for a switch that failed"
+
+# Mid-call the microphone is left alone, and no pin is kept that nothing would apply.
+echo headset-head-unit >"$CODEC_ACTIVE"
+: >"$CODEC_LOG"
+codec_run aac 2>/dev/null &&
+  fail "bluetooth codec refuses to choose a codec in headset mode"
+[[ ! -s $CODEC_LOG && $(codec_run) == *$'selected\tauto'* ]] ||
+  fail "bluetooth codec leaves headset mode and the pin alone" "$(cat "$CODEC_LOG")"
+pass "bluetooth codec refuses to choose a codec in headset mode"
+
+# LDAC quality is a WirePlumber rule per headset, applied by restarting it.
+cat >"$codec_tmp/bin/systemctl" <<'SH2'
+#!/bin/bash
+echo "systemctl $*" >>"$CODEC_LOG"
+SH2
+cat >"$codec_tmp/bin/wpctl" <<'SH2'
+#!/bin/bash
+echo "Value: true"
+SH2
+chmod +x "$codec_tmp/bin/systemctl" "$codec_tmp/bin/wpctl"
+ldac_rules="$codec_tmp/config/wireplumber/wireplumber.conf.d/90-omarchy-bluetooth-ldac.conf"
+
+ldac_run() {
+  XDG_CONFIG_HOME="$codec_tmp/config" codec_run ldac-quality "$1"
+}
+
+echo a2dp-sink >"$CODEC_ACTIVE"
+: >"$CODEC_LOG"
+ldac_run hq
+grep -q 'device.name = "bluez_card.80_99_E7_4A_EA_A2"' "$ldac_rules" && grep -q 'bluez5.a2dp.ldac.quality = "hq"' "$ldac_rules" ||
+  fail "bluetooth codec writes an LDAC quality rule for the headset" "$(cat "$ldac_rules" 2>&1)"
+grep -qx "systemctl --user restart wireplumber.service" "$CODEC_LOG" ||
+  fail "bluetooth codec restarts WirePlumber for a new LDAC quality" "$(cat "$CODEC_LOG")"
+[[ $(XDG_CONFIG_HOME="$codec_tmp/config" codec_run) == *$'ldac-quality\thq'* ]] ||
+  fail "bluetooth codec reports the pinned LDAC quality"
+pass "bluetooth codec pins LDAC quality with a WirePlumber rule"
+
+# A second headset's rule must not displace the first.
+echo sq >"$codec_tmp/state/omarchy/bluetooth-codec/11_22_33_44_55_66.ldac"
+ldac_run mq
+grep -q '"bluez_card.11_22_33_44_55_66"' "$ldac_rules" && grep -q 'quality = "mq"' "$ldac_rules" ||
+  fail "bluetooth codec keeps every headset's LDAC rule" "$(cat "$ldac_rules")"
+pass "bluetooth codec keeps every headset's LDAC rule"
+
+rm "$codec_tmp/state/omarchy/bluetooth-codec/11_22_33_44_55_66.ldac"
+ldac_run auto
+[[ ! -e $ldac_rules ]] ||
+  fail "bluetooth codec removes the LDAC rule file when no quality is pinned" "$(cat "$ldac_rules")"
+pass "bluetooth codec removes the LDAC rule file when no quality is pinned"
+
+: >"$CODEC_LOG"
+ldac_run auto
+[[ ! -s $CODEC_LOG ]] ||
+  fail "bluetooth codec leaves WirePlumber alone when the LDAC quality is unchanged" "$(cat "$CODEC_LOG")"
+pass "bluetooth codec leaves WirePlumber alone when the LDAC quality is unchanged"

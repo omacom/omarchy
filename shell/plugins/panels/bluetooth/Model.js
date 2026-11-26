@@ -74,6 +74,105 @@ function bluetoothSinkMatchesDevice(node, device) {
   return label !== "" && text.indexOf(label) !== -1
 }
 
+// PipeWire names a headset's audio nodes bluez_output.<AA_BB_CC_DD_EE_FF>.<n>
+// (playback) and bluez_input.<address>.<n> (microphone), and publishes the
+// negotiated codec on them as api.bluez5.codec. Matching on the name alone
+// means picking these nodes out never reads properties before they are bound.
+function parseBluezNodeName(name) {
+  var match = /^bluez_(output|input)\.([0-9A-Fa-f]{2}(?:_[0-9A-Fa-f]{2}){5})(?:\.|$)/.exec(String(name || ""))
+  if (!match) return null
+  return { address: normalizedAddress(match[2]), output: match[1] === "output" }
+}
+
+function isBluezAudioNode(node) {
+  return !!(node && !node.isStream && parseBluezNodeName(node.name))
+}
+
+var CODEC_LABELS = {
+  sbc: "SBC", sbc_xq: "SBC-XQ", mpeg: "MP3", aac: "AAC", aac_eld: "AAC-ELD",
+  aptx: "aptX", aptx_hd: "aptX HD", aptx_ll: "aptX LL", aptx_ll_duplex: "aptX LL",
+  ldac: "LDAC", faststream: "FastStream", faststream_duplex: "FastStream",
+  lc3plus_hr: "LC3plus HR", opus_05: "Opus", opus_05_51: "Opus 5.1",
+  opus_05_71: "Opus 7.1", opus_05_duplex: "Opus", opus_05_pro: "Opus Pro",
+  opus_g: "Opus", cvsd: "CVSD", msbc: "mSBC", lc3_swb: "LC3-SWB",
+  lc3_a127: "LC3", lc3: "LC3", g722: "G.722"
+}
+
+// A codec a later PipeWire adds still shows, as its bounded uppercase name.
+function codecLabel(codec) {
+  var key = String(codec || "").trim().toLowerCase()
+  if (key === "") return ""
+  if (CODEC_LABELS.hasOwnProperty(key)) return CODEC_LABELS[key]
+  return key.replace(/[^a-z0-9_]/g, "").slice(0, 24).toUpperCase()
+}
+
+// Address -> { codec, headset } from the headsets' audio nodes. Playback
+// wins over the microphone: that is the codec the listener hears.
+function codecSnapshot(nodes) {
+  var list = toArray(nodes)
+  var codecs = ({})
+  for (var i = 0; i < list.length; i++) {
+    var parsed = list[i] ? parseBluezNodeName(list[i].name) : null
+    if (!parsed) continue
+    var props = nodeProps(list[i])
+    var codec = String(props["api.bluez5.codec"] || "")
+    if (codec === "") continue
+    var previous = codecs[parsed.address]
+    if (previous && previous.output && !parsed.output) continue
+    codecs[parsed.address] = {
+      codec: codec,
+      headset: String(props["api.bluez5.profile"] || "").indexOf("headset") === 0,
+      output: parsed.output
+    }
+  }
+  return codecs
+}
+
+function sameCodecs(a, b) {
+  return JSON.stringify(a || {}) === JSON.stringify(b || {})
+}
+
+// `omarchy-bluetooth-codec <address>` prints mode, codec and selected lines,
+// then one option line per A2DP codec the headset offers, best first.
+function parseCodecStatus(raw) {
+  var status = { mode: "", codec: "", selected: "auto", options: [], ldacQuality: "auto", headsetSwitch: "on" }
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length && i < 64; i++) {
+    var fields = lines[i].split("\t")
+    var key = fields[0]
+    var value = String(fields[1] || "").trim()
+    if (!/^[a-z0-9_]{0,32}$/.test(value)) continue
+    if (key === "mode") status.mode = value
+    else if (key === "codec") status.codec = value
+    else if (key === "selected" && value !== "") status.selected = value
+    else if (key === "ldac-quality" && LDAC_QUALITIES.indexOf(value) !== -1) status.ldacQuality = value
+    else if (key === "headset-switch" && (value === "on" || value === "off")) status.headsetSwitch = value
+    else if (key === "option" && value !== "")
+      status.options.push({ codec: value, label: String(fields[2] || "").trim().slice(0, 24) || codecLabel(value) })
+  }
+  return status
+}
+
+// LDAC's bitrate settings, as omarchy-bluetooth-codec names them, with the
+// bitrate each pins (auto adapts to the signal).
+var LDAC_QUALITIES = ["auto", "hq", "sq", "mq"]
+var LDAC_KBPS = { hq: 990, sq: 660, mq: 330 }
+
+function ldacKbps(quality) {
+  return LDAC_KBPS[quality] || 0
+}
+
+// Under Automatic the header carries the live codec -- "CODEC: LDAC" -- the
+// way the Wi-Fi band header does; once a codec is pinned the pills say it.
+// In headset mode the codec follows the call profile, and the header says so.
+function codecSectionTitle(selected, current, tr, headset) {
+  var t = typeof tr === "function" ? tr : function(key, fallback) { return fallback }
+  if (headset && current)
+    return t("bluetooth.codecHeadsetMode", "CODEC: %1 · HEADSET MODE").replace("%1", codecLabel(current).toUpperCase())
+  if (selected !== "auto" || !current) return t("bluetooth.codec", "CODEC")
+  return t("bluetooth.codecCurrent", "CODEC: %1").replace("%1", codecLabel(current).toUpperCase())
+}
+
 function sortedByLabel(devices) {
   var list = toArray(devices)
   list.sort(function(a, b) { return deviceLabel(a).localeCompare(deviceLabel(b)) })
@@ -85,9 +184,12 @@ function sortedByLabel(devices) {
 // var property, and BlueZ churn (discovery timeouts, unpair) can destroy the
 // object while a delegate is still incubating, which segfaults quickshell.
 // Actions resolve the backend object via Panel.deviceFor().
-function deviceRow(d) {
+function deviceRow(d, codecs) {
   if (!d) return null
+  var codec = d.connected && codecs ? codecs[normalizedAddress(d.address)] : null
   return {
+    codec: codec ? codec.codec : "",
+    headset: codec ? codec.headset : false,
     address: d.address || "",
     name: d.name || "",
     deviceName: d.deviceName || "",
@@ -165,6 +267,15 @@ if (typeof module !== "undefined") {
     nodeProps: nodeProps,
     nodeText: nodeText,
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
+    parseBluezNodeName: parseBluezNodeName,
+    isBluezAudioNode: isBluezAudioNode,
+    codecLabel: codecLabel,
+    codecSnapshot: codecSnapshot,
+    sameCodecs: sameCodecs,
+    parseCodecStatus: parseCodecStatus,
+    codecSectionTitle: codecSectionTitle,
+    LDAC_QUALITIES: LDAC_QUALITIES,
+    ldacKbps: ldacKbps,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
