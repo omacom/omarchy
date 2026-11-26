@@ -11,6 +11,7 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 from diagram import Diagram
 from names import Names
+import sudo_pam
 from reader import APPLE_READER, DEVICE, FINGERS, MANAGER, SERVICE, Reader, ScanGuide, enrollment_capacity
 
 PAM = Path("/etc/pam.d/omarchy-lock-fingerprint")
@@ -89,6 +90,7 @@ class Window(Gtk.ApplicationWindow):
     self.set_icon_name("auth-fingerprint-symbolic")
     self.reader = None
     self.guide = None
+    self.changing_sudo = False
     self.generation = 0
     self.bus = None
     self.selected = ""
@@ -100,7 +102,7 @@ class Window(Gtk.ApplicationWindow):
     self.refresh()
 
   def pam_changed(self, monitor, file, other, event):
-    if not self.reader and any(f and f.get_basename() == PAM.name for f in (file, other)):
+    if not self.reader and not self.changing_sudo and any(f and f.get_basename() in (PAM.name, sudo_pam.PAM.name) for f in (file, other)):
       self.refresh()
 
   def close_scan(self, *_):
@@ -223,6 +225,8 @@ class Window(Gtk.ApplicationWindow):
     self.page(tr("fingerprintApp.setupReader", "Set up your reader"), message)
     self.box.append(button(tr("fingerprintApp.retry", "Check again"), self.refresh, "suggested-action"))
     self.box.append(self.prepare_button())
+    if sudo_pam.enabled() is True:
+      self.sudo_row(self.group(tr("fingerprintApp.authentication", "Authentication")), [], True)
     self.close_button()
 
   def prepare_button(self):
@@ -297,21 +301,18 @@ class Window(Gtk.ApplicationWindow):
       full = tr("fingerprintApp.full", "All %1 fingerprint slots are in use.").replace("%1", str(self.capacity))
       self.box.append(label(full, "heading"))
       self.box.append(label(tr("fingerprintApp.replace", "To replace a fingerprint, select its pencil and choose Remove fingerprint.")))
+    sudo_enabled = sudo_pam.enabled()
+    security = self.group(tr("fingerprintApp.authentication", "Authentication"))
     if fingers:
-      security = self.group(tr("fingerprintApp.screenUnlock", "Screen unlock"))
-      row = Gtk.Box(spacing=12)
-      row.add_css_class("fingerprint-row")
-      labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3, hexpand=True)
-      labels.append(label(tr("fingerprintApp.useUnlock", "Unlock with a fingerprint")))
-      labels.append(label(tr("fingerprintApp.password", "You can also use your password."), "dim-label"))
-      row.append(labels)
+      row = self.setting_row(tr("fingerprintApp.useUnlock", "Unlock with a fingerprint"),
+                             tr("fingerprintApp.password", "You can also use your password."))
       enabled = PAM.exists() and (not preferences or not DISABLED.exists())
       if preferences or not enabled:
         switch = Gtk.Switch(active=enabled, valign=Gtk.Align.CENTER)
         switch.update_property([Gtk.AccessibleProperty.LABEL], [tr("fingerprintApp.useUnlock", "Unlock with a fingerprint")])
         def toggle(widget, state):
           if state:
-            self.scan("Verify", "any", True)
+            self.scan("Verify", "any", self.enable)
           else:
             self.disable()
           return True
@@ -320,9 +321,67 @@ class Window(Gtk.ApplicationWindow):
       else:
         row.append(label(tr("fingerprintApp.on", "On")))
       security.append(row)
+    self.sudo_row(security, fingers, sudo_enabled)
     if self.needs_consent:
       self.box.append(self.prepare_button())
     self.close_button()
+
+  def setting_row(self, title, description):
+    row = Gtk.Box(spacing=12)
+    row.add_css_class("fingerprint-row")
+    labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3, hexpand=True)
+    labels.append(label(title))
+    labels.append(label(description, "dim-label"))
+    row.append(labels)
+    return row
+
+  def sudo_row(self, group, fingers, enabled):
+    title = tr("fingerprintApp.useSudo", "Use fingerprint for sudo")
+    description = tr("fingerprintApp.sudoScope", "For all users with saved fingerprints on this computer.")
+    if enabled is None:
+      description = tr("fingerprintApp.sudoCustom", "Managed in /etc/pam.d/sudo.")
+    elif not enabled and not fingers:
+      description = tr("fingerprintApp.sudoEnroll", "Add a fingerprint to enable sudo authentication.")
+    row = self.setting_row(title, description)
+    if enabled is not None:
+      switch = Gtk.Switch(active=enabled, sensitive=enabled or bool(fingers), valign=Gtk.Align.CENTER)
+      switch.update_property([Gtk.AccessibleProperty.LABEL], [title])
+      def toggle(widget, state):
+        if state:
+          self.scan("Verify", "any", lambda: self.change_sudo(True))
+        else:
+          self.change_sudo(False)
+        return True
+      switch.connect("state-set", toggle)
+      row.append(switch)
+    group.append(row)
+
+  def change_sudo(self, enable):
+    self.page(tr("fingerprintApp.useSudo", "Use fingerprint for sudo"),
+              tr("fingerprintApp.sudoConfirm", "Confirm the administrator prompt to change sudo authentication."))
+    # Always elevate the packaged, root-owned helper, including in dev sessions.
+    helper = "/usr/share/omarchy/default/fingerprint/sudo_pam.py"
+    generation = self.generation
+    def completed(proc, result):
+      self.changing_sudo = False
+      if generation != self.generation:
+        return
+      try:
+        _, _, message = proc.communicate_utf8_finish(result)
+        if not proc.get_successful() and (not proc.get_if_exited() or proc.get_exit_status() != 126):
+          self.refresh(message.strip() or tr("fingerprintApp.sudoError", "Couldn’t change sudo authentication."))
+          return
+      except GLib.Error as error:
+        self.refresh(error.message)
+        return
+      self.refresh()
+    try:
+      proc = Gio.Subprocess.new(["/usr/bin/pkexec", helper, "enable" if enable else "disable"],
+                                Gio.SubprocessFlags.STDERR_PIPE)
+      self.changing_sudo = True
+      proc.communicate_utf8_async(None, None, completed)
+    except GLib.Error as error:
+      self.refresh(error.message)
 
   def name_editor(self, slot, number, custom, enrolled=False):
     title = tr("fingerprintApp.name", "Fingerprint name")
@@ -420,7 +479,7 @@ class Window(Gtk.ApplicationWindow):
       self.terminal([str(OMARCHY / "bin/omarchy-apply-lock")])
       self.box.append(button(tr("fingerprintApp.refreshUnlock", "Check unlock settings"), self.refresh))
 
-  def scan(self, mode, finger, unlock=False):
+  def scan(self, mode, finger, on_match=None):
     # Enrollment alone does not opt a new account into desktop unlock, even
     # if another account already configured the machine-wide PAM service.
     if mode == "Enroll" and not self.already_configured:
@@ -450,7 +509,7 @@ class Window(Gtk.ApplicationWindow):
     cancel.set_halign(Gtk.Align.CENTER)
     self.box.append(cancel)
     failure_title = tr("fingerprintApp.notAdded", "Fingerprint wasn’t added") if mode == "Enroll" else tr("fingerprintApp.notVerified", "Couldn’t verify the fingerprint")
-    retry = (lambda: self.scan(mode, finger, unlock)) if mode == "Verify" else None
+    retry = (lambda: self.scan(mode, finger, on_match)) if mode == "Verify" else None
     def render(guide):
       prompt = guide.prompt
       diagram.samples, diagram.present = guide.samples, prompt == "hold"
@@ -494,8 +553,8 @@ class Window(Gtk.ApplicationWindow):
             return
           self.name_editor(finger, *self.prints[finger], enrolled=True)
         elif result == "verify-match":
-          if unlock:
-            self.enable()
+          if on_match:
+            on_match()
           else:
             hint.set_text(tr("fingerprintApp.matched", "Fingerprint matched."))
             back = button(tr("fingerprintApp.backToSaved", "Back to fingerprints"), self.refresh, "suggested-action")
@@ -526,7 +585,7 @@ class Window(Gtk.ApplicationWindow):
       "remove-and-retry": tr("fingerprintApp.removeAndRetry", "Lift your finger fully, then try again."),
       "retry-scan": tr("fingerprintApp.moveFingertip", "Try again, moving your fingertip slightly."),
       "duplicate": tr("fingerprintApp.duplicate", "That finger is already enrolled."),
-      "no-match": tr("fingerprintApp.noMatch", "That finger did not match. Unlock settings were left as they were."),
+      "no-match": tr("fingerprintApp.noMatch", "That finger did not match. Try a saved finger."),
       "data-full": tr("fingerprintApp.storageFull", "The reader is full. Remove a saved fingerprint to make room."),
       "disconnected": tr("fingerprintApp.disconnected", "The reader disconnected. Reconnect it and try again."),
       "failed": tr("fingerprintApp.stopped", "The scan stopped. Try again when the reader is ready.")

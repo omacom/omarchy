@@ -8,7 +8,7 @@ Select _Add fingerprint_ and touch the reader with the finger you want to enroll
 
 The current Apple Touch ID driver has room for three fingerprints in its Linux reader context. If the reader is full, select the pencil beside the fingerprint you want to replace, choose _Remove fingerprint_, and confirm the name. You can then add a new fingerprint. _Verify_ lets you check which finger a saved name belongs to before removing it.
 
-For the terminal workflow that also configures `sudo` and system authorization prompts, run `omarchy setup security fingerprint`.
+Turn on _Use fingerprint for sudo_ to authenticate terminal commands with a saved fingerprint. Verify a saved finger and approve the administrator prompt. This setting applies to all users with saved fingerprints on the computer. Turn it off from the same window to return to the usual sudo prompt. The terminal workflow, `omarchy setup security fingerprint`, also configures system authorization prompts.
 
 Once the lock screen has turned the display off, the sensor rests to save power, so wake the screen with any key or the touchpad before touching it.
 
