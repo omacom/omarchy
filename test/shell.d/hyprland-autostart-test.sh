@@ -14,7 +14,7 @@ cat >"$harness" <<'LUA'
 local handlers = {}
 local commands = {}
 local waylandDisplay = nil
-local shellRunning = false
+local startupClaimed = false
 
 hl = {
   on = function(event, callback) handlers[event] = callback end,
@@ -24,10 +24,11 @@ o = { launch = function(command) return command end }
 os.getenv = function(name)
   if name == "WAYLAND_DISPLAY" then return waylandDisplay end
 end
-os.execute = function(command)
-  assert(command == "omarchy-shell shell ping >/dev/null 2>&1", "unexpected startup guard command")
-  if shellRunning then return true, "exit", 0 end
-  return nil, "exit", 1
+o.shell_succeeds = function(command)
+  assert(command == "omarchy-hyprland-autostart-claim", "unexpected startup guard command")
+  if startupClaimed then return false end
+  startupClaimed = true
+  return true
 end
 
 dofile(arg[1])
@@ -47,17 +48,15 @@ if arg[2] == "normal" then
   assert(#commands > 0, "normal startup did not launch session services")
   assert(hasCommand("omarchy-launch-shell"), "normal startup did not restore the shell")
   assert(hasCommand("omarchy-hook post-boot"), "normal startup did not run post-boot hooks")
-  shellRunning = true
 elseif arg[2] == "safe-mode" then
   waylandDisplay = "wayland-1"
   handlers["config.reloaded"]()
   assert(#commands > 0, "loading the user config after safe-mode did not launch services")
   assert(hasCommand("omarchy-launch-shell"), "safe-mode recovery did not restore the shell")
   assert(hasCommand("omarchy-hook post-boot"), "safe-mode recovery did not run post-boot hooks")
-  shellRunning = true
 elseif arg[2] == "existing-session" then
   waylandDisplay = "wayland-1"
-  shellRunning = true
+  startupClaimed = true
   handlers["config.reloaded"]()
   assert(#commands == 0, "a config reload repeated startup in an existing session")
 else
@@ -66,6 +65,12 @@ end
 
 local startupCommands = #commands
 waylandDisplay = "wayland-1"
+-- A config reload creates a fresh Lua state, but the claim belongs to the
+-- compositor's runtime directory and survives that reload.
+dofile(arg[1])
+handlers["config.reloaded"]()
+assert(#commands == startupCommands, "a fresh config reload repeated session startup")
+-- The callback can also be delivered again in this Lua state.
 handlers["config.reloaded"]()
 assert(#commands == startupCommands, "a later config reload repeated session startup")
 LUA
@@ -82,3 +87,18 @@ pass "loading the user config after Hyprland start restores session autostart on
 
 run_case existing-session
 pass "loading config in an already-running session does not repeat autostart"
+
+runtime_dir="$tmpdir/runtime"
+instance_dir="$runtime_dir/hypr/test-instance"
+mkdir -p "$instance_dir"
+if XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
+  "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
+  pass "the first Hyprland autostart claim succeeds"
+else
+  fail "the first Hyprland autostart claim succeeds"
+fi
+if XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
+  "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
+  fail "a repeated Hyprland autostart claim is rejected"
+fi
+pass "a repeated Hyprland autostart claim is rejected across processes"

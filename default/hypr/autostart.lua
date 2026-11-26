@@ -2,6 +2,7 @@ local started = false
 
 local function start_once()
   if started then return end
+  if not o.shell_succeeds("omarchy-hyprland-autostart-claim") then return end
   started = true
 
   -- Slow app launch fix -- set systemd and D-Bus activation vars before
@@ -43,10 +44,9 @@ hl.on("hyprland.start", start_once)
 
 -- Hyprland's safe-mode dialog can load the user config after hyprland.start
 -- already fired. On a normal login config.reloaded arrives first, before the
--- Wayland display exists; on later reloads the shell ping distinguishes a
--- session whose startup already ran from safe mode, which skips autostart.
+-- Wayland display exists. The runtime claim persists across Lua reloads and
+-- distinguishes a session whose startup already ran from safe-mode recovery.
 hl.on("config.reloaded", function()
   if not os.getenv("WAYLAND_DISPLAY") then return end
-  if os.execute("omarchy-shell shell ping >/dev/null 2>&1") == true then return end
   start_once()
 end)

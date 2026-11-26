@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Claim Hyprland session startup
+# omarchy:hidden=true
+
+set -euo pipefail
+
+[[ -n ${XDG_RUNTIME_DIR:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] || exit 1
+
+instance_dir="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE"
+[[ -d $instance_dir ]] || exit 1
+
+mkdir -- "$instance_dir/omarchy-autostart" 2>/dev/null
