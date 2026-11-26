@@ -284,7 +284,29 @@ ShellRoot {
       [function() {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left" && root.surface.surfaceThickness === root.surface.thickness && root.surface.width === root.surface.thickness, "the surface settles at the new thickness: " + root.surface.settle + " " + root.surface.width + " against " + root.surface.thickness)
         root.check(root.settles.join(",") === "clearing,revealing,", "a thicker strip clears, then reveals: " + root.settles.join(","))
-      }, 100]
+
+        // Hiding mid-settle finishes it at once, at the current edge.
+        host.mutateShellConfig(function(config) { config.bar.position = "top" })
+        root.surface.follow()
+        root.check(root.surface.settle === "clearing", "a strip moving back to the top settles: " + root.surface.settle)
+        root.bar.barHidden = true
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "hiding mid-settle finishes it at the current edge: " + root.surface.settle + " " + root.surface.surfaceEdge + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
+        root.bar.barHidden = false
+      }, 400],
+      [function() {
+        // With its frames stopped, as on an output gone to sleep, a settle
+        // still finishes, on its watchdog.
+        root.settles = []
+        Style.barOverrides = { "size-horizontal": 40 }
+        root.surface.follow()
+        root.check(root.surface.settle === "clearing", "a thicker top strip settles: " + root.surface.settle)
+        root.surface.visible = false
+      }, 900],
+      [function() {
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "a settle whose frames stop finishes at the current thickness: " + root.surface.settle + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
+        root.check(root.settles.join(",") === "clearing,", "with no frames it never reveals, the watchdog finishes it: " + root.settles.join(","))
+        root.surface.visible = true
+      }, 300]
     ]
     stepper.start()
   }
