@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Dismiss the resolved low-battery warning
+# omarchy:hidden=true
+
+set -euo pipefail
+
+omarchy-notification-dismiss "$(omarchy-i18n battery.lowTitle)"

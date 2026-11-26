@@ -12,6 +12,7 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   readonly property int batteryThreshold: 10
+  readonly property int lowBatteryWarningRecoveryThreshold: 20
   property string pendingPowerSource: ""
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
@@ -26,6 +27,7 @@ Item {
     id: persisted
     reloadableId: "omarchy-battery"
     property bool notifiedLowBattery: false
+    property bool lowBatteryWarningVisible: false
   }
 
   function batteryPercentage() {
@@ -40,6 +42,9 @@ Item {
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
+    if (BatteryModel.shouldDismissLowBatteryWarning(UPower.displayDevice, UPowerDeviceState.Discharging, persisted.lowBatteryWarningVisible, lowBatteryWarningRecoveryThreshold) && !warningDismissProcess.running) {
+      warningDismissProcess.running = true
+    }
   }
 
   function sendLowBatteryWarning(level) {
@@ -48,6 +53,7 @@ Item {
       "omarchy-battery-low",
       String(level)
     ]
+    persisted.lowBatteryWarningVisible = true
     warningProcess.running = true
   }
 
@@ -83,6 +89,14 @@ Item {
   }
 
   Process { id: warningProcess }
+
+  Process {
+    id: warningDismissProcess
+    command: ["omarchy-battery-low-dismiss"]
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 0) persisted.lowBatteryWarningVisible = false
+    }
+  }
 
   Process {
     id: powerProfileProcess

@@ -56,6 +56,26 @@ assertEqual(
 )
 const recovered = battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.11, state: charging }, discharging, 10, true)
 assertEqual(recovered.notifiedLowBattery, false, 'battery re-arms after recovering above the threshold')
+assertEqual(
+  battery.shouldDismissLowBatteryWarning({ isPresent: true, percentage: 0.08, state: charging }, discharging, true, 20),
+  true,
+  'battery dismisses its visible warning after charging starts'
+)
+assertEqual(
+  battery.shouldDismissLowBatteryWarning({ isPresent: true, percentage: 0.21, state: discharging }, discharging, true, 20),
+  true,
+  'battery dismisses its visible warning after recovering above the threshold'
+)
+assertEqual(
+  battery.shouldDismissLowBatteryWarning({ isPresent: true, percentage: 0.08, state: discharging }, discharging, true, 20),
+  false,
+  'battery keeps its warning while it is still low and discharging'
+)
+assertEqual(
+  battery.shouldDismissLowBatteryWarning(null, discharging, true, false),
+  false,
+  'a missing battery reading does not dismiss the warning'
+)
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
@@ -107,3 +127,20 @@ done
 [[ ${notification_args[*]} != *"-t 30000"* ]] || fail "low-battery warning does not set a misleading transient timeout"
 [[ ${hook_args[*]} == "battery-low 7" ]] || fail "low-battery warning still calls hooks with the percentage" "${hook_args[*]}"
 pass "low-battery command sends a persistent warning and runs its hook"
+
+cat >"$tmpdir/bin/omarchy-notification-dismiss" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_DISMISS_ARGS"
+SH
+cat >"$tmpdir/bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+printf '%s\n' 'Localized low battery'
+SH
+chmod +x "$tmpdir/bin/omarchy-notification-dismiss" "$tmpdir/bin/omarchy-i18n"
+OMARCHY_TEST_DISMISS_ARGS="$tmpdir/dismiss-args" \
+PATH="$tmpdir/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-battery-low-dismiss"
+declare -a dismiss_args
+mapfile -d '' -t dismiss_args <"$tmpdir/dismiss-args"
+[[ ${dismiss_args[*]} == "Localized low battery" ]] || fail "battery dismissal uses the localized notification summary" "${dismiss_args[*]}"
+pass "low-battery dismissal uses the localized notification summary"
