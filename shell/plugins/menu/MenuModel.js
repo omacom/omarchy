@@ -326,6 +326,23 @@ function isVisible(items, itemOrder, whenResults, entry, depth) {
   return false
 }
 
+// Search rows are flattened out of their menus, so their own `when:` is not
+// enough to establish that a person could reach them while browsing. Every
+// menu on the path from the row to root must also be visible.
+function isReachable(items, itemOrder, whenResults, entry) {
+  var current = entry
+  var depth = 0
+
+  while (current) {
+    if (!isVisible(items, itemOrder, whenResults, current)) return false
+    if (current.id === "root") return true
+    if (++depth >= 32) return false
+    current = item(items, current.parent)
+  }
+
+  return false
+}
+
 // A `disabled:` row stays listed but goes dim and unselectable. The
 // Install submenus use it so software already on the machine reads as
 // installed rather than disappearing from the list it was installed from.
@@ -764,6 +781,7 @@ if (typeof module !== "undefined") {
     isDescendantOf: isDescendantOf,
     childCount: childCount,
     isVisible: isVisible,
+    isReachable: isReachable,
     altVariant: altVariant,
     altVariantIds: altVariantIds,
     isDisabled: isDisabled,

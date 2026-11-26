@@ -97,6 +97,7 @@ assertEqual(menu.labelFor({ id: 'install.browser.zen', label: 'Zen', disabled: '
 assertEqual(menu.labelFor({ id: 'install.browser.zen', label: 'Zen', disabled: 'cmd' }, {}, { 'install.browser.zen': false }), 'Zen', 'menu leaves an uninstalled row unmarked')
 
 const visibilityItems = {
+  root: menu.normalizeItem('root', { label: 'Go' }),
   hardware: menu.normalizeItem('hardware', { label: 'Hardware' }),
   laptop: menu.normalizeItem('hardware.laptop', { label: 'Laptop', when: 'is-laptop', action: 'toggle-laptop' }),
   nested: menu.normalizeItem('nested', { label: 'Nested' }),
@@ -109,6 +110,18 @@ assert(!menu.isVisible(visibilityItems, visibilityOrder, { 'hardware.laptop': fa
 assert(menu.isVisible(visibilityItems, visibilityOrder, { 'hardware.laptop': true }, visibilityItems.hardware), 'menu shows a submenu with a visible child')
 assert(!menu.isVisible(visibilityItems, visibilityOrder, { 'nested.branch.leaf': false }, visibilityItems.nested), 'menu hides recursively empty submenus')
 assert(menu.isVisible(visibilityItems, visibilityOrder, {}, visibilityItems.dynamic), 'menu keeps provider-backed submenus visible')
+
+const providerItems = {
+  root: menu.normalizeItem('root', { label: 'Go' }),
+  update: menu.normalizeItem('update', { label: 'Update' }),
+  'update.kernel': menu.normalizeItem('update.kernel', { label: 'Kernel', provider: 'kernels', when: 'multiple-kernels' }),
+  'update.kernel.linux-omarchy': menu.normalizeItem('update.kernel.linux-omarchy', { label: 'linux-omarchy', action: 'set-kernel' })
+}
+const providerOrder = Object.keys(providerItems)
+const kernelRow = providerItems['update.kernel.linux-omarchy']
+assert(!menu.isReachable(providerItems, providerOrder, { 'update.kernel': false }, kernelRow), 'menu search hides provider rows beneath a guarded-out ancestor')
+assert(menu.isReachable(providerItems, providerOrder, { 'update.kernel': true }, kernelRow), 'menu search keeps provider rows when every ancestor is visible')
+assert(!menu.isReachable(visibilityItems, visibilityOrder, { 'hardware.laptop': false }, visibilityItems.laptop), 'menu search hides guarded rows beneath an empty static submenu')
 
 // `disabled:` is the softer guard: the row stays listed and only loses the
 // cursor, which is how an already-installed app keeps its place in Install.

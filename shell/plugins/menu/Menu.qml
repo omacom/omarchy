@@ -558,7 +558,7 @@ Item {
       if (!entry || !entry.provider || root.providersLoaded[entry.id]) continue
       if (active !== "root" && entry.id !== active && !root.isDescendantOf(entry.id, active)) continue
       // A submenu its guard hides has no rows to search.
-      if (!root.isVisible(entry)) continue
+      if (!root.isReachable(entry)) continue
 
       root.loadProviderForMenu(entry.id)
     }
@@ -589,6 +589,10 @@ Item {
   // provider-backed menus stay visible because their rows load on demand.
   function isVisible(entry) {
     return MenuModel.isVisible(root.items, root.itemOrder, root.whenResults, entry)
+  }
+
+  function isReachable(entry) {
+    return MenuModel.isReachable(root.items, root.itemOrder, root.whenResults, entry)
   }
 
   // Label with the ✓ marker baked in when `checked:` or `disabled:` evaluated
@@ -627,7 +631,7 @@ Item {
   // list around it is the point. Search is a list of what you can do, so it
   // leaves them out.
   function matchesQuery(entry, query) {
-    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
+    return MenuModel.matchesQuery(entry, query, root.isReachable(entry) && !root.isDisabled(entry))
   }
 
   function searchScore(entry, query) {
