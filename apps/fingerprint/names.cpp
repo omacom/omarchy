@@ -2,6 +2,7 @@
 #include "reader.h"
 #include <QDir>
 #include <QFile>
+#include <QSet>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
