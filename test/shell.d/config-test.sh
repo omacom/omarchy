@@ -109,6 +109,8 @@ package_defaults = [
   ("default/systemd/user/omarchy-tailscale-receive.service", "/usr/lib/systemd/user/omarchy-tailscale-receive.service", "systemd/user/omarchy-tailscale-receive.service"),
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
+  ("default/systemd/user/omarchy-clock-resync.service", "/usr/lib/systemd/user/omarchy-clock-resync.service", "systemd/user/omarchy-clock-resync.service"),
+  ("default/systemd/user/omarchy-clock-resync.timer", "/usr/lib/systemd/user/omarchy-clock-resync.timer", "systemd/user/omarchy-clock-resync.timer"),
   ("default/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "/usr/lib/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf"),
   ("default/systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf", "/usr/lib/systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf", "systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),

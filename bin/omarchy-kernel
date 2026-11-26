@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Show, list, or set the kernel Limine boots by default
+# omarchy:summary=Show, list, or set the kernel that boots by default
 # omarchy:args=[get|list|set <kernel>]
 # omarchy:examples=omarchy kernel | omarchy kernel list | omarchy kernel set linux-omarchy
 # omarchy:requires-sudo=true
@@ -21,8 +21,15 @@ LOCK_FILE="${OMARCHY_KERNEL_LOCK:-/run/lock/omarchy-kernel.lock}"
 
 usage() { echo "Usage: omarchy-kernel [get|list|set <kernel>]"; }
 
+# systemd-boot starts the kernel omarchy-boot-sync prefers; Limine the first one
+# BOOT_ORDER names.
+systemd_boot() {
+  [[ $(omarchy-boot-backend) == systemd-boot ]]
+}
+
 # Every kernel package records its pkgbase in its module tree, and that is the
-# name Limine's boot entries and BOOT_ORDER patterns refer to.
+# name Limine's boot entries and BOOT_ORDER patterns refer to, and the name
+# omarchy-boot-sync keeps each kernel's boot image under.
 installed_kernels() {
   cat "$MODULES_DIR"/*/pkgbase 2>/dev/null | sort -u
 }
@@ -141,8 +148,17 @@ set_kernel() {
     exit 1
   fi
 
+  # While a switch to systemd-boot is under way both loaders can start the
+  # machine, so the choice goes to each.
   if (( EUID == 0 )); then
-    apply_kernel "$kernel"
+    local backend
+    for backend in $(omarchy-boot-backend --managed); do
+      if [[ $backend == systemd-boot ]]; then
+        omarchy-boot-sync prefer "$kernel"
+      else
+        apply_kernel "$kernel"
+      fi
+    done
     return
   fi
 
@@ -168,7 +184,13 @@ set_kernel() {
 }
 
 case "${1:-get}" in
-  get) default_kernel ;;
+  get)
+    if systemd_boot; then
+      omarchy-boot-sync preferred
+    else
+      default_kernel
+    fi
+    ;;
   list) installed_kernels ;;
   set) set_kernel "${2:-}" ;;
   -h | --help | help) usage ;;
