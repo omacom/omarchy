@@ -75,7 +75,7 @@ Item {
     // A dismissed authorization prompt ends it there: nothing was shown yet.
     onDismissedChanged: if (dismissed && root.opened) Qt.callLater(root.dismiss)
     onFailureKindChanged: {
-      if (!root.opened || failureKind === "" || failureKind === "line") return
+      if (!root.opened || managedReader || failureKind === "" || failureKind === "line") return
       if (failureKind === "terminal") {
         // A reader its platform keeps off: the terminal setup explains what
         // turning it on means, asks, and carries on from there.

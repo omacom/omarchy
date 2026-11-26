@@ -137,8 +137,10 @@ Item {
   function resumeAfterFailure() {
     // A failed verifying touch may follow a successful enrollment. List the
     // same reader again so its newly saved print is available to verify.
-    if (managedReader) managementRequested()
-    else begin()
+    if (managedReader) {
+      phase = "idle"
+      managementRequested()
+    } else begin()
   }
 
   function fail(code) {

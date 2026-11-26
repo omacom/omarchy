@@ -119,6 +119,7 @@ Item {
   Keys.onEnterPressed: if (view.ctl.phase === "failed") view.ctl.resumeAfterFailure()
 
   Column {
+    id: stack
     anchors.centerIn: parent
     spacing: Style.space(28)
 
@@ -128,7 +129,9 @@ Item {
       readonly property int bandCount: 14
 
       anchors.horizontalCenter: parent.horizontalCenter
-      width: Style.space(264)
+      width: backButton.visible ? Math.max(0, Math.min(Style.space(264), view.width - Style.space(32),
+                 view.height - statusLine.implicitHeight - backButton.implicitHeight - 2 * stack.spacing - Style.space(32)))
+             : Style.space(264)
       height: width
 
     Item {
@@ -238,6 +241,7 @@ Item {
     }
 
     Text {
+      id: statusLine
       textFormat: Text.PlainText
       anchors.horizontalCenter: parent.horizontalCenter
       width: Math.min(view.width - Style.space(48), Style.space(520))
@@ -252,6 +256,7 @@ Item {
     }
 
     Ui.Button {
+      id: backButton
       anchors.horizontalCenter: parent.horizontalCenter
       visible: view.ctl.phase === "failed" && !!view.ctl.managedReader
       text: Commons.I18n.t("fingerprint.backToSaved")
