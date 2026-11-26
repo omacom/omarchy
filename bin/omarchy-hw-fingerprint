@@ -54,10 +54,8 @@ has_kernel_driver() {
 for dev in "$usb_devices_path"/*; do
   # The device's own product descriptor usually names it, e.g. "Goodix
   # Fingerprint USB Device" — driver-independent and vendor-agnostic.
-  # Reading it takes the USB device lock, and a wedged device can hold that
-  # lock forever (fprintd stuck mid-ioctl on a reader that never woke from
-  # suspend). A plain read would then hang every caller, the post-update hook
-  # included, so give up on the name and let the vendor check decide.
+  # A wedged USB device can hold the product attribute's lock forever.
+  # Bound the read and use the vendor fallback, which may report no reader.
   if [[ -r $dev/product ]]; then
     product=$(timeout --kill-after=1s 1s cat "$dev/product")
     product=${product,,}
