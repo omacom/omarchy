@@ -551,7 +551,7 @@ ApplicationWindow {
           Fingerprint {
             anchors.fill: parent
             anchors.margins: Math.round(parent.width * 0.09)
-            ink: sp.complete ? win.success : win.accent
+            ink: win.v.page === "matched" ? win.success : win.accent
             foreground: win.fg
             paper: parent.color
             complete: sp.complete; contact: win.v.contact; samples: win.v.samples

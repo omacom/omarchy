@@ -4,6 +4,8 @@
 #include <QQmlApplicationEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QQuickView>
+#include <QSet>
 #include <QSignalSpy>
 #include <QDir>
 #include <QTest>
@@ -36,6 +38,41 @@ class FingerprintTest : public QObject {
     }
   }
 private slots:
+  void acceptedInkAccumulates() {
+    QQuickView view;
+    view.setColor(Qt::black);
+    view.setResizeMode(QQuickView::SizeRootObjectToView);
+    view.resize(132, 132);
+    view.setInitialProperties({{"ink", QColor(Qt::red)}, {"paper", QColor(Qt::black)}, {"foreground", QColor(Qt::white)}});
+    view.setSource(QUrl("qrc:/Fingerprint.qml"));
+    QCOMPARE(view.status(), QQuickView::Ready);
+    view.show();
+    auto *art = view.rootObject();
+    QSignalSpy painted(art, SIGNAL(painted()));
+    QSet<QPoint> previous;
+    for (int accepted : {0, 1, 2, 4, 7, 37, -1}) {
+      if (accepted < 0) art->setProperty("complete", true);
+      else art->setProperty("samples", accepted);
+      QTRY_COMPARE(art->property("coverage").toDouble(), art->property("targetCoverage").toDouble());
+      painted.clear();
+      QVERIFY(QMetaObject::invokeMethod(art, "requestPaint"));
+      QTRY_VERIFY(!painted.isEmpty());
+      const QImage frame = view.grabWindow().scaled(132, 132);
+      QVERIFY(!frame.isNull());
+      QSet<QPoint> ink;
+      // Exclude the contact brackets and compare only fully inked ridge pixels.
+      for (int y = 16; y < 116; ++y) {
+        for (int x = 16; x < 116; ++x) {
+          const QColor color = frame.pixelColor(x, y);
+          if (color.red() > 192 && color.green() < 48) ink.insert(QPoint(x, y));
+        }
+      }
+      QVERIFY(ink.contains(previous));
+      if (accepted == 0) QVERIFY(ink.isEmpty());
+      else QVERIFY(ink.size() > previous.size());
+      previous = ink;
+    }
+  }
   void cuesFollowContact() {
     ScanGuide guide;
     guide.reset(true);
