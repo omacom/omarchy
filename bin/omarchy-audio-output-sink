@@ -97,6 +97,8 @@ if [[ $sink == "easyeffects_sink" ]]; then
   exit 0
 fi
 
-# Nothing resolvable downstream -- the DSP sink may simply be idle and unlinked.
-# Do not return its volume as if it were the physical output: callers should
-# leave the volume untouched until the sink's downstream device is known.
+# A direct output has no downstream stream. Keep that fallback unless this is
+# a known filter input, whose level must stay unchanged while it is unlinked.
+if [[ -z $downstream && $sink != effect_input.* && $sink != "omarchy_speaker_tuning" ]]; then
+  printf '%s\n' "$sink"
+fi
