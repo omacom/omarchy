@@ -97,6 +97,21 @@ assert(
   !bluetooth.bluetoothSinkMatchesDevice({ isSink: false, isStream: false, ready: true, name: 'bluez_output.AA_BB_CC_DD_EE_FF.1', properties: {} }, { address: 'AA:BB:CC:DD:EE:FF', name: 'JBL Go 3' }),
   'bluetooth ignores non-sink nodes when matching audio outputs'
 )
+
+const fs = require('fs')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/Panel.qml', 'utf8')
+const deviceCommandHelper = panelSource.match(/function deviceCommand\(action, address\) \{[\s\S]*?\n {2}\}/)
+assert(deviceCommandHelper, 'bluetooth panel defines deviceCommand')
+eval(deviceCommandHelper[0])
+assertDeepEqual(
+  deviceCommand('connect', 'AA:BB:CC:DD:EE:FF'),
+  ['omarchy-bluetooth', 'connect', '--', 'AA:BB:CC:DD:EE:FF'],
+  'bluetooth panel routes device actions through omarchy-bluetooth'
+)
+assert(
+  panelSource.includes('Quickshell.execDetached(["omarchy-bluetooth", adapter.enabled ? "off" : "on"])'),
+  'bluetooth panel routes power changes through omarchy-bluetooth'
+)
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
