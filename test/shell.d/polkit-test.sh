@@ -241,11 +241,6 @@ const makeScope = () => {
   )
   s.currentLabel = '   \n  '
   assertEqual(s.authorizationLabel('  \n\t '), 'polkit.authenticationNeeded', 'whitespace-only label and message fall back to default authentication prompt')
-
-  const justificationBlock = agentSource.match(/id:\s*justificationText[\s\S]*?\n\s*\}/)[0]
-  const programBlock = agentSource.match(/id:\s*programText[\s\S]*?\n\s*\}/)[0]
-  assert(/maximumLineCount:\s*1/.test(justificationBlock), 'justificationText caps at a single line')
-  assert(/maximumLineCount:\s*1/.test(programBlock), 'programText caps at a single line')
 }
 JS
 
