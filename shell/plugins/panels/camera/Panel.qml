@@ -177,10 +177,16 @@ BarWidget {
     root.dirtyKeys = next
   }
 
+  function hasDirtyKeys() {
+    for (var k in root.dirtyKeys) {
+      if (root.dirtyKeys[k]) return true
+    }
+    return false
+  }
+
   function queuePersist(key) {
     if (root.previewMode) return
     root.markDirty(key)
-    root.pendingReset = false
     persistDebounceTimer.restart()
   }
 
@@ -193,7 +199,6 @@ BarWidget {
     root.pendingSave = false
     if (root.pendingReset) {
       root.pendingReset = false
-      root.dirtyKeys = ({})
       root.saving = true
       saveProc.command = ["omarchy-camera-tuning", "reset"]
       saveProc.running = true
@@ -221,6 +226,7 @@ BarWidget {
     root.gammaValue = snapStep(root.defaultGamma, 1.00, 2.40, 0.05)
     root.contrastValue = snapStep(root.defaultContrast, 0.50, 2.00, 0.05)
     root.saturationValue = snapStep(root.defaultSaturation, 0.00, 2.00, 0.05)
+    root.dirtyKeys = ({})
     root.sendLiveAll()
     root.pendingReset = true
     root.flushPersist()
@@ -299,7 +305,7 @@ BarWidget {
   Process {
     id: saveProc
     onExited: {
-      if (root.pendingSave) {
+      if (root.pendingSave || root.pendingReset || root.hasDirtyKeys()) {
         root.pendingSave = false
         root.flushPersist()
         return
