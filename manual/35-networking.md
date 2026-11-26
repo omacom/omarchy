@@ -38,6 +38,38 @@ SSH is off until you turn it on with _Setup > Security > SSHD_, which starts the
 
 That gives you a Tailscale panel in the bar, which connects and disconnects the tailnet, switches accounts, and picks an exit node — your own machines and Mullvad regions both show up in the list. It also browses your machines, and that's where Taildrop lives: select a machine and press `s` to send it files, or `c`, `n`, and `d` to copy its IP, name, or full DNS name. The terminal equivalent is `omarchy tailscale send <machine> [file...]`, and files sent to you land in `~/Downloads` automatically. The notification announcing an arrival waits until you click it open or dismiss it, so a file that turns up while you're away from the machine is still there to answer when you get back.
 
+## Headless Taildrop targets
+
+A plain Linux box with no graphical session (a router, a server) never runs
+the receiver that saves Taildrop files automatically, so `tailscale file cp`
+succeeds but nothing ever lands anywhere. A one-shot pull:
+
+    sudo tailscale file get --conflict=rename <target-directory>
+
+To receive continuously and trigger something on arrival, run tailscaled's
+operator mode once so file get doesn't need root:
+
+    sudo tailscale set --operator=$USER
+
+then loop a drain into a staging directory next to your destination, and
+call a hook per file:
+
+    # /usr/local/bin/taildrop-receive.sh
+    dir=~/Downloads
+    hook=/usr/local/bin/handle-upload.sh
+    staging="$dir/.taildrop-staging"
+    mkdir -p "$staging"
+    while true; do
+      tailscale file get --wait --conflict=rename "$staging" || { sleep 10; continue; }
+      for f in "$staging"/*; do
+        [ -e "$f" ] || continue
+        mv "$f" "$dir/" && [ -x "$hook" ] && "$hook" "$dir/$(basename "$f")"
+      done
+    done
+
+Run it under a systemd system unit (`WantedBy=multi-user.target`, `User=`
+whoever owns the destination) so it starts at boot without a login session.
+
 Installing it also adds a web app for the Tailscale admin console.
 
 ## When it stops working
