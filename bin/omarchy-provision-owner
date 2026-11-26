@@ -18,7 +18,9 @@
 set -euo pipefail
 
 PROVISIONING_DIR=/var/lib/omarchy/provisioning
-OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+# Exported, as a systemd service has none to inherit and the install scripts
+# it runs need it.
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 LOG_FILE=/var/log/omarchy-provision-owner.log
 
 if (( EUID != 0 )); then
@@ -979,11 +981,12 @@ configure_timezone() {
   configure_region
 }
 
-# A deferred install from one market's media took that market's region before
-# anyone chose a timezone, and left it as REGION in the form defaults. Settle it
-# against the owner's choice: a timezone a region profile lists picks that
-# region, Hong Kong, Macau and Taiwan are always World, and any other timezone
-# keeps the media's region.
+# A deferred install took its media's region before anyone chose a timezone,
+# and left it as REGION in the form defaults: a market's code, or global from
+# the global ISO. Settle it against the owner's choice: a timezone a region
+# profile lists picks that region (global lists Hong Kong, Macau and Taiwan),
+# and any other timezone keeps the media's region. Media that left no REGION
+# keep whatever region the install wrote.
 configure_region() {
   local defaults=${OMARCHY_FORM_DEFAULTS:-/etc/omarchy/form-defaults} marker=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
   local pacman_conf=${OMARCHY_PACMAN_CONF:-/etc/pacman.conf} key value fallback="" region current=global profile channel
@@ -991,16 +994,11 @@ configure_region() {
   while IFS='=' read -r key value; do
     [[ $key == "REGION" ]] && fallback=$value
   done <"$defaults"
-  [[ $fallback =~ ^[a-z]{2}$ ]] || return 0
-  case "$timezone" in
-    Asia/Hong_Kong | Hongkong | Asia/Macau | Asia/Macao | Asia/Taipei | ROC) region=global ;;
-    *)
-      region=$fallback
-      for profile in "$OMARCHY_PATH"/default/regions/*/; do
-        [[ -r $profile/timezones ]] && grep -qxF -- "$timezone" "$profile/timezones" && region=$(basename "$profile")
-      done
-      ;;
-  esac
+  [[ $fallback == "global" || $fallback =~ ^[a-z]{2}$ ]] || return 0
+  region=$fallback
+  for profile in "$OMARCHY_PATH"/default/regions/*/; do
+    [[ -r $profile/timezones ]] && grep -qxF -- "$timezone" "$profile/timezones" && region=$(basename "$profile")
+  done
   [[ -r $marker ]] && read -r current <"$marker"
   [[ $region == "$current" ]] && return 0
   if [[ $region == "global" ]]; then
