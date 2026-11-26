@@ -112,7 +112,21 @@ def defaults(config_home, fresh=False):
           "Hotkey/EnumerateGroupBackwardKeys": {"0": "Super+Shift+space"},
           "TriggerKey": {"0": "Super+grave", "1": "Super+semicolon"},
         }
-        if fresh and section in existing and section in stock_lists and (key_list(existing[section]) == key_list(stock_lists[section]) or (not existing[section] and section in {"Hotkey/ActivateKeys", "Hotkey/DeactivateKeys"})):
+        legacy_lists = {
+          "TriggerKey": (
+            {"0": "Super+semicolon"},
+            {"0": "Super+grave", "1": "Super+semicolon"},
+          ),
+        }
+        is_stock_list = section in existing and section in stock_lists and (
+          key_list(existing[section]) == key_list(stock_lists[section])
+          or (not existing[section] and section in {"Hotkey/ActivateKeys", "Hotkey/DeactivateKeys"})
+        )
+        is_legacy_list = section in existing and section in legacy_lists and any(
+          key_list(existing[section]) == key_list(legacy)
+          for legacy in legacy_lists[section]
+        )
+        if (fresh and (is_stock_list or is_legacy_list)) or (not fresh and is_legacy_list):
           original = re.sub(r"(?ms)^\[" + re.escape(section) + r"\]\s*\n.*?(?=^\[|\Z)", "", original)
           existing.pop(section)
         if section not in existing:

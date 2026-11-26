@@ -120,6 +120,18 @@ class InputMethodTest(unittest.TestCase):
     self.assertEqual(config["Behavior"], {"ActiveByDefault": "True"})
     self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n\n")
 
+  def test_existing_omarchy_quickphrase_default_moves_to_unclaimed_key(self):
+    quickphrase = self.config / "fcitx5/conf/quickphrase.conf"
+    setup.atomic_write(quickphrase, "[TriggerKey]\n0=Super+semicolon\n")
+    setup.defaults(self.config)
+    self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n0=Super+period\n")
+
+  def test_custom_quickphrase_trigger_is_preserved(self):
+    quickphrase = self.config / "fcitx5/conf/quickphrase.conf"
+    setup.atomic_write(quickphrase, "[TriggerKey]\n0=Alt+semicolon\n")
+    setup.defaults(self.config)
+    self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n0=Alt+semicolon\n")
+
   def test_ctrl_space_is_removed_from_every_trigger_list(self):
     path = self.config / "fcitx5/config"
     setup.atomic_write(path, "[Hotkey/TriggerKeys]\n0=Alt+space\n1=Control+space\n2=Hangul\n\n[Behavior]\nActiveByDefault=True\n")
