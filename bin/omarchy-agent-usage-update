@@ -12,6 +12,7 @@
 USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
 mkdir -p "$USAGE_DIR"
 
+request_args=("$@")
 flags=()
 only=()
 declare -A excluded
@@ -33,11 +34,16 @@ while (( $# > 0 )); do
   shift
 done
 
-# The panel may refresh again before its previous scan finishes. Let the
-# current refresh finish and drop the duplicate instead of starting another
-# full set of collectors against the same local stores.
+# The panel may refresh again before its previous scan finishes. Drop an
+# unscoped duplicate, but let an explicit request wait so account, scope, and
+# freshness changes are collected after the current scan.
 exec {update_lock_fd}>"$USAGE_DIR/.update.lock"
-flock -n "$update_lock_fd" || exit 0
+if ! flock -n "$update_lock_fd"; then
+  if (( ${#request_args[@]} == 0 )); then
+    exit 0
+  fi
+  flock "$update_lock_fd"
+fi
 
 wanted() {
   local agent="$1"
