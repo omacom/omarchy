@@ -27,7 +27,7 @@ FocusScope {
     return entry.name || Commons.I18n.t("fingerprint.numbered").arg(Commons.I18n.formatNumber(entry.number))
   }
   function reveal(item) {
-    if (!item.parent || item.parent === footer || item.parent === homeActions || item.parent === retryActions) return
+    if (!item.parent || item.parent === retryActions || (item.parent === homeActions && !stage.scrollSettings)) return
     const flick = scroll.contentItem
     const y = item.mapToItem(flick.contentItem, 0, 0).y
     if (y < flick.contentY) flick.contentY = Math.max(0, y)
@@ -158,6 +158,11 @@ FocusScope {
     readonly property real topGap: view.verifying ? Style.space(28) : Style.space(10)
     readonly property real bottomGap: view.verifying ? 0 : Style.space(12)
     readonly property real availableHeight: Math.max(0, parent.height - Style.space(24))
+    // Pin the settings when a whole fingerprint row still fits above them.
+    readonly property real fixedHomeHeight: Style.space(40) + header.spacing + heading.implicitHeight + topGap + bottomGap
+        + homeActions.implicitHeight + footer.spacing + retryActions.implicitHeight
+        + (status.visible ? status.implicitHeight + footer.spacing : 0)
+    readonly property bool scrollSettings: view.home && availableHeight < fixedHomeHeight + Style.space(38)
     height: Math.min(availableHeight, header.height + topGap + content.implicitHeight + bottomGap + footer.implicitHeight)
 
     Column {
@@ -192,7 +197,8 @@ FocusScope {
       anchors.topMargin: stage.topGap
       anchors.bottomMargin: stage.bottomGap
       readonly property bool overflows: contentHeight > height + 1
-      rightPadding: overflows ? Style.space(8) : 0
+      leftPadding: overflows && mirrored ? Style.space(8) : 0
+      rightPadding: overflows && !mirrored ? Style.space(8) : 0
       Controls.ScrollBar.horizontal.policy: Controls.ScrollBar.AlwaysOff
       Controls.ScrollBar.vertical: Controls.ScrollBar {
         parent: scroll
@@ -256,6 +262,12 @@ FocusScope {
             }
           }
 
+        }
+
+        LayoutItemProxy {
+          target: homeActions
+          visible: stage.scrollSettings
+          Layout.fillWidth: true
         }
 
         ColumnLayout {
@@ -337,46 +349,52 @@ FocusScope {
     }
 
     ColumnLayout {
+      id: homeActions
+      spacing: Style.space(2)
+      Layout.fillWidth: true
+      Action {
+        Layout.fillWidth: true
+        leftAlign: true
+        readonly property bool full: ctl.state.capacity > 0 && ctl.state.prints.length >= ctl.state.capacity
+        iconText: full ? "" : "+"
+        text: full ? Commons.I18n.t("fingerprint.readerFull") : Commons.I18n.t("fingerprint.add")
+        enabled: !ctl.busy && ctl.state.reader !== "" && !full
+        onClicked: view.addRequested(ctl.state.reader, Model.suggestFinger(ctl.state.prints.map(p => p.slot)))
+      }
+      Rectangle {
+        Layout.fillWidth: true
+        Layout.topMargin: Style.space(7)
+        Layout.bottomMargin: Style.space(4)
+        implicitHeight: 1
+        color: Qt.rgba(1, 1, 1, 0.16)
+      }
+      Setting {
+        label: Commons.I18n.t("fingerprint.unlockSetting")
+        checked: ctl.state.lock
+        enabled: !ctl.busy && (checked || view.hasPrints)
+        onClicked: ctl.changeLock(!checked)
+      }
+      Setting {
+        label: Commons.I18n.t("fingerprint.sudoSetting")
+        description: ctl.state.sudo === "custom" ? Commons.I18n.t("fingerprint.customSudo") : Commons.I18n.t("fingerprint.sudoScope")
+        checked: ctl.state.sudo === "on"
+        enabled: !ctl.busy && ctl.state.sudo !== "custom" && (checked || view.hasPrints)
+        onClicked: ctl.changeSudo(!checked)
+      }
+    }
+
+    ColumnLayout {
       id: footer
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
       spacing: Style.space(10)
-      ColumnLayout {
-        id: homeActions
-        visible: view.home
-        spacing: Style.space(2)
+      LayoutItemProxy {
+        target: homeActions
+        visible: view.home && !stage.scrollSettings
         Layout.fillWidth: true
-        Action {
-          Layout.fillWidth: true
-          leftAlign: true
-          readonly property bool full: ctl.state.capacity > 0 && ctl.state.prints.length >= ctl.state.capacity
-          iconText: full ? "" : "+"
-          text: full ? Commons.I18n.t("fingerprint.readerFull") : Commons.I18n.t("fingerprint.add")
-          enabled: !ctl.busy && ctl.state.reader !== "" && !full
-          onClicked: view.addRequested(ctl.state.reader, Model.suggestFinger(ctl.state.prints.map(p => p.slot)))
-        }
-        Rectangle {
-          Layout.fillWidth: true
-          Layout.topMargin: Style.space(7)
-          Layout.bottomMargin: Style.space(4)
-          implicitHeight: 1
-          color: Qt.rgba(1, 1, 1, 0.16)
-        }
-        Setting {
-          label: Commons.I18n.t("fingerprint.unlockSetting")
-          checked: ctl.state.lock
-          enabled: !ctl.busy && (checked || view.hasPrints)
-          onClicked: ctl.changeLock(!checked)
-        }
-        Setting {
-          label: Commons.I18n.t("fingerprint.sudoSetting")
-          description: ctl.state.sudo === "custom" ? Commons.I18n.t("fingerprint.customSudo") : Commons.I18n.t("fingerprint.sudoScope")
-          checked: ctl.state.sudo === "on"
-          enabled: !ctl.busy && ctl.state.sudo !== "custom" && (checked || view.hasPrints)
-          onClicked: ctl.changeSudo(!checked)
-        }
       }
 
       Line {
+        id: status
         visible: ctl.notice !== ""
         font.pixelSize: view.verifying ? Style.font.heading : Style.font.body
         readonly property var requestedPrint: view.verifying && ctl.state.prints.find(p => p.slot === ctl.verifyFinger)
