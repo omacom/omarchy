@@ -274,12 +274,23 @@ wait "$reader" || fail "concurrent readers always see a complete selection"
 printf '%s\n' voxtype > "$config"
 pass "selection updates are atomic for concurrent readers"
 
+mkdir -p "$XDG_CONFIG_HOME/omarchy/defaults"
+printf 'XKBLAYOUT=us\n' > "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
+rm -f "$config"
 lua - <<'LUA' || fail "dictation shortcuts require a selection without limiting backend names"
 local root = os.getenv("ROOT")
+local cfg = os.getenv("XDG_CONFIG_HOME") .. "/omarchy/defaults/dictation"
+package.path = root .. "/?.lua;" .. package.path
 local selected, installed, bindings = nil, true, {}
-io.popen = function(command)
-  assert(command == "omarchy-default-dictation 2>/dev/null")
-  return { read = function() return selected end, close = function() end }
+local function set_selected(value)
+  selected = value
+  if value then
+    local f = assert(io.open(cfg, "w"))
+    f:write(value .. "\n")
+    f:close()
+  else
+    os.remove(cfg)
+  end
 end
 o = {
   cmd_missing = function(command)
@@ -294,7 +305,7 @@ o = {
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
-selected = "some-backend"
+set_selected("some-backend")
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 local function binds(keys, command)
   for _, binding in ipairs(bindings) do
@@ -313,6 +324,37 @@ assert(not o.dictation_installed(), "personal dictation keys release their keys 
 LUA
 pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
 
+# Hyprland resolves binds against the first layout, so Right Alt is Alt_R when
+# US leads and ISO_Level3_Shift when an AltGr layout does. Where any layout
+# types with AltGr, Right Alt records only once held alone, so AltGr + 2 still
+# types @. Prints each push-to-talk key, and "hold" when it waits like that.
+printf 'some-backend\n' > "$config"
+push_to_talk() {
+  printf 'XKBLAYOUT=%s\nXKBVARIANT=%s\n' "$1" "${2:-}" > "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
+  lua - <<'LUA'
+local root = os.getenv("ROOT")
+package.path = root .. "/?.lua;" .. package.path
+o = {
+  cmd_missing = function() return false end,
+  bind = function() end,
+  bind_hold = function(keys, _, _, _, _, options)
+    local alone = options.long_press and options.non_consuming
+    print(keys .. (alone and " hold" or ""))
+  end,
+}
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+LUA
+}
+[[ $(push_to_talk us) == "ALT + Alt_R" ]] || fail "US keeps the instant Right Alt hold" "$(push_to_talk us)"
+[[ $(push_to_talk dk) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "a leading AltGr layout holds AltGr alone to dictate" "$(push_to_talk dk)"
+[[ $(push_to_talk us,se) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "AltGr behind US keeps typing @" "$(push_to_talk us,se)"
+[[ $(push_to_talk us intl) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "US International keeps AltGr for typing" "$(push_to_talk us intl)"
+mkdir -p "$XDG_CONFIG_HOME/fcitx5"
+printf '[Groups/0/Items/0]\nName=keyboard-us\n[Groups/0/Items/1]\nName=keyboard-se\n' > "$XDG_CONFIG_HOME/fcitx5/profile"
+[[ $(push_to_talk us) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "Fcitx Swedish keeps AltGr for typing" "$(push_to_talk us)"
+rm -r "$XDG_CONFIG_HOME/fcitx5" "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
+pass "Right Alt records at once on US and once held alone where it is AltGr"
+
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"
 [[ $(omarchy-default-dictation) == "superwhisper" ]] || fail "fresh users default to Superwhisper"
@@ -326,12 +368,12 @@ package.loaded["default.hypr.paths"] = { config_home = "/config" }
 local selected, available, loaded = "superwhisper", true, {}
 local missing = false
 o = { cmd_missing = function() return missing end }
-local real_open, real_popen, real_dofile = io.open, io.popen, dofile
-io.popen = function(command)
-  assert(command == "omarchy-default-dictation 2>/dev/null")
-  return { read = function() return selected end, close = function() end }
-end
+local real_open, real_dofile = io.open, dofile
 io.open = function(path)
+  if path == "/config/omarchy/defaults/dictation" then
+    if selected then return { read = function() return selected end, close = function() end } end
+    return nil
+  end
   assert(path == "/config/" .. selected .. "/shortcuts.lua")
   if available then return { close = function() end } end
 end
@@ -362,7 +404,7 @@ assert(#loaded == 2, "a backend must not escape the config directory")
 selected = nil
 load_backend()
 assert(#loaded == 2, "no installed backend must leave configuration usable")
-io.open, io.popen, dofile = real_open, real_popen, real_dofile
+io.open, dofile = real_open, real_dofile
 LUA
 pass "desktop integration follows the selected backend without personal Hyprland config"
 
