@@ -30,6 +30,11 @@ cat >"$mock_bin/sudo" <<'EOF'
 printf '%s\n' "$*" >>"$TEST_LOG/sudo"
 EOF
 
+cat >"$mock_bin/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_LOG/systemctl"
+EOF
+
 chmod +x "$mock_bin"/*
 
 setup_topology() {
@@ -78,6 +83,14 @@ grep -q '<PowersaverDef>0</PowersaverDef>' "$conf1" || fail "PowersaverDef=0 mus
 grep -q '<CPUConfig> \* </CPUConfig>' "$conf1" || fail "CPUConfig wildcard must be set"
 grep -q '<ActiveCPUs>12-15</ActiveCPUs>' "$conf1" || fail "4P8E4L UTIL_IDLE ActiveCPUs must be 12-15"
 grep -q '<ActiveCPUs>0-15</ActiveCPUs>' "$conf1" || fail "4P8E4L non-idle ActiveCPUs must be 0-15"
+if ((EUID == 0)); then
+  enable_log="$case1/log/systemctl"
+  enable_call="enable intel_lpmd.service"
+else
+  enable_log="$case1/log/sudo"
+  enable_call="systemctl enable intel_lpmd.service"
+fi
+grep -qxF "$enable_call" "$enable_log" || fail "Install must enable intel_lpmd.service"
 pass "Panther Lake 4P8E4L-25W writes T25 override with LP-E CPUs 12-15"
 
 # 2. Panther Lake 4P4E4L-15W (12 CPUs 0-11, Atom 4-11, LP-E 8-11 without L3)
