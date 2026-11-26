@@ -12,6 +12,7 @@ host_config="$config_home/pipewire/omarchy-speaker-tuning.conf"
 fragment="$config_home/pipewire/omarchy-speaker-tuning.conf.d/90-tuning.conf"
 unit_name=omarchy-speaker-tuning.service
 unit="$config_home/systemd/user/$unit_name"
+unit_source="$OMARCHY_PATH/default/systemd/user/$unit_name"
 prior_sha256="d53b4108730b129ffafae3a410b95751e75777788aa059d8ed6c35e787fa626d"
 
 if [[ ! -f $fragment || -L $fragment ]]; then
@@ -67,8 +68,11 @@ if ! omarchy-audio-tuning on; then
   install -Dm644 "$backup_dir/90-tuning.conf" "$fragment"
   [[ -f $backup_dir/omarchy-speaker-tuning.conf ]] &&
     install -Dm644 "$backup_dir/omarchy-speaker-tuning.conf" "$host_config"
-  [[ -f $backup_dir/$unit_name ]] &&
+  if [[ -f $backup_dir/$unit_name ]]; then
     install -Dm644 "$backup_dir/$unit_name" "$unit"
+  elif [[ -f $unit_source ]]; then
+    install -Dm644 "$unit_source" "$unit"
+  fi
   systemctl --user daemon-reload >/dev/null 2>&1 || true
   ((was_enabled)) && systemctl --user enable "$unit_name" >/dev/null 2>&1 || true
   ((was_active)) && systemctl --user restart "$unit_name" >/dev/null 2>&1 || true
