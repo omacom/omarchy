@@ -39,12 +39,21 @@ fi
 # proves little, since a truncated download or an architecture that cannot run
 # passes it too.
 afk_runs() {
-  [[ -f $command_path && -x $command_path ]] &&
-    timeout 15 "$command_path" --version >/dev/null 2>&1
+  [[ -f $1 && -x $1 ]] && timeout 15 "$1" --version >/dev/null 2>&1
+}
+
+# What omarchy-agent runs is whichever afk is first on PATH, so an install of
+# the user's own - in /usr/local/bin, or one a mise config puts earlier -
+# already answers yes. Installing a second copy over it would not be the one
+# the agent then started.
+installed_afk() {
+  local found
+  found=$(type -P afk) || return 1
+  afk_runs "$found"
 }
 
 if [[ $mode == "--check" ]]; then
-  afk_runs
+  installed_afk
   exit
 fi
 
@@ -107,8 +116,16 @@ fi
 install -m 0755 "$work/afk" "$work/afk.new"
 mv -f "$work/afk.new" "$command_path"
 
-if ! afk_runs; then
+if ! afk_runs "$command_path"; then
   echo "AFK $release was installed at $command_path, but it does not run here." >&2
+  exit 1
+fi
+
+# The copy has to be the one PATH finds, or the agent starts something else.
+found=$(type -P afk) || found=""
+if [[ $(realpath -m -- "${found:-$command_path}") != "$(realpath -m -- "$command_path")" ]]; then
+  echo "$command_path is ready, but 'afk' on PATH is $found, which is what the default agent runs." >&2
+  echo "Remove or reorder it, then run omarchy-install-afk-cli --now again." >&2
   exit 1
 fi
 
