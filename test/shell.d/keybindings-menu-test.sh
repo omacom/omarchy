@@ -63,6 +63,7 @@ $(lua_bind 64 "SUPER + F" "Full screen")
 $(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
 $(lua_bind 64 "SUPER + grave" "Toggle Quake console")
+$(exec_bind 64 "SUPER + comma" "Dismiss, invoke, or focus" "omarchy-notification-act")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
 BINDS
 
@@ -105,6 +106,12 @@ grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
 ! grep -q 'grave' <<<"$rendered" ||
   fail "no entry still says grave" "$rendered"
 pass "the grave key reads as the symbol printed on it"
+
+# A comma in a description is part of the text, not a field break that cuts the
+# description short and shifts the dispatcher and arg after it.
+grep -q 'SUPER + COMMA  *→ Dismiss, invoke, or focus$' <<<"$rendered" ||
+  fail "a description keeps its commas" "$rendered"
+pass "a description keeps its commas"
 
 # Monospace menu: every arrow sits in one column, and nothing is allowed past
 # it. A row that overruns pushes its own arrow out of line.
@@ -167,6 +174,34 @@ grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" &&
   grep -q 'SUPER + ^  *→ Shrink window left' <<<"$rendered" ||
   fail "a keycode is named by what the leading layout prints on it" "$rendered"
 pass "a keycode is named by what the leading layout prints on it"
+
+# The Quake console is bound to the key left of 1, which most ISO layouts
+# print something other than ~ on: ½, ^, ², º, | or §, never the keysym name.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:49" "Toggle Quake console")
+BINDS
+for layout in dk:½ de:^ fr:² es:º no:"|" se:§ us:~; do
+  echo "{\"str\": \"${layout%%:*}\"}" >"$stub_bin/option-kb_layout"
+  rendered=$(keybindings "" "$tmpdir/cache-${layout%%:*}")
+  grep -qF "SUPER + ${layout#*:} " <<<"$rendered" ||
+    fail "the key left of 1 reads ${layout#*:} on ${layout%%:*}" "$rendered"
+done
+rm "$stub_bin/option-kb_layout"
+pass "the key left of 1 reads as the symbol printed on it on ISO layouts"
+
+# Resize sits on the two keys right of 0. German writes the first over several
+# lines, with its ß on a line of its own, and the US fallback would call it MINUS.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:20" "Expand window left")
+$(lua_bind 64 "SUPER + code:21" "Shrink window left")
+BINDS
+echo '{"str": "de"}' >"$stub_bin/option-kb_layout"
+rendered=$(keybindings "" "$tmpdir/cache-de-resize")
+rm "$stub_bin/option-kb_layout"
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" &&
+  grep -q 'SUPER + ´  *→ Shrink window left' <<<"$rendered" ||
+  fail "the resize keys read as what German prints on them" "$rendered"
+pass "the resize keys read as what German prints on them"
 
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
@@ -255,6 +290,81 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+records_out=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --records)
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' <<<"$records_out" ||
+  fail "--records prints tab-separated display, dispatcher, and arg" "$records_out"
+pass "--records prints tab-separated display, dispatcher, and arg"
+
+# Editing a Lua bind's command in ~/.config/hypr/bindings.lua leaves `hyprctl
+# binds` unchanged (it only reports an opaque dispatcher), so the cache key must
+# include the Lua config files rather than serving stale dispatch commands.
+printf '\nhl.bind("SUPER + RETURN", hl.dsp.exec_cmd("custom-terminal"), { description = "Terminal" })\n' >>"$home/.config/hypr/bindings.lua"
+records_updated=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --records)
+grep -qP '→ Terminal\texec\tcustom-terminal$' <<<"$records_updated" ||
+  fail "editing a Lua binding invalidates the keybindings cache" "$records_updated"
+cp "$ROOT/config/hypr/bindings.lua" "$home/.config/hypr/bindings.lua"
+pass "editing a Lua binding invalidates the keybindings cache"
+
+# Nested regional binding files (loaded by default/hypr/bindings/applications.lua)
+# must also invalidate the cache key when edited.
+region_root="$tmpdir/region-omarchy"
+mkdir -p "$region_root/default/hypr" "$region_root/default/i18n"
+cp -a "$ROOT/default/hypr/." "$region_root/default/hypr/"
+cp -a "$ROOT/default/i18n/." "$region_root/default/i18n/"
+rm -rf "$tmpdir/region-cache"
+env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/region-cache" OMARCHY_PATH="$region_root" \
+  bash "$menu" --records >/dev/null
+region_cache_before=$(printf '%s\n' "$tmpdir/region-cache/omarchy"/keybindings-*.records)
+printf '\n-- regional edit\n' >>"$region_root/default/hypr/bindings/regions/global.lua"
+env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/region-cache" OMARCHY_PATH="$region_root" \
+  bash "$menu" --records >/dev/null
+region_cache_after=$(printf '%s\n' "$tmpdir/region-cache/omarchy"/keybindings-*.records)
+[[ -n $region_cache_before && -n $region_cache_after && $region_cache_before != "$region_cache_after" ]] ||
+  fail "editing a nested regional Lua binding invalidates the keybindings cache key" "before: $region_cache_before\nafter: $region_cache_after"
+pass "editing a nested regional Lua binding invalidates the keybindings cache key"
+
+# Exercise the batched hyprctl IPC path directly and confirm changing reported
+# binds invalidates the cache without editing Lua files.
+batch_stub="$tmpdir/batch-bin"
+mkdir -p "$batch_stub"
+batch_binds_file="$tmpdir/batch-binds"
+cat >"$batch_stub/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "--batch" ]]; then
+  printf '{\n  "str": "us"\n}\n\n\n{\n  "str": ""\n}\n\n\nactive keymap: English (US)\n\n\n'
+  cat "$OMARCHY_TEST_BATCH_BINDS"
+elif [[ $1 == "binds" ]]; then
+  cat "$OMARCHY_TEST_BATCH_BINDS"
+elif [[ $1 == "-j" && $2 == "getoption" ]]; then
+  printf '{"str": ""}\n'
+fi
+SH
+chmod +x "$batch_stub/hyprctl"
+rm -rf "$tmpdir/batch-cache"
+cat >"$batch_binds_file" <<BINDS
+$(exec_bind 64 "SUPER + A" "First action" "first-cmd")
+BINDS
+batch_first=$(env -i PATH="$batch_stub:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/batch-cache" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BATCH_BINDS="$batch_binds_file" bash "$menu" --records)
+grep -qP '→ First action\texec\tfirst-cmd$' <<<"$batch_first" ||
+  fail "batched hyprctl cache populates records" "$batch_first"
+cat >"$batch_binds_file" <<BINDS
+$(exec_bind 64 "SUPER + A" "Second action" "second-cmd")
+BINDS
+batch_second=$(env -i PATH="$batch_stub:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/batch-cache" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BATCH_BINDS="$batch_binds_file" bash "$menu" --records)
+grep -qP '→ Second action\texec\tsecond-cmd$' <<<"$batch_second" ||
+  fail "batched hyprctl cache invalidates when reported binds change" "$batch_second"
+pass "batched hyprctl IPC path tracks binding changes"
 
 # Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
 # or function: 0x..., with a display-only number as its arg, so picking a row

@@ -61,6 +61,7 @@ sudo rm -f "$sudoers_file"
 # the package's may predate it, and this session's OMARCHY_PATH may name a
 # tree older still.
 "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/omarchy-agent-skills-link" "$default_target"
+"$(dirname "$(realpath "${BASH_SOURCE[0]}")")/omarchy-agent-pi-defaults" "$default_target"
 
 echo "Pointed Omarchy at $default_target"
 echo "Agent skills now link to $default_target/default/agents/skills"

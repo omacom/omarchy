@@ -524,7 +524,7 @@ class Stats:
     days = [round(self.spend_costs[d], 4) for d in self.spend_days]
     if not any(days):
       return None
-    return {"amount": round(sum(days), 4), "cap": 0.0, "currency": "USD", "days": days, "estimated": True}
+    return {"amount": round(sum(days), 4), "cap": 0.0, "currency": "USD", "days": days, "estimated": True, "through": self.spend_days[-1]}
 
   def snapshot_with_spend(self) -> dict[str, Any]:
     """snapshot(), plus `spend` when the last 30 days had any, for a pay-as-you-go
@@ -1184,6 +1184,33 @@ def opencode_db() -> Path:
   normal = root / "opencode.db"
   legacy = root / "opencode-v2.db"
   return legacy if not normal.is_file() and legacy.is_file() else normal
+
+
+def opencode_credential_key(integration: str) -> str:
+  """The key of opencode's active credential for an integration ("fireworks-ai",
+  "openrouter"), from the credential table in its database, where opencode 2
+  keeps what `opencode auth login` and `opencode auth import` save. Empty when
+  there is none or the database can't be read."""
+  path = opencode_db()
+  if not path.is_file():
+    return ""
+  try:
+    with contextlib.closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2)) as conn:
+      row = conn.execute(
+        "SELECT value FROM credential WHERE integration_id = ? AND active = 1 ORDER BY time_updated DESC LIMIT 1",
+        (integration,),
+      ).fetchone()
+  except sqlite3.Error:
+    return ""
+  if not row:
+    return ""
+  try:
+    value = json.loads(row[0])
+  except (TypeError, ValueError):
+    return ""
+  if not isinstance(value, dict) or value.get("type") != "key":
+    return ""
+  return str(value.get("key") or "").strip()
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -3748,7 +3775,7 @@ def cursor_state_db() -> Path:
   return config_home() / "Cursor" / "User" / "globalStorage" / "state.vscdb"
 
 
-def _cursor_ide_token(state_db: Path) -> str:
+def _cursor_ide_value(state_db: Path, key: str) -> str:
   # The sign-in the Cursor editor keeps, for people who never ran the CLI.
   # Read-only: the editor may be writing its database right now. No
   # immutable=1, so a live database with an active WAL still reads.
@@ -3760,7 +3787,7 @@ def _cursor_ide_token(state_db: Path) -> str:
     return ""
   try:
     conn.execute("PRAGMA query_only = ON")
-    row = conn.execute("SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken' LIMIT 1").fetchone()
+    row = conn.execute("SELECT value FROM ItemTable WHERE key = ? LIMIT 1", (key,)).fetchone()
   except sqlite3.Error:
     return ""
   finally:
@@ -3769,6 +3796,23 @@ def _cursor_ide_token(state_db: Path) -> str:
   if isinstance(value, bytes):
     value = value.decode("utf-8", errors="replace")
   return str(value or "").strip()
+
+
+def _cursor_ide_token(state_db: Path) -> str:
+  return _cursor_ide_value(state_db, "cursorAuth/accessToken")
+
+
+def cursor_account_name(token: str, state_db: Path | None = None) -> str:
+  """The email behind a Cursor token, when the token or editor store names it."""
+  email = str(jwt_claims(token).get("email") or "").strip()
+  if email:
+    return email
+  if os.environ.get("CURSOR_AUTH_TOKEN", "").strip() or os.environ.get("CURSOR_API_KEY", "").strip():
+    return ""
+  db = state_db or cursor_state_db()
+  if token and token == _cursor_ide_token(db):
+    return _cursor_ide_value(db, "cursorAuth/cachedEmail")
+  return ""
 
 
 def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) -> str:
@@ -3809,7 +3853,7 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
 def registered_accounts(agent_id: str) -> list[dict[str, Any]]:
   """The accounts `omarchy agent account` registered for the agent, read
   straight from its registry, each marked `active` and carrying the
-  registry's `switch` settings. Only a registry holding a second account
+  registry's alert threshold as `switch`. Only a registry holding a second account
   matters: with one, the record is exactly what it always was."""
   state = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
   registry = read_json(state / "omarchy" / "agents" / "accounts" / f"{agent_id}.json")
@@ -3827,10 +3871,7 @@ def registered_accounts(agent_id: str) -> list[dict[str, Any]]:
     threshold = 95
   for account in accounts:
     account["active"] = account["id"] == active_id
-    account["switch"] = {
-      "mode": "auto" if registry.get("switch") == "auto" else "manual",
-      "threshold": threshold,
-    }
+    account["switch"] = {"threshold": threshold}
   return accounts
 
 

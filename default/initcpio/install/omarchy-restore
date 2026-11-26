@@ -1,0 +1,16 @@
+#!/bin/bash
+
+build() {
+  add_module btrfs
+  add_binary btrfs
+  add_binary mountpoint
+  add_runscript
+}
+
+help() {
+  cat <<HELPEOF
+Applies a snapshot restore staged by omarchy-snapshot restore: in the boot
+marked omarchy.restore=<tx>, swaps the staged copy of the snapshot in as @,
+moves nested subvolumes over, and reboots.
+HELPEOF
+}

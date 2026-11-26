@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-In genere Omarchy si controlla tramite le scorciatoie da tastiera e il menu Omarchy (`Super + Space`). Ma puoi controllarlo anche tramite la CLI `omarchy`. È particolarmente utile quando lavori con un agente AI per personalizzazioni o configurazioni.
+Omarchy di solito si controlla tramite le scorciatoie da tastiera e il menu Omarchy (`Super + Space`). Ma puoi controllarlo anche tramite la CLI `omarchy`. Questo è particolarmente utile quando un agente IA lavora con te sulla personalizzazione o sulla configurazione.
 
-La CLI ha accesso a tutti gli strumenti interni utilizzati sia tramite il menu sia in altro modo. Puoi vedere tutto ciò che è disponibile eseguendo `omarchy` nel terminale.
+La CLI ha accesso a tutti gli strumenti interni usati sia tramite il menu sia in altri modi. Puoi vedere tutto ciò che è disponibile eseguendo `omarchy` nel terminale.
 
-Si presenta più o meno così:
+Ha un aspetto simile a questo:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,7 +42,7 @@ Groups:
   ...
 ```
 
-Per la diagnostica, esegui direttamente `omarchy-debug --no-sudo --print`. Stampa le informazioni di diagnostica e scrive `/tmp/omarchy-debug.log` senza chiedere sudo, anche nelle installazioni di pacchetti in cui `omarchy debug` può fallire con "Unknown Omarchy command".
+Per la diagnostica, esegui direttamente `omarchy-debug --no-sudo --print`. Stampa le informazioni di diagnostica e scrive `/tmp/omarchy-debug.log` senza chiedere sudo, anche nelle installazioni da pacchetto in cui `omarchy debug` può fallire con "Unknown Omarchy command".
 
 E puoi approfondire ogni gruppo:
 
@@ -49,15 +50,15 @@ E puoi approfondire ogni gruppo:
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Anche ogni comando accetta `--help`, sia che tu lo chieda per un intero gruppo (`omarchy capture --help`) sia per un singolo comando (`omarchy capture screenshot --help`).
+Anche ogni comando accetta `--help`, sia che tu lo chieda a un intero gruppo (`omarchy capture --help`) sia a un singolo comando (`omarchy capture screenshot --help`).
 
 ### Aprire il menu dal terminale
 
-Anche il menu Omarchy è scriptabile, il che è comodo per le tue scorciatoie personalizzate. `omarchy menu` lo apre alla radice, e puoi saltare direttamente a qualsiasi punto dell'albero indicandolo per nome: `omarchy menu summon appearance.theme` va dritto al selettore dei temi, `omarchy menu toggle system` apre il menu di sistema e lo chiude di nuovo se è già aperto, e `omarchy menu close` lo fa sparire.
+Anche il menu Omarchy è scriptabile, il che è comodo per le tue scorciatoie da tastiera personalizzate. `omarchy menu` lo apre alla radice, e puoi saltare direttamente a qualsiasi punto dell'albero indicandolo per nome: `omarchy menu summon appearance.theme` va dritto al selettore del tema, `omarchy menu toggle system` apre il menu di sistema e lo richiude se è già aperto, e `omarchy menu close` lo chiude.
