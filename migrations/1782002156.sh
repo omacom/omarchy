@@ -44,9 +44,9 @@ networkd_units=(
 if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} == "1" ]]; then
   as_root systemctl enable NetworkManager.service >/dev/null 2>&1 || true
 
-  if systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
-    # NetworkManager is already carrying the live network; it is safe to stop
-    # networkd now so the rest of the upgrade no longer has competing DHCP.
+  if omarchy-network-managed-default-route; then
+    # An active service alone does not mean NetworkManager owns the link.
+    # Stop networkd only after NetworkManager has connected the route device.
     for unit in "${networkd_units[@]}"; do
       as_root systemctl disable --now "$unit" >/dev/null 2>&1 || true
     done

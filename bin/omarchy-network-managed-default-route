@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether NetworkManager manages the default-route device
+# omarchy:hidden=true
+
+set -euo pipefail
+
+systemctl is-active --quiet NetworkManager.service 2>/dev/null || exit 1
+omarchy-cmd-present nmcli || exit 1
+
+dev=$(ip route show default 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit }}')
+[[ -n $dev ]] || exit 1
+
+nmcli -t -f DEVICE,STATE device 2>/dev/null | grep -Fx "$dev:connected" >/dev/null
