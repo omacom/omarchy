@@ -1,0 +1,3 @@
+# Allow logged-in desktop users to control Shure MV7+ onboard DSP over hidraw.
+# Sorted before 73-seat-late.rules so uaccess grants the active session ACL.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="14ed", ATTRS{idProduct}=="1019", MODE="0660", TAG+="uaccess"
