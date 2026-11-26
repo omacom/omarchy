@@ -61,8 +61,29 @@ if active then
   last_active_held = holds_screen(active)
 end
 
+-- Focus left the app last active, for another app or for an empty workspace
+-- (no window), where nothing else takes the keyboard either.
+local function leave_app(previous, window)
+  if holds_screen(previous) or (window and lost_screen_to(previous, window, last_active_held)) then
+    set_locked(previous, true)
+  end
+
+  local holder = app_holder and hl.get_window("address:" .. app_holder)
+  if holder and holder.address ~= previous.address and not (window and holder.address == window.address) and holder.pid == previous.pid
+    and (holds_screen(holder) or (window and lost_screen_to(holder, window, true))) then
+    set_locked(holder, true)
+  end
+  app_holder = nil
+end
+
 hl.on("window.active", function(window)
+  local previous = last_active and hl.get_window("address:" .. last_active)
+
   if not window then
+    if previous then
+      leave_app(previous, nil)
+    end
+    last_active, last_active_held = nil, false
     return
   end
 
@@ -71,23 +92,13 @@ hl.on("window.active", function(window)
     set_locked(window, false)
   end
 
-  local previous = last_active and hl.get_window("address:" .. last_active)
   if previous and previous.address ~= window.address then
     if previous.pid == window.pid then
       if holds_screen(previous) or last_active_held then
         app_holder = previous.address
       end
     else
-      if holds_screen(previous) or lost_screen_to(previous, window, last_active_held) then
-        set_locked(previous, true)
-      end
-
-      local holder = app_holder and hl.get_window("address:" .. app_holder)
-      if holder and holder.address ~= previous.address and holder.address ~= window.address and holder.pid == previous.pid
-        and (holds_screen(holder) or lost_screen_to(holder, window, true)) then
-        set_locked(holder, true)
-      end
-      app_holder = nil
+      leave_app(previous, window)
     end
   end
 

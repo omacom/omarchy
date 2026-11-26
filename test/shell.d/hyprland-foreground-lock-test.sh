@@ -68,5 +68,12 @@ assert(#dispatched == 2, "a dialog of the game's own locked the game")
 active = browser
 handlers["window.active"](browser)
 assert(#dispatched == 3 and dispatched[3].window == game and dispatched[3].value == "0", "leaving the game's app from its dialog let the game take focus back")
+
+-- Leaving the game for an empty workspace locks it too.
+active = game
+handlers["window.active"](game)
+active = nil
+handlers["window.active"](nil)
+assert(#dispatched == 5 and dispatched[5].window == game and dispatched[5].value == "0", "leaving the game for an empty workspace let it take focus back")
 LUA
 pass "a fullscreen game stays behind when left, across config reloads"
