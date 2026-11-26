@@ -397,31 +397,33 @@ pass "off a virtual console the layout is persisted and checked without loadkeys
   # layout (and its python3 cell-size probe) a second time, while a later resize
   # still rebuilds at the new geometry.
   : >"$tmp/layout-calls"
+  eval "$(declare -f progress_icon_term_size | command sed '1s/progress_icon_term_size/_orig_progress_icon_term_size/')"
   cur_size="40 120"
   progress_icon_term_size() { echo "$cur_size"; }
   progress_icon_cell_size() { echo cell >>"$tmp/layout-calls"; echo "8 16"; }
   ICON_STEPS=0 ICON_SIZE="" ICON_FRAMES=0 ICON_DISPLAY_PM=0 ICON_TARGET_PM=0
   progress_icon_layout /dev/null 78
   progress_icon_static >/dev/null
-  [[ $(wc -l <"$tmp/layout-calls") -eq 1 ]] ||
+  (( $(wc -l <"$tmp/layout-calls") == 1 )) ||
     fail "progress_icon_static reuses the layout just computed" "$(wc -l <"$tmp/layout-calls") layout calls"
   cur_size="50 140"
   ICON_FRAMES=0
   progress_icon_frame 200 "Working" "Tip" >/dev/null
-  [[ $(wc -l <"$tmp/layout-calls") -eq 2 && $ICON_SIZE == "50 140" ]] ||
+  (( $(wc -l <"$tmp/layout-calls") == 2 )) && [[ $ICON_SIZE == "50 140" ]] ||
     fail "a terminal resize still rebuilds the icon layout" "calls=$(wc -l <"$tmp/layout-calls") size=$ICON_SIZE"
   pass "progress_icon_static reuses a fresh layout and rebuilds on resize"
 
   # progress_icon_finish sweeps the remaining trace smoothly in a bounded
   # number of frames (<= 6 draws, <= 0.20s sleep) instead of crawling
   # asymptotically 1/4 at a time down to 999, and starts no stty/sed processes.
+  eval "$(declare -f _orig_progress_icon_term_size | command sed '1s/_orig_progress_icon_term_size/progress_icon_term_size/')"
   : >"$tmp/finish-sleeps"
   : >"$tmp/finish-started"
   : >"$tmp/finish-pms"
   sleep() { echo "$1" >>"$tmp/finish-sleeps"; }
   stty() { echo stty >>"$tmp/finish-started"; echo "50 140"; }
   sed() { echo sed >>"$tmp/finish-started"; command sed "$@"; }
-  ICON_DISPLAY_PM=500 ICON_TARGET_PM=500
+  ICON_FRAMES=0 ICON_DISPLAY_PM=500 ICON_TARGET_PM=500
   # Wrap progress_icon_render to record each pm rendered during finish.
   eval "$(declare -f progress_icon_render | command sed '1s/progress_icon_render/_orig_progress_icon_render/')"
   progress_icon_render() { echo "$1" >>"$tmp/finish-pms"; _orig_progress_icon_render "$@"; }
