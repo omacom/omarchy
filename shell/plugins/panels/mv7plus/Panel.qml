@@ -13,13 +13,6 @@ Panel {
   moduleName: "omarchy.mv7plus"
   ipcTarget: "omarchy.mv7plus"
 
-  readonly property string helperPath: {
-    var base = Quickshell.env("OMARCHY_PATH")
-    if (base) return base + "/shell/plugins/panels/mv7plus/mv7plus-ctl.py"
-    var url = Qt.resolvedUrl("mv7plus-ctl.py").toString()
-    return url.indexOf("file://") === 0 ? decodeURIComponent(url.slice(7)) : url
-  }
-
   // Items inside the panel's lazily built content, null until it first opens.
   readonly property Item panelFlick: panel.loadedContent ? panel.loadedContent.panelFlick : null
   readonly property Item panelColumn: panel.loadedContent ? panel.loadedContent.panelColumn : null
@@ -110,9 +103,9 @@ Panel {
     root.playbackLevel = st.playbackLevel
   }
 
-  function execHelper(args) {
+  function execCli(args) {
     ctlProc.outputBuffer = ""
-    ctlProc.command = ["python3", root.helperPath].concat(args)
+    ctlProc.command = ["omarchy-audio-mv7plus", "--json"].concat(args)
     ctlProc.running = true
   }
 
@@ -121,11 +114,29 @@ Panel {
   }
 
   function refresh() {
-    runCtl(["read"])
+    runCtl(["status"])
   }
 
   function setFeature(key, value) {
-    runCtl(["set", String(key), String(value)])
+    var num = Number(value)
+    var rounded = Math.round(num)
+    switch (key) {
+    case "auto_level": runCtl(["mode", num !== 0 ? "auto" : "manual"]); break
+    case "gain_db": runCtl(["gain", Math.max(0, Math.min(36, num)).toFixed(1)]); break
+    case "mute": runCtl(["mute", num !== 0 ? "on" : "off"]); break
+    case "hpf": runCtl(["hpf", rounded === 1 ? "75" : rounded === 2 ? "150" : "off"]); break
+    case "limiter": runCtl(["limiter", num !== 0 ? "on" : "off"]); break
+    case "compressor": runCtl(["compressor", ["off", "light", "medium", "heavy"][rounded] || "off"]); break
+    case "denoiser": runCtl(["denoiser", num !== 0 ? "on" : "off"]); break
+    case "popper_stopper": runCtl(["popper", num !== 0 ? "on" : "off"]); break
+    case "tone_pct": runCtl(["tone", "--", String(Math.max(-100, Math.min(100, rounded)))]); break
+    case "reverb_output": runCtl(["reverb", num !== 0 ? "on" : "off"]); break
+    case "reverb_type": runCtl(["reverb", "type", ["plate", "hall", "studio"][rounded] || "plate"]); break
+    case "reverb_intensity": runCtl(["reverb", "intensity", String(Math.max(0, Math.min(100, rounded)))]); break
+    case "reverb_monitor": runCtl(["reverb", "monitor", num !== 0 ? "on" : "off"]); break
+    case "mic_level": runCtl(["monitor", "mic", String(Math.max(0, Math.min(100, rounded)))]); break
+    case "playback_level": runCtl(["monitor", "playback", String(Math.max(0, Math.min(100, rounded)))]); break
+    }
   }
 
   function applyPreset(name) {
