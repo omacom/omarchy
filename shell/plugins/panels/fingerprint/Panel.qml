@@ -5,7 +5,8 @@ import qs.Commons
 import qs.Commons as Commons
 
 // Full-screen fingerprint setup: a big fingerprint on a darkened scrim with one
-// status line. Summoning it registers the next free finger, running the whole
+// status line. Existing enrollments open the management view. First-time users
+// register the next free finger, running the whole
 // setup in the background (packages, enrollment, a verifying touch, PAM for
 // sudo, polkit and the lock screen) after one authorization prompt, which is
 // asked before the panel shows so the two never share the screen. Once a
@@ -105,7 +106,9 @@ Item {
     // surface is actually on screen.
     onVisibleChanged: {
       if (visible) Qt.callLater(function() {
-        if (root.opened && window.visible && !root.managing) view.transmit()
+        if (!root.opened || !window.visible) return
+        if (root.managing && manager.item) manager.item.forceActiveFocus()
+        else if (!root.managing) view.transmit()
       })
     }
     anchors { top: true; bottom: true; left: true; right: true }
@@ -129,6 +132,8 @@ Item {
 
     Loader {
       id: manager
+      focus: active
+      onLoaded: if (window.visible) item.forceActiveFocus()
       anchors.fill: parent
       active: root.opened && root.managing
       sourceComponent: ManagementView {

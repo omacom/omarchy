@@ -101,7 +101,7 @@ class Readers:
     finally:
       self.bus.signal_unsubscribe(sub)
       Gio.bus_unwatch_name(watch)
-    if last not in ("verify-match", "enroll-completed"):
+    if last != {"Verify": "verify-match", "Enroll": "enroll-completed"}[method]:
       raise ValueError({"verify-no-match": "no-match", "enroll-duplicate": "duplicate",
                         "enroll-data-full": "full", "verify-disconnected": "disconnected",
                         "enroll-disconnected": "disconnected"}.get(last, "stopped"))
@@ -110,6 +110,18 @@ class Readers:
     path, props = self.selected(token)
     if finger not in FINGERS and not (action == "verify" and finger == "any"):
       raise ValueError("unavailable")
+    if action == "rename":
+      # Editing a local label needs no claim on the sensor or authorization prompt.
+      label = label.strip()
+      if len(label) > 64 or any(not c.isprintable() for c in label):
+        raise ValueError("name")
+      saved = self.fingers(path)
+      if finger not in saved:
+        raise ValueError("unavailable")
+      names = self.names(path)
+      names.sync(saved)
+      names.rename(finger, label)
+      return
     self.call(path, DEVICE, "Claim", "(s)", "")
     try:
       saved = self.fingers(path)
@@ -127,14 +139,12 @@ class Readers:
         print("matched", flush=True)
       elif action == "remove":
         self.call(path, DEVICE, "DeleteEnrolledFinger", "(s)", finger)
-        self.names(path).sync(self.fingers(path))
-      elif action == "rename":
-        label = label.strip()
-        if len(label) > 64 or any(not c.isprintable() for c in label):
-          raise ValueError("name")
-        names = self.names(path)
-        names.sync(saved)
-        names.rename(finger, label)
+        # fprintd has already deleted the print. Local label housekeeping can
+        # be retried when the next snapshot reconciles the enrolled slots.
+        try:
+          self.names(path).sync(self.fingers(path))
+        except (OSError, sqlite3.Error, GLib.Error) as error:
+          print(error, file=sys.stderr)
     finally:
       self.call(path, DEVICE, "Release")
 
@@ -151,11 +161,18 @@ def snapshot(token):
     readers = Readers()
     data["readers"] = [{"token": readers.prefix + path, "name": props["name"]}
                        for path, props in readers.devices]
-    if not any(d["token"] == token for d in data["readers"]):
+    if not token:
       token = readers.prefix + readers.call(MANAGER, SERVICE + ".Manager", "GetDefaultDevice")[0]
     path, props = readers.selected(token)
-    rows = readers.names(path).sync(readers.fingers(path))
-    data.update(reader=token, capacity=capacity(props),
+    saved = readers.fingers(path)
+    try:
+      rows = readers.names(path).sync(saved)
+      data["canRename"] = True
+    except (OSError, sqlite3.Error) as error:
+      print(error, file=sys.stderr)
+      rows = {slot: (i, None) for i, slot in enumerate(FINGERS, 1) if slot in saved}
+      data["canRename"] = False
+    data.update(reader=token, capacity=capacity(props), scanType=props["scan-type"],
                 prints=sorted(({"slot": slot, "number": number, "name": name or ""}
                                for slot, (number, name) in rows.items()), key=lambda row: row["number"]))
   except (ValueError, GLib.Error):
@@ -176,4 +193,4 @@ if __name__ == "__main__":
   except (ValueError, GLib.Error, OSError, sqlite3.Error) as error:
     print(error, file=sys.stderr)
     print("fail", str(error) if isinstance(error, ValueError) else "stopped", flush=True)
-    sys.exit(1)
+    sys.exit(3 if isinstance(error, ValueError) and str(error) == "no-match" else 1)

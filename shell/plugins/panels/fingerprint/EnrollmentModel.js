@@ -45,6 +45,19 @@ function parseEvent(line) {
   return null
 }
 
+// Shared by enrollment and a separate verification of a saved print.
+function retryText(hint, I18n) {
+  switch (hint) {
+  case "short": return I18n.t("fingerprint.retryShort")
+  case "center": return I18n.t("fingerprint.retryCenter")
+  case "lift": return I18n.t("fingerprint.retryLift")
+  case "fast": return I18n.t("fingerprint.retryFast")
+  case "nomatch": return I18n.t("fingerprint.retryNoMatch")
+  case "again": return I18n.t("fingerprint.retryAgain")
+  }
+  return ""
+}
+
 // How a failure is shown: "line" for one the status line explains, "terminal"
 // for a reader its platform keeps off until the owner agrees (the terminal
 // setup explains and asks), and "log" for everything else, which opens what

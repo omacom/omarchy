@@ -291,7 +291,10 @@ finger=${2:-}
 if [[ $mode == "enable-lock" && $# == 1 ]]; then
   (( EUID == 0 )) && [[ ${PKEXEC_UID:-} =~ ^[0-9]+$ ]] || fail not-root
   export OMARCHY_PATH=/usr/share/omarchy
-  exec /usr/bin/omarchy-apply-lock
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+  cd / || fail secure
+  /usr/bin/omarchy-apply-lock && [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] || fail secure
+  exit 0
 fi
 
 if [[ $mode == "status" ]]; then

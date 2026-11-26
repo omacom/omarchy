@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import qs.Commons
 import qs.Commons as Commons
+import "EnrollmentModel.js" as Model
 
 // A big fingerprint on a dark scrim with one status line under it. It arrives
 // as a scratchy transmission, then lights up along its ridges from the core
@@ -18,17 +19,7 @@ Item {
   readonly property color onScrimUrgent: "#ff6b6b"
   readonly property color tone: ctl.phase === "failed" ? onScrimUrgent : Commons.Color.accent
 
-  readonly property string retryText: {
-    switch (ctl.hint) {
-    case "short": return Commons.I18n.t("fingerprint.retryShort")
-    case "center": return Commons.I18n.t("fingerprint.retryCenter")
-    case "lift": return Commons.I18n.t("fingerprint.retryLift")
-    case "fast": return Commons.I18n.t("fingerprint.retryFast")
-    case "nomatch": return Commons.I18n.t("fingerprint.retryNoMatch")
-    case "again": return Commons.I18n.t("fingerprint.retryAgain")
-    }
-    return ""
-  }
+  readonly property string retryText: Model.retryText(ctl.hint, Commons.I18n)
 
   readonly property string failureText: {
     switch (ctl.failure) {

@@ -5,8 +5,8 @@ import "EnrollmentModel.js" as Model
 
 // The state of one fingerprint registration, driven by
 // omarchy-setup-security-fingerprint-enroll. The view only reads this: which
-// step, how many touches are in, and how it ended. Everything privileged
-// happens in the one pkexec'd run of that helper.
+// step, how many touches are in, and how it ended. The first enrollment runs
+// privileged setup. Additional enrollments run as the owner against one reader.
 Item {
   id: root
   visible: false
@@ -89,6 +89,14 @@ Item {
 
   function start(reader, slot) {
     if (run.running) return
+    if (reader) {
+      stage = 0
+      stages = 0
+      scanType = ""
+      hint = ""
+      failure = ""
+      dismissed = false
+    }
     finger = slot || Model.suggestFinger(enrolled)
     if (finger === "") {
       phase = "full"

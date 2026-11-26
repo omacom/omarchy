@@ -164,6 +164,7 @@
   "fingerprint.retryShort": "Too short, try again",
   "fingerprint.saveName": "Save name",
   "fingerprint.saved": "Saved fingerprints",
+  "fingerprint.savedNoMatch": "That fingerprint didn’t match.",
   "fingerprint.secure": "Securing your system",
   "fingerprint.sudoScope": "Applies to all users with enrolled fingerprints.",
   "fingerprint.sudoSetting": "Use fingerprint for sudo",

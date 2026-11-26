@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons as Commons
+import "EnrollmentModel.js" as Model
 
 Item {
   id: root
@@ -13,7 +14,8 @@ Item {
   property string afterMatch: ""
   property string notice: ""
   readonly property bool busy: list.running || action !== ""
-  readonly property bool authorizing: action === "remove" || action === "sudo-on" || action === "sudo-off" || action === "prepare-lock"
+  property bool scanning: false
+  readonly property bool authorizing: (action === "verify" && !scanning) || action === "remove" || action === "sudo-on" || action === "sudo-off" || action === "prepare-lock"
   signal refreshed()
 
   function refresh(token) {
@@ -31,8 +33,15 @@ Item {
 
   function verify(slot, next) {
     afterMatch = next || ""
-    notice = Commons.I18n.t("fingerprint.verifyTouch")
+    scanning = false
+    notice = Commons.I18n.t("fingerprint.preparing")
     run("verify", [helper, "verify", state.reader, slot])
+  }
+
+  function cancelVerify() {
+    afterMatch = ""
+    action = "cancel"
+    worker.running = false
   }
 
   function changeLock(on) {
@@ -71,14 +80,27 @@ Item {
 
   Process {
     id: worker
-    stdout: StdioCollector { id: output; waitForEnd: true }
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (root.action !== "verify") return
+        const event = Model.parseEvent(line)
+        if (!event) return
+        if (event.kind === "step" && event.value === "verify") {
+          root.scanning = true
+          root.notice = root.state.scanType === "swipe" ? Commons.I18n.t("fingerprint.swipe") : Commons.I18n.t("fingerprint.touch")
+        } else if (event.kind === "retry") {
+          root.notice = Model.retryText(event.value, Commons.I18n)
+        }
+      }
+    }
     onExited: function(code) {
       const action = root.action
       root.action = ""
-      if (code !== 0) {
+      if (action === "cancel") root.notice = ""
+      else if (code !== 0) {
         root.afterMatch = ""
-        root.notice = output.text.trim().endsWith("fail no-match")
-          ? Commons.I18n.t("fingerprint.failNoMatch") : Commons.I18n.t("fingerprint.manageFailed")
+        root.notice = action === "verify" && code === 3
+          ? Commons.I18n.t("fingerprint.savedNoMatch") : Commons.I18n.t("fingerprint.manageFailed")
       } else if (action === "verify") {
         const next = root.afterMatch
         root.afterMatch = ""

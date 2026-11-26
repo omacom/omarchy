@@ -19,6 +19,13 @@ FocusScope {
   function label(entry) {
     return entry.name || Commons.I18n.t("fingerprint.numbered").arg(Commons.I18n.formatNumber(entry.number))
   }
+  function reveal(item) {
+    const flick = scroll.contentItem
+    const y = item.mapToItem(flick.contentItem, 0, 0).y
+    if (y < flick.contentY) flick.contentY = Math.max(0, y)
+    else if (y + item.height > flick.contentY + flick.height)
+      flick.contentY = Math.min(flick.contentHeight - flick.height, y + item.height - flick.height)
+  }
   function back() {
     confirming = false
     selected = ""
@@ -26,19 +33,23 @@ FocusScope {
   }
 
   component Action: Button {
+    onActiveFocusChanged: if (activeFocus) view.reveal(this)
+    opacity: enabled ? 1 : 0.55
     focusable: true
     bordered: true
     Accessible.role: Accessible.Button
     Accessible.name: text
-    Accessible.onPressAction: clicked()
+    Accessible.onPressAction: if (enabled) clicked()
   }
   component Setting: Toggle {
     Layout.fillWidth: true
+    onActiveFocusChanged: if (activeFocus) view.reveal(this)
+    opacity: enabled ? 1 : 0.55
     Accessible.role: Accessible.CheckBox
     Accessible.name: label
     Accessible.checkable: true
     Accessible.checked: checked
-    Accessible.onToggleAction: clicked()
+    Accessible.onToggleAction: if (enabled) clicked()
   }
   component Line: Text {
     Layout.fillWidth: true
@@ -51,13 +62,14 @@ FocusScope {
 
   focus: true
   Keys.onEscapePressed: {
-    if (ctl.busy || selected === "") closeRequested()
+    if (ctl.action === "verify") ctl.cancelVerify()
+    else if (ctl.busy || selected === "") closeRequested()
     else back()
   }
 
   Management {
     id: ctl
-    onRefreshed: if (!view.entry) { view.selected = ""; view.confirming = false }
+    onRefreshed: if (!view.entry) { view.selected = ""; view.confirming = false; editor.text = "" }
   }
 
   Rectangle {
@@ -90,7 +102,7 @@ FocusScope {
           Layout.fillWidth: true
           spacing: Style.space(8)
           Repeater {
-            model: ctl.state.readers.length > 1 ? ctl.state.readers : []
+            model: ctl.state.readers.length > 1 || !ctl.state.reader ? ctl.state.readers : []
             Action {
               required property var modelData
               Layout.fillWidth: true
@@ -112,7 +124,8 @@ FocusScope {
                 view.selected = modelData.slot
                 editor.text = modelData.name
                 ctl.notice = ""
-                editor.forceActiveFocus()
+                if (editor.visible) editor.forceActiveFocus()
+                else view.forceActiveFocus()
               }
             }
           }
@@ -143,6 +156,8 @@ FocusScope {
           TextField {
             id: editor
             Layout.fillWidth: true
+            visible: !!ctl.state.canRename
+            onActiveFocusChanged: if (activeFocus) view.reveal(this)
             maximumLength: 64
             placeholderText: Commons.I18n.t("fingerprint.name")
             Accessible.name: placeholderText
@@ -150,6 +165,7 @@ FocusScope {
           }
           Action {
             id: save
+            visible: !!ctl.state.canRename
             text: Commons.I18n.t("fingerprint.saveName")
             onClicked: ctl.run("rename", [ctl.helper, "rename", ctl.state.reader, view.selected, editor.text])
           }
@@ -175,9 +191,14 @@ FocusScope {
         }
         Line { visible: ctl.notice !== ""; text: ctl.notice }
         Action {
-          text: view.entry ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")
-          enabled: !ctl.busy
-          onClicked: if (view.entry) view.back(); else view.closeRequested()
+          text: ctl.action === "verify" ? Commons.I18n.t("common.cancel")
+                : view.entry ? Commons.I18n.t("fingerprint.back") : Commons.I18n.t("fingerprint.close")
+          enabled: !ctl.busy || ctl.action === "verify"
+          onClicked: {
+            if (ctl.action === "verify") ctl.cancelVerify()
+            else if (view.entry) view.back()
+            else view.closeRequested()
+          }
         }
       }
     }
