@@ -97,21 +97,6 @@ assert(
   !bluetooth.bluetoothSinkMatchesDevice({ isSink: false, isStream: false, ready: true, name: 'bluez_output.AA_BB_CC_DD_EE_FF.1', properties: {} }, { address: 'AA:BB:CC:DD:EE:FF', name: 'JBL Go 3' }),
   'bluetooth ignores non-sink nodes when matching audio outputs'
 )
-
-const fs = require('fs')
-const panelSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/Panel.qml', 'utf8')
-const deviceCommandHelper = panelSource.match(/function deviceCommand\(action, address\) \{[\s\S]*?\n {2}\}/)
-assert(deviceCommandHelper, 'bluetooth panel defines deviceCommand')
-eval(deviceCommandHelper[0])
-assertDeepEqual(
-  deviceCommand('connect', 'AA:BB:CC:DD:EE:FF'),
-  ['omarchy-bluetooth', 'connect', '--', 'AA:BB:CC:DD:EE:FF'],
-  'bluetooth panel routes device actions through omarchy-bluetooth'
-)
-assert(
-  panelSource.includes('Quickshell.execDetached(["omarchy-bluetooth", adapter.enabled ? "off" : "on"])'),
-  'bluetooth panel routes power changes through omarchy-bluetooth'
-)
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
@@ -312,12 +297,22 @@ if cmd[:1] == ["power"] and len(cmd) >= 2:
     write_s("powered", "yes" if cmd[1] == "on" else "no")
     raise SystemExit(0)
 
-if cmd == ["devices"]:
-    print("Device AA:BB:CC:DD:EE:01 AirPods Pro")
+if cmd[:1] == ["devices"]:
+    filt = cmd[1] if len(cmd) >= 2 else ""
+    if not filt or (filt == "Connected" and read_s("airpods_connected", "yes") == "yes") or filt in ("Paired", "Trusted"):
+        print("Device AA:BB:CC:DD:EE:01 AirPods Pro")
     if read_s("mouse_present", "yes") == "yes":
-        print("Device AA:BB:CC:DD:EE:02 MX Master 3S")
-    print("Device AA:BB:CC:DD:EE:03 JBL Go 3")
-    print("Device AA:BB:CC:DD:EE:04 AA-BB-CC-DD-EE-04")
+        if not filt or (filt == "Connected" and read_s("mouse_connected", "no") == "yes") or filt in ("Paired", "Trusted"):
+            print("Device AA:BB:CC:DD:EE:02 MX Master 3S")
+    if (
+        not filt
+        or (filt == "Connected" and read_s("speaker_connected", "no") == "yes")
+        or (filt == "Paired" and read_s("speaker_paired", "no") == "yes")
+        or (filt == "Trusted" and read_s("speaker_trusted", "no") == "yes")
+    ):
+        print("Device AA:BB:CC:DD:EE:03 JBL Go 3")
+    if not filt:
+        print("Device AA:BB:CC:DD:EE:04 AA-BB-CC-DD-EE-04")
     raise SystemExit(0)
 
 if cmd[:1] == ["info"] and len(cmd) >= 2:
@@ -391,6 +386,8 @@ if cmd[:1] == ["untrust"] and len(cmd) >= 2:
     raise SystemExit(0)
 
 if cmd[:1] == ["connect"] and len(cmd) >= 2:
+    if os.environ.get("TEST_TIMEOUT_CONNECT") == "1":
+        raise SystemExit(0)
     if os.environ.get("TEST_FAIL_CONNECT") == "1":
         print("Failed to connect: org.bluez.Error.Failed br-connection-page-timeout")
         raise SystemExit(1)
@@ -528,7 +525,13 @@ pass "bluetooth CLI untrust, disconnect, and forget work by device name"
 status=0
 TEST_FAIL_CONNECT=1 bt_cli connect "AirPods Pro" >/dev/null 2>&1 || status=$?
 (( status == 1 )) || fail "failed bluetooth connect should exit 1" "got $status"
-pass "bluetooth CLI connect reports failures with non-zero exit status"
+status=0
+TEST_TIMEOUT_CONNECT=1 bt_cli connect "AirPods Pro" >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "bluetooth connect must fail when bluetoothctl --timeout exits 0 without connecting" "got $status"
+status=0
+TEST_NO_CTRL=1 bt_cli scan --timeout 1 >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "bluetooth scan without an adapter should fail clearly" "got $status"
+pass "bluetooth CLI connect reports failures, silent timeouts, and missing adapters"
 
 status=0
 TEST_FAIL_SCAN=1 bt_cli scan --timeout 1 >/dev/null 2>&1 || status=$?

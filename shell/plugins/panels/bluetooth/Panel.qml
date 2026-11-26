@@ -283,7 +283,11 @@ Panel {
   function disconnectDevice(device) {
     if (!device || !device.address) return
     if (!device.connected) return
-    runDeviceAction(device, "disconnect", "disconnecting")
+    setPendingAction(device.address, "disconnecting")
+    // Keep the native D-Bus disconnect so devices on a secondary adapter drop
+    // too, alongside the CLI call on the default controller.
+    if (device.disconnect) device.disconnect()
+    Quickshell.execDetached(deviceCommand("disconnect", device.address))
   }
 
   function forgetDevice(device) {

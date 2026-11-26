@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 USAGE = """\
 Usage: omarchy bluetooth [--json] <command> [args...]
@@ -66,6 +67,7 @@ def run_cmd(
     try:
         proc = subprocess.run(
             args,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -190,9 +192,26 @@ def any_powered(controllers: list[dict] | None = None) -> bool:
 
 
 def ensure_powered() -> None:
-    if any_powered():
+    ctrls = read_controllers()
+    if not ctrls:
+        raise RuntimeError("no Bluetooth adapter found")
+    if any_powered(ctrls):
         return
     run_cmd([power_bin(), "on"], timeout=15, check=True)
+
+
+def wait_powered_off() -> None:
+    try:
+        wait_s = float(os.environ.get("OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS", "2"))
+    except ValueError:
+        wait_s = 2.0
+    deadline = time.monotonic() + max(0.0, wait_s)
+    while True:
+        if not any_powered():
+            return
+        if time.monotonic() >= deadline:
+            return
+        time.sleep(0.15)
 
 
 def read_device_info(address: str, fallback_name: str = "") -> dict | None:
@@ -255,26 +274,31 @@ def read_device_info(address: str, fallback_name: str = "") -> dict | None:
     return info
 
 
-def list_devices(*, include_unnamed: bool = False) -> list[dict]:
-    proc = bt_cmd(["devices"], timeout=5, check=True)
+def list_devices(*, include_unnamed: bool = False, filters: list[str] | None = None) -> list[dict]:
+    queries = [["devices", f] for f in filters] if filters else [["devices"]]
     seen: set[str] = set()
     devices: list[dict] = []
-    for line in strip_ansi(proc.stdout).splitlines():
-        m = re.match(r"^Device\s+([0-9A-Fa-f:]{17})(?:\s+(.*))?$", line.strip())
-        if not m:
-            continue
-        addr = normalize_mac(m.group(1))
-        if addr in seen:
-            continue
-        seen.add(addr)
-        fallback_name = (m.group(2) or "").strip()
-        info = read_device_info(addr, fallback_name=fallback_name)
-        if info is None:
-            continue
-        known = info["connected"] or info["paired"] or info["trusted"]
-        if not include_unnamed and not known and not has_human_name(info["name"], info["alias"]):
-            continue
-        devices.append(info)
+    for query_args in queries:
+        proc = bt_cmd(query_args, timeout=5, check=True)
+        for line in strip_ansi(proc.stdout).splitlines():
+            m = re.match(r"^Device\s+([0-9A-Fa-f:]{17})(?:\s+(.*))?$", line.strip())
+            if not m:
+                continue
+            addr = normalize_mac(m.group(1))
+            if addr in seen:
+                continue
+            seen.add(addr)
+            fallback_name = (m.group(2) or "").strip()
+            try:
+                info = read_device_info(addr, fallback_name=fallback_name)
+            except RuntimeError:
+                info = None
+            if info is None:
+                continue
+            known = info["connected"] or info["paired"] or info["trusted"]
+            if not include_unnamed and not known and not has_human_name(info["name"], info["alias"]):
+                continue
+            devices.append(info)
 
     devices.sort(
         key=lambda d: (
@@ -287,7 +311,7 @@ def list_devices(*, include_unnamed: bool = False) -> list[dict]:
     return devices
 
 
-def resolve_device(query: str) -> dict:
+def resolve_device(query: str) -> tuple[dict, bool]:
     raw = query.strip()
     if not raw:
         raise UsageError("device name must not be empty")
@@ -295,22 +319,25 @@ def resolve_device(query: str) -> dict:
         addr = normalize_mac(raw)
         info = read_device_info(addr)
         if info is not None:
-            return info
-        return {
-            "address": addr,
-            "name": "",
-            "alias": addr,
-            "label": addr,
-            "icon": "",
-            "paired": False,
-            "bonded": False,
-            "trusted": False,
-            "blocked": False,
-            "connected": False,
-            "rssi": None,
-            "battery": None,
-            "profiles": [],
-        }
+            return info, True
+        return (
+            {
+                "address": addr,
+                "name": "",
+                "alias": addr,
+                "label": addr,
+                "icon": "",
+                "paired": False,
+                "bonded": False,
+                "trusted": False,
+                "blocked": False,
+                "connected": False,
+                "rssi": None,
+                "battery": None,
+                "profiles": [],
+            },
+            False,
+        )
 
     q = raw.lower()
     devices = list_devices(include_unnamed=True)
@@ -320,7 +347,7 @@ def resolve_device(query: str) -> dict:
         if d["name"].lower() == q or d["alias"].lower() == q or d["label"].lower() == q
     ]
     if len(exact) == 1:
-        return exact[0]
+        return exact[0], True
     if len(exact) > 1:
         choices = ", ".join(f"{d['label']} ({d['address']})" for d in exact)
         raise RuntimeError(f"multiple Bluetooth devices match '{query}': {choices}")
@@ -331,7 +358,7 @@ def resolve_device(query: str) -> dict:
         if q in d["name"].lower() or q in d["alias"].lower() or q in d["label"].lower()
     ]
     if len(partial) == 1:
-        return partial[0]
+        return partial[0], True
     if len(partial) > 1:
         choices = ", ".join(f"{d['label']} ({d['address']})" for d in partial)
         raise RuntimeError(f"ambiguous Bluetooth device '{query}'; matches: {choices}")
@@ -343,7 +370,11 @@ def read_status() -> dict:
     controllers = read_controllers()
     powered = any_powered(controllers)
     default_ctrl = next((c for c in controllers if c["default"]), controllers[0] if controllers else None)
-    connected = [d for d in list_devices(include_unnamed=True) if d["connected"]] if powered else []
+    connected = (
+        list_devices(include_unnamed=True, filters=["Connected"])
+        if powered
+        else []
+    )
     return {
         "available": bool(controllers),
         "powered": powered,
@@ -440,7 +471,12 @@ def cmd_list(args: list[str], as_json: bool) -> int:
             include_unnamed = True
         else:
             raise UsageError(f"unknown option '{tok}'")
-    devices = list_devices(include_unnamed=include_unnamed)
+    if connected_only:
+        devices = list_devices(include_unnamed=True, filters=["Connected"])
+    elif paired_only:
+        devices = list_devices(include_unnamed=True, filters=["Paired", "Trusted"])
+    else:
+        devices = list_devices(include_unnamed=include_unnamed)
     if connected_only:
         devices = [d for d in devices if d["connected"]]
     if paired_only:
@@ -482,24 +518,28 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
     pos = strip_double_dash(args)
     if len(pos) != 1:
         raise UsageError(f"Usage: omarchy bluetooth {action} <device>")
-    dev = resolve_device(pos[0])
+    dev, known_in_bluez = resolve_device(pos[0])
     addr = dev["address"]
     label = dev["label"]
 
     if action == "info":
-        info = read_device_info(addr)
-        if info is None:
+        if not known_in_bluez:
             raise RuntimeError(f"Bluetooth device '{addr}' not available")
-        print_device_info(info, as_json)
+        print_device_info(dev, as_json)
         return 0
 
     if action == "pair":
         ensure_powered()
         if not dev["paired"]:
             bt_cmd(["--timeout", "20", "pair", addr], timeout=25, check=True)
+            after_pair = read_device_info(addr)
+            if not after_pair or not after_pair["paired"]:
+                raise RuntimeError(f"timed out pairing with {label} ({addr})")
         bt_cmd(["trust", addr], timeout=10, check=True)
         bt_cmd(["--timeout", "20", "connect", addr], timeout=25, check=True)
-        updated = read_device_info(addr) or dev
+        updated = read_device_info(addr)
+        if not updated or not updated["connected"]:
+            raise RuntimeError(f"timed out connecting to {label} ({addr})")
         if as_json:
             print(json.dumps(updated))
         else:
@@ -508,10 +548,12 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
 
     if action == "connect":
         ensure_powered()
-        if dev["paired"]:
+        if dev["paired"] and not dev["trusted"]:
             bt_cmd(["trust", addr], timeout=10, check=False)
         bt_cmd(["--timeout", "20", "connect", addr], timeout=25, check=True)
-        updated = read_device_info(addr) or dev
+        updated = read_device_info(addr)
+        if not updated or not updated["connected"]:
+            raise RuntimeError(f"timed out connecting to {label} ({addr})")
         if as_json:
             print(json.dumps(updated))
         else:
@@ -520,11 +562,14 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
 
     if action == "disconnect":
         bt_cmd(["--timeout", "10", "disconnect", addr], timeout=15, check=True)
-        updated = read_device_info(addr) or {**dev, "connected": False}
+        updated = read_device_info(addr)
+        if updated and updated["connected"]:
+            raise RuntimeError(f"timed out disconnecting {label} ({addr})")
+        result = updated or {**dev, "connected": False}
         if as_json:
-            print(json.dumps(updated))
+            print(json.dumps(result))
         else:
-            print(f"Disconnected {updated['label']} ({addr})")
+            print(f"Disconnected {result['label']} ({addr})")
         return 0
 
     if action == "forget":
@@ -595,12 +640,14 @@ def main(argv: list[str]) -> int:
     if cmd in ("on", "off", "toggle"):
         if strip_double_dash(rest):
             raise UsageError(f"Usage: omarchy bluetooth {cmd} [--json]")
-        run_cmd([power_bin(), cmd], timeout=15, check=True)
-        st = read_status()
+        target = ("off" if any_powered() else "on") if cmd == "toggle" else cmd
+        run_cmd([power_bin(), target], timeout=15, check=True)
+        if target == "off":
+            wait_powered_off()
         if as_json:
-            print(json.dumps(st))
+            print(json.dumps(read_status()))
         else:
-            print(f"Bluetooth {st['power']}")
+            print(f"Bluetooth {target}")
         return 0
 
     if cmd == "list":
@@ -618,9 +665,11 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        raise SystemExit(130)
     except UsageError as exc:
         sys.stderr.write(f"omarchy-bluetooth: {exc}\n")
         raise SystemExit(2)
-    except RuntimeError as exc:
+    except (RuntimeError, OSError) as exc:
         sys.stderr.write(f"omarchy-bluetooth: {exc}\n")
         raise SystemExit(1)
