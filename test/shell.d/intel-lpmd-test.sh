@@ -30,6 +30,11 @@ cat >"$mock_bin/sudo" <<'EOF'
 printf '%s\n' "$*" >>"$TEST_LOG/sudo"
 EOF
 
+cat >"$mock_bin/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_LOG/systemctl"
+EOF
+
 chmod +x "$mock_bin"/*
 
 setup_topology() {
