@@ -109,6 +109,8 @@ package_defaults = [
   ("default/systemd/user/omarchy-tailscale-receive.service", "/usr/lib/systemd/user/omarchy-tailscale-receive.service", "systemd/user/omarchy-tailscale-receive.service"),
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
+  ("default/systemd/user/omarchy-clock-resync.service", "/usr/lib/systemd/user/omarchy-clock-resync.service", "systemd/user/omarchy-clock-resync.service"),
+  ("default/systemd/user/omarchy-clock-resync.timer", "/usr/lib/systemd/user/omarchy-clock-resync.timer", "systemd/user/omarchy-clock-resync.timer"),
   ("default/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "/usr/lib/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf"),
   ("default/systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf", "/usr/lib/systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf", "systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),
@@ -127,12 +129,11 @@ for source, destination, legacy in package_defaults:
     errors.append(f"PKGBUILD does not explicitly install {source} -> {destination}")
 
 # A user unit has to be on the machine before anything turns it on: shipped in
-# /usr/lib/systemd/user, or copied or linked out of default/ by the command
-# enabling it.
+# /usr/lib/systemd/user, or copied out of default/ by the command enabling it.
 def installs_first(text):
   source = re.search(r'(\w+)="[^"\n]*default/systemd/user/', text)
   held = rf"|\$\{{?{source[1]}\b" if source else ""
-  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp|ln)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
+  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
   enable = text.find("systemctl --user enable")
   return bool(copy) and (enable < 0 or copy.start() < enable)
 

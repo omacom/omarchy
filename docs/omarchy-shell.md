@@ -97,11 +97,13 @@ bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
-## Waking from suspend
+## Keeping the clock current
 
-`SystemClock` waits out the rest of the minute on a timer that stops while the machine is suspended, so it wakes still reporting the time it had before, for up to a minute. `omarchy-clock-resync.timer`, a user timer shipped in `default/systemd/user/`, fixes that for the bar clock without a process or a poll. It sets `OnClockChange=yes`, which makes systemd's user manager wait on a `timerfd` created with `TFD_TIMER_CANCEL_ON_SET`. The kernel cancels that timerfd when `CLOCK_REALTIME` jumps against `CLOCK_MONOTONIC`, and resuming from suspend does that as well as `settimeofday`, an NTP step and `timedatectl set-time`. `OnTimezoneChange=yes` covers a changed timezone. The timer starts `omarchy-clock-resync.service`, which runs `omarchy-shell -q omarchy.clock resync`.
+The clock's `WallClock` moves only on its next whole-minute tick (whole-second with a seconds format), and its Qt timer counts on `CLOCK_MONOTONIC`. So after a resume, a stepped clock or a new timezone the label keeps the old time until that tick, up to a minute later. `omarchy-clock-resync.timer` closes that gap without a process or a poll. `omarchy-settings` ships it and `omarchy-clock-resync.service` in `/usr/lib/systemd/user`; first-run enables the timer on new installs and a migration enables it on existing ones.
 
-`resync` restarts the label's `SystemClock` and the calendar's: a re-enabled `SystemClock` re-reads the time and schedules its next tick from now. Unlike `refresh`, it leaves a month the user is browsing in the calendar where it is. A plugin with a `SystemClock` of its own can register an IPC method that does the same and have a user unit call it.
+`OnClockChange=yes` makes the user manager wait on a `timerfd` created with `TFD_TIMER_CANCEL_ON_SET`. The kernel cancels that timerfd when `CLOCK_REALTIME` jumps against `CLOCK_MONOTONIC`, which a resume from suspend, an NTP step, `settimeofday` and `timedatectl set-time` all do. `OnTimezoneChange=yes` fires when `/etc/localtime` is replaced or relinked, which `timedatectl set-timezone` and `ln -sf` both do. The timer starts the service, which runs `omarchy-shell -q omarchy.clock resync`.
+
+`resync` makes the label's `WallClock` and the calendar's re-read the time and arm their next tick from now. Unlike `refresh`, it leaves a month the user is browsing in the calendar where it is. A plugin with a clock of its own can register an IPC method that does the same and have a user unit call it.
 
 ## Elsewhen
 

@@ -12,15 +12,6 @@ set -euo pipefail
 
 omarchy-input-method configure --defaults || echo "Input method defaults deferred; run omarchy setup input after login." >&2
 
-# The clock resync units live in default/, so link them where the user manager
-# looks. A link follows the shipped file, so it never goes stale.
-mkdir -p "$HOME/.config/systemd/user"
-for unit in omarchy-clock-resync.{service,timer}; do
-  if [[ ! -e /usr/lib/systemd/user/$unit ]]; then
-    ln -sfn "$OMARCHY_PATH/default/systemd/user/$unit" "$HOME/.config/systemd/user/$unit"
-  fi
-done
-
 # Enable one at a time without reloading on every call: given a list, systemctl
 # enables none of it when it cannot find one unit, while 8 separate reloads
 # stall the user manager during first-login startup.
