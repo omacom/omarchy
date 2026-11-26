@@ -8,8 +8,8 @@ if [[ -e $user_hook || -L $user_hook ]]; then
 fi
 
 [[ -f $default_hook ]] || {
-  echo "Missing default low-battery sound hook: $default_hook" >&2
-  exit 1
+  echo "Waiting for omarchy-settings to provide: $default_hook" >&2
+  exit 75
 }
 
 mkdir -p "$(dirname "$user_hook")"

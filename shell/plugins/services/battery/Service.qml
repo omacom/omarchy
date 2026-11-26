@@ -14,6 +14,7 @@ Item {
   readonly property int batteryThreshold: 10
   readonly property int lowBatteryWarningRecoveryThreshold: 20
   property string pendingPowerSource: ""
+  property bool warningDismissRearmRequested: false
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
   // shell started, so a one-off read on startup, on a power source change and
@@ -42,7 +43,9 @@ Item {
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
-    if (BatteryModel.shouldDismissLowBatteryWarning(UPower.displayDevice, UPowerDeviceState.Discharging, persisted.lowBatteryWarningVisible, lowBatteryWarningRecoveryThreshold) && !warningDismissProcess.running) {
+    var shouldDismissWarning = BatteryModel.shouldDismissLowBatteryWarning(UPower.displayDevice, UPowerDeviceState.Discharging, persisted.lowBatteryWarningVisible, lowBatteryWarningRecoveryThreshold)
+    if (shouldDismissWarning && !warningDismissProcess.running) {
+      warningDismissRearmRequested = warningDismissRearmRequested || BatteryModel.shouldRearmLowBatteryWarning(UPower.displayDevice, UPowerDeviceState.Discharging)
       warningDismissProcess.running = true
     }
   }
@@ -94,7 +97,14 @@ Item {
     id: warningDismissProcess
     command: ["omarchy-battery-low-dismiss"]
     onExited: function(exitCode, exitStatus) {
-      if (exitCode === 0) persisted.lowBatteryWarningVisible = false
+      if (exitCode === 0) {
+        persisted.lowBatteryWarningVisible = false
+        if (root.warningDismissRearmRequested) {
+          persisted.notifiedLowBattery = false
+          root.warningDismissRearmRequested = false
+          Qt.callLater(root.checkBattery)
+        }
+      }
     }
   }
 

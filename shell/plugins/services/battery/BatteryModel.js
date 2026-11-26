@@ -26,6 +26,10 @@ function shouldDismissLowBatteryWarning(device, dischargingState, warningVisible
   return !isDischarging(device, dischargingState) || batteryPercentage(device) > recoveryThreshold
 }
 
+function shouldRearmLowBatteryWarning(device, dischargingState) {
+  return !!(device && device.isPresent && !isDischarging(device, dischargingState))
+}
+
 function parseActiveProfile(text) {
   // busctl --json=short prints {"type":"s","data":"balanced"}; an empty or
   // malformed reply (daemon not running) reads as no active profile.
@@ -47,6 +51,7 @@ if (typeof module !== "undefined") {
     isDischarging: isDischarging,
     shouldWarnLowBattery: shouldWarnLowBattery,
     shouldDismissLowBatteryWarning: shouldDismissLowBatteryWarning,
+    shouldRearmLowBatteryWarning: shouldRearmLowBatteryWarning,
     parseActiveProfile: parseActiveProfile,
     profileAfterRead: profileAfterRead
   }

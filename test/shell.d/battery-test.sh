@@ -76,6 +76,21 @@ assertEqual(
   false,
   'a missing battery reading does not dismiss the warning'
 )
+assertEqual(
+  battery.shouldRearmLowBatteryWarning({ isPresent: true, state: charging }, discharging),
+  true,
+  'charging after automatic dismissal re-arms the low-battery warning'
+)
+assertEqual(
+  battery.shouldRearmLowBatteryWarning({ isPresent: true, state: discharging }, discharging),
+  false,
+  'continued discharging does not re-arm a dismissed warning'
+)
+assertEqual(
+  battery.shouldRearmLowBatteryWarning(null, discharging),
+  false,
+  'a missing battery reading does not re-arm the warning'
+)
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
