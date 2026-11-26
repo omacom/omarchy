@@ -29,6 +29,7 @@ Panel {
   property string inFlightBrightnessMonitor: ""
   property int inFlightBrightnessPercent: 0
   property bool inFlightInternalBacklight: false
+  property int inFlightExitCode: -1
   property string lastWrittenMonitor: ""
   property int lastWrittenPercent: 0
   property int brightnessWrites: 0
@@ -421,6 +422,7 @@ Panel {
 
   function startBrightnessWrite(name, percent) {
     root.brightnessSetQueued = false
+    root.inFlightExitCode = -1
     root.inFlightBrightnessMonitor = name
     root.inFlightBrightnessPercent = percent
     root.inFlightInternalBacklight = isInternalBacklight(name)
@@ -750,7 +752,9 @@ Panel {
     onRunningChanged: {
       if (running) {
         root.readAfterActions = root.actionsDone
-        root.readAfterBrightnessWrites = root.brightnessWrites
+        root.readAfterBrightnessWrites = (setBrightnessProc.running || root.brightnessSetQueued || brightnessThrottle.running)
+          ? -1
+          : root.brightnessWrites
       } else if (root.rereadState) {
         root.rereadState = false
         Qt.callLater(root.refresh)
@@ -818,6 +822,8 @@ Panel {
     // brightness changes are still picked up by the 5s periodic refresh,
     // the open-time refresh, and Component.onCompleted.
     onExited: function(exitCode) {
+      root.inFlightExitCode = exitCode
+      root.brightnessWrites++
       if (exitCode === 0) {
         root.lastWrittenMonitor = root.inFlightBrightnessMonitor
         root.lastWrittenPercent = root.inFlightBrightnessPercent
@@ -832,6 +838,10 @@ Panel {
     }
     onRunningChanged: {
       if (running) return
+      var sameAsSucceeded = root.inFlightExitCode === 0
+        && root.pendingBrightnessMonitor === root.inFlightBrightnessMonitor
+        && root.pendingBrightnessPercent === root.inFlightBrightnessPercent
+      if (root.brightnessSetQueued && sameAsSucceeded) root.brightnessSetQueued = false
       if (!root.inFlightInternalBacklight) {
         brightnessThrottle.restart()
         if (root.brightnessSetQueued && !root.brightnessDragging) {

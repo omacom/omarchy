@@ -298,6 +298,7 @@ const bScope = {
   inFlightBrightnessMonitor: '',
   inFlightBrightnessPercent: 0,
   inFlightInternalBacklight: false,
+  inFlightExitCode: -1,
   lastWrittenMonitor: '',
   lastWrittenPercent: 0,
   brightnessWrites: 0,
@@ -403,5 +404,43 @@ assertDeepEqual(
     ['omarchy-brightness-display', '--no-osd', '--monitor', 'DP-1', '55%'],
   ],
   'releasing external brightness slider flushes final value immediately'
+)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+brightnessThrottle.stop()
+
+// A poll that started during an in-flight write and finishes only after the
+// write and cooldown end must still be discarded so it cannot snap back.
+bScope.onBrightnessMoved(52)
+bScope.onStateProcRunningChanged(true)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+brightnessThrottle.stop()
+bScope.onStateStreamFinished('55\neDP-1\nDP-1\neDP-1\n\neDP-1\n1\n[{"name":"eDP-1","enabled":true,"focused":true,"width":1920,"height":1080,"brightness":42},{"name":"DP-1","enabled":true,"focused":false,"width":2560,"height":1440,"brightness":55}]\noff\n')
+assertEqual(bScope.brightnessLevels['DP-1'], 52, 'poll overlapping a completed write does not revert brightness')
+
+// An idle poll with no overlapping write updates external brightness normally.
+bScope.onStateProcRunningChanged(true)
+bScope.onStateStreamFinished('70\neDP-1\nDP-1\neDP-1\n\neDP-1\n1\n[{"name":"eDP-1","enabled":true,"focused":true,"width":1920,"height":1080,"brightness":42},{"name":"DP-1","enabled":true,"focused":false,"width":2560,"height":1440,"brightness":70}]\noff\n')
+assertEqual(bScope.brightnessLevels['DP-1'], 70, 'idle poll picks up external brightness changes')
+
+// Dragging away and back to the value already being written must not run a
+// duplicate write after the in-flight write succeeds.
+brightnessCommands.length = 0
+bScope.brightnessDragging = true
+bScope.onBrightnessMoved(48)
+bScope.onBrightnessMoved(45)
+bScope.onBrightnessMoved(48)
+bScope.brightnessDragging = false
+bScope.onBrightnessReleased(48)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+assertDeepEqual(
+  brightnessCommands,
+  [['omarchy-brightness-display', '--no-osd', '--monitor', 'DP-1', '48%']],
+  'returning to the in-flight target before completion skips a duplicate write'
 )
 JS
