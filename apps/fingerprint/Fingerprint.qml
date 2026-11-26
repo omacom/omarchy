@@ -59,13 +59,13 @@ Canvas {
 
     c.lineCap = "round"
     c.lineJoin = "round"
-    c.lineWidth = compact ? 1.95 : 1.6
+    c.lineWidth = compact ? 1.8 : 1.6
     const quiet = Qt.tint(paper, Qt.alpha(foreground, 0.58))
     // Contact lights the sensor corners. Accepted scans ink successive ridges;
     // only the reader's completion event inks the entire illustration.
     const acceptedRidges = Math.min(2 * samples, 12)
     const turn = 2 * Math.PI
-    const pitch = compact ? 5.6 : 4.1
+    const pitch = compact ? 6.6 : 4.1
     // One off-centre whorl. The small breaks represent creases in an illustrative
     // ink impression; nothing in this geometry is derived from a person's finger.
     for (let ridge = 0; ridge * pitch < 72; ++ridge) {

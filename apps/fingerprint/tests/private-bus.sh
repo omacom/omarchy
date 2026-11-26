@@ -6,7 +6,7 @@ unset HYPRLAND_INSTANCE_SIGNATURE
 export DBUS_SYSTEM_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 export HOME="$sandbox" XDG_DATA_HOME="$sandbox/data" XDG_CONFIG_HOME="$sandbox/config" XDG_STATE_HOME="$sandbox/state"
 export OMARCHY_PATH=$(cd "$here/../../.." && pwd)
-export QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=none QT_QUICK_BACKEND=software
+export QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=none QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic
 mkdir "$sandbox/bin" "$sandbox/pam"
 echo disabled >"$sandbox/sudo-state"
 cat >"$sandbox/bin/omarchy-shell" <<'SH'

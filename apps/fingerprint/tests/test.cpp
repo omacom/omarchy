@@ -139,8 +139,18 @@ private slots:
     click("Verify");
     QTRY_COMPARE(read(b, "page"), "matched");
     screenshot(win, "match");
+    win->resize(350, 360);
+    auto *back = button(win->contentItem(), "Back to fingerprints");
+    QVERIFY(back);
+    back->forceActiveFocus(Qt::TabFocusReason);
     click("Back to fingerprints");
     QTRY_COMPARE(read(b, "page"), "home");
+    QTRY_VERIFY(button(win->contentItem(), "Verify"));
+    QSignalSpy frame(win, &QQuickWindow::frameSwapped);
+    win->update();
+    QTRY_VERIFY(!frame.isEmpty());
+    QVERIFY(button(win->contentItem(), "Verify")->mapToScene(QPointF()).y() > 0);
+    win->resize(normalSize);
     reset({finger}, true);
     click("Add fingerprint");
     QTRY_VERIFY(calls().contains("enroll " + added));

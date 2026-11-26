@@ -36,6 +36,7 @@ ApplicationWindow {
   // A ScrollView does not scroll its focused child into view when tabbing.
   function revealFocus() {
     const item = activeFocusItem
+    if (!item || item === body || item === body.item) return
     let ancestor = item
     while (ancestor && ancestor !== body) ancestor = ancestor.parent
     if (!ancestor) return
@@ -245,15 +246,24 @@ ApplicationWindow {
     LayoutMirroring.childrenInherit: true
     anchors.fill: parent
     contentWidth: availableWidth
+    onAvailableWidthChanged: Qt.callLater(win.revealFocus)
     onAvailableHeightChanged: Qt.callLater(win.revealFocus)
+    Connections {
+      target: scroll.contentItem
+      function onContentHeightChanged() { Qt.callLater(win.revealFocus) }
+    }
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
     Loader {
       id: body
-      onLoaded: Qt.callLater(win.revealFocus)
+      onLoaded: {
+        scroll.contentItem.contentY = scroll.contentItem.originY
+        Qt.callLater(win.revealFocus)
+      }
       // A readable measure on wide tiled windows; the page scrolls when the window is short.
       width: Math.min(scroll.availableWidth, 560)
       x: Math.round((scroll.availableWidth - width) / 2)
-      y: sourceComponent === scanning ? Math.max(0, Math.round((scroll.availableHeight - implicitHeight) / 2)) : 0
+      // Keep the reader in place when the success form appears below it.
+      y: sourceComponent === scanning ? Math.round(Math.max(0, scroll.availableHeight - win.minimumHeight) / 4) : 0
       sourceComponent: {
         switch (win.v.page) {
         case "home": case "unavailable": return home
@@ -308,6 +318,8 @@ ApplicationWindow {
         spacing: 12
         ComboBox {
           id: readers
+          font.pixelSize: 15
+          palette.mid: win.outline
           palette.buttonText: win.fg
           palette.dark: win.secondary
           palette.window: win.panel
@@ -324,13 +336,20 @@ ApplicationWindow {
           currentIndex: win.v.selected
           Accessible.name: win.t("fingerprintApp.fingerprints")
           onActivated: index => win.backend.selectDevice(index)
+          delegate: ItemDelegate {
+            required property int index
+            width: ListView.view.width
+            text: readers.textAt(index)
+            highlighted: index === readers.highlightedIndex
+            hoverEnabled: readers.hoverEnabled
+          }
           background: Rectangle {
             implicitHeight: 36
             radius: win.corner(height)
             color: readers.down ? win.pressed : readers.hovered ? win.hover : "transparent"
             border.width: 1
             border.color: win.outline
-            FocusRing { visible: readers.visualFocus }
+            FocusRing { visible: readers.visualFocus && !readers.popup.visible }
           }
         }
         Note { visible: text.length > 0; text: win.v.notice }
