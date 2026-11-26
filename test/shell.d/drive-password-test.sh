@@ -259,7 +259,9 @@ SH
 chmod 755 "$tmp/lifecycle/usr/lib/omarchy/mac-boot/luks-slots"
 chmod -R go-w "$tmp/lifecycle"
 
-export TEST_TMP=$tmp OMARCHY_PATH=$ROOT XDG_STATE_HOME=$tmp/state SUDO_USER=owner OMARCHY_LIFECYCLE_ROOT=$tmp/lifecycle
+# The install profile is a fixture too: absent, so a default install, unless a
+# run writes "child" there.
+export TEST_TMP=$tmp OMARCHY_PATH=$ROOT XDG_STATE_HOME=$tmp/state SUDO_USER=owner OMARCHY_LIFECYCLE_ROOT=$tmp/lifecycle OMARCHY_PROFILE_FILE=$tmp/profile
 base_path=$PATH
 platform=x86
 
@@ -311,7 +313,7 @@ volume() {
 
 # / on the system drive, which also holds a recovery key; a data drive beside it.
 fixture() {
-  rm -rf "$tmp/state" "$tmp/output" "$tmp/trace" "$tmp/offered" "$tmp"/dev/* "$tmp/slot-record" "$tmp/record-fail" "$tmp/owner-slot" "$tmp/owner-query-fail" "$tmp/owner-query-garbage" "$tmp/owner-unrecorded"
+  rm -rf "$tmp/state" "$tmp/output" "$tmp/trace" "$tmp/offered" "$tmp"/dev/* "$tmp/slot-record" "$tmp/record-fail" "$tmp/owner-slot" "$tmp/owner-query-fail" "$tmp/owner-query-garbage" "$tmp/owner-unrecorded" "$tmp/profile"
   unset TEST_ENROLL_AT_PROMPT TEST_ENROLL_DEVICE TEST_OPEN_FAIL TEST_CHANGE_FAIL TEST_CHANGE_PARTIAL TEST_KILL_FAIL TEST_FINDMNT_FAIL TEST_TOKEN_SLOT CRASH_ORPHAN
   system=$tmp/dev/system
   recovery=${1-$recovery_key}
@@ -812,6 +814,65 @@ rm "$tmp/owner-query-garbage"
 attempt 0 "$old_password" "$new_password" "$new_password" || fail "apple: the owner's password changes the disk" "$(cat "$tmp/output")"
 consistent "owner's password after refusals" "$new_password"
 pass "apple: only the owner's slot changes the system disk; another slot's key and an unanswered query change nothing"
+
+# A child install (kids mode) keeps the parent password's key beside the kid's,
+# recorded as the second kept slot. On a Mac the parent can change it: the
+# kid's key stays in the owner's slot and keeps its record, and the parent's
+# new slot is recorded second, after an interruption too. With a third key on
+# the disk which slot is the parent's can't be told, so the change is refused.
+use fake apple
+parent_password=$recovery_key
+fixture
+echo child >"$tmp/profile"
+attempt 0 "$parent_password" "$new_password" "$new_password" || fail "apple: a child install's parent changes their disk key" "$(cat "$tmp/output")"
+parent_slot=$(opens "$system" "$new_password")
+[[ $(opens "$system" "$old_password") == "0" && -n $parent_slot && -z $(opens "$system" "$parent_password") ]] ||
+  fail "apple: the parent's key changes and the kid's stays in the owner's slot" "$(cut -f1 "$system.slots")"
+[[ $(cat "$tmp/slot-record") == "owner=0 recovery=$parent_slot" ]] ||
+  fail "apple: the parent's new slot is recorded second, beside the owner's" "$(cat "$tmp/slot-record")"
+[[ ! -e $journal ]] || fail "apple: the parent's change drops its journal" "$(cat "$journal")"
+untouched_accounts "child install, the parent's key"
+no_secrets "child install, the parent's key"
+record_step=$(grep -n 'slots recorded' "$tmp/trace" | cut -d: -f1)
+added_step=$(grep -n 'new key added' "$tmp/trace" | cut -d: -f1)
+
+fixture
+echo child >"$tmp/profile"
+if attempt "$record_step" "$parent_password" "$new_password" "$new_password"; then fail "apple: the parent's change is killed at the slot record"; fi
+grep -qx 'phase=record' "$journal" && grep -qx 'kept_owner=0' "$journal" ||
+  fail "apple: the journal keeps the owner's slot for the rerun" "$(cat "$journal")"
+attempt 0 "$new_password" || fail "apple: the rerun finishes the parent's change" "$(cat "$tmp/output")"
+parent_slot=$(opens "$system" "$new_password")
+[[ $(tail -n 1 "$tmp/slot-record") == "owner=0 recovery=$parent_slot" && $(opens "$system" "$old_password") == "0" && ! -e $journal ]] ||
+  fail "apple: the rerun records the parent's slot second and keeps the kid's" "$(cat "$tmp/slot-record")"
+
+fixture
+echo child >"$tmp/profile"
+if attempt "$added_step" "$parent_password" "$new_password" "$new_password"; then fail "apple: the parent's change is killed once the new key is added"; fi
+attempt 0 "$new_password" "$new_password" "$parent_password" || fail "apple: the rerun settles the parent's interrupted change" "$(cat "$tmp/output")"
+parent_slot=$(opens "$system" "$new_password")
+[[ -n $parent_slot && -z $(opens "$system" "$parent_password") && $(opens "$system" "$old_password") == "0" ]] ||
+  fail "apple: the settled change keeps the parent's new key and the kid's" "$(cut -f1 "$system.slots")"
+[[ $(tail -n 1 "$tmp/slot-record") == "owner=0 recovery=$parent_slot" && ! -e $journal ]] ||
+  fail "apple: the settled change records the parent's slot second" "$(cat "$tmp/slot-record")"
+
+fixture
+echo child >"$tmp/profile"
+printf '2\tlater-key\n' >>"$system.slots"
+if attempt 0 "$parent_password" "$new_password" "$new_password"; then fail "apple: with a third key the parent's change is refused"; fi
+said "That password opens another key slot on the system disk"
+! grep -q 'luksChangeKey' "$tmp/sudo-calls" && [[ ! -e $journal && ! -e $tmp/slot-record ]] ||
+  fail "apple: a refused change on a three-key disk changes nothing"
+
+fixture
+echo child >"$tmp/profile"
+export TEST_ENROLL_AT_PROMPT="Confirm new encryption password" TEST_ENROLL_DEVICE=$system
+if attempt 0 "$parent_password" "$new_password" "$new_password"; then fail "apple: a key enrolled during the prompts stops the parent's change"; fi
+said "changed while you entered the new password"
+! grep -q 'luksChangeKey' "$tmp/sudo-calls" && [[ ! -e $journal && ! -e $tmp/slot-record ]] ||
+  fail "apple: a key enrolled during the parent's prompts changes nothing"
+unset TEST_ENROLL_AT_PROMPT TEST_ENROLL_DEVICE
+pass "apple: on a child install the parent changes their disk key, recorded as the second kept slot, after an interruption too"
 
 # A Mac set up before its boot package recorded slots has no owner slot (4).
 # Its disk's only key is the owner's: the change goes through and records the
