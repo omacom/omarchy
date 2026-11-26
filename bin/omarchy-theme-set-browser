@@ -32,11 +32,58 @@ file_is_canonical() {
   [[ $(stat -c '%U:%G %a' "$file") == "root:root 644" ]]
 }
 
+# A web page learns the browser's appearance through prefers-color-scheme,
+# which Chromium derives from the profile's appearance mode: the
+# browser.theme.color_scheme preference (0 = system, 1 = light, 2 = dark)
+# that chrome://settings/appearance writes. There is no managed desktop
+# policy for it -- the BrowserColorScheme key this used to write into
+# color.json is ignored by desktop Chromium, Chrome, and Brave (verified
+# against Chromium 155: a managed "dark" left prefers-color-scheme light) --
+# so set the preference in every Chromium-family profile instead. Web apps
+# share the browser's profile, so an installed web app follows the theme
+# with the browser itself. A running browser reads this preference only at
+# launch, so it applies there from the next launch; until then a running
+# browser set to follow the system follows the GNOME colour scheme
+# omarchy-theme-set-gnome sets, which flips it live.
+sync_browser_color_scheme() {
+  local mode scheme config_home config_dir profile_dir preferences current tmp
+
+  mode=$(omarchy-theme-color mode 2>/dev/null) || return 0
+  if [[ $mode == "light" ]]; then
+    scheme=1
+  else
+    scheme=2
+  fi
+
+  command -v jq >/dev/null || return 0
+  config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+
+  for config_dir in chromium google-chrome BraveSoftware/Brave-Browser BraveSoftware/Brave-Origin microsoft-edge vivaldi opera; do
+    for profile_dir in "$config_home/$config_dir/Default" "$config_home/$config_dir"/Profile\ *; do
+      preferences="$profile_dir/Preferences"
+      [[ -f $preferences && ! -L $preferences ]] || continue
+
+      current=$(jq -r '[(.browser.theme.color_scheme // -1), (.browser.theme.color_scheme2 // -1)] | @tsv' "$preferences" 2>/dev/null) || continue
+      [[ $current == "$scheme"$'\t'"$scheme" ]] && continue
+
+      tmp=$(mktemp "$profile_dir/.Preferences.XXXXXX") || continue
+      if jq --argjson scheme "$scheme" '.browser.theme.color_scheme = $scheme | .browser.theme.color_scheme2 = $scheme' "$preferences" >"$tmp" 2>/dev/null; then
+        chmod 600 "$tmp"
+        mv "$tmp" "$preferences"
+      else
+        rm -f "$tmp"
+      fi
+    done
+  done
+}
+
+sync_browser_color_scheme
+
 # Skip the privileged policy write and browser refreshes entirely when every
 # existing managed color.json is already canonical. The writer only touches
 # directories that exist, so a browser installed since then has no color.json
 # yet and takes the write.
-expected_json='{"BrowserThemeColor": "'$THEME_HEX_COLOR'", "BrowserColorScheme": "device"}'
+expected_json='{"BrowserThemeColor": "'$THEME_HEX_COLOR'"}'
 saw_any=false
 all_unchanged=true
 for dir in "${POLICY_DIRS[@]}"; do
