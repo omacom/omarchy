@@ -230,7 +230,6 @@ Panel {
   function toggleNetwork() {
     if (!networkManagerAvailable) return
     Quickshell.execDetached(["omarchy-network-wifi", Networking.wifiEnabled ? "off" : "on"])
-    Qt.callLater(function() { root.refresh(true) })
   }
 
   ShellIpc {
@@ -884,6 +883,7 @@ Panel {
 
   function clearNetworkAction() {
     actionTimeout.stop()
+    wifiActionFailDelay.stop()
     if (actionKind === "connect" && passwordSsid === actionSsid) passwordSsid = ""
     failureSsid = ""
     failureReason = ""
@@ -895,6 +895,7 @@ Panel {
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
+    wifiActionFailDelay.stop()
     failureSsid = actionSsid
     failureKind = actionKind
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
@@ -981,6 +982,7 @@ Panel {
     property string secret: ""
     property bool sendSecret: false
     stdinEnabled: true
+    stderr: StdioCollector { id: wifiActionStderr; waitForEnd: true }
     onStarted: {
       if (sendSecret) write(secret + "\n")
       secret = ""
@@ -988,22 +990,45 @@ Panel {
     }
     onExited: function(exitCode) {
       var ssid = targetSsid
+      var errText = String(wifiActionStderr.text || "").trim()
       targetSsid = ""
       secret = ""
       sendSecret = false
       if (exitCode !== 0 && root.actionKind !== "" && root.actionSsid === ssid) {
-        var net = root.networkForSsid(ssid)
-        if (net) {
-          root.failNetworkAction(net, -1)
-        } else {
-          actionTimeout.stop()
-          root.failureSsid = ssid
-          root.failureKind = root.actionKind
-          root.failureReason = root.networkFailureReason(-1, false)
-          root.actionSsid = ""
-          root.actionKind = ""
-          root.refresh()
-        }
+        // Give NetworkManager's own connectionFailed signal a short head start
+        // so specific reasons (Wrong password, reprompt) win over a generic fallback.
+        wifiActionFailDelay.failedSsid = ssid
+        wifiActionFailDelay.failedReason = errText.indexOf("Secrets were required") >= 0
+          ? root.connectionFailReasons.NoSecrets
+          : -1
+        wifiActionFailDelay.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: wifiActionFailDelay
+    property string failedSsid: ""
+    property int failedReason: -1
+    interval: 750
+    repeat: false
+    onTriggered: {
+      if (root.actionKind === "" || root.actionSsid !== failedSsid) return
+      var net = root.networkForSsid(failedSsid)
+      var reason = failedReason
+      if (net) {
+        var ours = root.actionKind === "connect"
+        root.failNetworkAction(net, reason)
+        if (ours && root.shouldRepromptPassphrase(reason, root.requiresCredentials(net.security)))
+          root.openPasswordPrompt(failedSsid)
+      } else {
+        actionTimeout.stop()
+        root.failureSsid = failedSsid
+        root.failureKind = root.actionKind
+        root.failureReason = root.networkFailureReason(reason, false)
+        root.actionSsid = ""
+        root.actionKind = ""
+        root.refresh()
       }
     }
   }
@@ -1028,7 +1053,7 @@ Panel {
 
   function forget(net) {
     runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) {
-      runWifiCli(network.name || "", ["omarchy-network-wifi", "forget", "--", network.name])
+      runWifiCli(network.name || "", ["omarchy-network-wifi", "forget", "--ssid", "--", network.name])
     })
   }
 
@@ -1191,6 +1216,8 @@ Panel {
     repeat: false
     onTriggered: {
       if (!root.actionKind) return
+      wifiActionFailDelay.stop()
+      wifiAction.running = false
       var reason
       if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
       else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")

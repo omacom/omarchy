@@ -126,7 +126,7 @@ def ethernet_devices() -> list[dict]:
         if len(parts) < 4:
             continue
         dev, dev_type, state, conn = parts[0], parts[1], parts[2], parts[3]
-        if dev_type != "ethernet":
+        if dev_type != "ethernet" or state == "unmanaged":
             continue
         kv = nm_parse_kv(
             run_cmd(
@@ -421,10 +421,6 @@ def cmd_dhcp(args: list[str], as_json: bool) -> int:
             "",
             "ipv4.gateway",
             "",
-            "ipv4.dns",
-            "",
-            "ipv4.ignore-auto-dns",
-            "no",
         ],
         check=True,
     )
@@ -491,6 +487,11 @@ def cmd_static(args: list[str], as_json: bool) -> int:
         raise UsageError(f"invalid IPv4 CIDR '{cidr}': {exc}") from exc
     if iface_net.network.prefixlen == 0:
         raise UsageError(f"invalid prefix length in '{cidr}'")
+    if iface_net.network.prefixlen < 31 and iface_net.ip in (
+        iface_net.network.network_address,
+        iface_net.network.broadcast_address,
+    ):
+        raise UsageError(f"'{cidr}' cannot be the network or broadcast address")
 
     try:
         gw_ip = ipaddress.IPv4Address(gateway)
@@ -645,9 +646,11 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        raise SystemExit(130)
     except UsageError as exc:
         sys.stderr.write(f"omarchy-network-ethernet: {exc}\n")
         raise SystemExit(2)
-    except RuntimeError as exc:
+    except (RuntimeError, OSError) as exc:
         sys.stderr.write(f"omarchy-network-ethernet: {exc}\n")
         raise SystemExit(1)

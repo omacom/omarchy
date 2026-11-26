@@ -342,7 +342,7 @@ while i < len(args):
         if i + 1 < len(args) and args[i + 1] == "no":
             escape_off = True
         i += 2
-    elif a in ("-f", "-g", "--get-values"):
+    elif a in ("-f", "-g", "--get-values", "--wait"):
         i += 2
     else:
         stripped.append(a)
@@ -379,6 +379,7 @@ if stripped[:2] == ["device", "status"]:
         if "-g" not in args:
             print(f"eth0:ethernet:{eth0_state}:{eth0_conn}")
             print("eth1:ethernet:disconnected:--")
+            print("veth1234:ethernet:unmanaged:--")
     raise SystemExit(0)
 
 if stripped[:2] == ["device", "show"] and len(stripped) >= 3:
@@ -478,14 +479,18 @@ if stripped[:2] == ["connection", "show"]:
         idx = args.index("--get-values") if "--get-values" in args else args.index("-g")
         field = args[idx + 1]
         uid = stripped[-1]
-        if field == "802-11-wireless.ssid":
+        if field == "802-11-wireless.ssid,connection.interface-name":
             mapping = {
-                "11111111-1111-1111-1111-111111111111": "Quattro",
-                "33333333-3333-3333-3333-333333333333": "Cafe:2\\4",
-                "66666666-6666-6666-6666-666666666666": "SixOnly",
-                "77777777-7777-7777-7777-777777777777": "MixedPin",
+                "11111111-1111-1111-1111-111111111111": ("Quattro", "wlan0"),
+                "33333333-3333-3333-3333-333333333333": ("Cafe:2\\4", ""),
+                "66666666-6666-6666-6666-666666666666": ("SixOnly", ""),
+                "77777777-7777-7777-7777-777777777777": ("MixedPin", ""),
+                "88888888-8888-8888-8888-888888888888": ("Quattro", "wlan1"),
+                "99999999-9999-9999-9999-999999999999": ("Office-5G", ""),
             }
-            print(mapping.get(uid, ""))
+            ssid_val, iface_val = mapping.get(uid, ("", ""))
+            print(ssid_val)
+            print(iface_val)
             raise SystemExit(0)
         if field == "802-11-wireless-security.key-mgmt,802-11-wireless.band":
             print("wpa-psk")
@@ -519,6 +524,10 @@ if stripped[:2] == ["connection", "show"]:
         print("SixOnly:66666666-6666-6666-6666-666666666666:802-11-wireless:--:yes")
     if os.environ.get("TEST_SAVED_MIXEDPIN") == "1":
         print("MixedPin:77777777-7777-7777-7777-777777777777:802-11-wireless:--:yes")
+    if os.environ.get("TEST_DUAL_WIFI") == "1":
+        print("Quattro-wlan1:88888888-8888-8888-8888-888888888888:802-11-wireless:--:yes")
+    if os.environ.get("TEST_OFFICE_CONFLICT") == "1":
+        print("Office:99999999-9999-9999-9999-999999999999:802-11-wireless:--:yes")
     print("Wired Office:22222222-2222-2222-2222-222222222222:802-3-ethernet:eth0:yes")
     print("Quattro:44444444-4444-4444-4444-444444444444:802-3-ethernet:--:no")
     raise SystemExit(0)
@@ -658,8 +667,21 @@ pass "wifi CLI list/scan deduplicates bands, unescapes SSIDs, and lists known pr
 : >"$NET_STATE_DIR/nmcli_stdin.log"
 printf 'top-secret-psk\n' | wifi_cli connect SixOnly --password-stdin --json >/dev/null
 grep -q "top-secret-psk" "$NET_STATE_DIR/nmcli.log" && fail "wifi PSK secret leaked into nmcli argv"
+grep -q "connection.autoconnect no" "$NET_STATE_DIR/nmcli.log" || fail "new PSK profile must disable autoconnect until secret is saved"
 grep -q "wifi-sec.key-mgmt sae" "$NET_STATE_DIR/nmcli.log" || fail "WPA3-only SSID should use sae"
 grep -q "set wifi-sec.psk top-secret-psk" "$NET_STATE_DIR/nmcli_stdin.log" || fail "PSK written via stdin"
+grep -q "set connection.autoconnect yes" "$NET_STATE_DIR/nmcli_stdin.log" || fail "autoconnect re-enabled in edit script"
+
+: >"$NET_STATE_DIR/nmcli.log"
+status=0
+printf 'short\n' | wifi_cli connect SixOnly --password-stdin >/dev/null 2>&1 || status=$?
+(( status == 2 )) || fail "PSK shorter than 8 chars should fail with exit 2" "got $status"
+grep -q "connection add" "$NET_STATE_DIR/nmcli.log" && fail "invalid PSK must fail before adding a profile"
+
+: >"$NET_STATE_DIR/nmcli.log"
+TEST_DUAL_WIFI=1 wifi_cli connect Quattro --interface wlan1 --json >/dev/null
+grep -q "connection up uuid 88888888-8888-8888-8888-888888888888 ifname wlan1" "$NET_STATE_DIR/nmcli.log" ||
+  fail "connect --interface wlan1 must select wlan1's compatible profile, not wlan0's" "$(cat "$NET_STATE_DIR/nmcli.log")"
 
 : >"$NET_STATE_DIR/nmcli.log"
 printf 'upgraded-psk\n' | TEST_SAVED_SIXONLY=1 wifi_cli connect SixOnly --password-stdin --json >/dev/null
@@ -673,7 +695,7 @@ grep -q "wifi-sec.key-mgmt sae" "$NET_STATE_DIR/nmcli.log" &&
 
 : >"$NET_STATE_DIR/nmcli.log"
 status=0
-printf 'bad-psk\n' | TEST_SAVED_SIXONLY=1 TEST_FAIL_UP=1 wifi_cli connect SixOnly --password-stdin >/dev/null 2>&1 || status=$?
+printf 'wrong-psk-value\n' | TEST_SAVED_SIXONLY=1 TEST_FAIL_UP=1 wifi_cli connect SixOnly --password-stdin >/dev/null 2>&1 || status=$?
 (( status == 1 )) || fail "failed saved-profile PSK update should exit 1" "got $status"
 grep -q "connection modify uuid 66666666-6666-6666-6666-666666666666 wifi-sec.key-mgmt wpa-psk" "$NET_STATE_DIR/nmcli.log" ||
   fail "failed saved-profile security change should roll back key-mgmt" "$(cat "$NET_STATE_DIR/nmcli.log")"
@@ -710,6 +732,16 @@ printf 'connected\n' >"$NET_STATE_DIR/eth0_state"
 pass "wifi and ethernet disconnect stop in-progress connection attempts"
 
 # 8. Wi-Fi forget, password, band, radio toggle
+: >"$NET_STATE_DIR/nmcli.log"
+status=0
+TEST_OFFICE_CONFLICT=1 wifi_cli forget --ssid Office >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "forget --ssid Office must not match a profile named Office with SSID Office-5G" "got $status"
+grep -q "connection delete" "$NET_STATE_DIR/nmcli.log" && fail "forget --ssid must not delete unrelated profile"
+
+status=0
+wifi_cli band invalid >/dev/null 2>&1 || status=$?
+(( status == 2 )) || fail "invalid wifi band should fail with exit 2" "got $status"
+
 : >"$NET_STATE_DIR/nmcli.log"
 out=$(wifi_cli forget Quattro --json)
 python3 - "$out" <<'PY'
@@ -768,6 +800,8 @@ assert d["method"] == "manual" and d["address"] == "192.168.50.10/24" and d["dns
 PY
 for bad in \
   "192.168.50.10 --gateway 192.168.50.1" \
+  "192.168.50.0/24 --gateway 192.168.50.1" \
+  "192.168.50.255/24 --gateway 192.168.50.1" \
   "999.1.1.1/24 --gateway 192.168.50.1" \
   "192.168.50.10/24 --gateway not-an-ip" \
   "192.168.50.10/24 --gateway 192.168.50.1 --dns bad-dns"; do
@@ -776,11 +810,13 @@ for bad in \
   eth_cli static $bad >/dev/null 2>&1 || status=$?
   (( status == 2 )) || fail "ethernet static should reject invalid input ($bad) with exit 2" "got $status"
 done
+: >"$NET_STATE_DIR/nmcli.log"
 out=$(eth_cli dhcp eth0 --json)
 python3 - "$out" <<'PY'
 import json, sys
 assert json.loads(sys.argv[1])["method"] == "auto"
 PY
+grep -q "ipv4.dns" "$NET_STATE_DIR/nmcli.log" && fail "ethernet dhcp must preserve DNS provider settings"
 : >"$NET_STATE_DIR/nmcli.log"
 out=$(eth_cli forget Quattro --json)
 python3 - "$out" <<'PY'
