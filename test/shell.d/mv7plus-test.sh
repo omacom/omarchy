@@ -91,6 +91,27 @@ for fn in (lambda: silent.read_one("mute"), lambda: silent.read_all(require_comp
     except TimeoutError:
         raised = True
     assert raised, "timed-out HID read must raise TimeoutError"
+
+# Atomic toggle flips boolean features under one session and rejects non-booleans.
+class FakeMic(ctl.MV7Plus):
+    def __init__(self):
+        self.seq = 1
+        self.store = {(0x00, (0x01, 0x04)): bytes([0])}
+    def get_feat(self, pfx, feat):
+        return self.store.get((pfx, feat))
+    def set_feat(self, pfx, feat, val):
+        self.store[(pfx, feat)] = val
+
+fake = FakeMic()
+assert fake.toggle_named("mute") == {"mute": 1}
+assert fake.toggle_named("mute") == {"mute": 0}
+for bad_key in ("gain_db", "hpf", "bogus"):
+    rejected = False
+    try:
+        fake.toggle_named(bad_key)
+    except ValueError:
+        rejected = True
+    assert rejected, f"toggle_named must reject non-boolean {bad_key}"
 PY
 
 pass "Shure MV7+ HID protocol, value bounds, discovery, locking, and timeout handling pass"
@@ -206,6 +227,13 @@ action = sys.argv[1] if len(sys.argv) > 1 else "read"
 if action == "set":
     key, raw = sys.argv[2], sys.argv[3]
     val = round(float(raw) * 2.0) / 2.0 if key == "gain_db" else int(raw)
+    st[key] = val
+    with open(state_path, "w") as f:
+        json.dump(st, f)
+    print(json.dumps({"connected": True, "device": "/dev/hidraw9", "state": {key: val}}))
+elif action == "toggle":
+    key = sys.argv[2]
+    val = 0 if st[key] == 1 else 1
     st[key] = val
     with open(state_path, "w") as f:
         json.dump(st, f)

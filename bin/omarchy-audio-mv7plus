@@ -191,7 +191,7 @@ print_status() {
 }
 
 handle_bool() {
-  local key="$1" arg="${2:-}" out cur next val
+  local key="$1" arg="${2:-}" out next val
   if [[ -z $arg ]]; then
     out="$(run_ctl read)"
     val="$(state_val "$out" "$key")"
@@ -202,10 +202,10 @@ handle_bool() {
     on|1|true) next=1 ;;
     off|0|false) next=0 ;;
     toggle)
-      out="$(run_ctl read)"
-      cur="$(state_val "$out" "$key")"
-      [[ $cur == "0" || $cur == "1" ]] || die "unexpected state for $key: $cur"
-      next=$(( cur == 1 ? 0 : 1 ))
+      out="$(run_ctl toggle "$key")"
+      val="$(state_val "$out" "$key")"
+      fmt_bool "$val"
+      return
       ;;
     *) die_usage "expected on, off, or toggle (got: $arg)" ;;
   esac
