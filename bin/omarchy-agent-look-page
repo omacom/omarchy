@@ -75,7 +75,9 @@ log=$(mktemp)
 # failed load, then "saved" once the screenshot is written. Node speaks
 # Chrome's DevTools protocol over its own WebSocket, so nothing else is needed;
 # Arch's Node, since a project's mise version may be anything.
-timeout $(( after / 1000 + 60 )) /usr/bin/node - \
+# Waits and holds in --keys add to the time the look takes.
+key_ms=$(grep -oE '(^| )\+[0-9]+|:[0-9]+( |$)' <<<"$keys" | tr -dc '0-9\n' | awk '{ total += $1 } END { print total + 0 }')
+timeout $(( (after + key_ms) / 1000 + 60 )) /usr/bin/node - \
   "$chrome" "$url" "$keys" "$after" "${size%x*}" "${size#*x}" "$out" >"$log" 2>&1 <<'JS'
 const { spawn } = require("child_process");
 const fs = require("fs");

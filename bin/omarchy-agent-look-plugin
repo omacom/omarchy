@@ -25,6 +25,10 @@ plugin=$(realpath "$1")
 shift
 out=""
 sets="{}"
+# A value that reads as JSON (42, true, [1, 2]) is that; anything else is the string.
+set_property() {
+  sets=$(jq -c --arg key "${1%%=*}" --arg value "${1#*=}" '. + {($key): ($value | try fromjson catch $value)}' <<<"$sets")
+}
 while (( $# )); do
   case $1 in
     --out) out=${2:?--out needs a file}; shift 2 ;;
@@ -33,10 +37,10 @@ while (( $# )); do
         echo "--set takes property=value, like --set count=42" >&2
         exit 2
       fi
-      sets=$(jq -c --arg key "${2%%=*}" --arg value "${2#*=}" '. + {($key): ($value | try fromjson catch .)}' <<<"$sets")
+      set_property "$2"
       shift 2 ;;
     # --set a=1 b=2 sets both.
-    [A-Za-z_]*=*) sets=$(jq -c --arg key "${1%%=*}" --arg value "${1#*=}" '. + {($key): ($value | try fromjson catch .)}' <<<"$sets"); shift ;;
+    [A-Za-z_]*=*) set_property "$1"; shift ;;
     *) echo "$usage" >&2; exit 2 ;;
   esac
 done
@@ -117,7 +121,7 @@ ShellRoot {
       } else if (root.step === 2) {
         frame.grabToImage(function(result) {
           result.saveToFile($shot_path)
-          console.log("PREVIEW_SAVED " + Math.round(root.widget.width) + "x" + Math.round(root.widget.height))
+          console.log("PREVIEW_SAVED " + Math.round(root.widget.width) + "x" + Math.round(root.widget.height) + " " + Math.round(root.widget.implicitWidth) + "x" + Math.round(root.widget.implicitHeight))
           Qt.quit()
         })
       }
@@ -160,13 +164,15 @@ if [[ ! -s $work/shot.png ]]; then
   exit 1
 fi
 magick "$work/shot.png" -resize '200%' "$out"
-size=$(grep -oE 'PREVIEW_SAVED [0-9]+x[0-9]+' "$work/log" | cut -d' ' -f2)
+read -r size implicit < <(grep -oE 'PREVIEW_SAVED [0-9]+x[0-9]+ [0-9]+x[0-9]+' "$work/log" | cut -d' ' -f2-)
 echo "screenshot: $out"
 echo "widget: $size, shown at 2x on a strip of bar"
 # The bar lays widgets out by their size, so one with none draws over its
 # neighbours, though its own label may still show in the picture.
-if [[ $size == 0x* || $size == *x0 ]]; then
-  problems=$(printf '%s\n' "${problems:+$problems}" "the widget is $size, so the bar gives it no room and it draws over its neighbours: size the BarWidget to its content, as implicitWidth: button.implicitWidth and implicitHeight: button.implicitHeight do" | sed '/^$/d')
+# The preview gives the widget the bar's height, so it's the implicit size,
+# the one the bar lays out by, that tells.
+if [[ $implicit == 0x* || $implicit == *x0 ]]; then
+  problems=$(printf '%s\n' "${problems:+$problems}" "the widget's implicit size is $implicit, so the bar gives it no room and it draws over its neighbours: size the BarWidget to its content, as implicitWidth: button.implicitWidth and implicitHeight: button.implicitHeight do" | sed '/^$/d')
 fi
 if [[ -n $problems ]]; then
   echo "problems:"
