@@ -1262,12 +1262,16 @@ conn.execute("CREATE TABLE event_sequence (aggregate_id text PRIMARY KEY, seq in
 conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL REFERENCES session_v2(id), type text NOT NULL, seq integer NOT NULL, time_created integer, time_updated integer NOT NULL, data text NOT NULL)")
 conn.execute("INSERT INTO session_v2 VALUES ('ses_untimed', NULL, NULL, ?, ?)", (now_ms, now_ms))
 conn.execute("INSERT INTO session_v2 VALUES ('ses_untimed_prompt', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO session_v2 VALUES ('ses_failed_yesterday', NULL, NULL, ?, ?)", (now_ms, now_ms))
 conn.execute("INSERT INTO event_sequence VALUES ('ses_untimed', 1)")
 conn.execute("INSERT INTO event_sequence VALUES ('ses_untimed_prompt', 2)")
+conn.execute("INSERT INTO event_sequence VALUES ('ses_failed_yesterday', 2)")
 conn.execute("INSERT INTO session_message VALUES ('msg_untimed', 'ses_untimed', 'assistant', 1, NULL, ?, ?)", (now_ms, json.dumps({"model": {"providerID": "demo", "id": "v2-model"}, "tokens": {"input": 5}})))
 conn.executemany("INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)", [
   ("msg_untimed_user", "ses_untimed_prompt", "user", 1, None, now_ms, json.dumps({"role": "user"})),
   ("msg_untimed_reply", "ses_untimed_prompt", "assistant", 2, now_ms, now_ms, json.dumps({"model": {"providerID": "demo", "id": "v2-model"}, "tokens": {}})),
+  ("msg_yesterday_user", "ses_failed_yesterday", "user", 1, yesterday_ms, yesterday_ms, json.dumps({"role": "user", "time": {"created": yesterday_ms}})),
+  ("msg_yesterday_reply", "ses_failed_yesterday", "assistant", 2, None, now_ms, json.dumps({"model": {"providerID": "demo", "id": "v2-model"}, "tokens": {}})),
 ])
 conn.commit()
 conn.close()
@@ -1277,7 +1281,7 @@ old_today = collectors.today
 collectors.today = lambda: "2030-01-01"
 rows, next_day_complete = collectors.scan_opencode(["demo"], indexed_accept)
 collectors.today = old_today
-check("cached OpenCode rows with no timestamp roll over to the current day", complete and next_day_complete and sorted((row.day, row.input_tokens, row.prompts) for row in rows) == [("2030-01-01", 0, 1), ("2030-01-01", 5, 1)], json.dumps([row._asdict() for row in rows]))
+check("cached OpenCode rows with no timestamp roll over to the current day", complete and next_day_complete and sorted((row.day, row.input_tokens, row.prompts) for row in rows) == [(collectors.local_day(yesterday_ms), 0, 1), ("2030-01-01", 0, 1), ("2030-01-01", 5, 1)], json.dumps([row._asdict() for row in rows]))
 os.environ["OPENCODE_DB"] = str(indexed_db)
 
 conn = sqlite3.connect(indexed_db)

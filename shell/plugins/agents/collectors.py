@@ -1571,11 +1571,15 @@ def _scan_opencode_db(
     if row is None or str(message_id) in seen:
       return
     seen.add(str(message_id))
+    today_if_untimed = False
     if empty and not (row.input_tokens or row.output_tokens or row.cache_read or row.cache_write):
       # A failed reply is only its prompt, which counts on its own day.
       if typed is None:
         return
       row = row._replace(day=typed)
+      today_if_untimed = typed_today_if_untimed
+    else:
+      today_if_untimed = obj(obj(entry).get("time")).get("created") is None and created is None
     if turn == "":
       # The original store's steps name the user message they answer; a
       # compaction's summary answers the marker opencode adds, no prompt.
@@ -1594,7 +1598,6 @@ def _scan_opencode_db(
     rows.append(row)
     turns.append((turn, (spent_at, str(message_id))))
     if include_ids:
-      today_if_untimed = (obj(obj(entry).get("time")).get("created") is None and created is None) or typed_today_if_untimed
       indexed_rows.append((str(session_id), {"id": str(message_id), "table": source_table, "todayIfUntimed": today_if_untimed, "row": row._asdict()}))
 
   def answered() -> list[UsageRow]:
