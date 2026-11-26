@@ -3,7 +3,9 @@
 # omarchy:summary=Switch between audio outputs while preserving the mute status
 
 # Skip the physical sink an active speaker tuning fronts: rotating onto it would
-# silently bypass the tuning rather than pick a different output.
+# silently bypass the tuning rather than pick a different output. Also skip the
+# device end of a WirePlumber audio group (session.audio-group): it belongs to
+# one program and only forwards to a real output.
 fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
 
 # pactl translates availability, headers and yes/no; parse them in the C locale.
@@ -23,7 +25,8 @@ next_sink_json_volume=""
   jq -j --arg fronted "$fronted" --arg current "$current_sink_name" '
     [.[]
       | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))
-      | select($fronted == "" or .name != $fronted)] as $sinks
+      | select($fronted == "" or .name != $fronted)
+      | select(.properties."session.audio-group" == null)] as $sinks
     | if ($sinks | length) == 0 then empty else
         (($sinks | map(.name) | index($current)) as $idx
           | if $idx != null then ($idx + 1) % ($sinks | length) else 0 end) as $next_idx

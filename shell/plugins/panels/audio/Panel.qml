@@ -65,6 +65,10 @@ Panel {
       // A tuning's output is a playback stream too, but it is the processing
       // itself rather than an application, so it does not belong in the list.
       if (String(n.name || "").indexOf("omarchy_speaker_tuning") === 0) continue
+      // An audio group's forwarding stream only carries the app's own stream,
+      // which is listed already. Matched on the name WirePlumber gives it, since
+      // node properties stay empty until the tracker below binds the node.
+      if (String(n.name || "").indexOf("stream.audio_group:") === 0) continue
       if (platformHides(n)) continue
       list.push(n)
     }
