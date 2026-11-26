@@ -114,6 +114,21 @@ ShellRoot {
             root.assertTrue(indicator.text !== workingGlyph, "icon crosses out when the reader is unavailable")
             root.assertTrue(view.fingerprintReserve > 0, "space stays reserved for the crossed-out icon")
 
+            // The keyboard layout label sits between the field and the notice
+            // when both show, and neither may overlap the other.
+            var layoutLabel = findByObjectName(view, "keyboardLayoutIndicator")
+            root.assertTrue(layoutLabel !== null, "keyboard layout label exists in the lock view")
+            if (layoutLabel) {
+              view.keyboardLayout = "Czech (QWERTY)"
+              view.multipleKeyboardLayouts = false
+              root.assertTrue(!layoutLabel.visible, "a single keyboard layout shows no label")
+              view.multipleKeyboardLayouts = true
+              root.assertTrue(layoutLabel.visible, "several keyboard layouts show the label")
+              root.assertTrue(notice.y >= layoutLabel.y + layoutLabel.height,
+                "unavailable notice sits below the layout label, got notice y " + notice.y + " vs label bottom " + (layoutLabel.y + layoutLabel.height))
+              view.multipleKeyboardLayouts = false
+            }
+
             view.fingerprintUnavailable = false
             root.assertTrue(!notice.visible, "notice clears when the reader recovers")
             root.assertTrue(indicator.text === workingGlyph, "icon restores when the reader recovers")

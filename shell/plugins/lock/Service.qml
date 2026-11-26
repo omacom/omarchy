@@ -171,6 +171,13 @@ Item {
     keyboardLayoutProc.running = true
   }
 
+  // A keyboard named by a switch before this opening may have moved since,
+  // unseen while unlocked, so each opening starts from a fresh reading.
+  function readKeyboardLayoutAfresh() {
+    switchedKeyboardName = ""
+    refreshKeyboardLayout()
+  }
+
   function refreshFingerprintStatus() {
     if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
   }
@@ -247,7 +254,7 @@ Item {
     Qt.callLater(function() {
       root.refreshBackground()
       root.refreshFingerprintStatus()
-      root.refreshKeyboardLayout()
+      root.readKeyboardLayoutAfresh()
     })
 
     return true
@@ -501,6 +508,14 @@ Item {
       }
       if (name.indexOf("activelayout") !== -1 || name === "configreloaded") root.refreshKeyboardLayout()
     }
+  }
+
+  // Hyprland raises no event when a keyboard is plugged in or unplugged, and the
+  // one the label names may be the one that left.
+  Connections {
+    target: InputDevices
+    enabled: root.locked || root.previewVisible
+    function onChanged() { root.refreshKeyboardLayout() }
   }
 
   Process {
@@ -995,7 +1010,7 @@ Item {
     function preview(): string {
       root.refreshBackground()
       root.refreshFingerprintStatus()
-      root.refreshKeyboardLayout()
+      root.readKeyboardLayoutAfresh()
       root.previewVisible = true
       return "ok"
     }
