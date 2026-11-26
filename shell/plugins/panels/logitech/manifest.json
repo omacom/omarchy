@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.logitech",
+  "name": "Logitech Mouse",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Battery, sensitivity, scroll wheel, haptics, host switching, and button mapping for Logitech mice via Solaar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Logitech Mouse",
+    "description": "Logitech mouse controls powered by Solaar; appears in the bar whenever a supported Logitech mouse is connected.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "showPercentage": false
+    },
+    "schema": [
+      {
+        "key": "showPercentage",
+        "type": "boolean",
+        "label": "Show battery percentage in bar",
+        "defaultValue": false
+      }
+    ]
+  }
+}
