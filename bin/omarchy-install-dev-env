@@ -30,7 +30,9 @@ ruby)
   mise settings add ruby.compile false
   mise settings add idiomatic_version_file_enable_tools ruby
   mise use --global ruby@latest
-  echo "gem: --no-document" >~/.gemrc
+  # Added to, not replaced, so a region's mirror (docs/regions.md) or the
+  # user's own settings stay.
+  grep -qxF "gem: --no-document" ~/.gemrc 2>/dev/null || echo "gem: --no-document" >>~/.gemrc
   mise x ruby -- gem install rails --no-document
   echo -e "\nYou can now run: rails new myproject"
   ;;
@@ -69,8 +71,6 @@ symfony)
 python)
   echo -e "Installing Python...\n"
   mise use --global python@latest
-  echo -e "\nInstalling uv...\n"
-  curl -fsSL https://astral.sh/uv/install.sh | sh
   ;;
 elixir)
   echo -e "Installing Elixir...\n"
@@ -92,6 +92,9 @@ phoenix)
   ;;
 rust)
   echo -e "Installing Rust...\n"
+  # Crates that generate C bindings with bindgen, including Ruby gems built
+  # with rb-sys, load libclang from clang.
+  omarchy-pkg-add clang
   bash -c "$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)" -- -y
   ;;
 java)

@@ -66,6 +66,11 @@ Item {
     })
   }
 
+  function safeIface(value) {
+    var name = String(value || "").trim()
+    return /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(name) ? name : ""
+  }
+
   function close() {
     root.opened = false
     root.pendingShow = false
@@ -73,7 +78,10 @@ Item {
       root.expectedStop = true
       qrProc.running = false
     }
-    if (pwProc.running) pwProc.running = false
+    if (pwProc.running) {
+      root.pwExpectedStop = true
+      pwProc.running = false
+    }
     root.qrSize = 0
     root.qrRows = []
     root.error = ""
@@ -124,8 +132,15 @@ Item {
       pwExpectedStop = true
       pwProc.running = false
     }
-    qrProc.command = requestedIface
-      ? ["omarchy-network-qr", "--meta", requestedIface]
+    var rawIface = String(requestedIface || "").trim()
+    var validIface = safeIface(rawIface)
+    if (rawIface !== "" && validIface === "") {
+      loading = false
+      error = I18n.t("wifiqr.generateFailed")
+      return
+    }
+    qrProc.command = validIface
+      ? ["omarchy-network-qr", "--meta", validIface]
       : ["omarchy-network-qr", "--meta"]
     qrProc.running = true
   }
@@ -135,7 +150,7 @@ Item {
     qrRows = parsed.matrix.rows
     qrSize = parsed.matrix.size
     if (parsed.meta.ssid !== "") ssid = parsed.meta.ssid
-    if (parsed.meta.iface !== "") iface = parsed.meta.iface
+    if (parsed.meta.iface !== "") iface = safeIface(parsed.meta.iface)
     secured = parsed.meta.security !== "" && parsed.meta.security !== "nopass"
     // Good output settles the run: a canceled predecessor's stderr may have
     // landed after this generation started, and must not shadow its result.
@@ -145,12 +160,13 @@ Item {
   function togglePassword() {
     if (passwordVisible) { passwordVisible = false; return }
     if (password !== "") { passwordVisible = true; return }
-    if (pwProc.running || !iface) return
+    var validIface = safeIface(iface)
+    if (pwProc.running || !validIface) return
     passwordError = ""
     // Only a deliberate new lookup lowers the canceled-fetch guard, right as
     // it launches -- see the pwProc comment.
     pwExpectedStop = false
-    pwProc.command = ["omarchy-network-password", iface]
+    pwProc.command = ["omarchy-network-password", validIface]
     pwProc.running = true
   }
 
@@ -183,7 +199,7 @@ Item {
       if (exitCode !== 0 || root.qrSize === 0) {
         root.qrSize = 0
         root.qrRows = []
-        if (root.error === "") root.error = "Could not generate the Wi-Fi QR code"
+        if (root.error === "") root.error = I18n.t("wifiqr.generateFailed")
       }
     }
   }
@@ -206,7 +222,7 @@ Item {
       if (root.pwExpectedStop) return
       if (!root.opened) return
       if (exitCode === 0 && root.password !== "") root.passwordVisible = true
-      else root.passwordError = "Could not read the Wi-Fi password"
+      else root.passwordError = I18n.t("wifiqr.passwordFailed")
     }
   }
 
@@ -286,6 +302,9 @@ Item {
             Grid {
               anchors.fill: parent
               columns: root.qrSize
+              // A mirrored QR code does not scan: modules stay left to right
+              // in right-to-left languages too.
+              LayoutMirroring.enabled: false
 
               Repeater {
                 model: root.qrSize * root.qrSize
@@ -297,7 +316,7 @@ Item {
 
                   width: qrCanvas.moduleSize
                   height: qrCanvas.moduleSize
-                  color: root.qrRows[matrixRow].charAt(matrixColumn) === "1" ? "#111111" : "transparent"
+                  color: (root.qrRows[matrixRow] || "").charAt(matrixColumn) === "1" ? "#111111" : "transparent"
                 }
               }
             }
@@ -305,7 +324,8 @@ Item {
 
           Text {
             visible: root.loading
-            text: "Generating QR code…"
+            text: I18n.t("wifiqr.generating")
+            textFormat: Text.PlainText
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -328,7 +348,8 @@ Item {
 
           Text {
             visible: root.showingQr
-            text: "Scan to join this network"
+            text: I18n.t("wifiqr.scanToJoin")
+            textFormat: Text.PlainText
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -341,7 +362,7 @@ Item {
             visible: root.showingQr && root.secured
             text: root.passwordError !== "" ? root.passwordError
               : root.passwordVisible ? root.password
-              : "Show password"
+              : I18n.t("wifiqr.showPassword")
             color: root.passwordError !== "" ? root.onScrimUrgent : root.onScrim
             opacity: root.passwordVisible || root.passwordError !== "" ? 1 : 0.6
             font.family: root.fontFamily

@@ -11,5 +11,5 @@ if gum confirm "Are you sure you want to reinstall and lose config changes?"; th
   omarchy-reinstall-pkgs
   omarchy-reinstall-configs
 
-  gum confirm "System has been reinstalled. Reboot?" && omarchy-system-reboot
+  gum confirm "System has been reinstalled. Reboot?" && omarchy-system reboot
 fi
