@@ -90,6 +90,7 @@ ShellRoot {
           root.menu.open(root.selectPayload("D", "d"))
           root.menu.open(root.selectPayload("E", "e"))
           root.assertTrue(root.menu.doneFile === root.scratchDir + "/done-e", "select E holds the live request afterwards")
+          root.menu.applyDmenuSelection("bravo")
         }
 
         // Scenario C: the native keybindings menu replaces a live select.
