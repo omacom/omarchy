@@ -1256,7 +1256,7 @@ Panel {
 
   Timer {
     id: actionCancelFallback
-    interval: 5000
+    interval: 8000
     repeat: false
     onTriggered: {
       wifiAction.timedOut = false

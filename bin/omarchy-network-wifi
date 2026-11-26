@@ -96,13 +96,13 @@ def cleanup_cancelled_connection(
     """Cancel an in-progress activation and roll back profile changes without interruption."""
     prev_handler = signal.signal(signal.SIGTERM, signal.SIG_IGN)
     try:
-        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid], timeout=5)
+        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid], timeout=3)
         if delete_profile:
-            run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid], timeout=5)
+            run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid], timeout=3)
         elif restore_key_mgmt:
             run_cmd(
                 ["nmcli", "connection", "modify", "uuid", con_uuid, "wifi-sec.key-mgmt", restore_key_mgmt],
-                timeout=5,
+                timeout=3,
             )
     except Exception:
         pass
@@ -688,8 +688,8 @@ def connect_enterprise(
         "802-1x.auth-timeout",
         "8",
     ]
-    run_cmd(add_cmd, check=True)
     try:
+        run_cmd(add_cmd, check=True)
         nm_set_secret_via_edit(con_uuid, "802-1x.password", password, enable_autoconnect=True)
         run_cmd(
             ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
@@ -768,9 +768,10 @@ def connect_psk_via_profile(
         ]
         if hidden:
             add_cmd += ["802-11-wireless.hidden", "yes"]
-        run_cmd(add_cmd, check=True)
         created = True
     try:
+        if created:
+            run_cmd(add_cmd, check=True)
         nm_set_secret_via_edit(con_uuid, "wifi-sec.psk", password, enable_autoconnect=created)
         run_cmd(
             ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
@@ -779,6 +780,46 @@ def connect_psk_via_profile(
         )
     except BaseException:
         cleanup_cancelled_connection(con_uuid, delete_profile=created, restore_key_mgmt=prev_km)
+        raise
+
+
+def connect_open_via_profile(
+    ssid: str,
+    hidden: bool,
+    target_iface: str,
+    *,
+    owe: bool = False,
+) -> None:
+    con_uuid = str(uuid_mod.uuid4())
+    add_cmd = [
+        "nmcli",
+        "connection",
+        "add",
+        "type",
+        "wifi",
+        "con-name",
+        ssid,
+        "ssid",
+        ssid,
+        "connection.uuid",
+        con_uuid,
+        "connection.autoconnect",
+        "no",
+    ]
+    if owe:
+        add_cmd += ["wifi-sec.key-mgmt", "owe"]
+    if hidden:
+        add_cmd += ["802-11-wireless.hidden", "yes"]
+    try:
+        run_cmd(add_cmd, check=True)
+        run_cmd(
+            ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+            check=True,
+            timeout=30,
+        )
+        run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "connection.autoconnect", "yes"], check=True)
+    except BaseException:
+        cleanup_cancelled_connection(con_uuid, delete_profile=True)
         raise
 
 
@@ -878,24 +919,10 @@ def cmd_connect(args: list[str], as_json: bool) -> int:
             if needs_pw and sys.stdin.isatty():
                 pw = getpass.getpass(f"Passphrase for {ssid}: ")
                 connect_psk_via_profile(ssid, pw, hidden, target_iface)
+            elif needs_pw:
+                raise UsageError(f"network '{ssid}' requires credentials (pass --password-stdin or --identity)")
             else:
-                before_uuids = {p["uuid"] for p in saved_wifi_profiles()}
-                cmd = ["nmcli", "--wait", "28", "device", "wifi", "connect", ssid, "ifname", target_iface]
-                if hidden:
-                    cmd += ["hidden", "yes"]
-                try:
-                    run_cmd(cmd, check=True, timeout=30)
-                except BaseException:
-                    prev_handler = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-                    try:
-                        for p in saved_wifi_profiles():
-                            if p["ssid"] == ssid and p["uuid"] not in before_uuids:
-                                cleanup_cancelled_connection(p["uuid"], delete_profile=True)
-                    except Exception:
-                        pass
-                    finally:
-                        signal.signal(signal.SIGTERM, prev_handler)
-                    raise
+                connect_open_via_profile(ssid, hidden, target_iface, owe=(sec == "OWE"))
 
     st = read_wifi_status(target_iface)
     if as_json:
