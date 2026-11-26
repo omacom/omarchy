@@ -263,6 +263,21 @@ hl.dsp.window.tag({ tag = "+omarchy-minimized-maximized", window = "address:0xab
   fail "minimize brings a maximized window to its own size before it leaves, and remembers it after" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize brings a maximized window to its own size before it leaves, and remembers it after"
 
+# True fullscreen is given up and remembered the same way.
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":3},"fullscreen":2}]\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+minimize 0xabc
+grep -qxF 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "unset", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" &&
+  grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-fullscreen", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize takes a window out of fullscreen before it leaves, and remembers it" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize takes a window out of fullscreen before it leaves, and remembers it"
+
 # A tiled workspace has no dock to bring a window back from, so nothing there
 # is minimized.
 cat >"$mock_bin/hyprctl" <<STUB

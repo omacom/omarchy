@@ -289,9 +289,8 @@ hl = {
     if action.kind == "place" then
       placed[target.address] = true
     elseif action.kind == "fullscreen" then
-      if action.mode == "maximized" then
-        target.fullscreen = action.action == "unset" and 0 or 1
-      end
+      local state = action.mode == "maximized" and 1 or 2
+      target.fullscreen = action.action == "unset" and 0 or state
     elseif action.tag then
       local name = action.tag:sub(2)
       if action.tag:sub(1, 1) == "+" then
@@ -673,10 +672,12 @@ assert(not moving.floating, "a window carried to a tiled workspace kept floating
 fi
 pass "the mode leaves windows on their way to a special workspace alone"
 
-# A window minimized while maximized comes back maximized, and only that once.
+# A window minimized while maximized or in fullscreen comes back that way, and
+# only that once.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 if ! run_lua '
 local returning = window("0x1", -98, { floating = true, tags = { "omarchy-minimized-maximized" } })
+local fullscreen = window("0x2", -98, { floating = true, tags = { "omarchy-minimized-fullscreen" } })
 require("default.hypr.workspace-layouts")
 local moved = state().subscriptions["window.move_to_workspace"][1]
 assert(returning.fullscreen == 0, "a window was maximized while it was still minimized")
@@ -687,10 +688,13 @@ assert(returning.fullscreen == 1, "a window minimized while maximized came back 
 returning.fullscreen = 0
 moved(returning, { id = 1 })
 assert(returning.fullscreen == 0, "a window brought back to size was maximized again by a later move")
+
+moved(fullscreen, { id = 1 })
+assert(fullscreen.fullscreen == 2, "a window minimized in fullscreen came back out of it")
 '; then
-  fail "a window minimized while maximized comes back maximized"
+  fail "a window minimized while maximized or in fullscreen comes back that way"
 fi
-pass "a window minimized while maximized comes back maximized"
+pass "a window minimized while maximized or in fullscreen comes back that way"
 
 # Titlebars: asked for only when installed, and themed once loaded.
 if ! run_lua '
