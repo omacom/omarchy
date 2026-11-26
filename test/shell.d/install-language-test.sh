@@ -55,12 +55,15 @@ seed zh-CN
 pass "seeding sets the user's language and session LANG without elevating or notifying"
 
 # A deferred install's region, settled at first boot against the owner's
-# timezone; the function is taken from owner setup itself. Owner setup exports
-# OMARCHY_PATH, which the scripts it runs need and a systemd service has none
-# of.
-preamble=$(sed '/^if (( EUID != 0 )); then$/,$d' "$ROOT/bin/omarchy-provision-owner")
-[[ $(env -u OMARCHY_PATH bash -c "$preamble"$'\n''printenv OMARCHY_PATH') == "/usr/share/omarchy" ]] ||
-  fail "owner setup hands OMARCHY_PATH to the scripts it runs"
+# timezone; the function is taken from owner setup itself. Owner setup runs as
+# a systemd service, so the scripts it starts see OMARCHY_PATH only if its
+# preamble hands it on. Only the lines after set -euo pipefail that start with
+# an assignment are run, up to the first line that does not.
+(
+  unset OMARCHY_PATH
+  eval "$(awk '/^set -euo pipefail$/ { on = 1; next } on && !/^(#|$|(export )?[A-Z_]+=)/ { exit } on' "$ROOT/bin/omarchy-provision-owner")"
+  [[ $(bash -c 'echo "${OMARCHY_PATH:-}"') == "/usr/share/omarchy" ]]
+) || fail "owner setup hands OMARCHY_PATH to the scripts it starts"
 eval "$(sed -n '/^configure_region() {$/,/^}$/p' "$ROOT/bin/omarchy-provision-owner")"
 region_root=$scratch/region
 mkdir -p "$region_root/omarchy/bin" "$region_root/omarchy/install/config" "$region_root/etc/omarchy"
