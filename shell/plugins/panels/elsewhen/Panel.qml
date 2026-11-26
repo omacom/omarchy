@@ -1205,8 +1205,9 @@ Panel {
 
                 CitySearch {
                   id: citySearch
+                  x: Style.spacing.hairline
                   visible: root.zoom < 1
-                  width: parent.width
+                  width: parent.width - Style.spacing.hairline
                   options: root.zoneOptions
                   existing: root.zones
                   placesFor: function(text) { return root.placesFor(text) }
