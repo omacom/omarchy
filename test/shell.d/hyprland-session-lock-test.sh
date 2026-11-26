@@ -21,12 +21,20 @@ printf '%s\n' "$OMARCHY_TEST_MONITORS"
 SH
 
 # The lockers running are given, so the live desktop's own shell stays out of it.
+cat >"$fake_bin/quickshell" <<'SH'
+#!/bin/bash
+
+[[ $* == "list -a -j" ]] || exit 3
+[[ ${OMARCHY_TEST_QUICKSHELL_FAILS:-0} == 1 ]] && exit 4
+printf '%s\n' "$OMARCHY_TEST_SHELLS"
+SH
+
 cat >"$fake_bin/pgrep" <<'SH'
 #!/bin/bash
 
-[[ $* == "-u $UID -x quickshell|qs|hyprlock" ]] || exit 3
-[[ -n $OMARCHY_TEST_LOCKERS ]] || exit 1
-printf '%s\n' $OMARCHY_TEST_LOCKERS
+[[ $* == "-u $UID -x hyprlock" ]] || exit 3
+[[ -n $OMARCHY_TEST_HYPRLOCKS ]] || exit 1
+printf '%s\n' $OMARCHY_TEST_HYPRLOCKS
 SH
 chmod +x "$fake_bin"/*
 
@@ -40,12 +48,14 @@ unlocked_monitors='[{"name":"HDMI-A-1","solitaryBlockedBy":["WINDOWED","CANDIDAT
 # The stranded check asks the real omarchy-hyprland-session-locked, so
 # $ROOT/bin follows the stubs on PATH.
 exit_status() {
-  local command="$1" monitors="$2" hyprctl_fails="$3" lockers="$4" actual=0
+  local command="$1" monitors="$2" hyprctl_fails="$3" shells="${4:-No running instances.}" hyprlocks="${5:-}" quickshell_fails="${6:-0}" actual=0
 
   PATH="$fake_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_MONITORS="$monitors" \
   OMARCHY_TEST_HYPRCTL_FAILS="$hyprctl_fails" \
-  OMARCHY_TEST_LOCKERS="$lockers" \
+  OMARCHY_TEST_SHELLS="$shells" \
+  OMARCHY_TEST_HYPRLOCKS="$hyprlocks" \
+  OMARCHY_TEST_QUICKSHELL_FAILS="$quickshell_fails" \
     "$ROOT/bin/$command" 100 || actual=$?
 
   printf '%s\n' "$actual"
@@ -59,10 +69,22 @@ assert_status() {
   pass "$description"
 }
 
-assert_stranded() {
-  local expected="$1" monitors="$2" lockers="$3" description="$4" hyprctl_fails="${5:-0}" actual
+# Quickshell instances as `quickshell list -a -j` prints them, from pid and config dir pairs.
+instances() {
+  local json="[]"
 
-  actual=$(exit_status omarchy-hyprland-session-lock-stranded "$monitors" "$hyprctl_fails" "$lockers")
+  while (( $# >= 2 )); do
+    json=$(jq -c --argjson pid "$1" --arg path "$2/shell.qml" '. + [{pid: $pid, config_path: $path}]' <<<"$json")
+    shift 2
+  done
+
+  printf '%s\n' "$json"
+}
+
+assert_stranded() {
+  local expected="$1" monitors="$2" shells="$3" description="$4" hyprlocks="${5:-}" hyprctl_fails="${6:-0}" quickshell_fails="${7:-0}" actual
+
+  actual=$(exit_status omarchy-hyprland-session-lock-stranded "$monitors" "$hyprctl_fails" "$shells" "$hyprlocks" "$quickshell_fails")
   (( actual == expected )) || fail "$description" "expected exit $expected, got $actual"
   pass "$description"
 }
@@ -112,8 +134,28 @@ assert_status $LOCKED \
   "a lock is still found alongside a monitor that cannot say"
 
 # A held lock is stranded only while no other locker is alive to own it.
-assert_stranded 0 "$locked_monitors" "" "a lock with no locker alive is stranded"
-assert_stranded 0 "$locked_monitors" "100" "the asking shell does not count as another locker"
+assert_stranded 0 "$locked_monitors" "No running instances." "a lock with no locker alive is stranded"
+assert_stranded 0 "$locked_monitors" "$(instances 100 "$ROOT/shell")" "the asking shell does not count as another locker"
 assert_stranded 1 "$unlocked_monitors" "" "an unlocked session is not stranded"
-assert_stranded 2 '[]' "" "a compositor that cannot say leaves it undetermined" 1
-assert_stranded 2 "$locked_monitors" "100 200" "a lock another locker may hold is left undetermined, so it is never taken"
+assert_stranded 2 '[]' "" "a compositor that cannot say leaves it undetermined" "" 1
+assert_stranded 2 "$locked_monitors" "$(instances 100 "$ROOT/shell" 200 "$ROOT/shell")" \
+  "a lock another Omarchy shell may hold is left undetermined, so it is never taken"
+
+# A worktree's shell, left after a visual check, runs the same lock screen.
+mkdir -p "$test_tmp/worktree/bin" "$test_tmp/worktree/shell"
+touch "$test_tmp/worktree/bin/omarchy-launch-shell"
+chmod +x "$test_tmp/worktree/bin/omarchy-launch-shell"
+assert_stranded 2 "$locked_monitors" "$(instances 100 "$ROOT/shell" 200 "$test_tmp/worktree/shell")" \
+  "another checkout's shell counts as a locker"
+
+# Someone's own Quickshell config never takes the session lock.
+assert_stranded 0 "$locked_monitors" \
+  "$(instances 100 "$ROOT/shell" 200 "$test_tmp/voxtype/quickshell" 300 "$test_tmp/rice/shell")" \
+  "a Quickshell outside an Omarchy tree does not hold a stranded lock"
+
+assert_stranded 2 "$locked_monitors" "$(instances 100 "$ROOT/shell")" \
+  "a running hyprlock may hold the lock" "200"
+
+# Guessing "no locker" with nothing to read takes a live lock.
+assert_stranded 2 "$locked_monitors" "" "Quickshell that cannot list its instances leaves it undetermined" "" 0 1
+assert_stranded 2 "$locked_monitors" "not json at all" "an unreadable instance list leaves it undetermined"
