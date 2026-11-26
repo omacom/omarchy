@@ -47,6 +47,34 @@ var FIELD_MAP = [
   ["playback_level", "playbackLevel", "num"]
 ]
 
+var CLI_KEY_MAP = {
+  "mode": "auto_level",
+  "gain": "gain_db",
+  "mute": "mute",
+  "hpf": "hpf",
+  "limiter": "limiter",
+  "compressor": "compressor",
+  "denoiser": "denoiser",
+  "popper": "popper_stopper",
+  "tone": "tone_pct",
+  "reverb": "reverb_output",
+  "reverb type": "reverb_type",
+  "reverb intensity": "reverb_intensity",
+  "reverb monitor": "reverb_monitor",
+  "monitor mic": "mic_level",
+  "monitor playback": "playback_level"
+}
+
+function cmdKey(args) {
+  if (!args || args.length === 0) return ""
+  if (args[0] === "status" || args[0] === "preset") return args[0]
+  if (args.length >= 2) {
+    var two = args[0] + " " + args[1]
+    if (CLI_KEY_MAP[two]) return CLI_KEY_MAP[two]
+  }
+  return CLI_KEY_MAP[args[0]] || args[0]
+}
+
 function isLeader(panel) {
   return leader === panel
 }
@@ -65,7 +93,7 @@ function unregister(panel) {
     leader = listeners.length > 0 ? listeners[0] : null
     if (leader) {
       if (wasRunning || (leader.pipewireHasMv7 && !state.deviceConnected)) {
-        enqueue(["read"], leader)
+        enqueue(["status"], leader)
       } else if (pendingCmds.length > 0) {
         drainNext()
       }
@@ -86,9 +114,8 @@ function setOptimistic(prop, value) {
 
 function hasPendingWrite(key) {
   for (var i = 0; i < pendingCmds.length; i++) {
-    var cmd = pendingCmds[i]
-    if (cmd[0] === "preset") return true
-    if (cmd[0] === "set" && cmd[1] === key) return true
+    var k = cmdKey(pendingCmds[i])
+    if (k === "preset" || k === key) return true
   }
   return false
 }
@@ -96,20 +123,20 @@ function hasPendingWrite(key) {
 function enqueue(args, runner) {
   if (!leader) leader = runner
   if (running) {
-    var slot = args.slice(0, 2).join(" ")
-    pendingCmds = pendingCmds.filter(function(c) { return c.slice(0, 2).join(" ") !== slot })
+    var slot = cmdKey(args)
+    pendingCmds = pendingCmds.filter(function(c) { return cmdKey(c) !== slot })
     pendingCmds.push(args)
     return
   }
   running = true
-  leader.execHelper(args)
+  leader.execCli(args)
 }
 
 function drainNext() {
   if (!leader || running || pendingCmds.length === 0) return
   var next = pendingCmds.shift()
   running = true
-  leader.execHelper(next)
+  leader.execCli(next)
 }
 
 function applySnapshot(raw) {
