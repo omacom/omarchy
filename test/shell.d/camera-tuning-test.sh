@@ -110,6 +110,8 @@ bash -n "$ROOT/bin/omarchy-camera-relay" || fail "omarchy-camera-relay has valid
 bash -n "$ROOT/bin/omarchy-camera-guard" || fail "omarchy-camera-guard has valid syntax"
 bash -n "$ROOT/install/user/first-run/camera-tuning.sh" || fail "camera-tuning first-run has valid syntax"
 bash -n "$ROOT/migrations/1795705800.sh" || fail "camera-tuning migration has valid syntax"
+python3 -m py_compile "$ROOT/bin/omarchy-camera-relay-daemon" || fail "omarchy-camera-relay-daemon has valid syntax"
+python3 -m py_compile "$ROOT/shell/plugins/panels/camera/camera-watch.py" || fail "camera-watch.py has valid syntax"
 
 # 2. Non-matching laptop is a clean no-op
 ! MOCK_DT_MATCH="other,board" run_tuning match >/dev/null || fail "match fails on unrelated boards"
@@ -141,6 +143,35 @@ grep -q "GAMMA=1.65" "$work/config/omarchy/camera-relay.env" || fail "override g
 # Invalid override is rejected cleanly
 ! run_tuning set gamma=bogus 2>/dev/null || fail "invalid gamma value is rejected"
 ! run_tuning set evil=1 2>/dev/null || fail "unknown override key is rejected"
+
+# 4b. Live hot-apply over the Unix control socket skips restarting the relay
+touch "$work/relay-active"
+live_sock="$work/relay.sock"
+live_rx="$work/live-rx"
+python3 - "$live_sock" "$live_rx" <<'PY' &
+import os, socket, sys
+sock_path, out_path = sys.argv[1], sys.argv[2]
+s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+s.bind(sock_path)
+s.settimeout(5.0)
+data = s.recv(1024).decode("utf-8")
+with open(out_path, "w", encoding="utf-8") as fh:
+    fh.write(data)
+s.close()
+PY
+rx_pid=$!
+for _ in {1..30}; do
+  [[ -S $live_sock ]] && break
+  sleep 0.05
+done
+: >"$CALLS"
+OMARCHY_CAMERA_RELAY_SOCKET="$live_sock" run_tuning set gamma=1.75 contrast=1.15 saturation=1.25 >/dev/null
+wait "$rx_pid" || fail "live socket receiver captured datagram"
+grep -q "gamma=1.75 contrast=1.15 saturation=1.25" "$live_rx" || fail "set sends live tuning datagram to relay socket"
+grep -q "GAMMA=1.75" "$work/config/omarchy/camera-relay.env" || fail "live hot-apply still persists camera-relay.env"
+! grep -q "restart omarchy-camera-relay.service" "$CALLS" || fail "live hot-apply does not restart relay service"
+rm -f "$work/relay-active" "$live_sock"
+run_tuning set gamma=1.65 contrast=1.1 saturation=1.3 >/dev/null
 
 # 5. Relay wrapper builds pipeline with overrides and user IPA precedence
 mkdir -p "$work/config/omarchy/camera/ipa/simple"
