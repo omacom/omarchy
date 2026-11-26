@@ -1,6 +1,7 @@
 #pragma once
 #include <QFileSystemWatcher>
 #include <QVariantMap>
+#include <QLocalSocket>
 #include <QProcess>
 #include <QTimer>
 
@@ -12,6 +13,7 @@ class Appearance : public QObject {
   Q_PROPERTY(QVariantMap strings READ strings NOTIFY changed)
 public:
   explicit Appearance(QObject *parent = nullptr);
+  ~Appearance() override;
   QVariantMap colors() const { return palette; }
   QVariantMap strings() const { return catalog; }
   bool rightToLeft() const { return rtl; }
@@ -25,6 +27,9 @@ private:
   QVariantMap palette, catalog;
   bool rtl = false;
   int radius = 0;
+  QLocalSocket compositorEvents;
+  QTimer reconnect;
+  bool roundingPending = false;
   QProcess rounding;
   QTimer roundingTimeout;
   void readRounding();

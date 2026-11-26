@@ -2,6 +2,7 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 sandbox=$(mktemp -d)
+unset HYPRLAND_INSTANCE_SIGNATURE
 export DBUS_SYSTEM_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 export HOME="$sandbox" XDG_DATA_HOME="$sandbox/data" XDG_CONFIG_HOME="$sandbox/config" XDG_STATE_HOME="$sandbox/state"
 export OMARCHY_PATH=$(cd "$here/../../.." && pwd)

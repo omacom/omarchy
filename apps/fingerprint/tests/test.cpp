@@ -1,4 +1,5 @@
 #include "../backend.h"
+#include <QAccessible>
 #include <QDBusConnectionInterface>
 #include <QQmlApplicationEngine>
 #include <QQuickItem>
@@ -87,6 +88,7 @@ private slots:
     QVERIFY(calls().contains("delete " + added));
   }
   void standaloneWindow() {
+    QAccessible::setActive(true);
     reset({finger});
     const auto config = qEnvironmentVariable("XDG_CONFIG_HOME") + "/omarchy";
     QVERIFY(QDir().mkpath(config));
@@ -113,6 +115,21 @@ private slots:
     QVERIFY2(read(b, "page") == "home", qPrintable(read(b, "notice")));
     QCOMPARE(read(b, "model"), Fprint::apple);
     screenshot(win, "home");
+    const QSize normalSize = win->size();
+    win->resize(350, 360);
+    auto *verify = button(win->contentItem(), "Verify");
+    auto *done = button(win->contentItem(), "Done");
+    QVERIFY(verify && done);
+    verify->forceActiveFocus(Qt::TabFocusReason);
+    for (int i = 0; i < 12 && !done->hasActiveFocus(); ++i)
+      QTest::keyClick(win, Qt::Key_Tab);
+    QVERIFY(done->hasActiveFocus());
+    QTRY_VERIFY(done->mapToScene(QPointF(0, done->height())).y() <= win->height());
+    for (int i = 0; i < 12 && !verify->hasActiveFocus(); ++i)
+      QTest::keyClick(win, Qt::Key_Backtab);
+    QVERIFY(verify->hasActiveFocus());
+    QTRY_VERIFY(verify->mapToScene(QPointF()).y() >= 0);
+    win->resize(normalSize);
     QFile language(config + "/language");
     QVERIFY(language.open(QIODevice::WriteOnly));
     language.write("ar"); language.close();
@@ -170,6 +187,11 @@ private slots:
       };
       auto *control = find(win->contentItem());
       QVERIFY(control);
+      auto *accessible = QAccessible::queryAccessibleInterface(control);
+      QVERIFY(accessible);
+      QCOMPARE(accessible->role(), QAccessible::Switch);
+      QVERIFY(accessible->state().checkable);
+      QCOMPARE(bool(accessible->state().checked), control->property("checked").toBool());
       QVERIFY(QMetaObject::invokeMethod(control, "click"));
     };
     // A mismatch cannot opt the account into either authentication path.

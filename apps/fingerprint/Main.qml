@@ -33,6 +33,20 @@ ApplicationWindow {
   function corner(size) { return Math.min(radius, size / 2) }
   function t(key) { return appearance.strings[key] || key }
 
+  // A ScrollView does not scroll its focused child into view when tabbing.
+  function revealFocus() {
+    const item = activeFocusItem
+    let ancestor = item
+    while (ancestor && ancestor !== body) ancestor = ancestor.parent
+    if (!ancestor) return
+    const flick = scroll.contentItem
+    const top = item.mapToItem(flick.contentItem, 0, 0).y - 6
+    const bottom = top + item.height + 12
+    const scrollTo = bottom > flick.contentY + flick.height ? bottom - flick.height : Math.min(top, flick.contentY)
+    flick.contentY = Math.max(flick.originY, Math.min(scrollTo, flick.originY + flick.contentHeight - flick.height))
+  }
+  onActiveFocusItemChanged: Qt.callLater(revealFocus)
+
   property bool closePending: false
   onClosing: function(event) {
     if (v.page === "working") {
@@ -198,10 +212,12 @@ ApplicationWindow {
       implicitHeight: 34
       objectName: row.label
       Accessible.name: row.label
+      Accessible.role: Accessible.Switch
       visible: !row.managed
       enabled: row.available
       checked: row.active
-      checkable: false
+      // Only the backend may commit an authentication change after verification.
+      onToggled: checked = Qt.binding(() => row.active)
       onClicked: row.toggle()
       indicator: Rectangle {
         implicitWidth: 42
@@ -229,9 +245,11 @@ ApplicationWindow {
     LayoutMirroring.childrenInherit: true
     anchors.fill: parent
     contentWidth: availableWidth
+    onAvailableHeightChanged: Qt.callLater(win.revealFocus)
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
     Loader {
       id: body
+      onLoaded: Qt.callLater(win.revealFocus)
       // A readable measure on wide tiled windows; the page scrolls when the window is short.
       width: Math.min(scroll.availableWidth, 560)
       x: Math.round((scroll.availableWidth - width) / 2)
@@ -290,6 +308,16 @@ ApplicationWindow {
         spacing: 12
         ComboBox {
           id: readers
+          palette.buttonText: win.fg
+          palette.dark: win.secondary
+          palette.window: win.panel
+          palette.base: win.panel
+          palette.button: win.panel
+          palette.text: win.fg
+          palette.highlight: win.accent
+          palette.highlightedText: win.accentForeground
+          palette.light: win.accent
+          palette.midlight: win.accent
           Layout.fillWidth: true
           visible: win.v.models.length > 1
           model: win.v.models
@@ -472,13 +500,13 @@ ApplicationWindow {
           Layout.preferredWidth: size
           Layout.preferredHeight: size
           radius: win.corner(size)
-          color: win.panel
+          color: !sp.complete && win.v.contact ? Qt.tint(win.panel, Qt.alpha(win.accent, 0.12)) : win.panel
           Fingerprint {
             anchors.fill: parent
             anchors.margins: Math.round(parent.width * 0.09)
             ink: sp.complete ? win.success : win.accent
             foreground: win.fg
-            paper: win.panel
+            paper: parent.color
             complete: sp.complete; contact: win.v.contact; samples: win.v.samples
           }
         }
