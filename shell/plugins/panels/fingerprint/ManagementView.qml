@@ -256,6 +256,7 @@ FocusScope {
               enabled: !ctl.busy
               Text {
                 anchors { right: parent.right; rightMargin: Style.space(12); verticalCenter: parent.verticalCenter }
+                textFormat: Text.PlainText
                 text: view.LayoutMirroring.enabled ? "‹" : "›"
                 color: view.muted
                 font.family: Style.font.family
