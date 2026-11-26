@@ -331,6 +331,10 @@ const brightness = {
     },
   },
   setBrightnessProc: { running: false, command: [] },
+  refreshes: 0,
+  refresh() {
+    this.refreshes += 1
+  },
   Model: monitor,
   readInternalBrightness: () => 70,
   showBrightnessOsd: () => {},
@@ -443,13 +447,21 @@ assertDeepEqual(
   'a step with no write in flight uses the live level'
 )
 
-// The IPC absolute set is refused for a display with no brightness control.
+// The IPC absolute set is refused for a display with no brightness control,
+// and the refusal re-reads state so a stale cached level heals.
 brightness.setBrightnessProc.running = false
 brightness.queuedBrightness = []
 brightness.brightnessAvailable = false
+brightness.refreshes = 0
 const accepted = brightness.setBrightness(50)
 assertEqual(accepted, false, 'an absolute set is refused when the focused display has no brightness control')
+assertEqual(brightness.refreshes, 1, 'a refused absolute set refreshes the cached state')
 assertEqual(brightness.queuedBrightness.length, 0, 'a refused absolute set queues no write')
+
+brightness.brightnessAvailable = true
+brightness.refreshes = 0
+assertEqual(brightness.setBrightness(50), true, 'an absolute set is accepted when the display has brightness control')
+assertEqual(brightness.refreshes, 0, 'an accepted absolute set relies on its own write instead of refreshing')
 
 // A newer absolute set cancels a slider preview still waiting on its debounce,
 // so the timer cannot write the older preview afterwards.

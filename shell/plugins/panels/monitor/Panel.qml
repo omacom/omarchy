@@ -415,9 +415,15 @@ Panel {
 
   // The focused display's brightness, for the bar icon's wheel and IPC. A
   // display that reports no brightness control is refused here, before an
-  // optimistic level or a doomed command can be made for it.
+  // optimistic level or a doomed command can be made for it. Cached
+  // availability can go stale while the panel is closed, so a refusal looks
+  // again for the next attempt instead of staying stuck.
   function setBrightness(value) {
-    if (!root.brightnessAvailable || !root.focusedMonitor) return false
+    if (!root.focusedMonitor) return false
+    if (!root.brightnessAvailable) {
+      root.refresh()
+      return false
+    }
     return setDisplayBrightness(root.focusedMonitor, value)
   }
 
