@@ -38,7 +38,6 @@ BarWidget {
   onRevealProgressChanged: syncOverflowApi()
   onDrawerCoverStartChanged: syncOverflowApi()
   onDrawerCoverLengthChanged: syncOverflowApi()
-  Component.onCompleted: syncOverflowApi()
   onOverflowCountChanged: {
     // A normal tray opened by hover must not stay open when folding starts;
     // the overflow drawer opens by click instead.
@@ -291,7 +290,10 @@ BarWidget {
   implicitWidth: root.vertical ? root.barSize : trayContent.implicitWidth
   implicitHeight: root.vertical ? trayContent.implicitHeight : root.barSize
 
-  Component.onCompleted: revealProgress = drawerOpen ? 1 : 0
+  Component.onCompleted: {
+    revealProgress = drawerOpen ? 1 : 0
+    syncOverflowApi()
+  }
 
   onDrawerOpenChanged: {
     revealAnimation.stop()
