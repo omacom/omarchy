@@ -16,6 +16,8 @@ matching guide before starting:
 
 # Documentation Layout
 
+Lab changes must remain synchronized with the standalone acrogenesis/omarchy-lab repository. Read [the paired-repository workflow](docs/lab-development.md) before changing Lab code; verify both distributions and their parity before publishing.
+
 Three documentation trees, split by genre and audience:
 
 - `agents/skills/` - task procedure ("do this when doing X"), for anyone working on the codebase
@@ -189,3 +191,7 @@ omarchy-refresh-config hypr/hyprland.lua
 ```
 
 This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument must be a plain relative path: an absolute path or any `..` segment is rejected before anything is copied. That check is lexical, so a symlink under `~/.config` is still followed and its target rewritten — which is what keeps symlink-managed dotfiles working.
+
+## Using the Lab guest
+
+When asked to operate Omarchy Lab or test changes in its guest, read [the omarchy-lab skill](default/agents/skills/omarchy-lab/SKILL.md). It covers controller discovery, guest commands, deployment, checkpoints, visual verification, and authorization boundaries. It does not replace the ISO acceptance harness or authorize changes to the host desktop.

@@ -32,6 +32,10 @@ By default your user is *not* in the `docker` group. That group is effectively p
 
 You can setup the common databases for local development in Docker using _Install > Development > Docker DB_ in the Omarchy menu.
 
+## Lab VM
+
+A second, disposable Omarchy as a KVM guest lives under _Install > Lab_. Use it for `omarchy dev link`, security PoCs, and anything else you would rather not run against the desktop you are sitting in. See [Lab VM](52-lab-vm.md).
+
 ## GitHub CLI
 
 [GitHub CLI](https://cli.github.com/) is `gh`, for working with repositories, issues, and pull requests from the terminal. _Setup > Git_ installs it when you choose to sign in to GitHub there, or install it on its own from _Install > CLI > GitHub_. Then `gh repo clone org/repo` clones a repository; run `gh --help` to explore its commands.

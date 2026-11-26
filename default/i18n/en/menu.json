@@ -1451,5 +1451,15 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "trigger.lab-controls": {
+    "label": "Lab Controls"
+  },
+  "install.lab": {
+    "label": "Lab",
+    "description": "Disposable Omarchy KVM for development and PoCs"
+  },
+  "remove.lab": {
+    "label": "Lab"
   }
 }
