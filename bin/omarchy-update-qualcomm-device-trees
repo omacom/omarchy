@@ -19,6 +19,13 @@ if [[ ${1:-} == "--install" ]]; then
   install=1
 fi
 
+# When invoked as a Limine pre-hook, only boot image builds need the device tree
+# list refreshed. limine-install only copies the EFI loader and
+# limine-snapper-sync only updates snapshot entries.
+if (( ! install )) && [[ -n ${HOOK_CALLER:-} && $HOOK_CALLER != "limine-mkinitcpio-install" ]]; then
+  exit 0
+fi
+
 managed_begin="# BEGIN OMARCHY QUALCOMM DEVICE TREES"
 managed_end="# END OMARCHY QUALCOMM DEVICE TREES"
 uki_config=${OMARCHY_QUALCOMM_UKI_CONFIG:-/etc/kernel/uki.conf}
@@ -42,15 +49,15 @@ for kernel_dtb_dir in "$dtb_root"/linux-omarchy/qcom "$dtb_root"/linux-omarchy*/
 done
 dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-$dtb_dir}
 
-# The 835 and 7c laptops are named by maker, so Arch Linux ARM's phone and
-# Chromebook trees of those families stay out.
+# The 835, 7c and Snapdragon C laptops are named by maker, so Arch Linux
+# ARM's phone and Chromebook trees of those families stay out.
 dtbs=()
 for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb "$dtb_dir"/purwa*.dtb \
   "$dtb_dir"/glymur*.dtb "$dtb_dir"/mahua*.dtb "$dtb_dir"/kalambo*.dtb \
   "$dtb_dir"/sc8280xp*.dtb "$dtb_dir"/sc8180x*.dtb "$dtb_dir"/sdm850*.dtb \
   "$dtb_dir"/msm8998-{asus,hp,lenovo}*.dtb \
   "$dtb_dir"/sc7180-{acer,apcsilmic,ecs,lenovo,samsung,tcl}*.dtb \
-  "$dtb_dir"/sc7280-samsung*.dtb; do
+  "$dtb_dir"/sc7280-{hp,samsung}*.dtb; do
   if [[ -f $dtb && $dtb != *-el2.dtb ]]; then
     dtbs+=("$dtb")
   fi
@@ -63,26 +70,44 @@ done
 # names one. The running device tree's root compatible is that tree's byte
 # for byte, so the one file that holds the same list is it. Without a running
 # device tree, or without exactly one match, the UKI gets the list alone.
-# A tree file holds a property as its token, length and name offset, then
-# the value, so matching the length too takes only the whole property, never
-# a longer list that ends the same way. od writes each byte as " xx", which
-# keeps a match on byte boundaries and the newline bytes out of grep's way.
+# A tree file holds a property as its token (FDT_PROP = 3), length and name
+# offset, then the value, so matching the length too takes only the whole
+# property, never a longer list that ends the same way.
 own_dtb=""
 running_compatible=${OMARCHY_PROC_ROOT:-/proc}/device-tree/compatible
 if (( ${#dtbs[@]} > 0 )) && [[ -s $running_compatible ]]; then
-  length=$(wc -c <"$running_compatible")
-  pattern=$(printf ' 00 00 00 03 %02x %02x %02x %02x' $((length >> 24 & 255)) \
-    $((length >> 16 & 255)) $((length >> 8 & 255)) $((length & 255)))
-  pattern+="( [0-9a-f]{2}){4}$(od -An -v -tx1 "$running_compatible" | tr -d '\n')"
-  matches=()
-  for dtb in "${dtbs[@]}"; do
-    if grep -qE "$pattern" <(od -An -v -tx1 "$dtb" | tr -d '\n'); then
-      matches+=("$dtb")
-    fi
-  done
-  if (( ${#matches[@]} == 1 )); then
-    own_dtb=${matches[0]}
-  fi
+  own_dtb=$(python3 - "$running_compatible" "${dtbs[@]}" <<'PY'
+import struct
+import sys
+
+with open(sys.argv[1], "rb") as f:
+    compat = f.read()
+
+if not compat:
+    raise SystemExit(0)
+
+header = struct.pack(">II", 3, len(compat))
+matches = []
+for path in sys.argv[2:]:
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        continue
+    pos = 0
+    while True:
+        idx = data.find(compat, pos)
+        if idx == -1:
+            break
+        if idx >= 12 and data[idx - 12:idx - 4] == header:
+            matches.append(path)
+            break
+        pos = idx + 1
+
+if len(matches) == 1:
+    print(matches[0])
+PY
+  )
 fi
 
 if (( ! install )) && ! grep -Fqx "$managed_begin" "$uki_config" 2>/dev/null; then

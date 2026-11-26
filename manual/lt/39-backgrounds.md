@@ -2,14 +2,18 @@
 
 Kiekviena tema pateikiama su savo fonų rinkiniu, o papildomų galite pridėti patys į `~/.config/omarchy/backgrounds/[theme]`. Jei norite pridėti papildomą fono paveikslėlį, tarkime, nord temai, tiesiog įdėkite failą į `~/.config/omarchy/backgrounds/nord`.
 
-Lengviausia tai padaryti Omarchy Menu einant į _Install > Style > Background_. Bus atidarytas aplankas, kuriame saugomi tos temos fonai. Paspauskite `Super + Shift + F`, kad paleistumėte kitą failų tvarkyklę, susiraskite savo foną ir jį nukopijuokite. Dabar jis bus įtrauktas į fonų, tarp kurių galite rinktis naudodami `Super + Ctrl + W`, pasirinkimus.
+Lengviausiai tai padarysite Omarchy Menu pasirinkę _Install > Style > Background_. Bus atvertas aplankas, kuriame saugomi tos temos fonai. Paspauskite `Super + Shift + F`, kad paleistumėte kitą failų tvarkyklę, susiraskite savo foną ir jį nukopijuokite. Dabar jis bus įtrauktas tarp fonų, kuriuos galite pasirinkti naudodami `Super + Ctrl + W`.
 
-Fonai gali būti ne tik nejudantys paveikslėliai, bet ir vaizdo įrašai. Į tą patį aplanką įdėkite `mp4`, `m4v`, `mov`, `webm`, `mkv` arba `avi` failą ir jis atsiras šalia paveikslėlių. Vaizdo įrašus leidžia OWE wallpaper engine. Jis išdekoduoja vaizdo įrašą vieną kartą visiems monitoriams ir leidžia jo garsą per numatytąją garso išvestį, o kai niekas jo nemato, atkūrimą sustabdo. Vaizdo fonas vis tiek naudoja gerokai daugiau energijos nei nejudantis.
+Tema, neturinti savų fonų, gauna vieną, nupieštą iš jos spalvų: Omarchy logotipą temos akcento spalva ant jos fono spalvos. Pridėkite savąjį, kad jį pakeistumėte.
 
-Temose gali būti trumpa įžanga nejudančiam fonui. Failui `backgrounds/road.webp` atitinkamas vaizdo įrašas yra `backgrounds/intros/road.mp4`. Jis automatiškai leidžiamas paleidžiant sistemą, perjungiant į temą su pasirinktu tuo fonu ir pasirenkant tą foną, o paskui grįžtama prie nejudančio paveikslėlio. Įžangos vaizdo įrašai nerodomi fonų rinkiklyje ir niekada nepakartojami ciklu.
+Fonai gali būti ir vaizdo įrašai, ne tik nejudantys vaizdai. Įdėkite `mp4`, `m4v`, `mov`, `webm`, `mkv` arba `avi` failą į tą patį aplanką ir jis atsiras šalia paveikslėlių. Vaizdo įrašus groja OWE wallpaper engine. Jis vaizdo įrašą vieną kartą dekoduoja visiems monitoriams ir jo garsą leidžia per numatytąją garso išvestį, o atkūrimą sustabdo, kai jo niekas nemato. Vaizdo fonas vis tiek naudoja kur kas daugiau energijos negu nejudantis.
 
-Išjungus _Appearance > Animations_ taip pat išjungiamos fonų įžangos. Omarchy tai daro pagal numatytuosius nustatymus virtualioje mašinoje. Komanda `omarchy theme bg intro toggle` gali perjungti įžangas atskirai. Atnaujinant temą įžanga neleidžiama.
+Temose gali būti trumpa nejudančio fono įžanga. Fonui `backgrounds/road.webp` skirtas atitinkamas vaizdo įrašas yra `backgrounds/intros/road.mp4`. Jis groja automatiškai įkrovos metu, perjungiant temą su tuo pasirinktu fonu ir renkantis tą foną, o paskui grįžtama prie nejudančio vaizdo. Įžanginiai vaizdo įrašai nerodomi fonų rinkiklyje ir niekada negrojami cikle.
 
-Didžiulę smagių, atrinktų fonų kolekciją galite rasti [dharmx/walls](https://github.com/dharmx/walls).
+Pasirinkus _Appearance > Animations Off_, taip pat išjungiamos fonų įžangos. Virtualioje mašinoje Omarchy taip daro pagal numatytuosius nustatymus. Komanda `omarchy theme bg intro toggle` įžangas gali perjungti atskirai. Atnaujinant temą, įžanga negrojama.
 
-Užrakinimo ekranas rodo nejudantį vaizdo fono kadrą, taip pat kaip rodo nejudantį animuoto GIF kadrą.
+Nejudantis vaizdas gali turėti ir ciklą – ramią to paties paveikslėlio versiją, kuri nuolat juda, adresu `backgrounds/loops/road.mp4`. Jis grojamas vietoje nejudančio vaizdo, po įžangos, jei tokia yra, ir sustoja išjungus animacijas. Naudojant akumuliatorių, vietoje jo rodomas nejudantis vaizdas, o ciklas sugrįžta, kai vėl prijungiate įrenginį. Ciklai nerodomi fonų rinkiklyje.
+
+Didžiulę šaunių, kruopščiai atrinktų fonų kolekciją galite rasti [dharmx/walls](https://github.com/dharmx/walls).
+
+Užrakto ekranas rodo nejudantį vaizdo fono kadrą, taip pat kaip ir nejudantį animuoto GIF kadrą.

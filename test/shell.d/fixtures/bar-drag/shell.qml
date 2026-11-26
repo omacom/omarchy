@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 
 // Drags widgets along the real bar through its own pointer handlers, and
 // checks where they land and that each arrives as the very instance that was
@@ -24,6 +25,7 @@ ShellRoot {
   // The slot the pointer is holding.
   property var held: null
   property string counts: ""
+  property int thinner: 0
   property var steps: []
   property int step: 0
 
@@ -192,6 +194,7 @@ ShellRoot {
       [function() {
         var a = root.bar.moduleSlots.filter(function(slot) { return slot && slot.moduleName === "test.a" })[0]
         root.surface = a ? root.bar.slotWindow(a) : null
+        root.check(root.surface && root.surface.implicitHeight === root.surface.thickness, "the bar's surface is only as tall as its strip: " + (root.surface ? root.surface.implicitHeight + " against " + root.surface.thickness : "no surface"))
         var twins = root.slotsOf("test.twin")
         root.check(twins.length === 2, "the bar shows both twins")
         if (twins.length !== 2) return
@@ -201,9 +204,12 @@ ShellRoot {
         root.secondTwin.objectName = "second"
         root.counts = root.countsNow()
         root.lift(twins[0])
-      }, 300],
-      [function() { root.pointAt(root.slotOf("test.a", "left"), 0.8) }, 300],
-      [function() { root.letGo(root.slotOf("test.a", "left"), 0.8) }, 700],
+      }, 180],
+      [function() { root.pointAt(root.slotOf("test.a", "left"), 0.8) }, 180],
+      [function() {
+        root.check(root.surface.implicitHeight === root.surface.thickness, "a drag leaves the surface the size of its strip: " + root.surface.implicitHeight)
+        root.letGo(root.slotOf("test.a", "left"), 0.8)
+      }, 400],
       [function() {
         root.check(JSON.stringify(root.ids("left")) === JSON.stringify(["test.a", "test.twin"]), "the first twin lands after test.a: " + JSON.stringify(root.ids("left")))
         root.check(JSON.stringify(root.ids("right")) === JSON.stringify(["test.b", "test.twin", "test.c"]), "the right section keeps the other twin: " + JSON.stringify(root.ids("right")))
@@ -215,9 +221,9 @@ ShellRoot {
 
         // Back into the right section, just before its twin.
         root.lift(moved)
-      }, 300],
-      [function() { root.pointAt(root.slotOf("test.twin", "right"), 0.2) }, 300],
-      [function() { root.letGo(root.slotOf("test.twin", "right"), 0.2) }, 700],
+      }, 180],
+      [function() { root.pointAt(root.slotOf("test.twin", "right"), 0.2) }, 180],
+      [function() { root.letGo(root.slotOf("test.twin", "right"), 0.2) }, 400],
       [function() {
         root.check(JSON.stringify(root.ids("right")) === JSON.stringify(["test.b", "test.twin", "test.twin", "test.c"]), "the twin lands just before its twin: " + JSON.stringify(root.ids("right")))
         var twins = root.slotsOf("test.twin")
@@ -227,11 +233,11 @@ ShellRoot {
         // A widget that shows itself mid-drag can be dropped beside.
         root.shown = root.slotOf("test.c", "right").activeItem
         root.shown.visible = false
-      }, 300],
-      [function() { root.lift(root.slotOf("test.b", "right")) }, 200],
-      [function() { root.shown.visible = true }, 300],
-      [function() { root.pointAt(root.slotOf("test.c", "right"), 0.8) }, 300],
-      [function() { root.letGo(root.slotOf("test.c", "right"), 0.8) }, 700],
+      }, 180],
+      [function() { root.lift(root.slotOf("test.b", "right")) }, 150],
+      [function() { root.shown.visible = true }, 180],
+      [function() { root.pointAt(root.slotOf("test.c", "right"), 0.8) }, 180],
+      [function() { root.letGo(root.slotOf("test.c", "right"), 0.8) }, 400],
       [function() {
         root.check(JSON.stringify(root.ids("right")) === JSON.stringify(["test.twin", "test.twin", "test.c", "test.b"]), "a widget dropped beside one that showed itself mid-drag lands there: " + JSON.stringify(root.ids("right")))
         root.check(root.countsNow() === root.counts, "the drag builds nothing again: " + root.countsNow())
@@ -242,7 +248,7 @@ ShellRoot {
           config.bar.layout.right.push({ id: "test.tray" })
           config.bar.layout.tray = [{ id: "test.inner" }]
         })
-      }, 400],
+      }, 250],
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "end", "a tray in the right section has the widgets in its section grow from its end: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
@@ -250,10 +256,29 @@ ShellRoot {
           config.bar.layout.right = config.bar.layout.right.filter(function(entry) { return entry.id !== "test.tray" })
           config.bar.layout.left.push({ id: "test.tray" })
         })
-      }, 400],
+      }, 250],
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
+
+        // Moving to a side edge resizes the surface, so the strip turns clear
+        // until the surface has its new size.
+        host.mutateShellConfig(function(config) { config.bar.position = "left" })
+        root.check(root.surface.settle === "clearing" && root.surface.surfaceEdge === "top", "a strip moving to a side edge clears before its surface moves: " + root.surface.settle + " " + root.surface.surfaceEdge)
+      }, 1200],
+      [function() {
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left", "the surface settles on the left edge: " + root.surface.settle + " " + root.surface.surfaceEdge)
+        root.check(root.surface.implicitWidth === root.surface.thickness && root.surface.width === root.surface.thickness, "a side bar's surface is only as wide as its strip: " + root.surface.width + " against " + root.surface.thickness)
+
+        // A thicker bar on the same edge resizes the surface too, so it
+        // settles the same way, holding its old thickness while it clears.
+        root.thinner = root.surface.surfaceThickness
+        Style.barOverrides = { "size-vertical": 44 }
+        root.check(root.surface.thickness > root.thinner, "the theme thickens the side bar: " + root.surface.thickness)
+        root.check(root.surface.settle === "clearing" && root.surface.surfaceThickness === root.thinner && root.surface.surfaceEdge === "left", "a thicker strip clears before its surface grows, on the same edge: " + root.surface.settle + " " + root.surface.surfaceThickness + " " + root.surface.surfaceEdge)
+      }, 1200],
+      [function() {
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left" && root.surface.surfaceThickness === root.surface.thickness && root.surface.width === root.surface.thickness, "the surface settles at the new thickness: " + root.surface.settle + " " + root.surface.width + " against " + root.surface.thickness)
       }, 100]
     ]
     stepper.start()
@@ -281,7 +306,7 @@ ShellRoot {
 
   Timer {
     id: quitter
-    interval: 200
+    interval: 50
     onTriggered: Qt.quit()
   }
 }
