@@ -5,6 +5,7 @@ run_logged "$OMARCHY_INSTALL/user/language.sh"
 run_logged "$OMARCHY_INSTALL/user/region.sh"
 run_logged "$OMARCHY_INSTALL/user/input-method.sh"
 run_logged "$OMARCHY_INSTALL/user/mise-work.sh"
+run_logged "$OMARCHY_INSTALL/user/whats-new.sh"
 
 run_logged "$OMARCHY_INSTALL/user/hardware/asus/fix-audio-mixer.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/asus/fix-mic.sh"

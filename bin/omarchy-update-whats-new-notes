@@ -1,0 +1,130 @@
+#!/bin/bash
+
+# omarchy:summary=Print an Omarchy release's what's-new notes as JSON for the shell
+# omarchy:args=[--pending] [release]
+# omarchy:hidden=true
+
+# Each feature release ships its notes in
+# $OMARCHY_PATH/default/omarchy/whats-new/<major>.<minor>.jsonc (see
+# docs/whats-new.md). With a release, or the current one when none is named,
+# this prints them for the omarchy.whats-new overlay: items whose `when` guard
+# fails are dropped, and the text is in the Omarchy language where
+# default/i18n/<code>/whats-new.json has it.
+#
+# --pending prints the release to show unasked and exits 0, or exits 1 when
+# there is none. That is the installed release, once its notes exist and the
+# user hasn't been through them yet.
+
+set -euo pipefail
+
+notes_dir=$OMARCHY_PATH/default/omarchy/whats-new
+
+# The release the installed omarchy package belongs to: 4.5 for 4.5.0-1,
+# 4.5.2-1 and 4.5.0rc3-1 alike, so patch releases and release candidates share
+# their feature release's notes. Edge and dev, which run omarchy-dev instead,
+# move between releases every day, so they read the notes from the menu rather
+# than being prompted.
+installed_release() {
+  local version
+
+  version=$(pacman -Q omarchy 2>/dev/null | awk '{ print $2 }')
+  [[ $version =~ ^([0-9]+\.[0-9]+) ]] || return 1
+  echo "${BASH_REMATCH[1]}"
+}
+
+pending_release() {
+  local release
+
+  release=$(installed_release) || return 1
+  [[ -f $notes_dir/$release.jsonc ]] || return 1
+  if omarchy-done check "whats-new-$release"; then
+    return 1
+  fi
+  echo "$release"
+}
+
+newest_release() {
+  local file releases=()
+
+  for file in "$notes_dir"/*.jsonc; do
+    [[ -f $file ]] && releases+=("$(basename "$file" .jsonc)")
+  done
+  (( ${#releases[@]} > 0 )) || return 1
+  printf '%s\n' "${releases[@]}" | sort -V | tail -n 1
+}
+
+current_release() {
+  local release
+
+  if release=$(installed_release) && [[ -f $notes_dir/$release.jsonc ]]; then
+    echo "$release"
+  else
+    newest_release
+  fi
+}
+
+if [[ ${1:-} == "--pending" ]]; then
+  pending_release
+  exit
+fi
+
+if (( $# > 0 )); then
+  release=$1
+  if [[ ! $release =~ ^[0-9]+\.[0-9]+$ ]]; then
+    echo "Usage: omarchy-update-whats-new-notes [--pending] [release]" >&2
+    exit 2
+  fi
+else
+  release=$(current_release) || {
+    echo "No what's-new notes are installed" >&2
+    exit 1
+  }
+fi
+
+file=$notes_dir/$release.jsonc
+if [[ ! -f $file ]]; then
+  echo "No what's-new notes for Omarchy $release" >&2
+  exit 1
+fi
+
+# JSONC as the menu reads it: whole-line // comments only.
+notes=$(sed '/^[[:space:]]*\/\//d' "$file" | jq -c .)
+
+# Guards are shell conditions like the menu's. Each runs once, here, rather
+# than in the shell, so the overlay only ever sees the items that apply.
+hidden=()
+while IFS=$'\t' read -r index guard; do
+  if ! bash -c "$(base64 -d <<<"$guard")" >/dev/null 2>&1; then
+    hidden+=("$index")
+  fi
+done < <(jq -r '.items | to_entries[] | select(.value.when) | "\(.key)\t\(.value.when | @base64)"' <<<"$notes")
+
+catalog=$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null || echo en)/whats-new.json
+[[ -f $catalog ]] || catalog=/dev/null
+
+pending=false
+[[ $(pending_release 2>/dev/null) == "$release" ]] && pending=true
+
+jq -c \
+  --arg release "$release" \
+  --argjson pending "$pending" \
+  --argjson hidden "$(printf '%s\n' "${hidden[@]}" | jq -sc 'map(select(. != null))')" \
+  --slurpfile catalog "$catalog" '
+  ($catalog[0] // {}) as $strings
+  | def tr: . as $english | ($strings[$english] | if type == "string" and . != "" then . else $english end);
+  {
+    release: $release,
+    pending: $pending,
+    post: (.post // ""),
+    items: [
+      .items | to_entries[] | select(.key as $i | $hidden | index($i) | not) | .value
+      | {
+          changed: (.changed == true),
+          icon: (.icon // ""),
+          title: (.title | tr),
+          body: ((.body // "") | if . == "" then . else tr end),
+          keys: (.keys // ""),
+          try: (if .try then { label: (.try.label | tr), action: .try.action } else null end)
+        }
+    ]
+  }' <<<"$notes"

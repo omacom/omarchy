@@ -8,6 +8,10 @@ When new releases are made, a circle arrow icon will appear to the right of your
 
 ![update-available](images/update-available.webp)
 
+### What's new
+
+After an update into a new release, that icon turns into a sparkle. Click it for a short tour of what changed: one page per new feature, with its hotkey and a button to try it, ending on a link to the full release post. Arrow keys move through it, Enter tries the feature, and Esc closes the tour. Once you've closed it or reached the end, the sparkle goes away, and the tour stays under _Update > What's New_ in the Omarchy menu (or `omarchy update whats new` in the terminal).
+
 ### Four channels
 
 Omarchy is updated along four channels: stable, RC, edge, and dev. New installations start on the stable channel, which tracks the [official releases](https://github.com/omacom/omarchy/releases/), as well as the [stable Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror) that's running one month behind the latest, so we can catch any new incompatibilities that require config changes before they cause problems for people.
