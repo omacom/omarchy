@@ -22,7 +22,13 @@
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
-  OMARCHY_STARTUP_BACKGROUND="$startup_background" \
+  # Quickshell links jemalloc, which creates 4 * ncpus arenas by default and
+  # keeps dirty/muzzy pages from startup bursts (QML compilation, icon scanning,
+  # image decoding, Mesa shaders) resident. Two arenas, a 4 KiB thread cache,
+  # and a background purge thread return those pages quickly without stalling
+  # the GUI or render threads.
+  MALLOC_CONF="${MALLOC_CONF:-narenas:2,tcache_max:4096,background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:0}" \
+    OMARCHY_STARTUP_BACKGROUND="$startup_background" \
     QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 QS_DISABLE_CRASH_HANDLER=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
