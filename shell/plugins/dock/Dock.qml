@@ -257,7 +257,9 @@ Item {
   // The screen the apps were opened on from its dock, whose dock stays out
   // while they are open. Opened any other way, they hold no dock out.
   property var appsScreen: null
-  onAppsOpenChanged: if (!appsOpen) appsScreen = null
+  // A launcher loaded on demand reads closed for a moment between loading and
+  // being opened, so only one still closed after that lets the dock go.
+  onAppsOpenChanged: if (!appsOpen) Qt.callLater(function() { if (!root.appsOpen) root.appsScreen = null })
 
   // From a screen's dock, or from the focused screen when there is none.
   function toggleApps(window) {
