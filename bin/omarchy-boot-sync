@@ -1,0 +1,901 @@
+#!/bin/bash
+
+# omarchy:summary=Build and publish the boot images systemd-boot starts, with a menu entry per snapshot
+# omarchy:args=sync | import PKGBASE KVER VMLINUZ INITRAMFS | pin NUMBER | prefer PKGBASE | preferred | cmdline | verify | status | restore-stage SNAPSHOT|backup | restore-commit | restore-cancel
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# On a machine that boots systemd-boot (see omarchy-boot-switch), every kernel
+# build is a boot image: kernel, initramfs and the command line in effect when
+# it was built, kept on the encrypted root in the boot store, a top-level btrfs
+# subvolume mounted at /var/lib/omarchy/boot so a snapshot restore never rolls
+# it back. Each boot image becomes one Unified Kernel Image on the ESP, and the
+# live system and every snapshot taken on that image are profiles inside it:
+#
+#   omarchy-<machine>-<pkgbase>-<hash>.efi
+#     .linux .initrd .cmdline .osrel .uname             shared
+#     .profile omarchy      the live system                    (when installed)
+#     .profile snapshot-12  .cmdline rootflags=subvol=@/.snapshots/12/snapshot
+#
+# systemd-boot lists every profile as its own entry, and systemd-stub ignores
+# any command line passed from outside the image when Secure Boot is on, so
+# each snapshot's root selection has to be inside the image.
+#
+# A snapshot is pinned to the boot image current when it was taken, so rolling
+# back from a broken kernel, initramfs or command line change boots the old
+# ones. Snapshots taken before the machine switched to systemd-boot have no pin
+# and are not offered.
+
+set -euo pipefail
+
+STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
+# The EFI system partition: /efi where an install put it there (an
+# unencrypted install into free space), /boot everywhere else.
+ESP=${OMARCHY_BOOT_ESP:-$([[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == "vfat" ]] && echo /efi || echo /boot)}
+TOP=${OMARCHY_BOOT_TOP:-/run/omarchy-boot/top}
+LOCK=${OMARCHY_BOOT_LOCK:-/run/omarchy-boot.lock}
+# ukify picks the stub for the machine's architecture. The image itself reads
+# /etc/kernel/uki.conf, where Snapdragon machines list their device trees
+# (omarchy-update-qualcomm-device-trees); profiles read nothing, so the trees
+# are carried once rather than copied into every profile.
+UKI_CONFIG=${OMARCHY_BOOT_UKI_CONFIG:-/etc/kernel/uki.conf}
+MAX_SNAPSHOTS=${OMARCHY_BOOT_MAX_SNAPSHOTS:-6}
+MACHINE_ID_FILE=${OMARCHY_BOOT_MACHINE_ID:-/etc/machine-id}
+LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
+
+# Bumped when the image layout changes, so published images get rebuilt.
+FORMAT=4
+
+die() {
+  echo "omarchy-boot-sync: $*" >&2
+  exit 1
+}
+
+log() {
+  echo "omarchy-boot-sync: $*"
+}
+
+# --- state ------------------------------------------------------------------
+
+# The store keeps small KEY=value files. They are parsed, never sourced.
+kv_get() {
+  local file=$1 key=$2
+  [[ -f $file ]] || return 0
+  sed -n "s/^$key=//p" "$file" | tail -1
+}
+
+kv_set() {
+  local file=$1 key=$2 value=$3 tmp
+  tmp=$(mktemp "$file.XXXXXX")
+  if [[ -f $file ]]; then
+    grep -v "^$key=" "$file" >"$tmp" || true
+  fi
+  printf '%s=%s\n' "$key" "$value" >>"$tmp"
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$file"
+  sync -f "$file" 2>/dev/null || true
+}
+
+state_get() { kv_get "$STORE/state" "$1"; }
+state_set() { kv_set "$STORE/state" "$1" "$2"; }
+
+namespace() {
+  local id
+  id=$(<"$MACHINE_ID_FILE")
+  echo "${id:0:8}"
+}
+
+# --- mounts ------------------------------------------------------------------
+
+# Writing into an unmounted /var/lib/omarchy/boot would put boot images on the
+# root that a restore replaces, so every writer checks the mount first.
+check_store() {
+  [[ ${OMARCHY_BOOT_TEST:-} == "1" ]] && return 0
+  local fstype fsroot
+  read -r fstype fsroot < <(findmnt -n -o FSTYPE,FSROOT --mountpoint "$STORE" 2>/dev/null) ||
+    die "the boot store is not mounted at $STORE"
+  # A factory reset builds the next root's store as @omarchy-boot-next, the
+  # name it keeps until that root is activated.
+  [[ $fstype == "btrfs" && ($fsroot == /@omarchy-boot || $fsroot == /@omarchy-boot-next) ]] ||
+    die "$STORE is $fstype $fsroot, not the @omarchy-boot subvolume"
+}
+
+# Likewise the ESP: written while it isn't mounted, the images would land on
+# the root, and verify would pass on them while the firmware boots stale ones.
+check_esp() {
+  [[ ${OMARCHY_BOOT_TEST:-} == "1" ]] && return 0
+  [[ $(stat -f -c %T "$ESP" 2>/dev/null) == "msdos" ]] || die "the EFI system partition is not mounted at $ESP"
+}
+
+# The btrfs top level, where @, its snapshots and the store live side by side.
+# Mounted on its own so this works the same from the live system and from a
+# booted snapshot, whose / is an overlay.
+# The root whose kernels are published: the live root @, even from a booted
+# snapshot, or the root a factory reset is building
+# (omarchy-boot-switch install sets OMARCHY_BOOT_LIVE_ROOT=/ in its chroot).
+LIVE_ROOT_OVERRIDE=${OMARCHY_BOOT_LIVE_ROOT:-}
+
+live_root() {
+  echo "${LIVE_ROOT_OVERRIDE:-$TOP/@}"
+}
+
+mount_top() {
+  [[ ${OMARCHY_BOOT_TEST:-} == "1" ]] && return 0
+  mountpoint -q "$TOP" && return 0
+  local device
+  device=$(findmnt -n -o SOURCE --mountpoint "$STORE")
+  device=${device%%\[*}
+  mkdir -p "$TOP"
+  mount -t btrfs -o subvolid=5 "$device" "$TOP" || die "could not mount the btrfs top level of $device"
+}
+
+with_lock() {
+  mkdir -p "$(dirname "$LOCK")"
+  exec 9>"$LOCK"
+  flock -w "${OMARCHY_BOOT_LOCK_WAIT:-300}" 9 || die "another boot image update is still running"
+}
+
+# --- command lines -------------------------------------------------------------
+
+# /etc/kernel/cmdline (the root and encryption parameters the installer
+# wrote), Omarchy's defaults, then every /etc/cmdline.d/*.conf in name order,
+# comments dropped, as one line. An /etc/cmdline.d/omarchy-defaults.conf
+# replaces the packaged defaults.
+# OMARCHY_PATH has a default: this runs as root from units and pacman hooks,
+# outside the session that sets it.
+assemble_cmdline() {
+  local root=${1:-/} file defaults=${OMARCHY_BOOT_CMDLINE_DEFAULTS:-${OMARCHY_PATH:-/usr/share/omarchy}/default/boot/cmdline-defaults.conf}
+  [[ -f $root/etc/cmdline.d/omarchy-defaults.conf ]] && defaults=
+  {
+    # No drop-ins, or one of only comments, is no failure under errexit and
+    # pipefail: each step succeeds whether or not it prints anything.
+    if [[ -f $root/etc/kernel/cmdline ]]; then cat "$root/etc/kernel/cmdline"; fi
+    if [[ -n $defaults && -f $defaults ]]; then grep -v '^[[:space:]]*#' "$defaults" || true; fi
+    for file in "$root"/etc/cmdline.d/*.conf; do
+      if [[ -f $file ]]; then grep -v '^[[:space:]]*#' "$file" || true; fi
+    done
+  } | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'
+}
+
+# Points rootflags=...subvol= at another subvolume, keeping the other options.
+# Refuses command lines it cannot rewrite safely.
+cmdline_with_subvol() {
+  local cmdline=$1 subvol=$2 token out=() found=0 opts
+  for token in $cmdline; do
+    case $token in
+    rootflags=*)
+      opts=${token#rootflags=}
+      [[ ,$opts, != *,subvolid=* ]] || die "the command line selects the root by subvolid=, which a snapshot entry cannot override"
+      if [[ ,$opts, == *,subvol=* ]]; then
+        opts=$(sed -E "s#(^|,)subvol=[^,]*#\1subvol=$subvol#" <<<"$opts")
+        out+=("rootflags=$opts")
+        found=1
+      else
+        out+=("$token")
+      fi
+      ;;
+    *) out+=("$token") ;;
+    esac
+  done
+  ((found)) || die "the command line has no rootflags=subvol= to point at a snapshot"
+  echo "${out[*]}"
+}
+
+cmdline_without() {
+  local cmdline=$1 key=$2 token out=()
+  for token in $cmdline; do
+    [[ $token == "$key" || $token == "$key="* ]] || out+=("$token")
+  done
+  echo "${out[*]}"
+}
+
+# --- images ----------------------------------------------------------------------
+
+image_dir() { echo "$STORE/images/$1"; }
+image_get() { kv_get "$STORE/images/$1/manifest" "$2"; }
+
+current_image() {
+  local link=$STORE/current/$1
+  [[ -L $link ]] && basename "$(readlink "$link")"
+  return 0
+}
+
+# Installed kernels of a root, by package name.
+root_kernels() {
+  local root=$1 pkgbase
+  for pkgbase in "$root"/usr/lib/modules/*/pkgbase; do
+    if [[ -f $pkgbase ]]; then printf '%s %s\n' "$(<"$pkgbase")" "$(basename "$(dirname "$pkgbase")")"; fi
+  done | sort -u
+}
+
+preferred_kernel() {
+  local preferred
+  preferred=$(state_get preferred)
+  if [[ -n $preferred && -L $STORE/current/$preferred ]]; then
+    echo "$preferred"
+  else
+    # Among the kernels with a current image.
+    local kernels
+    kernels=$(root_kernels "${1:-/}" | awk '{ print $1 }' | while read -r k; do
+      [[ -L $STORE/current/$k || ! -d $STORE/current ]] && echo "$k"
+    done)
+    grep -x linux-omarchy <<<"$kernels" || sed -n 1p <<<"$kernels"
+  fi
+}
+
+# A kernel that is no longer installed loses its current image: its live entry
+# goes, and snapshots pinned to the image keep booting it. A kernel upgrade
+# removes the old version's vmlinuz too, so this runs after the transaction,
+# when the upgraded kernel is installed again. A root that shows no kernels at
+# all is a mount gone wrong, not a machine without any.
+prune_current() {
+  local kernels link
+  kernels=$(root_kernels "$1" | awk '{ print $1 }')
+  [[ -n $kernels ]] || return 0
+  for link in "$STORE"/current/*; do
+    [[ -L $link ]] || continue
+    if ! grep -qxF "$(basename "$link")" <<<"$kernels"; then
+      rm -f "$link"
+      log "$(basename "$link") is no longer installed; its live entry goes"
+    fi
+  done
+}
+
+cmd_import() {
+  (($# == 4)) || die "usage: import PKGBASE KVER VMLINUZ INITRAMFS"
+  local pkgbase=$1 kver=$2 vmlinuz=$3 initramfs=$4 cmdline hash image dir
+  [[ -s $vmlinuz && -s $initramfs ]] || die "import: missing kernel or initramfs for $pkgbase"
+  cmdline=$(assemble_cmdline /)
+  [[ $cmdline == *root=* ]] || die "import: /etc/kernel/cmdline names no root="
+  hash=$( { sha256sum <"$vmlinuz"; sha256sum <"$initramfs"; printf '%s' "$cmdline"; } | sha256sum | cut -c1-12)
+  image=$pkgbase-$hash
+  dir=$(image_dir "$image")
+
+  if [[ ! -d $dir ]]; then
+    rm -rf "$dir.new"
+    mkdir -p "$dir.new"
+    cp "$vmlinuz" "$dir.new/vmlinuz"
+    cp "$initramfs" "$dir.new/initramfs.img"
+    {
+      echo "PKGBASE=$pkgbase"
+      echo "KVER=$kver"
+      echo "CMDLINE=$cmdline"
+      echo "CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } >"$dir.new/manifest"
+    sync -f "$dir.new/initramfs.img"
+    mv "$dir.new" "$dir"
+  fi
+
+  mkdir -p "$STORE/current"
+  ln -sfn "../images/$image" "$STORE/current/.$pkgbase.new"
+  mv -T "$STORE/current/.$pkgbase.new" "$STORE/current/$pkgbase"
+  log "boot image for $pkgbase $kver is $image"
+}
+
+# Same kernel and initramfs under another command line, for a restored root
+# whose swapfile moved since its image was built.
+derive_image() {
+  local source=$1 cmdline=$2 hash image dir
+  hash=$( { sha256sum <"$(image_dir "$source")/vmlinuz"; sha256sum <"$(image_dir "$source")/initramfs.img"; printf '%s' "$cmdline"; } | sha256sum | cut -c1-12)
+  image=$(image_get "$source" PKGBASE)-$hash
+  dir=$(image_dir "$image")
+  if [[ ! -d $dir ]]; then
+    rm -rf "$dir.new"
+    mkdir -p "$dir.new"
+    cp --reflink=auto "$(image_dir "$source")/vmlinuz" "$(image_dir "$source")/initramfs.img" "$dir.new/"
+    { grep -v '^CMDLINE=' "$(image_dir "$source")/manifest" || true; printf 'CMDLINE=%s\n' "$cmdline"; } >"$dir.new/manifest"
+    mv "$dir.new" "$dir"
+  fi
+  echo "$image"
+}
+
+# --- snapshots ---------------------------------------------------------------------
+
+# The live root's snapshots: @'s, or those of the root a factory reset builds,
+# never the old owner's.
+snapshots_dir() { echo "$(live_root)/.snapshots"; }
+
+cmd_pin() {
+  (($# == 1)) && [[ $1 =~ ^[0-9]+$ ]] || die "usage: pin NUMBER"
+  local num=$1 dir pkgbase image kver
+  dir=$(snapshots_dir)/$num
+  [[ -d $dir/snapshot ]] || die "pin: snapshot $num does not exist"
+
+  # The image of the kernel the machine boots by default, when that kernel is
+  # in the snapshot; otherwise any installed kernel the snapshot carries.
+  for pkgbase in $(preferred_kernel "$(live_root)") $(ls "$STORE/current" 2>/dev/null); do
+    image=$(current_image "$pkgbase")
+    [[ -n $image ]] || continue
+    kver=$(image_get "$image" KVER)
+    if [[ -d $dir/snapshot/usr/lib/modules/$kver ]]; then
+      printf '%s\n' "$image" >"$dir/.omarchy-boot-image.new"
+      mv -f "$dir/.omarchy-boot-image.new" "$dir/omarchy-boot-image"
+      log "pinned snapshot $num to $image"
+      return 0
+    fi
+  done
+  die "pin: no stored boot image matches a kernel in snapshot $num"
+}
+
+info_field() {
+  sed -n "s:.*<$2>\(.*\)</$2>.*:\1:p" "$1" | sed -n 1p
+}
+
+# Snapshot numbers with a pin whose image still exists, newest first.
+bootable_snapshots() {
+  local dir num image
+  for dir in "$(snapshots_dir)"/*/; do
+    num=$(basename "$dir")
+    [[ $num =~ ^[0-9]+$ && -f $dir/omarchy-boot-image && -d $dir/snapshot ]] || continue
+    image=$(<"$dir/omarchy-boot-image")
+    [[ -d $(image_dir "$image") ]] && echo "$num"
+  done | sort -rn | head -n "$MAX_SNAPSHOTS"
+}
+
+snapshot_details() {
+  local info=$1 desc date
+  desc=$(info_field "$info" description)
+  date=$(info_field "$info" date)
+  date=$(date -d "$date UTC" '+%b %-d %H:%M' 2>/dev/null || echo "$date")
+  echo "${desc:-no description} · $date"
+}
+
+# --- building ------------------------------------------------------------------------
+
+osrel() { # pretty-name order
+  printf 'NAME="Omarchy"\nID=omarchy\nIMAGE_ID=omarchy\nPRETTY_NAME="%s"\nIMAGE_VERSION=%s\n' "$1" "$2"
+}
+
+# One profile per line of the profile list: ID, PRETTY, TITLE, ORDER, CMDLINE
+# separated by the ASCII unit separator (\x1f). Not tabs: read collapses runs
+# of whitespace separators, so an empty TITLE would shift the fields.
+
+# What an image reads besides its manifest and profiles: uki.conf and every
+# file it names, such as a Snapdragon machine's device trees. Part of the
+# published image's key, so a changed tree reaches the next boot.
+uki_inputs() {
+  [[ -r $UKI_CONFIG ]] || return 0
+  cat "$UKI_CONFIG"
+  local file
+  while read -r file; do
+    if [[ -f $file ]]; then sha256sum "$file"; fi
+  done < <(sed -n 's/^[^#=]*=//p' "$UKI_CONFIG" | grep -o '/[^[:space:]]*' || true)
+}
+build_uki() {
+  local image=$1 profiles=$2 out=$3 work dir kver id pretty title order cmdline n=0
+  dir=$(image_dir "$image")
+  kver=$(image_get "$image" KVER)
+  work=$(mktemp -d "$STORE/tmp/build.XXXXXX")
+
+  : >"$work/empty.conf"
+  local args=(build --linux="$dir/vmlinuz" --initrd="$dir/initramfs.img" --uname="$kver")
+  if [[ -r $UKI_CONFIG ]]; then
+    args+=(--config="$UKI_CONFIG")
+  else
+    args+=(--config="$work/empty.conf")
+  fi
+
+  # The first profile is built into the image itself: its .profile, .osrel and
+  # .cmdline are the shared base, so it is profile 0, the entry named after the
+  # file. Joining every profile instead would make ukify add a base profile of
+  # its own ("main") in front of them.
+  while IFS=$'\x1f' read -r id pretty title order cmdline; do
+    [[ -n $id ]] || continue
+    n=$((n + 1))
+    { echo "ID=$id"; if [[ -n $title ]]; then echo "TITLE=$title"; fi; } >"$work/profile-$n"
+    osrel "$pretty" "$order" >"$work/osrel-$n"
+    printf '%s' "$cmdline" >"$work/cmdline-$n"
+    if ((n == 1)); then
+      args+=(--profile="@$work/profile-$n" --os-release="@$work/osrel-$n" --cmdline="@$work/cmdline-$n")
+    else
+      ukify build --config="$work/empty.conf" --profile="@$work/profile-$n" --os-release="@$work/osrel-$n" \
+        --cmdline="@$work/cmdline-$n" --output="$work/profile-$n.efi" >/dev/null
+      args+=(--join-profile="$work/profile-$n.efi")
+    fi
+  done <<<"$profiles"
+
+  if [[ $(state_get signing) == "required" ]]; then
+    local key=$STORE/keys/db.key cert=$STORE/keys/db.crt
+    [[ -f $key && -f $cert ]] || die "signing is required but $STORE/keys has no key; keeping the published images"
+    args+=(--signtool=systemd-sbsign --secureboot-private-key="$key" --secureboot-certificate="$cert")
+  fi
+
+  ukify "${args[@]}" --output="$work/uki.efi" >/dev/null || die "ukify could not build $image"
+  [[ -s $work/uki.efi ]] || die "ukify wrote no image for $image"
+
+  # Stage on the ESP and rename over the old file, so a crash never leaves a
+  # half-written image as the entry the machine boots.
+  local free need
+  free=$(df --output=avail -B1 "$ESP" | tail -1)
+  need=$(($(stat -c %s "$work/uki.efi") + 8 * 1024 * 1024))
+  ((free > need)) || die "the ESP has $((free / 1024 / 1024)) MB free, $((need / 1024 / 1024)) MB needed; keeping the published images"
+  cp "$work/uki.efi" "$out.new"
+  sync -f "$out.new"
+  mv -f "$out.new" "$out"
+  sync -f "$out"
+  rm -rf "$work"
+}
+
+# --- sync ------------------------------------------------------------------------------
+
+cmd_sync() {
+  check_store
+  check_esp
+  mount_top
+  mkdir -p "$STORE/tmp" "$STORE/published" "$ESP/EFI/Linux"
+  rm -rf "$STORE"/tmp/build.*
+  # Boot images no longer carry a splash; a store from before keeps none.
+  rm -f "$STORE/splash.bmp"
+
+  local ns preferred pkgbase kver image num dir file id
+  local -A profiles=() wanted=()
+  local entries=()
+  ns=$(namespace)
+  prune_current "$(live_root)"
+  preferred=$(preferred_kernel "$(live_root)")
+
+  # The live system: one profile per installed kernel with a stored image.
+  local order=999999
+  while read -r pkgbase kver; do
+    image=$(current_image "$pkgbase")
+    if [[ -z $image ]]; then
+      log "no boot image stored for $pkgbase $kver; run omarchy-boot-rebuild"
+      continue
+    fi
+    local pretty=Omarchy
+    [[ $pkgbase == "$preferred" ]] || pretty="Omarchy ($pkgbase)"
+    local this_order=$order
+    [[ $pkgbase == "$preferred" ]] && this_order=1000000
+    profiles[$image]+=$(printf 'omarchy\x1f%s\x1f\x1f%s\x1f%s' "$pretty" "$this_order" "$(image_get "$image" CMDLINE)")$'\n'
+    order=$((order - 1))
+  done < <(root_kernels "$(live_root)")
+
+  # A pending restore adds the maintenance boot that swaps the roots and the
+  # entry that boots the restored root once it is in place.
+  local journal=$STORE/restore/journal restoring=0
+  if [[ -f $journal ]] && [[ $(kv_get "$journal" STATE) =~ ^(pending|swapping|swapped)$ ]]; then
+    local tx restored live_image
+    tx=$(kv_get "$journal" TX)
+    restored=$(kv_get "$journal" IMAGE)
+    live_image=$(current_image "$preferred")
+    if [[ -n $live_image && -d $(image_dir "$restored") ]]; then
+      profiles[$live_image]+=$(printf 'omarchy-restore\x1fRestoring a snapshot\x1f\x1f0\x1f%s' \
+        "$(image_get "$live_image" CMDLINE) noresume omarchy.restore=$tx")$'\n'
+      profiles[$restored]+=$(printf 'omarchy-restored\x1fOmarchy (restored)\x1f\x1f0\x1f%s' "$(image_get "$restored" CMDLINE)")$'\n'
+      restoring=1
+    fi
+  fi
+
+  # Snapshots, newest first, each on the image it was pinned to.
+  for num in $(bootable_snapshots); do
+    dir=$(snapshots_dir)/$num
+    image=$(<"$dir/omarchy-boot-image")
+    profiles[$image]+=$(printf 'snapshot-%s\x1fSnapshot %s\x1f%s\x1f%s\x1f%s' "$num" "$num" \
+      "$(snapshot_details "$dir/info.xml")" "$num" \
+      "$(cmdline_with_subvol "$(cmdline_without "$(image_get "$image" CMDLINE)" resume) noresume" "@/.snapshots/$num/snapshot")")$'\n'
+  done
+
+  # The root a restore replaced, bootable to undo it.
+  local backup backup_image
+  backup=$(state_get backup)
+  backup_image=$(state_get backup_image)
+  if [[ -n $backup && -d $TOP/$backup && -d $(image_dir "${backup_image:-none}") ]]; then
+    profiles[$backup_image]+=$(printf 'backup\x1fBefore restore\x1f%s\x1f0\x1f%s' "$(state_get backup_date)" \
+      "$(cmdline_with_subvol "$(cmdline_without "$(image_get "$backup_image" CMDLINE)" resume) noresume" "$backup")")$'\n'
+  fi
+
+  # Live first inside each image: profile 0 is the entry named after the file.
+  for image in "${!profiles[@]}"; do
+    local sorted key
+    sorted=$(printf '%s' "${profiles[$image]}" | sort -t$'\x1f' -k4,4nr)
+    file=omarchy-$ns-$image.efi
+    key=$(
+      {
+        echo "format=$FORMAT signing=$(state_get signing)"
+        cat "$(image_dir "$image")/manifest"
+        echo "$sorted"
+        uki_inputs
+      } | sha256sum | cut -c1-64
+    )
+    if [[ ! -s $ESP/EFI/Linux/$file || $(cat "$STORE/published/$file.key" 2>/dev/null) != "$key" ]]; then
+      build_uki "$image" "$sorted" "$ESP/EFI/Linux/$file"
+      echo "$key" >"$STORE/published/$file.key"
+      log "wrote $file"
+    fi
+    wanted[$file]=1
+
+    local first=1 pid ptitle
+    while IFS=$'\x1f' read -r pid pretty ptitle _ _; do
+      [[ -n $pid ]] || continue
+      if ((first)); then id=$file; else id=$file@$pid; fi
+      first=0
+      entries+=("$(printf '%s\t%s\t%s%s' "$pid" "$id" "$pretty" "${ptitle:+ ($ptitle)}")")
+    done <<<"$sorted"
+  done
+
+  # The entry a pending one-shot boot points at stays until it has booted.
+  local oneshot
+  oneshot=$(efivar_string LoaderEntryOneShot)
+  [[ -n $oneshot ]] && wanted[${oneshot%%@*}]=1
+
+  for file in "$ESP"/EFI/Linux/omarchy-"$ns"-*.efi "$ESP"/EFI/Linux/omarchy-"$ns"-*.efi.new; do
+    [[ -e $file ]] || continue
+    if [[ -z ${wanted[$(basename "$file")]:-} ]]; then
+      rm -f "$file" "$STORE/published/$(basename "$file").key"
+      log "removed $(basename "$file")"
+    fi
+  done
+
+  printf '%s\n' "${entries[@]}" | sort >"$STORE/entries.new"
+  mv -f "$STORE/entries.new" "$STORE/entries"
+
+  # The restored root's entry is profile 0 of its image or not, depending on
+  # the snapshots that image carries, which can change before the reboot: the
+  # journal names the one just published, for the maintenance boot to arm.
+  if ((restoring)); then
+    id=$(entry_id omarchy-restored)
+    if [[ -n $id && $id != "$(kv_get "$journal" ONESHOT)" ]]; then
+      kv_set "$journal" ONESHOT "$id"
+    fi
+    # And the maintenance boot the firmware is armed for moves with the live
+    # image when that is rebuilt before the reboot. Only that one: a one-shot
+    # boot the user chose since (a snapshot) stays theirs.
+    id=$(entry_id omarchy-restore)
+    if [[ $(kv_get "$journal" STATE) == "pending" && -n $id && $oneshot == *@omarchy-restore && $oneshot != "$id" ]]; then
+      bootctl set-oneshot "$id" >/dev/null 2>&1 || log "could not arm the restore's maintenance boot ($id)" >&2
+    fi
+  fi
+
+  local live
+  live=$(current_image "$preferred")
+  [[ -n $live ]] && set_loader_default "omarchy-$ns-$live.efi"
+
+  gc_images
+}
+
+# The published entry id for a profile id (omarchy-restore, snapshot-12, ...).
+entry_id() {
+  awk -F'\t' -v id="$1" '$1 == id { print $2; exit }' "$STORE/entries" 2>/dev/null
+}
+
+efivar_string() {
+  local file=${OMARCHY_BOOT_EFIVARS:-/sys/firmware/efi/efivars}/$1-$LOADER_GUID
+  [[ -r $file ]] && tail -c +5 "$file" | tr -d '\0'
+  return 0
+}
+
+# A factory reset builds the next root's images next to the running ones and
+# may only hand the firmware's default over once that root is in place:
+# OMARCHY_BOOT_DEFER_DEFAULT=1 leaves loader.conf alone and records the
+# default in the store, for the reset to write after activating the root.
+set_loader_default() {
+  local conf=$ESP/loader/loader.conf tmp
+  if [[ ${OMARCHY_BOOT_DEFER_DEFAULT:-} == "1" ]]; then
+    echo "$1" >"$STORE/pending-default"
+    return 0
+  fi
+  mkdir -p "$(dirname "$conf")"
+  tmp=$(mktemp "$conf.XXXXXX")
+  { grep -v '^default ' "$conf" 2>/dev/null || true; echo "default $1"; } >"$tmp"
+  if cmp -s "$tmp" "$conf"; then
+    rm -f "$tmp"
+  else
+    mv -f "$tmp" "$conf"
+  fi
+}
+
+# Images kept: current ones, any a snapshot is pinned to (listed or not), the
+# backup's, and a pending restore's.
+gc_images() {
+  local -A keep=()
+  local image pin
+  for image in "$STORE"/current/*; do
+    [[ -L $image ]] && keep[$(basename "$(readlink "$image")")]=1
+  done
+  for pin in "$(snapshots_dir)"/*/omarchy-boot-image; do
+    [[ -f $pin ]] && keep[$(<"$pin")]=1
+  done
+  image=$(state_get backup_image)
+  [[ -n $image ]] && keep[$image]=1
+  # A pending restore's image, and the live one it replaces, which becomes
+  # "Before restore".
+  for image in $(kv_get "$STORE/restore/journal" IMAGE) $(kv_get "$STORE/restore/journal" PREVIOUS_IMAGE); do
+    keep[$image]=1
+  done
+
+  for image in "$STORE"/images/*/; do
+    image=$(basename "$image")
+    [[ -n ${keep[$image]:-} ]] && continue
+    rm -rf "${STORE:?}/images/$image"
+    log "dropped unused boot image $image"
+  done
+}
+
+# Fails when an installed kernel has no published live entry: rebooting then
+# would boot an image that doesn't match the installed modules.
+# The kernel the machine boots by default (omarchy-kernel set).
+cmd_prefer() {
+  (($# == 1)) || die "usage: prefer PKGBASE"
+  [[ -L $STORE/current/$1 ]] || die "no boot image is stored for $1"
+  state_set preferred "$1"
+  cmd_sync
+}
+
+cmd_verify() {
+  check_store
+  check_esp
+  local ns pkgbase kver image file status=0
+  ns=$(namespace)
+  while read -r pkgbase kver; do
+    image=$(current_image "$pkgbase")
+    if [[ -z $image ]]; then
+      echo "No boot image for $pkgbase $kver" >&2
+      status=1
+    elif [[ $(image_get "$image" KVER) != "$kver" ]]; then
+      echo "The boot image for $pkgbase is $(image_get "$image" KVER), but $kver is installed" >&2
+      status=1
+    else
+      file=$ESP/EFI/Linux/omarchy-$ns-$image.efi
+      [[ -s $file ]] || { echo "$file is missing" >&2; status=1; }
+    fi
+  done < <(root_kernels /)
+  return "$status"
+}
+
+cmd_status() {
+  check_store
+  echo "backend: $(state_get backend)"
+  echo "phase: $(state_get phase)"
+  echo "signing: $(state_get signing)"
+  echo "preferred kernel: $(preferred_kernel /)"
+  echo "images:"
+  local image
+  for image in "$STORE"/images/*/; do
+    [[ -d $image ]] && echo "  $(basename "$image")  $(image_get "$(basename "$image")" KVER)"
+  done
+  echo "entries:"
+  sed 's/^/  /' "$STORE/entries" 2>/dev/null || true
+  [[ -f $STORE/restore/journal ]] && echo "restore: $(kv_get "$STORE/restore/journal" STATE) (snapshot $(kv_get "$STORE/restore/journal" SOURCE))"
+  return 0
+}
+
+# --- restore ---------------------------------------------------------------------------
+
+subvol_uuid() {
+  btrfs subvolume show "$1" 2>/dev/null | sed -n 's/^[[:space:]]*UUID:[[:space:]]*//p' | sed -n 1p
+}
+
+subvol_id() {
+  btrfs subvolume show "$1" 2>/dev/null | sed -n 's/^[[:space:]]*Subvolume ID:[[:space:]]*//p' | sed -n 1p
+}
+
+# The subvolumes directly inside @ (.snapshots, swap, var/lib/machines, ...),
+# relative to it. A restore moves these into the new root.
+root_children() {
+  local root_id
+  root_id=$(subvol_id "$TOP/@")
+  btrfs subvolume list "$TOP" | awk -v parent="$root_id" '$7 == parent { sub(/^.* path /, ""); print }' |
+    sed 's#^@/##' | sort
+}
+
+swap_holds_hibernation_image() {
+  local swapfile=$TOP/@/swap/swapfile
+  [[ -f $swapfile ]] || return 1
+  [[ $(dd if="$swapfile" bs=1 skip=4086 count=10 2>/dev/null) != "SWAPSPACE2" ]]
+}
+
+# Stages a restore: a writable copy of the snapshot next to @, a journal the
+# initramfs applies on the next boot with nothing running, and the boot
+# entries that take the machine there.
+cmd_restore_stage() {
+  (($# == 1)) || die "usage: restore-stage SNAPSHOT|backup"
+  check_store
+  mount_top
+  local source=$1 source_path image kver tx staged journal=$STORE/restore/journal
+
+  [[ $(state_get phase) == "active" ]] || die "snapshots are restored this way only once the switch to systemd-boot is finished"
+  if [[ -f $journal ]] && [[ $(kv_get "$journal" STATE) =~ ^(pending|swapping|swapped)$ ]]; then
+    die "a restore of snapshot $(kv_get "$journal" SOURCE) is already waiting for a reboot; cancel it first"
+  fi
+
+  if [[ $source == "backup" ]]; then
+    source_path=$TOP/$(state_get backup)
+    image=$(state_get backup_image)
+    [[ -n $(state_get backup) && -d $source_path ]] || die "there is no previous root to go back to"
+  else
+    [[ $source =~ ^[0-9]+$ ]] || die "not a snapshot number: $source"
+    source_path=$(snapshots_dir)/$source/snapshot
+    [[ -d $source_path ]] || die "snapshot $source does not exist"
+    [[ -f $(snapshots_dir)/$source/omarchy-boot-image ]] ||
+      die "snapshot $source was taken before this machine switched to systemd-boot and cannot be restored"
+    image=$(<"$(snapshots_dir)/$source/omarchy-boot-image")
+  fi
+  [[ -d $(image_dir "$image") ]] || die "the boot image of $source is gone"
+  kver=$(image_get "$image" KVER)
+  [[ -d $source_path/usr/lib/modules/$kver ]] || die "$source does not carry the kernel modules of its boot image ($kver)"
+
+  swap_holds_hibernation_image && die "the swapfile holds a hibernation image; boot Omarchy normally to resume it before restoring"
+
+  local live
+  live=$(current_image "$(preferred_kernel "$(live_root)")")
+  lsinitcpio "$(image_dir "$live")/initramfs.img" 2>/dev/null | grep -q 'hooks/omarchy-restore$' ||
+    die "the boot image cannot apply restores yet; run omarchy-boot-rebuild first"
+
+  tx=$(date +%Y%m%d%H%M%S)
+  staged=@restore-$tx
+  local children child
+  children=$(root_children | paste -sd: -)
+
+  btrfs -q subvolume snapshot "$source_path" "$TOP/$staged" >/dev/null
+  # Snapshots leave empty directories where nested subvolumes were; the
+  # initramfs moves the real ones in and refuses anything else.
+  IFS=: read -ra child_list <<<"$children"
+  for child in "${child_list[@]}"; do
+    if [[ -e $TOP/$staged/$child ]] && [[ -n $(ls -A "$TOP/$staged/$child" 2>/dev/null) ]]; then
+      btrfs -q subvolume delete "$TOP/$staged" >/dev/null
+      die "$child in $source is not empty; it cannot take the live $child subvolume"
+    fi
+  done
+
+  # The swapfile subvolume moves over unchanged, so its extents (and the
+  # resume offset) are today's, not the snapshot's.
+  local cmdline offset
+  cmdline=$(image_get "$image" CMDLINE)
+  if [[ $cmdline == *resume_offset=* && -f $TOP/@/swap/swapfile ]]; then
+    offset=$(btrfs inspect-internal map-swapfile -r "$TOP/@/swap/swapfile")
+    # Whole parameters: an offset of 1234 is not resume_offset=12345.
+    if [[ " $cmdline " != *" resume_offset=$offset "* ]]; then
+      image=$(derive_image "$image" "$(sed -E "s/resume_offset=[0-9]+/resume_offset=$offset/" <<<"$cmdline")")
+      sed -i -E "s/resume_offset=[0-9]+/resume_offset=$offset/" "$TOP/$staged"/etc/cmdline.d/*.conf "$TOP/$staged/etc/kernel/cmdline" 2>/dev/null || true
+    fi
+  fi
+
+  mkdir -p "$STORE/restore"
+  {
+    echo "TX=$tx"
+    echo "STATE=pending"
+    echo "SOURCE=$source"
+    echo "STAGED=$staged"
+    echo "STAGED_UUID=$(subvol_uuid "$TOP/$staged")"
+    echo "ROOT_UUID=$(subvol_uuid "$TOP/@")"
+    echo "BACKUP=@backup-$tx"
+    echo "CHILDREN=$children"
+    echo "IMAGE=$image"
+    echo "PREVIOUS_IMAGE=$live"
+    # The same kernel and initramfs as the running system: the maintenance
+    # boot can carry on into the restored root instead of rebooting into it.
+    [[ $image == "$live" ]] && echo "SAME_IMAGE=1"
+  } >"$journal.new"
+  sync -f "$journal.new"
+  mv -f "$journal.new" "$journal"
+
+  # Hibernating now would write an image of a root that is about to move.
+  mkdir -p /etc/systemd/sleep.conf.d
+  printf '[Sleep]\nAllowHibernation=no\nAllowHybridSleep=no\nAllowSuspendThenHibernate=no\n' \
+    >/etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf
+
+  cmd_sync
+
+  # Profile 0 of an image is named after the file alone, so the ids come from
+  # what the sync published rather than being built here.
+  local maintenance restored
+  maintenance=$(entry_id omarchy-restore)
+  restored=$(entry_id omarchy-restored)
+  [[ -n $maintenance && -n $restored ]] || die "the restore entries were not published"
+  kv_set "$journal" ONESHOT "$restored"
+  bootctl set-oneshot "$maintenance" >/dev/null
+  log "snapshot $source is staged; it becomes the system on the next reboot"
+}
+
+# The hibernation block restore-stage wrote: in / of the system it ran on,
+# which is @ unless that was a booted snapshot, whose overlay forgets it. Run
+# from a booted snapshot, the copy in @ goes too.
+drop_hibernation_block() {
+  rm -f /etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf "$TOP/@/etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf"
+}
+
+cmd_restore_cancel() {
+  check_store
+  mount_top
+  local journal=$STORE/restore/journal staged
+  [[ -f $journal ]] || die "no restore is waiting"
+  [[ $(kv_get "$journal" STATE) == "pending" ]] || die "the restore is past the point where it can be cancelled"
+  staged=$(kv_get "$journal" STAGED)
+  [[ -n $staged && -d $TOP/$staged ]] && btrfs -q subvolume delete "$TOP/$staged" >/dev/null
+  mv -f "$journal" "$STORE/restore/cancelled-$(kv_get "$journal" TX)"
+  drop_hibernation_block
+  bootctl set-oneshot "" >/dev/null 2>&1 || true
+  cmd_sync
+  log "restore cancelled"
+}
+
+# Runs on the first boot of the restored root: makes its image the live one,
+# records the replaced root as the backup and drops the one before.
+# Prints one line, "restored: ..." or "failed: ...", which the confirm
+# service turns into a notice; publishing reports on stderr.
+cmd_restore_commit() {
+  check_store
+  mount_top
+  local journal=$STORE/restore/journal state tx image backup old staged
+  [[ -f $journal ]] || return 0
+  state=$(kv_get "$journal" STATE)
+  tx=$(kv_get "$journal" TX)
+
+  if [[ $state == "failed" ]]; then
+    staged=$(kv_get "$journal" STAGED)
+    [[ -d $TOP/$staged ]] && btrfs -q subvolume delete "$TOP/$staged" >/dev/null || true
+    mv -f "$journal" "$STORE/restore/failed-$tx"
+    drop_hibernation_block
+    cmd_sync >&2
+    echo "failed: $(kv_get "$STORE/restore/failed-$tx" ERROR)"
+    return 0
+  fi
+  [[ $state == "swapped" ]] || return 0
+  [[ $(subvol_uuid "$TOP/@") == "$(kv_get "$journal" STAGED_UUID)" ]] || die "@ is not the staged root; leaving the restore journal for inspection"
+  # Only the restored root itself commits: booted into a snapshot instead,
+  # this root's kernels would decide which of @'s boot images stay. The
+  # journal waits for the next boot of @.
+  if [[ $(subvol_uuid /) != "$(kv_get "$journal" STAGED_UUID)" ]]; then
+    log "this boot isn't the restored root; the restore commits on its next boot" >&2
+    return 0
+  fi
+
+  image=$(kv_get "$journal" IMAGE)
+  backup=$(kv_get "$journal" BACKUP)
+  old=$(state_get backup)
+
+  ln -sfn "../images/$image" "$STORE/current/.$(image_get "$image" PKGBASE).new"
+  mv -T "$STORE/current/.$(image_get "$image" PKGBASE).new" "$STORE/current/$(image_get "$image" PKGBASE)"
+
+  # The restored root has the kernels it had then. A current image of another
+  # kernel that this root lacks at that version would boot it with modules it
+  # doesn't have, so it goes, and the default falls back to the restored image
+  # when the preferred kernel was one of them. omarchy-boot-rebuild makes
+  # images for the restored root's other kernels.
+  local link pkgbase kernels
+  kernels=$(root_kernels /)
+  for link in "$STORE"/current/*; do
+    [[ -L $link ]] || continue
+    pkgbase=$(basename "$link")
+    grep -qx "$pkgbase $(image_get "$(basename "$(readlink "$link")")" KVER)" <<<"$kernels" || rm -f "$link"
+  done
+  [[ -L $STORE/current/$(state_get preferred) ]] || state_set preferred "$(image_get "$image" PKGBASE)"
+
+  # The restored root may have kept the restore's hibernation block (an undo
+  # brings back the root it was written in).
+  rm -f /etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf
+  state_set backup "$backup"
+  state_set backup_image "$(kv_get "$journal" PREVIOUS_IMAGE)"
+  state_set backup_date "$(date '+%b %-d %H:%M')"
+
+  # The restored root's entry is published before the journal says done: a
+  # power loss or a failed publish leaves it swapped, and the next boot's
+  # confirm commits it again. Published once more after, without the restore's
+  # own entries.
+  cmd_sync >&2
+  kv_set "$journal" STATE done
+  mv -f "$journal" "$STORE/restore/done-$tx"
+
+  # The root before the previous restore. Never the one just replaced.
+  if [[ -n $old && $old != "$backup" && -d $TOP/$old ]] && ! findmnt -n -o FSROOT | grep -qx "/$old"; then
+    btrfs -q subvolume delete "$TOP/$old" >/dev/null || log "could not delete the older backup $old"
+  fi
+  cmd_sync >&2
+
+  echo "restored: $(kv_get "$STORE/restore/done-$tx" SOURCE)"
+}
+
+case ${1:-} in
+sync) with_lock; cmd_sync ;;
+import) shift; with_lock; check_store; cmd_import "$@" ;;
+pin) shift; with_lock; check_store; mount_top; cmd_pin "$@" ;;
+cmdline) assemble_cmdline / ; echo ;;
+prefer) shift; with_lock; check_store; cmd_prefer "$@" ;;
+preferred) preferred_kernel / ;;
+verify) cmd_verify ;;
+status) cmd_status ;;
+restore-stage) shift; with_lock; cmd_restore_stage "$@" ;;
+restore-cancel) with_lock; cmd_restore_cancel ;;
+restore-commit) with_lock; cmd_restore_commit ;;
+*) die "usage: omarchy-boot-sync sync | import PKGBASE KVER VMLINUZ INITRAMFS | pin NUMBER | verify | status | restore-stage SNAPSHOT|backup | restore-cancel | restore-commit" ;;
+esac

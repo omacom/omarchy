@@ -8,11 +8,11 @@
   "learn": {
     "label": "Oʻrganish"
   },
+  "appearance": {
+    "label": "Koʻrinish"
+  },
   "trigger": {
     "label": "Ishga tushirish"
-  },
-  "style": {
-    "label": "Uslub"
   },
   "setup": {
     "label": "Sozlash"
@@ -26,11 +26,11 @@
   "update": {
     "label": "Yangilash"
   },
-  "about": {
-    "label": "Haqida"
-  },
   "system": {
     "label": "Tizim"
+  },
+  "system.about": {
+    "label": "Haqida"
   },
   "system.screensaver": {
     "label": "Ekran saqlagich"
@@ -80,186 +80,189 @@
   "learn.community": {
     "label": "Hamjamiyat"
   },
-  "trigger.appearance": {
-    "label": "Koʻrinish"
+  "appearance.theme": {
+    "label": "Mavzu"
   },
-  "trigger.appearance.animations": {
-    "label": "Animatsiyalar"
+  "appearance.background": {
+    "label": "Fon"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Shrift"
+  },
+  "appearance.top-bar": {
     "label": "Menyu paneli"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Panelni yashirish"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Panelni koʻrsatish"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Panel joyi"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Panel foni"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Shaffofmas panel"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Shishasimon panel"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Shaffof panel"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Panel koʻrsatkichlari"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Batareya foizi"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Soat"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Yakshanba 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Yakshanba 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Yakshanba 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Yakshanba 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Yak 3 may 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Yak 3 may 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 may W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 may W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Yuqori panel"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Quyi panel"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Chap panel"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Oʻng panel"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Dockni avto-yashirish"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Doim koʻrinadigan Dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Dock joyi"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Yuqori Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Quyi Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Chap Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Oʻng Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Oyna oraliqlari"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Oyna burchaklari"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Mavzu burchaklari"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Oʻtkir burchaklar"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Yumaloq burchaklar"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Oyna shaffofligi"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Shaffofmas oynalar"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Shaffof oynalar"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Shishasimon oynalar"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-oyna nisbati"
+  "appearance.branding.screensaver": {
+    "label": "Ekran saqlagich"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Haqida"
+  },
+  "appearance.branding.about.text": {
+    "label": "Matnni tahrirlash"
+  },
+  "appearance.branding.about.image": {
+    "label": "Rasmdan oʻrnatish"
+  },
+  "appearance.branding.about.default": {
+    "label": "Standartni tiklash"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Matnni tahrirlash"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Rasmdan oʻrnatish"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Standartni tiklash"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Dockni avto-yashirish"
+  },
+  "appearance.dock.always-on": {
+    "label": "Doim koʻrinadigan Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock joyi"
+  },
+  "appearance.dock.position.top": {
+    "label": "Yuqori Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Quyi Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Chap Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Oʻng Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "Ish maydoni tartibi",
     "title": "Standart ish maydoni tartibi"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Mozaika"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Siljitish"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Suzuvchi"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr mavzu sinxronlash"
+  "appearance.unlock": {
+    "label": "Qulfdan ochish"
   },
   "trigger.toggle": {
     "label": "Almashtirish"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Uygʻoq qolish"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Bildirishnomalar"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Tungi yorugʻlik"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Ekran saqlagich"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Buzilish qaydi"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +318,6 @@
   "trigger.tests": {
     "label": "Tezlik testi"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Noutbuk ekrani"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Ekranni aks ettirish"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Gibrid GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Sensor panel"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Sensor panel tebranishi"
   },
@@ -338,9 +329,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "yuqori"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Sensor ekran"
   },
   "trigger.reminder.set": {
     "label": "Yaratish"
@@ -369,65 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk tezligi testi"
   },
-  "style.theme": {
-    "label": "Mavzu"
-  },
-  "style.background": {
-    "label": "Fon"
-  },
-  "style.unlock": {
-    "label": "Qulfdan ochish"
-  },
-  "style.font": {
-    "label": "Shrift"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Ekran saqlagich"
-  },
-  "style.about": {
-    "label": "Haqida"
-  },
-  "style.about.text": {
-    "label": "Matnni tahrirlash"
-  },
-  "style.about.image": {
-    "label": "Rasmdan oʻrnatish"
-  },
-  "style.about.default": {
-    "label": "Standartni tiklash"
-  },
-  "style.screensaver.text": {
-    "label": "Matnni tahrirlash"
-  },
-  "style.screensaver.image": {
-    "label": "Rasmdan oʻrnatish"
-  },
-  "style.screensaver.default": {
-    "label": "Standartni tiklash"
-  },
-  "setup.monitors": {
-    "label": "Monitorlar"
-  },
-  "setup.keybindings": {
-    "label": "Tugmalar birikmasi"
-  },
   "setup.input": {
     "label": "Kiritish"
   },
-  "setup.typing": {
-    "label": "Yozish"
-  },
-  "setup.typing.keyboard": {
-    "label": "Klaviatura tartibi"
-  },
-  "setup.typing.input": {
-    "label": "Kiritish usullari"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Til"
+  },
+  "setup.region.timezone": {
+    "label": "Vaqt mintaqasi"
   },
   "setup.network": {
     "label": "Tarmoq"
@@ -452,52 +389,6 @@
   },
   "setup.default": {
     "label": "Standartlar"
-  },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Standart agent"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Brauzer",
@@ -629,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Toʻgʻridan yuklash"
-  },
-  "setup.reset": {
-    "label": "Kompyuterni tiklash"
+  "remove.factory-reset": {
+    "label": "Zavod holatiga qaytarish"
   },
   "install.package": {
     "label": "Paket"
@@ -728,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -751,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium hisobi"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -787,33 +669,6 @@
   },
   "install.terminal.kitty": {
     "label": "Kitty"
-  },
-  "install.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "install.ai.claude": {
-    "label": "Claude Desktop"
-  },
-  "install.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "install.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
-  "install.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "install.ai.ollama": {
-    "label": "Ollama"
-  },
-  "install.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "install.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "install.ai.t3-code": {
-    "label": "T3 Code"
   },
   "install.gaming.steam": {
     "label": "Steam"
@@ -968,9 +823,6 @@
   "remove.security.sudoless-docker": {
     "label": "Sudosiz Docker"
   },
-  "remove.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -1001,35 +853,11 @@
   "remove.service.ssh-agent": {
     "label": "SSH agenti"
   },
-  "remove.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "remove.ai.claude": {
-    "label": "Claude Desktop"
-  },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
   },
   "remove.dictation.voxtype": {
     "label": "Voxtype"
-  },
-  "remove.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "remove.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "remove.ai.ollama": {
-    "label": "Ollama"
-  },
-  "remove.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "remove.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "remove.ai.t3-code": {
-    "label": "T3 Code"
   },
   "remove.gaming.steam": {
     "label": "Steam"
@@ -1151,9 +979,6 @@
   "update.password": {
     "label": "Parol"
   },
-  "update.timezone": {
-    "label": "Vaqt mintaqasi"
-  },
   "update.time": {
     "label": "Vaqt"
   },
@@ -1202,16 +1027,429 @@
   "update.hardware.trackpad": {
     "label": "Trekpad"
   },
-  "update.password.drive": {
-    "label": "Disk shifrlash"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Batareya % koʻrsatish"
   },
-  "update.password.user": {
-    "label": "Foydalanuvchi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Batareya % yashirish"
   },
-  "system.reboot-boot-menu": {
-    "label": "Yuklanish menyusiga qayta yuklash"
+  "appearance.windows": {
+    "label": "Oynalar"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "appearance.windows.gaps-on": {
+    "label": "Oyna oraliqlari yoniq"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Oyna oraliqlari oʻchiq"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-oyna nisbati yoniq"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-oyna nisbati oʻchiq"
+  },
+  "appearance.branding": {
+    "label": "Brending"
+  },
+  "appearance.animations-on": {
+    "label": "Animatsiyalar yoniq"
+  },
+  "appearance.animations-off": {
+    "label": "Animatsiyalar oʻchiq"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Uygʻoq turish"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Uyquga ruxsat berish"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bildirishnomalar yoniq"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Bildirishnomalarni jim qilish"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Tungi yorugʻlik yoniq"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Tungi yorugʻlik oʻchiq"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekran saqlagich yoniq"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekran saqlagich oʻchiq"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Nosozlik yozuvi yoniq"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Nosozlik qaydini oʻchirish"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Noutbuk ekranini yoqish"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Noutbuk ekranini oʻchirish"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekran aksini yoqish"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekran aksini oʻchirish"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Gibrid GPUga oʻtish"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Integratsiyalangan GPUga oʻtish"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Tachpadni yoqish"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Tachpadni oʻchirish"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Sensor ekranni yoqish"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Sensor ekranni oʻchirish"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Yadro"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klaviatura"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Tugmalar birikmalari"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Klaviatura kirishlari"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Kiritish usullari"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Oddiy"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonkalar"
+  },
+  "install.style.icons": {
+    "label": "Ikonkalar"
+  },
+  "remove.icons": {
+    "label": "Ikonkalar"
+  },
+  "update.icons": {
+    "label": "Qo‘shimcha ikonkalar"
+  },
+  "system.firmware": {
+    "label": "BIOSga qayta yuklash",
+    "description": "UEFI firmware sozlamalariga qayta yuklash"
+  },
+  "setup.region": {
+    "label": "Mintaqa"
+  },
+  "setup.region.formats": {
+    "label": "Formatlar",
+    "description": "Sana, vaqt, raqam va birliklar yozilishi"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes o'yini"
+  },
+  "update.games": {
+    "label": "Game Vibes o'yinlari"
+  },
+  "setup.network.hostname": {
+    "label": "Kompyuter nomi"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "Ish stoli"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "Olib tashlash"
+  },
+  "remove.ai.desktop": {
+    "label": "Ish stoli",
+    "title": "Olib tashlash"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "Olib tashlash"
+  },
+  "remove.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "Nusxalar"
+  },
+  "system.snapshots.restore": {
+    "label": "Ushbu nusxani tiklash"
   }
 }

@@ -7,7 +7,7 @@ require_command xkbcli
 
 resolved_input_for() {
   local module="$1"
-  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua <<'LUA'
+  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local vconsole = os.getenv("OMARCHY_VCONSOLE")
@@ -77,9 +77,9 @@ assert_resolved_input() {
   local actual
 
   if (( $# > 3 )); then
-    actual=$("$resolver" "$4")
+    actual=$("$resolver" "$4") || fail "$description" "$actual"
   else
-    actual=$("$resolver")
+    actual=$("$resolver") || fail "$description" "$actual"
   fi
 
   [[ $actual == "$expected" ]] ||
@@ -114,8 +114,18 @@ assert_input "non-latin layout gains us in front" "[us,ara] [,] [$toggle_options
 assert_input "prepended us keeps variants aligned" "[us,ru] [,phonetic] [$toggle_options]" 'XKBLAYOUT=ru
 XKBVARIANT=phonetic
 '
-
-assert_input "non-latin layout in front gains us even when us trails" "[us,il,us] [,] [$toggle_options]" 'XKBLAYOUT=il,us
+assert_input "non-latin layout in front moves a trailing us to the front" "[us,il] [,] [$toggle_options]" 'XKBLAYOUT=il,us
+'
+assert_input "a trailing us is not duplicated, so the toggle has one stop per layout" "[us,ru] [,] [$toggle_options]" 'XKBLAYOUT=ru,us
+'
+assert_input "moving us keeps every layout paired with its variant" "[us,ru] [intl,phonetic] [$toggle_options]" 'XKBLAYOUT=ru,us
+XKBVARIANT=phonetic,intl
+'
+assert_input "a third layout keeps its place and variant" "[us,ua,de] [,,nodeadkeys] [$toggle_options]" 'XKBLAYOUT=ua,us,de
+XKBVARIANT=,,nodeadkeys
+'
+assert_input "a us variant that can't type latin still gets a plain us in front" "[us,ru,us] [,,rus] [$toggle_options]" 'XKBLAYOUT=ru,us
+XKBVARIANT=,rus
 '
 
 caps=$(xkbcli compile-keymap --include "$ROOT/etc/xkb" --include-defaults --layout us,ru --options omarchy:shift_caps_compose | grep -A5 'key <CAPS>')
@@ -132,6 +142,18 @@ assert_greeter_input "greeter follows the system layout" "[fr] [] []" 'XKBLAYOUT
 
 assert_greeter_input "greeter keeps a latin layout in front" "[us,ru] [,phonetic] [grp:alts_toggle]" 'XKBLAYOUT=ru
 XKBVARIANT=phonetic
+'
+
+assert_greeter_input "greeter moves a trailing us and its variant to the front" "[us,ru] [intl,phonetic] [grp:alts_toggle]" 'XKBLAYOUT=ru,us
+XKBVARIANT=phonetic,intl
+'
+
+assert_greeter_input "greeter keeps later layouts and variants aligned" "[us,ua,de] [,,nodeadkeys] [grp:alts_toggle]" 'XKBLAYOUT=ua,us,de
+XKBVARIANT=,,nodeadkeys
+'
+
+assert_greeter_input "greeter keeps a plain us in front of a cherokee us" "[us,ru,us] [,,chr] [grp:alts_toggle]" 'XKBLAYOUT=ru,us
+XKBVARIANT=,chr
 '
 
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
@@ -164,3 +186,28 @@ TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_input "men
 TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_greeter_input "menu selections leave the greeter keyboard unchanged" "[jp] [] []" $'XKBLAYOUT=jp\n'
 
 TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,ru\nXKBVARIANT=,phonetic\n' assert_input "saved non-Latin selections retain the layout shortcut" "[us,ru] [,phonetic] [$toggle_options]" $'XKBLAYOUT=us\n'
+
+altgr_calls=$(OMARCHY_PATH="$ROOT" lua - <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local real_open = io.open
+io.open = function(path, mode)
+  if path:match("/omarchy/keyboard%-layouts$") then
+    local f = io.tmpfile(); f:write("XKBLAYOUT=de,de\nXKBVARIANT=nodeadkeys,nodeadkeys\n"); f:seek("set"); return f
+  elseif path:match("/fcitx5/profile$") then
+    local f = io.tmpfile(); f:write("[Groups/0/Items/0]\nName=keyboard-de-nodeadkeys\n"); f:seek("set"); return f
+  end
+  return real_open(path, mode)
+end
+local seen_cmd
+io.popen = function(cmd)
+  seen_cmd = cmd
+  return { read = function() return "key <RALT> { [ ISO_Level3_Shift ] };" end, close = function() end }
+end
+local keyboard = require("default.hypr.keyboard")
+assert(keyboard.altgr(), "AltGr layout is detected")
+local _, count = seen_cmd:gsub("xkbcli compile%-keymap", "")
+print(count)
+LUA
+)
+[[ $altgr_calls == "1" ]] || fail "keyboard.altgr deduplicates identical layouts across Hyprland and Fcitx" "got $altgr_calls calls"
+pass "keyboard.altgr deduplicates identical layouts across Hyprland and Fcitx"

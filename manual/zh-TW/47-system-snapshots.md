@@ -1,25 +1,37 @@
 # 系統快照
 
-我們會在每次 Omarchy 更新時自動建立快照，但如果你想建立自己的快照，可以使用 `omarchy-snapshot create`。
+每次 Omarchy 更新時，我們都會自動建立快照，但如果你想建立自己的快照，可以使用 `omarchy-snapshot create`。
 
-要開機並還原快照，你要從 Limine 開機載入程式中選取它。（如果你目前是直接開機進入 Omarchy 解密畫面，你需要先透過 BIOS 選擇 Limine 作為開機選項）。
+你如何開機並還原快照，取決於你的機器啟動時使用的開機載入程式。新的 UEFI 安裝使用 systemd-boot；較舊的安裝與 BIOS 機器使用 Limine。`omarchy-boot-backend` 會告訴你你使用的是哪一個。
 
-在那個畫面上，根據日期和版本選擇你想開機進入的快照。快照建立當時的 Omarchy 版本會顯示在左下角。
+## 使用 systemd-boot
+
+在 Omarchy 選單中選擇 _System > Snapshots_，然後選擇你想開機進入的快照。機器會重新啟動並進入該快照一次。或者在機器啟動時按住 Space，即可看到開機選單，其中每個快照都依最新在前排序，並列出其 Omarchy 版本與日期。
+
+快照開機時，上面會有一層暫時層，所以你可以照常使用它，但你做的任何變更都會在下次重新啟動時消失。若要保留它，就讓它成為你的系統：點選你登入時出現的通知、選擇 _System > Snapshots > Restore This Snapshot_，或執行 `omarchy-snapshot restore`。還原會在機器重新啟動時進行。還原前的系統會以 _Before restore_ 的形式留在開機選單中，而 `omarchy-snapshot restore backup` 會將它還原回來。
+
+從終端機：
+
+- `omarchy-snapshot list` 列出你可以開機進入的快照；
+- `omarchy-snapshot boot 12` 重新啟動並進入快照 12 一次；
+- `omarchy-snapshot restore 12` 會在下次重新啟動時讓快照 12 成為系統，而 `omarchy-snapshot restore --cancel` 會在那次重新啟動前讓你改變主意。
+
+## 使用 Limine
+
+若要開機並還原快照，你要從 Limine 開機載入程式中選擇它。開機選單預設保持隱藏，所以在 Limine 啟動時一開始就按任意鍵，即可將它叫出來。
+
+在該畫面中，根據日期與版本選擇你想開機進入的快照。快照當時的 Omarchy 版本可以在左下角看到。
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-當你進入系統後，會跳出一個通知，告訴你正身處一個可開機快照中，如果你點選它，就會開始還原流程。或者，你也可以使用 `omarchy-snapshot restore`。
+當你進入後，會跳出一個通知，通知你正處於一個可開機的快照中，如果你點選它，就會開始還原程序。或者，你也可以使用 `omarchy-snapshot restore`。
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-這會還原你的根檔案系統，但不會還原你的 `/home`。所以它適用於還原壞掉的系統更新，但不適用於救回遺失的個人檔案。
+## 還原涵蓋的範圍
 
-這也意味著你的 `~/.config` 目錄會保持原樣。所以如果你回滾到較舊版本的函式庫或應用程式，而它以新格式儲存設定檔，你就得自己手動處理這件事。
+還原會帶回你的根檔案系統，但不會帶回你的 `/home`。所以它適用於還原一個損壞的系統更新，但不適用於找回遺失的個人檔案。
 
-_注意：這個功能只適用於使用 Limine 開機載入程式的安裝，自 Omarchy 2.0 起這一直是預設值。如果你使用的是 GRUB 或 systemd-boot，就無法使用。_
+這也表示你的 `~/.config` 目錄會保持原樣。所以如果你要回退到一個函式庫或應用程式的較早版本，而它以新格式儲存設定檔，你就必須手動處理這個問題。
 
-### 跳過開機選單
-
-如果你從來不碰開機選單，只想讓機器直接進入解密畫面，在 Omarchy 選單中執行 _設定 > 直接開機_。這會加入一個直接指向 Omarchy 的 EFI 項目，讓韌體直接從它開機，不在 Limine 停下來。
-
-代價就是一開始提到的那個：開啟直接開機後，要進入快照就意味著得先從你的 BIOS 開機選單中選取 Limine。再次執行 _設定 > 直接開機_ 即可移除該項目，回到透過 Limine 開機。有些韌體不喜歡自訂 EFI 項目，所以這個設定會拒絕在 American Megatrends 和 Apple 韌體上執行。
+Omarchy 自己記錄哪些遷移已經執行過的紀錄也是如此：它位於你的家目錄中，所以會在還原後保留下來。在快照建立後執行過的遷移仍會標記為已完成，即使它們對根檔案系統所做的變更已被回退，而且下一次 `omarchy update` 不會再次執行它們。所以如果你在還原後再次更新，而某個先前更新已設定好的東西仍然缺失，那很可能就是原因。

@@ -1,19 +1,21 @@
 # Spanje sistema
 
-Omarchy privzeto omogoča Spanje in Mirovanje, če pa imate s katerim od njiju na vašem računalniku težave, ju lahko izklopite.
+Omarchy privzeto omogoči zaustavitev, mirovanje pa, ko je nastavljeno, a če imate na svojem računalniku težave s katerim koli od njiju, ju lahko izklopite.
 
-### Profili porabe energije
+Na računalnikih z NVIDIA GB10, kot sta DGX Spark in ASUS Ascent GX10, sta zaustavitev in mirovanje izklopljena, tako kot v sistemu NVIDIA DGX OS, ker za spanje na tej strojni opremi še ni bilo dokazano, da deluje. Isto velja za ASUS Zenbook A16 (UX3607OA), kjer zaustavitev čipa še ne uspava v celoti in lahko čez noč obtiči. Preklop zaustavitve in nastavitev mirovanja tam ne veljata. Če želite spanje znova vklopiti, odstranite `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` z `sudo rm`; Zaustavitev se nato vrne v meni, mirovanje pa je mogoče nastaviti kot na drugih računalnikih. Zagon `sudo omarchy apply hardware --install-user "$USER"` datoteko vrne nazaj.
 
-Na prenosniku si Omarchy zapomni vaš profil porabe energije posebej za priklopljenost na napajanje in delovanje na baterijo ter med njima preklaplja, ko priklopite in odklopite. Takoj po namestitvi to pomeni zmogljivost na AC in uravnoteženo na baterijo.
+### Profili napajanja
 
-S `omarchy powerprofiles list` lahko vidite, kaj vaš računalnik ponuja, in s `omarchy powerprofiles set autodetect power-saver` nastavite tistega, ki ga želite za stanje, v katerem ste trenutno. Če želite nastaviti drugo stanje, ne da bi kaj odklopili, ga poimenujte neposredno: `omarchy powerprofiles set battery power-saver`. Kar koli izberete, to boste dobili nazaj naslednjič, ko boste v tem stanju.
+Na prenosniku si Omarchy vaš profil napajanja zapomni ločeno za priklopljeno napajanje in za delovanje na baterijo ter preklaplja med njima, ko napajalnik priklopite in izklopite. Takoj po namestitvi to pomeni zmogljivost na AC in uravnotežen način na baterijo.
 
-### Preklopi Spanje
+Kaj vaš računalnik ponuja, lahko vidite z `omarchy powerprofiles list`, profil, ki ga želite za stanje, v katerem ste trenutno, pa nastavite z `omarchy powerprofiles set autodetect power-saver`. Če želite nastaviti drugo stanje, ne da bi karkoli izklopili, ga poimenujte neposredno: `omarchy powerprofiles set battery power-saver`. Kar koli izberete, boste dobili nazaj naslednjič, ko boste v tem stanju.
 
-Spanje preklopite tako, da v terminalu zaženete `omarchy toggle suspend`. To samo prikaže/skrije možnost pod _Sistem_ (ali `Super + Esc`), nato pa lahko vidite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko z istim ukazom spet skrijete.
+### Preklop zaustavitve
 
-### Preklopi Mirovanje
+Zaustavitev preklopite tako, da v terminalu zaženete `omarchy toggle suspend`. To samo pokaže/skrije možnost pod _System_ (ali `Super + Esc`), nato pa lahko preverite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko z istim ukazom znova skrijete.
 
-Mirovanje nastavite tako, da v terminalu zaženete `omarchy hibernation setup`. Mirovanje ustvari podvolumen /swap na vašem zagonskem pogonu v velikosti vaše dodeljene fizične pomnilniške kapacitete RAM, zato poskrbite, da imate dovolj prostora. Na računalniku z 32 GB boste za ta volumen vedno potrebovali več kot 32 GB prostega prostora. Mirovanje zahteva tudi privzeti zagonski nalagalnik Limine.
+### Preklop mirovanja
 
-Ko je nastavljeno, boste možnost mirovanja videli pod _Sistem_ (ali `Super + Esc`) in nato lahko vidite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko spet odstranite z `omarchy hibernation remove`.
+Mirovanje nastavite tako, da v terminalu zaženete `omarchy hibernation setup` (na računalnikih Apple Silicon Mac ni na voljo). Mirovanje na vašem zagonskem pogonu ustvari podzvezek /swap v velikosti vaše dodelitve fizičnega RAM, zato poskrbite, da imate na voljo dovolj prostora. Na računalniku z 32GB boste za ta zvezek vedno potrebovali 32GB+ prostega prostora. Mirovanje zahteva tudi privzeti zagonski nalagalnik Limine.
+
+Ko je nastavljeno, boste možnost mirovanja videli pod _System_ (ali `Super + Esc`), nato pa lahko preverite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko znova odstranite tako, da zaženete `omarchy hibernation remove`.

@@ -69,11 +69,14 @@ set -e
 pass "internal off refuses an unsafe monitor name"
 
 mirror_flag="$flag_dir/internal-monitor-mirror.lua"
+printf '[{"name":"eDP-1"},{"name":"DP-3"},{"name":"HDMI-A-1"}]\n' >"$monitors_json"
 run_monitor omarchy-hyprland-monitor-internal-mirror on
-grep -Fx 'hl.monitor({ output = "DP-3", mode = "preferred", position = "auto", scale = 1, mirror = "eDP-1" })' \
-  "$mirror_flag" >/dev/null ||
-  fail "mirror on writes the connector names into the toggle flag"
-pass "mirror on accepts plain connector names"
+for external in DP-3 HDMI-A-1; do
+  grep -Fx "hl.monitor({ output = \"$external\", mode = \"preferred\", position = \"auto\", scale = 1, mirror = \"eDP-1\" })" \
+    "$mirror_flag" >/dev/null ||
+    fail "mirror on puts the internal display on $external"
+done
+pass "mirror on puts the internal display on every external one"
 
 rm -f "$mirror_flag"
 printf '[{"name":"eDP-1"},{"name":"HEAD\\" })os.execute(\\"calc\\")--"}]\n' >"$monitors_json"
