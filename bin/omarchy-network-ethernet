@@ -114,8 +114,11 @@ def default_route_interface() -> str:
     return ""
 
 
+IDLE_DEVICE_STATES = {"disconnected", "unavailable", "unmanaged"}
+
+
 def ethernet_devices() -> list[dict]:
-    proc = run_cmd(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"])
+    proc = run_cmd(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"], check=True)
     default_dev = default_route_interface()
     devices: list[dict] = []
     for line in proc.stdout.splitlines():
@@ -129,13 +132,16 @@ def ethernet_devices() -> list[dict]:
             run_cmd(
                 [
                     "nmcli",
+                    "-e",
+                    "no",
                     "-t",
                     "-f",
                     "GENERAL.HWADDR,GENERAL.CON-UUID,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS,WIRED-PROPERTIES.CARRIER",
                     "device",
                     "show",
                     dev,
-                ]
+                ],
+                check=True,
             ).stdout
         )
         con_uuid = (kv.get("GENERAL.CON-UUID") or [""])[0]
@@ -186,7 +192,8 @@ def ethernet_devices() -> list[dict]:
 
 def saved_ethernet_profiles() -> list[dict]:
     proc = run_cmd(
-        ["nmcli", "-t", "-f", "NAME,UUID,TYPE,DEVICE,AUTOCONNECT", "connection", "show"]
+        ["nmcli", "-t", "-f", "NAME,UUID,TYPE,DEVICE,AUTOCONNECT", "connection", "show"],
+        check=True,
     )
     profiles: list[dict] = []
     for line in proc.stdout.splitlines():
@@ -196,15 +203,31 @@ def saved_ethernet_profiles() -> list[dict]:
         name, uid, ctype, dev, auto = parts[0], parts[1], parts[2], parts[3], parts[4]
         if ctype != "802-3-ethernet":
             continue
-        method_proc = run_cmd(
-            ["nmcli", "-e", "no", "-g", "ipv4.method", "connection", "show", "uuid", uid]
+        meta_proc = run_cmd(
+            [
+                "nmcli",
+                "-e",
+                "no",
+                "-g",
+                "ipv4.method,connection.interface-name",
+                "connection",
+                "show",
+                "uuid",
+                uid,
+            ],
+            check=True,
         )
-        method = method_proc.stdout.strip() or "auto"
+        meta_lines = meta_proc.stdout.splitlines()
+        method = (meta_lines[0].strip() if len(meta_lines) >= 1 else "") or "auto"
+        bound_iface = meta_lines[1].strip() if len(meta_lines) >= 2 else ""
+        if bound_iface == "--":
+            bound_iface = ""
         profiles.append(
             {
                 "name": name,
                 "uuid": uid,
                 "device": "" if dev in ("", "--") else dev,
+                "interface": bound_iface,
                 "active": dev not in ("", "--"),
                 "autoconnect": auto.lower() == "yes",
                 "method": method,
@@ -231,6 +254,17 @@ def pick_ethernet_device(preferred: str | None = None) -> dict:
     return devs[0]
 
 
+def profile_for_device(dev: dict, profiles: list[dict]) -> dict | None:
+    if dev["uuid"]:
+        for p in profiles:
+            if p["uuid"] == dev["uuid"]:
+                return p
+    for p in profiles:
+        if p["device"] == dev["device"] or p["interface"] == dev["device"]:
+            return p
+    return None
+
+
 def resolve_profile_for_target(target: str | None) -> tuple[dict, str | None]:
     """Resolve an optional interface/profile/UUID target to (profile_dict, iface_or_None)."""
     profiles = saved_ethernet_profiles()
@@ -239,29 +273,24 @@ def resolve_profile_for_target(target: str | None) -> tuple[dict, str | None]:
     if target:
         for p in profiles:
             if p["uuid"] == target or p["name"] == target:
-                return p, p["device"] or None
+                return p, p["device"] or p["interface"] or None
         for d in devs:
             if d["device"] == target:
-                if d["uuid"]:
-                    for p in profiles:
-                        if p["uuid"] == d["uuid"]:
-                            return p, d["device"]
-                for p in profiles:
-                    if p["device"] == d["device"]:
-                        return p, d["device"]
-                if profiles:
-                    return profiles[0], d["device"]
-                raise RuntimeError(f"no saved Ethernet profile for '{target}'; connect it first")
+                matched = profile_for_device(d, profiles)
+                if matched:
+                    return matched, d["device"]
+                raise RuntimeError(
+                    f"no saved Ethernet profile for '{target}'; connect it first or pass a profile name"
+                )
         raise RuntimeError(f"no Ethernet interface or profile matching '{target}'")
 
     dev = pick_ethernet_device()
-    if dev["uuid"]:
-        for p in profiles:
-            if p["uuid"] == dev["uuid"]:
-                return p, dev["device"]
-    if profiles:
-        return profiles[0], dev["device"]
-    raise RuntimeError(f"no saved Ethernet profile for '{dev['device']}'; connect it first")
+    matched = profile_for_device(dev, profiles)
+    if matched:
+        return matched, dev["device"]
+    raise RuntimeError(
+        f"no saved Ethernet profile for '{dev['device']}'; connect it first or pass a profile name"
+    )
 
 
 def format_speed(speed_mbps: int | None, duplex: str) -> str:
@@ -364,7 +393,7 @@ def cmd_disconnect(args: list[str], as_json: bool) -> int:
     if len(pos) > 1:
         raise UsageError("Usage: omarchy network ethernet disconnect [interface]")
     dev = pick_ethernet_device(pos[0] if pos else None)
-    if dev["connected"]:
+    if dev["state"] not in IDLE_DEVICE_STATES:
         run_cmd(["nmcli", "device", "disconnect", dev["device"]], check=True)
     updated = [d for d in ethernet_devices() if d["device"] == dev["device"]]
     if as_json:
