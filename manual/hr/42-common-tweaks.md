@@ -1,16 +1,16 @@
 # Uobičajene prilagodbe
 
-Ovo je zbirka uobičajenih prilagodbi Omarchy postave. Znajte da će ponekad možda biti potrebno da ažuriranja sustava vrate određene konfiguracije u izvorno stanje. Ako se to dogodi, vaše promjene neće biti izgubljene, nego spremljene u `.bak` datoteku u istom direktoriju.
+Ovo je zbirka uobičajenih prilagodbi postavke Omarchyja. Imajte na umu da će ažuriranja sustava povremeno možda morati vratiti određene konfiguracije u izvorno stanje. Ako se to dogodi, vaše promjene neće biti izgubljene, nego će biti pohranjene u datoteku `.bak.<timestamp>` pokraj izvorne.
 
-Ako nešto pokvarite, pojedinačne konfiguracije možete vratiti u izvornu postavu putem _Ažuriraj > Config_ u Omarchy izborniku. Ako _stvarno_ sve pokvarite, sve konfiguracije možete resetirati putem `omarchy-reinstall`.
+Ako nešto zeznete, pojedinačne konfiguracije možete vratiti na izvornu postavku putem _Update > Config_ u izborniku Omarchyja. Ako _stvarno_ sve zeznete, sve konfiguracije možete resetirati putem `omarchy reinstall configs` ili ponovno instalirati svaki zadani paket i konfiguraciju naredbom `omarchy reinstall`.
 
-### Uvijek otkrivanje svih ikona ladice
+### Stalno prikazuj sve ikone palete
 
-Prema zadanim postavkama ikone ladice, poput Dropboxa, 1passworda ili Steama, skrivene su iza strelice za proširenje ladice, koja ih otkriva kad prijeđete preko nje. Ako ih želite uvijek izložene, desnim gumbom kliknite strelicu za proširenje da biste otvorili upravitelj ikona ladice, a zatim pričvrstite ikone koje želite zadržati vidljivima (također možete sakriti one koje nikada ne želite vidjeti).
+Ikone palete, poput Dropbox, 1password ili Steam, prema zadanim su postavkama skrivene iza strelice za proširivanje palete, koja ih otkriva kada zadržite pokazivač iznad nje. Ako želite da budu stalno izložene, desnom tipkom miša kliknite strelicu za proširivanje kako biste otvorili upravitelj ikona palete, a zatim prikvačite ikone koje želite zadržati vidljivima (možete sakriti i one koje nikada ne želite vidjeti).
 
 ### Zaobljeni kutovi prozora
 
-Zadani dizajn Omarchyja jest onaj četvrtastih kutova, ali ako ga želite malo omekšati, možete promijeniti `~/.config/hypr/looknfeel.lua` tako da zaobljivanje više nije komentirano:
+Zadani dizajn Omarchyja ima četvrtaste kutove, ali ako to želite malo ublažiti, odaberite _Appearance > Windows > Window Corners > Rounded Corners_ u izborniku Omarchyja ili pokrenite `omarchy hyprland corners rounded`. _Theme Corners_ vraća ono što tema koristi. Kako biste odabrali vlastiti polumjer, ostanite na _Theme Corners_ (`omarchy hyprland corners theme`), jer se Rounded i Sharp učitavaju nakon vaše konfiguracije i nadjačavaju je, te uklonite komentar za zaobljenje u `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({
@@ -21,9 +21,9 @@ hl.config({
 })
 ```
 
-### Uklanjanje razmaka između prozora
+### Ukloni razmake među prozorima
 
-Na zaslonima prijenosnih računala neki ljudi radije ne troše nijedan piksel na razmake između prozora (ili čak gornju traku, koju možete isključiti s `Super + Shift + Space`). Sve razmake i obrube možete isključiti s `Super + Shift + Backspace` ili ih trajno ukloniti uklanjanjem komentara u ovom odjeljku datoteke `~/.config/hypr/looknfeel.lua`:
+Na zaslonima prijenosnih računala neki ljudi radije ne troše nijedan piksel na razmake među prozorima (pa čak ni na gornju traku, koju možete isključiti kombinacijom `Super + Shift + Space`). Sve razmake i obrube možete isključiti kombinacijom `Super + Shift + Backspace` ili ih trajno ukloniti uklanjanjem komentara u ovom odjeljku datoteke `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

@@ -1,6 +1,6 @@
 # Regional defaults
 
-Regions customize bootstrap defaults independently of update channels and of the installer's language. Country identifiers are lowercase, officially assigned ISO 3166-1 alpha-2 codes. `global` is a reserved value for no country-specific additions. Only implemented profiles are accepted; currently `global` and `cn`.
+Regions customize install defaults independently of update channels and of the installer's language: where packages come from, which shipped web apps a fresh install gets, and its starting theme. Country identifiers are lowercase, officially assigned ISO 3166-1 alpha-2 codes. `global` is a reserved value for no country-specific additions. Only implemented profiles are accepted; currently `global` and `cn`.
 
 ## Runtime configuration
 
@@ -18,25 +18,30 @@ Installs from before regions have no marker and stay global; nothing changes the
 
 ## Profile layout
 
-Each profile lives in `default/regions/<code>/`:
+Each profile lives in `default/regions/<code>/`, and `default/regions/global/` holds the world's `applications` and `theme`, and the `timezones` that stay global on any media. Every region has its own `applications` and `theme`, and a new launcher goes on each list that should have it.
 
 - `timezones`: the timezones that select this region, one per line, with blank lines and `#` comments allowed. List tzdata's backward-compatible names too, since the installer's timezone list includes them. A timezone may belong to at most one profile.
+- `applications`: the launchers in `applications/` the region installs, by file name without `.desktop`, one per line, with blank lines and `#` comments allowed. `omarchy-refresh-applications` copies exactly these. `/etc/skel` seeds every shipped launcher before the region is known, so a user's first install (`omarchy-provision-user --first-install`) removes them all before that copy; later refreshes never remove a launcher, so a user who adds one back keeps it.
+- Hotkeys: the preinstalled web app hotkeys live in `default/hypr/bindings/regions/<code>.lua`, with the world ones in `global.lua`. `default/hypr/bindings/applications.lua` loads the region's file (`o.region()`, which asks `omarchy-region`) on every config reload; a region with no file binds no web app hotkeys. A new web app hotkey goes in `global.lua`, and in each regional file that should have it.
+- `environment.conf` (optional): session environment installed to `/etc/environment.d/60-omarchy-region.conf` by `install/config/region.sh`, at install and again when `omarchy-provision-owner` settles the region. China's points mise's Node builds (`MISE_NODE_MIRROR_URL`) and every npm package, mise's included (`NPM_CONFIG_REGISTRY`), at Alibaba's npmmirror, Go modules at goproxy.cn (`GOPROXY`), rustup at ByteDance's rsproxy (`RUSTUP_DIST_SERVER`, `RUSTUP_UPDATE_ROOT`), pip and uv at Alibaba's PyPI mirror (`PIP_INDEX_URL`, `UV_DEFAULT_INDEX`), and hex.pm at Upyun's (`HEX_MIRROR`). The registries that take a mirror only from a config file come from the region's `home/` instead, and the tools mise downloads from GitHub releases still come from upstream. Pi, the harness for local models, is the `pi-coding-agent` package rather than a mise tool for that reason, so it comes from the regional mirrors.
+- `home/` (optional): config files seeded into each new user's home by `install/user/region.sh`, never replacing a file already there. China's point RubyGems and Bundler (`.gemrc`, `.bundle/config`) and Composer (`.config/composer/config.json`) at Alibaba's mirrors, and Cargo (`.cargo/config.toml`) at ByteDance's rsproxy.
+- `theme`: the name of the theme a new user starts with (Tokyo Night in `global`) (`install/user/theme.sh`). It is seeded only when the user has no theme yet.
 - `pacman/`: per channel (`stable`, `rc`, `edge`), `omarchy-<channel>.prepend`, placed first in the `[omarchy]` section of `pacman.conf`, and `mirrorlist-<channel>.prepend`, placed ahead of the channel's mirrorlist, so the regional mirrors are tried first.
 
-A profile adds mirrors of repositories every install already uses, never a repository or a signing key of its own. Hong Kong, Macau and Taiwan belong to no profile under any timezone name, and a test keeps it that way.
+A profile adds mirrors of repositories every install already uses, never a repository or a signing key of its own. Hong Kong, Macau and Taiwan belong to no regional profile under any timezone name: `global` lists them, so they stay global even on China media, and a test keeps it that way.
 
 ## ISO installer contract
 
-There is one ISO for every region. The companion `omarchy-iso` repository reads the profiles from the runtime it bundles, so a region and its repository defaults can never disagree.
+Each market gets its own media: the global ISO, and one per region profile (a China ISO for `cn`). The companion `omarchy-iso` repository reads the profiles from the runtime it bundles, so a region and its defaults can never disagree. A profile adds no package, so a market's media is the global ISO with its region preset.
 
 - **Build:** the builder bundles the profiles with the runtime; it adds no repository, key or package for them.
-- **Install:** the installer maps the timezone the user picked to a region through the `timezones` files; a timezone no profile lists means `global`. It shows the result on the summary screen. Unattended installs can set the region explicitly instead. For a regional install it writes `/etc/omarchy/region`; the runtime finalizer then applies the fragments.
-- **Deferred installs** have no timezone until first boot, so they are `global` unless the unattended configuration sets a region.
+- **Install:** the region follows the timezone the user picked: one a profile's `timezones` lists picks that profile, so Hong Kong, Macau and Taiwan are always `global`; any other timezone keeps the media's region, so China media used abroad stays `cn`. The installer shows the result on the summary screen. Unattended installs can set the region explicitly instead. For a regional install it writes `/etc/omarchy/region` before finalization, so the pacman fragments, launchers and theme all follow it.
+- **Deferred installs** have no timezone until first boot, so the installer leaves the media's region as `REGION=<code>` in the form defaults (`/etc/omarchy/form-defaults`), `global` from the global ISO, unless the config names a region. `omarchy-provision-owner` settles the region from the media's `REGION` and the owner's timezone by the same rule before it provisions the user (`configure_region`).
 
 
 ## Scope of the China profile
 
-The China profile provides repository defaults only. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
+The China profile puts Omarchy's China mirrors first, installs China's own web apps (Bilibili, Weibo, Qwen, DeepSeek and Amap) in place of those blocked or unavailable in mainland China (ChatGPT, Discord, Google's, Grok, Netflix, Spotify, WhatsApp, X and YouTube) and of Basecamp and HEY, binds their hotkeys on the keys the global ones use, and starts new users on Jade Horse. Zoom stays: people in mainland China can join Zoom meetings. The menu hides what China blocks: Learn > Community (Discord) and the Signal, Dropbox, NordVPN and Microsoft rows of Install > Service, each shown only where `omarchy-region-global` succeeds. Default Harness and Install > AI do the same for what is tied to services unavailable in China: the harnesses Claude Code, Codex, Grok Build, Amp, Antigravity, Copilot, Cursor, Devin, Kiro, Muse, Freebuff, Command Code and Ori, and the desktop apps Amp, Antigravity, ChatGPT, Claude, Grok Bot and Perplexity. Install > Gaming hides NVIDIA GeForce NOW and Xbox Cloud Gaming, which aren't offered in China, Setup > Network > DNS offers Alibaba's AliDNS (`omarchy-dns AliDNS`) in place of Google's and Cloudflare's resolvers, Install > Service offers DingTalk in place of Slack, and Install > Editor leaves out Cursor. AliDNS and DingTalk show only where `omarchy-region-cn` succeeds. China keeps the harnesses of Chinese AI providers (Kimi, Qwen Code, MiniMax Code, DeepSeek Harness), the open ones that work with any provider's models, and the local and provider-agnostic apps (Herdr, Hermes, LM Studio, Ollama, OpenClaw, T3 Code). `omarchy-region` prints the region, and `omarchy-region-cn` and `omarchy-region-global` succeed on a machine of that region, so guards test a region positively, and code tests the region through them rather than reading `/etc/omarchy/region` itself. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
 
 ## Remaining release validation
 

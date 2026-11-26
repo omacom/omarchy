@@ -21,6 +21,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Omarchy menu  | `omarchy.menu`            | `menu`, `bar-widget`    | `menu/Menu.qml`, `menu/BarWidget.qml` |
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
+| Shure MV7+    | `omarchy.mv7plus`         | `bar-widget`            | `panels/mv7plus/Panel.qml`            |
 | Bluetooth     | `omarchy.bluetooth`       | `bar-widget`            | `panels/bluetooth/Panel.qml`          |
 | Clock         | `omarchy.clock`           | `bar-widget`            | `panels/clock/BarWidget.qml`          |
 | Elsewhen      | `omarchy.elsewhen`        | `bar-widget`            | `panels/elsewhen/Panel.qml`           |
@@ -28,7 +29,8 @@ User-installed plugins live alongside these conceptually but on disk under
 | Network       | `omarchy.network`         | `bar-widget`            | `panels/network/Panel.qml`            |
 | Power         | `omarchy.power`           | `bar-widget`            | `panels/power/Panel.qml`              |
 | Tailscale     | `omarchy.tailscale`       | `bar-widget`            | `panels/tailscale/Panel.qml`          |
-| Agents   | `omarchy.agents`     | `service`, `bar-widget` | `agents/Main.qml`, `agents/Panel.qml` |
+| Agents   | `omarchy.agents`     | `service`, `bar-widget` | `agents/Main.qml`, `agents/Panel.qml`               |
+| Local models | `omarchy.local-models` | `service`           | `local-models/Models.qml`             |
 | Weather       | `omarchy.weather`         | `bar-widget`            | `panels/weather/BarWidget.qml`        |
 | Media         | `omarchy.media`           | `service`, `bar-widget` | `services/media/Service.qml`, `services/media/BarWidget.qml` |
 | Battery       | `omarchy.battery`         | `service`               | `services/battery/Service.qml`        |
@@ -70,9 +72,9 @@ Two ways to drive it:
   uses. Colors come from the central shell theme singleton; there is no
   per-call override surface.
 
-The selection round-trip remains file-based: callers create a
-`selection_file` and `done_file` (both `mktemp`), pass the paths, and
-poll `done_file` for existence. The plugin writes the chosen path into
+The selection round-trip remains file-based: callers create a private
+temp directory (`mktemp -d`) for `selection_file` and `done_file`, pass
+the paths, and poll `done_file` for existence. The plugin writes the chosen path into
 `selection_file` and touches `done_file` when it's done. `cancel` IPC
 clears it without writing a selection.
 

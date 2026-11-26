@@ -1,0 +1,15 @@
+# Full unit override rather than a drop-in: systemd does not allow clearing
+# After= in a drop-in (systemd.unit(5)). Removing network.target lets local
+# graphical login (SDDM and plymouth-quit) start in parallel with NetworkManager
+# instead of waiting for network setup. remote-fs.target, nss-user-lookup.target,
+# and home.mount remain ordered before user sessions.
+[Unit]
+Description=Permit User Sessions
+Documentation=man:systemd-user-sessions.service(8)
+After=remote-fs.target nss-user-lookup.target home.mount
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/systemd/systemd-user-sessions start
+ExecStop=/usr/lib/systemd/systemd-user-sessions stop

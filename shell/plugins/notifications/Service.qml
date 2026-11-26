@@ -608,7 +608,7 @@ Item {
     // Otherwise the object is destroyed when this handler returns.
     notification.tracked = true
 
-    row.duration = durationFor(notification.urgency, row.expireTimeout)
+    row.duration = row.sticky ? 0 : durationFor(notification.urgency, row.expireTimeout)
 
     var previous = refs[key]
     refs[key] = notification
@@ -1454,8 +1454,9 @@ Item {
 
     // Press button n (from 1) on the newest card.
     function invokeAction(n: int): string {
-      if (toasts.count === 0) return "none"
-      return service.runDeed(String(toasts.get(0).key), n - 1) ? "ok" : "none"
+      var key = service.newestLive()
+      if (!key) return "none"
+      return service.runDeed(key, n - 1) ? "ok" : "none"
     }
 
     // Hand the keyboard to the notifications until Escape or a choice.
