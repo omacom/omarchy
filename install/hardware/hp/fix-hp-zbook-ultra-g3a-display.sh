@@ -13,8 +13,5 @@ limine_config_dir=${OMARCHY_ZBOOK_ULTRA_G3A_LIMINE_CONFIG_DIR:-/etc/limine-entry
 # drop this once amdgpu programs the watermarks so the panel doesn't underflow.
 # The 14 inch G3a reports another product name and has not been tested.
 if omarchy-hw-x86 && omarchy-hw-match "ZBook Ultra G3a 16"; then
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/hp-zbook-ultra-g3a-display.conf" <<'CONF'
-KERNEL_CMDLINE[default]+=" amdgpu.dcdebugmask=0x2"
-CONF
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set hp-zbook-ultra-g3a-display amdgpu.dcdebugmask=0x2
 fi

@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "Syot Kilat"
+  },
+  "system.snapshots.restore": {
+    "label": "Pulihkan Syot Kilat Ini"
   }
 }

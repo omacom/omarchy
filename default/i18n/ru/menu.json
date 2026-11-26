@@ -1445,5 +1445,11 @@
   },
   "remove.ai.cli.claude": {
     "label": "Claude Code"
+  },
+  "system.snapshots": {
+    "label": "Снимки"
+  },
+  "system.snapshots.restore": {
+    "label": "Восстановить этот снимок"
   }
 }
