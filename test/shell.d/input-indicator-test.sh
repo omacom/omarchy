@@ -425,3 +425,27 @@ if CALLS=$calls PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-inpu
   fail "an unknown cycle direction is rejected"
 fi
 pass "Super+Shift+I cycles back through the shell, and other directions are rejected"
+
+run_node_test <<'JS'
+const { parseProfile } = require(path.join(root, 'shell/Commons/InputMethodProfile.js'))
+
+const single = parseProfile('[Groups/0]\nName=Default\nDefaultIM=keyboard-us\n\n[Groups/0/Items/0]\nName=keyboard-us\n\n[GroupOrder]\n0=Default\n')
+assert(single.valid && !single.switchable && single.groups === 1 && single.methods.length === 1 && single.methods[0] === 'keyboard-us',
+  'single direct-input keyboard profile does not require the live indicator process')
+
+const multi = parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n[Groups/0/Items/1]\nName=mozc\n')
+assert(multi.valid && multi.switchable && multi.methods.length === 2,
+  'multi-method profile requires the live indicator process')
+
+const engineOnly = parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=pinyin\n')
+assert(engineOnly.valid && engineOnly.switchable,
+  'lone composition engine profile requires the live indicator process')
+
+const twoGroups = parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n[Groups/1]\nName=Second\n[Groups/1/Items/0]\nName=keyboard-fr\n')
+assert(twoGroups.valid && twoGroups.switchable && twoGroups.groups === 2,
+  'multi-group profile requires the live indicator process')
+
+const empty = parseProfile('')
+assert(!empty.valid && empty.switchable,
+  'missing or empty profile falls back to the live indicator process')
+JS

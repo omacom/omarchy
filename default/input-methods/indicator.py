@@ -317,6 +317,10 @@ def watch(bus):
 
 if __name__ == "__main__":
   try:
-    watch(Gio.bus_get_sync(Gio.BusType.SESSION, None))
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    if len(sys.argv) == 2 and sys.argv[1] in ("--cycle", "--cycle-back"):
+      Indicator(bus).select_next(-1 if sys.argv[1] == "--cycle-back" else 1)
+    else:
+      watch(bus)
   except (GLib.Error, OSError, ValueError, subprocess.CalledProcessError) as error:
     raise SystemExit(str(error))
