@@ -87,8 +87,9 @@ for case in Asia/Shanghai:cn UTC:cn Europe/Copenhagen:cn Asia/Hong_Kong:global H
   fi
 done
 # The global ISO's deferred install: a China timezone picks China, any other
-# stays World.
+# stays World. region.sh needs OMARCHY_PATH too, as the real one does.
 printf 'REGION=global\n' >"$OMARCHY_FORM_DEFAULTS"
+printf 'set -u\n: "$OMARCHY_PATH"\necho region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
 settle_global() (
   timezone=$1
   rm -f "$OMARCHY_REGION_FILE"
