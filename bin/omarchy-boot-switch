@@ -73,8 +73,9 @@ kv_set() {
   [[ -f $file ]] && { grep -v "^$key=" "$file" >"$tmp" || true; }
   printf '%s=%s\n' "$key" "$value" >>"$tmp"
   chmod 0644 "$tmp"
+  sync "$tmp" 2>/dev/null || true
   mv -f "$tmp" "$file"
-  sync -f "$file" 2>/dev/null || true
+  sync "$(dirname "$file")" 2>/dev/null || true
 }
 
 state_get() { kv_get "$STORE/state" "$1"; }
