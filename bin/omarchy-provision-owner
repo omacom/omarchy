@@ -1008,12 +1008,14 @@ configure_region() {
   else
     printf '%s\n' "$region" >"$marker"
   fi
-  # The region's Node and npm mirrors, as an install would have set them.
-  PATH="$OMARCHY_PATH/bin:$PATH" bash "$OMARCHY_PATH/install/config/region.sh" 2>&1 || true
+  # The region's Node and npm mirrors, as an install would have set them. This
+  # runs as a systemd service, so OMARCHY_PATH is ours and not in the
+  # environment; both children need it.
+  OMARCHY_PATH="$OMARCHY_PATH" PATH="$OMARCHY_PATH/bin:$PATH" bash "$OMARCHY_PATH/install/config/region.sh" 2>&1 || true
   # Re-render pacman for the region with the channel this machine installed.
   channel=$(sed -n 's|^Server = https://pkgs\.omarchy\.[a-z]*/\([a-z]*\)/.*|\1|p' "$pacman_conf" | head -1)
   if [[ -n $channel && -x $OMARCHY_PATH/bin/omarchy-apply-pacman ]]; then
-    "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel" "${OMARCHY_REGION_TARGET:-/}" 2>&1 || true
+    OMARCHY_PATH="$OMARCHY_PATH" "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel" "${OMARCHY_REGION_TARGET:-/}" 2>&1 || true
   fi
 }
 

@@ -60,20 +60,27 @@ eval "$(sed -n '/^configure_region() {$/,/^}$/p' "$ROOT/bin/omarchy-provision-ow
 region_root=$scratch/region
 mkdir -p "$region_root/omarchy/default/regions/cn" "$region_root/omarchy/bin" "$region_root/etc/omarchy"
 printf 'Asia/Shanghai\nAsia/Urumqi\n' >"$region_root/omarchy/default/regions/cn/timezones"
-printf '#!/bin/bash\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
+# omarchy-apply-pacman needs OMARCHY_PATH, which owner setup, a systemd
+# service, does not inherit; it fails without it, as the real one does.
+printf '#!/bin/bash\nset -u\n: "$OMARCHY_PATH"\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
 chmod +x "$region_root/omarchy/bin/omarchy-apply-pacman"
 mkdir -p "$region_root/omarchy/install/config"
 printf 'echo region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
 export OMARCHY_FORM_DEFAULTS=$region_root/etc/omarchy/form-defaults OMARCHY_REGION_FILE=$region_root/etc/omarchy/region \
   OMARCHY_PACMAN_CONF=$region_root/etc/pacman.conf OMARCHY_REGION_TARGET=$region_root REGION_LOG=$region_root/log
 printf '[omarchy]\nServer = https://pkgs.omarchy.cn/stable/$arch\nServer = https://pkgs.omarchy.org/stable/$arch\n' >"$OMARCHY_PACMAN_CONF"
-settle() {
+# region.sh needs OMARCHY_PATH too. Owner setup has it set but not exported,
+# as settle does.
+printf 'set -u\n: "$OMARCHY_PATH"\necho region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
+settle() (
   timezone=$1
   printf 'cn\n' >"$OMARCHY_REGION_FILE"
   : >"$REGION_LOG"
-  OMARCHY_PATH=$region_root/omarchy configure_region
+  export -n OMARCHY_PATH
+  OMARCHY_PATH=$region_root/omarchy
+  configure_region >/dev/null
   [[ -e $OMARCHY_REGION_FILE ]] && cat "$OMARCHY_REGION_FILE" || echo global
-}
+)
 printf 'KEYBOARD=Chinese (Simplified, Pinyin)\nTIMEZONE=Asia/Shanghai\nREGION=cn\n' >"$OMARCHY_FORM_DEFAULTS"
 for case in Asia/Shanghai:cn UTC:cn Europe/Copenhagen:cn Asia/Hong_Kong:global Hongkong:global Asia/Macau:global Asia/Macao:global Asia/Taipei:global ROC:global; do
   [[ $(settle "${case%%:*}") == "${case#*:}" ]] || fail "an owner in ${case%%:*} gets the ${case#*:} region"
