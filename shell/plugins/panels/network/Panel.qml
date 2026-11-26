@@ -1208,11 +1208,11 @@ Panel {
 
   Timer {
     id: actionTimeout
-    // Must outlast NetworkManager's 25s supplicant timeout: a wrong saved
-    // PSK fails with WifiAuthTimeout at ~25s, and that failure has to land
-    // while the action is still tracked to show "Wrong password" and reopen
-    // the passphrase prompt.
-    interval: 30000
+    // Must outlast both NetworkManager's 25s supplicant timeout and
+    // omarchy-network-wifi's 28s nmcli wait + cleanup so the CLI settles and
+    // rolls back on its own; if this fires anyway, stopping wifiAction sends
+    // SIGTERM so the CLI still cancels activation and cleans up.
+    interval: 35000
     repeat: false
     onTriggered: {
       if (!root.actionKind) return

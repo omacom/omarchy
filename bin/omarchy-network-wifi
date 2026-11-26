@@ -19,6 +19,7 @@ import getpass
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import uuid as uuid_mod
@@ -45,6 +46,14 @@ Usage: omarchy network wifi [--json] <command> [args...]
 
 class UsageError(Exception):
     pass
+
+
+class CancelledError(BaseException):
+    pass
+
+
+def _handle_sigterm(_signum: int, _frame: object) -> None:
+    raise CancelledError("cancelled")
 
 
 def c_env() -> dict[str, str]:
@@ -654,8 +663,9 @@ def connect_enterprise(
     run_cmd(add_cmd, check=True)
     try:
         nm_set_secret_via_edit(con_uuid, "802-1x.password", password, enable_autoconnect=True)
-        run_cmd(["nmcli", "--wait", "30", "connection", "up", "uuid", con_uuid, "ifname", target_iface], check=True)
-    except Exception:
+        run_cmd(["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface], check=True)
+    except BaseException:
+        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid])
         run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid])
         raise
 
@@ -731,8 +741,9 @@ def connect_psk_via_profile(
         created = True
     try:
         nm_set_secret_via_edit(con_uuid, "wifi-sec.psk", password, enable_autoconnect=created)
-        run_cmd(["nmcli", "--wait", "30", "connection", "up", "uuid", con_uuid, "ifname", target_iface], check=True)
-    except Exception:
+        run_cmd(["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface], check=True)
+    except BaseException:
+        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid])
         if created:
             run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid])
         elif prev_km:
@@ -818,10 +829,15 @@ def cmd_connect(args: list[str], as_json: bool) -> int:
     else:
         existing = matching_wifi_profiles(ssid, target_iface)
         if existing:
-            run_cmd(
-                ["nmcli", "--wait", "30", "connection", "up", "uuid", existing[0]["uuid"], "ifname", target_iface],
-                check=True,
-            )
+            con_uuid = existing[0]["uuid"]
+            try:
+                run_cmd(
+                    ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+                    check=True,
+                )
+            except (CancelledError, KeyboardInterrupt):
+                run_cmd(["nmcli", "connection", "down", "uuid", con_uuid])
+                raise
         else:
             # Check if the scanned network requires credentials so a TTY user gets a prompt.
             nearby = {r["ssid"]: r for r in list_nearby_networks(False, target_iface)}
@@ -831,7 +847,7 @@ def cmd_connect(args: list[str], as_json: bool) -> int:
                 pw = getpass.getpass(f"Passphrase for {ssid}: ")
                 connect_psk_via_profile(ssid, pw, hidden, target_iface)
             else:
-                cmd = ["nmcli", "--wait", "30", "device", "wifi", "connect", ssid, "ifname", target_iface]
+                cmd = ["nmcli", "--wait", "28", "device", "wifi", "connect", ssid, "ifname", target_iface]
                 if hidden:
                     cmd += ["hidden", "yes"]
                 run_cmd(cmd, check=True)
@@ -1030,8 +1046,11 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     try:
         raise SystemExit(main(sys.argv[1:]))
+    except CancelledError:
+        raise SystemExit(143)
     except KeyboardInterrupt:
         raise SystemExit(130)
     except UsageError as exc:
