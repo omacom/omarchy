@@ -458,7 +458,14 @@ pass "review uses tab-separated cells and propagates confirmation status"
   omarchy-notification-send() { echo unexpected >>"$HOME/launched"; }
   export -f omarchy-done systemd-run omarchy-hw-fingerprint omarchy-notification-send
   hook="$ROOT/install/user/first-run/setup-fingerprint.hook"
-  omarchy-done mark fingerprint-setup-requested
+  source <(sed -n '/^record_fingerprint_choice() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner")
+  username=test-owner
+  runuser() { [[ $1 == "-u" && $2 == "$username" && $3 == "--" ]] || return 1; shift 3; "$@"; }
+  fingerprint_setup=requested record_fingerprint_choice
+  fingerprint_setup=skipped record_fingerprint_choice
+  omarchy-done check fingerprint-setup-invitation || exit 1
+  if omarchy-done check fingerprint-setup-requested; then exit 1; fi
+  fingerprint_setup=requested record_fingerprint_choice
   bash "$hook" --requested
   bash "$hook" --requested
   bash "$hook"

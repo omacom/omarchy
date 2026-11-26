@@ -1286,15 +1286,23 @@ cleanup_oem_state() {
   systemctl daemon-reload 2>/dev/null || true
 }
 
+record_fingerprint_choice() {
+  local chosen opposite
+  case ${fingerprint_setup:-} in
+    requested) chosen=fingerprint-setup-requested; opposite=fingerprint-setup-invitation ;;
+    skipped) chosen=fingerprint-setup-invitation; opposite=fingerprint-setup-requested ;;
+    *) return 0 ;;
+  esac
+  runuser -u "$username" -- omarchy-done clear "$opposite" || return 1
+  runuser -u "$username" -- omarchy-done mark "$chosen"
+}
+
 # The provisioning work, backgrounded under the progress screen. Phase writes
 # to STATE_FILE drive the progress; all output lands in the log.
 run_provisioning() {
   log_step "creating user $username"
   create_user
-  case ${fingerprint_setup:-} in
-    requested) runuser -u "$username" -- omarchy-done mark fingerprint-setup-requested ;;
-    skipped) runuser -u "$username" -- omarchy-done mark fingerprint-setup-invitation ;;
-  esac
+  record_fingerprint_choice
   record_eula
   install_authorized_keys
   configure_login

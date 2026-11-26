@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# omarchy:summary=Check or mark completed Omarchy setup tasks
-# omarchy:args=<check|mark|ensure> <name>
+# omarchy:summary=Manage completed Omarchy setup tasks
+# omarchy:args=<check|mark|ensure|clear> <name>
 # omarchy:hidden=true
 
 set -e
 
 if (( $# != 2 )); then
-  echo "Usage: omarchy-done <check|mark|ensure> <name>" >&2
+  echo "Usage: omarchy-done <check|mark|ensure|clear> <name>" >&2
   exit 1
 fi
 
@@ -29,12 +29,15 @@ case "$action" in
     mkdir -p "$done_dir"
     touch "$marker"
     ;;
+  clear)
+    rm -f -- "$marker"
+    ;;
   ensure)
     mkdir -p "$done_dir"
     (set -o noclobber; : >"$marker") 2>/dev/null
     ;;
   *)
-    echo "Usage: omarchy-done <check|mark|ensure> <name>" >&2
+    echo "Usage: omarchy-done <check|mark|ensure|clear> <name>" >&2
     exit 1
     ;;
 esac
