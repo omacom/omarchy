@@ -96,6 +96,7 @@ HOME=$home XDG_CONFIG_HOME=$config XDG_RUNTIME_DIR=$runtime PATH="$stub_bin:$PAT
 [[ ! -e $systemd_env_file ]] || fail "setup retires the manager-start-only environment file"
 pass "setup exports the socket from the UWSM session environment"
 
+touch "$systemd_env_file"
 HOME=$home XDG_CONFIG_HOME=$config XDG_RUNTIME_DIR=$runtime PATH="$stub_bin:$PATH" \
   "$ROOT/bin/omarchy-remove-service-ssh-agent" >"$test_dir/remove.log"
 [[ -f $session_env_file ]] || fail "removal keeps a UWSM environment override"
