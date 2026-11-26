@@ -176,21 +176,50 @@ agy()
 # When retrieveUserQuotaSummary omits the Gemini group, fetchAvailableModels
 # supplies the Gemini 5-hour session window alongside the Claude/GPT buckets.
 MODELS = "v1internal:fetchAvailableModels"
+CLAUDE_ONLY_QUOTA = {"groups": [{"displayName": "Claude and GPT models", "buckets": [
+  {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 1.0},
+  {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1.0},
+]}]}
 record, _ = agy(routes={
   TIER: ANSWER[TIER],
-  QUOTA: {"groups": [{"displayName": "Claude and GPT models", "buckets": [
-    {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 1.0},
-    {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1.0},
-  ]}]},
+  QUOTA: CLAUDE_ONLY_QUOTA,
   MODELS: {"models": {
-    "gemini-3-flash": {"quotaInfo": {"remainingFraction": 0.95, "resetTime": "2026-09-15T19:31:46Z"}},
-    "claude-opus-5-5-low": {"quotaInfo": {"remainingFraction": 1.0, "resetTime": "2026-09-15T20:00:00Z"}},
+    "gemini-3-flash": {"quotaInfo": {"remainingFraction": 0.95, "resetTime": iso_in(3600)}},
+    "claude-opus-5-5-low": {"quotaInfo": {"remainingFraction": 1.0, "resetTime": iso_in(3600)}},
   }},
 })
 expect("Antigravity collector falls back to fetchAvailableModels when retrieveUserQuotaSummary omits Gemini",
        [(entry["title"], round(entry["percent"], 2)) for entry in record["limits"]],
        [("Gemini Session", 0.05), ("Claude/GPT Session", 0.0), ("Claude/GPT Weekly", 0.0)], record)
-agy()
+
+# If fetchAvailableModels fails while Gemini is absent from retrieveUserQuotaSummary,
+# the failed check keeps the saved Gemini limits stale rather than erasing them.
+record, _ = agy(routes={TIER: ANSWER[TIER], QUOTA: CLAUDE_ONLY_QUOTA, MODELS: 503})
+expect("Antigravity collector keeps saved Gemini limits stale when fetchAvailableModels fails",
+       [[(entry["title"], round(entry["percent"], 2)) for entry in record["limits"]], record["limitsStale"]],
+       [[("Gemini Session", 0.05), ("Claude/GPT Session", 0.0), ("Claude/GPT Weekly", 0.0)], True], record)
+
+# The collector sends a versioned CLI User-Agent from `agy --version`, and falls
+# back to a versioned default when `agy` is absent or fails.
+agy_stub = home() / "bin" / "agy"
+agy_stub.write_text('#!/bin/bash\necho "2.3.4"\n')
+agy_stub.chmod(0o755)
+_, http = agy()
+expect("Antigravity collector sends the installed agy version in User-Agent",
+       {r["headers"].get("user-agent") for r in http.requests}, {"antigravity/cli/2.3.4"})
+
+agy_stub.write_text('#!/bin/bash\nexit 1\n')
+_, http = agy()
+expect("Antigravity collector falls back to a versioned User-Agent when agy fails",
+       {r["headers"].get("user-agent") for r in http.requests}, {"antigravity/cli/1.5.18"})
+
+agy_stub.unlink()
+saved_path = os.environ["PATH"]
+os.environ["PATH"] = os.pathsep.join(p for p in saved_path.split(os.pathsep) if p and not (Path(p) / "agy").exists())
+_, http = agy()
+os.environ["PATH"] = saved_path
+expect("Antigravity collector falls back to a versioned User-Agent when agy is absent",
+       {r["headers"].get("user-agent") for r in http.requests}, {"antigravity/cli/1.5.18"})
 
 # A quota answer of another shape is a failed check: the kept limits stand,
 # stale, and stay kept for the next failure.

@@ -487,10 +487,7 @@ def collect_limits(entries, force):
       if limits is None:
         raise HttpError()
       if limits and not any("gemini" in str(item.get("title") or "").lower() for item in limits):
-        try:
-          gemini_limit = extract_gemini_model_limit(post("fetchAvailableModels", entry["accessToken"], project))
-        except HttpError:
-          gemini_limit = None
+        gemini_limit = extract_gemini_model_limit(post("fetchAvailableModels", entry["accessToken"], project))
         if gemini_limit:
           limits = [gemini_limit] + limits
     except HttpError as error:
