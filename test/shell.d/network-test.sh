@@ -559,9 +559,15 @@ if stripped[:2] == ["connection", "modify"]:
     raise SystemExit(0)
 
 if stripped[:2] == ["connection", "up"]:
+    if os.environ.get("TEST_SLEEP_UP"):
+        import time
+        time.sleep(float(os.environ["TEST_SLEEP_UP"]))
     if os.environ.get("TEST_FAIL_UP") == "1":
         sys.stderr.write("Error: Connection activation failed: Secrets were required\n")
         raise SystemExit(4)
+    raise SystemExit(0)
+
+if stripped[:2] == ["connection", "down"]:
     raise SystemExit(0)
 
 if stripped[:2] == ["connection", "delete"]:
@@ -715,7 +721,20 @@ printf 'corp-secret\n' | TEST_FAIL_UP=1 wifi_cli connect CorpWiFi --identity ali
 grep -q "corp-secret" "$NET_STATE_DIR/nmcli.log" && fail "enterprise secret leaked into nmcli argv"
 grep -q "set 802-1x.password corp-secret" "$NET_STATE_DIR/nmcli_stdin.log" || fail "enterprise secret written via stdin"
 grep -q "connection delete uuid" "$NET_STATE_DIR/nmcli.log" || fail "failed enterprise profile should be rolled back"
-pass "wifi CLI enterprise connect keeps password off argv and rolls back on failure"
+
+: >"$NET_STATE_DIR/nmcli.log"
+PATH="$cli_tmp/bin:$PATH" TEST_STATE_DIR="$NET_STATE_DIR" TEST_SLEEP_UP=10 \
+  "$ROOT/bin/omarchy-network-wifi" connect SixOnly --password-stdin <<<"top-secret-psk" >/dev/null 2>&1 &
+wifi_pid=$!
+for _ in $(seq 1 40); do
+  grep -q "connection up uuid" "$NET_STATE_DIR/nmcli.log" && break
+  sleep 0.05
+done
+kill -TERM "$wifi_pid" 2>/dev/null || true
+wait "$wifi_pid" 2>/dev/null || true
+grep -q "connection down uuid" "$NET_STATE_DIR/nmcli.log" || fail "SIGTERM must cancel in-progress NM activation" "$(cat "$NET_STATE_DIR/nmcli.log")"
+grep -q "connection delete uuid" "$NET_STATE_DIR/nmcli.log" || fail "SIGTERM must delete newly created profile" "$(cat "$NET_STATE_DIR/nmcli.log")"
+pass "wifi CLI enterprise connect and SIGTERM cancellation cancel activation and roll back profiles"
 
 # 7. Disconnect stops in-progress connecting attempts on both Wi-Fi and Ethernet
 printf 'connecting (need authentication)\n' >"$NET_STATE_DIR/wifi_state"

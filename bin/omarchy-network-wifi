@@ -67,19 +67,47 @@ def run_cmd(
     *,
     input_text: str | None = None,
     check: bool = False,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(
-        args,
-        input=input_text,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=c_env(),
-    )
+    try:
+        proc = subprocess.run(
+            args,
+            input=input_text,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=c_env(),
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"command timed out: {' '.join(args)}") from exc
     if check and proc.returncode != 0:
         msg = (proc.stderr or proc.stdout).strip()
         raise RuntimeError(msg or f"{args[0]} exited with status {proc.returncode}")
     return proc
+
+
+def cleanup_cancelled_connection(
+    con_uuid: str,
+    *,
+    delete_profile: bool = False,
+    restore_key_mgmt: str | None = None,
+) -> None:
+    """Cancel an in-progress activation and roll back profile changes without interruption."""
+    prev_handler = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    try:
+        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid], timeout=5)
+        if delete_profile:
+            run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid], timeout=5)
+        elif restore_key_mgmt:
+            run_cmd(
+                ["nmcli", "connection", "modify", "uuid", con_uuid, "wifi-sec.key-mgmt", restore_key_mgmt],
+                timeout=5,
+            )
+    except Exception:
+        pass
+    finally:
+        signal.signal(signal.SIGTERM, prev_handler)
 
 
 def nm_split_escaped(line: str) -> list[str]:
@@ -663,10 +691,13 @@ def connect_enterprise(
     run_cmd(add_cmd, check=True)
     try:
         nm_set_secret_via_edit(con_uuid, "802-1x.password", password, enable_autoconnect=True)
-        run_cmd(["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface], check=True)
+        run_cmd(
+            ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+            check=True,
+            timeout=30,
+        )
     except BaseException:
-        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid])
-        run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid])
+        cleanup_cancelled_connection(con_uuid, delete_profile=True)
         raise
 
 
@@ -741,13 +772,13 @@ def connect_psk_via_profile(
         created = True
     try:
         nm_set_secret_via_edit(con_uuid, "wifi-sec.psk", password, enable_autoconnect=created)
-        run_cmd(["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface], check=True)
+        run_cmd(
+            ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+            check=True,
+            timeout=30,
+        )
     except BaseException:
-        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid])
-        if created:
-            run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid])
-        elif prev_km:
-            run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "wifi-sec.key-mgmt", prev_km])
+        cleanup_cancelled_connection(con_uuid, delete_profile=created, restore_key_mgmt=prev_km)
         raise
 
 
@@ -834,9 +865,10 @@ def cmd_connect(args: list[str], as_json: bool) -> int:
                 run_cmd(
                     ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
                     check=True,
+                    timeout=30,
                 )
-            except (CancelledError, KeyboardInterrupt):
-                run_cmd(["nmcli", "connection", "down", "uuid", con_uuid])
+            except BaseException:
+                cleanup_cancelled_connection(con_uuid)
                 raise
         else:
             # Check if the scanned network requires credentials so a TTY user gets a prompt.
@@ -847,10 +879,23 @@ def cmd_connect(args: list[str], as_json: bool) -> int:
                 pw = getpass.getpass(f"Passphrase for {ssid}: ")
                 connect_psk_via_profile(ssid, pw, hidden, target_iface)
             else:
+                before_uuids = {p["uuid"] for p in saved_wifi_profiles()}
                 cmd = ["nmcli", "--wait", "28", "device", "wifi", "connect", ssid, "ifname", target_iface]
                 if hidden:
                     cmd += ["hidden", "yes"]
-                run_cmd(cmd, check=True)
+                try:
+                    run_cmd(cmd, check=True, timeout=30)
+                except BaseException:
+                    prev_handler = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                    try:
+                        for p in saved_wifi_profiles():
+                            if p["ssid"] == ssid and p["uuid"] not in before_uuids:
+                                cleanup_cancelled_connection(p["uuid"], delete_profile=True)
+                    except Exception:
+                        pass
+                    finally:
+                        signal.signal(signal.SIGTERM, prev_handler)
+                    raise
 
     st = read_wifi_status(target_iface)
     if as_json:

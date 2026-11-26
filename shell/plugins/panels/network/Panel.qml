@@ -883,7 +883,9 @@ Panel {
 
   function clearNetworkAction() {
     actionTimeout.stop()
+    actionCancelFallback.stop()
     wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
     if (actionKind === "connect" && passwordSsid === actionSsid) passwordSsid = ""
     failureSsid = ""
     failureReason = ""
@@ -895,7 +897,9 @@ Panel {
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
+    actionCancelFallback.stop()
     wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
     failureSsid = actionSsid
     failureKind = actionKind
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
@@ -934,6 +938,7 @@ Panel {
     wifiAction.targetSsid = ssid
     wifiAction.sendSecret = secret !== undefined
     wifiAction.secret = secret !== undefined ? secret : ""
+    wifiAction.timedOut = false
     wifiAction.command = command
     wifiAction.running = true
   }
@@ -981,6 +986,7 @@ Panel {
     property string targetSsid: ""
     property string secret: ""
     property bool sendSecret: false
+    property bool timedOut: false
     stdinEnabled: true
     stderr: StdioCollector { id: wifiActionStderr; waitForEnd: true }
     onStarted: {
@@ -990,10 +996,17 @@ Panel {
     }
     onExited: function(exitCode) {
       var ssid = targetSsid
+      var wasTimedOut = timedOut
       var errText = String(wifiActionStderr.text || "").trim()
       targetSsid = ""
       secret = ""
       sendSecret = false
+      timedOut = false
+      if (wasTimedOut) {
+        actionCancelFallback.stop()
+        root.finishActionTimeout()
+        return
+      }
       if (exitCode !== 0 && root.actionKind !== "" && root.actionSsid === ssid) {
         // Give NetworkManager's own connectionFailed signal a short head start
         // so specific reasons (Wrong password, reprompt) win over a generic fallback.
@@ -1206,28 +1219,49 @@ Panel {
     }
   }
 
+  function finishActionTimeout() {
+    if (!root.actionKind) return
+    var reason
+    if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+    else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+    else reason = Commons.I18n.t("network.timedOutForgetting")
+    root.failureSsid = root.actionSsid
+    root.failureKind = root.actionKind
+    root.failureReason = reason
+    root.actionSsid = ""
+    root.actionKind = ""
+    root.refresh()
+  }
+
   Timer {
     id: actionTimeout
     // Must outlast both NetworkManager's 25s supplicant timeout and
     // omarchy-network-wifi's 28s nmcli wait + cleanup so the CLI settles and
-    // rolls back on its own; if this fires anyway, stopping wifiAction sends
-    // SIGTERM so the CLI still cancels activation and cleans up.
+    // rolls back on its own; if this fires while wifiAction is still running,
+    // signal SIGTERM and wait for cleanup to exit before releasing the action.
     interval: 35000
     repeat: false
     onTriggered: {
       if (!root.actionKind) return
       wifiActionFailDelay.stop()
+      if (wifiAction.running) {
+        wifiAction.timedOut = true
+        wifiAction.signal(15)
+        actionCancelFallback.restart()
+        return
+      }
+      root.finishActionTimeout()
+    }
+  }
+
+  Timer {
+    id: actionCancelFallback
+    interval: 5000
+    repeat: false
+    onTriggered: {
+      wifiAction.timedOut = false
       wifiAction.running = false
-      var reason
-      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
-      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
-      else reason = Commons.I18n.t("network.timedOutForgetting")
-      root.failureSsid = root.actionSsid
-      root.failureKind = root.actionKind
-      root.failureReason = reason
-      root.actionSsid = ""
-      root.actionKind = ""
-      root.refresh()
+      root.finishActionTimeout()
     }
   }
 
