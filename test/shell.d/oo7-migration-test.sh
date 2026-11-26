@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
-migration="$ROOT/migrations/1794695898.sh"
+migration="$ROOT/migrations/1795716272.sh"
 stubs="$test_tmp/stubs"
 calls="$test_tmp/calls"
 mkdir -p "$stubs"
