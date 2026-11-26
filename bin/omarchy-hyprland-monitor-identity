@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Print the identity of the monitor on a connector
+# omarchy:args=OUTPUT
+# omarchy:hidden=true
+
+# The physical monitor behind a connector, which saved monitor settings are kept
+# by, since a dock renames connectors between plugs. That's its name in
+# monitor-workspaces, which also tells two of the same model apart; else its
+# description (make, model and serial); else the connector itself.
+
+output="${1:-}"
+
+if [[ -z $output ]]; then
+  echo "Usage: omarchy-hyprland-monitor-identity OUTPUT" >&2
+  exit 1
+fi
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+
+identity=$(awk -F'\t' -v connector="$output" '$2 == connector { print $3; exit }' "$state_dir/monitors/workspaces" 2>/dev/null)
+if [[ -z $identity ]]; then
+  identity=$(hyprctl monitors all -j 2>/dev/null | jq -r --arg name "$output" '.[] | select(.name == $name) | .description // empty' 2>/dev/null)
+fi
+identity="${identity:-$output}"
+
+printf '%s\n' "${identity//[$'\t\n']/ }"

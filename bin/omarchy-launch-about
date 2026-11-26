@@ -11,6 +11,9 @@
 LOGO_FILE="$HOME/.config/omarchy/branding/about.txt"
 FIT_FILE="$HOME/.local/state/omarchy/windows/about.fit"
 OMARCHY_FASTFETCH_DIR=/etc/fastfetch
+# Without a runtime directory there is nowhere private to put the translated
+# copy, so the untranslated config runs as it is.
+ABOUT_CONFIG=${XDG_RUNTIME_DIR:+$XDG_RUNTIME_DIR/omarchy/about-fastfetch.jsonc}
 
 # The logo block in the fastfetch config. The fit below reproduces this layout to
 # size the window, and the sheen has to repaint the very cells fastfetch drew the
@@ -64,6 +67,89 @@ display_columns() {
   LC_ALL=C.UTF-8 wc -L
 }
 
+# A section heading as the config draws it: the title centred in the 52 columns
+# between the box corners.
+about_heading() {
+  local title=$1 width left right
+  width=$(printf '%s' "$title" | display_columns)
+  left=$(( (52 - width + 1) / 2 ))
+  right=$(( 52 - width - left ))
+  (( left > 0 )) || left=1
+  (( right > 0 )) || right=1
+  printf '\e[90m┌%s%s%s┐' "$(printf '─%.0s' $(seq "$left"))" "$title" "$(printf '─%.0s' $(seq "$right"))"
+}
+
+# fastfetch has no translations of its own, so the About box runs from a copy of
+# Omarchy's config with its section headings and keys in the current language.
+# Rows the copy does not recognise, as after a user edit, stay as they are.
+write_about_config() {
+  local headings keys language_file language="en" candidate stamp_file stamp
+
+  [[ -n $ABOUT_CONFIG ]] || return 0
+
+  language_file=${OMARCHY_LANGUAGE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/language}
+  if [[ -f $language_file ]]; then
+    candidate=""
+    read -r candidate <"$language_file" || true
+    candidate=${candidate//[[:space:]]/}
+    if [[ $candidate =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ && -f $OMARCHY_PATH/default/i18n/$candidate/cli.json ]]; then
+      language=$candidate
+    fi
+  fi
+
+  # The shipped /etc/fastfetch/config.jsonc is already in English, so English
+  # needs no translated copy at all.
+  if [[ $language == "en" ]]; then
+    rm -f "$ABOUT_CONFIG" "$ABOUT_CONFIG.stamp"
+    return 0
+  fi
+
+  stamp_file="$ABOUT_CONFIG.stamp"
+  stamp=$(printf '%s\n' "$language"; stat -c '%y:%s' \
+    "$OMARCHY_FASTFETCH_DIR/config.jsonc" \
+    "$OMARCHY_PATH/default/i18n/$language/cli.json" \
+    "$OMARCHY_PATH/default/i18n/en/cli.json" 2>/dev/null || true)
+  if [[ -f $ABOUT_CONFIG && -f $stamp_file && $(<"$stamp_file") == "$stamp" ]]; then
+    return 0
+  fi
+
+  headings=$(jq -n \
+    --arg hardware "$(about_heading Hardware)" --arg hardware_to "$(about_heading "$(omarchy-i18n about.hardware)")" \
+    --arg software "$(about_heading Software)" --arg software_to "$(about_heading "$(omarchy-i18n about.software)")" \
+    --arg age "$(about_heading "Age / Uptime / Update")" --arg age_to "$(about_heading "$(omarchy-i18n about.ageUptimeUpdate)")" \
+    '{($hardware): $hardware_to, ($software): $software_to, ($age): $age_to}')
+  keys=$(jq -n \
+    --arg age "$(omarchy-i18n about.osAge)" --arg uptime "$(omarchy-i18n about.uptime)" --arg update "$(omarchy-i18n about.update)" \
+    '{"OS Age": $age, "Uptime": $uptime, "Update": $update}')
+
+  mkdir -p "${ABOUT_CONFIG%/*}"
+  if jq --argjson headings "$headings" --argjson keys "$keys" '
+    .modules |= map(
+      if type == "object" and .type == "custom" and $headings[.format] then .format = $headings[.format]
+      elif type == "object" and (.key // "" | test("^\\S+ ")) then
+        (.key | capture("^(?<icon>\\S+) (?<label>.+)$")) as $k
+        | if $keys[$k.label] then .key = "\($k.icon) \($keys[$k.label])" else . end
+      else . end
+    )' "$OMARCHY_FASTFETCH_DIR/config.jsonc" >"$ABOUT_CONFIG.new"
+  then
+    mv "$ABOUT_CONFIG.new" "$ABOUT_CONFIG"
+    printf '%s\n' "$stamp" >"$stamp_file"
+  else
+    # fastfetch reads JSONC; jq does not, so a comment or trailing comma ends
+    # here, and the untranslated config runs rather than an empty copy.
+    rm -f "$ABOUT_CONFIG.new" "$ABOUT_CONFIG" "$stamp_file"
+  fi
+}
+
+# A user's own fastfetch config runs as it is; otherwise the translated copy does.
+about_fastfetch() {
+  if [[ -n $ABOUT_CONFIG && -f $ABOUT_CONFIG ]] && ! custom_fastfetch_config; then
+    fastfetch -c "$ABOUT_CONFIG" "$@"
+  else
+    fastfetch "$@"
+  fi
+}
+
 logo_dimensions() {
   [[ -f $LOGO_FILE ]] || return 1
   printf '%s %s' "$(display_columns <"$LOGO_FILE")" "$(wc -l <"$LOGO_FILE")"
@@ -107,11 +193,12 @@ presize_window() {
     if [[ -n ${logo_w:-} && $logo_w == "$fit_logo_w" && $logo_h == "$fit_logo_h" ]] &&
       [[ $fit_w =~ ^[0-9]+$ && $fit_h =~ ^[0-9]+$ ]]; then
       apply_size_rule "$fit_w" "$fit_h"
-      return
+      return 0
     fi
   fi
 
   apply_size_rule
+  return 1
 }
 
 # Hyprland animates a resize and the terminal reflows to every step of it, so
@@ -141,7 +228,7 @@ fit_window() {
   # The guard character keeps command substitution from eating the trailing
   # break line, which provides the bottom padding row.
   local modules module_w
-  modules=$(fastfetch --logo none | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g'; printf X)
+  modules=$(about_fastfetch --logo none | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g'; printf X)
   modules=${modules%X}
   module_w=$(printf '%s' "$modules" | display_columns)
 
@@ -202,9 +289,14 @@ measure_layout() {
   local rendered plain needle offset found row
 
   # --pipe false because fastfetch drops its colours when it is not writing to a
-  # terminal, and it is writing to this substitution.
-  rendered=$(fastfetch --pipe false 2>/dev/null; printf X)
-  rendered=${rendered%X}
+  # terminal, and it is writing to this substitution. Reuse the already-captured
+  # render from the current pass when available so fastfetch runs once, not twice.
+  if [[ -n ${RENDERED_ABOUT:-} ]]; then
+    rendered=$RENDERED_ABOUT
+  else
+    rendered=$(about_fastfetch --pipe false 2>/dev/null; printf X)
+    rendered=${rendered%X}
+  fi
   LAYOUT_ROWS=$(printf '%s' "$rendered" | wc -l)
   (( LAYOUT_ROWS > 0 )) || return 1
 
@@ -323,15 +415,20 @@ rest_sheen() {
 }
 
 if [[ ${1:-} == "--render" ]]; then
+  presized=false
+  [[ ${2:-} == "--presized" ]] && presized=true
+
   printf '\e[?25l'
+  write_about_config
 
   # A sweep runs for seconds between polls, so it reads this instead. The polling
   # stays as the backstop, for a signal that arrived while it could not be taken.
   resized=false
   trap 'resized=true' WINCH
 
-  # Give the compositor a moment to apply the window rules before measuring cells.
-  settle_grid
+  # Give the compositor a moment to apply the window rules before measuring cells,
+  # unless presize_window already sized the window from a cached fit.
+  [[ $presized == "true" ]] || settle_grid
 
   fitted=false
   passes=0
@@ -340,8 +437,15 @@ if [[ ${1:-} == "--render" ]]; then
     logo_stamp=$(stat -c %Y "$LOGO_FILE" 2>/dev/null)
     resized=false
     LAYOUT_ROWS=""
+    RENDERED_ABOUT=""
     clear
-    fastfetch
+    if [[ -z ${NO_COLOR:-} ]] && ! custom_fastfetch_config; then
+      RENDERED_ABOUT=$(about_fastfetch --pipe false; printf X)
+      RENDERED_ABOUT=${RENDERED_ABOUT%X}
+      printf '%s' "$RENDERED_ABOUT"
+    else
+      about_fastfetch
+    fi
     # A second pass picks up a fit that could not measure the window the first
     # time. Beyond that, a window that will not settle would be fitted again on
     # every repaint.
@@ -360,5 +464,6 @@ if [[ ${1:-} == "--render" ]]; then
   done
 fi
 
-presize_window
-exec omarchy-launch-or-focus-tui --app-id=org.omarchy.about omarchy-launch-about --render
+render_args=(--render)
+presize_window && render_args+=(--presized)
+exec omarchy-launch-or-focus-tui --app-id=org.omarchy.about omarchy-launch-about "${render_args[@]}"
