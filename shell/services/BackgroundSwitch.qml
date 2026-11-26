@@ -80,7 +80,11 @@ Item {
   function switchTo(path, clipPath, outroPath) {
     path = String(path || "").trim()
     if (!path || !intro || !backgroundService) return "unavailable"
-    if (busy) {
+    if (nextPath) {
+      // An outro is playing: the latest selection is where it leads.
+      nextPath = path
+      nextClip = clipPath || ""
+    } else if (busy) {
       queuedPath = path
     } else if (path !== backgroundService.currentBackground) {
       // A playing intro hides the shell's background, so even a still
@@ -198,11 +202,18 @@ Item {
     // An earlier clip ends once the link has moved on from it.
     if (started || playProc.running) return
     started = true
+    var playing = clip && coverStatus !== "error"
+    // Without the clip there is no frame to hand over from, so a video comes
+    // straight in.
+    if (!playing && holding) {
+      holding = ""
+      link(still)
+    }
     // The shell holds the new still before OWE hands the desktop back, so the
     // old one cannot flash between the clip and the still. With the
     // background plugin disabled the cover still has to come down.
     if (backgroundService) backgroundService.setBackground(linkTarget(), true)
-    if (clip && coverStatus !== "error") {
+    if (playing) {
       playProc.forToken = token
       playProc.command = prepared
         ? ["owe", "intro", "--start", "first-frame", "--refresh", clip]
