@@ -550,11 +550,12 @@ mkdir -p "$scratch"
 
 OMARCHY_MENU_TMP="$scratch" run_qml_fixture menu-select-supersede "the menu takes over from pending select requests" Ui Commons
 
-for name in a b c d; do
+for name in a b c d e f; do
   if [[ ! -e $scratch/done-$name ]]; then
     sed -n '1,220p' "$QML_FIXTURE_LOG" >&2
     fail "superseding a pending menu select strands its waiter" "done-$name was never written; the displaced omarchy-menu-select waiter would spin forever"
   fi
+  [[ ! -s $scratch/sel-$name && ! -s $scratch/done-$name ]] || fail "a displaced menu request is cancelled" "request $name returned a selection"
 done
 
 pass "superseding a pending menu select finishes its request instead of leaking the waiter"

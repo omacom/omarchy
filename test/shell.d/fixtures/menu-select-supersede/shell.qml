@@ -1,11 +1,8 @@
 import QtQuick
 import Quickshell
 
-// Drives the REAL shell/plugins/menu/Menu.qml through the two supersede paths
-// that strand a waiting omarchy-menu-select: opening the regular menu over an
-// active select request, and opening a new select request over another one.
-// The bash runner asserts afterwards that every displaced request had its done
-// file written, which is what lets the waiting script exit.
+// Displacing a real Menu.qml request must write its completion file so the
+// waiting command exits, including when keybindings take over the surface.
 ShellRoot {
   id: root
 
@@ -95,7 +92,18 @@ ShellRoot {
           root.assertTrue(root.menu.doneFile === root.scratchDir + "/done-e", "select E holds the live request afterwards")
         }
 
-        if (tick === 20) root.finish()
+        // Scenario C: the native keybindings menu replaces a live select.
+        if (tick === 20) {
+          root.menu.open(root.selectPayload("F", "f"))
+          root.menu.open(JSON.stringify({ mode: "keybindings" }))
+          root.assertTrue(root.menu.mode === "keybindings", "keybindings take over from select F")
+          root.assertTrue(!root.menu.requestActive, "keybindings clear the old request")
+        }
+
+        if (tick === 28) {
+          root.assertTrue(root.menu.opened, "completion writes leave the replacement menu open")
+          root.finish()
+        }
       } catch (error) {
         root.fail("menu supersede fixture threw: " + error)
         root.finish()
