@@ -1445,5 +1445,11 @@
   },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "system.snapshots": {
+    "label": "Instantâneos"
+  },
+  "system.snapshots.restore": {
+    "label": "Restaurar este instantâneo"
   }
 }

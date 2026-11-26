@@ -101,6 +101,25 @@ if [[ ${LOCK_SETUP_UNKNOWN:-0} != "1" ]]; then
 fi
 STUB
 chmod +x "$scratch/bin/omarchy-apply-lock"
+# Without --terminal the command reaches for the desktop: the running shell,
+# then a floating terminal. Neither is ever the real one here.
+cat > "$scratch/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+echo "shell $*" >> "$CALL_LOG"
+echo "${SHELL_ANSWER:-unknown}"
+STUB
+cat > "$scratch/bin/omarchy-launch-floating-terminal-with-presentation" <<'STUB'
+#!/bin/bash
+echo "terminal $*" >> "$CALL_LOG"
+STUB
+chmod +x "$scratch/bin/omarchy-shell" "$scratch/bin/omarchy-launch-floating-terminal-with-presentation"
+# The real PAM step skips sudo when it is already root, so a root run of this
+# test would edit the host's /etc/pam.d. Never the real one.
+cat > "$scratch/bin/omarchy-apply-fingerprint-pam" <<'STUB'
+#!/bin/bash
+echo "pam apply" >> "$CALL_LOG"
+STUB
+chmod +x "$scratch/bin/omarchy-apply-fingerprint-pam"
 
 export TEST_LOCK_PAM="$scratch/omarchy-lock-fingerprint"
 setup_script="$scratch/omarchy-setup-security-fingerprint"
@@ -109,7 +128,7 @@ chmod +x "$setup_script"
 
 run_setup() {
   : > "$CALL_LOG"
-  if OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1; then
+  if OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1; then
     fail "setup stops on the simulated enrollment or installation failure"
   fi
   if grep -Eq '^(pam |apply-lock$|Unexpected privileged call)' "$CALL_LOG"; then
@@ -158,7 +177,7 @@ pass "missing hardware performs no package operations"
 # Successful setup must reuse the same lock/recovery installer as updates.
 : > "$CALL_LOG"
 OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 \
-  "$setup_script" > "$scratch/output" 2>&1 || fail "successful enrollment configures authentication"
+  "$setup_script" --terminal > "$scratch/output" 2>&1 || fail "successful enrollment configures authentication"
 [[ $(grep -E '^(enroll|verify|apply-lock)$' "$CALL_LOG") == $'enroll\nverify\napply-lock' ]] ||
   fail "setup configures lock recovery once, after enrollment and verification"
 pass "setup reuses apply-lock after enrollment and verification"
@@ -169,7 +188,7 @@ pass "setup reuses apply-lock after enrollment and verification"
   fail "the platform turns its reader on before enrollment, resolved as the user first" "$(cat "$CALL_LOG")"
 : > "$CALL_LOG"
 if INSTALLED=$'libfprint-git\nfprintd\nusbutils' ENABLE_STATUS=1 ENROLL_STATUS=0 VERIFY_STATUS=0 \
-  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1; then
+  OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1; then
   fail "a reader the owner doesn't turn on stops setup"
 fi
 ! grep -Eq '^(enroll|verify|apply-lock|pam .*)$' "$CALL_LOG" && grep -q 'was not turned on, so nothing was enrolled' "$scratch/output" ||
@@ -177,7 +196,7 @@ fi
 # The owner may read past sudo's timeout, so sudo is checked again after the hook.
 : > "$CALL_LOG"
 INSTALLED=$'libfprint-git\nfprintd\nusbutils' ENROLL_STATUS=0 VERIFY_STATUS=0 \
-  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 || fail "setup with a platform hook succeeds"
+  OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1 || fail "setup with a platform hook succeeds"
 [[ $(grep -E '^(dispatch .*|sudo authenticated|enroll)$' "$CALL_LOG") == $'sudo authenticated\ndispatch enable-fingerprint\nsudo authenticated\nenroll' ]] &&
   grep -qF "Confirm it's you again." "$scratch/output" ||
   fail "sudo is checked again after the platform hook, before enrolling" "$(cat "$CALL_LOG")"
@@ -188,19 +207,19 @@ pass "the platform turns its reader on before enrollment, and setup stops if it 
 # stays off, and any other reader enrolls as on every platform.
 : > "$CALL_LOG"
 INSTALLED=$'libfprint-git\nfprintd\nusbutils' ENABLE_HOOK= ENROLL_STATUS=0 VERIFY_STATUS=0 \
-  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 || fail "a platform without the hook sets up as before"
+  OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1 || fail "a platform without the hook sets up as before"
 ! grep -q '^dispatch ' "$CALL_LOG" && grep -qx enroll "$CALL_LOG" ||
   fail "a platform without the hook enrolls without a privileged dispatch" "$(cat "$CALL_LOG")"
 : > "$CALL_LOG"
 INSTALLED=$'libfprint-git\nfprintd\nusbutils' RESOLVE_STATUS=2 ENROLL_STATUS=0 VERIFY_STATUS=0 \
-  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 || fail "a hook that can't be resolved doesn't stop setup" "$(cat "$scratch/output")"
+  OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1 || fail "a hook that can't be resolved doesn't stop setup" "$(cat "$scratch/output")"
 ! grep -q '^dispatch ' "$CALL_LOG" && grep -qx enroll "$CALL_LOG" && grep -q "couldn't be checked, so a reader the platform keeps off stays off" "$scratch/output" ||
   fail "a hook that can't be resolved runs nothing as root, enrolls as before and says so" "$(cat "$CALL_LOG"; cat "$scratch/output")"
 pass "a platform without the hook runs nothing as root for it, and one that can't be told sets up as before"
 
 rm -f "$TEST_LOCK_PAM"
 if OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 LOCK_SETUP_UNKNOWN=1 \
-  "$setup_script" > "$scratch/output" 2>&1; then
+  "$setup_script" --terminal > "$scratch/output" 2>&1; then
   fail "an inconclusive lock installer cannot report successful lock setup"
 fi
 grep -q 'lock-screen configuration could not be confirmed' "$scratch/output" || fail "inconclusive setup explains how to retry"
@@ -237,7 +256,7 @@ pass "each scan type gets its own instruction, and an unnamed one is told to tou
 check_verify_prompt() {
   : > "$CALL_LOG"
   INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=$1 ENROLL_STATUS=0 VERIFY_STATUS=1 \
-    OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 || true
+    OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1 || true
   grep -qF "Now let's verify that it's working correctly. $2" "$scratch/output" ||
     fail "a ${1:-unnamed} sensor is asked to verify with: $2" "$(cat "$scratch/output")"
 }
@@ -269,7 +288,7 @@ pass "enrollment results read as instructions, and a failed enrollment still fai
 # success path's order is checked above.
 : > "$CALL_LOG"
 if INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press ENROLL_STATUS=0 VERIFY_STATUS=1 \
-  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1; then
+  OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1; then
   fail "a failed verify fails setup" "$(cat "$scratch/output")"
 fi
 grep -qx verify "$CALL_LOG" && ! grep -Eq '^(pam |apply-lock$|Unexpected privileged call)' "$CALL_LOG" ||
@@ -369,3 +388,23 @@ pass "stock libfprint is still replaced by libfprint-git"
 LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
 assert_installs "an existing libfprint-git still completes the package set"
 pass "an existing libfprint-git still completes the package set"
+
+# On the desktop the command hands over to the fingerprint panel and does
+# nothing itself; --terminal, as every run above, never asks the shell.
+: > "$CALL_LOG"
+SHELL_ANSWER=ok OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 ||
+  fail "setup succeeds once the panel is summoned" "$(cat "$scratch/output")"
+[[ $(<"$CALL_LOG") == "shell shell summon omarchy.fingerprint" ]] ||
+  fail "setup on the desktop only summons the panel" "$(cat "$CALL_LOG")"
+run_setup
+grep -q '^shell ' "$CALL_LOG" && fail "setup --terminal leaves the shell alone" "$(cat "$CALL_LOG")"
+pass "setup summons the fingerprint panel on the desktop and runs in place with --terminal"
+
+# With the panel unavailable (the plugin disabled, say) and no terminal to ask
+# on, as from the menu or the first-run notification, setup opens one.
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 < /dev/null ||
+  fail "setup without the panel or a terminal succeeds by opening one" "$(cat "$scratch/output")"
+[[ $(<"$CALL_LOG") == $'shell shell summon omarchy.fingerprint\nterminal omarchy-setup-security-fingerprint --terminal' ]] ||
+  fail "setup without the panel or a terminal opens the terminal setup and nothing else" "$(cat "$CALL_LOG")"
+pass "setup opens a floating terminal when it has neither the panel nor a terminal"

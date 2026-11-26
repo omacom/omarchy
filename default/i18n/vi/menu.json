@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.opencode": {
     "label": "OpenCode Desktop"
+  },
+  "system.snapshots": {
+    "label": "Bản chụp"
+  },
+  "system.snapshots.restore": {
+    "label": "Khôi phục bản chụp này"
   }
 }

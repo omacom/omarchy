@@ -1445,5 +1445,11 @@
   },
   "install.ai.cli.opencode": {
     "label": "OpenCode"
+  },
+  "system.snapshots": {
+    "label": "Snapshots"
+  },
+  "system.snapshots.restore": {
+    "label": "Gendan dette snapshot"
   }
 }
