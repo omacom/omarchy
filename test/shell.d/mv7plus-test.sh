@@ -75,6 +75,72 @@ with tempfile.TemporaryDirectory() as tmp:
     finally:
         fcntl.flock(held, fcntl.LOCK_UN)
         os.close(held)
+
+# Timed-out HID readback raises TimeoutError instead of returning null silently.
+class SilentMic(ctl.MV7Plus):
+    def __init__(self):
+        self.seq = 1
+    def get_feat(self, pfx, feat):
+        return None
+
+silent = SilentMic()
+for fn in (lambda: silent.read_one("mute"), lambda: silent.read_all(require_complete=True)):
+    raised = False
+    try:
+        fn()
+    except TimeoutError:
+        raised = True
+    assert raised, "timed-out HID read must raise TimeoutError"
 PY
 
-pass "Shure MV7+ HID protocol, value bounds, discovery, and locking pass"
+pass "Shure MV7+ HID protocol, value bounds, discovery, locking, and timeout handling pass"
+
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+
+const src = fs.readFileSync(path.join(root, 'shell/plugins/panels/mv7plus/Store.js'), 'utf8')
+  .replace(/^\.pragma library\s*\n/, '')
+const sandbox = {}
+vm.runInNewContext(src, sandbox)
+
+// Multi-monitor sync: muting on monitor A updates monitor B immediately.
+const execLog = []
+const makePanel = (id) => ({
+  id,
+  synced: null,
+  syncFromStore(st) { this.synced = Object.assign({}, st) },
+  execHelper(args) { execLog.push({ id, args }) }
+})
+const monA = makePanel('A')
+const monB = makePanel('B')
+sandbox.register(monA)
+sandbox.register(monB)
+
+sandbox.setOptimistic('micMuted', true)
+assertEqual(monA.synced.micMuted, true, 'monitor A reflects optimistic mute')
+assertEqual(monB.synced.micMuted, true, 'monitor B reflects optimistic mute immediately')
+
+// Preset + queued set merge: preset result must not be dropped when a set is queued.
+sandbox.enqueue(['preset', 'neutral'], monA)
+sandbox.setOptimistic('gainDb', 32.0)
+sandbox.enqueue(['set', 'gain_db', '32.0'], monB)
+assertEqual(execLog.length, 1, 'only one HID command executes at a time across monitors')
+
+sandbox.finishExec(JSON.stringify({
+  connected: true,
+  state: { auto_level: 0, gain_db: 28.0, mute: 0, denoiser: 0, hpf: 0 }
+}))
+assertEqual(monA.synced.autoLevel, false, 'preset auto_level merges even while set gain_db is queued')
+assertEqual(monB.synced.micMuted, false, 'preset mute merges across monitors')
+assertEqual(monA.synced.gainDb, 32.0, 'queued gain_db is not reverted by earlier preset snapshot')
+assertEqual(execLog.length, 2, 'queued set executes immediately after preset finishes')
+assertDeepEqual(execLog[1].args, ['set', 'gain_db', '32.0'], 'queued set args preserved')
+
+sandbox.finishExec(JSON.stringify({ connected: true, state: { gain_db: 32.0 } }))
+assertEqual(monB.synced.gainDb, 32.0, 'confirmed set updates all monitors')
+
+// Unregistering leader hands off cleanly to remaining monitor.
+sandbox.unregister(monA)
+assert(sandbox.isLeader(monB), 'monitor B becomes leader when monitor A disconnects')
+JS

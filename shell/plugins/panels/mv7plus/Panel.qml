@@ -6,6 +6,7 @@ import Quickshell.Services.Pipewire
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "Store.js" as Store
 
 Panel {
   id: root
@@ -46,10 +47,6 @@ Panel {
   property bool deviceConnected: false
   property string deviceError: ""
   property bool permissionRetried: false
-  property bool busy: false
-  // Writes that arrive while the helper is running. One entry per feature, so
-  // a held key coalesces to its latest value without dropping other features.
-  property var pendingCmds: []
 
   property bool autoLevel: true
   property real gainDb: 28.0
@@ -80,61 +77,46 @@ Panel {
     return Commons.I18n.t("mv7plus.toneBright").arg(Commons.I18n.formatNumber(rounded))
   }
 
-  function applySnapshot(raw) {
-    var trimmed = String(raw || "").trim()
-    if (!trimmed) return
-    var data
-    try {
-      data = JSON.parse(trimmed)
-    } catch (e) {
-      return
-    }
-    root.deviceConnected = Boolean(data.connected)
-    root.deviceError = data.error ? String(data.error) : ""
+  function syncFromStore(st) {
+    root.deviceConnected = st.deviceConnected
+    root.deviceError = st.deviceError
     if (!root.deviceConnected) {
       if (root.opened) root.close()
       return
     }
-    if (root.deviceError === "permission" && !root.permissionRetried) {
-      root.permissionRetried = true
-      permissionRetry.restart()
-      return
+    if (Store.isLeader(root)) {
+      if (root.deviceError === "permission" && !root.permissionRetried) {
+        root.permissionRetried = true
+        permissionRetry.restart()
+      } else if (root.deviceError === "") {
+        root.permissionRetried = false
+      }
     }
-    if (root.deviceError === "") root.permissionRetried = false
-    // More writes are queued: this snapshot predates them, and applying it
-    // would bounce the controls back for a moment.
-    if (root.pendingCmds.length > 0) return
-    var st = data.state
-    if (!st || typeof st !== "object") return
-    if (st.auto_level !== null && st.auto_level !== undefined) root.autoLevel = Number(st.auto_level) !== 0
-    if (st.gain_db !== null && st.gain_db !== undefined) root.gainDb = Number(st.gain_db)
-    if (st.mute !== null && st.mute !== undefined) root.micMuted = Number(st.mute) !== 0
-    if (st.hpf !== null && st.hpf !== undefined) root.hpfMode = Number(st.hpf)
-    if (st.limiter !== null && st.limiter !== undefined) root.limiterOn = Number(st.limiter) !== 0
-    if (st.compressor !== null && st.compressor !== undefined) root.compressorMode = Number(st.compressor)
-    if (st.denoiser !== null && st.denoiser !== undefined) root.denoiserOn = Number(st.denoiser) !== 0
-    if (st.popper_stopper !== null && st.popper_stopper !== undefined) root.popperStopperOn = Number(st.popper_stopper) !== 0
-    if (st.tone_pct !== null && st.tone_pct !== undefined) root.tonePct = Number(st.tone_pct)
-    if (st.reverb_output !== null && st.reverb_output !== undefined) root.reverbOutputOn = Number(st.reverb_output) !== 0
-    if (st.reverb_type !== null && st.reverb_type !== undefined) root.reverbType = Number(st.reverb_type)
-    if (st.reverb_intensity !== null && st.reverb_intensity !== undefined) root.reverbIntensity = Number(st.reverb_intensity)
-    if (st.reverb_monitor !== null && st.reverb_monitor !== undefined) root.reverbMonitorOn = Number(st.reverb_monitor) !== 0
-    if (st.mic_level !== null && st.mic_level !== undefined) root.micLevel = Number(st.mic_level)
-    if (st.playback_level !== null && st.playback_level !== undefined) root.playbackLevel = Number(st.playback_level)
+    root.autoLevel = st.autoLevel
+    root.gainDb = st.gainDb
+    root.micMuted = st.micMuted
+    root.hpfMode = st.hpfMode
+    root.limiterOn = st.limiterOn
+    root.compressorMode = st.compressorMode
+    root.denoiserOn = st.denoiserOn
+    root.popperStopperOn = st.popperStopperOn
+    root.tonePct = st.tonePct
+    root.reverbOutputOn = st.reverbOutputOn
+    root.reverbType = st.reverbType
+    root.reverbIntensity = st.reverbIntensity
+    root.reverbMonitorOn = st.reverbMonitorOn
+    root.micLevel = st.micLevel
+    root.playbackLevel = st.playbackLevel
   }
 
-  function runCtl(args) {
-    if (ctlProc.running) {
-      var slot = args.slice(0, 2).join(" ")
-      var queue = pendingCmds.filter(function(c) { return c.slice(0, 2).join(" ") !== slot })
-      queue.push(args)
-      pendingCmds = queue
-      return
-    }
-    busy = true
+  function execHelper(args) {
     ctlProc.outputBuffer = ""
     ctlProc.command = ["python3", root.helperPath].concat(args)
     ctlProc.running = true
+  }
+
+  function runCtl(args) {
+    Store.enqueue(args, root)
   }
 
   function refresh() {
@@ -151,21 +133,21 @@ Panel {
 
   function toggleMute() {
     var next = !micMuted
-    micMuted = next
+    Store.setOptimistic("micMuted", next)
     setFeature("mute", next ? 1 : 0)
   }
 
   // Optimistic setters shared by the mouse and the keyboard cursor: the control
-  // moves at once and the helper's snapshot confirms it.
+  // moves at once across all monitors and the helper's readback confirms it.
   function setBool(prop, key, on) {
     if (root[prop] === on) return
-    root[prop] = on
+    Store.setOptimistic(prop, on)
     setFeature(key, on ? 1 : 0)
   }
 
   function setNumber(prop, key, value) {
     if (root[prop] === value) return
-    root[prop] = value
+    Store.setOptimistic(prop, value)
     setFeature(key, value)
   }
 
@@ -265,14 +247,7 @@ Panel {
       }
     }
     onExited: {
-      root.busy = false
-      root.applySnapshot(ctlProc.outputBuffer)
-      if (root.pendingCmds.length > 0) {
-        var queue = root.pendingCmds.slice()
-        var next = queue.shift()
-        root.pendingCmds = queue
-        root.runCtl(next)
-      }
+      Store.finishExec(ctlProc.outputBuffer)
     }
   }
 
@@ -293,14 +268,13 @@ Panel {
   }
 
   onPipewireHasMv7Changed: {
+    if (!Store.isLeader(root)) return
     if (pipewireHasMv7) {
       permissionRetried = false
       hotplugDebounce.restart()
     } else {
       permissionRetry.stop()
-      deviceConnected = false
-      deviceError = ""
-      if (opened) close()
+      Store.markDisconnected()
     }
   }
 
@@ -314,7 +288,11 @@ Panel {
   }
 
   // Avoid spawning a helper at startup when no MV7+ is connected.
-  Component.onCompleted: if (pipewireHasMv7) refresh()
+  Component.onCompleted: {
+    Store.register(root)
+    if (Store.isLeader(root) && pipewireHasMv7) refresh()
+  }
+  Component.onDestruction: Store.unregister(root)
 
   BarIconButton {
     id: button
@@ -909,6 +887,8 @@ Panel {
 
             Row {
               id: presetRow
+              readonly property bool hasCursor: root.cursorActive && root.cursorRow === "presets"
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(presetRow)
               x: root.rowInset
               width: parent.width - root.rowInset * 2
               spacing: Style.spacing.sm

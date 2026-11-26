@@ -174,13 +174,22 @@ class MV7Plus:
             raise ValueError(f"unknown feature: {name}")
         _, pfx, f0, f1, fmt, _, _ = FEATURE_MAP[name]
         raw = self.get_feat(pfx, (f0, f1))
-        return {name: decode_value(fmt, raw) if raw is not None else None}
+        if raw is None:
+            raise TimeoutError(f"MV7+ did not confirm {name}")
+        return {name: decode_value(fmt, raw)}
 
-    def read_all(self):
+    def read_all(self, require_complete: bool = False):
         out = {}
+        missing = []
         for name, pfx, f0, f1, fmt, _, _ in FEATURES:
             raw = self.get_feat(pfx, (f0, f1))
-            out[name] = decode_value(fmt, raw) if raw is not None else None
+            if raw is None:
+                out[name] = None
+                missing.append(name)
+            else:
+                out[name] = decode_value(fmt, raw)
+        if len(missing) == len(FEATURES) or (require_complete and missing):
+            raise TimeoutError(f"MV7+ did not reply for: {', '.join(missing[:3])}")
         return out
 
 
@@ -278,7 +287,7 @@ def main():
                 else:
                     raise ValueError(f"unknown preset: {preset}")
                 time.sleep(0.08)
-                state = mic.read_all()
+                state = mic.read_all(require_complete=True)
             else:
                 state = mic.read_all()
             emit({"connected": True, "device": dev, "state": state})
