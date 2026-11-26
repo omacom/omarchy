@@ -942,12 +942,12 @@ Panel {
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
       enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
+      enterpriseConnect.command = ["omarchy-network-wifi", "connect", "--identity", identity, "--password-stdin", "--", ssid]
       enterpriseConnect.running = true
     })
   }
 
-  // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).
+  // Creates and activates the 802.1X profile via `omarchy-network-wifi`.
   // The password goes over stdin, never argv.
   Process {
     id: enterpriseConnect
