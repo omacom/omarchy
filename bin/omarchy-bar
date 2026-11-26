@@ -275,7 +275,7 @@ cmd_background() {
 # layout. Both stay on unless the user says otherwise; the commands and the
 # menu work either way.
 click_state() {
-  if [[ $(jq -r --arg key "$1" '(.bar | type == "object") and (.bar.clicks | type == "object") and .bar.clicks[$key] == false' "$(source_file)") == true ]]; then
+  if [[ $(jq -r --arg key "$1" '(.bar | type == "object") and (.bar.clicks | type == "object") and .bar.clicks[$key] == false' "$(source_file)") == "true" ]]; then
     echo off
   else
     echo on
@@ -302,11 +302,11 @@ cmd_clicks() {
   [[ $action =~ ^(on|off)$ ]] || fail "clicks $what must be on or off"
 
   local value=true
-  if [[ $action == off ]]; then
+  if [[ $action == "off" ]]; then
     value=false
   fi
   local normalize_clicks="$NORMALIZE | .bar.clicks = (.bar.clicks | if type == \"object\" then . else {} end)"
-  if [[ $what == both ]]; then
+  if [[ $what == "both" ]]; then
     commit "$normalize_clicks | .bar.clicks.background = $value | .bar.clicks.layout = $value"
     echo "Bar clicks turned $action"
   else
