@@ -82,7 +82,8 @@ assert_detached_installer_launch omarchy-install-gaming-steam steam
 cat >"$HOME/.config/Code/User/settings.json" <<'EOF'
 {
   // mine
-  "editor.fontSize": 16
+  "editor.fontSize"
+    : 16
 }
 EOF
 printf '{\n  "password-store": "basic",\n  "enable-crash-reporter": false\n}\n' >"$HOME/.vscode/argv.json"

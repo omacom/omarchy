@@ -12,12 +12,14 @@ mkdir -p ~/.vscode ~/.config/Code/User
 # JSONC, edited in place as omarchy-theme-set-vscode does: a strict JSON parser
 # would reject the comments.
 add_default() {
-  local file=$1 key=$2 value=$3 comma=""
+  local file=$1 key=$2 value=$3 comma="" active
 
-  [[ -s $file ]] || printf '{\n}\n' >"$file"
-  if ! grep -v '^[[:space:]]*//' "$file" | grep -Fq "\"$key\""; then
-    # A comma only when the object already holds a key to separate it from.
-    grep -v '^[[:space:]]*//' "$file" | grep -Eq '"[^"]+"[[:space:]]*:' && comma=","
+  grep -qs '[^[:space:]]' "$file" || printf '{\n}\n' >"$file"
+  active=$(sed -E 's#/\*[^*]*\*/##g; /^[[:space:]]*\/\//d' "$file")
+  if ! grep -Fq "\"$key\"" <<<"$active"; then
+    # A comma whenever the object holds anything quoted: a key can sit on
+    # another line than its colon, and a comma too many is still JSONC.
+    [[ $active != *'"'* ]] || comma=","
     sed -i --follow-symlinks -E "0,/^[[:space:]]*\{/s/^([[:space:]]*)\{/\1{\n  \"$key\": \"$value\"$comma/" "$file"
   fi
 }
