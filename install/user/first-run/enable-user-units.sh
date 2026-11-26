@@ -13,7 +13,7 @@ set -euo pipefail
 omarchy-input-method configure --defaults || echo "Input method defaults deferred; run omarchy setup input after login." >&2
 
 # Enable one at a time without reloading on every call: given a list, systemctl
-# enables none of it when it cannot find one unit, while 7 separate reloads
+# enables none of it when it cannot find one unit, while 8 separate reloads
 # stall the user manager during first-login startup.
 units=(
   bt-agent.service
@@ -21,6 +21,7 @@ units=(
   omarchy-recover-internal-monitor.service
   omarchy-sleep-lock.service
   omarchy-migrate-notify.service
+  omarchy-boot-notify.service
   omarchy-fcitx5.service
   omarchy-crash-watch.service
 )

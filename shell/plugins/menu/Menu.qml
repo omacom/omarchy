@@ -147,7 +147,11 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  // Menus whose rows carry long labels (font names, kernel packages, snapshot
+  // titles) get the wide card, and so does a search that shows their rows.
+  readonly property var wideMenus: ({ "trigger.capture.screenrecord": true, "appearance.font": true, "update.kernel": true, "system.snapshots": true })
+  property bool wideDisplay: false
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideDisplay ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, filterText) : rowListHeight(layoutSerial, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -369,6 +373,16 @@ Item {
       volatile: true,
       actionFor: function(value) { return "omarchy-kernel set " + Util.shellQuote(value) }
     },
+    // systemd-boot's snapshot entries, newest first, as omarchy-boot-sync
+    // published them. Picking one boots it once; it can be restored from there.
+    // On Limine, omarchy-snapshot list asks sudo for snapper's table, which a
+    // menu has no terminal for.
+    "snapshots": {
+      script: "[[ $(omarchy-boot-backend) == systemd-boot ]] || exit 0; omarchy-snapshot list 2>/dev/null | while IFS=$'\\t' read -r n title; do [[ -z $n ]] && continue; printf '%s\\t%s\\t\\n' \"$title\" \"$n\"; done",
+      icon: "\udb80\udc6f",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-launch-floating-terminal-with-presentation omarchy-snapshot boot " + Util.shellQuote(value) }
+    },
     // Rows carry a fourth field (the English name) so searching "danish"
     // finds the row labeled with its native name; mergeProviderRows turns
     // it into an alias.
@@ -543,6 +557,8 @@ Item {
       var entry = root.item(root.itemOrder[i])
       if (!entry || !entry.provider || root.providersLoaded[entry.id]) continue
       if (active !== "root" && entry.id !== active && !root.isDescendantOf(entry.id, active)) continue
+      // A submenu its guard hides has no rows to search.
+      if (!root.isVisible(entry)) continue
 
       root.loadProviderForMenu(entry.id)
     }
@@ -801,6 +817,12 @@ Item {
       }
     }
 
+    var wide = root.wideMenus[active] === true
+    for (var k = 0; k < rows.length; k++) {
+      var shown = root.item(rows[k].itemId)
+      if (shown && root.wideMenus[shown.parent] === true) wide = true
+    }
+    root.wideDisplay = wide
     root.displayRows = rows
     if (rows.length > 0) displayModel.append(rows)
     layoutSerial += 1

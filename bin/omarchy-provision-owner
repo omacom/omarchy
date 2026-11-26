@@ -726,18 +726,6 @@ record_eula() {
     '{oem: $oem, sha256: $sha256, accepted_by: $user, accepted_at: $at}' >/var/lib/omarchy/oem/eula-accepted.json
 }
 
-# /etc/vconsole.conf's XKB settings for the form's keymaps that kbd-model-map
-# lacks (omarchy_keymap_xkb_extra), so the desktop types what the console does.
-keyboard_xkb_settings() {
-  local layout variant options
-  read -r layout variant options < <(omarchy_keymap_xkb_extra "$1") || return 1
-
-  printf 'XKBLAYOUT=%s\nXKBMODEL=pc105\n' "$layout"
-  [[ $variant == "-" ]] || printf 'XKBVARIANT=%s\n' "$variant"
-  [[ $options != "-" ]] || options=""
-  printf 'XKBOPTIONS=terminate:ctrl_alt_bksp%s\n' "${options:+,$options}"
-}
-
 # Load the layout on the live VT and persist it for the installed system, or
 # fail. systemd-firstboot writes both the console KEYMAP and the XKB layout
 # Hyprland reads, matching what the ISO's configure_keyboard does at install
@@ -770,7 +758,7 @@ apply_keyboard() {
   # systemd-firstboot writes an XKB layout only for keymaps in kbd-model-map,
   # and several the form offers are not, so Hyprland would come up in US.
   if ! grep -q '^XKBLAYOUT=.' /etc/vconsole.conf 2>/dev/null; then
-    keyboard_xkb_settings "$keymap" >>/etc/vconsole.conf 2>>"$LOG_FILE" ||
+    omarchy_keymap_xkb_settings "$keymap" >>/etc/vconsole.conf 2>>"$LOG_FILE" ||
       log_step "no XKB layout known for keymap $keymap"
   fi
 
@@ -1063,6 +1051,7 @@ finalize_user() {
 PROVISIONING_UNLOCK_FILES=(
   /etc/omarchy/provisioning.key
   /etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+  /etc/cmdline.d/99-omarchy-provisioning-unlock.conf
   /etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
 )
 
@@ -1074,12 +1063,25 @@ limine_auto_unlock_present() {
   return 1
 }
 
+boot_backend() {
+  "$OMARCHY_PATH/bin/omarchy-boot-backend"
+}
+
+# Rebuilds the boot images, on whichever loader this machine boots.
+rebuild_boot_images() {
+  if [[ $(boot_backend) == systemd-boot ]]; then
+    "$OMARCHY_PATH/bin/omarchy-boot-rebuild" >>"$LOG_FILE" 2>&1
+  else
+    reset_limine_config
+    limine-update >>"$LOG_FILE" 2>&1
+  fi
+}
+
 # Rebuild the UKI without the embedded keyfile. A failed rebuild restores the
 # auto-unlock, so the retry still boots unattended.
 limine_auto_unlock_drop() {
   rm -f "${PROVISIONING_UNLOCK_FILES[@]}"
-  reset_limine_config
-  if limine-update >>"$LOG_FILE" 2>&1; then
+  if rebuild_boot_images; then
     return 0
   fi
 
@@ -1087,15 +1089,20 @@ limine_auto_unlock_drop() {
   # boot files already ask for the owner's password. The rebuild is still
   # retried for the boot entries.
   if [[ -f $PROVISIONING_DIR/luks-key ]]; then
-    log_step "limine-update failed during re-key; restoring auto-unlock for retry"
+    log_step "the boot image rebuild failed during re-key; restoring auto-unlock for retry"
     install -Dm600 "$PROVISIONING_DIR/luks-key" /etc/omarchy/provisioning.key
-    echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
-      >/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+    if [[ $(boot_backend) == systemd-boot ]]; then
+      mkdir -p /etc/cmdline.d
+      echo 'cryptkey=rootfs:/etc/omarchy/provisioning.key' >/etc/cmdline.d/99-omarchy-provisioning-unlock.conf
+    else
+      echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
+        >/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+    fi
     echo 'FILES+=(/etc/omarchy/provisioning.key)' >/etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
   else
-    log_step "limine-update failed during re-key; the staged key is gone, so no auto-unlock is restored"
+    log_step "the boot image rebuild failed during re-key; the staged key is gone, so no auto-unlock is restored"
   fi
-  limine-update >>"$LOG_FILE" 2>&1 || true
+  rebuild_boot_images || true
   return 1
 }
 
@@ -1203,9 +1210,11 @@ esp_path() {
 # or the bare header reset_limine_config leaves when the rebuild after it
 # failed. Other machine-ids are not stale: a shared ESP holds other systems'
 # entries, and the factory reset already re-keyed this system's entry to the
-# identity it boots with.
+# identity it boots with. A machine on systemd-boot has no Limine entry: a
+# limine.conf on its ESP is another installation's.
 limine_entries_stale() {
   local esp machine_id
+  [[ $(boot_backend) != systemd-boot ]] || return 1
   esp=$(esp_path)
   machine_id=$(cat /etc/machine-id 2>/dev/null || true)
   [[ -f $esp/limine.conf && -n $machine_id ]] || return 1
