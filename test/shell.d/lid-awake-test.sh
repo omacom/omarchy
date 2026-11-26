@@ -11,9 +11,10 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 export HOME="$test_tmp/home"
+export XDG_RUNTIME_DIR="$test_tmp/run"
 fake_bin="$test_tmp/bin"
 log="$test_tmp/log"
-mkdir -p "$HOME" "$fake_bin"
+mkdir -p "$HOME" "$XDG_RUNTIME_DIR" "$fake_bin"
 : >"$log"
 
 # systemd is faked: systemd-run records the unit as active, systemctl reports
@@ -30,7 +31,7 @@ cat >"$fake_bin/systemctl" <<STUB
 #!/bin/bash
 case "\$2" in
   is-active) [[ -f "$test_tmp/active" ]] ;;
-  stop) rm -f "$test_tmp/active"; rm -f "$HOME/.local/state/omarchy/indicators/lid-awake" ;;
+  stop) rm -f "$test_tmp/active"; rm -f "$XDG_RUNTIME_DIR/omarchy/lid-awake" ;;
 esac
 STUB
 
@@ -55,7 +56,7 @@ printf 'toggle %s\n' "\$*" >>"$log"
 STUB
 chmod +x "$fake_bin"/*
 
-state="$HOME/.local/state/omarchy/indicators/lid-awake"
+state="$XDG_RUNTIME_DIR/omarchy/lid-awake"
 run_toggle() { PATH="$fake_bin:$PATH" "$toggle" "$@"; }
 
 # --- toggle ---

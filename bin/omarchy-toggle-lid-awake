@@ -10,10 +10,12 @@
 # running. The guard below is the unit's own process: it refuses to let a
 # forgotten toggle fill the disk or drain the battery, and when it is gone the
 # kernel drops the lock. The unit's own hooks keep the state file, so it can
-# never outlive the lock, whichever way the unit ends.
+# never outlive the lock, whichever way the unit ends. It lives in the runtime
+# dir, which logout and reboot clear, so a crash or power cut that skips the
+# stop hook cannot leave the bar claiming a lock that no longer exists.
 
 UNIT="omarchy-lid-awake.service"
-STATE_DIR="$HOME/.local/state/omarchy/indicators"
+STATE_DIR="$XDG_RUNTIME_DIR/omarchy"
 STATE_FILE="$STATE_DIR/lid-awake"
 
 held() {

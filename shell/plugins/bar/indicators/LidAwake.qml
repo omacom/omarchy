@@ -7,7 +7,7 @@ import qs.Ui
 BarIndicator {
   id: root
 
-  readonly property string stateFile: Quickshell.env("HOME") + "/.local/state/omarchy/indicators/lid-awake"
+  readonly property string stateFile: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy/lid-awake"
   property bool lidAwake: false
 
   active: lidAwake
