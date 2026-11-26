@@ -927,7 +927,7 @@ def local_stats(root, problems=None):
 
     seen = {}
     unindexed = set()
-    models = {}
+    step_models = {}
     prompts_seen = set()
     desktop = not has_history(one)
 
@@ -943,6 +943,7 @@ def local_stats(root, problems=None):
         continue
       exact, fallback = exact_by_conversation.get(brain.name, ({}, ""))
       seen_steps = seen.setdefault(brain.name, set())
+      marks = step_models.setdefault(brain.name, {})
       # The model a conversation runs on carries from step to step until a
       # step names another one.
       current = ""
@@ -967,6 +968,8 @@ def local_stats(root, problems=None):
             index = None
           if index is not None:
             indexed = True
+            if current:
+              marks[index] = current
           exact_turn = exact.get(index) if index is not None else None
           tokens = exact_turn["usage"] if exact_turn else step_tokens(step)
           day = (local_day(exact_turn.get("createdAt")) if exact_turn else "") or local_day(step.get("created_at") or step.get("timestamp"))
@@ -981,10 +984,6 @@ def local_stats(root, problems=None):
             if key not in prompts_seen:
               prompts_seen.add(key)
               stats.add_prompts(day, session_of(brain.name))
-      if current:
-        models[brain.name] = current
-      elif fallback:
-        models[brain.name] = fallback
       if not indexed:
         unindexed.add(brain.name)
 
@@ -992,13 +991,19 @@ def local_stats(root, problems=None):
     # never wrote. Add only the turns the transcript didn't already count;
     # without step indexes there is no way to tell them apart, so leave the
     # database alone rather than count a conversation twice.
-    for conversation, (exact, fallback) in exact_by_conversation.items():
+    for conversation, (exact, _) in exact_by_conversation.items():
       if conversation in unindexed:
         continue
-      model = models.get(conversation) or fallback or "unknown"
+      marks = step_models.get(conversation, {})
       for index, turn in exact.items():
         if index in seen.get(conversation, set()):
           continue
+        # The database names no model for a turn, and the conversation's final
+        # model may be one the user switched to later, so a database-only turn
+        # takes the model in effect at the latest transcript step before it,
+        # or unknown when no step that early names one.
+        known = [mark for mark in marks if mark <= index]
+        model = marks[max(known)] if known else "unknown"
         stats.add(local_day(turn.get("createdAt")) or None, session_of(conversation), model, *turn["usage"], prompts=0)
 
   for row in harness_rows(problems):

@@ -111,3 +111,98 @@ expect("404 on retrieveUserQuota degrades cleanly to summary limits",
        [record["tierLabel"], record["limits"], record["usageStatusText"]],
        ["Ultra", [], ""], record)
 PY
+
+python3 - <<'PY'
+from agent_usage_fixtures import *
+
+# Antigravity's own local stats: the desktop app keeps no history log, and a
+# completed turn writes exact counts to its conversation database. A turn the
+# database holds but the transcript does not has no model of its own, so it
+# takes the model in effect at its step.
+PLANNER_STEP_TYPE = 15
+COMPLETED_STEP_STATUS = 3
+
+
+def varint(value):
+  out = bytearray()
+  while True:
+    byte = value & 0x7f
+    value >>= 7
+    out.append(byte | (0x80 if value else 0))
+    if not value:
+      return bytes(out)
+
+
+def proto_field(number, wire, payload):
+  key = varint((number << 3) | wire)
+  if wire == 2:
+    return key + varint(len(payload)) + payload
+  return key + varint(payload)
+
+
+def usage_counts(input_tokens, output_tokens, cache_read=0, cache_write=0):
+  return b"".join([
+    proto_field(2, 0, input_tokens),
+    proto_field(3, 0, output_tokens),
+    proto_field(5, 0, cache_read),
+    proto_field(4, 0, cache_write),
+  ])
+
+
+def step_metadata(seconds, input_tokens, output_tokens, cache_read=0, cache_write=0):
+  timestamp = proto_field(1, 0, seconds) + proto_field(2, 0, 0)
+  return proto_field(1, 2, timestamp) + proto_field(9, 2, usage_counts(input_tokens, output_tokens, cache_read, cache_write))
+
+
+def transcript(name, steps):
+  path = home() / ".gemini" / "antigravity" / "brain" / name / ".system_generated" / "logs" / "transcript.jsonl"
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text("".join(json.dumps(step) + "\n" for step in steps))
+  return path
+
+
+def conversation(name, steps=(), model=""):
+  db = home() / ".gemini" / "antigravity" / "conversations" / f"{name}.db"
+  db.parent.mkdir(parents=True, exist_ok=True)
+  conn = sqlite3.connect(db)
+  conn.execute("CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, status INTEGER, metadata BLOB)")
+  conn.execute("CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB)")
+  conn.executemany("INSERT INTO steps VALUES (?, ?, ?, ?)",
+                   [(index, PLANNER_STEP_TYPE, COMPLETED_STEP_STATUS, metadata) for index, metadata in steps])
+  if model:
+    conn.execute("INSERT INTO gen_metadata VALUES (0, ?)", (model.encode(),))
+  conn.commit()
+  conn.close()
+  return db
+
+
+sandbox()
+# Only the tools a scan may run (rg), so the real keyring's secret-tool or an
+# agent CLI cannot leak a sign-in into the record.
+os.environ["PATH"] = str(Path(os.environ["SANDBOX"]) / "tools")
+freeze_today()
+STAMP = today_stamp()
+SECONDS = int(fixture_now().timestamp())
+
+# A conversation that switches from Gemini to Claude at step 8. The database
+# holds completed turns at 1, 5, and 9 that the transcript never wrote; its
+# gen_metadata names neither model, as a real one names no model at all.
+transcript("switch", [
+  {"step_index": 3, "type": "PLANNER_RESPONSE", "created_at": STAMP, "model": "gemini-3.8-flash",
+   "usage": {"prompt_token_count": 10, "candidates_token_count": 1}},
+  {"step_index": 8, "type": "SYSTEM", "created_at": STAMP,
+   "content": "The user changed `Model Selection` from Gemini 3.8 Flash to Claude Sonnet 4.6 (Thinking). No need to mention it."},
+  {"step_index": 10, "type": "PLANNER_RESPONSE", "created_at": STAMP,
+   "usage": {"prompt_token_count": 20, "candidates_token_count": 2}},
+])
+conversation("switch", [(1, step_metadata(SECONDS, 1, 1)), (5, step_metadata(SECONDS, 2, 2)), (9, step_metadata(SECONDS, 4, 4))],
+             model="gemini-3.9-final")
+
+record = collect("agy", "--force")
+expect("Antigravity gives a database-only turn the model in effect at its step, and unknown before any model",
+       record["modelUsage"], {
+         "gemini-3.8-flash": {"inputTokens": 12, "outputTokens": 3, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+         "claude-sonnet-4.6-thinking": {"inputTokens": 24, "outputTokens": 6, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+         "unknown": {"inputTokens": 1, "outputTokens": 1, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+       }, record)
+PY
