@@ -126,9 +126,7 @@ def parse_paren_int(raw: str) -> int | None:
 
 
 def read_controllers() -> list[dict]:
-    proc = bt_cmd(["list"], timeout=5)
-    if proc.returncode != 0:
-        return []
+    proc = bt_cmd(["list"], timeout=5, check=True)
     controllers: list[dict] = []
     for line in strip_ansi(proc.stdout).splitlines():
         m = re.match(r"^Controller\s+([0-9A-Fa-f:]{17})\s+(.*)$", line.strip())
@@ -258,9 +256,7 @@ def read_device_info(address: str, fallback_name: str = "") -> dict | None:
 
 
 def list_devices(*, include_unnamed: bool = False) -> list[dict]:
-    proc = bt_cmd(["devices"], timeout=5)
-    if proc.returncode != 0:
-        return []
+    proc = bt_cmd(["devices"], timeout=5, check=True)
     seen: set[str] = set()
     devices: list[dict] = []
     for line in strip_ansi(proc.stdout).splitlines():
@@ -292,8 +288,11 @@ def list_devices(*, include_unnamed: bool = False) -> list[dict]:
 
 
 def resolve_device(query: str) -> dict:
-    if is_mac(query):
-        addr = normalize_mac(query)
+    raw = query.strip()
+    if not raw:
+        raise UsageError("device name must not be empty")
+    if is_mac(raw):
+        addr = normalize_mac(raw)
         info = read_device_info(addr)
         if info is not None:
             return info
@@ -313,7 +312,7 @@ def resolve_device(query: str) -> dict:
             "profiles": [],
         }
 
-    q = query.strip().lower()
+    q = raw.lower()
     devices = list_devices(include_unnamed=True)
     exact = [
         d
@@ -474,7 +473,7 @@ def cmd_scan(args: list[str], as_json: bool) -> int:
 
     ensure_powered()
     # `bluetoothctl --timeout N scan on` exits cleanly after N seconds of scanning.
-    run_cmd(["bluetoothctl", "--timeout", str(duration), "scan", "on"], timeout=duration + 10, check=False)
+    bt_cmd(["--timeout", str(duration), "scan", "on"], timeout=duration + 10, check=True)
     print_device_list(list_devices(include_unnamed=include_unnamed), as_json)
     return 0
 
@@ -498,7 +497,7 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
         ensure_powered()
         if not dev["paired"]:
             bt_cmd(["--timeout", "20", "pair", addr], timeout=25, check=True)
-        bt_cmd(["trust", addr], timeout=10, check=False)
+        bt_cmd(["trust", addr], timeout=10, check=True)
         bt_cmd(["--timeout", "20", "connect", addr], timeout=25, check=True)
         updated = read_device_info(addr) or dev
         if as_json:
