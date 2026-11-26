@@ -84,7 +84,8 @@ omarchy_leaf_platform() {
       _platform_out=aarch64-n1x
       return 0
       ;;
-    hardware/raspberrypi/*)
+    hardware/raspberrypi/* | \
+      hardware/radxa/*)
       _platform_out=aarch64
       return 0
       ;;
