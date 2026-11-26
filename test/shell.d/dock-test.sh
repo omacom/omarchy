@@ -101,6 +101,48 @@ assertEqual(dock.claimingEntryId('org.omarchy.hey', terminalEntries), 'HEY TUI',
 assertEqual(dock.claimingEntryId('org.omarchy.agent', terminalEntries), '', 'dock leaves an app id no entry claims unclaimed')
 assertEqual(dock.claimingEntryId('Alacritty', terminalEntries), '', 'dock leaves a terminal of its own to its own entry')
 
+const webappEntries = [
+  { id: 'Discord', execString: 'omarchy-launch-webapp "https://discord.com/app"', command: ['omarchy-launch-webapp', 'https://discord.com/app'], runInTerminal: false },
+  { id: 'QuotedTui', execString: 'xdg-terminal-exec "--app-id=org.omarchy.quoted" -e top', command: ['xdg-terminal-exec'], runInTerminal: false }
+]
+assertEqual(dock.extractChromeWebappHost('chrome-discord.com__-Default'), 'discord.com', 'dock extracts the host from a Chromium webapp class')
+assertEqual(dock.claimingEntryId('chrome-discord.com__-Default', webappEntries), 'Discord', 'dock matches Chromium PWA classes to their webapp desktop entry')
+assertEqual(dock.claimingEntryId('org.omarchy.quoted', webappEntries), 'QuotedTui', 'dock strips surrounding quotes when matching --app-id flags')
+
+assertEqual(dock.normalizeAddress('deadbeef'), '0xdeadbeef', 'dock normalizes valid bare hex addresses')
+assertEqual(dock.normalizeAddress('0x1" ); bad'), '', 'dock rejects non-hex window addresses')
+assertEqual(dock.minimizedOriginWorkspace(['foo', 'omarchy-minimized-from-12']), 12, 'dock extracts the origin workspace from minimized tags')
+assertEqual(dock.slotOf(13), 3, 'dock maps per-monitor workspace ids to display slots 1-10')
+
+const statWindows = [
+  { title: 'shell', pid: 101, activated: false, minimized: true, focusHistoryID: 3 },
+  { title: 'shell', pid: 102, activated: true, minimized: false, focusHistoryID: 0 },
+  { title: 'logs', pid: 103, activated: false, minimized: false, focusHistoryID: 1 },
+  { title: 'build', pid: 104, activated: false, minimized: false, focusHistoryID: 2 },
+  { title: 'extra', pid: 105, activated: false, minimized: true, focusHistoryID: 4 }
+]
+assertDeepEqual(dock.itemStats(statWindows), { total: 5, minimized: 2, open: 3, activated: true }, 'dock summarizes total, open, minimized, and active counts')
+assertDeepEqual(
+  dock.representativeDots(statWindows, 4).map(w => w.pid),
+  [102, 103, 104, 101],
+  'dock orders representative indicator dots with active and open windows ahead of minimized ones'
+)
+
+const orderedItems = dock.buildItems(['foot'], [
+  app('foot', 1, { title: 'foot', pid: 101, minimized: true, focusHistoryID: 2 }),
+  app('foot', 2, { title: 'foot', pid: 102, activated: true, focusHistoryID: 0 }),
+  app('foot', 3, { title: 'foot', pid: 103, focusHistoryID: 1 })
+], { '101': { prog: 'nvim', cwd: 'dots', hint: '' }, '102': { prog: 'zsh', cwd: 'Work', hint: '' }, '103': { prog: 'zsh', cwd: 'Work', hint: '' } })
+assertDeepEqual(
+  orderedItems[0].windows.map(w => [w.id, w.displayTitle]),
+  [
+    [2, 'zsh · Work #1'],
+    [3, 'zsh · Work #2'],
+    [1, 'nvim · dots']
+  ],
+  'dock orders app windows by active/open/MRU and disambiguates duplicate terminal labels'
+)
+
 assertDeepEqual(
   dock.orderItems([{ key: 'chromium' }, { key: 'signal' }, { key: 'slack' }, { key: 'foot' }], ['slack', 'gone', 'chromium']).map(item => item.key),
   ['slack', 'chromium', 'signal', 'foot'],
