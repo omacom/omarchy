@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -468,10 +469,21 @@ BarWidget {
     contentWidth: card.fittedContentWidth(Style.space(320))
     contentHeight: card.fittedContentHeight(contentColumn.implicitHeight)
 
-    Column {
-      id: contentColumn
-      width: parent.width
-      spacing: Style.space(12)
+    Flickable {
+      id: contentFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: contentColumn.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+      Column {
+        id: contentColumn
+        width: contentFlick.width
+        spacing: Style.space(12)
 
       PanelHero {
         width: parent.width
@@ -657,6 +669,7 @@ BarWidget {
             root.queuePersist("tint")
           }
         }
+      }
       }
     }
   }

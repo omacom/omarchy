@@ -175,6 +175,16 @@ grep -q "BRIGHTNESS=-0.10" "$work/config/omarchy/camera-relay.env" || fail "sign
 grep -q "WARMTH=0.25" "$work/config/omarchy/camera-relay.env" || fail "warmth persists to camera-relay.env"
 grep -q "TINT=-0.15" "$work/config/omarchy/camera-relay.env" || fail "tint persists to camera-relay.env"
 ! grep -q "restart omarchy-camera-relay.service" "$CALLS" || fail "live hot-apply does not restart relay service"
+
+# Upgrading from a pre-schema env forces a one-time relay restart instead of
+# hot-applying new keys against an older daemon that ignores them.
+grep -v '^RELAY_SCHEMA=' "$work/config/omarchy/camera-relay.env" >"$work/legacy-env"
+mv "$work/legacy-env" "$work/config/omarchy/camera-relay.env"
+: >"$CALLS"
+OMARCHY_CAMERA_RELAY_SOCKET="$live_sock" run_tuning set warmth=0.30 >/dev/null
+grep -q "restart omarchy-camera-relay.service" "$CALLS" || fail "schema upgrade restarts older relay once instead of using live socket"
+grep -qx "RELAY_SCHEMA=2" "$work/config/omarchy/camera-relay.env" || fail "schema upgrade writes RELAY_SCHEMA=2"
+
 rm -f "$work/relay-active" "$live_sock"
 run_tuning set gamma=1.65 contrast=1.1 saturation=1.3 >/dev/null
 
