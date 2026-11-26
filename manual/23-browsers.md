@@ -36,7 +36,7 @@ These are Chromium-family only. Firefox and Zen don't get them.
 
 ## Firefox and Zen
 
-Firefox and Zen are a different family, so they get different treatment: Omarchy installs a policies file for sensible defaults and switches them into native Wayland mode, which you want for fractional scaling and smooth trackpad scrolling.
+Firefox and Zen are a different family, so they get different treatment: Omarchy installs a policies file for sensible defaults and switches them into native Wayland mode, which you want for fractional scaling and smooth trackpad scrolling. The policies also turn off their built-in updater, since they're updated along with the rest of the system by `omarchy update`.
 
 They don't get the Chromium extensions above, and they're not themed by Omarchy, so those parts of the experience are yours to set up.
 
