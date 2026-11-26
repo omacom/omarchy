@@ -78,8 +78,9 @@ omarchy-pkg-add "${packages[@]}" || exit 1
 # out what any config mise has loaded asks for, so only the versions it lists go.
 for tool in "${retired[@]}"; do
   if from_omarchy "$tool"; then
-    mapfile -t versions < <(mise ls "$tool" --prunable --json | jq -r '.[].version')
-    if ((${#versions[@]})); then
+    prunable=$(mise ls "$tool" --prunable --json | jq -r '.[].version') || exit 1
+    if [[ -n $prunable ]]; then
+      mapfile -t versions <<<"$prunable"
       mise uninstall "${versions[@]/#/$tool@}"
     fi
   fi

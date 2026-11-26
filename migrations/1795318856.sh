@@ -15,8 +15,9 @@ omarchy-pkg-add pi-coding-agent
 # version a project's mise.toml pins, which --prunable leaves out though
 # `mise ls` shows it without a source from here.
 if ! mise ls pi --json | jq -e 'any(.[]; .source)' >/dev/null; then
-  mapfile -t versions < <(mise ls pi --prunable --json | jq -r '.[].version')
-  if ((${#versions[@]})); then
+  prunable=$(mise ls pi --prunable --json | jq -r '.[].version') || exit 1
+  if [[ -n $prunable ]]; then
+    mapfile -t versions <<<"$prunable"
     mise uninstall "${versions[@]/#/pi@}"
   fi
   mise reshim
