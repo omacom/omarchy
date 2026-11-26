@@ -392,12 +392,12 @@ for _ in {1..50}; do
   sleep 0.1
 done
 (( $(text_color_count) > 0 )) || fail_with_log "transparent bar samples the wallpaper when turned on"
-sleep 0.5
+sleep 0.2
 before=$(text_color_count)
 
 printf '{}' >"$state_dir/unrelated.tmp"
 mv "$state_dir/unrelated.tmp" "$state_dir/unrelated.json"
-sleep 1
+sleep 0.3
 (( $(text_color_count) == before )) ||
   fail_with_log "unrelated state writes re-sample the wallpaper (was $before, now $(text_color_count))"
 
@@ -579,9 +579,14 @@ jq -e --argjson layout "$default_layout" '
 }
 pass "default bar layout renders each widget in its configured section"
 
+# A panel's first open builds its content on the shell's thread, which in CI's
+# emulated VM can hold the next call past omarchy-shell's interactive 2s, so
+# these calls get 10s. A failure says what omarchy-shell answered.
 for panel_id in omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network omarchy.power; do
-  scratch_ipc "$panel_id" open >/dev/null || fail_with_log "direct panel IPC opens $panel_id"
-  scratch_ipc "$panel_id" close >/dev/null || fail_with_log "direct panel IPC closes $panel_id"
+  for action in open close; do
+    err=$(OMARCHY_SHELL_IPC_TIMEOUT=10s scratch_ipc "$panel_id" "$action" 2>&1 >/dev/null) ||
+      fail_with_log "direct panel IPC ${action}s $panel_id: ${err:-no answer}"
+  done
 done
 pass "direct panel IPC opens and closes default panels"
 
@@ -682,7 +687,7 @@ pass "bar put places a widget after the one it names"
 
 placed=$(center_ids)
 bar_put omarchy.microphone --section right >/dev/null
-sleep 0.5
+sleep 0.2
 [[ $(center_ids) == "$placed" ]] ||
   fail_with_log "bar put left a widget already on the bar alone (was $placed, now $(center_ids))"
 jq -e 'all(.bar.layout.right[]; (.id // .) != "omarchy.microphone")' \
@@ -708,7 +713,7 @@ done
 jq -e 'any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")' \
   <<<"$(scratch_ipc shell listShellConfig)" >/dev/null ||
   fail_with_log "a bar change still applies in memory while shell.json is unreadable"
-sleep 0.5
+sleep 0.2
 cmp -s "$config" "$SCRATCH_DIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
 pass "a bar change leaves an unreadable shell.json as the user left it"
 

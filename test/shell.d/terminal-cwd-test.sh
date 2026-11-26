@@ -105,3 +105,61 @@ done
 cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$files_pid" 2>&1)
 [[ $cwd == "$files_dir" ]] || fail "a terminal opened over Files starts in the folder it shows" "got: $cwd"
 pass "a terminal opened over Files starts in the folder it shows"
+
+# Plain launches (Super+Return) resolve the default terminal from
+# xdg-terminals.list directly without running xdg-terminal-exec; custom args,
+# actions, and exclusions fall through to xdg-terminal-exec.
+launch_bin="$test_tmp/launch-bin"
+launch_cfg="$test_tmp/launch-cfg"
+launch_data="$test_tmp/launch-data"
+launch_out="$test_tmp/launch-out"
+mkdir -p "$launch_bin" "$launch_cfg" "$launch_data/applications"
+printf '#!/bin/bash\nexec "$@"\n' >"$launch_bin/setsid"
+cat >"$launch_bin/uwsm-app" <<'SH'
+#!/bin/bash
+[[ $1 == "--" ]] && shift
+printf 'PWD=%s ARGS=%s\n' "$PWD" "$*" >"$OMARCHY_TEST_LAUNCH_OUT"
+SH
+printf '#!/bin/bash\nexit 0\n' >"$launch_bin/foot"
+printf '#!/bin/bash\nprintf "%s\\n" "%s"\n' "$work_dir" >"$launch_bin/omarchy-cmd-terminal-cwd"
+chmod +x "$launch_bin"/*
+
+printf 'foot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+cat >"$launch_data/applications/foot.desktop" <<'EOF'
+[Desktop Entry]
+TryExec=foot
+Exec=foot
+X-TerminalArgDir=--working-directory=
+EOF
+
+run_launch() {
+  rm -f "$launch_out"
+  OMARCHY_TEST_LAUNCH_OUT="$launch_out" PATH="$launch_bin:/usr/bin" \
+    XDG_CONFIG_HOME="$launch_cfg" XDG_CONFIG_DIRS="$test_tmp/no-etc" \
+    XDG_DATA_HOME="$launch_data" XDG_DATA_DIRS="$test_tmp/no-sys" \
+    bash "$ROOT/bin/omarchy-launch-terminal" "$@"
+  cat "$launch_out"
+}
+
+[[ $(run_launch --pid="$terminal_pid") == *"ARGS=foot --working-directory=$work_dir" ]] ||
+  fail "plain terminal launch uses X-TerminalArgDir directly without xdg-terminal-exec" "$(cat "$launch_out")"
+[[ $(run_launch --app-id=org.omarchy.herdr herdr) == *"ARGS=xdg-terminal-exec --dir=$work_dir --app-id=org.omarchy.herdr herdr" ]] ||
+  fail "terminal launch with extra arguments falls back to xdg-terminal-exec" "$(cat "$launch_out")"
+
+printf 'foot.desktop:New\nfoot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+[[ $(run_launch) == *"ARGS=xdg-terminal-exec --dir=$work_dir" ]] ||
+  fail "terminal launch with a desktop action entry falls back to xdg-terminal-exec" "$(cat "$launch_out")"
+
+printf -- '-foot.desktop\nfoot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+[[ $(run_launch) == *"ARGS=xdg-terminal-exec --dir=$work_dir" ]] ||
+  fail "excluded terminal entries are skipped by the fast path" "$(cat "$launch_out")"
+
+printf 'foot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+cat >"$launch_data/applications/foot.desktop" <<'EOF'
+[Desktop Entry]
+TryExec=foot
+Exec=foot
+EOF
+[[ $(run_launch) == "PWD=$work_dir ARGS=foot" ]] ||
+  fail "terminal without X-TerminalArgDir changes directory before launching" "$(cat "$launch_out")"
+pass "plain terminal launch resolves xdg-terminals.list directly and falls back for complex entries"

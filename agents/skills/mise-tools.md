@@ -1,50 +1,27 @@
-# mise-managed tools
+# mise and where tools go
 
-Read this before adding or changing a mise-managed tool. Default tools belong in `etc/mise/conf.d/omarchy-tools.toml`, which the settings package installs; `install/user/mise.sh` creates their native mise shims during user setup.
+Read this before adding a tool to Omarchy, or before changing how Omarchy uses mise.
+
+## Omarchy declares no mise tools
+
+mise manages the language runtimes a user sets up from _Install > Development_ (`omarchy-install-dev-env`), each one written to the user's own config with `mise use --global`. Omarchy installs nothing through mise on its own, and ships no lazy tools or auto-install stubs: `etc/mise/conf.d/omarchy-tools.toml` declares nothing, and stays only because older migrations wait for it to exist.
+
+Every other tool is a package in omacom/omarchy-pkgs, updated by `omarchy update` like the rest of the system:
+
+- A tool everyone gets goes in `install/omarchy-base.packages` (`uv`, `nodejs`, `playwright-cli`).
+- A coding agent is a package on the fast ring, which publishes each upstream release to every channel within the hour. It is installed explicitly, from _Install > AI > CLI_ or by picking it in the agents panel, through `omarchy-install-ai-cli`, which maps the agent's command to its package. Add a new agent there, under `install.ai.cli` and `remove.ai.cli` in the menu, in `omarchy-default-agent`, and in `omarchy-agent`.
+- Any other optional CLI goes under _Install > CLI_ and _Remove > CLI_ (GitHub, Hunk, Basecamp, Cloudflare, HEY); gh also comes with _Setup > Git_.
+- A package turns off the tool's own updater, since pacman owns updates.
+
+Don't split a kind of tool between mise and packages, and don't add a mise declaration to get a tool installed.
+
+## What Omarchy still asks of mise
+
+- `etc/mise/conf.d/omarchy.toml` holds settings, such as keeping the version a running process uses when `mise up` upgrades it.
+- `omarchy update` runs `omarchy-update-mise` for the runtimes the user set up.
+
+Account switching for `claude`, `codex` and `grok` is Omarchy's own, not mise's: `omarchy-agent-account-dispatch` writes a dispatcher into `~/.local/share/omarchy/agent-accounts/bin` for each of them that is installed, running `omarchy-agent-account-exec`, and `default/bash/env-bootstrap` puts that directory first on PATH, so every session, script and editor runs as the selected subscription account. There is no dispatcher for a CLI that isn't installed: installing or removing an agent through Omarchy rewrites them, and one whose CLI was removed some other way takes itself away the next time it runs.
 
 ## Leave the user's config alone
 
-Omarchy does not write `~/.config/mise/config.toml`; it is the user's, for overriding what Omarchy ships. Settings go in `etc/mise/conf.d/omarchy.toml`, which still loads after a user opts out of the default tools, and tools in `omarchy-tools.toml`. A command that installs a default tool runs `mise install <tool>` when `omarchy-mise-default-tools declares <tool>`, and `mise use -g` only for a user who opted out. `mise use -g` on a declared tool would copy the declaration's options, `lazy = true` included, into the user's config.
-
-## Declare a default tool
-
-Use a registry shorthand and set `lazy = true` so the first command invocation installs the tool. Follow the existing defaults' release policy: `minimum_release_age = "0s"` makes new releases eligible immediately.
-
-```toml
-[tools]
-codex = { version = "latest", lazy = true, minimum_release_age = "0s" }
-```
-
-Lazy defaults need mise 2026.10.11 or newer. Older releases install every lazy tool nobody has run yet. Before 2026.10.11, a bare `mise upgrade`, which `omarchy update` and `mup` run, does it. In 2026.10.7 and 2026.10.8, the `auto_update` check a shell prompt starts did it too.
-
-Agent CLIs also set `auto_update = "4h"`, so mise upgrades them before they run (at most once every four hours) instead of leaving them on whatever version was installed first. Leave it off for tools that mise itself calls, such as `gh`, which is mise's GitHub credential helper.
-
-```toml
-[tools]
-codex = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
-```
-
-Do not add handwritten wrappers for ordinary tools. Hermes keeps its custom installer because it needs Python 3.13 and must defer to Hermes Desktop when that app owns the command.
-
-## Choose the registry name
-
-Before adding a GitHub- or Aqua-backed tool, run `mise registry <name>` and inspect the result. The tool name and command may differ: `hey-cli` provides `hey`, for example.
-
-Use the registry shorthand instead of an explicit `github:` or `aqua:` backend. Shorthands let mise use <https://mise-versions.jdx.dev> for cached version and public GitHub release metadata, reducing GitHub API requests during installation and updates.
-
-If a GitHub- or Aqua-backed tool has no registry entry, request one upstream with the repository or package URL and the required command name. Wait for that entry before adding the tool to Omarchy; do not substitute an explicit `github:` or `aqua:` declaration.
-
-## Handle backend exceptions
-
-Other explicit backends, such as `pipx:`, may be used when their behavior or options are required. Check that a shorthand refers to the intended tool: `cf` names Cloud Foundry in mise's registry, so Omarchy uses `npm:cf` for the Cloudflare CLI.
-
-When an explicit backend has no registry binary metadata, declare the commands mise should create lazy shims for:
-
-```toml
-[tools]
-"npm:cf" = { version = "latest", lazy = true, lazy_bins = ["cf"], minimum_release_age = "0s" }
-```
-
-A registry shorthand whose first backend is `npm:` and whose registry entry lists its commands (`mise registry --json`) also goes in `auto_install_disable_tools` in the `[settings]` of `omarchy-tools.toml`, not `omarchy.toml`: it must go with the declarations when a user opts out, or it would stop a tool the user declares themselves from installing. mise's shim installs such a tool on its own, without the lazy Node it needs, and fails; kept out of the shim's automatic install, its first command takes the lazy install, which brings Node with it. Explicit `npm:` keys and entries that list no command already take the lazy install. The list can go once mise takes the lazy install for these.
-
-After changing declarations, verify that `mise reshim --system` creates the expected commands in an isolated test environment. Test first-use installation as well as an already-installed tool; a declaration alone does not prove its shim works.
+`~/.config/mise/config.toml` is the user's. Omarchy writes to it only when the user asks for a runtime from _Install > Development_, and a migration may hand a tool Omarchy no longer ships to it, so the tool keeps working as the user's own.
