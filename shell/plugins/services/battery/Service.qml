@@ -21,7 +21,6 @@ Item {
   property bool powerProfileReadPending: false
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
-  readonly property bool powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)
 
   PersistentProperties {
     id: persisted
@@ -34,11 +33,11 @@ Item {
   }
 
   function isDischarging() {
-    return BatteryModel.isDischarging(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging)
+    return BatteryModel.isDischarging(UPower.displayDevice, UPowerDeviceState.Discharging)
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
   }

@@ -1,36 +1,36 @@
 # Valvomattomat asennukset
 
-Omarchy-ISO voi asentaa itsensä ilman ketään näppäimistöllä. Jos asennusohjelma löytää toisen aseman nimeltä `cidata`, joka sisältää sen määritystiedostot, se kopioi ne pois, ohittaa asennusvelhon kokonaan ja käynnistää itsensä valmiiseen järjestelmään. Ei erityistä ISO-koontia, ei ylimääräistä käynnistysvalikon kohtaa — ilman ko. asemaa mikään ei muutu ja saat normaalin velhon.
+Omarchy-ISO voi asentaa itsensä ilman ketään näppäimistön ääressä. Jos asennusohjelma löytää toisen aseman, jonka nimiö on `cidata` ja jolla on sen määritystiedostot, se kopioi ne talteen, ohittaa ohjatun asennuksen kokonaan ja käynnistyy uudelleen valmiiseen järjestelmään omatoimisesti. Ei erityistä ISO-koontiversiota, ei ylimääräistä käynnistysvalikon kohtaa — jos sellaista asemaa ei ole liitetty, mikään ei muutu ja saat normaalin ohjatun asennuksen.
 
-Tämä tekee Omarchysta loistavan peruslevykuvan kertakäyttöisille kehitysympäristöille: luo virtuaalikone Proxmoxissa tai Packerilla, käynnistä se, kävele pois, SSH sisään. `cidata` on cloud-initin `NoCloud`-tunniste, joten kaikki yleiset virtualisointityökalut osaavat jo liittää sellaisen aseman.
+Siksi Omarchy sopii erinomaisesti pohjakuvaksi kertakäyttöisiin kehitysympäristöihin: luo VM Proxmoxissa tai Packerilla, käynnistä se, kävele pois ja ota SSH-yhteys sisään. `cidata` on cloud-initin `NoCloud`-nimiö, joten kaikki yleiset virtualisointityökalut osaavat jo liittää sellaisen aseman.
 
 ## Määritystiedostot
 
-Tiedostot ovat täsmälleen sitä, mitä asennusohjelman oma velho kirjoittaa, joten helpoin tapa saada lähtösarja on ajaa yksi interaktiivinen asennus (esimerkiksi virtuaalikoneessa) ja kopioida se, mitä se kirjoitti kansioon `/root`:
+Tiedostot ovat täsmälleen niitä, jotka asennusohjelman oma ohjattu asennus kirjoittaa, joten helpoin tapa saada aloitusjoukko on tehdä yksi interaktiivinen asennus (vaikkapa VM:ään) ja kopioida, mitä se kirjoitti hakemistoon `/root`:
 
 | Tiedosto | Pakollinen | Tarkoitus |
 |------|----------|---------|
 | `user_configuration.json` | Kyllä | Levy, isäntänimi, aikavyöhyke, näppäimistö |
-| `user_credentials.json` | Kyllä | Käyttäjänimi ja salasanan tiiviste |
-| `user_full_name.txt` | Ei | Gitin koko nimi |
-| `user_email_address.txt` | Ei | Gitin sähköposti |
-| `user_encrypt_installation.txt` | Ei | `true`, kun määrityksessä on `disk_encryption`-lohko |
-| `authorized_keys` | Ei | SSH-julkiset avaimet, yksi per rivi |
-| `tailscale_authkey` | Ei | Tailscalen valtuutusavain tailnetiin liittymistä varten ensikäynnistyksellä |
+| `user_credentials.json` | Kyllä | Käyttäjänimi ja salasanan tiiviste sekä LUKS-salasana salattua asennusta varten |
+| `user_encrypt_installation.txt` | Ei | `true`, kun määritys sisältää `disk_encryption`-lohkon |
+| `authorized_keys` | Ei | SSH-julkiset avaimet, yksi riville |
+| `tailscale_authkey` | Ei | Tailscale-todennusavain tailnetiisi liittymiseen ensimmäisellä käynnistyksellä |
 
-Luo salasana tiiviste tiedostolle `user_credentials.json` komennolla `openssl passwd -6 "yourpassword"`.
+Luo `user_credentials.json`-tiedoston salasanan tiiviste komennolla `openssl passwd -6 "yourpassword"`.
 
-Voit myös pudottaa tyhjän tiedoston nimeltä `defer-provisioning` tiedoston `user_credentials.json` sijaan. Se ajaa saman [valmistele toiselle omistajalle -asennuksen](02-getting-started.md), jonka voit käynnistää interaktiivisesti: kone asentuu ilman henkilökohtaisia tietoja, ja kuka sen ensimmäisenä käynnistää saa valita näppäimistönsä ja luoda käyttäjänsä. Se on tila levykuvaus laitteistoille, joissa asemalla ei pitäisi olla kenenkään tunnistetietoja.
+Git-commitien nimi ja sähköpostiosoite eivät kuulu asennukseen. Aseta ne, kun kone on käynnissä, esimerkiksi SSH:n kautta komennolla `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-## SSH-käyttöoikeus
+Voit myös pudottaa paikalle tyhjän tiedoston nimeltä `defer-provisioning` tiedoston `user_credentials.json` sijasta. Se ajaa saman [valmistele toiselle omistajalle -asennuksen](02-getting-started.md), jonka voit käynnistää interaktiivisesti: kone asentuu ilman henkilötietoja, ja ensimmäinen käynnistäjä valitsee näppäimistönsä ja luo käyttäjänsä. Se on levykuva-asennuksiin tarkoitettu tila, jossa asemalla ei kuulu olla kenenkään kirjautumistietoja lainkaan.
 
-Kun `authorized_keys` on läsnä, asennus asettaa avaimet käyttäjän tiedostoksi `~/.ssh/authorized_keys`, ottaa `sshd`:n käyttöön ja avaa sille palomuurin. (Vakio-Omarchy-asennus toimittaa openssh:n palvelu poistettuna käytöstä ja portti suljettuna, joten valvomaton kone olisi muuten tavoittamattomissa.) Asennus lisää vain avaimesi — se ei löysennä mitään SSH-daemonin muista todennusasetuksista.
+## SSH-pääsy
 
-Kun `tailscale_authkey` on läsnä, kone liittyy sen sijaan tailnetiisi ensimmäisellä käynnistyksellä: Tailscale asennetaan ISO:n mukana toimitetuista paketeista, palomuuri sallii tailnet-liitännän, ja taustatehtävä ajaa liittymisen heti, kun koneella tosiasiallisesti on verkkoyhteys, yrittäen uudelleen, kunnes se onnistuu. Käytä uudelleenkäytettävää, ennakkovaltuutettua avainta, jotta yksi asemakuva voi palvella monia koneita.
+Kun `authorized_keys` on läsnä, asennus määrittää avaimet käyttäjän `~/.ssh/authorized_keys`-tiedostoksi, ottaa `sshd`:n käyttöön ja avaa palomuurin sitä varten. (Vakio-Omarchy-asennuksessa openssh toimitetaan palvelu poistettuna käytöstä ja portti suljettuna, joten valvomaton kone olisi muuten tavoittamattomissa.) Asennus lisää vain avaimesi — se ei löysää mitään SSH-taustapalvelun muita todennusasetuksia.
 
-## cidata-aseman rakentaminen
+Kun `tailscale_authkey` on läsnä, kone liittyy sen sijaan tailnetiisi ensimmäisellä käynnistyksellä: Tailscale asennetaan ISO:n mukana toimitetuista paketeista, palomuuri sallii tailnet-liitännän, ja taustatyö suorittaa liittymisen heti, kun koneella on oikeasti verkko, ja yrittää uudelleen, kunnes se onnistuu. Käytä uudelleenkäytettävää, etukäteen valtuutettua avainta, jotta yksi aseman levykuva voi palvella monia koneita.
 
-Mikä tahansa tiedostojärjestelmä oikealla tunnisteella toimii. Pieni ISO on helppo tapa:
+## `cidata`-aseman rakentaminen
+
+Mikä tahansa oikealla nimiöllä varustettu tiedostojärjestelmä toimii. Pieni ISO on helppo tapa:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Liitä se sitten virtuaalikoneeseen Omarchy-ISO:n rinnalle. Tässä on koko Proxmox-esimerkki:
+Liitä se sitten VM:ään Omarchy-ISO:n rinnalle. Tässä on täydellinen Proxmox-esimerkki:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Käynnistysjärjestys luettelee levyn ensimmäisenä tarkoituksella: tyhjä levy putoaa läpi ISO:on ensimmäisellä käynnistyksellä, ja asennettu järjestelmä käynnistyy levyltä sen jälkeen.
+Käynnistysjärjestys listaa levyn ensimmäisenä tarkoituksella: tyhjä levy jatkaa ISO:hon ensimmäisellä käynnistyksellä, ja asennettu järjestelmä käynnistyy levyltä siitä lähtien aina.
 
 ## Kaksi varausta
 
-Salatut valvomattomat asennukset eivät ole täysin valvomattomia — jonkun täytyy silti kirjoittaa LUKS-salasanalause ensimmäisellä käynnistyksellä. Ja `disk_encryption`-lohko tiedostossa `user_configuration.json` sisältää kyseisen salasanalauseen selkokielisenä, joten käsittele salatusta asennuksesta rakennettua cidata-asemaa salaisuutena, joka se on.
+Salatut valvomattomat asennukset eivät ole täysin valvomattomia — jonkun on silti kirjoitettava LUKS-salasana ensimmäisellä käynnistyksellä. Ja tuo salasana sijoitetaan `user_credentials.json`-tiedoston ylätasolle nimellä `encryption_password` — archinstall lukee sen sieltä, ei `user_configuration.json`-tiedoston `disk_encryption`-lohkosta — joten kohtele salatusta asennuksesta rakennettua cidata-asemaa sellaisena salaisuutena kuin se on.

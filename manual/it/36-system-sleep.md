@@ -1,19 +1,21 @@
 # Sospensione del sistema
 
-Omarchy attiva sospensione e ibernazione per impostazione predefinita, ma se hai problemi con una delle due sulla tua macchina, puoi disattivarle.
+Omarchy abilita la sospensione per impostazione predefinita, e l'ibernazione una volta configurata, ma se hai problemi con l'una o l'altra sulla tua macchina, puoi disattivarle.
+
+Sulle macchine NVIDIA GB10, come DGX Spark e ASUS Ascent GX10, sospensione e ibernazione sono disattivate, come in DGX OS di NVIDIA, perché non è ancora stato dimostrato che lo sleep funzioni su quell'hardware. Lo stesso vale per ASUS Zenbook A16 (UX3607OA), dove la sospensione non mette ancora del tutto in sleep il chip e può bloccarsi durante la notte. L'interruttore della sospensione e la configurazione dell'ibernazione non si applicano in quel caso. Per riattivare lo sleep, rimuovi `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` con `sudo rm`; la sospensione tornerà quindi nel menu, e l'ibernazione potrà essere configurata come sulle altre macchine. Eseguire `sudo omarchy apply hardware --install-user "$USER"` ripristina il file.
 
 ### Profili energetici
 
-Su un portatile, Omarchy ricorda il tuo profilo energetico separatamente per quando è collegato alla corrente e quando va a batteria, e passa dall'uno all'altro quando colleghi e scolleghi l'alimentazione. Di serie significa prestazioni con la corrente e bilanciato a batteria.
+Su un portatile, Omarchy ricorda il tuo profilo energetico separatamente per quando sei collegato alla rete elettrica e per quando funzioni a batteria, e passa dall'uno all'altro quando colleghi e scolleghi l'alimentatore. Di fabbrica, questo significa performance con AC e balanced a batteria.
 
-Puoi vedere cosa offre la tua macchina con `omarchy powerprofiles list` e impostare quello che vuoi per lo stato in cui ti trovi con `omarchy powerprofiles set autodetect power-saver`. Per impostare l'altro stato senza scollegare nulla, nominalo direttamente: `omarchy powerprofiles set battery power-saver`. Qualunque cosa scegli, è quello che ritroverai la prossima volta che ti troverai in quello stato.
+Puoi vedere cosa offre la tua macchina con `omarchy powerprofiles list`, e impostare quello che vuoi per lo stato in cui ti trovi attualmente con `omarchy powerprofiles set autodetect power-saver`. Per impostare l'altro stato senza scollegare nulla, indicalo direttamente: `omarchy powerprofiles set battery power-saver`. Qualunque tu scelga, è quello che ritroverai la prossima volta che sarai in quello stato.
 
-### Attivare/disattivare la sospensione
+### Attiva/disattiva sospensione
 
-Attivi o disattivi la sospensione eseguendo `omarchy toggle suspend` dal terminale. Questo mostra o nasconde semplicemente l'opzione in _Sistema_ (o `Super + Esc`), e così puoi vedere se sul tuo sistema funziona in modo affidabile. In caso contrario, puoi nasconderla di nuovo con lo stesso comando.
+Attivi/disattivi la sospensione eseguendo `omarchy toggle suspend` dal terminale. Questo mostra/nasconde semplicemente l'opzione in _Sistema_ (o `Super + Esc`), così puoi vedere se funziona in modo costante sul tuo sistema. In caso contrario, puoi nasconderla di nuovo con lo stesso comando.
 
-### Attivare/disattivare l'ibernazione
+### Attiva/disattiva ibernazione
 
-Configuri l'ibernazione eseguendo `omarchy hibernation setup` dal terminale. L'ibernazione crea un sottovolume /swap sul disco di avvio grande quanto la tua RAM fisica, quindi assicurati di avere spazio in abbondanza. Su una macchina da 32GB, ti serviranno sempre più di 32GB liberi per questo volume. L'ibernazione richiede anche il bootloader Limine predefinito.
+Configuri l'ibernazione eseguendo `omarchy hibernation setup` dal terminale (non è disponibile sui Mac Apple Silicon). L'ibernazione crea un sottovolume /swap sull'unità di avvio delle dimensioni della tua allocazione di RAM fisica, quindi assicurati di avere molto spazio libero a disposizione. Su una macchina da 32GB, avrai sempre bisogno di oltre 32GB liberi per questo volume. L'ibernazione richiede anche il bootloader predefinito Limine.
 
-Una volta configurata, vedrai l'opzione di ibernazione in _Sistema_ (o `Super + Esc`), e così puoi vedere se sul tuo sistema funziona in modo affidabile. In caso contrario, puoi rimuoverla di nuovo eseguendo `omarchy hibernation remove`.
+Una volta configurata, vedrai l'opzione di ibernazione in _Sistema_ (o `Super + Esc`), così puoi vedere se funziona in modo costante sul tuo sistema. In caso contrario, puoi rimuoverla di nuovo eseguendo `omarchy hibernation remove`.

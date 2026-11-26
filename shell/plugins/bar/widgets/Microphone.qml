@@ -59,8 +59,13 @@ BarWidget {
     active: root.inUse
     tooltipText: root.muted ? I18n.t("bar.microphoneMuted") : (root.inUse ? I18n.t("bar.microphoneInUse") : I18n.t("bar.microphoneLive"))
     onPressed: function(b) {
-      if (b === Qt.MiddleButton) root.bar.run("omarchy-shell shell toggle omarchy.audio")
-      else root.toggleMute()
+      if (b === Qt.MiddleButton) {
+        if (!root.bar) return
+        if (!root.bar.shell || typeof root.bar.shell.toggle !== "function" || !root.bar.shell.toggle("omarchy.audio", "{}"))
+          root.bar.run("omarchy-shell shell toggle omarchy.audio")
+      } else {
+        root.toggleMute()
+      }
     }
     onWheelMoved: function(delta) {
       var step = 0.05
