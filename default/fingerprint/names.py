@@ -1,6 +1,7 @@
 """User-visible names for fprintd's fixed enrollment slots."""
 import os
 import sqlite3
+from collections import Counter
 from contextlib import closing
 from pathlib import Path
 
@@ -20,14 +21,17 @@ class Names:
     # fprintd's paths last for one daemon instance. A unique model can be
     # recognized after re-enumeration. Once twins are observed, only an
     # uninterrupted object identity can identify the reader that owned a name.
-    paths = [p for p, props in readers if props["name"] == model]
+    counts = Counter(props["name"] for _, props in readers)
     identity = f"{service}{path}"
     with closing(store.connect()) as db, db:
       db.execute("BEGIN IMMEDIATE")
       db.execute("CREATE TABLE IF NOT EXISTS models (model TEXT PRIMARY KEY, incumbent TEXT, twins INTEGER)")
+      for name, count in counts.items():
+        if count > 1:
+          db.execute("""INSERT INTO models VALUES (?, NULL, 1) ON CONFLICT(model)
+                        DO UPDATE SET twins=1 WHERE twins=0""", (name,))
       row = db.execute("SELECT incumbent, twins FROM models WHERE model=?", (model,)).fetchone()
       incumbent, twins = row or (None, False)
-      twins = twins or len(paths) > 1
       if not twins:
         incumbent = identity
       if row != (incumbent, twins):
