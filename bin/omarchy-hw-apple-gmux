@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Detect Apple's gmux display multiplexer on dual-GPU Intel Macs
+# omarchy:hidden=true
+
+# gmux is an ACPI device, APP000B, on every Mac that switches its panel between
+# two GPUs (2010-2020 MacBook Pros, T2 included). apple-gmux binds to it.
+acpi_devices_path="${OMARCHY_ACPI_DEVICES_PATH:-/sys/bus/acpi/devices}"
+
+shopt -s nullglob
+gmux=("$acpi_devices_path"/APP000B:*)
+(( ${#gmux[@]} > 0 ))
