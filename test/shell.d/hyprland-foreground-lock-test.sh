@@ -57,5 +57,16 @@ active = game
 handlers["window.active"](game)
 assert(#dispatched == 2 and dispatched[2].window == game and dispatched[2].value == "unset", "the game the user brings back after a reload may take focus again")
 assert(#game.tags == 0, "the game brought back is no longer locked")
+
+-- A dialog of the game's own takes the focus without the game letting go of the
+-- screen, and leaving the game's app from it still locks the game.
+local dialog = { address = "0xdialog", pid = 1, mapped = true, xwayland = true, tags = {} }
+windows[dialog.address] = dialog
+active = dialog
+handlers["window.active"](dialog)
+assert(#dispatched == 2, "a dialog of the game's own locked the game")
+active = browser
+handlers["window.active"](browser)
+assert(#dispatched == 3 and dispatched[3].window == game and dispatched[3].value == "0", "leaving the game's app from its dialog let the game take focus back")
 LUA
 pass "a fullscreen game stays behind when left, across config reloads"

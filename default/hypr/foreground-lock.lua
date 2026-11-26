@@ -19,6 +19,10 @@ local LOCKED_TAG = "omarchy-foreground-locked"
 local last_active = nil
 -- Whether the window last active held the screen at any point while it was.
 local last_active_held = false
+-- A game's own windows, such as a dialog it opens over itself, take the focus
+-- without the game letting go of the screen. The game is kept here while focus
+-- stays in its app, so leaving the app from one of them still locks it.
+local app_holder = nil
 
 local function set_locked(window, on)
   hl.dispatch(hl.dsp.window.set_prop({ prop = "focus_on_activate", value = on and "0" or "unset", window = window }))
@@ -44,8 +48,8 @@ end
 -- held the screen while it was active, the window now fullscreen on that
 -- workspace took the screen from it. A windowed app that starts a fullscreen
 -- game, such as Steam, never held it.
-local function lost_screen_to(previous, window)
-  return last_active_held and previous.mapped and previous.xwayland and (window.fullscreen or 0) >= 2
+local function lost_screen_to(previous, window, held)
+  return held and previous.mapped and previous.xwayland and (window.fullscreen or 0) >= 2
     and previous.workspace and window.workspace and previous.workspace.id == window.workspace.id
 end
 
@@ -68,8 +72,23 @@ hl.on("window.active", function(window)
   end
 
   local previous = last_active and hl.get_window("address:" .. last_active)
-  if previous and previous.address ~= window.address and previous.pid ~= window.pid and (holds_screen(previous) or lost_screen_to(previous, window)) then
-    set_locked(previous, true)
+  if previous and previous.address ~= window.address then
+    if previous.pid == window.pid then
+      if holds_screen(previous) or last_active_held then
+        app_holder = previous.address
+      end
+    else
+      if holds_screen(previous) or lost_screen_to(previous, window, last_active_held) then
+        set_locked(previous, true)
+      end
+
+      local holder = app_holder and hl.get_window("address:" .. app_holder)
+      if holder and holder.address ~= previous.address and holder.address ~= window.address and holder.pid == previous.pid
+        and (holds_screen(holder) or lost_screen_to(holder, window, true)) then
+        set_locked(holder, true)
+      end
+      app_holder = nil
+    end
   end
 
   if window.address ~= last_active then
