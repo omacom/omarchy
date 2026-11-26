@@ -71,9 +71,15 @@ class Device(dbus.service.Object):
     self.EnrollStatus("enroll-completed", True)
     return False
 
+  @dbus.service.signal(DEVICE, signature="s")
+  def VerifyFingerSelected(self, finger):
+    pass
+
   @dbus.service.method(DEVICE, in_signature="s")
   def VerifyStart(self, finger):
     self.calls.append("verify " + str(finger))
+    if finger == "any":
+      self.VerifyFingerSelected(self.fingers[0])
     GLib.idle_add(self.VerifyStatus, "verify-match", True)
 
   @dbus.service.method(DEVICE)
@@ -96,14 +102,14 @@ class ReaderTest(unittest.TestCase):
     cls.bus = dbus.SessionBus()
     cls.device = Device(cls.bus)
 
-  def scan(self, mode, finger, **kwargs):
+  def scan(self, mode, finger, owner=None, **kwargs):
     results = []
     loop = GLib.MainLoop()
     def update(status, detail, done):
-      results.append(status)
+      results.append(detail if status == "verify-finger-selected" else status)
       if done:
         loop.quit()
-    reader = Reader(os.environ["DBUS_SESSION_BUS_ADDRESS"], PATH, update)
+    reader = Reader(os.environ["DBUS_SESSION_BUS_ADDRESS"], owner or self.bus.get_unique_name(), PATH, update)
     timeout = GLib.timeout_add_seconds(4, lambda: loop.quit())
     reader.start(mode, finger, **kwargs)
     loop.run()
@@ -131,6 +137,13 @@ class ReaderTest(unittest.TestCase):
     self.assertEqual(self.device.fingers, ["right-index-finger", "left-index-finger"])
     self.assertEqual(self.scan("Verify", "left-index-finger"), ["verify-match"])
     self.assertEqual(self.device.calls[-4:], ["claim", "verify left-index-finger", "verify stop", "release"])
+    self.assertEqual(self.scan("Verify", "any"), ["right-index-finger", "verify-match"])
+
+  def test_stale_delete_never_claims_the_replacement_service(self):
+    calls = list(self.device.calls)
+    result = self.scan("Delete", "right-index-finger", owner=":1.999999")
+    self.assertIn(result[-1], ("disconnected", "error"))
+    self.assertEqual(self.device.calls, calls)
 
   def test_occupied_slot_is_never_started(self):
     self.assertEqual(self.scan("Enroll", "right-index-finger"), ["enroll-duplicate"])
@@ -216,6 +229,26 @@ class SetupTest(unittest.TestCase):
       self.assertEqual(Names("Built-in").sync([second]), {second: (2, "Trackpad hand")})
       self.assertEqual(store.sync([second, first])[first], (1, None))
       self.assertEqual(Names("External").sync([second]), {second: (1, None)})
+
+  def test_identical_readers_keep_their_labels_when_the_other_is_disconnected(self):
+    with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, XDG_DATA_HOME=tmp):
+      a, b = ("/Device/0", {"name": "USB"}), ("/Device/1", {"name": "USB"})
+      slot = "left-thumb"
+      old = Names("USB")
+      old.sync([slot])
+      old.rename(slot, "Original")
+      self.assertEqual(Names.for_device([a], a[0], ":1.20").sync([slot])[slot], (1, "Original"))
+      self.assertEqual(Names.for_device([b], b[0], ":1.19").sync([slot])[slot], (1, "Original"))
+      Names.for_device([a], a[0], ":1.20")
+      first = Names.for_device([a, b], a[0], ":1.20")
+      self.assertEqual(first.sync([slot])[slot], (1, "Original"))
+      other = Names.for_device([a, b], b[0], ":1.20")
+      self.assertEqual(other.sync([slot])[slot], (1, None))
+      other.rename(slot, "Second reader")
+      self.assertEqual(Names.for_device([b], b[0], ":1.20").sync([slot])[slot], (1, "Second reader"))
+      self.assertEqual(Names.for_device([a], a[0], ":1.20").sync([slot])[slot], (1, "Original"))
+
+      self.assertEqual(Names.for_device([a], a[0], ":1.21").sync([slot])[slot], (1, None))
 
 
 if __name__ == "__main__":

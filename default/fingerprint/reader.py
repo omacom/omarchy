@@ -93,20 +93,21 @@ class ScanGuide:
 
 
 class Reader:
-  def __init__(self, address, path, status):
+  def __init__(self, address, owner, path, status):
     self.bus = Gio.DBusConnection.new_for_address_sync(
       address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
     self.bus.set_exit_on_close(False)
+    self.service = owner
     self.path, self.status, self.closed = path, status, False
     self.claimed = False
     self.mode = None
     self.props = self.bus.signal_subscribe(
-      SERVICE, "org.freedesktop.DBus.Properties", "PropertiesChanged", path, DEVICE,
+      self.service, "org.freedesktop.DBus.Properties", "PropertiesChanged", path, DEVICE,
       Gio.DBusSignalFlags.NONE, self.properties)
-    self.owner = Gio.bus_watch_name_on_connection(self.bus, SERVICE, Gio.BusNameWatcherFlags.NONE,
+    self.owner = Gio.bus_watch_name_on_connection(self.bus, self.service, Gio.BusNameWatcherFlags.NONE,
       None, lambda *_: self.finish("disconnected", "", None) if not self.closed else None)
     self.subscription = self.bus.signal_subscribe(
-      SERVICE, DEVICE, None, path, None, Gio.DBusSignalFlags.NONE, self.signal)
+      self.service, DEVICE, None, path, None, Gio.DBusSignalFlags.NONE, self.signal)
 
   def call(self, method, args, done):
     def reply(bus, result):
@@ -118,7 +119,7 @@ class Reader:
         done(None, error)
       else:
         done(value, None)
-    self.bus.call(SERVICE, self.path, DEVICE, method, args, None,
+    self.bus.call(self.service, self.path, DEVICE, method, args, None,
                   Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION, 120000, None, reply)
 
   def start(self, mode, finger, capacity=len(FINGERS)):
@@ -161,6 +162,9 @@ class Reader:
       self.status("finger-needed", "", False)
 
   def signal(self, bus, sender, path, interface, signal, params):
+    if self.mode == "Verify" and signal == "VerifyFingerSelected":
+      self.status("verify-finger-selected", params.unpack()[0], False)
+      return
     if not self.mode or signal != self.mode + "Status":
       return
     result, finished = params.unpack()

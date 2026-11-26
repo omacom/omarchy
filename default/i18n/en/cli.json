@@ -185,6 +185,7 @@
   "fingerprintApp.openLid": "Open the laptop lid or connect a fingerprint reader, then try again.",
   "fingerprintApp.password": "You can also use your password.",
   "fingerprintApp.prepare": "Prepare fingerprint reader…",
+  "fingerprintApp.readerChanged": "The reader reconnected. Choose the fingerprint again.",
   "fingerprintApp.readerError": "The reader couldn’t finish this scan. Lift your finger before trying again.",
   "fingerprintApp.reading": "Reading your fingerprint reader…",
   "fingerprintApp.refreshUnlock": "Check unlock settings",

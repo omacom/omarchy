@@ -13,6 +13,29 @@ class Names:
     data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
     self.path = data / "omarchy/fingerprint-names.sqlite3"
 
+  @classmethod
+  def for_device(cls, readers, path, service):
+    model = dict(readers)[path]["name"]
+    store = cls(model)
+    # fprintd's paths last for one daemon instance. A unique model can be
+    # recognized after re-enumeration. Once twins are observed, only an
+    # uninterrupted object identity can identify the reader that owned a name.
+    paths = [p for p, props in readers if props["name"] == model]
+    identity = f"{service}{path}"
+    with closing(store.connect()) as db, db:
+      db.execute("BEGIN IMMEDIATE")
+      db.execute("CREATE TABLE IF NOT EXISTS models (model TEXT PRIMARY KEY, incumbent TEXT, twins INTEGER)")
+      row = db.execute("SELECT incumbent, twins FROM models WHERE model=?", (model,)).fetchone()
+      incumbent, twins = row or (None, False)
+      twins = twins or len(paths) > 1
+      if not twins:
+        incumbent = identity
+      if row != (incumbent, twins):
+        db.execute("INSERT OR REPLACE INTO models VALUES (?, ?, ?)", (model, incumbent, twins))
+      if twins and incumbent != identity:
+        store.reader = f"{model}|{identity}"
+    return store
+
   def connect(self):
     self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     # Create the label file privately even when the containing data directory is shared.

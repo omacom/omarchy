@@ -94,6 +94,7 @@ class Window(Gtk.ApplicationWindow):
     self.generation = 0
     self.bus = None
     self.selected = ""
+    self.owner = None
     self.scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER)
     self.set_child(self.scroller)
     self.connect("close-request", self.close_scan)
@@ -133,13 +134,14 @@ class Window(Gtk.ApplicationWindow):
         if guide:
           line.set_xalign(.5)
         titles.append(line)
+    return line
 
   def close_button(self):
     close = button(tr("fingerprintApp.done", "Done"), self.close, "flat")
     close.set_halign(Gtk.Align.END)
     self.box.append(close)
 
-  def refresh(self, notice=""):
+  def refresh(self, notice="", resume=None):
     self.close_scan()
     generation = self.generation
     self.page(tr("fingerprintApp.appTitle", "Fingerprint Setup"), tr("fingerprintApp.reading", "Reading your fingerprint reader…"))
@@ -155,22 +157,32 @@ class Window(Gtk.ApplicationWindow):
       # Discovery is read-only. Do it off the UI thread: starting fprintd or
       # waking a USB reader can take several seconds.
       try:
-        devices = self.query(MANAGER, SERVICE + ".Manager", "GetDevices")[0]
+        manager = Gio.DBusProxy.new_sync(self.bus, Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES |
+          Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS, None, SERVICE, MANAGER, SERVICE + ".Manager", None)
+        owner = manager.get_name_owner()
+        if not owner:
+          GLib.idle_add(deliver, [], [], None)
+          return
+        devices = self.query(owner, MANAGER, SERVICE + ".Manager", "GetDevices")[0]
         readers = []
         for path in devices:
-          props = self.query(path, "org.freedesktop.DBus.Properties", "GetAll",
+          props = self.query(owner, path, "org.freedesktop.DBus.Properties", "GetAll",
                              GLib.Variant("(s)", (DEVICE,)))[0]
           if not (self.needs_consent and props["name"] == APPLE_READER):
             readers.append((path, props))
         if not readers:
           GLib.idle_add(deliver, [], [], None)
           return
-        path = next((p for p, _ in readers if p == self.selected), readers[0][0])
-        fingers = self.list_fingers(path)
+        path = next((p for p, _ in readers if owner == self.owner and p == self.selected), readers[0][0])
+        if resume:
+          matching = [p for p, props in readers if props["name"] == resume[0]]
+          if len(matching) == 1:
+            path = matching[0]
+        fingers = self.list_fingers(owner, path)
         # PAM is shared, but enrollment and the unlock preference belong
         # to this account. Keep existing unlocks on other attached readers.
         configured = PAM.exists() and (bool(fingers) or any(
-          self.list_fingers(other) for other, _ in readers if other != path))
+          self.list_fingers(owner, other) for other, _ in readers if other != path))
         # Running shells can predate the per-account opt-out after an update.
         # Only offer it when the lock that will handle the scan supports it.
         try:
@@ -178,20 +190,22 @@ class Window(Gtk.ApplicationWindow):
           preferences = json.loads(probe.stdout).get("fingerprintPreferenceSupported", False)
         except (OSError, ValueError, subprocess.TimeoutExpired):
           preferences = False
-        GLib.idle_add(deliver, readers, fingers, path, preferences, configured)
+        GLib.idle_add(deliver, readers, fingers, path, preferences, configured, owner)
       except GLib.Error as error:
         GLib.idle_add(failed, error.message)
     def failed(message):
       if generation == self.generation:
         self.unavailable(consent if self.needs_consent else message)
       return False
-    def deliver(readers, fingers, path, preferences=False, configured=False):
+    def deliver(readers, fingers, path, preferences=False, configured=False, owner=None):
       if generation != self.generation:
         return False
       if readers:
-        self.selected = path
+        self.selected, self.owner = path, owner
         self.already_configured = configured
         self.home(readers, fingers, notice, preferences)
+        if resume and self.names and self.names.reader == resume[0] and (resume[1] == "any" or resume[1] in self.prints):
+          self.scan("Verify", resume[1], resume[2])
       else:
         message = consent if self.needs_consent else tr("fingerprintApp.openLid", "Open the laptop lid or connect a fingerprint reader, then try again.")
         self.unavailable(notice or message)
@@ -199,16 +213,16 @@ class Window(Gtk.ApplicationWindow):
     from threading import Thread
     Thread(target=load, daemon=True).start()
 
-  def list_fingers(self, path):
+  def list_fingers(self, owner, path):
     try:
-      return self.query(path, DEVICE, "ListEnrolledFingers", GLib.Variant("(s)", ("",)))[0]
+      return self.query(owner, path, DEVICE, "ListEnrolledFingers", GLib.Variant("(s)", ("",)))[0]
     except GLib.Error as error:
       if Gio.DBusError.get_remote_error(error) == SERVICE + ".Error.NoEnrolledPrints":
         return []
       raise
 
-  def query(self, path, interface, method, args=None):
-    return self.bus.call_sync(SERVICE, path, interface, method, args, None,
+  def query(self, owner, path, interface, method, args=None):
+    return self.bus.call_sync(owner, path, interface, method, args, None,
                               Gio.DBusCallFlags.NONE, 15000, None).unpack()
 
   def terminal(self, command):
@@ -258,13 +272,13 @@ class Window(Gtk.ApplicationWindow):
         self.refresh()
       picker.connect("notify::selected", choose_reader)
       self.box.append(picker)
-    # fprintd identifies the model by name. Only disambiguate with the device
-    # path if two attached readers actually present the same name.
-    key = name if sum(p["name"] == name for _, p in readers) == 1 else name + "|" + self.selected
-    self.names = Names(key)
+    self.names = None
     try:
+      service = f"{self.bus.get_guid()}|{self.owner}"
+      self.names = Names.for_device(readers, self.selected, service)
       self.prints = self.names.sync(fingers)
     except (sqlite3.Error, OSError) as error:
+      self.names = None
       self.prints = {slot: (i, None) for i, slot in enumerate(sorted(fingers), 1)}
       notice = str(error)
     if notice:
@@ -292,6 +306,9 @@ class Window(Gtk.ApplicationWindow):
     if slot and len(set(fingers)) < self.capacity:
       add = button(tr("fingerprintApp.add", "Add fingerprint"), lambda: self.scan("Enroll", slot), "suggested-action")
       add.set_halign(Gtk.Align.START)
+      if not self.already_configured and PAM.exists() and not preferences:
+        add.set_sensitive(False)
+        self.box.append(label(tr("fingerprintApp.unlockNeedsShell", "After updating Omarchy, restart its shell and reopen Fingerprint Setup.")))
       if not fingers:
         empty = label(tr("fingerprintApp.empty", "No fingerprints enrolled yet."))
         empty.add_css_class("fingerprint-row")
@@ -387,8 +404,12 @@ class Window(Gtk.ApplicationWindow):
     entry = Gtk.Entry(text=custom or numbered(number), max_length=64, activates_default=False)
     entry.update_property([Gtk.AccessibleProperty.LABEL], [title])
     self.box.append(label(title, "heading"))
+    entry.set_editable(self.names is not None)
     self.box.append(entry)
     def save():
+      if self.names is None:
+        self.refresh()
+        return
       text = entry.get_text().strip()
       try:
         self.names.rename(slot, None if text == numbered(number) else text)
@@ -426,7 +447,17 @@ class Window(Gtk.ApplicationWindow):
     self.box.append(actions)
     cancel.grab_focus()
 
+  def current_reader(self):
+    try:
+      return self.query("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                        "NameHasOwner", GLib.Variant("(s)", (self.owner,)))[0]
+    except GLib.Error:
+      return False
+
   def remove(self, slot):
+    if not self.current_reader():
+      self.refresh(tr("fingerprintApp.readerChanged", "The reader reconnected. Choose the fingerprint again."))
+      return
     self.close_scan()
     generation = self.generation
     self.page(tr("fingerprintApp.removing", "Removing fingerprint…"))
@@ -439,7 +470,7 @@ class Window(Gtk.ApplicationWindow):
       else:
         self.show_failure(tr("fingerprintApp.removeFailed", "Couldn’t remove the fingerprint"), detail or self.explain(result))
     try:
-      self.reader = Reader(self.address, self.selected, done)
+      self.reader = Reader(self.address, self.owner, self.selected, done)
       self.reader.start("Delete", slot)
     except GLib.Error as error:
       self.close_scan()
@@ -466,19 +497,30 @@ class Window(Gtk.ApplicationWindow):
     self.refresh()
 
   def enable(self):
-    try:
-      DISABLED.unlink(missing_ok=True)
-    except OSError as error:
-      self.refresh(str(error))
-      return
     if PAM.exists():
+      try:
+        DISABLED.unlink(missing_ok=True)
+      except OSError as error:
+        self.refresh(str(error))
+        return
       self.refresh(tr("fingerprintApp.enabled", "Fingerprint unlock enabled."))
     else:
+      try:
+        DISABLED.parent.mkdir(parents=True, exist_ok=True)
+        DISABLED.touch()
+      except OSError as error:
+        self.refresh(str(error))
+        return
       self.page(tr("fingerprintApp.enableTitle", "Enable screen unlock"), tr("fingerprintApp.confirmAdmin", "Confirm the administrator prompt to configure the Omarchy lock screen."))
-      self.terminal([str(OMARCHY / "bin/omarchy-apply-lock")])
+      self.terminal(["/bin/bash", "-c", '"$1" && [[ -f $2 ]] && rm -f -- "$3"', "enable-unlock",
+                     str(OMARCHY / "bin/omarchy-apply-lock"), str(PAM), str(DISABLED)])
       self.box.append(button(tr("fingerprintApp.refreshUnlock", "Check unlock settings"), self.refresh))
 
   def scan(self, mode, finger, on_match=None):
+    if not self.current_reader():
+      resume = (self.names.reader, finger, on_match) if mode == "Verify" and self.names else None
+      self.refresh(tr("fingerprintApp.readerChanged", "The reader reconnected. Choose the fingerprint again."), resume)
+      return
     # Enrollment alone does not opt a new account into desktop unlock, even
     # if another account already configured the machine-wide PAM service.
     if mode == "Enroll" and not self.already_configured:
@@ -493,7 +535,7 @@ class Window(Gtk.ApplicationWindow):
     used = {number for number, _ in self.prints.values()}
     number = next(n for n in range(1, len(used) + 2) if n not in used)
     number, custom = self.prints.get(finger, (number, None))
-    self.page(tr("fingerprintApp.enrollTitle", "Add a fingerprint") if mode == "Enroll" else tr("fingerprintApp.verifyTitle", "Verify fingerprint"),
+    subtitle = self.page(tr("fingerprintApp.enrollTitle", "Add a fingerprint") if mode == "Enroll" else tr("fingerprintApp.verifyTitle", "Verify fingerprint"),
               tr("fingerprintApp.useAny", "Use any saved finger") if finger == "any" else custom or numbered(number), guide=True)
     diagram = Diagram()
     self.box.append(diagram)
@@ -545,6 +587,9 @@ class Window(Gtk.ApplicationWindow):
           cancel.set_visible(False)
         if result == "enroll-completed":
           hint.set_text(tr("fingerprintApp.added", "Fingerprint added"))
+          if self.names is None:
+            self.refresh(tr("fingerprintApp.added", "Fingerprint added"))
+            return
           try:
             self.prints = self.names.sync([finger], prune=False)
           except (sqlite3.Error, OSError) as error:
@@ -565,10 +610,14 @@ class Window(Gtk.ApplicationWindow):
                             tr("fingerprintApp.noVerdict", "The reader stopped before returning a verification result."), retry)
         else:
           self.show_failure(failure_title, detail or self.explain(result), retry)
+      elif result == "verify-finger-selected":
+        if detail in self.prints:
+          number, custom = self.prints[detail]
+          subtitle.set_text(custom or numbered(number))
       else:
         self.guide.update(result)
     try:
-      self.reader = Reader(self.address, self.selected, update)
+      self.reader = Reader(self.address, self.owner, self.selected, update)
       self.reader.start(mode, finger, self.capacity)
     except GLib.Error as error:
       self.close_scan()
