@@ -4,4 +4,6 @@
 
 # Wrapper over omarchy-hw-nvidia-arch so the device-ID ranges live in one place.
 # See that helper for why 0x1340 <= ID < 0x1e00 is the legacy span.
-[[ $(omarchy-hw-nvidia-arch) == "legacy" ]]
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir != "${BASH_SOURCE[0]}" ]] || dir=.
+[[ $("$dir/omarchy-hw-nvidia-arch") == "legacy" ]]

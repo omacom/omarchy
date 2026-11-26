@@ -321,13 +321,20 @@ for spec in 0x133f:none 0x1340:legacy 0x13c2:legacy 0x1dff:legacy 0x1e00:modern 
 done
 pass "NVIDIA generation detection bounds legacy GPUs and recognizes Turing MX GPUs"
 
+nvidia_decoy="$test_tmp/nvidia-decoy"
+mkdir -p "$nvidia_decoy"
+printf '#!/bin/bash\nexit 1\n' > "$nvidia_decoy/omarchy-hw-nvidia-arch"
+chmod +x "$nvidia_decoy/omarchy-hw-nvidia-arch"
 for spec in '0x13c2:hw nvidia without gsp' '0x1e00:hw nvidia gsp'; do
   echo "${spec%%:*}" > "$nvidia_pci/0000:01:00.0/device"
   read -ra route <<< "${spec#*:}"
   omarchy "${route[@]}" > "$test_tmp/nvidia-result" || fail "${spec#*:} runs without arguments"
   [[ ! -s $test_tmp/nvidia-result ]] || fail "hardware predicates do not print help"
+  predicate="omarchy-${spec#*:}"
+  PATH="$nvidia_decoy:/usr/bin:/bin" "$ROOT/bin/${predicate// /-}" || fail "NVIDIA predicates use their sibling classifier"
 done
 pass "NVIDIA generation predicates route without arguments"
+pass "NVIDIA generation predicates ignore other classifier copies on PATH"
 
 mkdir -p "$nvidia_pci/0000:02:00.0"
 cp "$nvidia_pci/0000:01:00.0/"{vendor,class} "$nvidia_pci/0000:02:00.0/"
