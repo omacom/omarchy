@@ -540,7 +540,9 @@ function hereAfterPick(zones, current, pick, localZone) {
 
   var out = zones
   var at = current ? indexOfZone(zones, current.label, zone) : -1
-  if (at >= 0 && (name === current.label || !hasEntry(zones, zone, name))) {
+  if (at < 0 && current && !current.chosen && defaultCityForZone(zone) !== labelForZoneId(zone))
+    at = indexOfZone(zones, labelForZoneId(zone), zone)
+  if (at >= 0 && (name === zones[at].label || !hasEntry(zones, zone, name))) {
     var row = { label: name, id: zone }
     if (zones[at].people) row.people = zones[at].people
     out = zones.slice()

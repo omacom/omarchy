@@ -54,12 +54,40 @@ assertEqual(
 assertDeepEqual(
   model.hereAfterPick(
     [{ label: 'Austin', id: 'US/Central' }],
-    { label: 'Austin', id: 'US/Central' },
+    { label: 'Austin', id: 'US/Central', chosen: true },
     { label: 'Chicago', id: 'US/Central' },
     'US/Central'
   ),
   { here: null, zones: [{ label: 'Chicago', id: 'US/Central' }], zoneChange: '' },
   'hereAfterPick clears here when resetting US/Central back to Chicago'
+)
+assertDeepEqual(
+  model.hereAfterPick(
+    [{ label: 'Central', id: 'US/Central', people: ['@alex'] }],
+    { label: 'Chicago', id: 'US/Central', chosen: false },
+    { label: 'Austin', id: 'US/Central', lat: 30.267, lon: -97.743 },
+    'US/Central'
+  ),
+  {
+    here: { name: 'Austin', zone: 'US/Central', lat: 30.267, lon: -97.743 },
+    zones: [{ label: 'Austin', id: 'US/Central', people: ['@alex'], lat: 30.267, lon: -97.743 }],
+    zoneChange: ''
+  },
+  'hereAfterPick reconciles legacy saved Central row when default is unchosen'
+)
+assertDeepEqual(
+  model.hereAfterPick(
+    [{ label: 'Central', id: 'US/Central' }],
+    { label: 'Dallas', id: 'US/Central', chosen: true },
+    { label: 'Austin', id: 'US/Central' },
+    'US/Central'
+  ),
+  {
+    here: { name: 'Austin', zone: 'US/Central' },
+    zones: [{ label: 'Central', id: 'US/Central' }],
+    zoneChange: ''
+  },
+  'hereAfterPick preserves a custom Central row when another home city was chosen'
 )
 
 // pickGeocode must never fall back to results[0] from another continent.
