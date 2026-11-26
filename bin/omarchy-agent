@@ -132,6 +132,12 @@ fi
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 case "$agent" in
+afk)
+  # AFK is browser-first: it opens the session itself, so the project and a
+  # prompt go on its command line and it runs inline rather than in a terminal.
+  command=(afk open --project "$PWD")
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  ;;
 opencode)
   command=(opencode --auto)
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
@@ -370,7 +376,7 @@ if [[ -n $home_env ]]; then
   fi
 fi
 
-if [[ $inline == "true" ]]; then
+if [[ $agent == "afk" || $inline == "true" ]]; then
   exec "${command[@]}"
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent
