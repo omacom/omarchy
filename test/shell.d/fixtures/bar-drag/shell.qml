@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 
 // Drags widgets along the real bar through its own pointer handlers, and
 // checks where they land and that each arrives as the very instance that was
@@ -24,6 +25,7 @@ ShellRoot {
   // The slot the pointer is holding.
   property var held: null
   property string counts: ""
+  property int thinner: 0
   property var steps: []
   property int step: 0
 
@@ -267,6 +269,16 @@ ShellRoot {
       [function() {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left", "the surface settles on the left edge: " + root.surface.settle + " " + root.surface.surfaceEdge)
         root.check(root.surface.implicitWidth === root.surface.thickness && root.surface.width === root.surface.thickness, "a side bar's surface is only as wide as its strip: " + root.surface.width + " against " + root.surface.thickness)
+
+        // A thicker bar on the same edge resizes the surface too, so it
+        // settles the same way, holding its old thickness while it clears.
+        root.thinner = root.surface.surfaceThickness
+        Style.barOverrides = { "size-vertical": 44 }
+        root.check(root.surface.thickness > root.thinner, "the theme thickens the side bar: " + root.surface.thickness)
+        root.check(root.surface.settle === "clearing" && root.surface.surfaceThickness === root.thinner && root.surface.surfaceEdge === "left", "a thicker strip clears before its surface grows, on the same edge: " + root.surface.settle + " " + root.surface.surfaceThickness + " " + root.surface.surfaceEdge)
+      }, 1200],
+      [function() {
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left" && root.surface.surfaceThickness === root.surface.thickness && root.surface.width === root.surface.thickness, "the surface settles at the new thickness: " + root.surface.settle + " " + root.surface.width + " against " + root.surface.thickness)
       }, 100]
     ]
     stepper.start()
