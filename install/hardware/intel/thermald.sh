@@ -7,7 +7,12 @@ if omarchy-hw-intel && [[ ! -e /sys/devices/platform/thinkpad_acpi/dytc_lapmode 
   cpu_model=$(grep -m1 "^model\s*:" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | tr -d ' ')
   cpu_model=${cpu_model:-0}
   if ((cpu_model >= 42)) && omarchy-battery-present; then
-    omarchy-pkg-add thermald
-    sudo systemctl enable thermald.service
+    if [[ -n ${OMARCHY_PKG_QUEUE_FILE:-} && -n ${OMARCHY_SERVICE_QUEUE_FILE:-} ]]; then
+      OMARCHY_PKG_DEFER=1 omarchy-pkg-add thermald
+      printf '%s\n' thermald.service >>"$OMARCHY_SERVICE_QUEUE_FILE"
+    else
+      omarchy-pkg-add thermald
+      sudo systemctl enable thermald.service
+    fi
   fi
 fi

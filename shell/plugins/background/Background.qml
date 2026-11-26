@@ -227,7 +227,7 @@ Item {
   }
 
   function requestNativeSize(path) {
-    if (!path || isVideo(path) || nativeSizes[path] !== undefined || sizeQueue.indexOf(path) !== -1) return
+    if (!path || String(path).charAt(0) !== "/" || isVideo(path) || nativeSizes[path] !== undefined || sizeQueue.indexOf(path) !== -1) return
     sizeQueue = sizeQueue.concat([path])
     probeNextSize()
   }
@@ -235,7 +235,7 @@ Item {
   function probeNextSize() {
     if (sizeProbe.running || sizeQueue.length === 0) return
     sizeProbe.path = sizeQueue[0]
-    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", sizeProbe.path]
+    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", "--", sizeProbe.path]
     sizeProbe.running = true
   }
 
@@ -251,7 +251,12 @@ Item {
   }
 
   function openSelector() {
-    if (!bgSwitchProc.running) bgSwitchProc.running = true
+    var payload = JSON.stringify({ source: "backgrounds" })
+
+    // A cloned background may not summon the picker in-process, so it takes
+    // the IPC route instead.
+    if (!root.shell || !root.shell.summon("omarchy.image-picker", payload))
+      Util.execArgv(["omarchy-shell", "shell", "summon", "omarchy.image-picker", payload])
   }
 
   function openThemeSwitcher() {
@@ -261,13 +266,6 @@ Item {
     // the IPC route instead.
     if (!root.shell || !root.shell.summon("omarchy.image-picker", payload))
       Util.execArgv(["omarchy-shell", "shell", "summon", "omarchy.image-picker", payload])
-  }
-
-  // omarchy-theme-bg-set tells this service of the new background itself. A
-  // refresh here would start an ordinary transition under an intro's cover.
-  Process {
-    id: bgSwitchProc
-    command: ["bash", "-c", "background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""]
   }
 
   Process {
@@ -525,7 +523,8 @@ Item {
         id: revealMask
         anchors.fill: parent
         visible: false
-        layer.enabled: true
+        // Only allocate the full-screen mask layer while a transition is active.
+        layer.enabled: root.incomingBackground !== ""
 
         readonly property real slant: -0.18
         readonly property real centerTop: width / 2 - slant * height / 2
