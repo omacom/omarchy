@@ -18,10 +18,13 @@ Timer {
     restart()
   }
 
-  onStepChanged: arm()
-  onTriggered: {
+  // Suspend stops the countdown; a wake re-arms it from the current boundary.
+  function sync() {
     date = new Date()
     arm()
   }
+
+  onStepChanged: arm()
+  onTriggered: sync()
   Component.onCompleted: arm()
 }

@@ -5,6 +5,9 @@
 # omarchy:name=wake
 # omarchy:examples=omarchy system wake
 
+# Catch the clock up before lighting the displays, without moving the calendar.
+omarchy-shell -q omarchy.clock catchUp >/dev/null 2>&1 || true
+
 omarchy-brightness-display on
 omarchy-brightness-keyboard restore
 omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true
