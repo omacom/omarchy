@@ -119,7 +119,8 @@ default/limine/limine.conf     ──►  omarchy-settings    /usr/share/omarchy
 default/limine/default.conf    ──►  omarchy-settings    /usr/share/omarchy/default/limine/default.conf
                                                         (template; ISO substitutes @@CMDLINE@@ → /etc/default/limine)
 default/initcpio/{hooks,install}/omarchy-{snapshot-overlay,restore}
-                               ──►  omarchy-settings    /usr/lib/initcpio/{hooks,install}/
+                               ──►  omarchy-settings    /etc/initcpio/{hooks,install}/
+                                                        (kept out of /usr/lib/initcpio so unchanged settings upgrades skip 90-mkinitcpio-install.hook; rebuilt on content change by 91-omarchy-initcpio-rebuild.hook)
 default/systemd/system/omarchy-boot-{sync,confirm}.service
                                ──►  omarchy-settings    /usr/lib/systemd/system/
 default/boot/**                ──►  omarchy-settings    /usr/share/omarchy/default/boot/
@@ -346,7 +347,7 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-boot-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
+- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-boot-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`, `omarchy-clock-resync.timer`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
 - `omarchy-lifecycle-dispatch setup-user` — the platform's own user setup,
   now with the session up (a no-op where the platform registers none; see
   [lifecycle-dispatch.md](lifecycle-dispatch.md)).
@@ -394,9 +395,7 @@ Platform-specific setup asks `omarchy-hw-platform`, which prints `x86`, `aarch64
 
 An image built away from the machine it will run on names its target in a root-owned manifest, `/var/lib/omarchy/image/target` (`format=1`, `platform=<omarchy-hw-platform value>`, unknown keys ignored). While the root is being built rather than booted, the detector answers from the manifest and never reads the build host's device tree. The root counts as built when it shows it: no `/run/systemd/system`, PID 1's root is another one (a chroot), or PID 1 is not systemd (a PID namespace). A booted system always answers from its hardware, even with a manifest left behind, so no unit that asks the detector may use `PrivatePIDs=`. As root the detector restarts in an empty environment and ignores the fixture variables its tests use.
 
-The package lists the ISO pacstraps live at `install/omarchy-base.packages`
-and `install/omarchy-other.packages`; the ISO builder also reads them when
-constructing its offline mirror.
+The package lists the ISO pacstraps live at `install/omarchy-base.packages`, `install/omarchy-other.packages`, and `install/omarchy-other-aarch64.packages` (optional and hardware-specific packages built for aarch64 only); the ISO builder reads them when constructing its offline mirror.
 
 A platform's default package set is the base list, then its architecture's additions, then its own: `install/omarchy-aarch64.packages` on every aarch64 platform, then `install/omarchy-<platform>.packages` when that platform has one (`install/omarchy-aarch64-apple.packages` on Apple Silicon, `install/omarchy-aarch64-qualcomm.packages` on Snapdragon, `install/omarchy-aarch64-n1x.packages` on the N1x, `install/omarchy-aarch64-gb10.packages` on the GB10). x86 installs the base list alone. `omarchy-pkg-defaults [platform]` prints the composed set, for the running machine by default (via `omarchy-hw-platform`, so an image build gets its target's set), and `omarchy-reinstall-pkgs` installs it.
 

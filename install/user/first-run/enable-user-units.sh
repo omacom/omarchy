@@ -24,6 +24,7 @@ units=(
   omarchy-boot-notify.service
   omarchy-fcitx5.service
   omarchy-crash-watch.service
+  omarchy-clock-resync.timer
 )
 
 failed=0

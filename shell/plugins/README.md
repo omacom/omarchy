@@ -21,6 +21,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Omarchy menu  | `omarchy.menu`            | `menu`, `bar-widget`    | `menu/Menu.qml`, `menu/BarWidget.qml` |
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
+| Shure MV7+    | `omarchy.mv7plus`         | `bar-widget`            | `panels/mv7plus/Panel.qml`            |
 | Bluetooth     | `omarchy.bluetooth`       | `bar-widget`            | `panels/bluetooth/Panel.qml`          |
 | Clock         | `omarchy.clock`           | `bar-widget`            | `panels/clock/BarWidget.qml`          |
 | Elsewhen      | `omarchy.elsewhen`        | `bar-widget`            | `panels/elsewhen/Panel.qml`           |
