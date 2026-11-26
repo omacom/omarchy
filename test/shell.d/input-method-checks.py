@@ -120,17 +120,23 @@ class InputMethodTest(unittest.TestCase):
     self.assertEqual(config["Behavior"], {"ActiveByDefault": "True"})
     self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n\n")
 
-  def test_existing_omarchy_quickphrase_default_moves_to_unclaimed_key(self):
+  def test_existing_omarchy_quickphrase_defaults_migrate_without_changing_custom_keys(self):
+    self.seed()
+    setup.atomic_write(self.config / "fcitx5/profile", setup.profile_text("de", "none"))
     quickphrase = self.config / "fcitx5/conf/quickphrase.conf"
-    setup.atomic_write(quickphrase, "[TriggerKey]\n0=Super+semicolon\n")
-    setup.defaults(self.config)
-    self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n0=Super+period\n")
-
-  def test_custom_quickphrase_trigger_is_preserved(self):
-    quickphrase = self.config / "fcitx5/conf/quickphrase.conf"
-    setup.atomic_write(quickphrase, "[TriggerKey]\n0=Alt+semicolon\n")
-    setup.defaults(self.config)
-    self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n0=Alt+semicolon\n")
+    for keys, expected in [
+      ("0=Super+semicolon\n", "0=Super+period\n"),
+      ("0=Super+grave\n1=Super+semicolon\n", "0=Super+period\n"),
+      ("0=Alt+semicolon\n", "0=Alt+semicolon\n"),
+      ("", ""),
+    ]:
+      with self.subTest(keys=keys):
+        setup.atomic_write(quickphrase, "[TriggerKey]\n" + keys)
+        with patch.object(setup.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), patch.object(setup, "run") as calls:
+          setup.configure(argparse.Namespace(seed=False, defaults=True))
+        self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n" + expected)
+        if keys != expected:
+          calls.assert_any_call(setup.CONTROLLER + ["ReloadAddonConfig", "s", "quickphrase"])
 
   def test_ctrl_space_is_removed_from_every_trigger_list(self):
     path = self.config / "fcitx5/config"
