@@ -4,12 +4,21 @@
 
 set -e
 
-ENV_FILE="$HOME/.config/environment.d/90-gcr-ssh-agent.conf"
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+systemd_env_file="$config_home/environment.d/90-gcr-ssh-agent.conf"
+session_env_file="$config_home/uwsm/env.d/90-omarchy-ssh-agent"
 
 systemctl --user enable --now gcr-ssh-agent.socket
 
-mkdir -p "$(dirname "$ENV_FILE")"
-echo 'SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/gcr/ssh' >"$ENV_FILE"
+# UWSM sources this on every session start and exports its result to the
+# systemd user manager. Keeping it in the session environment also lets a
+# later `unset` override a socket path restored from an earlier login.
+mkdir -p "$(dirname "$session_env_file")"
+printf '%s\n' 'export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/gcr/ssh"' >"$session_env_file"
+
+# Retire the old manager-start-only setting. Existing user managers do not
+# reread environment.d on an autologin relogin.
+rm -f "$systemd_env_file"
 
 echo ""
 echo "SSH agent has been enabled. Log out and back in to make it available everywhere."
