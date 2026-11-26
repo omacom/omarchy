@@ -1539,17 +1539,33 @@ ShellRoot {
         firstParty: !!manifest.__isFirstParty
       }
 
+      // When the default bar is active, only compile QML components for
+      // widgets actually placed in the bar layout. Unplaced widgets still
+      // register their metadata so settings and the widget picker see them,
+      // and compile on demand once placed.
+      var needed = shell.activeBarId !== shell.defaultBarId || shell.barEntryConfigured(registryKey)
+      if (!needed) {
+        if (existing && existing.url === url && existing.component) {
+          shell.barWidgetRegistry.register(registryKey, existing.component, meta)
+        } else {
+          shell.barWidgetRegistry.register(registryKey, null, meta)
+          if (!existing || existing.url !== url || !existing.deferred)
+            shell.setPluginWidgetComponent(registryKey, { url: url, component: null, deferred: true })
+        }
+        continue
+      }
+
       // A load already in flight for this URL registers itself when it
       // finishes. Starting a second one produces a second Component for the
       // same widget, and swapping a slot's component rebuilds its item —
       // briefly running two of the widget, each registering its IPC handler.
-      if (existing && existing.url === url && !existing.component) continue
+      if (existing && existing.url === url && !existing.component && !existing.deferred) continue
 
       // If the component URL is unchanged, just refresh the metadata in
       // place. We can't skip this even when the URL matches: manifests can
       // change schema, defaults, or sourceDir between rescans, and the
       // settings panel reads metadata from the registry.
-      if (existing && existing.url === url && shell.barWidgetRegistry.has(registryKey)) {
+      if (existing && existing.url === url && existing.component && shell.barWidgetRegistry.has(registryKey)) {
         shell.barWidgetRegistry.register(registryKey, existing.component, meta)
         continue
       }
