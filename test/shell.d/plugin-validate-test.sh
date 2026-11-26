@@ -162,6 +162,15 @@ harness_rewrite '.agentHarness.install = {type: "manual", command: "acme-agent"}
 harness_validate >/dev/null && fail "validate accepts a launch command other than its installed command"
 pass "plugins launch the command their harness installs"
 
+# The local model is a choice omarchy-default-agent answers before it reads the
+# catalog, so a harness claiming the name would only shadow it.
+harness_rewrite '.agentHarness.id = "local"'
+harness_validate >/dev/null && fail "validate accepts the local model's name as a harness id"
+harness_catalog | jq -e '.[] | select(.id == "local")' >/dev/null &&
+  fail "agent catalog lists a harness under the local model's name"
+harness_rewrite '.agentHarness.id = "acme-agent"'
+pass "a harness cannot take the local model's name"
+
 harness_rewrite '.agentHarness.launch.command = ["acme-agent", "{project}"] | .agentHarness.launch.promptCommand = ["acme-agent", "{project}", "{prompt}"] | .agentHarness.aliases = ["claude"]'
 harness_catalog "$harness_plugin/manifest.json" >/dev/null 2>&1 && fail "agent catalog accepts an alias that conflicts with a built-in id"
 pass "agent catalog rejects harness identity collisions"

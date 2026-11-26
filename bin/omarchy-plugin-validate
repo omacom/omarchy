@@ -65,7 +65,8 @@ jq -e '(.entryPoints | type) == "object"' "$MANIFEST" >/dev/null 2>&1 \
 # harness runs and the argv templates that launch it, never an install of its
 # own. Omarchy launches such a harness; the user installs it.
 jq -e '
-  def valid_id: type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\z") and (contains("..") | not);
+  # "local" names the local model, not a harness, so a manifest may not claim it.
+  def valid_id: type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\z") and (contains("..") | not) and . != "local";
   def valid_command:
     type == "array" and length > 0
     and all(.[];

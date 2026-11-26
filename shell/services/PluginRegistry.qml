@@ -56,9 +56,11 @@ QtObject {
     return true
   }
 
+  // "local" names the local model rather than a harness, so no manifest may
+  // claim it: doing so would only shadow that choice.
   function isValidHarnessIdentity(value) {
     return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)
-      && !/[\n\r]/.test(value) && value.indexOf("..") === -1
+      && !/[\n\r]/.test(value) && value.indexOf("..") === -1 && value !== "local"
   }
 
   function isValidAgentHarness(harness) {
@@ -71,9 +73,9 @@ QtObject {
     for (var i = 0; i < aliases.length; i++) {
       if (!isValidHarnessIdentity(aliases[i])) return false
     }
-    if (!Util.isPlainObject(harness.install) || harness.install.type !== "mise"
-        || typeof harness.install.package !== "string" || !harness.install.package
-        || /^[\n\r-]/.test(harness.install.package)
+    // A plugin's harness is the user's own install, so "manual" is the only
+    // install a manifest may declare: the shell never installs it.
+    if (!Util.isPlainObject(harness.install) || harness.install.type !== "manual"
         || typeof harness.install.command !== "string"
         || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(harness.install.command)) return false
     if (!Util.isPlainObject(harness.launch)

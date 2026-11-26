@@ -47,7 +47,7 @@ pass "plugin enable rejects placement for full bars"
 metadata_dir="$TMPDIR/home/.config/omarchy/plugins/acme.agent"
 mkdir -p "$metadata_dir"
 cat >"$metadata_dir/manifest.json" <<'JSON'
-{"schemaVersion":1,"id":"acme.agent","name":"Acme Agent","version":"1.0.0","kinds":[],"entryPoints":{},"agentHarness":{"id":"acme-agent","name":"Acme Agent","install":{"type":"mise","package":"npm:@acme/agent","command":"acme-agent"},"launch":{"mode":"terminal","command":["acme-agent"]}}}
+{"schemaVersion":1,"id":"acme.agent","name":"Acme Agent","version":"1.0.0","kinds":[],"entryPoints":{},"agentHarness":{"id":"acme-agent","name":"Acme Agent","install":{"type":"manual","command":"acme-agent"},"launch":{"mode":"terminal","command":["acme-agent"]}}}
 JSON
 if run_enable acme.agent >/dev/null 2>&1; then
   fail "plugin enable accepts a metadata-only harness plugin"
