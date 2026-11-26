@@ -92,6 +92,7 @@ function deviceRow(d) {
     name: d.name || "",
     deviceName: d.deviceName || "",
     connected: !!d.connected,
+    paired: !!(d.paired || d.bonded || d.trusted),
     state: d.state !== undefined ? d.state : -1,
     batteryAvailable: !!d.batteryAvailable,
     battery: d.battery !== undefined ? d.battery : 0,
@@ -120,6 +121,54 @@ function deviceLists(devices) {
   }
 }
 
+// Keeps every device in the section and position it was last drawn in, so rows
+// never slide under the pointer; newcomers go last. `previous` null sorts afresh.
+function steadyLists(lists, previous, scanShown) {
+  var sections = ["connected", "known", "discovered"]
+  var byAddress = {}
+  var natural = {}
+  for (var s = 0; s < sections.length; s++) {
+    var list = (lists && lists[sections[s]]) || []
+    for (var i = 0; i < list.length; i++) {
+      byAddress[list[i].address] = list[i]
+      natural[list[i].address] = sections[s]
+    }
+  }
+
+  var out = { connected: [], known: [], discovered: [] }
+  var placed = {}
+  function place(section, address) {
+    out[section].push(byAddress[address])
+    placed[address] = true
+  }
+
+  if (previous) {
+    for (var p = 0; p < sections.length; p++) {
+      var section = sections[p]
+      var before = previous[section] || []
+      for (var j = 0; j < before.length; j++) {
+        var address = typeof before[j] === "string" ? before[j] : (before[j] && before[j].address)
+        if (!address || !byAddress[address] || placed[address]) continue
+        // A forget removes the row; hidden scan results take nothing with them.
+        if (section !== "discovered" && natural[address] === "discovered") continue
+        if (section === "discovered" && !scanShown && natural[address] !== "discovered") continue
+        place(section, address)
+      }
+    }
+  }
+
+  // Mid-scan newcomers go to the bottom of the list, whatever they are, so no row moves down.
+  var last = previous && scanShown ? "discovered" : ""
+  for (var n = 0; n < sections.length; n++) {
+    var fresh = (lists && lists[sections[n]]) || []
+    for (var k = 0; k < fresh.length; k++) {
+      if (!placed[fresh[k].address]) place(last || sections[n], fresh[k].address)
+    }
+  }
+
+  return out
+}
+
 function cloneMap(map) {
   var next = ({})
   for (var key in map || {}) next[key] = map[key]
@@ -135,6 +184,23 @@ function withPendingAction(actions, address, action) {
   if (!address) return next
   if (action) next[address] = action
   else delete next[address]
+  return next
+}
+
+// Each pending action has its own deadline, so a new click never extends another row's.
+function expiredPending(deadlines, now) {
+  var expired = []
+  for (var address in deadlines || {}) {
+    if (deadlines[address] <= now) expired.push(address)
+  }
+  return expired
+}
+
+function nextDeadline(deadlines) {
+  var next = 0
+  for (var address in deadlines || {}) {
+    if (next === 0 || deadlines[address] < next) next = deadlines[address]
+  }
   return next
 }
 
@@ -171,6 +237,9 @@ if (typeof module !== "undefined") {
     cloneMap: cloneMap,
     pendingAction: pendingAction,
     withPendingAction: withPendingAction,
+    steadyLists: steadyLists,
+    expiredPending: expiredPending,
+    nextDeadline: nextDeadline,
     visibleSections: visibleSections,
     sectionDevices: sectionDevices
   }
