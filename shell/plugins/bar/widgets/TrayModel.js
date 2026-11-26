@@ -73,10 +73,10 @@ function shownSpan(clipStart, clipLength, start, length) {
   return { start: from, length: to - from }
 }
 
-// Electron apps often share one StatusNotifier id (chrome_status_icon_1). Pin and
-// hide must follow the icon the user clicked, so a label is part of the key when
-// the title or tooltip distinguishes it. A stored bare id still matches when that
-// id is not shared with another live item.
+// Electron apps often share one StatusNotifier id (chrome_status_icon_1). While an
+// id is shared, pin and hide follow the icon's label so one icon does not claim
+// the others. A unique id keeps the bare id as its key, so a changing title never
+// loses the setting.
 function itemLabel(item) {
   if (!item) return ""
   var title = String(item.title || "").replace(/[\r\n]/g, " ").trim()
@@ -84,32 +84,37 @@ function itemLabel(item) {
   return String(item.tooltipTitle || "").replace(/[\r\n]/g, " ").trim()
 }
 
-function stateKey(item) {
+function stateKey(item, shared) {
   var id = String(item && item.id || "")
   var label = itemLabel(item)
   if (!id) return label
-  if (!label || label === id) return id
+  if (!shared || !label || label === id) return id
   return id + "\n" + label
+}
+
+// A stored key applies when it is this icon's key. A unique id also honors a
+// labelled key saved while a sibling shared the id.
+function keyMatches(k, item, shared) {
+  var id = String(item && item.id || "")
+  if (k === stateKey(item, shared)) return true
+  return !shared && !!id && String(k).indexOf(id + "\n") === 0
 }
 
 function appliesStored(keys, item, shared) {
   if (!Array.isArray(keys) || !item) return false
-  var key = stateKey(item)
-  if (keys.indexOf(key) !== -1) return true
-  var id = String(item.id || "")
-  return !shared && !!id && id !== key && keys.indexOf(id) !== -1
+  return keys.some(function(k) { return keyMatches(k, item, shared) })
 }
 
-// Flips an icon's pin or hide by what it shows now, a stored bare id included,
-// and moves it to its own key so the other list never claims it as well.
+// Flips one icon's pin or hide. Only keys that belong to this icon change, so a
+// sibling's saved setting survives; pinning also clears this icon from the other list.
 function toggleStored(keys, others, item, shared) {
-  var key = stateKey(item)
-  var id = String(item && item.id || "")
   var on = appliesStored(keys, item, shared)
-  function bare(k) { return id !== key && k === id }
-  keys = keys.filter(function(k) { return k !== key && !bare(k) })
-  others = others.filter(function(k) { return !bare(k) && (on || k !== key) })
-  if (!on) keys.push(key)
+  var mine = function(k) { return keyMatches(k, item, shared) }
+  keys = keys.filter(function(k) { return !mine(k) })
+  if (!on) {
+    others = others.filter(function(k) { return !mine(k) })
+    keys.push(stateKey(item, shared))
+  }
   return { keys: keys, others: others }
 }
 

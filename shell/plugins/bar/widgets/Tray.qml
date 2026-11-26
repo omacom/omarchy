@@ -201,10 +201,6 @@ BarWidget {
     return false
   }
 
-  function itemStateKey(item) {
-    return TrayModel.stateKey(item)
-  }
-
   function classifyItem(item) {
     var shared = idShared(item)
     if (TrayModel.appliesStored(hiddenIds, item, shared)) return "hidden"
@@ -508,7 +504,6 @@ BarWidget {
           width: manageColumn.width
           implicitHeight: 28
 
-          readonly property string itemId: root.itemStateKey(modelData)
           readonly property string displayName: {
             var t = String(modelData.title || "").trim()
             if (t) return t
