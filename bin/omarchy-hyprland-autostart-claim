@@ -10,4 +10,14 @@ set -euo pipefail
 instance_dir="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE"
 [[ -d $instance_dir ]] || exit 1
 
-mkdir -- "$instance_dir/omarchy-autostart" 2>/dev/null
+claim="$instance_dir/omarchy-autostart"
+
+# Before this guard existed, a shell process was launched directly from the
+# compositor config. On an update-triggered reload, adopt that running shell
+# instead of replaying post-boot hooks while it is still starting.
+if [[ ! -e $claim ]] && pgrep -u "$UID" -x quickshell >/dev/null 2>&1; then
+  mkdir -- "$claim" 2>/dev/null || true
+  exit 1
+fi
+
+mkdir -- "$claim" 2>/dev/null

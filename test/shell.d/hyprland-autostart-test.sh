@@ -15,6 +15,7 @@ local handlers = {}
 local commands = {}
 local waylandDisplay = nil
 local startupClaimed = false
+local legacyShellRunning = false
 
 hl = {
   on = function(event, callback) handlers[event] = callback end,
@@ -26,7 +27,7 @@ os.getenv = function(name)
 end
 o.shell_succeeds = function(command)
   assert(command == "omarchy-hyprland-autostart-claim", "unexpected startup guard command")
-  if startupClaimed then return false end
+  if startupClaimed or legacyShellRunning then return false end
   startupClaimed = true
   return true
 end
@@ -59,6 +60,11 @@ elseif arg[2] == "existing-session" then
   startupClaimed = true
   handlers["config.reloaded"]()
   assert(#commands == 0, "a config reload repeated startup in an existing session")
+elseif arg[2] == "legacy-session" then
+  waylandDisplay = "wayland-1"
+  legacyShellRunning = true
+  handlers["config.reloaded"]()
+  assert(#commands == 0, "an update reload repeated startup for a pre-marker session")
 else
   error("unknown startup scenario: " .. tostring(arg[2]))
 end
@@ -88,17 +94,40 @@ pass "loading the user config after Hyprland start restores session autostart on
 run_case existing-session
 pass "loading config in an already-running session does not repeat autostart"
 
+run_case legacy-session
+pass "loading config in a pre-marker session adopts its existing shell without replaying startup"
+
 runtime_dir="$tmpdir/runtime"
 instance_dir="$runtime_dir/hypr/test-instance"
 mkdir -p "$instance_dir"
-if XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
+mock_bin="$tmpdir/mock-bin"
+mkdir -p "$mock_bin"
+cat >"$mock_bin/pgrep" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_QUICKSHELL_RUNNING:-false} == "true" ]]
+SH
+chmod +x "$mock_bin/pgrep"
+if PATH="$mock_bin:$PATH" OMARCHY_TEST_QUICKSHELL_RUNNING=false \
+  XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
   "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
   pass "the first Hyprland autostart claim succeeds"
 else
   fail "the first Hyprland autostart claim succeeds"
 fi
-if XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
+if PATH="$mock_bin:$PATH" OMARCHY_TEST_QUICKSHELL_RUNNING=false \
+  XDG_RUNTIME_DIR="$runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
   "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
   fail "a repeated Hyprland autostart claim is rejected"
 fi
 pass "a repeated Hyprland autostart claim is rejected across processes"
+
+legacy_runtime_dir="$tmpdir/legacy-runtime"
+mkdir -p "$legacy_runtime_dir/hypr/legacy-instance"
+if PATH="$mock_bin:$PATH" OMARCHY_TEST_QUICKSHELL_RUNNING=true \
+  XDG_RUNTIME_DIR="$legacy_runtime_dir" HYPRLAND_INSTANCE_SIGNATURE=legacy-instance \
+  "$ROOT/bin/omarchy-hyprland-autostart-claim"; then
+  fail "a pre-marker shell is adopted instead of claiming fresh startup"
+fi
+[[ -d $legacy_runtime_dir/hypr/legacy-instance/omarchy-autostart ]] ||
+  fail "adopting a pre-marker shell persists the startup claim"
+pass "a pre-marker shell is adopted and its startup claim is persisted"
