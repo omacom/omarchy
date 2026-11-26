@@ -570,6 +570,7 @@ virt_install_args() {
     machine_args=(
       --arch aarch64 --virt-type kvm --machine virt --features gic.version=host,pmu.state=off
       '--qemu-commandline=-machine msi=gicv2m' --controller type=usb,model=qemu-xhci
+      --input keyboard,bus=usb
     )
     # With SCSI, put the installer before cidata and boot from the hard disk
     # on the first reboot. virt-install only detaches media added by --cdrom.

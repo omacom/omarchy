@@ -73,6 +73,7 @@ pass 'ARM installs native QEMU with SPICE support and prepares aarch64 UEFI'
   [[ $boot_args == *$'--arch\naarch64\n--virt-type\nkvm\n--machine\nvirt\n'* ]] || fail 'ARM did not select its native KVM machine'
   [[ $boot_args == *'gic.version=host,pmu.state=off'* && $boot_args == *'--qemu-commandline=-machine msi=gicv2m'* ]] ||
     fail 'ARM machine options are incomplete'
+  [[ $boot_args == *$'--input\nkeyboard,bus=usb\n'* ]] || fail 'ARM has no keyboard for the graphical console'
   [[ $boot_args == *"loader=$UEFI_CODE,"*"nvram.template=$UEFI_VARS"* && $boot_args == *'model=tpm-tis'* ]] || fail 'ARM firmware or TPM is wrong'
   [[ $boot_args == *"path=$iso,device=cdrom,bus=scsi,readonly=yes"*"path=$cidata,device=cdrom,bus=scsi,readonly=yes"*$'--install\nbootdev=cdrom'* ]] ||
     fail 'ARM media order or first-boot mode is wrong'
