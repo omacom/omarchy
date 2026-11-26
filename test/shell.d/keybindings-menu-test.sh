@@ -369,7 +369,8 @@ grep -qP '→ Second action\texec\tsecond-cmd$' <<<"$batch_second" ||
   fail "batched hyprctl cache invalidates when reported binds change" "$batch_second"
 pass "batched hyprctl IPC path tracks binding changes"
 
-batch_cached=$(stat -c '%i %n' "$tmpdir"/batch-cache/omarchy/keybindings-*.records)
+batch_cached=$(stat -c '%i %n' "$tmpdir"/batch-cache/omarchy/keybindings-*.records) ||
+  fail "the batched keybindings menu writes a records cache"
 batch_switched=$(env -i PATH="$batch_stub:$ROOT/bin:$PATH" HOME="$home" \
   XDG_CACHE_HOME="$tmpdir/batch-cache" OMARCHY_PATH="$ROOT" \
   OMARCHY_TEST_BATCH_BINDS="$batch_binds_file" OMARCHY_TEST_BATCH_KEYMAP="German" bash "$menu" --records)
