@@ -88,5 +88,5 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 export OMARCHY_CAMERA_DEVICE="${dev_dir}/${node}"
-export CAMERA_NAME WIDTH HEIGHT FORMAT FRAMERATE BASE_GAMMA GAMMA CONTRAST SATURATION
+export CAMERA_NAME WIDTH HEIGHT FORMAT FRAMERATE BASE_GAMMA GAMMA CONTRAST SATURATION BRIGHTNESS WARMTH TINT
 exec "${OMARCHY_CAMERA_RELAY_DAEMON:-$script_dir/omarchy-camera-relay-daemon}"

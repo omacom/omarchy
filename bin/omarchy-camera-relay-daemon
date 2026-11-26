@@ -61,6 +61,10 @@ class LiveCameraRelay:
         )
         self.contrast = parse_float(os.environ.get("CONTRAST"), 1.0, 0.0, 2.0)
         self.saturation = parse_float(os.environ.get("SATURATION"), 1.0, 0.0, 2.0)
+        self.brightness = parse_float(os.environ.get("BRIGHTNESS"), 0.0, -1.0, 1.0)
+        self.warmth = parse_float(os.environ.get("WARMTH"), 0.0, -1.0, 1.0)
+        self.tint = parse_float(os.environ.get("TINT"), 0.0, -1.0, 1.0)
+        self.uv_luts: tuple[bytes, bytes] | None = self._build_uv_luts()
 
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
         self.sock_path = os.environ.get(
@@ -133,10 +137,27 @@ class LiveCameraRelay:
     def _rel_gamma(self) -> float:
         return max(0.05, min(10.0, self.gamma / self.base_gamma))
 
+    def _build_uv_luts(self) -> tuple[bytes, bytes] | None:
+        # In I420 YCbCr, U (Cb) is the blue-yellow axis and V (Cr) is the
+        # red-cyan axis. Shifting (-22*warmth, +14*warmth) sweeps cool blue to
+        # warm amber with minimal green/magenta cast; (+14*tint, +18*tint)
+        # sweeps green to magenta along the orthogonal axis.
+        if abs(self.warmth) < 0.001 and abs(self.tint) < 0.001:
+            return None
+        du = round(-22.0 * self.warmth + 14.0 * self.tint)
+        dv = round(14.0 * self.warmth + 18.0 * self.tint)
+        if du == 0 and dv == 0:
+            return None
+        u_lut = bytes(max(16, min(240, i + du)) for i in range(256))
+        v_lut = bytes(max(16, min(240, i + dv)) for i in range(256))
+        return (u_lut, v_lut)
+
     def _apply_live_props(self) -> None:
+        self.uv_luts = self._build_uv_luts()
         if self.gamma_elem is not None:
             self.gamma_elem.set_property("gamma", self._rel_gamma())
         if self.balance_elem is not None:
+            self.balance_elem.set_property("brightness", self.brightness)
             self.balance_elem.set_property("contrast", self.contrast)
             self.balance_elem.set_property("saturation", self.saturation)
 
@@ -146,7 +167,27 @@ class LiveCameraRelay:
             return Gst.FlowReturn.OK
         buf = sample.get_buffer()
         if buf is not None:
-            out_buf = buf.copy()
+            luts = self.uv_luts
+            out_buf = None
+            if luts is not None:
+                u_lut, v_lut = luts
+                ok, info = buf.map(Gst.MapFlags.READ)
+                if ok:
+                    try:
+                        y_size = self.width * self.height
+                        uv_size = y_size // 4
+                        if info.size == y_size + 2 * uv_size:
+                            raw = info.data
+                            framed = (
+                                raw[:y_size]
+                                + raw[y_size : y_size + uv_size].translate(u_lut)
+                                + raw[y_size + uv_size :].translate(v_lut)
+                            )
+                            out_buf = Gst.Buffer.new_wrapped(framed)
+                    finally:
+                        buf.unmap(info)
+            if out_buf is None:
+                out_buf = buf.copy()
             out_buf.pts = Gst.CLOCK_TIME_NONE
             out_buf.dts = Gst.CLOCK_TIME_NONE
             out_buf.duration = Gst.CLOCK_TIME_NONE
@@ -163,7 +204,8 @@ class LiveCameraRelay:
                 f"video/x-raw,width={self.width},height={self.height} ! "
                 f"videoconvert n-threads=4 ! video/x-raw,format=I420 ! "
                 f"gamma name=gamma gamma={self._rel_gamma():.4f} ! "
-                f"videobalance name=balance contrast={self.contrast:.4f} saturation={self.saturation:.4f} ! "
+                f"videobalance name=balance brightness={self.brightness:.4f} "
+                f"contrast={self.contrast:.4f} saturation={self.saturation:.4f} ! "
                 f"appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
             )
             self.input_pipe = Gst.parse_launch(in_desc)
@@ -199,6 +241,12 @@ class LiveCameraRelay:
                     self.contrast = parse_float(raw_val, self.contrast, 0.0, 2.0)
                 elif key == "saturation":
                     self.saturation = parse_float(raw_val, self.saturation, 0.0, 2.0)
+                elif key == "brightness":
+                    self.brightness = parse_float(raw_val, self.brightness, -1.0, 1.0)
+                elif key == "warmth":
+                    self.warmth = parse_float(raw_val, self.warmth, -1.0, 1.0)
+                elif key == "tint":
+                    self.tint = parse_float(raw_val, self.tint, -1.0, 1.0)
             self._apply_live_props()
 
     def _drain_input_bus(self) -> None:

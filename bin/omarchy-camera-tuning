@@ -81,6 +81,8 @@ valid_override() {
   case "$key" in
     gamma|contrast|saturation)
       [[ $val =~ ^[0-9]+(\.[0-9]+)?$ ]] ;;
+    brightness|warmth|tint)
+      [[ $val =~ ^-?[0-9]+(\.[0-9]+)?$ ]] ;;
     width|height)
       [[ $val =~ ^[1-9][0-9]{1,4}$ ]] ;;
     framerate)
@@ -126,7 +128,7 @@ pipewire_source_present() {
 
 render_env() {
   local selected="$1" out="$2" shipped_ipa="" base_gamma=""
-  unset description camera_dt_node camera_name card_label width height format framerate gamma contrast saturation ipa_dir
+  unset description camera_dt_node camera_name card_label width height format framerate gamma contrast saturation brightness warmth tint ipa_dir
   # shellcheck disable=SC1090
   source "$selected/tuning.conf"
   base_gamma="${gamma:-1.5}"
@@ -150,24 +152,30 @@ BASE_GAMMA=$(printf '%q' "$base_gamma")
 GAMMA=$(printf '%q' "${gamma:-}")
 CONTRAST=$(printf '%q' "${contrast:-}")
 SATURATION=$(printf '%q' "${saturation:-}")
+BRIGHTNESS=$(printf '%q' "${brightness:-0}")
+WARMTH=$(printf '%q' "${warmth:-0}")
+TINT=$(printf '%q' "${tint:-0}")
 SHIPPED_IPA_DIR=$(printf '%q' "$shipped_ipa")
 EOF
 }
 
 env_structural_part() {
-  grep -Ev '^(GAMMA|CONTRAST|SATURATION)=' "$1"
+  grep -Ev '^(GAMMA|CONTRAST|SATURATION|BRIGHTNESS|WARMTH|TINT)=' "$1"
 }
 
 live_apply_socket() {
   local sock="${OMARCHY_CAMERA_RELAY_SOCKET:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omarchy-camera-relay.sock}"
   [[ -S $sock ]] || return 1
-  python3 - "$sock" "${1:-}" "${2:-}" "${3:-}" <<'PY'
+  python3 - "$sock" "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" <<'PY'
 import socket, sys
-sock_path, gamma, contrast, saturation = sys.argv[1:5]
+sock_path, gamma, contrast, saturation, brightness, warmth, tint = sys.argv[1:8]
 parts = []
 if gamma: parts.append(f"gamma={gamma}")
 if contrast: parts.append(f"contrast={contrast}")
 if saturation: parts.append(f"saturation={saturation}")
+if brightness: parts.append(f"brightness={brightness}")
+if warmth: parts.append(f"warmth={warmth}")
+if tint: parts.append(f"tint={tint}")
 if not parts:
     raise SystemExit(0)
 s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
@@ -189,7 +197,7 @@ case "$action" in
       # shellcheck disable=SC1090
       source "$env_file"
       echo "Tuning:        ${DESCRIPTION:-${TUNING_NAME:-?}}"
-      echo "Active values: gamma=${GAMMA:-default} contrast=${CONTRAST:-default} saturation=${SATURATION:-default} (${WIDTH}x${HEIGHT} ${FORMAT} ${FRAMERATE})"
+      echo "Active values: brightness=${BRIGHTNESS:-0} gamma=${GAMMA:-default} contrast=${CONTRAST:-default} saturation=${SATURATION:-default} warmth=${WARMTH:-0} tint=${TINT:-0} (${WIDTH}x${HEIGHT} ${FORMAT} ${FRAMERATE})"
     else
       echo "Installed:     no"
     fi
@@ -230,7 +238,7 @@ case "$action" in
   set)
     if (($# == 0)); then
       echo "Usage: omarchy-camera-tuning set key=value [key=value ...]" >&2
-      echo "Allowed keys: gamma, contrast, saturation, width, height, framerate, format, card_label" >&2
+      echo "Allowed keys: brightness, gamma, contrast, saturation, warmth, tint, width, height, framerate, format, card_label" >&2
       exit 2
     fi
 
@@ -296,7 +304,7 @@ case "$action" in
       exit 0
     }
 
-    unset description camera_dt_node card_label
+    unset description camera_dt_node card_label brightness warmth tint
     # shellcheck disable=SC1090
     source "$selected/tuning.conf"
     load_overrides "$override_file"
@@ -333,9 +341,9 @@ case "$action" in
       [[ -r $guard_unit ]] && cmp -s "$rendered_guard" "$guard_unit" &&
       diff -q <(env_structural_part "$rendered_env") <(env_structural_part "$env_file") >/dev/null 2>&1 &&
       systemctl --user is-active --quiet "$relay_unit_name" 2>/dev/null &&
-      live_apply_socket "${gamma:-}" "${contrast:-}" "${saturation:-}" 2>/dev/null; then
+      live_apply_socket "${gamma:-}" "${contrast:-}" "${saturation:-}" "${brightness:-0}" "${warmth:-0}" "${tint:-0}" 2>/dev/null; then
       install -Dm644 "$rendered_env" "$env_file"
-      echo "Applied camera tuning live: ${description:-$(basename "$selected")} (gamma=${gamma:-default} contrast=${contrast:-default} saturation=${saturation:-default})"
+      echo "Applied camera tuning live: ${description:-$(basename "$selected")} (brightness=${brightness:-0} gamma=${gamma:-default} contrast=${contrast:-default} saturation=${saturation:-default} warmth=${warmth:-0} tint=${tint:-0})"
       exit 0
     fi
 

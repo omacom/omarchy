@@ -142,6 +142,8 @@ grep -q "GAMMA=1.65" "$work/config/omarchy/camera-relay.env" || fail "override g
 
 # Invalid override is rejected cleanly
 ! run_tuning set gamma=bogus 2>/dev/null || fail "invalid gamma value is rejected"
+! run_tuning set gamma=-1 2>/dev/null || fail "negative gamma value is rejected"
+! run_tuning set warmth=bogus 2>/dev/null || fail "invalid warmth value is rejected"
 ! run_tuning set evil=1 2>/dev/null || fail "unknown override key is rejected"
 
 # 4b. Live hot-apply over the Unix control socket skips restarting the relay
@@ -165,10 +167,13 @@ for _ in {1..30}; do
   sleep 0.05
 done
 : >"$CALLS"
-OMARCHY_CAMERA_RELAY_SOCKET="$live_sock" run_tuning set gamma=1.75 contrast=1.15 saturation=1.25 >/dev/null
+OMARCHY_CAMERA_RELAY_SOCKET="$live_sock" run_tuning set gamma=1.75 contrast=1.15 saturation=1.25 brightness=-0.10 warmth=0.25 tint=-0.15 >/dev/null
 wait "$rx_pid" || fail "live socket receiver captured datagram"
-grep -q "gamma=1.75 contrast=1.15 saturation=1.25" "$live_rx" || fail "set sends live tuning datagram to relay socket"
+grep -q "gamma=1.75 contrast=1.15 saturation=1.25 brightness=-0.10 warmth=0.25 tint=-0.15" "$live_rx" || fail "set sends live tuning datagram to relay socket"
 grep -q "GAMMA=1.75" "$work/config/omarchy/camera-relay.env" || fail "live hot-apply still persists camera-relay.env"
+grep -q "BRIGHTNESS=-0.10" "$work/config/omarchy/camera-relay.env" || fail "signed brightness persists to camera-relay.env"
+grep -q "WARMTH=0.25" "$work/config/omarchy/camera-relay.env" || fail "warmth persists to camera-relay.env"
+grep -q "TINT=-0.15" "$work/config/omarchy/camera-relay.env" || fail "tint persists to camera-relay.env"
 ! grep -q "restart omarchy-camera-relay.service" "$CALLS" || fail "live hot-apply does not restart relay service"
 rm -f "$work/relay-active" "$live_sock"
 run_tuning set gamma=1.65 contrast=1.1 saturation=1.3 >/dev/null
