@@ -26,7 +26,12 @@ installed_version() {
 # Cloudflare from Install > CLI, and each coding agent from Install > AI > CLI,
 # so one of them becomes its package only if it was in use. The lists are read
 # first and installed in one go, with the terminal still on stdin for sudo.
-packages=(nodejs playwright-cli uv)
+packages=(playwright-cli uv)
+# A Node already there, like the nodejs-lts-jod bitwarden-cli needs, serves as
+# well, and the nodejs package would conflict with it.
+if omarchy-pkg-missing nodejs; then
+  packages+=(nodejs)
+fi
 retired=(playwright uv)
 while read -r tool package; do
   if from_omarchy "$tool"; then

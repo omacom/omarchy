@@ -29,17 +29,15 @@ if [[ ! -f /sys/power/image_size ]]; then
   exit 0
 fi
 
-# When --no-rebuild is set, the caller is responsible for the UKI rebuild
-# (e.g. running before limine-mkinitcpio-hook is installed during initial
-# install), so we only require limine-mkinitcpio when we'd invoke it ourselves.
-if ! $NO_REBUILD && omarchy-cmd-missing limine-mkinitcpio; then
-  echo "Skipping hibernation setup (requires Limine bootloader)"
+# The resume= parameters go on the command line of the boot loader Omarchy
+# manages. With --no-rebuild the caller builds the boot image afterwards.
+if [[ $(omarchy-boot-backend) == none ]]; then
+  echo "Skipping hibernation setup (requires a boot loader Omarchy manages)"
   exit 0
 fi
 
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
-RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
 RESUME_REBUILD_PENDING="/var/lib/omarchy/hibernation-resume-rebuild"
 
 install_root_file() {
@@ -88,51 +86,38 @@ resume_device() {
 }
 
 # Earlier setups named an unencrypted root by its kernel name. Rename it in the
-# line setup writes; a drop-in edited by hand is left to whoever edited it. The
-# boot image keeps the old name until it is rebuilt, so a marker written before
-# the drop-in changes stays until a rebuild succeeds. A failed or interrupted
-# rebuild then leaves the marker, and the next run rebuilds again.
+# parameters setup writes; parameters edited by hand are left to whoever edited
+# them. The boot image keeps the old name until it is rebuilt, so a marker
+# written before the parameters change stays until a rebuild succeeds. A failed
+# or interrupted rebuild then leaves the marker, and the next run rebuilds again.
 rename_resume_device() {
-  local previous device offset staged
+  local previous device offset
 
-  [[ -f $RESUME_DROP_IN && -f $SWAP_FILE ]] || return 0
-  previous=$(<"$RESUME_DROP_IN")
-  [[ $previous =~ ^KERNEL_CMDLINE\[default\]\+=\"\ ?resume=(/dev/[^[:space:]\"]+)\ resume_offset=([0-9]+)\"$ ]] || return 0
+  [[ -f $SWAP_FILE ]] || return 0
+  previous=$(omarchy-boot-cmdline get resume)
+  [[ $previous =~ ^resume=(/dev/[^[:space:]]+)\ resume_offset=([0-9]+)$ ]] || return 0
   [[ ${BASH_REMATCH[1]} != /dev/mapper/* ]] || return 0
   offset=${BASH_REMATCH[2]}
   device=$(resume_device)
   [[ $device == UUID=* ]] || return 0
 
-  staged=$(mktemp) || return 1
-  if printf 'KERNEL_CMDLINE[default]+=" resume=%s resume_offset=%s"\n' "$device" "$offset" >"$staged" &&
-    { $NO_REBUILD || sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING"; } &&
-    install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
-    rm -f "$staged"
+  if { $NO_REBUILD || sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING"; } &&
+    sudo omarchy-boot-cmdline set resume "resume=$device" "resume_offset=$offset"; then
     echo "Named the resume device by $device"
     return 0
   fi
 
-  rm -f "$staged"
   return 1
 }
 
 rebuild_renamed_resume_device() {
-  local log
-  local -a status
-
   [[ -e $RESUME_REBUILD_PENDING ]] && ! $NO_REBUILD || return 0
 
-  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
-  log=$(mktemp) || return 1
-  sudo limine-mkinitcpio 2>&1 | tee "$log"
-  status=("${PIPESTATUS[@]}")
-  if (( status[0] == 0 && status[1] == 0 )) && ! grep -q 'mkinitcpio failed for kernel' "$log"; then
-    rm -f "$log"
+  if sudo omarchy-boot-rebuild; then
     sudo rm -f "$RESUME_REBUILD_PENDING"
     return
   fi
 
-  rm -f "$log"
   echo "Could not rebuild the boot image with the renamed resume device; run omarchy-hibernation-setup again once that is fixed" >&2
   return 1
 }
@@ -140,13 +125,14 @@ rebuild_renamed_resume_device() {
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
-  if [[ -f $RESUME_DROP_IN ]] && grep -q 'resume_offset="$' "$RESUME_DROP_IN" && [[ -f $SWAP_FILE ]]; then
+  RESUME_PARAMS=$(omarchy-boot-cmdline get resume)
+  if [[ $RESUME_PARAMS == *resume_offset= && -f $SWAP_FILE ]]; then
     RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE" 2>/dev/null)
     if [[ -n $RESUME_OFFSET ]]; then
       echo "Fixing empty resume_offset ($RESUME_OFFSET)"
-      sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" "$RESUME_DROP_IN"
+      sudo omarchy-boot-cmdline set resume "$RESUME_PARAMS$RESUME_OFFSET"
       if ! $NO_REBUILD; then
-        sudo limine-mkinitcpio
+        sudo omarchy-boot-rebuild
       fi
     fi
   fi
@@ -205,7 +191,7 @@ fi
 
 # Add resume= kernel parameters so the initramfs resume hook knows where to find the
 # hibernation image. Without these, resume happens late (after GPU drivers load) and fails.
-# Always rewrite them: a drop-in left by an earlier setup names that swapfile's offset.
+# Always rewrite them: parameters left by an earlier setup names that swapfile's offset.
 # Write them before the hook: once the hook exists, a rerun reports hibernation as
 # set up and never comes back for them, so a failed lookup stops here, changing nothing.
 echo "Adding resume kernel parameters"
@@ -216,8 +202,7 @@ if [[ -z $RESUME_DEVICE || -z $RESUME_OFFSET ]]; then
   echo "Warning: Could not determine resume parameters for $SWAP_FILE; run omarchy-hibernation-setup again once that is fixed" >&2
   exit 0
 fi
-sudo mkdir -p /etc/limine-entry-tool.d
-echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null || exit 1
+sudo omarchy-boot-cmdline set resume "resume=$RESUME_DEVICE" "resume_offset=$RESUME_OFFSET" || exit 1
 
 # Add resume hook to mkinitcpio
 sudo mkdir -p /etc/mkinitcpio.conf.d
@@ -225,22 +210,17 @@ echo "Adding resume hook to $MKINITCPIO_CONF"
 echo "HOOKS+=(resume)" | sudo tee "$MKINITCPIO_CONF" >/dev/null
 
 # Use ACPI alarm for RTC wakeup on s2idle systems (needed for suspend-then-hibernate)
-if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
-  LIMINE_DROP_IN="/etc/limine-entry-tool.d/rtc-alarm.conf"
-  if [[ ! -f $LIMINE_DROP_IN ]]; then
-    echo "Enabling ACPI RTC alarm for s2idle suspend"
-    sudo mkdir -p /etc/limine-entry-tool.d
-    echo 'KERNEL_CMDLINE[default]+=" rtc_cmos.use_acpi_alarm=1"' | sudo tee "$LIMINE_DROP_IN" >/dev/null
-  fi
+if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null && [[ -z $(omarchy-boot-cmdline get rtc-alarm) ]]; then
+  echo "Enabling ACPI RTC alarm for s2idle suspend"
+  sudo omarchy-boot-cmdline set rtc-alarm rtc_cmos.use_acpi_alarm=1
 fi
 
 if ! $NO_REBUILD; then
-  # limine-mkinitcpio rebuilds initramfs/UKI for all kernels and updates the
-  # /boot/limine.conf entries via limine-entry-tool. The limine bootloader
-  # binary on the ESP doesn't change here, so we don't need limine-update
-  # (which would also re-deploy the binary and rebuild a second time).
   echo "Regenerating initramfs..."
-  sudo limine-mkinitcpio
+  if ! sudo omarchy-boot-rebuild; then
+    echo "Could not rebuild the boot image for hibernation; run omarchy-hibernation-setup again once that is fixed" >&2
+    exit 1
+  fi
   echo
 fi
 

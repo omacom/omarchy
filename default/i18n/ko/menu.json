@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "스냅샷"
+  },
+  "system.snapshots.restore": {
+    "label": "이 스냅샷 복원"
   }
 }

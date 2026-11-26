@@ -19,7 +19,9 @@ printf '%s' "$count" >"$GUM_COUNT"
 printf '%s\n' "$*" >>"$GUM_ARGS"
 
 case $1 in
-  choose | filter | table) cat >"$GUM_DIR/stdin.$count" ;;
+  choose | filter | table)
+    [[ -n ${GUM_SKIP_STDIN:-} ]] || cat >"$GUM_DIR/stdin.$count"
+    ;;
 esac
 
 line=$(sed -n "${count}p" "$GUM_SCRIPT")
@@ -118,8 +120,10 @@ assert_returned() {
 }
 
 assert_status() {
-  ((status == $1)) || fail "$2" "expected status: $1
+  local detail="expected status: $1
 actual status:   $status"
+  [[ -s $tmp_dir/err ]] && detail+=$'\n'"stderr: $(<"$tmp_dir/err")"
+  ((status == $1)) || fail "$2" "$detail"
 }
 
 assert_notices() {
@@ -135,7 +139,7 @@ source "${SETUP_FORM_SOURCE:-$ROOT/install/provisioning/setup-form.sh}"
 
 ((OMARCHY_FORM_BACK == 1)) || fail "Esc reports status 1"
 ((OMARCHY_FORM_SIGNAL == 130)) || fail "Ctrl+C reports status 130"
-[[ $(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | head -n 1) == "English (US)|us" ]] ||
+[[ ${OMARCHY_KEYBOARD_LAYOUTS%%$'\n'*} == "English (US)|us" ]] ||
   fail "English (US) leads the keyboard layouts so gum choose opens on the default"
 pass "the form publishes the 0/1/130 status contract and leads with English (US)"
 
@@ -414,9 +418,10 @@ pass "language defaults supply the keyboard and timezone while respecting the ca
 for code in $OMARCHY_FORM_CONSOLE_LANGUAGES; do
   jq -e --arg code "$code" 'has($code)' "$ROOT/default/i18n/locales.json" >/dev/null || fail "console language $code is registered"
 done
+keyboard_labels=$(cut -d'|' -f1 <<<"$OMARCHY_KEYBOARD_LAYOUTS")
 while IFS=$'\t' read -r code label; do
   jq -e --arg code "$code" 'has($code)' "$ROOT/default/i18n/locales.json" >/dev/null || fail "default language $code is registered"
-  printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 | grep -qxF -- "$label" || fail "language $code has an offered keyboard label: $label"
+  grep -qxF -- "$label" <<<"$keyboard_labels" || fail "language $code has an offered keyboard label: $label"
 done < <(jq -r 'to_entries[] | [.key, .value.keyboard] | @tsv' "$omarchy_form_language_defaults")
 pass "console languages and language defaults refer to registered languages and offered keyboards"
 
@@ -433,3 +438,17 @@ for confirmation in 0 1 130; do
   grep -qF -- $'table -s \t -p' "$GUM_ARGS" || fail "review tells gum to use tab-separated input"
 done
 pass "review uses tab-separated cells and propagates confirmation status"
+
+# Under set -euo pipefail (and systemd's IgnoreSIGPIPE=yes), a picker exiting
+# before draining stdin must not break the prompt with SIGPIPE/EPIPE.
+(
+  trap '' PIPE
+  GUM_SKIP_STDIN=1 OMARCHY_FORM_KEYBOARD_DEFAULT="Chinese (Simplified, Pinyin)" \
+    run_prompt omarchy_prompt_keyboard "0:Chinese (Simplified, Pinyin)"
+  assert_status 0 "keyboard prompt survives an early-exiting picker under pipefail"
+  [[ $(field keyboard_input_method) == "pinyin" ]] || fail "keyboard prompt resolves layout after early picker exit"
+  GUM_SKIP_STDIN=1 run_prompt omarchy_prompt_language "0:de"
+  assert_status 0 "language prompt survives an early-exiting picker under pipefail"
+  [[ $(field language) == "de" ]] || fail "language prompt resolves choice after early picker exit"
+)
+pass "keyboard and language prompts survive early picker exit under pipefail"

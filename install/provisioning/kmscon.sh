@@ -10,34 +10,19 @@
 # OMARCHY_KMSCON_FACE, which the command it runs finds in its environment
 # beside OMARCHY_KMSCON=1.
 #
-#   omarchy_keymap_xkb_extra <keymap>
-#       XKB "layout variant options" ("-" for none) for a keymap of the form
-#       that systemd's kbd-model-map lacks; 1 for any other keymap
 #   omarchy_keymap_xkb <keymap>      XKB "layout model variant options" for a
 #                                    console keymap, us for one nobody knows
 #   omarchy_kmscon_face <lang>       the font family Han characters are drawn in
 #   omarchy_kmscon <log> <keymap> <lang> <#rrggbb or ""> <command...>
 #       run command in kmscon on this VT; returns when kmscon ends
-
-# The form's keymaps that kbd-model-map lacks, as its rows for the nearest
-# keymap give them, so kmscon and the desktop type what the console does:
-# kbd's cz is QWERTY and bg-cp1251 phonetic. Non-Latin layouts keep a US layout
-# to switch to, so the shared password stays typeable.
-omarchy_keymap_xkb_extra() {
-  local layout variant=- options=- switch=grp:shifts_toggle,grp_led:scroll
-  case $1 in
-    colemak) layout=us variant=colemak ;;
-    bg-cp1251) layout=bg,us variant=phonetic, options=$switch ;;
-    cz) layout=cz,us variant=qwerty, options=$switch ;;
-    de_CH-latin1) layout=ch ;;
-    kyrgyz) layout=kg,us options=$switch ;;
-    no-latin1) layout=no ;;
-    pl) layout=pl ;;
-    ua) layout=ua,us options=$switch ;;
-    *) return 1 ;;
-  esac
-  printf '%s %s %s\n' "$layout" "$variant" "$options"
-}
+#
+# omarchy_keymap_xkb reads the XKB layouts of the form's keymaps that systemd's
+# kbd-model-map lacks from omarchy_keymap_xkb_extra in setup-form.sh, sourcing
+# the sibling file when the caller has not already.
+if ! declare -F omarchy_keymap_xkb_extra >/dev/null; then
+  # shellcheck source=setup-form.sh
+  source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/setup-form.sh"
+fi
 
 # kmscon reads keys through XKB, not the console keymap, and the password
 # typed in it is typed again at boot under that keymap: the layouts must place
