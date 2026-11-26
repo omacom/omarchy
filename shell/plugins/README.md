@@ -38,6 +38,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Night light   | `omarchy.nightlight`      | `service`               | `services/nightlight/Service.qml`     |
 | Remote session | `omarchy.remote-session` | `service`               | `services/remote-session/Service.qml` |
 | Lock screen   | `omarchy.lock`            | `service`               | `lock/Service.qml`                    |
+| Fingerprint   | `omarchy.fingerprint`     | `panel`                 | `panels/fingerprint/Panel.qml`        |
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
 | Dock          | `omarchy.dock`            | `service`               | `dock/Dock.qml`                       |
@@ -93,6 +94,10 @@ colors, blurred wallpaper, placeholder, and Hyprland-driven corners.
 The plugin sets `keepLoaded: true` so a plugin hot-reload (for example
 an installed bar widget changing on disk) does not destroy the lock
 client while Hyprland still holds the session lock.
+
+## Fingerprint
+
+Full-screen fingerprint setup, summoned by `omarchy-setup-security-fingerprint`: a fingerprint on a darkened scrim whose ridges light up as the touches come in, over one status line. It opens and signs off on a scratchy transmission. The panel registers the next free finger by running `omarchy-setup-security-fingerprint-enroll` through `pkexec`, which installs the packages, enrolls, asks for a verifying touch and sets up PAM for sudo, polkit and the lock screen, printing one event per line; `EnrollmentModel.js` validates those lines. A failure one line can't explain closes the panel and opens the run's log (`~/.local/state/omarchy/fingerprint.log`) in a floating terminal, and a reader its platform keeps off hands over to `omarchy-setup-security-fingerprint --terminal`. Summon it with `{"demo": true}` or `{"demo": "fail"}` to look at it without touching root or the reader.
 
 ## Polkit agent
 

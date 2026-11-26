@@ -1,9 +1,18 @@
 #!/bin/bash
 
 # omarchy:summary=Set up fingerprint authentication for sudo, polkit, and lock screen
+# omarchy:args=[--terminal]
 # omarchy:requires-sudo=true
 
 set -e
+
+# On the desktop the setup is the full-screen fingerprint panel, which does
+# all of this in the background behind one authorization prompt. --terminal,
+# or a session whose shell doesn't answer (SSH, a console), runs it right here.
+if [[ ${1:-} != "--terminal" ]] && [[ $(omarchy-shell shell summon omarchy.fingerprint 2>/dev/null) == "ok" ]]; then
+  exit 0
+fi
+
 
 # A property of fprintd's default reader, such as its name or scan-type ("press"
 # for a sensor that takes separate touches, "swipe" for one that reads a moving

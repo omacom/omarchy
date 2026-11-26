@@ -109,7 +109,7 @@ chmod +x "$setup_script"
 
 run_setup() {
   : > "$CALL_LOG"
-  if OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1; then
+  if OMARCHY_PATH="$scratch" "$setup_script" --terminal > "$scratch/output" 2>&1; then
     fail "setup stops on the simulated enrollment or installation failure"
   fi
   if grep -Eq '^(pam |apply-lock$|Unexpected privileged call)' "$CALL_LOG"; then
@@ -369,3 +369,20 @@ pass "stock libfprint is still replaced by libfprint-git"
 LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
 assert_installs "an existing libfprint-git still completes the package set"
 pass "an existing libfprint-git still completes the package set"
+
+# On the desktop the command hands over to the fingerprint panel and does
+# nothing itself; --terminal, as every run above, never asks the shell.
+cat > "$scratch/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+echo "shell $*" >> "$CALL_LOG"
+echo ok
+STUB
+chmod +x "$scratch/bin/omarchy-shell"
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 ||
+  fail "setup succeeds once the panel is summoned" "$(cat "$scratch/output")"
+[[ $(<"$CALL_LOG") == "shell shell summon omarchy.fingerprint" ]] ||
+  fail "setup on the desktop only summons the panel" "$(cat "$CALL_LOG")"
+run_setup
+grep -q '^shell ' "$CALL_LOG" && fail "setup --terminal leaves the shell alone" "$(cat "$CALL_LOG")"
+pass "setup summons the fingerprint panel on the desktop and runs in place with --terminal"
