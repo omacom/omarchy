@@ -536,6 +536,16 @@ if stripped[:2] == ["connection", "edit"]:
     data = sys.stdin.read()
     with open(os.path.join(state, "nmcli_stdin.log"), "a", encoding="utf-8") as fh:
         fh.write(data)
+    # Real nmcli asks for interactive confirmation ("Do you still want to save?
+    # (yes/no) [yes]") when saving after `set connection.autoconnect yes`, so a
+    # non-interactive script ending in `save\nquit` fails with exit 1.
+    lines = [ln.strip() for ln in data.splitlines() if ln.strip()]
+    if "set connection.autoconnect yes" in lines and "save" in lines:
+        save_idx = lines.index("save")
+        answer = lines[save_idx + 1] if save_idx + 1 < len(lines) else ""
+        if answer.lower() not in ("yes", "y"):
+            sys.stderr.write("Saving the connection with 'autoconnect=yes' requires confirmation\n")
+            raise SystemExit(1)
     raise SystemExit(0)
 
 if stripped[:2] == ["connection", "add"]:
@@ -676,7 +686,8 @@ grep -q "top-secret-psk" "$NET_STATE_DIR/nmcli.log" && fail "wifi PSK secret lea
 grep -q "connection.autoconnect no" "$NET_STATE_DIR/nmcli.log" || fail "new PSK profile must disable autoconnect until secret is saved"
 grep -q "wifi-sec.key-mgmt sae" "$NET_STATE_DIR/nmcli.log" || fail "WPA3-only SSID should use sae"
 grep -q "set wifi-sec.psk top-secret-psk" "$NET_STATE_DIR/nmcli_stdin.log" || fail "PSK written via stdin"
-grep -q "set connection.autoconnect yes" "$NET_STATE_DIR/nmcli_stdin.log" || fail "autoconnect re-enabled in edit script"
+grep -q "set connection.autoconnect yes" "$NET_STATE_DIR/nmcli_stdin.log" && fail "autoconnect must not be set inside nmcli connection edit (triggers interactive save prompt)"
+grep -q "connection modify uuid .* connection.autoconnect yes" "$NET_STATE_DIR/nmcli.log" || fail "autoconnect must be enabled via connection modify after connection up"
 
 : >"$NET_STATE_DIR/nmcli.log"
 status=0
@@ -712,7 +723,15 @@ printf 'dash-secret\n' | wifi_cli connect --password-stdin -- -dash-net >/dev/nu
 grep -q "ssid -dash-net" "$NET_STATE_DIR/nmcli.log" || fail "wifi connect handles leading-dash SSID after --"
 pass "wifi CLI connect supports SSIDs starting with a dash after --"
 
-# 6. Wi-Fi enterprise connect rollback on activation failure
+# 6. Wi-Fi enterprise connect: succeeds without interactive edit save prompt, rolls back on failure
+: >"$NET_STATE_DIR/nmcli.log"
+: >"$NET_STATE_DIR/nmcli_stdin.log"
+printf 'corp-secret\n' | wifi_cli connect CorpWiFi --identity alice --password-stdin --json >/dev/null
+grep -q "corp-secret" "$NET_STATE_DIR/nmcli.log" && fail "enterprise secret leaked into nmcli argv"
+grep -q "set 802-1x.password corp-secret" "$NET_STATE_DIR/nmcli_stdin.log" || fail "enterprise secret written via stdin"
+grep -q "set connection.autoconnect yes" "$NET_STATE_DIR/nmcli_stdin.log" && fail "enterprise autoconnect must not be set inside nmcli connection edit"
+grep -q "connection modify uuid .* connection.autoconnect yes" "$NET_STATE_DIR/nmcli.log" || fail "enterprise autoconnect must be enabled via connection modify after connection up"
+
 : >"$NET_STATE_DIR/nmcli.log"
 : >"$NET_STATE_DIR/nmcli_stdin.log"
 status=0
@@ -720,6 +739,7 @@ printf 'corp-secret\n' | TEST_FAIL_UP=1 wifi_cli connect CorpWiFi --identity ali
 (( status == 1 )) || fail "enterprise connect failure should exit 1" "got $status"
 grep -q "corp-secret" "$NET_STATE_DIR/nmcli.log" && fail "enterprise secret leaked into nmcli argv"
 grep -q "set 802-1x.password corp-secret" "$NET_STATE_DIR/nmcli_stdin.log" || fail "enterprise secret written via stdin"
+grep -q "connection modify uuid .* connection.autoconnect yes" "$NET_STATE_DIR/nmcli.log" && fail "failed enterprise profile must not enable autoconnect"
 grep -q "connection delete uuid" "$NET_STATE_DIR/nmcli.log" || fail "failed enterprise profile should be rolled back"
 
 : >"$NET_STATE_DIR/nmcli.log"
