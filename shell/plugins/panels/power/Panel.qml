@@ -69,15 +69,17 @@ Panel {
   }
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return !!(device && device.isPresent && UPower.onBattery)
+    return Model.runningOnBattery(device, UPower.onBattery, upowerStates(), root.chargeRateFresh)
   }
   // False from the moment external power arrives until the battery has had
-  // time to report a charge rate measured with it. Some batteries refresh
-  // the rate only every half minute, and until then it reads 0 W.
+  // time to report a charge rate and state measured with it. Some batteries
+  // refresh only every half minute, and until then the rate reads 0 W and the
+  // state still reads discharging.
   property bool chargeRateFresh: true
-  onDischargingChanged: {
-    chargeRateFresh = discharging
-    if (discharging) chargeRateSettle.stop()
+  readonly property bool upowerOnBattery: UPower.onBattery
+  onUpowerOnBatteryChanged: {
+    chargeRateFresh = upowerOnBattery
+    if (upowerOnBattery) chargeRateSettle.stop()
     else chargeRateSettle.restart()
   }
   Timer {
@@ -100,7 +102,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
+    return d && d.isPresent && !root.discharging && !root.batteryFlowIdle
   }
 
   readonly property color batteryFillColor: {

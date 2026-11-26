@@ -49,6 +49,18 @@ function batteryFraction(device) {
   return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
 }
 
+// UPower.onBattery turns false when any line-power supply reports online,
+// including a USB-C port whose driver keeps a stale "online" with nothing
+// plugged in. The battery's own discharging state wins once it is fresh;
+// before that it may still date from before a charger arrived.
+function runningOnBattery(device, upowerOnBattery, states, stateFresh) {
+  var d = device || {}
+  var s = states || {}
+  if (!d.isPresent) return false
+  if (upowerOnBattery) return true
+  return stateFresh !== false && d.state === s.Discharging
+}
+
 // rateFresh is false while the charge rate still dates from before external
 // power arrived. A battery that reports its rate every half minute reads
 // "charging at 0 W" until then, which is not a threshold holding it.
@@ -116,6 +128,7 @@ function profileLabel(name, tr) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    runningOnBattery: runningOnBattery,
     clampIndex: clampIndex,
     selectProfileIndex: selectProfileIndex,
     parseKeyValue: parseKeyValue,

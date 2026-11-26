@@ -52,4 +52,9 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
+assert(power.runningOnBattery({ isPresent: true, state: states.Charging }, true, states), 'power trusts UPower when it reports battery')
+assert(power.runningOnBattery({ isPresent: true, state: states.Discharging }, false, states, true), 'power trusts a discharging battery over a stale online line-power supply')
+assert(!power.runningOnBattery({ isPresent: true, state: states.Discharging }, false, states, false), 'power reads discharging right after the charger arrives as stale')
+assert(!power.runningOnBattery({ isPresent: true, state: states.Charging }, false, states, true), 'power reports external power while the battery charges')
+assert(!power.runningOnBattery({ isPresent: false, state: states.Discharging }, true, states), 'power reports no battery mode without a battery')
 JS
