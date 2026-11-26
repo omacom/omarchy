@@ -8,6 +8,9 @@ files=(plugin/after/transparency.lua lua/plugins/lualine-transparent.lua)
 
 [[ -d $config ]] || exit 0
 
+# Users without omarchy-nvim manage their own Neovim configuration.
+omarchy-pkg-present omarchy-nvim || exit 0
+
 # Dotfile managers may own a file or a parent directory through a symlink.
 # Preserve that layout rather than detaching or editing its target.
 for file in "${files[@]}"; do
