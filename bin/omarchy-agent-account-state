@@ -840,7 +840,7 @@ EARLIER = dt.timedelta(minutes=15)
 #
 # `alert` remembers the last thing said, so a shell restart or the next
 # refresh doesn't repeat it.
-def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, busy: frozenset[str] = frozenset()) -> dict[str, Any] | None:
+def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, busy: frozenset[str] = frozenset(), ended: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
   current_peak = peak(usage.get(current["id"]), now)
@@ -855,7 +855,7 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, bu
 
   candidates = []
   for account in registry["accounts"]:
-    if account["id"] == current["id"]:
+    if account["id"] == current["id"] or account["id"] in ended:
       continue
     level = peak(usage.get(account["id"]), now)
     if level is None or level >= threshold:
@@ -878,7 +878,7 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, bu
     return None
   # Only when every account is known to be over. One that's signed out or
   # couldn't be checked might have room, so there's nothing honest to say.
-  if any(peak(usage.get(a["id"]), now) is None for a in registry["accounts"]):
+  if any(peak(usage.get(a["id"]), now) is None or a["id"] in ended for a in registry["accounts"]):
     return None
   soonest = None
   for account in registry["accounts"]:
@@ -896,7 +896,7 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, bu
   waits = []
   for account in registry["accounts"]:
     reset = available_at(usage.get(account["id"]), threshold, now)
-    if account["id"] == current["id"] or reset is None or (mine is not None and reset > mine - EARLIER):
+    if account["id"] == current["id"] or account["id"] in ended or reset is None or (mine is not None and reset > mine - EARLIER):
       continue
     strands = account["id"] in busy and not account.get("primary")
     waits.append(((strands, reset), account))
@@ -911,6 +911,28 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, bu
   if registry.get("alert") == alert:
     return None
   return {"action": "exhausted", "alert": alert, "from": current, "fromPeak": current_peak, "soonest": soonest}
+
+
+# A Claude sign-in ends for good on a date its credentials keep
+# (refreshTokenExpiresAt), which refreshing the access token never moves. A
+# login past it, or within SIGN_IN_MARGIN of it, is never switched to: a trade
+# would put it in ~/.claude, where every session and the coding bots' runs
+# that use this computer's sign-in (Chat with Work Desktop) would ask for
+# `claude auth login` instead of working (chalk, 2026-11-26). It needs signing
+# in again in its own home.
+SIGN_IN_MARGIN = dt.timedelta(hours=1)
+
+
+def ending_logins(provider: str, registry: dict[str, Any], now: dt.datetime) -> frozenset[str]:
+  if provider != "claude":
+    return frozenset()
+  ending = set()
+  for account in registry["accounts"]:
+    login = (read_json(account_home(provider, account) / ".credentials.json") or {}).get("claudeAiOauth") or {}
+    ends = login.get("refreshTokenExpiresAt")
+    if isinstance(ends, (int, float)) and dt.datetime.fromtimestamp(ends / 1000, dt.timezone.utc) <= now + SIGN_IN_MARGIN:
+      ending.add(account["id"])
+  return frozenset(ending)
 
 
 # Limits per account id. An account nobody is signed in to is left out, so it
@@ -965,17 +987,19 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> tuple[bool, lis
     usage = usage_by_account(provider)
     level = peak(usage.get(next(a for a in registry["accounts"] if a.get("primary"))["id"]), now)
 
+    ended = ending_logins(provider, registry, now)
     # A Claude account made active without its trade (a sign-in held the
     # lock, or a session in its home would have been stranded) still owes
-    # ~/.claude's sessions their move. Each check tries it again.
-    if provider == "claude" and not active(registry).get("primary"):
+    # ~/.claude's sessions their move. Each check tries it again, but never
+    # with a login whose sign-in has ended or is about to.
+    if provider == "claude" and not active(registry).get("primary") and active(registry)["id"] not in ended:
       target = active(registry)
       outcome, homes = move_running_sessions(registry, target, level)
       if outcome == "moved":
         notify(tr("omarchy-i18n agents.newSessionsUse", "New %1 sessions now use %2", name, target["label"]), tr("omarchy-i18n agents.runningMove", "Sessions running in ~/.claude move with it."))
         return True, homes
 
-    decision = decide(registry, usage, now, busy_accounts(provider, registry))
+    decision = decide(registry, usage, now, busy_accounts(provider, registry), ended)
     if decision is None:
       return False, []
     if decision["action"] == "clear":

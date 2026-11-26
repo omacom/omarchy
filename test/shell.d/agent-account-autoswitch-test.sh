@@ -103,6 +103,24 @@ record 0.97 "$soon" 0.99 "$gone"
 [[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "a window past its reset counts as empty"
 pass "a window past its reset counts as empty"
 
+# A login whose sign-in has ended (or ends within the hour) is never switched
+# to: in ~/.claude it would ask every session and every coding bot's run to
+# sign in again. Its credentials say when (refreshTokenExpiresAt).
+ending_ms() {
+  python3 -c "import datetime as dt; print(int((dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=$1)).timestamp() * 1000))"
+}
+registry main auto
+echo "{\"claudeAiOauth\":{\"refreshTokenExpiresAt\":$(ending_ms -60)}}" >"$accounts/claude/work/.credentials.json"
+record 0.97 "$soon" 0.12 "$later"
+[[ -z $(autoswitch) && $(active) == "main" && ! -s $notifications ]] ||
+  fail "a login whose sign-in ended is never switched to, and nothing says all are over" "$(active) $(cat "$notifications")"
+echo "{\"claudeAiOauth\":{\"refreshTokenExpiresAt\":$(ending_ms 30)}}" >"$accounts/claude/work/.credentials.json"
+[[ -z $(autoswitch) && $(active) == "main" ]] || fail "a login that ends within the hour is never switched to"
+echo "{\"claudeAiOauth\":{\"refreshTokenExpiresAt\":$(ending_ms 600)}}" >"$accounts/claude/work/.credentials.json"
+[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "a login with hours left is switched to as before"
+rm -f "$accounts/claude/work/.credentials.json"
+pass "a login whose sign-in ended or is about to is never switched to"
+
 # ------------------------------------------------------------------- exhausted
 
 # Every account over: work resumes soonest on the one that frees up first.
