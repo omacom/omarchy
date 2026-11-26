@@ -1117,7 +1117,10 @@ PanelWindow {
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
                   onClicked: {
-                    if (window.dock && menu.targetWindow) window.dock.bringForward(menu.targetWindow, window.workspaceId)
+                    if (window.dock && menu.targetWindow) {
+                      if (menu.targetWindow.minimized) window.dock.bringForward(menu.targetWindow, window.workspaceId)
+                      else window.dock.moveWindowToWorkspace(menu.targetWindow, window.workspaceId, true)
+                    }
                     window.closeMenu()
                   }
                 }

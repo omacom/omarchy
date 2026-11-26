@@ -181,6 +181,11 @@ Item {
       var ws = item.workspace || ipc.workspace
       var wsId = ws && ws.id !== undefined ? Number(ws.id) : -1
       var wsName = ws && ws.name !== undefined ? String(ws.name) : ""
+      var winMonitor = item.monitor || (ws && ws.monitor ? ws.monitor : null)
+      var monitorName = winMonitor && winMonitor.name ? String(winMonitor.name) : ""
+      var monitorId = winMonitor && winMonitor.id !== undefined
+        ? Number(winMonitor.id)
+        : (ipc.monitor !== undefined ? Number(ipc.monitor) : -1)
       var title = (wl && wl.title) ? String(wl.title) : String(ipc.title || ipc.initialTitle || appId)
       var focusId = ipc.focusHistoryID !== undefined ? Number(ipc.focusHistoryID) : 9999
       var activated = wl ? !!wl.activated : (focusId === 0)
@@ -191,6 +196,8 @@ Item {
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: wsId,
         workspaceName: wsName,
+        monitorName: monitorName,
+        monitorId: monitorId,
         minimized: DockModel.isMinimizedWorkspace(wsName),
         activated: activated,
         floating: !!(ipc.floating),
@@ -336,7 +343,7 @@ Item {
         workspaceId: window.workspaceId,
         minimized: window.minimized,
         activated: window.activated,
-        focusHistoryID: window.focusHistoryID
+        address: window.address
       }
     }), workspaceId)
     if (index < 0) {
@@ -497,16 +504,17 @@ Item {
     if (!window.floating) steps.push("hl.dsp.window.float({ action = \"on\", " + target + " })")
     if (window.fullscreen > 0) steps.push("hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"unset\", " + target + " })")
 
+    var targetMonitor = window.minimized ? monitor : monitorForWindow(window, monitor)
     if (mode === "center") {
       steps.push("hl.dsp.window.center({ " + target + " })")
-    } else if (monitor && monitor.width && monitor.height) {
-      var scale = monitor.scale > 0 ? monitor.scale : 1
-      var w = Math.floor(monitor.width / scale)
-      var h = Math.floor(monitor.height / scale)
-      if ((monitor.transform || 0) % 2 === 1) {
+    } else if (targetMonitor && targetMonitor.width && targetMonitor.height) {
+      var scale = targetMonitor.scale > 0 ? targetMonitor.scale : 1
+      var w = Math.floor(targetMonitor.width / scale)
+      var h = Math.floor(targetMonitor.height / scale)
+      if ((targetMonitor.transform || 0) % 2 === 1) {
         var tmp = w; w = h; h = tmp
       }
-      var res = (monitor.lastIpcObject && monitor.lastIpcObject.reserved) ? monitor.lastIpcObject.reserved : [0, 0, 0, 0]
+      var res = (targetMonitor.lastIpcObject && targetMonitor.lastIpcObject.reserved) ? targetMonitor.lastIpcObject.reserved : [0, 0, 0, 0]
       var left = res[0] || 0, top = res[1] || 0, right = res[2] || 0, bottom = res[3] || 0
       var gap = 12
       var areaW = Math.max(400, w - left - right - gap * 3)
@@ -535,6 +543,10 @@ Item {
         steps.push("hl.dsp.window.tag({ tag = \"-" + tag + "\", " + target + " })")
     }
     steps.push("hl.dsp.window.move({ workspace = \"" + ws + "\", follow = " + (follow ? "true" : "false") + ", " + target + " })")
+    if (follow) {
+      steps.push("hl.dsp.focus({ " + target + " })")
+      steps.push("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
+    }
     dispatchSteps(steps)
   }
 
@@ -544,13 +556,33 @@ Item {
     dispatchSteps(["hl.dsp.window.move({ workspace = \"special:scratchpad\", follow = false, window = \"address:" + address + "\" })"])
   }
 
+  function monitorForWindow(window, fallbackMonitor) {
+    var monitors = Hyprland.monitors.values || []
+    if (!window) return fallbackMonitor || null
+    var name = String(window.monitorName || "")
+    var monId = window.monitorId !== undefined ? Number(window.monitorId) : -1
+    for (var i = 0; i < monitors.length; i++) {
+      if ((name && monitors[i].name === name) || (monId >= 0 && Number(monitors[i].id) === monId))
+        return monitors[i]
+    }
+    var wsId = window.workspaceId >= 1 ? window.workspaceId : DockModel.minimizedOriginWorkspace(window.tags)
+    if (wsId >= 1) {
+      var workspaces = Hyprland.workspaces.values || []
+      for (var j = 0; j < workspaces.length; j++) {
+        if (workspaces[j].id === wsId && workspaces[j].monitor) return workspaces[j].monitor
+      }
+    }
+    return fallbackMonitor || null
+  }
+
   function moveWindowToNextMonitor(window, currentMonitor) {
     var address = DockModel.normalizeAddress(window && window.address)
     var monitors = Hyprland.monitors.values || []
     if (!address || monitors.length < 2) return
+    var sourceMonitor = monitorForWindow(window, currentMonitor)
     var idx = -1
     for (var i = 0; i < monitors.length; i++) {
-      if (currentMonitor && monitors[i].name === currentMonitor.name) { idx = i; break }
+      if (sourceMonitor && monitors[i].name === sourceMonitor.name) { idx = i; break }
     }
     var next = monitors[(idx + 1) % monitors.length]
     var destWs = next && next.activeWorkspace ? next.activeWorkspace.id : -1

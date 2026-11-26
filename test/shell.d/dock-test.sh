@@ -164,6 +164,24 @@ assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspa
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
+const wsA = { workspaceId: 4, minimized: false, activated: true, address: '0x100', focusHistoryID: 0 }
+const wsB = { workspaceId: 4, minimized: false, activated: false, address: '0x200', focusHistoryID: 1 }
+const wsC = { workspaceId: 4, minimized: false, activated: false, address: '0x300', focusHistoryID: 2 }
+assertEqual(dock.pickClickWindow('workspace', [wsA, wsB, wsC], 4), 1, 'workspace click cycles from first window A to second B')
+// Simulate Hyprland refreshing MRU order after B takes focus: [B, A, C]
+const mruAfterB = [
+  Object.assign({}, wsB, { activated: true, focusHistoryID: 0 }),
+  Object.assign({}, wsA, { activated: false, focusHistoryID: 1 }),
+  Object.assign({}, wsC, { activated: false, focusHistoryID: 2 })
+]
+assertEqual(dock.pickClickWindow('workspace', mruAfterB, 4), 2, 'workspace click continues to C instead of bouncing back to A when MRU reorders')
+const mruAfterC = [
+  Object.assign({}, wsC, { activated: true, focusHistoryID: 0 }),
+  Object.assign({}, wsB, { activated: false, focusHistoryID: 1 }),
+  Object.assign({}, wsA, { activated: false, focusHistoryID: 2 })
+]
+assertEqual(dock.pickClickWindow('workspace', mruAfterC, 4), 2, 'workspace click wraps cleanly from C back to A')
+
 const fs = require('fs')
 const vm = require('vm')
 const dockQml = fs.readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
@@ -191,6 +209,28 @@ dispatches.length = 0
 dockCtx.bringForward({ address: '0xabcd', minimized: true, toplevel: { activate() {} } })
 assertEqual(dispatches.length, 4, 'dock bringForward restores minimized windows and brings them forward in-process')
 assertDeepEqual(unsets, ['0xabcd'], 'dock bringForward schedules no_anim unset after restoring a minimized window')
+
+const monFnBody = [
+  dockQml.match(/function monitorForWindow\(window, fallbackMonitor\) \{[\s\S]*?\n  \}/)[0],
+  dockQml.match(/function moveWindowToNextMonitor\(window, currentMonitor\) \{[\s\S]*?\n  \}/)[0],
+  dockQml.match(/function moveWindowToWorkspace\(window, destWorkspace, follow\) \{[\s\S]*?\n  \}/)[0],
+  dockQml.match(/function dispatchSteps\(steps\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+const monDispatches = []
+const monA = { id: 0, name: 'DP-1', activeWorkspace: { id: 1 } }
+const monB = { id: 1, name: 'HDMI-A-1', activeWorkspace: { id: 11 } }
+const monCtx = {
+  DockModel: dock,
+  Hyprland: {
+    monitors: { values: [monA, monB] },
+    workspaces: { values: [{ id: 1, monitor: monA }, { id: 11, monitor: monB }] },
+    dispatch(expr) { monDispatches.push(expr) }
+  },
+  hyprRefreshDebounce: { restart() {} }
+}
+vm.runInNewContext(monFnBody, monCtx)
+monCtx.moveWindowToNextMonitor({ address: '0x999', workspaceId: 11, monitorName: 'HDMI-A-1', monitorId: 1 }, monA)
+assert(monDispatches.some(d => d.includes('workspace = "1"')), 'moveWindowToNextMonitor picks the next monitor after the selected window rather than the dock screen')
 
 JS
 

@@ -281,8 +281,8 @@ function pinsInOrder(order, pinned, allPinned) {
 // The window a click on an app brings forward. Windows on the workspace in
 // front of the user come first, then minimized ones, which come back to it,
 // and only then those on other workspaces. Clicking again while one of them
-// is focused moves on to the next in that order. Windows are
-// { workspaceId, minimized, activated }.
+// is focused moves on to the next in a stable order independent of focus MRU.
+// Windows are { workspaceId, minimized, activated, address? }.
 function pickWindow(windows, workspaceId) {
   var list = windows || []
   if (list.length === 0) return -1
@@ -296,9 +296,10 @@ function pickWindow(windows, workspaceId) {
   order.sort(function(a, b) {
     var dr = rank(list[a]) - rank(list[b])
     if (dr !== 0) return dr
-    var fa = isFinite(list[a].focusHistoryID) ? list[a].focusHistoryID : 9999
-    var fb = isFinite(list[b].focusHistoryID) ? list[b].focusHistoryID : 9999
-    return (fa - fb) || (a - b)
+    var aa = normalizeAddress(list[a].address).toLowerCase()
+    var ab = normalizeAddress(list[b].address).toLowerCase()
+    if (aa && ab && aa !== ab) return aa < ab ? -1 : 1
+    return a - b
   })
 
   for (var i = 0; i < order.length; i++) {
