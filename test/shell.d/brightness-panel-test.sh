@@ -298,4 +298,33 @@ for (const success of [true, false]) {
   assertEqual(snapshot.latest, null, 'a new request does not mutate an earlier state snapshot')
   assertEqual(snapshot.percent, 1, 'earlier state snapshots retain their displayed brightness')
 }
+
+{
+  const p = model()
+  let levels = { 'DP-1': 30, 'DP-2': 20 }
+  p.request(70)
+  p.complete(true)
+  levels = Model.remember(levels, p.state)
+  assertEqual(levels['DP-1'], 70, 'a verified write updates its display level')
+  p.read(String(levels['DP-2']), 'DP-2')
+  p.read(String(levels['DP-1']), 'DP-1')
+  p.step()
+  assertEqual(p.writes.at(-1).target, 75, 'returning to a display steps from its verified level')
+}
+
+{
+  const p = model()
+  let levels = { 'DP-1': 30, 'DP-2': 20 }
+  const before = p.generation()
+  p.request(70)
+  const during = p.generation()
+  p.complete(true)
+  levels = Model.remember(levels, p.state)
+  for (const generation of [before, during]) {
+    const known = Model.knownLevels(levels, { 'DP-1': 30, 'DP-2': 25 }, p.state, 'DP-1', generation)
+    assertDeepEqual(known, { 'DP-1': 70, 'DP-2': 25 }, 'a poll from ' + (generation === -1 ? 'during' : 'before') + ' a write keeps the verified level and takes the others')
+  }
+  assertDeepEqual(Model.knownLevels(levels, {}, p.state, 'DP-1', before), { 'DP-1': 70 }, 'a stale unreadable poll keeps the verified level')
+  assertDeepEqual(Model.knownLevels(levels, { 'DP-1': 42 }, p.state, 'DP-1', p.generation()), { 'DP-1': 42 }, 'a fresh poll replaces the level')
+}
 JS

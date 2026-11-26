@@ -6,6 +6,7 @@ import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
 import "Model.js" as Model
+import "BrightnessModel.js" as BrightnessModel
 
 Panel {
   id: root
@@ -375,6 +376,7 @@ Panel {
 
   function refresh() {
     if (!stateProc.running) {
+      stateProc.brightnessMonitor = brightnessController.state.epoch.monitor
       stateProc.brightnessGeneration = brightnessController.readGeneration()
       stateProc.running = true
     }
@@ -416,7 +418,8 @@ Panel {
       if (display && display.enabled && typeof display.brightness === "number")
         levels[display.name] = display.brightness
     }
-    root.brightnessLevels = levels
+    root.brightnessLevels = BrightnessModel.knownLevels(root.brightnessLevels, levels, brightnessController.state,
+                                                        stateProc.brightnessMonitor, stateProc.brightnessGeneration)
 
     var shape = JSON.stringify(parsed.displays, function(key, value) { return key === "brightness" ? undefined : value })
     if (shape === root.displaysJson) return
@@ -633,8 +636,10 @@ Panel {
   onOpenedChanged: {
     closeRotateMenu()
     if (opened) {
-      refresh()
+      // Back to the focused display before the read starts: switching after
+      // it would make the controller reject that read.
       selectedName = ""
+      refresh()
       focusSection = landingSection()
       selectedIndex = sectionFirstIndex(focusSection)
       cursorActive = false
@@ -662,6 +667,7 @@ Panel {
 
   Process {
     id: stateProc
+    property string brightnessMonitor: ""
     property int brightnessGeneration: -1
     command: ["omarchy-monitor-state"]
     onRunningChanged: {
@@ -705,6 +711,7 @@ Panel {
   BrightnessController {
     id: brightnessController
     onVerified: function(percent) { root.showBrightnessOsd(percent) }
+    onStateChanged: root.brightnessLevels = BrightnessModel.remember(root.brightnessLevels, state)
   }
 
   Timer {
