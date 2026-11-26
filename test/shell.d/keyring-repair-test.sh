@@ -472,3 +472,75 @@ PY
 rm -f "$lock_prop_file"
 pass "secret continuation lines matching keyring properties fold and recover via GLib"
 
+# 18. Empty bracket line ([]) inside a secret is rejected safely rather than skipped
+empty_bracket_file="$OMARCHY_KEYRING_DIR/empty_bracket.keyring"
+cat >"$empty_bracket_file" <<'KEYRING'
+[keyring]
+display-name=Default keyring
+
+[1]
+item-type=0
+display-name=Empty Bracket Item
+secret=[
+[]
+ctime=1700000000
+mtime=1700000000
+KEYRING
+
+cp -a "$empty_bracket_file" "$tmpdir/empty_bracket_before.keyring"
+! python3 "$repair" 2>/dev/null || fail "repair should reject empty bracket continuation line"
+cmp -s "$tmpdir/empty_bracket_before.keyring" "$empty_bracket_file" || fail "empty bracket file was modified"
+rm -f "$empty_bracket_file" "$tmpdir/empty_bracket_before.keyring"
+pass "empty bracket continuation line is refused without modifying file"
+
+# 19. Legacy [1:acl0] section fails safely while repairable sibling keyrings still recover
+legacy_acl_file="$OMARCHY_KEYRING_DIR/legacy_acl.keyring"
+sibling_corrupt="$OMARCHY_KEYRING_DIR/sibling_corrupt.keyring"
+cat >"$legacy_acl_file" <<'KEYRING'
+[keyring]
+display-name=Legacy ACL Keyring
+
+[1]
+item-type=0
+display-name=Old Secret
+secret=value
+
+[1:acl0]
+display-name=app
+pathname=/usr/bin/app
+KEYRING
+
+cat >"$sibling_corrupt" <<'KEYRING'
+[keyring]
+display-name=Sibling Keyring
+
+[1]
+item-type=0
+display-name=Multiline Secret
+secret=line1
+line2
+ctime=1700000000
+mtime=1700000000
+KEYRING
+
+cp -a "$legacy_acl_file" "$tmpdir/legacy_acl_before.keyring"
+! python3 "$repair" 2>/dev/null || fail "repair should return nonzero when a legacy ACL keyring is present"
+cmp -s "$tmpdir/legacy_acl_before.keyring" "$legacy_acl_file" || fail "legacy ACL keyring was modified"
+grep -Fqx 'secret=line1\nline2' "$sibling_corrupt" || fail "repairable sibling keyring was not recovered"
+rm -f "$legacy_acl_file" "$tmpdir/legacy_acl_before.keyring" "$sibling_corrupt"
+pass "legacy ACL keyring is refused cleanly without blocking sibling repairs"
+
+# 20. Non-keyring keyfile whose first header is not [keyring] is left untouched
+foreign_file="$OMARCHY_KEYRING_DIR/foreign.keyring"
+cat >"$foreign_file" <<'KEYRING'
+[other]
+secret=line1
+line2
+KEYRING
+
+cp -a "$foreign_file" "$tmpdir/foreign_before.keyring"
+python3 "$repair" || fail "foreign keyfile should exit 0 untouched"
+cmp -s "$tmpdir/foreign_before.keyring" "$foreign_file" || fail "foreign keyfile was modified"
+rm -f "$foreign_file" "$tmpdir/foreign_before.keyring"
+pass "foreign keyfile without [keyring] first header is untouched"
+
