@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -15,7 +16,27 @@ static QByteArray read(const QString &path) {
 Appearance::Appearance(QObject *parent) : QObject(parent) {
   connect(&watcher, &QFileSystemWatcher::fileChanged, this, &Appearance::reload);
   connect(&watcher, &QFileSystemWatcher::directoryChanged, this, &Appearance::reload);
+  roundingTimeout.setSingleShot(true);
+  connect(&roundingTimeout, &QTimer::timeout, &rounding, &QProcess::kill);
+  connect(&rounding, &QProcess::finished, this, [this](int code, QProcess::ExitStatus status) {
+    roundingTimeout.stop();
+    const auto result = QJsonDocument::fromJson(rounding.readAllStandardOutput()).object();
+    if (status != QProcess::NormalExit || code != 0 || !result.value("int").isDouble()) return;
+    const int next = qMax(0, result.value("int").toInt());
+    if (radius != next) {
+      radius = next;
+      emit radiusChanged();
+    }
+  });
+  connect(&rounding, &QProcess::errorOccurred, this, [this] { roundingTimeout.stop(); });
   reload();
+  readRounding();
+}
+
+void Appearance::readRounding() {
+  if (qEnvironmentVariableIsEmpty("HYPRLAND_INSTANCE_SIGNATURE") || rounding.state() != QProcess::NotRunning) return;
+  rounding.start("hyprctl", {"-j", "getoption", "decoration:rounding"});
+  roundingTimeout.start(1200);
 }
 
 void Appearance::reload() {
@@ -32,6 +53,7 @@ void Appearance::reload() {
     auto match = assignment.match(line);
     if (match.hasMatch()) next.insert(match.captured(1), QColor(match.captured(2)));
   }
+  if (palette != next) readRounding();
   palette = next;
   const auto english = QJsonDocument::fromJson(read(":/i18n/cli.json")).toVariant().toMap();
   catalog = english;
