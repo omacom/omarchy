@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Rebuild boot images when Omarchy initramfs inputs changed
-# omarchy:args=[--pacman-hook|--print-hash]
+# omarchy:args=[--pacman-hook|--record|--print-hash]
 # omarchy:hidden=true
 # omarchy:requires-sudo=true
 
@@ -22,12 +22,13 @@ BACKEND_CMD=${OMARCHY_INITCPIO_BACKEND_CMD:-omarchy-boot-backend}
 REBUILD_CMD=${OMARCHY_INITCPIO_REBUILD_CMD:-omarchy-boot-rebuild}
 
 # Hash the sorted set of Omarchy initcpio hooks and mkinitcpio drop-ins
-# (ignoring .pacnew/.pacsave backups). Each entry records its relative path
-# and either its file digest or symlink target so renames, additions, removals
-# and edits all change the resulting digest.
+# (ignoring .pacnew/.pacsave/.pacorig backups). Each entry records its relative
+# path and file content digest (and link target for symlinks, plus the resolved
+# target's bytes when present) so renames, additions, removals, link changes,
+# and edits through symlinks all change the resulting digest.
 compute_hash() {
   local -a paths=()
-  local pattern path rel digest
+  local pattern path rel digest content_digest
   local shopt_nullglob
   shopt_nullglob=$(shopt -p nullglob || true)
   shopt -s nullglob
@@ -39,6 +40,9 @@ compute_hash() {
     "$ROOT/usr/lib/initcpio/install/omarchy-"* \
     "$ROOT/etc/mkinitcpio.conf.d/"*.conf; do
     [[ -f $pattern || -L $pattern ]] || continue
+    case $pattern in
+    *.pacnew | *.pacsave | *.pacorig) continue ;;
+    esac
     paths+=("$pattern")
   done
 
@@ -49,7 +53,13 @@ compute_hash() {
       while IFS= read -r -d '' path; do
         rel=${path#"$ROOT/"}
         if [[ -L $path ]]; then
-          digest=$(printf 'link\0%s' "$(readlink "$path")" | sha256sum)
+          if [[ -f $path ]]; then
+            content_digest=$(sha256sum <"$path")
+            content_digest=${content_digest%% *}
+          else
+            content_digest="dangling"
+          fi
+          digest=$(printf 'link\0%s\0%s' "$(readlink "$path")" "$content_digest" | sha256sum)
         else
           digest=$(sha256sum <"$path")
         fi
@@ -91,22 +101,23 @@ case ${1:-} in
 --print-hash)
   compute_hash
   ;;
+--record)
+  if ! has_managed_backend || ! has_installed_kernels; then
+    exit 0
+  fi
+  write_state "$(compute_hash)"
+  ;;
 --pacman-hook | "")
   if ! has_managed_backend || ! has_installed_kernels; then
     exit 0
   fi
 
   current_hash=$(compute_hash)
-
-  # First run (fresh install or transition from an older omarchy-settings that
-  # owned usr/lib/initcpio/* and therefore just triggered 90-mkinitcpio-install):
-  # record the current inputs without building a second time.
-  if [[ ! -f $STATE ]]; then
-    write_state "$current_hash"
-    exit 0
+  previous_hash=""
+  if [[ -f $STATE ]]; then
+    previous_hash=$(tr -d '[:space:]' <"$STATE" 2>/dev/null || true)
   fi
 
-  previous_hash=$(tr -d '[:space:]' <"$STATE" 2>/dev/null || true)
   if [[ $previous_hash == "$current_hash" ]]; then
     exit 0
   fi
@@ -116,7 +127,7 @@ case ${1:-} in
   write_state "$current_hash"
   ;;
 *)
-  echo "Usage: omarchy-boot-sync-initcpio [--pacman-hook|--print-hash]" >&2
+  echo "Usage: omarchy-boot-sync-initcpio [--pacman-hook|--record|--print-hash]" >&2
   exit 2
   ;;
 esac

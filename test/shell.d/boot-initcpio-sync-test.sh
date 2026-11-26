@@ -37,6 +37,14 @@ run_sync() {
     "$ROOT/bin/omarchy-boot-sync-initcpio" "$@"
 }
 
+rebuild_count() {
+  if [[ -f $log ]]; then
+    wc -l <"$log"
+  else
+    echo 0
+  fi
+}
+
 state="$root/var/lib/omarchy/initcpio.sha256"
 
 # 1. Unmanaged backend (e.g. ISO chroot / Apple Silicon) skips without writing state.
@@ -44,59 +52,74 @@ FAKE_BACKEND=none run_sync --pacman-hook
 [[ ! -f $state && ! -f $log ]] || fail "unmanaged backend must skip without rebuilding or writing state"
 pass "unmanaged backend skips without rebuilding or writing state"
 
-# 2. First run on a managed machine seeds the state file without rebuilding.
-run_sync --pacman-hook
-[[ -s $state ]] || fail "first run must seed state file"
-[[ ! -f $log ]] || fail "first run must not rebuild"
+# 2. Missing state rebuilds once and writes the state file rather than skipping unknown inputs.
+run_sync --pacman-hook >/dev/null
+[[ -s $state ]] || fail "missing state must write state file after rebuild"
+(( $(rebuild_count) == 1 )) || fail "missing state must rebuild once"
 seed_hash=$(<"$state")
-pass "first run seeds initcpio hash without rebuilding"
+pass "missing state rebuilds once and records hash"
 
 # 3. Unchanged inputs skip rebuild.
 run_sync --pacman-hook
-[[ ! -f $log ]] || fail "unchanged inputs must not trigger rebuild"
+(( $(rebuild_count) == 1 )) || fail "unchanged inputs must not trigger rebuild"
 pass "unchanged inputs skip rebuild"
 
-# 4. Non-.conf backup files (.pacnew) in mkinitcpio.conf.d do not trigger rebuild.
+# 4. Backup files (.pacnew/.pacsave/.pacorig) in mkinitcpio.conf.d and hook dirs are ignored.
 printf 'HOOKS=(different)\n' >"$root/etc/mkinitcpio.conf.d/00-omarchy-hooks.conf.pacnew"
+printf 'backup hook\n' >"$root/etc/initcpio/hooks/omarchy-restore.pacnew"
+printf 'saved hook\n' >"$root/etc/initcpio/install/omarchy-restore.pacsave"
 run_sync --pacman-hook
-[[ ! -f $log ]] || fail ".pacnew files must not trigger rebuild"
-pass ".pacnew files in mkinitcpio.conf.d are ignored"
+(( $(rebuild_count) == 1 )) || fail "backup files must not trigger rebuild"
+pass "backup files in mkinitcpio.conf.d and initcpio hook dirs are ignored"
 
 # 5. Editing an Omarchy initcpio hook triggers rebuild and updates stored hash.
 printf '#!/bin/sh\nrun_hook() { echo updated; }\n' >"$root/etc/initcpio/hooks/omarchy-restore"
 run_sync --pacman-hook >/dev/null
-[[ $(wc -l <"$log") -eq 1 ]] || fail "changed initcpio hook must trigger one rebuild"
+(( $(rebuild_count) == 2 )) || fail "changed initcpio hook must trigger rebuild"
 after_hook_hash=$(<"$state")
 [[ $after_hook_hash != "$seed_hash" ]] || fail "stored hash must update after rebuild"
 pass "changed Omarchy initcpio hook triggers rebuild and updates hash"
 
 # 6. Running again with the same updated hook skips rebuild.
 run_sync --pacman-hook
-[[ $(wc -l <"$log") -eq 1 ]] || fail "subsequent unchanged run must skip rebuild"
+(( $(rebuild_count) == 2 )) || fail "subsequent unchanged run must skip rebuild"
 pass "subsequent unchanged run skips rebuild"
 
-# 7. Editing /etc/mkinitcpio.conf.d/*.conf triggers rebuild.
-printf 'COMPRESSION="zstd"\n' >"$root/etc/mkinitcpio.conf.d/omarchy_compression.conf"
+# 7. Symlinked drop-in: editing the target file changes the hash and triggers rebuild.
+linked_target="$test_tmp/linked-compression.conf"
+printf 'COMPRESSION="zstd"\n' >"$linked_target"
+ln -s "$linked_target" "$root/etc/mkinitcpio.conf.d/omarchy_compression.conf"
 run_sync --pacman-hook >/dev/null
-[[ $(wc -l <"$log") -eq 2 ]] || fail "changed mkinitcpio.conf.d drop-in must trigger rebuild"
+(( $(rebuild_count) == 3 )) || fail "adding symlinked drop-in must trigger rebuild"
+printf 'COMPRESSION="xz"\n' >"$linked_target"
+run_sync --pacman-hook >/dev/null
+(( $(rebuild_count) == 4 )) || fail "editing symlink target contents must trigger rebuild"
 after_conf_hash=$(<"$state")
-[[ $after_conf_hash != "$after_hook_hash" ]] || fail "stored hash must update after conf rebuild"
-pass "changed mkinitcpio.conf.d drop-in triggers rebuild"
+pass "editing symlinked drop-in target contents triggers rebuild"
 
-# 8. Failed rebuild propagates non-zero status and keeps the old hash so next run retries.
-printf 'COMPRESSION="lz4"\n' >"$root/etc/mkinitcpio.conf.d/omarchy_compression.conf"
+# 8. --record after a full rebuild prevents double-rebuild on the subsequent settings hook.
+printf 'COMPRESSION="lz4"\n' >"$linked_target"
+run_sync --record
+run_sync --pacman-hook
+(( $(rebuild_count) == 4 )) || fail "recording inputs after an earlier full rebuild must skip a second rebuild"
+after_record_hash=$(<"$state")
+[[ $after_record_hash != "$after_conf_hash" ]] || fail "--record must advance stored hash"
+pass "--record prevents double rebuild when an earlier full rebuild already ran"
+
+# 9. Failed rebuild propagates non-zero status and keeps the old hash so next run retries.
+printf 'COMPRESSION="cat"\n' >"$linked_target"
 if FAKE_REBUILD_STATUS=1 run_sync --pacman-hook >/dev/null 2>&1; then
   fail "failed rebuild must exit non-zero"
 fi
-[[ $(<"$state") == "$after_conf_hash" ]] || fail "failed rebuild must not advance stored hash"
+[[ $(<"$state") == "$after_record_hash" ]] || fail "failed rebuild must not advance stored hash"
 run_sync --pacman-hook >/dev/null
-[[ $(wc -l <"$log") -eq 4 ]] || fail "next run after failed rebuild must retry and succeed"
-[[ $(<"$state") != "$after_conf_hash" ]] || fail "successful retry must update stored hash"
+(( $(rebuild_count) == 6 )) || fail "next run after failed rebuild must retry and succeed"
+[[ $(<"$state") != "$after_record_hash" ]] || fail "successful retry must update stored hash"
 pass "failed rebuild preserves old hash and retries on next run"
 
-# 9. No installed kernels skips cleanly even if inputs differ.
+# 10. No installed kernels skips cleanly even if inputs differ.
 rm -rf "$root/usr/lib/modules/7.3.6-1-omarchy"
-printf 'COMPRESSION="gzip"\n' >"$root/etc/mkinitcpio.conf.d/omarchy_compression.conf"
+printf 'COMPRESSION="gzip"\n' >"$linked_target"
 run_sync --pacman-hook
-[[ $(wc -l <"$log") -eq 4 ]] || fail "missing kernels must skip rebuild"
+(( $(rebuild_count) == 6 )) || fail "missing kernels must skip rebuild"
 pass "missing kernels skip rebuild"
