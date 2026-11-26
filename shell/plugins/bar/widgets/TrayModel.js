@@ -97,7 +97,8 @@ function stateKey(item, shared) {
 function keyMatches(k, item, shared) {
   var id = String(item && item.id || "")
   if (k === stateKey(item, shared)) return true
-  return !shared && !!id && String(k).indexOf(id + "\n") === 0
+  var label = itemLabel(item)
+  return !shared && !!id && !!label && k === id + "\n" + label
 }
 
 function appliesStored(keys, item, shared) {

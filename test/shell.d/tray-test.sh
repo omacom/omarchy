@@ -54,6 +54,11 @@ assertDeepEqual(tray.toggleStored(['chrome_status_icon_1'], [], chromeA, true), 
 assertDeepEqual(tray.toggleStored([keyB], [], chromeA, true), { keys: [keyB, keyA], others: [] }, 'tray pins one colliding icon without unpinning the other')
 assertDeepEqual(tray.toggleStored([keyA], [], chromeA, true), { keys: [], others: [] }, 'tray unpins a colliding icon by its own key')
 
+// A remaining icon must not inherit or erase its departed sibling's setting.
+assert(!tray.appliesStored([keyB], chromeA, false), 'tray does not hide the survivor under the departed sibling key')
+assert(tray.appliesStored([keyA], chromeA, false), 'tray preserves the survivor own key after a sibling exits')
+assertDeepEqual(tray.toggleStored([], [keyB], chromeA, false), { keys: ['chrome_status_icon_1'], others: [keyB] }, 'tray pins the survivor without clearing the departed sibling hide')
+
 // Pinning clears the icon from the other list, and never matches both.
 assertDeepEqual(tray.toggleStored([], ['dropbox'], dropbox('Dropbox'), false), { keys: ['dropbox'], others: [] }, 'tray moves a hidden unique icon to pinned')
 assertDeepEqual(tray.toggleStored([], [keyA], chromeA, false), { keys: ['chrome_status_icon_1'], others: [] }, 'tray clears a stale labelled key when the sibling is gone')
