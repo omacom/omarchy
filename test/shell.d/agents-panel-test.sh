@@ -510,6 +510,7 @@ ShellRoot {
     property var localRecipes: []
     property var networkModels: ({})
     function setupRows() { return [] }
+    function readFreeMemory() {}
   }
   Component.onCompleted: services = ({ "omarchy.agents": usage, "omarchy.local-models": localModels })
   function checkLocalModels() {
@@ -552,13 +553,20 @@ ShellRoot {
         break
       case 2:
         test.checkLocalModels()
+        test.mark("bar detached")
+        fakeBar.shell = null
+        break
+      case 3:
+        if (usage.panels.length !== 0 || usage.settings !== null)
+          console.error("shared usage kept a detached panel")
         test.mark("widget off every bar")
         test.panels.forEach(function(p) { p.destroy() })
         test.panels = []
         break
-      case 3: test.mark("refresh with no widget"); usage.refreshAll(true); break
-      case 4:
+      case 4: test.mark("refresh with no widget"); usage.refreshAll(true); break
+      case 5:
         test.mark("widget back on a bar")
+        fakeBar.shell = test
         test.panels = [panelComponent.createObject(test)]
         break
       default: test.checkLocalModels(); Qt.quit()
@@ -579,6 +587,10 @@ if [[ $output == *"shared usage lost the panel's local model inputs"* ]]; then
   fail "shared usage keeps local model lines and the default target from its panel" "$output"
 fi
 pass "shared usage keeps local model lines and the default target from its panel"
+if [[ $output == *"shared usage kept a detached panel"* ]]; then
+  fail "shared usage detaches when the panel loses its bar's service" "$output"
+fi
+pass "shared usage detaches when the panel loses its bar's service"
 expected=$'poll during two bars\npoll during widget back on a bar'
 [[ $(cat "$stage/polls") == "$expected" ]] || fail "agents usage polls once per shell and only while the widget is on a bar" "$(cat "$stage/polls")"
 pass "agents usage polls once per shell, waits for a bar, and stops when the widget leaves the last bar"

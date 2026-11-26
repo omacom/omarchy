@@ -1955,9 +1955,19 @@ Panel {
     }
   }
 
-  onUsageChanged: if (usage) usage.attachPanel(root)
-  Component.onCompleted: if (usage) usage.attachPanel(root)
-  Component.onDestruction: if (usage) usage.detachPanel(root)
+  // Remember the service even when the bar goes away before its panel.
+  property var attachedUsage: null
+
+  function attachUsage(next) {
+    if (attachedUsage === next) return
+    if (attachedUsage) attachedUsage.detachPanel(root)
+    attachedUsage = next
+    if (next) next.attachPanel(root)
+  }
+
+  onUsageChanged: attachUsage(usage)
+  Component.onCompleted: attachUsage(usage)
+  Component.onDestruction: attachUsage(null)
 
   Process {
     id: checkProcess
