@@ -152,7 +152,28 @@ networkmanager_dns_connection() {
 # bridge or bond port has no IP settings, so nmcli prints only its type and
 # controller; read the result with read_profile_dns_settings, not by position.
 profile_dns_info() {
-  nmcli -g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "$1"
+  local info external
+
+  external=$(connection_external "$1") || return 1
+  info=$(nmcli -g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "$1") || return 1
+  printf '%s\n%s\n' "$info" "$external"
+}
+
+# Generated external connections describe devices owned by other software.
+# Modifying one saves it as an autoconnecting NetworkManager profile.
+connection_external() {
+  local paths path flags
+
+  paths=$(nmcli -g GENERAL.DBUS-PATH connection show "$1") || return 1
+  while read -r path; do
+    [[ -n $path ]] || continue
+    flags=$(busctl --system get-property org.freedesktop.NetworkManager "$path" org.freedesktop.NetworkManager.Connection.Active StateFlags) || return 1
+    if (( ${flags#u } & 0x80 )); then
+      echo yes
+      return 0
+    fi
+  done <<<"$paths"
+  echo no
 }
 
 # From <info> (profile_dns_info's output), fill profile_dns_settings with the
@@ -174,6 +195,7 @@ read_profile_dns_settings() {
   mapfile -t fields <<<"$info"
   networkmanager_dns_connection "${fields[0]:-}" || return 1
   [[ -z ${fields[1]:-} ]] || return 1
+  [[ ${fields[6]:-no} != "yes" ]] || return 1
   [[ ${fields[2]:-} != "shared" ]] || return 1
 
   case "${fields[2]:-}" in
@@ -220,11 +242,17 @@ set_connection_dns() {
 }
 
 clear_connection_dns() {
-  local uuid type controller
+  local uuid type controller external
 
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
+    if ! external=$(connection_external "$uuid"); then
+      echo "omarchy-dns: could not read $uuid" >&2
+      dns_change_failed=true
+      continue
+    fi
+    [[ $external == "no" ]] || continue
     # Bridge/bond/team ports inherit IP settings from their controller.
     if ! controller=$(nmcli -g connection.controller connection show "$uuid"); then
       echo "omarchy-dns: could not read $uuid" >&2

@@ -36,6 +36,9 @@ if [[ -n ${STUB_PORT:-} && ${*: -1} == "$STUB_PORT" ]]; then
   controller=br0
 fi
 case "$*" in
+  "-g GENERAL.DBUS-PATH connection show "*)
+    [[ ${STUB_EXTERNAL:-no} != "yes" && ${STUB_ACTIVE:-no} != "yes" ]] || echo /org/freedesktop/NetworkManager/ActiveConnection/1
+    ;;
   "-t -f UUID,TYPE connection show") printf '%s\n' "${STUB_PROFILES:-}" ;;
   "-g connection.controller connection show "*) printf '%s\n' "$controller" ;;
   "-g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "*)
@@ -49,13 +52,17 @@ case "$*" in
   "connection modify ${STUB_REJECT:-none} "*) exit 1 ;;
 esac
 SH
+cat >"$work/bin/busctl" <<'SH'
+#!/bin/bash
+echo "u ${STUB_FLAGS:-128}"
+SH
 cat >"$work/bin/systemctl" <<'SH'
 #!/bin/bash
 # Report every unit inactive so the provider path skips its NetworkManager
 # reloads; reload/restart of resolved just succeed.
 [[ $1 != "is-active" ]]
 SH
-chmod +x "$work/bin/nmcli" "$work/bin/systemctl"
+chmod +x "$work/bin/nmcli" "$work/bin/systemctl" "$work/bin/busctl"
 touch "$work/resolved.conf"
 mount --bind "$work/bin" /usr/local/bin
 mount --bind "$work/resolved.conf" /etc/systemd/resolved.conf
@@ -93,6 +100,22 @@ for type in 802-11-wireless 802-3-ethernet bridge bond vlan team; do
     fail "dispatcher reapplies the device so the pinned DNS takes effect now"
 done
 pass "dispatcher pins the provider on uplink profiles that still take DHCP DNS"
+
+STUB_ACTIVE=yes STUB_FLAGS=65 pin "$cloudflare" bridge no
+grep -Fx "$modify" "$work/log" >/dev/null ||
+  fail "dispatcher pins a managed bridge with non-external activation flags" "log: $(cat "$work/log")"
+pass "dispatcher pins a managed bridge with non-external activation flags"
+
+STUB_EXTERNAL=yes pin "$cloudflare" bridge no
+refute_modify "dispatcher leaves externally managed bridges alone"
+
+for provider in Cloudflare DHCP; do
+  printf '%s\n' "$dhcp" >"$work/resolved.conf"
+  : >"$work/log"
+  STUB_LOG="$work/log" STUB_EXTERNAL=yes STUB_PROFILES="$uuid:bridge" STUB_TYPE=bridge \
+    bash "$dns" "$provider" </dev/null >/dev/null 2>&1
+  refute_modify "$provider leaves externally managed bridges alone"
+done
 
 # A bridge or bond port is an Ethernet profile that takes its IP settings from
 # the controller, and nmcli prints none of them.
