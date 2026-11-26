@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Kveikja á Bluetooth",
   "bluetooth.turnOnToScan": "Kveikja á Bluetooth til að skanna",
   "bluetooth.turnedOff": "Slökkt",
+  "camera.contrast": "Andstæða",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Stillingar í rauntíma",
+  "camera.resetTooltip": "Endurstilla sjálfgefnar stillingar myndavélar",
+  "camera.saturation": "Litamettun",
+  "camera.title": "Myndavél",
+  "camera.tooltipActive": "Myndavél virk — smelltu til að stilla mynd",
   "clipboard.deleteHistory": "Eyða allri klippiborðssögunni?",
   "clipboard.empty": "Klippiborð er tómt",
   "clipboard.files": {

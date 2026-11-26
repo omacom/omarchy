@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Ligar o Bluetooth",
   "bluetooth.turnOnToScan": "Ligue o Bluetooth para buscar",
   "bluetooth.turnedOff": "Desligado",
+  "camera.contrast": "Contraste",
+  "camera.gamma": "Gama",
+  "camera.liveMeta": "Ajuste ao vivo",
+  "camera.resetTooltip": "Restaurar ajuste padrão da câmera",
+  "camera.saturation": "Saturação",
+  "camera.title": "Câmera",
+  "camera.tooltipActive": "Câmera ativa — clique para ajustar a imagem",
   "clipboard.deleteHistory": "Excluir todo o histórico da área de transferência?",
   "clipboard.empty": "Área de transferência vazia",
   "clipboard.files": {

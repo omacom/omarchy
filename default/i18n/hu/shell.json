@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth bekapcsolása",
   "bluetooth.turnOnToScan": "Kapcsold be a Bluetooth-t a kereséshez",
   "bluetooth.turnedOff": "Kikapcsolva",
+  "camera.contrast": "Kontraszt",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Élő hangolás",
+  "camera.resetTooltip": "Kamera alapbeállításainak visszaállítása",
+  "camera.saturation": "Telítettség",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera aktív — kattints a kép beállításához",
   "clipboard.deleteHistory": "Törlöd a teljes vágólap-előzményt?",
   "clipboard.empty": "Üres a vágólap",
   "clipboard.files": {

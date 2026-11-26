@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Zapnout Bluetooth",
   "bluetooth.turnOnToScan": "Zapněte Bluetooth pro vyhledávání",
   "bluetooth.turnedOff": "Vypnuto",
+  "camera.contrast": "Kontrast",
+  "camera.gamma": "Gama",
+  "camera.liveMeta": "Úpravy naživo",
+  "camera.resetTooltip": "Obnovit výchozí nastavení kamery",
+  "camera.saturation": "Sytost",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera aktivní — kliknutím upravíte obraz",
   "clipboard.deleteHistory": "Smazat celou historii schránky?",
   "clipboard.empty": "Schránka je prázdná",
   "clipboard.files": {

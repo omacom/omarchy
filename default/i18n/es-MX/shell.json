@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Activar Bluetooth",
   "bluetooth.turnOnToScan": "Activa Bluetooth para buscar",
   "bluetooth.turnedOff": "Apagado",
+  "camera.contrast": "Contraste",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Ajuste en vivo",
+  "camera.resetTooltip": "Restaurar ajuste predeterminado de la cámara",
+  "camera.saturation": "Saturación",
+  "camera.title": "Cámara",
+  "camera.tooltipActive": "Cámara activa — haz clic para ajustar la imagen",
   "clipboard.deleteHistory": "¿Borrar todo el historial del portapapeles?",
   "clipboard.empty": "El portapapeles está vacío",
   "clipboard.files": {

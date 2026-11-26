@@ -191,6 +191,13 @@
   "bluetooth.turnOn": "Bluetooth をオンにする",
   "bluetooth.turnOnToScan": "スキャンするには Bluetooth をオンにする",
   "bluetooth.turnedOff": "オフ",
+  "camera.contrast": "コントラスト",
+  "camera.gamma": "ガンマ",
+  "camera.liveMeta": "ライブ調整",
+  "camera.resetTooltip": "カメラ調整をデフォルトに戻す",
+  "camera.saturation": "彩度",
+  "camera.title": "カメラ",
+  "camera.tooltipActive": "カメラ使用中 — クリックして画質を調整",
   "clipboard.deleteHistory": "クリップボード履歴をすべて削除しますか？",
   "clipboard.empty": "クリップボードは空です",
   "clipboard.files": {

@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Ieslēgt Bluetooth",
   "bluetooth.turnOnToScan": "Ieslēgt Bluetooth, lai meklētu",
   "bluetooth.turnedOff": "Izslēgts",
+  "camera.contrast": "Kontrasts",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Reāllaika regulēšana",
+  "camera.resetTooltip": "Atjaunot kameras noklusējuma iestatījumus",
+  "camera.saturation": "Piesātinājums",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera aktīva — noklikšķiniet, lai pielāgotu attēlu",
   "clipboard.deleteHistory": "Dzēst visu starpliktuves vēsturi?",
   "clipboard.empty": "Starpliktuve ir tukša",
   "clipboard.files": {

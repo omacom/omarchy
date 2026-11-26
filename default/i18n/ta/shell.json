@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth ஐ இயக்கு",
   "bluetooth.turnOnToScan": "ஸ்கேன் செய்ய Bluetooth ஐ இயக்கு",
   "bluetooth.turnedOff": "அணைக்கப்பட்டது",
+  "camera.contrast": "மாறுபாடு",
+  "camera.gamma": "காமா",
+  "camera.liveMeta": "நேரடி சரிசெய்தல்",
+  "camera.resetTooltip": "இயல்புநிலை கேமரா சரிசெய்தலை மீட்டமை",
+  "camera.saturation": "நிறச்செறிவு",
+  "camera.title": "கேமரா",
+  "camera.tooltipActive": "கேமரா செயலில் உள்ளது — படத்தைச் சரிசெய்ய கிளிக் செய்க",
   "clipboard.deleteHistory": "கிளிப்போர்டு வரலாறு முழுவதையும் நீக்கவா?",
   "clipboard.empty": "கிளிப்போர்டு காலியாக உள்ளது",
   "clipboard.files": {

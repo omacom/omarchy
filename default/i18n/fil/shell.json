@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "I-on ang Bluetooth",
   "bluetooth.turnOnToScan": "I-on ang Bluetooth para mag-scan",
   "bluetooth.turnedOff": "Naka-off",
+  "camera.contrast": "Contrast",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Live na pagsasaayos",
+  "camera.resetTooltip": "Ibalik ang default na ayos ng kamera",
+  "camera.saturation": "Saturation",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Aktibo ang kamera — i-click para ayusin ang larawan",
   "clipboard.deleteHistory": "Burahin ang buong kasaysayan ng clipboard?",
   "clipboard.empty": "Walang laman ang clipboard",
   "clipboard.files": {

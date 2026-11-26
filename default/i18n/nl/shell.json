@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth inschakelen",
   "bluetooth.turnOnToScan": "Bluetooth inschakelen om te scannen",
   "bluetooth.turnedOff": "Uitgeschakeld",
+  "camera.contrast": "Contrast",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Live afstemming",
+  "camera.resetTooltip": "Standaard camera-instelling herstellen",
+  "camera.saturation": "Verzadiging",
+  "camera.title": "Camera",
+  "camera.tooltipActive": "Camera actief — klik om beeld af te stemmen",
   "clipboard.deleteHistory": "Hele klembordgeschiedenis verwijderen?",
   "clipboard.empty": "Klembord is leeg",
   "clipboard.files": {

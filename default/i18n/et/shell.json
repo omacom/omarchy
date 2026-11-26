@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Lülita Bluetooth sisse",
   "bluetooth.turnOnToScan": "Skannimiseks lülita Bluetooth sisse",
   "bluetooth.turnedOff": "Välja lülitatud",
+  "camera.contrast": "Kontrast",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Reaalajas häälestus",
+  "camera.resetTooltip": "Taasta kaamera vaikehäälestus",
+  "camera.saturation": "Küllastus",
+  "camera.title": "Kaamera",
+  "camera.tooltipActive": "Kaamera aktiivne — klõpsa pildi häälestamiseks",
   "clipboard.deleteHistory": "Kustuta kogu lõikelaua ajalugu?",
   "clipboard.empty": "Lõikelaud on tühi",
   "clipboard.files": {

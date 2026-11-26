@@ -191,6 +191,13 @@
   "bluetooth.turnOn": "เปิด Bluetooth",
   "bluetooth.turnOnToScan": "เปิด Bluetooth เพื่อค้นหา",
   "bluetooth.turnedOff": "ปิดอยู่",
+  "camera.contrast": "คอนทราสต์",
+  "camera.gamma": "แกมมา",
+  "camera.liveMeta": "ปรับแต่งสด",
+  "camera.resetTooltip": "คืนค่าปรับแต่งกล้องเริ่มต้น",
+  "camera.saturation": "ความอิ่มสี",
+  "camera.title": "กล้อง",
+  "camera.tooltipActive": "กล้องกำลังทำงาน — คลิกเพื่อปรับภาพ",
   "clipboard.deleteHistory": "ลบประวัติคลิปบอร์ดทั้งหมดไหม?",
   "clipboard.empty": "คลิปบอร์ดว่าง",
   "clipboard.files": {

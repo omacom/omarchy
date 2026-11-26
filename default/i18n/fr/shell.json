@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Activer le Bluetooth",
   "bluetooth.turnOnToScan": "Activez le Bluetooth pour rechercher",
   "bluetooth.turnedOff": "Désactivé",
+  "camera.contrast": "Contraste",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Réglage en direct",
+  "camera.resetTooltip": "Restaurer les réglages par défaut de la caméra",
+  "camera.saturation": "Saturation",
+  "camera.title": "Caméra",
+  "camera.tooltipActive": "Caméra active — cliquez pour régler l'image",
   "clipboard.deleteHistory": "Supprimer tout l'historique du presse-papiers ?",
   "clipboard.empty": "Le presse-papiers est vide",
   "clipboard.files": {

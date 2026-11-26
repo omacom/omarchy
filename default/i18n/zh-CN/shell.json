@@ -191,6 +191,13 @@
   "bluetooth.turnOn": "打开 Bluetooth",
   "bluetooth.turnOnToScan": "打开 Bluetooth 以扫描",
   "bluetooth.turnedOff": "已关闭",
+  "camera.contrast": "对比度",
+  "camera.gamma": "伽马",
+  "camera.liveMeta": "实时调整",
+  "camera.resetTooltip": "恢复默认摄像头设置",
+  "camera.saturation": "饱和度",
+  "camera.title": "摄像头",
+  "camera.tooltipActive": "摄像头使用中 — 点击调整画面",
   "clipboard.deleteHistory": "删除整个剪贴板历史？",
   "clipboard.empty": "剪贴板为空",
   "clipboard.files": {

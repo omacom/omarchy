@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth ni yoqish",
   "bluetooth.turnOnToScan": "Skanerlash uchun Bluetooth ni yoqing",
   "bluetooth.turnedOff": "Oʻchirilgan",
+  "camera.contrast": "Kontrast",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Jonli sozlash",
+  "camera.resetTooltip": "Kamera standart sozlamalarini tiklash",
+  "camera.saturation": "To'yinganlik",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera faol — tasvirni sozlash uchun bosing",
   "clipboard.deleteHistory": "Butun bufer tarixi oʻchirilsinmi?",
   "clipboard.empty": "Bufer boʻsh",
   "clipboard.files": {

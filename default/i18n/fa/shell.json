@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "روشن‌کردن Bluetooth",
   "bluetooth.turnOnToScan": "برای اسکن، Bluetooth را روشن کنید",
   "bluetooth.turnedOff": "خاموش",
+  "camera.contrast": "کنتراست",
+  "camera.gamma": "گاما",
+  "camera.liveMeta": "تنظیم زنده",
+  "camera.resetTooltip": "بازگرداندن تنظیمات پیش‌فرض دوربین",
+  "camera.saturation": "اشباع",
+  "camera.title": "دوربین",
+  "camera.tooltipActive": "دوربین فعال است — برای تنظیم تصویر کلیک کنید",
   "clipboard.deleteHistory": "کل تاریخچه کلیپ‌بورد حذف شود؟",
   "clipboard.empty": "کلیپ‌بورد خالی است",
   "clipboard.files": {
