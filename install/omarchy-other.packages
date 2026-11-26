@@ -91,6 +91,9 @@ acer-aspire-16-ai-audio
 # HP laptop support packages
 hp-omnibook-3-audio
 
+# Anduril laptop support packages
+anduril-bluechip-support
+
 # ASUS laptop support packages
 asus-proart-p14-audio
 asus-proart-pz13-audio
