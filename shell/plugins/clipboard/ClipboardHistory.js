@@ -20,6 +20,10 @@ function normalizeEntry(value) {
     }
     if (value.capturedAt !== undefined && value.capturedAt !== null)
       entry.capturedAt = String(value.capturedAt)
+    if (value.inode !== undefined && value.inode !== null && /^\d+$/.test(String(value.inode)))
+      entry.inode = String(value.inode)
+    if (value.gen !== undefined && value.gen !== null && /^\d+$/.test(String(value.gen)))
+      entry.gen = Number(value.gen)
     return entry
   }
 
@@ -62,7 +66,14 @@ function addEntry(history, entry, limit) {
 
   for (var i = 0; i < values.length && next.length < max; i++) {
     var existing = normalizeEntry(values[i])
-    if (!existing || entryKey(existing) === key) continue
+    if (!existing) continue
+    if (entryKey(existing) === key) {
+      if (normalized.type === "image" && existing.gen && (!normalized.gen || existing.gen > normalized.gen)) {
+        normalized.gen = existing.gen
+        if (existing.inode) normalized.inode = existing.inode
+      }
+      continue
+    }
     next.push(existing)
   }
 
@@ -81,6 +92,35 @@ function removeEntryAt(history, index) {
 
 function clearHistory() {
   return []
+}
+
+function removedImageEntries(previousHistory, nextHistory, imageDir) {
+  var dir = String(imageDir || "").replace(/\/+$/, "")
+  if (!dir) return []
+
+  var prefix = dir + "/"
+  var kept = {}
+  var next = Array.isArray(nextHistory) ? nextHistory : []
+  for (var i = 0; i < next.length; i++) {
+    var entry = next[i]
+    if (entry && entry.type === "image" && entry.path) kept[String(entry.path)] = true
+  }
+
+  var removed = []
+  var seen = {}
+  var prev = Array.isArray(previousHistory) ? previousHistory : []
+  for (var j = 0; j < prev.length; j++) {
+    var oldEntry = prev[j]
+    if (!oldEntry || oldEntry.type !== "image" || !oldEntry.path || !oldEntry.inode) continue
+    var path = String(oldEntry.path)
+    if (kept[path] || seen[path] || path.indexOf(prefix) !== 0) continue
+    var name = path.substring(prefix.length)
+    if (!name || name === "." || name === ".." || name.indexOf("/") >= 0) continue
+    seen[path] = true
+    removed.push({ path: path, inode: String(oldEntry.inode) })
+  }
+
+  return removed
 }
 
 function parseEntryJson(line) {
@@ -227,6 +267,7 @@ if (typeof module !== "undefined") {
     addEntry: addEntry,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
+    removedImageEntries: removedImageEntries,
     parseEntryJson: parseEntryJson,
     searchableText: searchableText,
     previewText: previewText,

@@ -110,7 +110,9 @@ Item {
   function confirmUninstall() {
     var entry = root.uninstallEntry
     root.uninstallEntry = null
-    root.close()
+    // The grid stays open: the app drops out of it once it is gone, and only
+    // an uninstall that needs a terminal closes it.
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
     if (entry && root.appLibrary) root.appLibrary.remove(entry.id, root.appLibrary.entryName(entry))
   }
 
@@ -130,6 +132,14 @@ Item {
     root.apps = rows.map(function(row) { return row.entry })
     root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
     grid.positionViewAtBeginning()
+  }
+
+  // Apps came or went while the grid is open: keep the user where they were.
+  function refresh() {
+    var position = grid.contentY
+    root.rebuild()
+    grid.forceLayout()
+    grid.contentY = Math.max(0, Math.min(position, grid.contentHeight - grid.height))
   }
 
   function setFilter(text) {
@@ -171,8 +181,11 @@ Item {
   Connections {
     target: root.appLibrary
     function onAppsChanged() {
-      if (root.opened) root.rebuild()
+      if (root.opened) root.refresh()
       else root.appsStale = true
+    }
+    function onRemovalNeedsTerminal() {
+      if (root.opened) root.close()
     }
   }
 
@@ -323,6 +336,16 @@ Item {
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+
+            // Mouse wheels keep the grid's own scrolling.
+            WheelHandler {
+              acceptedDevices: PointerDevice.TouchPad
+              target: null
+              onWheel: function(event) {
+                var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
+                grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - event.pixelDelta.y * Style.touchpadScrollFactor))
+              }
+            }
 
             delegate: Item {
               id: cell
