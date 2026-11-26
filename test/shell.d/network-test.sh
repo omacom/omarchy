@@ -437,6 +437,15 @@ if stripped[:3] in (["device", "wifi", "list"], ["dev", "wifi", "list"]):
         else:
             print("5200 MHz:Quattro")
             print("6135 MHz:Quattro")
+    elif fields == "SSID,SECURITY,FREQ":
+        print("Quattro:WPA2 WPA3:6135 MHz")
+        print("Quattro:WPA2 WPA3:5200 MHz")
+        print(r"Cafe\:2\\4:WPA2:2437 MHz")
+        print("OpenNet:--:2412 MHz")
+        print("SixOnly:WPA3:6455 MHz")
+        print("MixedPin:WPA3:6135 MHz")
+        print("MixedPin:WPA2:5200 MHz")
+        print("-dash-net:WPA2:5180 MHz")
     else:
         print("*:Quattro:74:WPA2 WPA3:6135 MHz")
         print(" :Quattro:95:WPA2 WPA3:5200 MHz")
@@ -474,8 +483,13 @@ if stripped[:2] == ["connection", "show"]:
                 "11111111-1111-1111-1111-111111111111": "Quattro",
                 "33333333-3333-3333-3333-333333333333": "Cafe:2\\4",
                 "66666666-6666-6666-6666-666666666666": "SixOnly",
+                "77777777-7777-7777-7777-777777777777": "MixedPin",
             }
             print(mapping.get(uid, ""))
+            raise SystemExit(0)
+        if field == "802-11-wireless-security.key-mgmt,802-11-wireless.band":
+            print("wpa-psk")
+            print("a" if uid == "77777777-7777-7777-7777-777777777777" else "")
             raise SystemExit(0)
         if field == "802-11-wireless-security.key-mgmt":
             print("wpa-psk")
@@ -503,6 +517,8 @@ if stripped[:2] == ["connection", "show"]:
     print(r"Cafe\:2\\4:33333333-3333-3333-3333-333333333333:802-11-wireless:--:yes")
     if os.environ.get("TEST_SAVED_SIXONLY") == "1":
         print("SixOnly:66666666-6666-6666-6666-666666666666:802-11-wireless:--:yes")
+    if os.environ.get("TEST_SAVED_MIXEDPIN") == "1":
+        print("MixedPin:77777777-7777-7777-7777-777777777777:802-11-wireless:--:yes")
     print("Wired Office:22222222-2222-2222-2222-222222222222:802-3-ethernet:eth0:yes")
     print("Quattro:44444444-4444-4444-4444-444444444444:802-3-ethernet:--:no")
     raise SystemExit(0)
@@ -649,7 +665,19 @@ grep -q "set wifi-sec.psk top-secret-psk" "$NET_STATE_DIR/nmcli_stdin.log" || fa
 printf 'upgraded-psk\n' | TEST_SAVED_SIXONLY=1 wifi_cli connect SixOnly --password-stdin --json >/dev/null
 grep -q "connection modify uuid 66666666-6666-6666-6666-666666666666 wifi-sec.key-mgmt sae" "$NET_STATE_DIR/nmcli.log" ||
   fail "saved WPA2 profile should upgrade key-mgmt to sae for WPA3-only AP" "$(cat "$NET_STATE_DIR/nmcli.log")"
-pass "wifi CLI connect keeps PSK off argv and upgrades saved security to sae for WPA3-only APs"
+
+: >"$NET_STATE_DIR/nmcli.log"
+printf 'pinned-psk\n' | TEST_SAVED_MIXEDPIN=1 wifi_cli connect MixedPin --password-stdin --json >/dev/null
+grep -q "wifi-sec.key-mgmt sae" "$NET_STATE_DIR/nmcli.log" &&
+  fail "5 GHz-pinned WPA2 profile must not switch to sae due to 6 GHz WPA3 AP" "$(cat "$NET_STATE_DIR/nmcli.log")"
+
+: >"$NET_STATE_DIR/nmcli.log"
+status=0
+printf 'bad-psk\n' | TEST_SAVED_SIXONLY=1 TEST_FAIL_UP=1 wifi_cli connect SixOnly --password-stdin >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "failed saved-profile PSK update should exit 1" "got $status"
+grep -q "connection modify uuid 66666666-6666-6666-6666-666666666666 wifi-sec.key-mgmt wpa-psk" "$NET_STATE_DIR/nmcli.log" ||
+  fail "failed saved-profile security change should roll back key-mgmt" "$(cat "$NET_STATE_DIR/nmcli.log")"
+pass "wifi CLI connect keeps PSK off argv, respects pinned band security, and rolls back failed upgrades"
 
 : >"$NET_STATE_DIR/nmcli.log"
 printf 'dash-secret\n' | wifi_cli connect --password-stdin -- -dash-net >/dev/null

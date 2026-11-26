@@ -542,14 +542,31 @@ def nm_set_secret_via_edit(profile_uuid: str, prop: str, secret: str) -> None:
         raise RuntimeError(proc.stderr.strip())
 
 
-def detect_psk_key_mgmt(ssid: str, iface: str) -> str | None:
-    nearby = {r["ssid"]: r for r in list_nearby_networks(False, iface)}
-    entry = nearby.get(ssid)
-    if entry is None:
+def detect_psk_key_mgmt(ssid: str, iface: str, pinned_band: str = "auto") -> str | None:
+    proc = run_cmd(
+        ["nmcli", "-t", "-f", "SSID,SECURITY,FREQ", "device", "wifi", "list", "ifname", iface, "--rescan", "no"]
+    )
+    if proc.returncode != 0:
         return None
-    sec = entry.get("security", "").upper()
-    tokens = set(sec.split())
-    if ("WPA3" in tokens or "SAE" in tokens) and "WPA2" not in tokens and "WPA1" not in tokens:
+    saw_match = False
+    saw_wpa_psk = False
+    saw_sae = False
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) < 3 or parts[0] != ssid:
+            continue
+        ap_band = band_for_freq(parts[2])
+        if pinned_band != "auto" and ap_band != pinned_band:
+            continue
+        saw_match = True
+        tokens = set(parts[1].upper().split())
+        if "WPA2" in tokens or "WPA1" in tokens:
+            saw_wpa_psk = True
+        elif "WPA3" in tokens or "SAE" in tokens:
+            saw_sae = True
+    if not saw_match:
+        return None
+    if saw_sae and not saw_wpa_psk:
         return "sae"
     return "wpa-psk"
 
@@ -606,23 +623,37 @@ def connect_psk_via_profile(
     # Update an existing profile for this SSID if present; otherwise create a
     # fresh profile and set the PSK via `nmcli connection edit` stdin so the
     # passphrase never appears in process argv.
-    detected_km = detect_psk_key_mgmt(ssid, target_iface)
-    key_mgmt = detected_km or "wpa-psk"
     matches = [p for p in saved_wifi_profiles() if p["ssid"] == ssid]
     created = False
+    prev_km: str | None = None
     if matches:
         con_uuid = matches[0]["uuid"]
-        cur_km = run_cmd(
-            ["nmcli", "-e", "no", "-g", "802-11-wireless-security.key-mgmt", "connection", "show", "uuid", con_uuid],
+        meta_lines = run_cmd(
+            [
+                "nmcli",
+                "-e",
+                "no",
+                "-g",
+                "802-11-wireless-security.key-mgmt,802-11-wireless.band",
+                "connection",
+                "show",
+                "uuid",
+                con_uuid,
+            ],
             check=True,
-        ).stdout.strip()
+        ).stdout.splitlines()
+        cur_km = meta_lines[0].strip() if len(meta_lines) >= 1 else ""
+        pinned_band = band_from_nm(meta_lines[1]) if len(meta_lines) >= 2 else "auto"
+        detected_km = detect_psk_key_mgmt(ssid, target_iface, pinned_band=pinned_band)
         desired_km = detected_km if detected_km is not None else (cur_km if cur_km in ("wpa-psk", "sae") else "wpa-psk")
         if cur_km != desired_km:
+            prev_km = cur_km
             run_cmd(
                 ["nmcli", "connection", "modify", "uuid", con_uuid, "wifi-sec.key-mgmt", desired_km],
                 check=True,
             )
     else:
+        key_mgmt = detect_psk_key_mgmt(ssid, target_iface) or "wpa-psk"
         con_uuid = str(uuid_mod.uuid4())
         add_cmd = [
             "nmcli",
@@ -651,6 +682,8 @@ def connect_psk_via_profile(
     except Exception:
         if created:
             run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid])
+        elif prev_km:
+            run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "wifi-sec.key-mgmt", prev_km])
         raise
 
 
