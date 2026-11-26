@@ -55,6 +55,18 @@ pass "update skips agents excluded with --except"
   fail "update does not treat itself as a collector"
 pass "update does not treat itself as a collector"
 
+# A second panel refresh must not start another set of full local scans while
+# the first refresh still holds the updater lock.
+exec {update_lock_fd}>"$usage_dir/.update.lock"
+flock -n "$update_lock_fd" || fail "test could not hold the updater lock"
+HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+  "$ROOT/bin/omarchy-agent-usage-update" --except skipped 2>/dev/null ||
+  fail "a concurrent refresh is skipped successfully"
+[[ ! -e $usage_dir/skipped.json ]] || fail "a concurrent refresh does not start collectors"
+pass "a concurrent refresh does not start collectors"
+flock -u "$update_lock_fd"
+exec {update_lock_fd}>&-
+
 HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
   "$ROOT/bin/omarchy-agent-usage-update" skipped 2>/dev/null ||
   fail "update succeeds when the requested collectors all pass"

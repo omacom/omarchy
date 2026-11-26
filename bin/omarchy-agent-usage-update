@@ -33,6 +33,12 @@ while (( $# > 0 )); do
   shift
 done
 
+# The panel may refresh again before its previous scan finishes. Let the
+# current refresh finish and drop the duplicate instead of starting another
+# full set of collectors against the same local stores.
+exec {update_lock_fd}>"$USAGE_DIR/.update.lock"
+flock -n "$update_lock_fd" || exit 0
+
 wanted() {
   local agent="$1"
   [[ -n ${excluded[$agent]} ]] && return 1
