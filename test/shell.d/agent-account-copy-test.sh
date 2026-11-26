@@ -288,6 +288,13 @@ else:
 assert (Path.home() / ".claude.json").read_text() == malformed
 assert not list(Path.home().rglob(".account-copy-backup-*"))
 
+# A broken login is still replaced by the one copied in.
+machine("broken-login")
+claude(state.primary_home("claude"), "personal", "before-break")
+main_login().write_text('{"claudeAiOauth": ')
+transfer.import_provider("claude", payload["providers"]["claude"], True)
+assert state.read_json(main_login())["claudeAiOauth"]["accessToken"] == "fake-personal"
+
 # An older installed receiver lacks name synchronization. Use the destination's
 # own backend for the new receiver so additional registry fields survive.
 machine("newer-backend")
