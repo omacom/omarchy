@@ -88,8 +88,8 @@ tell apart.
 When you run `pkexec` yourself, give the password dialog a reason. Without one, the dialog shows who is asking (when it can tell) and the command, shortened once the command gets long. That tells the person what will run, but not why. Set the reason directly before `pkexec`, in the same shell command, using one array for both:
 
 ```bash
-cmd=(pacman -S --noconfirm valkey)
-omarchy-shell -q omarchy.polkit expect "${cmd[*]}" "Claude needs Valkey for the Rails app's cache"
+cmd=(install -d -m 0755 /etc/myapp)
+omarchy-shell -q omarchy.polkit expect "${cmd[*]}" "Claude needs a system configuration directory for MyApp"
 pkexec "${cmd[@]}"
 ```
 
