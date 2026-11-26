@@ -13,6 +13,7 @@ Item {
 
   readonly property int batteryThreshold: 10
   readonly property int lowBatteryWarningRecoveryThreshold: 20
+  property bool notifiedLowBattery: false
   property string pendingPowerSource: ""
   property bool warningDismissRearmRequested: false
   // Follows power-profiles-daemon's change signals, so nothing polls it.
@@ -27,7 +28,6 @@ Item {
   PersistentProperties {
     id: persisted
     reloadableId: "omarchy-battery"
-    property bool notifiedLowBattery: false
     property bool lowBatteryWarningVisible: false
   }
 
@@ -40,8 +40,8 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
-    persisted.notifiedLowBattery = state.notifiedLowBattery
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, notifiedLowBattery)
+    notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
     var shouldDismissWarning = BatteryModel.shouldDismissLowBatteryWarning(UPower.displayDevice, UPowerDeviceState.Discharging, persisted.lowBatteryWarningVisible, lowBatteryWarningRecoveryThreshold)
     if (shouldDismissWarning && !warningDismissProcess.running) {
@@ -100,7 +100,7 @@ Item {
       if (exitCode === 0) {
         persisted.lowBatteryWarningVisible = false
         if (root.warningDismissRearmRequested) {
-          persisted.notifiedLowBattery = false
+          root.notifiedLowBattery = false
           root.warningDismissRearmRequested = false
           Qt.callLater(root.checkBattery)
         }

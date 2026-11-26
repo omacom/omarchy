@@ -13,5 +13,5 @@ fi
 
 level=$1
 
-omarchy-notification-send -g 󱐋 -u critical "$(omarchy-i18n battery.lowTitle)" "$(omarchy-i18n battery.lowBody "$level")" -i battery-caution
+omarchy-notification-send --transient -g 󱐋 -u critical "$(omarchy-i18n battery.lowTitle)" "$(omarchy-i18n battery.lowBody "$level")" -i battery-caution
 omarchy-hook battery-low "$level"

@@ -112,7 +112,8 @@ assertEqual(
 )
 JS
 
-# The low-battery command must insist until noticed and still pass the level to hooks.
+# The low-battery command must stay critical in-session, avoid restoring stale
+# warnings after shell restarts and still pass the level to hooks.
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 mkdir -p "$tmpdir/bin"
@@ -138,10 +139,11 @@ for ((i = 0; i < ${#notification_args[@]}; i++)); do
   if [[ ${notification_args[i]} == "-u" ]]; then urgency_index=$((i + 1)); break; fi
 done
 (( urgency_index >= 0 )) || fail "low-battery warning sets an urgency"
-[[ ${notification_args[urgency_index]} == "critical" ]] || fail "low-battery warning persists until noticed" "${notification_args[*]}"
+[[ ${notification_args[urgency_index]} == "critical" ]] || fail "low-battery warning is critical" "${notification_args[*]}"
+[[ ${notification_args[*]} == *"--transient"* ]] || fail "low-battery warning is not restored after a shell restart" "${notification_args[*]}"
 [[ ${notification_args[*]} != *"-t 30000"* ]] || fail "low-battery warning does not set a misleading transient timeout"
 [[ ${hook_args[*]} == "battery-low 7" ]] || fail "low-battery warning still calls hooks with the percentage" "${hook_args[*]}"
-pass "low-battery command sends a persistent warning and runs its hook"
+pass "low-battery command sends a critical transient warning and runs its hook"
 
 cat >"$tmpdir/bin/omarchy-notification-dismiss" <<'SH'
 #!/bin/bash
