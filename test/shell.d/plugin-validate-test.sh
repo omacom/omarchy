@@ -163,7 +163,13 @@ harness_validate >/dev/null && fail "validate accepts a launch command other tha
 pass "plugins launch the command their harness installs"
 
 # The local model is a choice omarchy-default-agent answers before it reads the
-# catalog, so a harness claiming the name would only shadow it.
+# catalog, so a harness claiming the name would only shadow it. Earlier cases
+# leave this manifest invalid in other ways, so it is made good first: the
+# assertions below have to fail on the reserved name and nothing else.
+harness_rewrite '.agentHarness.launch.command = ["acme-agent", "{project}"] | .agentHarness.launch.promptCommand = ["acme-agent", "{project}", "{prompt}"] | .agentHarness.aliases = ["acme"]'
+harness_validate >/dev/null || fail "the reserved-name case starts from a valid harness"
+harness_catalog | jq -e '.[] | select(.id == "acme-agent")' >/dev/null ||
+  fail "the reserved-name case starts from a harness the catalog lists"
 harness_rewrite '.agentHarness.id = "local"'
 harness_validate >/dev/null && fail "validate accepts the local model's name as a harness id"
 harness_catalog | jq -e '.[] | select(.id == "local")' >/dev/null &&

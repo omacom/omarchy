@@ -30,12 +30,14 @@ fi
 [[ -z $candidate || $candidate_present == "true" ]] || inputs+=("$candidate")
 
 result=$(jq -s '
+  def valid_id:
+    (type == "string") and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\z") and (contains("..") | not);
   # "local" is not a harness but the local model the launcher opens, which
   # omarchy-default-agent answers before it reads this catalog at all, so a
-  # harness claiming the name would only shadow that choice.
-  def valid_id:
-    (type == "string") and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\z") and (contains("..") | not)
-    and . != "local";
+  # harness claiming the name would only shadow that choice. An integration may
+  # still be called local: that names the plugin, not the harness it adds.
+  def valid_harness_id:
+    valid_id and . != "local";
   def valid_command:
     (type == "array") and length > 0
     and all(.[];
@@ -44,9 +46,9 @@ result=$(jq -s '
       and ([scan("\\{[^{}]+\\}")] | all(. == "{project}" or . == "{prompt}"))
     );
   def valid_harness:
-    (.id | valid_id)
+    (.id | valid_harness_id)
     and (.name | type == "string" and length > 0)
-    and ((.aliases // []) | type == "array" and all(.[]; valid_id and (contains("..") | not)))
+    and ((.aliases // []) | type == "array" and all(.[]; valid_harness_id and (contains("..") | not)))
     and (.install | type == "object" and (.command | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$"))
       and ((.type == "package")
         or (.type == "none")
