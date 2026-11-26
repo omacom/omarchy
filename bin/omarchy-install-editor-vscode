@@ -36,7 +36,7 @@ add_default() {
 EOF
 add_default ~/.vscode/argv.json password-store gnome-libsecret
 
-# Ensure VSC's own auto-update feature is turned off
+# VSC's own auto-update is off unless the settings already choose a mode
 add_default ~/.config/Code/User/settings.json update.mode none
 
 # Apply Omarchy theme to VSCode
