@@ -148,6 +148,8 @@ zoneinfo = Path("/usr/share/zoneinfo")
 owners = {}
 for profile in sorted((Path(os.environ["ROOT"]) / "default/regions").iterdir()):
     lines = (profile / "timezones").read_text().splitlines()
+    # First-boot setup matches whole lines, so a padded entry would never match.
+    assert all(line == line.strip() for line in lines), f"{profile.name} pads a timezone"
     zones = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
     assert zones, f"{profile.name} maps no timezones"
     for zone in zones:

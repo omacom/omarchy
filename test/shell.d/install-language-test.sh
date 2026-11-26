@@ -63,10 +63,7 @@ grep -qxF 'export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"' "$ROOT/bin
 eval "$(sed -n '/^configure_region() {$/,/^}$/p' "$ROOT/bin/omarchy-provision-owner")"
 region_root=$scratch/region
 mkdir -p "$region_root/omarchy/bin" "$region_root/omarchy/install/config" "$region_root/etc/omarchy"
-for profile in "$ROOT"/default/regions/*/; do
-  mkdir -p "$region_root/omarchy/default/regions/$(basename "$profile")"
-  cp "$profile/timezones" "$region_root/omarchy/default/regions/$(basename "$profile")/"
-done
+ln -s "$ROOT/default" "$region_root/omarchy/default"
 printf '#!/bin/bash\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
 chmod +x "$region_root/omarchy/bin/omarchy-apply-pacman"
 printf 'echo region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
