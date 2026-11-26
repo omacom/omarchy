@@ -1,22 +1,22 @@
 # Windows VM
 
-Az Omarchy egyszerű lehetőséget kínál a Windows Docker-VM-en keresztüli futtatására. Az Omarchy menü (`Super + Space`) _Install > Windows_ pontjában telepítheted.
+Az Omarchy egyszerű módot kínál a Windows futtatására Docker VM segítségével x86_64-es gépeken. Az Omarchy menü (`Super + Space`) _Install > Windows_ pontjával telepítheted.
 
-A gépednek ehhez KVM-virtualizációra van szüksége, amely a legtöbb gép rendelkezik — de néha a BIOS-ban ki van kapcsolva, és a telepítő jelzi, ha ez a helyzet. A lemezterületre is szükséged lesz: bármennyit adsz a Windowsnak, plusz kb. 10 GB magának a képnek.
+A gépednek ehhez KVM virtualizációra van szüksége, amit a legtöbb gép tud — de néha ki van kapcsolva a BIOS-ban, és a telepítő szólni fog, ha nálad is ez a helyzet. Lemezterületre is szükséged lesz: amennyit a Windowsnak adsz, plusz körülbelül 10GB magának a lemezképnek.
 
-A telepítő megkérdezi, hogy mennyi RAM-ot, hány CPU-magot és mennyi lemezt kell átadni (64 GB vagy több az értelmes alap), majd egy Windows-felhasználónevet és jelszót kér. Hagyd üresen ezeket, és megkapod a `docker` / `admin` párost. A letöltés eltart egy darabig — 10–15 perc normális —, és az előrehaladást a böngészőben itt követheted: `http://127.0.0.1:8006`. A böngésző a konzol megnyitása előtt ugyanarra a felhasználónévre és jelszóra rákérdez.
+A telepítő megkérdezi, mennyi RAM-ot, hány CPU-magot és mennyi lemezterületet adsz át (64GB vagy több az ésszerű minimum), majd egy Windows felhasználónevet és jelszót kér. Hagyd ezeket üresen, és `docker` / `admin` lesz belőle. A letöltés eltart egy ideig — 10-15 perc teljesen normális —, a folyamatot pedig a böngészőben követheted a `http://127.0.0.1:8006` címen. A böngésző ugyanazt a felhasználónevet és jelszót kéri, mielőtt megnyitná a konzolt.
 
  ![windows-vm](images/windows-vm.webp)
 
-## Használata
+## Használat
 
-A telepítés után indítsd el a _Windowst_ az alkalmazásindítóból. Ez elindítja a VM-et, ha még nem fut, és RDP-n kapcsol, teljes képernyősen. Hidegindításkor adj neki 15-30 másodpercet.
+Ha települt, indítsd el a _Windows_ alkalmazást az alkalmazásindítóból. Ez elindítja a VM-et, ha még nem fut, és RDP-n keresztül, teljes képernyőn csatlakoztat hozzá. Hidegindításnál adj neki 15-30 másodpercet.
 
-Az RDP munkamenet hordozza a hangot, a mikrofonodat és a közös vágólapot is, így a szöveg másolása Linux és a Windows között egyszerűen működik. A felbontás követi az ablakodat, és az Omarchy átveszi a kijelző skálázását, így nem lesz homályos káosz a HiDPI képernyőn.
+Az RDP-munkamenet átviszi a hangot, a mikrofonodat és egy közös vágólapot, így a szöveg másolása Linux és Windows között egyszerűen működik. A felbontás követi az ablakodat, az Omarchy pedig átadja a kijelződ méretezését is, így HiDPI képernyőn sem lesz belőle elmosódott katyvasz.
 
-Amikor bezárod az RDP ablakot, a VM automatikusan leáll. Ha inkább futni hagynád — mondjuk valami ott dolgozik — indítsd inkább az `omarchy windows vm launch --keep-alive` paranccsal.
+Ha bezárod az RDP-ablakot, a VM automatikusan leáll. Ha inkább futva hagynád — mondjuk épp dolgozik ott bent valami —, indítsd inkább az `omarchy windows vm launch --keep-alive` paranccsal.
 
-A többi vezérlő ugyanazon a paranccson van:
+A többi vezérlő ugyanennél a parancsnál érhető el:
 
 ```bash
 omarchy windows vm status    # is it running?
@@ -24,26 +24,26 @@ omarchy windows vm stop      # shut it down
 omarchy windows vm launch    # start and connect
 ```
 
-## Fájlmegosztás
+## Fájlok megosztása
 
-A saját mappájában lévő `~/Windows` könyvtár automatikusan megoszlik a VM-mel. Helyezze ide a fájlokat, ha azt szeretné, hogy a Windows elérje azokat. A VM-nek a fájlrendszered más részéhez nincs hozzáférése, így biztonságban vagy a Windows oldali káros dolgoktól. Saját virtuális lemeze itt érhető el: `~/.windows`.
+A home könyvtáradban található `~/Windows` könyvtár automatikusan meg van osztva a VM-mel. Tégy oda fájlokat, ha azt akarod, hogy a Windows hozzáférjen. A VM a fájlrendszered semmilyen más részéhez nem fér hozzá, így biztonságban vagy mindentől, ami a Windows oldalon garázdálkodna. A saját virtuális lemeze a `~/.windows` helyen érhető el.
 
-A megszokott otthoni elérési utak saját fájlrendszereiken maradnak. Lehetnek szimbolikus hivatkozások is a saját könyvtáraidra, ami hasznos, amikor a virtuális lemez egy nagyobb meghajtón él. A telepítő a szabad helyet azon a fájlrendszeren méri, amely valójában a `~/.windows` mappát tartalmazza, nem feltétlenül azon, amelyik az otthoni könyvtárát tartalmazza.
+Ezek az ismerős home elérési utak a saját fájlrendszereiken maradnak. Szimbolikus linkek is lehetnek általad birtokolt könyvtárakra, ami hasznos, ha a virtuális lemez egy nagyobb meghajtón van. A telepítő azon a fájlrendszeren méri a szabad helyet, amely ténylegesen tartalmazza a `~/.windows` könyvtárat, nem feltétlenül azon, amely a home könyvtáradat tartalmazza.
 
-Tartsd a lemez- és megosztott elérési utakat külön, nem átfedő könyvtárakként. Az eltávolítás szándékosan üríti a lemezkönyvtárat, de megőrzi a megosztott könyvtárat. Közvetlenül törlés előtt az Omarchy egy korlátozott elszigetelési ellenőrzést végez, és megtagadja a törlést, ha az ellenőrzés túllépi az időt, vagy nem tudja bizonyítani, hogy a két fa különálló.
+Tartsd a lemez és a megosztott elérési utakat különálló, egymást nem átfedő könyvtárakként. Az eltávolítás szándékosan kiüríti a lemez könyvtárát, de megőrzi a megosztott könyvtárat. Közvetlenül a törlés előtt az Omarchy egy korlátozott tartalmazási ellenőrzést végez, és megtagadja bármi eltávolítását, ha az ellenőrzés időtúllépésbe ütközik, vagy nem tudja bizonyítani, hogy a két fa különálló.
 
-A VM indítása előtt az Omarchy megnyitja és rögzíti e két könyvtárat, majd kötött csatolással (bind-mount) a pontos könyvtár-inode-okat privát, felhasználónkénti horgonyokhoz köti a `/var/lib/omarchy/windows/mounts` alatt. A Docker csak ezeket a root-védett horgonyokat látja. Ez megőrzi az egyéni lemezhelyeket, miközben megakadályozza, hogy egy másik folyamat, amelyik az ön jogosultságában fut, kicserélje az ellenőrzött elérési utat, mielőtt a privilegizált konténer felhasználja azt. A meglévő lemez- és megosztott könyvtárak engedélyei a migráció során `0700`-ra szűkülnek, így más helyi fiókok nem böngészhetik a tartalmukat.
+A VM indulása előtt az Omarchy megnyitja és rögzíti ezt a két könyvtárat, majd az adott könyvtár inode-jait bind-mountolja privát, felhasználónkénti horgonyokra a `/var/lib/omarchy/windows/mounts` alatt. A Docker csak ezeket a root által védett horgonyokat látja. Ez megőrzi az egyéni lemezhelyeket, miközben megakadályozza, hogy egy másik, a te nevedben futó folyamat kicserélje az ellenőrzött elérési utat, mielőtt a privilegizált konténer felhasználná. A meglévő lemez- és megosztott könyvtárakat a migráció során `0700` módra szigorítjuk, hogy más helyi fiókok ne böngészhessék a tartalmukat.
 
-A VM portjai csak a localhosthoz vannak kötve, így a hálózatodon semmi sem éri el a Windows gépet. A webes konzol is a konfigurált Windows-felhasználónevet és jelszót igényli, ezáltal megakadályozva, hogy egy másik helyi fiók az 8006-os porton vezérelje a VM-et.
+A VM portjai csak localhosthoz vannak kötve, így a hálózatodon semmi nem érheti el a Windows gépet. A webes konzol szintén megköveteli a beállított Windows felhasználónevet és jelszót, így másik helyi fiók nem vezérelheti a VM-et a 8006-os porton keresztül.
 
-## Korlátok és licenc
+## Korlátok és licencelés
 
-Ez a beállítás nem támogat GPU-átvezetést, így nem alkalmas játékra vagy videószerkesztésre. Nagyszerű kapu a Microsoft Office vagy bármi más futtatásához, amit feltétlenül akarsz.
+Ebben a felállásban nincs GPU passthrough, így játékra vagy videószerkesztésre nem alkalmas. Arra viszont kiváló megoldás, hogy futtasd a Microsoft Office-t, vagy bármi mást, amire feltétlenül szükséged van.
 
-A telepített verzió Windows 11 Pro, aktiválás nélkül. Saját licenckulcsodra lesz szükséged a korlátozott funkciók használatához.
+A telepített verzió a Windows 11 Pro, aktiválás nélkül. Az aktiváláshoz kötött funkciók használatához saját licenckulcsra lesz szükséged.
 
-Ha ez a számítógép Windowssal érkezett, az OEM-kulcs a firmware-ben még mindig megvan az Omarchy telepítése után is. Kiírhatod az `omarchy windows key` paranccsal. Ez a kulcs ehhez a géphez kötődik — aktiválja a Windows ezen a hardveren újratelepített változatát, de általában a VM-et nem aktiválja.
+Ha ez a számítógép Windowsszal érkezett, az OEM kulcs az Omarchy telepítése után is ott van a firmware-ben. Írasd ki az `omarchy windows key` paranccsal. Ez a kulcs ehhez a géphez kötött — aktiválni fogja az erre a hardverre újratelepített Windowst, de a VM-et általában nem fogja.
 
-A erőforrás-kiosztást később az `omarchy-windows-vm install` újrafuttatásával módosíthatod, amely átírja a VM konfigurációját a válaszaidból. A compose-fájl maga most itt él: `/var/lib/omarchy/windows/docker-compose.yml`, tulajdona a root — ez szándékos, így egy olyan folyamat, amelyik az Ön jogosultságában fut, nem képes azt átírni és a privilegizált indítással az egész lemezt a konténerbe felcsatolni. Ha kézzel kell szerkeszteni (például USB-eszközt csatolni), szerkeszd `sudo`-val, és nézd meg az összes lehetőséget [a Dockur Windows projektben](https://github.com/dockur/windows).
+Az erőforrás-kiosztást később is megváltoztathatod, ha terminálban futtatod az `omarchy windows vm install` parancsot, amely a válaszaid alapján újraírja a VM konfigurációját. Maga a compose fájl most a `/var/lib/omarchy/windows/docker-compose.yml` helyen él, és a root tulajdona — ez szándékos, hogy egy a te nevedben futó folyamat ne írhassa át, és a privilegizált indítással ne mountoltathassa be az egész lemezedet a konténerbe. Ha kézzel kell szerkesztened (például egy USB-eszköz mountolásához), szerkeszd `sudo` használatával, az összes lehetőséget pedig nézd meg [a Dockur Windows projektben](https://github.com/dockur/windows).
 
-Hogy az egészet eltávolítsd, használd az Omarchy menüben az _Remove > Windows_ pontot. Törli a VM lemezét és minden adatát, ezért előbb győződj meg arról, hogy minden, amit érdekel, el van helyezve a `~/Windows` mappán kívül.
+Ha az egésztől meg akarsz szabadulni, használd az Omarchy menü _Remove > Windows_ pontját. Ez törli a VM lemezét a `~/.windows` helyen és mindent, ami a Windowsban telepítve van, ezért előbb másolj ki a VM-ből mindent, amire szükséged van. A megosztott `~/Windows` mappád érintetlen marad.

@@ -10,7 +10,11 @@ if [[ -n ${OMARCHY_SCREENSHOT_DIR:-} && -z ${OMASNAP_SCREENSHOT_DIR:-} ]]; then
   export OMASNAP_SCREENSHOT_DIR="$OMARCHY_SCREENSHOT_DIR"
 fi
 
-omasnap_args=()
+# --notify announces saved shots with Open and Edit buttons instead of a
+# preview. Omasnap reads that toast's text from this catalog itself:
+#   omarchy-i18n capture.screenshotSaved, omarchy-i18n capture.screenshotSavedCopied,
+#   omarchy-i18n capture.screenshotOpen, omarchy-i18n capture.screenshotEdit
+omasnap_args=(--notify)
 for arg in "$@"; do
   case "$arg" in
     copy) omasnap_args+=(--copy) ;;

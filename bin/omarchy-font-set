@@ -26,15 +26,37 @@ if ! fc-list | grep -Fqi -- "$font_name"; then
   exit 1
 fi
 
+sed_escape() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//&/\\\&}
+  value=${value//\//\\/}
+  printf '%s' "$value"
+}
+
+xml_escape() {
+  local value="$1"
+  value=${value//&/\&amp;}
+  value=${value//</\&lt;}
+  value=${value//>/\&gt;}
+  value=${value//\"/\&quot;}
+  value=${value//\'/\&apos;}
+  printf '%s' "$value"
+}
+
+sed_font_name=$(sed_escape "$font_name")
+quoted_font_name=${font_name//\\/\\\\}
+quoted_font_name=${quoted_font_name//\"/\\\"}
+quoted_sed_font_name=$(sed_escape "$quoted_font_name")
+
 if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
-  sed -i "s/family = \".*\"/family = \"$font_name\"/g" ~/.config/alacritty/alacritty.toml
+  sed --follow-symlinks -i "s/family = \".*\"/family = \"$quoted_sed_font_name\"/g" ~/.config/alacritty/alacritty.toml
 fi
 
 if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
   mkdir -p ~/.config/kitty
   if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
-    kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
-    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" ~/.config/kitty/kitty.conf
+    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $sed_font_name/" ~/.config/kitty/kitty.conf
   else
     printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
   fi
@@ -42,12 +64,17 @@ if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
 fi
 
 if [[ -f ~/.config/ghostty/config ]]; then
-  sed -i "s/font-family = \".*\"/font-family = \"$font_name\"/g" ~/.config/ghostty/config
+  sed --follow-symlinks -i "s/font-family = \".*\"/font-family = \"$quoted_sed_font_name\"/g" ~/.config/ghostty/config
   pkill -SIGUSR2 ghostty
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
-  sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
+  # Preserve the primary font's size, not a fallback's; Omarchy ships 9 when none is present.
+  foot_size="$(sed -n 's/^font=[^,]*:size=\([0-9.]\+\).*/\1/p' ~/.config/foot/foot.ini | head -1)"
+  if [[ -z $foot_size ]]; then
+    foot_size=9
+  fi
+  sed --follow-symlinks -i "s/^font=.*/font=$sed_font_name:size=$foot_size/g" ~/.config/foot/foot.ini
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
@@ -55,6 +82,7 @@ fi
 # after the package-owned default, and prepend_first puts the chosen family at
 # the head of the list so it wins over the family that default prefers.
 fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
+xml_font_name=$(xml_escape "$font_name")
 mkdir -p "$(dirname "$fontconfig_file")"
 cat >"$fontconfig_file" <<XML
 <?xml version="1.0"?>
@@ -65,7 +93,7 @@ cat >"$fontconfig_file" <<XML
       <string>monospace</string>
     </test>
     <edit name="family" mode="prepend_first" binding="strong">
-      <string>$font_name</string>
+      <string>$xml_font_name</string>
     </edit>
   </match>
 </fontconfig>
@@ -73,11 +101,11 @@ XML
 
 omarchy-restart-shell
 
-if pgrep -x ghostty; then
+if pgrep -x ghostty >/dev/null; then
   omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Ghostty)"
 fi
 
-if pgrep -x foot; then
+if pgrep -x foot >/dev/null; then
   omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Foot)"
 fi
 

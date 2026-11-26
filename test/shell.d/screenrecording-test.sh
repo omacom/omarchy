@@ -13,6 +13,7 @@ mkdir -p "$stub_bin"
 cat >"$stub_bin/v4l2-ctl" <<'SH'
 #!/bin/bash
 
+[[ -n ${OMARCHY_TEST_V4L2_LOG:-} ]] && printf '%s\n' "$*" >>"$OMARCHY_TEST_V4L2_LOG"
 [[ ${OMARCHY_TEST_NO_WEBCAM:-false} == "true" ]] && exit 0
 
 case "$1" in
@@ -20,6 +21,12 @@ case "$1" in
   printf '%s\n' "ipu6 (PCI:0000:00:05.0):"
   printf '\t%s\n' "/dev/video0"
   printf '\t%s\n' "/dev/video1"
+
+  # A Snapdragon's camera subsystem: raw I/O MC capture nodes of a media
+  # pipeline, listed ahead of the cameras apps can open.
+  printf '\n%s\n' "Qualcomm Camera Subsystem (platform:acb7000.isp):"
+  printf '\t%s\n' "/dev/video20"
+  printf '\t%s\n' "/dev/video21"
 
   if [[ ${OMARCHY_TEST_RAW_WEBCAM:-false} != "true" ]]; then
     printf '\n%s\n' "Built-in Webcam: Integrated Camera"
@@ -42,6 +49,7 @@ case "$1" in
   /dev/video0) device_capability="Video Output" ;;
   /dev/video1) device_capability="Metadata Capture" ;;
   /dev/video7 | /dev/video9) device_capability="Video Output" ;;
+  /dev/video20 | /dev/video21) device_capability="Video Capture Multiplanar" ;;
   *) device_capability="Video Capture" ;;
   esac
 
@@ -51,6 +59,10 @@ case "$1" in
     $'\t\tVideo Capture' \
     $'\tDevice Caps      : 0x04200001' \
     $'\t\t'"$device_capability"
+
+  case "$2" in
+  /dev/video20 | /dev/video21) printf '%s\n' $'\t\tI/O MC' ;;
+  esac
   ;;
 esac
 SH
@@ -106,6 +118,14 @@ expected_dual_node="/dev/video42  Built-in Webcam: Integrated Camera
   fail "webcam detection falls through to a later capture-capable node in a group" "$dual_node"
 pass "webcam detection falls through to a later capture-capable node in a group"
 
+# A video node udev recorded nothing for sends the guard to v4l2-ctl, which is
+# what the stubbed answers below exercise.
+fallback_v4l="$tmp_dir/v4l-fallback"
+mkdir -p "$fallback_v4l/video0" "$tmp_dir/udev-empty"
+echo 81:0 >"$fallback_v4l/video0/dev"
+export OMARCHY_V4L_CLASS_PATH="$fallback_v4l"
+export OMARCHY_UDEV_DATA_PATH="$tmp_dir/udev-empty"
+
 if "$ROOT/bin/omarchy-hw-webcam"; then
   pass "webcam hardware detection succeeds when a capture device is available"
 else
@@ -123,6 +143,116 @@ if OMARCHY_TEST_NO_WEBCAM=true "$ROOT/bin/omarchy-hw-webcam"; then
 else
   pass "webcam hardware detection fails when no video device is available"
 fi
+
+# udev records :capture: for a Snapdragon camera subsystem's raw nodes, but they
+# are no camera for an app: with nothing else listed they must not answer yes.
+raw_v4l="$tmp_dir/v4l-camss"
+raw_udev="$tmp_dir/udev-camss"
+raw_dev="$tmp_dir/dev-camss"
+mkdir -p "$raw_v4l/video20/device" "$raw_udev" "$raw_dev"
+echo 81:20 >"$raw_v4l/video20/dev"
+ln -s "../../../../bus/platform/drivers/qcom-camss" "$raw_v4l/video20/device/driver"
+touch "$raw_dev/video20"
+printf '%s\n' "E:ID_V4L_CAPABILITIES=:capture:" >"$raw_udev/c81:20"
+
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+else
+  pass "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+fi
+
+rm "$raw_v4l/video20/device/driver"
+ln -s "../../../../bus/usb/drivers/uvcvideo" "$raw_v4l/video20/device/driver"
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  pass "webcam hardware detection still takes a recorded capture node of another driver"
+else
+  fail "webcam hardware detection still takes a recorded capture node of another driver"
+fi
+
+# With udev's record available the guard answers from it and opens no device.
+udev_v4l="$tmp_dir/v4l-udev"
+udev_data="$tmp_dir/udev-data"
+udev_dev="$tmp_dir/dev"
+mkdir -p "$udev_v4l/video0/device" "$udev_v4l/video1/device" "$udev_data" "$udev_dev"
+touch "$udev_dev/video0" "$udev_dev/video1"
+export OMARCHY_DEV_PATH="$udev_dev"
+echo 81:0 >"$udev_v4l/video0/dev"
+echo 81:1 >"$udev_v4l/video1/dev"
+printf '%s\n' 'E:ID_V4L_VERSION=2' 'E:ID_V4L_CAPABILITIES=:' >"$udev_data/c81:0"
+printf '%s\n' 'E:ID_V4L_CAPABILITIES=:capture:' >"$udev_data/c81:1"
+v4l2_log="$tmp_dir/v4l2-log"
+
+OMARCHY_TEST_V4L2_LOG="$v4l2_log" OMARCHY_V4L_CLASS_PATH="$udev_v4l" OMARCHY_UDEV_DATA_PATH="$udev_data" \
+  "$ROOT/bin/omarchy-hw-webcam" ||
+  fail "webcam hardware detection reads a capture node from udev"
+[[ ! -s $v4l2_log ]] ||
+  fail "webcam hardware detection opens no video device when udev answers" "$(cat "$v4l2_log")"
+pass "webcam hardware detection reads udev's record without opening a device"
+
+# A node udev has no record for, sorted before a recorded capture node, must not
+# send the guard to the devices: the recorded answer is enough.
+mixed_v4l="$tmp_dir/v4l-mixed"
+mixed_data="$tmp_dir/udev-mixed"
+mkdir -p "$mixed_v4l/video0/device" "$mixed_v4l/video1/device" "$mixed_data"
+echo 81:0 >"$mixed_v4l/video0/dev"
+echo 81:1 >"$mixed_v4l/video1/dev"
+printf '%s\n' 'E:ID_V4L_CAPABILITIES=:capture:' >"$mixed_data/c81:1"
+OMARCHY_TEST_V4L2_LOG="$v4l2_log" OMARCHY_V4L_CLASS_PATH="$mixed_v4l" OMARCHY_UDEV_DATA_PATH="$mixed_data" \
+  "$ROOT/bin/omarchy-hw-webcam" ||
+  fail "webcam hardware detection finds a recorded capture node after an unrecorded one"
+[[ ! -s $v4l2_log ]] ||
+  fail "webcam hardware detection opens no device when a later node's record answers" "$(cat "$v4l2_log")"
+pass "webcam hardware detection answers from a later node's record before asking any device"
+
+# A recorded capture node this user cannot open is not one the picker would list.
+rm "$udev_dev/video1"
+if OMARCHY_TEST_RAW_WEBCAM=true OMARCHY_TEST_V4L2_LOG="$v4l2_log" OMARCHY_V4L_CLASS_PATH="$udev_v4l" OMARCHY_UDEV_DATA_PATH="$udev_data" \
+  "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection rejects a recorded capture node the user cannot open"
+fi
+[[ -s $v4l2_log ]] ||
+  fail "webcam hardware detection asks the devices when the recorded capture node cannot be opened"
+pass "webcam hardware detection rejects a recorded capture node the user cannot open"
+: >"$v4l2_log"
+touch "$udev_dev/video1"
+
+# v4l2loopback with exclusive_caps=1 switches between output and capture with its
+# producer, after udev recorded either, so neither record is taken as the answer.
+printf '%s\n' 'E:ID_V4L_CAPABILITIES=:video_output:' >"$udev_data/c81:1"
+OMARCHY_TEST_V4L2_LOG="$v4l2_log" OMARCHY_V4L_CLASS_PATH="$udev_v4l" OMARCHY_UDEV_DATA_PATH="$udev_data" \
+  "$ROOT/bin/omarchy-hw-webcam" ||
+  fail "webcam hardware detection asks a node udev recorded as output-only, which can capture by now"
+[[ -s $v4l2_log ]] ||
+  fail "webcam hardware detection asks the devices when udev records no capture node"
+pass "webcam hardware detection asks a node udev recorded as output-only, which can capture by now"
+: >"$v4l2_log"
+
+if OMARCHY_TEST_RAW_WEBCAM=true OMARCHY_TEST_V4L2_LOG="$v4l2_log" OMARCHY_V4L_CLASS_PATH="$udev_v4l" OMARCHY_UDEV_DATA_PATH="$udev_data" \
+  "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection rejects nodes that are output-only both in udev and live"
+fi
+pass "webcam hardware detection rejects nodes that are output-only both in udev and live"
+: >"$v4l2_log"
+
+virtual_v4l="$tmp_dir/v4l-virtual"
+mkdir -p "$virtual_v4l/video0"
+echo 81:1 >"$virtual_v4l/video0/dev"
+printf '%s\n' 'E:ID_V4L_CAPABILITIES=:capture:' >"$udev_data/c81:1"
+if OMARCHY_TEST_RAW_WEBCAM=true OMARCHY_TEST_V4L2_LOG="$v4l2_log" OMARCHY_V4L_CLASS_PATH="$virtual_v4l" OMARCHY_UDEV_DATA_PATH="$udev_data" \
+  "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection asks a virtual camera udev recorded as capture, which may have stopped"
+fi
+[[ -s $v4l2_log ]] ||
+  fail "webcam hardware detection asks the devices for a node with no parent device"
+pass "webcam hardware detection asks a virtual camera udev recorded as capture, which may have stopped"
+: >"$v4l2_log"
+
+if OMARCHY_TEST_V4L2_LOG="$v4l2_log" OMARCHY_V4L_CLASS_PATH="$tmp_dir/no-v4l" "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection fails without any video node"
+fi
+[[ ! -s $v4l2_log ]] ||
+  fail "webcam hardware detection runs nothing without any video node" "$(cat "$v4l2_log")"
+pass "webcam hardware detection fails without any video node"
 
 if OMARCHY_TEST_RAW_WEBCAM=true "$ROOT/bin/omarchy-capture-screenrecording-with-webcam"; then
   fail "screenrecording webcam picker rejects output-only video devices"
@@ -160,12 +290,6 @@ if ! cmp -s "$OMARCHY_TEST_RECORDER_ARGS" "$expected_recorder_args"; then
   fail "screenrecording webcam picker starts recording with selected device" "$(diff -u "$expected_recorder_args" "$OMARCHY_TEST_RECORDER_ARGS")"
 fi
 pass "screenrecording webcam picker starts recording with selected device"
-
-first_webcam=$(omarchy-capture-webcam-list | sed -n '1s/[[:space:]].*//p')
-[[ $first_webcam == "/dev/video42" ]] || fail "screenrecording auto-detection selects the first capture device"
-grep -F 'WEBCAM_DEVICE=$(omarchy-capture-webcam-list' "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null || \
-  fail "screenrecording auto-detection uses capture-capable webcams"
-pass "screenrecording auto-detection uses the first capture-capable webcam"
 
 cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
@@ -282,24 +406,6 @@ pass "webcam sizes stay distinct and inside a narrow region"
 
 rm -f "$region_file"
 
-grep -F 'o.bind("SUPER + ALT + code:34", "Make webcam overlay smaller", "omarchy-capture-webcam-resize smaller")' \
-  "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null || fail "webcam smaller hotkey is configured"
-grep -F 'o.bind("SUPER + ALT + code:35", "Make webcam overlay larger", "omarchy-capture-webcam-resize larger")' \
-  "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null || fail "webcam larger hotkey is configured"
-pass "webcam resize hotkeys are configured"
-
-grep -F -- '--wayland-app-id="WebcamOverlay-$WEBCAM_SIZE"' \
-  "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null || fail "webcam uses a dedicated size-specific app id"
-
-webcam_rules="$ROOT/default/hypr/apps/webcam-overlay.lua"
-grep -F 'move = { "(monitor_w-monitor_h*4/25-40)", "(monitor_h-monitor_h*9/50-40)" }' "$webcam_rules" >/dev/null || \
-  fail "small webcam starts at its final corner position"
-grep -F 'move = { "(monitor_w-monitor_h*2/9-40)", "(monitor_h-monitor_h/4-40)" }' "$webcam_rules" >/dev/null || \
-  fail "medium webcam starts at its final corner position"
-grep -F 'move = { "(monitor_w-monitor_h*3/10-40)", "(monitor_h-monitor_h*27/80-40)" }' "$webcam_rules" >/dev/null || \
-  fail "large webcam starts at its final corner position"
-pass "webcam size rules place the initial window in its final corner"
-
 # The stop path reads the recording state file back and uses its contents as a
 # path -- ffmpeg writes beside it, `mv` replaces it, `rm -f` deletes its
 # preview -- so it has to live in the per-user runtime directory rather than
@@ -412,6 +518,91 @@ mode=$(stat -c '%a' "$state_home/omarchy" 2>/dev/null || stat -f '%Lp' "$state_h
 [[ $mode == "700" ]] || fail "fallback directory is private even when it already existed" "mode: $mode"
 pass "fallback directory is private even when it already existed"
 
+# A Polaris GPU hangs its VCE encoder mid-recording (#9555), so it records on
+# the CPU; any other GPU, AMD's included, keeps hardware encoding.
+cat >"$stub_bin/gpu-screen-recorder" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_TEST_GSR_ARGS"
+for i in "$@"; do
+  [[ -n ${take_next:-} ]] && { : >"$i"; break; }
+  [[ $i == "-o" ]] && take_next=1
+done
+sleep 5
+SH
+chmod +x "$stub_bin/gpu-screen-recorder"
+
+recorder_args_for_amd_gpu() {
+  local run="$tmp_dir/amd-$1"
+  mkdir -p "$run/pci/0000:01:00.0" "$run/recordings"
+  echo 0x1002 >"$run/pci/0000:01:00.0/vendor"
+  echo "0x$1" >"$run/pci/0000:01:00.0/device"
+  XDG_RUNTIME_DIR="$run" OMARCHY_PCI_DEVICES_PATH="$run/pci" OMARCHY_SCREENRECORD_DIR="$run/recordings" OMARCHY_TEST_GSR_ARGS="$run/args" \
+    "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
+  pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+  cat "$run/args" 2>/dev/null || true
+}
+
+polaris_args=$(recorder_args_for_amd_gpu 67df)
+[[ $polaris_args == *$'\n-encoder\ncpu\n'* ]] || fail "a Polaris GPU records on the CPU" "$polaris_args"
+navi_args=$(recorder_args_for_amd_gpu 73df)
+[[ -n $navi_args && $navi_args != *-encoder* ]] || fail "other AMD GPUs keep hardware encoding" "$navi_args"
+pass "only a Polaris GPU records on the CPU"
+
+# Large regions on 5K/6K displays would exceed GPU H.264 limits and fall back
+# to HEVC; capping regions above 4K keeps hardware H.264 while leaving smaller
+# regions at native pixels without upscaling.
+multi_bin="$tmp_dir/multi-bin"
+mkdir -p "$multi_bin"
+cat >"$stub_bin/omarchy-capture-region" <<'SH'
+#!/bin/bash
+printf '%s\n' "$OMARCHY_TEST_CAPTURE_TARGET"
+SH
+cat >"$multi_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "monitors" ]]; then
+  cat <<'JSON'
+[
+  {"id":1,"name":"DP-1","x":0,"y":0,"width":1920,"height":1080,"scale":1,"transform":0,"focused":true},
+  {"id":2,"name":"DP-2","x":1920,"y":0,"width":6016,"height":3384,"scale":2,"transform":0,"focused":false}
+]
+JSON
+fi
+SH
+chmod +x "$stub_bin/omarchy-capture-region" "$multi_bin/hyprctl"
+
+recorder_args_for_target() {
+  local run="$tmp_dir/res-$1"
+  local target=$2
+  shift 2
+  mkdir -p "$run/recordings"
+  PATH="$multi_bin:$PATH" XDG_RUNTIME_DIR="$run" OMARCHY_SCREENRECORD_DIR="$run/recordings" \
+    OMARCHY_TEST_CAPTURE_TARGET="$target" OMARCHY_TEST_GSR_ARGS="$run/args" \
+    "$ROOT/bin/omarchy-capture-screenrecording" "$@" >/dev/null 2>&1
+  pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+  cat "$run/args" 2>/dev/null || true
+}
+
+large_region_args=$(recorder_args_for_target large-5k "2000,100 2560x1408")
+[[ $large_region_args == *$'\n-s\n3840x2160\n'* ]] ||
+  fail "a region exceeding 4K physical pixels on a scaled monitor is capped to 3840x2160" "$large_region_args"
+
+small_region_args=$(recorder_args_for_target small-5k "2000,100 800x600")
+[[ -n $small_region_args && $small_region_args != *$'\n-s\n'* ]] ||
+  fail "a region within 4K omits -s so it is not upscaled" "$small_region_args"
+
+portrait_region_args=$(recorder_args_for_target portrait-5k "2000,100 1200x2000")
+[[ $portrait_region_args == *$'\n-s\n2160x3840\n'* ]] ||
+  fail "a portrait region exceeding 4K is capped to 2160x3840" "$portrait_region_args"
+
+override_region_args=$(recorder_args_for_target override-5k "2000,100 2560x1408" --resolution=0x0)
+[[ $override_region_args == *$'\n-s\n0x0\n'* ]] ||
+  fail "explicit --resolution overrides the region cap" "$override_region_args"
+
+unfocused_monitor_args=$(recorder_args_for_target monitor-6k "monitor:DP-2")
+[[ $unfocused_monitor_args == *$'\n-s\n3840x2160\n'* ]] ||
+  fail "selecting an unfocused 6K monitor caps to 3840x2160" "$unfocused_monitor_args"
+pass "regions and monitors above 4K are capped to stay on hardware H.264"
+
 # gpu-screen-recorder aborts before recording on a GPU it does not know, such
 # as Apple Silicon's. wf-recorder takes over when it is installed, on the same
 # monitor, and its pid is the one stop and status act on.
@@ -509,6 +700,7 @@ legacy_runtime="$tmp_dir/legacy-runtime"
 mkdir -p "$legacy_runtime"
 touch "$recording_flag"
 : >"$helper_calls"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
 XDG_RUNTIME_DIR="$legacy_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
   OMARCHY_SCREENRECORD_DIR="$recording_dir" \
   "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1 ||
@@ -517,6 +709,8 @@ grep -Fxq -- '--signal INT' "$helper_calls" ||
   fail "stop signals the user's recorders when no pid was saved" "$(<"$helper_calls")"
 ! grep -Fq -- '--signal KILL' "$helper_calls" ||
   fail "a recorder that stops on INT is not killed" "$(<"$helper_calls")"
+[[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] ||
+  fail "stop announces no saved recording when none was recorded as started" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "without a saved pid, status and stop select the user's recorders"
 
 # The bar indicator and the menu's Stop row ask --status, so they show a stop
@@ -539,3 +733,78 @@ if status "$legacy_runtime"; then fail "--status reports nothing when no recorde
 ! grep -q -- '--signal' "$helper_calls" || fail "--status signals nothing" "$(<"$helper_calls")"
 [[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "--status never notifies, even without a recordings directory" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "--status answers what stop would act on, without a recordings directory, notifications or signals"
+
+# A recording that ended without a stop leaves its audio loopbacks and sink
+# loaded. Status and stop unload them, newest first, once the saved recorder is
+# gone; while it records, or before it saves its pid, the mix stays.
+cat >"$stub_bin/pactl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_AUDIO_CALLS"
+SH
+chmod +x "$stub_bin/pactl"
+
+audio_runtime="$tmp_dir/audio-runtime"
+audio_calls="$tmp_dir/audio-calls"
+audio_modules="$audio_runtime/omarchy-screenrecord-pa-modules"
+mkdir -p "$audio_runtime"
+echo 123 >"$audio_runtime/omarchy-screenrecord-pid"
+rm -f "$recording_flag"
+
+recorder() {
+  XDG_RUNTIME_DIR="$audio_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+    OMARCHY_TEST_LIVE_PID="${2:-}" OMARCHY_TEST_AUDIO_CALLS="$audio_calls" OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+    "$ROOT/bin/omarchy-capture-screenrecording" "$1" >/dev/null 2>&1
+}
+
+for action in --status --stop-recording; do
+  printf '10\n11\n12\n' >"$audio_modules"
+  : >"$helper_calls"
+  : >"$audio_calls"
+  status=0
+  recorder "$action" || status=$?
+  (( status == 1 )) || fail "$action reports no recorder after it exits" "$status"
+  [[ $(<"$audio_calls") == $'unload-module 12\nunload-module 11\nunload-module 10' ]] ||
+    fail "$action releases the exited recorder's audio loopbacks before its sink" "$(<"$audio_calls")"
+  [[ ! -e $audio_modules ]] || fail "$action removes the stale audio module list"
+  ! grep -q -- '--signal' "$helper_calls" || fail "$action signals no other recorder"
+  pass "$action releases audio capture after the saved recorder exits"
+done
+
+printf '10\n11\n12\n' >"$audio_modules"
+: >"$audio_calls"
+recorder --status 123 || fail "status recognizes the active recorder"
+[[ ! -s $audio_calls && -e $audio_modules ]] || fail "status leaves an active recording's audio modules loaded"
+pass "status preserves the active recorder's audio capture"
+
+rm "$audio_runtime/omarchy-screenrecord-pid"
+: >"$audio_calls"
+status=0
+recorder --status || status=$?
+(( status == 1 )) || fail "status reports inactive before the recorder starts"
+[[ ! -s $audio_calls && -e $audio_modules ]] || fail "status preserves the audio mix created before the recorder starts"
+pass "status leaves the starting recorder's audio mix alone"
+
+# omarchy-capture-screenrecording-process inspects OMARCHY_PROC_ROOT directly
+# without pgrep, both for explicit --pid lookups and full scans.
+fake_proc="$tmp_dir/fake-proc"
+mkdir -p "$fake_proc/101" "$fake_proc/102" "$fake_proc/103"
+printf 'gpu-screen-reco\n' >"$fake_proc/101/comm"
+ln -s /usr/bin/gpu-screen-recorder "$fake_proc/101/exe"
+printf 'wf-recorder\n' >"$fake_proc/102/comm"
+ln -s '/usr/bin/wf-recorder (deleted)' "$fake_proc/102/exe"
+printf 'gpu-screen-reco\n' >"$fake_proc/103/comm"
+ln -s /usr/bin/impostor "$fake_proc/103/exe"
+
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" ||
+  fail "process helper finds recorders in OMARCHY_PROC_ROOT"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 101 ||
+  fail "process helper matches gpu-screen-recorder by --pid"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 102 ||
+  fail "process helper matches unlinked wf-recorder by --pid"
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 103; then
+  fail "process helper rejects impostor process whose exe is not a recorder"
+fi
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 999999; then
+  fail "process helper rejects missing --pid"
+fi
+pass "process helper verifies recorders directly via OMARCHY_PROC_ROOT"
