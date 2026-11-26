@@ -203,8 +203,11 @@ env PATH="$test_tmp/bin:$PATH" OP_LOG="$test_tmp/op.log" OMARCHY_BOOT_TEST=1 \
   OMARCHY_BOOT_STORE="$test_tmp/store" OMARCHY_BOOT_ESP="$test_tmp/esp" OMARCHY_BOOT_TOP="$test_tmp/top" \
   OMARCHY_BOOT_LOCK="$test_tmp/lock" OMARCHY_BOOT_MACHINE_ID="$test_tmp/machine-id" \
   OMARCHY_BOOT_UKI_CONFIG="$test_tmp/uki.conf" \
+  OMARCHY_BOOT_CMDLINE_ROOT="$test_tmp/root" OMARCHY_BOOT_CMDLINE_DEFAULTS=/dev/null \
   bash "$ROOT/bin/omarchy-boot-sync" import linux-omarchy 7.2 "$test_tmp/vmlinuz" "$test_tmp/initramfs.img" >>"$test_tmp/sync.log" 2>&1 ||
   fail "import runs" "$(cat "$test_tmp/sync.log")"
+grep -qx 'CMDLINE=root=UUID=1 rootflags=subvol=@ rw' "$test_tmp/store/current/linux-omarchy/manifest" ||
+  fail "import reads the controlled command line fixture" "$(cat "$test_tmp/store/current/linux-omarchy/manifest")"
 sync_boot env OP_LOG="$test_tmp/op.log"
 grep -q '^cp --reflink=auto .*/initramfs\.img$' "$test_tmp/op.log" ||
   fail "import copies initramfs with --reflink=auto" "$(cat "$test_tmp/op.log")"

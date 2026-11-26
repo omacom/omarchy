@@ -252,7 +252,7 @@ cmd_import() {
   (($# == 4)) || die "usage: import PKGBASE KVER VMLINUZ INITRAMFS"
   local pkgbase=$1 kver=$2 vmlinuz=$3 initramfs=$4 cmdline hash image dir
   [[ -s $vmlinuz && -s $initramfs ]] || die "import: missing kernel or initramfs for $pkgbase"
-  cmdline=$(assemble_cmdline /)
+  cmdline=$(assemble_cmdline "${OMARCHY_BOOT_CMDLINE_ROOT:-/}")
   [[ $cmdline == *root=* ]] || die "import: /etc/kernel/cmdline names no root="
   hash=$( { sha256sum <"$vmlinuz"; sha256sum <"$initramfs"; printf '%s' "$cmdline"; } | sha256sum | cut -c1-12)
   image=$pkgbase-$hash
@@ -277,6 +277,7 @@ cmd_import() {
   mkdir -p "$STORE/current"
   ln -sfn "../images/$image" "$STORE/current/.$pkgbase.new"
   mv -T "$STORE/current/.$pkgbase.new" "$STORE/current/$pkgbase"
+  sync "$STORE/current" 2>/dev/null || true
   log "boot image for $pkgbase $kver is $image"
 }
 
@@ -292,7 +293,9 @@ derive_image() {
     mkdir -p "$dir.new"
     cp --reflink=auto "$(image_dir "$source")/vmlinuz" "$(image_dir "$source")/initramfs.img" "$dir.new/"
     { grep -v '^CMDLINE=' "$(image_dir "$source")/manifest" || true; printf 'CMDLINE=%s\n' "$cmdline"; } >"$dir.new/manifest"
+    sync "$dir.new/vmlinuz" "$dir.new/initramfs.img" "$dir.new/manifest" "$dir.new" 2>/dev/null || true
     mv "$dir.new" "$dir"
+    sync "$(dirname "$dir")" 2>/dev/null || true
   fi
   echo "$image"
 }
@@ -317,7 +320,9 @@ cmd_pin() {
     kver=$(image_get "$image" KVER)
     if [[ -d $dir/snapshot/usr/lib/modules/$kver ]]; then
       printf '%s\n' "$image" >"$dir/.omarchy-boot-image.new"
+      sync "$dir/.omarchy-boot-image.new" 2>/dev/null || true
       mv -f "$dir/.omarchy-boot-image.new" "$dir/omarchy-boot-image"
+      sync "$dir" 2>/dev/null || true
       log "pinned snapshot $num to $image"
       return 0
     fi
@@ -601,7 +606,9 @@ set_loader_default() {
   if cmp -s "$tmp" "$conf"; then
     rm -f "$tmp"
   else
+    sync "$tmp" 2>/dev/null || true
     mv -f "$tmp" "$conf"
+    sync "$(dirname "$conf")" 2>/dev/null || true
   fi
 }
 
@@ -868,6 +875,7 @@ cmd_restore_commit() {
 
   ln -sfn "../images/$image" "$STORE/current/.$(image_get "$image" PKGBASE).new"
   mv -T "$STORE/current/.$(image_get "$image" PKGBASE).new" "$STORE/current/$(image_get "$image" PKGBASE)"
+  sync "$STORE/current" 2>/dev/null || true
 
   # The restored root has the kernels it had then. A current image of another
   # kernel that this root lacks at that version would boot it with modules it
@@ -911,7 +919,7 @@ case ${1:-} in
 sync) with_lock; cmd_sync ;;
 import) shift; with_lock; check_store; cmd_import "$@" ;;
 pin) shift; with_lock; check_store; mount_top; cmd_pin "$@" ;;
-cmdline) assemble_cmdline / ; echo ;;
+cmdline) assemble_cmdline "${OMARCHY_BOOT_CMDLINE_ROOT:-/}" ; echo ;;
 prefer) shift; with_lock; check_store; cmd_prefer "$@" ;;
 preferred) preferred_kernel / ;;
 verify) cmd_verify ;;
