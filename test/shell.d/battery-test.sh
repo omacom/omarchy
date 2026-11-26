@@ -76,3 +76,34 @@ assertEqual(
   'battery takes a read no signal overtook'
 )
 JS
+
+# The low-battery command must insist until noticed and still pass the level to hooks.
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin"
+cat >"$tmpdir/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_NOTIFICATION_ARGS"
+SH
+cat >"$tmpdir/bin/omarchy-hook" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_HOOK_ARGS"
+SH
+chmod +x "$tmpdir/bin/omarchy-notification-send" "$tmpdir/bin/omarchy-hook"
+OMARCHY_TEST_NOTIFICATION_ARGS="$tmpdir/notification-args" \
+OMARCHY_TEST_HOOK_ARGS="$tmpdir/hook-args" \
+PATH="$tmpdir/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-battery-low" 7
+
+declare -a notification_args hook_args
+mapfile -d '' -t notification_args <"$tmpdir/notification-args"
+mapfile -d '' -t hook_args <"$tmpdir/hook-args"
+urgency_index=-1
+for ((i = 0; i < ${#notification_args[@]}; i++)); do
+  if [[ ${notification_args[i]} == "-u" ]]; then urgency_index=$((i + 1)); break; fi
+done
+(( urgency_index >= 0 )) || fail "low-battery warning sets an urgency"
+[[ ${notification_args[urgency_index]} == "critical" ]] || fail "low-battery warning persists until noticed" "${notification_args[*]}"
+[[ ${notification_args[*]} != *"-t 30000"* ]] || fail "low-battery warning does not set a misleading transient timeout"
+[[ ${hook_args[*]} == "battery-low 7" ]] || fail "low-battery warning still calls hooks with the percentage" "${hook_args[*]}"
+pass "low-battery command sends a persistent warning and runs its hook"
