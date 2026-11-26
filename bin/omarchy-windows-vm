@@ -753,9 +753,14 @@ EOF
 # Only these fixed keys are honored; image, container name, devices, caps, and
 # port bindings are hard-coded and never taken from input.
 __priv_write_compose() {
-  local ram cores disk username password tz key value
+  local ram cores disk username password tz line key value
 
-  while IFS='=' read -r key value; do
+  # Split at the first = by hand: read with IFS='=' would drop a password's
+  # one trailing =, and the guest would get a password RDP doesn't send.
+  while IFS= read -r line; do
+    [[ $line == *=* ]] || continue
+    key=${line%%=*}
+    value=${line#*=}
     case "$key" in
     RAM) ram="$value" ;;
     CORES) cores="$value" ;;
