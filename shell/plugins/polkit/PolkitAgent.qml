@@ -76,8 +76,8 @@ Item {
   // just frames the centered sensor icon.
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
-  // A command's label never stands in for what pkexec runs: the program gets
-  // a line of its own under it, which a long label can't push out of view.
+  // A pkexec prompt always shows what it runs on a dimmer second line under
+  // either the caller's reason or the default authorization heading.
   function authorizationLabel(message) {
     var label = PolkitModel.singleLine(currentLabel)
     if (label !== "") return label
@@ -85,8 +85,8 @@ Item {
     return text !== "" ? text : I18n.t("polkit.authenticationNeeded")
   }
 
-  // The program a labelled prompt runs, for the line under the label.
-  readonly property string labelProgram: PolkitModel.singleLine(currentLabel) !== "" ? PolkitModel.singleLine(PolkitModel.promptProgram(currentMessage)) : ""
+  // The command a pkexec prompt runs, shown on the second line under the heading.
+  readonly property string labelProgram: PolkitModel.singleLine(PolkitModel.promptProgram(currentMessage))
 
   ShellIpc {
     target: "omarchy.polkit"

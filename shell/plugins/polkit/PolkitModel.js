@@ -71,18 +71,18 @@ function singleLine(text) {
   return String(text || "").replace(/\s+/g, " ").trim()
 }
 
-// A pkexec prompt names the agent it comes from, when that's known. The parts
-// go in through functions, so a $ in a command line stays as it is.
+// A pkexec prompt names the agent it comes from, when that's known, while
+// the command itself sits on the second line under it. The parts go in
+// through functions, so a $ in a name stays as it is.
 function authorizationLabel(message, tr, agentName) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
   var match = text.match(pkexecPrompt)
   if (match) {
-    var program = singleLine(match[1])
     var name = singleLine(agentName)
     if (name !== "")
-      return t("polkit.authorizeAgentRunning", "Authorize %1 to run '%2'").replace("%1", function() { return name }).replace("%2", function() { return program })
-    return t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", function() { return program })
+      return t("polkit.authorizeAgentCommand", "Authorize %1 to run command").replace("%1", function() { return name })
+    return t("polkit.authorizeCommand", "Authorize running command")
   }
   var clean = singleLine(text)
   // udisks formatting a drive, named as udisks names it.
