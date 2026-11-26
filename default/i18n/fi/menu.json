@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "Tilannekuvat"
+  },
+  "system.snapshots.restore": {
+    "label": "Palauta tämä tilannekuva"
   }
 }

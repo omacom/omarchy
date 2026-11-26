@@ -106,21 +106,22 @@ printed=$(print_failure_logs "$out" 2>&1)
   fail "a failed CI run prints neither passing files nor a nested run's logs" "$printed"
 pass "a failed CI run prints its own failed and unfinished files"
 
-# The overlap file starts beside the pool rather than in either batch; it
-# must still run, print in file order, and count like any other file.
-cat >"$test_dir/test/shell.d/shell-idle-spawn-test.sh" <<'SH'
-# The real file is exclusive by its require_compositor; the overlap
-# classification must win over it.
+# An exclusive full-shell file runs serially after the parallel batches, still
+# prints in file order, and counts like any other file.
+{
+  printf '# %s\n' 'omarchy:exclusive'
+  cat <<'SH'
 set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
-pass "overlap fixture ran"
+pass "idle spawn fixture ran"
 SH
+} >"$test_dir/test/shell.d/shell-idle-spawn-test.sh"
 run_suite
-(( status == 1 )) && [[ $output == *"ok - overlap fixture ran"* && $output == *$'1 of 6 test files failed:\n  test/shell.d/d-failed-test.sh'* && $output == *"Skipped checks in 3 of 6 test files:"* ]] ||
-  fail "the overlap file runs and is reported like any other file" "$output"
-[[ $output == *$'==> test/shell.d/shell-idle-spawn-test.sh\nok - overlap fixture ran'* && $output == *$'==> test/shell.d/z-last-test.sh'* ]] ||
-  fail "the overlap file prints in file order" "$output"
-pass "the overlap file runs beside the pool and is reported in order"
+(( status == 1 )) && [[ $output == *"ok - idle spawn fixture ran"* && $output == *$'1 of 6 test files failed:\n  test/shell.d/d-failed-test.sh'* && $output == *"Skipped checks in 3 of 6 test files:"* ]] ||
+  fail "the idle-spawn file runs and is reported like any other file" "$output"
+[[ $output == *$'==> test/shell.d/shell-idle-spawn-test.sh\nok - idle spawn fixture ran'* && $output == *$'==> test/shell.d/z-last-test.sh'* ]] ||
+  fail "the idle-spawn file prints in file order" "$output"
+pass "the exclusive idle-spawn file runs after the pool and is reported in order"
 
 # lua with no script argument runs stdin but ignores its error and exits 0, so
 # assertions in a bare heredoc cannot fail their test. lua - treats it as a script.
@@ -180,11 +181,14 @@ source "$(dirname "$0")/base-test.sh"
 # extra padding so LPT puts b before a
 pass "noncomp b"
 SH
-cat >"$shard_dir/test/shell.d/shell-idle-spawn-test.sh" <<'SH'
+{
+  printf '# %s\n' 'omarchy:exclusive'
+  cat <<'SH'
 set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
-pass "overlap ran"
+pass "idle spawn ran"
 SH
+} >"$shard_dir/test/shell.d/shell-idle-spawn-test.sh"
 cat >"$shard_dir/test/shell.d/c-comp-test.sh" <<'SH'
 set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
@@ -211,6 +215,8 @@ se=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/all" --no-cli --group=exclusive 2>
 
 [[ $s1 != *"CLI ran"* && $s2 != *"CLI ran"* && $se != *"CLI ran"* && $sc == *"CLI ran"* ]] ||
   fail "--no-cli skips test/cli and default runs it"
+[[ $sc == *"shell-idle-spawn-test.sh"* && $s1 != *"shell-idle-spawn-test.sh"* && $s2 != *"shell-idle-spawn-test.sh"* && $se != *"shell-idle-spawn-test.sh"* ]] ||
+  fail "shell-idle-spawn-test.sh runs in the comp shard's serial tail, not beside noncomp or timing budgets"
 [[ $s1 == *"Slowest test files:"* ]] ||
   fail "test/shell prints the slowest test files summary"
 
