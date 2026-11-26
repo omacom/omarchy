@@ -35,7 +35,8 @@ RETRIES = 2
 MAX_ITEMS = 20
 MAX_CHARS = 8000
 PLACEHOLDERS = re.compile(r"%(\d)")
-URL_RE = re.compile(r"https?://[^\s)]+")
+URL_RE = re.compile(r"https?://[^\s)`]+")
+SENTENCE_END = ".,;:!?"
 HEADING_RE = re.compile(r"^#{1,6} ", re.M)
 
 
@@ -366,7 +367,7 @@ def keybinding_descriptions(root):
     """Every description the shipped Hyprland bindings show in the
     keybindings menu (Super+K), in English."""
     found = set()
-    for path in sorted((root / "default/hypr/bindings").glob("*.lua")):
+    for path in sorted((root / "default/hypr/bindings").rglob("*.lua")):
         source = path.read_text(encoding="utf-8")
         source = re.sub(r"--[^\n]*", "", source)
         for match in BIND_CALL.finditer(source):
@@ -517,13 +518,20 @@ def protected_inline(text):
     return Counter(kept)
 
 
+def urls_of(text):
+    # The published manual's autolinks leave trailing ASCII punctuation out
+    # of a bare URL but keep 。 or । in it, and a (destination) keeps it all.
+    return [m.group() if text[:m.start()].endswith("(") else m.group().rstrip(SENTENCE_END)
+            for m in URL_RE.finditer(text)]
+
+
 def validate_manual(source, value):
     from collections import Counter
     if not isinstance(value, str) or not value.strip():
         raise SyncError("empty translation")
     if len(HEADING_RE.findall(source)) != len(HEADING_RE.findall(value)):
         raise SyncError("heading count changed")
-    if sorted(URL_RE.findall(source)) != sorted(URL_RE.findall(value)):
+    if sorted(urls_of(source)) != sorted(urls_of(value)):
         raise SyncError("URLs changed")
     if Counter(FENCE_RE.findall(source)) != Counter(FENCE_RE.findall(value)):
         raise SyncError("code block contents changed")
@@ -789,12 +797,32 @@ def cmd_pack(args):
     print(f"packed {code}")
 
 
+def validate_patch(root, code, patch):
+    allowed = language_paths(code)
+    result = git(root, "apply", "--numstat", "-z", "--", str(patch), capture_output=True)
+    for record in result.stdout.split(b"\0"):
+        if not record:
+            continue
+        parts = record.decode("utf-8").split("\t", 2)
+        if len(parts) != 3 or not parts[2]:
+            raise SyncError("artifact contains an unsupported patch entry")
+        path = parts[2]
+        if Path(path).is_absolute() or ".." in Path(path).parts or not any(path.startswith(a + "/") for a in allowed):
+            raise SyncError(f"artifact contains a path outside its language: {path}")
+    summary = git(root, "apply", "--summary", "--", str(patch), capture_output=True)
+    for line in summary.stdout.decode("utf-8").splitlines():
+        entry = line.strip()
+        if entry and not entry.startswith(("create mode 100644 ", "delete mode 100644 ")):
+            raise SyncError(f"artifact contains a disallowed patch operation: {entry}")
+
+
 def cmd_collect(args):
     root = root_path(args)
     directory = Path(args.directory)
     expected = [c.strip() for c in args.expected.split(",") if c.strip()]
+    known = locales(root)
     patches = sorted(directory.glob("*.patch"))
-    if any(p.stem not in expected for p in patches):
+    if any(p.stem not in expected or p.stem not in known for p in patches):
         raise SyncError("unexpected language artifact")
     done = {}
     for patch in patches:
@@ -809,15 +837,8 @@ def cmd_collect(args):
             done.update(recorded)
         if not patch.stat().st_size:
             continue
-        result = git(root, "apply", "--numstat", "-z", str(patch), capture_output=True)
-        for record in result.stdout.split(b"\0"):
-            if not record:
-                continue
-            path = record.decode().split("\t", 2)[2]
-            allowed = language_paths(patch.stem)
-            if not any(path == a or path.startswith(a + "/") for a in allowed) or ".." in Path(path).parts:
-                raise SyncError(f"artifact contains a path outside its language: {path}")
-        git(root, "apply", "--index", str(patch))
+        validate_patch(root, patch.stem, patch)
+        git(root, "apply", "--index", "--", str(patch))
     if done:
         manifest_args = argparse.Namespace(root=args.root, locales=",".join(sorted(done)),
                                            done_file=str(directory / "collected-done.json"))

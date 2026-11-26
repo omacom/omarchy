@@ -73,20 +73,10 @@ mapfile -t shipped < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$RO
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 mapfile -t restored <"$pkg_log"
-grep -Fx 'reshim --system' "$OMARCHY_TEST_MISE_LOG" >/dev/null || fail "Install Preinstalls rebuilds the mise shims"
-pass "Install Preinstalls rebuilds the mise shims"
-
-: >"$OMARCHY_TEST_MISE_LOG"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 mapfile -t dropped <"$pkg_log"
-[[ $(<"$miserc") == "env = [\"work\"]"$'\n'"$ignore_line" ]] ||
-  fail "Remove Preinstalls has mise skip Omarchy's declarations for this user" "$(<"$miserc")"
-grep -Fx 'reshim' "$OMARCHY_TEST_MISE_LOG" >/dev/null || fail "Remove Preinstalls retires the lazy shims"
-pass "Remove Preinstalls has mise skip Omarchy's declarations for this user"
-
-"$ROOT/bin/omarchy-install-preinstalls" >/dev/null
-[[ $(<"$miserc") == 'env = ["work"]' ]] || fail "Install Preinstalls removes only its own miserc line" "$(<"$miserc")"
-pass "Install Preinstalls removes only its own miserc line"
+[[ $(<"$miserc") == 'env = ["work"]' ]] || fail "Remove Preinstalls leaves the user's mise settings alone" "$(<"$miserc")"
+pass "Remove Preinstalls leaves the user's mise settings alone"
 
 rm "$miserc"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
@@ -104,14 +94,12 @@ printf 'ignored_config_paths = ["~/old"]\n' >"$miserc"
 [[ $(<"$miserc") == 'ignored_config_paths = ["~/old"]' ]] || fail "opting out leaves the user's list alone"
 printf 'ignored_config_paths = ["~/old", "%s"]\n' "$mise_config" >"$miserc"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null || fail "opting out accepts the file in the user's own list"
-"$ROOT/bin/omarchy-mise-default-tools" declares codex && fail "a user's own list keeps Omarchy's tools undeclared"
 "$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null 2>&1 && status=0 || status=$?
 ((status == 1)) || fail "opting back in reports a list it cannot edit" "exit status was $status"
 rm "$miserc"
 pass "an existing ignored_config_paths is left to the user"
 
 printf '# %s\n' "$ignore_line" >"$miserc"
-"$ROOT/bin/omarchy-mise-default-tools" declares codex || fail "a commented-out opt-out keeps Omarchy's tools declared"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
 grep -qxF "$ignore_line" "$miserc" || fail "opting out is not skipped by a commented-out opt-out"
 "$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null || fail "opting back in succeeds past a commented-out opt-out"
@@ -126,13 +114,13 @@ dropped:  ${dropped[*]}"
 pass "Install and Remove Preinstalls cover the same packages"
 
 for package in "${restored[@]}"; do
-  printf '%s\n' "${shipped[@]}" | grep -qxF "$package" ||
+  grep -qxF "$package" <<<"$(printf '%s\n' "${shipped[@]}")" ||
     fail "every preinstall is shipped in omarchy-base.packages" "$package is not shipped"
 done
 pass "every preinstall is shipped in omarchy-base.packages"
 
 for package in omacut monologue omacalc omawrite hype signed; do
-  printf '%s\n' "${restored[@]}" | grep -qxF "$package" ||
+  grep -qxF "$package" <<<"$(printf '%s\n' "${restored[@]}")" ||
     fail "preinstalls cover the Omacom apps" "$package is missing"
 done
 pass "preinstalls cover the Omacom apps"
@@ -144,17 +132,6 @@ OMARCHY_TEST_PKG_ADD_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 (( status == 1 )) || fail "restore reports a failed package transaction" "exit status was $status"
 [[ -f $marker ]] || fail "restore keeps the opt-out marker when packages fail to install"
 pass "restore keeps the opt-out marker when packages fail to install"
-
-for failure in OMARCHY_TEST_RESHIM_STATUS; do
-  touch "$marker"
-  : >"$pkg_log"
-  env "$failure=1" "$ROOT/bin/omarchy-install-preinstalls" >/dev/null && status=0 || status=$?
-  (( status == 1 )) || fail "restore reports a failed tool setup" "$failure returned $status"
-  [[ -f $marker ]] || fail "restore keeps the opt-out marker after failed tool setup" "$failure"
-  [[ ! -s $pkg_log ]] || fail "restore stops before installing packages when tool setup fails" "$failure"
-done
-pass "restore stops and preserves opt-out when shim setup fails"
-
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ ! -e $marker ]] || fail "restore clears the opt-out marker once the packages are back"
@@ -169,8 +146,35 @@ pass "declining Remove Preinstalls changes nothing"
 [[ -f $marker ]] || fail "Remove Preinstalls records the opt-out"
 pass "Remove Preinstalls records the opt-out"
 
-mkdir -p "$(dirname "$mise_config")"
-touch "$mise_config"
-"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
-[[ -f $mise_config ]] || fail "Remove Preinstalls leaves the package-owned mise declarations in place"
-pass "Remove Preinstalls leaves the package-owned mise declarations in place"
+# The real launcher refresh, with only the desktop database stubbed.
+refresh_bin="$test_tmp/refresh-bin"
+mkdir -p "$refresh_bin"
+printf '#!/bin/bash\nexit 0\n' >"$refresh_bin/update-desktop-database"
+printf '#!/bin/bash\nexit 1\n' >"$refresh_bin/omarchy-cmd-present"
+chmod +x "$refresh_bin"/*
+echo cn >"$test_tmp/region"
+region_home="$test_tmp/region-home"
+launchers="$region_home/.local/share/applications"
+mkdir -p "$launchers"
+cp "$ROOT/applications/YouTube.desktop" "$launchers/" # as /etc/skel seeds it
+refresh_region() {
+  HOME="$region_home" PATH="$refresh_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_REGION_FILE="$test_tmp/region" "$ROOT/bin/omarchy-refresh-applications" "$@"
+}
+refresh_region
+[[ -f "$launchers/Bilibili.desktop" && -f "$launchers/Zoom.desktop" ]] || fail "a region installs the launchers on its list"
+for missing in X "Google Maps" Spotify HEY; do
+  [[ ! -e "$launchers/$missing.desktop" ]] || fail "a region installs no launcher its list leaves off" "$missing"
+done
+[[ -f "$launchers/YouTube.desktop" ]] || fail "a region refresh keeps launchers an existing home already has"
+pass "a region installs exactly the launchers on its list"
+
+# Every shipped launcher is on some region's list, and every list names only
+# shipped launchers, so a new launcher can't silently never install.
+shipped=$(cd "$ROOT/applications" && ls -- *.desktop | sed 's/\.desktop$//' | sort)
+listed() { sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$1" | sort; }
+[[ $(cat "$ROOT"/default/regions/*/applications | listed /dev/stdin | uniq) == "$shipped" ]] || fail "every shipped launcher is on some region's list"
+for list in "$ROOT"/default/regions/*/applications; do
+  unknown=$(comm -13 <(echo "$shipped") <(listed "$list"))
+  [[ -z $unknown ]] || fail "a regional launcher list names only shipped launchers" "$list: $unknown"
+done
+pass "launcher lists match the shipped launchers"

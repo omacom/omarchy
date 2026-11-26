@@ -1,35 +1,39 @@
 # أدوات التطوير
 
-## المحررات البديلة
+## محررات بديلة
 
-يأتي Omarchy مع [Neovim](https://neovim.io/) افتراضيًا، ولكن إذا كنت تريد شيئًا أكثر شيوعًا وألفة بعض الشيء، فيمكنك تشغيل Omarchy Menu (`Super + Space`) والاطلاع على الخيارات ضمن _تثبيت > Editor_. لدينا VSCode وCursor وZed وSublime Text وHelix وVim وEmacs مدرجة هناك. وإذا لم تجد ما تبحث عنه، فجرّب _تثبيت > Package_ لترى ما إذا كان موجودًا في حزمة من حزم Arch (وإن لم يكن، فجرّب _تثبيت > AUR_ للتحقق من AUR).
+تأتي Omarchy مع Plain كمحرر افتراضي في عمليات التثبيت الجديدة ومع [Neovim](https://neovim.io/) مثبت مسبقًا، لكن إذا أردت شيئًا أكثر شيوعًا وألفة، يمكنك تشغيل Omarchy Menu (`Super + Space`) والاطلاع على الخيارات ضمن _Install > Editor_. لدينا هناك VSCode وCursor وZed وSublime Text وHelix وVim وEmacs. إذا لم تجد ما تبحث عنه، فاطّلع على _Install > Package_ لترى إن كان متوفرًا في حزمة Arch (وإن لم يكن، فجرّب _Install > AUR_ للتحقق من AUR).
 
-محرر `vi` الأصلي متاح أيضًا فور التثبيت. شغّل `vi filename` لتعديل ملف في terminal.
+محرر `vi` الأصلي متوفر أيضًا من البداية. شغّل `vi filename` لتحرير ملف في الطرفية.
 
-تتوفر مطابقة السمة لـ `VSCode` و`Cursor` و`VSCodium` و`Helix`.
+تُقدَّم مطابقة السمات لـ `VSCode` و`Cursor` و`VSCodium` و`Helix`.
 
-يمكنك تعيين المحرر الافتراضي على مستوى النظام ضمن `الإعداد > Defaults > Editor`.
+يمكنك تعيين المحرر الافتراضي على مستوى النظام ضمن `Setup > Defaults > Editor`.
 
 ## البيئة
 
-يدعم Omarchy إعداد مجموعة واسعة من بيئات التطوير عبر قسم _تثبيت > Development_ في Omarchy Menu (`Super + Space`). ستجد بالطبع _Ruby on Rails_، بالإضافة إلى وقتات تشغيل JavaScript الرئيسية الثلاثة جميعها (Node.js وBun وDeno)، وأطر عمل PHP الشهيرة مثل Laravel وSymfony. آه، وهناك أيضًا Go وRust وPython وJava وElixir (مع Phoenix) و.NET وOCaml وZig وClojure وScala. إنها تشكيلة واسعة حقًا!
+تدعم Omarchy إعداد مجموعة كاملة من بيئات التطوير من خلال قسم _Install > Development_ في Omarchy Menu (`Super + Space`). ستجد بالطبع _Ruby on Rails_، بل ستجد أيضًا الأوقات التشغيلية الثلاثة الرئيسية لـ JavaScript (Node.js وBun وDeno)، بالإضافة إلى أطر عمل PHP الشهيرة مثل Laravel وSymfony. آه، وهناك أيضًا Go وRust وPython وJava وElixir (مع Phoenix) و.NET وOCaml وZig وClojure وScala. إنه اختيار واسع جدًا!
 
-تتم إدارة غالبية هذه البيئات بواسطة [Mise](https://mise.jdx.dev/). إنها أداة تتيح لك تثبيت إصدارات متعددة من لغة برمجة وتشغيلها على الجهاز نفسه. إنها تشبه rbenv أو rvm للغة Ruby أو virtualenv للغة Python، ولكنها تعمل مع مجموعة كبيرة من البيئات المختلفة.
+تُدار غالبية هذه البيئات بواسطة [Mise](https://mise.jdx.dev/). إنها أداة تتيح لك تثبيت وتشغيل إصدارات متعددة من لغة برمجة على نفس الجهاز. إنها مثل rbenv أو rvm لـ Ruby أو virtualenv لـ Python، لكنها تعمل مع مجموعة من البيئات المختلفة.
 
-على سبيل المثال، لتثبيت Ruby، عليك تشغيل `mise use -g ruby`، سيتولى ذلك تثبيت Ruby وتعيينه افتراضيًا على مستوى النظام في الوقت نفسه. أو إذا كان لدى مشروعك ملف .ruby-version، يمكنك ببساطة تشغيل `mise i` في جذر ذلك المشروع.
+لتثبيت Ruby مثلًا، شغّل `mise use -g ruby`، وسيؤدي ذلك إلى تثبيت Ruby وتعيينه كافتراضي عام. أو، إذا كان مشروعك يحتوي على ملف .ruby-version، يمكنك ببساطة تشغيل `mise i` في جذر ذلك المشروع.
+
+## أدوات CLI المثبتة مسبقًا
+
+تأتي `uv` وNode.js و`playwright-cli` (ليتمكن الوكلاء من قيادة متصفح، باستخدام Chrome المثبت) مثبتة كحزم، ويبقيها `omarchy update` محدثة مع بقية النظام. وتتوفر [Hunk](https://github.com/modem-dev/hunk) وأدوات CLI الخاصة بـ GitHub وBasecamp وCloudflare وHEY على بُعد اختيار واحد ضمن _Install > CLI_، وتتوفر [وكلاء البرمجة](17-ai.md) ضمن _Install > AI > CLI_.
+
+تدير mise فقط أوقات التشغيل التي تعدّها من _Install > Development_؛ فـ Omarchy لا تثبت أي شيء من خلالها من تلقاء نفسها. شغّل `omarchy update` لتحديثها مع بقية Omarchy؛ أما الاسم المستعار `mup` فيحدّث الأدوات التي تديرها mise فقط. لإضافة أداة أخرى إلى إعداداتك الخاصة، استخدم `mise use -g <tool>`.
 
 ## Docker
 
-بالكاد يحتاج [Docker](https://www.docker.com/) إلى أي مقدمة. فهو يتيح لك تشغيل حاويات معزولة، ويقوم Omarchy بتثبيت كل ما يلزم لتشغيله جيدًا، بما في ذلك Docker نفسه و[Docker Compose](https://docs.docker.com/compose/).
+يكاد [Docker](https://www.docker.com/) لا يحتاج إلى أي مقدمة. فهو يتيح لك تشغيل حاويات معزولة، وتثبت Omarchy كل ما يلزم لتشغيله بشكل جيد، بما في ذلك Docker نفسه و[Docker Compose](https://docs.docker.com/compose/).
 
-افتراضيًا، مستخدمك *ليس* في مجموعة `docker`. هذه المجموعة في الواقع تمنح صلاحيات root دون كلمة مرور — فأي شيء فيها يمكنه تنفيذ `docker run -v /:/host` والسيطرة على الجهاز — لذا فإن أي نص برمجي مارق أو تبعية مارقة تعمل بصلاحياتك ستكون على بعد أمر واحد من صلاحيات root بخلاف ذلك. لهذا، على سطر الأوامر تشغّل Docker باستخدام `sudo` (`sudo docker ps`، `sudo docker compose up`)، والأدوات الرسومية التي تتحدث إلى daemon — مثل Windows VM — تطلب إذنًا عندما تحتاج إليه. وإذا كنت تريد استعادة سهولة الإعداد دون مجموعة وتفهم المفاضلة في ذلك، فعّل ذلك من **الإعداد > Security > Sudoless Docker** (أو شغّل `omarchy-setup-security-sudoless-docker`)، سيضيفك ذلك إلى مجموعة `docker` بعد تحذير؛ وبعدها يعمل `docker` العادي والاختصار `d` دون `sudo` مجددًا.
+افتراضيًا، مستخدمك *ليس* في مجموعة `docker`. فتلك المجموعة هي فعليًا root بدون كلمة مرور — فأي شيء فيها يمكنه تشغيل `docker run -v /:/host` والسيطرة على الجهاز — لذا فإن سكربتًا مارقًا واحدًا أو تبعية واحدة تعمل باسمك ستكون على بُعد أمر واحد من root. لهذا السبب تشغّل Docker على سطر الأوامر باستخدام `sudo` (`sudo docker ps` و`sudo docker compose up`)، وتطلب الأدوات الرسومية التي تتحدث إلى الخادم الخلفي — Windows VM — إذنًا عند الحاجة إليه. إذا أردت استعادة راحة إعداد بدون مجموعة وفهمت المقايضة، فعّلها من **Setup > Security > Sudoless Docker** (أو شغّل `omarchy-setup-security-sudoless-docker`)، وسيضيفك ذلك إلى مجموعة `docker` بعد تحذير؛ وبعدها يعمل `docker` العادي والاسم المستعار `d` بدون `sudo` مرة أخرى.
 
-يمكنك إعداد قواعد البيانات الشائعة للتطوير المحلي في Docker باستخدام _تثبيت > Development > Docker DB_ في قائمة Omarchy.
+يمكنك إعداد قواعد البيانات الشائعة للتطوير المحلي في Docker باستخدام _Install > Development > Docker DB_ في قائمة Omarchy.
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) يتيح لك تسجيل الدخول بحسابك على GitHub واستنساخ المستودعات الخاصة باستخدام ذلك الحساب. إنه موصول بوصفه واحدًا من stubs التحميل الكسول الخاصة بـ mise، لذا في أول مرة تشغّل فيها `gh`، سيقوم بتثبيت نفسه. ولكي تقوم بالمصادقة، شغّل `gh auth login`. بعدها يمكنك استنساخ المستودعات الخاصة باستخدام `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) هي `gh`، للعمل مع المستودعات والمشكلات وطلبات السحب من الطرفية. يثبتها _Setup > Git_ عندما تختار تسجيل الدخول إلى GitHub هناك، أو ثبّتها منفردة من _Install > CLI > GitHub_. بعد ذلك، ينسخ `gh repo clone org/repo` مستودعًا؛ شغّل `gh --help` لاستكشاف أوامرها.
 
-يمكنك أيضًا إجراء مجموعة من عمليات GitHub الأخرى باستخدام هذا الأمر. ما عليك سوى تشغيل `gh` لترى كل ما هو ممكن.
-
-هناك أيضًا stub يُثبّت نفسه تلقائيًا لأداة `ghui` لإدارة طلباتك الخاصة بالسحب (pull requests) في TUI أيضًا. و[lazygit](https://github.com/jesseduffield/lazygit) مثبت مسبقًا، إذا كنت ترغب في قيادة git نفسه من TUI أيضًا.
+[Lazygit](https://github.com/jesseduffield/lazygit) مثبت مسبقًا للعمل مع Git نفسه.

@@ -1,79 +1,62 @@
-# Packages installed outside of install/packages.sh or optional packages
-# Utilized by ISO builder to ensure package availability in the ISO
+# Hardware-specific and optional packages installed by install/hardware/*.
+# Read by omarchy-iso when building the offline mirror; not baked into the
+# root image (unlike omarchy-base.packages). Packages built for aarch64 only
+# live in omarchy-other-aarch64.packages.
 
-autoconf-archive
-asusctl
-base
-base-devel
-broadcom-wl-dkms
-btrfs-progs
-dkms
-egl-wayland
-gst-plugin-pipewire
-gtk4-layer-shell
-libpulse
-intel-ipu7-camera
-intel-lpmd
+# GPU drivers and hardware video acceleration
 intel-media-driver
 libva-intel-driver
 libva-nvidia-driver
-limine
-limine-mkinitcpio-hook
-limine-snapper-sync
-linux-firmware
-linux-omarchy
-linux-omarchy-headers
-macbook12-spi-driver-dkms
-nvidia-580xx-dkms
-nvidia-dkms
-nvidia-open-dkms
-nvidia-580xx-utils
-nvidia-utils
-lib32-nvidia-580xx-utils
-lib32-nvidia-utils
-pipewire
-pipewire-alsa
-pipewire-jack
-pipewire-libcamera
-pipewire-pulse
-qt6-wayland
-snapper
-sof-firmware
-thermald
-webp-pixbuf-loader
-yay-debug
-tuxedo-drivers-nocompatcheck-dkms
-zram-generator
-
-# Intel encoding processing
 libvpl
 vpl-gpu-rt
-
-# Vulkan drivers (auto-detected by hardware)
 vulkan-intel
 vulkan-radeon
-vulkan-asahi
+linux-omarchy-nvidia-open
+nvidia-utils
+nvidia-580xx-dkms
+nvidia-580xx-utils
+nvidia-container-toolkit
 
-# Surface laptop support packages
-linux-firmware-marvell
+# Intel power, thermal, audio DSP, and MIPI camera
+intel-lpmd
+thermald
+sof-firmware
+intel-ipu7-camera
+intel-ipu7-drivers-dkms
+linux-omarchy-ipu7
 
-# Dell laptop support packages
-dell-xps-touchpad-haptics
-dell-xps13-sidecar-amps
-linux-firmware-cirrus-dx13260
-
-# ASUS laptop support packages
-asus-proart-p14-speaker-firmware
-
-# Speaker tunings (LV2 limiter every tuning ends in)
+# Audio and camera plumbing (installed when hardware needs them)
 lsp-plugins-lv2
+pipewire-libcamera
+linux-omarchy-v4l2loopback
+v4l2loopback-dkms
+v4l2loopback-utils
+v4l2-relayd
 
-# T2 MacBook support packages
+# Wireless
+ath12k-board-fallback
+broadcom-wl-dkms
+
+# Apple Intel Macs (T2, FaceTime HD, SPI keyboard)
 apple-bcm-firmware-fetcher
 apple-t2-audio-config
 linux-t2
 linux-t2-headers
 t2fanrd
+facetimehd-dkms
+facetimehd-firmware-fetcher
+macbook12-spi-driver-dkms
+
+# ASUS ROG
+asusctl
+
+# Dell XPS
+dell-xps-touchpad-haptics
+dell-xps13-sidecar-amps
+linux-firmware-cirrus-dx13260
 
 # Framework 16
 qmk-hid
+
+# Microsoft Surface
+linux-firmware-marvell

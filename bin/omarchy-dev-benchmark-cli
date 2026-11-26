@@ -22,12 +22,6 @@ Options:
 EOF
 }
 
-now_us() {
-  # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
-  local now="${EPOCHREALTIME//[!0-9]/}"
-  printf '%s' "$now"
-}
-
 format_ms() {
   local us="$1"
   printf '%d.%03d' "$(( us / 1000 ))" "$(( us % 1000 ))"
@@ -45,13 +39,14 @@ run_case() {
   local status=0
 
   for (( i = 1; i <= REPEAT; i++ )); do
-    start_us=$(now_us)
+    # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+    start_us=${EPOCHREALTIME//[!0-9]/}
     if "$@" >/dev/null; then
       status=0
     else
       status=$?
     fi
-    end_us=$(now_us)
+    end_us=${EPOCHREALTIME//[!0-9]/}
 
     if (( status != 0 )); then
       printf '%-34s failed (exit %d)\n' "$label" "$status"

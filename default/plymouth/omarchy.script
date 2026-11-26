@@ -8,8 +8,8 @@ logo.sprite = Sprite(logo.image);
 logo.sprite.SetOpacity(1);
 
 # Use these to adjust the progress bar timing
-global.fake_progress_limit = 0.7;  # Target percentage for fake progress (0.0 to 1.0)
-global.fake_progress_duration = 15.0;  # Duration in seconds to reach limit
+global.fake_progress_limit = 0.9;  # Target percentage for fake progress (0.0 to 1.0)
+global.fake_progress_duration = 4.0;  # Duration in seconds to reach limit
 
 # Progress bar animation variables
 global.animation_frame = 0;
@@ -209,6 +209,12 @@ fun progress_callback(duration, progress) {
 }
 
 Plymouth.SetBootProgressFunction(progress_callback);
+
+fun quit_callback() {
+  update_progress_bar(1.0);
+}
+
+Plymouth.SetQuitFunction(quit_callback);
 
 #----------------------------------------- Layout --------------------------------
 

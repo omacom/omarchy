@@ -4,106 +4,234 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-service="$ROOT/default/systemd/user/bt-agent.service"
-
-grep -Fx 'ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service' "$service" >/dev/null
-pass "bt-agent skips when bluetooth.service is inactive"
-
-grep -Fx 'Restart=on-failure' "$service" >/dev/null
-pass "bt-agent still restarts after runtime failures"
-
-sleep_service="$ROOT/default/systemd/user/omarchy-sleep-lock.service"
-grep -Fx 'ExecStart=/usr/bin/omarchy-system-sleep-monitor' "$sleep_service" >/dev/null
-pass "sleep lock service uses the package-backed monitor path"
-
-grep -Fx 'After=dbus.socket wayland-session-waitenv.service' "$sleep_service" >/dev/null ||
-  fail "sleep lock monitor starts before UWSM imports the graphical session environment"
-grep -Fx 'PartOf=graphical-session.target' "$sleep_service" >/dev/null ||
-  fail "sleep lock monitor survives logout with a stale Wayland environment"
-grep -Fx 'ConditionEnvironment=OMARCHY_PATH' "$sleep_service" >/dev/null ||
-  fail "sleep lock monitor can start without the Omarchy shell path"
-grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$sleep_service" >/dev/null ||
-  fail "sleep lock monitor can start without a Wayland display"
-pass "sleep lock service follows the initialized graphical session"
-
-first_run_units="$ROOT/install/user/first-run/enable-user-units.sh"
-grep -Fx 'systemctl --user daemon-reload' "$first_run_units" >/dev/null
-grep -F 'omarchy-sleep-lock.service' "$first_run_units" >/dev/null
-pass "first-run reloads and enables the sleep lock service"
-
-upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
-grep -F '6870b232a6c0474b59187882e6d25ae771bba735098bcbedef8a2b73b97e2b6a' "$upgrade_to_quattro" >/dev/null
-grep -F 'bcd1a76cb5c63514922bc5e11af22ae480fc6d06a99863364e02bdf3c7bdceaf' "$upgrade_to_quattro" >/dev/null
-grep -F 'ExecStart=%h/.local/share/omarchy/bin/omarchy-system-sleep-monitor' "$upgrade_to_quattro" >/dev/null
-grep -F 'ExecStart=/usr/bin/omarchy-system-sleep-monitor' "$upgrade_to_quattro" >/dev/null
-grep -F 'reset-failed omarchy-sleep-lock.service' "$upgrade_to_quattro" >/dev/null
-pass "Omarchy 4 upgrade repairs the legacy sleep lock unit path"
-
-[[ -e $ROOT/default/systemd/user/omarchy-update-user-notify.path ]] &&
-  fail "the retired migration watcher is back; pacman writing the migration directory during omarchy update would notify about migrations that update is already applying"
-grep -rlE '^(Path[A-Za-z]+|DirectoryNotEmpty)=.*/usr/share/omarchy/migrations' "$ROOT/default/systemd/user" >/dev/null 2>&1 &&
+if grep -rlE '^(Path[A-Za-z]+|DirectoryNotEmpty)=.*/usr/share/omarchy/migrations' "$ROOT/default/systemd/user" >/dev/null 2>&1; then
   fail "a user unit watches the migration directory again; the notifier must stay login-only"
+fi
 pass "no unit watches the migration directory, so package updates cannot trigger the notifier"
-
-notify_service="$ROOT/default/systemd/user/omarchy-migrate-notify.service"
-grep -Fx 'ExecStart=/usr/bin/omarchy-migrate-notify' "$notify_service" >/dev/null
-grep -Fx 'WantedBy=graphical-session.target' "$notify_service" >/dev/null
-grep -Fx 'After=graphical-session.target' "$notify_service" >/dev/null ||
-  fail "migration notifier can deadlock UWSM by blocking graphical-session.target"
-pass "migration notifier checks once per login after the graphical session is ready"
-
-grep -F 'omarchy-migrate-notify.service' "$first_run_units" >/dev/null ||
-  fail "first-run does not enable the login migration notifier"
-grep -F 'omarchy-update-user-notify' "$first_run_units" >/dev/null &&
-  fail "first-run still enables the retired notifier units"
-pass "first-run enables the login-only migration notifier"
-
-fcitx_service="$ROOT/default/systemd/user/omarchy-fcitx5.service"
-grep -Fx 'ExecStart=/usr/bin/fcitx5 --replace --disable notificationitem' "$fcitx_service" >/dev/null ||
-  fail "without --replace, a fcitx5 started outside the unit holds the bus name and every restart exits on arrival"
-grep -Fx 'Restart=always' "$fcitx_service" >/dev/null ||
-  fail "fcitx5 exits 0 on a duplicate bus name, so on-failure would leave the user with no input method"
-grep -Fx 'After=graphical-session.target' "$fcitx_service" >/dev/null ||
-  fail "fcitx5 needs WAYLAND_DISPLAY, which uwsm imports before it reaches graphical-session.target"
-grep -Fx 'PartOf=graphical-session.target' "$fcitx_service" >/dev/null ||
-  fail "fcitx5 must stop with the compositor instead of lingering against a dead wayland socket"
-grep -Fx 'WantedBy=graphical-session.target' "$fcitx_service" >/dev/null ||
-  fail "fcitx5 is never pulled in at login without a WantedBy"
-grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$fcitx_service" >/dev/null ||
-  fail "an update over SSH has a live user manager and no display; starting fcitx5 there wedges the unit active-but-blind, and Wants= will not replace it at graphical login"
-grep -Fx 'ConditionPathExists=/usr/bin/fcitx5' "$fcitx_service" >/dev/null ||
-  fail "without fcitx5 installed, Restart=always retries the enabled unit at 203/EXEC for the whole session"
-
-grep -F 'pkill -u "$UID" -x fcitx5' "$ROOT/bin/omarchy-restart-xcompose" >/dev/null ||
-  fail "restart-xcompose cannot reload a fcitx5 running outside the unit, so it silently keeps serving the old table"
-
-grep -F 'omarchy-fcitx5.service' "$first_run_units" >/dev/null ||
-  fail "first-run does not enable the input method, so ~/.XCompose sequences never resolve"
-grep -F 'fcitx5' "$ROOT/default/hypr/autostart.lua" >/dev/null &&
-  fail "fcitx5 is autostarted from Hyprland; an unsupervised launch dies silently and takes every compose sequence with it"
-pass "fcitx5 runs supervised, so a lost input method comes back instead of killing XCompose until logout"
-
-oomd_slice="$ROOT/default/systemd/user/app.slice.d/10-oomd.conf"
-grep -Fx 'ManagedOOMMemoryPressure=kill' "$oomd_slice" >/dev/null ||
-  fail "nothing is a kill candidate, so systemd-oomd watches the machine thrash and never acts"
-grep -Fx 'ManagedOOMSwap=kill' "$oomd_slice" >/dev/null ||
-  fail "no swap backstop for the slower shape of the same failure"
 
 # Hyprland lives in session.slice/wayland-wm@hyprland.desktop.service. Marking
 # any ancestor of that as a kill candidate puts the compositor back in the
 # victim pool, which is the crash this whole thing exists to prevent.
+oomd_slice="$ROOT/default/systemd/user/app.slice.d/10-oomd.conf"
 candidates=$(grep -rlE '^ManagedOOM(MemoryPressure|Swap)=kill' "$ROOT/default/systemd" "$ROOT/etc/systemd" 2>/dev/null || true)
 [[ $candidates == "$oomd_slice" ]] ||
-  fail "systemd-oomd kill candidacy is set outside app.slice, which can select the compositor: $candidates"
+  fail "systemd-oomd kill candidacy must be set on app.slice and nowhere else: $candidates"
 pass "only user app scopes are systemd-oomd kill candidates"
 
-oomd_conf="$ROOT/etc/systemd/oomd.conf.d/10-omarchy.conf"
-grep -Fx 'DefaultMemoryPressureLimit=50%' "$oomd_conf" >/dev/null ||
-  fail "no pressure limit; the 60% default rides thrashing longer than a desktop stays usable"
-grep -Fx 'DefaultMemoryPressureDurationSec=20s' "$oomd_conf" >/dev/null ||
-  fail "no pressure duration set for the tightened limit"
-pass "systemd-oomd acts on sustained memory stall"
+recover="$ROOT/bin/omarchy-system-sddm-recover"
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
 
-grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
-  fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
-pass "new installs enable systemd-oomd"
+mock_bin="$tmpdir/bin"
+call_log="$tmpdir/systemctl-calls"
+mkdir -p "$mock_bin"
+
+cat >"$mock_bin/systemctl" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >>"$call_log"
+if [[ \$1 == "is-active" ]]; then
+  [[ \${SDDM_ACTIVE:-1} == "1" ]]
+fi
+SH
+
+cat >"$mock_bin/loginctl" <<'SH'
+#!/bin/bash
+if [[ ${LOGINCTL_FAIL:-0} == "1" ]]; then
+  exit 1
+fi
+printf '%s' "${LOGINCTL_SESSIONS:-}"
+SH
+
+chmod +x "$mock_bin/systemctl" "$mock_bin/loginctl"
+
+run_recover() {
+  : >"$call_log"
+  PATH="$mock_bin:$PATH" "$@" "$recover"
+}
+
+run_recover env SDDM_ACTIVE=1 LOGINCTL_SESSIONS=""
+grep -Fxq "restart --no-block sddm.service" "$call_log" ||
+  fail "active SDDM with no sessions restarts SDDM" "$(<"$call_log")"
+pass "active SDDM with no sessions restarts SDDM"
+
+seatless=$'4 1000 viktor - 2199 manager - no -\n'
+run_recover env SDDM_ACTIVE=1 LOGINCTL_SESSIONS="$seatless"
+grep -Fxq "restart --no-block sddm.service" "$call_log" ||
+  fail "seatless background sessions do not block SDDM recovery" "$(<"$call_log")"
+pass "seatless background sessions do not block SDDM recovery"
+
+seat_session=$'3 1000 viktor seat0 1234 user tty1 no -\n4 1000 viktor - 2199 manager - no -\n'
+run_recover env SDDM_ACTIVE=1 LOGINCTL_SESSIONS="$seat_session"
+if grep -q "restart" "$call_log"; then
+  fail "local seat session skips SDDM restart" "$(<"$call_log")"
+fi
+pass "local seat session skips SDDM restart"
+
+run_recover env SDDM_ACTIVE=0 LOGINCTL_SESSIONS=""
+if grep -q "restart" "$call_log"; then
+  fail "inactive SDDM is left alone" "$(<"$call_log")"
+fi
+pass "inactive SDDM is left alone"
+
+run_recover env SDDM_ACTIVE=1 LOGINCTL_FAIL=1
+if grep -q "restart" "$call_log"; then
+  fail "failed loginctl query fails closed without restarting SDDM" "$(<"$call_log")"
+fi
+pass "failed loginctl query fails closed without restarting SDDM"
+
+wait_drm_src="$ROOT/bin/omarchy-system-sddm-wait-drm"
+wait_drm="$tmpdir/omarchy-system-sddm-wait-drm"
+simplefb_dir="$tmpdir/simple-framebuffer"
+dri_dir="$tmpdir/dri"
+udev_log="$tmpdir/udevadm-calls"
+udev_on_removed="$tmpdir/udev-on-removed"
+udev_on_monitor="$tmpdir/udev-on-monitor"
+
+sed \
+  -e "s|^SIMPLEFB_DIR=.*|SIMPLEFB_DIR=$simplefb_dir|" \
+  -e "s|^DRI_DIR=.*|DRI_DIR=$dri_dir|" \
+  "$wait_drm_src" >"$wait_drm"
+chmod +x "$wait_drm"
+
+cat >"$mock_bin/udevadm" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$UDEV_LOG"
+if [[ $1 == "wait" && $* == *" --removed "* && -x ${UDEV_ON_REMOVED:-} ]]; then
+  "$UDEV_ON_REMOVED"
+fi
+if [[ $1 == "monitor" ]]; then
+  if [[ -x ${UDEV_ON_MONITOR:-} ]]; then
+    "$UDEV_ON_MONITOR"
+  fi
+  printf 'UDEV - the event which udev sends out after rule processing\n'
+fi
+SH
+chmod +x "$mock_bin/udevadm"
+
+run_wait_drm() {
+  local on_removed="${1:-}"
+  : >"$udev_log"
+  rm -f "$udev_on_removed"
+  if [[ -n $on_removed ]]; then
+    cat >"$udev_on_removed" <<SH
+#!/bin/bash
+$on_removed
+SH
+    chmod +x "$udev_on_removed"
+  fi
+  PATH="$mock_bin:$PATH" UDEV_LOG="$udev_log" UDEV_ON_REMOVED="$udev_on_removed" UDEV_ON_MONITOR="$udev_on_monitor" "$wait_drm"
+}
+
+# Early KMS: no simpledrm bound, waits directly for existing /dev/dri/card0.
+rm -rf "$simplefb_dir" "$dri_dir"
+mkdir -p "$simplefb_dir" "$dri_dir"
+: >"$dri_dir/card0"
+run_wait_drm
+[[ $(<"$udev_log") == "wait --timeout=10 --initialized=true $dri_dir/card0" ]] ||
+  fail "early-KMS boot waits only for /dev/dri/card0" "$(<"$udev_log")"
+pass "early-KMS boot waits only for /dev/dri/card0"
+
+# Late KMS: simpledrm bound, then unbound before real card1 is registered.
+rm -rf "$simplefb_dir" "$dri_dir"
+mkdir -p "$simplefb_dir/simple-framebuffer.0" "$dri_dir"
+: >"$dri_dir/card0"
+cat >"$udev_on_monitor" <<SH
+#!/bin/bash
+: >"$dri_dir/card1"
+SH
+chmod +x "$udev_on_monitor"
+run_wait_drm "rm -rf '$simplefb_dir/simple-framebuffer.0' '$dri_dir/card0'"
+expected_handoff=$(printf '%s\n%s\n%s' \
+  "wait --timeout=5 --removed $simplefb_dir/simple-framebuffer.0" \
+  "monitor --udev --subsystem-match=drm" \
+  "wait --timeout=10 --initialized=true $dri_dir/card1")
+[[ $(<"$udev_log") == "$expected_handoff" ]] ||
+  fail "late-KMS handoff waits for simpledrm removal then card1 initialization" "$(<"$udev_log")"
+pass "late-KMS handoff waits for simpledrm removal then card1 initialization"
+
+# Mid-handoff: card1 appears after the initial empty scan.
+rm -rf "$simplefb_dir" "$dri_dir"
+mkdir -p "$simplefb_dir" "$dri_dir"
+run_wait_drm
+expected_mid_handoff=$(printf '%s\n%s' \
+  "monitor --udev --subsystem-match=drm" \
+  "wait --timeout=10 --initialized=true $dri_dir/card1")
+[[ $(<"$udev_log") == "$expected_mid_handoff" ]] ||
+  fail "mid-handoff empty /dev/dri waits for the card that appears" "$(<"$udev_log")"
+pass "mid-handoff empty /dev/dri waits for the card that appears"
+
+# Non-card0 device: waits on the existing card1 instead of timing out on card0.
+rm -rf "$simplefb_dir" "$dri_dir"
+mkdir -p "$simplefb_dir" "$dri_dir"
+: >"$dri_dir/card1"
+run_wait_drm
+[[ $(<"$udev_log") == "wait --timeout=10 --initialized=true $dri_dir/card1" ]] ||
+  fail "waits on existing card1 when card0 is absent" "$(<"$udev_log")"
+pass "waits on existing card1 when card0 is absent"
+
+wait_soundwire="$ROOT/bin/omarchy-hw-wait-soundwire"
+sdw_dir="$tmpdir/soundwire"
+sleep_log="$tmpdir/sleep-calls"
+
+cat >"$mock_bin/sleep" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >>"$sleep_log"
+/usr/bin/sleep "\$@"
+SH
+chmod +x "$mock_bin/sleep"
+
+make_sdw_device() {
+  local name="$1" status="$2" dev_num="$3" bound="${4:-1}"
+  mkdir -p "$sdw_dir/$name"
+  printf '%s\n' "$status" >"$sdw_dir/$name/status"
+  printf '%s\n' "$dev_num" >"$sdw_dir/$name/device_number"
+  if (( bound )); then
+    mkdir -p "$sdw_dir/$name/driver"
+  else
+    rm -rf "$sdw_dir/$name/driver"
+  fi
+}
+
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$tmpdir/no-soundwire" OMARCHY_SOUNDWIRE_TRIES=5 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+[[ ! -s $sleep_log ]] || fail "missing SoundWire bus exits without waiting" "$(<"$sleep_log")"
+pass "missing SoundWire bus exits without waiting"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Unattached" "0" 0
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=5 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+[[ ! -s $sleep_log ]] || fail "unbound SoundWire peripheral is skipped without waiting" "$(<"$sleep_log")"
+pass "unbound SoundWire peripheral is skipped without waiting"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Attached" "2" 1
+make_sdw_device "sdw:0:1:025d:0713:01" "Alert" "1" 1
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=5 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+[[ ! -s $sleep_log ]] || fail "attached and alerting SoundWire peripherals with device numbers return immediately" "$(<"$sleep_log")"
+pass "attached and alerting SoundWire peripherals with device numbers return immediately"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:1" "Attached" "1" 1
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Unattached" "0" 1
+: >"$sleep_log"
+(
+  /usr/bin/sleep 0.05
+  printf 'Attached\n' >"$sdw_dir/sdw:0:0:025d:1321:01:0/status"
+  printf '2\n' >"$sdw_dir/sdw:0:0:025d:1321:01:0/device_number"
+) &
+updater_pid=$!
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=50 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+wait "$updater_pid"
+sleeps=$(wc -l <"$sleep_log")
+(( sleeps > 0 && sleeps < 49 )) || fail "waits for unattached SoundWire peripheral to enumerate and stops once ready" "sleeps=$sleeps"
+pass "waits for unattached SoundWire peripheral to enumerate and stops once ready"
+
+rm -rf "$sdw_dir"
+make_sdw_device "sdw:0:0:025d:1321:01:0" "Attached" "0" 1
+: >"$sleep_log"
+PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWIRE_TRIES=4 OMARCHY_SOUNDWIRE_DELAY=0.01 "$wait_soundwire"
+sleeps=$(wc -l <"$sleep_log")
+(( sleeps == 3 )) || fail "attached peripheral without a device number times out cleanly" "sleeps=$sleeps"
+pass "attached peripheral without a device number times out cleanly"

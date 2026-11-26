@@ -2,6 +2,34 @@
 
 You can see all the main keyboard bindings with `Super + K` (Tmux bindings with `Super + Alt + K` and Herdr bindings with `Super + Ctrl + K`).
 
+## How hotkeys are laid out
+
+Every hotkey sits on a plane, set by its modifiers, and each plane has one job. That's what keeps the hotkeys from blurring together, and it means you can usually guess where something lives.
+
+| Plane | What lives there | Examples |
+| --- | --- | --- |
+| `Super + key` | The system: windows, workspaces, layouts, and core menus | `Super + Space` Omarchy menu, `Super + W` close window, `Super + F` full screen |
+| `Super + Shift + key` | Apps | `Super + Shift + B` browser, `Super + Shift + E` email, `Super + Shift + N` editor |
+| `Super + Ctrl + key` | Panels and system menus | `Super + Ctrl + A` audio, `Super + Ctrl + N` network, `Super + Ctrl + C` capture menu |
+| `Super + Ctrl + Alt + key` | Quick actions and notices | `Super + Ctrl + Alt + T` show time, `Super + Ctrl + Alt + B` battery, `Super + Ctrl + Alt + C` screenshot |
+
+Adding `Alt` to a hotkey gives you a variant of the same thing, never something unrelated:
+
+- `Super + Shift + B` opens the browser; `Super + Shift + Alt + B` opens a private window
+- `Super + Shift + E` opens email; `Super + Shift + Alt + E` starts a new one
+- `Super + F` goes full screen; `Super + Alt + F` goes full width
+- `Super + Ctrl + C` opens the capture menu; `Super + Ctrl + Alt + C` skips the menu and takes a screenshot
+
+When adding a hotkey:
+
+1. Pick the plane from what it does, then pick the key.
+2. Don't move an existing hotkey to make room. Find a free key on the right plane.
+3. Only use `Alt` for a variant of the hotkey without it.
+
+A few hotkeys break these rules because they're convenient. `Shift` with an arrow or `Tab` moves or reverses instead of opening an app, and `Print`, the media keys, `Alt + Tab`, and `Ctrl + Alt + Del` work the way they do everywhere else. They're exceptions, not patterns to copy.
+
+If a default doesn't suit you (say you want `Super + Shift + S` for screenshots like on Windows), rebind it in `~/.config/hypr/bindings.lua`.
+
 ## Navigating
 
 | Hotkey                  | Function              |
@@ -12,6 +40,10 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + L` | Lock computer |
 | `Super + W` or `Super + Q` | Close window             |
 | `Ctrl + Alt + Del` | Close all windows |
+| `Super + K` | Show all hotkeys |
+| `Super + Alt + K` | Show tmux hotkeys |
+| `Super + Ctrl + K` | Show herdr hotkeys |
+| `Super + M` | Minimize window to the dock |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
@@ -21,16 +53,16 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |
 | `Super + Ctrl + F`                 | Go full screen inside window              |
-| `Super + 1/2/3/4`         | Jump to specific workspace on the focused monitor |
+| `Super + 1…9/0`         | Jump to specific workspace (0 is 10) on the focused monitor |
 | `Super + Tab` | Jump to next workspace on the focused monitor |
 | `Super + Shift + Tab` | Jump to previous workspace on the focused monitor |
 | `Super + Ctrl + Tab` | Jump to former workspace on the focused monitor |
-| `Super + Shift + 1/2/3/4` | Move window to workspace on the focused monitor |
-| `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
+| `Super + Shift + 1…9/0` | Move window to workspace on the focused monitor |
+| `Super + Shift + Alt + 1…9/0` | Move window to workspace on the focused monitor without following |
 | `Super + S` | Toggle full scratchpad |
 | `Super + Alt + S` | Move window to full scratchpad |
-| `Super + Grave` | Toggle Quake console |
-| `Super + Shift + Grave` | Move window to Quake console |
+| `Super + the key above Tab` (grave on US layouts) | Toggle Quake console |
+| `Super + Shift + the key above Tab` (grave on US layouts) | Move window to Quake console |
 | `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
 | `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
 | `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
@@ -62,6 +94,12 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Alt + Shift + Tab` | Cycle backward through windows on the active workspace |
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
+| `Super + I` | Switch input language (with more than one layout or input method) |
+| `Super + Shift + I` | Switch input language back |
+
+On a touchpad, three- and four-finger swipes switch workspaces, move windows, and open the menu and the Quake console; see [keyboard, mouse, and trackpad](34-keyboard-mouse-trackpad.md) for the gestures.
+
+Resizing uses the two keys right of 0, whatever your keyboard prints on them: `-` and `=` on US keyboards, `+` and `´` on Danish and Swedish, `+` and `\` on Norwegian, `ß` and `´` on German, `'` and `¡` on Spanish, and `-` and `^` on Japanese (JIS). `Super + K` lists them as your keyboard prints them. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`. Monitor scaling and the password manager use `/`; on layouts that type `/` only with Shift, as most European ones do, they use the key left of right Shift instead (`-` on Danish and German).
 
 ## System controls
 
@@ -72,6 +110,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + N`           | Wifi/network panel    |
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
+| `Super + Ctrl + X`           | Agents panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
 | `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
@@ -81,7 +120,9 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + H` | Hardware menu |
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
-| `Super + Shift + Ctrl + A` | Pick an AI agent |
+| `Super + Shift + Ctrl + A` | Start your default agent |
+| `Power` key | System menu |
+| `Super + Shift + Copilot` key | Omarchy menu |
 
 ## Adjustments
 
@@ -93,6 +134,11 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Alt + Volume Up/Down` | Precise 1% volume changes |
 | `Keyboard Brightness Up/Down` | Keyboard backlight brighter/dimmer |
 | `Keyboard Backlight` | Cycle the keyboard backlight levels |
+| `Ctrl + Brightness Up/Down` | Keyboard backlight brighter/dimmer, on keyboards without their own keys |
+| `Mic Mute` | Mute the microphone |
+| `Shift + Mute` | Switch audio output |
+| `Touchpad Toggle` | Turn the touchpad on or off |
+| `Display` key | Cycle the workspace layout |
 | `Alt + Play` | Next track |
 | `Alt + Shift + Play` | Previous track |
 
@@ -103,16 +149,17 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Return`           | Terminal    |
 | `Super + Alt + Return` | Tmux terminal |
 | `Super + Ctrl + Return` | Herdr (agent manager) |
-| `Super + Shift + Return`           | Browser    |
+| `Super + Shift + Return` or `Super + Shift + B`  | Browser    |
 | `Super + Shift + Alt + B`           | Browser (private/incognito)    |
 | `Super + Shift + F`           | File manager    |
 | `Super + Shift + Alt + F`           | File manager in cwd of terminal    |
 | `Super + Shift + M`           | Music (Spotify)    |
 | `Super + Shift + Alt + M`           | Music (cliamp)    |
 | `Super + Shift + /`           | Password manager (1password)    |
-| `Super + Shift + Q`           | Calculator (Omacalc)    |
+| `Super + Shift + Q` or `Calculator` key  | Calculator (Omacalc)    |
+| `Super + Shift + D`           | Docker (lazydocker, once installed)    |
 | `Super + Shift + T`           | Activity (btop)    |
-| `Super + Shift + N`           | Editor (Neovim)  |
+| `Super + Shift + N`           | Editor (Plain, or your chosen default)  |
 | `Super + Shift + C`           | Calendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | New email ([HEY](https://hey.com/))  |
@@ -126,7 +173,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Writing (Omawrite)  |
 | `Super + Shift + X`           | X |
-| `Super + Shift + Alt + X`           | X Compose |
+| `Super + Shift + Alt + X`           | X (new post) |
 | `Super + Shift + Y`           | YouTube |
 
 Change/add bindings in `~/.config/hypr/bindings.lua`.
@@ -135,6 +182,7 @@ Change/add bindings in `~/.config/hypr/bindings.lua`.
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
+| `Super + A`           | Select all in apps that support `Ctrl + A`    |
 | `Super + C`           | Copy    |
 | `Super + X`           | Cut (not in terminal)    |
 | `Super + V`           | Paste    |
@@ -150,14 +198,15 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Ctrl + Alt + C`            | Screenshot (the same shot, for keyboards with no Print Screen key) |
 | `Super + Ctrl + C` | Capture menu |
 | `Alt + Print Screen`            | Screenrecord                     |
+| `Super + Shift + Ctrl + Alt + C` | Screenrecord with no audio, skipping the menu (hit again to stop) |
 | `Super + Print Screen` | Color picker |
 | `Super + Ctrl + Print Screen` | Text extraction to clipboard |
 | `Super + Alt + [` | Make webcam overlay smaller while recording |
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
-| `Alt + Shift + L` | Copy current URL from webapp or Chromium |
+| `Alt + Shift + L` | Copy current URL from webapp or browser |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
-| `Super + Ctrl + X` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Push-to-talk dictation (requires Voxtype or Superwhisper) |
+| `Alt + Space` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
+| `Right Alt` | Hold to dictate (requires _Setup > Defaults > Dictation_) |
 
 With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. See [screenshots and recording](12-screenshots-recording.md) for the details.
 
@@ -167,10 +216,10 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Dismiss latest notification  |
+| `Super + ,` | Act on latest notification: open it or press its only button, pick from its choices, or dismiss it when it has none  |
 | `Super + Shift + ,` | Dismiss all notifications |
 | `Super + Ctrl + ,` | Control notifications with the keyboard  |
-| `Super + Alt + ,` | Invoke most recent notification  |
+| `Super + Alt + ,` | Dismiss latest notification  |
 | `Super + Shift + Alt + ,` | Open notification history  |
 | `Super + Ctrl + Alt + ,` | Toggle silencing notifications  |
 
@@ -185,7 +234,7 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 Extra background images live in `~/.config/omarchy/backgrounds/<theme name>`. Also available via _Install > Style > Background_ in the Omarchy menu.
 
-All style options are also accessible under _Style_ in the Omarchy menu (`Super + Space`).
+All style options are also accessible under _Appearance_ in the Omarchy menu (`Super + Space`).
 
 ## Toggles
 
@@ -307,7 +356,7 @@ Ghostty terminal is installed using _Install > Terminal_ via the Omarchy menu.
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Go to path                     |
 | `Space`               | Preview file (arrows navigate) |
-| `Backspace`      | Go back one folder             |
+| `Alt + Up`       | Go up to parent folder        |
 
 ## Neovim (w/ lazyvim)
 
@@ -377,4 +426,4 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 | `Shift + CapsLock Space N` | Your name (as entered on setup)  |
 | `Shift + CapsLock Space E` | Your email (as entered on setup)  |
 
-You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.
+You can add more of your own by editing `~/.XCompose`, then running `omarchy restart xcompose` in the terminal to get the changes picked up.

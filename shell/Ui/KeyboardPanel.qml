@@ -74,6 +74,21 @@ PanelWindow {
   property bool popoutSwitchClosing: false
   property bool focusPrimed: false
 
+  // A panel waiting on something that may open a window of its own, such as
+  // a password manager asking to approve a key: the panel stays on show but
+  // steps aside, so that window can take the keyboard and the pointer. Only
+  // the card takes clicks, a click elsewhere doesn't close the panel, and
+  // the keyboard comes back to the panel when it stops waiting.
+  property bool yielding: false
+  onYieldingChanged: {
+    if (yielding || !open) return
+    focusPrimed = false
+    beginFocusPrime()
+    if (focusTarget) Qt.callLater(function() {
+      if (root.open && !root.yielding && root.focusTarget) root.focusTarget.forceActiveFocus()
+    })
+  }
+
   // Item that should take keyboard focus once the panel maps. Typically a
   // PanelKeyCatcher inside the panel content. Layer-shell grants focus to the
   // surface during the Exclusive prime, but Qt still needs an active-focus
@@ -139,7 +154,7 @@ PanelWindow {
   // focus when the previously focused application has constrained the pointer.
   // The brief prime covers both cases; OnDemand then releases compositor-wide
   // pointer hit-testing so clicks can reach the dismissal windows below.
-  WlrLayershell.keyboardFocus: open
+  WlrLayershell.keyboardFocus: open && !yielding
     ? (focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
     : WlrKeyboardFocus.None
 
@@ -160,8 +175,10 @@ PanelWindow {
   // Clickable region is the whole screen. Clicks in the bar strip are
   // forwarded to registered bar buttons so switching between panel icons
   // works in one click even when the overlay surface is above the bar.
+  // Yielding, only the card is: the rest reaches the windows beneath.
   readonly property real _barStripSize: bar ? barThickness + gap : 0
   mask: Region {
+    item: root.yielding ? card : null
     width: root.screenW
     height: root.screenH
   }
@@ -223,9 +240,9 @@ PanelWindow {
   // directly — not the anchor item's y/x — because mapToItem(barContent)
   // returns coordinates in the bar's content space, which can be offset
   // from the strip's screen-anchored corner by internal layout (centering
-  // wrappers, padding). The bar window spans its whole screen, so its
-  // dimensions say nothing about the strip; the painted strip hugs the
-  // bar's anchored screen edge at the bar's thickness for this screen
+  // wrappers, padding). The bar window's size trails the strip while it
+  // settles into a new edge or thickness; the strip itself hugs the bar's
+  // anchored screen edge at the bar's thickness for this screen
   // (notch floor included), so `barThickness` gives the strip's inner edge
   // regardless of how the bar's internal widgets are positioned. For the
   // parallel axis (along the bar) the anchor item's reported position is
@@ -432,16 +449,18 @@ PanelWindow {
     // the pointer never sees itself held; it's told, for its press feedback,
     // the way the bar's own press handler tells it.
     property var heldTarget: null
-    function hold(target) {
-      if (heldTarget && heldTarget !== target && "held" in heldTarget) heldTarget.held = false
-      heldTarget = target && "held" in target ? target : null
-      if (heldTarget) heldTarget.held = true
+    function hold(target, button) {
+      if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
+      heldTarget = target && "heldButtons" in target ? target : null
+      if (heldTarget) heldTarget.heldButtons = button
     }
 
+    // Every button still down, so a second button pressed or let go mid-hold
+    // leaves the first one's feedback alone.
     onPressed: function(mouse) {
-      hold(root.focusPrimed && inBarRegion(mouse.x, mouse.y) ? pressTargetAt(mouse.x, mouse.y) : null)
+      hold(root.focusPrimed && inBarRegion(mouse.x, mouse.y) ? pressTargetAt(mouse.x, mouse.y) : null, mouse.buttons)
     }
-    onReleased: hold(null)
+    onReleased: function(mouse) { hold(mouse.buttons ? heldTarget : null, mouse.buttons) }
     onCanceled: hold(null)
     onEnabledChanged: if (!enabled) hold(null)
 
@@ -465,7 +484,7 @@ PanelWindow {
   // Keyboard focus is None: these must catch the pointer without taking focus
   // from the panel when the cursor merely crosses onto their output.
   Variants {
-    model: root.open ? Quickshell.screens : []
+    model: root.open && !root.yielding ? Quickshell.screens : []
 
     delegate: Component {
       PanelWindow {
