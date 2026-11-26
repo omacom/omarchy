@@ -392,8 +392,9 @@ assertEqual(pasteState.addNeedsPaste, true, 'a re-prompt brings the paste field 
 assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking state')
 
 // On a blank-slate machine, starting a local model download keeps AddView up
-// and must not also render a duplicate ProviderSection underneath it. Once a
-// local model is set up (running, stopped, or paired), the index takes over.
+// and must not also render a duplicate ProviderSection underneath it. Already-
+// installed models stay on the index across loading, stopping, failure, and
+// removal, as do added paired tailnet models.
 const propExpr = name => {
   const m = source.match(new RegExp('readonly property bool ' + name + ': ([^\\n]+(?:\\n(?:    [^\\n]+|  \\}\\)))*)'))
   assert(m, 'agents panel defines ' + name)
@@ -402,48 +403,59 @@ const propExpr = name => {
 const addViewVisibleExpr = source.match(/AddView \{[\s\S]*?visible: ([^\n]+)/)[1]
 const sectionsModelExpr = source.match(/id: providerSections[\s\S]*?model: ([^\n]+)/)[1]
 const evalPanelState = new Function(
-  'addStage', 'usage', 'anySignedIn', 'localModels', 'localModelLines', 'providers',
-  'const localModelRunning = ' + propExpr('localModelRunning') + '\n' +
-  'const localModelStopped = ' + propExpr('localModelStopped') + '\n' +
-  'const hasReadyLocalModel = ' + propExpr('hasReadyLocalModel') + '\n' +
+  'addStage', 'usage', 'anySignedIn', 'localModels', 'localModelLines', 'localModelState', 'settingUpLocal', 'providers',
+  fn('localSettingUp') + '\n' +
+  'const hasIndexLocalModel = ' + propExpr('hasIndexLocalModel') + '\n' +
   'const blankSlate = ' + propExpr('blankSlate') + '\n' +
   'const indexShown = ' + propExpr('indexShown') + '\n' +
   'const root = { addStage, blankSlate, indexShown, providers }\n' +
   'return { blankSlate, addVisible: (' + addViewVisibleExpr + '), sections: (' + sectionsModelExpr + ') }'
 )
-const evalPanelView = ({ addStage = '', enabledProviders = [], anySignedIn = false, localModels = {}, localModelLines = [], added = [], providers = [] }) => {
+const evalPanelView = ({ addStage = '', enabledProviders = [], anySignedIn = false, localModels = {}, localModelLines = [], settingUpLocal = '', added = [], providers = [] }) => {
   const usage = {
     enabledProviders,
     localModelAdded: line => line.localModel.host === '' || added.includes(line.localModel.target)
   }
-  return evalPanelState(addStage, usage, anySignedIn, localModels, localModelLines, providers)
+  const localModelState = local => local && local.host === '' ? (localModels[local.target] || null) : null
+  return evalPanelState(addStage, usage, anySignedIn, localModels, localModelLines, localModelState, settingUpLocal, providers)
 }
 const inklingLine = { providerId: 'local', localModel: { target: 'inkling', host: '' } }
 const downloadingView = evalPanelView({
   localModels: { inkling: { kind: 'text', unit: 'installing' } },
   localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
   providers: [inklingLine]
 })
 assertEqual(downloadingView.blankSlate, true, 'downloading a first local model stays on the blank-slate picker')
 assertEqual(downloadingView.addVisible, true, 'downloading a first local model keeps AddView visible')
 assertDeepEqual(downloadingView.sections, [], 'downloading a first local model does not duplicate it in providerSections')
 
-const runningView = evalPanelView({
-  localModels: { inkling: { kind: 'text', unit: 'active', sub_state: 'running' } },
+const firstLoadView = evalPanelView({
+  localModels: { inkling: { kind: 'text', unit: 'activating' } },
   localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
   providers: [inklingLine]
 })
-assertEqual(runningView.blankSlate, false, 'a running local model leaves the blank-slate picker')
-assertEqual(runningView.addVisible, false, 'a running local model hides AddView')
-assertDeepEqual(runningView.sections, [inklingLine], 'a running local model shows in providerSections')
+assertEqual(firstLoadView.blankSlate, true, 'first-time loading started from the picker stays on the blank-slate picker')
+assertDeepEqual(firstLoadView.sections, [], 'first-time loading started from the picker does not duplicate in providerSections')
 
-const stoppedView = evalPanelView({
-  localModels: { inkling: { kind: 'text', unit: 'inactive' } },
-  localModelLines: [inklingLine],
-  providers: [inklingLine]
-})
-assertEqual(stoppedView.blankSlate, false, 'a stopped local model stays on the panel index')
-assertDeepEqual(stoppedView.sections, [inklingLine], 'a stopped local model keeps its section')
+for (const [label, model] of [
+  ['running', { kind: 'text', unit: 'active', sub_state: 'running' }],
+  ['loading from index', { kind: 'text', unit: 'activating' }],
+  ['stopping', { kind: 'text', unit: 'deactivating' }],
+  ['stopped', { kind: 'text', unit: 'inactive' }],
+  ['failed', { kind: 'text', unit: 'failed', error: 'Stopped unexpectedly' }],
+  ['removing', { kind: 'text', unit: 'removing' }]
+]) {
+  const view = evalPanelView({
+    localModels: { inkling: model },
+    localModelLines: [inklingLine],
+    providers: [inklingLine]
+  })
+  assertEqual(view.blankSlate, false, 'an installed model (' + label + ') stays on the panel index')
+  assertEqual(view.addVisible, false, 'an installed model (' + label + ') hides AddView')
+  assertDeepEqual(view.sections, [inklingLine], 'an installed model (' + label + ') keeps its section')
+}
 
 const pairedLine = { providerId: 'local', localModel: { target: 'spark/qwen', host: 'spark' } }
 const pairedView = evalPanelView({
