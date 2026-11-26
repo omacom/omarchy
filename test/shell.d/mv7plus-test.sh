@@ -91,6 +91,27 @@ for fn in (lambda: silent.read_one("mute"), lambda: silent.read_all(require_comp
     except TimeoutError:
         raised = True
     assert raised, "timed-out HID read must raise TimeoutError"
+
+# Atomic toggle flips boolean features under one session and rejects non-booleans.
+class FakeMic(ctl.MV7Plus):
+    def __init__(self):
+        self.seq = 1
+        self.store = {(0x00, (0x01, 0x04)): bytes([0])}
+    def get_feat(self, pfx, feat):
+        return self.store.get((pfx, feat))
+    def set_feat(self, pfx, feat, val):
+        self.store[(pfx, feat)] = val
+
+fake = FakeMic()
+assert fake.toggle_named("mute") == {"mute": 1}
+assert fake.toggle_named("mute") == {"mute": 0}
+for bad_key in ("gain_db", "hpf", "bogus"):
+    rejected = False
+    try:
+        fake.toggle_named(bad_key)
+    except ValueError:
+        rejected = True
+    assert rejected, f"toggle_named must reject non-boolean {bad_key}"
 PY
 
 pass "Shure MV7+ HID protocol, value bounds, discovery, locking, and timeout handling pass"
@@ -164,3 +185,164 @@ assert(sandbox.isLeader(hotB), 'hotB becomes leader when hotA disconnects during
 assertEqual(execLog.length, beforeHandoff + 1, 'new leader triggers HID detection when MV7+ is present')
 assertDeepEqual(execLog[execLog.length - 1], { id: 'HB', args: ['read'] }, 'new leader runs read probe')
 JS
+
+require_command jq
+
+(
+  cli_tmp="$(mktemp -d)"
+  trap 'rm -rf "$cli_tmp"' EXIT
+
+  fake_root="$cli_tmp/omarchy"
+  mkdir -p "$fake_root/shell/plugins/panels/mv7plus"
+  ln -s "$ROOT/bin" "$fake_root/bin"
+  ln -s "$ROOT/default" "$fake_root/default"
+
+  state_file="$cli_tmp/state.json"
+  mock_ctl="$fake_root/shell/plugins/panels/mv7plus/mv7plus-ctl.py"
+
+  cat >"$mock_ctl" <<'PY'
+import json
+import os
+import sys
+
+mode = os.environ.get("MOCK_MV7_MODE", "ok")
+if mode == "disconnected":
+    print(json.dumps({"connected": False}))
+    sys.exit(0)
+if mode == "permission":
+    print(json.dumps({"connected": False, "device": "/dev/hidraw9", "error": "permission"}))
+    sys.exit(0)
+if mode == "badjson":
+    print("not json")
+    sys.exit(0)
+if mode == "missing_key":
+    print(json.dumps({"connected": True, "device": "/dev/hidraw9", "state": {}}))
+    sys.exit(0)
+
+state_path = os.environ["MOCK_MV7_STATE"]
+with open(state_path) as f:
+    st = json.load(f)
+
+action = sys.argv[1] if len(sys.argv) > 1 else "read"
+if action == "set":
+    key, raw = sys.argv[2], sys.argv[3]
+    val = round(float(raw) * 2.0) / 2.0 if key == "gain_db" else int(raw)
+    st[key] = val
+    with open(state_path, "w") as f:
+        json.dump(st, f)
+    print(json.dumps({"connected": True, "device": "/dev/hidraw9", "state": {key: val}}))
+elif action == "toggle":
+    key = sys.argv[2]
+    val = 0 if st[key] == 1 else 1
+    st[key] = val
+    with open(state_path, "w") as f:
+        json.dump(st, f)
+    print(json.dumps({"connected": True, "device": "/dev/hidraw9", "state": {key: val}}))
+elif action == "preset":
+    preset = sys.argv[2]
+    if preset == "neutral":
+        st.update(auto_level=0, mute=0, hpf=0, limiter=0, compressor=0, denoiser=0,
+                  popper_stopper=0, tone_pct=0, reverb_output=0, reverb_monitor=0)
+    elif preset == "factory":
+        st.update(auto_level=1, mute=0, hpf=0, limiter=0, compressor=0, denoiser=0,
+                  popper_stopper=0, tone_pct=0, reverb_output=0, reverb_type=0,
+                  reverb_intensity=0, reverb_monitor=0, mic_level=100, playback_level=100)
+    with open(state_path, "w") as f:
+        json.dump(st, f)
+    print(json.dumps({"connected": True, "device": "/dev/hidraw9", "state": st}))
+else:
+    print(json.dumps({"connected": True, "device": "/dev/hidraw9", "state": st}))
+PY
+
+  cat >"$state_file" <<'JSON'
+{
+  "auto_level": 1,
+  "gain_db": 20,
+  "mute": 0,
+  "hpf": 0,
+  "limiter": 0,
+  "compressor": 0,
+  "denoiser": 0,
+  "popper_stopper": 0,
+  "tone_pct": 0,
+  "reverb_output": 0,
+  "reverb_type": 0,
+  "reverb_intensity": 0,
+  "reverb_monitor": 0,
+  "mic_level": 100,
+  "playback_level": 100
+}
+JSON
+
+  run_cli() {
+    OMARCHY_PATH="$fake_root" MOCK_MV7_STATE="$state_file" \
+      "$fake_root/bin/omarchy" audio mv7plus "$@"
+  }
+
+  expect_eq() {
+    local got="$1" want="$2" label="$3"
+    [[ $got == "$want" ]] || fail "$label (got: '$got', want: '$want')"
+  }
+
+  expect_exit() {
+    local want="$1" label="$2"
+    shift 2
+    local rc=0
+    "$@" >/dev/null 2>&1 || rc=$?
+    (( rc == want )) || fail "$label (exit $rc, want $want)"
+  }
+
+  # Status formatting (normalizes integer gain to 1 decimal) and --json output.
+  status_out="$(run_cli status)"
+  grep -q 'Manual Gain:.*20\.0 dB' <<<"$status_out" || fail "status formats gain to 1 decimal" "$status_out"
+  json_out="$(run_cli status --json)"
+  jq -e '.state.gain_db == 20' >/dev/null <<<"$json_out" || fail "status --json returns state" "$json_out"
+
+  # Parsing edge cases: dB/% suffixes, leading-zero base-10, negative tone with/without --, aliases, toggles.
+  expect_eq "$(run_cli mode manual)" "manual" "mode setter"
+  expect_eq "$(run_cli gain 24.5dB)" "24.5 dB" "gain dB suffix"
+  expect_eq "$(run_cli gain 08)" "8.0 dB" "gain leading zero"
+  expect_eq "$(run_cli tone -60)" "dark (-60%)" "tone negative without --"
+  expect_eq "$(run_cli tone -- -40)" "dark (-40%)" "tone negative with --"
+  expect_eq "$(run_cli tone +08%)" "bright (+8%)" "tone leading-zero percent"
+  expect_eq "$(run_cli mute on)" "on" "mute on"
+  expect_eq "$(run_cli mute toggle)" "off" "mute toggle"
+  expect_eq "$(run_cli popper-stopper on)" "on" "popper-stopper alias"
+  expect_eq "$(run_cli hpf 150Hz)" "150 Hz" "hpf Hz suffix"
+  expect_eq "$(run_cli compressor heavy)" "heavy" "compressor setter"
+  expect_eq "$(run_cli reverb type hall)" "hall" "reverb type"
+  expect_eq "$(run_cli reverb intensity 08)" "8%" "reverb intensity base-10"
+  expect_eq "$(run_cli reverb monitor toggle)" "on" "reverb monitor toggle"
+  expect_eq "$(run_cli monitor mic 75%)" "75%" "monitor mic percent suffix"
+  expect_eq "$(run_cli monitor playback 40)" "40%" "monitor playback"
+  expect_eq "$(run_cli monitor)" "mic 75%, playback 40%" "monitor summary"
+
+  # Presets update hardware state and return full status.
+  neutral_out="$(run_cli preset neutral)"
+  grep -q 'Mode:.*manual' <<<"$neutral_out" || fail "preset neutral sets manual" "$neutral_out"
+  factory_out="$(run_cli preset factory)"
+  grep -q 'Mode:.*auto' <<<"$factory_out" || fail "preset factory restores auto" "$factory_out"
+
+  # Validation and arity errors exit 2.
+  expect_exit 2 "unknown command" run_cli bogus
+  expect_exit 2 "gain out of range" run_cli gain 40
+  expect_exit 2 "tone out of range" run_cli tone 150
+  expect_exit 2 "extra arg on hpf" run_cli hpf 75 extra
+  expect_exit 2 "extra arg on status" run_cli status --json extra
+  expect_exit 2 "extra arg on reverb type" run_cli reverb type hall extra
+  expect_exit 2 "missing preset name" run_cli preset
+
+  # Error paths exit 1, including permission error even when connected is false and missing keys.
+  expect_exit 1 "disconnected exits 1" env MOCK_MV7_MODE=disconnected OMARCHY_PATH="$fake_root" \
+    "$fake_root/bin/omarchy" audio mv7plus status
+  perm_err="$(MOCK_MV7_MODE=permission run_cli status 2>&1 || true)"
+  grep -q '62-shure-mv7plus.rules' <<<"$perm_err" || fail "permission error mentions udev rule" "$perm_err"
+  expect_exit 1 "permission exits 1" env MOCK_MV7_MODE=permission OMARCHY_PATH="$fake_root" \
+    "$fake_root/bin/omarchy" audio mv7plus status
+  expect_exit 1 "missing state key exits 1" env MOCK_MV7_MODE=missing_key OMARCHY_PATH="$fake_root" \
+    "$fake_root/bin/omarchy" audio mv7plus mute
+  expect_exit 1 "invalid json exits 1" env MOCK_MV7_MODE=badjson OMARCHY_PATH="$fake_root" \
+    "$fake_root/bin/omarchy" audio mv7plus status
+)
+
+pass "omarchy audio mv7plus CLI covers controls, parsing edge cases, presets, and errors"

@@ -178,6 +178,19 @@ class MV7Plus:
             raise TimeoutError(f"MV7+ did not confirm {name}")
         return {name: decode_value(fmt, raw)}
 
+    def toggle_named(self, name: str):
+        if name not in FEATURE_MAP:
+            raise ValueError(f"unknown feature: {name}")
+        _, _, _, _, fmt, mn, mx = FEATURE_MAP[name]
+        if fmt != "u8" or mn != 0 or mx != 1:
+            raise ValueError(f"feature is not toggleable: {name}")
+        cur = self.read_one(name)[name]
+        if cur not in (0, 1):
+            raise ValueError(f"unexpected boolean state for {name}: {cur}")
+        self.set_named(name, 0 if cur == 1 else 1)
+        time.sleep(0.03)
+        return self.read_one(name)
+
     def read_all(self, require_complete: bool = False):
         out = {}
         missing = []
@@ -250,6 +263,8 @@ def main():
                 mic.set_named(key, sys.argv[3])
                 time.sleep(0.03)
                 state = mic.read_one(key)
+            elif action == "toggle" and len(sys.argv) >= 3:
+                state = mic.toggle_named(sys.argv[2])
             elif action == "preset" and len(sys.argv) >= 3:
                 preset = sys.argv[2]
                 if preset == "neutral":

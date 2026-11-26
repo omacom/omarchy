@@ -1,0 +1,471 @@
+#!/bin/bash
+
+# omarchy:summary=Control a connected Shure MV7+ microphone's onboard DSP
+# omarchy:group=audio
+# omarchy:subcommand=status [--json] — Show current MV7+ settings
+# omarchy:subcommand=mode [auto|manual] — Show or set Auto Level / Manual mode
+# omarchy:subcommand=gain [0..36] — Show or set manual gain in dB
+# omarchy:subcommand=tone [-100..100|dark|natural|bright] — Show or set tone
+# omarchy:subcommand=mute [on|off|toggle] — Show, set, or toggle hardware mute
+# omarchy:subcommand=hpf [off|75|150] — Show or set high-pass filter
+# omarchy:subcommand=denoiser [on|off|toggle] — Show, set, or toggle Real-time Denoiser
+# omarchy:subcommand=popper [on|off|toggle] — Show, set, or toggle Popper Stopper
+# omarchy:subcommand=limiter [on|off|toggle] — Show, set, or toggle Limiter (manual mode)
+# omarchy:subcommand=compressor [off|light|medium|heavy] — Show or set Compressor (manual mode)
+# omarchy:subcommand=reverb [on|off|toggle|type|intensity|monitor] — Control Reverb settings
+# omarchy:subcommand=monitor <mic|playback> [0..100] — Show or set headphone monitor mix
+# omarchy:subcommand=preset <neutral|factory> — Apply Neutral (DSP off) or Factory Defaults
+# omarchy:examples=omarchy audio mv7plus status | omarchy audio mv7plus preset neutral | omarchy audio mv7plus hpf 75 | omarchy audio mv7plus denoiser on
+
+set -euo pipefail
+
+helper="$OMARCHY_PATH/shell/plugins/panels/mv7plus/mv7plus-ctl.py"
+
+usage() {
+  cat <<'USAGE'
+Usage: omarchy audio mv7plus <command> [args...]
+
+  status [--json]                         Show current MV7+ settings
+  mode [auto|manual]                      Show or set Auto Level / Manual mode
+  gain [0..36]                            Show or set manual gain in dB (0.5 dB steps)
+  tone [-100..100|dark|natural|bright]    Show or set tone (-100 to +100)
+  mute [on|off|toggle]                    Show, set, or toggle hardware mute
+  hpf [off|75|150]                        Show or set high-pass filter (off, 75 Hz, 150 Hz)
+  denoiser [on|off|toggle]                Show, set, or toggle Real-time Denoiser
+  popper [on|off|toggle]                  Show, set, or toggle Popper Stopper
+  limiter [on|off|toggle]                 Show, set, or toggle Limiter (manual mode)
+  compressor [off|light|medium|heavy]     Show or set Compressor (manual mode)
+  reverb [on|off|toggle]                  Show, set, or toggle Reverb output
+  reverb type [plate|hall|studio]         Show or set Reverb type
+  reverb intensity [0..100]               Show or set Reverb intensity (%)
+  reverb monitor [on|off|toggle]          Show, set, or toggle Direct Monitor reverb
+  monitor mic [0..100]                    Show or set headphone monitor Mic level (%)
+  monitor playback [0..100]               Show or set headphone monitor Playback level (%)
+  preset <neutral|factory>                Apply Neutral (DSP off) or Factory Defaults
+USAGE
+}
+
+die() {
+  echo "omarchy-audio-mv7plus: $*" >&2
+  exit 1
+}
+
+die_usage() {
+  echo "omarchy-audio-mv7plus: $*" >&2
+  exit 2
+}
+
+require_max_args() {
+  local max="$1" actual="$2" ctx="$3"
+  (( actual <= max )) || die_usage "too many arguments for $ctx"
+}
+
+run_ctl() {
+  local out connected err
+  out="$(python3 "$helper" "$@")" || die "HID helper failed"
+  jq -e 'type == "object"' >/dev/null 2>&1 <<<"$out" || die "HID helper returned invalid JSON"
+  connected="$(jq -r '.connected // false' <<<"$out")"
+  err="$(jq -r '.error // empty' <<<"$out")"
+  if [[ $err == "permission" ]]; then
+    die "Cannot open MV7+ HID device. Check /etc/udev/rules.d/62-shure-mv7plus.rules."
+  fi
+  if [[ $connected != "true" ]]; then
+    if [[ -n $err ]]; then
+      die "$err"
+    fi
+    die "No Shure MV7+ microphone connected."
+  fi
+  if [[ -n $err ]]; then
+    die "$err"
+  fi
+  printf '%s\n' "$out"
+}
+
+state_val() {
+  local json="$1" key="$2" val
+  val="$(jq -er --arg k "$key" '.state[$k] | if . == null then empty else . end' <<<"$json")" ||
+    die "MV7+ did not report $key"
+  printf '%s\n' "$val"
+}
+
+fmt_bool() {
+  case "${1:-}" in
+    1) echo "on" ;;
+    0) echo "off" ;;
+    *) echo "${1:-unknown}" ;;
+  esac
+}
+
+fmt_mode() {
+  case "${1:-}" in
+    1) echo "auto" ;;
+    0) echo "manual" ;;
+    *) echo "${1:-unknown}" ;;
+  esac
+}
+
+fmt_gain() {
+  local v="${1:-}"
+  [[ $v =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "${v:-unknown}"; return; }
+  LC_ALL=C printf '%.1f dB\n' "$v"
+}
+
+fmt_hpf() {
+  case "${1:-}" in
+    0) echo "off" ;;
+    1) echo "75 Hz" ;;
+    2) echo "150 Hz" ;;
+    *) echo "${1:-unknown}" ;;
+  esac
+}
+
+fmt_compressor() {
+  case "${1:-}" in
+    0) echo "off" ;;
+    1) echo "light" ;;
+    2) echo "medium" ;;
+    3) echo "heavy" ;;
+    *) echo "${1:-unknown}" ;;
+  esac
+}
+
+fmt_reverb_type() {
+  case "${1:-}" in
+    0) echo "plate" ;;
+    1) echo "hall" ;;
+    2) echo "studio" ;;
+    *) echo "${1:-unknown}" ;;
+  esac
+}
+
+fmt_tone() {
+  local v="${1:-}" n
+  [[ $v =~ ^-?0*[0-9]{1,3}$ ]] || { echo "${v:-unknown}"; return; }
+  if [[ $v == -* ]]; then
+    n=$(( -10#${v#-} ))
+  else
+    n=$(( 10#$v ))
+  fi
+  if (( n == 0 )); then
+    echo "natural (0%)"
+  elif (( n < 0 )); then
+    echo "dark (${n}%)"
+  else
+    echo "bright (+${n}%)"
+  fi
+}
+
+print_status() {
+  local json="$1"
+  local dev mode gain mute hpf lim comp dn pop tone rev rtype rint rmon mic pb
+  dev="$(jq -r '.device // ""' <<<"$json")"
+  mode="$(state_val "$json" auto_level)"
+  gain="$(state_val "$json" gain_db)"
+  mute="$(state_val "$json" mute)"
+  hpf="$(state_val "$json" hpf)"
+  lim="$(state_val "$json" limiter)"
+  comp="$(state_val "$json" compressor)"
+  dn="$(state_val "$json" denoiser)"
+  pop="$(state_val "$json" popper_stopper)"
+  tone="$(state_val "$json" tone_pct)"
+  rev="$(state_val "$json" reverb_output)"
+  rtype="$(state_val "$json" reverb_type)"
+  rint="$(state_val "$json" reverb_intensity)"
+  rmon="$(state_val "$json" reverb_monitor)"
+  mic="$(state_val "$json" mic_level)"
+  pb="$(state_val "$json" playback_level)"
+
+  printf 'Device:          Shure MV7+ (%s)\n' "$dev"
+  printf 'Mute:            %s\n' "$(fmt_bool "$mute")"
+  printf 'Mode:            %s\n' "$(fmt_mode "$mode")"
+  printf 'Manual Gain:     %s\n' "$(fmt_gain "$gain")"
+  printf 'Tone:            %s\n' "$(fmt_tone "$tone")"
+  printf 'High-Pass:       %s\n' "$(fmt_hpf "$hpf")"
+  printf 'Denoiser:        %s\n' "$(fmt_bool "$dn")"
+  printf 'Popper Stopper:  %s\n' "$(fmt_bool "$pop")"
+  printf 'Limiter:         %s\n' "$(fmt_bool "$lim")"
+  printf 'Compressor:      %s\n' "$(fmt_compressor "$comp")"
+  printf 'Reverb:          %s (%s, %s%%, monitor %s)\n' \
+    "$(fmt_bool "$rev")" "$(fmt_reverb_type "$rtype")" "$rint" "$(fmt_bool "$rmon")"
+  printf 'Monitor Mix:     mic %s%%, playback %s%%\n' "$mic" "$pb"
+}
+
+handle_bool() {
+  local key="$1" arg="${2:-}" out next val
+  if [[ -z $arg ]]; then
+    out="$(run_ctl read)"
+    val="$(state_val "$out" "$key")"
+    fmt_bool "$val"
+    return
+  fi
+  case "${arg,,}" in
+    on|1|true) next=1 ;;
+    off|0|false) next=0 ;;
+    toggle)
+      out="$(run_ctl toggle "$key")"
+      val="$(state_val "$out" "$key")"
+      fmt_bool "$val"
+      return
+      ;;
+    *) die_usage "expected on, off, or toggle (got: $arg)" ;;
+  esac
+  out="$(run_ctl set "$key" "$next")"
+  val="$(state_val "$out" "$key")"
+  fmt_bool "$val"
+}
+
+parse_int_range() {
+  local val="$1" min="$2" max="$3" label="$4" num
+  [[ $val =~ ^-?0*[0-9]{1,3}$ ]] || die_usage "$label must be an integer between $min and $max (got: $val)"
+  if [[ $val == -* ]]; then
+    num=$(( -10#${val#-} ))
+  else
+    num=$(( 10#$val ))
+  fi
+  (( num >= min && num <= max )) || die_usage "$label must be between $min and $max (got: $val)"
+  printf '%d\n' "$num"
+}
+
+handle_percent() {
+  local key="$1" label="$2" arg="${3:-}" num out val
+  if [[ -z $arg ]]; then
+    out="$(run_ctl read)"
+    val="$(state_val "$out" "$key")"
+    printf '%s%%\n' "$val"
+    return
+  fi
+  arg="${arg%\%}"
+  num="$(parse_int_range "$arg" 0 100 "$label")"
+  out="$(run_ctl set "$key" "$num")"
+  val="$(state_val "$out" "$key")"
+  printf '%s%%\n' "$val"
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "$cmd" in
+  -h|--help|help)
+    usage
+    ;;
+
+  status)
+    require_max_args 1 $# "status"
+    json_flag="${1:-}"
+    if [[ -n $json_flag && $json_flag != "--json" ]]; then
+      die_usage "unknown status option: $json_flag"
+    fi
+    out="$(run_ctl read)"
+    if [[ $json_flag == "--json" ]]; then
+      jq '.' <<<"$out"
+    else
+      print_status "$out"
+    fi
+    ;;
+
+  mode)
+    require_max_args 1 $# "mode"
+    arg="${1:-}"
+    if [[ -z $arg ]]; then
+      out="$(run_ctl read)"
+      res="$(state_val "$out" auto_level)"
+      fmt_mode "$res"
+    else
+      case "${arg,,}" in
+        auto|1) val=1 ;;
+        manual|0) val=0 ;;
+        *) die_usage "mode must be auto or manual (got: $arg)" ;;
+      esac
+      out="$(run_ctl set auto_level "$val")"
+      res="$(state_val "$out" auto_level)"
+      fmt_mode "$res"
+    fi
+    ;;
+
+  gain)
+    require_max_args 1 $# "gain"
+    arg="${1:-}"
+    if [[ -z $arg ]]; then
+      out="$(run_ctl read)"
+      res="$(state_val "$out" gain_db)"
+      fmt_gain "$res"
+    else
+      arg_lc="${arg,,}"
+      arg_lc="${arg_lc%db}"
+      [[ $arg_lc =~ ^[0-9]+(\.[0-9]+)?$ ]] || die_usage "gain must be a number between 0 and 36 dB (got: $arg)"
+      LC_ALL=C awk -v v="$arg_lc" 'BEGIN { exit !(v >= 0 && v <= 36) }' || die_usage "gain must be between 0 and 36 dB (got: $arg)"
+      out="$(run_ctl set gain_db "$arg_lc")"
+      res="$(state_val "$out" gain_db)"
+      fmt_gain "$res"
+    fi
+    ;;
+
+  tone)
+    if [[ ${1:-} == "--" ]]; then
+      shift
+    fi
+    require_max_args 1 $# "tone"
+    arg="${1:-}"
+    if [[ -z $arg ]]; then
+      out="$(run_ctl read)"
+      res="$(state_val "$out" tone_pct)"
+      fmt_tone "$res"
+    else
+      case "${arg,,}" in
+        dark) val=-100 ;;
+        natural|neutral) val=0 ;;
+        bright) val=100 ;;
+        *)
+          val="${arg%\%}"
+          val="${val#+}"
+          val="$(parse_int_range "$val" -100 100 "tone")"
+          ;;
+      esac
+      out="$(run_ctl set tone_pct "$val")"
+      res="$(state_val "$out" tone_pct)"
+      fmt_tone "$res"
+    fi
+    ;;
+
+  mute)
+    require_max_args 1 $# "mute"
+    handle_bool mute "${1:-}"
+    ;;
+
+  hpf)
+    require_max_args 1 $# "hpf"
+    arg="${1:-}"
+    if [[ -z $arg ]]; then
+      out="$(run_ctl read)"
+      res="$(state_val "$out" hpf)"
+      fmt_hpf "$res"
+    else
+      case "${arg,,}" in
+        off|0) val=0 ;;
+        75|75hz|1) val=1 ;;
+        150|150hz|2) val=2 ;;
+        *) die_usage "hpf must be off, 75, or 150 (got: $arg)" ;;
+      esac
+      out="$(run_ctl set hpf "$val")"
+      res="$(state_val "$out" hpf)"
+      fmt_hpf "$res"
+    fi
+    ;;
+
+  denoiser)
+    require_max_args 1 $# "denoiser"
+    handle_bool denoiser "${1:-}"
+    ;;
+
+  popper|popper-stopper)
+    require_max_args 1 $# "popper"
+    handle_bool popper_stopper "${1:-}"
+    ;;
+
+  limiter)
+    require_max_args 1 $# "limiter"
+    handle_bool limiter "${1:-}"
+    ;;
+
+  compressor)
+    require_max_args 1 $# "compressor"
+    arg="${1:-}"
+    if [[ -z $arg ]]; then
+      out="$(run_ctl read)"
+      res="$(state_val "$out" compressor)"
+      fmt_compressor "$res"
+    else
+      case "${arg,,}" in
+        off|0) val=0 ;;
+        light|1) val=1 ;;
+        medium|2) val=2 ;;
+        heavy|3) val=3 ;;
+        *) die_usage "compressor must be off, light, medium, or heavy (got: $arg)" ;;
+      esac
+      out="$(run_ctl set compressor "$val")"
+      res="$(state_val "$out" compressor)"
+      fmt_compressor "$res"
+    fi
+    ;;
+
+  reverb)
+    sub="${1:-}"
+    case "${sub,,}" in
+      ""|on|off|toggle|0|1|true|false)
+        require_max_args 1 $# "reverb"
+        handle_bool reverb_output "$sub"
+        ;;
+      type)
+        require_max_args 2 $# "reverb type"
+        arg="${2:-}"
+        if [[ -z $arg ]]; then
+          out="$(run_ctl read)"
+          res="$(state_val "$out" reverb_type)"
+          fmt_reverb_type "$res"
+        else
+          case "${arg,,}" in
+            plate|0) val=0 ;;
+            hall|1) val=1 ;;
+            studio|2) val=2 ;;
+            *) die_usage "reverb type must be plate, hall, or studio (got: $arg)" ;;
+          esac
+          out="$(run_ctl set reverb_type "$val")"
+          res="$(state_val "$out" reverb_type)"
+          fmt_reverb_type "$res"
+        fi
+        ;;
+      intensity)
+        require_max_args 2 $# "reverb intensity"
+        handle_percent reverb_intensity "reverb intensity" "${2:-}"
+        ;;
+      monitor)
+        require_max_args 2 $# "reverb monitor"
+        handle_bool reverb_monitor "${2:-}"
+        ;;
+      *)
+        die_usage "unknown reverb option: $sub (expected on, off, toggle, type, intensity, or monitor)"
+        ;;
+    esac
+    ;;
+
+  monitor)
+    sub="${1:-}"
+    case "${sub,,}" in
+      mic)
+        require_max_args 2 $# "monitor mic"
+        handle_percent mic_level "monitor mic level" "${2:-}"
+        ;;
+      playback)
+        require_max_args 2 $# "monitor playback"
+        handle_percent playback_level "monitor playback level" "${2:-}"
+        ;;
+      "")
+        out="$(run_ctl read)"
+        mic="$(state_val "$out" mic_level)"
+        pb="$(state_val "$out" playback_level)"
+        printf 'mic %s%%, playback %s%%\n' "$mic" "$pb"
+        ;;
+      *)
+        die_usage "monitor target must be mic or playback (got: $sub)"
+        ;;
+    esac
+    ;;
+
+  preset)
+    require_max_args 1 $# "preset"
+    arg="${1:-}"
+    case "${arg,,}" in
+      neutral|factory)
+        out="$(run_ctl preset "${arg,,}")"
+        print_status "$out"
+        ;;
+      *)
+        die_usage "preset must be neutral or factory (got: ${arg:-none})"
+        ;;
+    esac
+    ;;
+
+  *)
+    die_usage "unknown command: $cmd (try: omarchy audio mv7plus --help)"
+    ;;
+esac
