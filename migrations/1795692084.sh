@@ -5,6 +5,8 @@ echo "Install the ASUS Zenbook A16 (UX3607OA) camera support package"
 # and hides raw CAMSS and IR nodes from camera pickers. Its systemd units are
 # enabled by the package and start on the next boot.
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  omarchy-pkg-add asus-zenbook-a16-support
-  omarchy-state set reboot-required
+  if ! pacman -Q asus-zenbook-a16-support &>/dev/null; then
+    omarchy-pkg-add asus-zenbook-a16-support
+    omarchy-state set reboot-required
+  fi
 fi

@@ -7,5 +7,17 @@
 # sensor black-level tuning and WirePlumber rules to hide raw CAMSS and IR nodes.
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  OMARCHY_PKG_DEFER=1 omarchy-pkg-add asus-zenbook-a16-support
+  if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
+    omarchy-pkg-add asus-zenbook-a16-support
+
+    # An image's first boot runs this after boot queued its units and finishes
+    # without rebooting, so load v4l2loopback and start the relay + guard now.
+    if pacman -Q asus-zenbook-a16-support &>/dev/null; then
+      sudo modprobe v4l2loopback || true
+      sudo systemctl daemon-reload || true
+      sudo systemctl start --no-block v4l2-relayd@zenbook-a16.service zenbook-a16-camera-guard.service || true
+    fi
+  else
+    OMARCHY_PKG_DEFER=1 omarchy-pkg-add asus-zenbook-a16-support
+  fi
 fi
