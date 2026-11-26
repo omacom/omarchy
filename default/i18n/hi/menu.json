@@ -1445,5 +1445,11 @@
   },
   "remove.ai.desktop.t3-code": {
     "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "स्नैपशॉट"
+  },
+  "system.snapshots.restore": {
+    "label": "यह स्नैपशॉट पुनर्स्थापित करें"
   }
 }

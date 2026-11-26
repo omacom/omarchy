@@ -40,6 +40,8 @@
   "system.suspend": {"icon":"󰒲","label":"Suspend","when":"! omarchy-toggle-enabled suspend-off && ! omarchy-sleep-disabled","action":"systemctl suspend"},
   "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available && ! omarchy-sleep-disabled","action":"systemctl hibernate"},
   "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system logout"},
+  "system.snapshots": {"icon":"󰁯","label":"Snapshots","when":"[[ $(omarchy-boot-backend) == systemd-boot ]] && [[ -n $(omarchy-snapshot list) ]]","provider":"snapshots"},
+  "system.snapshots.restore": {"icon":"󰦛","label":"Restore This Snapshot","when":"grep -q '/[.]snapshots/[0-9]*/snapshot' /proc/cmdline && [[ $(omarchy-boot-backend) == systemd-boot ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-snapshot restore"},
   "system.reboot": {"icon":"󰜉","label":"Reboot","alt":"system.firmware","action":"omarchy-system reboot"},
   // Stands in for Reboot while Alt is held.
   "system.firmware": {"icon":"󰘚","label":"Reboot to BIOS","description":"Restart into the UEFI firmware setup","when":"[[ -d /sys/firmware/efi ]]","action":"omarchy-system firmware"},
