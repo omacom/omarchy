@@ -3,8 +3,8 @@ import Quickshell
 import Quickshell.Io
 
 // Presses the real workspace buttons with the bar's command calls stubbed:
-// the active number cycles the layout only while the click is on, and a press
-// on another number still asks to focus it either way.
+// the active number cycles the layout unless cycleLayoutOnClick is false, and
+// pressing another number focuses that workspace either way.
 ShellRoot {
   id: root
 
@@ -16,6 +16,8 @@ ShellRoot {
   property var buttons: []
   property var activeButton: null
   property var otherButton: null
+  property int activeId: -1
+  property int otherId: -1
   property var steps: []
   property int step: 0
 
@@ -45,7 +47,7 @@ ShellRoot {
   QtObject {
     id: fakeBar
 
-    property bool cycleLayoutOnClick: true
+    property var cycleLayoutOnClick: undefined
     property bool vertical: false
     property int barSize: 24
     property color foreground: "#ffffff"
@@ -66,7 +68,7 @@ ShellRoot {
       [function() {
         if (!root.widgetComponent) return
         if (root.widgetComponent.status === Component.Error) {
-          root.check(false, "Workspaces.qml loads: " + root.widgetComponent.errorString())
+          root.check(false, "Workspaces.qml loads: " + componentError())
           return
         }
         if (root.widgetComponent.status !== Component.Ready) return
@@ -85,9 +87,11 @@ ShellRoot {
         }
         root.check(root.activeButton !== null, "an active workspace button is there")
         root.check(root.otherButton !== null, "another workspace button is there")
+        if (root.activeButton) root.activeId = root.activeButton.modelData
+        if (root.otherButton) root.otherId = root.otherButton.modelData
       }, 100],
 
-      // With the click on, the active number runs the layout cycle.
+      // When cycleLayoutOnClick is unset (undefined), the active number still cycles.
       [function() {
         if (!root.activeButton) return
         root.clearCalls()
@@ -95,24 +99,27 @@ ShellRoot {
       }, 150],
       [function() {
         root.check(root.lastCall().indexOf("workspace-layout-toggle") !== -1,
-          "the active workspace cycles the layout while the click is on: " + root.lastCall())
+          "the active workspace cycles the layout when cycleLayoutOnClick is undefined: " + root.lastCall())
       }, 100],
 
-      // And another number still switches, not cycles.
+      // Another number focuses that workspace without cycling the layout.
       [function() {
         if (!root.otherButton) return
         root.clearCalls()
         root.otherButton.triggerPress(0)
-      }, 150],
+      }, 250],
       [function() {
-        root.check(root.lastCall().indexOf("hyprctl dispatch") !== -1,
-          "another workspace number still focuses it: " + root.lastCall())
-        root.check(root.lastCall().indexOf("workspace-layout-toggle") === -1,
-          "another workspace number does not cycle the layout")
-      }, 100],
+        root.check(root.widget.activeWorkspaceId() === root.otherId,
+          "another workspace number focuses it: expected " + root.otherId + ", got " + root.widget.activeWorkspaceId())
+        root.check(fakeBar.calls.length === 0,
+          "another workspace number does not cycle the layout: " + root.lastCall())
+        if (root.activeButton) root.activeButton.triggerPress(0)
+      }, 250],
 
       // With the click off, the active number is inert.
       [function() {
+        root.check(root.widget.activeWorkspaceId() === root.activeId,
+          "restored active workspace before off check: expected " + root.activeId + ", got " + root.widget.activeWorkspaceId())
         fakeBar.cycleLayoutOnClick = false
       }, 100],
       [function() {
@@ -125,19 +132,40 @@ ShellRoot {
           "the active workspace does nothing while the click is off: " + root.lastCall())
       }, 100],
 
-      // Other numbers still switch.
+      // Other numbers still focus with the click off, then restore the original workspace.
       [function() {
         if (!root.otherButton) return
         root.clearCalls()
         root.otherButton.triggerPress(0)
+      }, 250],
+      [function() {
+        root.check(root.widget.activeWorkspaceId() === root.otherId,
+          "another workspace number still focuses it with the click off: expected " + root.otherId + ", got " + root.widget.activeWorkspaceId())
+        root.check(fakeBar.calls.length === 0,
+          "another workspace number does not cycle with the click off: " + root.lastCall())
+        if (root.activeButton) root.activeButton.triggerPress(0)
+      }, 250],
+
+      // With the click explicitly on, the active number cycles again.
+      [function() {
+        fakeBar.cycleLayoutOnClick = true
+      }, 100],
+      [function() {
+        if (!root.activeButton) return
+        root.clearCalls()
+        root.activeButton.triggerPress(0)
       }, 150],
       [function() {
-        root.check(root.lastCall().indexOf("hyprctl dispatch") !== -1,
-          "another workspace number still focuses it with the click off: " + root.lastCall())
+        root.check(root.lastCall().indexOf("workspace-layout-toggle") !== -1,
+          "the active workspace cycles the layout when cycleLayoutOnClick is true: " + root.lastCall())
       }, 100]
     ]
 
     stepper.start()
+  }
+
+  function componentError() {
+    return root.widgetComponent ? root.widgetComponent.errorString() : ""
   }
 
   Timer {
