@@ -338,7 +338,10 @@ batch_binds_file="$tmpdir/batch-binds"
 cat >"$batch_stub/hyprctl" <<'SH'
 #!/bin/bash
 if [[ $1 == "--batch" ]]; then
-  printf '{\n  "str": "us"\n}\n\n\n{\n  "str": ""\n}\n\n\nactive keymap: English (US)\n\n\n'
+  printf '{\n  "str": "us"\n}\n\n\n{\n  "str": ""\n}\n\n\n'
+  if [[ $2 == *"devices"* ]]; then
+    printf 'active keymap: %s\n\n\n' "${OMARCHY_TEST_BATCH_KEYMAP:-English (US)}"
+  fi
   cat "$OMARCHY_TEST_BATCH_BINDS"
 elif [[ $1 == "binds" ]]; then
   cat "$OMARCHY_TEST_BATCH_BINDS"
@@ -365,6 +368,14 @@ batch_second=$(env -i PATH="$batch_stub:$ROOT/bin:$PATH" HOME="$home" \
 grep -qP '→ Second action\texec\tsecond-cmd$' <<<"$batch_second" ||
   fail "batched hyprctl cache invalidates when reported binds change" "$batch_second"
 pass "batched hyprctl IPC path tracks binding changes"
+
+batch_cached=$(stat -c '%i %n' "$tmpdir"/batch-cache/omarchy/keybindings-*.records)
+batch_switched=$(env -i PATH="$batch_stub:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/batch-cache" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BATCH_BINDS="$batch_binds_file" OMARCHY_TEST_BATCH_KEYMAP="German" bash "$menu" --records)
+[[ $(stat -c '%i %n' "$tmpdir"/batch-cache/omarchy/keybindings-*.records) == "$batch_cached" && $batch_switched == "$batch_second" ]] ||
+  fail "a layout switch keeps the batched keybindings cache and its records" "$batch_switched"
+pass "a layout switch keeps the batched keybindings cache and its records"
 
 # Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
 # or function: 0x..., with a display-only number as its arg, so picking a row
