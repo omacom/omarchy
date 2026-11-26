@@ -73,4 +73,26 @@ assertEqual(switcher.scrollFor(tall, 0, tall.contentHeight - tall.height), 0, 'a
 assertEqual(switcher.scrollFor(tall, 20, tall.items[20].y - 5), tall.items[20].y - 5, 'a thumbnail in view stays where it is')
 JS
 
+require_command lua
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "a window brought back from the minimized ones animates again after a config reload"
+local restoring = { address = "0xa", tags = { "omarchy-restoring" } }
+local props = {}
+hl = {
+  get_windows = function() return { restoring, { address = "0xb", tags = {} } } end,
+  dispatch = function(dispatcher)
+    if dispatcher.tag then
+      restoring.tags = {}
+    else
+      table.insert(props, dispatcher)
+    end
+  end,
+  dsp = { window = { set_prop = function(args) return args end, tag = function(args) return args end } },
+}
+o = {}
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/window-switcher.lua")
+assert(#props == 1 and props[1].window == restoring and props[1].prop == "no_anim" and props[1].value == "unset",
+  "a reload while a restored window was still without animations left them off")
+assert(#restoring.tags == 0, "the restored window kept its tag after a reload")
+LUA
+
 pass "the window switcher orders, picks and lays out windows the way Windows does"

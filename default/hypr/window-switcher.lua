@@ -6,7 +6,26 @@
 
 local MINIMIZED_WORKSPACE = "special:minimized"
 
+-- A window brought back from the minimized ones carries this tag while it has
+-- no animations. The tag lives on the window, so it survives a config reload,
+-- which starts this file over and drops the timer that gives them back.
+local RESTORING_TAG = "omarchy-restoring"
+
 local M = {}
+
+local function animate_again(window)
+  hl.dispatch(hl.dsp.window.set_prop({ prop = "no_anim", value = "unset", window = window }))
+  hl.dispatch(hl.dsp.window.tag({ tag = "-" .. RESTORING_TAG, window = window }))
+end
+
+for _, window in ipairs(hl.get_windows()) do
+  for _, tag in ipairs(window.tags or {}) do
+    if tag == RESTORING_TAG then
+      animate_again(window)
+      break
+    end
+  end
+end
 
 local function window_at(address)
   if type(address) ~= "string" or address == "" then
@@ -33,9 +52,10 @@ local function bring_back_minimized(window)
   end
 
   hl.dispatch(hl.dsp.window.set_prop({ prop = "no_anim", value = "1", window = window }))
+  hl.dispatch(hl.dsp.window.tag({ tag = "+" .. RESTORING_TAG, window = window }))
   hl.dispatch(hl.dsp.window.move({ workspace = tostring(workspace.id), window = window }))
   hl.timer(function()
-    hl.dispatch(hl.dsp.window.set_prop({ prop = "no_anim", value = "unset", window = window }))
+    animate_again(window)
   end, { type = "oneshot", timeout = 400 })
   return true
 end
