@@ -375,9 +375,14 @@ LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
 assert_installs "an existing libfprint-git still completes the package set"
 pass "an existing libfprint-git still completes the package set"
 
-if /usr/bin/python3 -c 'import dbus; from gi.repository import Gio' 2>/dev/null; then
-  dbus-run-session -- /usr/bin/python3 "$ROOT/test/shell.d/fixtures/fingerprint-setup/reader-test.py"
-  pass "the graphical reader handles touch, lift, early completion and occupied slots over D-Bus"
+/usr/bin/python3 "$ROOT/test/shell.d/fixtures/fingerprint-setup/sudo-test.py"
+pass "sudo enrollment preserves other authentication methods and the password fallback"
+
+if command -v cmake >/dev/null && pkg-config --exists Qt6QuickControls2 Qt6Test && /usr/bin/python3 -c 'import dbus; from gi.repository import GLib' 2>/dev/null; then
+  cmake -S "$ROOT/apps/fingerprint" -B "$scratch/qt" -DBUILD_TESTING=ON
+  cmake --build "$scratch/qt" --parallel 2
+  ctest --test-dir "$scratch/qt" --output-on-failure
+  pass "the Qt fingerprint window handles enrollment and verification on a private D-Bus service"
 else
-  echo "skip - graphical reader tests need Python GObject and dbus-python"
+  echo "skip - native window tests need CMake, Qt Quick, Qt Test and the private D-Bus fixture"
 fi

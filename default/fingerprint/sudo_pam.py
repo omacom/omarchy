@@ -90,6 +90,9 @@ def configure(path, enable):
 
 
 if __name__ == "__main__":
+  if sys.argv[1:] == ["status"]:
+    print({True: "enabled", False: "disabled", None: "custom"}[enabled()])
+    sys.exit(0)
   if len(sys.argv) != 2 or sys.argv[1] not in ("enable", "disable") or os.geteuid() != 0:
     sys.exit("Run as an administrator with enable or disable.")
   try:

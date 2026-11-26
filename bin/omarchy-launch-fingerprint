@@ -1,4 +1,4 @@
 #!/bin/bash
 # omarchy:summary=Manage enrolled fingerprints and screen unlock
 
-exec /usr/bin/python3 "$OMARCHY_PATH/default/fingerprint/setup.py" "$@"
+exec /usr/lib/omarchy/fingerprint-setup "$@"
