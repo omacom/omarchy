@@ -23,6 +23,7 @@ Item {
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
+  property int fingerprintLockGeneration: 0
   property bool fingerprintChoiceChecked: false
   property bool fingerprintConfigured: false
   property int fingerprintUnreachedStreak: 0
@@ -155,11 +156,18 @@ Item {
   }
 
   function refreshFingerprintStatus() {
-    if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
+    if (!fingerprintCheckProc.running) {
+      fingerprintCheckProc.generation = fingerprintLockGeneration
+      fingerprintCheckProc.running = true
+    }
   }
 
   // Only definitive enrollment results may disable authentication.
-  function applyFingerprintProbe(text) {
+  function applyFingerprintProbe(text, generation = fingerprintLockGeneration) {
+    if (generation !== fingerprintLockGeneration) {
+      if (lockRequested) Qt.callLater(root.refreshFingerprintStatus)
+      return
+    }
     const firstProbe = !fingerprintChoiceChecked
     fingerprintChoiceChecked = true
     var status = FingerprintModel.classifyProbe(text)
@@ -227,6 +235,7 @@ Item {
     }
 
     resetAuthenticationState()
+    fingerprintLockGeneration += 1
     fingerprintChoiceChecked = false
     lockRequested = true
     armBlankTimer()
@@ -745,9 +754,10 @@ Item {
   // Keep fprintd errors distinguishable from an explicit empty enrollment.
   Process {
     id: fingerprintCheckProc
+    property int generation: 0
     command: ["bash", "-c", "if [[ ! -f $HOME/.local/state/omarchy/toggles/lock-fingerprint-off && -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C fprintd-list \"$USER\" 2>&1; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
-    onExited: root.applyFingerprintProbe(fingerprintCheckStdout.text)
+    onExited: root.applyFingerprintProbe(fingerprintCheckStdout.text, generation)
   }
 
   // Retries a probe that could not reach fprintd, paced like the attempt
