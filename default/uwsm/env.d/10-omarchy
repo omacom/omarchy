@@ -15,6 +15,46 @@ fi
 # Optional user overrides kept for compatibility with older installs.
 [ -f "$HOME/.config/uwsm/default" ] && . "$HOME/.config/uwsm/default"
 
+# egl-wayland2 (09_nvidia_wayland2.json) causes unmapped Firefox/Zen subsurfaces (#12221)
+# and post-resume nvidia_drm semsurf / QSGRenderThread deadlocks (#19125, NVIDIA/egl-wayland2#66).
+# Prefer classic egl-wayland via __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS when both platform JSONs
+# exist; keeping FILENAMES unset and running after ~/.config/uwsm/default lets user overrides
+# in either __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS or __EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES win.
+if [ -z "${__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES:-}" ] &&
+   [ -z "${__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS:-}" ] &&
+   [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ] && [ -w "$XDG_RUNTIME_DIR" ] &&
+   omarchy-hw-nvidia >/dev/null 2>&1; then
+  omarchy_egl_platform_dir=${OMARCHY_EGL_EXTERNAL_PLATFORM_DIR:-/usr/share/egl/egl_external_platform.d}
+  omarchy_egl_admin_dir=${OMARCHY_EGL_EXTERNAL_PLATFORM_ADMIN_DIR:-/etc/egl/egl_external_platform.d}
+  if [ -f "$omarchy_egl_platform_dir/09_nvidia_wayland2.json" ] &&
+     [ -f "$omarchy_egl_platform_dir/10_nvidia_wayland.json" ]; then
+    omarchy_egl_runtime_dir="${XDG_RUNTIME_DIR%/}/omarchy/egl_external_platform.d"
+    if mkdir -p "$omarchy_egl_runtime_dir" 2>/dev/null; then
+      rm -f "$omarchy_egl_runtime_dir"/*.json
+      omarchy_egl_linked=0
+      for omarchy_egl_file in "$omarchy_egl_platform_dir"/*.json; do
+        [ -f "$omarchy_egl_file" ] || continue
+        case "${omarchy_egl_file##*/}" in
+          09_nvidia_wayland2.json) continue ;;
+        esac
+        if ln -sfn "$omarchy_egl_file" "$omarchy_egl_runtime_dir/${omarchy_egl_file##*/}"; then
+          omarchy_egl_linked=1
+        fi
+      done
+      if [ "$omarchy_egl_linked" = 1 ]; then
+        if [ -d "$omarchy_egl_admin_dir" ]; then
+          export __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS="$omarchy_egl_admin_dir:$omarchy_egl_runtime_dir"
+        else
+          export __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS="$omarchy_egl_runtime_dir"
+        fi
+      fi
+      unset omarchy_egl_linked omarchy_egl_file
+    fi
+    unset omarchy_egl_runtime_dir
+  fi
+  unset omarchy_egl_platform_dir omarchy_egl_admin_dir
+fi
+
 # Put mise shims ahead of system binaries, behind the account dispatchers the
 # env bootstrap put first, without spawning mise on every graphical login.
 if command -v mise >/dev/null 2>&1; then
