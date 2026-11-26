@@ -1,18 +1,17 @@
 #!/bin/bash
 
-# omarchy:summary=Reinstall all default Omarchy packages from the stable channel, or on Apple Silicon the edge channel
+# omarchy:summary=Reinstall all default Omarchy packages from the current channel
 # omarchy:requires-sudo=true
 
 set -e
 
-# Reinstall all default Omarchy packages from the platform's default channel
-# (stable, or edge on Apple Silicon) and downgrade any packages that are too new.
+# Reinstall all default Omarchy packages from the current channel, or the
+# platform's default when it can't be read, and downgrade any packages that are
+# too new.
 
-# Set the package repository to the platform's default channel
-source "$OMARCHY_PATH/install/helpers/pacman.sh"
-platform=$(omarchy-hw-platform)
-channel=$(omarchy_pacman_default_channel "$platform")
-omarchy-refresh-pacman "$channel"
+# The refresh keeps a known current channel and falls back to the platform's
+# default when it can't be read.
+omarchy-refresh-pacman
 
 # Downgrade any packages to that channel's setup
 omarchy-update-pacman -Suu --noconfirm
