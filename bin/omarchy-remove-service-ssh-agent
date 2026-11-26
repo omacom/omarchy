@@ -15,7 +15,11 @@ systemctl --user stop gcr-ssh-agent.service 2>/dev/null || true
 # during cleanup. Explicitly drop the saved socket value during the next
 # session preparation, before Hyprland or its apps inherit it.
 mkdir -p "$(dirname "$session_env_file")"
-printf '%s\n' '# Keep a stale socket restored by uwsm out of the next session.' 'unset SSH_AUTH_SOCK' >"$session_env_file"
+printf '%s\n' \
+  '# Keep a stale gcr socket restored by uwsm out of the next session.' \
+  'if [ "${SSH_AUTH_SOCK:-}" = "$XDG_RUNTIME_DIR/gcr/ssh" ]; then' \
+  '  unset SSH_AUTH_SOCK' \
+  'fi' >"$session_env_file"
 
 # The socket exported SSH_AUTH_SOCK to the user manager, which outlives the agent.
 if systemctl --user show-environment | grep -Fqx "SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/gcr/ssh"; then
