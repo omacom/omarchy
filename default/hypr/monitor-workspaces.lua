@@ -47,7 +47,8 @@ local function load_blocks()
 
   for line in file:lines() do
     local block, connector, identity = line:match("^(%d+)\t([^\t]*)\t(.+)$")
-    if block then
+    -- Older sessions saved a block for the temporary headless output.
+    if block and identity ~= "FALLBACK" then
       blocks[identity] = tonumber(block)
       if connector ~= "" then
         current[connector] = identity

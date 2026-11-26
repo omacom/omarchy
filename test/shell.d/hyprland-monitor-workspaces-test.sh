@@ -444,6 +444,42 @@ check(shows("DP-1") == 2 or shows("DP-1") == 3, "the monitor shows one of them, 
 ' || fail "Hyprland's stand-in output gets no block, and the monitor wakes back on its windows"
 pass "Hyprland's stand-in output gets no block, and the monitor wakes back on its windows"
 
+run_lua fallback-start '
+-- The session starts with the monitor off: only FALLBACK exists.
+plug("FALLBACK", 9, "", 1)
+world.focused = "FALLBACK"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+plug("DP-1", 0, "LG", 2)
+world.handlers["monitor.added"]({ name = "DP-1" })
+unplug("FALLBACK")
+world.handlers["monitor.removed"]({ name = "FALLBACK" })
+fire_timers()
+check(m.workspace_id(hl.get_monitor("DP-1"), 1) == 1, "the first real monitor got " .. m.workspace_id(hl.get_monitor("DP-1"), 1) .. ", not 1")
+check(not state_file():find("FALLBACK", 1, true), "FALLBACK was given a block: " .. state_file())
+' || fail "a session started with no monitor gives the first real one 1-10"
+pass "a session started with no monitor gives the first real one 1-10"
+
+run_lua fallback-saved '
+-- A session from before FALLBACK was left out saved it a block.
+os.execute("mkdir -p " .. os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors")
+local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/workspaces", "w")
+file:write("0\tDP-1\tLG\n1\t\tFALLBACK\n")
+file:close()
+
+plug("DP-1", 0, "LG", 1)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(not state_file():find("FALLBACK", 1, true), "the saved FALLBACK block was kept: " .. state_file())
+check(m.workspace_id(hl.get_monitor("DP-1"), 1) == 1, "the monitor lost its block")
+plug("DP-2", 1, "Dell", 2)
+world.handlers["monitor.added"]({ name = "DP-2" })
+check(m.workspace_id(hl.get_monitor("DP-2"), 1) == 11, "FALLBACK still reserves the next block")
+' || fail "a block saved for FALLBACK is dropped"
+pass "a block saved for FALLBACK is dropped"
+
 run_lua removed-deferred '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
