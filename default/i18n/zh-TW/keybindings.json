@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "活動",
   "Agent": "代理人",
   "Agents": "代理人",
@@ -21,6 +20,7 @@
   "Calculator": "計算機",
   "Calendar": "行事曆",
   "Capture menu": "擷取選單",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "清除提醒",
   "Clipboard manager": "剪貼簿管理器",
   "Close all windows": "關閉所有視窗",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "以鍵盤控制通知",
   "Cycle workspace layout": "循環切換工作區版面配置",
   "Cycle workspace layout back": "反向循環切換工作區版面配置",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "終端機前綴直接輸入",
   "Disable touchpad": "停用觸控板",
   "Dismiss all notifications": "關閉所有通知",

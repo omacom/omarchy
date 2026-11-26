@@ -2,4 +2,15 @@
 
 # omarchy:summary=Detect whether the computer has an Intel Panther Lake GPU.
 
-lspci | grep -iE 'vga|3d|display' | grep -qi 'panther lake'
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+shopt -s nullglob
+
+for device in "$pci_devices_path"/*; do
+  [[ -r $device/vendor && -r $device/class ]] || continue
+  [[ $(<"$device/vendor") == "0x8086" && $(<"$device/class") == 0x03* ]] || continue
+  if lspci -s "${device##*/}" | grep -qi 'panther lake'; then
+    exit 0
+  fi
+done
+
+exit 1

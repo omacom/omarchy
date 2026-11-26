@@ -73,20 +73,10 @@ mapfile -t shipped < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$RO
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 mapfile -t restored <"$pkg_log"
-grep -Fx 'reshim --system' "$OMARCHY_TEST_MISE_LOG" >/dev/null || fail "Install Preinstalls rebuilds the mise shims"
-pass "Install Preinstalls rebuilds the mise shims"
-
-: >"$OMARCHY_TEST_MISE_LOG"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 mapfile -t dropped <"$pkg_log"
-[[ $(<"$miserc") == "env = [\"work\"]"$'\n'"$ignore_line" ]] ||
-  fail "Remove Preinstalls has mise skip Omarchy's declarations for this user" "$(<"$miserc")"
-grep -Fx 'reshim' "$OMARCHY_TEST_MISE_LOG" >/dev/null || fail "Remove Preinstalls retires the lazy shims"
-pass "Remove Preinstalls has mise skip Omarchy's declarations for this user"
-
-"$ROOT/bin/omarchy-install-preinstalls" >/dev/null
-[[ $(<"$miserc") == 'env = ["work"]' ]] || fail "Install Preinstalls removes only its own miserc line" "$(<"$miserc")"
-pass "Install Preinstalls removes only its own miserc line"
+[[ $(<"$miserc") == 'env = ["work"]' ]] || fail "Remove Preinstalls leaves the user's mise settings alone" "$(<"$miserc")"
+pass "Remove Preinstalls leaves the user's mise settings alone"
 
 rm "$miserc"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
@@ -104,14 +94,12 @@ printf 'ignored_config_paths = ["~/old"]\n' >"$miserc"
 [[ $(<"$miserc") == 'ignored_config_paths = ["~/old"]' ]] || fail "opting out leaves the user's list alone"
 printf 'ignored_config_paths = ["~/old", "%s"]\n' "$mise_config" >"$miserc"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null || fail "opting out accepts the file in the user's own list"
-"$ROOT/bin/omarchy-mise-default-tools" declares codex && fail "a user's own list keeps Omarchy's tools undeclared"
 "$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null 2>&1 && status=0 || status=$?
 ((status == 1)) || fail "opting back in reports a list it cannot edit" "exit status was $status"
 rm "$miserc"
 pass "an existing ignored_config_paths is left to the user"
 
 printf '# %s\n' "$ignore_line" >"$miserc"
-"$ROOT/bin/omarchy-mise-default-tools" declares codex || fail "a commented-out opt-out keeps Omarchy's tools declared"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
 grep -qxF "$ignore_line" "$miserc" || fail "opting out is not skipped by a commented-out opt-out"
 "$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null || fail "opting back in succeeds past a commented-out opt-out"
@@ -145,17 +133,6 @@ OMARCHY_TEST_PKG_ADD_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ -f $marker ]] || fail "restore keeps the opt-out marker when packages fail to install"
 pass "restore keeps the opt-out marker when packages fail to install"
 
-for failure in OMARCHY_TEST_RESHIM_STATUS; do
-  touch "$marker"
-  : >"$pkg_log"
-  env "$failure=1" "$ROOT/bin/omarchy-install-preinstalls" >/dev/null && status=0 || status=$?
-  (( status == 1 )) || fail "restore reports a failed tool setup" "$failure returned $status"
-  [[ -f $marker ]] || fail "restore keeps the opt-out marker after failed tool setup" "$failure"
-  [[ ! -s $pkg_log ]] || fail "restore stops before installing packages when tool setup fails" "$failure"
-done
-pass "restore stops and preserves opt-out when shim setup fails"
-
-
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ ! -e $marker ]] || fail "restore clears the opt-out marker once the packages are back"
 pass "restore clears the opt-out marker once the packages are back"
@@ -168,12 +145,6 @@ pass "declining Remove Preinstalls changes nothing"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $marker ]] || fail "Remove Preinstalls records the opt-out"
 pass "Remove Preinstalls records the opt-out"
-
-mkdir -p "$(dirname "$mise_config")"
-touch "$mise_config"
-"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
-[[ -f $mise_config ]] || fail "Remove Preinstalls leaves the package-owned mise declarations in place"
-pass "Remove Preinstalls leaves the package-owned mise declarations in place"
 
 # The real launcher refresh, with only the desktop database stubbed.
 refresh_bin="$test_tmp/refresh-bin"

@@ -1,5 +1,4 @@
 {
-  "AI": "AI",
   "Activity": "فعالیت",
   "Agent": "ایجنت",
   "Agents": "ایجنت‌ها",
@@ -21,6 +20,7 @@
   "Calculator": "ماشین‌حساب",
   "Calendar": "تقویم",
   "Capture menu": "منوی ضبط",
+  "ChatGPT": "ChatGPT",
   "Clear reminders": "پاک‌کردن یادآوری‌ها",
   "Clipboard manager": "مدیر کلیپ‌بورد",
   "Close all windows": "بستن همه‌ٔ پنجره‌ها",
@@ -29,6 +29,7 @@
   "Control notifications with the keyboard": "کنترل اعلان‌ها با صفحه‌کلید",
   "Cycle workspace layout": "چرخش چیدمان فضای کاری",
   "Cycle workspace layout back": "چرخش معکوس چیدمان فضای کاری",
+  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "ورودی مستقیم پیشوند ترمینال",
   "Disable touchpad": "غیرفعال‌سازی تاچ‌پد",
   "Dismiss all notifications": "رد کردن همه‌ٔ اعلان‌ها",
