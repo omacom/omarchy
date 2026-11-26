@@ -1,6 +1,8 @@
 ---
 name: omarchy-lab
-description: Operate Omarchy Lab's disposable VM for guest-side development, branch deployment, checkpoints, screenshots, and debugging. Use when the user asks to use or test in Lab; do not redirect ordinary host customization or replace the Omarchy ISO acceptance harness.
+description: >
+  Operate Omarchy Lab's disposable VM for guest-side development, branch deployment, checkpoints, screenshots, and debugging.
+  Use when the user asks to use or test in Lab. Lab is separate from host customization and the Omarchy ISO acceptance harness.
 ---
 
 # Omarchy Lab

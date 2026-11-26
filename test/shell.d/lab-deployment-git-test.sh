@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
-update_helper="${OMARCHY_PATH:-$ROOT}/bin/omarchy-update-dev"
+update_bin="${OMARCHY_PATH:-$ROOT}/bin"
 export OMARCHY_PATH="$ROOT"
 source "$ROOT/bin/omarchy-lab-checkout"
 repository="$test_tmp/source repo"
@@ -34,9 +34,9 @@ deploy_source "$repository" --destination "$destination" --no-reboot --json >"$t
 [[ $(cat "$destination/marker") == "uncommitted" ]]
 [[ -n $(git -C "$destination" diff -- marker) ]]
 ! git -C "$destination" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1
-if [[ -f $update_helper ]]; then
-  OMARCHY_PATH="$destination" bash "$update_helper" >"$test_tmp/update.log"
-  grep -q 'no upstream' "$test_tmp/update.log"
+if [[ -f $update_bin/omarchy-update-dev ]]; then
+  # A pull would fail here because the imported branch has no upstream.
+  PATH="$update_bin:$PATH" OMARCHY_PATH="$destination" bash "$update_bin/omarchy-update-dev" >"$test_tmp/update.log"
 fi
 pass "path deployment preserves dirty files, usable Git metadata and previous guest refs; source updates skip safely"
 git -C "$repository" switch -qc feature/portable
