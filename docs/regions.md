@@ -18,7 +18,7 @@ Installs from before regions have no marker and stay global; nothing changes the
 
 ## Profile layout
 
-Each profile lives in `default/regions/<code>/`, and `default/regions/global/` holds the world's `applications` and `theme`, and the `timezones` that stay global on any media. Every region has its own of both, and a new launcher goes on each list that should have it.
+Each profile lives in `default/regions/<code>/`, and `default/regions/global/` holds the world's `applications` and `theme`, and the `timezones` that stay global on any media. Every region has its own `applications` and `theme`, and a new launcher goes on each list that should have it.
 
 - `timezones`: the timezones that select this region, one per line, with blank lines and `#` comments allowed. List tzdata's backward-compatible names too, since the installer's timezone list includes them. A timezone may belong to at most one profile.
 - `applications`: the launchers in `applications/` the region installs, by file name without `.desktop`, one per line, with blank lines and `#` comments allowed. `omarchy-refresh-applications` copies exactly these. `/etc/skel` seeds every shipped launcher before the region is known, so a user's first install (`omarchy-provision-user --first-install`) removes them all before that copy; later refreshes never remove a launcher, so a user who adds one back keeps it.
@@ -34,9 +34,9 @@ A profile adds mirrors of repositories every install already uses, never a repos
 
 Each market gets its own media: the global ISO, and one per region profile (a China ISO for `cn`). The companion `omarchy-iso` repository reads the profiles from the runtime it bundles, so a region and its defaults can never disagree. A profile adds no package, so a market's media is the global ISO with its region preset.
 
-- **Build:** the builder bundles the profiles with the runtime; it adds no repository, key or package for them. A deferred install from any media sets `REGION=<code>` in its form defaults (`/etc/omarchy/form-defaults`), `global` from the global ISO.
+- **Build:** the builder bundles the profiles with the runtime; it adds no repository, key or package for them.
 - **Install:** the region follows the timezone the user picked: one a profile's `timezones` lists picks that profile, so Hong Kong, Macau and Taiwan are always `global`; any other timezone keeps the media's region, so China media used abroad stays `cn`. The installer shows the result on the summary screen. Unattended installs can set the region explicitly instead. For a regional install it writes `/etc/omarchy/region` before finalization, so the pacman fragments, launchers and theme all follow it.
-- **Deferred installs** have no timezone until first boot. `omarchy-provision-owner` settles the region from the media's `REGION` and the owner's timezone by the same rule before it provisions the user (`configure_region`).
+- **Deferred installs** have no timezone until first boot, so the installer leaves the media's region as `REGION=<code>` in the form defaults (`/etc/omarchy/form-defaults`), `global` from the global ISO, unless the config names a region. `omarchy-provision-owner` settles the region from the media's `REGION` and the owner's timezone by the same rule before it provisions the user (`configure_region`).
 
 
 ## Scope of the China profile
