@@ -1,0 +1,465 @@
+#!/bin/bash
+
+# omarchy:summary=List NetworkManager VPNs and switch them between off, split and full tunnel
+# omarchy:group=network
+# omarchy:args=[list | mode <uuid> <off|split|full> | signin <uuid> [split|full] | add | import <file>]
+# omarchy:examples=omarchy network vpn | omarchy network vpn mode 3f2504e0-4f89-11d3-9a0c-0305e82c3301 split | omarchy network vpn import ~/Downloads/office.conf
+
+# Every NetworkManager VPN (WireGuard, OpenVPN, OpenConnect, ...) gets three
+# modes in the Network panel:
+#
+#   off    disconnected
+#   split  connected, but only the VPN's own networks go through it
+#          (never-default yes, for IPv4 and IPv6)
+#   full   connected, and all traffic goes through it (never-default no);
+#          only one VPN is in full at a time, the others drop to split.
+#          WireGuard routes only what its peers allow, so a profile offers
+#          full only when a peer allows 0.0.0.0/0. A VPN that doesn't
+#          carry IPv6 has IPv6 blocked in full, rather than let it out the
+#          normal connection
+#
+# The mode lives in the profile itself, so nmcli, nm-applet and this command
+# always agree. `list` prints one tab-separated line per VPN:
+#
+#   uuid  name  kind  state  detail  mode  modes  actions
+#
+# state is up, connecting or off; kind is wireguard or the VPN plugin
+# (openvpn, openconnect, ...); actions is "signin" after a connect failed for
+# lack of credentials. The same lines go to $SNAPSHOT so every bar picks up a
+# change without polling.
+
+set -uo pipefail
+
+MODES="off,split,full"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/omarchy"
+SNAPSHOT="$RUNTIME_DIR/network-vpn"
+SIGNIN_DIR="$RUNTIME_DIR/network-vpn-signin"
+UPLINK_BLOCK="$RUNTIME_DIR/network-vpn-ipv6-block"
+GLYPH="󰖂"
+# Two /1 routes beat any IPv6 default route without being one, so the
+# connectivity penalty NetworkManager gives default routes can't undo them.
+IPV6_BLOCK=("::/1 type=blackhole" "8000::/1 type=blackhole")
+
+# Output that gets read is asked for in English, whatever the user's language.
+# Only the interactive sign-in keeps the user's language.
+nmc() {
+  LC_ALL=C nmcli "$@"
+}
+
+notify() {
+  omarchy-notification-send -g "$GLYPH" "$@" >/dev/null 2>&1 || true
+}
+
+fail() {
+  echo "omarchy-network-vpn: $1" >&2
+  exit 1
+}
+
+valid_uuid() {
+  [[ $1 =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]
+}
+
+# Tabs and newlines would break the line format.
+clean() {
+  printf '%s' "$1" | tr '\t\n' '  '
+}
+
+# Sign-in flags live in the runtime dir, so they clear on logout.
+signin_flag() {
+  echo "$SIGNIN_DIR/$1"
+}
+
+needs_signin_set() {
+  mkdir -p "$SIGNIN_DIR"
+  touch "$(signin_flag "$1")"
+}
+
+needs_signin_clear() {
+  rm -f "$(signin_flag "$1")"
+}
+
+# Runs this command again in a floating terminal, where nmcli can ask for
+# secrets and pacman for a password. The terminal must not inherit the
+# switch lock, or the switch it runs would wait on itself.
+open_terminal() {
+  omarchy-launch-floating-terminal-with-presentation "$(printf '%q ' omarchy-network-vpn "$@")" >/dev/null 2>&1 9>&- &
+}
+
+# Only one switch at a time, from any panel or terminal, so two VPNs can't
+# both end up carrying all traffic.
+lock_switches() {
+  runtime_dir_ready || return 0
+  exec 9>"$RUNTIME_DIR/network-vpn.lock"
+  flock -w 30 9 || fail "another VPN switch is still running"
+}
+
+# The runtime dir must be ours before anything is written into it.
+runtime_dir_ready() {
+  mkdir -p "$RUNTIME_DIR" 2>/dev/null && [[ -O $RUNTIME_DIR ]]
+}
+
+wireguard_peers() {
+  nmc -g wireguard.peers connection show uuid "$1" 2>/dev/null
+}
+
+# Whether a peer allows <prefix> (0.0.0.0/0 or ::/0).
+peers_allow() { # <peers> <prefix>
+  grep -qE "(=|,|;)${2//./\\.}([,; ]|\$)" <<<"$1"
+}
+
+# A WireGuard profile carries all traffic only when a peer allows it.
+vpn_modes() { # <uuid> <type>
+  if [[ $2 == "wireguard" ]] && ! peers_allow "$(wireguard_peers "$1")" "0.0.0.0/0"; then
+    echo "off,split"
+  else
+    echo "$MODES"
+  fi
+}
+
+profile_mode() { # <uuid> <modes>
+  if [[ ,$2, == *,full,* && $(nmc -g ipv4.never-default connection show uuid "$1" 2>/dev/null) == "no" ]]; then
+    echo "full"
+  else
+    echo "split"
+  fi
+}
+
+# `nmcli -t` escapes ':' in values as '\:', so the name goes last and is
+# unescaped; uuid and type never contain one.
+list_vpns() {
+  local active uuid type name kind state detail mode modes actions
+  active=$(nmc -t -f UUID,STATE connection show --active 2>/dev/null)
+
+  while IFS=: read -r uuid type name; do
+    [[ $type == "vpn" || $type == "wireguard" ]] || continue
+    name=$(sed 's/\\:/:/g; s/\\\\/\\/g' <<<"$name")
+
+    kind=$type
+    if [[ $type == "vpn" ]]; then
+      kind=$(nmc -g vpn.service-type connection show uuid "$uuid" 2>/dev/null)
+      kind=${kind##*.}
+      kind=${kind:-vpn}
+    fi
+
+    modes=$(vpn_modes "$uuid" "$type")
+    state=off
+    detail=""
+    mode=off
+    case $(awk -F: -v u="$uuid" '$1 == u {print $2; exit}' <<<"$active") in
+      activated) state=up ;;
+      activating) state=connecting ;;
+    esac
+
+    if [[ $state != "off" ]]; then
+      mode=$(profile_mode "$uuid" "$modes")
+      # The live address lags a moment behind activation; the profile's own
+      # address (WireGuard has one) stands in until then.
+      detail=$(nmc -g IP4.ADDRESS connection show uuid "$uuid" 2>/dev/null | head -1)
+      [[ -n $detail ]] || detail=$(nmc -g ipv4.addresses connection show uuid "$uuid" 2>/dev/null)
+      detail=$(cut -d'|' -f1 <<<"${detail%%,*}" | cut -d/ -f1 | tr -d ' ')
+    fi
+
+    actions=""
+    [[ -f $(signin_flag "$uuid") ]] && actions=signin
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$(clean "$name")" "$kind" "$state" "$detail" "$mode" "$modes" "$actions"
+  done < <(nmc -t -f UUID,TYPE,NAME connection show 2>/dev/null)
+}
+
+# Writes the snapshot the bar watches. Each writer gets its own temporary file
+# and renames it into place, so a reader never sees half a list and writers
+# running at once (one per monitor at startup) can't clobber each other.
+write_snapshot() {
+  local tmp
+  runtime_dir_ready || return 1
+  tmp=$(mktemp "$SNAPSHOT.XXXXXX") || return 1
+  if list_vpns >"$tmp"; then
+    mv -f "$tmp" "$SNAPSHOT"
+  else
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+list() {
+  heal_ipv6_block
+  if write_snapshot; then
+    cat "$SNAPSHOT"
+  else
+    list_vpns
+  fi
+}
+
+vpn_type() {
+  nmc -g connection.type connection show uuid "$1" 2>/dev/null
+}
+
+vpn_name() {
+  nmc -g connection.id connection show uuid "$1" 2>/dev/null
+}
+
+require_vpn() {
+  local type
+  valid_uuid "$1" || fail "not a connection uuid: $1"
+  type=$(vpn_type "$1")
+  [[ $type == "vpn" || $type == "wireguard" ]] || fail "not a VPN: $1"
+}
+
+active_full_vpns() {
+  list_vpns | awk -F'\t' -v skip="$1" '$1 != skip && $4 != "off" && $6 == "full" {print $1}'
+}
+
+# Split keeps the default route off the VPN for IPv6 too, or a server that
+# hands out an IPv6 default route would still carry all IPv6 traffic.
+set_default_route() { # <uuid> <split|full>
+  local never_default=yes
+  [[ $2 == "full" ]] && never_default=no
+  nmc connection modify uuid "$1" ipv4.never-default "$never_default" ipv6.never-default "$never_default" \
+    -ipv6.routes "${IPV6_BLOCK[0]}" -ipv6.routes "${IPV6_BLOCK[1]}" || return 1
+
+  # Full on WireGuard that doesn't carry IPv6 blocks it instead.
+  if [[ $2 == "full" && $(vpn_type "$1") == "wireguard" ]] && ! peers_allow "$(wireguard_peers "$1")" "::/0"; then
+    nmc connection modify uuid "$1" +ipv6.routes "${IPV6_BLOCK[0]}" +ipv6.routes "${IPV6_BLOCK[1]}"
+  fi
+}
+
+# A plugin VPN (OpenVPN, OpenConnect, ...) only learns whether it carries IPv6
+# once it is up, and routes on its own profile apply only when it does. So a
+# full one without IPv6 has the block put on each device that routes IPv6 to
+# the internet, for as long as it stays up. $UPLINK_BLOCK records the VPN
+# that holds the block and the devices it is on.
+vpn_has_ipv6() {
+  nmc -g IP6.ADDRESS connection show uuid "$1" 2>/dev/null | tr '|,' '\n\n' | tr -d ' ' | grep -v -E '^(fe80|$)' | grep -q :
+}
+
+ipv6_uplinks() {
+  ip -6 -o route show default 2>/dev/null |
+    awk '{for (i = 1; i < NF; i++) if ($i == "dev" && $(i + 1) != "lo") print $(i + 1)}' | sort -u
+}
+
+block_ipv6_uplinks() { # <uuid>
+  local devs dev
+  devs=$(ipv6_uplinks | tr '\n' ' ')
+  [[ -n ${devs// /} ]] && runtime_dir_ready || return 0
+  for dev in $devs; do
+    nmc device modify "$dev" +ipv6.routes "${IPV6_BLOCK[0]}" +ipv6.routes "${IPV6_BLOCK[1]}" >/dev/null 2>&1
+  done
+  echo "$1 $devs" >"$UPLINK_BLOCK"
+}
+
+lift_ipv6_block() { # [uuid]: only when that VPN holds the block
+  local owner devs dev
+  [[ -f $UPLINK_BLOCK ]] || return 0
+  read -r owner devs <"$UPLINK_BLOCK"
+  [[ -z ${1:-} || $1 == "$owner" ]] || return 0
+  for dev in $devs; do
+    nmc device modify "$dev" -ipv6.routes "${IPV6_BLOCK[0]}" -ipv6.routes "${IPV6_BLOCK[1]}" >/dev/null 2>&1
+  done
+  rm -f "$UPLINK_BLOCK"
+}
+
+# A VPN that dropped by itself leaves its block behind; lift it once the VPN
+# is gone.
+heal_ipv6_block() {
+  local owner rest
+  [[ -f $UPLINK_BLOCK ]] || return 0
+  read -r owner rest <"$UPLINK_BLOCK"
+  nmc -t -f UUID,STATE connection show --active 2>/dev/null | grep -q "^$owner:activat" || lift_ipv6_block "$owner"
+}
+
+# How nmcli reports a VPN it could not bring up without asking for a password,
+# token or login cookie. nmc asks for English, so this matches in every
+# language.
+needs_secrets() {
+  grep -qiE 'secret|password|no agents|authenticat' <<<"$1"
+}
+
+# Brings the VPN up with the profile as it is now. Without a terminal, a
+# failure for missing credentials opens one to sign in rather than failing,
+# and returns 1 because the VPN isn't up yet.
+connect() {
+  local uuid=$1 mode=$2 name err
+  name=$(vpn_name "$uuid")
+
+  if [[ -t 0 ]]; then
+    nmcli --ask connection up uuid "$uuid" || fail "could not connect $name"
+  elif ! err=$(nmc connection up uuid "$uuid" 2>&1 >/dev/null); then
+    if needs_secrets "$err"; then
+      needs_signin_set "$uuid"
+      open_terminal signin "$uuid" "$mode"
+      notify "$(omarchy-i18n vpn.signIn "$name")" "$(omarchy-i18n vpn.signInBody)"
+      return 1
+    fi
+    notify -u critical "$(omarchy-i18n vpn.connectFailed "$name")" "$(clean "$err")"
+    fail "could not connect $name"
+  fi
+
+  needs_signin_clear "$uuid"
+}
+
+set_mode() {
+  local uuid=$1 mode=$2 other err
+  require_vpn "$uuid"
+
+  case $mode in
+    off)
+      nmc connection down uuid "$uuid" >/dev/null 2>&1
+      lift_ipv6_block "$uuid"
+      return 0
+      ;;
+    split | full) ;;
+    *) fail "unknown mode: $mode (use off, split or full)" ;;
+  esac
+
+  [[ ,$(vpn_modes "$uuid" "$(vpn_type "$uuid")"), == *,$mode,* ]] ||
+    fail "$(vpn_name "$uuid") can't carry all traffic: none of its peers allows 0.0.0.0/0"
+
+  set_default_route "$uuid" "$mode" || fail "could not change the VPN profile"
+
+  # Re-activating an active VPN applies the new routing. It comes up before
+  # anything else changes, so a switch that fails or waits for sign-in
+  # leaves the VPN that carries all traffic now as it is.
+  connect "$uuid" "$mode" || return 0
+
+  if [[ $mode == "full" ]]; then
+    # Whichever VPN held the IPv6 block before, this one decides it now.
+    lift_ipv6_block
+    if [[ $(vpn_type "$uuid") == "vpn" ]] && ! vpn_has_ipv6 "$uuid"; then
+      block_ipv6_uplinks "$uuid"
+    fi
+  else
+    lift_ipv6_block "$uuid"
+  fi
+
+  # Only one VPN carries all traffic.
+  if [[ $mode == "full" ]]; then
+    for other in $(active_full_vpns "$uuid"); do
+      set_default_route "$other" split || continue
+      # Reconnecting applies the change. A VPN whose token or login cookie
+      # can't be reused drops here, so its row offers Sign in.
+      if ! err=$(nmc connection up uuid "$other" 2>&1 >/dev/null) && needs_secrets "$err"; then
+        needs_signin_set "$other"
+      fi
+    done
+  fi
+}
+
+signin() {
+  local uuid=$1 mode=${2:-}
+  require_vpn "$uuid"
+  [[ $mode == "split" || $mode == "full" ]] || mode=$(profile_mode "$uuid" "$(vpn_modes "$uuid" "$(vpn_type "$uuid")")")
+
+  if [[ -t 0 ]]; then
+    echo "Sign in to $(vpn_name "$uuid")"
+    echo
+    set_mode "$uuid" "$mode"
+  else
+    open_terminal signin "$uuid" "$mode"
+  fi
+}
+
+openvpn_plugin_present() {
+  [[ -f /usr/lib/NetworkManager/VPN/nm-openvpn-service.name ]]
+}
+
+# Imports a WireGuard .conf or OpenVPN .ovpn. The new VPN starts off: a
+# full-tunnel profile would otherwise reroute everything the moment it lands.
+import_file() {
+  local file=$1 type label name dir out uuid rc
+
+  [[ -r $file ]] || fail "can't read $file"
+  label=$(basename "$file")
+  label=${label%.*}
+
+  if grep -qiE '^[[:space:]]*\[Interface\]' "$file"; then
+    type=wireguard
+  elif [[ ${file,,} == *.ovpn ]] || grep -qiE '^[[:space:]]*(client|remote)([[:space:]]|$)' "$file"; then
+    type=openvpn
+  else
+    notify -u critical "$(omarchy-i18n vpn.importFailed "$label")" "$(omarchy-i18n vpn.notVpnFile)"
+    fail "$file is not a WireGuard or OpenVPN config"
+  fi
+
+  if [[ $type == "openvpn" ]] && ! openvpn_plugin_present; then
+    if [[ -t 0 ]]; then
+      omarchy-pkg-add networkmanager-openvpn || fail "networkmanager-openvpn is needed to import $file"
+    else
+      open_terminal import "$file"
+      return 0
+    fi
+  fi
+
+  if [[ $type == "wireguard" ]]; then
+    # NetworkManager names the interface after the file, which has to be a
+    # valid interface name: letters, digits, - and _, at most 15 characters.
+    name=$(tr -c 'A-Za-z0-9_-' '-' <<<"$label" | head -c 15)
+    name=${name%-}
+    dir=$(mktemp -d)
+    cp "$file" "$dir/${name:-wg0}.conf"
+    out=$(nmc connection import type wireguard file "$dir/${name:-wg0}.conf" 2>&1)
+    rc=$?
+    rm -rf "$dir"
+  else
+    out=$(nmc connection import type openvpn file "$file" 2>&1)
+    rc=$?
+  fi
+
+  if ((rc != 0)); then
+    notify -u critical "$(omarchy-i18n vpn.importFailed "$label")" "$(clean "$out")"
+    fail "could not import $file: $out"
+  fi
+
+  uuid=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$out" | head -1)
+  if [[ -n $uuid ]]; then
+    nmc connection modify uuid "$uuid" connection.id "$(clean "$label")" connection.autoconnect no >/dev/null 2>&1
+    nmc connection down uuid "$uuid" >/dev/null 2>&1
+  fi
+
+  echo "Added $label"
+  notify "$(omarchy-i18n vpn.added "$label")" "$(omarchy-i18n vpn.addedBody)"
+}
+
+add() {
+  local import_label wireguard_label choice file
+  import_label=$(omarchy-i18n vpn.addImport)
+  wireguard_label=$(omarchy-i18n vpn.addWireGuard)
+
+  choice=$(omarchy-menu-select "$(omarchy-i18n vpn.addTitle)" "$import_label" "$wireguard_label") || exit 0
+
+  if [[ $choice == "$import_label" ]]; then
+    file=$(omarchy-file-select --title "$(omarchy-i18n vpn.chooseFile)" --extensions "conf ovpn") || exit 0
+    [[ -n $file ]] && import_file "$file"
+  elif [[ $choice == "$wireguard_label" ]]; then
+    omarchy-launch-floating-terminal-with-presentation "nmtui edit" >/dev/null 2>&1 &
+  fi
+}
+
+# Whatever changed, every bar shows it.
+trap 'heal_ipv6_block; write_snapshot' EXIT
+
+case ${1:-list} in
+  list)
+    trap - EXIT
+    list
+    ;;
+  mode)
+    (($# == 3)) || fail "usage: omarchy-network-vpn mode <uuid> off|split|full"
+    lock_switches
+    set_mode "$2" "$3"
+    ;;
+  signin)
+    (($# >= 2)) || fail "usage: omarchy-network-vpn signin <uuid> [split|full]"
+    lock_switches
+    signin "$2" "${3:-}"
+    ;;
+  add)
+    add
+    ;;
+  import)
+    (($# == 2)) || fail "usage: omarchy-network-vpn import <file>"
+    import_file "$2"
+    ;;
+  *)
+    fail "usage: omarchy-network-vpn [list] | mode <uuid> <off|split|full> | signin <uuid> [split|full] | add | import <file>"
+    ;;
+esac

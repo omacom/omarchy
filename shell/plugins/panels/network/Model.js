@@ -444,6 +444,87 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
 
+// VPNs from `omarchy-network-vpn list`, one tab-separated line each:
+// uuid, name, kind, state, detail, mode, modes, actions. Anything malformed is
+// dropped rather than shown half-read, and the list is capped so a broken
+// helper can't flood the panel.
+var vpnModes = ["off", "split", "full"]
+var vpnActions = ["signin"]
+
+function parseVpnList(raw) {
+  var lines = String(raw || "").split("\n")
+  var list = []
+  for (var i = 0; i < lines.length && list.length < 20; i++) {
+    var f = lines[i].split("\t")
+    if (f.length < 6 || f[0] === "") continue
+    var state = ["up", "connecting"].indexOf(f[3]) >= 0 ? f[3] : "off"
+    var modes = String(f[6] || "").split(",").filter(function(m) { return vpnModes.indexOf(m) >= 0 })
+    if (modes.length < 2) modes = vpnModes.slice()
+    var mode = modes.indexOf(f[5]) >= 0 ? f[5] : "off"
+    if (state === "off") mode = "off"
+    list.push({
+      id: f[0].substring(0, 64),
+      name: (f[1] || f[0]).substring(0, 60),
+      kind: String(f[2] || "").substring(0, 20),
+      state: state,
+      detail: String(f[4] || "").substring(0, 60),
+      mode: mode,
+      modes: modes,
+      actions: String(f[7] || "").split(",").filter(function(a) { return vpnActions.indexOf(a) >= 0 })
+    })
+  }
+  return list
+}
+
+// Names of the VPNs that are up, for the bar tooltip.
+function vpnUpNames(list) {
+  return (list || []).filter(function(v) { return v.state === "up" }).map(function(v) { return v.name })
+}
+
+// A pending switch is done once the VPN reports the mode asked for and has
+// finished connecting.
+function vpnSwitchSettled(list, id, want) {
+  var entry = null
+  for (var i = 0; i < (list || []).length; i++) if (list[i].id === id) entry = list[i]
+  if (!entry) return true
+  return entry.mode === want && (want === "off" || entry.state === "up")
+}
+
+// Product names stay as they are in every language.
+function vpnKindLabel(kind) {
+  var names = { wireguard: "WireGuard", openvpn: "OpenVPN", openconnect: "OpenConnect", l2tp: "L2TP", strongswan: "strongSwan", fortisslvpn: "Fortinet SSL", vpnc: "Cisco VPN", pptp: "PPTP" }
+  return names[kind] || "VPN"
+}
+
+function vpnModeLabel(mode, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (mode === "split") return t("network.vpnModeSplit", "Split")
+  if (mode === "full") return t("network.vpnModeFull", "Full")
+  return t("network.vpnModeOff", "Off")
+}
+
+function vpnModeTooltip(mode, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (mode === "split") return t("network.vpnModeSplitTooltip", "Only this VPN's own networks go through it")
+  if (mode === "full") return t("network.vpnModeFullTooltip", "All traffic goes through this VPN")
+  return t("network.vpnModeOffTooltip", "Disconnect")
+}
+
+// The line under a VPN's name: what it is, then what it is doing.
+function vpnStateText(entry, pending, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var parts = [vpnKindLabel(entry.kind)]
+  if (pending === "off") parts.push(t("network.disconnecting", "Disconnecting…"))
+  else if (pending) parts.push(t("network.vpnSwitching", "Switching to %1…").replace("%1", vpnModeLabel(pending, tr)))
+  else if (entry.actions && entry.actions.indexOf("signin") >= 0 && entry.state === "off") parts.push(t("network.signInRequired", "Sign-in required"))
+  else if (entry.state === "connecting") parts.push(t("network.connecting", "Connecting…"))
+  else if (entry.state === "up") {
+    parts.push(entry.mode === "full" ? t("network.vpnAllTraffic", "All traffic") : t("network.vpnSplitTunnel", "Split tunnel"))
+    if (entry.detail) parts.push(entry.detail)
+  } else parts.push(t("network.vpnNotConnected", "Not connected"))
+  return parts.join(" · ")
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseNetworkStatus: parseNetworkStatus,
@@ -477,6 +558,13 @@ if (typeof module !== "undefined") {
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
     networkFailureReason: networkFailureReason,
-    shouldRepromptPassphrase: shouldRepromptPassphrase
+    shouldRepromptPassphrase: shouldRepromptPassphrase,
+    parseVpnList: parseVpnList,
+    vpnUpNames: vpnUpNames,
+    vpnSwitchSettled: vpnSwitchSettled,
+    vpnKindLabel: vpnKindLabel,
+    vpnModeLabel: vpnModeLabel,
+    vpnModeTooltip: vpnModeTooltip,
+    vpnStateText: vpnStateText
   }
 }

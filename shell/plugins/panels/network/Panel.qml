@@ -86,6 +86,19 @@ Panel {
   property string bandSelected: "auto"
   property var bandAvailable: []
   property string pendingBand: ""
+  // VPNs from `omarchy-network-vpn`, which rewrites this snapshot whenever a
+  // VPN changes, so every bar follows without polling. One switch runs at a
+  // time; `vpnPendingId` / `vpnPendingMode` describe it until it lands.
+  readonly property string vpnSnapshotPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy/network-vpn"
+  property WatchedFile vpnSnapshot: WatchedFile { path: root.vpnSnapshotPath }
+  readonly property var vpnList: Model.parseVpnList(vpnSnapshot.text)
+  readonly property var vpnUpNames: Model.vpnUpNames(vpnList)
+  property string vpnPendingId: ""
+  property string vpnPendingMode: ""
+  // Keyboard cursor in the VPN section: a row (vpnList.length is the Add VPN
+  // button) and a control within it (its mode pills, then Sign in).
+  property int vpnRowIndex: 0
+  property int vpnControlIndex: 0
 
   // Per-row in-flight state. `actionSsid` flips on for the row whose action
   // is currently running so it can render "Connecting…" / "Disconnecting…" /
@@ -142,7 +155,7 @@ Panel {
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
   // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "vpn" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -342,11 +355,66 @@ Panel {
     if (scannerDevice) scannerDevice.scannerEnabled = false
   }
 
+  // The panel's content is built lazily; its parts are reached by alias.
+  function panelPart(name) {
+    return panel.loadedContent ? panel.loadedContent[name] : null
+  }
+
+  // On a screen too short for the whole card the content scrolls; keep the
+  // keyboard cursor's row in view as it moves.
+  function scrollItemIntoView(item) {
+    var flick = panelPart("panelFlick")
+    if (!flick || !item) return
+    var margin = Style.space(6)
+    var top = item.mapToItem(flick.contentItem, 0, 0).y
+    var bottom = top + item.height
+    var maxY = Math.max(0, flick.contentHeight - flick.height)
+    if (top < flick.contentY + margin) flick.contentY = Math.max(0, top - margin)
+    else if (bottom > flick.contentY + flick.height - margin) flick.contentY = Math.min(maxY, bottom + margin - flick.height)
+  }
+
+  function cursorItem() {
+    switch (focusSection) {
+      case "portal": return panelPart("portalItem")
+      case "band": return panelPart("bandSection")
+      case "dns": return panelPart("dnsSection")
+      case "vpn": {
+        var list = panelPart("vpnListView")
+        var row = list && vpnRowIndex < vpnList.length ? list.itemAtIndex(vpnRowIndex) : null
+        return row || panelPart("vpnAddButton")
+      }
+      case "wifi": {
+        var networks = panelPart("networkList")
+        return networks ? (networks.currentItem || networks) : null
+      }
+    }
+    return null
+  }
+
+  function revealCursor() {
+    if (!cursorActive) return
+    // After the lists have scrolled their own rows into view.
+    Qt.callLater(function() {
+      if (focusSection === "header") {
+        var flick = panelPart("panelFlick")
+        if (flick) flick.contentY = 0
+      } else {
+        scrollItemIntoView(cursorItem())
+      }
+    })
+  }
+
+  onFocusSectionChanged: revealCursor()
+  onCursorActiveChanged: revealCursor()
+  onVpnRowIndexChanged: revealCursor()
+  onSelectedIndexChanged: revealCursor()
+
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
       refresh(true)
+      refreshVpns()
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -354,6 +422,7 @@ Panel {
       dnsIndex = idx >= 0 ? idx : 0
       syncBandIndex()
       cursorActive = hasCaptivePortal
+      if (panelPart("panelFlick")) panelPart("panelFlick").contentY = 0
     } else {
       // Drop a restart armed by this open: without it a close/reopen inside
       // the 100ms window reuses the running timer and re-enables the scanner
@@ -1073,7 +1142,99 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Component.onCompleted: refresh()
+  Component.onCompleted: {
+    refresh()
+    refreshVpns()
+  }
+
+  // ---------- VPNs ----------
+  onVpnListChanged: {
+    if (vpnPendingId !== "" && !vpnModeProc.running && Model.vpnSwitchSettled(vpnList, vpnPendingId, vpnPendingMode)) {
+      vpnPendingId = ""
+      vpnPendingMode = ""
+    }
+    clampVpnCursor()
+  }
+
+  function refreshVpns() {
+    if (!vpnListProc.running) vpnListProc.running = true
+  }
+
+  function vpnControls(entry) {
+    return entry ? entry.modes.concat(entry.actions) : []
+  }
+
+  function setVpnMode(id, mode) {
+    if (vpnModeProc.running) return
+    var entry = vpnList.find(function(v) { return v.id === id })
+    if (!entry || entry.modes.indexOf(mode) < 0 || entry.mode === mode) return
+    vpnPendingId = id
+    vpnPendingMode = mode
+    vpnModeProc.command = ["omarchy-network-vpn", "mode", id, mode]
+    vpnModeProc.running = true
+  }
+
+  // Sign in needs a terminal for the password or token.
+  function vpnSignIn(id) {
+    close()
+    Quickshell.execDetached(["omarchy-network-vpn", "signin", id])
+  }
+
+  function addVpn() {
+    close()
+    Quickshell.execDetached(["omarchy-network-vpn", "add"])
+  }
+
+  function clampVpnCursor() {
+    vpnRowIndex = Math.max(0, Math.min(vpnList.length, vpnRowIndex))
+    var count = vpnRowIndex < vpnList.length ? vpnControls(vpnList[vpnRowIndex]).length : 1
+    vpnControlIndex = Math.max(0, Math.min(count - 1, vpnControlIndex))
+  }
+
+  function selectVpnRowByDelta(delta) {
+    vpnRowIndex += delta
+    clampVpnCursor()
+  }
+
+  function selectVpnControlByDelta(delta) {
+    vpnControlIndex += delta
+    clampVpnCursor()
+  }
+
+  function activateVpn() {
+    if (vpnRowIndex >= vpnList.length) {
+      addVpn()
+      return
+    }
+    var entry = vpnList[vpnRowIndex]
+    var control = vpnControls(entry)[vpnControlIndex]
+    if (control === "signin") vpnSignIn(entry.id)
+    else if (control) setVpnMode(entry.id, control)
+  }
+
+  function setVpnCursor(row, control) {
+    cursorActive = true
+    focusSection = "vpn"
+    vpnRowIndex = row
+    vpnControlIndex = control
+  }
+
+  // Writes the snapshot; reading it again also starts watching a file that
+  // didn't exist yet.
+  Process {
+    id: vpnListProc
+    command: ["omarchy-network-vpn", "list"]
+    onExited: root.vpnSnapshot.reread()
+  }
+
+  Process {
+    id: vpnModeProc
+    onExited: {
+      root.vpnPendingId = ""
+      root.vpnPendingMode = ""
+      root.vpnSnapshot.reread()
+    }
+  }
 
   // Pulls everything we want about the active route's interface in one shot.
   Process {
@@ -1272,7 +1433,21 @@ Panel {
     text: root.icon
     active: root.restricted
     tooltipText: root.hasCaptivePortal ? Commons.I18n.t("network.signInToNetwork")
-      : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
+      : (root.restricted ? Commons.I18n.t("network.limitedAccess")
+      : (root.vpnUpNames.length > 0 ? Commons.I18n.t("network.vpnTooltip").arg(root.vpnUpNames.join(", ")) : ""))
+
+    // A VPN is connected.
+    Rectangle {
+      visible: root.vpnUpNames.length > 0
+      width: Style.space(6)
+      height: width
+      radius: width / 2
+      color: root.bar.foreground
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      anchors.rightMargin: Style.space(3)
+      anchors.bottomMargin: Style.space(4)
+    }
 
     onPressed: function(b) {
       if (root.opened) root.close()
@@ -1306,6 +1481,13 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias heroMeta: heroMeta
+      property alias panelFlick: panelFlick
+      property alias portalItem: portalAction
+      property alias bandSection: bandSection
+      property alias dnsSection: dnsSection
+      property alias vpnListView: vpnListView
+      property alias vpnAddButton: vpnAddButton
+      property alias networkList: networkList
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open;
@@ -1369,15 +1551,31 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
-            } else if (root.wifiNetworks.length > 0) {
-              root.focusSection = "wifi"
-              if (root.selectedIndex < 0) root.selectedIndex = 0
+            } else {
+              root.focusSection = "vpn"
+              root.vpnRowIndex = 0
+              root.clampVpnCursor()
+            }
+          } else if (root.focusSection === "vpn") {
+            // Rows, then the Add VPN button; k from the first row goes back to
+            // DNS, j from Add VPN into the wifi list.
+            if (dy < 0 && root.vpnRowIndex === 0) {
+              root.focusSection = "dns"
+            } else if (dy > 0 && root.vpnRowIndex >= root.vpnList.length) {
+              if (root.wifiNetworks.length > 0) {
+                root.focusSection = "wifi"
+                if (root.selectedIndex < 0) root.selectedIndex = 0
+              }
+            } else {
+              root.selectVpnRowByDelta(dy)
             }
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
+            // k from the top row escapes back up to the Add VPN button rather
+            // than wrapping around to the bottom of the list.
             if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
+              root.focusSection = "vpn"
+              root.vpnRowIndex = root.vpnList.length
+              root.clampVpnCursor()
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1387,6 +1585,7 @@ Panel {
           if (root.focusSection === "header") root.selectHeaderByDelta(dx)
           else if (root.focusSection === "band") { if (!root.bandAutoFocused) root.selectBandByDelta(dx) }
           else if (root.focusSection === "dns") root.selectDnsByDelta(dx)
+          else if (root.focusSection === "vpn") root.selectVpnControlByDelta(dx)
           else if (root.focusSection === "wifi") root.selectWifiActionByDelta(dx)
         }
       }
@@ -1396,478 +1595,577 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "vpn") root.activateVpn()
           else root.activateSelected()
         }
       }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "r" || t === "R") root.refresh()
+        if (t === "r" || t === "R") {
+          root.refresh()
+          root.refreshVpns()
+        }
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
-    Column {
-      id: column
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.top: parent.top
-      spacing: Style.space(12)
-
-      // ---------- Hero: network icon · SSID + state · actions ----------
-      Item {
-        width: parent.width
-        implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroActions.implicitHeight)
-
-        // Status only — the switch owns toggling, mouse and keyboard alike.
-        Text {
-          id: heroIcon
-          textFormat: Text.PlainText
-          text: root.icon
-          color: root.restricted ? root.bar.urgent : root.bar.foreground
-          font.family: root.bar.fontFamily
-          font.pixelSize: Style.font.display
-          opacity: root.networkManagerAvailable ? 1.0 : 0.5
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-        }
-
-        // Sharing belongs to the connected-network hero rather than the scan
-        // result row. The radio switch remains beside it as the other hero action.
-        RowLayout {
-          id: heroActions
-          spacing: Style.space(8)
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-
-          PanelActionButton {
-            id: qrAction
-            visible: root.canShareWifi || (root.switchingNetwork && root.switchHeldQr)
-            enabled: root.canShareWifi
-            iconText: "󰐲"
-            tooltipText: Commons.I18n.t("network.showQrCode")
-            foreground: root.bar.foreground
-            fontFamily: root.bar.fontFamily
-            fontSize: Style.font.subtitle * 1.5
-            hasCursor: root.qrHeaderHasCursor
-            Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.qrHeaderIndex) }
-            onClicked: root.summonWifiQr()
-          }
-
-          PanelActionButton {
-            id: speedAction
-            visible: root.canRunSpeedTest || (root.switchingNetwork && root.switchHeldSpeed)
-            enabled: root.canRunSpeedTest
-            iconText: "󰓅"
-            tooltipText: Commons.I18n.t("network.runSpeedTest")
-            foreground: root.bar.foreground
-            fontFamily: root.bar.fontFamily
-            fontSize: Style.font.subtitle * 1.5
-            hasCursor: root.speedHeaderHasCursor
-            Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.speedHeaderIndex) }
-            onClicked: root.summonSpeedTest()
-          }
-
-          ToggleSwitch {
-            id: powerSwitch
-            visible: root.canToggleWifi
-            checked: Networking.wifiEnabled
-            hasCursor: root.toggleHeaderHasCursor
-            foreground: root.bar.foreground
-            Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.toggleHeaderIndex) }
-            onToggled: root.toggleNetwork()
-
-            PanelToolTip {
-              visible: powerSwitch.containsMouse
-              text: root.toggleHint
-              fontFamily: root.bar.fontFamily
-            }
-          }
-        }
-
-        Column {
-          id: heroLabels
-          anchors.left: heroIcon.right
-          anchors.leftMargin: Style.space(14)
-          anchors.right: parent.right
-          anchors.rightMargin: heroActions.width > 0 ? heroActions.width + Style.space(12) : 0
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(2)
-
-          // Link detail rides inline after the name — "Ethernet (2.5gbit)" —
-          // rather than in a pill, which crowded the on/off switch.
-          Text {
-            id: heroSsid
-            textFormat: Text.PlainText
-            width: parent.width
-
-            readonly property string title: {
-              if (root.switchingNetwork) return root.actionSsid || Commons.I18n.t("network.hidden")
-              // The HTTP restriction does not undo association. Show the live
-              // SSID even before route/details polling has returned anything.
-              if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
-              if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
-              if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
-              return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
-            }
-            readonly property string detail: root.switchingNetwork ? "" : root.headerDetail()
-
-            text: heroSsid.detail !== "" ? heroSsid.title + " (" + heroSsid.detail + ")" : heroSsid.title
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.title
-            font.bold: true
-            elide: Text.ElideRight
-          }
-
-          Text {
-            id: heroMeta
-            textFormat: Text.PlainText
-            width: parent.width
-            text: {
-              // The sign-in button right below already says what a portal needs.
-              if (root.switchingNetwork) return Commons.I18n.t("network.connecting").toUpperCase()
-              if (root.hasCaptivePortal) return ""
-              if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
-              if (root.info.type === "wifi") {
-                if (root.canDisconnect) return root.connectionPhrase.toUpperCase()
-                if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
-                return ""
-              }
-              if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
-              if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
-              return ""
-            }
-            visible: text !== ""
-            color: root.restricted ? root.bar.urgent : Qt.darker(root.bar.foreground, 1.4)
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            font.letterSpacing: 1.2
-            elide: Text.ElideRight
-          }
-        }
-
-      }
-
-      Button {
-        id: portalAction
-        visible: root.hasCaptivePortal
-        width: parent.width
-        text: Commons.I18n.t("network.openCaptivePortal")
-        iconText: "󰏌"
-        foreground: root.bar.urgent
-        accent: root.bar.urgent
-        fontFamily: root.bar.fontFamily
-        verticalPadding: Style.space(10)
-        bordered: true
-        active: true
-        hasCursor: root.cursorActive && root.focusSection === "portal"
-        onHovered: function(on) {
-          if (!on) return
-          root.cursorActive = true
-          root.focusSection = "portal"
-        }
-        onClicked: root.openCaptivePortal()
-      }
-
-      // Connection details: transfer metrics first, then IP/Gateway.
-      Column {
-        // Held while connected but before the details poll has answered
-        // (just opened, or a switch that has just landed) as well as through
-        // a switch, so the grid never drops out for a beat and comes back.
-        visible: !!root.info.iface || root.kind !== "disconnected" || root.switchingNetwork
-        width: parent.width
-        spacing: Style.spacing.labelGap
-
-        GridLayout {
-          width: parent.width
-          columns: 4
-          columnSpacing: Style.space(20)
-          rowSpacing: Style.spacing.labelGap
-
-          // Always mounted: these two used to appear a beat after the panel
-          // opened, once the first probe returned, shoving everything below
-          // them down. They now hold their place and read "--" until there is
-          // a sample, and while the internet is out of reach.
-          InfoLabel { text: Commons.I18n.t("network.ping") }
-          DetailValue {
-            text: root.formatPingLatency(root.internetPingLatency)
-            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
-          }
-          InfoLabel { text: Commons.I18n.t("network.packetLoss") }
-          DetailValue {
-            text: root.formatPacketLoss(root.internetPingPacketLoss)
-            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
-          }
-
-          InfoLabel { text: Commons.I18n.t("network.receiving") }
-          DetailValue { text: root.hasTransferStats ? root.formatRate(root.downloadRate) : "--" }
-          InfoLabel { text: Commons.I18n.t("network.sending") }
-          DetailValue { text: root.hasTransferStats ? root.formatRate(root.uploadRate) : "--" }
-
-          InfoLabel { text: Commons.I18n.t("network.downloaded") }
-          DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.rx_bytes || "0")) : "--" }
-          InfoLabel { text: Commons.I18n.t("network.uploaded") }
-          DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.tx_bytes || "0")) : "--" }
-
-          InfoLabel { text: Commons.I18n.t("network.ipAddress") }
-          DetailValue {
-            text: root.info.ip || "--"
-            copyable: !!root.info.ip
-            tooltipText: Commons.I18n.t("network.copyIp")
-          }
-          InfoLabel { text: Commons.I18n.t("network.gateway") }
-          DetailValue {
-            text: root.info.gateway || "--"
-            copyable: !!root.info.gateway
-            tooltipText: Commons.I18n.t("network.copyGateway")
-          }
-        }
-      }
-
-      // Wi-Fi band selection. Only on Wi-Fi, and only when the network answers
-      // on more than one band -- a single-band AP has nothing to toggle.
-      PanelSeparator {
-        visible: root.canSelectBand
-        foreground: root.bar.foreground
-      }
+    // The card is capped to the screen; on a short one the content scrolls
+    // here and revealCursor() keeps the keyboard cursor in view.
+    Flickable {
+      id: panelFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
       Column {
-        visible: root.canSelectBand
-        width: parent.width
-        spacing: Style.space(10)
+        id: column
+        width: panelFlick.width
+        spacing: Style.space(12)
 
-        // "Automatic" rides on the header line rather than under the pills: it
-        // qualifies the whole row, and at header scale it reads as a modifier
-        // instead of competing with the band choices for attention.
+        // ---------- Hero: network icon · SSID + state · actions ----------
         Item {
           width: parent.width
-          implicitHeight: Math.max(bandHeader.implicitHeight, bandAutoRow.implicitHeight)
+          implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroActions.implicitHeight)
 
-          PanelSectionHeader {
-            id: bandHeader
-            text: root.bandSectionTitle
-            foreground: root.bar.foreground
-            fontFamily: root.bar.fontFamily
+          // Status only — the switch owns toggling, mouse and keyboard alike.
+          Text {
+            id: heroIcon
+            textFormat: Text.PlainText
+            text: root.icon
+            color: root.restricted ? root.bar.urgent : root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.display
+            opacity: root.networkManagerAvailable ? 1.0 : 0.5
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
           }
 
-          Row {
-            id: bandAutoRow
+          // Sharing belongs to the connected-network hero rather than the scan
+          // result row. The radio switch remains beside it as the other hero action.
+          RowLayout {
+            id: heroActions
+            spacing: Style.space(8)
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(6)
 
-            PanelSectionHeader {
-              id: bandAutoLabel
-              text: Commons.I18n.t("network.automatic")
+            PanelActionButton {
+              id: qrAction
+              visible: root.canShareWifi || (root.switchingNetwork && root.switchHeldQr)
+              enabled: root.canShareWifi
+              iconText: "󰐲"
+              tooltipText: Commons.I18n.t("network.showQrCode")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
-              anchors.verticalCenter: parent.verticalCenter
+              fontSize: Style.font.subtitle * 1.5
+              hasCursor: root.qrHeaderHasCursor
+              Layout.alignment: Qt.AlignVCenter
+              onHovered: function(on) { if (on) root.setHeaderCursor(root.qrHeaderIndex) }
+              onClicked: root.summonWifiQr()
             }
 
-            // Sized off the label rather than the theme's control height so it
-            // reads as part of the header, and centred on the label's *glyphs*:
-            // PanelSectionHeader carries topPadding to protect Nerd Font
-            // overshoot, which pushes its text below its own box centre, so a
-            // plain verticalCenter would sit the switch visibly high.
-            ToggleSwitch {
-              id: bandAutoSwitch
-              trackHeight: Math.round(bandAutoLabel.font.pixelSize * 1.2)
-              cursorPad: Style.space(3)
-              anchors.verticalCenter: bandAutoLabel.verticalCenter
-              anchors.verticalCenterOffset: Math.round(bandAutoLabel.topPadding / 2)
-              checked: !root.bandPinned
-              busy: root.bandBusy
-              hasCursor: root.cursorActive && root.focusSection === "band" && root.bandAutoFocused
+            PanelActionButton {
+              id: speedAction
+              visible: root.canRunSpeedTest || (root.switchingNetwork && root.switchHeldSpeed)
+              enabled: root.canRunSpeedTest
+              iconText: "󰓅"
+              tooltipText: Commons.I18n.t("network.runSpeedTest")
               foreground: root.bar.foreground
-              onToggled: root.toggleBandAuto()
+              fontFamily: root.bar.fontFamily
+              fontSize: Style.font.subtitle * 1.5
+              hasCursor: root.speedHeaderHasCursor
+              Layout.alignment: Qt.AlignVCenter
+              onHovered: function(on) { if (on) root.setHeaderCursor(root.speedHeaderIndex) }
+              onClicked: root.summonSpeedTest()
+            }
 
-              onHovered: function(isHovered) {
-                if (!isHovered) return
-                root.cursorActive = true
-                root.focusSection = "band"
-                root.bandAutoFocused = true
-              }
+            ToggleSwitch {
+              id: powerSwitch
+              visible: root.canToggleWifi
+              checked: Networking.wifiEnabled
+              hasCursor: root.toggleHeaderHasCursor
+              foreground: root.bar.foreground
+              Layout.alignment: Qt.AlignVCenter
+              onHovered: function(on) { if (on) root.setHeaderCursor(root.toggleHeaderIndex) }
+              onToggled: root.toggleNetwork()
 
               PanelToolTip {
-                visible: bandAutoSwitch.containsMouse
-                text: root.bandPinned
-                  ? Commons.I18n.t("network.bandAutoTooltip")
-                  : Commons.I18n.t("network.stayOnBand").arg(root.bandLabel(root.bandCurrent))
+                visible: powerSwitch.containsMouse
+                text: root.toggleHint
                 fontFamily: root.bar.fontFamily
               }
             }
           }
+
+          Column {
+            id: heroLabels
+            anchors.left: heroIcon.right
+            anchors.leftMargin: Style.space(14)
+            anchors.right: parent.right
+            anchors.rightMargin: heroActions.width > 0 ? heroActions.width + Style.space(12) : 0
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            // Link detail rides inline after the name — "Ethernet (2.5gbit)" —
+            // rather than in a pill, which crowded the on/off switch.
+            Text {
+              id: heroSsid
+              textFormat: Text.PlainText
+              width: parent.width
+
+              readonly property string title: {
+                if (root.switchingNetwork) return root.actionSsid || Commons.I18n.t("network.hidden")
+                // The HTTP restriction does not undo association. Show the live
+                // SSID even before route/details polling has returned anything.
+                if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
+                if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
+                if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
+                return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
+              }
+              readonly property string detail: root.switchingNetwork ? "" : root.headerDetail()
+
+              text: heroSsid.detail !== "" ? heroSsid.title + " (" + heroSsid.detail + ")" : heroSsid.title
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.title
+              font.bold: true
+              elide: Text.ElideRight
+            }
+
+            Text {
+              id: heroMeta
+              textFormat: Text.PlainText
+              width: parent.width
+              text: {
+                // The sign-in button right below already says what a portal needs.
+                if (root.switchingNetwork) return Commons.I18n.t("network.connecting").toUpperCase()
+                if (root.hasCaptivePortal) return ""
+                if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
+                if (root.info.type === "wifi") {
+                  if (root.canDisconnect) return root.connectionPhrase.toUpperCase()
+                  if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
+                  return ""
+                }
+                if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
+                if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
+                return ""
+              }
+              visible: text !== ""
+              color: root.restricted ? root.bar.urgent : Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 1.2
+              elide: Text.ElideRight
+            }
+          }
+
         }
 
-        // Collapsing container: the pills animate their height so toggling
-        // Automatic slides the sections below into place instead of snapping.
-        // `visible` only drops at a real zero, which keeps the row rendered for
-        // the whole animation and takes it out of the Column's spacing once
-        // it's actually gone.
-        Item {
-          id: bandPillsClip
+        Button {
+          id: portalAction
+          visible: root.hasCaptivePortal
           width: parent.width
-          clip: true
-          visible: height > 0
-          height: root.bandPillsVisible ? bandRow.implicitHeight : 0
-          opacity: root.bandPillsVisible ? 1 : 0
-
-          Behavior on height {
-            NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+          text: Commons.I18n.t("network.openCaptivePortal")
+          iconText: "󰏌"
+          foreground: root.bar.urgent
+          accent: root.bar.urgent
+          fontFamily: root.bar.fontFamily
+          verticalPadding: Style.space(10)
+          bordered: true
+          active: true
+          hasCursor: root.cursorActive && root.focusSection === "portal"
+          onHovered: function(on) {
+            if (!on) return
+            root.cursorActive = true
+            root.focusSection = "portal"
           }
-          Behavior on opacity {
-            NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+          onClicked: root.openCaptivePortal()
+        }
+
+        // Connection details: transfer metrics first, then IP/Gateway.
+        Column {
+          // Held while connected but before the details poll has answered
+          // (just opened, or a switch that has just landed) as well as through
+          // a switch, so the grid never drops out for a beat and comes back.
+          visible: !!root.info.iface || root.kind !== "disconnected" || root.switchingNetwork
+          width: parent.width
+          spacing: Style.spacing.labelGap
+
+          GridLayout {
+            width: parent.width
+            columns: 4
+            columnSpacing: Style.space(20)
+            rowSpacing: Style.spacing.labelGap
+
+            // Always mounted: these two used to appear a beat after the panel
+            // opened, once the first probe returned, shoving everything below
+            // them down. They now hold their place and read "--" until there is
+            // a sample, and while the internet is out of reach.
+            InfoLabel { text: Commons.I18n.t("network.ping") }
+            DetailValue {
+              text: root.formatPingLatency(root.internetPingLatency)
+              color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            }
+            InfoLabel { text: Commons.I18n.t("network.packetLoss") }
+            DetailValue {
+              text: root.formatPacketLoss(root.internetPingPacketLoss)
+              color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            }
+
+            InfoLabel { text: Commons.I18n.t("network.receiving") }
+            DetailValue { text: root.hasTransferStats ? root.formatRate(root.downloadRate) : "--" }
+            InfoLabel { text: Commons.I18n.t("network.sending") }
+            DetailValue { text: root.hasTransferStats ? root.formatRate(root.uploadRate) : "--" }
+
+            InfoLabel { text: Commons.I18n.t("network.downloaded") }
+            DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.rx_bytes || "0")) : "--" }
+            InfoLabel { text: Commons.I18n.t("network.uploaded") }
+            DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.tx_bytes || "0")) : "--" }
+
+            InfoLabel { text: Commons.I18n.t("network.ipAddress") }
+            DetailValue {
+              text: root.info.ip || "--"
+              copyable: !!root.info.ip
+              tooltipText: Commons.I18n.t("network.copyIp")
+            }
+            InfoLabel { text: Commons.I18n.t("network.gateway") }
+            DetailValue {
+              text: root.info.gateway || "--"
+              copyable: !!root.info.gateway
+              tooltipText: Commons.I18n.t("network.copyGateway")
+            }
+          }
+        }
+
+        // Wi-Fi band selection. Only on Wi-Fi, and only when the network answers
+        // on more than one band -- a single-band AP has nothing to toggle.
+        PanelSeparator {
+          visible: root.canSelectBand
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          id: bandSection
+          visible: root.canSelectBand
+          width: parent.width
+          spacing: Style.space(10)
+
+          // "Automatic" rides on the header line rather than under the pills: it
+          // qualifies the whole row, and at header scale it reads as a modifier
+          // instead of competing with the band choices for attention.
+          Item {
+            width: parent.width
+            implicitHeight: Math.max(bandHeader.implicitHeight, bandAutoRow.implicitHeight)
+
+            PanelSectionHeader {
+              id: bandHeader
+              text: root.bandSectionTitle
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Row {
+              id: bandAutoRow
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(6)
+
+              PanelSectionHeader {
+                id: bandAutoLabel
+                text: Commons.I18n.t("network.automatic")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              // Sized off the label rather than the theme's control height so it
+              // reads as part of the header, and centred on the label's *glyphs*:
+              // PanelSectionHeader carries topPadding to protect Nerd Font
+              // overshoot, which pushes its text below its own box centre, so a
+              // plain verticalCenter would sit the switch visibly high.
+              ToggleSwitch {
+                id: bandAutoSwitch
+                trackHeight: Math.round(bandAutoLabel.font.pixelSize * 1.2)
+                cursorPad: Style.space(3)
+                anchors.verticalCenter: bandAutoLabel.verticalCenter
+                anchors.verticalCenterOffset: Math.round(bandAutoLabel.topPadding / 2)
+                checked: !root.bandPinned
+                busy: root.bandBusy
+                hasCursor: root.cursorActive && root.focusSection === "band" && root.bandAutoFocused
+                foreground: root.bar.foreground
+                onToggled: root.toggleBandAuto()
+
+                onHovered: function(isHovered) {
+                  if (!isHovered) return
+                  root.cursorActive = true
+                  root.focusSection = "band"
+                  root.bandAutoFocused = true
+                }
+
+                PanelToolTip {
+                  visible: bandAutoSwitch.containsMouse
+                  text: root.bandPinned
+                    ? Commons.I18n.t("network.bandAutoTooltip")
+                    : Commons.I18n.t("network.stayOnBand").arg(root.bandLabel(root.bandCurrent))
+                  fontFamily: root.bar.fontFamily
+                }
+              }
+            }
+          }
+
+          // Collapsing container: the pills animate their height so toggling
+          // Automatic slides the sections below into place instead of snapping.
+          // `visible` only drops at a real zero, which keeps the row rendered for
+          // the whole animation and takes it out of the Column's spacing once
+          // it's actually gone.
+          Item {
+            id: bandPillsClip
+            width: parent.width
+            clip: true
+            visible: height > 0
+            height: root.bandPillsVisible ? bandRow.implicitHeight : 0
+            opacity: root.bandPillsVisible ? 1 : 0
+
+            Behavior on height {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+            Behavior on opacity {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+
+            Row {
+              id: bandRow
+              width: parent.width
+              spacing: Style.space(6)
+
+              readonly property int count: Math.max(1, root.bandAvailable.length)
+              readonly property real cellWidth: (width - spacing * (count - 1)) / count
+
+              // Wrapper takes modelData/index from the Repeater's delegate
+              // context, which doesn't bind into nested `component` declarations,
+              // and passes them down explicitly -- same shape as the network
+              // list delegate.
+              Repeater {
+                model: root.bandAvailable
+
+                delegate: Item {
+                  required property var modelData
+                  required property int index
+                  width: bandRow.cellWidth
+                  height: bandPill.implicitHeight
+
+                  BandPill {
+                    id: bandPill
+                    band: modelData
+                    slot: index
+                    width: parent.width
+                  }
+                }
+              }
+            }
+          }
+
+        }
+
+        // DNS provider selection.
+        PanelSeparator {
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          id: dnsSection
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: Commons.I18n.t("network.dnsProvider")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
           }
 
           Row {
-            id: bandRow
+            id: dnsRow
             width: parent.width
             spacing: Style.space(6)
 
-            readonly property int count: Math.max(1, root.bandAvailable.length)
+            readonly property int count: root.dnsProviders.length
             readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
-            // Wrapper takes modelData/index from the Repeater's delegate
-            // context, which doesn't bind into nested `component` declarations,
-            // and passes them down explicitly -- same shape as the network
-            // list delegate.
             Repeater {
-              model: root.bandAvailable
+              model: root.dnsProviders
 
-              delegate: Item {
-                required property var modelData
-                required property int index
-                width: bandRow.cellWidth
-                height: bandPill.implicitHeight
-
-                BandPill {
-                  id: bandPill
-                  band: modelData
-                  slot: index
-                  width: parent.width
-                }
+              DnsProviderPill {
+                required property string modelData
+                provider: modelData
+                tooltipText: modelData === "DHCP" ? Commons.I18n.t("network.dnsFromDhcp")
+                  : modelData === "Custom" ? Commons.I18n.t("network.setCustomDns")
+                  : Commons.I18n.t("network.setDnsTo").arg(modelData)
+                width: dnsRow.cellWidth
+                onClicked: root.setDns(provider)
               }
             }
           }
         }
 
-      }
+        // VPNs: every NetworkManager VPN with its mode, and a way to add one.
+        PanelSeparator {
+          foreground: root.bar.foreground
+        }
 
-      // DNS provider selection.
-      PanelSeparator {
-        foreground: root.bar.foreground
-      }
+        Column {
+          width: parent.width
+          spacing: Style.space(10)
 
-      Column {
-        width: parent.width
-        spacing: Style.space(10)
+          PanelSectionHeader {
+            text: Commons.I18n.t("network.vpn")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          // Capped and scrollable like the Wi-Fi list, so many VPNs can't push
+          // Add VPN and Wi-Fi off-screen; the keyboard cursor stays in view.
+          ListView {
+            id: vpnListView
+            visible: count > 0
+            width: parent.width
+            height: Math.min(contentHeight, Style.space(200))
+            spacing: Style.space(10)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
+
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+            model: root.vpnList
+            currentIndex: root.vpnRowIndex < root.vpnList.length ? root.vpnRowIndex : -1
+            onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+
+            // Same wrapper as the Wi-Fi list: ListView's delegate context
+            // doesn't bind into the nested VpnRow component.
+            delegate: Item {
+              id: vpnDelegate
+              required property var modelData
+              required property int index
+              width: ListView.view.width
+              height: vpnDelegateRow.implicitHeight
+
+              VpnRow {
+                id: vpnDelegateRow
+                modelData: vpnDelegate.modelData
+                index: vpnDelegate.index
+              }
+            }
+          }
+
+          Text {
+            visible: root.vpnList.length === 0
+            width: parent.width
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            text: Commons.I18n.t("network.vpnEmpty")
+            color: root.bar.foreground
+            opacity: 0.6
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Button {
+            id: vpnAddButton
+            text: Commons.I18n.t("network.vpnAdd")
+            tooltipText: Commons.I18n.t("network.vpnAddTooltip")
+            fontSize: Style.font.bodySmall
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+            bordered: true
+            hasCursor: root.cursorActive && root.focusSection === "vpn" && root.vpnRowIndex === root.vpnList.length
+            onHovered: function(isHovered) { if (isHovered) root.setVpnCursor(root.vpnList.length, 0) }
+            onClicked: root.addVpn()
+          }
+        }
+
+        // Wi-Fi networks (only if a Wi-Fi station is available).
+        PanelSeparator {
+          visible: root.wifiStationAvailable
+          foreground: root.bar.foreground
+        }
 
         PanelSectionHeader {
-          text: Commons.I18n.t("network.dnsProvider")
+          visible: root.wifiStationAvailable && root.scanning
+          text: Commons.I18n.t("network.scanningWifi")
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
 
-        Row {
-          id: dnsRow
+        // Scrollable network list — cap the height so a busy neighbourhood
+        // doesn't push the popup off-screen. ListView (vs Repeater+Column)
+        // gives us positionViewAtIndex for free, which is what keeps the
+        // keyboard-selected row scrolled into view as j/k walk past the
+        // visible window.
+        ListView {
+          id: networkList
+          visible: root.wifiStationAvailable
           width: parent.width
-          spacing: Style.space(6)
+          height: Math.min(contentHeight, Style.space(240))
+          spacing: Style.space(4)
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          interactive: contentHeight > height
 
-          readonly property int count: root.dnsProviders.length
-          readonly property real cellWidth: (width - spacing * (count - 1)) / count
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-          Repeater {
-            model: root.dnsProviders
+          model: root.wifiStationAvailable ? root.wifiNetworks : []
+          currentIndex: root.selectedIndex
+          onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
 
-            DnsProviderPill {
-              required property string modelData
-              provider: modelData
-              tooltipText: modelData === "DHCP" ? Commons.I18n.t("network.dnsFromDhcp")
-                : modelData === "Custom" ? Commons.I18n.t("network.setCustomDns")
-                : Commons.I18n.t("network.setDnsTo").arg(modelData)
-              width: dnsRow.cellWidth
-              onClicked: root.setDns(provider)
+          // Wrapper takes the required props from ListView's delegate context
+          // (which doesn't bind into nested `component` declarations like
+          // NetworkRow) and passes them down explicitly.
+          delegate: Item {
+            id: wifiDelegate
+            required property var modelData
+            required property int index
+            readonly property string sectionTitle: root.wifiSectionTitle(index)
+            width: ListView.view.width
+            height: delegateColumn.implicitHeight
+
+            // Opening the passphrase prompt grows the row, which can push the
+            // field below the list's clip on the bottom rows, or below the
+            // card on a short screen; scroll it into view in both.
+            function revealPrompt() {
+              if (!row.isPasswordOpen) return
+              networkList.positionViewAtIndex(index, ListView.Contain)
+              root.scrollItemIntoView(wifiDelegate)
             }
-          }
-        }
-      }
+            onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
 
-
-      // Wi-Fi networks (only if a Wi-Fi station is available).
-      PanelSeparator {
-        visible: root.wifiStationAvailable
-        foreground: root.bar.foreground
-      }
-
-      PanelSectionHeader {
-        visible: root.wifiStationAvailable && root.scanning
-        text: Commons.I18n.t("network.scanningWifi")
-        foreground: root.bar.foreground
-        fontFamily: root.bar.fontFamily
-      }
-
-      // Scrollable network list — cap the height so a busy neighbourhood
-      // doesn't push the popup off-screen. ListView (vs Repeater+Column)
-      // gives us positionViewAtIndex for free, which is what keeps the
-      // keyboard-selected row scrolled into view as j/k walk past the
-      // visible window.
-      ListView {
-        id: networkList
-        visible: root.wifiStationAvailable
-        width: parent.width
-        height: Math.min(contentHeight, Style.space(240))
-        spacing: Style.space(4)
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        interactive: contentHeight > height
-
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-        model: root.wifiStationAvailable ? root.wifiNetworks : []
-        currentIndex: root.selectedIndex
-        onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
-
-        // Wrapper takes the required props from ListView's delegate context
-        // (which doesn't bind into nested `component` declarations like
-        // NetworkRow) and passes them down explicitly.
-        delegate: Item {
-          required property var modelData
-          required property int index
-          readonly property string sectionTitle: root.wifiSectionTitle(index)
-          width: ListView.view.width
-          height: delegateColumn.implicitHeight
-
-          // Opening the passphrase prompt grows the row, which can push the
-          // field below the list's clip on the bottom rows; scroll it in.
-          function revealPrompt() {
-            if (row.isPasswordOpen) networkList.positionViewAtIndex(index, ListView.Contain)
-          }
-          onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
-
-          Column {
-            id: delegateColumn
-            width: parent.width
-            spacing: Style.space(4)
-
-            PanelSectionHeader {
-              visible: sectionTitle !== ""
-              text: sectionTitle
-              foreground: root.bar.foreground
-              fontFamily: root.bar.fontFamily
-              height: visible ? implicitHeight : 0
-            }
-
-            NetworkRow {
-              id: row
+            Column {
+              id: delegateColumn
               width: parent.width
-              net: modelData
-              index: parent.parent.index
+              spacing: Style.space(4)
+
+              PanelSectionHeader {
+                visible: sectionTitle !== ""
+                text: sectionTitle
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                height: visible ? implicitHeight : 0
+              }
+
+              NetworkRow {
+                id: row
+                width: parent.width
+                net: modelData
+                index: parent.parent.index
+              }
             }
           }
         }
@@ -1936,6 +2234,101 @@ Panel {
       root.cursorActive = true
       root.focusSection = "dns"
       root.dnsIndex = pill.index
+    }
+  }
+
+  // One VPN: a status dot, its name and state, then a pill per mode and Sign
+  // in when it needs credentials.
+  component VpnRow: Column {
+    id: vpnRow
+    required property var modelData
+    required property int index
+    readonly property var entry: modelData
+    readonly property bool switching: root.vpnPendingId === entry.id
+    readonly property string pending: switching ? root.vpnPendingMode : ""
+    readonly property string shownMode: pending !== "" ? pending : entry.mode
+    readonly property real cellWidth: (width - Style.space(6) * Math.max(0, root.vpnControls(entry).length - 1)) / Math.max(1, root.vpnControls(entry).length)
+
+    width: parent ? parent.width : 0
+    spacing: Style.space(6)
+
+    Item {
+      width: parent.width
+      implicitHeight: vpnLabels.implicitHeight
+      height: implicitHeight
+
+      Rectangle {
+        id: vpnDot
+        width: Style.space(8)
+        height: width
+        radius: width / 2
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        color: root.bar.foreground
+        opacity: vpnRow.entry.state === "up" ? 1 : (vpnRow.entry.state === "off" && !vpnRow.switching ? 0.18 : 0.55)
+      }
+
+      Column {
+        id: vpnLabels
+        anchors.left: vpnDot.right
+        anchors.leftMargin: Style.space(10)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(2)
+
+        Text {
+          width: parent.width
+          textFormat: Text.PlainText
+          text: vpnRow.entry.name
+          elide: Text.ElideRight
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+        }
+
+        Text {
+          width: parent.width
+          textFormat: Text.PlainText
+          text: Model.vpnStateText(vpnRow.entry, vpnRow.pending, Commons.I18n.t)
+          elide: Text.ElideRight
+          color: root.bar.foreground
+          opacity: 0.6
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+      }
+    }
+
+    Row {
+      width: parent.width
+      spacing: Style.space(6)
+
+      Repeater {
+        model: root.vpnControls(vpnRow.entry)
+        delegate: Button {
+          id: vpnControl
+          required property string modelData
+          required property int index
+          readonly property bool isSignIn: modelData === "signin"
+
+          width: vpnRow.cellWidth
+          text: isSignIn ? Commons.I18n.t("network.vpnSignIn") : Model.vpnModeLabel(modelData, Commons.I18n.t)
+          tooltipText: isSignIn ? Commons.I18n.t("network.vpnSignInTooltip") : Model.vpnModeTooltip(modelData, Commons.I18n.t)
+          fontSize: Style.font.bodySmall
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          horizontalPadding: Style.spacing.controlPaddingX
+          verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+          bordered: true
+          active: !isSignIn && vpnRow.shownMode === modelData
+          hasCursor: root.cursorActive && root.focusSection === "vpn" && root.vpnRowIndex === vpnRow.index && root.vpnControlIndex === index
+          onHovered: function(isHovered) { if (isHovered) root.setVpnCursor(vpnRow.index, vpnControl.index) }
+          onClicked: {
+            if (isSignIn) root.vpnSignIn(vpnRow.entry.id)
+            else root.setVpnMode(vpnRow.entry.id, modelData)
+          }
+        }
+      }
     }
   }
 

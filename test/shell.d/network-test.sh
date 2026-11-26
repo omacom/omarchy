@@ -259,6 +259,27 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+// VPN rows from omarchy-network-vpn: a down VPN is always off whatever mode
+// its profile holds, unknown modes and actions are dropped, and malformed
+// lines never become rows.
+const vpns = network.parseVpnList([
+  ['u1', 'Office', 'wireguard', 'up', '10.8.0.2', 'full', 'off,split,full', ''].join('\t'),
+  ['u2', 'Home', 'openvpn', 'off', '', 'split', 'off,split,full', 'signin,reboot'].join('\t'),
+  ['u3', 'Odd', 'vpn', 'exploded', '', 'sideways', 'sideways', ''].join('\t'),
+  'garbage',
+  ''
+].join('\n'))
+assertDeepEqual(vpns.map(v => [v.id, v.state, v.mode, v.modes.join(','), v.actions.join(',')]), [
+  ['u1', 'up', 'full', 'off,split,full', ''],
+  ['u2', 'off', 'off', 'off,split,full', 'signin'],
+  ['u3', 'off', 'off', 'off,split,full', '']
+], 'network parses VPN rows and normalizes what it does not know')
+assertDeepEqual(network.vpnUpNames(vpns), ['Office'], 'network names the connected VPNs for the bar')
+assertEqual(network.vpnStateText(vpns[0], ''), 'WireGuard · All traffic · 10.8.0.2', 'network describes a full-tunnel VPN')
+assertEqual(network.vpnStateText(vpns[1], ''), 'OpenVPN · Sign-in required', 'network says a VPN needs signing in')
+assertEqual(network.vpnStateText(vpns[1], 'split'), 'OpenVPN · Switching to Split…', 'network shows a switch in progress')
+assert(!network.vpnSwitchSettled(vpns, 'u2', 'split') && network.vpnSwitchSettled(vpns, 'u1', 'full') && network.vpnSwitchSettled(vpns, 'gone', 'full'),
+  'network holds a VPN switch until the VPN is up in the mode asked for')
 JS
 
 tmpdir=$(mktemp -d)
