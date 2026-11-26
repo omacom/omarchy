@@ -119,7 +119,8 @@ default/limine/limine.conf     ──►  omarchy-settings    /usr/share/omarchy
 default/limine/default.conf    ──►  omarchy-settings    /usr/share/omarchy/default/limine/default.conf
                                                         (template; ISO substitutes @@CMDLINE@@ → /etc/default/limine)
 default/initcpio/{hooks,install}/omarchy-{snapshot-overlay,restore}
-                               ──►  omarchy-settings    /usr/lib/initcpio/{hooks,install}/
+                               ──►  omarchy-settings    /etc/initcpio/{hooks,install}/
+                                                        (kept out of /usr/lib/initcpio so unchanged settings upgrades skip 90-mkinitcpio-install.hook; rebuilt on content change by 91-omarchy-initcpio-rebuild.hook)
 default/systemd/system/omarchy-boot-{sync,confirm}.service
                                ──►  omarchy-settings    /usr/lib/systemd/system/
 default/boot/**                ──►  omarchy-settings    /usr/share/omarchy/default/boot/
