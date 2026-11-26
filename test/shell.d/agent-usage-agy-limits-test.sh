@@ -70,8 +70,8 @@ expect("Antigravity collector extracts the plan from paidTier, else currentTier"
   tier({"currentTier": {"id": "free-tier", "name": "Antigravity"}}),
 ], ["Ultra", "Pro", "Free"])
 
-# Gemini's windows first, the session before the week, then the Claude and
-# GPT allowance only where some of it is used.
+# Gemini's windows first, the session before the week, then Claude and GPT's
+# session and weekly windows as their own bars.
 read = limits({"groups": [
   {"displayName": "Gemini Models", "buckets": [
     {"bucketId": "gemini-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "resetTime": "2026-09-17T18:19:42Z", "remainingFraction": 0.95},
@@ -82,15 +82,17 @@ read = limits({"groups": [
     {"bucketId": "3p-5h", "displayName": "Five Hour Limit Remaining", "window": "5h", "resetTime": "2026-09-15T22:16:22Z", "remainingFraction": 1.0},
   ]},
 ]})
-expect("Antigravity collector orders the windows, reads used from remaining, and omits an unused 3P window",
+expect("Antigravity collector orders all four windows and reads used from remaining",
        [(entry["label"], entry.get("title"), round(entry["percent"], 2)) for entry in read],
-       [("Session (5-hour)", "Session", 0.1), ("Weekly (7-day)", "Weekly", 0.05), ("Claude/GPT Weekly", "Claude/GPT Weekly", 0.02)], read)
+       [("Gemini Session (5-hour)", "Gemini Session", 0.1), ("Gemini Weekly (7-day)", "Gemini Weekly", 0.05),
+        ("Claude/GPT Session", "Claude/GPT Session", 0.0), ("Claude/GPT Weekly", "Claude/GPT Weekly", 0.02)], read)
 
 read = limits({"groups": [
   {"displayName": "Claude and GPT models", "buckets": [{"window": "5h", "remainingFraction": 1.0}]},
   {"displayName": "Gemini Models", "buckets": [{"window": "weekly", "remainingFraction": 0.5}]},
 ]})
-expect("Antigravity collector finds the Gemini group wherever it is listed", [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5)], read)
+expect("Antigravity collector finds the Gemini group wherever it is listed",
+       [(entry["label"], entry["percent"]) for entry in read], [("Gemini Weekly (7-day)", 0.5), ("Claude/GPT Session", 0.0)], read)
 
 read = limits({"buckets": [
   {"window": "5h", "remaining_fraction": 0.4, "reset_time": "2026-09-15T19:31:46Z"},
@@ -98,11 +100,11 @@ read = limits({"buckets": [
   {"bucketId": "gemini-weekly", "remainingFraction": float("inf")},
 ]})
 expect("Antigravity collector reads snake_case buckets listed without groups and skips unreadable fractions",
-       [(entry["label"], round(entry["percent"], 2), entry["resetsAt"]) for entry in read], [("Session (5-hour)", 0.6, "2026-09-15T19:31:46+00:00")], read)
+       [(entry["label"], round(entry["percent"], 2), entry["resetsAt"]) for entry in read], [("Gemini Session (5-hour)", 0.6, "2026-09-15T19:31:46+00:00")], read)
 
 read = limits({"buckets": [{"window": "5h", "resetTime": "2026-09-15T19:31:46Z"}, {"window": "weekly"}]})
 expect("Antigravity collector reads a bucket whose zero fraction proto3 JSON left out as fully spent, and skips one with no reset either",
-       [(entry["label"], entry["percent"]) for entry in read], [("Session (5-hour)", 1.0)], read)
+       [(entry["label"], entry["percent"]) for entry in read], [("Gemini Session (5-hour)", 1.0)], read)
 
 # agy's QuotaSummaryBucket holds its remainder as a oneof of a fraction and an
 # amount (an int64, a string in JSON), so a bucket on the amount arm has no
@@ -118,7 +120,7 @@ read = limits({"groups": [
   ]},
 ]})
 expect("Antigravity collector reads a bucket's amount arm, spent only at zero, and skips a disabled bucket",
-       [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 1.0)], read)
+       [(entry["label"], entry["percent"]) for entry in read], [("Gemini Weekly (7-day)", 1.0)], read)
 
 # An answer of another shape is no answer, not a plan without quotas; another
 # group's buckets of the wrong shape skip that group alone.
@@ -127,7 +129,7 @@ shapes = [None, [1], {"error": {"code": 500}}, {"groups": 5}, {"groups": "abc"},
           {"groups": [{"displayName": "Gemini Models", "buckets": 5}]}]
 expect("Antigravity collector reads an answer of another shape as none", [limits(shape) for shape in shapes], [None] * len(shapes))
 read = limits({"groups": [gemini, {"displayName": "Claude and GPT models", "buckets": 5}]})
-expect("Antigravity collector skips another group's buckets of the wrong shape", [(entry["label"], entry["percent"]) for entry in read], [("Session (5-hour)", 0.5)], read)
+expect("Antigravity collector skips another group's buckets of the wrong shape", [(entry["label"], entry["percent"]) for entry in read], [("Gemini Session (5-hour)", 0.5)], read)
 
 # ---------------------------------------------------------------- contract
 
@@ -168,7 +170,26 @@ for path in limits_cache_files("agy"):
   path.write_text(json.dumps(dict(data, limits=data["limits"] + ["damaged"])))
 record, _ = agy("down")
 expect("Antigravity collector drops a damaged kept window and shows an elapsed one at zero",
-       record["limits"], [{"label": "Session (5-hour)", "title": "Session", "percent": 0.0, "resetsAt": ""}], record)
+       record["limits"], [{"label": "Gemini Session (5-hour)", "title": "Gemini Session", "percent": 0.0, "resetsAt": ""}], record)
+agy()
+
+# When retrieveUserQuotaSummary omits the Gemini group, fetchAvailableModels
+# supplies the Gemini 5-hour session window alongside the Claude/GPT buckets.
+MODELS = "v1internal:fetchAvailableModels"
+record, _ = agy(routes={
+  TIER: ANSWER[TIER],
+  QUOTA: {"groups": [{"displayName": "Claude and GPT models", "buckets": [
+    {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 1.0},
+    {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1.0},
+  ]}]},
+  MODELS: {"models": {
+    "gemini-3-flash": {"quotaInfo": {"remainingFraction": 0.95, "resetTime": "2026-09-15T19:31:46Z"}},
+    "claude-opus-5-5-low": {"quotaInfo": {"remainingFraction": 1.0, "resetTime": "2026-09-15T20:00:00Z"}},
+  }},
+})
+expect("Antigravity collector falls back to fetchAvailableModels when retrieveUserQuotaSummary omits Gemini",
+       [(entry["title"], round(entry["percent"], 2)) for entry in record["limits"]],
+       [("Gemini Session", 0.05), ("Claude/GPT Session", 0.0), ("Claude/GPT Weekly", 0.0)], record)
 agy()
 
 # A quota answer of another shape is a failed check: the kept limits stand,
