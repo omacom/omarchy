@@ -114,7 +114,7 @@ for helper in omarchy-provision-user omarchy-hook-install omarchy-notification-w
   printf '#!/bin/bash\nexit 0\n' >"$first_bin/$helper"
 done
 chmod +x "$first_bin"/*
-for script in "$ROOT"/install/user/first-run/*.{sh,hook}; do
+for script in "$ROOT"/install/user/first-run/*.sh; do
   printf 'exit 0\n' >"$first_root/install/user/first-run/${script##*/}"
 done
 

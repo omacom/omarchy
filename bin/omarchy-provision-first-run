@@ -91,8 +91,6 @@ run_first_run_step "configure Superwhisper dictation" \
 # order is enough to stack them newest-on-top.
 run_first_run_step "show welcome notification" \
   bash "$OMARCHY_PATH/install/user/first-run/welcome.sh"
-run_first_run_step "open fingerprint setup if requested during installation" \
-  bash "$OMARCHY_PATH/install/user/first-run/setup-fingerprint.hook" --requested
 run_first_run_step "schedule Wi-Fi, agent and fingerprint notifications" \
   bash "$OMARCHY_PATH/install/user/first-run/wifi.sh"
 

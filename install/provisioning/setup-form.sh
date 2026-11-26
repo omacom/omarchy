@@ -447,19 +447,3 @@ omarchy_form_review() {
   gum confirm --affirmative "$(omarchy_form_text setupForm.reviewYes)" --negative "$(omarchy_form_text setupForm.reviewChange)" \
     "$(omarchy_form_text setupForm.reviewPrompt)"
 }
-
-# The ISO and first-boot owner setup record a choice only. Enroll once the
-# owner is signed into the installed desktop and the reader can ask for consent.
-omarchy_prompt_fingerprint() {
-  fingerprint_setup=""
-  local detector=${1:-omarchy-hw-fingerprint}
-  if ! "$detector" 2>/dev/null; then
-    return 0
-  fi
-  if gum confirm --affirmative "$(omarchy_form_text setupForm.fingerprintYes)" --negative "$(omarchy_form_text setupForm.fingerprintLater)" \
-    "$(omarchy_form_text setupForm.fingerprintPrompt)"; then
-    fingerprint_setup="requested"
-  else
-    fingerprint_setup="skipped"
-  fi
-}

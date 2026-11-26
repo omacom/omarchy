@@ -109,7 +109,6 @@ set -euo pipefail
 source "$ROOT/install/provisioning/luks-rekey.sh"
 OMARCHY_FORM_DEFAULTS=$TMP/no-defaults
 source "$ROOT/install/provisioning/setup-form.sh"
-omarchy-hw-fingerprint() { return 1; }
 initial_language() { language=en; }
 language_form() { :; }
 fit_console_font() { :; }
