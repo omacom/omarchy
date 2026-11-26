@@ -2,7 +2,9 @@
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 import dbus
 import dbus.service
@@ -10,7 +12,8 @@ from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "default/fingerprint"))
-from reader import DEVICE, SERVICE, Reader
+from names import Names
+from reader import DEVICE, SERVICE, Reader, ScanGuide
 
 PATH = "/net/reactivated/Fprint/Device/0"
 PROPS = "org.freedesktop.DBus.Properties"
@@ -113,6 +116,31 @@ class ReaderTest(unittest.TestCase):
   def test_occupied_slot_is_never_started(self):
     self.assertEqual(self.scan("Enroll", "right-index-finger"), ["enroll-duplicate"])
     self.assertEqual(self.device.calls[-2:], ["claim", "release"])
+
+
+class SetupTest(unittest.TestCase):
+  def test_reader_rearming_cannot_erase_lift_or_retry(self):
+    guide = ScanGuide()
+    self.assertEqual(guide.update("finger-down"), "hold")
+    self.assertEqual(guide.update("enroll-stage-passed"), "retouch")
+    for event in ("finger-up", "finger-needed", "finger-down"):
+      self.assertEqual(guide.update(event), "retouch")
+    self.assertEqual(guide.samples, 1)
+    self.assertEqual(guide.update("enroll-remove-and-retry"), "enroll-remove-and-retry")
+    self.assertEqual(guide.update("finger-down"), "enroll-remove-and-retry")
+    self.assertEqual(guide.update("enroll-stage-passed"), "retouch")
+    self.assertEqual(guide.samples, 2)
+
+  def test_renamed_finger_survives_reordering_and_a_freed_slot_starts_fresh(self):
+    with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, XDG_DATA_HOME=tmp):
+      store = Names("Built-in")
+      first, second = "right-index-finger", "left-thumb"
+      self.assertEqual(store.sync([first]), {first: (1, None)})
+      store.sync([second, first])
+      store.rename(second, "Trackpad hand")
+      self.assertEqual(Names("Built-in").sync([second]), {second: (2, "Trackpad hand")})
+      self.assertEqual(store.sync([second, first])[first], (1, None))
+      self.assertEqual(Names("External").sync([second]), {second: (1, None)})
 
 
 if __name__ == "__main__":

@@ -8,6 +8,31 @@ FINGERS = [side + "-" + finger for side in ("right", "left") for finger in
            ("index-finger", "thumb", "middle-finger", "ring-finger", "little-finger")]
 
 
+class ScanGuide:
+  """Interpret capture results without guessing whether the finger lifted."""
+
+  def __init__(self):
+    self.samples = 0
+    self.present = False
+    self.prompt = "touch"
+
+  def update(self, event):
+    if event == "enroll-stage-passed":
+      self.samples += 1
+      self.present = False
+      self.prompt = "retouch"
+    elif event in ("finger-down", "finger-up", "finger-needed"):
+      # Some readers briefly clear and then reassert presence while the
+      # same finger is still down. Preserve sample and retry instructions.
+      if self.prompt in ("touch", "hold"):
+        if event != "finger-needed":
+          self.present = event == "finger-down"
+        self.prompt = "hold" if self.present else "touch"
+    else:
+      self.prompt = event
+    return self.prompt
+
+
 class Reader:
   def __init__(self, address, path, status):
     self.bus = Gio.DBusConnection.new_for_address_sync(

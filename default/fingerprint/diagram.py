@@ -19,8 +19,10 @@ RIDGES = (
 
 
 class Diagram(Gtk.DrawingArea):
-  def __init__(self):
-    super().__init__(content_width=170, content_height=166, halign=Gtk.Align.CENTER)
+  def __init__(self, compact=False):
+    super().__init__(content_width=52 if compact else 200, content_height=52 if compact else 190,
+                     halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER, accessible_role=Gtk.AccessibleRole.PRESENTATION)
+    self.compact = compact
     self.samples = 0
     self.complete = False
     self.present = False
@@ -31,7 +33,13 @@ class Diagram(Gtk.DrawingArea):
     cr.translate((width - 128 * scale) / 2, (height - 144 * scale) / 2)
     cr.scale(scale, scale)
     foreground = self.get_color()
-    cr.set_source_rgba(foreground.red, foreground.green, foreground.blue, .11 if self.present else .055)
+    style = self.get_style_context()
+    found, tint = style.lookup_color("success_color" if self.complete else "theme_selected_bg_color")
+    # The selected background alone can disappear on dark themes. Mix it
+    # with the normal text color so each captured ridge remains legible.
+    fg = (foreground.red, foreground.green, foreground.blue)
+    ink = tuple(.58 * c + .42 * f for c, f in zip((tint.red, tint.green, tint.blue), fg)) if found else fg
+    cr.set_source_rgba(*ink, .14 if self.present or self.complete else .075)
     cr.arc(64, 74, 69, 0, 6.284)
     cr.fill()
     cr.set_line_width(3.5)
@@ -39,11 +47,22 @@ class Diagram(Gtk.DrawingArea):
     for i, (start, *curves) in enumerate(RIDGES):
       # Keep a ridge in reserve until the reader announces completion. The
       # reported number of stages is only an estimate on adaptive sensors.
-      if self.complete or i < min(self.samples, len(RIDGES) - 1):
-        cr.set_source_rgba(foreground.red, foreground.green, foreground.blue, 1)
+      if self.compact or self.complete or i < min(self.samples, len(RIDGES) - 1):
+        cr.set_source_rgb(*ink)
       else:
-        cr.set_source_rgba(foreground.red, foreground.green, foreground.blue, .30)
+        cr.set_source_rgba(*fg, .28)
       cr.move_to(*start)
       for curve in curves:
         cr.curve_to(*curve)
+      cr.stroke()
+    if self.complete:
+      cr.set_source_rgb(*ink)
+      cr.arc(112, 119, 13, 0, 6.284)
+      cr.fill()
+      _, bg = style.lookup_color("theme_bg_color")
+      cr.set_source_rgb(bg.red, bg.green, bg.blue)
+      cr.set_line_width(2.8)
+      cr.move_to(106, 119)
+      cr.line_to(111, 124)
+      cr.line_to(119, 114)
       cr.stroke()

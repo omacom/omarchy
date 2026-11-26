@@ -4,7 +4,7 @@
 
 On a computer with a supported reader, the installer offers to open _Fingerprint Setup_ at first login. You can also open it from _Setup > Security > Fingerprint_. On a Mac, open the lid to use the built-in Touch ID sensor. If the app asks you to prepare the reader, follow the platform's consent and backup instructions first.
 
-Choose an unused finger and select _Enroll selected finger_. Follow the touch and lift prompts until the app confirms that the fingerprint was added. Select _Continue_ to see the saved fingers, add another, or verify one. To use an enrolled finger at the lock screen, choose _Enable fingerprint unlock_, verify a saved finger and confirm the administrator prompt. Lock the desktop with `Super + Ctrl + L`. Your password remains available.
+Select _Add fingerprint_ and touch the reader with the finger you want to enroll. After each accepted scan, lift and touch again at a slightly different angle. The reader decides when it has enough scans. Keep the suggested name, such as _Finger 1_, or enter your own. You can rename a saved fingerprint with its pencil button and check it with _Verify_. The names belong to your Omarchy account. Other fprintd tools may show their own finger names. To enable desktop unlock, turn on _Unlock with a fingerprint_, verify a saved finger and confirm the administrator prompt if asked. Lock the desktop with `Super + Ctrl + L`. Your password remains available.
 
 For the terminal workflow that also configures `sudo` and system authorization prompts, run `omarchy setup security fingerprint`.
 

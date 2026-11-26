@@ -1,14 +1,17 @@
 """Omarchy's fingerprint enrollment window. Only fprintd handles fingerprint data."""
 import json
 import os
+import sqlite3
 import subprocess
 from pathlib import Path
 
 import gi
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib, Gtk
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 from diagram import Diagram
-from reader import DEVICE, FINGERS, MANAGER, SERVICE, Reader
+from names import Names
+from reader import DEVICE, FINGERS, MANAGER, SERVICE, Reader, ScanGuide
 
 PAM = Path("/etc/pam.d/omarchy-lock-fingerprint")
 DISABLED = Path.home() / ".local/state/omarchy/toggles/lock-fingerprint-off"
@@ -33,18 +36,16 @@ def tr(key, fallback):
   return translations.get(key, fallback)
 
 
-LABELS = {
-  "right-index-finger": tr("fingerprintApp.rightIndex", "Right index finger"),
-  "right-thumb": tr("fingerprintApp.rightThumb", "Right thumb"),
-  "right-middle-finger": tr("fingerprintApp.rightMiddle", "Right middle finger"),
-  "right-ring-finger": tr("fingerprintApp.rightRing", "Right ring finger"),
-  "right-little-finger": tr("fingerprintApp.rightLittle", "Right little finger"),
-  "left-index-finger": tr("fingerprintApp.leftIndex", "Left index finger"),
-  "left-thumb": tr("fingerprintApp.leftThumb", "Left thumb"),
-  "left-middle-finger": tr("fingerprintApp.leftMiddle", "Left middle finger"),
-  "left-ring-finger": tr("fingerprintApp.leftRing", "Left ring finger"),
-  "left-little-finger": tr("fingerprintApp.leftLittle", "Left little finger"),
-}
+def numbered(number):
+  return tr("fingerprintApp.numbered", "Finger %1").replace("%1", str(number))
+
+
+def icon_button(icon, title, action):
+  item = Gtk.Button(icon_name=icon, tooltip_text=title)
+  item.update_property([Gtk.AccessibleProperty.LABEL], [title])
+  item.add_css_class("flat")
+  item.connect("clicked", lambda *_: action())
+  return item
 
 
 def label(text, style=None):
@@ -83,13 +84,13 @@ def available_before_consent():
 class Window(Gtk.ApplicationWindow):
   def __init__(self, app):
     super().__init__(application=app, title=tr("fingerprintApp.appTitle", "Fingerprint Setup"))
-    self.set_default_size(500, 565)
+    self.set_default_size(480, 560)
+    self.add_css_class("fingerprint-setup")
     self.set_icon_name("auth-fingerprint-symbolic")
     self.reader = None
     self.generation = 0
     self.bus = None
     self.selected = ""
-    self.lift_timer = 0
     self.scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER)
     self.set_child(self.scroller)
     self.connect("close-request", self.close_scan)
@@ -103,35 +104,40 @@ class Window(Gtk.ApplicationWindow):
 
   def close_scan(self, *_):
     self.generation += 1
-    if self.lift_timer:
-      GLib.source_remove(self.lift_timer)
-      self.lift_timer = 0
     if self.reader:
       self.reader.cancel()
       self.reader = None
     return False
 
-  def page(self, title, description, icon=True):
-    self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
-    self.box.set_size_request(360, -1)
+  def page(self, title, description="", guide=False):
+    self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, valign=Gtk.Align.CENTER)
     for edge in ("top", "bottom", "start", "end"):
       getattr(self.box, "set_margin_" + edge)(28)
     self.scroller.set_child(self.box)
-    image = Gtk.Image.new_from_icon_name("auth-fingerprint-symbolic")
-    image.set_pixel_size(54)
-    image.set_halign(Gtk.Align.START)
-    if icon:
-      self.box.append(image)
-    self.box.append(label(title, "title-1"))
-    self.box.append(label(description, "dim-label"))
+    header = Gtk.Box(spacing=14, halign=Gtk.Align.CENTER if guide else Gtk.Align.FILL)
+    self.box.append(header)
+    if not guide:
+      glyph = Diagram(compact=True)
+      header.append(glyph)
+    titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3, hexpand=not guide)
+    header.append(titles)
+    for text, style in ((title, "title-1"), (description, "dim-label")):
+      if text:
+        line = label(text, style)
+        if guide:
+          line.set_xalign(.5)
+        titles.append(line)
+  def close_button(self):
+    close = button(tr("fingerprintApp.done", "Done"), self.close, "flat")
+    close.set_halign(Gtk.Align.END)
+    self.box.append(close)
 
   def refresh(self, notice=""):
     self.close_scan()
     generation = self.generation
     self.page(tr("fingerprintApp.appTitle", "Fingerprint Setup"), tr("fingerprintApp.reading", "Reading your fingerprint reader…"))
-    if available_before_consent():
-      self.unavailable(tr("fingerprintApp.consent", "This Mac needs your permission to enable Touch ID."))
-      return
+    self.needs_consent = available_before_consent()
+    consent = tr("fingerprintApp.consent", "This Mac needs your permission to enable Touch ID.")
     try:
       self.address = Gio.dbus_address_get_for_bus_sync(Gio.BusType.SYSTEM, None)
       self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
@@ -147,7 +153,8 @@ class Window(Gtk.ApplicationWindow):
         for path in devices:
           props = self.query(path, "org.freedesktop.DBus.Properties", "GetAll",
                              GLib.Variant("(s)", (DEVICE,)))[0]
-          readers.append((path, props))
+          if not (self.needs_consent and props["name"] == "Apple secure enclave fingerprint sensor"):
+            readers.append((path, props))
         if not readers:
           GLib.idle_add(deliver, [], [], None)
           return
@@ -169,7 +176,7 @@ class Window(Gtk.ApplicationWindow):
         GLib.idle_add(failed, error.message)
     def failed(message):
       if generation == self.generation:
-        self.unavailable(message)
+        self.unavailable(consent if self.needs_consent else message)
       return False
     def deliver(readers, fingers, path, preferences=False, configured=False):
       if generation != self.generation:
@@ -179,7 +186,8 @@ class Window(Gtk.ApplicationWindow):
         self.already_configured = configured
         self.home(readers, fingers, notice, preferences)
       else:
-        self.unavailable(notice or tr("fingerprintApp.openLid", "Open the laptop lid or connect a fingerprint reader, then try again."))
+        message = consent if self.needs_consent else tr("fingerprintApp.openLid", "Open the laptop lid or connect a fingerprint reader, then try again.")
+        self.unavailable(notice or message)
       return False
     from threading import Thread
     Thread(target=load, daemon=True).start()
@@ -209,14 +217,29 @@ class Window(Gtk.ApplicationWindow):
   def unavailable(self, message):
     self.page(tr("fingerprintApp.setupReader", "Set up your reader"), message)
     self.box.append(button(tr("fingerprintApp.retry", "Check again"), self.refresh, "suggested-action"))
-    self.box.append(button(tr("fingerprintApp.prepare", "Prepare fingerprint reader…"), lambda: self.terminal(
-      ["/bin/bash", str(Path(__file__).with_name("prepare-reader"))])))
-    self.box.append(button(tr("fingerprintApp.close", "Close"), self.close))
+    self.box.append(self.prepare_button())
+    self.close_button()
+
+  def prepare_button(self):
+    return button(tr("fingerprintApp.prepare", "Prepare fingerprint reader…"), lambda: self.terminal(
+      ["/bin/bash", str(Path(__file__).with_name("prepare-reader"))]))
+
+  def group(self, title):
+    heading = label(title, "heading")
+    heading.set_margin_top(12)
+    self.box.append(heading)
+    rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+    rows.add_css_class("boxed-list")
+    self.box.append(rows)
+    return rows
 
   def home(self, readers, fingers, notice, preferences):
     props = dict(readers)[self.selected]
+    name = props["name"]
+    apple = name == "Apple secure enclave fingerprint sensor"
     self.swipe = props.get("scan-type") == "swipe"
-    self.page(tr("fingerprintApp.touchId", "Touch ID") if "apple" in props["name"].lower() else tr("fingerprintApp.fingerprints", "Fingerprints"), props["name"])
+    self.page(tr("fingerprintApp.touchId", "Touch ID") if apple else tr("fingerprintApp.fingerprints", "Fingerprints"),
+              tr("fingerprintApp.builtIn", "Built-in fingerprint reader") if apple else name)
     if len(readers) > 1:
       picker = Gtk.DropDown.new_from_strings([p["name"] for _, p in readers])
       picker.set_selected([path for path, _ in readers].index(self.selected))
@@ -225,38 +248,103 @@ class Window(Gtk.ApplicationWindow):
         self.refresh()
       picker.connect("notify::selected", choose_reader)
       self.box.append(picker)
+    # fprintd identifies the model by name. Only disambiguate with the device
+    # path if two attached readers actually present the same name.
+    key = name if sum(p["name"] == name for _, p in readers) == 1 else name + "|" + self.selected
+    self.names = Names(key)
+    try:
+      self.prints = self.names.sync(fingers)
+    except (sqlite3.Error, OSError) as error:
+      self.prints = {slot: (i, None) for i, slot in enumerate(sorted(fingers), 1)}
+      notice = str(error)
     if notice:
-      self.box.append(label(notice, "accent"))
-    self.box.append(label(tr("fingerprintApp.saved", "Saved fingerprints"), "heading"))
-    if fingers:
-      for finger in fingers:
-        row = Gtk.Box(spacing=12)
-        row.append(Gtk.Image.new_from_icon_name("auth-fingerprint-symbolic"))
-        name = label(LABELS.get(finger, finger))
-        name.set_hexpand(True)
-        row.append(name)
-        row.append(button(tr("fingerprintApp.verify", "Verify"), lambda slot=finger: self.scan("Verify", slot)))
-        self.box.append(row)
+      self.box.append(label(notice))
+    rows = self.group(tr("fingerprintApp.saved", "Saved fingerprints"))
+    for slot, (number, custom) in sorted(self.prints.items(), key=lambda pair: pair[1][0]):
+      row = Gtk.Box(spacing=8)
+      row.add_css_class("fingerprint-row")
+      glyph = Gtk.Image.new_from_icon_name("auth-fingerprint-symbolic")
+      glyph.set_pixel_size(22)
+      row.append(glyph)
+      display_name = custom or numbered(number)
+      title = label(display_name)
+      title.set_wrap(False)
+      title.set_ellipsize(Pango.EllipsizeMode.END)
+      title.set_hexpand(True)
+      row.append(title)
+      row.append(icon_button("document-edit-symbolic", tr("fingerprintApp.renameNamed", "Rename %1").replace("%1", display_name),
+                             lambda slot=slot: self.rename(slot)))
+      verify = button(tr("fingerprintApp.verify", "Verify"), lambda slot=slot: self.scan("Verify", slot), "flat")
+      verify.update_property([Gtk.AccessibleProperty.LABEL], [tr("fingerprintApp.verifyNamed", "Verify %1").replace("%1", display_name)])
+      row.append(verify)
+      rows.append(row)
+    slot = next((slot for slot in FINGERS if slot not in self.prints), None)
+    if slot:
+      add = button(tr("fingerprintApp.add", "Add fingerprint"), lambda: self.scan("Enroll", slot), "suggested-action")
+      add.set_halign(Gtk.Align.START)
+      if not fingers:
+        empty = label(tr("fingerprintApp.empty", "No fingerprints enrolled yet."))
+        empty.add_css_class("fingerprint-row")
+        rows.append(empty)
+      self.box.append(add)
     else:
-      self.box.append(label(tr("fingerprintApp.empty", "No fingerprints enrolled yet.")))
-    available = [finger for finger in FINGERS if finger not in fingers]
-    if available:
-      self.box.append(label(tr("fingerprintApp.addFinger", "Add a finger"), "heading"))
-      choice = Gtk.DropDown.new_from_strings([LABELS[f] for f in available])
-      self.box.append(choice)
-      self.box.append(button(tr("fingerprintApp.enrollSelected", "Enroll selected finger"), lambda: self.scan(
-        "Enroll", available[choice.get_selected()]), "suggested-action"))
+      self.box.append(label(tr("fingerprintApp.full", "All fingerprint slots are in use.")))
     if fingers:
-      self.box.append(Gtk.Separator())
-      self.box.append(label(tr("fingerprintApp.screenUnlock", "Screen unlock"), "heading"))
+      security = self.group(tr("fingerprintApp.screenUnlock", "Screen unlock"))
+      row = Gtk.Box(spacing=12)
+      row.add_css_class("fingerprint-row")
+      labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3, hexpand=True)
+      labels.append(label(tr("fingerprintApp.useUnlock", "Unlock with a fingerprint")))
+      labels.append(label(tr("fingerprintApp.password", "You can also use your password."), "dim-label"))
+      row.append(labels)
       enabled = PAM.exists() and (not preferences or not DISABLED.exists())
-      self.box.append(label(tr("fingerprintApp.passwordFallback", "Fingerprint unlock is on. Your password also works.") if enabled else
-                            tr("fingerprintApp.useSaved", "Use an enrolled finger to unlock your Omarchy session.")))
-      if enabled and preferences:
-        self.box.append(button(tr("fingerprintApp.turnOff", "Turn off fingerprint unlock"), self.disable))
-      elif not enabled:
-        self.box.append(button(tr("fingerprintApp.enableUnlock", "Enable fingerprint unlock…"), lambda: self.scan("Verify", "any", True)))
-    self.box.append(button(tr("fingerprintApp.done", "Done"), self.close))
+      if preferences or not enabled:
+        switch = Gtk.Switch(active=enabled, valign=Gtk.Align.CENTER)
+        switch.update_property([Gtk.AccessibleProperty.LABEL], [tr("fingerprintApp.useUnlock", "Unlock with a fingerprint")])
+        def toggle(widget, state):
+          if state:
+            self.scan("Verify", "any", True)
+          else:
+            self.disable()
+          return True
+        switch.connect("state-set", toggle)
+        row.append(switch)
+      else:
+        row.append(label(tr("fingerprintApp.on", "On")))
+      security.append(row)
+    if self.needs_consent:
+      self.box.append(self.prepare_button())
+    self.close_button()
+
+  def name_editor(self, slot, number, custom, enrolled=False):
+    title = tr("fingerprintApp.name", "Fingerprint name")
+    entry = Gtk.Entry(text=custom or numbered(number), max_length=64, activates_default=False)
+    entry.update_property([Gtk.AccessibleProperty.LABEL], [title])
+    self.box.append(label(title, "heading"))
+    self.box.append(entry)
+    def save():
+      text = entry.get_text().strip()
+      try:
+        self.names.rename(slot, None if text == numbered(number) else text)
+      except (sqlite3.Error, OSError) as error:
+        self.refresh(str(error))
+        return
+      self.refresh()
+    entry.connect("activate", lambda *_: save())
+    actions = Gtk.Box(spacing=8, halign=Gtk.Align.END)
+    if not enrolled:
+      actions.append(button(tr("fingerprintApp.cancel", "Cancel"), self.refresh, "flat"))
+    confirm = tr("fingerprintApp.done", "Done") if enrolled else tr("fingerprintApp.save", "Save")
+    actions.append(button(confirm, save, "suggested-action"))
+    self.box.append(actions)
+    return entry
+
+  def rename(self, slot):
+    self.close_scan()
+    self.page(tr("fingerprintApp.rename", "Rename fingerprint"))
+    entry = self.name_editor(slot, *self.prints[slot])
+    entry.grab_focus()
+    entry.select_region(0, -1)
 
   def disable(self):
     try:
@@ -292,35 +380,41 @@ class Window(Gtk.ApplicationWindow):
         return
     self.close_scan()
     generation = self.generation
+    used = {number for number, _ in self.prints.values()}
+    number = next(n for n in range(1, len(used) + 2) if n not in used)
+    number, custom = self.prints.get(finger, (number, None))
     self.page(tr("fingerprintApp.enrollTitle", "Add a fingerprint") if mode == "Enroll" else tr("fingerprintApp.verifyTitle", "Verify fingerprint"),
-              LABELS.get(finger, tr("fingerprintApp.useAny", "Use any saved finger")), icon=False)
+              tr("fingerprintApp.useAny", "Use any saved finger") if finger == "any" else custom or numbered(number), guide=True)
     diagram = Diagram()
     self.box.append(diagram)
     touch = tr("fingerprintApp.swipe", "Swipe your finger across the reader.") if self.swipe else tr("fingerprintApp.touch", "Touch the sensor.")
-    hint = label(touch, "title-2")
+    hint = Gtk.Label(label=touch, wrap=True, justify=Gtk.Justification.CENTER, accessible_role=Gtk.AccessibleRole.STATUS)
+    hint.add_css_class("title-2")
     self.box.append(hint)
-    self.box.append(button(tr("fingerprintApp.cancel", "Cancel"), self.refresh))
-    def clear_timer():
-      if self.lift_timer:
-        GLib.source_remove(self.lift_timer)
-        self.lift_timer = 0
-    def next_touch():
-      self.lift_timer = 0
-      if generation == self.generation:
-        hint.set_text(tr("fingerprintApp.touchAgain", "Touch again after lifting.") if not self.swipe else touch)
-      return False
+    count = Gtk.Label(label=tr("fingerprintApp.angle", "Vary the angle slightly with each touch.") if mode == "Enroll" and not self.swipe else "")
+    count.add_css_class("dim-label")
+    self.box.append(count)
+    cancel = button(tr("fingerprintApp.cancel", "Cancel"), self.refresh, "flat")
+    cancel.set_halign(Gtk.Align.CENTER)
+    self.box.append(cancel)
+    guide = ScanGuide()
     def update(result, detail, finished):
       if generation != self.generation:
         return
-      clear_timer()
       if finished:
         self.reader = None
         if result == "enroll-completed":
           diagram.complete = True
           diagram.queue_draw()
           hint.set_text(tr("fingerprintApp.added", "Fingerprint added"))
-          self.box.get_last_child().set_visible(False)
-          self.box.append(button(tr("fingerprintApp.continue", "Continue"), self.refresh, "suggested-action"))
+          count.set_visible(False)
+          cancel.set_visible(False)
+          try:
+            self.prints = self.names.sync([finger], prune=False)
+          except (sqlite3.Error, OSError) as error:
+            self.refresh(str(error))
+            return
+          self.name_editor(finger, *self.prints[finger], enrolled=True)
         elif result == "verify-match":
           if unlock:
             self.enable()
@@ -328,24 +422,23 @@ class Window(Gtk.ApplicationWindow):
             self.refresh(tr("fingerprintApp.matched", "Fingerprint matched."))
         else:
           self.refresh(detail or self.explain(result))
-      elif result == "finger-down":
-        diagram.present = True
-        diagram.queue_draw()
-        hint.set_text(touch if self.swipe else tr("fingerprintApp.hold", "Hold your finger on the sensor."))
-      elif result in ("finger-up", "finger-needed"):
-        diagram.present = False
-        diagram.queue_draw()
-        hint.set_text(touch)
-      elif result == "enroll-stage-passed":
-        diagram.samples += 1
-        diagram.queue_draw()
-        hint.set_text(tr("fingerprintApp.lift", "Lift your finger.") if not self.swipe else tr("fingerprintApp.swipeAgain", "Swipe again."))
-        # Some readers only emit stage results. Give a two-part instruction
-        # without claiming that the finger was physically removed.
-        if not self.swipe:
-          self.lift_timer = GLib.timeout_add(1100, next_touch)
       else:
-        hint.set_text(self.explain(result))
+        last_prompt = guide.prompt
+        prompt = guide.update(result)
+        if prompt == last_prompt and result != "enroll-stage-passed":
+          return
+        diagram.samples, diagram.present = guide.samples, guide.present
+        diagram.queue_draw()
+        if prompt == "retouch":
+          hint.set_text(tr("fingerprintApp.retouch", "Lift, then touch again.") if not self.swipe else tr("fingerprintApp.swipeAgain", "Swipe again."))
+          count.set_text(tr("fingerprintApp.scans", "Scans accepted: %1").replace("%1", str(guide.samples)))
+          count.announce(f"{count.get_text()}. {hint.get_text()}", Gtk.AccessibleAnnouncementPriority.MEDIUM)
+        elif prompt == "touch" or (prompt == "hold" and self.swipe):
+          hint.set_text(touch)
+        elif prompt == "hold":
+          hint.set_text(tr("fingerprintApp.hold", "Hold your finger on the sensor."))
+        else:
+          hint.set_text(self.explain(prompt))
     try:
       self.reader = Reader(self.address, self.selected, update)
       self.reader.start(mode, finger)
@@ -372,6 +465,16 @@ class Window(Gtk.ApplicationWindow):
 
 
 def activate(app):
+  if not app.get_active_window():
+    css = Gtk.CssProvider()
+    css.load_from_data(b"""
+      .fingerprint-setup .dim-label { opacity: .80; }
+      .fingerprint-row { padding: 10px 12px; }
+      list.boxed-list { border-radius: 12px; background-color: alpha(@theme_fg_color, .055); }
+      list.boxed-list > row { border-bottom: 1px solid alpha(@theme_fg_color, .09); }
+      list.boxed-list > row:last-child { border-bottom: 0; }
+    """)
+    Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
   window = app.get_active_window() or Window(app)
   window.present()
 
