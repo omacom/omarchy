@@ -171,3 +171,24 @@ STUB_PROFILE=default run_apply_lock
 [[ $(<"$pam_dir/sddm") == "$packaged_sddm" ]] || fail "a run outside the child profile restores the packaged login stack" "$(<"$pam_dir/sddm")"
 [[ ! -e $pam_dir/sddm.omarchy-orig ]] || fail "the kept copy goes with it"
 pass "the login screen returns to the packaged stack outside the child profile"
+
+# The install saves the packaged copy in its config phase, before the login
+# phase (install/login/sddm.sh) deletes the two password-keyring lines, so the
+# copy carries them. Neither a rebuild from it, as fingerprint setup runs, nor
+# the restore outside the child profile may bring them back.
+keyring_sddm=$'#%PAM-1.0\n\nauth\t\tinclude\t\tsystem-login\n-auth\t\toptional\tpam_gnome_keyring.so\naccount\t\tinclude\t\tsystem-login\npassword\tinclude\t\tsystem-login\n-password\toptional\tpam_gnome_keyring.so use_authtok\nsession\t\toptional\tpam_keyinit.so force revoke\nsession\t\tinclude\t\tsystem-login\n-session\toptional\tpam_gnome_keyring.so auto_start'
+printf '%s\n' "$keyring_sddm" >"$pam_dir/sddm"
+STUB_PROFILE=child run_apply_lock
+bash <(sed "s|/etc/pam\.d|$pam_dir|g" "$ROOT/install/login/sddm.sh")
+keyring_lines() { grep -E -e '^-(auth|password)[[:space:]].*pam_gnome_keyring' "$1" || true; }
+[[ -n $(keyring_lines "$pam_dir/sddm.omarchy-orig") ]] || fail "the copy saved in the config phase still carries the keyring lines, as on an install"
+[[ -z $(keyring_lines "$pam_dir/sddm") ]] || fail "the install leaves the child login stack without the keyring lines" "$(<"$pam_dir/sddm")"
+STUB_PROFILE=child run_apply_lock
+[[ -z $(keyring_lines "$pam_dir/sddm") ]] || fail "a rebuild from the saved copy leaves the keyring lines out" "$(<"$pam_dir/sddm")"
+grep -qE $'^-session\toptional\tpam_gnome_keyring.so auto_start$' "$pam_dir/sddm" || fail "the rebuild keeps the keyring's session line, which install/login/sddm.sh keeps too"
+[[ $(grep -c 'omarchy-parent-unlock' "$pam_dir/sddm") == 1 ]] || fail "the rebuild still has the helper once"
+STUB_PROFILE=default run_apply_lock
+[[ -z $(keyring_lines "$pam_dir/sddm") && ! -e $pam_dir/sddm.omarchy-orig ]] || fail "the restore outside the child profile leaves the keyring lines out" "$(<"$pam_dir/sddm")"
+[[ $(<"$pam_dir/sddm") == "$(grep -v -e '-auth.*pam_gnome_keyring' -e '-password.*pam_gnome_keyring' <<<"$keyring_sddm")" ]] ||
+  fail "the restore is the packaged stack as install/login/sddm.sh trims it" "$(<"$pam_dir/sddm")"
+pass "a rebuild or restore from the saved copy never brings back the keyring lines the install deleted"
