@@ -164,7 +164,7 @@ Panel {
   function claimHome(label, zone) {
     var stored = Model.homeCityAfterTap(label, zone, hereZone && hereZone.chosen ? hereZone.label : "", localZone)
     if (stored === null) return
-    if (stored === "") { setHere({ label: Model.labelForZoneId(localZone), id: localZone }); return }
+    if (stored === "") { setHere({ label: Model.defaultCityForZone(localZone), id: localZone }); return }
     var pick = { label: stored, id: zone }
     var known = zones.concat(sessionCities).filter(function(c) { return c.label === label && c.id === zone })[0]
     var place = known && known.lat !== undefined ? known : placeOf(pick)
@@ -619,7 +619,7 @@ Panel {
     if (geoProc.running || weatherProc.running) { factsQueued = true; return }
     var missing = factsRequest.filter(function(row) {
       var key = Model.factsKey(row)
-      return !geo[key] && !pinnedGeo[key]
+      return Model.isPlaceZone(row.id) && !geo[key] && !pinnedGeo[key]
     })
     if (missing.length === 0) { fetchWeather(); return }
     geoProc.rows = missing
