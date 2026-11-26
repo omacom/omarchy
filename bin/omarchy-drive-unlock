@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Ask for an encrypted drive's password in the shell and unlock it
+# omarchy:args=<device>
+# omarchy:hidden=true
+
+# udiskie's password prompt (default/hypr/autostart.lua). The shell asks for the
+# password and unlocks the drive itself, so a wrong password shakes the card and
+# is asked again, and udiskie mounts the drive as it appears unlocked. Exiting
+# non-zero tells udiskie there is nothing left for it to unlock.
+
+device=${1:?Usage: omarchy-drive-unlock <device>}
+disk=$(lsblk -dno PKNAME "$device")
+name=$(lsblk -dno LABEL "$device")
+[[ -n $name ]] || name=$(lsblk -dno MODEL "/dev/${disk:-${device#/dev/}}" | sed 's/ *$//')
+size=$(lsblk -dno SIZE "$device" | tr -d ' ')
+
+omarchy-shell -q omarchy.polkit unlockDrive "$device" "${name:+$name · }$size"
+exit 1
