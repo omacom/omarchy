@@ -93,6 +93,9 @@ ShellRoot {
     root.assertTrue(labelClock !== null && calendarClock !== null, "omarchy.clock and its calendar each run a WallClock")
     if (!labelClock || !calendarClock) return
 
+    root.assertTrue(typeof item.resync === "function", "omarchy.clock answers a resync request")
+    if (typeof item.resync !== "function") return
+
     calendar.viewMonth = (calendar.viewMonth + 3) % 12
     var browsed = calendar.viewMonth
 
