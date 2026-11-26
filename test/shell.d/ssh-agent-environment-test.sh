@@ -16,6 +16,7 @@ cat >"$stub_bin/systemctl" <<'STUB'
 #!/bin/bash
 case $* in
   "--user show-environment") printf 'SSH_AUTH_SOCK=%s/gcr/ssh\n' "$XDG_RUNTIME_DIR" ;;
+  "--user -q is-active gcr-ssh-agent.socket") [[ -e $XDG_CONFIG_HOME/gcr-agent-active ]] ;;
   "--user is-enabled -q xdg-user-dirs.service") exit 0 ;;
   *) ;;
 esac
@@ -105,3 +106,8 @@ grep -Fq 'unset SSH_AUTH_SOCK' "$session_env_file" || fail "removal explicitly c
   fail "UWSM session preparation preserves another agent's socket"
 [[ ! -e $systemd_env_file ]] || fail "removal leaves no environment.d socket setting"
 pass "removal clears only the stale gcr socket during UWSM session preparation"
+
+touch "$config/gcr-agent-active"
+[[ $(prepare_session "$runtime/gcr/ssh") == "$runtime/gcr/ssh" ]] ||
+  fail "UWSM preserves a gcr agent reactivated after removal"
+pass "removal does not hide a reactivated gcr agent"
