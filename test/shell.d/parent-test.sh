@@ -118,6 +118,39 @@ stock=$(<"$faillock_tmp/system-auth")
 )
 rm -rf "$faillock_tmp"
 [[ $apply_body == *lock_root_prompts* ]] || fail "apply has faillock count root"
+
+# Removal takes every account grant apply wrote before the rootpw drop-in,
+# whatever --user says: without rootpw a grant left behind takes the kid's own
+# password for root. The function runs extracted against scratch directories.
+remove_tmp=$(mktemp -d)
+mkdir -p "$remove_tmp/sudoers.d" "$remove_tmp/rules.d"
+for name in omarchy-parent omarchy-parent-kid omarchy-parent-renamed 00-omarchy-wheel; do
+  printf 'x\n' >"$remove_tmp/sudoers.d/$name"
+done
+printf 'x\n' >"$remove_tmp/rules.d/40-omarchy-parent.rules"
+(
+  SUDOERS_DIR="$remove_tmp/sudoers.d" POLKIT_RULES_DIR="$remove_tmp/rules.d"
+  eval "$(sed -n '/^remove_posture() {/,/^}/p' "$parent")"
+  unmask_consoles() { :; }
+  unlock_root_prompts() { :; }
+  rm() {
+    local a
+    for a in "$@"; do [[ $a == -* ]] || printf '%s\n' "$a" >>"$remove_tmp/removed"; done
+    command rm "$@"
+  }
+  remove_posture >/dev/null
+)
+[[ ! -e $remove_tmp/sudoers.d/omarchy-parent-kid && ! -e $remove_tmp/sudoers.d/omarchy-parent-renamed ]] ||
+  fail "a removal naming no account deletes every account grant apply wrote" "$(ls "$remove_tmp/sudoers.d")"
+[[ ! -e $remove_tmp/sudoers.d/omarchy-parent && ! -e $remove_tmp/rules.d/40-omarchy-parent.rules ]] ||
+  fail "a removal deletes the rootpw drop-in and the polkit admin rule"
+[[ -e $remove_tmp/sudoers.d/00-omarchy-wheel ]] || fail "a removal keeps %wheel's grant for the machine's next administrator"
+grant_line=$(grep -n 'omarchy-parent-kid$' "$remove_tmp/removed" | cut -d: -f1)
+rootpw_line=$(grep -n 'sudoers.d/omarchy-parent$' "$remove_tmp/removed" | cut -d: -f1)
+[[ -n $grant_line && -n $rootpw_line ]] && (( grant_line < rootpw_line )) ||
+  fail "the account grants go before the rootpw drop-in" "$(cat "$remove_tmp/removed")"
+rm -rf "$remove_tmp"
+pass "removing the posture leaves no account grant behind, even without --user"
 [[ $(sed -n '/^remove_posture() {/,/^}/p' "$parent") == *unlock_root_prompts* ]] || fail "apply --remove leaves root out of the count again"
 pass "faillock rate-limits the parent password on a child install only, through system-auth's module arguments"
 
@@ -306,6 +339,12 @@ run_parent apply --remove --user kid >/dev/null || fail "apply --remove succeeds
 [[ ! -e $test_tmp/sudoers.d/omarchy-parent && ! -e $test_tmp/sudoers.d/omarchy-parent-kid && ! -e $test_tmp/rules.d/40-omarchy-parent.rules ]] ||
   fail "apply --remove deletes what apply wrote"
 pass "omarchy-parent apply --remove is the reverse of apply"
+
+STUB_GROUPS="input" run_parent apply --user kid >/dev/null || fail "apply runs again after a removal"
+run_parent apply --remove >/dev/null || fail "apply --remove succeeds without --user"
+[[ ! -e $test_tmp/sudoers.d/omarchy-parent && ! -e $test_tmp/sudoers.d/omarchy-parent-kid ]] ||
+  fail "apply --remove without --user leaves no account grant behind" "$(ls "$test_tmp/sudoers.d")"
+pass "omarchy-parent apply --remove without --user still takes the kid's grant"
 
 export GUM_SCRIPT="$test_tmp/gum-script" GUM_COUNT="$test_tmp/gum-count"
 printf '%s\n' "0:s3cret" "0:s3cret" >"$GUM_SCRIPT"; echo 0 >"$GUM_COUNT"

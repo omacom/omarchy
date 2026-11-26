@@ -236,10 +236,17 @@ apply_posture() {
   mask_consoles
 }
 
+# Every account grant apply wrote goes before the rootpw drop-in: a grant left
+# behind without it would take the kid's own password for root. So the removal
+# needs no --user, and one that names no account, or another one, still
+# leaves no grant behind.
 remove_posture() {
-  local user="${1:-}"
+  local grant
+  for grant in "$SUDOERS_DIR"/omarchy-parent-*; do
+    [[ -e $grant ]] || continue
+    rm -f -- "$grant"
+  done
   rm -f "$SUDOERS_DIR/omarchy-parent" "$POLKIT_RULES_DIR/40-omarchy-parent.rules"
-  [[ -n $user ]] && rm -f "$SUDOERS_DIR/omarchy-parent-$user"
   unmask_consoles
   unlock_root_prompts
   echo "Parental sudo and polkit configuration removed, the text consoles reopened, and root left out of faillock's count again. wheel membership is left as it is."
@@ -312,7 +319,7 @@ case "$command" in
     ;;
   apply)
     if (( remove )); then
-      remove_posture "$user"
+      remove_posture
     else
       require_child_install
       require_user apply
