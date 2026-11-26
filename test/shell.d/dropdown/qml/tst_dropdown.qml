@@ -20,6 +20,92 @@ Item {
     }
   }
 
+  // A dropdown whose value follows its owner, the way a settings row binds it.
+  property string boundValue: "One"
+  Component {
+    id: boundComponent
+    Dropdown {
+      x: 60
+      y: 40
+      width: 320
+      options: ["One", "Two", "Three"]
+      value: scene.boundValue
+      onChanged: function(v) { scene.boundValue = v }
+    }
+  }
+  Component {
+    id: boundSearchableComponent
+    SearchableDropdown {
+      x: 60
+      y: 40
+      width: 320
+      options: ["One", "Two", "Three"]
+      placeholderText: "Search"
+      emptyText: "No matches"
+      value: scene.boundValue
+      onChanged: function(v) { scene.boundValue = v }
+    }
+  }
+  Component {
+    id: unboundComponent
+    Dropdown {
+      x: 60
+      y: 40
+      width: 320
+      options: ["One", "Two", "Three"]
+      value: "One"
+    }
+  }
+
+  TestCase {
+    name: "DropdownValueBinding"
+    when: windowShown
+
+    function pickSecond(box, fromSearch) {
+      box.open()
+      tryCompare(box, "popupOpen", true)
+      if (fromSearch) {
+        tryVerify(function() {
+          var input = scene.Window.activeFocusItem
+          return input !== null && input.text !== undefined
+        })
+        keyClick(Qt.Key_Down)
+      }
+      keyClick(Qt.Key_Down)
+      keyClick(Qt.Key_Return)
+      tryCompare(box, "popupOpen", false)
+    }
+
+    // A pick must not cut the owner's binding: the value still follows the
+    // owner when it changes the setting some other way afterwards.
+    function test_pick_keeps_a_bound_value() {
+      scene.boundValue = "One"
+      var box = createTemporaryObject(boundComponent, scene)
+      pickSecond(box)
+      compare(scene.boundValue, "Two")
+      compare(box.value, "Two")
+      scene.boundValue = "Three"
+      compare(box.value, "Three", "the binding survived the pick")
+    }
+
+    function test_searchable_pick_keeps_a_bound_value() {
+      scene.boundValue = "One"
+      var box = createTemporaryObject(boundSearchableComponent, scene)
+      pickSecond(box, true)
+      compare(scene.boundValue, "Two")
+      compare(box.value, "Two")
+      scene.boundValue = "Three"
+      compare(box.value, "Three", "the searchable binding survived the pick")
+    }
+
+    // Without an owner taking the value, the dropdown still shows the pick.
+    function test_pick_without_an_owner_shows_the_pick() {
+      var box = createTemporaryObject(unboundComponent, scene)
+      pickSecond(box)
+      compare(box.value, "Two")
+    }
+  }
+
   TestCase {
     name: "DropdownPopupGeometry"
     when: windowShown
