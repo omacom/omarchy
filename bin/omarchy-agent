@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
+# omarchy:args=[--inline] [--pick] [--ask-for-approval] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --agent codex | omarchy agent --provider fireworks
 
 inline=false
 pick=false
+ask_for_approval=false
 use_local=false
 local_model=""
 agent_override=""
@@ -23,6 +24,10 @@ while (($#)); do
       ;;
     --pick)
       pick=true
+      shift
+      ;;
+    --ask-for-approval)
+      ask_for_approval=true
       shift
       ;;
     --local-model)
@@ -133,31 +138,40 @@ fi
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 case "$agent" in
 opencode)
-  command=(opencode --auto)
+  command=(opencode)
+  [[ $ask_for_approval == "true" ]] || command+=(--auto)
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
   ;;
 agy)
-  command=(agy --dangerously-skip-permissions)
+  command=(agy)
+  [[ $ask_for_approval == "true" ]] || command+=(--dangerously-skip-permissions)
   [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
   ;;
 copilot)
-  command=(copilot --allow-all)
+  command=(copilot)
+  [[ $ask_for_approval == "true" ]] || command+=(--allow-all)
   [[ -n ${prompt:-} ]] && command+=(--interactive "$prompt")
   ;;
 crush)
   # --yolo belongs to the interactive command only; `crush run` never prompts.
-  if [[ -n ${prompt:-} ]]; then
+  if [[ -n ${prompt:-} && $ask_for_approval != "true" ]]; then
     command=(crush run "$prompt")
+  elif [[ -n ${prompt:-} ]]; then
+    command=(crush)
+    prompt_via_clipboard="Crush"
   else
-    command=(crush --yolo)
+    command=(crush)
+    [[ $ask_for_approval == "true" ]] || command+=(--yolo)
   fi
   ;;
 claude)
-  command=(claude --permission-mode auto)
+  command=(claude)
+  [[ $ask_for_approval == "true" ]] || command+=(--permission-mode auto)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 grok)
-  command=(grok --permission-mode bypassPermissions)
+  command=(grok)
+  [[ $ask_for_approval == "true" ]] || command+=(--permission-mode bypassPermissions)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 openclaw)
@@ -167,10 +181,15 @@ openclaw)
   # prompts to skip, and --message seeds the session while keeping it
   # interactive.
   command=(omarchy-launch-openclaw --tui)
-  [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
+  if [[ -n ${prompt:-} && $ask_for_approval == "true" ]]; then
+    prompt_via_clipboard="OpenClaw"
+  else
+    [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
+  fi
   ;;
 codex)
-  command=(codex --approve-for-me)
+  command=(codex)
+  [[ $ask_for_approval == "true" ]] || command+=(--approve-for-me)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 cursor-agent)
@@ -178,23 +197,30 @@ cursor-agent)
   # A one-word prompt naming a subcommand (update, login, help) still runs that
   # subcommand after a bare --, so the agent subcommand is named outright, and
   # -- after it keeps a prompt starting with a dash from being read as an option.
-  command=(cursor-agent --yolo --trust)
+  command=(cursor-agent)
+  [[ $ask_for_approval == "true" ]] || command+=(--yolo --trust)
   [[ -n ${prompt:-} ]] && command+=(agent -- "$prompt")
   ;;
 hermes)
   if [[ -n ${prompt:-} ]]; then
-    command=(env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=$prompt")
+    if [[ $ask_for_approval == "true" ]]; then
+      command=(env -u HERMES_SESSION_SOURCE hermes chat --tui "--query=$prompt")
+    else
+      command=(env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=$prompt")
+    fi
   else
-    command=(hermes --yolo)
+    command=(hermes)
+    [[ $ask_for_approval == "true" ]] || command+=(--yolo)
   fi
   ;;
 muse)
-  # --approval-mode never skips the tool prompts but keeps Muse's own sandbox.
-  command=(muse --approval-mode never)
+  command=(muse)
+  [[ $ask_for_approval == "true" ]] || command+=(--approval-mode never)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 omp)
-  command=(omp --auto-approve)
+  command=(omp)
+  [[ $ask_for_approval == "true" ]] || command+=(--auto-approve)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 ori)
@@ -210,22 +236,31 @@ pi)
   ;;
 kimi)
   # --prompt is non-interactive print mode only; it cannot combine with --yolo.
-  if [[ -n ${prompt:-} ]]; then
+  if [[ -n ${prompt:-} && $ask_for_approval == "true" ]]; then
+    command=(kimi)
+    prompt_via_clipboard="Kimi Code"
+  elif [[ -n ${prompt:-} ]]; then
     command=(kimi --prompt "$prompt")
   else
-    command=(kimi --yolo)
+    command=(kimi)
+    [[ $ask_for_approval == "true" ]] || command+=(--yolo)
   fi
   ;;
 qwen)
   # Bind the value so a prompt starting with a dash stays literal.
-  command=(qwen --yolo)
+  command=(qwen)
+  [[ $ask_for_approval == "true" ]] || command+=(--yolo)
   [[ -n ${prompt:-} ]] && command+=("--prompt-interactive=$prompt")
   ;;
 dsh)
   # The browser UI has no prompt option, and the headless profile would run the
   # prompt with full access in a window that closes with its answer, so a
   # prompt goes to the clipboard below instead.
-  command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
+  if [[ $ask_for_approval == "true" ]]; then
+    command=(dsh web)
+  else
+    command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
+  fi
   prompt_via_clipboard="DeepSeek Harness"
   ;;
 mcode)
@@ -242,22 +277,27 @@ freebuff)
 kilo)
   # Kilo is built on OpenCode and shares its flags. Bind the prompt so one
   # starting with a dash stays literal.
-  command=(kilo --auto)
+  command=(kilo)
+  [[ $ask_for_approval == "true" ]] || command+=(--auto)
   [[ -n ${prompt:-} ]] && command+=("--prompt=$prompt")
   ;;
 devin)
   # A bare positional is a path that opens Devin Desktop, so the prompt
   # always follows --, which starts an interactive session with it.
-  command=(devin --permission-mode dangerous --respect-workspace-trust false)
+  command=(devin)
+  [[ $ask_for_approval == "true" ]] || command+=(--permission-mode dangerous --respect-workspace-trust false)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 amp)
   # Amp takes its first interactive message from piped input; a positional
   # message is for --execute, which exits after one turn.
-  if [[ -n ${prompt:-} ]]; then
+  if [[ -n ${prompt:-} && $ask_for_approval != "true" ]]; then
     command=(bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "$prompt")
+  elif [[ -n ${prompt:-} ]]; then
+    command=(bash -c 'printf "%s\n" "$1" | exec "$0"' amp "$prompt")
   else
-    command=(amp --dangerously-allow-all)
+    command=(amp)
+    [[ $ask_for_approval == "true" ]] || command+=(--dangerously-allow-all)
   fi
   ;;
 *)

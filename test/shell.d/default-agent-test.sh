@@ -535,6 +535,25 @@ assert_bypass() {
   assert_launched "$agent" "skips permission prompts" "$@"
 }
 
+assert_approval_prompt() {
+  local agent=$1
+  shift
+
+  printf '%s\n' "$agent" >"$agent_file"
+  omarchy-agent --ask-for-approval
+  assert_launched "$agent" "keeps approval prompts enabled" "$@"
+}
+
+assert_approval_prompt_with_task() {
+  local agent=$1
+  shift
+
+  printf '%s\n' "$agent" >"$agent_file"
+  : >"$clipboard_log"
+  omarchy-agent --ask-for-approval --prompt "Review this project"
+  assert_launched "$agent" "keeps approval prompts enabled for an initial task" "$@"
+}
+
 assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
@@ -611,6 +630,66 @@ assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust 
 assert_bypass amp amp --dangerously-allow-all
 [[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
 pass "agent launcher skips permission prompts for every supported agent"
+
+assert_approval_prompt omp omp
+assert_approval_prompt opencode opencode
+assert_approval_prompt claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude
+assert_approval_prompt codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex
+assert_approval_prompt grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok
+assert_approval_prompt agy agy
+assert_approval_prompt copilot copilot
+assert_approval_prompt crush crush
+assert_approval_prompt cursor-agent cursor-agent
+assert_approval_prompt hermes hermes
+assert_approval_prompt muse muse
+assert_approval_prompt kimi kimi
+assert_approval_prompt qwen qwen
+assert_approval_prompt dsh dsh web
+assert_approval_prompt kilo kilo
+assert_approval_prompt devin devin
+assert_approval_prompt amp amp
+assert_approval_prompt_with_task opencode opencode --prompt "Review this project"
+assert_approval_prompt_with_task agy agy --prompt-interactive "Review this project"
+assert_approval_prompt_with_task copilot copilot --interactive "Review this project"
+assert_approval_prompt_with_task claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude -- "Review this project"
+assert_approval_prompt_with_task codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex -- "Review this project"
+assert_approval_prompt_with_task grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok -- "Review this project"
+assert_approval_prompt_with_task cursor-agent cursor-agent agent -- "Review this project"
+assert_approval_prompt_with_task hermes env -u HERMES_SESSION_SOURCE hermes chat --tui "--query=Review this project"
+assert_approval_prompt_with_task muse muse -- "Review this project"
+assert_approval_prompt_with_task omp omp -- "Review this project"
+assert_approval_prompt_with_task qwen qwen "--prompt-interactive=Review this project"
+assert_approval_prompt_with_task kilo kilo "--prompt=Review this project"
+assert_approval_prompt_with_task devin devin -- "Review this project"
+assert_approval_prompt_with_task amp bash -c 'printf "%s\n" "$1" | exec "$0"' amp "Review this project"
+assert_approval_prompt_with_task crush crush
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "Crush receives the task through the clipboard in approval mode"
+assert_approval_prompt_with_task kimi kimi
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "Kimi receives the task through the clipboard in approval mode"
+assert_approval_prompt_with_task dsh dsh web
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "DSH receives the task through the clipboard in approval mode"
+assert_approval_prompt_with_task openclaw omarchy-launch-openclaw --tui
+[[ $(<"$clipboard_log") == "Review this project" ]] || fail "OpenClaw receives the task through the clipboard in approval mode"
+pass "crash diagnosis can launch every supported agent with its automatic approval bypass disabled"
+
+crash_agent_bin="$test_tmp/crash-agent-bin"
+mkdir -p "$crash_agent_bin"
+cat >"$crash_agent_bin/coredumpctl" <<'SH'
+#!/bin/bash
+printf 'Nov 26 12:00:00\n'
+SH
+cat >"$crash_agent_bin/omarchy-agent" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_CRASH_AGENT_LOG"
+SH
+chmod +x "$crash_agent_bin/coredumpctl" "$crash_agent_bin/omarchy-agent"
+export OMARCHY_TEST_CRASH_AGENT_LOG="$test_tmp/crash-agent-launch"
+PATH="$crash_agent_bin:$PATH" "$ROOT/bin/omarchy-agent-crash" 4242 Hyprland /usr/bin/Hyprland SIGSEGV
+mapfile -d '' -t crash_args <"$OMARCHY_TEST_CRASH_AGENT_LOG"
+[[ ${crash_args[0]} == "--ask-for-approval" && ${crash_args[1]} == "--pick" && ${crash_args[2]} == "--prompt" ]] ||
+  fail "crash diagnosis asks the agent to keep approval prompts enabled"
+[[ ${crash_args[3]} == *"What systemd-coredump recorded:"* ]] || fail "crash diagnosis keeps its report in the prompt"
+pass "crash diagnosis opts into approval prompts before passing crash metadata"
 
 printf '%s\n' "opencode" >"$agent_file"
 omarchy-agent
