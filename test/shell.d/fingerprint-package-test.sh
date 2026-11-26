@@ -369,3 +369,21 @@ pass "stock libfprint is still replaced by libfprint-git"
 LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
 assert_installs "an existing libfprint-git still completes the package set"
 pass "an existing libfprint-git still completes the package set"
+
+# A blocked product descriptor must fall back to the vendor check. The outer
+# deadline must fail both cases if the detector itself stops timing out.
+mkdir -p "$scratch/wedged-usb/1-0" "$scratch/platform"
+mkfifo "$scratch/wedged-usb/1-0/product"
+platform_root_copy "$ROOT/bin/omarchy-hw-fingerprint" "$scratch/hw-fingerprint" "$scratch/platform"
+
+assert_wedged_detection() {
+  local vendor="$1" expected="$2" description="$3" status=0
+
+  printf '%s\n' "$vendor" >"$scratch/wedged-usb/1-0/idVendor"
+  OMARCHY_USB_DEVICES_PATH="$scratch/wedged-usb" timeout --kill-after=1s 5s "$scratch/hw-fingerprint" || status=$?
+  (( status == expected )) || fail "$description" "detector exited $status, expected $expected"
+  pass "$description"
+}
+
+assert_wedged_detection 27c6 0 "a reader whose product read hangs is detected by vendor"
+assert_wedged_detection 1234 1 "a non-reader whose product read hangs is rejected"
