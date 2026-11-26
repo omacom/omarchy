@@ -23,15 +23,19 @@ exec {lock_fd}<"$lock/."
 flock -x "$lock_fd"
 [[ -d $mounts/users ]] || exit 0
 
-view=$(mktemp -d)
-trap 'umount -- "$view" 2>/dev/null || true; rmdir -- "$view"' EXIT
+work=$(mktemp -d)
+view="$work/mounts"
+trap 'umount -- "$view" 2>/dev/null || true; rm -f -- "$work/anchors"; rmdir -- "$view" "$work"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+mkdir -- "$view"
 mount --bind "$mounts" "$view"
 # The non-recursive bind exposes anchors, not the user's mounted VM folders.
+find "$view/users" -mindepth 2 -maxdepth 2 -type d \( -name storage -o -name shared \) -print0 > "$work/anchors"
 while IFS= read -r -d '' anchor; do
-  if [[ -z $(find "$anchor" -mindepth 1 -print -quit) ]]; then
+  contents=$(find "$anchor" -mindepth 1 -print -quit)
+  if [[ -z $contents ]]; then
     chattr +i -- "$anchor" || true
   fi
-done < <(find "$view/users" -mindepth 2 -maxdepth 2 -type d \( -name storage -o -name shared \) -print0)
+done < "$work/anchors"
 ROOT

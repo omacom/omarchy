@@ -530,10 +530,12 @@ prepare_mount_anchor() {
   unlock_unmounted_anchor "$path"
   prepare_boundary_component "$path" "$CALLER_DATA_ROOT" "$owner" 0700 || {
     echo "omarchy-windows-vm: mount anchor is not an empty private folder owned by root: $path" >&2
+    lock_unmounted_anchor "$path"
     return 1
   }
   [[ -z $(find "$path" -mindepth 1 -print -quit) ]] || {
     echo "omarchy-windows-vm: refusing to hide data below mount anchor: $path" >&2
+    lock_unmounted_anchor "$path"
     return 1
   }
   lock_unmounted_anchor "$path"
