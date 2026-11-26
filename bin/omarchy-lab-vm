@@ -58,8 +58,8 @@ session_env='
   export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
   export HYPRLAND_INSTANCE_SIGNATURE=$(ls -t $XDG_RUNTIME_DIR/hypr 2>/dev/null | head -1)
   export WAYLAND_DISPLAY=$(find $XDG_RUNTIME_DIR -maxdepth 1 -name "wayland-*" ! -name "*.lock" -printf "%f\n" 2>/dev/null | head -1)
-  [ -f /etc/omarchy.conf ] && . /etc/omarchy.conf
-  export PATH="$OMARCHY_PATH/bin:$PATH"
+  # Non-login SSH commands need the packaged Omarchy environment too.
+  . /etc/profile.d/omarchy.sh
 '
 
 is_tty() { [[ -t 0 && -t 1 ]]; }
