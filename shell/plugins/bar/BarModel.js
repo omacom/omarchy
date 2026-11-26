@@ -33,6 +33,14 @@ function entryId(entry) {
   return ""
 }
 
+// The tray, or a clone standing in for it, owns the overflow drawer: its
+// section is where folded widgets go, and its widget carries the drawer's
+// geometry back to the bar. A clone keeps its own id, so the registry's
+// provenance decides as well as the built-in id.
+function isTrayWidget(id, clonedFrom) {
+  return String(id || "") === "omarchy.tray" || String(clonedFrom || "") === "omarchy.tray"
+}
+
 function moduleString(entry, key, fallback) {
   var settings = entrySettings(entry)
   var value = settings[key]
@@ -769,6 +777,7 @@ if (typeof module !== "undefined") {
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
     entryId: entryId,
+    isTrayWidget: isTrayWidget,
     moduleString: moduleString,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,

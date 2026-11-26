@@ -26,6 +26,13 @@ assertEqual(bar.pickDrawnSlot([undrawn]), undrawn, 'bar falls back to an undrawn
 assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are none')
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
+// The overflow drawer belongs to the tray, including a clone of it that keeps
+// its own manifest id.
+assertEqual(bar.isTrayWidget('omarchy.tray', ''), true, 'the built-in tray owns the overflow drawer')
+assertEqual(bar.isTrayWidget('tester.tray', 'omarchy.tray'), true, 'a clone of the tray owns it too')
+assertEqual(bar.isTrayWidget('tester.tray', 'omarchy.clock'), false, 'another widget\'s clone does not')
+assertEqual(bar.isTrayWidget('', ''), false, 'a missing widget is not the tray')
+
 // The bar drops its input under a real fullscreen window on its workspace, so
 // the window gets the clicks along the edge; a maximized one keeps the bar.
 const output = { x: 0, y: 0, width: 1280, height: 800 }

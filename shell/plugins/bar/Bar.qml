@@ -1002,6 +1002,15 @@ Item {
     return BarModel.entryId(entry)
   }
 
+  // The tray, or a clone standing in for it. A clone keeps its own manifest
+  // id, so its registry provenance decides alongside the built-in id.
+  function isTrayWidget(id) {
+    var key = root.canonicalWidgetId(String(id || ""))
+    var metadata = root.barWidgetRegistry.metadataFor(key)
+    var clonedFrom = metadata ? root.canonicalWidgetId(String(metadata.clonedFrom || "")) : ""
+    return BarModel.isTrayWidget(key, clonedFrom)
+  }
+
   function moduleString(entry, key, fallback) {
     return BarModel.moduleString(entry, key, fallback)
   }
@@ -1919,7 +1928,7 @@ Item {
     function traySlotOnWindow() {
       for (var i = 0; i < moduleSlots.length; i++) {
         var slot = moduleSlots[i]
-        if (!slot || slot.moduleName !== "omarchy.tray" || !sameWindow(slotWindow(slot), barWindow)) continue
+        if (!slot || !root.isTrayWidget(slot.moduleName) || !sameWindow(slotWindow(slot), barWindow)) continue
         if (slot.activeItem && slot.activeItem.overflowCount > 0) return slot
       }
       return null
@@ -1986,7 +1995,7 @@ Item {
     function trayKey() {
       var keys = root.layoutWidgets.keys || []
       for (var i = 0; i < keys.length; i++) {
-        if (root.entryId(root.layoutWidgets.entries[keys[i]]) === "omarchy.tray") return keys[i]
+        if (root.isTrayWidget(root.entryId(root.layoutWidgets.entries[keys[i]]))) return keys[i]
       }
       return ""
     }
@@ -3085,6 +3094,9 @@ Item {
     readonly property string customType: root.customModuleType(entry)
     readonly property var registryMetadata: root.barWidgetRegistry.metadataFor(root.canonicalWidgetId(moduleName))
     readonly property bool firstParty: registryMetadata && registryMetadata.firstParty === true
+    // A clone of the tray is still the tray for the overflow drawer: it shows
+    // the folded widgets and reports the drawer geometry back to the bar.
+    readonly property bool trayWidget: root.isTrayWidget(moduleName)
     readonly property string pluginApiId: registered ? root.canonicalWidgetId(moduleName) : "bar-entry:" + moduleName
     // Re-evaluate when the registry mutates (Component reference changes,
     // plugin enabled/disabled, etc.). Reading the `widgets` property creates
@@ -3235,7 +3247,7 @@ Item {
       // a bar, as the indicators do by reporting which are already active.
       if ("fixedEdge" in target) target.fixedEdge = fixedEdge
       if ("inTraySection" in target) target.inTraySection = inTraySection
-      if ("barOverflow" in target && firstParty) target.barOverflow = owner ? owner.window.overflowApi : null
+      if ("barOverflow" in target && (firstParty || trayWidget)) target.barOverflow = owner ? owner.window.overflowApi : null
       if ("bar" in target) target.bar = firstParty
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
