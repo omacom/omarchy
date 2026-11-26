@@ -874,20 +874,10 @@ Panel {
               ]
               onPicked: function(v) { root.setNumber("compressorMode", "compressor", Number(v)) }
             }
-          }
-
-          PanelSeparator { foreground: root.foreground }
-
-          // ---- Reverb ----------------------------------------------------------
-          Column {
-            width: parent.width
-            spacing: Style.space(2)
-
-            SectionTitle { text: Commons.I18n.t("mv7plus.sectionReverb") }
 
             SwitchRow {
               rowKey: "reverb"
-              label: Commons.I18n.t("mv7plus.reverbOutput")
+              label: Commons.I18n.t("mv7plus.reverbLabel")
               hint: Commons.I18n.t("mv7plus.reverbOutputDesc")
               checked: root.reverbOutputOn
               onActivated: root.setBool("reverbOutputOn", "reverb_output", !root.reverbOutputOn)
