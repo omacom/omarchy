@@ -33,7 +33,7 @@ Item {
     target: root
     property: "veil"
     to: 0
-    duration: Style.duration(320)
+    duration: Style.duration(240)
     easing.type: Easing.OutCubic
     onFinished: root.dismiss()
   }

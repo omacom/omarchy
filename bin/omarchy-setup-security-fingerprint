@@ -9,8 +9,14 @@ set -e
 # On the desktop the setup is the full-screen fingerprint panel, which does
 # all of this in the background behind one authorization prompt. --terminal,
 # or a session whose shell doesn't answer (SSH, a console), runs it right here.
-if [[ ${1:-} != "--terminal" ]] && [[ $(omarchy-shell shell summon omarchy.fingerprint 2>/dev/null) == "ok" ]]; then
-  exit 0
+# The menu and the first-run invitation start this with no terminal, so with
+# the panel unavailable (its plugin disabled, say) it opens one for itself.
+if [[ ${1:-} != "--terminal" ]]; then
+  if [[ $(omarchy-shell shell summon omarchy.fingerprint 2>/dev/null) == "ok" ]]; then
+    exit 0
+  elif [[ ! -t 0 ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation "omarchy-setup-security-fingerprint --terminal"
+  fi
 fi
 
 
