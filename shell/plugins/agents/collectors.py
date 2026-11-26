@@ -1350,28 +1350,39 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
     ):
       valid = False
       previous = {}
-    changed = {
-      session_id for session_id, version in versions.items()
-      if not isinstance(previous.get(session_id), dict) or previous[session_id].get("version") != version
-    }
-    if not valid:
-      changed = set(versions)
-
-    current = {
-      session_id: previous[session_id]
-      for session_id in versions
-      if session_id not in changed and isinstance(previous.get(session_id), dict)
-    }
     complete = True
-    if changed:
-      rows, complete, indexed_rows = _scan_opencode_db(providers, accept, changed, include_ids=True)
-      per_session: dict[str, list[dict[str, Any]]] = {session_id: [] for session_id in changed}
+    if not valid:
+      # The first pass is unfiltered so legacy or orphaned message sessions
+      # cannot disappear merely because they have no session marker row.
+      rows, complete, indexed_rows = _scan_opencode_db(providers, accept, include_ids=True)
+      per_session: dict[str, list[dict[str, Any]]] = {session_id: [] for session_id in versions}
       for session_id, row in indexed_rows:
         per_session.setdefault(session_id, []).append(row)
-      for session_id in changed:
-        current[session_id] = {"version": versions[session_id], "rows": per_session.get(session_id, [])}
+      if any(session_id not in versions for session_id, _ in indexed_rows):
+        return rows, complete
+      current = {
+        session_id: {"version": version, "rows": per_session.get(session_id, [])}
+        for session_id, version in versions.items()
+      }
     else:
-      rows = []
+      changed = {
+        session_id for session_id, version in versions.items()
+        if not isinstance(previous.get(session_id), dict) or previous[session_id].get("version") != version
+      }
+      current = {
+        session_id: previous[session_id]
+        for session_id in versions
+        if session_id not in changed and isinstance(previous.get(session_id), dict)
+      }
+      if changed:
+        rows, complete, indexed_rows = _scan_opencode_db(providers, accept, changed, include_ids=True)
+        per_session = {session_id: [] for session_id in changed}
+        for session_id, row in indexed_rows:
+          per_session.setdefault(session_id, []).append(row)
+        for session_id in changed:
+          current[session_id] = {"version": versions[session_id], "rows": per_session.get(session_id, [])}
+      else:
+        rows = []
 
     if complete:
       if source_fingerprint == _opencode_source_fingerprint(db_identity):
@@ -1541,7 +1552,7 @@ def _scan_opencode_db(
   # provider took it, by (session, parentID).
   firsts: dict[tuple[str, str], str] = {}
 
-  def take(message_id: Any, session_id: Any, raw: Any, row_type: str, created: Any, since: Any = None, turn: Any = "", empty: bool = False, typed: str | None = None) -> None:
+  def take(message_id: Any, session_id: Any, raw: Any, row_type: str, created: Any, since: Any = None, turn: Any = "", empty: bool = False, typed: str | None = None, typed_today_if_untimed: bool = False) -> None:
     nonlocal source_table
     # `turn` is the prompt the row answers, None for none, or "" to read it
     # from the row; `empty` keeps a row that spent nothing, for that prompt,
@@ -1583,7 +1594,7 @@ def _scan_opencode_db(
     rows.append(row)
     turns.append((turn, (spent_at, str(message_id))))
     if include_ids:
-      today_if_untimed = obj(obj(entry).get("time")).get("created") is None and created is None
+      today_if_untimed = (obj(obj(entry).get("time")).get("created") is None and created is None) or typed_today_if_untimed
       indexed_rows.append((str(session_id), {"id": str(message_id), "table": source_table, "todayIfUntimed": today_if_untimed, "row": row._asdict()}))
 
   def answered() -> list[UsageRow]:
@@ -1617,7 +1628,7 @@ def _scan_opencode_db(
       # itself. A session without any keeps a prompt per reply.
       asked: set[str] = set()
       # Each reply booking a prompt, and the day its first user row was typed.
-      replies: dict[str, str | None] = {}
+      replies: dict[str, tuple[str | None, bool]] = {}
       order = "seq" if "seq" in columns else "time_created" if "time_created" in columns else ""
       if order:
         for session_id, reply_id, created_at, typed_at in conn.execute(
@@ -1632,7 +1643,10 @@ def _scan_opencode_db(
           asked.add(str(session_id))
           if reply_id is not None and str(reply_id) not in replies:
             # The user row's own time, else the row's, as _opencode_row reads it.
-            replies[str(reply_id)] = local_day(typed_at if created_at is None else created_at)
+            replies[str(reply_id)] = (
+              local_day(typed_at if created_at is None else created_at),
+              typed_at is None and created_at is None,
+            )
       created = "m.time_created" if "time_created" in columns else "NULL"
       source = "session_message m"
       fork_filter = ""
@@ -1653,7 +1667,8 @@ def _scan_opencode_db(
           turn = None
         else:
           turn = ("message", str(message_id))
-        take(message_id, session_id, raw, str(row_type or ""), time_created, turn=turn, empty=turn is not None and str(session_id) in asked, typed=replies.get(str(message_id)))
+        typed, typed_today_if_untimed = replies.get(str(message_id), (None, False))
+        take(message_id, session_id, raw, str(row_type or ""), time_created, turn=turn, empty=turn is not None and str(session_id) in asked, typed=typed, typed_today_if_untimed=typed_today_if_untimed)
     columns = _table_columns(conn, "message") if "message" in tables else set()
     if {"session_id", "data"} <= columns and patterns:
       row_id = "m.id" if "id" in columns else "m.rowid"
