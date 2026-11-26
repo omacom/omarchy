@@ -20,6 +20,7 @@ volume_info_json() {
 
 gold_status_json() {
   local pool base overlay previous previous_path metadata='{}' current_version="" iso="" checkpoints
+  local -a iso_filter
   require_lab
   pool=$(find_pool) || lab_fail "no libvirt pool owns $IMAGES"
   base=$(volume_info_json "$pool" "$BASE_VOL" "$IMAGES/$BASE_VOL")
@@ -32,7 +33,12 @@ gold_status_json() {
   fi
   [[ -f $STATE_DIR/gold.json ]] && metadata=$(<"$STATE_DIR/gold.json")
   if domain_running; then current_version=$(lab_ssh 'omarchy version 2>/dev/null | head -1' || true); fi
-  iso=$(find "$IMAGES" -maxdepth 1 -type f -name 'omarchy-[0-9]*.iso' -printf '%f\n' 2>/dev/null | sort -V | tail -1)
+  if omarchy-hw-aarch64; then
+    iso_filter=(-name 'omarchy-[0-9]*-aarch64.iso')
+  else
+    iso_filter=(-name 'omarchy-[0-9]*.iso' ! -name '*-aarch64.iso')
+  fi
+  iso=$(find "$IMAGES" -maxdepth 1 -type f "${iso_filter[@]}" -printf '%f\n' 2>/dev/null | sort -V | tail -1)
   checkpoints=0
   if [[ -d $CHECKPOINT_DIR ]]; then
     checkpoints=$(find "$CHECKPOINT_DIR" -maxdepth 1 -type f -name '*.json' | wc -l)

@@ -148,7 +148,7 @@ read -r boot_start boot_size main_start main_size <<<"$(disk_layout "$bytes")"
 pass "full-disk partition layout matches the ISO configurator"
 
 hash=$(printf '%s' lab | openssl passwd -6 -stdin)
-write_cidata_files "$tmpdir/cidata" lab "$hash" omarchy-lab UTC us "$bytes" "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI lab@host"
+write_cidata_files "$tmpdir/cidata" lab "$hash" omarchy-lab UTC us "$bytes" "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI lab@host" omarchy-4.0.2.iso
 
 jq -e '.omarchy_install.mode == "full_disk"' "$tmpdir/cidata/user_configuration.json" >/dev/null ||
   fail "cidata is a full-disk install"
@@ -182,10 +182,7 @@ if printf '%s\n' "$wan" | rg -q '^allow in on virbr0$'; then
 fi
 pass "UFW specs stay scoped to DHCP, DNS, and NAT"
 
-url=$(iso_url 4.0.2)
-[[ $url == "https://iso.omarchy.org/omarchy-4.0.2.iso" ]] || fail "ISO URL is versioned on iso.omarchy.org" "$url"
-pass "ISO URL is versioned on iso.omarchy.org"
-
+omarchy-hw-aarch64() { return 1; }
 args=$(virt_install_args 16384 8 /var/lib/libvirt/images/omarchy-4.0.2.iso /var/lib/libvirt/images/omarchy-lab.base.qcow2 /var/lib/libvirt/images/omarchy-lab.cidata.iso | tr '\0' '\n')
 printf '%s\n' "$args" | rg -qx -- '--connect' || fail "virt-install pins qemu:///system"
 printf '%s\n' "$args" | rg -q 'qemu:///system' || fail "virt-install uses the system URI"

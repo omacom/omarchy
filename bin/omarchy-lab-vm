@@ -23,9 +23,8 @@ CIDATA_VOL=${OMARCHY_LAB_CIDATA_VOL:-omarchy-lab.cidata.iso}
 GUEST_USER_DEFAULT=lab
 PASSWORD_DEFAULT=lab
 DISK_DEFAULT=80G
-ISO_FALLBACK_VERSION=4.0.2
-OVMF_CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
-OVMF_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
+UEFI_CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
+UEFI_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
 LIBVIRT_NET=192.168.122.1
 DESKTOP_FILE="${HOME}/.local/share/applications/lab-vm.desktop"
 STATE_DIR="${HOME}/.config/omarchy/lab-vm"
@@ -44,13 +43,11 @@ USERNAME_PATTERN='^[a-z_][a-z0-9_-]*$'
 HOSTNAME_PATTERN='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
 
 HYPERVISOR_PACKAGES=(
-  qemu-full
   libvirt
   virt-install
   virt-manager
   virt-viewer
   dnsmasq
-  edk2-ovmf
   cdrtools
   swtpm
   openbsd-netcat
@@ -359,18 +356,44 @@ latest_iso_version() {
     printf '%s\n' "$tag"
     return 0
   fi
-  printf '%s\n' "$ISO_FALLBACK_VERSION"
+  if omarchy-hw-aarch64; then
+    printf '%s\n' 4.5.0
+  else
+    printf '%s\n' 4.0.2
+  fi
 }
 
-iso_url() {
+iso_filenames() {
   local version=$1
-  printf 'https://iso.omarchy.org/omarchy-%s.iso\n' "$version"
+  if omarchy-hw-aarch64; then
+    printf 'omarchy-%s-aarch64.iso\n' "$version"
+  else
+    # Releases before the architecture split used an unsuffixed x86 filename.
+    printf 'omarchy-%s-x86.iso\nomarchy-%s.iso\n' "$version" "$version"
+  fi
 }
 
 write_cidata_files() {
   local dest=$1 username=$2 password_hash=$3 hostname=$4 timezone=$5 keyboard=$6 disk_bytes=$7 authorized_keys=$8
+  local iso=$9 kernel=linux efi_binary=limine_x64.efi
   local boot_start boot_size main_start main_size sudoers_cmd autologin_cmd strip_resume_cmd
+  local -a mirrors=(
+    'https://mirror.omarchy.org/$repo/os/$arch'
+    'https://mirror.rackspace.com/archlinux/$repo/os/$arch'
+    'https://geo.mirror.pkgbuild.com/$repo/os/$arch'
+  )
   local device=/dev/vda
+
+  case $iso in
+  *-aarch64.iso)
+    kernel=linux-omarchy
+    efi_binary=limine_aa64.efi
+    mirrors=('https://arm-mirror.omarchy.org/$arch/$repo')
+    ;;
+  *-x86.iso)
+    kernel=linux-omarchy
+    ;;
+  esac
 
   read -r boot_start boot_size main_start main_size <<<"$(disk_layout "$disk_bytes")"
   sudoers_cmd="echo ${username} ALL=(ALL) NOPASSWD: ALL > /etc/sudoers.d/${username} && chmod 440 /etc/sudoers.d/${username}"
@@ -390,9 +413,9 @@ write_cidata_files() {
     --arg sudoers "$sudoers_cmd" \
     --arg autologin "$autologin_cmd" \
     --arg strip_resume "$strip_resume_cmd" \
-    --arg mirror1 'https://mirror.omarchy.org/$repo/os/$arch' \
-    --arg mirror2 'https://mirror.rackspace.com/archlinux/$repo/os/$arch' \
-    --arg mirror3 'https://geo.mirror.pkgbuild.com/$repo/os/$arch' \
+    --arg kernel "$kernel" \
+    --arg efi_binary "$efi_binary" \
+    --arg mirrors "$(printf '%s\n' "${mirrors[@]}")" \
     --argjson boot_start "$boot_start" \
     --argjson boot_size "$boot_size" \
     --argjson main_start "$main_start" \
@@ -411,10 +434,10 @@ write_cidata_files() {
         "boot": {
           "esp_mount": "/boot",
           "esp_path": "/EFI/limine",
-          "efi_binary": "limine_x64.efi",
+          "efi_binary": $efi_binary,
           "enable_fallback": true
         },
-        "storage": { "kernel": "linux" }
+        "storage": { "kernel": $kernel }
       },
       "disk_config": {
         "config_type": "default_layout",
@@ -475,7 +498,7 @@ write_cidata_files() {
         ]
       },
       "hostname": $hostname,
-      "kernels": ["linux"],
+      "kernels": [$kernel],
       "network_config": { "type": "iso" },
       "ntp": true,
       "parallel_downloads": 8,
@@ -490,11 +513,7 @@ write_cidata_files() {
       },
       "mirror_config": {
         "custom_repositories": [],
-        "custom_servers": [
-          {"url": $mirror1},
-          {"url": $mirror2},
-          {"url": $mirror3}
-        ],
+        "custom_servers": ($mirrors | split("\n") | map({url: .})),
         "mirror_regions": {},
         "optional_repositories": []
       },
@@ -541,19 +560,38 @@ build_cidata_iso() {
 
 virt_install_args() {
   local memory_mib=$1 vcpus=$2 iso=$3 disk=$4 cidata=$5
+  local tpm_model=tpm-crb
+  local -a machine_args=(--arch x86_64 --machine q35)
+  local -a media_args=(--disk "path=${cidata},device=cdrom,readonly=yes" --cdrom "$iso")
+  if omarchy-hw-aarch64; then
+    tpm_model=tpm-tis
+    # Match the aarch64 ISO harness. GICv2m delivers PCI interrupts on Apple
+    # Silicon even when the host interrupt controller lacks LPIs.
+    machine_args=(
+      --arch aarch64 --virt-type kvm --machine virt --features gic.version=host,pmu.state=off
+      '--qemu-commandline=-machine msi=gicv2m' --controller type=usb,model=qemu-xhci
+    )
+    # With SCSI, put the installer before cidata and boot from the hard disk
+    # on the first reboot. virt-install only detaches media added by --cdrom.
+    media_args=(
+      --controller type=scsi,model=virtio-scsi
+      --disk "path=${iso},device=cdrom,bus=scsi,readonly=yes"
+      --disk "path=${cidata},device=cdrom,bus=scsi,readonly=yes"
+      --install bootdev=cdrom
+    )
+  fi
   printf '%s\0' \
     --connect "$CONNECT" \
     --name "$NAME" \
     --memory "$memory_mib" \
     --vcpus "$vcpus" \
     --cpu host-passthrough \
-    --machine q35 \
+    "${machine_args[@]}" \
     --os-variant archlinux \
-    --boot "loader=${OVMF_CODE},loader.readonly=yes,loader.type=pflash,nvram.template=${OVMF_VARS}" \
-    --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
+    --boot "loader=${UEFI_CODE},loader.readonly=yes,loader.type=pflash,nvram.template=${UEFI_VARS}" \
+    --tpm "backend.type=emulator,backend.version=2.0,model=$tpm_model" \
     --disk "path=${disk},format=qcow2,bus=virtio,cache=writeback,discard=unmap" \
-    --disk "path=${cidata},device=cdrom,readonly=yes" \
-    --cdrom "$iso" \
+    "${media_args[@]}" \
     --network network=default,model=virtio \
     --graphics spice \
     --video virtio \
@@ -799,18 +837,70 @@ ensure_default_network_running() {
   run_virsh net-autostart default >/dev/null || return 1
 }
 
+aarch64_uefi_firmware() {
+  local share=${1:-/usr/share} pair code vars
+  for pair in edk2/aarch64/QEMU_EFI.fd:edk2/aarch64/QEMU_VARS.fd AAVMF/AAVMF_CODE.fd:AAVMF/AAVMF_VARS.fd; do
+    code=$share/${pair%%:*}
+    vars=$share/${pair##*:}
+    if [[ -f $code && -f $vars ]]; then
+      UEFI_CODE=$code
+      UEFI_VARS=$vars
+      return 0
+    fi
+  done
+  return 1
+}
+
+ensure_aarch64_uefi() {
+  local package_url
+  if aarch64_uefi_firmware; then
+    return 0
+  fi
+  if pacman -Si edk2-aarch64 >/dev/null 2>&1; then
+    omarchy-pkg-add edk2-aarch64 || return 1
+  else
+    # Arch Linux ARM currently lacks this package. Arch's build is arch=any
+    # and can be installed with its detached signature using pacman.
+    package_url=$(curl -fsSLI --proto '=https' --max-time 30 -o /dev/null -w '%{url_effective}' \
+      https://archlinux.org/packages/extra/any/edk2-aarch64/download/) || return 1
+    if [[ $package_url != https://* || ${package_url##*/} != edk2-aarch64-*-any.pkg.tar.zst ]]; then
+      echo "Could not resolve the Arch edk2-aarch64 package." >&2
+      return 1
+    fi
+    sudo pacman -U --needed --noconfirm "$package_url" || return 1
+  fi
+  if ! aarch64_uefi_firmware; then
+    echo "Could not find the aarch64 UEFI firmware and variables template from edk2-aarch64." >&2
+    return 1
+  fi
+}
+
+ensure_hypervisor_packages() {
+  local -a HYPERVISOR_PACKAGES=("${HYPERVISOR_PACKAGES[@]}")
+  if omarchy-hw-aarch64; then
+    HYPERVISOR_PACKAGES=(qemu-desktop "${HYPERVISOR_PACKAGES[@]}")
+  else
+    HYPERVISOR_PACKAGES=(qemu-full edk2-ovmf "${HYPERVISOR_PACKAGES[@]}")
+  fi
+  ensure_install_packages || return 1
+  if omarchy-hw-aarch64; then
+    ensure_aarch64_uefi || return 1
+  fi
+}
+
 ensure_hypervisor() {
   if [[ ! -e /dev/kvm ]]; then
-    gum style --border normal --padding "1 2" --margin "1" \
-      "KVM virtualization is not available." \
-      "" \
-      "Enable virtualization in firmware, then:" \
-      "  sudo modprobe kvm-amd   # AMD" \
-      "  sudo modprobe kvm-intel # Intel"
+    local -a kvm_help=("KVM virtualization is not available (/dev/kvm is missing).")
+    if omarchy-hw-aarch64; then
+      kvm_help+=("Boot an aarch64 host kernel with KVM support enabled.")
+    else
+      kvm_help+=("Enable virtualization in firmware, then load kvm-amd or kvm-intel.")
+    fi
+    gum style --border normal --padding "1 2" --margin "1" "${kvm_help[@]}"
     return 1
   fi
 
-  ensure_install_packages || return 1
+  ensure_hypervisor_packages || return 1
   source omarchy-sudo-keepalive || return 1
   trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true; lab_operation_unlock' EXIT
   sudo usermod -aG libvirt,kvm "$USER" || return 1
@@ -822,19 +912,37 @@ ensure_hypervisor() {
 }
 
 ensure_iso() (
-  local version url sha_url iso_name iso_path dir
+  local version url iso_name iso_path dir manifest checksum
   version=${OMARCHY_LAB_ISO_VERSION:-$(latest_iso_version)} || return 1
-  [[ -n $version ]] || return 1
-  iso_name="omarchy-${version}.iso"
-  iso_path="${IMAGES}/${iso_name}"
-  url=$(iso_url "$version") || return 1
-  sha_url="${url}.sha256"
+  if [[ ! $version =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?([a-zA-Z0-9.-]+)?$ ]]; then
+    echo "Invalid Omarchy ISO version: $version" >&2
+    return 1
+  fi
 
   dir=$(mktemp -d) || return 1
   trap 'rm -rf "$dir"' EXIT
-  curl -fsSL -o "$dir/$iso_name.sha256" "$sha_url" || return 1
+  manifest="$dir/checksum"
+  while IFS= read -r iso_name; do
+    url="https://iso.omarchy.org/$iso_name"
+    if curl -fsSL -o "$manifest" "$url.sha256" 2>/dev/null; then
+      break
+    fi
+    iso_name=
+  done < <(iso_filenames "$version")
+  if [[ -z $iso_name ]]; then
+    echo "Could not find an Omarchy $version ISO checksum for this host architecture." >&2
+    return 1
+  fi
+  checksum=$(awk -v iso="$iso_name" '$2 == iso || $2 == "*" iso {print $1; exit}' "$manifest")
+  if [[ ! $checksum =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "Invalid SHA-256 checksum for $iso_name." >&2
+    return 1
+  fi
+  printf '%s  %s\n' "$checksum" "$iso_name" >"$manifest"
+
+  iso_path="$IMAGES/$iso_name"
   if [[ -f $iso_path ]]; then
-    if (cd "$IMAGES" && sha256sum -c "$dir/$iso_name.sha256" >/dev/null 2>&1); then
+    if (cd "$IMAGES" && sha256sum -c "$manifest" >/dev/null 2>&1); then
       echo "Reusing $iso_path" >&2
       printf '%s\n' "$iso_path"
       return 0
@@ -846,20 +954,20 @@ ensure_iso() (
   curl -fL --progress-bar -o "$dir/$iso_name" "$url" || return 1
   (
     cd "$dir" || return 1
-    sha256sum -c "$iso_name.sha256" >&2
+    sha256sum -c "$manifest" >&2
   ) || return 1
   sudo install -D -m 644 -o libvirt-qemu -g libvirt-qemu "$dir/$iso_name" "$iso_path" || return 1
   printf '%s\n' "$iso_path"
 )
 
 install_cidata() {
-  local username=$1 password=$2 hostname=$3 timezone=$4 keyboard=$5 disk_spec=$6
+  local username=$1 password=$2 hostname=$3 timezone=$4 keyboard=$5 disk_spec=$6 iso=$7
   local disk_bytes hash pubkey tmp iso_out
   disk_bytes=$(disk_bytes_from_spec "$disk_spec")
   hash=$(printf '%s' "$password" | openssl passwd -6 -stdin)
   pubkey=$(<"$KEY.pub")
   tmp=$(mktemp -d)
-  write_cidata_files "$tmp" "$username" "$hash" "$hostname" "$timezone" "$keyboard" "$disk_bytes" "$pubkey"
+  write_cidata_files "$tmp" "$username" "$hash" "$hostname" "$timezone" "$keyboard" "$disk_bytes" "$pubkey" "$iso"
   iso_out=$(mktemp --suffix=.iso)
   build_cidata_iso "$tmp" "$iso_out"
   sudo install -D -m 644 -o libvirt-qemu -g libvirt-qemu "$iso_out" "$IMAGES/$CIDATA_VOL"
@@ -949,8 +1057,11 @@ stop_guest() {
 }
 
 freeze_gold() {
-  local pool=$1 disk_spec=$2
+  local pool=$1 disk_spec=$2 iso=$3
   stop_guest
+  if omarchy-hw-aarch64; then
+    run_virsh change-media "$NAME" --eject --path "$iso" --config >/dev/null 2>&1 || true
+  fi
   run_virsh change-media "$NAME" --eject --path "$IMAGES/$CIDATA_VOL" --config >/dev/null 2>&1 || true
   run_virsh vol-delete --pool "$pool" "$OVERLAY_VOL" >/dev/null 2>&1 || true
   run_virsh vol-create-as "$pool" "$OVERLAY_VOL" "$disk_spec" --format qcow2 \
@@ -1126,7 +1237,7 @@ install_lab() (
   fi
 
   install_cidata "$INSTALL_USER" "$INSTALL_PASSWORD" "$INSTALL_HOSTNAME" \
-    "$INSTALL_TIMEZONE" "$INSTALL_KEYBOARD" "$INSTALL_DISK"
+    "$INSTALL_TIMEZONE" "$INSTALL_KEYBOARD" "$INSTALL_DISK" "$iso"
 
   run_virsh vol-delete --pool "$pool" "$BASE_VOL" >/dev/null 2>&1 || true
   run_virsh vol-create-as "$pool" "$BASE_VOL" "$INSTALL_DISK" --format qcow2 >/dev/null
@@ -1149,7 +1260,7 @@ install_lab() (
   rm -f "$KNOWN_HOSTS"
   wait_ssh
   configure_guest "$INSTALL_USER" "$INSTALL_PASSWORD" "$INSTALL_TIMEZONE"
-  freeze_gold "$pool" "$INSTALL_DISK"
+  freeze_gold "$pool" "$INSTALL_DISK" "$iso"
   write_desktop
   write_ssh_config "$INSTALL_USER"
   write_state "$INSTALL_USER" "$INSTALL_DISK"

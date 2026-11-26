@@ -59,9 +59,15 @@ pass "checkout sync propagates restart failure after copying"
   find_pool() { echo fixture; }
   volume_info_json() { echo '{}'; }
   domain_running() { return 1; }
-  gold_status_json | jq -e '.checkpointCount == 0' >/dev/null || fail "fresh gold status did not report zero checkpoints"
+  touch "$IMAGES"/omarchy-{4.0.2,4.5.0-x86,4.5.1-aarch64}.iso
+  omarchy-hw-aarch64() { return 0; }
+  gold_status_json | jq -e '.checkpointCount == 0 and .newestCachedIso == "omarchy-4.5.1-aarch64.iso"' >/dev/null ||
+    fail "fresh ARM gold status did not report the newest compatible ISO and zero checkpoints"
+  omarchy-hw-aarch64() { return 1; }
+  gold_status_json | jq -e '.newestCachedIso == "omarchy-4.5.0-x86.iso"' >/dev/null ||
+    fail "x86 gold status included an ARM ISO"
 )
-pass "fresh gold status works before any checkpoint directory exists"
+pass "gold status reports a compatible ISO and works without a checkpoint directory"
 
 (
   source "$ROOT/bin/omarchy-lab-vm"
@@ -433,15 +439,20 @@ pass "clipboard input, output, JSON and byte counts preserve trailing blank line
 
 (
   source "$ROOT/bin/omarchy-lab-vm"
-  export TMPDIR="$task_tmp/downloads" IMAGES="$task_tmp/images" OMARCHY_LAB_ISO_VERSION=fixture
+  export TMPDIR="$task_tmp/downloads" IMAGES="$task_tmp/images" OMARCHY_LAB_ISO_VERSION=4.5.0
   mkdir -p "$TMPDIR" "$IMAGES"
-  iso_url() { printf 'fixture:%s\n' "$1"; }
+  omarchy-hw-aarch64() { return 0; }
+  expected=omarchy-4.5.0-aarch64.iso
+  urls="$task_tmp/iso-urls"
   curl() {
-    local target="${@: -2:1}"
-    case "$target" in
+    local target="${@: -2:1}" url="${@: -1}"
+    printf '%s\n' "${url##*/}" >>"$urls"
+    case "$url" in
       *.sha256)
-        [[ $failure != manifest ]] || return 1
-        printf '%s  omarchy-fixture.iso\n' "$(printf verified | sha256sum | cut -d ' ' -f1)" >"$target"
+        [[ $failure != manifest && $url == "https://iso.omarchy.org/$expected.sha256" ]] || return 1
+        local filename=$expected
+        if [[ $failure == wrong-name ]]; then filename=omarchy-4.5.0-x86.iso; fi
+        printf '%s  %s\n' "$(printf verified | sha256sum | cut -d ' ' -f1)" "$filename" >"$target"
         ;;
       *.iso)
         if [[ $failure == download ]]; then printf partial >"$target"; return 1; fi
@@ -453,15 +464,27 @@ pass "clipboard input, output, JSON and byte counts preserve trailing blank line
     [[ $failure != install ]] || return 1
     cp -- "${@: -2}"
   }
-  for failure in manifest download checksum install; do
+  for failure in manifest wrong-name download checksum install; do
     if downloaded=$(ensure_iso 2>/dev/null); then fail "ISO setup accepted a failed $failure"; fi
-    [[ -z $downloaded && ! -e "$IMAGES/omarchy-fixture.iso" ]] || fail "a failed $failure published an ISO"
+    [[ -z $downloaded && ! -e "$IMAGES/$expected" ]] || fail "a failed $failure published an ISO"
   done
+  if rg -qv '^omarchy-4\.5\.0-aarch64\.iso(\.sha256)?$' "$urls"; then fail "ARM attempted to use x86 media"; fi
   failure=none
   downloaded=$(ensure_iso 2>/dev/null)
-  [[ $downloaded == "$IMAGES/omarchy-fixture.iso" && $(<"$downloaded") == verified ]] || fail "a verified ISO was not published"
+  [[ $downloaded == "$IMAGES/$expected" && $(<"$downloaded") == verified ]] || fail "a verified ARM ISO was not published"
   failure=download
   [[ $(ensure_iso 2>/dev/null) == "$downloaded" ]] || fail "a verified cached ISO was not reused"
   [[ -z $(ls -A -- "$TMPDIR") ]] || fail "an ISO download left staging files"
+
+  omarchy-hw-aarch64() { return 1; }
+  failure=none
+  expected=omarchy-4.5.0-x86.iso
+  [[ $(ensure_iso 2>/dev/null) == "$IMAGES/$expected" ]] || fail "current x86 ISO was not selected"
+  OMARCHY_LAB_ISO_VERSION=4.0.2
+  expected=omarchy-4.0.2.iso
+  : >"$urls"
+  [[ $(ensure_iso 2>/dev/null) == "$IMAGES/$expected" ]] || fail "legacy x86 ISO did not fall back"
+  [[ $(paste -sd ' ' "$urls") == 'omarchy-4.0.2-x86.iso.sha256 omarchy-4.0.2.iso.sha256 omarchy-4.0.2.iso' ]] ||
+    fail "x86 did not prefer the architecture-specific filename"
 )
-pass "Lab publishes and reuses only verified ISO downloads"
+pass "Lab publishes only verified ISOs for the host architecture and supports older x86 releases"

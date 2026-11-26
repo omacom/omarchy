@@ -16,9 +16,10 @@ pacman-conf() {
 omarchy-pkg-add() { printf 'packages %s\n' "$*" >>"$test_tmp/calls"; }
 omarchy-update() { echo "update $*" >>"$test_tmp/calls"; }
 
-ensure_install_packages
+omarchy-hw-aarch64() { return 1; }
+ensure_hypervisor_packages
 [[ $(head -1 "$test_tmp/calls") == 'update -y' ]] || fail 'fresh database must update before dependencies'
-rg -q 'packages .*qemu-full .*openbsd-netcat' "$test_tmp/calls" || fail 'missing required packages'
+rg -q 'packages qemu-full edk2-ovmf .*openbsd-netcat' "$test_tmp/calls" || fail 'missing x86 hypervisor packages'
 [[ ! -f $STATE_DIR/package-update-required ]] || fail 'successful update marker leaked'
 pass 'missing enabled repositories trigger a full Omarchy update before installing dependencies'
 
@@ -44,6 +45,58 @@ pass 'update failure blocks dependencies and retries the full update even after 
   if ensure_install_packages; then fail 'package failure reported success'; fi
 )
 pass 'dependency failure is propagated'
+
+(
+  omarchy-hw-aarch64() { return 0; }
+  ensure_aarch64_uefi() { echo firmware >>"$test_tmp/calls"; }
+  : >"$test_tmp/calls"
+  ensure_hypervisor_packages
+  rg -q '^packages qemu-desktop .*openbsd-netcat' "$test_tmp/calls" || fail 'missing ARM hypervisor packages'
+  if rg -q 'qemu-full|edk2-ovmf' "$test_tmp/calls"; then fail 'ARM requested x86 dependencies'; fi
+  [[ $(tail -1 "$test_tmp/calls") == firmware ]] || fail 'ARM setup skipped firmware'
+)
+pass 'ARM installs native QEMU with SPICE support and prepares aarch64 UEFI'
+
+(
+  omarchy-hw-aarch64() { return 0; }
+  share="$test_tmp/share"
+  mkdir -p "$share/edk2/aarch64" "$share/AAVMF"
+  touch "$share/edk2/aarch64/QEMU_EFI.fd" "$share/AAVMF/AAVMF_VARS.fd"
+  if aarch64_uefi_firmware "$share"; then fail 'firmware accepted a mismatched pair'; fi
+  touch "$share/edk2/aarch64/QEMU_VARS.fd"
+  aarch64_uefi_firmware "$share" || fail 'complete Arch firmware pair not found'
+
+  iso="$test_tmp/omarchy-4.5.0-aarch64.iso"
+  cidata="$test_tmp/cidata.iso"
+  mapfile -d '' -t args < <(virt_install_args 4096 4 "$iso" "$test_tmp/gold.qcow2" "$cidata")
+  boot_args=$(printf '%s\n' "${args[@]}")
+  [[ $boot_args == *$'--arch\naarch64\n--virt-type\nkvm\n--machine\nvirt\n'* ]] || fail 'ARM did not select its native KVM machine'
+  [[ $boot_args == *'gic.version=host,pmu.state=off'* && $boot_args == *'--qemu-commandline=-machine msi=gicv2m'* ]] ||
+    fail 'ARM machine options are incomplete'
+  [[ $boot_args == *"loader=$UEFI_CODE,"*"nvram.template=$UEFI_VARS"* && $boot_args == *'model=tpm-tis'* ]] || fail 'ARM firmware or TPM is wrong'
+  [[ $boot_args == *"path=$iso,device=cdrom,bus=scsi,readonly=yes"*"path=$cidata,device=cdrom,bus=scsi,readonly=yes"*$'--install\nbootdev=cdrom'* ]] ||
+    fail 'ARM media order or first-boot mode is wrong'
+
+  write_cidata_files "$test_tmp/answers" lab hash omarchy-lab UTC us 85899345920 "fixture key" "$iso"
+  jq -e '.omarchy_install.boot.efi_binary == "limine_aa64.efi"
+    and .omarchy_install.storage.kernel == "linux-omarchy"
+    and .kernels == ["linux-omarchy"]
+    and .disk_config.device_modifications[0].device == "/dev/vda"
+    and .mirror_config.custom_servers == [{url:"https://arm-mirror.omarchy.org/$arch/$repo"}]' \
+    "$test_tmp/answers/user_configuration.json" >/dev/null || fail 'ARM unattended answers would install the wrong system'
+)
+pass 'ARM uses paired UEFI, KVM interrupt settings, SCSI media and matching unattended answers'
+
+(
+  iso="$test_tmp/omarchy-4.5.0-x86.iso"
+  write_cidata_files "$test_tmp/answers" lab hash omarchy-lab UTC us 85899345920 "fixture key" "$iso"
+  jq -e '.omarchy_install.boot.efi_binary == "limine_x64.efi" and .kernels == ["linux-omarchy"]' \
+    "$test_tmp/answers/user_configuration.json" >/dev/null || fail 'current x86 media must use the Omarchy kernel'
+  write_cidata_files "$test_tmp/answers" lab hash omarchy-lab UTC us 85899345920 "fixture key" "${iso%-x86.iso}.iso"
+  jq -e '.omarchy_install.boot.efi_binary == "limine_x64.efi" and .kernels == ["linux"]' \
+    "$test_tmp/answers/user_configuration.json" >/dev/null || fail 'legacy media must keep the stock x86 kernel'
+)
+pass 'current and legacy x86 media use their respective installed kernels'
 
 (
   lab_ssh_quiet() { return 0; }

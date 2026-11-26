@@ -4,7 +4,7 @@ Omarchy can install a second, disposable Omarchy as a KVM guest on this machine.
 
 Install it from _Install > Lab_ in the Omarchy menu (`Super + Space`), or run `omarchy lab vm install`.
 
-Your machine needs KVM virtualization, which most do — but it's sometimes switched off in firmware, and the installer will tell you if that's the case. You'll also want the disk space: the Omarchy ISO is about 6GB, and the guest disk is sparse (80GB virtual by default).
+Lab uses KVM to run a guest with the host's architecture. It supports x86 and aarch64, including Apple Silicon running Omarchy with a KVM-enabled kernel. The installer selects the matching ISO and UEFI firmware. The aarch64 ISO is available from Omarchy 4.5.0. Allow about 6 GB for the ISO. The guest disk is sparse and defaults to 80 GB of virtual capacity.
 
 The installer asks how much RAM, how many CPU cores, and how much disk to hand over, then for a guest username and password. CPU and RAM start at the Balanced workload of 4 cores and 8 GiB, capped downward when the host cannot safely provide it. Larger custom choices retain at least 25% for the desktop and other applications. Leave the credentials blank and you get `lab` / `lab`. It then downloads the current Omarchy ISO (or reuses one already in the libvirt image pool), attaches a `cidata` drive so the guest installs itself with nobody at the keyboard, waits for SSH, and freezes a gold image.
 
