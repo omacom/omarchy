@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Washa Bluetooth",
   "bluetooth.turnOnToScan": "Washa Bluetooth ili kutambaza",
   "bluetooth.turnedOff": "Imezimwa",
+  "camera.contrast": "Utofauti",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Urekebishaji wa moja kwa moja",
+  "camera.resetTooltip": "Rejesha urekebishaji chaguomsingi wa kamera",
+  "camera.saturation": "Ujazo wa rangi",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera inafanya kazi — bofya kurekebisha picha",
   "clipboard.deleteHistory": "Futa historia nzima ya ubao wa kunakili?",
   "clipboard.empty": "Ubao wa kunakili ni tupu",
   "clipboard.files": {

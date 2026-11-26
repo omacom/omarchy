@@ -215,6 +215,13 @@
   "bluetooth.turnOn": "Vklopi Bluetooth",
   "bluetooth.turnOnToScan": "Vklopi Bluetooth za iskanje",
   "bluetooth.turnedOff": "Izklopljeno",
+  "camera.contrast": "Kontrast",
+  "camera.gamma": "Gama",
+  "camera.liveMeta": "Prilagajanje v živo",
+  "camera.resetTooltip": "Obnovi privzete nastavitve kamere",
+  "camera.saturation": "Nasičenost",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera je aktivna — kliknite za prilagoditev slike",
   "clipboard.deleteHistory": "Izbrisati vso zgodovino odložišča?",
   "clipboard.empty": "Odložišče je prazno",
   "clipboard.files": {

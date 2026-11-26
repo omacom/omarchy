@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth چالو کریں",
   "bluetooth.turnOnToScan": "اسکین کیلئے Bluetooth چالو کریں",
   "bluetooth.turnedOff": "بند ہے",
+  "camera.contrast": "کنٹراسٹ",
+  "camera.gamma": "گاما",
+  "camera.liveMeta": "لائیو ٹیوننگ",
+  "camera.resetTooltip": "کیمرے کی ڈیفالٹ ٹیوننگ بحال کریں",
+  "camera.saturation": "سیچوریشن",
+  "camera.title": "کیمرہ",
+  "camera.tooltipActive": "کیمرہ فعال ہے — تصویر ٹیون کرنے کے لیے کلک کریں",
   "clipboard.deleteHistory": "پورا کلپ بورڈ تاریخ حذف کریں؟",
   "clipboard.empty": "کلپ بورڈ خالی ہے",
   "clipboard.files": {

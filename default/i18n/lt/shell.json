@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Įjungti Bluetooth",
   "bluetooth.turnOnToScan": "Įjunkite Bluetooth, jei norite ieškoti",
   "bluetooth.turnedOff": "Išjungta",
+  "camera.contrast": "Kontrastas",
+  "camera.gamma": "Gama",
+  "camera.liveMeta": "Tiesioginis derinimas",
+  "camera.resetTooltip": "Atkurti numatytąjį kameros derinimą",
+  "camera.saturation": "Sodrumas",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera aktyvi — spustelėkite, kad sureguliuotumėte vaizdą",
   "clipboard.deleteHistory": "Ištrinti visą iškarpinės istoriją?",
   "clipboard.empty": "Iškarpinė tuščia",
   "clipboard.files": {

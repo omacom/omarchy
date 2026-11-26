@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Attiva Bluetooth",
   "bluetooth.turnOnToScan": "Attiva Bluetooth per cercare",
   "bluetooth.turnedOff": "Spento",
+  "camera.contrast": "Contrasto",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Regolazione in tempo reale",
+  "camera.resetTooltip": "Ripristina le impostazioni predefinite della fotocamera",
+  "camera.saturation": "Saturazione",
+  "camera.title": "Fotocamera",
+  "camera.tooltipActive": "Fotocamera attiva — fai clic per regolare l'immagine",
   "clipboard.deleteHistory": "Eliminare tutta la cronologia degli appunti?",
   "clipboard.empty": "Appunti vuoti",
   "clipboard.files": {

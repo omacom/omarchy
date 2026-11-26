@@ -223,6 +223,13 @@
   "bluetooth.turnOn": "Cuir Bluetooth air",
   "bluetooth.turnOnToScan": "Cuir Bluetooth air chun scanadh",
   "bluetooth.turnedOff": "Múchta",
+  "camera.contrast": "Codarsnacht",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Tiúnadh beo",
+  "camera.resetTooltip": "Athshocraigh tiúnadh réamhshocraithe an cheamara",
+  "camera.saturation": "Sáithiúchán",
+  "camera.title": "Ceamara",
+  "camera.tooltipActive": "Ceamara gníomhach — cliceáil chun íomhá a thiúnadh",
   "clipboard.deleteHistory": "Scrios stair iomlán na gearrthaisce?",
   "clipboard.empty": "Tá an ghearrthaisce folamh",
   "clipboard.files": {

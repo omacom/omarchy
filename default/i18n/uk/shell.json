@@ -215,6 +215,13 @@
   "bluetooth.turnOn": "Увімкнути Bluetooth",
   "bluetooth.turnOnToScan": "Увімкніть Bluetooth для пошуку",
   "bluetooth.turnedOff": "Вимкнено",
+  "camera.contrast": "Контраст",
+  "camera.gamma": "Гама",
+  "camera.liveMeta": "Налаштування наживо",
+  "camera.resetTooltip": "Відновити типові налаштування камери",
+  "camera.saturation": "Насиченість",
+  "camera.title": "Камера",
+  "camera.tooltipActive": "Камера активна — натисніть, щоб налаштувати зображення",
   "clipboard.deleteHistory": "Видалити всю історію буфера обміну?",
   "clipboard.empty": "Буфер обміну порожній",
   "clipboard.files": {

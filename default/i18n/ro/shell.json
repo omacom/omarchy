@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Pornește Bluetooth",
   "bluetooth.turnOnToScan": "Pornește Bluetooth pentru scanare",
   "bluetooth.turnedOff": "Oprit",
+  "camera.contrast": "Contrast",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Reglaj live",
+  "camera.resetTooltip": "Restabilește reglajele implicite ale camerei",
+  "camera.saturation": "Saturație",
+  "camera.title": "Cameră",
+  "camera.tooltipActive": "Cameră activă — apasă pentru reglarea imaginii",
   "clipboard.deleteHistory": "Ștergi tot istoricul clipboardului?",
   "clipboard.empty": "Clipboardul este gol",
   "clipboard.files": {

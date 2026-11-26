@@ -191,6 +191,13 @@
   "bluetooth.turnOn": "Hidupkan Bluetooth",
   "bluetooth.turnOnToScan": "Hidupkan Bluetooth untuk mengimbas",
   "bluetooth.turnedOff": "Dimatikan",
+  "camera.contrast": "Kontras",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Penalaan langsung",
+  "camera.resetTooltip": "Pulihkan penalaan kamera lalai",
+  "camera.saturation": "Ketepuan",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera aktif — klik untuk tala imej",
   "clipboard.deleteHistory": "Padam keseluruhan sejarah papan keratan?",
   "clipboard.empty": "Papan keratan kosong",
   "clipboard.files": {

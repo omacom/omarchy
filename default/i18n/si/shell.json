@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth ක්‍රියාත්මක කරන්න",
   "bluetooth.turnOnToScan": "ස්කෑන් කිරීමට Bluetooth ක්‍රියාත්මක කරන්න",
   "bluetooth.turnedOff": "ක්‍රියාවිරහිතයි",
+  "camera.contrast": "පරස්පරතාව",
+  "camera.gamma": "ගැමා",
+  "camera.liveMeta": "සජීවී සුසර කිරීම",
+  "camera.resetTooltip": "පෙරනිමි කැමරා සුසරය යළි පිහිටුවන්න",
+  "camera.saturation": "සංතෘප්තිය",
+  "camera.title": "කැමරාව",
+  "camera.tooltipActive": "කැමරාව සක්‍රියයි — රූපය සුසර කිරීමට ක්ලික් කරන්න",
   "clipboard.deleteHistory": "සම්පූර්ණ ක්ලිප්බෝඩ් ඉතිහාසය මකන්නද?",
   "clipboard.empty": "ක්ලිප්බෝඩය හිස්යි",
   "clipboard.files": {

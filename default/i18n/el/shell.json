@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Ενεργοποίηση Bluetooth",
   "bluetooth.turnOnToScan": "Ενεργοποιήστε το Bluetooth για σάρωση",
   "bluetooth.turnedOff": "Απενεργοποιημένο",
+  "camera.contrast": "Αντίθεση",
+  "camera.gamma": "Γάμα",
+  "camera.liveMeta": "Ζωντανή ρύθμιση",
+  "camera.resetTooltip": "Επαναφορά προεπιλεγμένης ρύθμισης κάμερας",
+  "camera.saturation": "Κορεσμός",
+  "camera.title": "Κάμερα",
+  "camera.tooltipActive": "Κάμερα ενεργή — κλικ για ρύθμιση εικόνας",
   "clipboard.deleteHistory": "Διαγραφή όλου του ιστορικού προχείρου;",
   "clipboard.empty": "Το πρόχειρο είναι άδειο",
   "clipboard.files": {

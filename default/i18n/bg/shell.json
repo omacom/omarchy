@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Включи Bluetooth",
   "bluetooth.turnOnToScan": "Включи Bluetooth за сканиране",
   "bluetooth.turnedOff": "Изключен",
+  "camera.contrast": "Контраст",
+  "camera.gamma": "Гама",
+  "camera.liveMeta": "Настройка на живо",
+  "camera.resetTooltip": "Възстанови настройките на камерата по подразбиране",
+  "camera.saturation": "Наситеност",
+  "camera.title": "Камера",
+  "camera.tooltipActive": "Камерата е активна — щракнете за настройка на изображението",
   "clipboard.deleteHistory": "Изтрий цялата история на клипборда?",
   "clipboard.empty": "Клипбордът е празен",
   "clipboard.files": {

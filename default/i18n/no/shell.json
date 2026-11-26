@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Slå på Bluetooth",
   "bluetooth.turnOnToScan": "Slå på Bluetooth for å søke",
   "bluetooth.turnedOff": "Slått av",
+  "camera.contrast": "Kontrast",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Sanntidsjustering",
+  "camera.resetTooltip": "Gjenopprett standardinnstillinger for kamera",
+  "camera.saturation": "Metning",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera aktivt — klikk for å justere bildet",
   "clipboard.deleteHistory": "Slette hele utklippshistorikken?",
   "clipboard.empty": "Utklippstavlen er tom",
   "clipboard.files": {

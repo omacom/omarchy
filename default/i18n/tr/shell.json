@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth'u aç",
   "bluetooth.turnOnToScan": "Taramak için Bluetooth'u aç",
   "bluetooth.turnedOff": "Kapalı",
+  "camera.contrast": "Kontrast",
+  "camera.gamma": "Gama",
+  "camera.liveMeta": "Canlı ayarlama",
+  "camera.resetTooltip": "Varsayılan kamera ayarlarını geri yükle",
+  "camera.saturation": "Doygunluk",
+  "camera.title": "Kamera",
+  "camera.tooltipActive": "Kamera etkin — görüntüyü ayarlamak için tıklayın",
   "clipboard.deleteHistory": "Tüm pano geçmişi silinsin mi?",
   "clipboard.empty": "Pano boş",
   "clipboard.files": {

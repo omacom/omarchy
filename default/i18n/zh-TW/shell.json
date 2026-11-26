@@ -191,6 +191,13 @@
   "bluetooth.turnOn": "開啟藍牙",
   "bluetooth.turnOnToScan": "開啟藍牙以掃描",
   "bluetooth.turnedOff": "已關閉",
+  "camera.contrast": "對比度",
+  "camera.gamma": "伽瑪",
+  "camera.liveMeta": "即時調校",
+  "camera.resetTooltip": "還原相機預設調整",
+  "camera.saturation": "飽和度",
+  "camera.title": "相機",
+  "camera.tooltipActive": "相機使用中 — 點擊調整影像",
   "clipboard.deleteHistory": "要刪除全部剪貼簿紀錄嗎？",
   "clipboard.empty": "剪貼簿尚無內容",
   "clipboard.files": {

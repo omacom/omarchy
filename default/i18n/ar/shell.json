@@ -231,6 +231,13 @@
   "bluetooth.turnOn": "شغّل Bluetooth",
   "bluetooth.turnOnToScan": "شغّل Bluetooth للبحث",
   "bluetooth.turnedOff": "مطفأ",
+  "camera.contrast": "التباين",
+  "camera.gamma": "غاما",
+  "camera.liveMeta": "ضبط مباشر",
+  "camera.resetTooltip": "استعادة ضبط الكاميرا الافتراضي",
+  "camera.saturation": "التشبع",
+  "camera.title": "الكاميرا",
+  "camera.tooltipActive": "الكاميرا نشطة — انقر لضبط الصورة",
   "clipboard.deleteHistory": "حذف سجل الحافظة بالكامل؟",
   "clipboard.empty": "الحافظة فارغة",
   "clipboard.files": {

@@ -199,6 +199,13 @@
   "bluetooth.turnOn": "Bluetooth चालू करें",
   "bluetooth.turnOnToScan": "स्कैन करने के लिए Bluetooth चालू करें",
   "bluetooth.turnedOff": "बंद है",
+  "camera.contrast": "कंट्रास्ट",
+  "camera.gamma": "गामा",
+  "camera.liveMeta": "लाइव ट्यूनिंग",
+  "camera.resetTooltip": "डिफ़ॉल्ट कैमरा ट्यूनिंग बहाल करें",
+  "camera.saturation": "सैचुरेशन",
+  "camera.title": "कैमरा",
+  "camera.tooltipActive": "कैमरा सक्रिय है — छवि ट्यून करने के लिए क्लिक करें",
   "clipboard.deleteHistory": "पूरा क्लिपबोर्ड इतिहास हटाएं?",
   "clipboard.empty": "क्लिपबोर्ड खाली है",
   "clipboard.files": {

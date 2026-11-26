@@ -207,6 +207,13 @@
   "bluetooth.turnOn": "Activa el Bluetooth",
   "bluetooth.turnOnToScan": "Activa el Bluetooth per cercar",
   "bluetooth.turnedOff": "Desactivat",
+  "camera.contrast": "Contrast",
+  "camera.gamma": "Gamma",
+  "camera.liveMeta": "Ajust en directe",
+  "camera.resetTooltip": "Restaura l'ajust per defecte de la càmera",
+  "camera.saturation": "Saturació",
+  "camera.title": "Càmera",
+  "camera.tooltipActive": "Càmera activa — fes clic per ajustar la imatge",
   "clipboard.deleteHistory": "Vols suprimir tot l'historial del porta-retalls?",
   "clipboard.empty": "El porta-retalls és buit",
   "clipboard.files": {
