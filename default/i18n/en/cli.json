@@ -171,6 +171,8 @@
   "fingerprintApp.fingerprints": "Fingerprints",
   "fingerprintApp.full": "All %1 fingerprint slots are in use.",
   "fingerprintApp.hold": "Hold your finger on the sensor.",
+  "fingerprintApp.keepTouching": "Keep touching the sensor.",
+  "fingerprintApp.lift": "Lift your finger.",
   "fingerprintApp.matched": "Fingerprint matched.",
   "fingerprintApp.moveFingertip": "Try again, moving your fingertip slightly.",
   "fingerprintApp.name": "Fingerprint name",

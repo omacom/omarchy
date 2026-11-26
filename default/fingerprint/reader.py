@@ -19,52 +19,77 @@ def enrollment_capacity(reader_name):
 
 
 class ScanGuide:
-  """Keep the lift cue through brief contact changes as a reader rearms."""
+  """Present the contact and scan results in the order the user acts on them."""
 
-  def __init__(self, changed):
+  def __init__(self, changed, press_enrollment):
     self.changed = changed
+    self.press_enrollment = press_enrollment
     self.samples = 0
     self.present = None
     self.prompt = "touch"
-    self.release_source = 0
+    self.hold_started = 0
+    self.next_prompt = None
+    self.source = 0
 
   def cancel(self):
-    if self.release_source:
-      GLib.source_remove(self.release_source)
-      self.release_source = 0
+    if self.source:
+      GLib.source_remove(self.source)
+    self.source = 0
+    self.next_prompt = None
 
-  def released(self):
-    self.release_source = 0
-    self.prompt = "touch"
+  def show(self, prompt):
+    self.cancel()
+    self.prompt = prompt
+    if prompt == "hold":
+      self.hold_started = GLib.get_monotonic_time()
     self.changed(self)
-    return GLib.SOURCE_REMOVE
+    if self.present is False and prompt not in ("touch", "hold"):
+      self.after_release()
+
+  def after(self, delay, prompt):
+    self.cancel()
+    self.next_prompt = prompt
+    def elapsed():
+      self.source = 0
+      self.show(prompt)
+      return GLib.SOURCE_REMOVE
+    self.source = GLib.timeout_add(delay, elapsed)
+
+  def after_release(self):
+    # A reader can briefly deassert contact while rearming under a finger.
+    if not self.source:
+      self.after(500, "touch")
 
   def update(self, event):
-    previous = self.prompt
-    if event in ("finger-down", "finger-up", "finger-needed"):
-      # A request to place a finger can arrive while it is still down.
-      if event != "finger-needed":
-        self.present = event == "finger-down"
-      if self.prompt in ("touch", "hold"):
-        self.prompt = "hold" if self.present else "touch"
+    if event == "finger-needed":
+      # A request for a finger is not a contact measurement.
+      return
+    if event == "enroll-stage-passed":
+      self.samples += 1
+      cue = "lift" if self.press_enrollment and self.present is not None else "retouch"
+      if cue == "lift" and self.prompt == "hold":
+        # A fast capture can report contact and acceptance in the same GTK
+        # frame. Give the hold cue time to be read before asking for a lift.
+        held_ms = (GLib.get_monotonic_time() - self.hold_started) // 1000
+        if held_ms < 500:
+          self.after(500 - held_ms, cue)
+          return
+      self.show(cue)
+    elif event in ("finger-down", "finger-up"):
+      self.present = event == "finger-down"
+      if self.next_prompt == "lift":
+        return
+      if self.present:
+        self.cancel()
+        if self.prompt == "touch":
+          self.show("hold")
+      elif self.prompt == "hold" and not self.press_enrollment:
+        self.show("touch")
+      elif self.prompt != "touch":
+        # The release may precede the accepted-scan event.
+        self.after_release()
     else:
-      self.cancel()
-      if event == "enroll-stage-passed":
-        self.samples += 1
-        self.prompt = "retouch"
-      else:
-        self.prompt = event
-
-    # A release can arrive on either side of the stage result. Only a
-    # sustained absence ends the lift or retry cue. Readers without contact
-    # reports keep the combined instruction until the next scan result.
-    if self.present is False and self.prompt not in ("touch", "hold"):
-      if not self.release_source:
-        self.release_source = GLib.timeout_add(500, self.released)
-    else:
-      self.cancel()
-    if self.prompt != previous or event == "enroll-stage-passed":
-      self.changed(self)
+      self.show(event)
 
 
 class Reader:

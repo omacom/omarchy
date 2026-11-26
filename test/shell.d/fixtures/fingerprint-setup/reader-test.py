@@ -142,34 +142,40 @@ class SetupTest(unittest.TestCase):
     prompts = []
     def changed(guide):
       prompts.append(guide.prompt)
-      if guide.prompt == "touch":
-        loop.quit()
-    guide = ScanGuide(changed)
-    self.addCleanup(guide.cancel)
-    guide.update("finger-down")
-    guide.update("enroll-stage-passed")
-    for event in ("finger-up", "finger-needed", "finger-down"):
-      guide.update(event)
-    self.assertEqual(prompts, ["hold", "retouch"])
-
-    for result in ("enroll-stage-passed", "enroll-remove-and-retry"):
-      # fprintd can publish the release before the scan result.
-      guide.update("finger-up")
-      guide.update(result)
+      loop.quit()
+    def next_cue(expected):
       timeout = GLib.timeout_add_seconds(3, loop.quit)
       loop.run()
-      self.assertEqual(prompts[-1], "touch")
+      self.assertEqual(prompts[-1], expected)
       GLib.source_remove(timeout)
+
+    guide = ScanGuide(changed, press_enrollment=True)
+    self.addCleanup(guide.cancel)
+    for stage in (1, 2):
       guide.update("finger-down")
+      # Real fprintd can deassert contact just before the accepted sample.
+      guide.update("finger-up")
+      guide.update("enroll-stage-passed")
       self.assertEqual(prompts[-1], "hold")
-    self.assertEqual(guide.samples, 2)
+      next_cue("lift")
+      for event in ("finger-needed", "finger-down"):
+        guide.update(event)
+      self.assertEqual(prompts[-1], "lift")
+      guide.update("finger-up")
+      next_cue("touch")
+      self.assertEqual(guide.samples, stage)
+    self.assertEqual(prompts, ["hold", "lift", "touch"] * 2)
+
+    guide.update("enroll-remove-and-retry")
+    guide.update("finger-down")
+    self.assertEqual(prompts[-1], "enroll-remove-and-retry")
 
   def test_reader_without_contact_reports_keeps_the_combined_instruction(self):
-    guide = ScanGuide(lambda _: None)
+    guide = ScanGuide(lambda _: None, press_enrollment=True)
     guide.update("enroll-stage-passed")
     guide.update("finger-needed")
     self.assertEqual(guide.prompt, "retouch")
-    self.assertFalse(guide.release_source)
+    self.assertIsNone(guide.next_prompt)
 
   def test_renamed_finger_survives_reordering_and_a_freed_slot_starts_fresh(self):
     with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, XDG_DATA_HOME=tmp):

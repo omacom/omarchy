@@ -455,18 +455,24 @@ class Window(Gtk.ApplicationWindow):
       prompt = guide.prompt
       diagram.samples, diagram.present = guide.samples, prompt == "hold"
       diagram.queue_draw()
-      if prompt == "retouch":
-        hint.set_text(tr("fingerprintApp.retouch", "Lift, then touch again.") if not self.swipe else tr("fingerprintApp.swipeAgain", "Swipe again."))
+      if prompt in ("lift", "retouch"):
+        if prompt == "lift":
+          hint.set_text(tr("fingerprintApp.lift", "Lift your finger."))
+        elif self.swipe:
+          hint.set_text(tr("fingerprintApp.swipeAgain", "Swipe again."))
+        else:
+          hint.set_text(tr("fingerprintApp.retouch", "Lift, then touch again."))
         count.set_text(tr("fingerprintApp.scans", "Scans accepted: %1").replace("%1", str(guide.samples)))
         count.announce(f"{count.get_text()}. {hint.get_text()}", Gtk.AccessibleAnnouncementPriority.MEDIUM)
       elif prompt == "touch" or (prompt == "hold" and self.swipe):
         hint.set_text(touch)
       elif prompt == "hold":
-        hint.set_text(tr("fingerprintApp.hold", "Hold your finger on the sensor."))
+        hint.set_text(tr("fingerprintApp.keepTouching", "Keep touching the sensor.") if guide.press_enrollment
+                      else tr("fingerprintApp.hold", "Hold your finger on the sensor."))
       else:
         hint.set_text(self.explain(prompt))
 
-    self.guide = ScanGuide(render)
+    self.guide = ScanGuide(render, press_enrollment=mode == "Enroll" and not self.swipe)
     def update(result, detail, finished):
       if generation != self.generation:
         return
