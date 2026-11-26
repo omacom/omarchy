@@ -88,6 +88,7 @@ class Window(Gtk.ApplicationWindow):
     self.add_css_class("fingerprint-setup")
     self.set_icon_name("auth-fingerprint-symbolic")
     self.reader = None
+    self.guide = None
     self.generation = 0
     self.bus = None
     self.selected = ""
@@ -104,6 +105,9 @@ class Window(Gtk.ApplicationWindow):
 
   def close_scan(self, *_):
     self.generation += 1
+    if self.guide:
+      self.guide.cancel()
+      self.guide = None
     if self.reader:
       self.reader.cancel()
       self.reader = None
@@ -447,11 +451,28 @@ class Window(Gtk.ApplicationWindow):
     self.box.append(cancel)
     failure_title = tr("fingerprintApp.notAdded", "Fingerprint wasn’t added") if mode == "Enroll" else tr("fingerprintApp.notVerified", "Couldn’t verify the fingerprint")
     retry = (lambda: self.scan(mode, finger, unlock)) if mode == "Verify" else None
-    guide = ScanGuide()
+    def render(guide):
+      prompt = guide.prompt
+      diagram.samples, diagram.present = guide.samples, prompt == "hold"
+      diagram.queue_draw()
+      if prompt == "retouch":
+        hint.set_text(tr("fingerprintApp.retouch", "Lift, then touch again.") if not self.swipe else tr("fingerprintApp.swipeAgain", "Swipe again."))
+        count.set_text(tr("fingerprintApp.scans", "Scans accepted: %1").replace("%1", str(guide.samples)))
+        count.announce(f"{count.get_text()}. {hint.get_text()}", Gtk.AccessibleAnnouncementPriority.MEDIUM)
+      elif prompt == "touch" or (prompt == "hold" and self.swipe):
+        hint.set_text(touch)
+      elif prompt == "hold":
+        hint.set_text(tr("fingerprintApp.hold", "Hold your finger on the sensor."))
+      else:
+        hint.set_text(self.explain(prompt))
+
+    self.guide = ScanGuide(render)
     def update(result, detail, finished):
       if generation != self.generation:
         return
       if finished:
+        self.guide.cancel()
+        self.guide = None
         self.reader = None
         if result in ("enroll-completed", "verify-match"):
           diagram.complete = True
@@ -481,22 +502,7 @@ class Window(Gtk.ApplicationWindow):
         else:
           self.show_failure(failure_title, detail or self.explain(result), retry)
       else:
-        last_prompt = guide.prompt
-        prompt = guide.update(result)
-        if prompt == last_prompt and result != "enroll-stage-passed":
-          return
-        diagram.samples, diagram.present = guide.samples, guide.present
-        diagram.queue_draw()
-        if prompt == "retouch":
-          hint.set_text(tr("fingerprintApp.retouch", "Lift, then touch again.") if not self.swipe else tr("fingerprintApp.swipeAgain", "Swipe again."))
-          count.set_text(tr("fingerprintApp.scans", "Scans accepted: %1").replace("%1", str(guide.samples)))
-          count.announce(f"{count.get_text()}. {hint.get_text()}", Gtk.AccessibleAnnouncementPriority.MEDIUM)
-        elif prompt == "touch" or (prompt == "hold" and self.swipe):
-          hint.set_text(touch)
-        elif prompt == "hold":
-          hint.set_text(tr("fingerprintApp.hold", "Hold your finger on the sensor."))
-        else:
-          hint.set_text(self.explain(prompt))
+        self.guide.update(result)
     try:
       self.reader = Reader(self.address, self.selected, update)
       self.reader.start(mode, finger, self.capacity)

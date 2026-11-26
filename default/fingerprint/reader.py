@@ -19,28 +19,52 @@ def enrollment_capacity(reader_name):
 
 
 class ScanGuide:
-  """Interpret capture results without guessing whether the finger lifted."""
+  """Keep the lift cue through brief contact changes as a reader rearms."""
 
-  def __init__(self):
+  def __init__(self, changed):
+    self.changed = changed
     self.samples = 0
-    self.present = False
+    self.present = None
     self.prompt = "touch"
+    self.release_source = 0
+
+  def cancel(self):
+    if self.release_source:
+      GLib.source_remove(self.release_source)
+      self.release_source = 0
+
+  def released(self):
+    self.release_source = 0
+    self.prompt = "touch"
+    self.changed(self)
+    return GLib.SOURCE_REMOVE
 
   def update(self, event):
-    if event == "enroll-stage-passed":
-      self.samples += 1
-      self.present = False
-      self.prompt = "retouch"
-    elif event in ("finger-down", "finger-up", "finger-needed"):
-      # Some readers briefly clear and then reassert presence while the
-      # same finger is still down. Preserve sample and retry instructions.
+    previous = self.prompt
+    if event in ("finger-down", "finger-up", "finger-needed"):
+      # A request to place a finger can arrive while it is still down.
+      if event != "finger-needed":
+        self.present = event == "finger-down"
       if self.prompt in ("touch", "hold"):
-        if event != "finger-needed":
-          self.present = event == "finger-down"
         self.prompt = "hold" if self.present else "touch"
     else:
-      self.prompt = event
-    return self.prompt
+      self.cancel()
+      if event == "enroll-stage-passed":
+        self.samples += 1
+        self.prompt = "retouch"
+      else:
+        self.prompt = event
+
+    # A release can arrive on either side of the stage result. Only a
+    # sustained absence ends the lift or retry cue. Readers without contact
+    # reports keep the combined instruction until the next scan result.
+    if self.present is False and self.prompt not in ("touch", "hold"):
+      if not self.release_source:
+        self.release_source = GLib.timeout_add(500, self.released)
+    else:
+      self.cancel()
+    if self.prompt != previous or event == "enroll-stage-passed":
+      self.changed(self)
 
 
 class Reader:

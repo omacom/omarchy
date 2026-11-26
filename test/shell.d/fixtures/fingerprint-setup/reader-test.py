@@ -137,17 +137,39 @@ class ReaderTest(unittest.TestCase):
 
 
 class SetupTest(unittest.TestCase):
-  def test_reader_rearming_cannot_erase_lift_or_retry(self):
-    guide = ScanGuide()
-    self.assertEqual(guide.update("finger-down"), "hold")
-    self.assertEqual(guide.update("enroll-stage-passed"), "retouch")
+  def test_rearming_preserves_lift_until_release_then_guides_the_next_press(self):
+    loop = GLib.MainLoop()
+    prompts = []
+    def changed(guide):
+      prompts.append(guide.prompt)
+      if guide.prompt == "touch":
+        loop.quit()
+    guide = ScanGuide(changed)
+    self.addCleanup(guide.cancel)
+    guide.update("finger-down")
+    guide.update("enroll-stage-passed")
     for event in ("finger-up", "finger-needed", "finger-down"):
-      self.assertEqual(guide.update(event), "retouch")
-    self.assertEqual(guide.samples, 1)
-    self.assertEqual(guide.update("enroll-remove-and-retry"), "enroll-remove-and-retry")
-    self.assertEqual(guide.update("finger-down"), "enroll-remove-and-retry")
-    self.assertEqual(guide.update("enroll-stage-passed"), "retouch")
+      guide.update(event)
+    self.assertEqual(prompts, ["hold", "retouch"])
+
+    for result in ("enroll-stage-passed", "enroll-remove-and-retry"):
+      # fprintd can publish the release before the scan result.
+      guide.update("finger-up")
+      guide.update(result)
+      timeout = GLib.timeout_add_seconds(3, loop.quit)
+      loop.run()
+      self.assertEqual(prompts[-1], "touch")
+      GLib.source_remove(timeout)
+      guide.update("finger-down")
+      self.assertEqual(prompts[-1], "hold")
     self.assertEqual(guide.samples, 2)
+
+  def test_reader_without_contact_reports_keeps_the_combined_instruction(self):
+    guide = ScanGuide(lambda _: None)
+    guide.update("enroll-stage-passed")
+    guide.update("finger-needed")
+    self.assertEqual(guide.prompt, "retouch")
+    self.assertFalse(guide.release_source)
 
   def test_renamed_finger_survives_reordering_and_a_freed_slot_starts_fresh(self):
     with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, XDG_DATA_HOME=tmp):
