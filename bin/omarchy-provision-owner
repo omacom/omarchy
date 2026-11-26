@@ -18,7 +18,9 @@
 set -euo pipefail
 
 PROVISIONING_DIR=/var/lib/omarchy/provisioning
-OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+# Exported, as a systemd service has none to inherit and the install scripts
+# it runs need it.
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 LOG_FILE=/var/log/omarchy-provision-owner.log
 
 if (( EUID != 0 )); then
@@ -982,7 +984,7 @@ configure_timezone() {
 # A deferred install took its media's region before anyone chose a timezone,
 # and left it as REGION in the form defaults: a market's code, or global from
 # the global ISO. Settle it against the owner's choice: a timezone a region
-# profile lists picks that region, Hong Kong, Macau and Taiwan are always World,
+# profile lists picks that region (global lists Hong Kong, Macau and Taiwan),
 # and any other timezone keeps the media's region. Media that left no REGION
 # keep whatever region the install wrote.
 configure_region() {
@@ -993,15 +995,10 @@ configure_region() {
     [[ $key == "REGION" ]] && fallback=$value
   done <"$defaults"
   [[ $fallback == "global" || $fallback =~ ^[a-z]{2}$ ]] || return 0
-  case "$timezone" in
-    Asia/Hong_Kong | Hongkong | Asia/Macau | Asia/Macao | Asia/Taipei | ROC) region=global ;;
-    *)
-      region=$fallback
-      for profile in "$OMARCHY_PATH"/default/regions/*/; do
-        [[ -r $profile/timezones ]] && grep -qxF -- "$timezone" "$profile/timezones" && region=$(basename "$profile")
-      done
-      ;;
-  esac
+  region=$fallback
+  for profile in "$OMARCHY_PATH"/default/regions/*/; do
+    [[ -r $profile/timezones ]] && grep -qxF -- "$timezone" "$profile/timezones" && region=$(basename "$profile")
+  done
   [[ -r $marker ]] && read -r current <"$marker"
   [[ $region == "$current" ]] && return 0
   if [[ $region == "global" ]]; then
@@ -1009,14 +1006,12 @@ configure_region() {
   else
     printf '%s\n' "$region" >"$marker"
   fi
-  # The region's Node and npm mirrors, as an install would have set them. This
-  # runs as a systemd service, so OMARCHY_PATH is ours and not in the
-  # environment; both children need it.
-  OMARCHY_PATH="$OMARCHY_PATH" PATH="$OMARCHY_PATH/bin:$PATH" bash "$OMARCHY_PATH/install/config/region.sh" 2>&1 || true
+  # The region's Node and npm mirrors, as an install would have set them.
+  PATH="$OMARCHY_PATH/bin:$PATH" bash "$OMARCHY_PATH/install/config/region.sh" 2>&1 || true
   # Re-render pacman for the region with the channel this machine installed.
   channel=$(sed -n 's|^Server = https://pkgs\.omarchy\.[a-z]*/\([a-z]*\)/.*|\1|p' "$pacman_conf" | head -1)
   if [[ -n $channel && -x $OMARCHY_PATH/bin/omarchy-apply-pacman ]]; then
-    OMARCHY_PATH="$OMARCHY_PATH" "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel" "${OMARCHY_REGION_TARGET:-/}" 2>&1 || true
+    "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel" "${OMARCHY_REGION_TARGET:-/}" 2>&1 || true
   fi
 }
 
