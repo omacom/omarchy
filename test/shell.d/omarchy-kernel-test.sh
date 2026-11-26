@@ -39,6 +39,24 @@ printf '$tool %s\n' "\$*" >> "\$CALL_LOG"
 SH
 done
 
+# Both halves ask which boot loader runs; systemd-boot's kernel choice belongs
+# to omarchy-boot-sync, which records what it was asked.
+for dir in bin root-bin; do
+  cat > "$scratch/$dir/omarchy-boot-backend" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == --managed ]]; then
+  printf '%s\n' ${BOOT_MANAGED:-${BOOT_BACKEND:-limine}}
+else
+  echo "${BOOT_BACKEND:-limine}"
+fi
+SH
+  cat > "$scratch/$dir/omarchy-boot-sync" <<'SH'
+#!/bin/bash
+printf 'omarchy-boot-sync %s\n' "$*" >> "$CALL_LOG"
+[[ $1 != preferred ]] || echo linux-omarchy
+SH
+done
+
 # Root side: the boot menu lives in a file. A rebuild moves its kernel to the
 # front, as limine-entry-tool's BOOT_ORDER sort does when that kernel leads the
 # order, unless the build is skipped; it can also fail afterwards, as a post
@@ -112,6 +130,10 @@ reset_fixture
 printf '%s\n' 'BOOT_ORDER="linux-omarchy-*, linux, *"' >> "$OMARCHY_KERNEL_LIMINE_CONF"
 [[ -z $("$command" get) ]] || fail "a wildcard first match names no kernel, so no menu row is checked"
 pass "get does not guess when a wildcard decides"
+
+reset_fixture
+[[ $(BOOT_BACKEND=systemd-boot "$command" get) == "linux-omarchy" ]] || fail "on systemd-boot, get reports the kernel omarchy-boot-sync prefers"
+pass "on systemd-boot, get asks omarchy-boot-sync"
 
 reset_fixture
 if "$command" set linux-lts 2> "$scratch/output"; then
@@ -210,3 +232,17 @@ fi
 cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "a failed write leaves the boot order in place" "$(<"$OMARCHY_KERNEL_LIMINE_CONF")"
 ! grep -q '^limine-mkinitcpio linux$' "$CALL_LOG" || fail "nothing is rebuilt after a failed write"
 pass "a failed write keeps the previous boot order instead of deleting it"
+
+reset_fixture
+BOOT_BACKEND=systemd-boot as_root "$command" set linux
+[[ $(<"$CALL_LOG") == "omarchy-boot-sync prefer linux" ]] || fail "on systemd-boot, the root half has omarchy-boot-sync prefer the kernel" "$(<"$CALL_LOG")"
+cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "on systemd-boot, Limine's boot order is left alone"
+pass "on systemd-boot, the root half sets the preferred kernel through omarchy-boot-sync"
+
+# During a switch's trial Limine starts the machine and systemd-boot is staged
+# next to it: the kernel choice reaches both.
+reset_fixture
+BOOT_MANAGED="limine systemd-boot" as_root "$command" set linux
+grep -q '^limine-mkinitcpio linux$' "$CALL_LOG" || fail "during a switch, Limine's boot order is updated" "$(<"$CALL_LOG")"
+grep -qx 'omarchy-boot-sync prefer linux' "$CALL_LOG" || fail "during a switch, systemd-boot prefers the kernel too" "$(<"$CALL_LOG")"
+pass "during a switch to systemd-boot, the kernel choice reaches both loaders"

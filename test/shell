@@ -60,10 +60,32 @@ if (( ${#all_tests[@]} == 0 )); then
 fi
 
 # Batch-scan all files once instead of spawning grep per file (~500 forks).
+# Skip heredoc bodies and indented string fixtures so test files that embed
+# sample `require_compositor` calls (compositor-guard-test.sh, test-runner-test.sh)
+# stay in the noncomp group.
 declare -A comp_map=()
 while IFS= read -r file; do
   [[ -n $file ]] && comp_map["$file"]=1
-done < <(grep -El '^[[:space:]]*(require_compositor|require_quickshell)\b' "${all_tests[@]}" || true)
+done < <(awk '
+  FNR == 1 { heredoc = "" }
+  heredoc != "" {
+    line = $0
+    if (strip_tabs) sub(/^\t+/, "", line)
+    if (line == heredoc) heredoc = ""
+    next
+  }
+  /<<-?[[:space:]]*['"'"'"]?[A-Za-z0-9_]+['"'"'"]?/ {
+    if (match($0, /<<(-?)[[:space:]]*['"'"'"]?([A-Za-z0-9_]+)['"'"'"]?/, m)) {
+      strip_tabs = (m[1] == "-")
+      heredoc = m[2]
+    }
+    next
+  }
+  /^(require_compositor|require_quickshell)([[:space:]]|$)/ {
+    print FILENAME
+    nextfile
+  }
+' "${all_tests[@]}" || true)
 
 declare -A excl_marker_map=()
 while IFS= read -r file; do

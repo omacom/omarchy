@@ -1309,8 +1309,7 @@
     "label": "Cloudflare"
   },
   "install.cli.github": {
-    "label": "GitHub",
-    "description": "gh and ghui"
+    "label": "GitHub"
   },
   "install.cli.hey": {
     "label": "HEY"
@@ -1370,8 +1369,7 @@
     "label": "Cloudflare"
   },
   "remove.cli.github": {
-    "label": "GitHub",
-    "description": "gh and ghui"
+    "label": "GitHub"
   },
   "remove.cli.hey": {
     "label": "HEY"
@@ -1447,5 +1445,11 @@
   },
   "remove.ai.desktop.opencode": {
     "label": "OpenCode Desktop"
+  },
+  "system.snapshots": {
+    "label": "Στιγμιότυπα"
+  },
+  "system.snapshots.restore": {
+    "label": "Αποκατάσταση αυτού του στιγμιότυπου"
   }
 }
