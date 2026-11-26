@@ -109,32 +109,25 @@ Canvas {
       to: Qt.point(37, 22)
       outline: `M46 91.5 C44.5 94.5 47.5 98.5 51 98
                 M50.5 43 C49 45 47.5 47.5 47 50
-                M37 80.5 C33.5 85.5 30.5 93.5 33 100 C35 105 41 109 47.5 110
                 M84.5 52.5 C84.5 50 84 47 83.5 44.5
                 M64.5 24.5 C60.5 25 56.5 27 52.5 29.5
                 M74.5 25.5 C71.5 24 68 24 64.5 24.5
                 M48.5 27.5 C41 33.5 36 42 33.5 51
-                M78.5 110 C85 103.5 88.5 95 91 86.5
-                M99 58.5 C98.5 44.5 95 29.5 84 20.5
                 M64.5 10.5 C55.5 11.5 48 16 41.5 22
-                M101 87 C103 79 104.5 70.5 104.5 62.5
-                M95.5 112 C99.5 106 102.5 99.5 104.5 93`
+                M101 87 C103 79 104.5 70.5 104.5 62.5`
     },
     // Outer arches
     Impression {
       from: Qt.point(42, 23)
       to: Qt.point(92, 100)
-      outline: `M43 79 C40 82.5 37 88 36.5 93.5 C36 98.5 38 103.5 45.5 105.5
-                M80 55.5 C80 53.5 80 51.5 79.5 49.5
+      outline: `M80 55.5 C80 53.5 80 51.5 79.5 49.5
                 M37 71 C35.5 75.5 31.5 79.5 30.5 84.5
-                M44 113.5 C52.5 117 63 116.5 70.5 110.5
                 M94 59.5 C95.5 51.5 90.5 45 86.5 39
                 M87.5 31 C86 28.5 84.5 26.5 82 25
                 M65.5 15 C58.5 16 52 19 46.5 23.5
                 M96.5 85 C98 78 99 70 99.5 62.5
                 M84 20.5 C79 16.5 72 14.5 65.5 15
                 M24 64 C24 66 23.5 68 23.5 69
-                M109 56 C108.5 53 108.5 49.5 107.5 46
                 M90 20 C87 17 83.5 14 79.5 12.5`
     },
     // Crown
@@ -146,31 +139,45 @@ Canvas {
                 M79 22.5 C75 20 70 19 65.5 19.5
                 M26.5 71.5 C25.5 74 25 75.5 24.5 77
                 M70.5 121.5 C74.5 119.5 78.5 116.5 82 113.5
-                M105.5 89 C108.5 78.5 110 67 109 56`
+                M105.5 89 C108.5 78.5 110 67 109 56
+                M99 58.5 C98.5 44.5 95 29.5 84 20.5
+                M109 56 C108.5 53 108.5 49.5 107.5 46`
     },
     // Remaining edge ridges
     Impression {
-      from: Qt.point(53, 75)
-      to: Qt.point(40, 118)
+      from: Qt.point(60, 68)
+      to: Qt.point(60, 124)
       outline: `M32.5 70.5 C30 75.5 28 79.5 27 83.5
-                M52.5 120 C61 121 69.5 118 75.5 112.5`
+                M52.5 120 C61 121 69.5 118 75.5 112.5
+                M37 80.5 C33.5 85.5 30.5 93.5 33 100 C35 105 41 109 47.5 110
+                M78.5 110 C85 103.5 88.5 95 91 86.5
+                M95.5 112 C99.5 106 102.5 99.5 104.5 93
+                M43 79 C40 82.5 37 88 36.5 93.5 C36 98.5 38 103.5 45.5 105.5
+                M44 113.5 C52.5 117 63 116.5 70.5 110.5`
     }
   ]
 
-  // The first touches reveal one area apiece. Readers can need many additional
-  // scans, so spread those across all remaining edges until fprintd completes.
-  readonly property int firstTouches: 7
-  readonly property real targetCoverage: {
-    if (compact || complete) return 1
-    if (samples <= firstTouches) return samples / impressions.length
-    const extra = samples - firstTouches
-    const edges = impressions.length - firstTouches
-    return (firstTouches + edges * Math.sqrt(extra / (extra + 18))) / impressions.length
-  }
-  property real coverage: targetCoverage
-  Behavior on coverage {
-    enabled: !drawing.compact && (drawing.complete || drawing.samples > 0)
+  // Start in the pad, then revisit each edge in turn. A reader can finish
+  // early or continue for dozens of touches without reporting a reliable total.
+  readonly property int padAreas: 6
+  property real shownScans: samples
+  property real finish: complete ? 1 : 0
+  Behavior on shownScans {
+    enabled: !drawing.compact && drawing.samples > 0
     NumberAnimation { duration: 190; easing.type: Easing.OutCubic }
+  }
+  Behavior on finish {
+    enabled: !drawing.compact && drawing.complete
+    NumberAnimation { duration: 190; easing.type: Easing.OutCubic }
+  }
+
+  function earned(index: int): real {
+    const touches = Math.max(0, shownScans - index)
+    if (index < padAreas) return Math.min(touches, 1)
+    const edges = impressions.length - padAreas
+    const rounds = Math.floor(touches / edges)
+    const visits = rounds + Math.min(touches - rounds * edges, 1)
+    return visits / (visits + 3)
   }
   Accessible.ignored: true
 
@@ -180,7 +187,8 @@ Canvas {
   onCompactChanged: requestPaint()
   onContactChanged: requestPaint()
   onCompleteChanged: requestPaint()
-  onCoverageChanged: requestPaint()
+  onShownScansChanged: requestPaint()
+  onFinishChanged: requestPaint()
 
   onPaint: {
     const c = getContext("2d")
@@ -224,11 +232,10 @@ Canvas {
         c.stroke()
       }
 
-      const progress = coverage * impressions.length
-      const edgeProgress = (progress - firstTouches) / (impressions.length - firstTouches)
       for (let i = 0; i < impressions.length; ++i) {
-        const amount = i < firstTouches ? progress - i : edgeProgress
-        if (amount <= 0) break
+        const seen = earned(i)
+        const amount = seen + (1 - seen) * finish
+        if (amount <= 0) continue
         const impression = impressions[i]
         if (amount >= 1) {
           c.strokeStyle = ink
@@ -237,7 +244,7 @@ Canvas {
           // The geometry stays fixed, including the antialiasing at the tips.
           const dx = impression.to.x - impression.from.x
           const dy = impression.to.y - impression.from.y
-          const feather = i < firstTouches ? 0.25 : 0.12
+          const feather = i < padAreas ? 0.25 : 0.09
           const lead = amount * (1 + feather) - feather
           const x = impression.from.x + lead * dx
           const y = impression.from.y + lead * dy

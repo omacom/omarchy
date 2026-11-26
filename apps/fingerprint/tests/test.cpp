@@ -53,7 +53,8 @@ private slots:
     for (int accepted : {0, 1, 2, 4, 7, 8, 17, 18, 36, 37, -1}) {
       if (accepted < 0) art->setProperty("complete", true);
       else art->setProperty("samples", accepted);
-      QTRY_COMPARE(art->property("coverage").toDouble(), art->property("targetCoverage").toDouble());
+      QTRY_COMPARE(art->property("shownScans").toDouble(), art->property("samples").toDouble());
+      QTRY_COMPARE(art->property("finish").toDouble(), accepted < 0 ? 1.0 : 0.0);
       painted.clear();
       QVERIFY(QMetaObject::invokeMethod(art, "requestPaint"));
       QTRY_VERIFY(!painted.isEmpty());
