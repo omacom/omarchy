@@ -46,14 +46,16 @@ if ! omarchy-keyring-repair; then
   omarchy-keyring-repair || restore_gnome_keyring
 fi
 
-# oo7 before 0.7 can't read gnome-keyring's plain-text keyrings, so an older one,
+# oo7 before 0.7 can't read gnome-keyring's plain-text keyrings, and before 0.7.3
+# unlocking or re-keying a keyring it hasn't converted yet could reach the empty
+# placeholder standing in for it and throw its secrets away. So an older oo7,
 # installed or the only one a mirror has, fails the swap and leaves this pending.
 # Since 0.7, oo7 no longer conflicts with gnome-keyring, so oo7 goes in first,
 # keeping omarchy's org.freedesktop.secrets satisfied, and gnome-keyring is removed
 # after. Left installed, its D-Bus activation file, PAM module and autostart
 # entries would race oo7-daemon for the Secret Service at every login. Until
 # oo7-daemon is enabled below, a failure leaves oo7 installed but idle.
-oo7_min="oo7>=0.7.1"
+oo7_min="oo7>=0.7.3"
 if ! pacman -T "$oo7_min" gcr >/dev/null; then
   sudo pacman -S --noconfirm --needed "$oo7_min" gcr || restore_gnome_keyring
 fi
