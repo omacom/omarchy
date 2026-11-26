@@ -5,6 +5,8 @@ import qs.Commons as Commons
 
 Item {
   id: whorl
+  implicitWidth: Style.space(264)
+  implicitHeight: implicitWidth
   property color tone: Commons.Color.accent
 
   // The print as five ridges on a 24-unit grid, core first, each one the

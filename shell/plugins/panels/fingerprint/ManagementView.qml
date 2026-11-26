@@ -15,6 +15,8 @@ FocusScope {
   // Enrollment and management share the same dark layer over the desktop.
   readonly property color ink: Qt.rgba(1, 1, 1, 0.86)
   readonly property color muted: Qt.rgba(1, 1, 1, 0.64)
+  // Even a light theme draws this panel over a mostly black scrim.
+  readonly property color visibleAccent: Util.luminance(Commons.Color.accent) >= 0.2 ? Commons.Color.accent : ink
   property string selected: ""
   property bool confirming: false
   property bool renaming: false
@@ -100,7 +102,7 @@ FocusScope {
           visible: setting.description !== ""
           text: setting.description
           horizontalAlignment: Text.AlignLeft
-          color: view.ink
+          color: view.muted
           font.pixelSize: Style.font.body
         }
       }
@@ -113,7 +115,7 @@ FocusScope {
         interactive: false
         opacity: checked ? 1 : 0.48
         foreground: view.ink
-        accent: Commons.Color.accent
+        accent: view.visibleAccent
         checked: setting.checked
         trackHeight: Style.space(16)
       }
@@ -175,9 +177,9 @@ FocusScope {
         // Reserve the instruction and exit action first on short screens.
         readonly property real available: stage.availableHeight - footer.implicitHeight - stage.topGap
         readonly property real controlsHeight: heading.implicitHeight + header.spacing + content.implicitHeight + stage.bottomGap
-        readonly property real preferred: view.verifying ? Style.space(264) : Style.space(150)
-        width: Math.max(0, Math.min(preferred, parent.width, view.verifying ? available : Math.max(Style.space(40), available - controlsHeight)))
+        width: Math.max(0, Math.min(implicitWidth, parent.width, view.verifying ? available : Math.max(Style.space(40), available - controlsHeight)))
         height: width
+        tone: view.visibleAccent
         // These are saved prints. The ridges light on an actual match.
         filled: !view.verifying && !!view.entry && ctl.matched && ctl.verifyFinger === view.selected && ctl.notice !== "" ? 1 : 0
       }
