@@ -1529,9 +1529,10 @@ Item {
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
               // A label cut off with dots scrolls to show the rest while its row has
-              // the cursor, whether the pointer or the arrow keys put it there.
+              // the cursor, whether the pointer or the arrow keys put it there. The
+              // menu stays loaded when it closes, cursor and all, so closing stops it.
               readonly property real labelOverflow: Math.max(0, labelText.implicitWidth - labelBox.width)
-              readonly property bool marquee: row.hasCursor && row.labelOverflow > 0 && !Style.reduceMotion
+              readonly property bool marquee: root.opened && row.hasCursor && row.labelOverflow > 0 && !Style.reduceMotion
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)

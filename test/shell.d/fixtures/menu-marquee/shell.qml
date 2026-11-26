@@ -1,10 +1,12 @@
 import QtQuick
 import Quickshell
+import qs.Commons
 
 // Opens a select menu much narrower than its first option. With the cursor on
 // the short row, the long label is cut off and still; with the cursor on it, it
 // scrolls to its end; with the cursor back on the short row, it is at rest
-// again and the short label, which fits, never moves.
+// again and the short label, which fits, never moves. With the cursor back on
+// the long row and the menu closed, the long label is at rest too.
 ShellRoot {
   id: root
 
@@ -19,6 +21,8 @@ ShellRoot {
   property bool summoned: false
   property bool scrolled: false
   property bool atRest: false
+  property bool restedAgain: false
+  property bool closed: false
   property string lastWidths: "no rows"
 
   function finish(failure) {
@@ -56,6 +60,9 @@ ShellRoot {
     repeat: true
     running: true
     onTriggered: {
+      // Style reads the desktop's own animation setting; with it off nothing may
+      // scroll, so hold motion on here to test the scroll itself.
+      Style.reduceMotion = false
       if (++root.waited > 120) { running = false; return root.finish(root.atRest ? "the long label never scrolled to its end" : "the long label was never cut off (" + root.lastWidths + ")") }
       if (!root.menu) return
       if (!root.summoned) {
@@ -96,16 +103,29 @@ ShellRoot {
         return
       }
 
+      if (!root.restedAgain) {
+        var shortRow = root.list.itemAtIndex(1)
+        if (root.longRow.marquee || longLabel.x !== 0 || !longLabel.truncated) { running = false; return root.finish("the long label did not come back to rest when the cursor left it") }
+        // A compositor that ignores layer-shell sizes leaves the card too narrow for
+        // anything; say so rather than blame the patch.
+        if (shortRow.labelOverflow > 0) { running = false; return root.finish("SETUP: the card (" + root.menu.cardWidth + " wide) is too narrow even for the short label; run on a compositor with layer-shell") }
+        if (shortRow.marquee) { running = false; return root.finish("a label that fits scrolls") }
+        root.restedAgain = true
+        root.menu.selectedIndex = 0
+        return
+      }
+
+      if (!root.closed) {
+        if (!root.longRow.marquee) { running = false; return root.finish("the long row with the cursor does not scroll the second time") }
+        if (longLabel.x > -1) return
+        root.closed = true
+        root.menu.close()
+        return
+      }
+
       running = false
-      var shortRow = root.list.itemAtIndex(1)
-      if (root.longRow.marquee || longLabel.x !== 0 || !longLabel.truncated)
-        return root.finish("the long label did not come back to rest when the cursor left it")
-      // A compositor that ignores layer-shell sizes leaves the card too narrow for
-      // anything; say so rather than blame the patch.
-      if (shortRow.labelOverflow > 0)
-        return root.finish("SETUP: the card (" + root.menu.cardWidth + " wide) is too narrow even for the short label; run on a compositor with layer-shell")
-      if (shortRow.marquee)
-        return root.finish("a label that fits scrolls")
+      if (root.longRow.marquee || longLabel.x !== 0)
+        return root.finish("the long label keeps scrolling after the menu closed")
       root.finish("")
     }
   }

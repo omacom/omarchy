@@ -443,3 +443,7 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+require_quickshell "menu label marquee runtime test"
+
+run_qml_fixture menu-marquee "a cut-off menu label scrolls to its end under the cursor and rests when the cursor leaves or the menu closes" Ui Commons
