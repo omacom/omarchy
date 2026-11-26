@@ -12,7 +12,7 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
 
     # An image's first boot runs this after boot queued its units and finishes
     # without rebooting, so load v4l2loopback and start the relay + guard now.
-    if pacman -Q asus-zenbook-a16-support &>/dev/null; then
+    if omarchy-pkg-present asus-zenbook-a16-support; then
       sudo modprobe v4l2loopback || true
       sudo systemctl daemon-reload || true
       sudo systemctl start --no-block v4l2-relayd@zenbook-a16.service zenbook-a16-camera-guard.service || true
