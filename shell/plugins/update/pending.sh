@@ -17,10 +17,12 @@ status=$?
 awk 'NF >= 4 { print "repo\t" $1 "\t" $2 "\t" $4 }' <<<"$repo" >>"$pending"
 # With AUR packages installed, an AUR the machine cannot reach, or a query
 # that runs out of time, is no answer either. yay exits 1 for nothing pending
-# and for a failure alike, so only the timeout counts as one.
+# and for a failure alike, so only the timeout counts as one. The query honors
+# --ignore as the upgrade does, so what omarchy-update-aur-pkgs skips is not
+# offered.
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
-    timeout 60 yay -Qua 2>/dev/null | awk 'NF >= 4 && $3 == "->" { print "aur\t" $1 "\t" $2 "\t" $4 }' >>"$pending"
+    timeout 60 yay -Qua --ignore gcc14,gcc14-libs 2>/dev/null | awk 'NF >= 4 && $3 == "->" { print "aur\t" $1 "\t" $2 "\t" $4 }' >>"$pending"
     (( PIPESTATUS[0] != 124 )) || echo "unknown"
   else
     echo "unknown"
