@@ -74,8 +74,9 @@ kv_set() {
   [[ -f $file ]] && { grep -v "^$key=" "$file" >"$tmp" || true; }
   printf '%s=%s\n' "$key" "$value" >>"$tmp"
   chmod 0644 "$tmp"
+  sync "$tmp" 2>/dev/null || true
   mv -f "$tmp" "$file"
-  sync -f "$file" 2>/dev/null || true
+  sync "$(dirname "$file")" 2>/dev/null || true
 }
 
 state_get() { kv_get "$STORE/state" "$1"; }
@@ -330,7 +331,12 @@ create_store() {
 
 convert_cmdline() {
   local file stem values
-  [[ -f $STORE/backup/kernel-cmdline ]] || cp -a /etc/kernel/cmdline "$STORE/backup/kernel-cmdline" 2>/dev/null || true
+  if [[ ! -f $STORE/backup/kernel-cmdline && -f /etc/kernel/cmdline ]]; then
+    cp -a /etc/kernel/cmdline "$STORE/backup/kernel-cmdline.new"
+    sync "$STORE/backup/kernel-cmdline.new"
+    mv -f "$STORE/backup/kernel-cmdline.new" "$STORE/backup/kernel-cmdline"
+    sync "$STORE/backup"
+  fi
 
   cmdline_values /etc/default/limine | paste -sd' ' - | tr -s ' ' | sed 's/^ //; s/ $//' >/etc/kernel/cmdline.new
   mv -f /etc/kernel/cmdline.new /etc/kernel/cmdline
@@ -393,6 +399,8 @@ backup_esp() {
   mkdir -p "$STORE/backup/esp"
   if [[ -d $ESP/EFI/systemd ]]; then cp -a "$ESP/EFI/systemd" "$STORE/backup/esp/systemd"; fi
   if [[ -f $ESP/loader/loader.conf ]]; then cp -a "$ESP/loader/loader.conf" "$STORE/backup/esp/loader.conf"; fi
+  find "$STORE/backup/esp" \( -type f -o -type d \) -exec sync {} +
+  sync "$STORE/backup"
   state_set esp_backed_up 1
 }
 

@@ -46,6 +46,12 @@ LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
 # Bumped when the image layout changes, so published images get rebuilt.
 FORMAT=4
 
+BUILD_WORK=""
+cleanup_work() {
+  [[ -z ${BUILD_WORK:-} ]] || rm -rf "$BUILD_WORK"
+}
+trap cleanup_work EXIT
+
 die() {
   echo "omarchy-boot-sync: $*" >&2
   exit 1
@@ -72,8 +78,9 @@ kv_set() {
   fi
   printf '%s=%s\n' "$key" "$value" >>"$tmp"
   chmod 0644 "$tmp"
+  sync "$tmp" 2>/dev/null || true
   mv -f "$tmp" "$file"
-  sync -f "$file" 2>/dev/null || true
+  sync "$(dirname "$file")" 2>/dev/null || true
 }
 
 state_get() { kv_get "$STORE/state" "$1"; }
@@ -245,7 +252,7 @@ cmd_import() {
   (($# == 4)) || die "usage: import PKGBASE KVER VMLINUZ INITRAMFS"
   local pkgbase=$1 kver=$2 vmlinuz=$3 initramfs=$4 cmdline hash image dir
   [[ -s $vmlinuz && -s $initramfs ]] || die "import: missing kernel or initramfs for $pkgbase"
-  cmdline=$(assemble_cmdline /)
+  cmdline=$(assemble_cmdline "${OMARCHY_BOOT_CMDLINE_ROOT:-/}")
   [[ $cmdline == *root=* ]] || die "import: /etc/kernel/cmdline names no root="
   hash=$( { sha256sum <"$vmlinuz"; sha256sum <"$initramfs"; printf '%s' "$cmdline"; } | sha256sum | cut -c1-12)
   image=$pkgbase-$hash
@@ -254,21 +261,23 @@ cmd_import() {
   if [[ ! -d $dir ]]; then
     rm -rf "$dir.new"
     mkdir -p "$dir.new"
-    cp "$vmlinuz" "$dir.new/vmlinuz"
-    cp "$initramfs" "$dir.new/initramfs.img"
+    cp --reflink=auto "$vmlinuz" "$dir.new/vmlinuz"
+    cp --reflink=auto "$initramfs" "$dir.new/initramfs.img"
     {
       echo "PKGBASE=$pkgbase"
       echo "KVER=$kver"
       echo "CMDLINE=$cmdline"
       echo "CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } >"$dir.new/manifest"
-    sync -f "$dir.new/initramfs.img"
+    sync "$dir.new/vmlinuz" "$dir.new/initramfs.img" "$dir.new/manifest" "$dir.new" 2>/dev/null || true
     mv "$dir.new" "$dir"
+    sync "$(dirname "$dir")" 2>/dev/null || true
   fi
 
   mkdir -p "$STORE/current"
   ln -sfn "../images/$image" "$STORE/current/.$pkgbase.new"
   mv -T "$STORE/current/.$pkgbase.new" "$STORE/current/$pkgbase"
+  sync "$STORE/current" 2>/dev/null || true
   log "boot image for $pkgbase $kver is $image"
 }
 
@@ -284,7 +293,9 @@ derive_image() {
     mkdir -p "$dir.new"
     cp --reflink=auto "$(image_dir "$source")/vmlinuz" "$(image_dir "$source")/initramfs.img" "$dir.new/"
     { grep -v '^CMDLINE=' "$(image_dir "$source")/manifest" || true; printf 'CMDLINE=%s\n' "$cmdline"; } >"$dir.new/manifest"
+    sync "$dir.new/vmlinuz" "$dir.new/initramfs.img" "$dir.new/manifest" "$dir.new" 2>/dev/null || true
     mv "$dir.new" "$dir"
+    sync "$(dirname "$dir")" 2>/dev/null || true
   fi
   echo "$image"
 }
@@ -309,7 +320,9 @@ cmd_pin() {
     kver=$(image_get "$image" KVER)
     if [[ -d $dir/snapshot/usr/lib/modules/$kver ]]; then
       printf '%s\n' "$image" >"$dir/.omarchy-boot-image.new"
+      sync "$dir/.omarchy-boot-image.new" 2>/dev/null || true
       mv -f "$dir/.omarchy-boot-image.new" "$dir/omarchy-boot-image"
+      sync "$dir" 2>/dev/null || true
       log "pinned snapshot $num to $image"
       return 0
     fi
@@ -361,11 +374,23 @@ uki_inputs() {
     if [[ -f $file ]]; then sha256sum "$file"; fi
   done < <(sed -n 's/^[^#=]*=//p' "$UKI_CONFIG" | grep -o '/[^[:space:]]*' || true)
 }
+build_work_dir() {
+  local dir=$1 need tmp_free
+  need=$(( ($(stat -c %s "$dir/vmlinuz") + $(stat -c %s "$dir/initramfs.img")) * 2 + 64 * 1024 * 1024 ))
+  tmp_free=$(df --output=avail -B1 /tmp 2>/dev/null | tail -1 || true)
+  if [[ -w /tmp && $tmp_free =~ ^[0-9]+$ ]] && ((tmp_free > need)); then
+    mktemp -d /tmp/omarchy-boot-build.XXXXXX
+  else
+    mktemp -d "$STORE/tmp/build.XXXXXX"
+  fi
+}
+
 build_uki() {
   local image=$1 profiles=$2 out=$3 work dir kver id pretty title order cmdline n=0
   dir=$(image_dir "$image")
   kver=$(image_get "$image" KVER)
-  work=$(mktemp -d "$STORE/tmp/build.XXXXXX")
+  work=$(build_work_dir "$dir")
+  BUILD_WORK=$work
 
   : >"$work/empty.conf"
   local args=(build --linux="$dir/vmlinuz" --initrd="$dir/initramfs.img" --uname="$kver")
@@ -410,10 +435,11 @@ build_uki() {
   need=$(($(stat -c %s "$work/uki.efi") + 8 * 1024 * 1024))
   ((free > need)) || die "the ESP has $((free / 1024 / 1024)) MB free, $((need / 1024 / 1024)) MB needed; keeping the published images"
   cp "$work/uki.efi" "$out.new"
-  sync -f "$out.new"
+  sync "$out.new"
   mv -f "$out.new" "$out"
-  sync -f "$out"
+  sync "$(dirname "$out")"
   rm -rf "$work"
+  BUILD_WORK=""
 }
 
 # --- sync ------------------------------------------------------------------------------
@@ -580,7 +606,9 @@ set_loader_default() {
   if cmp -s "$tmp" "$conf"; then
     rm -f "$tmp"
   else
+    sync "$tmp" 2>/dev/null || true
     mv -f "$tmp" "$conf"
+    sync "$(dirname "$conf")" 2>/dev/null || true
   fi
 }
 
@@ -766,8 +794,9 @@ cmd_restore_stage() {
     # boot can carry on into the restored root instead of rebooting into it.
     [[ $image == "$live" ]] && echo "SAME_IMAGE=1"
   } >"$journal.new"
-  sync -f "$journal.new"
+  sync "$journal.new"
   mv -f "$journal.new" "$journal"
+  sync "$(dirname "$journal")"
 
   # Hibernating now would write an image of a root that is about to move.
   mkdir -p /etc/systemd/sleep.conf.d
@@ -846,6 +875,7 @@ cmd_restore_commit() {
 
   ln -sfn "../images/$image" "$STORE/current/.$(image_get "$image" PKGBASE).new"
   mv -T "$STORE/current/.$(image_get "$image" PKGBASE).new" "$STORE/current/$(image_get "$image" PKGBASE)"
+  sync "$STORE/current" 2>/dev/null || true
 
   # The restored root has the kernels it had then. A current image of another
   # kernel that this root lacks at that version would boot it with modules it
@@ -889,7 +919,7 @@ case ${1:-} in
 sync) with_lock; cmd_sync ;;
 import) shift; with_lock; check_store; cmd_import "$@" ;;
 pin) shift; with_lock; check_store; mount_top; cmd_pin "$@" ;;
-cmdline) assemble_cmdline / ; echo ;;
+cmdline) assemble_cmdline "${OMARCHY_BOOT_CMDLINE_ROOT:-/}" ; echo ;;
 prefer) shift; with_lock; check_store; cmd_prefer "$@" ;;
 preferred) preferred_kernel / ;;
 verify) cmd_verify ;;

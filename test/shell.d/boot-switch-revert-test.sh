@@ -167,3 +167,27 @@ for root_options in subvolid=256,subvol=/@ rw,subvolid=256,subvol=/@,compress=zs
     fail "the store's entry selects @omarchy-boot from root options $root_options" "$entry"
 done
 pass "the boot store's fstab entry selects @omarchy-boot, never the root's subvolid"
+
+# backup_esp flushes the backed-up loader files and directories before
+# recording esp_backed_up=1, so a power loss never leaves the flag ahead of the
+# backups revert relies on.
+new_esp
+mkdir -p "$test_tmp/bin" "$test_tmp/esp/EFI/systemd" "$test_tmp/esp/loader"
+cat >"$test_tmp/bin/sync" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >>"$SYNC_LOG"
+SH
+chmod +x "$test_tmp/bin/sync"
+printf 'theirs\n' >"$test_tmp/esp/EFI/systemd/systemd-bootx64.efi"
+printf 'default theirs\n' >"$test_tmp/esp/loader/loader.conf"
+: >"$test_tmp/sync.log"
+PATH="$test_tmp/bin:$PATH" SYNC_LOG="$test_tmp/sync.log" run 'backup_esp' || fail "backup_esp runs with sync logged"
+backup_loader_line=$(grep -n 'backup/esp/systemd/systemd-bootx64\.efi$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+backup_conf_line=$(grep -n 'backup/esp/loader\.conf$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+backup_esp_dir_line=$(grep -n 'backup/esp$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+backup_dir_line=$(grep -n 'store/backup$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+state_line=$(grep -n 'store/state\.' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+[[ -n $backup_loader_line && -n $backup_conf_line && -n $backup_esp_dir_line && -n $backup_dir_line && -n $state_line ]] &&
+  ((backup_loader_line < state_line && backup_conf_line < state_line && backup_esp_dir_line < state_line && backup_dir_line < state_line)) ||
+  fail "backup_esp syncs the backup files and directories before writing esp_backed_up" "$(cat "$test_tmp/sync.log")"
+pass "backup_esp flushes loader backups before recording esp_backed_up"
