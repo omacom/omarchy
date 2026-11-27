@@ -678,6 +678,7 @@ var ALIAS_COUNTRY = {
   "America/Thunder_Bay": "CA",
   "America/Virgin": "VI",         // the US Virgin Islands
   "Asia/Rangoon": "MM",           // Yangon, Myanmar
+  "Atlantic/Jan_Mayen": "SJ",
   "Canada/Eastern": "CA",
   "EST": "US",                    // a North American offset, not a place
   "Iceland": "IS",

@@ -942,14 +942,16 @@ function geocodeUrl(label) {
 // renames to (LEGACY_ZONE_PLACES - the same place under its canonical id);
 // then, only for a zone that is not a known pure rename and only when the
 // geocoder itself names the place, a result named exactly like the row - but
-// only from a country the zone's zone1970.tab row lists, or from any country
-// when the tab lists no row for the zone and the name is the only signal left.
+// only from a country of the zone: one its zone1970.tab row lists, or, for a
+// zone the tab lists no row for, `country` (the caller's country for the zone
+// id). A zone with neither known gets no place by name.
 // The top result may be a same-named town on another continent - a geocode
 // search for "Calcutta" answers Calcutta, South Africa first, and never
-// Kolkata - so a row whose zone the geocoder does not echo gets no
+// Kolkata, and one for "Christmas" answers Christmas, Florida, and never
+// Christmas Island - so a row whose zone the geocoder does not echo gets no
 // coordinates here and falls back to the zone table. `answered` is false when
 // the request itself failed.
-function pickGeocode(text, zone, label, tabText) {
+function pickGeocode(text, zone, label, tabText, country) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
   var want = String(zone || "")
@@ -961,11 +963,12 @@ function pickGeocode(text, zone, label, tabText) {
   for (i = 0; i < results.length && !best; i++) if ((r = results[i]) && r.timezone === want) best = r
   for (i = 0; !best && alias !== "" && i < results.length; i++) if ((r = results[i]) && r.timezone === alias) best = r
   if (!best && alias === "" && wantName !== "") {
-    var countries = zoneTabCountries(tabText, want)
+    var own = String(country || "").trim().toUpperCase()
+    var countries = zoneTabCountries(tabText, want) || (own !== "" ? [own] : [])
     for (i = 0; i < results.length && !best; i++) {
       r = results[i]
       if (!r || cleanLabel(r.name).toLowerCase() !== wantName) continue
-      if (countries && countries.indexOf(placeCountry(r)) < 0) continue
+      if (countries.indexOf(placeCountry(r)) < 0) continue
       best = r
     }
   }
