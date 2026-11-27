@@ -4,10 +4,10 @@
 # omarchy:args=<device>
 # omarchy:hidden=true
 
-# udiskie's password prompt (default/hypr/autostart.lua). The shell asks for the
-# password and unlocks the drive itself, so a wrong password shakes the card and
-# is asked again, and udiskie mounts the drive as it appears unlocked. Exiting
-# non-zero tells udiskie there is nothing left for it to unlock.
+# Invoked by omarchy-drive-automount when an external LUKS drive appears. The
+# shell asks for the password and unlocks the drive itself, so a wrong password
+# shakes the card and is asked again, and omarchy-drive-automount mounts the
+# cleartext volume as it appears unlocked.
 
 device=${1:?Usage: omarchy-drive-unlock <device>}
 disk=$(lsblk -dno PKNAME "$device")
@@ -16,4 +16,3 @@ name=$(lsblk -dno LABEL "$device")
 size=$(lsblk -dno SIZE "$device" | tr -d ' ')
 
 omarchy-shell -q omarchy.polkit unlockDrive "$device" "${name:+$name · }$size"
-exit 1
