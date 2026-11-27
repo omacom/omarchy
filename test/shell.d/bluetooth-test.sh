@@ -276,75 +276,9 @@ LC_ALL= blocked_state $'unblocked\nblocked' ||
   fail "bluetooth reads the rfkill block in a localized session"
 pass "bluetooth reads the rfkill block in a localized session"
 
-# The same transitions in the running panel: adapter gone with the radio
-# blocked, adapter back, adapter gone with no block, and a shell started with
-# the radio already blocked.
-require_compositor "bluetooth radio-off runtime test"
-require_command quickshell
-
-stage=$(mktemp -d)
-trap 'rm -rf "$device_tmp" "$stage"' EXIT
-fixture="$SHELL_TEST_DIR/fixtures/bluetooth-radio-off"
-mkdir -p "$stage/bluetooth" "$stage/bin" "$stage/home"
-ln -s "$ROOT/shell/Ui" "$stage/Ui"
-ln -s "$ROOT/shell/Commons" "$stage/Commons"
-cp -r "$fixture/mocks" "$stage/mocks"
-cp "$fixture/shell.qml" "$stage/shell.qml"
-cp "$ROOT/shell/plugins/panels/bluetooth/Model.js" "$stage/bluetooth/Model.js"
-sed -e 's|^import Quickshell.Bluetooth$|import Quickshell.Bluetooth\nimport "../mocks"|' \
-  -e 's/\bBluetooth\.\(defaultAdapter\|devices\)/BluetoothMock.\1/g' \
-  "$ROOT/shell/plugins/panels/bluetooth/Panel.qml" >"$stage/bluetooth/Panel.qml"
-
-# Only the soft block is faked: off sets it, on lifts it, is-blocked reads it.
-cat >"$stage/bin/omarchy-bluetooth-power" <<'SH'
-#!/bin/bash
-printf '%s\n' "$1" >>"$BT_TEST_DIR/log"
-case $1 in
-  off) echo blocked >"$BT_TEST_DIR/rfkill" ;;
-  on)
-    echo unblocked >"$BT_TEST_DIR/rfkill"
-    # Unblocking reports a change on the switch while the controller is still
-    # booting, before BlueZ has an adapter again.
-    echo "idx 0 type 2 op 2 soft 0 hard 0" >>"$BT_TEST_DIR/rfkill-events"
-    ;;
-  unplug)
-    echo none >"$BT_TEST_DIR/rfkill"
-    echo "idx 9 type 2 op 1 soft 1 hard 0" >>"$BT_TEST_DIR/rfkill-events"
-    ;;
-  delay-query) touch "$BT_TEST_DIR/delay-query" ;;
-  is-blocked)
-    state=$(<"$BT_TEST_DIR/rfkill")
-    if [[ -f $BT_TEST_DIR/delay-query ]]; then
-      rm "$BT_TEST_DIR/delay-query"
-      echo query-delayed >>"$BT_TEST_DIR/log"
-      sleep 1
-    fi
-    [[ $state == "blocked" ]]
-    ;;
-esac
-SH
-# rfkill event: the switch changes the panel follows while the radio is off.
-cat >"$stage/bin/rfkill" <<'SH'
-#!/bin/bash
-[[ $1 == event ]] && exec tail -n0 -F "$BT_TEST_DIR/rfkill-events" 2>/dev/null
-SH
-chmod +x "$stage/bin/omarchy-bluetooth-power" "$stage/bin/rfkill"
-ln -s omarchy-bluetooth-power "$stage/bin/omarchy-bluetooth"
-: >"$stage/rfkill-events"
-echo unblocked >"$stage/rfkill"
-
-output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" BT_TEST_DIR="$stage" \
-  timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "bluetooth radio-off fixture exits cleanly" "$output"
-[[ $output == *"RESULT pass"* ]] || fail "bluetooth radio-off runtime assertions pass" "$output"
-if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
-  fail "bluetooth radio-off fixture has no QML errors" "$output"
-fi
-grep -qx on "$stage/log" || fail "the panel switch turns a blocked radio back on"
-grep -qx query-delayed "$stage/log" || fail "the runtime test overlaps an in-flight rfkill query"
-pass "bluetooth keeps the widget through turn-off, turn-on, no hardware, a blocked startup and an unplugged radio in QML"
 # CLI tests for `omarchy-bluetooth` (`omarchy bluetooth ...`).
 cli_tmp=$(mktemp -d)
-trap 'rm -rf "$device_tmp" "$stage" "$cli_tmp"' EXIT
+trap 'rm -rf "$device_tmp" "$cli_tmp"' EXIT
 
 mkdir -p "$cli_tmp/bin" "$cli_tmp/state"
 BT_STATE_DIR="$cli_tmp/state"
@@ -706,7 +640,79 @@ PY
 grep -qx "rfkill unblock bluetooth" "$BT_STATE_DIR/bt.log" || fail "bluetooth connect by name unblocks rfkill before resolving"
 pass "bluetooth CLI connect by device name unblocks an rfkill-detached radio first"
 
+TEST_RFKILL_DETACHED=1 bt_cli off >/dev/null
+: >"$BT_STATE_DIR/bt.log"
 status=0
 TEST_RFKILL_DETACHED=1 bt_cli connect "" >/dev/null 2>&1 || status=$?
 (( status == 2 )) || fail "empty device names should exit 2" "got $status"
+if grep -q '^rfkill unblock ' "$BT_STATE_DIR/bt.log"; then
+  fail "bluetooth CLI leaves a blocked radio alone for an empty device name"
+fi
 pass "bluetooth CLI rejects empty device names before powering the radio"
+
+# The same transitions in the running panel: adapter gone with the radio
+# blocked, adapter back, adapter gone with no block, and a shell started with
+# the radio already blocked.
+require_compositor "bluetooth radio-off runtime test"
+require_command quickshell
+
+stage=$(mktemp -d)
+trap 'rm -rf "$device_tmp" "$cli_tmp" "$stage"' EXIT
+fixture="$SHELL_TEST_DIR/fixtures/bluetooth-radio-off"
+mkdir -p "$stage/bluetooth" "$stage/bin" "$stage/home"
+ln -s "$ROOT/shell/Ui" "$stage/Ui"
+ln -s "$ROOT/shell/Commons" "$stage/Commons"
+cp -r "$fixture/mocks" "$stage/mocks"
+cp "$fixture/shell.qml" "$stage/shell.qml"
+cp "$ROOT/shell/plugins/panels/bluetooth/Model.js" "$stage/bluetooth/Model.js"
+sed -e 's|^import Quickshell.Bluetooth$|import Quickshell.Bluetooth\nimport "../mocks"|' \
+  -e 's/\bBluetooth\.\(defaultAdapter\|devices\)/BluetoothMock.\1/g' \
+  "$ROOT/shell/plugins/panels/bluetooth/Panel.qml" >"$stage/bluetooth/Panel.qml"
+
+# Only the soft block is faked: off sets it, on lifts it, is-blocked reads it.
+cat >"$stage/bin/omarchy-bluetooth-power" <<'SH'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$1" >>"$BT_TEST_DIR/log"
+case $1 in
+  off) echo blocked >"$BT_TEST_DIR/rfkill" ;;
+  on)
+    echo unblocked >"$BT_TEST_DIR/rfkill"
+    # Unblocking reports a change on the switch while the controller is still
+    # booting, before BlueZ has an adapter again.
+    echo "idx 0 type 2 op 2 soft 0 hard 0" >>"$BT_TEST_DIR/rfkill-events"
+    ;;
+  unplug)
+    echo none >"$BT_TEST_DIR/rfkill"
+    echo "idx 9 type 2 op 1 soft 1 hard 0" >>"$BT_TEST_DIR/rfkill-events"
+    ;;
+  delay-query) touch "$BT_TEST_DIR/delay-query" ;;
+  is-blocked)
+    state=$(<"$BT_TEST_DIR/rfkill")
+    if [[ -f $BT_TEST_DIR/delay-query ]]; then
+      rm "$BT_TEST_DIR/delay-query"
+      echo query-delayed >>"$BT_TEST_DIR/log"
+      sleep 1
+    fi
+    [[ $state == "blocked" ]]
+    ;;
+esac
+SH
+# rfkill event: the switch changes the panel follows while the radio is off.
+cat >"$stage/bin/rfkill" <<'SH'
+#!/bin/bash
+[[ $1 == event ]] && exec tail -n0 -F "$BT_TEST_DIR/rfkill-events" 2>/dev/null
+SH
+chmod +x "$stage/bin/omarchy-bluetooth-power" "$stage/bin/rfkill"
+ln -s omarchy-bluetooth-power "$stage/bin/omarchy-bluetooth"
+: >"$stage/rfkill-events"
+echo unblocked >"$stage/rfkill"
+
+output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" BT_TEST_DIR="$stage" \
+  timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "bluetooth radio-off fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "bluetooth radio-off runtime assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
+  fail "bluetooth radio-off fixture has no QML errors" "$output"
+fi
+grep -qx "omarchy-bluetooth on" "$stage/log" || fail "the panel switch turns a blocked radio back on"
+grep -qx query-delayed "$stage/log" || fail "the runtime test overlaps an in-flight rfkill query"
+pass "bluetooth keeps the widget through turn-off, turn-on, no hardware, a blocked startup and an unplugged radio in QML"
