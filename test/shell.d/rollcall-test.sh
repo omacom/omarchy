@@ -513,6 +513,15 @@ printf '81:0\n' >"$fake/sys/devices/usb3/3-4/3-4:1.0/video4linux/video0/dev"
 printf 'E:ID_V4L_CAPABILITIES=:capture:\n' >"$fake/run/udev/data/c81:0"
 expect "a built-in camera with a capture node passes" "pass: 1 built-in (uvcvideo)" "$(outcome camera)"
 
+# A Snapdragon camera subsystem is found by its device-tree node, bound or not.
+new_root
+make_laptop
+mkdir -p "$fake/sys/devices/platform/soc/ac5a000.isp/of_node"
+printf 'qcom,x1e80100-camss\0' >"$fake/sys/devices/platform/soc/ac5a000.isp/of_node/compatible"
+mkdir -p "$fake/sys/bus/platform/devices"
+ln -s "$fake/sys/devices/platform/soc/ac5a000.isp" "$fake/sys/bus/platform/devices/ac5a000.isp"
+expect "a Snapdragon camera subsystem whose driver never bound fails" "fail: image processor qcom,x1e80100-camss has no driver" "$(outcome camera)"
+
 # An Intel IPU's sensor reaches apps through Omarchy's relay or libcamera.
 new_root
 make_laptop
@@ -834,6 +843,11 @@ expect "a newer firmware a driver falls back from is not missing" "pass: no firm
 touch "$fake/usr/lib/firmware/iwlwifi-so-a0-gf-a0-89.ucode.zst"
 expect "a newer firmware installed since the driver fell back is not a failure" "pass: no firmware missing, not tainted, 0 kernel errors" \
   "$(KERNEL_LOG='iwlwifi 0000:00:14.3: Direct firmware load for iwlwifi-so-a0-gf-a0-89.ucode failed with error -2\n' outcome firmware)"
+touch "$fake/usr/lib/firmware/iwlwifi-so-a0-gf-a0-90.ucode.zst"
+expect "a newer version installed since boot does not hide that every requested one failed" \
+  "fail: missing firmware: iwlwifi-so-a0-gf-a0-77.ucode; failed to load at boot but on disk now, restart to load: iwlwifi-so-a0-gf-a0-86.ucode, iwlwifi-so-a0-gf-a0-89.ucode" \
+  "$(KERNEL_LOG='iwlwifi: Direct firmware load for iwlwifi-so-a0-gf-a0-89.ucode failed with error -2\niwlwifi: Direct firmware load for iwlwifi-so-a0-gf-a0-86.ucode failed with error -2\niwlwifi: Direct firmware load for iwlwifi-so-a0-gf-a0-77.ucode failed with error -2\n' outcome firmware)"
+rm "$fake/usr/lib/firmware/iwlwifi-so-a0-gf-a0-90.ucode.zst"
 expect "every version failing is not a fallback, and the ones on disk ran without loading" "fail: missing firmware: iwlwifi-so-a0-gf-a0-77.ucode; failed to load at boot but on disk now, restart to load: iwlwifi-so-a0-gf-a0-86.ucode, iwlwifi-so-a0-gf-a0-89.ucode" \
   "$(KERNEL_LOG='iwlwifi: Direct firmware load for iwlwifi-so-a0-gf-a0-89.ucode failed with error -2\niwlwifi: Direct firmware load for iwlwifi-so-a0-gf-a0-86.ucode failed with error -2\niwlwifi: Direct firmware load for iwlwifi-so-a0-gf-a0-77.ucode failed with error -2\n' outcome firmware)"
 mkdir -p "$fake/usr/lib/firmware/amdgpu" && touch "$fake/usr/lib/firmware/amdgpu/dcn_4_0_1_dmcub.bin.zst"

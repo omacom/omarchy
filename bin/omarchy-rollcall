@@ -719,9 +719,17 @@ image_processors() {
   while IFS= read -r device; do
     [[ $(read_file "$device/vendor") == "0x8086" ]] && echo "$device"
   done < <(pci_devices 0x0480)
-  for device in "$sys"/bus/platform/drivers/qcom-camss/*; do
-    [[ -L $device && ${device##*/} != module ]] && readlink -f "$device"
-  done
+  # A Snapdragon camera subsystem is found by its device-tree node, so one
+  # whose driver never bound is still found.
+  {
+    for device in "$sys"/bus/platform/drivers/qcom-camss/*; do
+      [[ -L $device && ${device##*/} != module ]] && readlink -f "$device"
+    done
+    for device in "$sys"/bus/platform/devices/*; do
+      [[ -r $device/of_node/compatible ]] || continue
+      [[ $(tr '\0' ' ' <"$device/of_node/compatible" 2>/dev/null) =~ qcom,[a-z0-9-]*camss ]] && readlink -f "$device"
+    done
+  } | sort -u
 }
 
 # Omarchy relays such a sensor's picture to a v4l2loopback node, which offers
@@ -778,7 +786,7 @@ check_camera() {
 
   device=${processors[0]}
   if ! driver=$(driver_of "$device"); then
-    echo "image processor $(pci_id "$device") has no driver"
+    echo "image processor $(pci_id "$device" || tr '\0' '\n' <"$device/of_node/compatible" 2>/dev/null | head -n1) has no driver"
     return $FAIL
   elif relayed_camera; then
     echo "relayed from the image processor ($driver)"
@@ -1725,18 +1733,24 @@ firmware_on_disk() {
 }
 
 # Whether the driver fell back from this file to an older numbered version of
-# it that did not fail too: drivers ask for the newest firmware they know first
-# (iwlwifi-...-89.ucode, then -86).
+# it: drivers ask for the newest firmware they know first and go down from
+# there (iwlwifi-...-89.ucode, then -86). Only a lower version that did not
+# fail too can be what loaded. File times cannot say what arrived since boot:
+# pacman keeps a package's build time.
 firmware_fell_back() {
-  local file=$1 failed=$2 candidate name
-  [[ $file =~ ^(.*[-_])[0-9]+(\.[a-z]+)$ ]] || return 1
-  for candidate in "$root$FIRMWARE_DIR/${BASH_REMATCH[1]}"[0-9]*"${BASH_REMATCH[2]}"*; do
+  local file=$1 failed=$2 candidate name number
+  [[ $file =~ ^(.*[-_])([0-9]+)(\.[a-z]+)$ ]] || return 1
+  local prefix=${BASH_REMATCH[1]} wanted=${BASH_REMATCH[2]} suffix=${BASH_REMATCH[3]}
+  for candidate in "$root$FIRMWARE_DIR/$prefix"[0-9]*"$suffix"*; do
     [[ -e $candidate ]] || continue
     name=${candidate#"$root$FIRMWARE_DIR/"}
     name=${name%.zst}
     name=${name%.xz}
-    [[ $name == "$file" ]] && continue
-    grep -qxF -- "$name" <<<"$failed" || return 0
+    [[ $name =~ ^.*[-_]([0-9]+)\.[a-z]+$ ]] || continue
+    number=${BASH_REMATCH[1]}
+    (( 10#$number < 10#$wanted )) || continue
+    grep -qxF -- "$name" <<<"$failed" && continue
+    return 0
   done
   return 1
 }
