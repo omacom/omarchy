@@ -10,13 +10,13 @@ require_command magick
 helper="$ROOT/bin/omarchy-imv-rotate"
 [[ -x $helper ]] || fail "omarchy-imv-rotate is executable"
 
-grep -Fq 'omarchy-imv-rotate "$imv_current_file"' "$ROOT/config/imv/config" ||
+grep -Fq 'rotate by 90; exec omarchy-imv-rotate "$imv_current_file"' "$ROOT/config/imv/config" ||
   fail "stock imv config uses the atomic rotate helper"
 ! grep -Fq 'mogrify -rotate 90 "$imv_current_file"' "$ROOT/config/imv/config" ||
   fail "stock imv config no longer rotates with in-place mogrify"
 pass "stock imv Ctrl+R uses omarchy-imv-rotate"
 
-grep -Fq 'omarchy-imv-rotate "$imv_current_file"' "$ROOT/migrations/1791577200.sh" ||
+grep -Fq 'rotate by 90; exec omarchy-imv-rotate "$imv_current_file"' "$ROOT/migrations/1791577200.sh" ||
   fail "the migration rewrites the stock mogrify rotate binding"
 pass "migration rewrites the stock imv rotate binding"
 
@@ -79,7 +79,7 @@ cat >"$mig_home/.config/imv/config" <<'CFG'
 CFG
 HOME="$mig_home" bash "$ROOT/migrations/1791577200.sh"
 mig_cfg=$(<"$mig_home/.config/imv/config")
-[[ $mig_cfg == *'omarchy-imv-rotate "$imv_current_file"'* ]] || fail "migration rewrites the live config"
+[[ $mig_cfg == *'rotate by 90; exec omarchy-imv-rotate "$imv_current_file"'* ]] || fail "migration rewrites the live config"
 [[ $mig_cfg != *'mogrify -rotate 90'* ]] || fail "migration removes the unsafe rotate command"
 [[ $mig_cfg == *'<Ctrl+f> = exec echo custom'* ]] || fail "migration preserves unrelated bindings"
 [[ $mig_cfg == *'<Ctrl+q> = quit'* ]] || fail "migration preserves later bindings"
