@@ -230,6 +230,39 @@ with patch.object(m, 'query', return_value=[private_window, {**private_window, '
   else:
     raise AssertionError('forwarded private window accepted')
 
+# Browser windows exceeding MAX_BROWSER_TABS are rejected instead of silently truncating tabs.
+limit_window = {'address': '0xlimit', 'class': 'chromium', 'title': 'Limit - Chromium', 'pid': 42}
+limit_process = {'argv': ['chromium', '--user-data-dir=/unused']}
+exact_urls = [f'https://example.org/{i}' for i in range(m.MAX_BROWSER_TABS)]
+exact_state = m.capture_app_state(limit_window, limit_process, {'/unused/Default/Sessions': [{'title': 'Limit', 'urls': exact_urls}]}, [limit_window])
+check(exact_state['urls'] == exact_urls, 'Chromium windows at the exact tab limit save every tab')
+over_urls = exact_urls + ['https://example.org/extra']
+try:
+  m.capture_app_state(limit_window, limit_process, {'/unused/Default/Sessions': [{'title': 'Limit', 'urls': over_urls}]}, [limit_window])
+except m.WorkspaceError as error:
+  check(str(m.MAX_BROWSER_TABS) in str(error), 'Chromium windows over the tab limit fail with a clear limit message instead of dropping tabs')
+else:
+  raise AssertionError('oversized Chromium tab list was silently truncated')
+
+with tempfile.TemporaryDirectory() as directory:
+  ff_process = {'argv': ['firefox', '--profile', directory]}
+  ff_over = {'address': '0xffover', 'class': 'firefox', 'title': 'Many Tabs — Mozilla Firefox', 'pid': 52}
+  ff_small = {'address': '0xffsmall', 'class': 'firefox', 'title': 'Small Tab — Mozilla Firefox', 'pid': 52}
+  ff_data = {'windows': [
+    {'selected': 1, 'tabs': [{'index': 1, 'entries': [{'url': u, 'title': 'Many Tabs' if i == 0 else f'Tab {i}'}]} for i, u in enumerate(over_urls)]},
+    {'selected': 1, 'tabs': [{'index': 1, 'entries': [{'url': 'https://example.org/small', 'title': 'Small Tab'}]}]}
+  ]}
+  ff_cache = {'firefox:' + directory: m.firefox_session_windows(ff_data)}
+  with patch.object(m, 'query', return_value=[ff_over, ff_small]):
+    small_state = m.capture_firefox_state(ff_small, ff_process, ff_cache)
+    check(small_state['urls'] == ['https://example.org/small'], 'a Firefox window over the tab limit elsewhere does not block saving another window')
+    try:
+      m.capture_firefox_state(ff_over, ff_process, ff_cache)
+    except m.WorkspaceError as error:
+      check(str(m.MAX_BROWSER_TABS) in str(error), 'Firefox windows over the tab limit fail with a clear limit message')
+    else:
+      raise AssertionError('oversized Firefox tab list accepted')
+
 for executable, flag in [('alacritty', '--working-directory'), ('ghostty', '--working-directory'), ('kitty', '--directory'), ('foot', '--working-directory')]:
   for old in [[flag + '=/old'], [flag, '/old']]:
     command = m.command_for({'class': executable}, {'argv': [executable, *old, '-e', 'program', flag + '=/program-data'], 'cwd': '/current'})

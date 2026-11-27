@@ -27,6 +27,7 @@ CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "omarchy/sh
 WIDGET = "omarchy.saved-workspaces"
 MODES = {"dwindle", "floating", "scrolling"}
 MAX_WINDOWS = 100
+MAX_BROWSER_TABS = 200
 MAX_DATABASE_BYTES = 8 * 1024 * 1024
 CHROMIUM_WINDOW_CLASSES = {"chromium", "google-chrome", "chrome", "brave", "brave-browser"}
 
@@ -340,7 +341,7 @@ def firefox_session_windows(data):
       continue
     urls, titles = [], []
     tabs = window["tabs"]
-    if not 0 < len(tabs) <= 200 or any(not isinstance(tab, dict) or tab.get("isPrivate") for tab in tabs):
+    if not tabs or any(not isinstance(tab, dict) or tab.get("isPrivate") for tab in tabs):
       continue
     for tab in tabs:
       entries = tab.get("entries", [])
@@ -410,6 +411,8 @@ def capture_firefox_state(window, info, cache):
   if len(states) != 1:
     raise WorkspaceError("Firefox's tabs couldn't be matched to this window. Select a distinct tab, wait a moment, and save again.")
   urls, active = states.pop()
+  if len(urls) > MAX_BROWSER_TABS:
+    raise WorkspaceError(f"You can save up to {MAX_BROWSER_TABS} tabs per browser window.")
   return {"kind": "firefox", "urls": list(urls), "active": active, "profile": str(profile)}
 
 
@@ -757,7 +760,9 @@ def capture_app_state(window, info, cache, clients=None):
     live = [w for w in clients if w["pid"] == window["pid"] and w.get("mapped", True)
         and not chromium_webapp_class(w)]
     matched = chromium_window_matches(live, records)[window["address"]]
-    return {"kind": "browser", "urls": matched["urls"][:200], "profile": matched["profile"], "userDataDir": str(directory)}
+    if len(matched["urls"]) > MAX_BROWSER_TABS:
+      raise WorkspaceError(f"You can save up to {MAX_BROWSER_TABS} tabs per browser window.")
+    return {"kind": "browser", "urls": matched["urls"], "profile": matched["profile"], "userDataDir": str(directory)}
   if app in {"firefox", "firefox-bin"}:
     return capture_firefox_state(window, info, cache)
   if app == "spotify" or window["class"].lower() == "spotify":
@@ -775,7 +780,7 @@ def state_command(window, argv):
   state = window.get("appState") or {}
   if state.get("kind") == "firefox":
     urls, active, profile = state.get("urls"), state.get("active"), state.get("profile")
-    if not isinstance(urls, list) or not 0 < len(urls) <= 200 or type(active) is not int or not 0 <= active < len(urls) or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|moz-extension://|view-source:https?://)", u) and "\0" not in u for u in urls):
+    if not isinstance(urls, list) or not 0 < len(urls) <= MAX_BROWSER_TABS or type(active) is not int or not 0 <= active < len(urls) or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|moz-extension://|view-source:https?://)", u) and "\0" not in u for u in urls):
       raise WorkspaceError("The saved Firefox tabs are invalid.")
     if not isinstance(profile, str) or "\0" in profile or not Path(profile).is_absolute() or not Path(profile).is_dir():
       raise WorkspaceError("The saved Firefox profile is no longer available.")
@@ -793,7 +798,7 @@ def state_command(window, argv):
     return cleaned + ["--profile", profile, "--new-window", *urls]
   if state.get("kind") == "browser":
     urls = state.get("urls", [])
-    if not urls or len(urls) > 200 or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|chrome://|chrome-extension://)", u) and "\0" not in u for u in urls):
+    if not urls or len(urls) > MAX_BROWSER_TABS or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|chrome://|chrome-extension://)", u) and "\0" not in u for u in urls):
       raise WorkspaceError("The saved browser tabs are invalid.")
     # Chromium rewrites /proc cmdline as a flattened string. A multi-word
     # --window-name can leave bare words after recovery; replaying those opens
