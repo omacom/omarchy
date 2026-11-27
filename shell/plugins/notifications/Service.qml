@@ -1515,10 +1515,10 @@ Item {
 
   // ------------------------------------------------------------- surface
   //
-  // One fixed-size layer per output, so the compositor never scales a stale
-  // buffer; the mask makes everything outside the deck click-through. It stays
-  // mapped while idle (remapping re-evaluates focus and drags a scrolling
-  // layout's viewport), except where it steps aside for a fullscreen window.
+  // One fixed-size layer per output, mapped only while the active output has
+  // live toasts to display. Keeping it unmapped while idle avoids holding an
+  // unused 732x1600 overlay surface, Mesa GL context, and dmabuf swapchain per
+  // screen (and also lets fullscreen windows use direct scanout).
   Variants {
     id: surfaceVariants
     model: Quickshell.screens
@@ -1531,7 +1531,7 @@ Item {
       readonly property var margins: service.marginsFor(String(modelData.name))
       readonly property bool stepAside: service.fullscreenOn(String(modelData.name))
       readonly property bool hasSomethingToShow: showingNotifications && toasts.count > 0
-      visible: !stepAside || hasSomethingToShow
+      visible: hasSomethingToShow
       color: "transparent"
 
       WlrLayershell.namespace: "omarchy-notifications"

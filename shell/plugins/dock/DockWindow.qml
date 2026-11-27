@@ -7,11 +7,11 @@ import qs.Commons as Commons
 import qs.Ui
 import "DockModel.js" as DockModel
 
-// One screen's dock. It stays mapped and only hides its contents, so switching
-// to a floating workspace does not wait on a fresh layer surface. While hidden the
-// mask is empty and clicks fall through to the windows below.
+// One screen's dock. Mapped only while this screen is on a floating workspace
+// so tiled workspaces pay no layer surface, GL context, or dmabuf memory.
 PanelWindow {
   id: window
+  visible: window.shown
   // Right-to-left languages read this window mirrored.
   Binding { target: window.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
   Binding { target: window.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
