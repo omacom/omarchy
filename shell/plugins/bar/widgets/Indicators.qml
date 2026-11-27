@@ -238,14 +238,16 @@ BarWidget {
   // Where the hidden icons would show: hovering there reveals them, and the
   // rest of the bar leaves them hidden. Hidden, they take no room, so the zone
   // reaches past the widget on the side they grow toward. Revealed, it keeps
-  // half that reach: in the centered box the widget slides half its growth
-  // back the other way as the box re-centers, and a zone that stopped at the
-  // widget's edge would lose the pointer that opened it, closing and
-  // reopening in a loop. Above the icons, which a hover handler doesn't block.
+  // the full reach: the zone must still cover the pointer that opened the
+  // peek, or the peek would close and reopen in a loop. At the outer edge
+  // of the centered box the widget does not slide half its growth back, so
+  // a shorter revealed zone would lose that pointer. Above the icons, which
+  // a hover handler doesn't block.
   Item {
     objectName: "hiddenBlockZone"
+    z: 10
 
-    readonly property real reach: (orientationLoader.item ? orientationLoader.item.inactiveLength : 0) * (root.revealInactiveIndicators ? 0.5 : 1)
+    readonly property real reach: orientationLoader.item ? orientationLoader.item.inactiveLength : 0
     readonly property real alongStart: root.fixedAtStart ? 0 : -reach
     readonly property real alongLength: (root.vertical ? root.implicitHeight : root.implicitWidth) + reach
 
