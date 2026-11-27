@@ -33,19 +33,27 @@ fi
 # was started from. A dispatcher exists only while its CLI is installed, so one
 # left by a CLI removed outside Omarchy takes itself away and answers the way
 # a shell would.
-dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
+dispatchers="$HOME/.local/state/omarchy/agent-accounts/bin"
+# They were in ~/.local/share/omarchy once. A session from before they moved
+# still has that directory on PATH, and a dispatcher left in it is not the CLI:
+# counted as one, it would start this again without end.
+old_dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
 cli_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
-  [[ $dir == "$dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
+  [[ $dir == "$dispatchers" || $dir == "$old_dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
 done
 if ! agent_binary=$(PATH=$cli_path type -P "$provider"); then
-  rm -f "$dispatchers/$provider"
+  rm -f "$dispatchers/$provider" "$old_dispatchers/$provider"
   echo "$provider: command not found" >&2
   exit 127
 fi
 
 # The agent's own subprocesses dispatch too, so another provider they start
 # runs as its selected account.
-export PATH="$dispatchers:$cli_path"
+agent_path=$dispatchers
+if [[ -d $old_dispatchers ]]; then
+  agent_path+=":$old_dispatchers"
+fi
+export PATH="$agent_path:$cli_path"
 exec "$agent_binary" "$@"

@@ -52,11 +52,12 @@ fi
 # Installed is the command on PATH: Omarchy's package, or an install of the
 # user's own, such as the link Cursor's installer leaves in ~/.local/bin or an
 # agent the user's own mise config asks for. An account dispatcher isn't the CLI
-# itself, so its directory doesn't count.
+# itself, so its directory doesn't count, nor the one in ~/.local/share/omarchy
+# they were in once.
 agent_path=""
 IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
-  [[ $dir == "$HOME/.local/share/omarchy/agent-accounts/bin" ]] || agent_path+="${agent_path:+:}$dir"
+  [[ $dir == "$HOME/.local/state/omarchy/agent-accounts/bin" || $dir == "$HOME/.local/share/omarchy/agent-accounts/bin" ]] || agent_path+="${agent_path:+:}$dir"
 done
 installed() {
   PATH=$agent_path type -P "$agent"

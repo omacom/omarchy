@@ -58,7 +58,7 @@ pass "env-bootstrap resolves default OMARCHY_PATH"
 assert_path_present "$default_path" "$tmpdir/unrelated/bin" "env-bootstrap preserves PATH entries in default mode"
 assert_path_present "$default_path" "$home/.local/share/mise/shims" "env-bootstrap appends mise shims"
 assert_path_present "$default_path" "$home/.local/bin" "env-bootstrap appends ~/.local/bin"
-assert_path_first "$default_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap puts the account dispatchers ahead of inherited tool binaries"
+assert_path_first "$default_path" "$home/.local/state/omarchy/agent-accounts/bin" "env-bootstrap puts the account dispatchers ahead of inherited tool binaries"
 
 printf 'export OMARCHY_PATH="%s"\n' "$tmpdir/active" >"$tmpdir/omarchy.conf"
 mapfile -t linked_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/unrelated/bin:/usr/bin")
@@ -66,25 +66,25 @@ linked_path=${linked_result[1]}
 
 [[ ${linked_result[0]} == "$tmpdir/active" ]] || fail "env-bootstrap resolves linked OMARCHY_PATH" "actual: ${linked_result[0]}"
 pass "env-bootstrap resolves linked OMARCHY_PATH"
-assert_path_first "$linked_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap keeps account dispatchers first in linked mode"
+assert_path_first "$linked_path" "$home/.local/state/omarchy/agent-accounts/bin" "env-bootstrap keeps account dispatchers first in linked mode"
 assert_path_present "$linked_path" "$tmpdir/active/bin" "env-bootstrap includes the active checkout bin in linked mode"
 assert_path_present "$linked_path" "$tmpdir/unrelated/bin" "env-bootstrap preserves unrelated PATH entries in linked mode"
 
 mapfile -t linked_duplicate_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/active/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin")
 linked_duplicate_path=${linked_duplicate_result[1]}
-[[ $linked_duplicate_path == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] || fail "env-bootstrap does not duplicate PATH entries" "actual PATH: $linked_duplicate_path"
+[[ $linked_duplicate_path == "$home/.local/state/omarchy/agent-accounts/bin:$tmpdir/active/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] || fail "env-bootstrap does not duplicate PATH entries" "actual PATH: $linked_duplicate_path"
 pass "env-bootstrap does not duplicate PATH entries"
 
 # An empty PATH must not produce empty entries (a bare ":" means the cwd)
 mapfile -t empty_path_result < <(run_bootstrap bash "$bootstrap" "$home" "")
 empty_path=${empty_path_result[1]}
-[[ $empty_path == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] || fail "env-bootstrap builds a clean PATH from an empty one" "actual PATH: $empty_path"
+[[ $empty_path == "$home/.local/state/omarchy/agent-accounts/bin:$tmpdir/active/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] || fail "env-bootstrap builds a clean PATH from an empty one" "actual PATH: $empty_path"
 pass "env-bootstrap builds a clean PATH from an empty one"
 
 if command -v zsh >/dev/null 2>&1; then
   mapfile -t zsh_result < <(run_bootstrap zsh "$bootstrap" "$home" "$tmpdir/unrelated/bin:/usr/bin")
   zsh_path=${zsh_result[1]}
-  assert_path_first "$zsh_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap works when sourced by zsh"
+  assert_path_first "$zsh_path" "$home/.local/state/omarchy/agent-accounts/bin" "env-bootstrap works when sourced by zsh"
   assert_path_present "$zsh_path" "$tmpdir/unrelated/bin" "env-bootstrap zsh mode preserves unrelated PATH entries"
 fi
 
@@ -101,11 +101,37 @@ pass "env-bootstrap drops mise's old command wrappers"
 
 # A parent agent or mise activation may have put real tool bins before the
 # dispatcher directory when it was already present. Move the existing entry rather than skip it.
-inherited_path="$tmpdir/managed/bin:$home/.local/share/omarchy/agent-accounts/bin:/usr/bin"
+inherited_path="$tmpdir/managed/bin:$home/.local/state/omarchy/agent-accounts/bin:/usr/bin"
 mapfile -t reordered_result < <(run_bootstrap bash "$bootstrap" "$home" "$inherited_path")
-[[ ${reordered_result[1]} == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:$tmpdir/managed/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] ||
+[[ ${reordered_result[1]} == "$home/.local/state/omarchy/agent-accounts/bin:$tmpdir/active/bin:$tmpdir/managed/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] ||
   fail "bootstrap moves existing dispatchers ahead of inherited managed tool paths without duplication" "${reordered_result[1]}"
 pass "bootstrap moves existing dispatchers ahead of inherited managed tool paths without duplication"
+
+# A package update can reach a user's next login before their migration runs.
+legacy_dispatchers="$home/.local/share/omarchy/agent-accounts/bin"
+mkdir -p "$legacy_dispatchers" "$home/.local/state/omarchy/agents/accounts"
+printf '#!/bin/bash\nprintf "%%s\\n" "${CODEX_HOME:-primary}"\n' >"$tmpdir/unrelated/bin/codex"
+printf '#!/bin/bash\nexec codex\n' >"$tmpdir/unrelated/bin/claude"
+chmod +x "$tmpdir/unrelated/bin/codex" "$tmpdir/unrelated/bin/claude"
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" omarchy-agent-account-dispatch claude codex
+mv "$home/.local/state/omarchy/agent-accounts/bin/codex" "$legacy_dispatchers/codex"
+mv "$home/.local/state/omarchy/agent-accounts/bin/claude" "$legacy_dispatchers/claude"
+printf '{"active":"side","accounts":[{"id":"main","primary":true,"home":""},{"id":"side","home":"%s"}]}\n' "$tmpdir/side" >"$home/.local/state/omarchy/agents/accounts/codex.json"
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; codex' sh "$bootstrap" >"$tmpdir/pending-account"
+[[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "a login before migration keeps the selected account"
+pass "a login before migration keeps the selected account"
+
+uwsm_env="$tmpdir/uwsm-env"
+sed "s#/usr/share/omarchy/default/bash/env-bootstrap#$bootstrap#g" "$ROOT/default/uwsm/env.d/10-omarchy" >"$uwsm_env"
+mkdir -p "$home/.local/share/mise/shims"
+ln -s "$tmpdir/unrelated/bin/codex" "$home/.local/share/mise/shims/codex"
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; codex' sh "$uwsm_env" >"$tmpdir/pending-account"
+[[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "uwsm keeps pending dispatchers ahead of mise shims"
+pass "uwsm keeps pending dispatchers ahead of mise shims"
+
+HOME="$home" PATH="$tmpdir/unrelated/bin:$ROOT/bin:/usr/bin" bash -c '. "$1"; claude' sh "$bootstrap" >"$tmpdir/pending-account"
+[[ $(<"$tmpdir/pending-account") == "$tmpdir/side" ]] || fail "an agent's child keeps the selected account before migration"
+pass "an agent's child keeps the selected account before migration"
 
 # Interactive shell startup caches static starship/zoxide init output keyed by
 # binary fingerprint (invalidating on both newer and older-timestamp replacements)
