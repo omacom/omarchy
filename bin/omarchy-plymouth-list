@@ -3,16 +3,7 @@
 # omarchy:summary=List themes that can style the Plymouth boot screen
 # omarchy:examples=omarchy plymouth list
 
-{
-  find ~/.config/omarchy/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null
-  for theme in "$OMARCHY_PATH"/themes/*/; do
-    theme=${theme%/}
-    # A theme made for other hardware is not offered here.
-    if [[ ! -f $theme/hardware ]] || omarchy-theme-available "${theme##*/}"; then
-      echo "${theme##*/}"
-    fi
-  done
-} | sort -u | while read -r name; do
+omarchy-theme-list --folders | while read -r name; do
   if [[ -f $(omarchy-theme-dir "$name")/preview-unlock.png ]]; then
     echo "$name"
   fi
