@@ -1,9 +1,10 @@
 echo "Point git's retired gh shim credentials at the packaged gh"
 
-# The earlier repair covered versioned mise installs. A new migration also
-# reaches users who completed that repair with a stale shim still configured.
+# A user-owned mise gh keeps its shim and must keep its credential helper.
+shim="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims/gh"
 stale="/mise/shims/gh([[:space:]\"']|$)"
-if git config --global --get-regexp '^credential\.https://(github\.com|gist\.github\.com)\.helper$' 2>/dev/null | grep -qE "$stale"; then
+if [[ ! -e $shim ]] &&
+  git config --global --get-regexp '^credential\.https://(github\.com|gist\.github\.com)\.helper$' 2>/dev/null | grep -qE "$stale"; then
   if omarchy-cmd-present gh && gh auth status >/dev/null 2>&1; then
     gh auth setup-git
   else
