@@ -25,3 +25,6 @@
 # etc/tmpfiles.d/omarchy-intel-hwp-boost.conf
 #   Writes only when /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
 #   exists; systemd-tmpfiles treats it as a no-op on AMD, ARM, and non-HWP CPUs.
+# etc/intel_lpmd/omarchy-mtl.xml
+#   Static Meteor Lake WLT Proxy profile; inert unless intel_lpmd.service's
+#   Meteor Lake drop-in passes it via -c.
