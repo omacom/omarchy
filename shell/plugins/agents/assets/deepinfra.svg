@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Placeholder mark: a plain "DI" monogram, not DeepInfra's real logo. Swap
+     for an accurate reproduction of their mark before merge. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54 54" width="54" height="54">
+<rect x="2" y="2" width="50" height="50" rx="12" fill="#1a1a1a" />
+<text x="27" y="35" font-family="system-ui, sans-serif" font-size="20" font-weight="700" fill="#f5f5f5" text-anchor="middle">DI</text>
+</svg>
