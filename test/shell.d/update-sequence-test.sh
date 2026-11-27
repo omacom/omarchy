@@ -127,6 +127,25 @@ run_update -y || fail "an update without a log reports a failure"
 [[ $(cat "$test_tmp/steps.analyze-args") == "0" ]] || fail "without a log the check reads from the start"
 pass "the update hands the log check the offset its own output starts at"
 
+analyzer_bin="$test_tmp/analyzer-bin"
+mkdir -p "$analyzer_bin"
+sed "s#/tmp/omarchy-update\.log#$test_tmp/analyze.log#" "$ROOT/bin/omarchy-update-analyze-logs" >"$analyzer_bin/omarchy-update-analyze-logs"
+grep -qF "$test_tmp/analyze.log" "$analyzer_bin/omarchy-update-analyze-logs" && ! grep -qF /tmp/omarchy-update.log "$analyzer_bin/omarchy-update-analyze-logs" ||
+  fail "the log check under test reads the test's log"
+printf '#!/bin/bash\nexit 1\n' >"$analyzer_bin/omarchy-hw-aarch64-apple"
+chmod +x "$analyzer_bin/"*
+analyze() { PATH="$analyzer_bin:$PATH" omarchy-update-analyze-logs "$@"; }
+build="(4/9) Updating linux initcpios..."
+printf '%s\n' "$build" "==> Initcpio image generation successful" >"$test_tmp/analyze.log"
+switch_end=$(stat -c %s "$test_tmp/analyze.log")
+printf '%s\n' "$build" "==> ERROR: module not found" >>"$test_tmp/analyze.log"
+[[ $(analyze "$switch_end") == *"may have failed"* ]] || fail "a channel switch's successful build hides the update's failed one"
+printf '%s\n' "$build" "==> ERROR: module not found" >"$test_tmp/analyze.log"
+for start in "" 999999 "a[0]"; do
+  [[ $(analyze "$start") == *"may have failed"* ]] || fail "an unusable offset (${start:-none}) does not read the whole log"
+done
+pass "the log check reads only the update's own output, or all of it without a usable offset"
+
 grep -q '^omarchy-update-system-pkgs unattended=1$' "$test_tmp/steps" ||
   fail "-y does not mark the update unattended"
 run_update </dev/null || fail "a confirmed update reports a failure"
