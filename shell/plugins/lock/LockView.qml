@@ -165,6 +165,7 @@ Item {
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
         echoMode: TextInput.Password
+        inputMethodHints: Qt.ImhHiddenText | Qt.ImhSensitiveText | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase | Qt.ImhLatinOnly
         passwordCharacter: "\u25CF"
         passwordMaskDelay: 0
         color: Commons.Color.lock.text
