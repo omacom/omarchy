@@ -1,21 +1,21 @@
 # Tizim uyqusi
 
-Omarchy sukut boʻyicha suspendni yoqadi, hibernation esa sozlangandan keyin yoqiladi, lekin mashinangizda ulardan biri bilan muammo boʻlsa, ularni oʻchirib qoʻyishingiz mumkin.
+Omarchy sukut bo'yicha suspend rejimini, sozlangandan keyin esa hibernation rejimini yoqadi, lekin mashinangizda ulardan biri bilan muammolar bo'lsa, ularni o'chirib qo'yishingiz mumkin.
 
-NVIDIA GB10 mashinalarida, masalan DGX Spark va ASUS Ascent GX10 da, suspend va hibernation oʻchirilgan — NVIDIAʼning DGX OSʼidagi kabi — chunki bu uskunada uyqu hali ishlashi koʻrsatilmagan. Xuddi shu holat ASUS Zenbook A16 (UX3607OA) ga ham tegishli, u yerda suspend chipni hali toʻliq uyquga yubormaydi va kechasi osilib qolishi mumkin. Suspendni yoqib-oʻchirish va hibernation sozlash u yerda qoʻllanilmaydi. Uyquni qayta yoqish uchun `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` ni `sudo rm` bilan oʻchirib tashlang; shunda Suspend menyuga qaytadi va hibernationni boshqa mashinalardagi kabi sozlash mumkin boʻladi. `sudo omarchy apply hardware --install-user "$USER"` ni ishga tushirish faylni qayta joyiga qoʻyadi.
+DGX Spark va ASUS Ascent GX10 kabi NVIDIA GB10 mashinalarida suspend va hibernation o'chirib qo'yilgan, xuddi NVIDIA'ning DGX OS tizimidagi kabi, chunki uyqu rejimi bu uskunada hali ishlashi ko'rsatilmagan. U yerda suspend tugmasi va hibernation sozlamalari qo'llanilmaydi. Uyqu rejimini qayta yoqish uchun `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` faylini `sudo rm` bilan o'chiring; shunda Suspend menyuga qaytadi va hibernation boshqa mashinalardagi kabi sozlanishi mumkin. `sudo omarchy apply hardware --install-user "$USER"` buyrug'ini ishga tushirish faylni joyiga qaytaradi.
 
 ### Quvvat profillari
 
-Noutbukda Omarchy quvvat profilingizni tarmoqqa ulangan holat va batareyada ishlash holati uchun alohida eslab qoladi va siz ulab-uzganingizda ikkisi oʻrtasida almashadi. Qutidan chiqqan holatida bu AC da performance va batareyada balanced deganini anglatadi.
+Noutbukda Omarchy quvvat profilingizni tarmoqqa ulangan holat va batareyada ishlayotgan holat uchun alohida eslab qoladi va ulaganda hamda uzganda ikkisi o'rtasida almashadi. Dastlab bu AC rejimida performance va batareyada balanced deganidir.
 
-Mashinangiz nimalarni taklif qilishini `omarchy powerprofiles list` bilan koʻrishingiz mumkin, hozir boʻlib turgan holatingiz uchun kerakli profilni esa `omarchy powerprofiles set autodetect power-saver` bilan oʻrnatasiz. Hech narsani uzmasdan boshqa holatni sozlash uchun uni toʻgʻridan-toʻgʻri nomlang: `omarchy powerprofiles set battery power-saver`. Nimani tanlasangiz, keyingi safar oʻsha holatga tushganingizda aynan oʻshani olasiz.
+Mashinangiz nimalarni taklif qilishini `omarchy powerprofiles list` bilan ko'rishingiz va hozir bo'lgan holatingiz uchun keraklisini `omarchy powerprofiles set autodetect power-saver` bilan o'rnatishingiz mumkin. Hech narsani uzmasdan boshqa holatni o'rnatish uchun uni to'g'ridan-to'g'ri nomlang: `omarchy powerprofiles set battery power-saver`. Tanlaganingiz nima bo'lsa, keyingi safar shu holatda bo'lganingizda aynan o'shani olasiz.
 
-### Suspendni yoqib-oʻchirish
+### Suspend rejimini yoqish/o'chirish
 
-Suspendni terminaldan `omarchy toggle suspend` ni ishga tushirib yoqib-oʻchirasiz. Bu shunchaki _Tizim_ ostidagi variantni koʻrsatadi/yashiradi (yoki `Super + Esc`), keyin uning tizimingizda barqaror ishlashini koʻrishingiz mumkin. Ishlamasa, xuddi shu buyruq bilan uni yana yashirib qoʻyishingiz mumkin.
+Suspend rejimini terminaldan `omarchy toggle suspend` buyrug'ini ishga tushirib yoqasiz/o'chirasiz. Bu _System_ (yoki `Super + Esc`) ostidagi variantni shunchaki ko'rsatadi/yashiradi, keyin esa uning tizimingizda barqaror ishlashini tekshirib ko'rishingiz mumkin. Ishlamasa, xuddi shu buyruq bilan uni yana yashirib qo'yishingiz mumkin.
 
-### Hibernationni yoqib-oʻchirish
+### Hibernation rejimini yoqish/o'chirish
 
-Hibernationni terminaldan `omarchy hibernation setup` ni ishga tushirib sozlaysiz (u Apple Silicon Macʼlarda mavjud emas). Hibernation yuklanish diskingizda jismoniy RAM ajratmangiz hajmiga teng /swap subvolume yaratadi, shuning uchun yetarlicha boʻsh joyingiz borligiga ishonch hosil qiling. 32GB lik mashinada bu volume uchun doim 32GB+ boʻsh joy kerak boʻladi. Hibernation shuningdek standart Limine bootloaderʼini ham talab qiladi.
+Hibernation rejimini terminaldan `omarchy hibernation setup` buyrug'ini ishga tushirib sozlaysiz (u Apple Silicon Mac'larda mavjud emas). Hibernation yuklanish diskingizda jismoniy RAM hajmingizga teng /swap subvolume yaratadi, shuning uchun bo'sh joyingiz yetarlicha ko'p ekaniga ishonch hosil qiling. 32GB mashinada bu volume uchun sizga doim 32GB+ bo'sh joy kerak bo'ladi. Hibernation yana sukut bo'yicha Limine bootloader'ini talab qiladi.
 
-Sozlangach, hibernate variantini _Tizim_ ostida koʻrasiz (yoki `Super + Esc`), keyin uning tizimingizda barqaror ishlashini koʻrishingiz mumkin. Ishlamasa, `omarchy hibernation remove` ni ishga tushirib uni yana olib tashlashingiz mumkin.
+Sozlangandan keyin _System_ (yoki `Super + Esc`) ostida hibernate variantini ko'rasiz, keyin esa uning tizimingizda barqaror ishlashini tekshirib ko'rishingiz mumkin. Ishlamasa, `omarchy hibernation remove` buyrug'ini ishga tushirib uni yana olib tashlashingiz mumkin.
