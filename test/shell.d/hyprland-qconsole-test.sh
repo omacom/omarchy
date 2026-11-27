@@ -11,7 +11,7 @@ require_command lua
 # base-test.sh does not set -e, so the assertions have to fail the file
 # themselves rather than leaving the pass below to run regardless.
 OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
-local rules, handlers, spawned = {}, {}, {}
+local rules, handlers, spawned, placed = {}, {}, {}, {}
 local monitor = nil
 local workspace = nil
 
@@ -23,15 +23,26 @@ hl = {
   get_active_monitor = function() return monitor end,
   get_workspace = function() return workspace end,
   -- workspace.windows is the tiled count here and workspace.floats the floating
-  -- one, so the fixtures can say which kind of window is on the console.
+  -- one, so the fixtures can say which kind of window is on the console. A
+  -- floating one is workspace.float_size, which is what the console has to fit.
   get_workspace_windows = function()
     local list = {}
     for _ = 1, workspace and workspace.windows or 0 do table.insert(list, { floating = false }) end
-    for _ = 1, workspace and workspace.floats or 0 do table.insert(list, { floating = true }) end
+    for _ = 1, workspace and workspace.floats or 0 do
+      table.insert(list, { floating = true, mapped = workspace.float_mapped ~= false, address = "0x5", size = workspace and workspace.float_size })
+    end
     return list
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
+  -- What the console asks Hyprland to do to a window, in order.
+  dispatch = function(dispatcher) table.insert(placed, dispatcher) end,
+  dsp = {
+    window = {
+      resize = function(args) return { kind = "resize", args = args } end,
+      center = function(args) return { kind = "center", args = args } end,
+    },
+  },
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
@@ -278,6 +289,84 @@ workspace.windows = 1
 handlers["window.move_to_workspace"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "moving it back off recenters the panel")
+
+-- The gaps cannot size a window floated on the console (Super+T): Hyprland
+-- floats it at whatever size it last laid it out with, the whole of whichever
+-- screen that was, and never shrinks a floating window. Opened on a screen with
+-- no room for it, it is cut down to the work area and centered there.
+placed = {}
+workspace = { name = "special:qconsole", visible = true, monitor = acer, windows = 0, floats = 1, float_size = { x = 3440, y = 1440 } }
+handlers["workspace.special_active"]({ name = "special:qconsole" }, acer)
+local resized, centered = placed[1], placed[2]
+assert(#placed == 2 and resized.kind == "resize" and centered.kind == "center",
+  "a console floated on a bigger screen is cut down to the work area and centered")
+-- The Acer is 1920x1080 with a 30px bar.
+assert(resized.args.x == 1920 and resized.args.y == 1050 and resized.args.relative == false and resized.args.window == "address:0x5",
+  "and cut down to the work area, not the whole screen")
+assert(centered.args.window == "address:0x5", "the window centered is the one that was cut down")
+
+-- Each side only as far as it has to: too wide keeps its height.
+placed = {}
+workspace.float_size = { x = 2560, y = 600 }
+handlers["window.update_rules"]()
+assert(#placed == 2 and placed[1].args.x == 1920 and placed[1].args.y == 600, "a side with room is not cut")
+
+-- One that already fits is left exactly as it is.
+placed = {}
+workspace.float_size = { x = 800, y = 500 }
+handlers["window.update_rules"]()
+assert(#placed == 0, "a floating window that fits is left alone")
+
+-- The gaps still size the tiled console around it: a floating window too big
+-- for the screen does not make it a workspace.
+top, right, bottom, left = gaps()
+assert(left == 435 and right == 435, "and fitting the float leaves the panel alone")
+
+-- A hidden console is not cut down for whichever monitor happens to be
+-- focused: focus alone hops between screens, and a window is never grown back.
+-- It is fitted on its way in instead.
+placed = {}
+workspace = { name = "special:qconsole", visible = false, monitor = dell, floats = 1, float_size = { x = 3440, y = 1440 } }
+monitor = acer
+handlers["monitor.focused"](acer)
+handlers["monitor.layout_changed"]()
+assert(#placed == 0, "a hidden console's floating window is not cut down for the focused monitor")
+workspace.visible, workspace.monitor = true, acer
+handlers["workspace.special_active"]({ name = "special:qconsole" }, acer)
+assert(#placed == 2 and placed[1].args.x == 1920 and placed[1].args.y == 1050,
+  "opening the console on the smaller screen is what cuts the float down")
+
+-- This also runs on window.destroy, where the window on its way out is still
+-- listed. One that is no longer mapped has no layout left to resize, so nothing
+-- is asked of Hyprland for it, however big it still reads.
+placed = {}
+workspace = { name = "special:qconsole", visible = true, monitor = acer, windows = 0, floats = 1, float_size = { x = 3440, y = 1440 }, float_mapped = false }
+handlers["window.destroy"]()
+assert(#placed == 0, "a window on its way out is not resized")
+
+-- The bar can arrive under a console that is already open, on a monitor plugged
+-- in a moment ago. The float then has to be cut down for the area that is left.
+placed = {}
+local bare = { width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 0, bottom = 0, left = 0, right = 0 } }
+workspace = { name = "special:qconsole", visible = true, monitor = bare, windows = 0, floats = 1, float_size = { x = 1920, y = 1080 } }
+handlers["workspace.special_active"]({ name = "special:qconsole" }, bare)
+assert(#placed == 0, "a float that fills the screen while it has no bar is left alone")
+bare.reserved.top = 30
+handlers["layer.opened"]()
+assert(#placed == 2 and placed[1].args.x == 1920 and placed[1].args.y == 1050, "the bar arriving cuts the float down to the area that is left")
+top, right, bottom, left = gaps()
+assert(bottom == 525, "and the panel under the console is refitted for the bar too")
+
+-- The output it is showing on can go away mid-layout-change, as above for the
+-- panel. The window is cut down for the monitor that is still there, and
+-- nothing is read off the dead handle to do it. The Dell is 6144x2560 with a
+-- 30px bar.
+placed = {}
+workspace = { name = "special:qconsole", visible = true, monitor = expired, floats = 1, float_size = { x = 8000, y = 4000 } }
+monitor = dell
+handlers["monitor.focused"](dell)
+assert(#placed == 2 and placed[1].args.x == 6144 and placed[1].args.y == 2530,
+  "a console whose output vanished has its float cut down for the monitor that is still there")
 
 -- window.close still counts the window on its way out, and window.destroy
 -- follows it with the settled count, so only destroy is hooked.
