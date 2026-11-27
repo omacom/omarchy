@@ -33,6 +33,10 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+selected_harness_source() {
+  omarchy-agent-catalog --sources | jq -r --arg id "$1" '.[] | select(.id == $id) | .pluginId // empty' | head -n1
+}
+
 id=""
 
 while (( $# > 0 )); do
@@ -84,8 +88,18 @@ if [[ -n $shell_plugins ]]; then
 fi
 
 cloned_from=""
+plugin_id="$id"
+harness_id=""
 if [[ -f $target/manifest.json ]]; then
   cloned_from=$(jq -r '.omarchy.clonedFrom // empty' "$target/manifest.json")
+  plugin_id=$(jq -r '.id // empty' "$target/manifest.json")
+  harness_id=$(jq -r '.agentHarness.id // empty' "$target/manifest.json")
+fi
+
+selected_harness_plugin=""
+agent_file="$HOME/.config/omarchy/defaults/agent"
+if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" ]]; then
+  selected_harness_plugin=$(selected_harness_source "$harness_id")
 fi
 
 if [[ -L $target ]]; then
@@ -119,6 +133,28 @@ else
 fi
 
 omarchy-shell shell rescanPlugins >/dev/null
+
+agent_file="$HOME/.config/omarchy/defaults/agent"
+if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" && $selected_harness_plugin == "$plugin_id" ]]; then
+  rm -f "$agent_file"
+  echo "Cleared default coding agent $harness_id because its integration was removed."
+fi
+
+# A launcher omarchy-agent-launcher wrote from the declaration goes with it, or
+# the dock keeps an entry that starts a harness nothing provides any more. Only
+# when nothing else still declares that harness: a second integration may list
+# the same id, and its launcher is the same file. One Omarchy ships is not this
+# command's to delete either, so only a marked file goes.
+if [[ -n $harness_id ]]; then
+  still_declared=$(omarchy-agent-catalog 2>/dev/null |
+    jq -r --arg id "$harness_id" '.[] | select(.id == $id) | .id' 2>/dev/null | head -n1)
+  launcher="$HOME/.local/share/applications/omarchy-agent-$harness_id.desktop"
+  if [[ -z $still_declared && -f $launcher && ! -L $launcher ]] &&
+    grep -qxF '# Written by omarchy-agent-launcher.' "$launcher"; then
+    rm -f "$launcher"
+    update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+  fi
+fi
 
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
   echo "Restored $cloned_from."

@@ -9,15 +9,61 @@
 # Each one ships in default/applications with its icon in the icon sets.
 # Hermes and OpenClaw are apps that bring launchers of their own, which one for
 # the terminal would only shadow, so they have none here.
+#
+# A harness from a plugin has no launcher in default/applications, and without
+# one it would be reachable only by whoever knew to name it to omarchy default
+# agent - it has no row in the agents panel, which lists subscriptions, and no
+# hotkey, as no harness has one of its own. So one is written from the
+# declaration the catalog holds, and marked as this command's own: the plugin's
+# removal takes it away again, where a launcher Omarchy ships is never deleted
+# here.
+
+set -uo pipefail
 
 agent=${1:?Usage: omarchy-agent-launcher <agent>}
 entry="omarchy-agent-$agent.desktop"
 applications="$HOME/.local/share/applications"
+marker='# Written by omarchy-agent-launcher.'
 
-if [[ $agent =~ ^[a-z0-9-]+$ && -f $OMARCHY_PATH/default/applications/$entry ]]; then
+# The shape the catalog accepts for an id, so a harness it lists is never
+# silently left without a launcher for the shape of its name.
+[[ $agent =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $agent != *..* ]] || exit 0
+
+if [[ -f $OMARCHY_PATH/default/applications/$entry ]]; then
   # A launcher that couldn't be written fails, so the migration adding one
   # stays pending until it can be.
   mkdir -p "$applications" || exit 1
   install -m 644 "$OMARCHY_PATH/default/applications/$entry" "$applications/$entry" || exit 1
   update-desktop-database "$applications" 2>/dev/null || true
+  exit 0
 fi
+
+# Only a harness a plugin declares is written here: a shipped harness without
+# its launcher is a bug in Omarchy, not something to paper over at runtime.
+harness=$(omarchy-agent-catalog 2>/dev/null |
+  jq -c --arg id "$agent" '.[] | select(.id == $id and .firstParty == false)' 2>/dev/null | head -n1)
+[[ -n $harness ]] || exit 0
+
+name=$(jq -r '.name' <<<"$harness")
+if [[ $name == *$'\n'* || $name == *$'\r'* || -z $name ]]; then
+  echo "omarchy-agent-launcher: refusing a harness name that is not one line ($agent)" >&2
+  exit 1
+fi
+# The manifest's icon is a font glyph rather than a file, so the launcher takes
+# the generic terminal mark and a browser-first integration ships its own.
+mkdir -p "$applications" || exit 1
+cat >"$applications/$entry" <<EOF || exit 1
+$marker
+[Desktop Entry]
+Version=1.0
+Name=$name
+Comment=Start $name, your coding agent
+Exec=omarchy-agent --agent $agent --app-id=org.omarchy.$agent
+Icon=utilities-terminal
+StartupWMClass=org.omarchy.$agent
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
+EOF
+update-desktop-database "$applications" 2>/dev/null || true

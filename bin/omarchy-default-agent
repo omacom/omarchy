@@ -41,56 +41,58 @@ if (($# == 0)); then
   exit 0
 fi
 
-case "$1" in
-local) agent="local"; name="Local model" ;;
-pi) agent="pi"; name="Pi" ;;
-omp | oh-my-pi) agent="omp"; name="Oh My Pi" ;;
-opencode | open-code) agent="opencode"; name="OpenCode" ;;
-ori | openrouter) agent="ori"; name="Ori" ;;
-claude | claude-code) agent="claude"; name="Claude Code" ;;
-codex) agent="codex"; name="Codex" ;;
-crush) agent="crush"; name="Crush" ;;
-grok) agent="grok"; name="Grok" ;;
-openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-openclaw-cli" ;;
-agy | antigravity | antigravity-cli | gemini | gemini-cli) agent="agy"; name="Antigravity" ;;
-hermes) agent="hermes"; name="Hermes"; agent_installer="omarchy-install-hermes-cli" ;;
-copilot | github-copilot) agent="copilot"; name="GitHub Copilot" ;;
-muse | muse-code | musecode) agent="muse"; name="Muse Code" ;;
-cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
-kimi | kimi-code) agent="kimi"; name="Kimi" ;;
-qwen | qwen-code) agent="qwen"; name="Qwen Code" ;;
-dsh | deepseek | deepseek-harness) agent="dsh"; name="DeepSeek Harness" ;;
-mcode | minimax-code | minimax) agent="mcode"; name="MiniMax Code" ;;
-freebuff) agent="freebuff"; name="Freebuff" ;;
-kilo | kilocode | kilo-code) agent="kilo"; name="Kilo" ;;
-devin | devin-cli) agent="devin"; name="Devin CLI" ;;
-amp | ampcode) agent="amp"; name="Amp" ;;
-*)
-  echo "Usage: omarchy-default-agent <local|pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|freebuff|kilo|devin|amp>"
-  exit 1
-  ;;
-esac
+# "local" is not a harness: it is the local model the launcher opens, so it
+# carries no catalog entry and installs nothing.
+if [[ $1 == "local" ]]; then
+  agent="local"
+  name="Local model"
+  install_type="none"
+  command_name=""
+else
+  selection=$1
+  harness=$(omarchy-agent-catalog | jq -c --arg selection "$selection" '.[] | select(.id == $selection or ((.aliases // []) | index($selection)))' | head -n1)
+  if [[ -z $harness ]]; then
+    echo "Usage: omarchy-default-agent <local|harness>"
+    echo "Unknown coding-agent harness: $selection" >&2
+    echo "Install its integration with: omarchy plugin add <git-url>" >&2
+    exit 1
+  fi
+  agent=$(jq -r '.id' <<<"$harness")
+  name=$(jq -r '.name' <<<"$harness")
+  install_type=$(jq -r '.install.type' <<<"$harness")
+  command_name=$(jq -r '.install.command' <<<"$harness")
+  agent_installer=$(jq -r '.install.installer // empty' <<<"$harness")
+fi
 
-# Hermes and OpenClaw are self-updating runtimes in the user's home, Hermes the
-# desktop app's and OpenClaw the one its Control UI updates; see
-# omarchy-install-hermes-cli and omarchy-install-openclaw-cli. Every other agent
-# is a package that omarchy-install-ai-cli installs.
-if [[ -n ${agent_installer:-} ]]; then
+# What installing an agent means is the harness's declaration: Hermes and
+# OpenClaw are self-updating runtimes in the user's home with installers of
+# their own, every other built-in is a package omarchy-install-ai-cli installs,
+# Pi comes with the base install, and a third-party harness is the user's own.
+case "$install_type" in
+installer)
   # Not omarchy-cmd-present: a command on PATH says nothing about whether the
   # install behind it finished or runs the sessions omarchy-agent starts.
   # Treating it as installed would skip the floating terminal and run a
   # minutes-long install inside the menu action instead.
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
-elif [[ $agent == "pi" || $agent == "local" ]]; then
-  # Pi is one of Omarchy's base packages, and the local model opens in it, so
-  # there is nothing to install.
+  ;;
+none)
+  # Pi comes with the base install, and the local model opens in it.
   agent_present() { true; }
   agent_install() { true; }
-else
-  agent_present() { omarchy-install-ai-cli --check "$agent"; }
-  agent_install() { omarchy-install-ai-cli "$agent"; }
-fi
+  ;;
+manual)
+  # A third-party harness is the user's own install: Omarchy launches it and
+  # never touches it, so a missing command is theirs to put on PATH.
+  agent_present() { omarchy-cmd-present "$command_name"; }
+  agent_install() { return 0; }
+  ;;
+*)
+  agent_present() { omarchy-install-ai-cli --check "$command_name"; }
+  agent_install() { omarchy-install-ai-cli "$command_name"; }
+  ;;
+esac
 
 if [[ $checking == "true" ]]; then
   agent_present
@@ -100,8 +102,10 @@ fi
 if [[ $selecting == "true" ]] && ! agent_present; then
   # The agents panel's star on a subscription whose CLI isn't installed here
   # installs it in a terminal, then makes it the default.
-  if [[ -z ${agent_installer:-} && $agent != "local" && $agent != "pi" ]]; then
-    exec omarchy-launch-floating-terminal-with-presentation "omarchy-install-ai-cli $agent && omarchy-default-agent --select $agent"
+  # Only a package installs from here: an installer of its own needs a terminal
+  # step of its own, and a third-party harness is not Omarchy's to fetch.
+  if [[ $install_type == "package" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation "omarchy-install-ai-cli $command_name && omarchy-default-agent --select $agent"
   fi
   echo "$name is not installed" >&2
   exit 1
