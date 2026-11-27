@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Start fcitx5 without waking Xwayland on keyboard-only profiles
+# omarchy:hidden=true
+
+# notificationitem duplicates the tray entry omarchy already renders itself.
+# xcb and xim open $DISPLAY on startup, which wakes Hyprland's on-demand
+# Xwayland (~35 MiB) on every boot even when no X11 client is running. Disable
+# them when the user's Fcitx profile contains keyboard layouts alone; keep them
+# enabled whenever a CJK/composition engine is configured so X11/XIM clients
+# (Java AWT, Wine/Proton, Steam) retain full input-method support.
+
+disable="notificationitem"
+config_home="${FCITX_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5}"
+profile="$config_home/profile"
+
+if [[ -r $profile ]] && awk '
+  /^\[/ { in_item = /^\[Groups\/[0-9]+\/Items\/[0-9]+\]$/ }
+  in_item && /^Name=/ && $0 !~ /^Name=keyboard-/ { found = 1; exit }
+  END { exit found ? 1 : 0 }
+' "$profile"; then
+  disable+=",xcb,xim"
+fi
+
+exec /usr/bin/fcitx5 --replace --disable "$disable"
