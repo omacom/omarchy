@@ -122,6 +122,34 @@ assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspa
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
+const fs = require('fs')
+const vm = require('vm')
+const dockQml = fs.readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
+const bringForwardFn = dockQml.match(/function bringForward\(window\) \{[\s\S]*?\n  \}/)[0]
+const dispatches = []
+const unsets = []
+const dockCtx = {
+  Hyprland: {
+    focusedMonitor: { activeWorkspace: { id: 2 } },
+    dispatch(expr) { dispatches.push(expr) }
+  },
+  scheduleNoAnimUnset(addr) { unsets.push(addr) }
+}
+vm.runInNewContext(bringForwardFn, dockCtx)
+
+let fallbackActivated = 0
+dockCtx.bringForward({ address: '0x1" }); os.execute("id"); --', minimized: false, toplevel: { activate() { fallbackActivated += 1 } } })
+assertEqual(dispatches.length, 0, 'dock bringForward rejects non-hex window addresses before Lua dispatch')
+assertEqual(fallbackActivated, 1, 'dock bringForward falls back to toplevel.activate on invalid address')
+
+dockCtx.bringForward({ address: 'deadbeef', minimized: false, toplevel: { activate() {} } })
+assert(dispatches.length === 2 && dispatches.every(d => d.includes('address:0xdeadbeef')), 'dock bringForward dispatches valid hex addresses in-process')
+
+dispatches.length = 0
+dockCtx.bringForward({ address: '0xabcd', minimized: true, toplevel: { activate() {} } })
+assertEqual(dispatches.length, 4, 'dock bringForward restores minimized windows and brings them forward in-process')
+assertDeepEqual(unsets, ['0xabcd'], 'dock bringForward schedules no_anim unset after restoring a minimized window')
+
 JS
 
 home="$TMPDIR/home"

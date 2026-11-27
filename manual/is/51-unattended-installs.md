@@ -1,36 +1,36 @@
-# Ómönnuð uppsetning
+# Uppsetningar án viðveru
 
-Omarchy ISO-ið getur sett sig upp án þess að nokkur sé við lyklaborðið. Ef uppsetningarforritið finnur annað drif merkt `cidata` með stillingarskrám þess afritar það þær þaðan, sleppir uppsetningarhjálpinni alfarið og endurræsir sjálft inn í fullbúið kerfið. Engin sérstök ISO-smíði, enginn auka valkostur í ræsivalmyndinni — án slíks drifs breytist ekkert og þú færð venjulegu uppsetningarhjálpina.
+Omarchy ISO-skráin getur sett sig upp án þess að nokkur sé við lyklaborðið. Ef uppsetningarforritið finnur annað drif merkt `cidata` með stillingarskrám sínum afritar það þær, sleppir uppsetningarhjálpinni alfarið og endurræsir sjálft inn í fullbúið kerfi. Engin sérstök ISO-bygging, enginn auka valmyndaratriði í ræsingu — ef ekkert slíkt drif er tengt breytist ekkert og þú færð venjulegu uppsetningarhjálpina.
 
-Þetta gerir Omarchy að frábærum grunnmyndum fyrir einnota þróunarumhverfi: búðu til VM í Proxmox eða með Packer, ræstu hana, farðu í burtu og tengstu inn með SSH. `cidata` er `NoCloud`-merkið frá cloud-init, svo öll algeng sýndarvæðingartól vita nú þegar hvernig á að tengja slíkt drif.
+Þetta gerir Omarchy að frábærum grunnmynd fyrir einnota þróunarumhverfi: búðu til VM í Proxmox eða með Packer, ræstu hana, farðu í burtu og tengstu inn með SSH. `cidata` er `NoCloud`-merkið frá cloud-init, svo öll algeng sýndarvæðingartól vita þegar hvernig á að tengja slíkt drif.
 
 ## Stillingarskrárnar
 
-Skrárnar eru nákvæmlega það sem uppsetningarhjálp uppsetningarforritsins skrifar sjálf, svo auðveldasta leiðin til að fá byrjunarsafn er að keyra eina gagnvirka uppsetningu (til dæmis í VM) og afrita það sem hún skrifaði í `/root`:
+Skrárnar eru nákvæmlega það sem uppsetningarhjálp uppsetningarforritsins skrifar sjálf, svo auðveldasta leiðin til að fá byrjunarsett er að keyra eina gagnvirka uppsetningu (í VM, til dæmis) og afrita það sem hún skrifaði í `/root`:
 
-| Skrá | Nauðsynleg | Tilgangur |
+| Skrá | Krafist | Tilgangur |
 |------|----------|---------|
-| `user_configuration.json` | Já | Diskur, vélarheiti, tímabelti, lyklaborð |
-| `user_credentials.json` | Já | Notandanafn og tætigildi lykilorðs |
-| `user_encrypt_installation.txt` | Nei | `true` þegar stillingarnar innihalda `disk_encryption` blokk |
-| `authorized_keys` | Nei | Opinberir SSH-lyklar, einn í hverri línu |
+| `user_configuration.json` | Já | Diskur, vélarnafn, tímabelti, lyklaborð |
+| `user_credentials.json` | Já | Notendanafn og kássa lykilorðs, og LUKS-aðgangsorðið fyrir dulritaða uppsetningu |
+| `user_encrypt_installation.txt` | Nei | `true` þegar stillingin inniheldur `disk_encryption` reit |
+| `authorized_keys` | Nei | SSH-dreifilyklar, einn í hverri línu |
 | `tailscale_authkey` | Nei | Tailscale-auðkenningarlykill til að tengjast tailnet-inu þínu við fyrstu ræsingu |
 
-Búðu til tætigildi lykilorðsins fyrir `user_credentials.json` með `openssl passwd -6 "yourpassword"`.
+Búðu til kássu lykilorðsins fyrir `user_credentials.json` með `openssl passwd -6 "yourpassword"`.
 
-Nafnið og netfangið fyrir git-commit eru ekki hluti af uppsetningunni. Stilltu þau þegar vélin er komin í gang, til dæmis yfir SSH, með `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+Nafn og netfang fyrir git-skráningar eru ekki hluti af uppsetningunni. Stilltu þau þegar vélin er komin í gang, yfir SSH til dæmis, með `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-Þú getur líka sett inn tóma skrá sem heitir `defer-provisioning` í stað `user_credentials.json`. Það keyrir sömu [uppsetningu sem undirbýr vélina fyrir annan eiganda](02-getting-started.md) og þú getur ræst gagnvirkt: vélin setur upp án nokkurra persónuupplýsinga, og sá sem ræsir hana fyrst velur lyklaborðið sitt og býr til notandann sinn. Það er stillingin fyrir myndavélar, þar sem drifið á alls ekki að geyma innskráningarupplýsingar nokkurs manns.
+Þú getur líka sett inn tóma skrá sem heitir `defer-provisioning` í stað `user_credentials.json`. Það keyrir sömu [uppsetningu þar sem vélin er undirbúin fyrir annan eiganda](02-getting-started.md) og þú getur ræst gagnvirkt: vélin er sett upp án nokkurra persónulegra upplýsinga, og sá sem ræsir hana fyrst velur lyklaborð sitt og býr til notandann sinn. Það er hamurinn fyrir myndavélar, þar sem drifið á alls ekki að geyma skilríki nokkurs manns.
 
 ## SSH-aðgangur
 
-Þegar `authorized_keys` er til staðar setur uppsetningin lykla þína upp sem `~/.ssh/authorized_keys` notandans, virkjar `sshd` og opnar eldvegginn fyrir honum. (Venjuleg Omarchy-uppsetning fylgir með openssh með þjónustuna óvirka og gáttina lokaða, svo ómönnuð vél væri annars óaðgengileg.) Uppsetningin bætir aðeins lyklunum þínum við — hún losar ekki um neinar aðrar auðkenningarstillingar SSH-þjónsins.
+Þegar `authorized_keys` er til staðar setur uppsetningin lyklana upp sem `~/.ssh/authorized_keys` notandans, virkjar `sshd` og opnar eldvegginn fyrir hann. (Venjuleg Omarchy-uppsetning fylgir með openssh með þjónustuna óvirka og gáttina lokaða, svo vél án viðveru væri annars óaðgengileg.) Uppsetningin bætir aðeins við lyklunum þínum — hún slakar ekki á neinum öðrum auðkenningarstillingum SSH-púkans.
 
-Þegar `tailscale_authkey` er til staðar tengist vélin tailnet-inu þínu við fyrstu ræsingu í staðinn: Tailscale er sett upp úr pökkunum sem fylgja ISO-inu, eldveggurinn leyfir viðmót tailnet-sins og bakgrunnsverk keyrir tenginguna um leið og vélin er raunverulega komin með net, og reynir aftur þar til það tekst. Notaðu endurnotanlegan, fyrirfram heimilaðan lykil svo ein drifmynd geti þjónað mörgum vélum.
+Þegar `tailscale_authkey` er til staðar tengist vélin tailnet-inu þínu við fyrstu ræsingu þess í staðinn: Tailscale er sett upp af meðfylgjandi pökkum ISO-skrárinnar, eldveggurinn leyfir tailnet-viðmótið og bakgrunnsverk keyrir tenginguna um leið og vélin hefur í raun net, og reynir aftur þar til það tekst. Notaðu endurnotanlegan, fyrirfram heimilaðan lykil svo ein drifmynd geti þjónað mörgum vélum.
 
 ## Að búa til cidata-drifið
 
-Hvaða skráarkerfi sem er með rétta merkið virkar. Lítið ISO er auðveld leið:
+Hvaða skráarkerfi sem er með rétta merkið virkar. Lítil ISO-skrá er auðvelda leiðin:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Tengdu það síðan við VM-ina ásamt Omarchy ISO-inu. Hér er fullt Proxmox-dæmi:
+Tengdu það síðan við VM samhliða Omarchy ISO-skránni. Hér er fullt Proxmox-dæmi:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Ræsingarröðin setur diskinn fyrst viljandi: auði diskurinn fellur í gegn að ISO-inu við fyrstu ræsingu, og uppsetta kerfið ræsir af diski upp frá því.
+Ræsingarröðin listar diskinn fyrst viljandi: tómi diskurinn fellur í gegn að ISO-skránni við fyrstu ræsingu, og uppsetta kerfið ræsist af diski upp frá því.
 
 ## Tveir fyrirvarar
 
-Dulrituð ómönnuð uppsetning er ekki alveg ómönnuð — einhver þarf samt að slá inn LUKS-lykilorðið við fyrstu ræsingu. Og `disk_encryption` blokkin í `user_configuration.json` geymir það lykilorð í hreinum texta, svo farðu með cidata-drif sem er búið til úr dulritaðri uppsetningu eins og leyndarmálið sem það er.
+Dulritaðar uppsetningar án viðveru eru ekki alveg án viðveru — einhver þarf samt að slá inn LUKS-aðgangsorðið við fyrstu ræsingu. Og það aðgangsorð fer á efsta stig `user_credentials.json` sem `encryption_password` — archinstall les það þaðan, ekki úr `disk_encryption` reitnum í `user_configuration.json` — svo farðu með cidata-drif sem er byggt úr dulritaðri uppsetningu eins og leyndarmálið sem það er.
