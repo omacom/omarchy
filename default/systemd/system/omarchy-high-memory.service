@@ -1,0 +1,11 @@
+[Unit]
+Description=Cap app.slice MemoryMax on >=64 GiB machines
+Before=user@.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-hw-app-slice-cap
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

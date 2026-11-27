@@ -16,6 +16,7 @@ systemctl enable \
   power-profiles-daemon.service \
   sddm.service \
   systemd-oomd.service \
+  omarchy-high-memory.service \
   omarchy-shutdown-ramfs.timer
 
 # Don't let network-online.target hold up graphical.target waiting for

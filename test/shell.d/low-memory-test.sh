@@ -42,3 +42,48 @@ run_low_memory
 [[ ! -e $zram_dir && ! -e $sysctl_dir ]] ||
   fail "unreadable MemTotal writes no overrides"
 pass "unreadable MemTotal exits cleanly without writing overrides"
+
+runtime_dir="$test_tmp/run-systemd-user"
+app_cap="$runtime_dir/app.slice.d/20-omarchy-high-memory.conf"
+
+run_high_memory() {
+  OMARCHY_MEMINFO="$meminfo" \
+    OMARCHY_USER_RUNTIME_DIR="$runtime_dir" \
+    "$ROOT/bin/omarchy-hw-app-slice-cap"
+}
+
+# 32 GiB machine (<56 GiB threshold) stays uncapped.
+printf 'MemTotal:       32768000 kB\n' >"$meminfo"
+run_high_memory
+[[ ! -e $app_cap ]] ||
+  fail "32 GiB machine stays uncapped"
+pass "32 GiB and smaller machines stay uncapped"
+
+# 56 GiB exact threshold writes cap reserving 11 GiB (57344 - 11264 = 46080M).
+printf 'MemTotal:       58720256 kB\n' >"$meminfo"
+run_high_memory
+grep -Fqx 'MemoryMax=46080M' "$app_cap" ||
+  fail "56 GiB boundary reserves 11 GiB outside app.slice" "$(cat "$app_cap" 2>/dev/null || true)"
+pass "56 GiB boundary writes app.slice MemoryMax with 11 GiB reserve"
+
+# 128 GiB machine (~125 GiB MemTotal) reserves 11 GiB -> 116736M.
+printf 'MemTotal:      131072000 kB\n' >"$meminfo"
+run_high_memory
+grep -Fqx 'MemoryMax=116736M' "$app_cap" ||
+  fail "128 GiB machine reserves 11 GiB outside app.slice" "$(cat "$app_cap" 2>/dev/null || true)"
+pass "128 GiB machine reserves 11 GiB outside app.slice"
+
+# Shrinking below 56 GiB (e.g. Strix Halo BIOS UMA split change) removes stale cap.
+printf 'MemTotal:       32768000 kB\n' >"$meminfo"
+run_high_memory
+[[ ! -e $app_cap ]] ||
+  fail "shrinking below 56 GiB removes stale app.slice cap"
+pass "shrinking below 56 GiB removes stale app.slice cap"
+
+# Corrupt /proc/meminfo on a fresh directory writes nothing.
+printf 'corrupt\n' >"$meminfo"
+rm -rf "$runtime_dir"
+run_high_memory
+[[ ! -e $runtime_dir ]] ||
+  fail "unreadable MemTotal writes no runtime app.slice cap"
+pass "unreadable MemTotal exits cleanly without writing app.slice cap"

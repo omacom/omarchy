@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# omarchy:summary=Cap app.slice MemoryMax at boot on >=64 GiB machines
+# omarchy:hidden=true
+
+# On >=64 GiB machines, zram is capped at 8 GiB (min(ram / 2, 8192)), shrinking
+# to <=12.5% of RAM (~6% at 128 GiB). Parallel workloads across 16-32 threads
+# can allocate at 8-30+ GB/s and exhaust all 8 GiB of zram in under a second --
+# beating systemd-oomd's polling loop and triggering global kernel OOM kills
+# against Hyprland/Quickshell/PipeWire or multi-minute order:0 allocation
+# lockups.
+#
+# Recompute app.slice's MemoryMax into /run/systemd/user/app.slice.d/ on every
+# boot so RAM upgrades and Strix Halo BIOS UMA split changes never leave a
+# stale static cap, and so admin/user overrides in /etc or ~/.config always
+# take precedence over /run. Reserve a fixed 11 GiB (8 GiB worst-case
+# uncompressed zram + ~3 GiB for session.slice, system.slice, and kernel
+# reserves) outside app.slice. Note: memcg-uncharged driver/GPU pools and
+# rootful Docker in system.slice are outside app.slice's accounting.
+
+set -euo pipefail
+
+meminfo=${OMARCHY_MEMINFO:-/proc/meminfo}
+runtime_dir=${OMARCHY_USER_RUNTIME_DIR:-/run/systemd/user}
+dropin_dir="$runtime_dir/app.slice.d"
+dropin_file="$dropin_dir/20-omarchy-high-memory.conf"
+# 56 GiB catches 64 GiB machines (whose MemTotal reads ~60-63 GiB) and larger,
+# while leaving 4-32 GiB machines uncapped (where reserving 11 GiB would claim
+# over a third of RAM).
+high_memory_kib=58720256
+reserve_mib=11264
+
+write_atomic() {
+  local dest=$1 tmp
+  tmp=$(mktemp "$(dirname "$dest")/.$(basename "$dest").XXXXXX") || return 1
+  if cat >"$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$dest"; then
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+total_kib=$(awk '$1 == "MemTotal:" { print $2; exit }' "$meminfo" 2>/dev/null)
+if [[ ! $total_kib =~ ^[0-9]+$ ]] || (( total_kib == 0 )); then
+  exit 0
+fi
+
+if (( total_kib >= high_memory_kib )); then
+  total_mib=$(( total_kib / 1024 ))
+  app_max_mib=$(( total_mib - reserve_mib ))
+
+  mkdir -p "$dropin_dir"
+
+  # Named to sort after /usr/lib/systemd/user/app.slice.d/10-oomd.conf while
+  # staying below /etc/systemd/user/ and ~/.config/systemd/user/ overrides.
+  write_atomic "$dropin_file" <<CONF
+# >=64 GiB machines: contain fast app.slice bursts before they outrun
+# systemd-oomd and trigger global kernel OOM; generated at boot by
+# omarchy-hw-app-slice-cap.
+[Slice]
+MemoryMax=${app_max_mib}M
+CONF
+else
+  rm -f "$dropin_file"
+fi
