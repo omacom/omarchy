@@ -346,19 +346,21 @@ Panel {
     return false
   }
 
+  function releaseScanner() {
+    if (!scannerDevice) return
+    if (otherPanelOpen()) scannerDevice = null
+    else setScannerEnabled(false)
+  }
+
   Component.onDestruction: {
-    scanStop.stop()
     if (scannerDevice && !otherPanelOpen()) scannerDevice.scannerEnabled = false
-    scannerDevice = null
   }
 
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
-      var alreadyScanning = !!(wifiDevice && wifiDevice.scannerEnabled === true)
-      scanStop.stop()
-      refresh(!alreadyScanning)
+      refresh(!(wifiDevice && wifiDevice.scannerEnabled))
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -382,9 +384,11 @@ Panel {
       routerPingLatency = -1
       internetPingLatency = -1
       internetPingPacketLoss = 0
-      // Defer scannerEnabled = false past the close animation: Quickshell's
-      // NetworkManager property write blocks the UI thread for ~80-100ms.
-      if (scannerDevice) scanStop.restart()
+      // Quickshell's WifiDevice.scannerEnabled write is synchronous on D-Bus
+      // (~80-100ms), so wait for KeyboardPanel's close fade to finish
+      // (panel.onVisibleChanged) before releasing it; release now only if the
+      // panel is already hidden.
+      if (!panel.visible) releaseScanner()
     }
   }
 
@@ -1132,17 +1136,6 @@ Panel {
   }
 
   Timer {
-    id: scanStop
-    interval: Math.max(16, Style.duration(200))
-    repeat: false
-    onTriggered: {
-      if (root.opened) return
-      if (root.otherPanelOpen()) root.scannerDevice = null
-      else root.setScannerEnabled(false)
-    }
-  }
-
-  Timer {
     id: scanDone
     interval: 1500
     repeat: false
@@ -1321,6 +1314,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    onVisibleChanged: if (!visible && !root.opened) root.releaseScanner()
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
