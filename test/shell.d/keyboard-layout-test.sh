@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
-const model = requireFromRoot('shell/plugins/bar/widgets/KeyboardLayoutModel.js')
+const model = requireFromRoot('shell/Commons/KeyboardLayoutModel.js')
 
 const japanese = { methods: ['keyboard-us', 'mozc'], current: 'mozc', name: 'Mozc', language: 'ja' }
 assertEqual(model.inputLabel(japanese, 'EN'), 'あ', 'Japanese input has a distinct active label')
@@ -161,7 +161,7 @@ assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names 
 assertEqual(model.eventKeyboardName(rawEvent('asus-wmi-hotkeys,French')), '', 'vendor hotkeys cannot replace the last typed keyboard')
 assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,English (US)')), '', 'radio events are excluded from keyboard selection')
 {
-  const widget = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/KeyboardLayout.qml'), 'utf8')
+  const widget = require('fs').readFileSync(path.join(root, 'shell/Commons/KeyboardLayoutState.qml'), 'utf8')
   assert(!/Component\.onCompleted: \{[\s\S]*?briefsProc\.running = true/.test(widget), 'the xkb layout table is not read at startup')
   const load = new Function('state', 'briefsProc', widget.match(/function loadBriefs\(\) \{([\s\S]*?)\n  \}/)[1].replace(/\b(needsBriefs|briefsRequested)\b/g, 'state.$1'))
   const proc = { running: false }

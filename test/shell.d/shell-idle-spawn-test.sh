@@ -260,7 +260,7 @@ allow() {
 # Which ones count is the widget's own call, so ask its model.
 keyboard_widget_polls() {
   hyprctl -j devices 2>/dev/null | ROOT="$ROOT" node -e '
-    const model = require(require("path").join(process.env.ROOT, "shell/plugins/bar/widgets/KeyboardLayoutModel.js"))
+    const model = require(require("path").join(process.env.ROOT, "shell/Commons/KeyboardLayoutModel.js"))
     let devices = {}
     try { devices = JSON.parse(require("fs").readFileSync(0, "utf8")) } catch (e) {}
     const typed = (devices.keyboards || []).filter(keyboard => model.isTypedKeyboard(keyboard.name))
@@ -279,13 +279,13 @@ add_allowances() {
   # program on the desktop can make at any moment.
   allow '/shell/plugins/clipboard/capture\.sh ' "" "runs on each clipboard change"
 
-  # The keyboard layout widget, one per screen, asks every 10s while the seat
-  # has more than one keyboard: Hyprland raises no event when a keyboard
-  # arrives or leaves, so which one the label describes can only be learned by
-  # asking. It also keeps asking while no keyboard reports a keymap, until a
-  # reading it can use lands.
+  # The keyboard layout reading, one for the whole shell, asks every 10s while
+  # the seat has more than one keyboard: Hyprland raises no event when a
+  # keyboard arrives or leaves, so which one the label describes can only be
+  # learned by asking. It also keeps asking while no keyboard reports a keymap,
+  # until a reading it can use lands.
   if keyboard_widget_polls; then
-    allow '(^|/)hyprctl -j devices$' $(( screens * (IDLE_WINDOW / 10 + 1) )) \
+    allow '(^|/)hyprctl -j devices$' $(( IDLE_WINDOW / 10 + 1 )) \
       "the keyboard widget's 10s check of a seat with several keyboards, or none it can read"
   fi
 
