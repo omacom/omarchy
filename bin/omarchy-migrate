@@ -101,7 +101,7 @@ migration_needs_pacman_write() {
     if [[ $sourced == ./* || $sourced == ../* ]]; then
       sourced="$(dirname "$file")/$sourced"
     elif [[ $sourced != /* ]]; then
-      sourced="${OMARCHY_PATH:-/usr/share/omarchy}/$sourced"
+      sourced="$OMARCHY_PATH/$sourced"
     fi
     if [[ -f $sourced ]] && migration_needs_pacman_write "$sourced" "$visited"; then
       return 0
@@ -110,11 +110,11 @@ migration_needs_pacman_write() {
 
   while IFS= read -r helper; do
     [[ -n $helper ]] || continue
-    helper_path="${OMARCHY_PATH:-/usr/share/omarchy}/bin/$helper"
+    helper_path="$OMARCHY_PATH/bin/$helper"
     if [[ -f $helper_path ]] && migration_needs_pacman_write "$helper_path" "$visited"; then
       return 0
     fi
-  done < <(sed -e 's/^[[:space:]]*#.*//' -e 's/[[:space:]]#.*//' "$file" 2>/dev/null | grep -o -E '\bomarchy-install-[a-zA-Z0-9_-]+' | sort -u)
+  done < <(sed -e 's/^[[:space:]]*#.*//' -e 's/[[:space:]]#.*//' "$file" 2>/dev/null | grep -o -E '\bomarchy-(install|update|pkg|refresh)-[a-zA-Z0-9_-]+' | sort -u)
 
   return 1
 }

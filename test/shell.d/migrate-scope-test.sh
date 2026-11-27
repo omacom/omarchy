@@ -259,3 +259,29 @@ TEST_CALLS="$db_calls" \
 ! grep -q '^db-pkg-ran$' "$db_calls" || fail "database modification migration was not stopped while pacman is locked"
 [[ ! -f $db_home/.local/state/omarchy/migrations/100-db-pkg.sh ]] || fail "database modification migration marker was not written"
 pass "pacman lock stops database modification migrations (pacman -D)"
+
+update_root="$test_tmp/update-omarchy"
+update_home="$test_tmp/update-home"
+update_calls="$test_tmp/update-calls"
+update_lock="$test_tmp/update-db.lck"
+touch "$update_lock" "$update_calls"
+mkdir -p "$update_root/migrations" "$update_root/bin" "$update_home"
+
+cat >"$update_root/bin/omarchy-update-dummy-pkgs" <<'SH'
+#!/bin/bash
+omarchy-update-pacman -Syu --noconfirm
+SH
+chmod +x "$update_root/bin/omarchy-update-dummy-pkgs"
+
+cat >"$update_root/migrations/100-update-pkgs.sh" <<'SH'
+omarchy-update-dummy-pkgs
+echo update-pkgs-ran >>"$TEST_CALLS"
+SH
+
+OMARCHY_PACMAN_LOCK_FILE="$update_lock" \
+OMARCHY_MIGRATION_PACMAN_TIMEOUT=0 \
+TEST_CALLS="$update_calls" \
+  run_migrate "$update_home" "$update_root" >"$test_tmp/update-locked.out" 2>&1
+
+! grep -q '^update-pkgs-ran$' "$update_calls" || fail "a migration upgrading through an update helper was not stopped while pacman is locked"
+pass "pacman lock stops migrations that upgrade through an omarchy-update- helper"
