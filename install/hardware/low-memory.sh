@@ -15,6 +15,16 @@ zram_dir=${OMARCHY_ZRAM_DIR:-/etc/systemd/zram-generator.conf.d}
 # leaving 12 GiB and larger machines on the default profile.
 low_memory_kib=9437184
 
+write_atomic() {
+  local dest=$1 tmp
+  tmp=$(mktemp "$(dirname "$dest")/.$(basename "$dest").XXXXXX") || return 1
+  if cat >"$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$dest"; then
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
 total_kib=$(awk '$1 == "MemTotal:" { print $2; exit }' "$meminfo" 2>/dev/null)
 if [[ ! $total_kib =~ ^[0-9]+$ ]] || (( total_kib == 0 )); then
   return 0 2>/dev/null || exit 0
@@ -24,14 +34,14 @@ if (( total_kib <= low_memory_kib )); then
   mkdir -p "$zram_dir" "$sysctl_dir"
 
   # Named to sort after 90-omarchy.conf and 99-omarchy-sysctl.conf.
-  cat >"$zram_dir/95-omarchy-low-memory.conf" <<'CONF'
+  write_atomic "$zram_dir/95-omarchy-low-memory.conf" <<'CONF'
 # <=8 GiB machines: full-RAM zstd zram; see install/hardware/low-memory.sh.
 [zram0]
 zram-size = ram
 compression-algorithm = zstd
 CONF
 
-  cat >"$sysctl_dir/zz-omarchy-low-memory.conf" <<'CONF'
+  write_atomic "$sysctl_dir/zz-omarchy-low-memory.conf" <<'CONF'
 # <=8 GiB machines: compress cold app.slice pages to RAM-backed zram instead of
 # evicting executable page cache to disk (session.slice has MemorySwapMax=0);
 # see install/hardware/low-memory.sh.
