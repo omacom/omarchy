@@ -673,4 +673,19 @@ assertEqual(state.keyRows.flat().filter(item => item.kind === 'choice').length, 
 state.resetKeys()
 assertEqual(state.cursorActive, true, 'resetKeys activates the cursor once choices appear')
 assertDeepEqual(state.keyRows[state.keyRow][state.keyColumn], { kind: 'choice', index: 'claude' }, 'first choice is selected once choices appear')
+
+// A tile that signs in through a terminal is never answered by the check, and
+// one that signs in as another provider is answered under that provider's id.
+state.addGroup = group => group === 'subscription' ? [
+  { providerId: 'minimax', group: 'moreSubscriptions' },
+  { providerId: 'kimi', group: '', terminalLogin: true },
+  { providerId: 'opencode-go', group: 'moreSubscriptions', signsInAs: 'opencode' }
+] : []
+state.addChecks = { minimax: 'first', opencode: 'first' }
+assertEqual(state.checkingAccounts, false, 'terminal sign-in tiles and tiles answered under another provider do not keep the account check spinner up')
+state.addChecks = { opencode: 'first' }
+assertEqual(state.checkingAccounts, true, 'a tile the check has not answered keeps the spinner up beside a terminal sign-in tile')
+state.addChecks = { minimax: 'first', opencode: 'first' }
+state.resetKeys()
+assertDeepEqual(state.keyRows[state.keyRow][state.keyColumn], { kind: 'choice', index: 'minimax' }, 'the first tile of the first group takes the cursor, whichever provider it is')
 JS

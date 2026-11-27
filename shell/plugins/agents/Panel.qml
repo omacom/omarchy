@@ -1952,7 +1952,7 @@ Panel {
   // A subscription can't be picked until the check says whether it would be
   // a first sign-in or another account.
   readonly property bool checkingAccounts: checkProcess.running
-    && addGroup("subscription").concat(addGroup("provider")).some(function(p) { return !p.more && !addChecks[p.providerId] })
+    && addGroup("subscription").concat(addGroup("provider")).some(function(p) { return !p.more && !p.terminalLogin && !addChecks[p.signsInAs || p.providerId] })
   // The + in the hero turns into the X that leaves adding. A first setup has
   // nothing to go back to until an agent is chosen.
   readonly property bool addButtonShown: !blankSlate || !picking
