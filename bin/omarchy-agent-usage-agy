@@ -374,13 +374,39 @@ def extract_model_limits(data):
 
 # The bearer token goes wherever CLOUD_CODE_URL points, so a destination
 # named there is taken only over https, and anything else is Google's own.
+# Google answers only the quota groups the client asking may see: asked as a
+# bare "antigravity" it leaves the Gemini group out, so a plan's own windows
+# never appear and only the Claude and GPT allowance does. This names the CLI
+# and its version, as agy does; Google answers a version below 1.2, or one
+# without a patch level, the same way it answers no client at all.
+CLIENT_USER_AGENT_FALLBACK = "1.5.18"
+_client_user_agent = ""
+
+
+def client_user_agent():
+  global _client_user_agent
+  if not _client_user_agent:
+    version = CLIENT_USER_AGENT_FALLBACK
+    agy = shutil.which("agy")
+    if agy:
+      try:
+        printed = subprocess.run([agy, "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5).stdout
+        named = re.search(r"\d+\.\d+\.\d+", printed)
+        if named:
+          version = named.group(0)
+      except (OSError, subprocess.SubprocessError):
+        pass
+    _client_user_agent = f"antigravity/cli/{version} (aidev_client; auth_method=consumer)"
+  return _client_user_agent
+
+
 def post(endpoint, token, body=None):
   base = (os.environ.get("CLOUD_CODE_URL") or DEFAULT_CLOUD_CODE_URL).rstrip("/")
   if not base.startswith("https://"):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": client_user_agent()},
   )
   return open_json(request, timeout=8)
 
