@@ -280,6 +280,7 @@ assertEqual(
   'Could not set DNS to Cloudflare. Error executing command as another user: No such file or directory',
   'network shows the DNS command error under the provider that did not change'
 )
+assertEqual(network.dnsFailureMessage("Failed to modify connection 'Lab $&'", 'Google'), "Could not set DNS to Google. Failed to modify connection 'Lab $&'", 'network preserves dollar sequences in DNS errors')
 assertEqual(network.dnsFailureMessage('   \n', 'Google'), 'Could not set DNS to Google.', 'network still names the provider when a DNS change prints nothing')
 assertEqual(
   network.dnsFailureMessage('x'.repeat(200), 'DHCP'),

@@ -429,7 +429,10 @@ function dnsFailureMessage(stderr, provider, tr) {
   var name = String(provider || "").trim() || "DNS"
   var detail = String(stderr || "").replace(/\s+/g, " ").trim()
   if (detail.length > 180) detail = detail.slice(0, 179) + "…"
-  return t("network.dnsChangeFailed", "Could not set DNS to %1. %2").replace("%1", name).replace("%2", detail).trim()
+  return t("network.dnsChangeFailed", "Could not set DNS to %1. %2")
+    .replace("%1", name)
+    .replace("%2", function() { return detail })
+    .trim()
 }
 
 function networkFailureReason(reason, needsCredentials, reasons, tr) {
