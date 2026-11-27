@@ -311,7 +311,16 @@ case $1 in
     echo none >"$BT_TEST_DIR/rfkill"
     echo "idx 9 type 2 op 1 soft 1 hard 0" >>"$BT_TEST_DIR/rfkill-events"
     ;;
-  is-blocked) [[ $(<"$BT_TEST_DIR/rfkill") == blocked ]] ;;
+  delay-query) touch "$BT_TEST_DIR/delay-query" ;;
+  is-blocked)
+    state=$(<"$BT_TEST_DIR/rfkill")
+    if [[ -f $BT_TEST_DIR/delay-query ]]; then
+      rm "$BT_TEST_DIR/delay-query"
+      echo query-delayed >>"$BT_TEST_DIR/log"
+      sleep 1
+    fi
+    [[ $state == "blocked" ]]
+    ;;
 esac
 SH
 # rfkill event: the switch changes the panel follows while the radio is off.
@@ -331,6 +340,7 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "bluetooth radio-off fixture has no QML errors" "$output"
 fi
 grep -qx on "$stage/log" || fail "the panel switch turns a blocked radio back on"
+grep -qx query-delayed "$stage/log" || fail "the runtime test overlaps an in-flight rfkill query"
 pass "bluetooth keeps the widget through turn-off, turn-on, no hardware, a blocked startup and an unplugged radio in QML"
 # CLI tests for `omarchy-bluetooth` (`omarchy bluetooth ...`).
 cli_tmp=$(mktemp -d)

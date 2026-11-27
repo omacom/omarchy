@@ -667,8 +667,12 @@ Panel {
     property bool again: false
     command: ["omarchy-bluetooth-power", "is-blocked"]
     onExited: function(exitCode) {
-      root.radioPresent = root.adapter !== null || exitCode === 0
-      if (again) { again = false; running = true }
+      if (again) {
+        again = false
+        running = true
+      } else {
+        root.radioPresent = root.adapter !== null || exitCode === 0
+      }
     }
   }
 

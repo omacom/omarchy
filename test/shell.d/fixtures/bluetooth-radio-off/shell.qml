@@ -85,6 +85,31 @@ ShellRoot {
     check(panel.visible, "turning on keeps the widget while the controller boots (hid " + hides + " times)")
     BluetoothMock.defaultAdapter = BluetoothMock.adapter
     check(panel.visible && panel.radioEnabled && panel.icon === "󰂯", "returning adapter shows the on widget")
+    test.runCli("delay-query", startStaleQuery)
+  }
+
+  function startStaleQuery() {
+    BluetoothMock.defaultAdapter = null
+    after(overlapQuery)
+  }
+
+  function overlapQuery() {
+    BluetoothMock.defaultAdapter = BluetoothMock.adapter
+    test.runCli("off", function() {
+      BluetoothMock.defaultAdapter = null
+      test.after(function() { test.after(test.staleQueryChecks) })
+    })
+  }
+
+  function staleQueryChecks() {
+    check(hides === 0, "an obsolete query never hides the widget before its queued refresh")
+    test.runCli("on", function() {
+      BluetoothMock.defaultAdapter = BluetoothMock.adapter
+      test.after(removeAdapter)
+    })
+  }
+
+  function removeAdapter() {
     // No block this time: bluetoothd stopped or the module unloaded.
     BluetoothMock.defaultAdapter = null
     after(noHardwareChecks)
