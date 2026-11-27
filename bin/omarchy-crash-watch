@@ -52,13 +52,19 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    #
+    # Missing or non-text status must not suppress a crash.
+    IFS=$'\t' read -r uid comm pid exe signal tracer < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
+             def tracer: if type == "string"
+                         then (capture("(?m)^TracerPid:\\s*(?<pid>[0-9]+)").pid // "0")
+                         else "0" end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.COREDUMP_PROC_STATUS | tracer)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
@@ -71,6 +77,9 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
     [[ $uid =~ ^[0-9]+$ ]] || continue
     ((uid == UID)) || continue
+
+    # Skip crashes already being debugged.
+    [[ $tracer =~ ^[0-9]+$ ]] && ((tracer != 0)) && continue
 
     # comm is truncated to 15 characters, so prefer the executable's basename.
     name=$comm
