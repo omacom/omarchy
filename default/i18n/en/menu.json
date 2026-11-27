@@ -386,16 +386,18 @@
     "label": "Laptop Display Off"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Display Mirroring On"
+    "label": "Mirror Display On"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Display Mirroring Off"
+    "label": "Mirror Display Off"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Switch to Hybrid GPU"
+    "label": "Switch to dGPU",
+    "description": "Enable hybrid dedicated GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Switch to Integrated GPU"
+    "label": "Switch to iGPU",
+    "description": "Use integrated GPU only"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Enable Touchpad"
