@@ -430,8 +430,12 @@ Panel {
       if (root.batteryService) root.syncActiveProfile(root.batteryService.activePowerProfile)
     }
     function onChargeLimitSignalsChanged() {
-      if (root.opened) root.refresh()
-      else root.refreshBatteryInfo()
+      if (root.opened) {
+        root.refresh()
+      } else {
+        root.reloadLimits()
+        root.refreshBatteryInfo()
+      }
     }
   }
 
