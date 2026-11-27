@@ -140,6 +140,17 @@ if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" && 
   echo "Cleared default coding agent $harness_id because its integration was removed."
 fi
 
+# A launcher omarchy-agent-launcher wrote from the declaration goes with it, or
+# the dock keeps an entry that starts a harness nothing provides any more. One
+# Omarchy ships is not this command's to delete, so only a marked file goes.
+if [[ -n $harness_id ]]; then
+  launcher="$HOME/.local/share/applications/omarchy-agent-$harness_id.desktop"
+  if [[ -f $launcher && ! -L $launcher ]] && grep -qxF '# Written by omarchy-agent-launcher.' "$launcher"; then
+    rm -f "$launcher"
+    update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+  fi
+fi
+
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
   echo "Restored $cloned_from."
 elif [[ $was_enabled == "true" ]]; then

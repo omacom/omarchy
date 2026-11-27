@@ -155,3 +155,33 @@ fi
 [[ $(jq -r '.agentHarness.id' "$plugins/acme.updated/manifest.json") == changed-agent ]] || fail "plugin update does not restore the previous manifest after rejection"
 [[ $(<"$agent_file") == claude ]] || fail "plugin update changes the default after rejection"
 pass "plugin update restores rejected harness changes"
+
+# A plugin harness has no launcher in default/applications and no row in the
+# agents panel, so the launcher written from its declaration is the only place
+# the dock and app grid can find it. Removing the integration takes it away,
+# while a launcher Omarchy ships is never touched.
+applications="$HOME/.local/share/applications"
+cat >"$mock_bin/update-desktop-database" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$mock_bin/update-desktop-database"
+
+mkdir -p "$plugins/acme.launcher"
+write_manifest "$plugins/acme.launcher" "launcher-agent"
+omarchy-agent-launcher launcher-agent
+launcher="$applications/omarchy-agent-launcher-agent.desktop"
+[[ -f $launcher ]] || fail "selecting a plugin harness writes a launcher for it"
+grep -qx "Exec=omarchy-agent --agent launcher-agent --app-id=org.omarchy.launcher-agent" "$launcher" ||
+  fail "the written launcher starts its harness"
+grep -qxF '# Written by omarchy-agent-launcher.' "$launcher" ||
+  fail "the written launcher is marked as this machinery's own"
+pass "selecting a plugin harness writes a launcher for it"
+
+# A launcher Omarchy ships is left where it is.
+printf '%s\n' 'shipped' >"$applications/omarchy-agent-shipped-agent.desktop"
+omarchy-plugin-remove acme.launcher --yes >/dev/null 2>&1 || true
+[[ ! -e $launcher ]] || fail "removing an integration leaves its written launcher behind"
+[[ -f $applications/omarchy-agent-shipped-agent.desktop ]] ||
+  fail "removing an integration deletes a launcher Omarchy ships"
+pass "removing an integration takes its written launcher and no other"
