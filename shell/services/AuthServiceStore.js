@@ -76,7 +76,9 @@ function hasActiveLock() {
   return false
 }
 
-// A polkit prompt is on screen from the request until its close animation ends.
+// The polkit dialog stays open until a request succeeds or is cancelled, and
+// through a drive unlock. Quickshell has answered polkitd by then, so a
+// reload after it closes cancels nothing.
 function hasOpenPrompt() {
   var keys = ids()
   for (var i = 0; i < keys.length; i++)
