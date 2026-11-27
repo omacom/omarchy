@@ -1,25 +1,49 @@
 #!/bin/bash
 
 # omarchy:summary=Screenshot a shell plugin's bar widget and report its QML errors
-# omarchy:args=<plugin-dir> [--out file.png]
-# omarchy:examples=omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter
+# omarchy:args=<plugin-dir> [--set property=value]... [--out file.png]
+# omarchy:examples=omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter | omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter --set count=42
 
 # Renders the plugin's bar widget in a bar-sized window with the current theme
 # and saves it as an image, so an agent sees its widget without reloading the
 # user's bar. The window floats without taking the focus and closes once
 # captured; the running shell is untouched. (Offscreen rendering can't load
 # widgets with a popup panel, which need layer shell.) Prints the QML errors
-# and warnings the plugin produced while loading.
+# and warnings the plugin produced while loading. --set gives a property of
+# the widget a value first (a number, true or false, or else a string), so
+# a state the widget only reaches later, a running timer or an alert, can be
+# looked at without editing the plugin.
 
 set -uo pipefail
 
+usage="Usage: omarchy agent look plugin <plugin-dir> [--set property=value]... [--out file.png]"
 if [[ -z ${1:-} || $1 == -* ]]; then
-  echo "Usage: omarchy agent look plugin <plugin-dir> [--out file.png]" >&2
+  echo "$usage" >&2
   exit 2
 fi
 plugin=$(realpath "$1")
+shift
 out=""
-[[ ${2:-} == "--out" ]] && out=$3
+sets="{}"
+# A value that reads as JSON (42, true, [1, 2]) is that; anything else is the string.
+set_property() {
+  sets=$(jq -c --arg key "${1%%=*}" --arg value "${1#*=}" '. + {($key): ($value | try fromjson catch $value)}' <<<"$sets")
+}
+while (( $# )); do
+  case $1 in
+    --out) out=${2:?--out needs a file}; shift 2 ;;
+    --set)
+      if [[ ${2:-} != [A-Za-z_]*=* ]]; then
+        echo "--set takes property=value, like --set count=42" >&2
+        exit 2
+      fi
+      set_property "$2"
+      shift 2 ;;
+    # --set a=1 b=2 sets both.
+    [A-Za-z_]*=*) set_property "$1"; shift ;;
+    *) echo "$usage" >&2; exit 2 ;;
+  esac
+done
 [[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
 entry=$(jq -r '.entryPoints.barWidget // empty' "$plugin/manifest.json" 2>/dev/null)
 if [[ -z $entry ]]; then
@@ -52,15 +76,16 @@ ShellRoot {
     implicitWidth: 640
     implicitHeight: Style.bar.sizeHorizontal + 16
     color: Color.background
-    // Only this bar-sized strip is captured, whatever size the compositor
-    // gives the window.
+    // Only this strip of bar is captured, whatever size the compositor gives
+    // the window: the widget and a little bar beside it, so the widget fills
+    // the picture.
     Rectangle {
       id: frame
       anchors.centerIn: parent
-      width: 600
+      width: root.widget ? Math.min(600, Math.max(120, root.widget.width + 64)) : 600
       height: Style.bar.sizeHorizontal + 8
       color: (Color.bar && Color.bar.background) ? Color.bar.background : "#16161e"
-      Item { id: host; anchors.centerIn: parent; width: 584; height: Style.bar.sizeHorizontal }
+      Item { id: host; anchors.centerIn: parent; width: frame.width - 16; height: Style.bar.sizeHorizontal }
     }
   }
 
@@ -84,10 +109,19 @@ ShellRoot {
         }
         root.widget.anchors.verticalCenter = host.verticalCenter
         root.widget.anchors.right = host.right
+        var sets = $sets
+        for (var key in sets) {
+          if (!(key in root.widget)) {
+            console.log("PREVIEW_ERROR --set " + key + ": the widget has no property " + key)
+            Qt.quit()
+            return
+          }
+          root.widget[key] = sets[key]
+        }
       } else if (root.step === 2) {
         frame.grabToImage(function(result) {
           result.saveToFile($shot_path)
-          console.log("PREVIEW_SAVED " + Math.round(root.widget.width) + "x" + Math.round(root.widget.height))
+          console.log("PREVIEW_SAVED " + Math.round(root.widget.width) + "x" + Math.round(root.widget.height) + " " + Math.round(root.widget.implicitWidth) + "x" + Math.round(root.widget.implicitHeight))
           Qt.quit()
         })
       }
@@ -130,10 +164,18 @@ if [[ ! -s $work/shot.png ]]; then
   exit 1
 fi
 magick "$work/shot.png" -resize '200%' "$out"
+read -r size implicit < <(grep -oE 'PREVIEW_SAVED [0-9]+x[0-9]+ [0-9]+x[0-9]+' "$work/log" | cut -d' ' -f2-)
 echo "screenshot: $out"
-echo "widget: $(grep -oE 'PREVIEW_SAVED [0-9]+x[0-9]+' "$work/log" | cut -d' ' -f2), shown at 2x, right-aligned in a bar-sized strip"
+echo "widget: $size, shown at 2x on a strip of bar"
+# The bar lays widgets out by their size, so one with none draws over its
+# neighbours, though its own label may still show in the picture.
+# The preview gives the widget the bar's height, so it's the implicit size,
+# the one the bar lays out by, that tells.
+if [[ $implicit == 0x* || $implicit == *x0 ]]; then
+  problems=$(printf '%s\n' "${problems:+$problems}" "the widget's implicit size is $implicit, so the bar gives it no room and it draws over its neighbours: size the BarWidget to its content, as implicitWidth: button.implicitWidth and implicitHeight: button.implicitHeight do" | sed '/^$/d')
+fi
 if [[ -n $problems ]]; then
-  echo "problems from the plugin's QML:"
+  echo "problems:"
   echo "$problems"
   exit 1
 fi

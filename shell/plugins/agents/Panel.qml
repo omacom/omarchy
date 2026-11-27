@@ -1172,7 +1172,7 @@ Panel {
   readonly property bool starterAgentReady: localModelRunning || localModelStopped || providers.some(function(p) {
     return harnessFor(p) !== "" && !signedOut(p)
   })
-  readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
+  readonly property bool starterShown: indexShown && starterAgentReady
 
   function startPrompt(kind) {
     root.close()
@@ -1686,6 +1686,9 @@ Panel {
     font.pixelSize: Style.font.bodySmall
     text: "00h 00m"
   }
+  // The share of a meter row its title takes: wide enough for the longest
+  // window name ("Claude/GPT Weekly") without eliding it.
+  readonly property real labelColumnRatio: 0.34
   readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
 
   // ------------------------------------------------------------------ spend
@@ -1785,7 +1788,7 @@ Panel {
   // refreshes each agent in turn. Indexing the live list would swap the line
   // on each of those, so the hero holds what it shows until the next fade.
   property string shownPhrase: ""
-  readonly property string heroPhrase: addStage !== "" || blankSlate
+  readonly property string heroPhrase: !indexShown
     ? addHeading
     : (shownPhrase !== "" ? shownPhrase : Commons.I18n.t("agents.letsMakeSomethingCool"))
 
@@ -1844,8 +1847,16 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  // So does a running local model, which the starters can hand their task to.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !localModelRunning
+  // So does any local or paired coding model on the index (running, stopped,
+  // loading, stopping, failed, or removing), while a model still being set up
+  // or started from the picker stays on the blank-slate picker.
+  readonly property bool hasIndexLocalModel: localModelLines.some(function(line) {
+    return usage.localModelAdded(line)
+      && line.localModel.target !== settingUpLocal
+      && !localSettingUp(localModelState(line.localModel))
+  })
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !hasIndexLocalModel
+  readonly property bool indexShown: addStage === "" && !blankSlate
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -1898,6 +1909,7 @@ Panel {
   property Item pasteFieldItem: null
   readonly property Item openFocusItem: addStage === "running" && addNeedsPaste && pasteFieldItem ? pasteFieldItem : panel.loadedContent
   onOpenedChanged: if (!opened) {
+    openRefresh.stop()
     resetProviderDrag()
     makesOpenIndex = -1
   } else {
@@ -1911,14 +1923,25 @@ Panel {
     if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
     usage.reloadDefaults()
-    if (localModelsService) localModelsService.refreshNetwork()
+    // Defer the external usage/network refresh past the open animation so
+    // spawning omarchy-agent-usage-update doesn't compete with rendering it.
+    openRefresh.restart()
     // Whether a stopped model fits is as the engine last judged it; memory
     // freed since lets it start, so it's judged again.
     if (Object.keys(localModels).some(function(id) { return localModels[id].fits === false }))
       Util.execArgv(["omarchy-models", "status", "--write"])
     Qt.callLater(function() { if (root.openFocusItem) root.openFocusItem.forceActiveFocus() })
+  }
+
+  Timer {
+    id: openRefresh
+    interval: Math.max(16, Style.duration(220))
+    onTriggered: {
+      if (!root.opened) return
+      usage.refreshLimits()
+      if (localModelsService) localModelsService.refreshNetwork()
+    }
   }
 
   // The tailnet has no change signal, so while the panel is open the paired
@@ -1989,7 +2012,7 @@ Panel {
 
   Timer {
     interval: 2800
-    running: root.opened && root.summaryPhrases.length > 1 && root.addStage === "" && !root.blankSlate
+    running: root.opened && root.summaryPhrases.length > 1 && root.indexShown
     repeat: true
     onTriggered: phraseSwap.restart()
   }
@@ -2090,7 +2113,7 @@ Panel {
       }
       implicitHeight: column.implicitHeight
       anchors.fill: parent
-      reorderable: root.addStage === "" && !root.renaming
+      reorderable: root.indexShown && !root.renaming
       onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
@@ -2105,7 +2128,7 @@ Panel {
       // A text field keeps its own keys: Qt passes Return on after accepting
       // it, and here that would press the Cancel under the cursor too, or
       // steal letters like j/k/x from an account name.
-      blocked: root.renaming || root.deleteTarget !== null || addView.inputFocused
+      blocked: root.renaming || root.deleteTarget !== null || (!!addViewLoader.item && addViewLoader.item.inputFocused)
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
@@ -2115,7 +2138,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
+        else if (root.indexShown && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
       }
 
       Flickable {
@@ -2218,15 +2241,21 @@ Panel {
             }
           }
 
-          AddView {
-            id: addView
-            visible: root.addStage !== "" || root.blankSlate
+          Loader {
+            id: addViewLoader
+            active: !root.indexShown
+            visible: active
             width: column.width
+            sourceComponent: Component {
+              AddView {
+                visible: !root.indexShown
+              }
+            }
           }
 
           Repeater {
             id: providerSections
-            model: root.addStage === "" ? root.providers : []
+            model: root.indexShown ? root.providers : []
 
             ProviderSection {
               required property var modelData
@@ -2682,7 +2711,9 @@ Panel {
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
-        onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
+        function claimFocus() { if (visible) { text = ""; forceActiveFocus() } }
+        onVisibleChanged: claimFocus()
+        Component.onCompleted: claimFocus()
         // Enter stops here, or the panel would press its cursor too.
         Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
@@ -2715,7 +2746,7 @@ Panel {
 
         Text {
           id: installTitle
-          width: parent.width * 0.3
+          width: parent.width * root.labelColumnRatio
           anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
           text: Commons.I18n.t("agents.installingMeter")
@@ -2827,10 +2858,12 @@ Panel {
             function submit() { root.submitPaste(text); text = "" }
             Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
             Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
-            onVisibleChanged: {
+            function syncPasteFocus() {
               root.pasteFieldItem = visible ? pasteField : null
               if (visible) forceActiveFocus()
             }
+            onVisibleChanged: syncPasteFocus()
+            Component.onCompleted: if (visible) syncPasteFocus()
             Connections {
               target: root
               function onAddStageChanged() { if (root.addStage !== "running") pasteField.text = "" }
@@ -3427,7 +3460,7 @@ Panel {
       Text {
         id: balanceTitle
         textFormat: Text.PlainText
-        width: parent.width * 0.3
+        width: parent.width * root.labelColumnRatio
         anchors.verticalCenter: parent.verticalCenter
         text: Commons.I18n.t("agents.balance")
         color: root.foreground
@@ -3471,7 +3504,7 @@ Panel {
       Text {
         id: spendTitle
         textFormat: Text.PlainText
-        width: parent.width * 0.3
+        width: parent.width * root.labelColumnRatio
         anchors.verticalCenter: parent.verticalCenter
         text: section.spend && section.spend.cap > 0 ? Commons.I18n.t("agents.spendThisMonth") : Commons.I18n.t("agents.spendLast30Days")
         color: root.foreground
@@ -3661,7 +3694,7 @@ Panel {
     Text {
       id: meterTitle
       visible: meterRow.titled
-      width: meterRow.barless ? parent.width : parent.width * 0.3
+      width: meterRow.barless ? parent.width : parent.width * root.labelColumnRatio
       anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       text: meterRow.meter ? meterRow.meter.title : ""
@@ -3797,7 +3830,7 @@ Panel {
     Text {
       id: compactTitle
       textFormat: Text.PlainText
-      width: parent.width * 0.3
+      width: parent.width * root.labelColumnRatio
       anchors.verticalCenter: parent.verticalCenter
       text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground

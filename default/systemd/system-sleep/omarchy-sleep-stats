@@ -1,0 +1,252 @@
+#!/bin/bash
+
+# Record battery energy and S0ix hardware sleep residency across suspend and
+# hibernate so the power panel and omarchy-debug can show actual sleep drain.
+
+set -u
+
+action="${1:-}"
+sleep_type="${2:-suspend}"
+
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+run_dir="${OMARCHY_SLEEP_RUN_DIR:-/run/omarchy}"
+state_dir="${OMARCHY_SLEEP_STATE_DIR:-/var/lib/omarchy}"
+suspend_stats_path="${OMARCHY_SUSPEND_STATS_PATH:-/sys/power/suspend_stats}"
+cpuidle_path="${OMARCHY_CPUIDLE_PATH:-/sys/devices/system/cpu/cpuidle}"
+mem_sleep_path="${OMARCHY_MEM_SLEEP_PATH:-/sys/power/mem_sleep}"
+uptime_path="${OMARCHY_UPTIME_PATH:-/proc/uptime}"
+pmc_debug_path="${OMARCHY_PMC_DEBUG_PATH:-/sys/kernel/debug/pmc_core}"
+amd_pmc_debug_path="${OMARCHY_AMD_PMC_DEBUG_PATH:-/sys/kernel/debug/amd_pmc}"
+
+pre_file="$run_dir/sleep-pre"
+last_file="$run_dir/last-sleep"
+history_file="$state_dir/sleep-history.tsv"
+
+read_int() {
+  local value
+  { value=$(<"$1"); } 2>/dev/null || return 1
+  [[ $value =~ ^-?[0-9]+$ ]] || return 1
+  printf '%s\n' "$value"
+}
+
+read_uptime_us() {
+  local line first
+  { read -r first _ <"$uptime_path"; } 2>/dev/null || return 1
+  awk -v t="$first" 'BEGIN { if (t + 0 <= 0) exit 1; printf "%.0f\n", t * 1000000 }'
+}
+
+read_ac_online() {
+  local supply online
+  for supply in "$power_supply_path"/*; do
+    [[ -r $supply/type && $(<"$supply/type") == "Mains" && -r $supply/online ]] || continue
+    online=$(<"$supply/online")
+    if [[ $online == "1" ]]; then
+      printf '1\n'
+      return 0
+    fi
+  done
+  printf '0\n'
+}
+
+read_sleep_mode() {
+  if [[ $sleep_type == "hibernate" || $sleep_type == "hybrid-sleep" ]]; then
+    printf '%s\n' "$sleep_type"
+    return 0
+  fi
+  if [[ -r $mem_sleep_path ]]; then
+    local mode
+    mode=$(sed -n 's/.*\[\([^]]*\)\].*/\1/p' "$mem_sleep_path")
+    if [[ -n $mode ]]; then
+      printf '%s\n' "$mode"
+      return 0
+    fi
+  fi
+  printf '%s\n' "$sleep_type"
+}
+
+# Aggregate present system batteries (excluding wireless peripherals with
+# scope=Device). Prefer energy_now/energy_full (µWh); on charge-based batteries
+# multiply µAh by voltage_min_design (µV) rather than instantaneous voltage_now
+# because open-circuit voltage recovery during sleep would skew or invert drain.
+read_battery_energy() {
+  local supply now_uwh=0 full_uwh=0 count=0
+  local e_now e_full c_now c_full v_design
+
+  for supply in "$power_supply_path"/*; do
+    [[ -r $supply/type && $(<"$supply/type") == "Battery" ]] || continue
+    if [[ -r $supply/present && $(<"$supply/present") == "0" ]]; then
+      continue
+    fi
+    if [[ -r $supply/scope && $(<"$supply/scope") == "Device" ]]; then
+      continue
+    fi
+
+    if e_now=$(read_int "$supply/energy_now") && e_full=$(read_int "$supply/energy_full") && (( e_full > 0 )); then
+      (( now_uwh += e_now ))
+      (( full_uwh += e_full ))
+      (( count++ ))
+    elif c_now=$(read_int "$supply/charge_now") && c_full=$(read_int "$supply/charge_full") && (( c_full > 0 )); then
+      v_design=$(read_int "$supply/voltage_min_design" || read_int "$supply/voltage_now" || true)
+      if [[ -n ${v_design:-} ]] && (( v_design > 0 )); then
+        (( now_uwh += (c_now * v_design) / 1000000 ))
+        (( full_uwh += (c_full * v_design) / 1000000 ))
+        (( count++ ))
+      fi
+    fi
+  done
+
+  (( count > 0 && full_uwh > 0 )) || return 1
+  printf '%s\t%s\n' "$now_uwh" "$full_uwh"
+}
+
+read_lpi_us() {
+  read_int "$cpuidle_path/low_power_idle_system_residency_us" 2>/dev/null || printf '\n'
+}
+
+read_pmc_slp_s0_us() {
+  if [[ -r $pmc_debug_path/slp_s0_residency_usec ]]; then
+    read_int "$pmc_debug_path/slp_s0_residency_usec" 2>/dev/null || printf '\n'
+  elif [[ -r $amd_pmc_debug_path/s0ix_stats ]]; then
+    awk '/Residency Time:/ { print $3; exit }' "$amd_pmc_debug_path/s0ix_stats" 2>/dev/null || printf '\n'
+  else
+    printf '\n'
+  fi
+}
+
+atomic_write() {
+  local target=$1
+  local dir tmp
+  dir=$(dirname "$target")
+  mkdir -p "$dir"
+  tmp=$(mktemp "$dir/.tmp.XXXXXX") || return 1
+  cat >"$tmp"
+  chmod 0644 "$tmp"
+  mv -fT "$tmp" "$target"
+}
+
+if [[ $action == "pre" ]]; then
+  energy=$(read_battery_energy) || exit 0
+  IFS=$'\t' read -r now_uwh full_uwh <<<"$energy"
+  uptime_us=$(read_uptime_us) || exit 0
+  ac_online=$(read_ac_online)
+  mode=$(read_sleep_mode)
+  lpi_us=$(read_lpi_us)
+  pmc_us=$(read_pmc_slp_s0_us)
+
+  atomic_write "$pre_file" <<EOF
+uptime_us	$uptime_us
+now_uwh	$now_uwh
+full_uwh	$full_uwh
+ac_online	$ac_online
+mode	$mode
+lpi_us	$lpi_us
+pmc_us	$pmc_us
+EOF
+  exit 0
+fi
+
+if [[ $action == "post" ]]; then
+  [[ -r $pre_file ]] || exit 0
+
+  pre_uptime_us="" pre_now_uwh="" pre_full_uwh="" pre_ac="0" pre_mode="" pre_lpi_us="" pre_pmc_us=""
+  while IFS=$'\t' read -r key val; do
+    case "$key" in
+      uptime_us) pre_uptime_us=$val ;;
+      now_uwh) pre_now_uwh=$val ;;
+      full_uwh) pre_full_uwh=$val ;;
+      ac_online) pre_ac=$val ;;
+      mode) pre_mode=$val ;;
+      lpi_us) pre_lpi_us=$val ;;
+      pmc_us) pre_pmc_us=$val ;;
+    esac
+  done <"$pre_file"
+  rm -f "$pre_file"
+
+  [[ -n $pre_uptime_us && -n $pre_now_uwh && -n $pre_full_uwh ]] || exit 0
+  energy=$(read_battery_energy) || exit 0
+  IFS=$'\t' read -r post_now_uwh post_full_uwh <<<"$energy"
+  post_uptime_us=$(read_uptime_us) || exit 0
+  post_ac=$(read_ac_online)
+  post_lpi_us=$(read_lpi_us)
+  post_pmc_us=$(read_pmc_slp_s0_us)
+  last_hw_sleep_us=$(read_int "$suspend_stats_path/last_hw_sleep" 2>/dev/null || true)
+
+  wall_us=$(( post_uptime_us - pre_uptime_us ))
+  (( wall_us > 0 )) || exit 0
+  duration_s=$(( (wall_us + 500000) / 1000000 ))
+  (( duration_s > 0 )) || exit 0
+
+  delta_uwh=$(( pre_now_uwh - post_now_uwh ))
+  ac_plugged=0
+  if [[ $pre_ac == "1" || $post_ac == "1" ]] || (( delta_uwh < 0 )); then
+    ac_plugged=1
+  fi
+
+  # Compute S0ix residency only for s2idle suspends, rejecting 32-bit PMC counter
+  # wrap outliers where reported hardware sleep exceeds wall time by >5%.
+  s0ix_pct=""
+  if [[ $pre_mode == "s2idle" ]]; then
+    hw_us=""
+    for candidate in \
+      "${last_hw_sleep_us:-}" \
+      "$([[ -n $pre_pmc_us && -n $post_pmc_us ]] && printf '%s' "$(( post_pmc_us - pre_pmc_us ))")" \
+      "$([[ -n $pre_lpi_us && -n $post_lpi_us ]] && printf '%s' "$(( post_lpi_us - pre_lpi_us ))")"; do
+      [[ $candidate =~ ^[0-9]+$ ]] || continue
+      if awk -v hw="$candidate" -v wall="$wall_us" 'BEGIN { exit !(hw >= 0 && hw <= wall * 1.05) }'; then
+        hw_us=$candidate
+        break
+      fi
+    done
+
+    if [[ -n $hw_us ]]; then
+      s0ix_pct=$(awk -v hw="$hw_us" -v wall="$wall_us" 'BEGIN {
+        pct = (hw / wall) * 100
+        if (pct < 0) pct = 0
+        if (pct > 100) pct = 100
+        printf "%.0f", pct
+      }')
+    fi
+  fi
+
+  read -r delta_pct delta_wh drain_pct_hr drain_w < <(awk \
+    -v delta_uwh="$delta_uwh" -v full_uwh="$pre_full_uwh" \
+    -v dur_s="$duration_s" -v ac="$ac_plugged" 'BEGIN {
+      if (ac == 1 || delta_uwh < 0 || full_uwh <= 0) {
+        print "0 0 - -"
+        exit
+      }
+      dpct = (delta_uwh / full_uwh) * 100
+      dwh = delta_uwh / 1000000
+      if (dur_s >= 300) {
+        hrs = dur_s / 3600
+        printf "%.1f %.2f %.1f %.1f\n", dpct, dwh, dpct / hrs, dwh / hrs
+      } else {
+        printf "%.1f %.2f - -\n", dpct, dwh
+      }
+    }')
+
+  [[ $drain_pct_hr == "-" ]] && drain_pct_hr=""
+  [[ $drain_w == "-" ]] && drain_w=""
+
+  timestamp=$(date +%s)
+
+  atomic_write "$last_file" <<EOF
+timestamp	$timestamp
+mode	$pre_mode
+duration_s	$duration_s
+ac_plugged	$ac_plugged
+delta_pct	$delta_pct
+delta_wh	$delta_wh
+drain_pct_hr	$drain_pct_hr
+drain_w	$drain_w
+s0ix_pct	$s0ix_pct
+EOF
+
+  mkdir -p "$state_dir"
+  {
+    [[ -r $history_file ]] && tail -n 49 "$history_file"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$timestamp" "$pre_mode" "$duration_s" "$ac_plugged" \
+      "$delta_pct" "$delta_wh" "$drain_pct_hr" "$drain_w" "$s0ix_pct"
+  } | atomic_write "$history_file"
+fi

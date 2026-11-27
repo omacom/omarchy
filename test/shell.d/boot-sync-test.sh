@@ -179,3 +179,39 @@ sync_boot env OMARCHY_BOOT_EFIVARS="$test_tmp/efivars"
 [[ ! -e $test_tmp/bootctl.log ]] || fail "a snapshot boot the user chose stays armed" "$(cat "$test_tmp/bootctl.log")"
 rm -f "$test_tmp/bin/bootctl"
 pass "a pending restore's maintenance boot follows the rebuilt live image"
+
+# import clones kernel/initramfs with --reflink=auto and neither import nor sync
+# calls sync -f (whole-filesystem syncfs).
+new_machine
+cat >"$test_tmp/bin/cp" <<'SH'
+#!/bin/bash
+echo "cp $*" >>"$OP_LOG"
+exec /usr/bin/cp "$@"
+SH
+cat >"$test_tmp/bin/sync" <<'SH'
+#!/bin/bash
+echo "sync $*" >>"$OP_LOG"
+exec /usr/bin/sync "$@"
+SH
+chmod +x "$test_tmp/bin/cp" "$test_tmp/bin/sync"
+printf 'k2\n' >"$test_tmp/vmlinuz"
+printf 'i2\n' >"$test_tmp/initramfs.img"
+mkdir -p "$test_tmp/root/etc/kernel"
+printf 'root=UUID=1 rootflags=subvol=@ rw\n' >"$test_tmp/root/etc/kernel/cmdline"
+: >"$test_tmp/op.log"
+env PATH="$test_tmp/bin:$PATH" OP_LOG="$test_tmp/op.log" OMARCHY_BOOT_TEST=1 \
+  OMARCHY_BOOT_STORE="$test_tmp/store" OMARCHY_BOOT_ESP="$test_tmp/esp" OMARCHY_BOOT_TOP="$test_tmp/top" \
+  OMARCHY_BOOT_LOCK="$test_tmp/lock" OMARCHY_BOOT_MACHINE_ID="$test_tmp/machine-id" \
+  OMARCHY_BOOT_UKI_CONFIG="$test_tmp/uki.conf" \
+  OMARCHY_BOOT_CMDLINE_ROOT="$test_tmp/root" OMARCHY_BOOT_CMDLINE_DEFAULTS=/dev/null \
+  bash "$ROOT/bin/omarchy-boot-sync" import linux-omarchy 7.2 "$test_tmp/vmlinuz" "$test_tmp/initramfs.img" >>"$test_tmp/sync.log" 2>&1 ||
+  fail "import runs" "$(cat "$test_tmp/sync.log")"
+grep -qx 'CMDLINE=root=UUID=1 rootflags=subvol=@ rw' "$test_tmp/store/current/linux-omarchy/manifest" ||
+  fail "import reads the controlled command line fixture" "$(cat "$test_tmp/store/current/linux-omarchy/manifest")"
+sync_boot env OP_LOG="$test_tmp/op.log"
+grep -q '^cp --reflink=auto .*/initramfs\.img$' "$test_tmp/op.log" ||
+  fail "import copies initramfs with --reflink=auto" "$(cat "$test_tmp/op.log")"
+! grep -q '^sync -f ' "$test_tmp/op.log" ||
+  fail "neither import nor sync calls whole-filesystem sync -f" "$(cat "$test_tmp/op.log")"
+rm -f "$test_tmp/bin/cp" "$test_tmp/bin/sync"
+pass "import uses --reflink=auto and boot-sync avoids whole-filesystem sync -f"

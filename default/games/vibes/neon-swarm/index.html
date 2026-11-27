@@ -757,7 +757,7 @@ function startRound() {
 
 function endRound(won, { title, detail } = {}) {
   if (state !== 'playing') return;
-  const isBest = BEST_IS === 'lower' ? won && (best === null || score < best) : best === null || score > best;
+  const isBest = BEST_IS === 'lower' ? won && (best === null || score < best) : score > (best ?? 0);
   if (isBest) { best = score; saved.set('best', best); $('best').textContent = formatScore(best); }
   $('over-title').textContent = title ?? (won ? 'YOU WIN' : 'GAME OVER');
   $('over-detail').textContent = detail ?? `Score ${formatScore(score)}`;

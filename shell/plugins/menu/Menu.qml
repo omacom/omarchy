@@ -148,10 +148,9 @@ Item {
   property bool searchDivider: false
   property int layoutSerial: 0
   // Menus whose rows carry long labels (font names, kernel packages, snapshot
-  // titles) get the wide card, and so does a search that shows their rows.
+  // titles) get the wide card.
   readonly property var wideMenus: ({ "trigger.capture.screenrecord": true, "appearance.font": true, "update.kernel": true, "system.snapshots": true })
-  property bool wideDisplay: false
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideDisplay ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : (root.wideMenus[root.activeMenu] === true ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, filterText) : rowListHeight(layoutSerial, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -817,12 +816,6 @@ Item {
       }
     }
 
-    var wide = root.wideMenus[active] === true
-    for (var k = 0; k < rows.length; k++) {
-      var shown = root.item(rows[k].itemId)
-      if (shown && root.wideMenus[shown.parent] === true) wide = true
-    }
-    root.wideDisplay = wide
     root.displayRows = rows
     if (rows.length > 0) displayModel.append(rows)
     layoutSerial += 1

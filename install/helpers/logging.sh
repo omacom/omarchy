@@ -89,10 +89,12 @@ omarchy_leaf_platform() {
       return 0
       ;;
     hardware/qualcomm/* | \
+      hardware/anduril/* | \
       hardware/acer/fix-acer-aspire-16-ai-speakers.sh | \
       hardware/acer/fix-acer-aspire-16-ai-boot.sh | \
       hardware/asus/fix-asus-zenbook-a16-speakers.sh | \
       hardware/asus/fix-asus-zenbook-a16-boot.sh | \
+      hardware/asus/fix-asus-zenbook-a16-wifi.sh | \
       hardware/asus/fix-asus-zenbook-a16-firmware.sh | \
       hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh | \
       hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh | \
