@@ -47,7 +47,7 @@ def notify(message, english, *args):
         text = subprocess.run([*message.split(), *args], capture_output=True, text=True).stdout.strip()
     except OSError:
         text = ""
-    if not text:
+    if not text or text == message.split()[-1]:  # a catalog without the key echoes it
         text = english
         for index, value in enumerate(args, 1):
             text = text.replace(f"%{index}", value)
@@ -185,7 +185,9 @@ def games_needing_proton():
 # --- config.vdf CompatToolMapping -------------------------------------------
 
 def mapping_block(text):
-    match = re.search(r'\n(\t+)"CompatToolMapping"\n\1\{\n(.*?)\n\1\}', text, re.S)
+    # Only the lines indented under the block: Steam leaves it empty when the
+    # last mapping is turned off, and other sections list app ids too.
+    match = re.search(r'\n(\t+)"CompatToolMapping"\n\1\{\n((?:\1\t.*\n)*)\1\}', text)
     return match.group(2) if match else None
 
 

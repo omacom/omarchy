@@ -15,6 +15,8 @@ chmod +x "$scratch/bin/omarchy-notification-send"
 # 100: a Linux entry whose launcher was never installed, Windows build present.
 # 200: a Linux entry only on a beta branch, as PEAK ships it.
 # 300: a native game with its Linux launcher installed.
+# config.vdf has the empty mapping block Steam leaves when the last mapping is
+# turned off, and another section that lists 100.
 python3 -I - "$steam" <<'EOF'
 import struct, sys
 from pathlib import Path
@@ -66,7 +68,8 @@ table = struct.pack("<I", len(strings)) + b"".join(s.encode() + b"\0" for s in s
 (steam / "appcache/appinfo.vdf").write_bytes(struct.pack("<IIq", 0x07564429, 1, 16 + len(body)) + body + table)
 (steam / "config/config.vdf").write_text(
     '"InstallConfigStore"\n{\n\t"Software"\n\t{\n\t\t"Valve"\n\t\t{\n\t\t\t"Steam"\n\t\t\t{\n'
-    '\t\t\t\t"AutoUpdateWindowEnabled"\t\t"0"\n\t\t\t}\n\t\t}\n\t}\n}\n')
+    '\t\t\t\t"CompatToolMapping"\n\t\t\t\t{\n\t\t\t\t}\n'
+    '\t\t\t\t"depots"\n\t\t\t\t{\n\t\t\t\t\t"100"\n\t\t\t\t\t{\n\t\t\t\t\t\t"DecryptionKey"\t\t"00"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n')
 EOF
 
 scan() {
