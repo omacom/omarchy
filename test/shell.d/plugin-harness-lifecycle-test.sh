@@ -185,3 +185,33 @@ omarchy-plugin-remove acme.launcher --yes >/dev/null 2>&1 || true
 [[ -f $applications/omarchy-agent-shipped-agent.desktop ]] ||
   fail "removing an integration deletes a launcher Omarchy ships"
 pass "removing an integration takes its written launcher and no other"
+
+# An id the catalog accepts is an id that gets a launcher, whatever its shape.
+mkdir -p "$plugins/acme.dotted"
+write_manifest "$plugins/acme.dotted" "acme.dotted_agent"
+omarchy-agent-launcher "acme.dotted_agent"
+[[ -f "$applications/omarchy-agent-acme.dotted_agent.desktop" ]] ||
+  fail "a harness whose id carries a dot or underscore gets its launcher"
+pass "a harness is launched whatever shape its id has"
+
+# Two integrations may declare the same harness. Removing the one that is not
+# serving it must leave the launcher the other one still needs.
+mkdir -p "$plugins/acme.shared" "$plugins/zeta.shared"
+write_manifest "$plugins/acme.shared" "shared-agent"
+write_manifest "$plugins/zeta.shared" "shared-agent"
+omarchy-agent-launcher shared-agent
+omarchy-plugin-remove zeta.shared --yes >/dev/null 2>&1 || true
+[[ -f "$applications/omarchy-agent-shared-agent.desktop" ]] ||
+  fail "removing a duplicate integration deletes the launcher the other one needs"
+pass "a launcher outlives an integration that was not the one declaring it"
+
+# A manifest is trusted enough to install, but not enough to write the lines of
+# the launcher it turns into.
+mkdir -p "$plugins/acme.broken-name"
+write_manifest "$plugins/acme.broken-name" "broken-name-agent"
+jq '.agentHarness.name = "Acme\nExec=/bin/false"' "$plugins/acme.broken-name/manifest.json" >"$plugins/acme.broken-name/next.json"
+mv "$plugins/acme.broken-name/next.json" "$plugins/acme.broken-name/manifest.json"
+omarchy-agent-launcher broken-name-agent || true
+[[ ! -e "$applications/omarchy-agent-broken-name-agent.desktop" ]] ||
+  fail "a harness name carrying a line break writes no launcher"
+pass "a manifest cannot write lines of its own into the launcher"

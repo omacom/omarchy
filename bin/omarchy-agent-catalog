@@ -47,7 +47,7 @@ result=$(jq -s '
     );
   def valid_harness:
     (.id | valid_harness_id)
-    and (.name | type == "string" and length > 0)
+    and (.name | type == "string" and length > 0 and (contains("\n") | not) and (contains("\r") | not))
     and ((.aliases // []) | type == "array" and all(.[]; valid_harness_id and (contains("..") | not)))
     and (.install | type == "object" and (.command | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$"))
       and ((.type == "package")

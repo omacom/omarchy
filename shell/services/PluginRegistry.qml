@@ -67,7 +67,9 @@ QtObject {
     if (!Util.isPlainObject(harness)) return false
     var id = String(harness.id || "")
     var name = String(harness.name || "")
-    if (!isValidHarnessIdentity(id) || !name) return false
+    // The name is written into the launcher's desktop file, where a line
+    // break would start an entry of the writer's choosing.
+    if (!isValidHarnessIdentity(id) || !name || /[\n\r]/.test(name)) return false
     var aliases = harness.aliases === undefined ? [] : harness.aliases
     if (!Array.isArray(aliases)) return false
     for (var i = 0; i < aliases.length; i++) {

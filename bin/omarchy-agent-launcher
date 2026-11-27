@@ -25,7 +25,9 @@ entry="omarchy-agent-$agent.desktop"
 applications="$HOME/.local/share/applications"
 marker='# Written by omarchy-agent-launcher.'
 
-[[ $agent =~ ^[a-z0-9-]+$ ]] || exit 0
+# The shape the catalog accepts for an id, so a harness it lists is never
+# silently left without a launcher for the shape of its name.
+[[ $agent =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $agent != *..* ]] || exit 0
 
 if [[ -f $OMARCHY_PATH/default/applications/$entry ]]; then
   # A launcher that couldn't be written fails, so the migration adding one
@@ -43,6 +45,10 @@ harness=$(omarchy-agent-catalog 2>/dev/null |
 [[ -n $harness ]] || exit 0
 
 name=$(jq -r '.name' <<<"$harness")
+if [[ $name == *$'\n'* || $name == *$'\r'* || -z $name ]]; then
+  echo "omarchy-agent-launcher: refusing a harness name that is not one line ($agent)" >&2
+  exit 1
+fi
 # The manifest's icon is a font glyph rather than a file, so the launcher takes
 # the generic terminal mark and a browser-first integration ships its own.
 mkdir -p "$applications" || exit 1

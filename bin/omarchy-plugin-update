@@ -108,8 +108,11 @@ update_one() {
   # behind; the new one is written when it is next selected. Only a file this
   # machinery wrote goes, never one Omarchy ships.
   if [[ -n $old_harness && $old_harness != "$new_harness" ]]; then
+    still_declared=$(omarchy-agent-catalog 2>/dev/null |
+      jq -r --arg id "$old_harness" '.[] | select(.id == $id) | .id' 2>/dev/null | head -n1)
     launcher="$HOME/.local/share/applications/omarchy-agent-$old_harness.desktop"
-    if [[ -f $launcher && ! -L $launcher ]] && grep -qxF '# Written by omarchy-agent-launcher.' "$launcher"; then
+    if [[ -z $still_declared && -f $launcher && ! -L $launcher ]] &&
+      grep -qxF '# Written by omarchy-agent-launcher.' "$launcher"; then
       rm -f "$launcher"
       update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
     fi

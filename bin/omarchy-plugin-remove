@@ -141,11 +141,16 @@ if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" && 
 fi
 
 # A launcher omarchy-agent-launcher wrote from the declaration goes with it, or
-# the dock keeps an entry that starts a harness nothing provides any more. One
-# Omarchy ships is not this command's to delete, so only a marked file goes.
+# the dock keeps an entry that starts a harness nothing provides any more. Only
+# when nothing else still declares that harness: a second integration may list
+# the same id, and its launcher is the same file. One Omarchy ships is not this
+# command's to delete either, so only a marked file goes.
 if [[ -n $harness_id ]]; then
+  still_declared=$(omarchy-agent-catalog 2>/dev/null |
+    jq -r --arg id "$harness_id" '.[] | select(.id == $id) | .id' 2>/dev/null | head -n1)
   launcher="$HOME/.local/share/applications/omarchy-agent-$harness_id.desktop"
-  if [[ -f $launcher && ! -L $launcher ]] && grep -qxF '# Written by omarchy-agent-launcher.' "$launcher"; then
+  if [[ -z $still_declared && -f $launcher && ! -L $launcher ]] &&
+    grep -qxF '# Written by omarchy-agent-launcher.' "$launcher"; then
     rm -f "$launcher"
     update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
   fi
