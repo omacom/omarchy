@@ -353,7 +353,7 @@ Each API key keeps its account's last good usage rows and spend; another key or 
 
 ### DeepInfra
 
-DeepInfra reads `DEEPINFRA_API_KEY` first, then `apiKey` in `~/.config/omarchy/agents/deepinfra.json`. There is no CLI agent of its own to sign in through: this is for an API key used directly against DeepInfra's OpenAI-compatible inference endpoint, or through a tool like opencode or pi pointed at it.
+DeepInfra reads `DEEPINFRA_API_KEY` first, then `apiKey` in `~/.config/omarchy/agents/deepinfra.json`. There is no CLI agent of its own to sign in through: this is for an API key used directly against DeepInfra's OpenAI-compatible inference endpoint, or through a tool like opencode or pi pointed at it. **The key needs the `billing:read` scope**, which isn't one of the scopes a key gets by default when created in DeepInfra's dashboard -- add it explicitly, or the key reads as rejected even though it works fine for inference.
 
 Everything comes from the key alone. The balance is DeepInfra's own `GET /payment/checklist`: a negative `stripe_balance` is funds ready to spend, a positive one is money owed since the last invoice, and `recent` (also from the checklist) is shown as spent against it. The model breakdown is the current month's token-metered rows from `GET /payment/usage`; DeepInfra also bills GPU rentals by the second, and those rows are left out of the token stats since they aren't tokens. Each key keeps its own last good balance and usage; a rejected key reads as an expired sign-in, and with no key anywhere the tab stays hidden. Its stats come from the account's own billing API, so no local scan adds to them.
 
