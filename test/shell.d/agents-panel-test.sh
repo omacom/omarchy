@@ -573,4 +573,43 @@ finishUpdate()
 deferred.shift()()
 assertDeepEqual(calls, ['rescan', 'reload', 'run:force', 'retry', 'sync'], 'finishUpdate dispatches queued pendingUpdateKind')
 assertEqual(updateState.pendingUpdateKind, '', 'finishUpdate clears pendingUpdateKind')
+
+// China installs filter the add picker to mainland-accessible providers while
+// keeping global installs unchanged and preserving sign-in metadata for all.
+const signInProvidersSrc = source.match(/readonly property var signInProviders: (\[[\s\S]*?\n  \])/)[1]
+const cnGroupIdsSrc = source.match(/readonly property var cnGroupIds: \((\{[\s\S]*?\n  \})\)/)[1]
+const addGroupSrc = fn('addGroup')
+const evalPicker = isChinaRegion => new Function(
+  'Commons', 'isChinaRegion',
+  'const signInProviders = ' + signInProvidersSrc + '\n' +
+  'const cnGroupIds = ' + cnGroupIdsSrc + '\n' +
+  addGroupSrc + '\n' +
+  'return { signInProviders, addGroup }'
+)({ I18n: { t: key => key } }, isChinaRegion)
+
+const globalPicker = evalPicker(false)
+assertDeepEqual(
+  globalPicker.addGroup('subscription').map(p => p.providerId),
+  ['claude', 'codex', 'grok', 'agy', 'muse', 'cursor', 'copilot', 'more-subscriptions'],
+  'global installs keep all subscription picker tiles'
+)
+assertDeepEqual(
+  globalPicker.addGroup('provider').map(p => p.providerId),
+  ['fireworks', 'opencode', 'openrouter', 'more-providers'],
+  'global installs keep all pay-as-you-go picker tiles'
+)
+
+const cnPicker = evalPicker(true)
+assertDeepEqual(
+  cnPicker.addGroup('subscription').map(p => p.providerId),
+  ['minimax', 'zai', 'kimi'],
+  'cn installs offer only China-accessible subscriptions without a More tile'
+)
+assertDeepEqual(
+  cnPicker.addGroup('provider').map(p => p.providerId),
+  ['deepseek'],
+  'cn installs offer only DeepSeek under pay as you go without a More tile'
+)
+assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
+assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
 JS

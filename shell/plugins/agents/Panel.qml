@@ -446,11 +446,35 @@ Panel {
     { providerId: "minimax", providerName: "MiniMax", group: "moreSubscriptions" },
     { providerId: "synthetic", providerName: "Synthetic", group: "moreSubscriptions" },
     { providerId: "zai", providerName: "Z.ai", group: "moreSubscriptions" },
-    { providerId: "deepseek", providerName: "DeepSeek", group: "moreProviders" }
+    { providerId: "deepseek", providerName: "DeepSeek", group: "moreProviders" },
+    { providerId: "kimi", providerName: "Kimi", group: "", terminalLogin: true, limitsElsewhere: true }
   ]
   readonly property int addColumns: 4
   // The More list's last row, which hands any other provider to OpenCode.
   readonly property string otherInOpenCode: "opencode-other"
+
+  // China installs only offer providers reachable in mainland China in the
+  // add picker; signInProviders keeps the full set so existing sign-ins and
+  // re-authentication continue to work.
+  property string region: "global"
+  readonly property bool isChinaRegion: region === "cn"
+
+  FileView {
+    id: regionFile
+    path: Quickshell.env("OMARCHY_REGION_FILE") || "/etc/omarchy/region"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.region = String(text() || "").trim() || "global"
+    onLoadFailed: root.region = "global"
+    onFileChanged: reload()
+  }
+
+  readonly property var cnGroupIds: ({
+    subscription: ["minimax", "zai", "kimi"],
+    provider: ["deepseek"],
+    moreSubscriptions: [],
+    moreProviders: []
+  })
 
   // The More list a More tile opened: its group's providers, and for pay as
   // you go, OpenCode's own sign-in for the rest.
@@ -459,6 +483,15 @@ Panel {
     ? [{ providerId: otherInOpenCode, providerName: Commons.I18n.t("agents.moreInOpenCode"), opencode: true }] : [])
 
   function addGroup(group) {
+    if (isChinaRegion) {
+      var ids = cnGroupIds[group] || []
+      var out = []
+      for (var i = 0; i < ids.length; i++) {
+        var match = signInProviders.find(function(p) { return p.providerId === ids[i] })
+        if (match) out.push(match)
+      }
+      return out
+    }
     return signInProviders.filter(function(p) { return p.group === group })
   }
 
@@ -1025,6 +1058,10 @@ Panel {
       openOpenCodeLogin()
       return
     }
+    if (tile && tile.terminalLogin) {
+      openTerminalLogin(tile.providerId)
+      return
+    }
     if (tile && tile.signsInAs) id = tile.signsInAs
     var state = addChecks[id] || ""
     if (state === "") return
@@ -1087,6 +1124,14 @@ Panel {
     root.close()
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
                    'omarchy-install-ai-cli opencode && opencode auth login && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select opencode; }'])
+  }
+
+  function openTerminalLogin(id) {
+    root.close()
+    if (id === "kimi") {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
+                     'omarchy-install-ai-cli kimi && kimi login && { omarchy-shell omarchy.agents showAgent kimi true >/dev/null 2>&1 || true; } && { omarchy-agent-launcher kimi || true; } && { omarchy-agent-usage-update --force kimi || true; } && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select kimi; }'])
+    }
   }
 
   function submitPaste(code) {
@@ -1938,7 +1983,11 @@ Panel {
     pointerActive = false
     keyRow = 0
     keyColumn = 0
-    Qt.callLater(function() { if (picking) pointAt("choice", "claude") })
+    Qt.callLater(function() {
+      if (!picking) return
+      var first = addGroup("subscription")[0] || addGroup("provider")[0]
+      if (first) pointAt("choice", first.providerId)
+    })
   }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -2369,8 +2418,8 @@ Panel {
   component AddChoice: Item {
     id: choice
     property var entry: ({})
-    readonly property string state: root.addChecks[entry.providerId] || ""
-    readonly property bool available: !!entry.more || state === "first" || state === "additional"
+    readonly property string state: root.addChecks[entry.signsInAs || entry.providerId] || ""
+    readonly property bool available: !!entry.more || !!entry.terminalLogin || state === "first" || state === "additional"
     readonly property bool hasCursor: root.hasKey("choice", entry.providerId)
     implicitHeight: choiceBody.implicitHeight + Style.space(16)
     onHasCursorChanged: if (hasCursor) root.revealItem(choice)
@@ -2447,7 +2496,7 @@ Panel {
         model: root.picking ? [
           { group: "subscription", label: Commons.I18n.t("agents.blockSubscriptions") },
           { group: "provider", label: Commons.I18n.t("agents.blockProviders") }
-        ] : []
+        ].filter(function(b) { return root.addGroup(b.group).length > 0 }) : []
 
         Column {
           id: block
