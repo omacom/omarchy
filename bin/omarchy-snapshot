@@ -99,6 +99,7 @@ boot)
   # Only arm an entry whose image is on the ESP.
   esp=/boot
   [[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == vfat ]] && esp=/efi
+  echo "Setting snapshot $number for next boot..."
   sudo test -s "$esp/EFI/Linux/${entry%%@*}" || { echo "$(omarchy-i18n snapshot.bootImageMissing "$number")" >&2; exit 1; }
   sudo bootctl set-oneshot "$entry"
   echo "$(omarchy-i18n snapshot.bootNext "$number")"
@@ -106,6 +107,7 @@ boot)
   ;;
 restore)
   if [[ $backend != systemd-boot ]]; then
+    echo "Restoring system snapshot..."
     sudo limine-snapper-restore
     exit
   fi

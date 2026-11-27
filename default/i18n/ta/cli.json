@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "டோக்கன்கள் இப்போது %1 கணக்கிலிருந்து பாய்கின்றன",
   "agents.readyToCode": "%1 தயார்",
   "agents.readyToCodeBody": "அருமையான ஒன்றை உருவாக்குங்கள்",
+  "agents.resumeDirMissing": "ஏஜென்ட் மீண்டும் தொடர்வது தவிர்க்கப்பட்டது",
+  "agents.resumeDirMissingBody": "சேமிக்கப்பட்ட கோப்பகம் இல்லை: %1",
   "agents.runningCaughtUp": "%1 இல் இயங்கும் அமர்வுகளும் மாறிவிட்டன.",
   "agents.runningFollow": "இயங்கும் அமர்வுகளும் இதைப் பயன்படுத்துகின்றன.",
   "agents.runningStayOn": "இயங்கும் அமர்வுகள் %1 இலேயே இருக்கும்.",

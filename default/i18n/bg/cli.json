@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Токените вече идват от профил %1",
   "agents.readyToCode": "%1 е готов",
   "agents.readyToCodeBody": "Направете нещо яко",
+  "agents.resumeDirMissing": "Възобновяването на агента е пропуснато",
+  "agents.resumeDirMissingBody": "Запазената директория не съществува: %1",
   "agents.runningCaughtUp": "Работещите сесии на %1 също се преместиха.",
   "agents.runningFollow": "Работещите сесии също го използват.",
   "agents.runningStayOn": "Работещите сесии остават на %1.",

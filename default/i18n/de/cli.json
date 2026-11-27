@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Token fließen jetzt vom %1-Konto",
   "agents.readyToCode": "%1 ist bereit",
   "agents.readyToCodeBody": "Mach etwas Cooles",
+  "agents.resumeDirMissing": "Fortsetzen des Agenten übersprungen",
+  "agents.resumeDirMissingBody": "Gespeichertes Verzeichnis existiert nicht: %1",
   "agents.runningCaughtUp": "Laufende Sitzungen auf %1 wurden auch umgestellt.",
   "agents.runningFollow": "Laufende Sitzungen nutzen es auch.",
   "agents.runningStayOn": "Laufende Sitzungen bleiben auf %1.",

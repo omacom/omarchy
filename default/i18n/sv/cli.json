@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Token flödar nu från %1-kontot",
   "agents.readyToCode": "%1 är redo",
   "agents.readyToCodeBody": "Skapa något coolt",
+  "agents.resumeDirMissing": "Återupptagning av agent hoppades över",
+  "agents.resumeDirMissingBody": "Den sparade katalogen finns inte: %1",
   "agents.runningCaughtUp": "Pågående sessioner på %1 flyttades också över.",
   "agents.runningFollow": "Pågående sessioner använder det också.",
   "agents.runningStayOn": "Pågående sessioner stannar på %1.",

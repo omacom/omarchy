@@ -36,6 +36,8 @@
   "agents.readyForMoreBody": "Token kini mengalir dari akun %1",
   "agents.readyToCode": "%1 siap",
   "agents.readyToCodeBody": "Buat sesuatu yang keren",
+  "agents.resumeDirMissing": "Lanjutan agen dilewati",
+  "agents.resumeDirMissingBody": "Direktori tersimpan tidak ada: %1",
   "agents.runningCaughtUp": "Sesi yang berjalan di %1 juga ikut berpindah.",
   "agents.runningFollow": "Sesi yang berjalan juga menggunakannya.",
   "agents.runningStayOn": "Sesi yang berjalan tetap di %1.",

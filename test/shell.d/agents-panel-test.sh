@@ -278,6 +278,27 @@ const stopping = update({ unit: 'deactivating', since_ms: now - 1000, expected_s
 const loading = update({ unit: 'activating', since_ms: now - 30000, expected_load_seconds: 60 })
 assert(waiting > 0 && waiting < half && half < fetched && fetched <= stopping && stopping < loading && loading < 1, 'an update fills one way through its phases', [waiting, half, fetched, stopping, loading])
 
+// A CLI package install fills one way too: gentle creep before the first byte,
+// then real download bytes, verification, and extraction/hooks, with stage titles.
+const cliProgress = new Function('Commons', 'clamp', ['phaseProgress', 'cliInstallProgress', 'cliInstallTitle'].map(fn).join('\n') + '\nreturn { cliInstallProgress, cliInstallTitle }')(
+  { I18n: { t: key => key } },
+  (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+)
+const cliStart = cliProgress.cliInstallProgress('', 0, 0, now, now)
+const cliCreep = cliProgress.cliInstallProgress('', 0, 0, now - 4000, now)
+const cliDlHalf = cliProgress.cliInstallProgress('downloading', 50, 100, now - 5000, now)
+const cliDlDone = cliProgress.cliInstallProgress('downloading', 100, 100, now - 8000, now)
+const cliVerify = cliProgress.cliInstallProgress('verifying', 50, 100, now - 9000, now)
+const cliExtract = cliProgress.cliInstallProgress('installing', 50, 100, now - 11000, now)
+const cliHooks = cliProgress.cliInstallProgress('installing', 98, 100, now - 12000, now)
+assert(cliStart > 0 && cliStart < cliCreep && cliCreep < cliDlHalf && cliDlHalf < cliDlDone && cliDlDone < cliVerify && cliVerify < cliExtract && cliExtract < cliHooks && cliHooks < 1,
+  'a CLI install fills one way across its stages', [cliStart, cliCreep, cliDlHalf, cliDlDone, cliVerify, cliExtract, cliHooks])
+assertDeepEqual(
+  ['', 'downloading', 'verifying', 'installing'].map(cliProgress.cliInstallTitle),
+  ['agents.installingMeter', 'agents.downloadingMeter', 'agents.verifyingMeter', 'agents.installingMeter'],
+  'a CLI install labels each stage'
+)
+
 // A model the memory free can't start is held back: one set up when the
 // engine says so, a recipe when it needs more than is free.
 const short = new Function('settingUpLocal', 'localModelsService', fn('localSettingUp') + fn('memoryShort') + '\nreturn memoryShort')('', { memoryFreeGib: 18 })
@@ -390,6 +411,28 @@ assertEqual(refocused, 1, 'submitting a code returns keyboard focus to the panel
 handleAddLine('Paste code here:')
 assertEqual(pasteState.addNeedsPaste, true, 'a re-prompt brings the paste field back')
 assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking state')
+
+// CLI install progress lines update stage, rate, and monotonic bar fill.
+Object.assign(pasteState, {
+  addPhase: '', addRateBytes: 0,
+  addInstallStage: '', addInstallStartedMs: 0, addInstallFill: 0,
+  nowMs: 0,
+  cliInstallProgress: cliProgress.cliInstallProgress
+})
+handleAddLine('@@omarchy progress 0 0 0')
+const initialFill = pasteState.addInstallFill
+assert(initialFill > 0 && pasteState.addPhase === 'get' && pasteState.addInstallStage === '', 'initial progress starts a visible fill')
+pasteState.addInstallFill = 0.1
+handleAddLine('@@omarchy progress 1 100 18000000 downloading')
+assertEqual(pasteState.addInstallStage, 'downloading', 'progress updates the install stage')
+assertEqual(pasteState.addRateBytes, 18000000, 'progress updates the download rate')
+assertEqual(pasteState.addInstallFill, 0.1, 'entering downloading never pulls the bar backward')
+handleAddLine('@@omarchy progress 100 100 20000000 downloading')
+assertEqual(pasteState.addInstallFill, 0.75, 'a completed download caps at the download phase boundary')
+handleAddLine('@@omarchy progress 50 100 0 verifying')
+assertEqual(pasteState.addInstallStage, 'verifying', 'verifying stage updates the label')
+assertEqual(pasteState.addRateBytes, 0, 'verifying clears the download rate')
+assert(pasteState.addInstallFill > 0.75 && pasteState.addInstallFill < 0.82, 'verifying advances past downloading')
 
 // On a blank-slate machine, starting a local model download keeps AddView up
 // and must not also render a duplicate ProviderSection underneath it. Already-
@@ -530,4 +573,43 @@ finishUpdate()
 deferred.shift()()
 assertDeepEqual(calls, ['rescan', 'reload', 'run:force', 'retry', 'sync'], 'finishUpdate dispatches queued pendingUpdateKind')
 assertEqual(updateState.pendingUpdateKind, '', 'finishUpdate clears pendingUpdateKind')
+
+// China installs filter the add picker to mainland-accessible providers while
+// keeping global installs unchanged and preserving sign-in metadata for all.
+const signInProvidersSrc = source.match(/readonly property var signInProviders: (\[[\s\S]*?\n  \])/)[1]
+const cnGroupIdsSrc = source.match(/readonly property var cnGroupIds: \((\{[\s\S]*?\n  \})\)/)[1]
+const addGroupSrc = fn('addGroup')
+const evalPicker = isChinaRegion => new Function(
+  'Commons', 'isChinaRegion',
+  'const signInProviders = ' + signInProvidersSrc + '\n' +
+  'const cnGroupIds = ' + cnGroupIdsSrc + '\n' +
+  addGroupSrc + '\n' +
+  'return { signInProviders, addGroup }'
+)({ I18n: { t: key => key } }, isChinaRegion)
+
+const globalPicker = evalPicker(false)
+assertDeepEqual(
+  globalPicker.addGroup('subscription').map(p => p.providerId),
+  ['claude', 'codex', 'grok', 'agy', 'muse', 'cursor', 'copilot', 'more-subscriptions'],
+  'global installs keep all subscription picker tiles'
+)
+assertDeepEqual(
+  globalPicker.addGroup('provider').map(p => p.providerId),
+  ['fireworks', 'opencode', 'openrouter', 'more-providers'],
+  'global installs keep all pay-as-you-go picker tiles'
+)
+
+const cnPicker = evalPicker(true)
+assertDeepEqual(
+  cnPicker.addGroup('subscription').map(p => p.providerId),
+  ['minimax', 'zai', 'kimi'],
+  'cn installs offer only China-accessible subscriptions without a More tile'
+)
+assertDeepEqual(
+  cnPicker.addGroup('provider').map(p => p.providerId),
+  ['deepseek'],
+  'cn installs offer only DeepSeek under pay as you go without a More tile'
+)
+assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
+assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
 JS

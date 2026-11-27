@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tokeni sasa zinatiririka kutoka akaunti ya %1",
   "agents.readyToCode": "%1 iko tayari",
   "agents.readyToCodeBody": "Tengeneza kitu kizuri",
+  "agents.resumeDirMissing": "Kuendelea kwa wakala kumerukwa",
+  "agents.resumeDirMissingBody": "Saraka iliyohifadhiwa haipo: %1",
   "agents.runningCaughtUp": "Vipindi vinavyoendelea vya %1 vimehamia pia.",
   "agents.runningFollow": "Vipindi vinavyoendelea vinaitumia pia.",
   "agents.runningStayOn": "Vipindi vinavyoendelea hubaki kwenye %1.",

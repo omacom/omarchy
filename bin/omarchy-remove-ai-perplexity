@@ -6,6 +6,7 @@
 # -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
 set -euo pipefail
 
+echo "Removing Perplexity..."
 omarchy-pkg-drop perplexity
 
 # The runtime the app downloads for itself: llama.cpp builds and local models

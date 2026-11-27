@@ -39,6 +39,8 @@
   "agents.readyForMoreBody": "Токены теперь поступают с аккаунта %1",
   "agents.readyToCode": "%1 готов",
   "agents.readyToCodeBody": "Сделайте что-нибудь крутое",
+  "agents.resumeDirMissing": "Возобновление агента пропущено",
+  "agents.resumeDirMissingBody": "Сохранённый каталог не существует: %1",
   "agents.runningCaughtUp": "Запущенные сессии на %1 тоже переключены.",
   "agents.runningFollow": "Запущенные сессии тоже используют его.",
   "agents.runningStayOn": "Запущенные сессии останутся на %1.",

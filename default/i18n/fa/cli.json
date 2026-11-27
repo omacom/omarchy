@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "توکن‌ها اکنون از حساب %1 جاری‌اند",
   "agents.readyToCode": "%1 آماده است",
   "agents.readyToCodeBody": "چیزی جالب بسازید",
+  "agents.resumeDirMissing": "ازسرگیری عامل رد شد",
+  "agents.resumeDirMissingBody": "پوشهٔ ذخیره‌شده وجود ندارد: %1",
   "agents.runningCaughtUp": "نشست‌های در حال اجرا روی %1 هم منتقل شدند.",
   "agents.runningFollow": "نشست‌های در حال اجرا هم از آن استفاده می‌کنند.",
   "agents.runningStayOn": "نشست‌های در حال اجرا روی %1 باقی می‌مانند.",

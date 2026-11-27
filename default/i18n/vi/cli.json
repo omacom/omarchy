@@ -36,6 +36,8 @@
   "agents.readyForMoreBody": "Token giờ đang chảy từ tài khoản %1",
   "agents.readyToCode": "%1 đã sẵn sàng",
   "agents.readyToCodeBody": "Làm gì đó thật ngầu",
+  "agents.resumeDirMissing": "Đã bỏ qua khôi phục agent",
+  "agents.resumeDirMissingBody": "Thư mục đã lưu không tồn tại: %1",
   "agents.runningCaughtUp": "Phiên đang chạy trên %1 cũng đã chuyển theo.",
   "agents.runningFollow": "Phiên đang chạy cũng dùng tài khoản này.",
   "agents.runningStayOn": "Phiên đang chạy vẫn dùng %1.",

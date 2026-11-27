@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "अब %1 खाते से टोकन आ रहे हैं",
   "agents.readyToCode": "%1 तैयार है",
   "agents.readyToCodeBody": "कुछ बढ़िया बनाएं",
+  "agents.resumeDirMissing": "एजेंट रिज़्यूम छोड़ दिया गया",
+  "agents.resumeDirMissingBody": "सहेजी गई डायरेक्टरी मौजूद नहीं है: %1",
   "agents.runningCaughtUp": "%1 पर चल रहे सत्र भी इस पर आ गए।",
   "agents.runningFollow": "चल रहे सत्र भी इसका उपयोग करते हैं।",
   "agents.runningStayOn": "चल रहे सत्र %1 पर ही रहेंगे।",

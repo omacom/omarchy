@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Tokenii provin acum din contul %1",
   "agents.readyToCode": "%1 este gata",
   "agents.readyToCodeBody": "Fă ceva tare",
+  "agents.resumeDirMissing": "Reluarea agentului a fost omisă",
+  "agents.resumeDirMissingBody": "Directorul salvat nu există: %1",
   "agents.runningCaughtUp": "Sesiunile în curs pe %1 au fost mutate și ele.",
   "agents.runningFollow": "Și sesiunile în curs îl folosesc.",
   "agents.runningStayOn": "Sesiunile în curs rămân pe %1.",

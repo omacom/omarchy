@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Els tokens ara flueixen des del compte %1",
   "agents.readyToCode": "%1 ja està a punt",
   "agents.readyToCodeBody": "Fes alguna cosa genial",
+  "agents.resumeDirMissing": "S'ha omès la represa de l'agent",
+  "agents.resumeDirMissingBody": "El directori desat no existeix: %1",
   "agents.runningCaughtUp": "Les sessions en curs a %1 també s'hi han passat.",
   "agents.runningFollow": "Les sessions en curs també s'hi passen.",
   "agents.runningStayOn": "Les sessions en curs continuen amb %1.",

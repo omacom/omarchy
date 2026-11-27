@@ -1088,10 +1088,12 @@
     "label": "Ekran Yansıtmayı Kapat"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Hibrit GPU'ya Geç"
+    "label": "dGPU'ya Geç",
+    "description": "Hibrit ayrılmış GPU'yu etkinleştir"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Tümleşik GPU'ya Geç"
+    "label": "iGPU'ya Geç",
+    "description": "Yalnızca tümleşik GPU kullan"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Touchpad'i Etkinleştir"

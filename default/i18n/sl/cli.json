@@ -39,6 +39,8 @@
   "agents.readyForMoreBody": "Žetoni zdaj prihajajo iz računa %1",
   "agents.readyToCode": "%1 je pripravljen",
   "agents.readyToCodeBody": "Ustvarite nekaj kul",
+  "agents.resumeDirMissing": "Nadaljevanje agenta preskočeno",
+  "agents.resumeDirMissingBody": "Shranjen imenik ne obstaja: %1",
   "agents.runningCaughtUp": "Tudi aktivne seje na %1 so prešle nanj.",
   "agents.runningFollow": "Tudi aktivne seje ga uporabljajo.",
   "agents.runningStayOn": "Aktivne seje ostanejo na %1.",

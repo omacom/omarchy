@@ -39,6 +39,8 @@
   "agents.readyForMoreBody": "Токени тепер надходять з облікового запису %1",
   "agents.readyToCode": "%1 готовий",
   "agents.readyToCodeBody": "Створіть щось круте",
+  "agents.resumeDirMissing": "Відновлення агента пропущено",
+  "agents.resumeDirMissingBody": "Збережений каталог не існує: %1",
   "agents.runningCaughtUp": "Запущені сеанси на %1 також перейшли.",
   "agents.runningFollow": "Запущені сеанси також використовують його.",
   "agents.runningStayOn": "Запущені сеанси залишаться на %1.",

@@ -36,6 +36,8 @@
   "agents.readyForMoreBody": "Token 現由 %1 帳號供應",
   "agents.readyToCode": "%1 已準備就緒",
   "agents.readyToCodeBody": "來做點酷東西",
+  "agents.resumeDirMissing": "已跳過 Agent 恢復",
+  "agents.resumeDirMissingBody": "儲存的目錄不存在：%1",
   "agents.runningCaughtUp": "執行中的 %1 工作階段也已一併切換。",
   "agents.runningFollow": "執行中的工作階段也會使用它。",
   "agents.runningStayOn": "執行中的工作階段仍使用 %1。",

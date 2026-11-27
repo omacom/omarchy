@@ -349,14 +349,17 @@ wrong_err=$(TEST_PASSPHRASE="wrong-password" run_cmd 1 2>&1) && fail "wrong disk
 [[ ! -e $FAKE_ROOT/crypto_keyfile.bin && ! -e $SLOTS_DIR/1 ]] || fail "wrong passphrase rolls back keyfile and adds no slot"
 pass "wrong disk passphrase prints error and rolls back cleanly"
 
-# 9. Enable and disable push indicator refreshes, and the bar indicator routes
-# active clicks to --disable and inactive clicks to setup.
+# 9. Enable and disable push indicator refreshes, disable explains what it is
+# doing before prompting, and the bar indicator routes active clicks to
+# --disable and inactive clicks to setup.
 reset_fixture
 run_cmd 1 >/dev/null
 grep -qxF -- "-q omarchy.indicators refresh" "$LOG_DIR/refresh.log" ||
   fail "enabling refreshes the bar indicator" "$(<"$LOG_DIR/refresh.log")"
 : >"$LOG_DIR/refresh.log"
-run_cmd --disable >/dev/null
+disable_out=$(run_cmd --disable)
+[[ $disable_out == "Disabling passwordless login..."$'\n'* ]] ||
+  fail "--disable prints a status line before prompting" "$disable_out"
 grep -qxF -- "-q omarchy.indicators refresh" "$LOG_DIR/refresh.log" ||
   fail "disabling refreshes the bar indicator" "$(<"$LOG_DIR/refresh.log")"
 pass "enable and disable push bar indicator refreshes"

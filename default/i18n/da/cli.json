@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tokens strømmer nu fra %1-kontoen",
   "agents.readyToCode": "%1 er klar",
   "agents.readyToCodeBody": "Lav noget fedt",
+  "agents.resumeDirMissing": "Genoptagelse af agent sprunget over",
+  "agents.resumeDirMissingBody": "Den gemte mappe findes ikke: %1",
   "agents.runningCaughtUp": "Kørende sessioner på %1 er også flyttet med.",
   "agents.runningFollow": "Kørende sessioner bruger den også.",
   "agents.runningStayOn": "Kørende sessioner forbliver på %1.",

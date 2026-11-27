@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tokenlar endi %1 hisobidan oqmoqda",
   "agents.readyToCode": "%1 tayyor",
   "agents.readyToCodeBody": "Ajoyib narsa yarating",
+  "agents.resumeDirMissing": "Agentni davom ettirish oʻtkazib yuborildi",
+  "agents.resumeDirMissingBody": "Saqlangan katalog mavjud emas: %1",
   "agents.runningCaughtUp": "%1 dagi ishlayotgan sessiyalar ham oʻtkazildi.",
   "agents.runningFollow": "Ishlayotgan sessiyalar ham undan foydalanadi.",
   "agents.runningStayOn": "Ishlayotgan sessiyalar %1 da qoladi.",

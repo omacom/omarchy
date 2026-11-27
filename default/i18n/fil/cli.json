@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Dumadaloy na ngayon ang mga token mula sa account na %1",
   "agents.readyToCode": "Handa na ang %1",
   "agents.readyToCodeBody": "Gumawa ng astig na bagay",
+  "agents.resumeDirMissing": "Nilaktawan ang pagpapatuloy ng agent",
+  "agents.resumeDirMissingBody": "Hindi umiiral ang naka-save na direktoryo: %1",
   "agents.runningCaughtUp": "Lumipat na rin ang mga tumatakbong session sa %1.",
   "agents.runningFollow": "Ginagamit na rin ito ng mga tumatakbong session.",
   "agents.runningStayOn": "Mananatili sa %1 ang mga tumatakbong session.",
