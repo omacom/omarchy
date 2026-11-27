@@ -266,6 +266,14 @@ QtObject {
     readonly property int popupPadding: root.spacingToken("popup-padding", 14)
   }
 
+  // Room a panel hero's icon takes before its title. Glyphs differ in width
+  // (Bluetooth's is half of Audio's), so the title is set past this slot and
+  // not past the glyph, and lands at the same spot in every panel.
+  readonly property int heroIconSlot: Math.round(font.display * 7 / 6)
+  function heroTitleInset(iconWidth) {
+    return space(14) + Math.max(0, heroIconSlot - iconWidth)
+  }
+
   // ---------------------------------------------------------- typography
   //
   // `fontFamily` defaults to "monospace" so the bar and every qs.Ui

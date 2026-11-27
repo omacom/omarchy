@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Ask for an encrypted drive's password in the shell and unlock it
+# omarchy:args=<device>
+# omarchy:hidden=true
+
+# Called by omarchy-drive-automount when a locked LUKS partition appears. The
+# shell asks for the password and unlocks the drive itself, so a wrong password
+# shakes the card and is asked again; omarchy-drive-automount then mounts the
+# unlocked cleartext device as it appears.
+
+device=${1:?Usage: omarchy-drive-unlock <device>}
+disk=$(lsblk -dno PKNAME "$device")
+name=$(lsblk -dno LABEL "$device")
+[[ -n $name ]] || name=$(lsblk -dno MODEL "/dev/${disk:-${device#/dev/}}" | sed 's/ *$//')
+size=$(lsblk -dno SIZE "$device" | tr -d ' ')
+
+omarchy-shell -q omarchy.polkit unlockDrive "$device" "${name:+$name · }$size"

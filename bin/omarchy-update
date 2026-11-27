@@ -77,6 +77,9 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# Where this update's own output starts, past anything a channel switch logged first.
+update_log_start=$(stat -c %s /tmp/omarchy-update.log 2>/dev/null || echo 0)
+
 omarchy-update-requires-free-space
 
 # -y skips the start confirmation and, unless the caller set
@@ -116,7 +119,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-migrate
   omarchy-update-orphan-pkgs -y
 
-  omarchy-update-analyze-logs
+  omarchy-update-analyze-logs "$update_log_start"
 
   # The dev checkout was fast-forwarded and the full upgrade went through, so
   # there is no Omarchy update left to show. Rechecking would download every

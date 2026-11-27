@@ -559,3 +559,86 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+# History reads happen in a single jq call so a concurrent copy shifting array
+# indices between two reads cannot cause the wrong entry to be pasted or opened.
+cat >"$TMPDIR/bin/jq" <<'SH'
+#!/bin/bash
+/usr/bin/jq "$@"
+status=$?
+if [[ -n ${JQ_SHIFT_HISTORY:-} && -f $JQ_SHIFT_HISTORY ]]; then
+  printf '[{"type":"text","text":"shifted-wrong-entry"}]\n' >"$JQ_SHIFT_HISTORY"
+fi
+exit "$status"
+SH
+chmod +x "$TMPDIR/bin/jq"
+
+printf '[{"type":"text","text":"original-entry"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+JQ_SHIFT_HISTORY="$TMPDIR/home/.local/state/omarchy/clipboard-history.json" \
+  WL_COPY_OUT="$TMPDIR/copied" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+[[ $(<"$TMPDIR/copied") == "original-entry" ]] ||
+  fail "clipboard paste reads and validates history entry in a single jq call" "$(<"$TMPDIR/copied")"
+
+printf '[{"type":"text","text":"https://example.com/original"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+rm -f "$TMPDIR/browser"
+JQ_SHIFT_HISTORY="$TMPDIR/home/.local/state/omarchy/clipboard-history.json" \
+  BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-open" --history-index 0
+[[ $(<"$TMPDIR/browser") == "https://example.com/original" ]] ||
+  fail "clipboard open reads and validates history entry in a single jq call" "$(<"$TMPDIR/browser")"
+rm -f "$TMPDIR/bin/jq"
+pass "clipboard history helpers read entries atomically in one jq call"
+
+# Embedded NUL bytes in saved history text must survive extraction into wl-copy.
+printf '[{"type":"text","text":"foo\\u0000bar\\u0000"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+WL_COPY_OUT="$TMPDIR/copied-nul" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+[[ $(od -An -tx1 "$TMPDIR/copied-nul" | tr -d ' \n') == "666f6f0062617200" ]] ||
+  fail "clipboard paste preserves embedded NUL bytes from history entries" "$(od -An -tx1 "$TMPDIR/copied-nul")"
+pass "clipboard paste preserves embedded NUL bytes from history entries"
+
+sweep_dir="$TMPDIR/sweep-images"
+sweep_hist="$TMPDIR/sweep-history.json"
+mkdir -p "$sweep_dir"
+printf 'orphan' >"$sweep_dir/orphan.png"
+printf 'kept' >"$sweep_dir/kept.png"
+printf 'kept-kind' >"$sweep_dir/kept-kind.png"
+printf 'recent' >"$sweep_dir/recent.png"
+printf 'inflight' >"$sweep_dir/clipboard.abc123"
+printf '5\n' >"$sweep_dir/.gen"
+printf 'outside' >"$TMPDIR/outside.png"
+ln -s "$TMPDIR/outside.png" "$sweep_dir/escape.png"
+touch -d '2 minutes ago' "$sweep_dir/orphan.png" "$sweep_dir/kept.png" "$sweep_dir/kept-kind.png" "$sweep_dir/clipboard.abc123" "$sweep_dir/.gen" "$TMPDIR/outside.png"
+touch -h -d '2 minutes ago' "$sweep_dir/escape.png"
+
+# Missing or malformed history fails safe and deletes nothing.
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$TMPDIR/missing-history.json" "$sweep_dir"
+[[ -f $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep leaves images alone when history is missing"
+printf 'not json {{{' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ -f $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep leaves images alone when history is malformed"
+printf '{"not":"an-array"}' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ -f $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep leaves images alone when history is not an array"
+pass "clipboard orphan sweep fails safe on missing or malformed history"
+
+# Valid history removes only old unreferenced regular files.
+jq -n --arg path "$sweep_dir/kept.png" --arg kind_path "$sweep_dir/kept-kind.png" \
+  '[{type:"image", mime:"image/png", path:$path}, {kind:"image", path:$kind_path}]' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ ! -e $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep removes unreferenced old images"
+[[ $(<"$sweep_dir/kept.png") == "kept" ]] || fail "clipboard orphan sweep keeps referenced images"
+[[ $(<"$sweep_dir/kept-kind.png") == "kept-kind" ]] || fail "clipboard orphan sweep keeps legacy kind:image referenced images"
+[[ $(<"$sweep_dir/recent.png") == "recent" ]] || fail "clipboard orphan sweep keeps recent unreferenced images"
+[[ $(<"$sweep_dir/clipboard.abc123") == "inflight" ]] || fail "clipboard orphan sweep skips in-flight temp files"
+[[ $(<"$sweep_dir/.gen") == "5" ]] || fail "clipboard orphan sweep skips dotfiles"
+[[ -L $sweep_dir/escape.png && $(<"$TMPDIR/outside.png") == "outside" ]] || fail "clipboard orphan sweep skips symlinks and outside targets"
+pass "clipboard orphan sweep removes only old unreferenced images"
+
+# Cleared history ([]) sweeps remaining aged legacy images.
+printf '[]\n' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ ! -e $sweep_dir/kept.png && ! -e $sweep_dir/kept-kind.png ]] || fail "clipboard orphan sweep removes aged images after history is cleared"
+[[ $(<"$sweep_dir/recent.png") == "recent" ]] || fail "clipboard orphan sweep still preserves recent images on empty history"
+pass "clipboard orphan sweep cleans aged images when history is empty"
