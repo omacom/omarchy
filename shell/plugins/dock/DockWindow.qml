@@ -543,7 +543,7 @@ PanelWindow {
       anchors.fill: parent
       sourceSize: current.sourceSize
       fillMode: Image.PreserveAspectFit
-      asynchronous: true
+      asynchronous: Util.loadsOffThread(source)
       smooth: true
       mipmap: true
     }
@@ -553,7 +553,7 @@ PanelWindow {
       anchors.fill: parent
       sourceSize: Qt.size(window.iconSize * 2, window.iconSize * 2)
       fillMode: Image.PreserveAspectFit
-      asynchronous: true
+      asynchronous: Util.loadsOffThread(source)
       smooth: true
       mipmap: true
       onStatusChanged: appIcon.reveal()

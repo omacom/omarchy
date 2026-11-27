@@ -66,6 +66,12 @@ QtObject {
     return "file://" + String(path).split("/").map(encodeURIComponent).join("/")
   }
 
+  // QIcon's shared theme state must stay on the GUI thread. File and network
+  // images can still decode asynchronously.
+  function loadsOffThread(url) {
+    return !/^image:\/\/(icon|qspixmap)\//.test(String(url || ""))
+  }
+
   function isVideoPath(path) {
     return /\.(mp4|m4v|mov|webm|mkv|avi)$/i.test(String(path || ""))
   }
