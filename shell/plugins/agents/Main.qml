@@ -58,11 +58,24 @@ Item {
       required property var modelData
       agentId: modelData
       path: root.usageDir + "/" + modelData + ".json"
-      onRecordChanged: root.recordsChanged()
+      onRecordChanged: root.scheduleRecordsChanged()
     }
 
     onObjectAdded: (index, object) => root.rebuildAgents()
     onObjectRemoved: (index, object) => root.rebuildAgents()
+  }
+
+  // Batch bursts of record file updates into one revision bump so an update
+  // rewriting several agent JSON files doesn't rebuild the panel once per file.
+  Timer {
+    id: recordsDebounce
+    interval: 50
+    repeat: false
+    onTriggered: root.recordsChanged()
+  }
+
+  function scheduleRecordsChanged() {
+    recordsDebounce.restart()
   }
 
   // Each record's FileView follows its file on its own; this catches the ones
@@ -83,6 +96,7 @@ Item {
   }
 
   function recordsChanged() {
+    recordsDebounce.stop()
     dataRevision++
     scheduleLimitsRetry()
     scheduleSync()
