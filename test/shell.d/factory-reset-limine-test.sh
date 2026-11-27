@@ -342,11 +342,11 @@ fi
 
 # Only the boot entry functions: the script's top level draws its UI.
 awk '
-  /^(esp_path|limine_entries_stale|reset_limine_config)\(\) \{/ { copying = 1 }
+  /^(esp_path|boot_backend|limine_entries_stale|reset_limine_config)\(\) \{/ { copying = 1 }
   copying { print }
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-provision-owner" >"$test_tmp/provision-functions"
-[[ $(grep -c '^[a-z_]*() {' "$test_tmp/provision-functions") == 3 ]] ||
+[[ $(grep -c '^[a-z_]*() {' "$test_tmp/provision-functions") == 4 ]] ||
   fail "the first-boot boot entry functions can be loaded"
 
 # omarchy-provision-owner reads /etc/machine-id directly, so give it this
@@ -362,6 +362,7 @@ run_provision_function() {
     mount --bind "$test_tmp/machine-id" /etc/machine-id
     source "$test_tmp/provision-functions"
     esp_path() { echo "$root/boot"; }
+    boot_backend() { echo "${BOOT_BACKEND:-limine}"; }
     log_step() { :; }
     OMARCHY_PATH="$root/usr/share/omarchy"
     "$@"
@@ -409,3 +410,33 @@ printf 'default_entry: 2\n' >"$root/boot/limine.conf"
 [[ $(staleness "$root") == stale ]] ||
   fail "first boot repairs a machine left without an entry of its own"
 pass "a machine without an entry of its own still gets one at first boot"
+
+[[ $(BOOT_BACKEND=systemd-boot staleness "$root") == fresh ]] ||
+  fail "a machine on systemd-boot leaves a shared limine.conf to its installation"
+pass "first boot on systemd-boot doesn't rebuild another installation's Limine entries"
+
+# The image builder clears its machine-id but leaves the bootable Omarchy UKI
+# entry. Kept as is, limine-update reuses it by name without this machine's
+# identity; dropped, the rebuilt entry can land after another system's.
+root="$test_tmp/image-first-boot"
+make_root "$root"
+{
+  printf 'default_entry: 2\n'
+  omarchy_entry "$OLD_ID" | sed '/^comment: machine-id=/d'
+  foreign_entry
+  windows_entry
+} >"$root/boot/limine.conf"
+[[ $(staleness "$root") == stale ]] ||
+  fail "a fresh image's markerless entry needs a machine-specific rebuild"
+run_provision_function "$root" reset_limine_config ||
+  fail "first boot resets the image's markerless entry"
+conf="$root/boot/limine.conf"
+[[ $(grep -c '^/+Omarchy$' "$conf") == 1 ]] && [[ $(grep -m1 '^/' "$conf") == "/+Omarchy" ]] &&
+  entry_for "$conf" "$NEW_ID" | grep -q '^/+Omarchy$' ||
+  fail "the image entry is keyed to this machine and stays first, where default_entry points"
+! grep -q 'stalehash' "$conf" || fail "the image entry's kernels are left for limine-update to rebuild"
+[[ $(awk '/^\/Windows$/,/bootmgfw/' "$conf") == "$windows_before" ]] ||
+  fail "the Windows entry survives the image's first boot"
+entry_for "$conf" "$FOREIGN_ID" | grep -q 'foreignhash' ||
+  fail "another installation's entry survives the image's first boot"
+pass "first boot keys only the markerless image entry to this machine, in place"

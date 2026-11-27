@@ -1,12 +1,12 @@
-# Motīvi
+# Tēmas
 
-Omarchy komplektā ir divdesmit divi skaisti motīvi. Varat izvēlēties starp tiem Omarchy izvēlnē (`Super + Space`) sadaļā _Izskats > Motīvs_ vai pāriet tieši uz motīvu atlasītāju ar `Super + Ctrl + T`.
+Omarchy nāk ar divdesmit trim skaistām tēmām. Tās varat izvēlēties, izmantojot _Izskats > Tēma_ Omarchy izvēlnē (`Super + Space`), vai pāriet tieši uz tēmu izvēli ar `Super + Ctrl + T`.
 
-Katrs motīvs noformē darbvirsmu, termināli, neovim, aktivitāšu ekrānu (btop), Chromium un visu Omarchy apvalku: augšējo joslu, izvēlni, paziņojumus, OSD un bloķēšanas ekrānu. (Obsidian gadījumā Omarchy motīvs lietotnē jāizvēlas manuāli sadaļā _Izskats > Motīvi_).
+Katra tēma noformē darbvirsmu, termināli, neovim, aktivitāšu ekrānu (btop), jūsu pārlūku (Chrome, Chromium, Edge vai Brave) un visu Omarchy apvalku: augšējo joslu, izvēlni, paziņojumus, OSD un bloķēšanas ekrānu. (Obsidian gadījumā Omarchy tēma ir jāizvēlas manuāli, izmantojot _Izskats > Tēmas_ lietotnē.)
 
-Motīviem ir fona attēlu kopa, no kuras varat izvēlēties ar `Super + Ctrl + W`.
+Tēmām ir fona attēlu kopa, no kuras varat izvēlēties, izmantojot `Super + Ctrl + W`.
 
-Vēl vairāk motīvu atradīsiet [papildu motīvu lapā](https://omarchy.org/themes/) vai pat varat [izveidot savu motīvu](43-making-your-own-theme.md).
+Vēl vairāk tēmu varat atrast [papildu tēmu lapā](https://omarchy.org/themes/) vai pat [izveidot savu tēmu](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Atbloķēšanas ekrāni
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Motīviem var būt arī pielāgots atbloķēšanas dizains, ko izmanto sāknēšanas atšifrēšanas procesā. Tādu varat izvēlēties sadaļā _Izskats > Atbloķēšana_. Tie izskatās šādi:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Lietotņu ikonas
+
+Lietotņu palaidējā un dokā redzamās ikonas ir zīmētas jūsu tēmas krāsās, tāpēc tās mainās līdz ar tēmu. Tās nāk no ikonu kopas, kuru izvēlaties atsevišķi no tēmas sadaļā _Izskats > Ikonas_, no katras kopas priekšskatījumiem, tāpat kā izvēlaties tēmu:
+
+- _Papercraft_ ir noklusējums: viss, kas ir instalēts, ir uzzīmēts vienā stilā. Lietotnes, kas atpazīstamas pēc to logotipa, piemēram, Chrome, HEY vai YouTube, saglabā tā formu un iegūst tēmas krāsas.
+- _Arcade_ tās pašas lietotnes zīmē kā 8 bitu pikseļu mākslu, kā to darītu veca spēļu konsole.
+- _Original_ katru lietotni rāda ar ikonu, ko tai devis tās veidotājs.
+
+Kādas citas personas izveidotu ikonu kopu varat instalēt ar _Instalēt > Stils > Ikonas_ (vai `omarchy icons install <git url>`), un noņemt to atkal sadaļā _Noņemt > Ikonas_. _Atjaunināt > Papildu ikonas_ iegūst jūsu instalēto kopu jaunāko versiju.
+
+Lai izveidotu savu kopu, ievietojiet savas ikonas mapē `~/.config/omarchy/icons/<name>/`, vienu failu katrai lietotnei, nosauktu atbilstoši lietotnes `.desktop` faila rindai `Icon=`. Fails ar paplašinājumu `.svg` tiek rādīts tāds, kāds tas ir. Fails ar paplašinājumu `.svg.tpl` tiek zīmēts tēmas krāsās: vietā, kur jābūt krāsai, ierakstiet `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` vai `{{ icon_shadow }}`. Noklusētā kopa mapē `/usr/share/omarchy/icons/papercraft/` ir laba vieta, no kuras sākt. Pievienojiet `preview.png`, lai jūsu kopa tiktu rādīta izvēlnē; bez tā Omarchy izveidos priekšskatījumu no jūsu ikonām. Lai mainītu vienu noklusētās kopas ikonu, ievietojiet savu versiju mapē `~/.config/omarchy/icons/papercraft/`.
+
+### Atbloķēšana
+
+Tēmām var būt arī pielāgots atbloķēšanas noformējums, kas tiek izmantots sāknēšanas atšifrēšanas procesā. Tādu varat izvēlēties sadaļā _Izskats > Atbloķēšana_. Tie izskatās šādi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -96,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_
