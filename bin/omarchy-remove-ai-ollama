@@ -5,6 +5,8 @@
 
 set -e
 
+echo "Removing Ollama..."
+
 # The service is what holds the models open, so it goes before the package.
 sudo systemctl disable --now ollama.service 2>/dev/null || true
 

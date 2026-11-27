@@ -10,6 +10,7 @@ set -euo pipefail
 # that leaves it running deletes the directory and watches it come straight back.
 pkill -x amp-desktop || true
 
+echo "Removing Amp Desktop..."
 omarchy-pkg-drop amp-desktop-bin
 
 # Not ~/.config/amp, ~/.local/share/amp, or ~/.cache/amp: those belong to the

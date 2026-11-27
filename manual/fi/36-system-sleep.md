@@ -1,21 +1,21 @@
 # Järjestelmän lepotila
 
-Omarchy ottaa valmiustilan ja horrostilan käyttöön oletuksena, mutta jos sinulla on ongelmia kumman tahansa kanssa koneellasi, voit kytkeä ne pois päältä.
+Omarchy ottaa valmiustilan käyttöön oletuksena ja horrostilan, kun se on määritetty, mutta jos sinulla on ongelmia kumman tahansa kanssa koneellasi, voit kytkeä ne pois päältä.
 
-NVIDIA GB10 -koneilla, kuten DGX Spark ja ASUS Ascent GX10, valmiustila ja horrostila on kytketty pois päältä, kuten NVIDIA:n DGX OS:ssäkin, koska lepotilan ei ole vielä osoitettu toimivan kyseisellä laitteistolla. Valmiustilan kytkin ja horrostilan määritys eivät koske niitä. Saadaksesi lepotilan takaisin käyttöön poista `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` komennolla `sudo rm`; valmiustila palaa sitten valikkoon, ja horrostila voidaan määrittää kuten muillakin koneilla. Komennon `sudo omarchy apply hardware --install-user "$USER"` suorittaminen palauttaa tiedoston.
+NVIDIA GB10 -koneilla, kuten DGX Spark ja ASUS Ascent GX10, valmiustila ja horrostila on kytketty pois päältä, kuten ne ovat myös NVIDIA:n DGX OS:ssä, koska lepotilan ei ole vielä osoitettu toimivan kyseisellä laitteistolla. Valmiustilan kytkin ja horrostilan määritys eivät koske niitä. Kytke lepotila takaisin päälle poistamalla `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` komennolla `sudo rm`; Suspend palaa sitten valikkoon, ja horrostila voidaan määrittää kuten muillakin koneilla. Komennon `sudo omarchy apply hardware --install-user "$USER"` suorittaminen palauttaa tiedoston.
 
 ### Virtaprofiiilit
 
-Kannettavalla tietokoneella Omarchy muistaa virtaprofiiilisi erikseen verkkovirtaan kytkettynä ja akulla käytettäessä ja vaihtaa näiden kahden välillä, kun kytket laturin tai irrotat sen. Oletuksena tämä tarkoittaa suorituskykyä verkkovirralla ja tasapainotettua akulla.
+Kannettavalla tietokoneella Omarchy muistaa virtaprofiilisi erikseen verkkovirtaan kytkettynä ja akulla käytettäessä ja vaihtaa näiden kahden välillä, kun kytket virran tai irrotat sen. Oletuksena se tarkoittaa suorituskykyä verkkovirralla ja tasapainotettua profiilia akulla.
 
-Näet koneesi tarjoamat vaihtoehdot komennolla `omarchy powerprofiles list`, ja asetat haluamasi parhaillaan käyttämällesi tilalle komennolla `omarchy powerprofiles set autodetect power-saver`. Asettaaksesi toisen tilan irrottamatta mitään, nimeä se suoraan: `omarchy powerprofiles set battery power-saver`. Valitsemasi vaihtoehto on se, jonka saat takaisin seuraavan kerran, kun olet kyseisessä tilassa.
+Näet, mitä koneesi tarjoaa, komennolla `omarchy powerprofiles list`, ja voit asettaa haluamasi profiilin nykyiselle tilallesi komennolla `omarchy powerprofiles set autodetect power-saver`. Jos haluat asettaa toisen tilan irrottamatta mitään, nimeä se suoraan: `omarchy powerprofiles set battery power-saver`. Valitsemasi profiili on se, jonka saat takaisin seuraavan kerran, kun olet kyseisessä tilassa.
 
 ### Valmiustilan kytkeminen
 
-Kytket valmiustilan suorittamalla `omarchy toggle suspend` terminaalista. Se vain näyttää/piilottaa vaihtoehdon kohdassa _System_ (tai `Super + Esc`), ja sitten voit katsoa, toimiiko se johdonmukaisesti järjestelmässäsi. Jos ei, voit piilottaa sen uudelleen samalla komennolla.
+Kytket valmiustilan päälle ja pois suorittamalla terminaalissa komennon `omarchy toggle suspend`. Se vain näyttää/piilottaa vaihtoehdon kohdassa _System_ (tai `Super + Esc`), ja sen jälkeen näet, toimiiko se järjestelmässäsi johdonmukaisesti. Jos ei toimi, voit piilottaa sen uudelleen samalla komennolla.
 
 ### Horrostilan kytkeminen
 
-Määrität horrostilan suorittamalla `omarchy hibernation setup` terminaalista. Horrostila luo /swap-alivolyymin käynnistysasemallesi, jonka koko vastaa fyysisen RAM-muistisi määrää, joten varmista, että sinulla on runsaasti tilaa vapaana. 32GB:n koneella tarvitset aina 32GB+ vapaata tilaa tälle volyymille. Horrostila vaatii myös oletusarvoisen Limine-käynnistyslataimen.
+Määrität horrostilan suorittamalla terminaalissa komennon `omarchy hibernation setup` (se ei ole käytettävissä Apple Silicon -Maceilla). Horrostila luo käynnistysasemallesi /swap-alivolyymin, jonka koko vastaa fyysisen RAM-muistisi määrää, joten varmista, että sinulla on runsaasti tilaa vapaana. 32GB:n koneella tarvitset tälle volyymille aina 32GB+ vapaata tilaa. Horrostila vaatii myös oletusarvoisen Limine-käynnistyslataimen.
 
-Kun se on määritetty, näet horrostilavaihtoehdon kohdassa _System_ (tai `Super + Esc`), ja sitten voit katsoa, toimiiko se johdonmukaisesti järjestelmässäsi. Jos ei, voit poistaa sen uudelleen suorittamalla `omarchy hibernation remove`.
+Kun se on määritetty, näet horrostilavaihtoehdon kohdassa _System_ (tai `Super + Esc`), ja sen jälkeen näet, toimiiko se järjestelmässäsi johdonmukaisesti. Jos ei toimi, voit poistaa sen uudelleen suorittamalla komennon `omarchy hibernation remove`.

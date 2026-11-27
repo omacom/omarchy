@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Install, launch, stop, inspect, or remove the Windows VM
-# omarchy:args=<install|remove|launch|stop|status> [options]
+# omarchy:subcommand=install — Install and configure the Windows VM
+# omarchy:subcommand=launch [-k|--keep-alive] — Start the VM if needed and connect over RDP
+# omarchy:subcommand=stop — Stop the running Windows VM
+# omarchy:subcommand=status — Show the current VM status
+# omarchy:subcommand=remove — Remove the Windows VM and optionally its data
 # omarchy:requires-sudo=true
 
 # The VM is an x86_64 Windows guest under KVM, which only an x86_64 host runs.
@@ -1174,6 +1178,7 @@ install_windows() {
   prepare_user_mount_sources || exit 1
   check_prerequisites
 
+  echo "Installing Windows VM dependencies..."
   omarchy-pkg-add freerdp openbsd-netcat gum
 
   mkdir -p "$HOME/.local/share/applications"

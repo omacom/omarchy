@@ -40,7 +40,7 @@ Its main entry points, each documented where it is defined:
 - `open_json(request)` and `HttpError`: a request that refuses redirects and says whether a failure was a refusal (`status`, with its `headers`), a transport failure (`transport`, the only cause for `retryAdvised`), a reply cut short (`cut_short`), or an invalid answer. See [Limits](#limits) for where the line falls.
 - `trusted_endpoint(url)`: whether an endpoint override a person set (`CURSOR_API_ENDPOINT`, `MUSE_KEY_ENDPOINT`, …) may carry a credential: https anywhere, plain http only to this machine. Every override that moves where a token goes passes through it.
 - `cursor_token(auth_path=None, state_db=None)`, with `jwt_claims()`, `token_lapsed()`, `account_key()` and `finite()`: the Cursor account the Cursor and Grok Bot collectors both ask as (an exported `CURSOR_AUTH_TOKEN`; with `CURSOR_API_KEY` exported, only the token the CLI traded that key for, never the key itself; else the CLI's `auth.json` at `CURSOR_AUTH_PATH` or its default, then the editor's `state.vscdb`, a lapsed sign-in giving way to one that isn't), and reading any JWT's claims, expiry and subject.
-- `registered_accounts(id)` and `account_entry(account, limits, plan, **extra)`: the accounts `omarchy agent account` registered, and one entry of the record's `accounts`.
+- `registered_accounts(id)` and `account_entry(account, limits, plan, **extra)`: the accounts `omarchy agent account` registered, and one entry of the record's `accounts`. A Claude account's `login` is where its login is now, which moves when the account is switched to; read its token there rather than from `home`.
 - `local_day()`, `token_count()`, `usage_tokens()`, `number()`, `now_ms()`, `stamp()`, `age_below()`, `read_json()`, `write_json()`, `cache_root()`: reading untrusted values and files the same way everywhere.
 
 `test/shell.d/agent-usage-shared-test.sh` holds the module to this contract directly. Something goes in the module only once two collectors need it.
@@ -59,6 +59,7 @@ Its main entry points, each documented where it is defined:
 | `limitsStale`, `limitsFetchedAt` | Whether `limits` were kept past a failed check, and when they were measured (epoch ms, `0` when never) |
 | `retryAdvised` | `true` only when the service couldn't be reached at all (DNS, connection, timeout), so the panel retries this agent in 30 seconds |
 | `balance` | `{remaining, funded, spent, currency, estimated}` for prepaid accounts |
+| `spend` | `{amount, cap, currency, days, estimated}` for pay-as-you-go accounts: `days`, each of the last 30 days' cost, today last, and `amount`, their total; or, when the account has a monthly cap (`cap`, `0` when it has none), this month's spend against it. `estimated` is `true` when it adds up the costs local stores wrote beside each reply (`Stats.snapshot_with_spend()`) rather than the provider's own rating |
 | `accounts`, `accountSwitch` | Only when two or more accounts are registered; each account carries `limits`, `stale`, `fetchedAt`, `usageStatusText`, `authHelpText` |
 | `hasLocalStats` | Whether the stats below come from this machine |
 | `hasPromptStats` | `false` when the source has no real prompt or session counts (an API that counts requests, not prompts) |

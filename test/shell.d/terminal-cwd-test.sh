@@ -25,6 +25,14 @@ browser_pid=$!
 (cd "$test_tmp" && DIR="$downloads_dir" SHELL=/bin/bash exec script -qec '(cd "$DIR" && bash -c "sleep 30; :") & wait' /dev/null) </dev/null >/dev/null 2>&1 &
 pty_script_pid=$!
 
+# A stand-in Files: a process whose executable is called folio, sitting in
+# the folder it shows.
+files_dir="$test_tmp/Pictures"
+mkdir -p "$files_dir"
+cp "$(command -v sleep)" "$stub_bin/folio"
+(cd "$files_dir" && exec "$stub_bin/folio" 30) &
+files_pid=$!
+
 # Children first: killing a parent reparents its children out of reach.
 kill_tree() {
   local child
@@ -33,7 +41,7 @@ kill_tree() {
   done
   kill "$1" 2>/dev/null || true
 }
-trap 'kill_tree "$terminal_pid"; kill_tree "$browser_pid"; kill_tree "$pty_script_pid"; wait 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
+trap 'kill_tree "$files_pid"; kill_tree "$terminal_pid"; kill_tree "$browser_pid"; kill_tree "$pty_script_pid"; wait 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
 
 # Ready once each newest child has exec'd bash in its directory: script's child
 # takes its session and pty before the exec, so a ready terminal shell has both.
@@ -89,3 +97,77 @@ pass "a focused app that is not a terminal opens a new terminal in HOME, not its
 cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$pty_browser_pid" 2>&1)
 [[ $cwd == "$test_tmp" ]] || fail "an app started from a terminal, sharing its pty, still opens a new terminal in HOME" "got: $cwd"
 pass "an app started from a terminal, sharing its pty, still opens a new terminal in HOME"
+
+for _ in $(seq 100); do
+  [[ $(readlink -f /proc/"$files_pid"/cwd 2>/dev/null) == "$files_dir" ]] && break
+  sleep 0.05
+done
+cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$files_pid" 2>&1)
+[[ $cwd == "$files_dir" ]] || fail "a terminal opened over Files starts in the folder it shows" "got: $cwd"
+pass "a terminal opened over Files starts in the folder it shows"
+
+# Plain launches (Super+Return) resolve the default terminal from
+# xdg-terminals.list directly without running xdg-terminal-exec; custom args,
+# actions, and exclusions fall through to xdg-terminal-exec.
+launch_bin="$test_tmp/launch-bin"
+launch_cfg="$test_tmp/launch-cfg"
+launch_data="$test_tmp/launch-data"
+launch_out="$test_tmp/launch-out"
+mkdir -p "$launch_bin" "$launch_cfg" "$launch_data/applications"
+printf '#!/bin/bash\nexec "$@"\n' >"$launch_bin/setsid"
+cat >"$launch_bin/uwsm-app" <<'SH'
+#!/bin/bash
+[[ $1 == "--" ]] && shift
+printf 'PWD=%s ARGS=%s\n' "$PWD" "$*" >"$OMARCHY_TEST_LAUNCH_OUT"
+SH
+printf '#!/bin/bash\nexit 0\n' >"$launch_bin/foot"
+printf '#!/bin/bash\n[[ ${OMARCHY_TEST_FORBID_CWD:-0} == 1 ]] && exit 99\nprintf "%%s\\n" "%s"\n' "$work_dir" >"$launch_bin/omarchy-cmd-terminal-cwd"
+chmod +x "$launch_bin"/*
+
+printf 'foot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+cat >"$launch_data/applications/foot.desktop" <<'EOF'
+[Desktop Entry]
+TryExec=foot
+Exec=foot
+X-TerminalArgDir=--working-directory=
+X-TerminalArgAppId=--app-id=
+X-TerminalArgExec=-e
+EOF
+
+run_launch() {
+  rm -f "$launch_out"
+  OMARCHY_TEST_LAUNCH_OUT="$launch_out" PATH="$launch_bin:/usr/bin" \
+    XDG_CONFIG_HOME="$launch_cfg" XDG_CONFIG_DIRS="$test_tmp/no-etc" \
+    XDG_DATA_HOME="$launch_data" XDG_DATA_DIRS="$test_tmp/no-sys" \
+    bash "$ROOT/bin/omarchy-launch-terminal" "$@"
+  cat "$launch_out"
+}
+
+[[ $(run_launch --pid="$terminal_pid") == *"ARGS=foot --working-directory=$work_dir" ]] ||
+  fail "plain terminal launch uses X-TerminalArgDir directly without xdg-terminal-exec" "$(cat "$launch_out")"
+[[ $(run_launch --app-id=org.omarchy.herdr herdr) == *"ARGS=foot --working-directory=$work_dir --app-id=org.omarchy.herdr -e herdr" ]] ||
+  fail "terminal launch with --app-id and command uses fast path directly" "$(cat "$launch_out")"
+[[ $(OMARCHY_TEST_FORBID_CWD=1 run_launch --dir="$downloads_dir" --app-id=org.omarchy.btop -e btop --utf-force) == *"ARGS=foot --working-directory=$downloads_dir --app-id=org.omarchy.btop -e btop --utf-force" ]] ||
+  fail "terminal launch with --dir, --app-id, and -e uses fast path without running terminal-cwd" "$(cat "$launch_out")"
+[[ $(OMARCHY_TEST_FORBID_CWD=1 run_launch --app-id=org.omarchy.btop --dir="$downloads_dir" -e btop --utf-force) == *"ARGS=foot --working-directory=$downloads_dir --app-id=org.omarchy.btop -e btop --utf-force" ]] ||
+  fail "terminal launch accepts --dir after --app-id without running terminal-cwd" "$(cat "$launch_out")"
+[[ $(run_launch --title=Custom herdr) == *"ARGS=xdg-terminal-exec --dir=$work_dir --title=Custom herdr" ]] ||
+  fail "terminal launch with unsupported options falls back to xdg-terminal-exec" "$(cat "$launch_out")"
+
+printf 'foot.desktop:New\nfoot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+[[ $(run_launch) == *"ARGS=xdg-terminal-exec --dir=$work_dir" ]] ||
+  fail "terminal launch with a desktop action entry falls back to xdg-terminal-exec" "$(cat "$launch_out")"
+
+printf -- '-foot.desktop\nfoot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+[[ $(run_launch) == *"ARGS=xdg-terminal-exec --dir=$work_dir" ]] ||
+  fail "excluded terminal entries are skipped by the fast path" "$(cat "$launch_out")"
+
+printf 'foot.desktop\n' >"$launch_cfg/xdg-terminals.list"
+cat >"$launch_data/applications/foot.desktop" <<'EOF'
+[Desktop Entry]
+TryExec=foot
+Exec=foot
+EOF
+[[ $(run_launch) == "PWD=$work_dir ARGS=foot" ]] ||
+  fail "terminal without X-TerminalArgDir changes directory before launching" "$(cat "$launch_out")"
+pass "plain terminal launch resolves xdg-terminals.list directly and falls back for complex entries"
