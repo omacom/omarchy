@@ -69,9 +69,14 @@ Item {
     else sudoPam(false)
   }
 
+  function runAuthorized(name, command, reason) {
+    run(name, ["bash", "-c", 'omarchy-shell -q omarchy.polkit expect "$*" "$0"; exec pkexec "$@"', reason].concat(command))
+  }
+
   function sudoPam(on) {
     // pkexec must always execute the root-owned copy, including in a dev shell.
-    run(on ? "sudo-on" : "sudo-off", ["pkexec", "/usr/share/omarchy/default/fingerprint/sudo_pam.py", on ? "enable" : "disable"])
+    const reason = on ? Commons.I18n.t("fingerprint.authorizeSudoEnable") : Commons.I18n.t("fingerprint.authorizeSudoDisable")
+    runAuthorized(on ? "sudo-on" : "sudo-off", ["/usr/share/omarchy/default/fingerprint/sudo_pam.py", on ? "enable" : "disable"], reason)
   }
 
   Process {
@@ -131,7 +136,7 @@ Item {
         if (next === "sudo-on") { root.sudoPam(true); return }
         if (next === "lock-on") {
           if (!root.state.lockPam) {
-            root.run("prepare-lock", ["pkexec", "/usr/bin/omarchy-setup-security-fingerprint-enroll", "enable-lock"])
+            root.runAuthorized("prepare-lock", ["/usr/bin/omarchy-setup-security-fingerprint-enroll", "enable-lock"], Commons.I18n.t("fingerprint.authorizeScreenUnlock"))
           } else {
             root.run("lock-on", ["omarchy-toggle", "lock-fingerprint-off", "off"])
           }
