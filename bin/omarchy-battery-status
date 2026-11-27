@@ -120,10 +120,13 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-upower_threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-upower_threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-upower_threshold_enabled=$(awk '/charge-threshold-enabled:/ { print tolower($2); exit }' <<<"$battery_info")
-upower_threshold_supported=$(awk '/charge-threshold-supported:/ { print tolower($2); exit }' <<<"$battery_info")
+
+# Charge limits belong to the physical battery: the combined DisplayDevice
+# carries none, even where UPower controls the limit for each battery.
+upower_threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$primary_battery_info")
+upower_threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$primary_battery_info")
+upower_threshold_enabled=$(awk '/charge-threshold-enabled:/ { print tolower($2); exit }' <<<"$primary_battery_info")
+upower_threshold_supported=$(awk '/charge-threshold-supported:/ { print tolower($2); exit }' <<<"$primary_battery_info")
 
 sysfs_threshold_end=$(read_sysfs_number "$battery_path/charge_control_end_threshold" || true)
 sysfs_threshold_start=$(read_sysfs_number "$battery_path/charge_control_start_threshold" || true)

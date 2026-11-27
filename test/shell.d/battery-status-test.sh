@@ -408,6 +408,8 @@ if [[ $1 == "-i" && $2 == */battery_BAT0 ]]; then
   energy:               18.0 Wh
   energy-full:          18.0 Wh
   percentage:           100%
+  charge-end-threshold:          80%
+  charge-threshold-supported:    yes
 INFO
   exit 0
 fi
@@ -433,6 +435,7 @@ grep -Fx $'percentage\t86%' <<<"$dual_output" >/dev/null || fail "battery status
 grep -Fx $'rate\t12.5W' <<<"$dual_output" >/dev/null || fail "battery status preserves combined DisplayDevice rate on dual-battery systems"
 grep -Fx $'size\t63Wh' <<<"$dual_output" >/dev/null || fail "battery status prefers combined DisplayDevice capacity on dual-battery systems"
 grep -Fx $'cycles\t120' <<<"$dual_output" >/dev/null || fail "battery status falls back to BAT* cycle count when DisplayDevice lacks native path"
+grep -Fx $'limit_supported\t1' <<<"$dual_output" >/dev/null || fail "battery status keeps the physical battery's UPower charge limit on dual-battery systems" "$dual_output"
 pass "battery status prefers combined DisplayDevice on multi-battery systems"
 
 # Dual-battery charging preserves UPower's combined time to full when individual limits differ
