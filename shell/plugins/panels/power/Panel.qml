@@ -26,6 +26,8 @@ Panel {
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
   readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
+  // Design capacity and health arrive together or not at all.
+  readonly property bool hasHealthInfo: !!(batteryInfo.design && batteryInfo.health)
   readonly property bool batteryPresent: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
@@ -508,8 +510,14 @@ Panel {
           Column {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
-            InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
+            // The nameplate figure when the design capacity is known. Without one
+            // the size is what the pack holds today, as before.
+            InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.hasHealthInfo ? root.batteryInfo.design : root.batteryInfo.size) }
             InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
+            InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.currentCapacity"); value: root.reading(root.batteryInfo.size) }
+            // What the health figure means for the owner: a verdict here, and
+            // what to do about it in the cell beside it.
+            InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.batteryCondition"); value: Model.healthVerdict(root.batteryInfo.health, Commons.I18n.t) }
           }
 
           Column {
@@ -523,6 +531,8 @@ Panel {
               label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
               value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
             }
+            InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.batteryHealth"); value: root.reading(root.batteryInfo.health) }
+            InfoLabel { visible: root.hasHealthInfo; width: parent.width; elide: Text.ElideRight; text: Model.healthAdvice(root.batteryInfo.health, Commons.I18n.t) }
           }
         }
 
