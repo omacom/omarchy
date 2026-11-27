@@ -55,8 +55,6 @@ omarchy_leaf_platform() {
       hardware/framework16.sh | \
       hardware/framework/qmk-hid.sh | \
       hardware/surface.sh | \
-      hardware/dell-xps13-ptl-speaker-firmware.sh | \
-      hardware/dell-xps13-sidecar-amps.sh | \
       hardware/asus/fix-asus-ptl-display-backlight.sh | \
       hardware/asus/fix-asus-ptl-b9406-display.sh | \
       hardware/asus/fix-asus-ptl-b9406-touchpad.sh | \
