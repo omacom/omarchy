@@ -729,6 +729,7 @@ Panel {
               trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
               cursorPad: Style.space(3)
               hasCursor: root.cursorActive && root.focusRow === "limit"
+              onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, limitSwitch)
               foreground: root.bar.foreground
               anchors.right: parent.right
               anchors.verticalCenter: limitHeader.verticalCenter
@@ -818,6 +819,7 @@ Panel {
                 trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
                 cursorPad: Style.space(3)
                 hasCursor: root.cursorActive && root.focusRow === "topup"
+                onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, topUpSwitch)
                 foreground: root.bar.foreground
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
