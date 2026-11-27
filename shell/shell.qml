@@ -1537,6 +1537,19 @@ ShellRoot {
         firstParty: !!manifest.__isFirstParty
       }
 
+      var placed = shell.pluginRegistry.inBar(pluginId)
+      if (!placed) {
+        // Keep metadata in the registry so the bar editor and plugin listings
+        // still see the widget, without compiling its QML tree until placed.
+        if (existing) {
+          if (existing.component && typeof existing.component.destroy === "function")
+            existing.component.destroy()
+          shell.setPluginWidgetComponent(registryKey, null)
+        }
+        shell.barWidgetRegistry.register(registryKey, null, meta)
+        continue
+      }
+
       // A load already in flight for this URL registers itself when it
       // finishes. Starting a second one produces a second Component for the
       // same widget, and swapping a slot's component rebuilds its item —
