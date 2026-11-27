@@ -306,6 +306,25 @@ ShellRoot {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "a settle whose frames stop finishes at the current thickness: " + root.surface.settle + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
         root.check(root.settles.join(",") === "clearing,", "with no frames it never reveals, the watchdog finishes it: " + root.settles.join(","))
         root.surface.visible = true
+      }, 300],
+      [function() {
+        // A floating bar hangs off its edge, so the surface reaches from the
+        // screen edge to the strip's inner face.
+        Style.barOverrides = {}
+        host.mutateShellConfig(function(config) { config.bar.floating = true })
+      }, 1200],
+      [function() {
+        var reach = root.surface.thickness + root.bar.barMargins.top
+        root.check(root.bar.barMargins.top > 0, "a floating top bar sits off the screen edge: " + root.bar.barMargins.top)
+        root.check(root.surface.settle === "" && root.surface.implicitHeight === reach && root.surface.height === reach, "a floating bar's surface reaches its strip: " + root.surface.height + " against " + reach)
+        root.check(root.surface.exclusiveZone === root.surface.thickness, "a bar floating in the gap reserves what a flush bar reserves: " + root.surface.exclusiveZone + " against " + root.surface.thickness)
+        root.check(root.surface.mask !== null, "only a floating bar's strip takes input, not its clear margin")
+        Style.barOverrides = { "margin": 14 }
+      }, 1200],
+      [function() {
+        var reach = root.surface.thickness + root.bar.barMargins.top
+        root.check(root.bar.barMargins.top >= 14 && root.surface.height === reach, "a theme margin deepens the surface: " + root.surface.height + " against " + reach)
+        root.check(root.surface.exclusiveZone === reach, "a theme margin is reserved with the bar: " + root.surface.exclusiveZone + " against " + reach)
       }, 300]
     ]
     stepper.start()
