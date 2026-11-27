@@ -57,53 +57,59 @@ assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: s
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'once'), 'power does not flag stalled charging as threshold during a one-time top-up')
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'on'), 'power flags stalled charging as threshold when limit is on')
 
-assertDeepEqual(
-  power.chargeLimitOptions({ limit_mode: 'threshold', limit_end: '80' }),
-  [{ key: 'on', label: '80%' }, { key: 'once', label: '100% once' }, { key: 'off', label: '100%' }],
-  'power builds numeric charge limit buttons'
-)
-assertDeepEqual(
-  power.chargeLimitOptions({ limit_mode: 'firmware' }),
-  [{ key: 'on', label: 'Conserve' }, { key: 'once', label: '100% once' }, { key: 'off', label: 'Full' }],
-  'power builds firmware conservation charge limit buttons'
-)
-assertEqual(power.chargeLimitIndexForState('on'), 0, 'power maps on limit state to index 0')
-assertEqual(power.chargeLimitIndexForState('once'), 1, 'power maps once limit state to index 1')
-assertEqual(power.chargeLimitIndexForState('off'), 2, 'power maps off limit state to index 2')
+assertEqual(power.chargeLimitFraction({ limit_mode: 'threshold', limit_end: '80' }), 0.8, 'power computes numeric charge limit fraction for the bar tick')
+assertEqual(power.chargeLimitFraction({ limit_mode: 'firmware', limit_end: '80' }), 0, 'power omits bar tick for firmware-only conservation mode')
+assertEqual(power.chargeLimitHeader({ limit_mode: 'threshold', limit_end: '80' }), 'CHARGE LIMIT · 80%', 'power formats charge limit section header with cap percentage')
+assertEqual(power.chargeLimitHeader({ limit_mode: 'firmware' }), 'CHARGE LIMIT', 'power omits percentage on firmware-only charge limit header')
 
 assertEqual(
-  power.formatSleepSummary({ sleep_duration: '8h 12m', sleep_drain_pct_hr: '0.4%/h', sleep_drain_w: '0.3W', sleep_mode: 's2idle', sleep_s0ix: '97%' }),
-  '8h 12m · 0.4%/h · 0.3W · S0ix 97%',
-  'power formats s2idle sleep drain summary with S0ix'
+  power.formatSleepShort({ sleep_duration: '8h 12m', sleep_drain_pct_hr: '0.4%/h', sleep_drain_w: '0.3W', sleep_mode: 's2idle', sleep_s0ix: '97%' }),
+  '0.4%/h',
+  'power keeps grid sleep reading compact'
 )
 assertEqual(
-  power.formatSleepSummary({ sleep_duration: '3h', sleep_drain_pct_hr: '0.2%/h', sleep_mode: 'deep' }),
+  power.formatSleepTooltip({ sleep_duration: '8h 12m', sleep_drain_pct: '3.3%', sleep_drain_pct_hr: '0.4%/h', sleep_drain_w: '0.3W', sleep_mode: 's2idle', sleep_s0ix: '97%' }),
+  '8h 12m · −3.3% · 0.4%/h · 0.3W · S0ix 97%',
+  'power puts full sleep drain breakdown and S0ix in tooltip'
+)
+assertEqual(
+  power.formatSleepTooltip({ sleep_duration: '3h', sleep_drain_pct_hr: '0.2%/h', sleep_mode: 'deep' }),
   '3h · 0.2%/h',
   'power omits S0ix for non-s2idle sleeps'
 )
-assertEqual(power.formatSleepSummary({}), '', 'power hides sleep summary when empty')
+assertEqual(power.formatSleepShort({}), '', 'power hides sleep reading when empty')
 assert(power.isLowS0ix({ sleep_mode: 's2idle', sleep_s0ix: '64%' }), 'power flags low S0ix residency under 80%')
 assert(!power.isLowS0ix({ sleep_mode: 's2idle', sleep_s0ix: '97%' }), 'power does not flag healthy S0ix residency')
 assert(!power.isLowS0ix({ sleep_mode: 'deep', sleep_s0ix: '0%' }), 'power ignores S0ix outside s2idle')
 
 assertDeepEqual(
-  power.moveFocus('profile', 0, 1, 0, -1, true, 3, 3),
-  { focusRow: 'limit', limitIndex: 0, profileIndex: 1 },
-  'power moves keyboard focus up from profile row to charge limit row'
+  power.moveFocus('profile', 1, 0, -1, true, false, 3),
+  { focusRow: 'limit', profileIndex: 1 },
+  'power moves keyboard focus up from profile row to charge limit toggle'
 )
 assertDeepEqual(
-  power.moveFocus('limit', 0, 1, 1, 0, true, 3, 3),
-  { focusRow: 'limit', limitIndex: 1, profileIndex: 1 },
-  'power moves keyboard focus sideways within charge limit row'
+  power.moveFocus('profile', 1, 0, -1, true, true, 3),
+  { focusRow: 'topup', profileIndex: 1 },
+  'power moves keyboard focus up from profile row to top-up button when visible'
 )
 assertDeepEqual(
-  power.moveFocus('limit', 1, 1, 0, 1, true, 3, 3),
-  { focusRow: 'profile', limitIndex: 1, profileIndex: 1 },
-  'power moves keyboard focus down from charge limit row to profile row'
+  power.moveFocus('topup', 1, 0, -1, true, true, 3),
+  { focusRow: 'limit', profileIndex: 1 },
+  'power moves keyboard focus up from top-up button to charge limit toggle'
 )
 assertDeepEqual(
-  power.moveFocus('profile', 0, 0, 0, 1, false, 3, 3),
-  { focusRow: 'profile', limitIndex: 0, profileIndex: 1 },
+  power.moveFocus('limit', 1, 0, 1, true, true, 3),
+  { focusRow: 'topup', profileIndex: 1 },
+  'power moves keyboard focus down from charge limit toggle to top-up button'
+)
+assertDeepEqual(
+  power.moveFocus('limit', 1, 1, 0, true, false, 3),
+  { focusRow: 'limit', profileIndex: 1 },
+  'power leaves profile index untouched on sideways key while on charge limit toggle'
+)
+assertDeepEqual(
+  power.moveFocus('profile', 0, 0, 1, false, false, 3),
+  { focusRow: 'profile', profileIndex: 1 },
   'power keeps profile-row vertical movement when charge limit is unsupported'
 )
 JS

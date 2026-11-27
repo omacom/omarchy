@@ -115,31 +115,35 @@ function profileLabel(name, tr) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function chargeLimitOptions(batteryInfo, tr, fmt) {
+function chargeLimitFraction(batteryInfo) {
+  var info = batteryInfo || {}
+  if (info.limit_mode === "firmware") return 0
+  var n = parseFloat(info.limit_end || "")
+  if (isNaN(n) || n <= 0 || n >= 100) return 0
+  return n / 100
+}
+
+function chargeLimitHeader(batteryInfo, tr, fmt) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var info = batteryInfo || {}
-  var firmwareOnly = info.limit_mode === "firmware"
-  var endVal = info.limit_end || "80"
-  var onLabel = firmwareOnly ? t("power.chargeLimitConserve", "Conserve") : localizeReading(endVal + "%", fmt)
-  var offLabel = firmwareOnly ? t("power.chargeLimitFull", "Full") : localizeReading("100%", fmt)
-  return [
-    { key: "on", label: onLabel },
-    { key: "once", label: t("power.chargeLimitOnce", "100% once") },
-    { key: "off", label: offLabel }
-  ]
+  var title = t("power.chargeLimitSection", "CHARGE LIMIT")
+  if (info.limit_mode === "firmware" || !info.limit_end) return title
+  return title + " · " + localizeReading(info.limit_end + "%", fmt)
 }
 
-function chargeLimitIndexForState(state) {
-  if (state === "on") return 0
-  if (state === "once") return 1
-  if (state === "off") return 2
-  return 0
+function formatSleepShort(batteryInfo, fmt) {
+  var info = batteryInfo || {}
+  if (!info.sleep_duration) return ""
+  if (info.sleep_drain_pct_hr) return localizeReading(info.sleep_drain_pct_hr, fmt)
+  if (info.sleep_drain_w) return localizeReading(info.sleep_drain_w, fmt)
+  return info.sleep_duration
 }
 
-function formatSleepSummary(batteryInfo, fmt) {
+function formatSleepTooltip(batteryInfo, fmt) {
   var info = batteryInfo || {}
   if (!info.sleep_duration) return ""
   var parts = [info.sleep_duration]
+  if (info.sleep_drain_pct) parts.push("−" + localizeReading(info.sleep_drain_pct, fmt))
   if (info.sleep_drain_pct_hr) parts.push(localizeReading(info.sleep_drain_pct_hr, fmt))
   if (info.sleep_drain_w) parts.push(localizeReading(info.sleep_drain_w, fmt))
   if (info.sleep_mode === "s2idle" && info.sleep_s0ix) parts.push("S0ix " + localizeReading(info.sleep_s0ix, fmt))
@@ -153,23 +157,28 @@ function isLowS0ix(batteryInfo) {
   return !isNaN(n) && n < 80
 }
 
-function moveFocus(focusRow, limitIndex, profileIndex, dx, dy, hasLimit, limitCount, profileCount) {
-  var row = hasLimit ? (focusRow === "limit" ? "limit" : "profile") : "profile"
-  var lIdx = clampIndex(limitIndex, limitCount)
+function moveFocus(focusRow, profileIndex, dx, dy, hasLimit, hasTopUp, profileCount) {
+  var rows = []
+  if (hasLimit) rows.push("limit")
+  if (hasLimit && hasTopUp) rows.push("topup")
+  rows.push("profile")
+
+  var rowIdx = rows.indexOf(focusRow)
+  if (rowIdx < 0) rowIdx = rows.length - 1
   var pIdx = clampIndex(profileIndex, profileCount)
 
-  if (dy !== 0 && hasLimit) {
-    if (dy < 0 && row === "profile") return { focusRow: "limit", limitIndex: lIdx, profileIndex: pIdx }
-    if (dy > 0 && row === "limit") return { focusRow: "profile", limitIndex: lIdx, profileIndex: pIdx }
+  if (dy !== 0) {
+    if (rows.length > 1) {
+      rowIdx = clampIndex(rowIdx + (dy > 0 ? 1 : -1), rows.length)
+      return { focusRow: rows[rowIdx], profileIndex: pIdx }
+    }
+    return { focusRow: "profile", profileIndex: clampIndex(pIdx + dy, profileCount) }
   }
 
-  var step = dx !== 0 ? dx : dy
-  if (row === "limit") {
-    lIdx = clampIndex(lIdx + step, limitCount)
-  } else {
-    pIdx = clampIndex(pIdx + step, profileCount)
+  if (dx !== 0 && rows[rowIdx] === "profile") {
+    pIdx = clampIndex(pIdx + dx, profileCount)
   }
-  return { focusRow: row, limitIndex: lIdx, profileIndex: pIdx }
+  return { focusRow: rows[rowIdx], profileIndex: pIdx }
 }
 
 if (typeof module !== "undefined") {
@@ -185,9 +194,10 @@ if (typeof module !== "undefined") {
     modeLabel: modeLabel,
     profileLabel: profileLabel,
     localizeReading: localizeReading,
-    chargeLimitOptions: chargeLimitOptions,
-    chargeLimitIndexForState: chargeLimitIndexForState,
-    formatSleepSummary: formatSleepSummary,
+    chargeLimitFraction: chargeLimitFraction,
+    chargeLimitHeader: chargeLimitHeader,
+    formatSleepShort: formatSleepShort,
+    formatSleepTooltip: formatSleepTooltip,
     isLowS0ix: isLowS0ix,
     moveFocus: moveFocus
   }

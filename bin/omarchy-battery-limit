@@ -145,7 +145,8 @@ case "$action" in
     notify_shell
     ;;
   toggle)
-    if [[ $(effective_state) == "on" ]]; then
+    cur=$(effective_state)
+    if [[ $cur == "on" || $cur == "once" ]]; then
       apply_threshold false
       rm -f "$once_file"
     else

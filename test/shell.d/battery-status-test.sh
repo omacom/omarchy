@@ -360,7 +360,9 @@ env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" on
 env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" once
 [[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "once" ]] || fail "battery-limit sets one-time top-up state"
 env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" toggle
-[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "on" ]] || fail "battery-limit toggle re-enables limit from once"
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "off" ]] || fail "battery-limit toggle turns limit off from one-time top-up"
+env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" toggle
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "on" ]] || fail "battery-limit toggle turns limit on from off"
 env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" off
 [[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "off" ]] || fail "battery-limit disables charge limit"
 pass "omarchy-battery-limit handles status, on, off, once, and toggle"
