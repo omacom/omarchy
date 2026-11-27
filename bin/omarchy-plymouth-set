@@ -2,14 +2,16 @@
 
 # omarchy:summary=Set the Plymouth boot theme colors and logo
 # omarchy:args=<background-hex> <text-hex> <path-to-logo.png>|--theme <built-in-theme>
-# omarchy:examples=omarchy plymouth set '#1d2021' '#ebdbb2' ~/.local/state/omarchy/current/theme/plymouth/logo.png
+# omarchy:examples=omarchy plymouth set '#1d2021' '#ebdbb2' ~/.local/state/omarchy/current/theme/plymouth/logo.png | omarchy plymouth set '#1a1b26' '#a9b1d6' --theme tokyo-night
 # omarchy:requires-sudo=true
 
 set -euo pipefail
 
 # Build the authoritative theme in a root-owned directory, then publish each
 # fixed destination atomically. The caller opens the selected logo before sudo,
-# so the privileged process never resolves a user-controlled input path.
+# so the privileged process never resolves a user-controlled input path. A
+# built-in theme named with --theme has no such path: its logo is read from the
+# Omarchy tree inside the transaction.
 
 usage() {
   echo "Usage: omarchy-plymouth-set <background-hex> <text-hex> <path-to-logo.png>" >&2
@@ -17,8 +19,6 @@ usage() {
   exit 1
 }
 
-# --theme names a built-in theme whose unlock.png the privileged transaction
-# reads from the Omarchy tree itself, so no caller-chosen path is involved.
 theme=
 if (( $# == 4 )) && [[ $3 == "--theme" && $4 =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   mode=set
@@ -395,11 +395,8 @@ if [[ $mode != "refresh-sddm" ]]; then
   sudo plymouth-set-default-theme omarchy
 
   if (( EUID == 0 )); then
-    # Hardware setup: an install builds the boot image after its last step,
-    # and an image's first boot rebuilds only when a step asks.
-    if [[ -n ${OMARCHY_IMAGE_BOOT_REBUILD:-} ]]; then
-      : >"$OMARCHY_IMAGE_BOOT_REBUILD"
-    fi
+    # Hardware setup builds the boot image itself, after its last step.
+    echo "Boot image not rebuilt: the unlock screen changes at the next omarchy-boot-rebuild"
   elif [[ $(omarchy-boot-backend) == none ]]; then
     sudo mkinitcpio -P
   else

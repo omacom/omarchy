@@ -68,7 +68,7 @@ if unshare --user --map-root-user true 2>/dev/null; then
   [[ $output == *"as your user"* && $output == *"not under sudo"* ]] ||
     fail "the root refusal explains how to invoke the publisher safely" "$output"
 else
-  grep -A2 -Eq '^if \(\( EUID == 0 \)\); then$' "$ROOT/bin/omarchy-plymouth-set" ||
+  grep -A5 -E '^if \(\( EUID == 0 \)\); then$' "$ROOT/bin/omarchy-plymouth-set" | grep -Fq 'as your user, not under sudo' ||
     fail "omarchy-plymouth-set retains its root-invocation guard"
 fi
 pass "the logo descriptor can only be opened by an unprivileged caller"
@@ -495,27 +495,31 @@ batch_fresh_and_migrated() {
   (( status != 0 )) || fail "a built-in theme's logo must pass the packaged-asset trust checks"
   cmp -s "$ROOT/default/plymouth/logo.png" "$theme/logo.png" || fail "an untrusted built-in logo leaves the published one alone"
 
-  for name in ../tokyo-night Tokyo-Night 'tokyo night' ''; do
-    if run_in_fake_root 022 env /bin/bash "$ROOT/bin/omarchy-plymouth-set" '#1d2021' '#ebdbb2' --theme "$name" >/dev/null 2>&1; then
-      fail "a built-in theme is named by its folder alone" "accepted: '$name'"
-    fi
-  done
   pass "a built-in theme's logo is published from the trusted Omarchy tree"
 
-  # Hardware setup runs as root, where only a built-in theme is accepted, and
-  # leaves the boot image to the install: an image's first boot is asked for
-  # the rebuild and nothing is rebuilt here.
+  # Hardware setup runs as root, where only a built-in theme is accepted. It
+  # builds the boot image itself, so nothing is rebuilt here, and says so.
   if unshare --user --map-root-user true 2>/dev/null; then
     setup_fresh_run
-    rebuild_request="$run_dir/boot-rebuild"
-    output=$(set_built_in unshare --user --map-root-user env OMARCHY_IMAGE_BOOT_REBUILD="$rebuild_request" 2>&1)
+    output=$(set_built_in unshare --user --map-root-user env 2>&1)
     status=$?
     (( status == 0 )) || fail "root publishes a built-in theme" "$output"
     cmp -s "$ROOT/themes/tokyo-night/unlock.png" "$theme/logo.png" || fail "root publishes the built-in theme's logo"
-    [[ -e $rebuild_request ]] || fail "root asks an image's first boot for the rebuild"
     if grep -Eq 'command (mkinitcpio|omarchy-boot-rebuild)' "$sudo_log"; then
-      fail "root leaves the boot image rebuild to the install" "$(cat "$sudo_log")"
+      fail "root leaves the boot image rebuild to hardware setup" "$(cat "$sudo_log")"
     fi
+    [[ $output == *"Boot image not rebuilt"* ]] || fail "root says the boot image was not rebuilt" "$output"
+
+    # omarchy-plymouth-set-by-theme hands root the built-in theme by name even
+    # when the caller's home holds a copy, whose logo path root would refuse.
+    by_theme_home="$run_dir/home"
+    mkdir -p "$by_theme_home/.config/omarchy/themes/tokyo-night" "$run_dir/by-theme-bin"
+    printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"$TEST_BY_THEME_ARGS"\n' >"$run_dir/by-theme-bin/omarchy-plymouth-set"
+    chmod +x "$run_dir/by-theme-bin/omarchy-plymouth-set"
+    HOME="$by_theme_home" OMARCHY_PATH="$ROOT" PATH="$run_dir/by-theme-bin:$ROOT/bin:$PATH" TEST_BY_THEME_ARGS="$run_dir/by-theme-args" \
+      unshare --user --map-root-user /bin/bash "$ROOT/bin/omarchy-plymouth-set-by-theme" tokyo-night
+    [[ $(tail -n 2 "$run_dir/by-theme-args" | tr '\n' ' ') == "--theme tokyo-night " ]] ||
+      fail "root sets a theme by name, never by a path" "$(cat "$run_dir/by-theme-args")"
     pass "hardware setup publishes a built-in theme as root without rebuilding the boot image"
   else
     skip "no unprivileged user namespace; skipping the root publication probe"
