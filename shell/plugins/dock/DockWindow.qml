@@ -7,9 +7,11 @@ import qs.Commons as Commons
 import qs.Ui
 import "DockModel.js" as DockModel
 
-// One screen's dock. It stays mapped and only hides its contents, so switching
-// to a floating workspace does not wait on a fresh layer surface. While hidden the
-// mask is empty and clicks fall through to the windows below.
+// One screen's dock. It stays unmapped until this screen visits a floating
+// workspace so tiled-only sessions never allocate a layer surface, swapchain,
+// or render thread for a dock they never show. Once shown, it stays mapped and
+// hides its contents via opacity so switching between tiled and floating
+// workspaces does not wait on a fresh layer surface.
 PanelWindow {
   id: window
   // Right-to-left languages read this window mirrored.
@@ -131,14 +133,21 @@ PanelWindow {
   property Item menuSlot: null
   // The apps button's menu: where the dock sits and whether it hides.
   property bool settingsMenu: false
+  property bool everShown: false
 
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
-    if (shown) return
+    if (shown) {
+      everShown = true
+      return
+    }
     closeMenu()
     window.revealed = false
   }
-  Component.onCompleted: if (dock) dock.readMode(workspaceId)
+  Component.onCompleted: {
+    if (shown) everShown = true
+    if (dock) dock.readMode(workspaceId)
+  }
 
   function openMenu(item, slot) {
     window.settingsMenu = false
@@ -189,6 +198,7 @@ PanelWindow {
     return Math.max(window.gap, Math.min(window.height - popup.height - window.gap, center - popup.height / 2))
   }
 
+  visible: everShown
   color: "transparent"
   WlrLayershell.namespace: "omarchy-dock"
   WlrLayershell.layer: WlrLayer.Top
