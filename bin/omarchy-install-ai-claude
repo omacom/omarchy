@@ -6,7 +6,7 @@
 set -euo pipefail
 
 echo "Installing Claude..."
-omarchy-pkg-add claude-desktop
+omarchy-pkg-add-curated claude-desktop
 
 echo "Opening Claude..."
 setsid uwsm-app -- /usr/bin/claude-desktop >/dev/null 2>&1 &

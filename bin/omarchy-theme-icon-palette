@@ -1,0 +1,221 @@
+#!/bin/bash
+
+# omarchy:summary=Derive the app icon colors from a resolved theme palette
+# omarchy:args=< key<TAB>value lines from omarchy-theme-color --all, and its --raw lines prefixed raw_
+# omarchy:hidden=true
+
+# Omarchy's own app icons are drawn from a few roles rather than raw palette
+# keys, because the same key means different things across themes: magenta is
+# Tokyo Night's violet but Gruvbox's and Nord's pink, and bright_foreground is
+# the lightest color of a dark theme but the darkest of a light one.
+#
+#   icon_main      the theme's accent, or blue when the accent is grey or
+#                  too close to the paper to stand out on it
+#   icon_main_end  the far end of icon_main's gradient
+#   icon_mark      handles, cursors and keys: the theme's violet, else its
+#                  amber, else its most vivid other color, else a mid grey
+#   icon_paper, icon_body, icon_edge, icon_ink, icon_shadow
+#                  the neutral pieces, read the right way round in light themes
+#   icon_contrast  what stands out most on the paper: the shadow in a dark
+#                  theme, the foreground in a light one
+#   icon_red, icon_orange
+#                  the theme's own, or one drawn from the accent when the
+#                  theme has none
+#
+# Any theme gets a best guess, however little its palette says: colors written
+# as rgb(), rgba(), 0xAARRGGBB or #rrggbbaa are read as #rrggbb, a neutral the
+# palette leaves out (or sets to the same color as its neighbor) is mixed from
+# the background and foreground, and a palette with no second hue gets the
+# accent turned 40 degrees, as Tokyo Night's lilac sits beside its blue.
+#
+# A theme sets any of these in its colors.toml to choose for itself, and its
+# value is printed as given. Prints every role or, when the background,
+# foreground or accent can't be read as a color, none.
+
+awk -F '\t' '
+  function hex(c) { return index("0123456789abcdef", tolower(c)) - 1 }
+  function channel(color, i) { return (hex(substr(color, i, 1)) * 16 + hex(substr(color, i + 1, 1))) / 255 }
+  function is_hex(color) { return color ~ /^#[0-9A-Fa-f]{6}$/ }
+
+  # Hue in degrees, lightness and saturation as Python colorsys computes them.
+  function hls(color,    r, g, b, max, min, d) {
+    r = channel(color, 2); g = channel(color, 4); b = channel(color, 6)
+    max = r > g ? (r > b ? r : b) : (g > b ? g : b)
+    min = r < g ? (r < b ? r : b) : (g < b ? g : b)
+    L = (max + min) / 2
+    if (max == min) { H = 0; S = 0; return }
+    d = max - min
+    S = L <= 0.5 ? d / (max + min) : d / (2 - max - min)
+    if (max == r) H = (g - b) / d
+    else if (max == g) H = 2 + (b - r) / d
+    else H = 4 + (r - g) / d
+    H = (H / 6) * 360
+    if (H < 0) H += 360
+  }
+  # Colors as the palette may write them, read as #rrggbb; anything else as is.
+  function normalize(c,    parts, n, i, out, v) {
+    if (c ~ /^#[0-9A-Fa-f]{6}$/) return c
+    if (c ~ /^#[0-9A-Fa-f]{8}$/) return substr(c, 1, 7)
+    if (c ~ /^0x[0-9A-Fa-f]{8}$/) return "#" substr(c, 5, 6)
+    if (c ~ /^[Rr][Gg][Bb][Aa]?\([0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?\)$/) return "#" substr(c, index(c, "(") + 1, 6)
+    if (c ~ /^[Rr][Gg][Bb][Aa]?\( *[0-9]+ *, *[0-9]+ *, *[0-9]+ *(, *[0-9.]+ *)?\)$/) {
+      n = split(substr(c, index(c, "(") + 1), parts, /[,)]/)
+      out = "#"
+      for (i = 1; i <= 3; i++) { v = parts[i] + 0; if (v > 255) v = 255; out = out sprintf("%02x", v) }
+      return out
+    }
+    return c
+  }
+  function hue_to(p, q, t) {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+  function from_hls(h, l, s,    q, p, r, g, b) {
+    h = (h % 360) / 360
+    if (h < 0) h += 1
+    if (s == 0) { r = g = b = l }
+    else {
+      q = l < 0.5 ? l * (1 + s) : l + s - l * s
+      p = 2 * l - q
+      r = hue_to(p, q, h + 1 / 3); g = hue_to(p, q, h); b = hue_to(p, q, h - 1 / 3)
+    }
+    return sprintf("#%02x%02x%02x", int(r * 255 + 0.5), int(g * 255 + 0.5), int(b * 255 + 0.5))
+  }
+  # A theme color that stands apart from what it sits on, else the fallback.
+  function distinct(c, from, apart, fallback) { return is_hex(c) && dist(c, from) > apart ? c : fallback }
+  # A color of the given hue in the accent'"'"'s strength, for a palette without one.
+  function drawn(h,    s, l) {
+    s = sat(main); if (s < 0.55) s = 0.55
+    l = light(main); if (l < 0.5) l = 0.5; if (l > 0.65) l = 0.65
+    return from_hls(h, l, s)
+  }
+  # True when the palette names no colors of its own, as a theme that only
+  # sets its accent, background and foreground. Told from the keys the theme
+  # wrote (the raw_ lines) when given them, so a monochrome theme that names
+  # its greys keeps them; otherwise guessed from a red that is just the
+  # foreground again and nothing but the accent having a hue.
+  function bare(    list, n, i, c) {
+    if (has_raw) {
+      n = split("red orange yellow green cyan blue magenta bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta", list, " ")
+      for (i = 1; i <= n; i++) if (("raw_" list[i]) in color) return 0
+      # ANSI slots 0, 7, 8 and 15 are the neutrals, not hues.
+      for (i = 1; i <= 14; i++) if (i != 7 && i != 8 && ("raw_color" i) in color) return 0
+      return 1
+    }
+    if (is_hex(color["red"]) && dist(color["red"], color["foreground"]) > 0.05) return 0
+    n = split("red orange yellow green cyan blue magenta bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta", list, " ")
+    for (i = 1; i <= n; i++) {
+      c = color[list[i]]
+      if (is_hex(c) && sat(c) >= 0.2 && dist(c, color["accent"]) > 0.05) return 0
+    }
+    return 1
+  }
+  function hue(c) { hls(c); return H }
+  function sat(c) { hls(c); return S }
+  function light(c) { hls(c); return L }
+  function gap(a, b,    d) { d = hue(a) - hue(b); if (d < 0) d = -d; return d > 180 ? 360 - d : d }
+  function dist(a, b,    i, d, sum) {
+    for (i = 2; i <= 6; i += 2) { d = channel(a, i) - channel(b, i); sum += d * d }
+    return sqrt(sum)
+  }
+  function mix(a, b, p,    i, out) {
+    out = "#"
+    for (i = 2; i <= 6; i += 2) out = out sprintf("%02x", int((channel(a, i) * (1 - p) + channel(b, i) * p) * 255 + 0.5))
+    return out
+  }
+
+  # The first of keys whose hue lies in [lo, hi] and that stands apart from main.
+  function pick(keys, lo, hi,    list, n, i, c) {
+    n = split(keys, list, " ")
+    for (i = 1; i <= n; i++) {
+      c = color[list[i]]
+      if (is_hex(c) && sat(c) >= 0.12 && hue(c) >= lo && hue(c) <= hi && gap(c, main) >= 25) return c
+    }
+    return ""
+  }
+
+  function vivid(    list, n, i, c, best) {
+    n = split("red orange yellow green cyan blue magenta bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta", list, " ")
+    for (i = 1; i <= n; i++) {
+      c = color[list[i]]
+      if (is_hex(c) && sat(c) >= 0.35 && gap(c, main) >= 40 && light(c) >= 0.3 && light(c) <= 0.85 && (best == "" || sat(c) > sat(best))) best = c
+    }
+    return best
+  }
+
+  {
+    color[$1] = $1 == "mode" ? $2 : normalize($2)
+    if ($1 ~ /^raw_/) has_raw = 1
+  }
+
+  END {
+    bg = color["background"]; fg = color["foreground"]
+    if (!is_hex(bg) || !is_hex(fg) || !is_hex(color["accent"])) exit
+
+    if (color["mode"] == "light") {
+      paper = bg
+      body = distinct(color["lighter_background"], bg, 0.02, mix(bg, fg, 0.06))
+      shadow = mix(distinct(color["dark_background"], bg, 0.02, mix(bg, fg, 0.1)), fg, 0.35)
+      contrast = fg
+    } else {
+      paper = distinct(color["bright_foreground"], bg, 0.3, fg)
+      body = bg
+      shadow = color["darker_background"]
+      if (!is_hex(shadow) || light(shadow) > light(bg) + 0.05) shadow = mix(bg, "#000000", 0.5)
+      contrast = shadow
+    }
+    # Neutrals the theme sets itself come first, since the roles below derive
+    # from them.
+    if ("icon_paper" in color) paper = color["icon_paper"]
+    if ("icon_body" in color) body = color["icon_body"]
+    if ("icon_shadow" in color) shadow = color["icon_shadow"]
+    if (color["mode"] != "light") contrast = shadow
+    edge = color["muted"]
+    if (!is_hex(edge) || dist(edge, body) <= 0.08 || dist(edge, paper) <= 0.15 || dist(edge, fg) <= 0.05) edge = mix(body, fg, 0.25)
+    ink = color["dark_foreground"]
+    if (!is_hex(ink) || dist(ink, paper) <= 0.15) ink = mix(paper, body, 0.55)
+
+    main = color["accent"]
+    if ((sat(main) < 0.2 || dist(main, paper) <= 0.25) && is_hex(color["blue"])) main = color["blue"]
+    if ("icon_main" in color) main = color["icon_main"]
+
+    mark = pick("bright_magenta magenta", 245, 290)
+    if (mark == "") mark = pick("yellow bright_yellow green orange", 30, 55)
+    if (mark == "") mark = vivid()
+    # A theme with hues of its own that chose greys keeps them; one with no hue
+    # but its accent gets the accent turned 40 degrees.
+    if (mark == "" && bare() && sat(main) >= 0.2) mark = from_hls(hue(main) + 40, light(main), sat(main))
+    if (mark == "") mark = mix(fg, edge, 0.5)
+    if ("icon_mark" in color) mark = color["icon_mark"]
+
+    # The theme'"'"'s own red and orange, whatever their hue; drawn from the accent
+    # only when the theme leaves them out, or has no hues to choose from.
+    red = color["red"]
+    if (!is_hex(red) || (bare() && sat(red) < 0.2)) red = drawn(355)
+    orange = color["orange"]
+    if (!is_hex(orange) || (bare() && sat(orange) < 0.2)) orange = drawn(25)
+
+    role["icon_main"] = main
+    role["icon_main_end"] = mix(main, paper, 0.3)
+    role["icon_mark"] = mark
+    role["icon_paper"] = paper
+    role["icon_body"] = body
+    role["icon_edge"] = edge
+    role["icon_ink"] = ink
+    role["icon_shadow"] = shadow
+    role["icon_contrast"] = contrast
+    role["icon_red"] = red
+    role["icon_orange"] = orange
+
+    # Half a palette would draw broken icons, so print all of it or none.
+    for (key in role) {
+      if (key in color) role[key] = color[key]
+      if (!is_hex(role[key])) exit
+    }
+    for (key in role) print key "\t" role[key]
+  }
+'

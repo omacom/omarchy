@@ -2,7 +2,9 @@
 
 Omarchy is installed using an ISO. You can choose between a full-disk install, which takes over the entire drive, or a free-space install, which puts Omarchy in the unallocated space on a drive — that's how you dual boot alongside Windows or another OS (see [dual-boot install](50-dual-boot-install.md) — note that you'll need to turn off BitLocker in Windows first). Either way, the installation defaults to full encryption, and the full-disk option will wipe the selected drive, so be sure to take a backup before using an existing one!
 
-[Download the Omarchy ISO](https://omarchy.org/) first, put it on a USB stick (use [balenaEtcher](https://etcher.balena.io/) on Mac/Windows or [caligula](https://github.com/ifd3f/caligula) on Linux), and boot off the stick.
+On an Apple Silicon Mac, you install from macOS instead, with no ISO or USB stick. See [Omarchy for Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon).
+
+[Download the Omarchy ISO](https://omarchy.org/) first, put it on a USB stick (use [Rufus](https://rufus.ie/) on Windows, [balenaEtcher](https://etcher.balena.io/) on Mac, or [caligula](https://github.com/ifd3f/caligula) on Linux), and boot off the stick.
 
 _You must turn off Secure Boot and/or TPM in the BIOS. You have to turn these off to be able to install Omarchy. They're Microsoft security schemes meant for Windows and Microsoft-affiliated Linux distributions._
 
@@ -36,7 +38,9 @@ But in special circumstances, like remote Omarchy installs on protected computer
 
 ### Language
 
-Omarchy speaks 50 languages — the same set as omarchy.org — and English is the default. To switch, open the Omarchy menu and go to _Setup > Language_, or run `omarchy language <code>` in a terminal (`omarchy language list` shows the codes). The menu, desktop, and Omarchy's own notifications change language immediately, and every application you open afterwards follows too. Apps that were already open switch once you restart them.
+Omarchy speaks 50 languages — the same set as omarchy.org — and English is the default. To switch, open the Omarchy menu and go to _Setup > Region > Language_, or run `omarchy language <code>` in a terminal (`omarchy language list` shows the codes). The menu, desktop, and Omarchy's own notifications change language immediately, and every application you open afterwards follows too. Apps that were already open switch once you restart them.
+
+To keep the language but write dates, times, numbers, money, units and paper sizes the way another region does (English with European dates and a 24-hour clock, say), pick a region under _Setup > Region > Formats_, where each choice shows a sample, or run `omarchy region formats <code>` (`omarchy region formats list` shows the codes). _Same as language_ goes back to the language's own formats. Like a language switch, it reaches the apps you open afterwards.
 
 ### Help if you're stuck
 

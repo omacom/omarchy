@@ -125,7 +125,7 @@ Item {
 
       Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-            || event.key === Qt.Key_Space || event.key === Qt.Key_Down) {
+            || event.key === Qt.Key_Space || event.key === Qt.Key_Down || event.text === "j") {
           popup.opened ? popup.close() : popup.open()
           event.accepted = true
         } else if (event.key === Qt.Key_Escape && popup.opened) {
@@ -346,7 +346,10 @@ Item {
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
                   onPositionChanged: resultList.currentIndex = parent.index
-                  onClicked: resultList.selectCurrent()
+                  onClicked: {
+                    resultList.currentIndex = parent.index
+                    resultList.selectCurrent()
+                  }
                 }
               }
             }

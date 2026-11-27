@@ -9,12 +9,20 @@
 
 # Columns: id, label, SSH target, session, state.
 # This machine may be listed too, and it is already on the theme, so it needs no special case.
-targets=$(herdr machine list 2>/dev/null | awk -F '\t' '$5 == "enabled" { print $3 }')
+list_targets() {
+  herdr machine list 2>/dev/null | awk -F '\t' '$5 == "enabled" { print $3 }'
+}
 
 # The menu offers the toggle whenever there is a machine to sync to, whether or not sync is on.
 if [[ $1 == "--available" ]]; then
+  targets=$(list_targets)
   [[ -n $targets ]]
   exit
+fi
+
+# Skip locking and querying herdr when theme sync is disabled or echoing back.
+if [[ -n $OMARCHY_THEME_SYNC_FROM || ! -f $HOME/.local/state/omarchy/toggles/herdr-theme-sync ]]; then
+  exit 0
 fi
 
 # Serialize runs and send whichever theme is current once the lock is held,
@@ -24,9 +32,11 @@ flock 9
 
 # A theme that arrived from another machine stops here, so machines never echo it back.
 # The toggle is checked once the lock is held, so turning sync off also stops a queued run.
-if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || ! omarchy-toggle-enabled herdr-theme-sync; then
+if [[ -n $OMARCHY_THEME_SYNC_FROM || ! -f $HOME/.local/state/omarchy/toggles/herdr-theme-sync ]]; then
   exit 0
 fi
+
+targets=$(list_targets)
 
 theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 control_dir="$XDG_RUNTIME_DIR/omarchy-theme-sync"
@@ -75,6 +85,6 @@ for target in $targets; do
   result=$(printf 'theme=%q from=%q\n%s\n' "$theme" "$(hostname)" "$REMOTE_SCRIPT" |
     timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=5 \
       -o ControlMaster=auto -o ControlPersist=600 -o "ControlPath=$control_dir/%C" \
-      "$target" bash -l -s 2>&1 | tail -n 1)
+      -- "$target" bash -l -s 2>&1 | tail -n 1)
   echo "$(date '+%F %T') $target: ${result:-unreachable}"
 done

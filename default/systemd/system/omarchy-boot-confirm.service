@@ -1,0 +1,14 @@
+[Unit]
+Description=Confirm Omarchy's boot loader switch and snapshot restores after a boot
+# After the boot has come all the way up: a switch only moves forward, and a
+# restore only commits, once systemd-boot has started a working system.
+After=multi-user.target graphical.target
+RequiresMountsFor=/var/lib/omarchy/boot /boot /efi
+ConditionPathExists=/var/lib/omarchy/boot/state
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-boot-switch confirm
+
+[Install]
+WantedBy=multi-user.target

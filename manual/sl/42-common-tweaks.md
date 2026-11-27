@@ -1,16 +1,16 @@
 # Pogoste prilagoditve
 
-To je zbirka pogostih prilagoditev nastavitve Omarchy. Vedite, da bo sistemskim posodobitvam občasno morda treba obnoviti določene konfiguracije v njihovo prvotno stanje. Če se to zgodi, vaše spremembe ne bodo izgubljene, ampak bodo postavljene v datoteko `.bak` v istem imeniku.
+To je zbirka pogostih prilagoditev namestitve Omarchy. Vedi, da bo pri posodobitvah sistema občasno morda treba nekatere konfiguracije povrniti v prvotno stanje. Če se to zgodi, tvoje spremembe ne bodo izgubljene, ampak bodo shranjene v datoteki `.bak.<timestamp>` poleg izvirnika.
 
-Če kaj pokvarite, lahko posamezne konfiguracije obnovite v njihovo prvotno nastavitev prek _Posodobi > Config_ v meniju Omarchy. Če _resnično_ vse pokvarite, lahko vse konfiguracije ponastavite prek `omarchy-reinstall`.
+Če kaj zamočiš, lahko posamezne konfiguracije povrneš v prvotno namestitev prek _Posodobitev > Konfiguracija_ v meniju Omarchy. Če _res_ zamočiš vse, lahko vse konfiguracije ponastaviš z `omarchy reinstall configs` ali pa z `omarchy reinstall` znova namestiš vse privzete pakete in konfiguracije.
 
-### Vedno razkrij vse ikone pladnja
+### Vedno prikaži vse ikone sistemskega pladnja
 
-Privzeto so ikone pladnja, kot so Dropbox, 1password ali Steam, skrite za puščico za razširitev pladnja, ki jih razkrije, ko miško premaknete nanjo. Če želite, da so vedno izpostavljene, z desno tipko miške kliknite puščico za razširitev, da odprete upravitelj ikon pladnja, nato pripnite ikone, ki jih želite ohraniti vidne (skrijete lahko tudi tiste, ki jih nikoli ne želite videti).
+Ikone sistemskega pladnja, kot so Dropbox, 1password ali Steam, so privzeto skrite za puščico za razširitev pladnja, ki jih prikaže, ko nanjo zadržiš kazalec. Če jih želiš imeti ves čas izpostavljene, z desno tipko klikni puščico za razširitev, da odpreš upravitelja ikon pladnja, nato pripni ikone, ki jih želiš obdržati vidne (lahko tudi skriješ tiste, ki jih nočeš nikoli videti).
 
 ### Zaobljeni vogali oken
 
-Privzeta zasnova Omarchyja je zasnova kvadratnih vogalov, če pa želite to nekoliko omiliti, lahko spremenite `~/.config/hypr/looknfeel.lua`, tako da zaobljenje ni več zakomentirano:
+Privzeta zasnova Omarchy ima oglate vogale, če pa jo želiš nekoliko zmehčati, v meniju Omarchy izberi _Videz > Okna > Vogali oken > Zaobljeni vogali_ ali zaženi `omarchy hyprland corners rounded`. _Vogali teme_ se vrne na tisto, kar uporablja tema. Če želiš izbrati lasten polmer, ostani na _Vogali teme_ (`omarchy hyprland corners theme`), saj se Zaobljeni in Ostri naložita za tvojo konfiguracijo in jo prepišeta, ter odkomentiraj zaobljenje v `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({
@@ -21,9 +21,9 @@ hl.config({
 })
 ```
 
-### Odstrani razmike oken
+### Odstrani razmike med okni
 
-Na zaslonih prenosnikov nekateri ljudje raje ne zapravljajo nobenih pikslov za razmike oken (ali celo vrstico, ki jo lahko izklopite s `Super + Shift + Space`). Vse razmike in robove lahko izklopite s `Super + Shift + Backspace` ali jih trajno odstranite tako, da odstranite komentarje v tem odseku `~/.config/hypr/looknfeel.lua`:
+Na zaslonih prenosnikov nekateri raje ne zapravljajo nobenih slikovnih pik za razmike med okni (ali celo za zgornjo vrstico, ki jo lahko preklopiš s `Super + Shift + Space`). Vse razmike in obrobe lahko preklopiš s `Super + Shift + Backspace` ali pa jih trajno odstraniš tako, da odstraniš komentarje v tem razdelku datoteke `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

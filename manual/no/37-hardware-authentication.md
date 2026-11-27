@@ -1,19 +1,19 @@
-# Maskinvareautentisering
+# Autentisering med maskinvare
 
-### Fingeravtrykksautentisering
+### Autentisering med fingeravtrykk
 
-Mange bærbare datamaskiner leveres med en fingeravtrykkssensor for autentisering. Du kan bruke den med Omarchy ved å kjøre _Oppsett > Sikkerhet > Fingeravtrykk_ i Omarchy-menyen (`Super + Space`).
+Mange bærbare PC-er leveres med en fingeravtrykkssensor for autentisering. Du kan bruke den med Omarchy ved å kjøre _Oppsett > Sikkerhet > Fingeravtrykk_ i Omarchy-menyen (`Super + Space`).
 
-Det installerer fingeravtrykkspakken, registrerer avtrykket ditt, verifiserer det, og så er du klar til å bruke fingeravtrykket ditt til å låse opp fra låseskjermen (som du kan utløse med `Super + Ctrl + L`), gå inn i sudo-modus og godkjenne systemforespørsler.
+Det åpner et fingeravtrykk i fullskjerm som fylles ut etter hvert som du berører sensoren. I bakgrunnen installerer Omarchy fingeravtrykkspakken, registrerer avtrykket ditt, verifiserer det, og så er du klar til å bruke fingeravtrykket ditt til å låse opp fra låseskjermen (som du kan åpne med `Super + Ctrl + L`), aktivere sudo-modus og godkjenne systemforespørsler.
 
-Når låseskjermen har slått av skjermen, hviler sensoren for å spare strøm, så vekk skjermen med en hvilken som helst tast eller styreflaten før du berører den.
+Når låseskjermen har slått av skjermen, hviler sensoren for å spare strøm, så vekk skjermen med en hvilken som helst tast eller pekeplaten før du berører den.
 
-Når lokket på den bærbare datamaskinen er lukket, hoppes fingeravtrykksforespørselen automatisk over, så du går rett til passordforespørselen i stedet for å vente på en sensor du ikke når. Hvis du ellers må jobbe på et eksternt tastatur som ikke har en sensor, trykker du bare `CTRL + C` når du blir bedt om fingeravtrykket ditt under `sudo`.
+Når lokket på den bærbare PC-en er lukket, hoppes forespørselen om fingeravtrykk automatisk over, slik at du går rett til forespørselen om passord i stedet for å vente på en sensor du ikke kan nå. Hvis du ellers må jobbe på et eksternt tastatur uten sensor, trykker du bare på `CTRL + C` når du blir bedt om fingeravtrykk under `sudo`.
 
-Du kan fjerne fingeravtrykksautentiseringen under _Fjern > Sikkerhet > Fingeravtrykk_ i Omarchy-menyen.
+Du kan fjerne autentisering med fingeravtrykk under _Fjern > Sikkerhet > Fingeravtrykk_ i Omarchy-menyen.
 
 ### Fido2-autentisering
 
-Hvis du bruker en Fido2-enhet, kan du sette den opp for `sudo`-autentisering ved å bruke _Oppsett > Sikkerhet > Fido2_ i Omarchy-menyen (`Super + Space`). Den dekker imidlertid `sudo` og forespørsler om systemautorisasjon, ikke opplåsing av datamaskinen din.
+Hvis du bruker en Fido2-enhet, kan du konfigurere den for `sudo`-autentisering ved å bruke _Oppsett > Sikkerhet > Fido2_ i Omarchy-menyen (`Super + Space`). Den dekker imidlertid `sudo` og forespørsler om systemautorisering, ikke opplåsing av datamaskinen.
 
-Du kan fjerne fido2-autentiseringen under _Fjern > Sikkerhet > Fido2_ i Omarchy-menyen.
+Du kan fjerne fido2-autentisering under _Fjern > Sikkerhet > Fido2_ i Omarchy-menyen.
