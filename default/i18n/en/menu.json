@@ -533,6 +533,9 @@
   "setup.default.browser.zen": {
     "label": "Zen"
   },
+  "setup.default.browser.helium": {
+    "label": "Helium"
+  },
   "setup.default.dictation": {
     "label": "Dictation",
     "title": "Default Dictation"
@@ -754,6 +757,9 @@
   },
   "install.browser.zen": {
     "label": "Zen"
+  },
+  "install.browser.helium": {
+    "label": "Helium"
   },
   "install.service.1password": {
     "label": "1Password"
