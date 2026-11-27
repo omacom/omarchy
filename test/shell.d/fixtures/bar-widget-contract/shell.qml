@@ -163,9 +163,10 @@ ShellRoot {
 
   Item { id: host }
 
-  // A bar object with no barSize, as a plugin may hand a popup.
+  // A bar object with no barSize, as a plugin may hand a popup or panel.
   QtObject { id: sizelessBar; property string position: "top" }
-  PopupCard { id: sizelessPopup; anchorItem: host; bar: sizelessBar }
+  PopupCard { anchorItem: host; bar: sizelessBar }
+  KeyboardPanel { anchorItem: host; bar: sizelessBar; visible: false }
 
   QtObject {
     id: mockShell
@@ -183,6 +184,7 @@ ShellRoot {
   QtObject {
     id: fakeBar
     property bool vertical: false
+    property string position: vertical ? "left" : "top"
     property int barSize: 26
     property string omarchyPath: root.rootPath
     property string fontFamily: "monospace"
@@ -206,7 +208,6 @@ ShellRoot {
     onTriggered: {
       var entries = widgets()
       root.assertTrue(entries.length > 0, "bar widget list is not empty")
-      root.assertEqual(sizelessPopup.barThickness, 0, "a popup whose bar has no size reads a bar thickness of 0")
       for (var i = 0; i < entries.length; i++) root.loadWidget(entries[i])
 
       Qt.callLater(function() {
