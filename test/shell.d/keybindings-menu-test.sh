@@ -744,3 +744,22 @@ keybindings "$menu" "$tmpdir/cache-optional" >/dev/null
 grep -qP '→ My own thing\texec\toptional-new$' "$tmpdir/cache-optional"/omarchy/keybindings-*.records ||
   fail "creating an optional module refreshes the cached command" "$(cat "$tmpdir/cache-optional"/omarchy/keybindings-*.records)"
 pass "creating an optional module refreshes the cached command"
+
+# A layout change while the records are built leaves records of the old layout,
+# which must not be filed under the new layout's key and served from then on.
+real_xkbcli=$(command -v xkbcli)
+printf '#!/bin/bash\n"%s" "$@"\nstatus=$?\necho '"'"'{"str": "de"}'"'"' >"%s/option-kb_layout"\nexit $status\n' "$real_xkbcli" "$stub_bin" >"$stub_bin/xkbcli"
+chmod +x "$stub_bin/xkbcli"
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:49" "Toggle Quake console")
+BINDS
+echo '{"str": "dk"}' >"$stub_bin/option-kb_layout"
+rm -rf "$tmpdir/cache-layout-race"
+rendered=$(keybindings "" "$tmpdir/cache-layout-race")
+rm -f "$stub_bin/xkbcli"
+grep -qF 'SUPER + ½ ' <<<"$rendered" || fail "a scan raced by a layout change still shows the menu" "$rendered"
+rendered=$(keybindings "" "$tmpdir/cache-layout-race")
+rm -f "$stub_bin/option-kb_layout"
+grep -qF 'SUPER + ^ ' <<<"$rendered" ||
+  fail "a layout change during the build does not reuse the records of the old layout" "$rendered"
+pass "a layout change during the build does not reuse the records of the old layout"

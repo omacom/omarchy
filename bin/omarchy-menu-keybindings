@@ -778,7 +778,9 @@ lua_files_newest() {
   awk 'NF >= 3 && $NF + 0 > newest { newest = $NF } END { print newest }' <<<"$1"
 }
 
-keybindings_cache_key() {
+# Everything the key hashes except the Lua files state, which is only known
+# once a scan has finished.
+keybindings_inputs_hash() {
   local lang hash _ batch f
   lang=$(omarchy-language 2>/dev/null) || lang=""
 
@@ -819,20 +821,28 @@ keybindings_cache_key() {
         }
         !(lua && /^\targ: /)
       '
-      printf '%s\n' "${1-$(lua_files_state)}"
     } | sha256sum
   )
   printf '%s\n' "$hash"
 }
 
+keybindings_cache_key() {
+  local hash _
+  read -r hash _ < <(printf '%s\n%s\n' "${1-$(keybindings_inputs_hash)}" "${2-$(lua_files_state)}" | sha256sum)
+  printf '%s\n' "$hash"
+}
+
 # The build rewrites the list of Lua files it loaded, which the key reads, so
-# the records are filed under the key as it reads after the build.
+# the records are filed under the inputs read before the build and the Lua
+# files state read after it. Inputs that changed during the build mean the
+# records may belong to an older state, so they are shown but not kept.
 refresh_keybindings_cache() {
   local cache_dir="$1"
   local cache_file cache_name tmp_file
 
-  local started newest lua_state
+  local started newest lua_state inputs
   started=$(date +%s.%N)
+  inputs=$(keybindings_inputs_hash)
   tmp_file=$(mktemp "$cache_dir/keybindings.XXXXXX") || return 1
   # The scan writes the list of Lua files it loaded only once it finishes.
   rm -f "$keybindings_lua_files"
@@ -843,13 +853,14 @@ refresh_keybindings_cache() {
     # track, so either way those records are shown once but not kept.
     lua_state=$(lua_files_state)
     newest=$(lua_files_newest "$lua_state")
-    if { omarchy-cmd-present lua && [[ ! -e $keybindings_lua_files ]]; } ||
+    if [[ $(keybindings_inputs_hash) != "$inputs" ]] ||
+      { omarchy-cmd-present lua && [[ ! -e $keybindings_lua_files ]]; } ||
       awk -v newest="$newest" -v started="$started" 'BEGIN { exit !(newest != "" && newest + 0 >= started + 0) }'; then
       cat "$tmp_file"
       rm -f "$tmp_file"
       return 0
     fi
-    cache_name="keybindings-$(keybindings_cache_key "$lua_state").records"
+    cache_name="keybindings-$(keybindings_cache_key "$inputs" "$lua_state").records"
     cache_file="$cache_dir/$cache_name"
     mv "$tmp_file" "$cache_file"
     cat "$cache_file"
