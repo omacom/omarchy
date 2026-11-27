@@ -115,8 +115,8 @@ parsed=$(jq --arg conflicts_only "$conflicts_only" \
         if length == 0 then "NONE"
         elif any(.[]; .conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "STARTUP_FAILURE") then "FAIL"
         elif any(.[]; .status == "IN_PROGRESS" or .status == "QUEUED") then "IN_PROG"
-        elif all(.[]; .conclusion == "SUCCESS") then "PASS"
-        else (.[0].conclusion // .[0].status)
+        elif all(.[]; .conclusion == "SUCCESS" or .conclusion == "SKIPPED" or .conclusion == "NEUTRAL") then "PASS"
+        else "INCOMPLETE"
         end
       ),
       greptile: (
@@ -168,7 +168,7 @@ colorize() {
         case "$val" in
           PASS)    printf '\033[32m%s\033[0m' "$padded" ;;
           FAIL)    printf '\033[1;31m%s\033[0m' "$padded" ;;
-          IN_PROG) printf '\033[33m%s\033[0m' "$padded" ;;
+          IN_PROG|INCOMPLETE) printf '\033[33m%s\033[0m' "$padded" ;;
           NONE)    printf '\033[2m%s\033[0m' "$padded" ;;
           *)       printf '%s' "$padded" ;;
         esac
@@ -227,16 +227,17 @@ print_table() {
     done < <(jq -r '.[] | [.number, .mergeable, .tests, .greptile, .author, .title] | @tsv' <<< "$parsed")
 
     echo ""
-    local conflicts test_pass test_fail test_none greptile_ok
+    local conflicts test_pass test_fail test_incomplete test_none greptile_ok
     conflicts=$(jq '[.[] | select(.mergeable == "CONFLICTING")] | length' <<< "$parsed")
     test_pass=$(jq '[.[] | select(.tests == "PASS")] | length' <<< "$parsed")
     test_fail=$(jq '[.[] | select(.tests == "FAIL")] | length' <<< "$parsed")
+    test_incomplete=$(jq '[.[] | select(.tests == "INCOMPLETE")] | length' <<< "$parsed")
     test_none=$(jq '[.[] | select(.tests == "NONE" or .tests == "IN_PROG")] | length' <<< "$parsed")
     greptile_ok=$(jq '[.[] | select(.greptile == "5/5" or .greptile == "PASS")] | length' <<< "$parsed")
 
     echo "Summary:"
     echo "  Total audited: $count | Conflicts: $conflicts"
-    echo "  Tests:         $test_pass passed, $test_fail failed, $test_none missing/pending"
+    echo "  Tests:         $test_pass passed, $test_fail failed, $test_incomplete incomplete, $test_none missing/pending"
     echo "  Greptile:      $greptile_ok verified (5/5 or pass)"
   fi
 }

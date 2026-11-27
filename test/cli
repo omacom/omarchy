@@ -290,6 +290,18 @@ status=0
 (( status == 1 )) || fail "dev PR audit exits 1 when --limit is invalid"
 pass "dev PR audit exits 1 when --limit is invalid"
 
+# A cancelled shard beside a passing one is neither a pass nor hidden.
+audit_bin=$(mktemp -d)
+cat >"$audit_bin/gh" <<'SH'
+#!/bin/bash
+printf '%s\n' '[{"number":1,"title":"t","author":{"login":"a"},"headRefName":"b","mergeable":"MERGEABLE","labels":[],"updatedAt":"","url":"","statusCheckRollup":[{"name":"test (noncomp-1)","workflowName":"Tests","status":"COMPLETED","conclusion":"SUCCESS"},{"name":"test (comp)","workflowName":"Tests","status":"COMPLETED","conclusion":"CANCELLED"}]}]'
+SH
+chmod +x "$audit_bin/gh"
+audit_tests=$(PATH="$audit_bin:$PATH" "$CLI" dev pr audit --repo omacom/omarchy --json | jq -r '.[0].tests')
+rm -rf "$audit_bin"
+[[ $audit_tests == "INCOMPLETE" ]] || fail "dev PR audit reports a cancelled shard beside a passing one" "$audit_tests"
+pass "dev PR audit reports mixed shard results as incomplete"
+
 "$CLI" theme list >/dev/null
 pass "safe dispatch works for theme list"
 
