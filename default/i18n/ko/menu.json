@@ -1082,16 +1082,18 @@
     "label": "노트북 화면 끔"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "화면 미러링 켬"
+    "label": "디스플레이 미러링 켜기"
   },
   "trigger.hardware.mirror-display-off": {
     "label": "디스플레이 미러링 끄기"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "하이브리드 GPU로 전환"
+    "label": "dGPU로 전환",
+    "description": "하이브리드 전용 GPU 사용"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "내장 GPU로 전환"
+    "label": "iGPU로 전환",
+    "description": "내장 GPU만 사용"
   },
   "trigger.hardware.touchpad-on": {
     "label": "터치패드 켜기"

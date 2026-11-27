@@ -1082,16 +1082,18 @@
     "label": "Kannettavan näyttö pois"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Näytön peilaus päälle"
+    "label": "Peilaus päälle"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Näytön peilaus pois"
+    "label": "Peilaus pois"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Vaihda hybridi-GPU:hun"
+    "label": "Käytä dGPU:ta",
+    "description": "Ota erillinen GPU käyttöön hybriditilassa"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Vaihda integroituun GPU:hun"
+    "label": "Käytä iGPU:ta",
+    "description": "Käytä vain integroitua GPU:ta"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Ota kosketuslevy käyttöön"

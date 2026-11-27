@@ -1031,10 +1031,12 @@
     "label": "Skærmspejling fra"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Skift til hybrid-GPU"
+    "label": "Skift til dGPU",
+    "description": "Aktivér hybrid dedikeret GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Skift til integreret GPU"
+    "label": "Skift til iGPU",
+    "description": "Brug kun integreret GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Aktivér touchpad"

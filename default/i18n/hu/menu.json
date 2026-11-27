@@ -1025,16 +1025,18 @@
     "label": "Laptopkijelző ki"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Kijelzőtükrözés be"
+    "label": "Tükrözés be"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Kijelzőtükrözés ki"
+    "label": "Tükrözés ki"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Váltás hibrid GPU-ra"
+    "label": "Váltás dGPU-ra",
+    "description": "Hibrid dedikált GPU engedélyezése"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Váltás integrált GPU-ra"
+    "label": "Váltás iGPU-ra",
+    "description": "Csak integrált GPU használata"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Érintőpad bekapcsolása"

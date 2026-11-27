@@ -1025,16 +1025,18 @@
     "label": "Izklopi zaslon prenosnika"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Vklopi zrcaljenje zaslona"
+    "label": "Vklopi zrcaljenje"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Izklopi zrcaljenje zaslona"
+    "label": "Izklopi zrcaljenje"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Preklopi na hibridni GPU"
+    "label": "Preklopi na dGPU",
+    "description": "Omogoči hibridni namenski GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Preklopi na integrirani GPU"
+    "label": "Preklopi na iGPU",
+    "description": "Uporabi samo integrirani GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Omogoči sledilno ploščico"

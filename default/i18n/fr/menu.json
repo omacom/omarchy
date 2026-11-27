@@ -1025,16 +1025,18 @@
     "label": "Écran portable désactivé"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Duplication d'écran activée"
+    "label": "Activer le miroir"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Duplication d'écran désactivée"
+    "label": "Désactiver le miroir"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Passer au GPU hybride"
+    "label": "Passer au dGPU",
+    "description": "Activer le GPU dédié hybride"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Passer au GPU intégré"
+    "label": "Passer à l'iGPU",
+    "description": "Utiliser uniquement le GPU intégré"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Activer le pavé tactile"

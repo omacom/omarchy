@@ -1025,16 +1025,18 @@
     "label": "Layar Laptop Nonaktif"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Pencerminan Layar Aktif"
+    "label": "Aktifkan Cermin Layar"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Pencerminan Layar Nonaktif"
+    "label": "Matikan Cermin Layar"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Beralih ke GPU Hybrid"
+    "label": "Beralih ke dGPU",
+    "description": "Aktifkan GPU khusus hybrid"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Beralih ke GPU Terintegrasi"
+    "label": "Beralih ke iGPU",
+    "description": "Gunakan hanya GPU terintegrasi"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Aktifkan Touchpad"

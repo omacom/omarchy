@@ -1082,16 +1082,18 @@
     "label": "Noutbuk ekranini oʻchirish"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Ekran aksini yoqish"
+    "label": "Nusxalashni yoqish"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Ekran aksini oʻchirish"
+    "label": "Nusxalashni o‘chirish"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Gibrid GPUga oʻtish"
+    "label": "dGPU ga o‘tish",
+    "description": "Gibrid ajratilgan GPU ni yoqish"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Integratsiyalangan GPUga oʻtish"
+    "label": "iGPU ga o‘tish",
+    "description": "Faqat integratsiyalangan GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Tachpadni yoqish"

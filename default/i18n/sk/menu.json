@@ -1091,16 +1091,18 @@
     "label": "Vypnúť displej notebooku"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Zapnúť zrkadlenie displeja"
+    "label": "Zapnúť zrkadlenie"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Vypnúť zrkadlenie displeja"
+    "label": "Vypnúť zrkadlenie"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Prepnúť na hybridnú GPU"
+    "label": "Prepnúť na dGPU",
+    "description": "Zapnúť hybridnú dedikovanú GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Prepnúť na integrovanú GPU"
+    "label": "Prepnúť na iGPU",
+    "description": "Používať iba integrovanú GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Zapnúť touchpad"

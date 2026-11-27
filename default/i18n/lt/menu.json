@@ -1091,16 +1091,18 @@
     "label": "Išjungti nešiojamojo ekraną"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Įjungti ekrano dubliavimą"
+    "label": "Ekrano atspindėjimas įjungtas"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Išjungti ekrano dubliavimą"
+    "label": "Ekrano atspindėjimas išjungtas"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Perjungti į hibridinę GPU"
+    "label": "Perjungti į dGPU",
+    "description": "Įjungti hibridinį dedikuotą GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Perjungti į integruotą GPU"
+    "label": "Perjungti į iGPU",
+    "description": "Naudoti tik integruotą GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Įjungti jutiklinį kilimėlį"

@@ -1073,7 +1073,7 @@
     "label": "लैपटॉप डिस्प्ले बंद"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "डिस्प्ले मिररिंग चालू"
+    "label": "मिरर डिस्प्ले चालू"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "बैटरी % दिखाएँ"
@@ -1085,13 +1085,15 @@
     "label": "विंडो"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "डिस्प्ले मिररिंग बंद करें"
+    "label": "मिरर डिस्प्ले बंद"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Hybrid GPU पर स्विच करें"
+    "label": "dGPU पर स्विच करें",
+    "description": "हाइब्रिड डेडिकेटेड GPU सक्षम करें"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Integrated GPU पर स्विच करें"
+    "label": "iGPU पर स्विच करें",
+    "description": "केवल इंटीग्रेटेड GPU उपयोग करें"
   },
   "trigger.hardware.touchpad-on": {
     "label": "टचपैड चालू करें"

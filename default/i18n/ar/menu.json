@@ -1088,10 +1088,12 @@
     "label": "إيقاف عكس الشاشة"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "التبديل إلى GPU الهجين"
+    "label": "التبديل إلى dGPU",
+    "description": "تفعيل GPU المخصص الهجين"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "التبديل إلى GPU المدمج"
+    "label": "التبديل إلى iGPU",
+    "description": "استخدام GPU المدمج فقط"
   },
   "trigger.hardware.touchpad-on": {
     "label": "تفعيل لوحة اللمس"

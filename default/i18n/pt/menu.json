@@ -1082,16 +1082,18 @@
     "label": "Desativar Ecrã do Portátil"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Ativar Espelhamento do Ecrã"
+    "label": "Ativar Espelho do Ecrã"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Desativar Espelhamento do Ecrã"
+    "label": "Desativar Espelho do Ecrã"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Mudar para GPU Híbrida"
+    "label": "Mudar para dGPU",
+    "description": "Ativar GPU dedicada híbrida"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Mudar para GPU Integrada"
+    "label": "Mudar para iGPU",
+    "description": "Usar apenas GPU integrada"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Ativar Painel Tátil"

@@ -1031,10 +1031,12 @@
     "label": "Κατοπτρισμός οθόνης ανενεργός"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Μετάβαση σε υβριδική GPU"
+    "label": "Αλλαγή σε dGPU",
+    "description": "Ενεργοποίηση υβριδικής αποκλειστικής GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Μετάβαση σε ενσωματωμένη GPU"
+    "label": "Αλλαγή σε iGPU",
+    "description": "Χρήση μόνο ενσωματωμένης GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Ενεργοποίηση επιφάνειας αφής"

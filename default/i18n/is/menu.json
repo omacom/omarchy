@@ -1091,16 +1091,18 @@
     "label": "Fartölvuskjár af"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Skjáspeglun á"
+    "label": "Kveikja á speglun skjás"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Skjáspeglun af"
+    "label": "Slökkva á speglun skjás"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Skipta í tvinn-GPU"
+    "label": "Skipta í dGPU",
+    "description": "Virkja sérstakt skjákort"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Skipta í innbyggðan GPU"
+    "label": "Skipta í iGPU",
+    "description": "Nota aðeins innbyggt skjákort"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Virkja snertiborð"

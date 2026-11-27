@@ -1025,16 +1025,18 @@
     "label": "Pantalla de la laptop desactivada"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Duplicación de pantalla activada"
+    "label": "Activar modo espejo"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Duplicación de pantalla desactivada"
+    "label": "Desactivar modo espejo"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Cambiar a GPU híbrida"
+    "label": "Cambiar a dGPU",
+    "description": "Activar GPU dedicada híbrida"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Cambiar a GPU integrada"
+    "label": "Cambiar a iGPU",
+    "description": "Usar solo GPU integrada"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Activar panel táctil"

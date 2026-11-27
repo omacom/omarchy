@@ -1025,16 +1025,18 @@
     "label": "Wyłącz ekran laptopa"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Włącz klonowanie ekranu"
+    "label": "Włącz duplikowanie ekranu"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Wyłącz klonowanie ekranu"
+    "label": "Wyłącz duplikowanie ekranu"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Przełącz na hybrydowe GPU"
+    "label": "Przełącz na dGPU",
+    "description": "Włącz hybrydowy dedykowany GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Przełącz na zintegrowane GPU"
+    "label": "Przełącz na iGPU",
+    "description": "Używaj tylko zintegrowanego GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Włącz touchpad"

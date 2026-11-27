@@ -1073,7 +1073,7 @@
     "label": "ලැප්ටොප් තිරය අක්‍රිය"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "තිර පිළිබිඹු කිරීම සක්‍රිය"
+    "label": "දර්පණ තිරය ක්‍රියාත්මක"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "බැටරි % පෙන්වන්න"
@@ -1085,13 +1085,15 @@
     "label": "කවුළු"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "තිර දර්පණය අක්‍රිය කරන්න"
+    "label": "දර්පණ තිරය අක්‍රිය"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "දෙමුහුන් GPU වෙත මාරු වන්න"
+    "label": "dGPU වෙත මාරු වන්න",
+    "description": "දෙමුහුන් කැපවූ GPU සබල කරන්න"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "ඒකාබද්ධ GPU වෙත මාරු වන්න"
+    "label": "iGPU වෙත මාරු වන්න",
+    "description": "ඒකාබද්ධ GPU පමණක් භාවිත කරන්න"
   },
   "trigger.hardware.touchpad-on": {
     "label": "ටච්පෑඩය සක්‍රිය කරන්න"

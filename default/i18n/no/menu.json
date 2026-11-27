@@ -1091,16 +1091,18 @@
     "label": "Laptopskjerm av"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Skjermspeiling på"
+    "label": "Speilvisning på"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Skjermspeiling av"
+    "label": "Speilvisning av"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Bytt til hybrid GPU"
+    "label": "Bytt til dGPU",
+    "description": "Aktiver hybrid dedikert GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Bytt til integrert GPU"
+    "label": "Bytt til iGPU",
+    "description": "Bruk kun integrert GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Aktiver pekeplate"

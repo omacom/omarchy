@@ -1025,13 +1025,15 @@
     "label": "ونڈوز"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ڈسپلے مررنگ بند"
+    "label": "مرر ڈسپلے آف"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "ہائبرڈ GPU پر جائیں"
+    "label": "dGPU پر سوئچ کریں",
+    "description": "ہائبرڈ مخصوص GPU فعال کریں"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "انٹیگریٹڈ GPU پر جائیں"
+    "label": "iGPU پر سوئچ کریں",
+    "description": "صرف مربوط GPU استعمال کریں"
   },
   "trigger.hardware.touchpad-on": {
     "label": "ٹچ پیڈ فعال کریں"
@@ -1112,7 +1114,7 @@
     "label": "لیپ ٹاپ ڈسپلے آف"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "ڈسپلے مررنگ آن"
+    "label": "مرر ڈسپلے آن"
   },
   "setup.default.dictation.hex": {
     "label": "Hex"

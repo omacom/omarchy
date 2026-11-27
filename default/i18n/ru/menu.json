@@ -1088,10 +1088,12 @@
     "label": "Выключить дублирование экрана"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Перейти на гибридный GPU"
+    "label": "Переключить на dGPU",
+    "description": "Включить гибридный дискретный GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Перейти на встроенный GPU"
+    "label": "Переключить на iGPU",
+    "description": "Использовать только встроенный GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Включить тачпад"

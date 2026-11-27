@@ -1025,16 +1025,18 @@
     "label": "Desactiva la pantalla del portàtil"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Activa la duplicació de pantalla"
+    "label": "Duplicació activada"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Desactiva la duplicació de pantalla"
+    "label": "Duplicació desactivada"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Canvia a la GPU híbrida"
+    "label": "Canvia a dGPU",
+    "description": "Activa la GPU dedicada híbrida"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Canvia a la GPU integrada"
+    "label": "Canvia a iGPU",
+    "description": "Usa només la GPU integrada"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Activa el touchpad"

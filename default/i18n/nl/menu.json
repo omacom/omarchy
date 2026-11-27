@@ -1082,16 +1082,18 @@
     "label": "Laptopscherm uit"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Scherm spiegelen aan"
+    "label": "Spiegelen aan"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Scherm spiegelen uit"
+    "label": "Spiegelen uit"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Naar hybride GPU"
+    "label": "dGPU gebruiken",
+    "description": "Hybride dGPU-modus inschakelen"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Naar geïntegreerde GPU"
+    "label": "iGPU gebruiken",
+    "description": "Alleen geïntegreerde GPU gebruiken"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Touchpad inschakelen"

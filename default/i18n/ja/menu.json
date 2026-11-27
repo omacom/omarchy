@@ -1073,7 +1073,7 @@
     "label": "ノートPC画面 オフ"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "ディスプレイミラーリング オン"
+    "label": "ミラーリング表示をオン"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "バッテリー % を表示"
@@ -1085,13 +1085,15 @@
     "label": "ウィンドウ"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ミラーリングをオフ"
+    "label": "ミラーリング表示をオフ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "ハイブリッドGPUに切替"
+    "label": "dGPUに切り替え",
+    "description": "ハイブリッド専用GPUを有効化"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "内蔵GPUに切替"
+    "label": "iGPUに切り替え",
+    "description": "内蔵GPUのみ使用"
   },
   "trigger.hardware.touchpad-on": {
     "label": "タッチパッドを有効化"

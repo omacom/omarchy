@@ -1025,16 +1025,18 @@
     "label": "Laptop-Display aus"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Spiegelung an"
+    "label": "Bildschirmspiegelung ein"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Spiegelung aus"
+    "label": "Bildschirmspiegelung aus"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Zu Hybrid-GPU wechseln"
+    "label": "Zu dGPU wechseln",
+    "description": "Dedizierte GPU im Hybridmodus aktivieren"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Zu integrierter GPU wechseln"
+    "label": "Zu iGPU wechseln",
+    "description": "Nur integrierte GPU nutzen"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Touchpad aktivieren"

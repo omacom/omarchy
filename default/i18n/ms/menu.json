@@ -1082,16 +1082,18 @@
     "label": "Matikan Paparan Laptop"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Hidupkan Pencerminan Paparan"
+    "label": "Aktifkan Paparan Cermin"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Matikan Pencerminan Paparan"
+    "label": "Nyahaktifkan Paparan Cermin"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Tukar ke GPU Hibrid"
+    "label": "Tukar ke dGPU",
+    "description": "Dayakan GPU khusus hibrid"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Tukar ke GPU Bersepadu"
+    "label": "Tukar ke iGPU",
+    "description": "Guna GPU bersepadu sahaja"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Dayakan Pad Sentuh"
