@@ -5,12 +5,8 @@ echo "Tune zram and reclaim for 8 GiB machines"
 total_kib=$(awk '$1 == "MemTotal:" { print $2; exit }' /proc/meminfo 2>/dev/null)
 [[ $total_kib =~ ^[0-9]+$ ]] && (( total_kib > 0 && total_kib <= 9437184 )) || exit 0
 
-sudo bash "$OMARCHY_PATH/install/hardware/low-memory.sh"
-
-cur_swappiness=$(sysctl -n vm.swappiness)
-if [[ $cur_swappiness != "100" ]]; then
-  sudo sysctl -q -p /etc/sysctl.d/zz-omarchy-low-memory.conf
-fi
+zram_conf=/etc/systemd/zram-generator.conf.d/95-omarchy-low-memory.conf
+sysctl_conf=/etc/sysctl.d/zz-omarchy-low-memory.conf
 
 zram_ready=1
 if [[ -r /sys/block/zram0/comp_algorithm && -r /sys/block/zram0/disksize ]]; then
@@ -20,6 +16,20 @@ if [[ -r /sys/block/zram0/comp_algorithm && -r /sys/block/zram0/disksize ]]; the
   if [[ $zram_algo != *"[zstd]"* ]] || (( zram_size + 67108864 < target_bytes )); then
     zram_ready=0
   fi
+fi
+
+cur_swappiness=$(sysctl -n vm.swappiness)
+
+if [[ -f $zram_conf && -f $sysctl_conf && $cur_swappiness == "100" ]] && (( zram_ready == 1 )); then
+  exit 0
+fi
+
+if [[ ! -f $zram_conf || ! -f $sysctl_conf ]]; then
+  sudo bash -e "$OMARCHY_PATH/install/hardware/low-memory.sh"
+fi
+
+if [[ $cur_swappiness != "100" ]]; then
+  sudo sysctl -q -p "$sysctl_conf"
 fi
 
 if (( zram_ready == 1 )); then
