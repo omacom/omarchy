@@ -1085,13 +1085,15 @@
     "label": "پنجره‌ها"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "خاموش کردن نمایش آینه‌ای"
+    "label": "نمایش آینه‌ای خاموش"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "تغییر به GPU هیبریدی"
+    "label": "تغییر به dGPU",
+    "description": "فعال‌کردن GPU اختصاصی هیبریدی"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "تغییر به GPU مجتمع"
+    "label": "تغییر به iGPU",
+    "description": "استفاده فقط از GPU مجتمع"
   },
   "trigger.hardware.touchpad-on": {
     "label": "فعال‌سازی تاچ‌پد"

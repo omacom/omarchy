@@ -1088,10 +1088,12 @@
     "label": "Tắt phản chiếu màn hình"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Chuyển sang GPU lai"
+    "label": "Chuyển sang dGPU",
+    "description": "Bật GPU rời hybrid"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Chuyển sang GPU tích hợp"
+    "label": "Chuyển sang iGPU",
+    "description": "Chỉ dùng GPU tích hợp"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Bật bàn di chuột"

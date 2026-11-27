@@ -1025,16 +1025,18 @@
     "label": "Oprește ecranul laptopului"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Activează oglindirea ecranului"
+    "label": "Activează oglindirea"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Dezactivează oglindirea ecranului"
+    "label": "Dezactivează oglindirea"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Comută la GPU hibrid"
+    "label": "Comută la dGPU",
+    "description": "Activează GPU-ul dedicat hibrid"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Comută la GPU integrat"
+    "label": "Comută la iGPU",
+    "description": "Folosește doar GPU-ul integrat"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Activează touchpadul"

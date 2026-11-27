@@ -1025,16 +1025,18 @@
     "label": "Disattiva display portatile"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Attiva mirroring display"
+    "label": "Attiva Duplicazione"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Disattiva mirroring display"
+    "label": "Disattiva Duplicazione"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Passa a GPU ibrida"
+    "label": "Passa a dGPU",
+    "description": "Abilita GPU dedicata ibrida"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Passa a GPU integrata"
+    "label": "Passa a iGPU",
+    "description": "Usa solo GPU integrata"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Attiva touchpad"

@@ -1091,16 +1091,18 @@
     "label": "Isključi zaslon prijenosnika"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Uključi zrcaljenje zaslona"
+    "label": "Uključi zrcaljenje"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Isključi zrcaljenje zaslona"
+    "label": "Isključi zrcaljenje"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Prebaci na hibridni GPU"
+    "label": "Prebaci na dGPU",
+    "description": "Omogući hibridni namjenski GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Prebaci na integrirani GPU"
+    "label": "Prebaci na iGPU",
+    "description": "Koristi samo integrirani GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Omogući dodirnu plohu"

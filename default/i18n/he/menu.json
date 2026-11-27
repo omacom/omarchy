@@ -1073,7 +1073,7 @@
     "label": "מסך מחשב נייד כבוי"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "שיקוף מסך פעיל"
+    "label": "הפעלת שיקוף מסך"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "הצג אחוזי סוללה"
@@ -1088,10 +1088,12 @@
     "label": "כיבוי שיקוף מסך"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "מעבר ל-GPU היברידי"
+    "label": "מעבר ל-dGPU",
+    "description": "הפעלת GPU ייעודי היברידי"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "מעבר ל-GPU משולב"
+    "label": "מעבר ל-iGPU",
+    "description": "שימוש ב-GPU משולב בלבד"
   },
   "trigger.hardware.touchpad-on": {
     "label": "הפעלת משטח מגע"

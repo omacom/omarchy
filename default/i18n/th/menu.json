@@ -1082,16 +1082,18 @@
     "label": "ปิดจอแล็ปท็อป"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "เปิดสะท้อนหน้าจอ"
+    "label": "เปิดมิเรอร์จอ"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ปิดการสะท้อนจอ"
+    "label": "ปิดมิเรอร์จอ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "ใช้ GPU ไฮบริด"
+    "label": "สลับไป dGPU",
+    "description": "เปิดใช้ GPU แยกแบบไฮบริด"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "ใช้ GPU ในตัว"
+    "label": "สลับไป iGPU",
+    "description": "ใช้ GPU ในตัวเท่านั้น"
   },
   "trigger.hardware.touchpad-on": {
     "label": "เปิดทัชแพด"

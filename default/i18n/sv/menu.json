@@ -1031,10 +1031,12 @@
     "label": "Skärmspegling av"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Växla till hybrid-GPU"
+    "label": "Byt till dGPU",
+    "description": "Aktivera hybrid med dedikerad GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Växla till integrerad GPU"
+    "label": "Byt till iGPU",
+    "description": "Använd endast integrerad GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Aktivera styrplatta"

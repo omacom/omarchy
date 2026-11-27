@@ -1091,16 +1091,18 @@
     "label": "Klēpjdatora ekrāns izslēgts"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Ekrāna spoguļošana ieslēgta"
+    "label": "Ieslēgt spoguļošanu"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Ekrāna spoguļošana izslēgta"
+    "label": "Izslēgt spoguļošanu"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Pārslēgt uz hibrīdo GPU"
+    "label": "Pārslēgt uz dGPU",
+    "description": "Iespējot hibrīdo diskrēto GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Pārslēgt uz integrēto GPU"
+    "label": "Pārslēgt uz iGPU",
+    "description": "Izmantot tikai integrēto GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Ieslēgt skārienpaliktni"

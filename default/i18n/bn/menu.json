@@ -1073,7 +1073,7 @@
     "label": "ল্যাপটপ ডিসপ্লে বন্ধ"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "ডিসপ্লে মিররিং চালু"
+    "label": "মিরর ডিসপ্লে চালু"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "ব্যাটারি % দেখান"
@@ -1085,13 +1085,15 @@
     "label": "উইন্ডো"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ডিসপ্লে মিররিং বন্ধ"
+    "label": "মিরর ডিসপ্লে বন্ধ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "হাইব্রিড GPU-তে যান"
+    "label": "dGPU-তে স্যুইচ",
+    "description": "হাইব্রিড ডেডিকেটেড GPU সক্রিয় করুন"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "ইন্টিগ্রেটেড GPU-তে যান"
+    "label": "iGPU-তে স্যুইচ",
+    "description": "শুধুমাত্র ইন্টিগ্রেটেড GPU ব্যবহার করুন"
   },
   "trigger.hardware.touchpad-on": {
     "label": "টাচপ্যাড চালু করুন"

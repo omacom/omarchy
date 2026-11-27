@@ -1073,7 +1073,7 @@
     "label": "笔记本屏幕关"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "屏幕镜像开"
+    "label": "开启镜像显示"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "显示电池 %"
@@ -1088,10 +1088,12 @@
     "label": "关闭镜像显示"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "切换至 Hybrid GPU"
+    "label": "切换到 dGPU",
+    "description": "启用混合独立显卡"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "切换至集成 GPU"
+    "label": "切换到 iGPU",
+    "description": "仅使用集成显卡"
   },
   "trigger.hardware.touchpad-on": {
     "label": "启用触控板"

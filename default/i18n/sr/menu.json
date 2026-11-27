@@ -1082,16 +1082,18 @@
     "label": "Искључи екран лаптопа"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Укључи пресликавање екрана"
+    "label": "Пресликавање укључено"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Искључи пресликавање екрана"
+    "label": "Пресликавање искључено"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Пребаци на хибридни GPU"
+    "label": "Пребаци на dGPU",
+    "description": "Омогући хибридну наменску GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Пребаци на интегрисани GPU"
+    "label": "Пребаци на iGPU",
+    "description": "Користи само интегрисану GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Укључи тачпед"

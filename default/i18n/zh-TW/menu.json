@@ -1082,16 +1082,18 @@
     "label": "關閉筆電螢幕"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "開啟螢幕鏡像"
+    "label": "開啟鏡像顯示"
   },
   "trigger.hardware.mirror-display-off": {
     "label": "關閉鏡像顯示"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "切換至混合 GPU"
+    "label": "切換至 dGPU",
+    "description": "啟用混合專用 GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "切換至內建 GPU"
+    "label": "切換至 iGPU",
+    "description": "僅使用整合 GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "啟用觸控板"

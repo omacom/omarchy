@@ -1025,16 +1025,18 @@
     "label": "Desativar Tela do Notebook"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Ativar Espelhamento de Tela"
+    "label": "Ativar Espelhamento"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Desativar Espelhamento de Tela"
+    "label": "Desativar Espelhamento"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Mudar para GPU Híbrida"
+    "label": "Alternar para dGPU",
+    "description": "Ativar GPU dedicada híbrida"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Mudar para GPU Integrada"
+    "label": "Alternar para iGPU",
+    "description": "Usar somente GPU integrada"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Ativar Touchpad"

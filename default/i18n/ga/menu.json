@@ -1082,16 +1082,18 @@
     "label": "Taispeáint Ríomhaire Glúine As"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Scáthánú Taispeána Ar"
+    "label": "Scáthánú Scáileáin Ar"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Scáthánú Taispeána As"
+    "label": "Scáthánú Scáileáin As"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Athraigh go GPU Hibrideach"
+    "label": "Athraigh go dGPU",
+    "description": "Cumasaigh GPU tiomnaithe hibrideach"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Athraigh go GPU Comhtháite"
+    "label": "Athraigh go iGPU",
+    "description": "Úsáid GPU comhtháite amháin"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Cumasaigh Ceap Tadhaill"

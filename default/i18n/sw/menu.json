@@ -1088,10 +1088,12 @@
     "label": "Zima Kuakisi Skrini"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Badili hadi GPU Mseto"
+    "label": "Badili hadi dGPU",
+    "description": "Washa GPU maalum ya mseto"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Badili hadi GPU Jumuishi"
+    "label": "Badili hadi iGPU",
+    "description": "Tumia GPU iliyounganishwa tu"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Washa Touchpad"

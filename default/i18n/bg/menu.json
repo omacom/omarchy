@@ -1091,16 +1091,18 @@
     "label": "Дисплей на лаптоп изкл."
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Огледален екран вкл."
+    "label": "Включи огледален дисплей"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Огледален екран изкл."
+    "label": "Изключи огледален дисплей"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Превключи на хибриден GPU"
+    "label": "Превключи на dGPU",
+    "description": "Включи хибридния дискретен GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Превключи на вграден GPU"
+    "label": "Превключи на iGPU",
+    "description": "Използвай само вградения GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Включи тъчпад"
