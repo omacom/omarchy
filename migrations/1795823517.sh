@@ -1,6 +1,6 @@
 echo "Rebind the Lenovo 300e touchscreen after resume"
 
-if ! omarchy-hw-match "300e 2nd Gen"; then
+if ! omarchy-hw-match "300e 2nd G"; then
   exit 0
 fi
 

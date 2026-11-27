@@ -7,7 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 leaf="$ROOT/install/hardware/lenovo/fix-300e-touchscreen-resume.sh"
 all="$ROOT/install/hardware/all.sh"
 hook="$ROOT/default/systemd/system-sleep/lenovo-300e-touchscreen"
-migration="$ROOT/migrations/1791045085.sh"
+migration="$ROOT/migrations/1795823517.sh"
 
 grep -q 'run_logged .*hardware/lenovo/fix-300e-touchscreen-resume.sh' "$all" ||
   fail "the 300e touchscreen quirk runs during hardware setup"
@@ -62,7 +62,11 @@ if grep -q 'SYNA2392' "$hook"; then
 fi
 pass "the resume hook rebinds only the ELAN238E touchscreen after resume"
 
-grep -q 'omarchy-hw-match "300e 2nd Gen"' "$migration" ||
+grep -q 'failed to rebind' "$hook" ||
+  fail "the resume hook logs a failed rebind"
+pass "the resume hook logs a failed rebind"
+
+grep -q 'omarchy-hw-match "300e 2nd G"' "$migration" ||
   fail "existing 300e installs pick up the resume hook"
 grep -q '/usr/lib/systemd/system-sleep/lenovo-300e-touchscreen' "$migration" ||
   fail "existing 300e installs pick up the resume hook"
