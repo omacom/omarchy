@@ -6,34 +6,15 @@ if [[ ! -f /usr/lib/systemd/system/omarchy-high-memory.service || ! -x /usr/bin/
   exit 75
 fi
 
+# Enable for next boot rather than starting live: writing the /run drop-in and
+# reloading app.slice mid-session can OOM-kill an active workload on this or
+# another user's session if usage is already above the cap.
 if ! systemctl is-enabled --quiet omarchy-high-memory.service 2>/dev/null; then
   sudo systemctl enable omarchy-high-memory.service
 fi
 
-cap_bytes=$(/usr/bin/omarchy-hw-app-slice-cap --print-limit-bytes)
-if [[ -z $cap_bytes ]]; then
-  exit 0
-fi
-
-# Check live app.slice usage before starting the service so we never write the
-# /run drop-in while an active workload exceeds the new cap (which would let
-# any later unrelated `systemctl --user daemon-reload` OOM-kill it).
-if systemctl --user show-environment >/dev/null 2>&1; then
-  cur_bytes=$(systemctl --user show -p MemoryCurrent --value app.slice 2>/dev/null || true)
-  if [[ $cur_bytes =~ ^[0-9]+$ ]] && (( cur_bytes >= cap_bytes )); then
-    omarchy-state set reboot-required
-    exit 0
-  fi
-fi
-
-if ! systemctl is-active --quiet omarchy-high-memory.service 2>/dev/null; then
-  sudo systemctl start omarchy-high-memory.service
-fi
-
-if [[ -f /run/systemd/user/app.slice.d/20-omarchy-high-memory.conf ]] &&
-  systemctl --user show-environment >/dev/null 2>&1; then
-  cur_max=$(systemctl --user show -p MemoryMax --value app.slice 2>/dev/null || true)
-  if [[ $cur_max == "infinity" ]]; then
-    systemctl --user daemon-reload
-  fi
+total_kib=$(awk '$1 == "MemTotal:" { print $2; exit }' /proc/meminfo 2>/dev/null || true)
+if [[ $total_kib =~ ^[0-9]+$ ]] && (( total_kib >= 58720256 )) &&
+  [[ ! -f /run/systemd/user/app.slice.d/10-omarchy-high-memory.conf ]]; then
+  omarchy-state set reboot-required
 fi
