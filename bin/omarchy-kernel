@@ -168,6 +168,7 @@ set_kernel() {
   [[ -x $self ]] || self=$OMARCHY_PATH/bin/omarchy-kernel
 
   if [[ -t 0 ]]; then
+    echo "Switching default kernel to $kernel..."
     sudo "$self" set "$kernel"
     omarchy-state set reboot-required
     echo "$kernel will boot after the next restart."
