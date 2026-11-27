@@ -1,0 +1,41 @@
+# Omarchy switching to systemd-boot: while the switch is on trial, Limine's
+# hook keeps building its own images and this one keeps the staged
+# systemd-boot images current too. omarchy-boot-switch adds it at staging
+# and removes it when it finishes or reverts.
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = usr/lib/initcpio/*
+Target = usr/lib/firmware/*
+Target = usr/lib/modules/*/extramodules/
+Target = usr/src/*/dkms.conf
+Target = usr/lib/systemd/systemd
+Target = usr/lib/systemd/systemd-udevd
+Target = usr/bin/cryptsetup
+Target = usr/bin/lvm
+Target = usr/bin/mdadm
+Target = usr/bin/pdata_tools
+Target = usr/lib/libcryptsetup.so
+Target = usr/lib/libp11-kit.so
+Target = usr/lib/libpcsclite.so
+Target = usr/lib/modprobe.d/
+
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/modules/*/vmlinuz
+
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = mkinitcpio
+Target = mkinitcpio-git
+[Action]
+Description = Updating staged systemd-boot images...
+When = PostTransaction
+Exec = /usr/bin/omarchy-boot-rebuild --pacman-install
+NeedsTargets

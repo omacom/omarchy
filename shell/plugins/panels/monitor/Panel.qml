@@ -87,7 +87,8 @@ Panel {
         scaleIndex: Model.matchingScaleIndex(scales, display.scale, display.width, display.height),
         resolutions: resolutions.length > 1 ? resolutions : [],
         refreshes: Model.refreshOptions(display.availableModes, display.width, display.height),
-        refreshRate: Number(display.refreshRate) || 0
+        refreshRate: Number(display.refreshRate) || 0,
+        specs: Model.displaySpecs(display, Commons.I18n.formatNumber)
       })
     }
     return list
@@ -438,9 +439,6 @@ Panel {
   // Playful mood-name for a given brightness percent. Bands intentionally
   // span ~10–20 points so casual tweaks change the label, while small
   // nudges within one band don't.
-  function brightnessName(percent) {
-    return Model.brightnessName(percent, Commons.I18n.t)
-  }
 
   // Brightness is taken from every poll, so a level set elsewhere replaces one
   // shown here. The list itself is only taken when something besides
@@ -637,18 +635,27 @@ Panel {
     return textSizePreviewIndex >= 0 ? textSizeStops[textSizePreviewIndex] : Style.font.baseSize
   }
 
+  property int pendingTextSize: -1
+
   function setTextSize(px) {
+    if (textScaleProc.running) {
+      pendingTextSize = px
+      return
+    }
+    pendingTextSize = -1
     textScaleProc.command = ["omarchy-display-text-size", String(px)]
-    if (!textScaleProc.running) textScaleProc.running = true
+    textScaleProc.running = true
   }
 
-  function adjustTextSize(deltaSteps) {
-    var idx = currentTextIndex() + deltaSteps
-    if (idx < 0) idx = 0
-    if (idx > textSizeStops.length - 1) idx = textSizeStops.length - 1
+  function applyTextSizeStop(idx) {
+    idx = Math.max(0, Math.min(textSizeStops.length - 1, Math.round(idx)))
     markReflowing()
     textSizePreviewIndex = idx
     setTextSize(textSizeStops[idx])
+  }
+
+  function adjustTextSize(deltaSteps) {
+    applyTextSizeStop(currentTextIndex() + deltaSteps)
   }
 
   implicitWidth: button.implicitWidth
@@ -667,6 +674,8 @@ Panel {
       focusSection = landingSection()
       selectedIndex = sectionFirstIndex(focusSection)
       cursorActive = false
+    } else if (!textScaleProc.running) {
+      textSizePreviewIndex = -1
     }
   }
 
@@ -781,6 +790,20 @@ Panel {
   Process {
     id: textScaleProc
     stdout: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0 && root.pendingTextSize < 0) root.textSizePreviewIndex = -1
+    }
+    onRunningChanged: {
+      if (running) return
+      if (root.pendingTextSize >= 0) {
+        var next = root.pendingTextSize
+        root.pendingTextSize = -1
+        root.setTextSize(next)
+      } else if (root.textSizePreviewIndex >= 0
+          && root.nearestTextStop(Style.font.baseSize) === root.textSizePreviewIndex) {
+        root.textSizePreviewIndex = -1
+      }
+    }
   }
 
   // Clears the hover-suppression flag once the reflow triggered by a text-size
@@ -907,7 +930,7 @@ Panel {
             Column {
               id: heroLabels
               anchors.left: heroIcon.right
-              anchors.leftMargin: Style.space(14)
+              anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
               anchors.right: picker.visible ? picker.left : parent.right
               anchors.rightMargin: Style.space(8)
               anchors.verticalCenter: parent.verticalCenter
@@ -924,13 +947,12 @@ Panel {
                 width: parent.width
               }
 
-              // The shown display's mood.
+              // The shown display's resolution, size, and refresh rate.
               Text {
                 id: heroLabel
+                visible: text !== ""
                 textFormat: Text.PlainText
-                text: root.currentBrightness >= 0
-                  ? root.brightnessName(root.currentBrightness).toUpperCase()
-                  : Commons.I18n.t("monitor.fixedBrightness")
+                text: root.current ? root.current.specs : ""
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -1120,7 +1142,7 @@ Panel {
                 integer: true
                 tickCount: root.textSizeStops.length
                 value: root.currentTextIndex()
-                onReleased: function(v) { root.setTextSize(root.textSizeStops[Math.round(v)]) }
+                onReleased: function(v) { root.applyTextSizeStop(v) }
               }
 
               HoverHandler {

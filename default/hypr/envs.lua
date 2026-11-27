@@ -11,11 +11,14 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- Force all apps to use Wayland.
 hl.env("GDK_BACKEND", "wayland,x11,*")
 hl.env("QT_QPA_PLATFORM", "wayland;xcb")
-hl.env("QT_QPA_PLATFORMTHEME", "gtk3")
+hl.env("QT_QPA_PLATFORMTHEME", "qtengine")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
 hl.env("OZONE_PLATFORM", "wayland")
 hl.env("XDG_SESSION_TYPE", "wayland")
+
+-- Use LibreOffice's Qt6 VCL backend so it follows qtengine theming and starts ~25-30% faster than gtk3.
+hl.env("SAL_USE_VCLPLUGIN", "qt6")
 
 -- Allow better support for screen sharing (Google Meet, Discord, etc).
 hl.env("XDG_CURRENT_DESKTOP", "Hyprland")

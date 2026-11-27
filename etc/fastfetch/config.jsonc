@@ -26,10 +26,16 @@
       "keyColor": "green"
     },
     {
-      "type": "cpu",
+      "type": "command",
       "key": "│ ├",
-      "showPeCoreCount": true,
-      "keyColor": "green"
+      "keyColor": "green",
+      "text": "omarchy-branding-about-cpu name"
+    },
+    {
+      "type": "command",
+      "key": " ",
+      "format": "{#1;32}│ │   {#}{result}",
+      "text": "omarchy-branding-about-cpu details"
     },
     {
       "type": "gpu",
@@ -50,12 +56,7 @@
     },
     {
       "type": "memory",
-      "key": "│ ├",
-      "keyColor": "green"
-    },
-    {
-      "type": "swap",
-      "key": "└ └󰓡",
+      "key": "└ └",
       "keyColor": "green"
     },
     {
@@ -86,6 +87,12 @@
       "text": "channel=$(omarchy-version-channel); echo \"$channel\""
     },
     {
+      "type": "title",
+      "key": "│ ├󰟀",
+      "keyColor": "blue",
+      "format": "{host-name}"
+    },
+    {
       "type": "kernel",
       "key": "│ ├",
       "keyColor": "blue"
@@ -98,11 +105,6 @@
     {
       "type": "de",
       "key": " DE",
-      "keyColor": "blue"
-    },
-    {
-      "type": "terminal",
-      "key": "│ ├",
       "keyColor": "blue"
     },
     {

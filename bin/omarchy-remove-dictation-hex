@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing Hex dictation..."
 systemctl --user disable --now hex.service 2>/dev/null || true
 omarchy-pkg-drop hex-bin
 systemctl --user daemon-reload
@@ -15,4 +16,4 @@ if [[ -f $backend_config && $(< "$backend_config") == "hex" ]]; then
   rm "$backend_config"
 fi
 
-hyprctl reload >/dev/null
+omarchy-restart-hyprctl

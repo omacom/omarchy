@@ -5,90 +5,294 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 TEST_DIR="$ROOT/test/shell.d"
 
+GROUP="all"
+SHARD=""
+while (( $# > 0 )); do
+  case "$1" in
+    --group=*) GROUP="${1#*=}" ;;
+    --group)
+      (( $# >= 2 )) || { echo "Missing value for --group" >&2; exit 2; }
+      GROUP="$2"; shift
+      ;;
+    --shard=*) SHARD="${1#*=}" ;;
+    --shard)
+      (( $# >= 2 )) || { echo "Missing value for --shard" >&2; exit 2; }
+      SHARD="$2"; shift
+      ;;
+    *)
+      echo "Usage: $0 [--group all|noncomp|comp|exclusive] [--shard K/N]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+case "$GROUP" in
+  all|noncomp|comp|exclusive) ;;
+  *)
+    echo "Unknown --group '$GROUP' (expected all, noncomp, comp, or exclusive)" >&2
+    exit 2
+    ;;
+esac
+
+SHARD_INDEX=0
+SHARD_TOTAL=0
+if [[ -n $SHARD ]]; then
+  if [[ ! $SHARD =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] || (( BASH_REMATCH[1] > BASH_REMATCH[2] )); then
+    echo "Invalid --shard '$SHARD' (expected K/N with 1 <= K <= N)" >&2
+    exit 2
+  fi
+  SHARD_INDEX=${BASH_REMATCH[1]}
+  SHARD_TOTAL=${BASH_REMATCH[2]}
+fi
+
 shopt -s nullglob
-tests=()
+all_tests=()
 for test in "$TEST_DIR"/*-test.sh; do
   [[ $(basename "$test") == "base-test.sh" ]] && continue
-  tests+=("$test")
+  all_tests+=("$test")
 done
 shopt -u nullglob
 
-if (( ${#tests[@]} == 0 )); then
+if (( ${#all_tests[@]} == 0 )); then
   echo "No shell tests found in $TEST_DIR" >&2
   exit 1
 fi
 
-# Files that need the live compositor or desktop to themselves run one at
-# a time after the parallel batch; everything else runs through a job
-# pool sized to the machine. Timing-sensitive files stay out of the pool
-# too: the budget guards calibrate against the machine's speed, which a
-# busy pool distorts, and sleep-lock asserts tight unscaled timings.
-# A file can also opt out of the pool with an `# omarchy:exclusive`
-# marker near its top.
+# Batch-scan all files once instead of spawning grep per file (~500 forks).
+# Skip heredoc bodies and indented string fixtures so test files that embed
+# sample `require_compositor` calls (compositor-guard-test.sh, test-runner-test.sh)
+# stay in the noncomp group.
+declare -A comp_map=()
+while IFS= read -r file; do
+  [[ -n $file ]] && comp_map["$file"]=1
+done < <(awk '
+  FNR == 1 { heredoc = "" }
+  heredoc != "" {
+    line = $0
+    if (strip_tabs) sub(/^\t+/, "", line)
+    if (line == heredoc) heredoc = ""
+    next
+  }
+  /<<-?[[:space:]]*['"'"'"]?[A-Za-z0-9_]+['"'"'"]?/ {
+    if (match($0, /<<(-?)[[:space:]]*['"'"'"]?([A-Za-z0-9_]+)['"'"'"]?/, m)) {
+      strip_tabs = (m[1] == "-")
+      heredoc = m[2]
+    }
+    next
+  }
+  /^(require_compositor|require_quickshell)([[:space:]]|$)/ {
+    print FILENAME
+    nextfile
+  }
+' "${all_tests[@]}" || true)
+
+declare -A excl_marker_map=()
+while IFS= read -r file; do
+  [[ -n $file ]] && excl_marker_map["$file"]=1
+done < <(grep -Fl '# omarchy:exclusive' "${all_tests[@]}" || true)
+
+uses_compositor() {
+  [[ -n ${comp_map["$1"]:-} ]]
+}
+
+# Timing-sensitive files and tests that mutate shared compositor/shell state
+# run one at a time after the parallel batches; everything else runs through
+# a job pool sized to the machine. A file can also opt out of the pool with
+# an `# omarchy:exclusive` marker near its top.
 is_exclusive() {
   local name
   name=$(basename "$1")
-  [[ $name == *budget* || $name == "sleep-lock-test.sh" || $name == "sleep-monitor-test.sh" || $name == "hyprland-window-close-all-test.sh" ]] && return 0
-  grep -q 'require_compositor\|# omarchy:exclusive' "$1"
+  [[ $name == *budget* || $name == "sleep-lock-test.sh" || $name == "sleep-monitor-test.sh" || $name == "hyprland-window-close-all-test.sh" || $name == "remote-session-service-test.sh" || -n ${excl_marker_map["$1"]:-} ]]
 }
 
-# The idle-spawn guard spends most of its time passively watching its own
-# shell's process tree through an exec logger, so pool load cannot distort
-# what it counts. It starts alongside the pool instead of blocking the
-# serial compositor chain with its idle window.
-is_overlap() {
-  [[ $(basename "$1") == "shell-idle-spawn-test.sh" ]]
+# Full-shell exclusive tests that do not check timing budgets run serially at
+# the end of the compositor shard so they neither contend with a parallel pool
+# nor stretch the timing-budget exclusive shard.
+is_comp_exclusive() {
+  local name
+  name=$(basename "$1")
+  [[ $name == "runtime-smoke-test.sh" || $name == "shell-idle-spawn-test.sh" ]]
 }
 
-parallel_tests=()
-exclusive_tests=()
-overlap_tests=()
-for test in "${tests[@]}"; do
-  if is_overlap "$test"; then
-    overlap_tests+=("$test")
-  elif is_exclusive "$test"; then
-    exclusive_tests+=("$test")
+# Schedule largest test files first (longest-processing-time heuristic) so slow
+# files start at t=0 instead of forming a straggler tail at the end of the pool.
+sort_largest_first() {
+  (( $# > 0 )) || return 0
+  stat -c '%s %n' "$@" | sort -k1,1rn -k2,2 | cut -d' ' -f2-
+}
+
+# Partition files across shards in LPT order (round-robin largest-first) so
+# every shard gets a balanced slice of heavy and light files.
+select_shard() {
+  local idx=0 file
+  while IFS= read -r file; do
+    [[ -n $file ]] || continue
+    if (( idx % SHARD_TOTAL == SHARD_INDEX - 1 )); then
+      printf '%s\n' "$file"
+    fi
+    idx=$(( idx + 1 ))
+  done < <(sort_largest_first "$@")
+}
+
+all_noncomp=()
+all_comp=()
+all_exclusive=()
+for test in "${all_tests[@]}"; do
+  if is_exclusive "$test"; then
+    all_exclusive+=("$test")
+  elif uses_compositor "$test"; then
+    all_comp+=("$test")
   else
-    parallel_tests+=("$test")
+    all_noncomp+=("$test")
   fi
 done
+
+parallel_noncomp_tests=()
+parallel_comp_tests=()
+exclusive_tests=()
+case "$GROUP" in
+  all)
+    parallel_noncomp_tests=("${all_noncomp[@]}")
+    parallel_comp_tests=("${all_comp[@]}")
+    exclusive_tests=("${all_exclusive[@]}")
+    ;;
+  noncomp)
+    parallel_noncomp_tests=("${all_noncomp[@]}")
+    ;;
+  comp)
+    parallel_comp_tests=("${all_comp[@]}")
+    for test in "${all_exclusive[@]}"; do
+      is_comp_exclusive "$test" && exclusive_tests+=("$test")
+    done
+    ;;
+  exclusive)
+    for test in "${all_exclusive[@]}"; do
+      is_comp_exclusive "$test" && continue
+      exclusive_tests+=("$test")
+    done
+    ;;
+esac
+
+if (( SHARD_TOTAL > 0 )); then
+  if (( ${#parallel_noncomp_tests[@]} > 0 )); then
+    mapfile -t parallel_noncomp_tests < <(select_shard "${parallel_noncomp_tests[@]}")
+  fi
+  if (( ${#parallel_comp_tests[@]} > 0 )); then
+    mapfile -t parallel_comp_tests < <(select_shard "${parallel_comp_tests[@]}")
+  fi
+  if (( ${#exclusive_tests[@]} > 0 )); then
+    mapfile -t exclusive_tests < <(select_shard "${exclusive_tests[@]}")
+  fi
+fi
+
+# Preserve deterministic filename order for reporting.
+declare -A selected_map=()
+for test in \
+  ${parallel_noncomp_tests[@]+"${parallel_noncomp_tests[@]}"} \
+  ${parallel_comp_tests[@]+"${parallel_comp_tests[@]}"} \
+  ${exclusive_tests[@]+"${exclusive_tests[@]}"}; do
+  selected_map["$test"]=1
+done
+
+tests=()
+need_compositor=0
+for test in "${all_tests[@]}"; do
+  [[ -n ${selected_map["$test"]:-} ]] || continue
+  tests+=("$test")
+  if uses_compositor "$test"; then
+    need_compositor=1
+  fi
+done
+
+if (( ${#tests[@]} == 0 )); then
+  printf 'No shell tests matched group=%s%s.\n' "$GROUP" "${SHARD:+ shard=$SHARD}"
+  exit 0
+fi
+
+# Share the headless nested Hyprland lifecycle with test/headless so
+# compositor/Quickshell tests never appear on or steal focus from the user's
+# active screen. Fails closed if a live Wayland socket is present and the
+# private compositor cannot be established; set OMARCHY_TEST_USE_LIVE_COMPOSITOR=1
+# to use the live session directly (e.g. inside a disposable CI VM).
+source "$ROOT/test/headless"
+trap headless_cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if (( need_compositor )); then
+  headless_start "test/shell"
+fi
 
 # Every file's output is kept after the run, so a failure can be read from
 # its log rather than found by running the suite again.
 workdir=$(mktemp -d -t omarchy-test-shell.XXXXXX)
+# Named up front, so test/ci-vm can find this run's logs while it runs, and
+# after a hang, among the directories of the test/shell runs some tests start.
+printf 'Logging every file to %s\n' "$workdir"
+printf 'Running %d test files\n' "${#tests[@]}"
 
 run_one() {
   local test="$1"
-  local name
+  local use_comp="${2:-0}"
+  local name start end elapsed_ms
   name=$(basename "$test")
   local status=0
-  bash "$test" >"$workdir/$name.out" 2>&1 || status=$?
+  read -r start _ </proc/uptime
+  if [[ $use_comp == "1" && -n $HEADLESS_RT ]]; then
+    XDG_RUNTIME_DIR="$HEADLESS_RT" \
+    WAYLAND_DISPLAY="$HEADLESS_WL" \
+    HYPRLAND_INSTANCE_SIGNATURE="$HEADLESS_SIG" \
+    DBUS_SESSION_BUS_ADDRESS="$HEADLESS_DBUS" \
+    OMARCHY_TEST_HEADLESS_ACTIVE=1 \
+      bash "$test" >"$workdir/$name.out" 2>&1 || status=$?
+  else
+    OMARCHY_TEST_HEADLESS_ACTIVE="${OMARCHY_TEST_HEADLESS_ACTIVE:-${HEADLESS_RT:+1}}" \
+      bash "$test" >"$workdir/$name.out" 2>&1 || status=$?
+  fi
+  read -r end _ </proc/uptime
+  elapsed_ms=$(( (10#${end/./} - 10#${start/./}) * 10 ))
+  (( elapsed_ms < 0 )) && elapsed_ms=0
+  printf '%d\n' "$elapsed_ms" >"$workdir/$name.time"
   echo "$status" >"$workdir/$name.code"
 }
 export -f run_one
-export workdir
+export workdir HEADLESS_RT HEADLESS_WL HEADLESS_SIG HEADLESS_DBUS
 
 # Keep going after a failing file. A test file exits at its first failed
 # assertion, so aborting the run there too would hide every file after it --
 # one packaging failure was masking 114 of 134 files.
-overlap_pids=()
-for test in "${overlap_tests[@]}"; do
-  run_one "$test" &
-  overlap_pids+=("$!")
-done
-if (( ${#parallel_tests[@]} > 0 )); then
-  printf '%s\0' "${parallel_tests[@]}" |
-    xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1"' _
+if (( ${#parallel_noncomp_tests[@]} > 0 )); then
+  sort_largest_first "${parallel_noncomp_tests[@]}" |
+    tr '\n' '\0' |
+    xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1" 0' _
 fi
-# The overlap jobs must be done before the exclusive chain starts: those
-# files launch full shells on the live compositor, and a shell starting
-# beside the idle guard (the clipboard plugin's watcher pkill, say) can
-# make the guard's own shell spawn processes it would then count.
-if (( ${#overlap_pids[@]} > 0 )); then
-  wait "${overlap_pids[@]}"
+if (( ${#parallel_comp_tests[@]} > 0 )); then
+  comp_jobs="${OMARCHY_TEST_COMP_JOBS:-}"
+  if [[ -z $comp_jobs ]]; then
+    if [[ -n $HEADLESS_RT ]]; then
+      comp_jobs=$(nproc)
+    else
+      # Live compositor runs (e.g. CI VMs on software llvmpipe) default to
+      # serial unless overridden so concurrent Qt rendering does not starve
+      # the compositor on small runners.
+      comp_jobs=1
+    fi
+  fi
+  if (( comp_jobs > 1 )); then
+    sort_largest_first "${parallel_comp_tests[@]}" |
+      tr '\n' '\0' |
+      xargs -0 -P "$comp_jobs" -n 1 bash -c 'run_one "$1" 1' _
+  else
+    for test in "${parallel_comp_tests[@]}"; do
+      run_one "$test" 1
+    done
+  fi
 fi
 for test in "${exclusive_tests[@]}"; do
-  run_one "$test"
+  comp=0
+  uses_compositor "$test" && comp=1
+  run_one "$test" "$comp"
 done
 
 failed=()
@@ -110,11 +314,32 @@ if (( ${#skipped[@]} > 0 )); then
   printf '  %s\n' "${skipped[@]}"
 fi
 
+print_slowest() {
+  local rows=() sorted=() name ms row rel
+  for test in "${tests[@]}"; do
+    name=$(basename "$test")
+    [[ -f $workdir/$name.time ]] || continue
+    ms=$(<"$workdir/$name.time")
+    rows+=("$(printf '%09d %s' "$ms" "${test#$ROOT/}")")
+  done
+  (( ${#rows[@]} > 0 )) || return 0
+  printf '\nSlowest test files:\n'
+  # Drain sort to EOF rather than piping into `head -n 10`, which closes the
+  # pipe early and triggers SIGPIPE under `set -o pipefail`.
+  mapfile -t sorted < <(printf '%s\n' "${rows[@]}" | sort -rn)
+  for row in "${sorted[@]:0:10}"; do
+    read -r ms rel <<<"$row"
+    ms=$(( 10#$ms ))
+    printf '  %6d.%02ds  %s\n' "$(( ms / 1000 ))" "$(( (ms % 1000) / 10 ))" "$rel"
+  done
+}
+
 if (( ${#failed[@]} > 0 )); then
   printf '\n%d of %d test files failed:\n' "${#failed[@]}" "${#tests[@]}" >&2
   for test in "${failed[@]}"; do
     printf '  %s (log: %s/%s.out)\n' "$test" "$workdir" "$(basename "$test")" >&2
   done
+  print_slowest >&2
   printf 'Logs for every file: %s\n' "$workdir" >&2
   exit 1
 fi
@@ -124,4 +349,5 @@ if (( ${#skipped[@]} == 0 )); then
 else
   printf '\n%d test files completed without failures; %d had skipped checks.\n' "${#tests[@]}" "${#skipped[@]}"
 fi
+print_slowest
 printf 'Logs for every file: %s\n' "$workdir"

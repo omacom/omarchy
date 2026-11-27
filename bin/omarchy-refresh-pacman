@@ -42,9 +42,9 @@ rendered=$(mktemp -d)
 trap 'rm -rf "$rendered"' EXIT
 "$OMARCHY_PATH/bin/omarchy-apply-pacman" --render "$channel" "$rendered"
 
+echo "Setting channel to $channel..."
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
 sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
-echo "Setting channel to $channel"
 sudo cp -f "$rendered/pacman.conf" /etc/pacman.conf
 sudo cp -f "$rendered/mirrorlist" /etc/pacman.d/mirrorlist
 rm -rf "$rendered"

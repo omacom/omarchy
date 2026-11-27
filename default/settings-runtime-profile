@@ -22,3 +22,18 @@
 #   install/omarchy-aarch64.packages on aarch64.
 # etc/modprobe.d/omarchy-usb-autosuspend.conf
 #   Applies where usbcore is a module; a kernel that builds it in ignores it.
+# etc/tmpfiles.d/omarchy-intel-hwp-boost.conf
+#   Writes only when /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
+#   exists; systemd-tmpfiles treats it as a no-op on AMD, ARM, and non-HWP CPUs.
+# etc/intel_lpmd/omarchy-mtl.xml
+#   Static Meteor Lake WLT Proxy profile; inert unless intel_lpmd.service's
+#   Meteor Lake drop-in passes it via -c.
+# etc/sysctl.d/99-omarchy-nmi-watchdog.conf
+#   Uses a leading "-" so systemd-sysctl ignores it cleanly on architectures
+#   without CONFIG_HARDLOCKUP_DETECTOR (/proc/sys/kernel/nmi_watchdog).
+# etc/tmpfiles.d/omarchy-power-profiles.conf
+#   Seeds battery_aware=false before power-profiles-daemon starts; applies on
+#   every platform that ships power-profiles-daemon.
+# etc/tmpfiles.d/omarchy-thp.conf
+#   Writes only when /sys/kernel/mm/transparent_hugepage/enabled exists;
+#   systemd-tmpfiles ignores it cleanly on kernels built without THP.
