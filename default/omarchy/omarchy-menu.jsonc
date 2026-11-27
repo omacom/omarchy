@@ -38,7 +38,7 @@
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},
   "system.lock": {"icon":"","label":"Lock","action":"omarchy-system-lock"},
   "system.suspend": {"icon":"󰒲","label":"Suspend","when":"! omarchy-toggle-enabled suspend-off && ! omarchy-sleep-disabled","action":"systemctl suspend"},
-  "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available && ! omarchy-sleep-disabled","action":"systemctl hibernate"},
+  "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available && ! omarchy-sleep-disabled","action":"omarchy-system-hibernate"},
   "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system logout"},
   "system.snapshots": {"icon":"󰁯","label":"Snapshots","when":"[[ $(omarchy-boot-backend) == systemd-boot ]] && [[ -n $(omarchy-snapshot list) ]]","provider":"snapshots"},
   "system.snapshots.restore": {"icon":"󰦛","label":"Restore This Snapshot","when":"grep -q '/[.]snapshots/[0-9]*/snapshot' /proc/cmdline && [[ $(omarchy-boot-backend) == systemd-boot ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-snapshot restore"},
