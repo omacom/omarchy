@@ -17,6 +17,7 @@ resolve_intro() {
   local stem
   local extension
   local intro
+  local scene
 
   background=$(readlink -f "${1:-$current_background_link}" 2>/dev/null) || return 1
   [[ -f $background ]] || return 1
@@ -27,6 +28,16 @@ resolve_intro() {
 
   stem=${background##*/}
   stem=${stem%.*}
+
+  # A scene made for this still arrives in place of an intro clip. OWE says
+  # whether it has an arrive part and belongs to this picture; an OWE that
+  # does not know scenes leaves the clip.
+  scene="${background%/*}/scenes/$stem/scene.jsonc"
+  if [[ -f $scene ]] && owe scene info --still "$background" "$scene" 2>/dev/null | jq -e '.still_matches and .arrive.seconds > 0' >/dev/null 2>&1; then
+    printf '%s\n' "$scene"
+    return 0
+  fi
+
   for extension in "${video_extensions[@]}"; do
     intro="${background%/*}/intros/$stem.$extension"
     if [[ -f $intro ]]; then
