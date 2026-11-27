@@ -240,10 +240,10 @@ PanelWindow {
   // directly — not the anchor item's y/x — because mapToItem(barContent)
   // returns coordinates in the bar's content space, which can be offset
   // from the strip's screen-anchored corner by internal layout (centering
-  // wrappers, padding). The bar window spans its whole screen, so its
-  // dimensions say nothing about the strip; the painted strip hugs the
-  // bar's anchored screen edge at the bar's thickness for this screen
-  // (notch floor included), so `barReach` gives the strip's inner edge
+  // wrappers, padding). The bar window's size trails the strip while it
+  // settles into a new edge or thickness. The strip is the bar's thickness
+  // for this screen (notch floor included) deep, a floating bar's margin
+  // off its screen edge, so `barReach` gives the strip's inner edge
   // regardless of how the bar's internal widgets are positioned. For the
   // parallel axis (along the bar) the anchor item's reported position is
   // still consistent with the bar content origin, so it's accurate for

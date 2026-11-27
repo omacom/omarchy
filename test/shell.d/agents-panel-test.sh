@@ -194,6 +194,50 @@ assertDeepEqual(targets({
   'away/a': { recipe: 'a', host: 'away', kind: 'text', unit: 'active', paired: true, offline: 'offline' }
 }), ['q', 'f', 'n', 'box/d'], 'every coding model here and each setup gets a line, a paired machine\'s only while it runs there')
 
+const builtWithBest = build(
+  { n: { recipe: 'n', kind: 'text', unit: 'inactive' }, q: { recipe: 'q', kind: 'text', unit: 'inactive' } },
+  [],
+  { 'box/n': { recipe: 'n', host: 'box', kind: 'text', unit: 'active', paired: true, offline: '' } },
+  [{ id: 'n', best: true }, { id: 'q', best: false }]
+)
+assertDeepEqual(builtWithBest.map(line => [line.localModel.target, line.localModel.best]),
+  [['n', true], ['q', false], ['box/n', false]],
+  'local model lines carry best from this machine\'s catalog and never for a network model')
+
+const offerRecommended = new Function(fn('offerRecommended') + '\nreturn offerRecommended')()
+assertEqual(offerRecommended({ host: '', best: true }, 2), true, 'the best model gets the recommended pill when multiple local models are offered')
+assertEqual(offerRecommended({ host: '', best: true }, 1), false, 'a single offered local model gets no recommended pill')
+assertEqual(offerRecommended({ host: '', best: false }, 2), false, 'a non-best model gets no recommended pill')
+assertEqual(offerRecommended({ host: 'spark', best: true }, 2), false, 'a network model never gets the recommended pill')
+assertEqual(offerRecommended({ host: '', best: true, link: { state: 'available' } }, 2), false, 'a cabled Spark link offer never gets the recommended pill')
+
+const sortLocalOffers = new Function(fn('sortLocalOffers') + '\nreturn sortLocalOffers')()
+assertDeepEqual(
+  sortLocalOffers([
+    { target: 'qwen', best: false },
+    { target: 'other', best: false },
+    { target: 'nemotron', best: true }
+  ]).map(o => o.target),
+  ['nemotron', 'qwen', 'other'],
+  'the recommended model sorts at the top even when another model is already installed'
+)
+
+const localMeter = new Function('Commons', 'nowMs', 'downloadRate', fn('phaseProgress') + fn('expectedLoadSeconds') + fn('expectedStopSeconds') + fn('localMeter') + '\nreturn localMeter')(
+  { I18n: { t: key => key } },
+  10000,
+  rate => rate > 0 ? Math.round(rate / 1e6) + ' MB/s' : ''
+)
+assertDeepEqual(
+  localMeter({ unit: 'installing', install: { phase: 'downloading', done_bytes: 20e9, total_bytes: 40e9, rate_bytes_s: 84e6 } }, false),
+  { title: '', value: 0.5, rate: '84 MB/s', downloading: true },
+  'a downloading model shows a titleless progress bar with speed and marks downloading'
+)
+assertEqual(
+  localMeter({ unit: 'installing', install: { phase: 'dependencies' } }, false).downloading,
+  undefined,
+  'dependency installation keeps its titled meter'
+)
+
 const localActions = new Function(fn('localActions') + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle'], 'a running model can be shared and stopped')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle'], 'without Tailscale set up, sharing is not offered')
@@ -250,6 +294,34 @@ const lineStop = (launches, actions) => new Function('providers', 'launches', 'l
 assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running model lands on its terminal button')
 assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
 assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
+
+// A coding model set up on this machine always gets a line on the panel,
+// even when set up from the CLI and absent from local-models.json; paired
+// machine models still wait to be added (unless pinned as the local default).
+const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const localModelAddedFn = mainSource.match(/function localModelAdded\([^]*?\n  \}/)[0]
+const isAdded = (addedLocalModels, defaultAgent, localDefaultTarget) =>
+  new Function('addedLocalModels', 'defaultAgent', 'localDefaultTarget', localModelAddedFn + '\nreturn localModelAdded')(
+    addedLocalModels, defaultAgent, localDefaultTarget
+  )
+assertEqual(isAdded([], 'agy', '')({ localModel: { target: 'inkling-2-mini-tensorfold', host: '' } }), true,
+  'a local model set up on this machine appears on the panel even when not in local-models.json')
+assertEqual(isAdded([], 'agy', '')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), false,
+  'a paired machine model stays off the panel until added')
+assertEqual(isAdded(['spark/deepseek'], 'agy', '')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), true,
+  'an added paired machine model appears on the panel')
+assertEqual(isAdded([], 'local', 'spark/deepseek')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), true,
+  'the default paired machine model stays on the panel')
+
+// A model being set up or handing off to status.json isn't dropped from the
+// panel's added list even before status.json reloads with it.
+const findRemoved = new Function(fn('findRemovedLocalModels') + '\nreturn findRemovedLocalModels')()
+const uninst = [{ id: 'm', installed: false }, { id: 'n', installed: false }, { id: 'gone', installed: false }]
+assertDeepEqual(
+  findRemoved(['m', 'n', 'gone', 'spark/d'], {}, [], uninst, 'm', ['n']),
+  ['gone'],
+  'setups in progress or handing off stay added until status.json lists them, while uninstalled models drop'
+)
 
 // Adding a running network model returns to the panel index instead of
 // closing the panel and launching a terminal.
@@ -318,4 +390,79 @@ assertEqual(refocused, 1, 'submitting a code returns keyboard focus to the panel
 handleAddLine('Paste code here:')
 assertEqual(pasteState.addNeedsPaste, true, 'a re-prompt brings the paste field back')
 assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking state')
+
+// On a blank-slate machine, starting a local model download keeps AddView up
+// and must not also render a duplicate ProviderSection underneath it. Already-
+// installed models stay on the index across loading, stopping, failure, and
+// removal, as do added paired tailnet models.
+const propExpr = name => {
+  const m = source.match(new RegExp('readonly property bool ' + name + ': ([^\\n]+(?:\\n(?:    [^\\n]+|  \\}\\)))*)'))
+  assert(m, 'agents panel defines ' + name)
+  return m[1]
+}
+const addViewVisibleExpr = source.match(/AddView \{[\s\S]*?visible: ([^\n]+)/)[1]
+const sectionsModelExpr = source.match(/id: providerSections[\s\S]*?model: ([^\n]+)/)[1]
+const evalPanelState = new Function(
+  'addStage', 'usage', 'anySignedIn', 'localModels', 'localModelLines', 'localModelState', 'settingUpLocal', 'providers',
+  fn('localSettingUp') + '\n' +
+  'const hasIndexLocalModel = ' + propExpr('hasIndexLocalModel') + '\n' +
+  'const blankSlate = ' + propExpr('blankSlate') + '\n' +
+  'const indexShown = ' + propExpr('indexShown') + '\n' +
+  'const root = { addStage, blankSlate, indexShown, providers }\n' +
+  'return { blankSlate, addVisible: (' + addViewVisibleExpr + '), sections: (' + sectionsModelExpr + ') }'
+)
+const evalPanelView = ({ addStage = '', enabledProviders = [], anySignedIn = false, localModels = {}, localModelLines = [], settingUpLocal = '', added = [], providers = [] }) => {
+  const usage = {
+    enabledProviders,
+    localModelAdded: line => line.localModel.host === '' || added.includes(line.localModel.target)
+  }
+  const localModelState = local => local && local.host === '' ? (localModels[local.target] || null) : null
+  return evalPanelState(addStage, usage, anySignedIn, localModels, localModelLines, localModelState, settingUpLocal, providers)
+}
+const inklingLine = { providerId: 'local', localModel: { target: 'inkling', host: '' } }
+const downloadingView = evalPanelView({
+  localModels: { inkling: { kind: 'text', unit: 'installing' } },
+  localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
+  providers: [inklingLine]
+})
+assertEqual(downloadingView.blankSlate, true, 'downloading a first local model stays on the blank-slate picker')
+assertEqual(downloadingView.addVisible, true, 'downloading a first local model keeps AddView visible')
+assertDeepEqual(downloadingView.sections, [], 'downloading a first local model does not duplicate it in providerSections')
+
+const firstLoadView = evalPanelView({
+  localModels: { inkling: { kind: 'text', unit: 'activating' } },
+  localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
+  providers: [inklingLine]
+})
+assertEqual(firstLoadView.blankSlate, true, 'first-time loading started from the picker stays on the blank-slate picker')
+assertDeepEqual(firstLoadView.sections, [], 'first-time loading started from the picker does not duplicate in providerSections')
+
+for (const [label, model] of [
+  ['running', { kind: 'text', unit: 'active', sub_state: 'running' }],
+  ['loading from index', { kind: 'text', unit: 'activating' }],
+  ['stopping', { kind: 'text', unit: 'deactivating' }],
+  ['stopped', { kind: 'text', unit: 'inactive' }],
+  ['failed', { kind: 'text', unit: 'failed', error: 'Stopped unexpectedly' }],
+  ['removing', { kind: 'text', unit: 'removing' }]
+]) {
+  const view = evalPanelView({
+    localModels: { inkling: model },
+    localModelLines: [inklingLine],
+    providers: [inklingLine]
+  })
+  assertEqual(view.blankSlate, false, 'an installed model (' + label + ') stays on the panel index')
+  assertEqual(view.addVisible, false, 'an installed model (' + label + ') hides AddView')
+  assertDeepEqual(view.sections, [inklingLine], 'an installed model (' + label + ') keeps its section')
+}
+
+const pairedLine = { providerId: 'local', localModel: { target: 'spark/qwen', host: 'spark' } }
+const pairedView = evalPanelView({
+  localModelLines: [pairedLine],
+  added: ['spark/qwen'],
+  providers: [pairedLine]
+})
+assertEqual(pairedView.blankSlate, false, 'an added paired tailnet model leaves the blank-slate picker')
+assertDeepEqual(pairedView.sections, [pairedLine], 'an added paired tailnet model shows in providerSections')
 JS

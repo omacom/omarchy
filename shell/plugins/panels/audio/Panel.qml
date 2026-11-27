@@ -161,10 +161,12 @@ Panel {
 
   function resolveVolumeSink() {
     volumeSinkGeneration++
-    // A hardware output is its own volume sink, as omarchy-audio-output-sink
-    // reports without looking further, so only a DSP sink needs the script.
-    if (sink && String(sink.name).indexOf("alsa_output.") === 0) {
-      volumeSinkName = String(sink.name)
+    // A hardware output (ALSA or Bluetooth) is its own volume sink, as
+    // omarchy-audio-output-sink reports without looking further, so only a DSP
+    // sink needs the script.
+    var name = sink ? String(sink.name) : ""
+    if (name.indexOf("alsa_output.") === 0 || name.indexOf("bluez_output.") === 0) {
+      volumeSinkName = name
       return
     }
     if (volumeSinkProc.running) {

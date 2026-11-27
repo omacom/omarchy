@@ -20,7 +20,7 @@ To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Rub
 
 ## Preinstalled CLI tools
 
-`uv`, Node.js, and `playwright-cli` (for agents to drive a browser, using the installed Chrome) come installed as packages, and `omarchy update` keeps them current with the rest of the system. `ghui`, [Hunk](https://github.com/modem-dev/hunk), and the Basecamp, Cloudflare and HEY CLIs are a pick away under _Install > CLI_, and [coding agents](17-ai.md) under _Install > AI > CLI_.
+`uv`, Node.js, and `playwright-cli` (for agents to drive a browser, using the installed Chrome) come installed as packages, and `omarchy update` keeps them current with the rest of the system. [Hunk](https://github.com/modem-dev/hunk) and the GitHub, Basecamp, Cloudflare and HEY CLIs are a pick away under _Install > CLI_, and [coding agents](17-ai.md) under _Install > AI > CLI_.
 
 mise only manages the runtimes you set up from _Install > Development_; Omarchy installs nothing through it on its own. Run `omarchy update` to update them with the rest of Omarchy; the `mup` alias updates mise-managed tools only. To add another tool to your own configuration, use `mise use -g <tool>`.
 
@@ -34,6 +34,6 @@ You can setup the common databases for local development in Docker using _Instal
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) is `gh`, for working with repositories, issues, and pull requests from the terminal. _Setup > Git_ installs it when you choose to sign in to GitHub there, then `gh repo clone org/repo` clones a repository. Run `gh --help` to explore its commands.
+[GitHub CLI](https://cli.github.com/) is `gh`, for working with repositories, issues, and pull requests from the terminal. _Setup > Git_ installs it when you choose to sign in to GitHub there, or install it on its own from _Install > CLI > GitHub_. Then `gh repo clone org/repo` clones a repository; run `gh --help` to explore its commands.
 
-_Install > CLI > GitHub_ installs the GitHub CLI, `gh`, along with `ghui`, a terminal interface to pull requests. [Lazygit](https://github.com/jesseduffield/lazygit) is preinstalled for working with Git itself.
+[Lazygit](https://github.com/jesseduffield/lazygit) is preinstalled for working with Git itself.

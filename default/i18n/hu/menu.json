@@ -1309,8 +1309,7 @@
     "label": "Cloudflare"
   },
   "install.cli.github": {
-    "label": "GitHub",
-    "description": "gh és ghui"
+    "label": "GitHub"
   },
   "install.cli.hey": {
     "label": "HEY"
@@ -1442,10 +1441,15 @@
     "label": "Cloudflare"
   },
   "remove.cli.github": {
-    "label": "GitHub",
-    "description": "gh és ghui"
+    "label": "GitHub"
   },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "system.snapshots": {
+    "label": "Pillanatképek"
+  },
+  "system.snapshots.restore": {
+    "label": "Pillanatkép visszaállítása"
   }
 }
