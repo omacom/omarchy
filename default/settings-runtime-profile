@@ -28,3 +28,6 @@
 # etc/intel_lpmd/omarchy-mtl.xml
 #   Static Meteor Lake WLT Proxy profile; inert unless intel_lpmd.service's
 #   Meteor Lake drop-in passes it via -c.
+# etc/sysctl.d/99-omarchy-nmi-watchdog.conf
+#   Uses a leading "-" so systemd-sysctl ignores it cleanly on architectures
+#   without CONFIG_HARDLOCKUP_DETECTOR (/proc/sys/kernel/nmi_watchdog).
