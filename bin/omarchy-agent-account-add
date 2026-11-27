@@ -219,48 +219,18 @@ install_cli() {
     return
   fi
 
-  local package total_bytes=0
-  if package=$(omarchy-install-ai-cli --package "$harness" 2>/dev/null); then
-    total_bytes=$(pacman -Sp --print-format '%s' "$package" 2>/dev/null | awk '{ s += $1 } END { printf "%.0f", s + 0 }')
-  fi
-
   printf '@@omarchy progress 0 0 0\n'
-  python3 - "$total_bytes" "$@" <<'PY' &
-import errno, fcntl, os, pty, re, signal, struct, subprocess, sys, termios, time
+  python3 - "$@" <<'PY' &
+import errno, fcntl, os, pty, re, signal, struct, subprocess, sys, termios
 
-expected_total = int(sys.argv[1] or 0)
-cmd = sys.argv[2:]
-
-UNITS = {
-  "B": 1,
-  "KB": 1000, "KIB": 1024,
-  "MB": 1000**2, "MIB": 1024**2,
-  "GB": 1000**3, "GIB": 1024**3,
-  "TB": 1000**4, "TIB": 1024**4,
-}
-ANSI_SPLIT = re.compile(r"\r+|\n+|\x1b\[\d*[EFGH]")
-ANSI_STRIP = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
-BAR_END_RE = re.compile(r"\[[^\]]*\]\s+\d+%$")
-DL_RE = re.compile(
-  r"(?P<done>\d+(?:[.,]\d+)?)\s*(?P<dunit>[KMGT]?i?B)\s+"
-  r"(?P<rate>\d+(?:[.,]\d+)?)\s*(?P<runit>[KMGT]?i?B)/s\s+"
-  r"(?:\d+(?::\d+)+|--:--)\s+\[[^\]]*\]\s+(?P<pct>\d+)%"
-)
+UNITS = {"B": 1, "KB": 1000, "KIB": 1024, "MB": 1000**2, "MIB": 1024**2, "GB": 1000**3, "GIB": 1024**3}
+SPLIT = re.compile(r"\r+|\n+|\x1b\[\d*[EFGH]")
+ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+BAR_END = re.compile(r"\[[^\]]*\]\s+\d+%$")
+DL_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([KMG]?i?B)/s\s+(?:\d+(?::\d+)+|--:--)\s+\[[^\]]*\]\s+(\d+)%")
 TOTAL_RE = re.compile(r"^\s*\S+\s+\(\d+/\d+\)\s+")
-INSTALL_BAR_RE = re.compile(r"^\s*\((\d+)/(\d+)\)\s+.*\[[^\]]*\]\s+(\d+)%")
-VERIFY_BAR_RE = re.compile(r"^\s*(?P<label>.+?)\s+\[[^\]]*\]\s+(?P<pct>\d+)%")
-HOOK_STEP_RE = re.compile(r"^\s*\((\d+)/(\d+)\)\s+\S")
-
-VERIFY_SLICES = (
-  ("checking keys in keyring", 0, 20),
-  ("checking package integrity", 20, 55),
-  ("loading package files", 55, 80),
-  ("checking for file conflicts", 80, 92),
-  ("checking available disk space", 92, 100),
-)
-
-def to_bytes(num_str, unit):
-  return int(float(num_str.replace(",", ".")) * UNITS.get(unit.upper(), 1))
+INST_RE = re.compile(r"^\s*\((\d+)/(\d+)\)\s+.*\[[^\]]*\]\s+(\d+)%")
+BAR_RE = re.compile(r"\[[^\]]*\]\s+(\d+)%")
 
 master_fd, slave_fd = pty.openpty()
 fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0))
@@ -268,138 +238,58 @@ attrs = termios.tcgetattr(slave_fd)
 attrs[3] &= ~termios.ECHO
 termios.tcsetattr(slave_fd, termios.TCSANOW, attrs)
 
-proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=slave_fd, stderr=slave_fd)
+proc = subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL, stdout=slave_fd, stderr=slave_fd)
 os.close(slave_fd)
 
-def stop(_signum, _frame):
-  try:
-    proc.terminate()
-  except OSError:
-    pass
-  try:
-    os.close(master_fd)
-  except OSError:
-    pass
+def stop(_sig, _frame):
+  for fn in (proc.terminate, lambda: os.close(master_fd)):
+    try: fn()
+    except OSError: pass
   os._exit(130)
 
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 
-last_emit = ("", -1, -1, -1)
-last_emit_at = 0.0
-
-def emit(done, total, rate, stage, force=False):
-  global last_emit, last_emit_at
-  now = time.monotonic()
-  state = (stage, done, total, rate)
-  if state == last_emit:
-    return
-  if not force and stage == last_emit[0] and now - last_emit_at < 0.08:
-    return
-  sys.stdout.write(f"@@omarchy progress {done} {total} {rate} {stage}\n")
-  sys.stdout.flush()
-  last_emit = state
-  last_emit_at = now
-
+last = None
 seen_total = False
-pkg_done = {}
-pkg_total = {}
-max_dl_done = 0
-stage_rank = 0
-verify_seen = []
-max_verify = 0
-max_install = 0
-in_hooks = False
+stage = 0
+verify_step = 0
 
-def handle_line(raw):
-  global seen_total, max_dl_done, stage_rank, max_verify, max_install, in_hooks
-  line = ANSI_STRIP.sub("", raw).strip()
+def emit(pct, rate, name):
+  global last
+  state = (pct, rate, name)
+  if state != last:
+    sys.stdout.write(f"@@omarchy progress {pct} 100 {rate} {name}\n")
+    sys.stdout.flush()
+    last = state
+
+def handle(raw):
+  global seen_total, stage, verify_step
+  line = ANSI.sub("", raw).strip()
   if not line:
     return
-
-  dl = DL_RE.search(line)
-  if dl:
-    if stage_rank > 1 or ".sig" in line:
+  if m := DL_RE.search(line):
+    if stage > 1 or ".sig" in line:
       return
-    stage_rank = 1
-    done = to_bytes(dl.group("done"), dl.group("dunit"))
-    rate = to_bytes(dl.group("rate"), dl.group("runit"))
-    pct = int(dl.group("pct"))
     if TOTAL_RE.match(line):
       seen_total = True
-      if expected_total > 0:
-        total = max(expected_total, done)
-      elif pct > 0:
-        total = max(int(done * 100 / pct), done)
-      else:
-        total = 0
-      if pct >= 100 and total > 0:
-        done = total
     elif seen_total:
       return
-    else:
-      key = line.split()[0]
-      pkg_done[key] = done
-      if expected_total == 0 and pct > 0:
-        pkg_total[key] = max(pkg_total.get(key, 0), int(done * 100 / pct))
-      done = sum(pkg_done.values())
-      if expected_total > 0:
-        total = max(expected_total, done)
-      elif sum(pkg_total.values()) > 0:
-        total = max(sum(pkg_total.values()), done)
-      else:
-        total = 0
-      if pct >= 100 and len(pkg_done) == 1 and expected_total > 0 and done >= expected_total * 0.9:
-        done = expected_total
-    max_dl_done = max(max_dl_done, done)
-    if total > 0:
-      max_dl_done = min(max_dl_done, total)
-    emit(max_dl_done, total, rate, "downloading", force=(pct >= 100 or last_emit[0] != "downloading"))
-    return
-
-  inst = INSTALL_BAR_RE.match(line)
-  if inst:
-    stage_rank = 3
-    idx, count, pct = int(inst.group(1)), max(1, int(inst.group(2))), int(inst.group(3))
-    scaled = int(((idx - 1) * 100 + pct) * 90 / (count * 100))
-    max_install = max(max_install, min(90, scaled))
-    emit(max_install, 100, 0, "installing", force=(pct >= 100 or last_emit[0] != "installing"))
-    return
-
-  ver = VERIFY_BAR_RE.match(line)
-  if ver and stage_rank <= 2:
-    stage_rank = 2
-    label = ver.group("label").strip().lower()
-    pct = int(ver.group("pct"))
-    lo = hi = None
-    for prefix, start, end in VERIFY_SLICES:
-      if label.startswith(prefix):
-        lo, hi = start, end
-        break
-    if lo is None:
-      if label not in verify_seen:
-        verify_seen.append(label)
-      step = min(len(verify_seen) - 1, 4)
-      lo, hi = step * 20, min(100, (step + 1) * 20)
-    scaled = lo + int((hi - lo) * pct / 100)
-    max_verify = max(max_verify, min(100, scaled))
-    emit(max_verify, 100, 0, "verifying", force=(pct >= 100 or last_emit[0] != "verifying"))
-    return
-
-  if stage_rank >= 3:
-    if line.startswith("::"):
-      in_hooks = True
-      max_install = max(max_install, 92)
-      emit(max_install, 100, 0, "installing", force=True)
-    elif in_hooks:
-      hook = HOOK_STEP_RE.match(line)
-      if hook:
-        idx, count = int(hook.group(1)), max(1, int(hook.group(2)))
-        max_install = max(max_install, 92 + int(6 * idx / count))
-        emit(max_install, 100, 0, "installing", force=True)
-  elif line.startswith(":: Processing package changes"):
-    stage_rank = 3
-    emit(max_install, 100, 0, "installing", force=True)
+    stage = 1
+    rate = int(float(m.group(1).replace(",", ".")) * UNITS.get(m.group(2).upper(), 1))
+    emit(min(100, int(m.group(3))), rate, "downloading")
+  elif m := INST_RE.match(line):
+    stage = 3
+    i, n, p = int(m.group(1)), max(1, int(m.group(2))), int(m.group(3))
+    emit(min(95, int(((i - 1) * 100 + p) * 95 / (n * 100))), 0, "installing")
+  elif stage <= 2 and (m := BAR_RE.search(line)):
+    stage = 2
+    p = int(m.group(1))
+    emit(min(100, verify_step * 25 + p // 4), 0, "verifying")
+    if p >= 100:
+      verify_step = min(3, verify_step + 1)
+  elif stage >= 3 and line.startswith("::"):
+    emit(98, 0, "installing")
 
 buf = ""
 while True:
@@ -412,18 +302,16 @@ while True:
   if not chunk:
     break
   buf += chunk.decode("utf-8", errors="replace")
-  parts = ANSI_SPLIT.split(buf)
+  parts = SPLIT.split(buf)
   for part in parts[:-1]:
-    handle_line(part)
+    handle(part)
   buf = parts[-1]
-  # Pacman often flushes the final line of a cursor-positioned block without a
-  # trailing carriage return; handle it once a complete percentage bar lands.
-  if BAR_END_RE.search(ANSI_STRIP.sub("", buf).rstrip()):
-    handle_line(buf)
+  if BAR_END.search(ANSI.sub("", buf).rstrip()):
+    handle(buf)
     buf = ""
 
 if buf:
-  handle_line(buf)
+  handle(buf)
 os.close(master_fd)
 sys.exit(proc.wait())
 PY

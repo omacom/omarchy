@@ -284,13 +284,13 @@ const cliProgress = new Function('Commons', 'clamp', ['phaseProgress', 'cliInsta
   { I18n: { t: key => key } },
   (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 )
-const cliStart = cliProgress.cliInstallProgress('', 0, 0, now, now, now)
-const cliCreep = cliProgress.cliInstallProgress('', 0, 0, now - 4000, now - 4000, now)
-const cliDlHalf = cliProgress.cliInstallProgress('downloading', 50, 100, now - 5000, now - 2000, now)
-const cliDlDone = cliProgress.cliInstallProgress('downloading', 100, 100, now - 8000, now - 5000, now)
-const cliVerify = cliProgress.cliInstallProgress('verifying', 50, 100, now - 9000, now - 1000, now)
-const cliExtract = cliProgress.cliInstallProgress('installing', 50, 100, now - 11000, now - 1000, now)
-const cliHooks = cliProgress.cliInstallProgress('installing', 98, 100, now - 12000, now - 2000, now)
+const cliStart = cliProgress.cliInstallProgress('', 0, 0, now, now)
+const cliCreep = cliProgress.cliInstallProgress('', 0, 0, now - 4000, now)
+const cliDlHalf = cliProgress.cliInstallProgress('downloading', 50, 100, now - 5000, now)
+const cliDlDone = cliProgress.cliInstallProgress('downloading', 100, 100, now - 8000, now)
+const cliVerify = cliProgress.cliInstallProgress('verifying', 50, 100, now - 9000, now)
+const cliExtract = cliProgress.cliInstallProgress('installing', 50, 100, now - 11000, now)
+const cliHooks = cliProgress.cliInstallProgress('installing', 98, 100, now - 12000, now)
 assert(cliStart > 0 && cliStart < cliCreep && cliCreep < cliDlHalf && cliDlHalf < cliDlDone && cliDlDone < cliVerify && cliVerify < cliExtract && cliExtract < cliHooks && cliHooks < 1,
   'a CLI install fills one way across its stages', [cliStart, cliCreep, cliDlHalf, cliDlDone, cliVerify, cliExtract, cliHooks])
 assertDeepEqual(
@@ -414,8 +414,8 @@ assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking 
 
 // CLI install progress lines update stage, rate, and monotonic bar fill.
 Object.assign(pasteState, {
-  addPhase: '', addDoneBytes: 0, addTotalBytes: 0, addRateBytes: 0,
-  addInstallStage: '', addInstallStartedMs: 0, addInstallStageStartedMs: 0, addInstallFill: 0,
+  addPhase: '', addRateBytes: 0,
+  addInstallStage: '', addInstallStartedMs: 0, addInstallFill: 0,
   nowMs: 0,
   cliInstallProgress: cliProgress.cliInstallProgress
 })
@@ -427,12 +427,12 @@ handleAddLine('@@omarchy progress 1 100 18000000 downloading')
 assertEqual(pasteState.addInstallStage, 'downloading', 'progress updates the install stage')
 assertEqual(pasteState.addRateBytes, 18000000, 'progress updates the download rate')
 assertEqual(pasteState.addInstallFill, 0.1, 'entering downloading never pulls the bar backward')
-handleAddLine('@@omarchy progress 50 100 20000000 downloading')
-assert(pasteState.addInstallFill > 0.35, 'download progress advances the bar')
+handleAddLine('@@omarchy progress 100 100 20000000 downloading')
+assertEqual(pasteState.addInstallFill, 0.75, 'a completed download caps at the download phase boundary')
 handleAddLine('@@omarchy progress 50 100 0 verifying')
 assertEqual(pasteState.addInstallStage, 'verifying', 'verifying stage updates the label')
 assertEqual(pasteState.addRateBytes, 0, 'verifying clears the download rate')
-assert(pasteState.addInstallFill > 0.75, 'verifying advances past downloading')
+assert(pasteState.addInstallFill > 0.75 && pasteState.addInstallFill < 0.82, 'verifying advances past downloading')
 
 // On a blank-slate machine, starting a local model download keeps AddView up
 // and must not also render a duplicate ProviderSection underneath it. Already-

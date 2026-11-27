@@ -745,24 +745,15 @@ Panel {
 
   // How far a CLI package install is, as one monotonic bar from connecting
   // through downloading, verifying, and extracting/hooks. Creeps gently while
-  // waiting for the first byte (or if pacman prints no progress), so the bar
-  // never sits empty.
-  function cliInstallProgress(stage, done, total, startedMs, stageStartedMs, nowMs) {
-    var seconds = function(fromMs) { return Math.max(0, (nowMs - (fromMs || nowMs)) / 1000) }
-    var share = function(elapsed, expected) { return phaseProgress(elapsed, expected) / 0.98 }
+  // waiting for the first event, so the bar never sits empty.
+  function cliInstallProgress(stage, done, total, startedMs, nowMs) {
     var fraction = total > 0 ? clamp(done / total, 0, 1) : 0
-    if (stage === "downloading") {
-      if (total > 0) return 0.05 + 0.70 * fraction
-      return 0.05 + 0.70 * share(seconds(stageStartedMs), 25)
-    }
-    if (stage === "verifying")
-      return 0.75 + 0.07 * (total > 0 ? fraction : share(seconds(stageStartedMs), 4))
-    if (stage === "installing") {
-      if (total > 0) return 0.82 + 0.16 * fraction
-      return 0.82 + 0.16 * share(seconds(stageStartedMs), 10)
-    }
-    if (total > 0) return clamp(done / total, 0, 0.98)
-    return 0.03 + 0.09 * share(seconds(startedMs), 10)
+    if (stage === "downloading") return 0.05 + 0.70 * fraction
+    if (stage === "verifying") return 0.75 + 0.07 * fraction
+    if (stage === "installing") return 0.82 + 0.16 * fraction
+    if (total > 0) return clamp(fraction, 0, 0.98)
+    var elapsed = Math.max(0, (nowMs - (startedMs || nowMs)) / 1000)
+    return 0.03 + 0.09 * phaseProgress(elapsed, 10) / 0.98
   }
 
   function cliInstallTitle(stage) {
@@ -788,9 +779,13 @@ Panel {
   readonly property bool cliInstalling: addStage === "running" && addPhase === "get" && !addFetched
   Timer {
     interval: 250
-    running: root.opened && (root.localBusy || root.cliInstalling)
+    running: root.opened && (root.localBusy || (root.cliInstalling && root.addInstallStage === ""))
     repeat: true
-    onTriggered: root.nowMs = Date.now()
+    onTriggered: {
+      root.nowMs = Date.now()
+      if (root.cliInstalling && root.addInstallStage === "")
+        root.addInstallFill = Math.max(root.addInstallFill, root.cliInstallProgress("", 0, 0, root.addInstallStartedMs, root.nowMs))
+    }
   }
 
   // What a model on this machine offers on its line. One the catalog has
@@ -966,17 +961,10 @@ Panel {
   // The CLI's own download, when it isn't installed yet: the first sign-in
   // installs it before the browser opens.
   property bool addDownloading: false
-  property real addDoneBytes: 0
-  property real addTotalBytes: 0
   property real addRateBytes: 0
   property string addInstallStage: ""
   property double addInstallStartedMs: 0
-  property double addInstallStageStartedMs: 0
   property real addInstallFill: 0
-  readonly property real addInstallTarget: cliInstalling
-    ? cliInstallProgress(addInstallStage, addDoneBytes, addTotalBytes, addInstallStartedMs, addInstallStageStartedMs, nowMs)
-    : (addFetched ? 1 : 0)
-  onAddInstallTargetChanged: if (addStage === "running" && addPhase === "get") addInstallFill = Math.max(addInstallFill, addInstallTarget)
   // Where a sign-in is, as a setup flow: getting the CLI, then signing in.
   property string addPhase: ""
   // When the download ends its bar fills to the end before the sign-in takes
@@ -994,8 +982,6 @@ Panel {
     addFetched = false
     addStatus = status
     addDownloading = false
-    addDoneBytes = 0
-    addTotalBytes = 0
     addRateBytes = 0
     addInstallStage = ""
     addInstallFill = 0
@@ -1061,12 +1047,9 @@ Panel {
     addKeyEntry = false
     addCheckingCode = false
     addDownloading = false
-    addDoneBytes = 0
-    addTotalBytes = 0
     addRateBytes = 0
     addInstallStage = ""
     addInstallStartedMs = 0
-    addInstallStageStartedMs = 0
     addInstallFill = 0
     addPhase = ""
     addFetched = false
@@ -1127,24 +1110,21 @@ Panel {
         addKeyEntry = tagged[1] === "key"
         addCheckingCode = false
       } else if (tagged[1] === "progress") {
-        var bytes = tagged[2].split(" ")
-        var stage = bytes[3] || ""
+        var parts = tagged[2].split(" ")
+        var done = Number(parts[0]) || 0
+        var total = Number(parts[1]) || 0
+        var stage = parts[3] || ""
         var now = Date.now()
         if (addPhase !== "get") {
           addInstallStartedMs = now
-          addInstallStageStartedMs = now
           addInstallFill = 0
           nowMs = now
-        } else if (stage !== addInstallStage) {
-          addInstallStageStartedMs = now
         }
-        addDoneBytes = Number(bytes[0]) || 0
-        addTotalBytes = Number(bytes[1]) || 0
-        addRateBytes = Number(bytes[2]) || 0
         addInstallStage = stage
+        addRateBytes = Number(parts[2]) || 0
         addDownloading = true
         addPhase = "get"
-        addInstallFill = Math.max(addInstallFill, cliInstallProgress(stage, addDoneBytes, addTotalBytes, addInstallStartedMs, addInstallStageStartedMs, now))
+        addInstallFill = Math.max(addInstallFill, cliInstallProgress(stage, done, total, addInstallStartedMs, now))
       } else if (tagged[1] === "status") {
         // A download's progress follows its status at once; any other
         // status is the sign-in's, held while a finished download's bar fills.
