@@ -18,24 +18,16 @@ sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
   shopt -s nullglob
   for wireless in /sys/class/net/*/wireless; do
     iface=$(basename "$(dirname "$wireless")")
-    conn=$(nmcli -g GENERAL.CONNECTION dev show "$iface" 2>/dev/null || true)
+    uuid=$(nmcli -g GENERAL.CON-UUID dev show "$iface" 2>/dev/null || true)
     powersave=""
-    if [[ -n $conn && $conn != "--" ]]; then
-      powersave=$(nmcli -g 802-11-wireless.powersave con show "$conn" 2>/dev/null || true)
+    if [[ -n $uuid && $uuid != "--" ]]; then
+      if ! powersave=$(nmcli -g 802-11-wireless.powersave con show uuid "$uuid" 2>/dev/null); then
+        continue
+      fi
     fi
     if [[ -z $powersave || $powersave == 0* || $powersave == 3* || $powersave == "default" || $powersave == "enable" ]]; then
       iw dev "$iface" set power_save on 2>/dev/null || true
     fi
-  done
-
-  udevadm control --reload >/dev/null 2>&1 || true
-  for dev in /sys/bus/platform/devices/*; do
-    drv=$(basename "$(readlink -f "$dev/driver" 2>/dev/null)" 2>/dev/null || true)
-    case "$drv" in
-      dwc3-qcom|xhci-hcd|qcom-qmp-combo-phy|qcom-qmp-usb-phy)
-        udevadm trigger --action=change --sysname-match="$(basename "$dev")" --subsystem-match=platform >/dev/null 2>&1 || true
-        ;;
-    esac
   done
 '
 
@@ -48,12 +40,12 @@ if [[ -z $dtbs_ver ]] || (( $(vercmp "$dtbs_ver" 7.3-77) < 0 )); then
   exit 75
 fi
 
-if [[ -e $dt_root/gpio-keys/switch-lid/wakeup-event-action ]]; then
+if [[ ! -d $dt_root/gpio-keys/switch-lid || -e $dt_root/gpio-keys/switch-lid/wakeup-event-action ]]; then
   omarchy-state set reboot-required
   echo "Reboot required to load the updated ASUS Zenbook 14 device tree before switching to deep sleep"
   exit 75
 fi
 
-sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
+sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" OMARCHY_ZENBOOK_UX3480QA_DT_ROOT="$dt_root" bash -euo pipefail -c '
   source "$OMARCHY_PATH/install/hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh"
 '

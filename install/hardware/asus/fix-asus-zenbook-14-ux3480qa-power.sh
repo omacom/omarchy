@@ -50,4 +50,20 @@ ACTION=="add|bind|change", SUBSYSTEM=="platform", KERNEL=="a200000.usb", DRIVER=
 
 LABEL="zenbook_ux3480qa_power_end"
 RULES
+
+  # Apply the rules immediately on a live booted system (first-boot setup,
+  # omarchy-apply-hardware, and upgrades) so webcam wakeup is disabled and USB
+  # runtime PM is active during the first session too.
+  if [[ $udev_rules_dir == "/etc/udev/rules.d" && -d /run/udev ]] && command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload >/dev/null 2>&1 || true
+    for dev in /sys/bus/platform/devices/*; do
+      [[ -L $dev/driver ]] || continue
+      drv=$(basename "$(readlink -f "$dev/driver" 2>/dev/null || true)" 2>/dev/null || true)
+      case "$drv" in
+        dwc3-qcom|xhci-hcd|qcom-qmp-combo-phy|qcom-qmp-usb-phy)
+          udevadm trigger --action=change --sysname-match="$(basename "$dev")" --subsystem-match=platform >/dev/null 2>&1 || true
+          ;;
+      esac
+    done
+  fi
 fi
