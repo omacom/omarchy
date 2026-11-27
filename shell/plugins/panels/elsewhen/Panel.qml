@@ -44,8 +44,14 @@ Panel {
   readonly property bool hour24: Model.resolveHour24(setting("hour24", ""), autoHour24)
   // "home" shows the distance from here ("+2h"), "utc" the zone itself ("UTC-5").
   readonly property string offsetMode: setting("offsetMode", "home") === "utc" ? "utc" : "home"
-  // The timezone's country first, then the locale, as the weather panel does.
-  readonly property string autoUnits: Model.autoUnits(localZone === "" ? "" : Greet.countryFor(localZone), formatLocale.measurementSystem === Locale.ImperialUSSystem)
+  // Setup > Region > Formats hands LC_MEASUREMENT to the session and respawns
+  // the shell, so the environment is current. "" when no format was picked.
+  readonly property string measurementLocaleName: Model.measurementLocale(Quickshell.env("LC_ALL"), Quickshell.env("LC_MEASUREMENT"))
+  // A picked format first, then the timezone's country, then the language's locale.
+  readonly property string autoUnits: Model.autoUnits(
+    localZone === "" ? "" : Greet.countryFor(localZone),
+    formatLocale.measurementSystem === Locale.ImperialUSSystem,
+    measurementLocaleName === "" ? null : Qt.locale(measurementLocaleName).measurementSystem === Locale.ImperialUSSystem)
   readonly property string units: Model.resolveUnits(setting("units", ""), autoUnits)
   readonly property bool globeEnabled: setting("globeEnabled", true) !== false
   // Draw the globe with less in it while it moves.
