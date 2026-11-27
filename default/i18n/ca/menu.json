@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Restaura aquesta instantània"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Inici de sessió sense contrasenya"
   }
 }

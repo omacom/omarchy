@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "یہ اسنیپ شاٹ بحال کریں"
+  },
+  "setup.security.passwordless-login": {
+    "label": "بغیر پاس ورڈ لاگ ان"
   }
 }

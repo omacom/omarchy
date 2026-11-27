@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Khôi phục bản chụp này"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Đăng nhập không mật khẩu"
   }
 }

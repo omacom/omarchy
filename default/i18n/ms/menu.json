@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Pulihkan Syot Kilat Ini"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Log Masuk Tanpa Kata Laluan"
   }
 }

@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Deze momentopname herstellen"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Inloggen zonder wachtwoord"
   }
 }

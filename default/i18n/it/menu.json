@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Ripristina istantanea"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Accesso senza password"
   }
 }

@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Restaurează acest instantaneu"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Autentificare fără parolă"
   }
 }

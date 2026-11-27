@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Palauta tämä tilannekuva"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Salasanaton kirjautuminen"
   }
 }

@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Ushbu nusxani tiklash"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Parolsiz kirish"
   }
 }

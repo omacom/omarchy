@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Taasta see hetktõmmis"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Paroolita sisselogimine"
   }
 }

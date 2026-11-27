@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Врати овај снимак"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Пријава без лозинке"
   }
 }

@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Atkurti šią kopiją"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Prisijungimas be slaptažodžio"
   }
 }

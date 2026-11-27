@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Gjenopprett dette øyeblikksbildet"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Passordfri innlogging"
   }
 }

@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Obnovit tento snímek"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Přihlášení bez hesla"
   }
 }

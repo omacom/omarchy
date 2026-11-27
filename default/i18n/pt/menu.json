@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Restaurar este instantâneo"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Login sem palavra-passe"
   }
 }

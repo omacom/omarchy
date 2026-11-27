@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Diesen Snapshot wiederherstellen"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Passwortlose Anmeldung"
   }
 }

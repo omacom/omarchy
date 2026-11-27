@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Przywróć tę migawkę"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Logowanie bez hasła"
   }
 }

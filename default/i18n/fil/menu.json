@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Ibalik ang Snapshot na Ito"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Login na Walang Password"
   }
 }
