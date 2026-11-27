@@ -100,12 +100,13 @@ EOF2
 sleep 300 &
 fake_steam=$!
 echo "$fake_steam" >"$scratch/steam.pid"
-printf '#!/bin/bash\n[[ $1 == "-shutdown" ]] && kill %s\n' "$fake_steam" >"$scratch/bin/steam"
+printf '#!/bin/bash\nif [[ $1 == "-shutdown" ]]; then kill %s; else echo "$*" >>%q; fi\n' "$fake_steam" "$scratch/launched" >"$scratch/bin/steam"
 printf '#!/bin/bash\necho "$*" >>%q\n' "$scratch/relaunched" >"$scratch/bin/uwsm-app"
 printf '#!/bin/bash\n' >"$scratch/bin/pgrep"
 chmod +x "$scratch/bin/steam" "$scratch/bin/uwsm-app" "$scratch/bin/pgrep"
 mkdir -p "$steam/logs"
 : >"$steam/logs/console_log.txt"
+: >"$steam/logs/content_log.txt"
 
 PATH="$scratch/bin:$PATH" OMARCHY_STEAM_ROOT="$steam" OMARCHY_STEAM_PID_FILE="$scratch/steam.pid" \
   "$ROOT/bin/omarchy-steam-proton-fallback" watch &
@@ -126,3 +127,14 @@ done
 grep -Pzq '"CompatToolMapping"\n\t+\{\n\t+"100"\n' "$steam/config/config.vdf" || fail "the relaunched game is mapped to Proton"
 grep -q '"300"' "$steam/config/config.vdf" && fail "a native game with a missing launcher is not mapped to Proton"
 pass "the watcher recovers a failed launch read in the same chunk as another, and only for a game Proton can run"
+
+# Switching to Proton can make Steam fetch the game again, and it drops the
+# relaunch that waited on that update: launch it once more when it finishes.
+echo "[2026-11-27 17:00:30] AppID 100 scheduler finished : removed from schedule (result No Error, state 0xc)" >>"$steam/logs/content_log.txt"
+for _ in {1..50}; do
+  [[ -s $scratch/launched ]] && break
+  sleep 0.2
+done
+[[ $(cat "$scratch/launched" 2>/dev/null) == "steam://rungameid/100" ]] ||
+  fail "the game is launched again once Steam's update after the switch finishes" "$(cat "$scratch/launched" 2>/dev/null)"
+pass "the watcher relaunches a recovered game after Steam's update for the switch finishes"

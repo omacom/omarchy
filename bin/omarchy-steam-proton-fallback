@@ -34,10 +34,15 @@ STEAM_ROOT = Path(os.environ.get("OMARCHY_STEAM_ROOT", Path.home() / ".local/sha
 CONFIG = STEAM_ROOT / "config/config.vdf"
 APPINFO = STEAM_ROOT / "appcache/appinfo.vdf"
 CONSOLE_LOG = STEAM_ROOT / "logs/console_log.txt"
+CONTENT_LOG = STEAM_ROOT / "logs/content_log.txt"
 PID_FILE = Path(os.environ.get("OMARCHY_STEAM_PID_FILE", Path.home() / ".steam/steam.pid"))
 TOOL = os.environ.get("OMARCHY_STEAM_PROTON_TOOL", "proton_experimental")
 
 LAUNCH_FAILED = re.compile(r'\[AppID (\d+),.*LaunchApp failed with AppError_28 with "([^"]+)"')
+GAME_STARTED = re.compile(r"Game process added : AppID (\d+) ")
+# Switching a game to Proton can make Steam fetch its files again before the
+# relaunch, and Steam drops a launch that waited on that update.
+UPDATE_FINISHED = re.compile(r"AppID (\d+) scheduler finished : removed from schedule")
 STEAM_TOOLS = {"228980"}  # Steamworks Common Redistributables
 
 
@@ -276,7 +281,7 @@ def scan(dry_run=False):
     return found
 
 
-def recover(appid, target, handled):
+def recover(appid, target, handled, relaunching):
     if appid in handled or target.lower().endswith(".exe") or Path(target).exists():
         return
     if CONFIG.exists() and mapped(CONFIG.read_text(errors="replace"), appid):
@@ -298,15 +303,16 @@ def recover(appid, target, handled):
     if pid and not stop_steam(pid):
         return
     add_mappings([appid])
+    relaunching.add(appid)
     start_steam(bp, appid)
 
 
 def watch():
     """React to two events: Steam's log reporting a failed launch, and the
     Steam process exiting (the only time config.vdf can be edited)."""
-    handled = set()
+    handled, relaunching = set(), set()
     CONSOLE_LOG.parent.mkdir(parents=True, exist_ok=True)
-    tail = subprocess.Popen(["tail", "-F", "-n", "0", str(CONSOLE_LOG)], stdout=subprocess.PIPE,
+    tail = subprocess.Popen(["tail", "-q", "-F", "-n", "0", str(CONSOLE_LOG), str(CONTENT_LOG)], stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL)
     log_fd, pending = tail.stdout.fileno(), b""
 
@@ -336,9 +342,16 @@ def watch():
             if not chunk:
                 raise SystemExit("tail exited")
             *lines, pending = (pending + chunk).split(b"\n")
-            for line in lines:
-                if match := LAUNCH_FAILED.search(line.decode("utf-8", "replace")):
-                    recover(*match.groups(), handled)
+            for raw in lines:
+                line = raw.decode("utf-8", "replace")
+                if match := LAUNCH_FAILED.search(line):
+                    recover(*match.groups(), handled, relaunching)
+                elif (match := GAME_STARTED.search(line)) and match.group(1) in relaunching:
+                    relaunching.discard(match.group(1))
+                elif (match := UPDATE_FINISHED.search(line)) and match.group(1) in relaunching:
+                    relaunching.discard(match.group(1))
+                    subprocess.Popen(["steam", f"steam://rungameid/{match.group(1)}"], start_new_session=True,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def safe_scan():
