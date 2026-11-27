@@ -85,28 +85,16 @@ if [[ ! -f $fast_signature_file ]] || ! cmp -s "$fast_signature_file" <(printf '
   rm -rf "$preview_dir"
   mkdir -p "$preview_dir"
 
-  if [[ -d $USER_THEMES_PATH ]]; then
-    for theme_path in "$USER_THEMES_PATH"/*; do
-      [[ -d $theme_path || -L $theme_path ]] || continue
-      theme_name=${theme_path##*/}
-      preview=$(find_preview "$theme_path")
+  # A user's copy of a theme supplies the preview ahead of the built-in one.
+  while read -r theme_name; do
+    preview=$(find_preview "$USER_THEMES_PATH/$theme_name")
 
-      if [[ -z $preview ]]; then
-        preview=$(find_preview "$OMARCHY_THEMES_PATH/$theme_name")
-      fi
+    if [[ -z $preview ]]; then
+      preview=$(find_preview "$OMARCHY_THEMES_PATH/$theme_name")
+    fi
 
-      add_theme_preview "$theme_name" "$preview"
-    done
-  fi
-
-  if [[ -d $OMARCHY_THEMES_PATH ]]; then
-    for theme_path in "$OMARCHY_THEMES_PATH"/*; do
-      [[ -d $theme_path ]] || continue
-      theme_name=${theme_path##*/}
-      preview=$(find_preview "$theme_path")
-      add_theme_preview "$theme_name" "$preview"
-    done
-  fi
+    add_theme_preview "$theme_name" "$preview"
+  done < <(omarchy-theme-list --folders)
 
   printf '%s' "$fast_signature" >"$fast_signature_file"
 fi
