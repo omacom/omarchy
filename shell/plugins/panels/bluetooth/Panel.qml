@@ -737,7 +737,7 @@ Panel {
           Column {
             id: heroLabels
             anchors.left: heroIcon.right
-            anchors.leftMargin: Style.space(14)
+            anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
             anchors.right: parent.right
             anchors.rightMargin: powerSwitch.visible ? powerSwitch.width + Style.space(12) : 0
             anchors.verticalCenter: parent.verticalCenter
