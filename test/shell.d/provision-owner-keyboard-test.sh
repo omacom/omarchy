@@ -392,6 +392,56 @@ pass "off a virtual console the layout is persisted and checked without loadkeys
   LC_ALL=C.UTF-8 progress_icon_truncate cut "提示"
   [[ $cut == "…" ]] || fail "a console with no room for text shows only the ellipsis" "$cut"
   pass "Chinese lines center and cut by the columns they take"
+
+  # Calling progress_icon_layout followed by progress_icon_static must not run
+  # layout (and its python3 cell-size probe) a second time, while a later resize
+  # still rebuilds at the new geometry.
+  : >"$tmp/layout-calls"
+  eval "$(declare -f progress_icon_term_size | command sed '1s/progress_icon_term_size/_orig_progress_icon_term_size/')"
+  cur_size="40 120"
+  progress_icon_term_size() { echo "$cur_size"; }
+  progress_icon_cell_size() { echo cell >>"$tmp/layout-calls"; echo "8 16"; }
+  ICON_STEPS=0 ICON_SIZE="" ICON_FRAMES=0 ICON_DISPLAY_PM=0 ICON_TARGET_PM=0
+  progress_icon_layout /dev/null 78
+  progress_icon_static >/dev/null
+  (( $(wc -l <"$tmp/layout-calls") == 1 )) ||
+    fail "progress_icon_static reuses the layout just computed" "$(wc -l <"$tmp/layout-calls") layout calls"
+  cur_size="50 140"
+  ICON_FRAMES=0
+  progress_icon_frame 200 "Working" "Tip" >/dev/null
+  (( $(wc -l <"$tmp/layout-calls") == 2 )) && [[ $ICON_SIZE == "50 140" ]] ||
+    fail "a terminal resize still rebuilds the icon layout" "calls=$(wc -l <"$tmp/layout-calls") size=$ICON_SIZE"
+  pass "progress_icon_static reuses a fresh layout and rebuilds on resize"
+
+  # progress_icon_finish sweeps the remaining trace smoothly in a bounded
+  # number of frames (<= 6 draws, <= 0.20s sleep) instead of crawling
+  # asymptotically 1/4 at a time down to 999, and starts no stty/sed processes.
+  eval "$(declare -f _orig_progress_icon_term_size | command sed '1s/_orig_progress_icon_term_size/progress_icon_term_size/')"
+  : >"$tmp/finish-sleeps"
+  : >"$tmp/finish-started"
+  : >"$tmp/finish-pms"
+  sleep() { echo "$1" >>"$tmp/finish-sleeps"; }
+  stty() { echo stty >>"$tmp/finish-started"; echo "50 140"; }
+  sed() { echo sed >>"$tmp/finish-started"; command sed "$@"; }
+  ICON_FRAMES=0 ICON_DISPLAY_PM=500 ICON_TARGET_PM=500
+  # Wrap progress_icon_render to record each pm rendered during finish.
+  eval "$(declare -f progress_icon_render | command sed '1s/progress_icon_render/_orig_progress_icon_render/')"
+  progress_icon_render() { echo "$1" >>"$tmp/finish-pms"; _orig_progress_icon_render "$@"; }
+  progress_icon_finish "" "Tip: done" >"$tmp/finish-out"
+  out=$(cat "$tmp/finish-out")
+  unset -f sleep
+  draws=$(wc -l <"$tmp/finish-pms")
+  total_sleep=$(awk '{s+=$1} END {printf "%.3f", s+0}' "$tmp/finish-sleeps")
+  last_pm=$(tail -n1 "$tmp/finish-pms")
+  (( draws >= 2 && draws <= 6 )) ||
+    fail "progress_icon_finish finishes in 2-6 frames from 50%" "draws=$draws pms=$(tr '\n' ' ' <"$tmp/finish-pms")"
+  awk -v s="$total_sleep" 'BEGIN { exit !(s <= 0.201) }' ||
+    fail "progress_icon_finish sleeps at most 0.20s total" "sleep=${total_sleep}s"
+  [[ $last_pm == "1000" && $ICON_DISPLAY_PM == "1000" && $out == *"100%"* ]] ||
+    fail "progress_icon_finish ends solid at 100%" "last_pm=$last_pm display=$ICON_DISPLAY_PM"
+  [[ ! -s "$tmp/finish-started" ]] ||
+    fail "progress_icon_finish spawns no stty or sed" "$(cat "$tmp/finish-started")"
+  pass "progress_icon_finish completes swiftly in bounded frames without spawning helpers"
 )
 
 # The steps around the keyboard: the language first boot opens in and applies,

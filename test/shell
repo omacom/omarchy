@@ -106,12 +106,13 @@ is_exclusive() {
   [[ $name == *budget* || $name == "sleep-lock-test.sh" || $name == "sleep-monitor-test.sh" || $name == "hyprland-window-close-all-test.sh" || $name == "remote-session-service-test.sh" || -n ${excl_marker_map["$1"]:-} ]]
 }
 
-# The idle-spawn guard spends most of its time passively watching its own
-# shell's process tree through an exec logger, so non-compositor pool load
-# cannot distort what it counts. It starts alongside the non-compositor pool
-# while no other compositor test is running.
-is_overlap() {
-  [[ $(basename "$1") == "shell-idle-spawn-test.sh" ]]
+# Full-shell exclusive tests that do not check timing budgets run serially at
+# the end of the compositor shard so they neither contend with a parallel pool
+# nor stretch the timing-budget exclusive shard.
+is_comp_exclusive() {
+  local name
+  name=$(basename "$1")
+  [[ $name == "runtime-smoke-test.sh" || $name == "shell-idle-spawn-test.sh" ]]
 }
 
 # Schedule largest test files first (longest-processing-time heuristic) so slow
@@ -137,11 +138,8 @@ select_shard() {
 all_noncomp=()
 all_comp=()
 all_exclusive=()
-all_overlap=()
 for test in "${all_tests[@]}"; do
-  if is_overlap "$test"; then
-    all_overlap+=("$test")
-  elif is_exclusive "$test"; then
+  if is_exclusive "$test"; then
     all_exclusive+=("$test")
   elif uses_compositor "$test"; then
     all_comp+=("$test")
@@ -153,38 +151,30 @@ done
 parallel_noncomp_tests=()
 parallel_comp_tests=()
 exclusive_tests=()
-overlap_tests=()
 case "$GROUP" in
   all)
-    overlap_tests=("${all_overlap[@]}")
     parallel_noncomp_tests=("${all_noncomp[@]}")
     parallel_comp_tests=("${all_comp[@]}")
     exclusive_tests=("${all_exclusive[@]}")
     ;;
   noncomp)
-    overlap_tests=("${all_overlap[@]}")
     parallel_noncomp_tests=("${all_noncomp[@]}")
     ;;
   comp)
     parallel_comp_tests=("${all_comp[@]}")
     for test in "${all_exclusive[@]}"; do
-      [[ $(basename "$test") == "runtime-smoke-test.sh" ]] && exclusive_tests+=("$test")
+      is_comp_exclusive "$test" && exclusive_tests+=("$test")
     done
     ;;
   exclusive)
     for test in "${all_exclusive[@]}"; do
-      [[ $(basename "$test") == "runtime-smoke-test.sh" ]] && continue
+      is_comp_exclusive "$test" && continue
       exclusive_tests+=("$test")
     done
     ;;
 esac
 
 if (( SHARD_TOTAL > 0 )); then
-  # Overlap tests watch the idle shell alongside the last shard (which does not
-  # receive the #1 largest noncomp file, keeping shard wall times balanced).
-  if (( SHARD_INDEX != SHARD_TOTAL )); then
-    overlap_tests=()
-  fi
   if (( ${#parallel_noncomp_tests[@]} > 0 )); then
     mapfile -t parallel_noncomp_tests < <(select_shard "${parallel_noncomp_tests[@]}")
   fi
@@ -199,7 +189,6 @@ fi
 # Preserve deterministic filename order for reporting.
 declare -A selected_map=()
 for test in \
-  ${overlap_tests[@]+"${overlap_tests[@]}"} \
   ${parallel_noncomp_tests[@]+"${parallel_noncomp_tests[@]}"} \
   ${parallel_comp_tests[@]+"${parallel_comp_tests[@]}"} \
   ${exclusive_tests[@]+"${exclusive_tests[@]}"}; do
@@ -273,23 +262,10 @@ export workdir HEADLESS_RT HEADLESS_WL HEADLESS_SIG HEADLESS_DBUS
 # Keep going after a failing file. A test file exits at its first failed
 # assertion, so aborting the run there too would hide every file after it --
 # one packaging failure was masking 114 of 134 files.
-overlap_pids=()
-for test in "${overlap_tests[@]}"; do
-  comp=0
-  uses_compositor "$test" && comp=1
-  run_one "$test" "$comp" &
-  overlap_pids+=("$!")
-done
 if (( ${#parallel_noncomp_tests[@]} > 0 )); then
   sort_largest_first "${parallel_noncomp_tests[@]}" |
     tr '\n' '\0' |
     xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1" 0' _
-fi
-# The overlap jobs must be done before other compositor tests start: those
-# files launch shells/fixtures on the same compositor, which would trigger
-# events or spawns the idle guard could observe.
-if (( ${#overlap_pids[@]} > 0 )); then
-  wait "${overlap_pids[@]}"
 fi
 if (( ${#parallel_comp_tests[@]} > 0 )); then
   comp_jobs="${OMARCHY_TEST_COMP_JOBS:-}"

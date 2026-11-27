@@ -1,22 +1,20 @@
-# Front camera relay, tuning and picker cleanup for the Anduril BlueChip
-# (Snapdragon X2 Elite / Glymur).
+# Front camera support for the Anduril BlueChip (Snapdragon X2 Elite / Glymur).
 #
-# The OV08X40 RGB camera runs through libcamera's simple pipeline and software
-# ISP, so apps that read V4L2 cameras only (Monologue, Qt Multimedia) need the
-# v4l2-relayd loopback relay that anduril-bluechip-support sets up, along with
-# sensor black-level tuning, DMA heap udev access, and WirePlumber rules to
-# hide raw CAMSS nodes.
+# Installs anduril-bluechip-support for the system plumbing (v4l2loopback
+# module config, dma_heap udev uaccess rule, and WirePlumber rules hiding raw
+# CAMSS nodes). The webcam relay and image tunings run in userland via
+# omarchy-camera-tuning (started at first-run).
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree anduril,bluechip; then
   if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
     omarchy-pkg-add anduril-bluechip-support
 
-    # An image's first boot runs this after boot queued its units and finishes
-    # without rebooting, so load v4l2loopback and start the relay + guard now.
+    # An image's first boot runs this after boot loaded modules and finishes
+    # without rebooting, so load v4l2loopback now for omarchy-camera-tuning.
     if omarchy-pkg-present anduril-bluechip-support; then
       sudo modprobe v4l2loopback || true
-      sudo systemctl daemon-reload || true
-      sudo systemctl start --no-block v4l2-relayd@bluechip.service bluechip-camera-guard.service || true
+      sudo udevadm control --reload-rules || true
+      sudo udevadm trigger --subsystem-match=dma_heap || true
     fi
   else
     OMARCHY_PKG_DEFER=1 omarchy-pkg-add anduril-bluechip-support

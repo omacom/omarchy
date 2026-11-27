@@ -236,16 +236,16 @@ omarchy_form_use_language() {
 # Every Omarchy language, English first and the rest alphabetical by what is
 # shown, with the current one selected.
 omarchy_prompt_language() {
-  local choice status drawn
-  drawn=$(printf '%s\n' $OMARCHY_FORM_CONSOLE_LANGUAGES | jq -R . | jq -sc .)
-  choice=$(jq -r --argjson drawn "$drawn" '
+  local choice status drawn languages
+  drawn=$(jq -Rn --arg s "$OMARCHY_FORM_CONSOLE_LANGUAGES" '$s | split(" ")')
+  languages=$(jq -r --argjson drawn "$drawn" '
       to_entries
       | map({code: .key, label: (if (.key | IN($drawn[])) then .value.name else .value.englishName end)})
       | sort_by(.code != "en", (.label | sub("^Í"; "I") | sub("^Č"; "C") | ascii_downcase))
       | .[] | "\(.label)\t\(.code)"
-    ' "$omarchy_form_i18n/locales.json" |
-    gum choose --height 10 --label-delimiter $'\t' --selected "$(omarchy_form_language_label "${language:-en}")" \
-      --header "$(omarchy_form_text setupForm.languageHeader)") && status=0 || status=$?
+    ' "$omarchy_form_i18n/locales.json")
+  choice=$(gum choose --height 10 --label-delimiter $'\t' --selected "$(omarchy_form_language_label "${language:-en}")" \
+    --header "$(omarchy_form_text setupForm.languageHeader)" <<<"$languages") && status=0 || status=$?
   ((status == 0)) || return $status
   [[ -n $choice ]] || return 1
 
@@ -253,14 +253,20 @@ omarchy_prompt_language() {
 }
 
 omarchy_prompt_keyboard() {
-  local choice status default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
+  local choice status layouts default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
+  layouts=$(cut -d'|' -f1 <<<"$OMARCHY_KEYBOARD_LAYOUTS")
   # gum splits --selected on commas, so "Chinese (Simplified, Pinyin)" needs them escaped.
-  choice=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 |
-    gum choose --height 10 --selected "${default//,/\\,}" --header "$(omarchy_form_text setupForm.keyboardHeader)") && status=0 || status=$?
+  choice=$(gum choose --height 10 --selected "${default//,/\\,}" \
+    --header "$(omarchy_form_text setupForm.keyboardHeader)" <<<"$layouts") && status=0 || status=$?
   ((status == 0)) || return $status
 
-  local selection
-  selection=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | awk -F'|' -v c="$choice" '$1==c{print; exit}')
+  local line selection=""
+  while IFS= read -r line; do
+    if [[ ${line%%|*} == "$choice" ]]; then
+      selection=$line
+      break
+    fi
+  done <<<"$OMARCHY_KEYBOARD_LAYOUTS"
   [[ -n $selection ]] || return 1
   IFS='|' read -r keyboard_label keyboard keyboard_input_method keyboard_xkb_layout <<< "$selection"
   keyboard_input_method=${keyboard_input_method:-none}
