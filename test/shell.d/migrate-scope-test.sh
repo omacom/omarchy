@@ -204,3 +204,15 @@ grep -q "requires missing prerequisite does-not-exist\.sh" "$missing_err" || fai
 [[ ! -f $missing_home/.local/state/omarchy/migrations/100-blocked.sh ]] || fail "blocked migration marker was created"
 [[ ! -s $missing_calls ]] || fail "blocked migration should not have run"
 pass "migration runner stops and warns before running migration with missing prerequisite"
+
+# A fresh install marks every shipped migration done but none that were retired,
+# so a finished migration naming a retired prerequisite must not block the rest.
+mkdir -p "$missing_home/.local/state/omarchy/migrations"
+touch "$missing_home/.local/state/omarchy/migrations/100-blocked.sh"
+cat >"$missing_root/migrations/200-after.sh" <<'SH'
+echo after >>"$TEST_CALLS"
+SH
+TEST_CALLS="$missing_calls" run_migrate "$missing_home" "$missing_root" >"$test_tmp/finished.out" 2>&1 ||
+  fail "a finished migration with a retired prerequisite blocks later migrations" "$(cat "$test_tmp/finished.out")"
+grep -qx 'after' "$missing_calls" || fail "the migration after a finished one with a retired prerequisite runs"
+pass "finished migrations do not check their prerequisites"

@@ -67,6 +67,9 @@ migration_entries() {
   local name dep raw_deps
   local -A missing_prereq=()
   for name in "${raw_files[@]}"; do
+    # A finished migration never runs again, so its prerequisites, retired or
+    # not, cannot hold anything back.
+    [[ -f ${marker_map[$name]} ]] && continue
     raw_deps=$(file_dependencies "${file_map[$name]}")
     [[ -n $raw_deps ]] || continue
 
