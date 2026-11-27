@@ -66,7 +66,7 @@ jobs:
           while IFS= read -r -d '' f; do
             bash -n "$f"
           done < <(find install migrations -type f \( -name '*.sh' -o -name '*.hook' \) -print0)
-          ./test/cli
+          OMARCHY_PATH="$PWD" bin/omarchy commands --check
 
       # Fetch the current release VM image and pull the prebuilt QEMU container
       # concurrently. On Namespace runners with a bundled cache volume, the
