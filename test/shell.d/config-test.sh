@@ -676,7 +676,7 @@ WRITER
   mkdir -p "$plugin"
   printf '%s\n' '{"schemaVersion":1,"id":"acme.old","name":"Rename","version":"1","kinds":["bar-widget"],"entryPoints":{"barWidget":"Widget.qml"}}' > "$plugin/manifest.json"
   printf '%s\n' 'import QtQuick; Item { implicitWidth: 20; implicitHeight: 20 }' > "$plugin/Widget.qml"
-  jq '.bar.layout.centerBegin |= map(if .id == "omarchy.indicators" then .alwaysShow = 1 else . end) | .plugins += [{"id":"acme.old","settings":{"value":42}}] | .bar.layout.left += ["acme.old"]' "$ROOT/config/omarchy/shell.json" > "$SCRATCH_HOME/.config/omarchy/shell.json"
+  jq '.plugins += [{"id":"acme.old","settings":{"value":42}}] | .bar.layout.left += [{"id":"acme.old","sampleValue":1}]' "$ROOT/config/omarchy/shell.json" > "$SCRATCH_HOME/.config/omarchy/shell.json"
   start_scratch_shell
   wait_scratch_shell
   [[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm:ss"' '{}') == "ok" ]] || fail "shell accepts the settings edit"
@@ -690,21 +690,30 @@ WRITER
   HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" "$ROOT/bin/omarchy-plugin-id" migrate "$plugin" acme.old >/dev/null
   printf 'go\n' | timeout 15 tee "$SCRATCH_DIR/save-release" >/dev/null
   for _ in {1..100}; do
-    if jq -e '.bar.position == "bottom" and .pluginIdAliases["acme.old"] == "acme.new" and any(.plugins[]; .id == "acme.new" and .settings.value == 42) and (.bar.layout.left | index("acme.new")) and ([.bar.layout[][] | select(type == "object" and .id == "omarchy.clock") | select(.format == "HH:mm:ss" and .formatAlt == "yyyy" and .verticalFormat == "mm")] | length > 0)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
+    if jq -e '.bar.position == "bottom" and .pluginIdAliases["acme.old"] == "acme.new" and any(.plugins[]; .id == "acme.new" and .settings.value == 42) and any(.bar.layout.left[]; type == "object" and .id == "acme.new" and .sampleValue == 1) and ([.bar.layout[][] | select(type == "object" and .id == "omarchy.clock") | select(.format == "HH:mm:ss" and .formatAlt == "yyyy" and .verticalFormat == "mm")] | length > 0)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
       pass "queued shell saves preserve intervening CLI edits, rename and all GUI edits"
+      # The file commit can precede the rename's asynchronous shell reload. Start
+      # the independent type cycle from persisted state, with startup readiness
+      # checked before sending another mutating call (which must never be retried).
+      stop_scratch_shell
+      start_scratch_shell
+      wait_scratch_shell
       for value in true 1 false 0; do
         HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$SCRATCH_BIN:$SCRATCH_ROOT/bin:$PATH" \
-          "$ROOT/bin/omarchy-bar" set omarchy.indicators alwaysShow "$value" --json
+          "$ROOT/bin/omarchy-bar" set acme.new sampleValue "$value" --json || {
+            cat "$SCRATCH_LOG"
+            fail "bar set accepts JSON value $value"
+          }
         saved=""
         for _ in {1..100}; do
-          if jq -e --argjson expected "$value" '[.. | objects | select(.id? == "omarchy.indicators") | .alwaysShow][0] as $actual | $actual == $expected and ($actual | type) == ($expected | type)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
+          if jq -e --argjson expected "$value" '[.. | objects | select(.id? == "acme.new" and has("sampleValue")) | .sampleValue][0] as $actual | $actual == $expected and ($actual | type) == ($expected | type)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
             saved=1
             break
           fi
           sleep 0.1
         done
         if [[ -z $saved ]]; then
-          jq '[.. | objects | select(.id? == "omarchy.indicators") | .alwaysShow]' "$SCRATCH_HOME/.config/omarchy/shell.json" >&2
+          jq '[.. | objects | select(.id? == "acme.new" and has("sampleValue")) | .sampleValue]' "$SCRATCH_HOME/.config/omarchy/shell.json" >&2
           fail "bar set saves JSON value and type $value after the shell reloads"
         fi
       done
