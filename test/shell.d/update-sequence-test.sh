@@ -242,6 +242,9 @@ cat >"$restart_bin/pgrep" <<'SH'
 #!/bin/bash
 exit 1
 SH
+# --services-only restarts the shell; the real one would restart this desktop's.
+printf '#!/bin/bash\nexit 0\n' >"$restart_bin/omarchy-restart-shell"
+chmod +x "$restart_bin/omarchy-restart-shell"
 nvidia_prompts() {
   : >"$test_tmp/restart-prompts"
   HOME="$restart_home" \
