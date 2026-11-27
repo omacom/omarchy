@@ -12,18 +12,12 @@ rebuild_marker=/var/lib/omarchy/migrations/1789203771
 # records completion so another user's run does not repeat it.
 [[ ! -e $rebuild_marker ]] || exit 0
 
-if omarchy-cmd-present limine-mkinitcpio; then
-  # limine-mkinitcpio reports kernels it could not rebuild and still exits 0,
-  # so a successful exit proves nothing. A marker over a failed build would
-  # hide the off-screen entry field from every later run.
-  build_log=$(mktemp)
-  trap 'rm -f "$build_log"' EXIT
-  sudo limine-mkinitcpio 2>&1 | tee "$build_log"
-  if grep -q 'mkinitcpio failed for kernel' "$build_log"; then
-    echo "The boot image rebuild failed; rerun omarchy-migrate once the build is fixed." >&2
-    exit 1
-  fi
-else
-  sudo mkinitcpio -P
+# A failed rebuild leaves the old script in the boot image, so the migration
+# stays pending; omarchy-boot-rebuild reports one as a non-zero exit on both
+# boot backends.
+if ! sudo omarchy-boot-rebuild; then
+  echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
+  exit 1
 fi
+
 sudo install -Dm644 /dev/null "$rebuild_marker"
