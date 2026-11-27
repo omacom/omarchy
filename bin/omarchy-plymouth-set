@@ -385,6 +385,14 @@ run_root_transaction() {
   ' bash "$mode" "$OMARCHY_PATH" "$bg_hex" "$text_hex" "$((64 * 1024 * 1024))" "$theme"
 }
 
+if (( EUID != 0 )); then
+  case "$mode" in
+  refresh-plymouth) echo "Restoring default Plymouth unlock screen..." ;;
+  refresh-sddm) echo "Restoring default SDDM login screen..." ;;
+  set) echo "Updating Plymouth unlock screen..." ;;
+  esac
+fi
+
 if [[ $mode == "set" && -z $theme ]]; then
   run_root_transaction <&"$logo_fd"
 else
