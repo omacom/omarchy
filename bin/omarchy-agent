@@ -13,6 +13,8 @@ agent_override=""
 provider=""
 session=""
 continue_last=false
+account_home_override=""
+account_home_overridden=false
 app_id="org.omarchy.agent"
 launch_args=("$@")
 
@@ -51,6 +53,11 @@ while (($#)); do
       ;;
     --continue)
       continue_last=true
+      shift
+      ;;
+    --account-home=*)
+      account_home_override=${1#--account-home=}
+      account_home_overridden=true
       shift
       ;;
     # A launcher of its own (Codex, Claude Code, Grok Build) gives its windows
@@ -425,17 +432,23 @@ grok) home_env="GROK_HOME" ;;
 esac
 if [[ -n $home_env ]]; then
   account_pin="OMARCHY_AGENT_${agent^^}_HOME"
-  if [[ -v $account_pin && ${!home_env:-} == "${!account_pin}" ]]; then
-    unset "$home_env"
-  fi
-  unset "$account_pin"
-  if [[ -z ${!home_env:-} ]]; then
-    home=$(omarchy-agent-account-home "$agent")
-    account_env=(env -u "$home_env" "$account_pin=$home")
-    [[ -n $home ]] && account_env+=("$home_env=$home")
+  if [[ $account_home_overridden == "true" ]]; then
+    account_env=(env -u "$home_env" "$account_pin=$account_home_override")
+    [[ -n $account_home_override ]] && account_env+=("$home_env=$account_home_override")
     command=("${account_env[@]}" "${command[@]}")
-  elif [[ $inline != "true" ]]; then
-    command=(env "$home_env=${!home_env}" "${command[@]}")
+  else
+    if [[ -v $account_pin && ${!home_env:-} == "${!account_pin}" ]]; then
+      unset "$home_env"
+    fi
+    unset "$account_pin"
+    if [[ -z ${!home_env:-} ]]; then
+      home=$(omarchy-agent-account-home "$agent")
+      account_env=(env -u "$home_env" "$account_pin=$home")
+      [[ -n $home ]] && account_env+=("$home_env=$home")
+      command=("${account_env[@]}" "${command[@]}")
+    elif [[ $inline != "true" ]]; then
+      command=(env "$home_env=${!home_env}" "${command[@]}")
+    fi
   fi
 fi
 

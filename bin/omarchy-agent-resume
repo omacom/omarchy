@@ -11,6 +11,7 @@ set -euo pipefail
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 state_file="$state_dir/agent-resume.json"
+lock_file="$state_dir/agent-resume.lock"
 unit_name="omarchy-agent-resume.service"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 unit_file="$unit_dir/$unit_name"
@@ -33,6 +34,13 @@ Options for `set`:
   --app-id=<id>          Terminal app-id (default: org.omarchy.agent)
 USAGE
 }
+
+with_lock() (
+  mkdir -p "$state_dir"
+  exec 9>"$lock_file"
+  flock 9
+  "$@"
+)
 
 account_home_env_for() {
   case "$1" in
@@ -80,8 +88,33 @@ ExecStart=/bin/bash -c 'exec "$OMARCHY_PATH/bin/omarchy-agent-resume" run'
 WantedBy=graphical-session.target
 UNIT
 
-  systemctl --user daemon-reload
-  systemctl --user enable "$unit_name" >/dev/null
+  systemctl --user daemon-reload || return 1
+  systemctl --user enable "$unit_name" >/dev/null || return 1
+}
+
+arm_locked() {
+  local state_json=$1 was_armed=false
+  is_armed && was_armed=true
+
+  # Enable the user unit before replacing the state file so a systemd failure
+  # never discards an earlier armed resume.
+  if ! install_and_enable_unit; then
+    if [[ $was_armed != "true" ]]; then
+      rm -f "$unit_file"
+    fi
+    return 1
+  fi
+  write_state_atomic "$state_json"
+}
+
+consume_state_locked() {
+  if ! is_armed; then
+    remove_unit_and_state
+    return 0
+  fi
+
+  cat "$state_file"
+  remove_unit_and_state
 }
 
 cmd_set() {
@@ -188,8 +221,7 @@ cmd_set() {
     fi
   fi
 
-  local armed_at state_json was_armed=false
-  is_armed && was_armed=true
+  local armed_at state_json
   armed_at=$(date -Iseconds)
 
   state_json=$(jq -n \
@@ -214,15 +246,7 @@ cmd_set() {
       armed_at: $armed_at
     }')
 
-  # Enable the user unit before replacing the state file so a systemd failure
-  # never discards an earlier armed resume.
-  if ! install_and_enable_unit; then
-    if [[ $was_armed != "true" ]]; then
-      rm -f "$unit_file"
-    fi
-    return 1
-  fi
-  write_state_atomic "$state_json"
+  with_lock arm_locked "$state_json"
 
   echo "Armed for next login:"
   cmd_status
@@ -283,7 +307,7 @@ cmd_off() {
     return 2
   fi
 
-  remove_unit_and_state
+  with_lock remove_unit_and_state
   echo "Resume on next login is off."
 }
 
@@ -293,27 +317,31 @@ cmd_run() {
     return 2
   fi
 
-  if ! is_armed; then
-    remove_unit_and_state
+  # Atomically read and disarm under the lock, then release the lock before
+  # launching the terminal so a concurrent `set` can never be mixed or wiped.
+  local state_json
+  state_json=$(with_lock consume_state_locked)
+  if [[ -z $state_json ]]; then
     return 0
   fi
 
   local agent session continue_last dir prompt app_id
   local account_env_name account_env_value
-  agent=$(jq -r '.agent' "$state_file")
-  session=$(jq -r '.session // ""' "$state_file")
-  continue_last=$(jq -r '.continue_last // false' "$state_file")
-  dir=$(jq -r '.dir // ""' "$state_file")
-  prompt=$(jq -r '.prompt // ""' "$state_file")
-  app_id=$(jq -r '.app_id // "org.omarchy.agent"' "$state_file")
-  account_env_name=$(jq -r '.account_env_name // ""' "$state_file")
-  account_env_value=$(jq -r '.account_env_value // ""' "$state_file")
+  agent=$(jq -r '.agent' <<<"$state_json")
+  session=$(jq -r '.session // ""' <<<"$state_json")
+  continue_last=$(jq -r '.continue_last // false' <<<"$state_json")
+  dir=$(jq -r '.dir // ""' <<<"$state_json")
+  prompt=$(jq -r '.prompt // ""' <<<"$state_json")
+  app_id=$(jq -r '.app_id // "org.omarchy.agent"' <<<"$state_json")
+  account_env_name=$(jq -r '.account_env_name // ""' <<<"$state_json")
+  account_env_value=$(jq -r '.account_env_value // ""' <<<"$state_json")
 
-  # Disarm before launching the terminal so a crash or immediate reboot never
-  # loops automatically; the resumed session can re-arm if it needs another boot.
-  remove_unit_and_state
-
-  if [[ -n $dir && -d $dir ]]; then
+  if [[ -n $dir ]]; then
+    if [[ ! -d $dir ]]; then
+      echo "Saved working directory no longer exists: $dir" >&2
+      omarchy-notification-send -u critical "Agent resume skipped" "Saved directory does not exist: $dir" >/dev/null 2>&1 || true
+      return 1
+    fi
     cd -- "$dir"
   elif [[ -d $HOME/Work ]]; then
     cd -- "$HOME/Work"
@@ -327,13 +355,12 @@ cmd_run() {
   elif [[ $continue_last == "true" ]]; then
     agent_args+=(--continue)
   fi
+  if [[ -n $account_env_name ]]; then
+    agent_args+=("--account-home=$account_env_value")
+  fi
   [[ -n $prompt ]] && agent_args+=(--prompt "$prompt")
 
-  if [[ -n $account_env_name && -n $account_env_value ]]; then
-    exec env "$account_env_name=$account_env_value" omarchy-agent "${agent_args[@]}"
-  else
-    exec omarchy-agent "${agent_args[@]}"
-  fi
+  exec omarchy-agent "${agent_args[@]}"
 }
 
 case "${1:-status}" in

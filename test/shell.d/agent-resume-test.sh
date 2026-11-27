@@ -12,6 +12,7 @@ test_home="$test_tmp/home"
 work_dir="$test_home/Work/project"
 systemctl_log="$test_tmp/systemctl.log"
 tui_log="$test_tmp/tui.log"
+notify_log="$test_tmp/notify.log"
 
 mkdir -p "$mock_bin" "$work_dir"
 
@@ -36,6 +37,11 @@ cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 exit 1
 SH
 
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_NOTIFY_LOG"
+SH
+
 cat >"$mock_bin/omarchy-launch-tui" <<'SH'
 #!/bin/bash
 {
@@ -58,6 +64,7 @@ run_resume() {
     PATH="$mock_bin:$ROOT/bin:$PATH" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" \
     OMARCHY_TEST_TUI_LOG="$tui_log" \
+    OMARCHY_TEST_NOTIFY_LOG="$notify_log" \
     "$ROOT/bin/omarchy-agent-resume" "$@"
 }
 
@@ -99,14 +106,35 @@ rm -f "$tui_log"
 HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" XDG_STATE_HOME="$test_home/.local/state" \
   OMARCHY_PATH="$ROOT" PATH="$mock_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" OMARCHY_TEST_TUI_LOG="$tui_log" \
+  OMARCHY_TEST_NOTIFY_LOG="$notify_log" \
   CLAUDE_CONFIG_DIR="$test_home/.claude-work" \
   "$ROOT/bin/omarchy-agent-resume" set --agent claude --session sess-456 --dir "$work_dir" --prompt "Inspect crash" >/dev/null
 run_resume run
 ! run_resume --active || fail "claude resume auto-disarms after run"
 tui_out=$(cat "$tui_log")
-[[ $tui_out == *"ARGS=--app-id=org.omarchy.agent env CLAUDE_CONFIG_DIR=$test_home/.claude-work claude --permission-mode auto --resume sess-456 -- Inspect\\ crash "* ]] ||
-  fail "claude resume carries CLAUDE_CONFIG_DIR and passes --resume" "$tui_out"
-pass "claude resume preserves account home through uwsm launch and passes --resume"
+[[ $tui_out == *"ARGS=--app-id=org.omarchy.agent env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME=$test_home/.claude-work CLAUDE_CONFIG_DIR=$test_home/.claude-work claude --permission-mode auto --resume sess-456 -- Inspect\\ crash "* ]] ||
+  fail "claude resume carries CLAUDE_CONFIG_DIR and pin and passes --resume" "$tui_out"
+pass "claude resume preserves account home and pin through uwsm launch"
+
+# Main account (empty home) is preserved even if active account changes before login
+rm -f "$tui_log"
+OMARCHY_TEST_ACCOUNT_HOME="" run_resume set --agent codex --continue --dir "$work_dir" --prompt "Resume Main" >/dev/null
+OMARCHY_TEST_ACCOUNT_HOME="$test_home/.codex-work" run_resume run
+tui_out=$(cat "$tui_log")
+[[ $tui_out == *"ARGS=--app-id=org.omarchy.agent env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me resume --last -- Resume\\ Main "* ]] ||
+  fail "codex Main account stays pinned even after switching active account" "$tui_out"
+pass "Main account is preserved across account switches before login"
+
+# Missing saved directory aborts with error and notification instead of falling back to another dir
+rm -f "$tui_log" "$notify_log"
+missing_dir="$test_home/Work/ephemeral"
+mkdir -p "$missing_dir"
+run_resume set --agent agy --continue --dir "$missing_dir" --prompt "Do not run elsewhere" >/dev/null
+rmdir "$missing_dir"
+! run_resume run 2>/dev/null || fail "missing saved directory fails instead of substituting another directory"
+[[ ! -e $tui_log ]] || fail "missing saved directory does not launch terminal"
+grep -qF "$missing_dir" "$notify_log" || fail "missing saved directory notifies the user"
+pass "missing saved directory aborts and notifies instead of opening wrong directory"
 
 # Codex --continue with --prompt-file (multi-line) and idempotent off
 prompt_file="$test_tmp/prompt.txt"
