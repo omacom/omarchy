@@ -466,7 +466,6 @@ INFO
   energy-rate:          0.0 W
   percentage:           98%
   charge-threshold-supported: yes
-  charge-threshold-enabled:   no
 INFO
   fi
   exit 0
@@ -491,10 +490,23 @@ grep -Fx $'health\t80%' <<<"$shell_output" >/dev/null ||
   fail "battery status reads health from the same pack as its cycle count" "$shell_output"
 grep -Fx $'limit_state\ton' <<<"$shell_output" >/dev/null ||
   fail "battery status keeps the selected pack's active sysfs limit" "$shell_output"
+# Firmware-backed charge limits are properties of the physical device.
+rm "$tmp_dir/power/CMB0/charge_control_end_threshold"
+cat >"$tmp_dir/bin/busctl" <<'STUB'
+#!/bin/bash
+[[ $3 == "/org/freedesktop/UPower/devices/battery_CMB0" && $5 == "ChargeThresholdEnabled" ]] || exit 1
+printf 'b true\n'
+STUB
+chmod +x "$tmp_dir/bin/busctl"
+firmware_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" OMARCHY_BATTERY_STATE_DIR="$tmp_dir" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'limit_state\ton' <<<"$firmware_output" >/dev/null ||
+  fail "combined status reads firmware charge limits from the physical pack" "$firmware_output"
+rm "$tmp_dir/bin/busctl"
+printf '60\n' >"$tmp_dir/power/CMB0/charge_control_end_threshold"
 pass "battery status uses UPower DisplayDevice on dual-battery systems"
 
 # An enumerated but removed pack must not hide the remaining pack's live rate
-# or select the removed pack's cycle count and charge limit.
+# or select the removed pack's cycle count.
 mkdir -p "$tmp_dir/power/CMB1"
 printf '9000000\n' >"$tmp_dir/power/CMB1/power_now"
 printf '202\n' >"$tmp_dir/power/CMB1/cycle_count"
