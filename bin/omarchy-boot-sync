@@ -24,7 +24,7 @@
 # A snapshot is pinned to the boot image current when it was taken, so rolling
 # back from a broken kernel, initramfs or command line change boots the old
 # ones. Snapshots taken before the machine switched to systemd-boot have no pin
-# and are not offered.
+# and are not offered; omarchy-boot-switch deletes them when it finishes.
 
 set -euo pipefail
 
