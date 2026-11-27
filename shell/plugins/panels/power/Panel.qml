@@ -209,10 +209,22 @@ Panel {
     }
   }
 
+  property bool batteryRefreshPending: false
+
+  function refreshBatteryInfo() {
+    if (!batteryPresent) return
+    if (batteryProc.running) {
+      batteryRefreshPending = true
+      return
+    }
+    batteryRefreshPending = false
+    batteryProc.running = true
+  }
+
   function refresh() {
     if (!batteryPresent) return
 
-    if (!batteryProc.running) batteryProc.running = true
+    refreshBatteryInfo()
     if (profiles.length === 0 && !profilesProc.running) profilesProc.running = true
   }
 
@@ -330,6 +342,7 @@ Panel {
     }
     function onChargeLimitSignalsChanged() {
       if (root.opened) root.refresh()
+      else root.refreshBatteryInfo()
     }
   }
 
@@ -337,6 +350,9 @@ Panel {
     id: batteryProc
     command: ["omarchy-battery-status", "--shell"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateBatteryInfo(text) }
+    onExited: {
+      if (root.batteryRefreshPending) Qt.callLater(root.refreshBatteryInfo)
+    }
   }
 
   Process {
@@ -370,7 +386,7 @@ Panel {
       } else {
         root.chargeLimitError = ""
       }
-      if (!batteryProc.running) batteryProc.running = true
+      root.refreshBatteryInfo()
     }
   }
 
@@ -569,16 +585,16 @@ Panel {
             }
           }
 
-          // Mark the charge limit stop directly on the bar when active (dimmed while topping up once).
+          // Mark the charge limit stop directly on the bar when actively enforcing it.
           Rectangle {
-            visible: root.chargeLimitFraction > 0 && (root.activeChargeLimit === "on" || root.activeChargeLimit === "once")
+            visible: opacity > 0
             width: Math.max(2, Style.space(2))
             height: barTrack.height + Style.space(4)
             radius: 1
             x: Math.round(barTrack.width * (LayoutMirroring.enabled ? 1 - root.chargeLimitFraction : root.chargeLimitFraction)) - width / 2
             anchors.verticalCenter: barTrack.verticalCenter
             color: root.bar.foreground
-            opacity: root.activeChargeLimit === "once" ? 0.25 : 0.65
+            opacity: root.chargeLimitFraction > 0 && root.activeChargeLimit === "on" ? 0.65 : 0
 
             Behavior on opacity { NumberAnimation { duration: Style.duration(160) } }
           }
@@ -728,12 +744,16 @@ Panel {
 
           // Collapsing container matching the Wi-Fi band pills so toggling the
           // charge limit smoothly slides the section below instead of snapping.
+          // Mirrors the header switch row above so idle vs armed reads clearly
+          // as toggleable state with zero alignment shift.
           Item {
             id: topUpClip
             width: parent.width
-            clip: true
+            // Clip only while collapsing/expanding so topUpSwitch's outer cursor
+            // ring isn't trimmed along the right/vertical edges at rest.
+            clip: height < topUpRow.implicitHeight
             visible: height > 0
-            height: root.showTopUpButton ? topUpButton.implicitHeight : 0
+            height: root.showTopUpButton ? topUpRow.implicitHeight : 0
             opacity: root.showTopUpButton ? 1 : 0
 
             Behavior on height {
@@ -743,29 +763,76 @@ Panel {
               NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
             }
 
-            Button {
-              id: topUpButton
+            Item {
+              id: topUpRow
               width: parent.width
-              iconText: "󰂄"
-              iconSize: Style.font.title
-              text: !root.toppingUpOnce
-                ? Commons.I18n.t("power.topUpOnce")
-                : (root.discharging ? Commons.I18n.t("power.toppingUpNext") : Commons.I18n.t("power.toppingUpOnce"))
-              fontSize: Style.font.bodySmall
-              foreground: root.bar.foreground
-              fontFamily: root.bar.fontFamily
-              horizontalPadding: Style.spacing.controlPaddingX
-              verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-              bordered: true
-              active: root.toppingUpOnce
-              tooltipText: root.toppingUpOnce ? Commons.I18n.t("power.cancelTopUpOnce") : ""
-              hasCursor: root.cursorActive && root.focusRow === "topup"
-              onClicked: root.toggleTopUpOnce()
-              onHovered: function(h) {
-                if (h) {
-                  root.cursorActive = true
-                  root.focusRow = "topup"
+              implicitHeight: Math.max(topUpLabelRow.implicitHeight, topUpSwitch.implicitHeight)
+              readonly property color tone: root.toppingUpOnce
+                ? Style.selectedStateColor(root.bar.foreground, Commons.Color.accent)
+                : Qt.darker(root.bar.foreground, 1.25)
+
+              Row {
+                id: topUpLabelRow
+                anchors.left: parent.left
+                anchors.right: topUpSwitch.left
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(6)
+
+                Text {
+                  id: topUpIcon
+                  text: "󰂄"
+                  textFormat: Text.PlainText
+                  color: topUpRow.tone
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Math.round(Style.font.bodySmall * 1.2)
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Behavior on color { ColorAnimation { duration: Style.duration(120) } }
                 }
+
+                Text {
+                  text: !root.toppingUpOnce
+                    ? Commons.I18n.t("power.topUpOnce")
+                    : (root.discharging ? Commons.I18n.t("power.toppingUpNext") : Commons.I18n.t("power.toppingUpOnce"))
+                  textFormat: Text.PlainText
+                  color: topUpRow.tone
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: root.toppingUpOnce
+                  elide: Text.ElideRight
+                  width: parent.width - topUpIcon.implicitWidth - parent.spacing
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+                }
+              }
+
+              ToggleSwitch {
+                id: topUpSwitch
+                checked: root.toppingUpOnce
+                busy: limitProc.running
+                interactive: false
+                cursorRing: true
+                trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
+                cursorPad: Style.space(3)
+                hasCursor: root.cursorActive && root.focusRow === "topup"
+                foreground: root.bar.foreground
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onContainsMouseChanged: {
+                  if (containsMouse) {
+                    root.cursorActive = true
+                    root.focusRow = "topup"
+                  }
+                }
+                onClicked: root.toggleTopUpOnce()
               }
             }
           }

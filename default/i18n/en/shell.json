@@ -577,7 +577,6 @@
   "power.batteryHealth": "Battery health",
   "power.batterySize": "Battery size",
   "power.batteryState": "Battery state",
-  "power.cancelTopUpOnce": "Click to cancel one-time top-up",
   "power.chargeCycles": "Charge cycles",
   "power.chargeLimit": "Charge limit",
   "power.chargeLimitFailed": "Could not update charge limit",
