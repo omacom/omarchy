@@ -17,7 +17,7 @@ setup_scenario() {
   mkdir -p "$mock_bin"
   : >"$call_log"
 
-  local closed="$2" docked="$3"
+  local closed="$2" docked="$3" passwordless="${4:-1}"
 
   cat >"$mock_bin/omarchy-hw-laptop-closed" <<SH
 #!/bin/bash
@@ -26,6 +26,10 @@ SH
   cat >"$mock_bin/omarchy-hw-external-monitors" <<SH
 #!/bin/bash
 exit $docked
+SH
+  cat >"$mock_bin/omarchy-setup-security-passwordless-login" <<SH
+#!/bin/bash
+exit $passwordless
 SH
   for command in omarchy-system-lock omarchy-hyprland-monitor-clamshell; do
     cat >"$mock_bin/$command" <<SH
@@ -91,3 +95,16 @@ run_lid_close
 [[ ${calls[1]} == "omarchy-hyprland-monitor-clamshell" ]] ||
   fail "a failing lock still reconciles displays" "calls: ${calls[*]}"
 pass "a failing lock still reconciles displays"
+
+# When passwordless login is active, an undocked lid close skips locking so
+# waking from sleep stays passwordless, while still reconciling displays.
+setup_scenario passwordless_login 0 1 0
+run_lid_close
+
+[[ ${calls[*]} != *omarchy-system-lock* ]] ||
+  fail "undocked lid close does not lock when passwordless login is active" "calls: ${calls[*]}"
+pass "undocked lid close does not lock when passwordless login is active"
+
+[[ ${calls[0]} == "omarchy-hyprland-monitor-clamshell" ]] ||
+  fail "undocked lid close with passwordless login still reconciles displays" "calls: ${calls[*]}"
+pass "undocked lid close with passwordless login still reconciles displays"

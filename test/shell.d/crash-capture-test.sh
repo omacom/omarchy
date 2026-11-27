@@ -64,7 +64,8 @@ SH
 
 cat >"$watch_bin/omarchy-default-agent" <<'SH'
 #!/bin/bash
-echo claude
+[[ -n ${FAKE_AGENT-claude} ]] && echo "${FAKE_AGENT-claude}"
+exit 0
 SH
 
 cat >"$watch_bin/omarchy-notification-wait" <<'SH'
@@ -103,6 +104,7 @@ run_watch() {
 
   : >"$NOTIFY_LOG"
 
+  OMARCHY_PATH="$ROOT" \
   PATH="$watch_bin:$ROOT/bin:$PATH" \
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
   NOTIFY_LOG="$NOTIFY_LOG" \
@@ -363,3 +365,70 @@ refusal=$(HOME="$mute_home" PATH="$failing_bin:$ROOT/bin:$PATH" \
 ! grep -Fq "Muted crash notifications" <<<"$refusal" ||
   fail "a mute that could not be written still reports success, so the user believes a program is silenced when it is not"
 pass "a mute that could not be written is not reported as one"
+
+# OOM kill notifications: systemd journals SD_MESSAGE_UNIT_OOMD_KILL and
+# SD_MESSAGE_UNIT_OUT_OF_MEMORY with USER_UNIT, and Chrome's browser process
+# often dumps core right afterward in a sibling unit.
+oom_entry() {
+  local unit="$1" msg_id="${2:-d989611b15e44c9dbf31e3c81256e4ed}" ts="${3:-}"
+
+  jq -cn --arg id "$msg_id" --arg uid "$UID" --arg unit "$unit" --arg ts "$ts" \
+    '{MESSAGE_ID: $id, _UID: $uid, USER_UNIT: $unit}
+     + (if $ts != "" then {__REALTIME_TIMESTAMP: $ts} else {} end)' >>"$JOURNAL_ENTRIES"
+}
+
+fake_data_home="$TMPDIR/data-home"
+mkdir -p "$fake_data_home/applications"
+cat >"$fake_data_home/applications/google-chrome.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Google Chrome
+Exec=/usr/bin/google-chrome-stable %U
+
+[Desktop Action new-window]
+Name=New Window
+DESKTOP
+
+reset_entries
+oom_entry 'app-Hyprland-google\x2dchrome\x2dstable-5ab4d154.scope' d989611b15e44c9dbf31e3c81256e4ed 1795796598246644
+# Secondary coredump during the OOM grace window (including whole-second
+# truncated COREDUMP_TIMESTAMP) is suppressed; a crash after the window still
+# announces normally.
+jq -cn --arg uid "$UID" \
+  '{_UID: $uid, COREDUMP_COMM: "chrome", COREDUMP_PID: "11052",
+    COREDUMP_EXE: "/opt/google/chrome/chrome", COREDUMP_SIGNAL_NAME: "SIGTRAP",
+    COREDUMP_TIMESTAMP: "1795796598000000"}' >>"$JOURNAL_ENTRIES"
+jq -cn --arg uid "$UID" \
+  '{_UID: $uid, COREDUMP_COMM: "nautilus", COREDUMP_PID: "4243",
+    COREDUMP_EXE: "/usr/bin/nautilus", COREDUMP_SIGNAL_NAME: "SIGSEGV",
+    COREDUMP_TIMESTAMP: "1795796630000000"}' >>"$JOURNAL_ENTRIES"
+XDG_DATA_HOME="$fake_data_home" XDG_DATA_DIRS="$fake_data_home" run_watch
+grep -Fq "Out of memory" "$NOTIFY_LOG" ||
+  fail "an OOM kill announces an Out of memory notification" "$(cat "$NOTIFY_LOG")"
+grep -Fq "Closed Google Chrome to free memory" "$NOTIFY_LOG" ||
+  fail "an OOM kill resolves the UWSM scope to the app's desktop Name" "$(cat "$NOTIFY_LOG")"
+! grep -Fq "Process crashed: chrome" "$NOTIFY_LOG" ||
+  fail "a follow-up coredump right after an OOM kill is suppressed" "$(cat "$NOTIFY_LOG")"
+grep -Fq "Process crashed: nautilus" "$NOTIFY_LOG" ||
+  fail "a crash after the OOM grace window still announces itself" "$(cat "$NOTIFY_LOG")"
+! grep -Fq "omarchy-agent-crash 11052" "$NOTIFY_LOG" ||
+  fail "an OOM notification does not offer AI crash diagnosis" "$(cat "$NOTIFY_LOG")"
+pass "OOM kills show a clear Out of memory toast and suppress follow-up crash toasts"
+
+# Kernel cgroup OOM kills (SD_MESSAGE_UNIT_OUT_OF_MEMORY) work the same way,
+# ignore parent slice propagation, and do not require an AI agent.
+reset_entries
+oom_entry 'app.slice' fe6faa94e7774663a0da52717891d8ef
+oom_entry 'app-Hyprland-spotify-1234abcd.scope' fe6faa94e7774663a0da52717891d8ef
+FAKE_AGENT= XDG_DATA_HOME="$fake_data_home" XDG_DATA_DIRS="$fake_data_home" run_watch
+! grep -Fq "app.slice" "$NOTIFY_LOG" ||
+  fail "parent slice OOM events do not produce a slice notification" "$(cat "$NOTIFY_LOG")"
+grep -Fq "Closed spotify to free memory" "$NOTIFY_LOG" ||
+  fail "kernel OOM notifications fire even when no AI agent is configured" "$(cat "$NOTIFY_LOG")"
+pass "kernel OOM notifications ignore parent slices and fire without an AI agent"
+
+reset_entries
+oom_entry 'omarchy-crash-watch.service'
+XDG_DATA_HOME="$fake_data_home" XDG_DATA_DIRS="$fake_data_home" run_watch
+grep -Fq "Closed an app to free memory" "$NOTIFY_LOG" ||
+  fail "an OOM kill for a non-app unit falls back to generic wording" "$(cat "$NOTIFY_LOG")"
+pass "an OOM kill for a non-app unit uses generic wording"

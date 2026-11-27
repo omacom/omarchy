@@ -1,5 +1,7 @@
+local keyboard = require("default.hypr.keyboard")
+
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
-o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
+o.bind("SUPER + ALT + SPACE", "Apps", { ipc = "omarchy.dock.apps" })
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
 o.bind("SUPER + CTRL + C", "Capture menu", { menu = "capture" })
 o.bind("SUPER + CTRL + O", "Toggle menu", { menu = "toggle" })
@@ -7,7 +9,7 @@ o.bind("SUPER + CTRL + H", "Hardware menu", { menu = "hardware" })
 o.bind("SUPER + SHIFT + code:201", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ESCAPE", "System menu", { menu = "system" })
 o.bind("XF86PowerOff", "Power menu", { menu = "system" }, { locked = true })
-o.bind("SUPER + K", "Keybindings", "omarchy-menu-keybindings")
+o.bind("SUPER + K", "Keybindings", { menu = "learn.keybindings" })
 o.bind("SUPER + ALT + K", "Tmux keybindings", "omarchy-menu-tmux-keybindings")
 o.bind("SUPER + CTRL + K", "Herdr keybindings", "omarchy-menu-herdr-keybindings")
 o.bind_toggle("SUPER + SHIFT + SPACE", "Toggle top bar", "bar")
@@ -26,7 +28,7 @@ o.bind("SUPER + SHIFT + comma", "Dismiss all notifications", { ipc = "notificati
 o.bind("SUPER + CTRL + comma", "Control notifications with the keyboard", { ipc = "notifications.keyboard" })
 o.bind("SUPER + ALT + comma", "Dismiss last notification", { ipc = "notifications.dismissOne" })
 o.bind("SUPER + SHIFT + ALT + comma", "Open notification history", { ipc = "notifications.showHistory" })
-o.bind_toggle("SUPER + CTRL + ALT + comma", "Toggle silencing notifications", "notification-silencing")
+o.bind("SUPER + CTRL + ALT + comma", "Toggle silencing notifications", { ipc = "notifications.toggleDnd" })
 
 o.bind_toggle("SUPER + CTRL + I", "Toggle locking on idle", "idle")
 o.bind("SUPER + CTRL + Delete", "Toggle laptop display", "omarchy-hyprland-monitor-internal toggle")
@@ -103,7 +105,7 @@ end)
 
 o.bind("SUPER + CTRL + S", "Share", { menu = "share" })
 
-o.bind("SUPER + CTRL + PERIOD", "Transcode", "omarchy-transcode")
+o.bind("SUPER + CTRL + " .. keyboard.key("PERIOD"), "Transcode", "omarchy-transcode")
 
 o.bind("SUPER + CTRL + R", "Set reminder", { menu = "reminder-set" })
 o.bind("SUPER + CTRL + ALT + R", "Show reminders", "omarchy-reminder show")
@@ -132,7 +134,7 @@ for panel = 1, 9 do
   o.bind(
     "SUPER + CTRL + code:" .. tostring(panel + 9),
     "Bar panel " .. panel,
-    "omarchy-shell -q shell togglePanelAt right " .. panel
+    { panel_at = "right:" .. panel }
   )
 end
 

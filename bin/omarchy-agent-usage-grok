@@ -348,7 +348,9 @@ def cache_key(home, fallback):
 def account_limits(account, force):
   home = home_of(account)
   limits = collect_limits(home, cache_key(home, account["id"]), force)
-  return account_entry(account, limits, plan(home))
+  email = str(login(home).get("email") or "")
+  extra = {"email": email} if email else {}
+  return account_entry(account, limits, plan(home), **extra)
 
 
 def main():
@@ -362,11 +364,13 @@ def main():
   current = next((a for a in accounts if a["active"]), None)
   if current:
     tier = current["plan"]
+    account_name = str(current.get("email") or "")
     limits = current
     stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
     home = default_home()
     tier = plan(home)
+    account_name = str(login(home).get("email") or "")
     limits = collect_limits(home, cache_key(home, "main"), args.force)
     stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
 
@@ -392,6 +396,8 @@ def main():
     limitsStale=stale,
     limitsFetchedAt=fetched_at,
   )
+  if account_name and in_use:
+    record["accountName"] = account_name
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
   record.update(stats)

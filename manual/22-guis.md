@@ -2,11 +2,13 @@
 
 ## Files
 
-Files (Nautilus) is the graphical file manager. `Super + Shift + F` opens it, and `Super + Shift + Alt + F` opens it in the directory your terminal is sitting in, which saves a lot of clicking. `Ctrl + L` lets you type a path, and hitting `Space` on any file gives you a quick preview without opening anything.
+Files (Folio) is the graphical file manager. `Super + Shift + F` opens it, and `Super + Shift + Alt + F` opens it in the directory your terminal is sitting in, which saves a lot of clicking. `Ctrl + L` lets you type a path, and hitting `Space` on any file previews it at full size without opening it.
 
 Plug in a USB stick or an SD card and it's mounted automatically, so it just shows up in the sidebar. For anything more involved — formatting a drive, checking SMART health, creating partitions — launch _Disks_ from the app launcher (`Super + Space`).
 
-Double-clicking follows sensible defaults: pictures, videos, and music open in Omaview, PDFs in Document Viewer, Markdown in Omawrite, and plain text in the editor picked under _Setup > Default > Editor_.
+An encrypted drive asks for its password when it's plugged in. To have one unlock on its own, add a keyfile to it with `sudo cryptsetup luksAddKey /dev/sdX1 <keyfile>` and put that keyfile at `~/.config/omarchy/drive-keys/<UUID>`, named by the UUID that `lsblk -dno UUID /dev/sdX1` prints for the encrypted partition, and readable only by you (`chmod 600`). If that keyfile is missing or refused, you're asked for the password as usual.
+
+Double-clicking follows sensible defaults: pictures, videos, and music open in Omaview, PDFs in Document Viewer, Markdown in Omawrite, and plain text in your editor, Plain unless you pick another under _Setup > Defaults > Editor_.
 
 ## Disktree
 
@@ -53,7 +55,7 @@ You can open the Share menu on `Super + Ctrl + S` or under _Trigger > Share_ in 
 
 The same thing works from the terminal with `omarchy share clipboard`, `omarchy share file [path]`, and `omarchy share folder [path]`. Leave the path off and you get the picker.
 
-You can also send straight from the file manager: right-click any selection in Nautilus and pick _Send via LocalSend_.
+You can also send straight from the file manager: right-click any selection in Files and share it with LocalSend.
 
 Omarchy's firewall is closed by default except for LocalSend's port, so this works out of the box on a fresh install. See [security](48-security.md).
 
@@ -75,17 +77,11 @@ You start Hype via the application launcher (`Super + Space`). Press `?` inside 
 
 You start Signed via the application launcher (`Super + Space`), or open a PDF with it from the file manager.
 
-## Checkmate
+## Game Vibes
 
-[Checkmate](https://github.com/omacom/checkmate) is Omarchy's own 3D chess game. Play a friend on the same computer or the built-in opponent at three levels, on four sculpted sets that each move in their own manner: orbital craft, carved wood and ivory, woodland creatures, and candy. Games have no clock and save after every move.
+Game Vibes, in the application launcher (`Super + Space`), is where Omarchy's little games live: Checkmate, a 3D chess game against a friend or the built-in opponent; Cards, Klondike solitaire; Death Wish, a pixel-precise platformer of ten rooms full of spikes and saws; and Neon Swarm, an arcade shooter. Each is a single web page that follows your theme. Pick one with the arrows and `Enter`, and come back to the list with `Esc` from a game's title screen or `Q` while it's paused. It opens full screen: `Super + F` makes it a window, and `Super + W` closes it.
 
-You start Checkmate via the application launcher (`Super + Space`), where it is listed as Chess. Press `?` inside it to see every shortcut.
-
-## Cards
-
-[Cards](https://github.com/omacom/cards) is Omarchy's own Klondike solitaire. Draw three, with no limit on passes, in four card series: one drawn in your theme's colors, and three with a look of their own. Click a card and then where it goes, drag it, or double-click to send it to the best place. Games save after every move.
-
-You start Cards via the application launcher (`Super + Space`). Click its name, or press `?`, to see every shortcut.
+The games you make with an agent show up here too: choose _Make something cool → Game_ in the agents panel and describe one, or name a game already in Game Vibes to keep working on it. The agent copies it into `~/Games/vibes`, where it's yours to change, and opens it when it's done. You can make that copy yourself with `omarchy games vibes copy <game>`. A game someone else shares installs like a theme: choose _Install > Gaming > Game Vibes_ and paste its git address, or run `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ takes one out again, and _Update > Game Vibes Games_ fetches new versions. Games load three.js from the web, so they need a connection to start.
 
 ## Omacalc
 

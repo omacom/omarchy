@@ -164,6 +164,7 @@ done
 # runs Hermes itself to do so, so it is stopped before the sweep reaches it.
 systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
 
+echo "Removing Hermes Desktop..."
 hermes_holders stop
 omarchy-pkg-drop hermes-desktop
 

@@ -52,6 +52,7 @@ elif [[ $browser != "firefox" && $browser != "zen" ]] && ! omarchy-install-brows
   if [[ $installing == "false" && $browser == "chrome" ]]; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser --install "$browser"
   else
+    [[ $installing == "true" ]] && echo "Updating $name browser extensions..."
     omarchy-install-browser-extensions "$browser" || exit 1
   fi
 fi

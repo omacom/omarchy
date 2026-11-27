@@ -8,6 +8,8 @@ source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 test_tmp="$boundary_tmp"
 package_root="$SUDO_TEST_ROOT"
 copy_boundary_file bin/omarchy-channel-set
+# Stands in for the script(1) log the switch starts, which would carry stderr to stdout.
+export OMARCHY_UPDATE_LOGGED=1
 python3 - "$SUDO_TEST_ROOT/bin/omarchy-channel-set" "$package_root" <<'PYTHON'
 import sys
 from pathlib import Path
