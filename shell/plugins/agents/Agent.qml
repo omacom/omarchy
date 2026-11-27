@@ -42,6 +42,8 @@ Item {
     var text = String(content || "")
     // Every usage update stamps a fresh updatedAt even on unchanged records;
     // ignore it so unchanged agents don't trigger a full panel rebuild.
+    // Nothing in the UI reads per-agent record.updatedAt (so it stays at the
+    // last meaningful change).
     var key = text.replace(/"updatedAt"\s*:\s*"[^"]*"/, "")
     if (root.record && key === root.parsedText) return
     try {

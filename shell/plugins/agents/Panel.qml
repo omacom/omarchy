@@ -1924,8 +1924,8 @@ Panel {
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.reloadDefaults()
-    // Defer the external usage/network refresh past the first open frame so
-    // spawning omarchy-agent-usage-update doesn't compete with rendering.
+    // Defer the external usage/network refresh past the open animation so
+    // spawning omarchy-agent-usage-update doesn't compete with rendering it.
     openRefresh.restart()
     // Whether a stopped model fits is as the engine last judged it; memory
     // freed since lets it start, so it's judged again.
@@ -1936,8 +1936,7 @@ Panel {
 
   Timer {
     id: openRefresh
-    interval: 50
-    repeat: false
+    interval: Math.max(16, Style.duration(220))
     onTriggered: {
       if (!root.opened) return
       usage.refreshLimits()
@@ -2129,7 +2128,7 @@ Panel {
       // A text field keeps its own keys: Qt passes Return on after accepting
       // it, and here that would press the Cancel under the cursor too, or
       // steal letters like j/k/x from an account name.
-      blocked: root.renaming || root.deleteTarget !== null || (addViewLoader.item ? addViewLoader.item.inputFocused : false)
+      blocked: root.renaming || root.deleteTarget !== null || (!!addViewLoader.item && addViewLoader.item.inputFocused)
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
@@ -2250,7 +2249,6 @@ Panel {
             sourceComponent: Component {
               AddView {
                 visible: !root.indexShown
-                width: addViewLoader.width
               }
             }
           }
@@ -2713,8 +2711,9 @@ Panel {
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
-        onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
-        Component.onCompleted: if (visible) { text = ""; forceActiveFocus() }
+        function claimFocus() { if (visible) { text = ""; forceActiveFocus() } }
+        onVisibleChanged: claimFocus()
+        Component.onCompleted: claimFocus()
         // Enter stops here, or the panel would press its cursor too.
         Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
@@ -2859,16 +2858,12 @@ Panel {
             function submit() { root.submitPaste(text); text = "" }
             Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
             Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
-            onVisibleChanged: {
+            function syncPasteFocus() {
               root.pasteFieldItem = visible ? pasteField : null
               if (visible) forceActiveFocus()
             }
-            Component.onCompleted: {
-              if (visible) {
-                root.pasteFieldItem = pasteField
-                forceActiveFocus()
-              }
-            }
+            onVisibleChanged: syncPasteFocus()
+            Component.onCompleted: if (visible) syncPasteFocus()
             Connections {
               target: root
               function onAddStageChanged() { if (root.addStage !== "running") pasteField.text = "" }

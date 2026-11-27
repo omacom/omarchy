@@ -500,4 +500,34 @@ assertEqual(agentRoot.record.todayPrompts, 4, 'real usage change reflects new fi
 agentParse('{bad json')
 assertEqual(agentRoot.record, null, 'malformed JSON clears Agent.record')
 assertEqual(agentRoot.parsedText, '', 'malformed JSON clears parsedText cache')
+
+// Even when every usage file only bumps updatedAt (so recordChanged never fires
+// and dataRevision does not bump), finishing an update run must still schedule
+// sync (to pull remote snapshots) and re-arm any advised limits retry.
+const mainSourceForUpdate = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const finishUpdateSrc = mainSourceForUpdate.match(/function finishUpdate\(\) \{[\s\S]*?\n  \}/)[0]
+const calls = []
+const deferred = []
+const updateState = {
+  pendingUpdateKind: '',
+  rescanAgents() { calls.push('rescan') },
+  reloadRecords() { calls.push('reload') },
+  scheduleLimitsRetry() { calls.push('retry') },
+  scheduleSync() { calls.push('sync') },
+  runUpdate(kind) { calls.push('run:' + kind) },
+  Qt: { callLater(fn) { deferred.push(fn) } }
+}
+const finishUpdate = new Function('with (this) { ' + finishUpdateSrc + '\nreturn finishUpdate }').call(updateState)
+finishUpdate()
+assertDeepEqual(calls, ['rescan', 'reload'], 'finishUpdate rescans and reloads records before deferred hooks')
+assertEqual(deferred.length, 1, 'finishUpdate defers retry and sync scheduling until reloads land')
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'retry', 'sync'], 'updatedAt-only update still schedules sync and re-arms limits retry')
+
+calls.length = 0
+updateState.pendingUpdateKind = 'force'
+finishUpdate()
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'run:force', 'retry', 'sync'], 'finishUpdate dispatches queued pendingUpdateKind')
+assertEqual(updateState.pendingUpdateKind, '', 'finishUpdate clears pendingUpdateKind')
 JS
