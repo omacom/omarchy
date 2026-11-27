@@ -4,27 +4,10 @@ image_dirs=${1:-}
 cache_dir=${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/image-selector
 index_file="$cache_dir/index.tsv"
 pending_video_file=$(mktemp)
+resolved_file=$(mktemp)
 
 mkdir -p "$cache_dir"
-trap 'rm -f "$pending_video_file"' EXIT
-
-is_video_path() {
-  [[ ${1,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]]
-}
-
-thumbnail_path_for() {
-  local image="$1"
-  local signature hash
-
-  signature=$(stat -Lc '%s:%Y' "$image") || return
-  hash=$(awk -F '\t' -v path="$image" -v sig="$signature" '$1 == path && $2 == sig { print $3; exit }' "$index_file" 2>/dev/null)
-
-  if [[ -z $hash ]]; then
-    hash=$(printf '%s\t%s' "$image" "$signature" | md5sum | cut -d ' ' -f 1)
-  fi
-
-  printf '%s/%s.jpg' "$cache_dir" "$hash"
-}
+trap 'rm -f "$pending_video_file" "$resolved_file"' EXIT
 
 generate_video_thumbnail() {
   local image="$1"
@@ -68,27 +51,10 @@ drain_pending_video_thumbnails() {
     bash -c 'generate_video_thumbnail "$1" "$2"' _ >/dev/null 2>&1 || true
 }
 
-thumbnail_for() {
-  local image="$1"
-  local thumbnail legacy_hash
-
-  thumbnail=$(thumbnail_path_for "$image") || return
-
-  if [[ ! -f $thumbnail ]] && ! is_video_path "$image"; then
-    # Older on-demand picker code keyed fallback thumbnails by file content.
-    # Keep finding those if a user still has them cached.
-    legacy_hash=$(md5sum "$image" 2>/dev/null | cut -d ' ' -f 1)
-    [[ -n $legacy_hash && -f $cache_dir/$legacy_hash.jpg ]] && thumbnail="$cache_dir/$legacy_hash.jpg"
-  fi
-
-  if [[ -f $thumbnail ]]; then
-    printf '%s' "$thumbnail"
-  elif ! is_video_path "$image"; then
-    printf '%s' "$image"
-  fi
-}
-
-mapfile -d '' -t images < <(
+# Resolve signatures, index lookups, and thumbnail hashes in one pass instead
+# of forking stat/awk/md5sum per file, and only compute legacy content hashes
+# when cache_dir actually holds unmatched .jpg thumbnails.
+{
   while IFS= read -r dir; do
     [[ -n $dir && -d $dir ]] || continue
     find -L "$dir" -maxdepth 1 -type f \
@@ -96,19 +62,109 @@ mapfile -d '' -t images < <(
          -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
       -print0 2>/dev/null
   done <<<"$image_dirs" | sort -z
-)
+} | python3 -c '
+import hashlib
+import os
+import sys
 
-for image in "${images[@]}"; do
-  if is_video_path "$image"; then
-    thumbnail=$(thumbnail_path_for "$image") || continue
-    [[ -f $thumbnail || -f $thumbnail.failed ]] || printf '%s\0%s\0' "$image" "$thumbnail" >>"$pending_video_file"
-  fi
-done
+cache_dir, index_file, pending_path, resolved_path = sys.argv[1:5]
+VIDEO_EXTS = (".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi")
 
-drain_pending_video_thumbnails
+indexed = {}
+try:
+  with open(index_file, "r", encoding="utf-8", errors="surrogateescape") as f:
+    for line in f:
+      parts = line.rstrip("\n").split("\t")
+      if len(parts) >= 3 and parts[2]:
+        indexed.setdefault((parts[0], parts[1]), parts[2])
+except OSError:
+  pass
 
-for image in "${images[@]}"; do
-  thumbnail=$(thumbnail_for "$image")
-  [[ -n $thumbnail ]] || continue
-  printf '%s\t%s\n' "$image" "$thumbnail"
-done
+cached_jpgs = set()
+failed_markers = set()
+try:
+  with os.scandir(cache_dir) as it:
+    for entry in it:
+      if not entry.is_file():
+        continue
+      name = entry.name
+      if name.endswith(".jpg"):
+        cached_jpgs.add(name)
+      elif name.endswith(".jpg.failed"):
+        failed_markers.add(name)
+except OSError:
+  pass
+
+raw_paths = sys.stdin.buffer.read().split(b"\0")
+entries = []
+matched_jpgs = set()
+
+for raw in raw_paths:
+  if not raw:
+    continue
+  image = os.fsdecode(raw)
+  try:
+    st = os.stat(image)
+  except OSError:
+    continue
+  sig = f"{st.st_size}:{int(st.st_mtime)}"
+  h = indexed.get((image, sig))
+  if not h:
+    h = hashlib.md5(f"{image}\t{sig}".encode("utf-8", "surrogateescape")).hexdigest()
+  jpg_name = f"{h}.jpg"
+  if jpg_name in cached_jpgs:
+    matched_jpgs.add(jpg_name)
+  is_video = image.lower().endswith(VIDEO_EXTS)
+  entries.append((image, is_video, os.path.join(cache_dir, jpg_name), jpg_name))
+
+has_legacy_candidates = bool(cached_jpgs - matched_jpgs)
+pending = []
+resolved = []
+
+for image, is_video, thumbnail, jpg_name in entries:
+  if is_video:
+    if jpg_name in cached_jpgs:
+      resolved.append((image, True, thumbnail))
+    elif f"{jpg_name}.failed" not in failed_markers:
+      pending.append((image, thumbnail))
+      resolved.append((image, True, thumbnail))
+  else:
+    if jpg_name in cached_jpgs:
+      resolved.append((image, False, thumbnail))
+    else:
+      chosen = image
+      if has_legacy_candidates:
+        try:
+          with open(image, "rb") as f:
+            legacy_name = hashlib.file_digest(f, "md5").hexdigest() + ".jpg"
+          if legacy_name in cached_jpgs:
+            chosen = os.path.join(cache_dir, legacy_name)
+        except OSError:
+          pass
+      resolved.append((image, False, chosen))
+
+if pending:
+  with open(pending_path, "wb") as pf:
+    for image, thumbnail in pending:
+      pf.write(os.fsencode(image) + b"\0" + os.fsencode(thumbnail) + b"\0")
+  with open(resolved_path, "wb") as rf:
+    for image, is_video, thumbnail in resolved:
+      rf.write(
+        os.fsencode(image) + b"\0"
+        + (b"1" if is_video else b"0") + b"\0"
+        + os.fsencode(thumbnail) + b"\0"
+      )
+else:
+  out = sys.stdout.buffer
+  for image, _, thumbnail in resolved:
+    out.write(os.fsencode(image) + b"\t" + os.fsencode(thumbnail) + b"\n")
+' "$cache_dir" "$index_file" "$pending_video_file" "$resolved_file"
+
+if [[ -s $pending_video_file ]]; then
+  drain_pending_video_thumbnails
+  while IFS= read -r -d '' image && IFS= read -r -d '' is_video && IFS= read -r -d '' thumbnail; do
+    if [[ $is_video == "0" || -f $thumbnail ]]; then
+      printf '%s\t%s\n' "$image" "$thumbnail"
+    fi
+  done <"$resolved_file"
+fi

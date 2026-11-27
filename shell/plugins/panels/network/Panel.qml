@@ -70,6 +70,9 @@ Panel {
   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
+  // Bound here rather than in a row, so it also sees networks with no delegate:
+  // scrolled out of view, or the panel closed.
+  readonly property string wifiStateKey: Model.wifiStateKey(wifiNetworkObjects)
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
   property var wifiNetworks: []
   property bool scanning: false
@@ -95,6 +98,7 @@ Panel {
   property string actionKind: ""  // "connect" | "disconnect" | "forget"
   property string failureSsid: ""
   property string failureReason: ""
+  property string failureKind: ""  // the actionKind that failed
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
@@ -113,9 +117,25 @@ Panel {
   // disable themselves on this so clicks on the other rows don't silently
   // no-op against runNetworkAction's serialized guard.
   readonly property bool busy: actionKind !== ""
+  // Connecting to one network while another is up drops the first before the
+  // second comes in, and in between the panel would fall back to its
+  // disconnected layout: stats, band row and header gone, then back. Through
+  // the switch the hero names where it is going and the sections hold their
+  // place, reading "--" until the new link reports. A failed connect ends
+  // the action, so the panel still settles on the truth.
+  property bool switchingNetwork: false
+  // The hero buttons that were showing when the switch began keep their
+  // place, disabled, so the name beside them doesn't reflow twice.
+  property bool switchHeldQr: false
+  property bool switchHeldSpeed: false
+  onActionKindChanged: if (actionKind !== "connect") switchingNetwork = false
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
+  // The network under the cursor when the rows were last rebuilt, so the
+  // cursor follows it when a state change re-sorts the list.
+  // null rather than "", which is a hidden network's SSID.
+  property var cursorSsid: null
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -139,7 +159,10 @@ Panel {
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
-  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
+  // China offers Alibaba's resolver in place of Cloudflare's and Google's
+  // (docs/regions.md); the region comes with the DNS reading.
+  property string region: "global"
+  readonly property var dnsProviders: region === "cn" ? ["DHCP", "AliDNS", "Custom"] : ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
@@ -150,7 +173,7 @@ Panel {
   // Worth showing when there is a real choice, or when a pin is in force even
   // though only one band answers right now -- otherwise the Automatic switch
   // vanishes and the pin becomes unclearable from the panel.
-  readonly property bool canSelectBand: (kind === "wifi" || bandBusy)
+  readonly property bool canSelectBand: (kind === "wifi" || bandBusy || switchingNetwork)
     && (bandAvailable.length > 1 || bandPinned)
   // While a change is in flight, show the state that was asked for rather than
   // the one still in force, so the row answers the click immediately instead of
@@ -206,8 +229,7 @@ Panel {
 
   function toggleNetwork() {
     if (!networkManagerAvailable) return
-    Networking.wifiEnabled = !Networking.wifiEnabled
-    Qt.callLater(function() { root.refresh(true) })
+    Quickshell.execDetached(["omarchy-network-wifi", Networking.wifiEnabled ? "off" : "on"])
   }
 
   ShellIpc {
@@ -377,6 +399,8 @@ Panel {
         selectedIndex = passwordIndex
         focusSection = "wifi"
       }
+    } else if (cursorSsid !== null && wifiIndexForSsid(cursorSsid) >= 0) {
+      selectedIndex = wifiIndexForSsid(cursorSsid)
     } else if (selectedIndex >= wifiNetworks.length) {
       selectedIndex = wifiNetworks.length - 1
     } else if (selectedIndex < 0 && opened) {
@@ -395,6 +419,7 @@ Panel {
   }
 
   onWifiNetworkObjectsChanged: syncWifiNetworks()
+  onWifiStateKeyChanged: Qt.callLater(rebuildWifiRows)
 
   function selectByDelta(delta) {
     if (wifiNetworks.length === 0) { selectedIndex = -1; return }
@@ -505,7 +530,19 @@ Panel {
   readonly property string connectivity: Model.connectivityState(kind, Networking.connectivity, {
     Portal: NetworkConnectivity.Portal, Limited: NetworkConnectivity.Limited,
     Full: NetworkConnectivity.Full, None: NetworkConnectivity.None
-  }, connectivityChecksEnabled)
+  }, connectivityChecksEnabled, limitedSettled)
+  // A network switch passes through Limited for a fraction of a second while
+  // NetworkManager's first probe is in flight. Wait that out rather than flash
+  // the outage warning on every connect.
+  readonly property bool nativeLimited: Networking.connectivity === NetworkConnectivity.Limited
+  property bool limitedSettled: false
+  onNativeLimitedChanged: if (!nativeLimited) limitedSettled = false
+  Timer {
+    id: limitedSettle
+    interval: 3000
+    running: root.nativeLimited
+    onTriggered: root.limitedSettled = true
+  }
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
@@ -577,7 +614,7 @@ Panel {
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
     if (!dnsProc.running) {
-      dnsProc.command = ["bash", "-c", root.dnsCommand("")]
+      dnsProc.command = ["bash", "-c", root.dnsCommand("") + "; omarchy-region"]
       dnsProc.running = true
     }
     if (!bandProc.running) {
@@ -698,6 +735,12 @@ Panel {
   }
 
   function syncWifiNetworks() {
+    rebuildWifiRows()
+    wifiStationAvailable = !!wifiDevice
+    scanning = false
+  }
+
+  function rebuildWifiRows() {
     var nets = []
     var networks = wifiNetworkObjects || []
 
@@ -708,9 +751,13 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    wifiNetworks = Model.sortWifiRows(nets)
-    wifiStationAvailable = !!wifiDevice
-    scanning = false
+    nets = Model.sortWifiRows(nets, passwordSsid !== "" ? wifiNetworks : null)
+    // A new model rebuilds every delegate, which takes focus from a passphrase
+    // being typed, so identical rows are left in place.
+    if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
+    var selected = wifiNetworks[selectedIndex]
+    cursorSsid = selected ? selected.ssid : null
+    wifiNetworks = nets
   }
 
   function wifiSectionTitle(index) {
@@ -721,9 +768,11 @@ Panel {
     return Model.wifiIconFor(strength)
   }
 
+  // The provider on the first line, the region on the second.
   function updateDns(raw) {
-    var value = String(raw || "").trim()
-    dnsProvider = value || "DHCP"
+    var lines = String(raw || "").trim().split("\n")
+    dnsProvider = lines[0].trim() || "DHCP"
+    region = (lines[1] || "").trim() || "global"
   }
 
   function updateBand(raw) {
@@ -732,7 +781,7 @@ Panel {
     // Mid-reconnect there is no connected station, so the command reports
     // nothing. Publishing that would empty the option list and unmount the
     // section on every toggle -- same guard as updateDetails.
-    if (bandBusy && status.available.length === 0) return
+    if ((bandBusy || switchingNetwork) && status.available.length === 0) return
 
     bandCurrent = status.band
     bandSelected = status.selected
@@ -746,7 +795,7 @@ Panel {
     if (!band || actionProc.running) return
 
     root.pendingBand = band
-    actionProc.command = ["omarchy-network-band", band]
+    actionProc.command = ["omarchy-network-wifi", "band", band]
     actionProc.running = true
   }
 
@@ -814,22 +863,30 @@ Panel {
   }
 
   function runNetworkAction(kind, network, callback) {
-    if (actionKind !== "" || !network) return
+    if (actionKind !== "" || wifiAction.running || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
+    switchingNetwork = kind === "connect" && root.kind !== "disconnected"
+    switchHeldQr = switchingNetwork && canShareWifi
+    switchHeldSpeed = switchingNetwork && canRunSpeedTest
     actionKind = kind
     failureSsid = ""
     failureReason = ""
+    // Already in the asked-for state: no-op without spawning the CLI.
+    checkActionCompletion(network)
+    if (actionKind === "") return
     callback(network)
-    // Safety net: if onExited never fires (process death, signal handler
-    // throws, etc.), clear the busy state so the row doesn't get stuck on
-    // "Connecting…" / "Disconnecting…" forever.
+    // Safety net: if neither NM nor the CLI settles the action, clear the busy
+    // state so the row doesn't get stuck on "Connecting…" / "Disconnecting…" forever.
     actionTimeout.restart()
   }
 
   function clearNetworkAction() {
     actionTimeout.stop()
-    if (actionKind === "connect") passwordSsid = ""
+    actionCancelFallback.stop()
+    wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
+    if (actionKind === "connect" && passwordSsid === actionSsid) passwordSsid = ""
     failureSsid = ""
     failureReason = ""
     actionSsid = ""
@@ -840,7 +897,11 @@ Panel {
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
+    actionCancelFallback.stop()
+    wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
     failureSsid = actionSsid
+    failureKind = actionKind
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
     actionSsid = ""
     actionKind = ""
@@ -856,42 +917,142 @@ Panel {
   }
 
   function checkActionCompletion(network) {
-    if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
+    if (!network) return
+    var settled = network.connected && !network.stateChanging
+    // A prompt only opens for a network that is not connected, so once it is
+    // there is nothing left to ask, whether or not its error is still showing.
+    if (settled && passwordSsid !== "" && passwordSsid === (network.name || "")) passwordSsid = ""
+    // NetworkManager can connect a network on its own after a panel connect to
+    // it failed; only a failed connect, since a timed-out disconnect stays connected.
+    if (settled && failureKind === "connect" && failureReason !== "" && failureSsid === (network.name || "")) {
+      failureSsid = ""
+      failureReason = ""
+    }
+    if (actionKind === "" || actionSsid !== (network.name || "")) return
     if (actionKind === "connect" && network.connected) clearNetworkAction()
     else if (actionKind === "disconnect" && !network.connected && !network.stateChanging) clearNetworkAction()
     else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
   }
 
+  function runWifiCli(ssid, command, secret) {
+    wifiAction.targetSsid = ssid
+    wifiAction.sendSecret = secret !== undefined
+    wifiAction.secret = secret !== undefined ? secret : ""
+    wifiAction.timedOut = false
+    wifiAction.command = command
+    wifiAction.running = true
+  }
+
+  function wifiConnectCommand(ssid, extraArgs) {
+    var cmd = ["omarchy-network-wifi", "connect"]
+    if (extraArgs) {
+      for (var i = 0; i < extraArgs.length; i++) cmd.push(extraArgs[i])
+    }
+    if (wifiDevice && wifiDevice.name) {
+      cmd.push("--interface")
+      cmd.push(wifiDevice.name)
+    }
+    cmd.push("--")
+    cmd.push(ssid)
+    return cmd
+  }
+
   function connectDirectly(ssid) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid))
+    })
   }
 
   function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid, ["--password-stdin"]), passphrase)
+    })
   }
 
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
-      enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
-      enterpriseConnect.running = true
+      runWifiCli(
+        network.name || ssid,
+        wifiConnectCommand(network.name || ssid, ["--identity", identity, "--password-stdin"]),
+        passphrase
+      )
     })
   }
 
-  // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).
-  // The password goes over stdin, never argv.
+  // Runs Wi-Fi connect/disconnect/forget actions through `omarchy-network-wifi`.
+  // Passphrases travel over stdin, never argv.
   Process {
-    id: enterpriseConnect
+    id: wifiAction
+    property string targetSsid: ""
     property string secret: ""
+    property bool sendSecret: false
+    property bool timedOut: false
     stdinEnabled: true
+    stderr: StdioCollector { id: wifiActionStderr; waitForEnd: true }
     onStarted: {
-      write(secret + "\n")
+      if (sendSecret) write(secret + "\n")
       secret = ""
+      sendSecret = false
+    }
+    onExited: function(exitCode) {
+      var ssid = targetSsid
+      var wasTimedOut = timedOut
+      var errText = String(wifiActionStderr.text || "").trim()
+      targetSsid = ""
+      secret = ""
+      sendSecret = false
+      timedOut = false
+      if (wasTimedOut) {
+        actionCancelFallback.stop()
+        root.finishActionTimeout()
+        return
+      }
+      if (exitCode !== 0 && root.actionKind !== "" && root.actionSsid === ssid) {
+        // Give NetworkManager's own connectionFailed signal a short head start
+        // so specific reasons (Wrong password, reprompt) win over a generic fallback.
+        wifiActionFailDelay.failedSsid = ssid
+        wifiActionFailDelay.failedReason = errText.indexOf("Secrets were required") >= 0
+          ? root.connectionFailReasons.NoSecrets
+          : -1
+        wifiActionFailDelay.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: wifiActionFailDelay
+    property string failedSsid: ""
+    property int failedReason: -1
+    interval: 750
+    repeat: false
+    onTriggered: {
+      if (root.actionKind === "" || root.actionSsid !== failedSsid) return
+      var net = root.networkForSsid(failedSsid)
+      var reason = failedReason
+      if (net) {
+        var ours = root.actionKind === "connect"
+        root.failNetworkAction(net, reason)
+        if (ours && root.shouldRepromptPassphrase(reason, root.requiresCredentials(net.security)))
+          root.openPasswordPrompt(failedSsid)
+      } else {
+        actionTimeout.stop()
+        root.failureSsid = failedSsid
+        root.failureKind = root.actionKind
+        root.failureReason = root.networkFailureReason(reason, false)
+        root.actionSsid = ""
+        root.actionKind = ""
+        root.refresh()
+      }
     }
   }
 
   function disconnect(network) {
-    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) { net.disconnect() })
+    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) {
+      var cmd = wifiDevice && wifiDevice.name
+        ? ["omarchy-network-wifi", "disconnect", "--", wifiDevice.name]
+        : ["omarchy-network-wifi", "disconnect"]
+      runWifiCli(net.name || "", cmd)
+    })
   }
 
   // Disconnect from a row's SSID. Rows are primitive snapshots that can outlive
@@ -904,7 +1065,9 @@ Panel {
   }
 
   function forget(net) {
-    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) {
+      runWifiCli(network.name || "", ["omarchy-network-wifi", "forget", "--ssid", "--", network.name])
+    })
   }
 
   implicitWidth: button.implicitWidth
@@ -991,8 +1154,7 @@ Panel {
     }
   }
 
-  // Action runner for DNS provider changes. Wi-Fi actions use the
-  // Quickshell.Networking NetworkManager backend directly.
+  // Action runner for DNS provider and Wi-Fi band changes.
   Process {
     id: actionProc
     stdout: StdioCollector { id: actionStdout; waitForEnd: true }
@@ -1057,25 +1219,49 @@ Panel {
     }
   }
 
+  function finishActionTimeout() {
+    if (!root.actionKind) return
+    var reason
+    if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+    else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+    else reason = Commons.I18n.t("network.timedOutForgetting")
+    root.failureSsid = root.actionSsid
+    root.failureKind = root.actionKind
+    root.failureReason = reason
+    root.actionSsid = ""
+    root.actionKind = ""
+    root.refresh()
+  }
+
   Timer {
     id: actionTimeout
-    // Must outlast NetworkManager's 25s supplicant timeout: a wrong saved
-    // PSK fails with WifiAuthTimeout at ~25s, and that failure has to land
-    // while the action is still tracked to show "Wrong password" and reopen
-    // the passphrase prompt.
-    interval: 30000
+    // Must outlast both NetworkManager's 25s supplicant timeout and
+    // omarchy-network-wifi's 28s nmcli wait + cleanup so the CLI settles and
+    // rolls back on its own; if this fires while wifiAction is still running,
+    // signal SIGTERM and wait for cleanup to exit before releasing the action.
+    interval: 35000
     repeat: false
     onTriggered: {
       if (!root.actionKind) return
-      var reason
-      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
-      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
-      else reason = Commons.I18n.t("network.timedOutForgetting")
-      root.failureSsid = root.actionSsid
-      root.failureReason = reason
-      root.actionSsid = ""
-      root.actionKind = ""
-      root.refresh()
+      wifiActionFailDelay.stop()
+      if (wifiAction.running) {
+        wifiAction.timedOut = true
+        wifiAction.signal(15)
+        actionCancelFallback.restart()
+        return
+      }
+      root.finishActionTimeout()
+    }
+  }
+
+  Timer {
+    id: actionCancelFallback
+    interval: 8000
+    repeat: false
+    onTriggered: {
+      wifiAction.timedOut = false
+      wifiAction.running = false
+      root.finishActionTimeout()
     }
   }
 
@@ -1255,7 +1441,8 @@ Panel {
 
           PanelActionButton {
             id: qrAction
-            visible: root.canShareWifi
+            visible: root.canShareWifi || (root.switchingNetwork && root.switchHeldQr)
+            enabled: root.canShareWifi
             iconText: "󰐲"
             tooltipText: Commons.I18n.t("network.showQrCode")
             foreground: root.bar.foreground
@@ -1269,7 +1456,8 @@ Panel {
 
           PanelActionButton {
             id: speedAction
-            visible: root.canRunSpeedTest
+            visible: root.canRunSpeedTest || (root.switchingNetwork && root.switchHeldSpeed)
+            enabled: root.canRunSpeedTest
             iconText: "󰓅"
             tooltipText: Commons.I18n.t("network.runSpeedTest")
             foreground: root.bar.foreground
@@ -1316,6 +1504,7 @@ Panel {
             width: parent.width
 
             readonly property string title: {
+              if (root.switchingNetwork) return root.actionSsid || Commons.I18n.t("network.hidden")
               // The HTTP restriction does not undo association. Show the live
               // SSID even before route/details polling has returned anything.
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
@@ -1323,7 +1512,7 @@ Panel {
               if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
               return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
             }
-            readonly property string detail: root.headerDetail()
+            readonly property string detail: root.switchingNetwork ? "" : root.headerDetail()
 
             text: heroSsid.detail !== "" ? heroSsid.title + " (" + heroSsid.detail + ")" : heroSsid.title
             color: root.bar.foreground
@@ -1339,6 +1528,7 @@ Panel {
             width: parent.width
             text: {
               // The sign-in button right below already says what a portal needs.
+              if (root.switchingNetwork) return Commons.I18n.t("network.connecting").toUpperCase()
               if (root.hasCaptivePortal) return ""
               if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
               if (root.info.type === "wifi") {
@@ -1385,7 +1575,10 @@ Panel {
 
       // Connection details: transfer metrics first, then IP/Gateway.
       Column {
-        visible: !!root.info.iface
+        // Held while connected but before the details poll has answered
+        // (just opened, or a switch that has just landed) as well as through
+        // a switch, so the grid never drops out for a beat and comes back.
+        visible: !!root.info.iface || root.kind !== "disconnected" || root.switchingNetwork
         width: parent.width
         spacing: Style.spacing.labelGap
 
@@ -1586,39 +1779,21 @@ Panel {
           width: parent.width
           spacing: Style.space(6)
 
-          readonly property int count: 4
+          readonly property int count: root.dnsProviders.length
           readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
-          DnsProviderPill {
-            provider: "DHCP"
-            index: 0
-            tooltipText: Commons.I18n.t("network.dnsFromDhcp")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
+          Repeater {
+            model: root.dnsProviders
 
-          DnsProviderPill {
-            provider: "Cloudflare"
-            index: 1
-            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Cloudflare")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Google"
-            index: 2
-            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Google")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Custom"
-            index: 3
-            tooltipText: Commons.I18n.t("network.setCustomDns")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+            DnsProviderPill {
+              required property string modelData
+              provider: modelData
+              tooltipText: modelData === "DHCP" ? Commons.I18n.t("network.dnsFromDhcp")
+                : modelData === "Custom" ? Commons.I18n.t("network.setCustomDns")
+                : Commons.I18n.t("network.setDnsTo").arg(modelData)
+              width: dnsRow.cellWidth
+              onClicked: root.setDns(provider)
+            }
           }
         }
       }
@@ -1667,6 +1842,13 @@ Panel {
           readonly property string sectionTitle: root.wifiSectionTitle(index)
           width: ListView.view.width
           height: delegateColumn.implicitHeight
+
+          // Opening the passphrase prompt grows the row, which can push the
+          // field below the list's clip on the bottom rows; scroll it in.
+          function revealPrompt() {
+            if (row.isPasswordOpen) networkList.positionViewAtIndex(index, ListView.Contain)
+          }
+          onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
 
           Column {
             id: delegateColumn
@@ -1804,15 +1986,6 @@ Panel {
         root.failNetworkAction(root.networkForSsid(row.net.ssid), reason)
         if (ours && root.shouldRepromptPassphrase(reason, row.requiresCredentials)) root.openPasswordPrompt(row.net.ssid)
       }
-      function onConnectedChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
-      }
-      function onKnownChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
-      }
-      function onStateChangingChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
-      }
     }
 
     readonly property string statusText: {
@@ -1836,6 +2009,13 @@ Panel {
     }
 
     implicitHeight: rowBody.implicitHeight + (isPasswordOpen ? passwordPanel.implicitHeight + Style.spacing.md : 0)
+    // The prompt slides open and shut instead of jumping, cropped meanwhile.
+    // Both ways take the same time: moving the prompt to another row shrinks
+    // one while the other grows, so the list's total height holds still.
+    clip: true
+    Behavior on implicitHeight {
+      NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+    }
 
     MouseArea {
       id: rowMouse
@@ -1999,7 +2179,11 @@ Panel {
     // connect; Esc cancels back to the row.
     Item {
       id: passwordPanel
-      visible: row.isPasswordOpen
+      visible: opacity > 0
+      opacity: row.isPasswordOpen ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: Style.duration(row.isPasswordOpen ? 180 : 90); easing.type: Easing.OutCubic }
+      }
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: rowMouse.bottom
@@ -2008,6 +2192,12 @@ Panel {
       anchors.topMargin: Style.space(4)
       implicitHeight: (idField.visible ? idField.implicitHeight + Style.space(4) : 0) + pwField.implicitHeight + Style.spacing.rowGap
       height: implicitHeight
+
+      // Show-password toggle; every prompt opens masked again. Reset on
+      // close, not when the fade-out ends, or reopening mid-fade stays clear.
+      property bool revealed: false
+      readonly property bool open: row.isPasswordOpen
+      onOpenChanged: if (!open) revealed = false
 
       TextField {
         id: idField
@@ -2042,6 +2232,7 @@ Panel {
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
         password: true
+        revealed: passwordPanel.revealed
         placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2082,13 +2273,13 @@ Panel {
         }
       }
 
-      // 22×22 right-anchored to line up with lockIndicator above. Esc closes
-      // the prompt (handled by pwField.Keys.onEscapePressed)
+      // Esc closes the prompt (handled by pwField.Keys.onEscapePressed)
       // so there's no separate cancel button.
       PanelActionButton {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed
-        anchors.right: parent.right
+        anchors.right: revealPwBtn.left
+        anchors.rightMargin: Style.space(2)
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
@@ -2096,6 +2287,20 @@ Panel {
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
+      }
+
+      // 22×22 right-anchored to line up with lockIndicator above. Not a
+      // focus target, so typing carries on in pwField after a click.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: connectPwBtn.visible
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
+        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: passwordPanel.revealed = !passwordPanel.revealed
       }
     }
   }

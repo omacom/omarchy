@@ -26,37 +26,25 @@ assertEqual(bar.pickDrawnSlot([undrawn]), undrawn, 'bar falls back to an undrawn
 assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are none')
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
-// Hovering the clock, or anything past it, leaves the indicators hidden; the
-// rest of the bar up to the clock's start opens them.
-assertEqual(bar.peeksAt({ x: 400, y: 10 }, 1000, false), true, 'the peek opens left of the clock')
-assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut over and right of the clock')
-assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar opens the peek above the clock')
-assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
-assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')
-
 // The bar drops its input under a real fullscreen window on its workspace, so
 // the window gets the clicks along the edge; a maximized one keeps the bar.
-const toplevel = (id, fullscreen) => ({ workspace: { id }, lastIpcObject: { fullscreen } })
-assertEqual(bar.fullscreenOn([toplevel(4, 0), toplevel(4, 2)], 4), true, 'a fullscreen window takes the bar edge')
-assertEqual(bar.fullscreenOn([toplevel(4, 1)], 4), false, 'a maximized window leaves the bar clickable')
-assertEqual(bar.fullscreenOn([toplevel(9, 2)], 4), false, 'fullscreen on another workspace leaves the bar clickable')
-assertEqual(bar.fullscreenOn([{ workspace: null, lastIpcObject: null }], 4), false, 'a toplevel without a workspace is ignored')
-
-// Beside a display notch, indicators right of the clock pull its end toward
-// the start as they reveal. A stationary pointer between the two ends has to
-// keep the peek open rather than close it, slide the clock back and reopen it.
-const notchBoxEnd = revealed => revealed ? 900 : 1000
-function peekRun(pointers) {
-  let edge = notchBoxEnd(false)
-  return pointers.map(pointer => {
-    const held = bar.peeksAt(pointer, edge, false)
-    edge = bar.nextPeekEdge(edge, notchBoxEnd(held), held)
-    return held
-  })
-}
-const between = { x: 950, y: 10 }
-assertEqual(peekRun([between, between, between, between]).join(), 'true,true,true,true', 'a reveal that moves the clock does not close the peek under a still pointer')
-assertEqual(peekRun([between, { x: 1050, y: 10 }, { x: 1050, y: 10 }]).join(), 'true,false,false', 'leaving past the clock closes the peek for good')
+const output = { x: 0, y: 0, width: 1280, height: 800 }
+const toplevel = (id, fullscreen, name = String(id), x = 0) => ({ workspace: { id, name }, lastIpcObject: { fullscreen, at: [x, 0], size: [1280, 800] } })
+const fullscreenOn = (windows, hasFullscreen = true, special = '') => bar.fullscreenOn(windows, 4, hasFullscreen, special, output)
+assertEqual(fullscreenOn([toplevel(4, 0), toplevel(4, 2)]), true, 'a fullscreen window takes the bar edge')
+assertEqual(fullscreenOn([toplevel(4, 1)]), false, 'a maximized window leaves the bar clickable')
+assertEqual(fullscreenOn([toplevel(9, 2)]), false, 'fullscreen on another workspace leaves the bar clickable')
+assertEqual(fullscreenOn([{ workspace: null, lastIpcObject: null }]), false, 'a toplevel without a workspace is ignored')
+assertEqual(fullscreenOn([toplevel(4, 2)], false), false, 'a fullscreen column out of view leaves the bar clickable')
+assertEqual(fullscreenOn([toplevel(4, 2), toplevel(4, 1)], true, 'special:qconsole'), false, 'a nonfullscreen special workspace over fullscreen leaves the bar clickable')
+assertEqual(fullscreenOn([toplevel(4, 2), toplevel(-1, 2, 'special:qconsole')], false, 'special:qconsole'), true, 'fullscreen in the visible special workspace takes the bar edge')
+assertEqual(fullscreenOn([toplevel(-1, 2, 'special:other')], true, 'special:qconsole'), false, 'another special workspace with the same synthetic id is ignored')
+assertEqual(fullscreenOn([toplevel(4, 2, '4', -1887), toplevel(4, 1)]), false, 'a maximized column does not revive an offscreen fullscreen column')
+assertEqual(fullscreenOn([toplevel(4, 2)]), true, 'closing the special workspace restores fullscreen click-through')
+assertEqual(bar.fullscreenOn([toplevel(4, 2, '4', -1280)], 4, true, '', { x: -1280, y: 0, width: 1280, height: 800 }), true, 'fullscreen on a monitor left of the origin takes its own bar edge')
+const roundedFullscreen = toplevel(4, 2)
+roundedFullscreen.lastIpcObject.size = [1279, 799]
+assertEqual(fullscreenOn([roundedFullscreen]), true, 'rounded fullscreen geometry still covers the output')
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.

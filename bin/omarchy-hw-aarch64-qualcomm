@@ -11,6 +11,12 @@ if [[ $- != *p* ]]; then
   exit 126
 fi
 
+if (( EUID == 0 )); then
+  [[ $(/usr/bin/uname -m) == "aarch64" ]] || exit 1
+else
+  [[ $(uname -m) == "aarch64" ]] || exit 1
+fi
+
 dir=${BASH_SOURCE[0]%/*}
 [[ $dir != "${BASH_SOURCE[0]}" ]] || dir=.
 platform=$("$dir/omarchy-hw-platform") || exit 1
