@@ -17,8 +17,14 @@ if [[ ! -r $config ]]; then
   exit 75
 fi
 
-if [[ -f $dropin ]] && systemctl show -p ExecStart --value intel_lpmd.service 2>/dev/null | grep -qF "$config"; then
-  if ! systemctl is-active --quiet intel_lpmd.service || pgrep -f "intel_lpmd.*$config" >/dev/null 2>&1; then
+if [[ -f $dropin ]] && systemctl is-enabled --quiet intel_lpmd.service 2>/dev/null &&
+  systemctl show -p ExecStart --value intel_lpmd.service 2>/dev/null | grep -qF "$config"; then
+  if ! systemctl is-active --quiet intel_lpmd.service; then
+    exit 0
+  fi
+  main_pid=$(systemctl show -p MainPID --value intel_lpmd.service 2>/dev/null || true)
+  if [[ -n $main_pid && $main_pid != "0" && -r /proc/$main_pid/cmdline ]] &&
+    tr '\0' ' ' <"/proc/$main_pid/cmdline" | grep -qF -- "-c $config"; then
     exit 0
   fi
 fi
