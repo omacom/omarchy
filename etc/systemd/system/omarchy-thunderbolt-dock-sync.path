@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch enrolled Thunderbolt devices for boot image sync
+
+[Path]
+PathChanged=/var/lib/boltd/devices
+Unit=omarchy-thunderbolt-dock-sync.service
+
+[Install]
+WantedBy=multi-user.target

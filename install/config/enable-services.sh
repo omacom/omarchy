@@ -4,6 +4,9 @@
 # thrashing take the whole session down; [Install] pulls in systemd-oomd.socket
 # via Also=. omarchy-shutdown-ramfs.timer builds /run/initramfs in the
 # background after boot so shutdown skips mkinitcpio.
+# omarchy-thunderbolt-dock-sync.path keeps the initramfs Thunderbolt dock
+# allowlist in sync when docks are enrolled, switched between auto/manual
+# policy, or forgotten in boltd.
 systemctl enable \
   cups.service \
   avahi-daemon.service \
@@ -14,7 +17,8 @@ systemctl enable \
   power-profiles-daemon.service \
   sddm.service \
   systemd-oomd.service \
-  omarchy-shutdown-ramfs.timer
+  omarchy-shutdown-ramfs.timer \
+  omarchy-thunderbolt-dock-sync.path
 
 # Don't let network-online.target hold up graphical.target waiting for
 # DHCP/Wi-Fi association. Nothing in the session needs to block on the network.

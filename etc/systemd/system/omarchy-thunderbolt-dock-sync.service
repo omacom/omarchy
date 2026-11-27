@@ -1,0 +1,9 @@
+[Unit]
+Description=Sync enrolled Thunderbolt docks with the boot image
+After=local-fs.target
+ConditionFileIsExecutable=/usr/bin/omarchy-device-thunderbolt-sync
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/usr/bin/omarchy-device-thunderbolt-sync

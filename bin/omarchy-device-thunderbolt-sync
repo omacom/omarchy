@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# omarchy:summary=Sync enrolled Thunderbolt docks with the boot image
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+boltd_devices_dir=/var/lib/boltd/devices
+state_file=/var/lib/omarchy/thunderbolt-dock-uuids
+lock_file=/run/lock/omarchy-thunderbolt-dock-sync.lock
+mkinitcpio_conf=/etc/mkinitcpio.conf
+conf_dir=/etc/mkinitcpio.conf.d
+install_hook=/etc/initcpio/install/omarchy-thunderbolt-dock
+
+if (( EUID != 0 )); then
+  [[ -n ${OMARCHY_BOLTD_DEVICES_DIR:-} ]] && boltd_devices_dir=$OMARCHY_BOLTD_DEVICES_DIR
+  [[ -n ${OMARCHY_TB_STATE_FILE:-} ]] && state_file=$OMARCHY_TB_STATE_FILE
+  [[ -n ${OMARCHY_TB_LOCK_FILE:-} ]] && lock_file=$OMARCHY_TB_LOCK_FILE
+  [[ -n ${OMARCHY_MKINITCPIO_CONF:-} ]] && mkinitcpio_conf=$OMARCHY_MKINITCPIO_CONF
+  [[ -n ${OMARCHY_MKINITCPIO_CONF_DIR:-} ]] && conf_dir=$OMARCHY_MKINITCPIO_CONF_DIR
+  [[ -n ${OMARCHY_TB_INSTALL_HOOK:-} ]] && install_hook=$OMARCHY_TB_INSTALL_HOOK
+fi
+
+read_enrolled_uuids() {
+  local boltd_root="${boltd_devices_dir%/devices}"
+  if [[ $boltd_root != "$boltd_devices_dir" && -e $boltd_root && ! ( -d $boltd_root && -r $boltd_root && -x $boltd_root ) ]]; then
+    echo "omarchy-device-thunderbolt-sync: cannot read $boltd_root" >&2
+    return 1
+  fi
+
+  if [[ ! -e $boltd_devices_dir ]]; then
+    return 0
+  fi
+
+  if [[ ! ( -d $boltd_devices_dir && -r $boltd_devices_dir && -x $boltd_devices_dir ) ]]; then
+    echo "omarchy-device-thunderbolt-sync: cannot read $boltd_devices_dir" >&2
+    return 1
+  fi
+
+  local -a uuids=()
+  local dev_file uuid section dev_type policy line key val
+  for dev_file in "$boltd_devices_dir"/*; do
+    [[ -e $dev_file || -L $dev_file ]] || continue
+    [[ -f $dev_file && ! -L $dev_file ]] || continue
+    uuid=${dev_file##*/}
+    [[ $uuid =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || continue
+
+    if [[ ! -r $dev_file ]]; then
+      echo "omarchy-device-thunderbolt-sync: cannot read $dev_file" >&2
+      return 1
+    fi
+
+    section=""
+    dev_type=""
+    policy=""
+    while IFS= read -r line || [[ -n $line ]]; do
+      line=${line%$'\r'}
+      line=${line#"${line%%[![:space:]]*}"}
+      line=${line%"${line##*[![:space:]]}"}
+      [[ -z $line || $line == \#* || $line == \;* ]] && continue
+      if [[ $line == \[*\] ]]; then
+        section=${line:1:${#line}-2}
+        continue
+      fi
+      if [[ $line == *=* ]]; then
+        key=${line%%=*}
+        val=${line#*=}
+        key=${key%"${key##*[![:space:]]}"}
+        val=${val#"${val%%[![:space:]]*}"}
+        if [[ $section == "device" && $key == "type" ]]; then
+          dev_type=$val
+        elif [[ $section == "user" && $key == "policy" ]]; then
+          policy=$val
+        fi
+      fi
+    done <"$dev_file"
+
+    if [[ $dev_type == "peripheral" && $policy == "auto" ]]; then
+      uuids+=("${uuid,,}")
+    fi
+  done
+
+  if (( ${#uuids[@]} > 0 )); then
+    printf '%s\n' "${uuids[@]}" | LC_ALL=C sort -u
+  fi
+}
+
+hook_is_active() {
+  [[ -f $install_hook && -f $conf_dir/thunderbolt_dock.conf ]] || return 1
+
+  local hooks
+  hooks=$(OMARCHY_BOLTD_DEVICES_DIR="$boltd_devices_dir" bash -c '
+    mapfile -d "" conf_files < <(LC_ALL=C.UTF-8 find "$2" -maxdepth 1 -xtype f -name "*.conf" -print0 2>/dev/null |
+      LC_ALL=C.UTF-8 sort -zVu)
+    source <(cat -- "$1" "${conf_files[@]}" 2>/dev/null) || exit 1
+    printf " %s " "${HOOKS[*]}"
+  ' -- "$mkinitcpio_conf" "$conf_dir") || return 1
+
+  [[ $hooks == *" omarchy-thunderbolt-dock "* ]]
+}
+
+write_state_file() {
+  local content="$1"
+  local state_dir tmp_file
+  state_dir=$(dirname -- "$state_file")
+  mkdir -p "$state_dir"
+  tmp_file=$(mktemp "$state_dir/.thunderbolt-dock-uuids.XXXXXX")
+  if [[ -n $content ]]; then
+    printf '%s\n' "$content" >"$tmp_file"
+  fi
+  chmod 0644 "$tmp_file"
+  mv -Tf -- "$tmp_file" "$state_file"
+}
+
+rebuild_boot_image() {
+  if omarchy-cmd-present limine-mkinitcpio; then
+    local rebuild_log rc=0
+    local -a status=()
+    rebuild_log=$(mktemp)
+    set +e
+    limine-mkinitcpio 2>&1 | tee "$rebuild_log"
+    status=("${PIPESTATUS[@]}")
+    set -e
+    if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+      rc=1
+    fi
+    rm -f "$rebuild_log"
+    if (( rc != 0 )); then
+      echo "omarchy-device-thunderbolt-sync: boot image rebuild failed" >&2
+      return 1
+    fi
+  elif omarchy-cmd-present mkinitcpio; then
+    if ! mkinitcpio -P; then
+      echo "omarchy-device-thunderbolt-sync: boot image rebuild failed" >&2
+      return 1
+    fi
+  fi
+}
+
+mkdir -p "$(dirname -- "$lock_file")"
+exec 9>"$lock_file"
+flock 9
+
+recorded=""
+if [[ -f $state_file ]]; then
+  recorded=$(<"$state_file")
+fi
+
+desired=$(read_enrolled_uuids)
+
+if [[ $desired == "$recorded" ]]; then
+  if [[ ! -f $state_file ]]; then
+    write_state_file "$desired"
+  fi
+  exit 0
+fi
+
+# When transitioning from no baked docks to one or more enrolled docks, skip the
+# rebuild if the installed mkinitcpio configuration does not activate the hook.
+# When docks were previously baked (recorded non-empty), always rebuild so
+# revoked or forgotten UUIDs are purged from the boot image.
+if [[ -z $recorded ]] && ! hook_is_active; then
+  exit 0
+fi
+
+attempt=0
+while (( attempt < 3 )); do
+  target="$desired"
+  rebuild_boot_image
+  after=$(read_enrolled_uuids)
+  if [[ $after == "$target" ]]; then
+    write_state_file "$target"
+    exit 0
+  fi
+  desired="$after"
+  attempt=$((attempt + 1))
+done
+
+echo "omarchy-device-thunderbolt-sync: boltd store kept changing during boot image rebuild" >&2
+exit 1
