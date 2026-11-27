@@ -23,19 +23,24 @@ CONF
   # residency with working Wi-Fi, Bluetooth, audio, webcam and display on
   # resume. Until the updated device tree is installed and running, keep
   # s2idle so open-lid suspend stays reliable.
-  sleep_mode=s2idle
   dtbs_ver=$(pacman -Q linux-omarchy-dtbs 2>/dev/null | awk '{print $2}') || dtbs_ver=""
+  mkdir -p "$sleep_config_dir"
   if [[ -n $dtbs_ver ]] && (( $(vercmp "$dtbs_ver" 7.3-77) >= 0 )) &&
     [[ -d $dt_root/gpio-keys/switch-lid && ! -e $dt_root/gpio-keys/switch-lid/wakeup-event-action ]]; then
-    sleep_mode=deep
-  fi
-
-  mkdir -p "$sleep_config_dir"
-  cat >"$sleep_config_dir/zenbook-14-ux3480qa.conf" <<CONF
+    cat >"$sleep_config_dir/zenbook-14-ux3480qa.conf" <<'CONF'
 [Sleep]
-MemorySleepMode=$sleep_mode
+MemorySleepMode=deep
 AllowHibernation=no
 AllowSuspendThenHibernate=no
 AllowHybridSleep=no
 CONF
+  else
+    cat >"$sleep_config_dir/zenbook-14-ux3480qa.conf" <<'CONF'
+[Sleep]
+MemorySleepMode=s2idle
+AllowHibernation=no
+AllowSuspendThenHibernate=no
+AllowHybridSleep=no
+CONF
+  fi
 fi
