@@ -7,6 +7,10 @@ fi
 cpu_model=$(grep -m1 "^model[[:space:]]*:" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | tr -d ' ')
 [[ $cpu_model == "170" ]] || exit 0
 
+if [[ -f /etc/intel_lpmd/omarchy-mtl.xml && -f /etc/systemd/system/intel_lpmd.service.d/10-omarchy-mtl.conf ]]; then
+  exit 0
+fi
+
 sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
   source "$OMARCHY_PATH/install/hardware/intel/lpmd.sh"
   systemctl daemon-reload
