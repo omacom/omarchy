@@ -354,6 +354,7 @@ Item {
 
   function runBlank() {
     displaysBlank = true
+    blankInputSettle.stop()
     pauseFingerprint()
     if (!blankProcess.running) blankProcess.running = true
   }
@@ -866,6 +867,29 @@ Item {
     }
   }
 
+  // Hyprland lights the panel for any key or pointer motion, and says nothing
+  // when it does. Input that never reaches the lock surface, a bound key like
+  // Volume Up or the pointer, leaves the panel lit without the lock's own wake,
+  // and the first key typed after it would be taken for the wake key. A key at
+  // the lock reaches the view at once and wakes it there; any other input
+  // clears the blank state once it has settled.
+  IdleMonitor {
+    id: blankInputMonitor
+    enabled: root.lockRequested && root.displaysBlank
+    timeout: 1
+    respectInhibitors: false
+    onIsIdleChanged: {
+      if (!isIdle && root.displaysBlank) blankInputSettle.restart()
+    }
+  }
+
+  Timer {
+    id: blankInputSettle
+    interval: 150
+    repeat: false
+    onTriggered: root.displaysBlank = false
+  }
+
   Timer {
     id: sessionLockStabilizeTimer
     interval: 500
@@ -904,6 +928,8 @@ Item {
     function onScreensChanged() {
       var screens = root.realScreenCount()
       if (screens > root.knownScreenCount) {
+        // A display that arrives comes up lit.
+        root.displaysBlank = false
         root.resumeFingerprint()
         if (root.lockRequested) root.armBlankTimer()
       }
