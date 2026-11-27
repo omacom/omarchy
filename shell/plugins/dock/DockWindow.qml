@@ -8,7 +8,7 @@ import qs.Ui
 import "DockModel.js" as DockModel
 
 // One screen's dock. Mapped only while this screen is on a floating workspace
-// so tiled workspaces pay no layer surface, GL context, or dmabuf memory.
+// so tiled workspaces do not hold a live layer surface and dmabuf swapchain.
 PanelWindow {
   id: window
   visible: window.shown
@@ -284,11 +284,6 @@ PanelWindow {
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
       : Math.round((window.height - height) / 2)
-    // Switching between tiled and floating workspaces shows and hides the dock
-    // at once, with nothing to watch in between. Hidden by opacity rather than
-    // visibility, so the icons keep their textures and are drawn on the first
-    // frame back instead of being uploaded again.
-    opacity: window.shown ? 1 : 0
 
     HoverHandler {
       id: bodyHover
