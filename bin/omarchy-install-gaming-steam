@@ -17,6 +17,10 @@ omarchy-install-gaming-gpu-lib32
 omarchy-pkg-add steam
 omarchy-lifecycle-dispatch post-install steam
 
+# Some games keep a Linux launch entry after their Linux build is gone, so
+# Steam never offers them Proton and Play fails. Map those to Proton.
+systemctl --user enable --now omarchy-steam-proton-fallback.service
+
 echo ""
 echo "Steam will start automatically now. This might take a while..."
 

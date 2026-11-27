@@ -1,0 +1,17 @@
+[Unit]
+Description=Run Steam games with Proton when their Linux build isn't installed
+# Notifications need OMARCHY_PATH for their strings, imported once UWSM has
+# the session environment, and uwsm-app to restart Steam.
+After=wayland-session-waitenv.service
+PartOf=graphical-session.target
+ConditionPathExists=/usr/bin/steam
+ConditionEnvironment=OMARCHY_PATH
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-steam-proton-fallback watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

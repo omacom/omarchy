@@ -1,0 +1,349 @@
+#!/usr/bin/python3
+# omarchy:summary=Run Steam games with Proton when their Linux build isn't installed
+# omarchy:args=[watch|scan [--dry-run]|force <appid>...]
+# omarchy:hidden=true
+"""Run Steam games with Proton when their Linux build isn't installed.
+
+Some games keep a Linux launch entry in Steam's app info after the Linux
+build is gone (or was never shipped), so Steam starts them natively, looks for
+a launcher like Bigfoot.sh that only the Windows depot would have had, and
+Play fails with AppError_28. Steam only picks Proton by itself for games with
+no Linux entry at all, so these never get it.
+
+  scan   Map every installed game whose Linux launch entries point at missing
+         files, while its Windows executable is present, to Proton. Steam
+         rewrites config.vdf on exit, so this only edits it while Steam is
+         closed.
+  watch  The service: run `scan` whenever Steam exits (and at start), and if a
+         launch still fails that way, restart Steam with the game mapped and
+         launch it again.
+  force  Map the given app ids now (Steam must be closed).
+"""
+
+import os
+import re
+import select
+import signal
+import struct
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STEAM_ROOT = Path(os.environ.get("OMARCHY_STEAM_ROOT", Path.home() / ".local/share/Steam"))
+CONFIG = STEAM_ROOT / "config/config.vdf"
+APPINFO = STEAM_ROOT / "appcache/appinfo.vdf"
+CONSOLE_LOG = STEAM_ROOT / "logs/console_log.txt"
+PID_FILE = Path(os.environ.get("OMARCHY_STEAM_PID_FILE", Path.home() / ".steam/steam.pid"))
+TOOL = os.environ.get("OMARCHY_STEAM_PROTON_TOOL", "proton_experimental")
+
+LAUNCH_FAILED = re.compile(r'\[AppID (\d+),.*LaunchApp failed with AppError_28 with "([^"]+)"')
+STEAM_TOOLS = {"228980"}  # Steamworks Common Redistributables
+
+
+def notify(message, english, *args):
+    """message is "omarchy-i18n <key>", spelled out so the i18n test sees the key."""
+    try:
+        text = subprocess.run([*message.split(), *args], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        text = ""
+    if not text:
+        text = english
+        for index, value in enumerate(args, 1):
+            text = text.replace(f"%{index}", value)
+    subprocess.run(["omarchy-notification-send", "-g", "\U000f04d3", text], check=False)
+
+
+# --- Steam's binary app info (appinfo.vdf, version 29) ----------------------
+
+def read_appinfo(path=APPINFO):
+    """Map appid -> launch entries, each {"executable", "oslist"}."""
+    data = path.read_bytes()
+    magic, _universe = struct.unpack_from("<II", data, 0)
+    if magic != 0x07564429:
+        raise ValueError(f"unsupported appinfo.vdf version {magic:#x}")
+    (table_offset,) = struct.unpack_from("<q", data, 8)
+    (count,) = struct.unpack_from("<I", data, table_offset)
+    strings, pos = [], table_offset + 4
+    for _ in range(count):
+        end = data.index(b"\0", pos)
+        strings.append(data[pos:end].decode("utf-8", "replace"))
+        pos = end + 1
+
+    apps, pos = {}, 16
+    while pos < table_offset:
+        appid, size = struct.unpack_from("<II", data, pos)
+        if appid == 0:
+            break
+        # info_state, last_updated, token, sha1, change number, binary sha1
+        kv_start = pos + 8 + 4 + 4 + 8 + 20 + 4 + 20
+        info, _ = parse_kv(data, kv_start, strings)
+        apps[str(appid)] = launch_entries(info)
+        pos = pos + 8 + size
+    return apps
+
+
+def parse_kv(data, pos, strings):
+    node = {}
+    while True:
+        kind = data[pos]
+        pos += 1
+        if kind in (0x08, 0x0B):
+            return node, pos
+        (key_index,) = struct.unpack_from("<I", data, pos)
+        pos += 4
+        key = strings[key_index]
+        if kind == 0x00:
+            node[key], pos = parse_kv(data, pos, strings)
+        elif kind == 0x01:
+            end = data.index(b"\0", pos)
+            node[key] = data[pos:end].decode("utf-8", "replace")
+            pos = end + 1
+        elif kind in (0x02, 0x03, 0x04, 0x06):
+            node[key] = struct.unpack_from("<i", data, pos)[0]
+            pos += 4
+        elif kind in (0x07, 0x0A):
+            node[key] = struct.unpack_from("<q", data, pos)[0]
+            pos += 8
+        elif kind == 0x05:
+            end = pos
+            while data[end:end + 2] != b"\0\0":
+                end += 2
+            node[key] = data[pos:end].decode("utf-16-le", "replace")
+            pos = end + 2
+        else:
+            raise ValueError(f"unknown appinfo field type {kind:#x}")
+
+
+def launch_entries(info):
+    launch = info.get("appinfo", info).get("config", {}).get("launch", {})
+    entries = []
+    for entry in launch.values():
+        if not isinstance(entry, dict) or not entry.get("executable"):
+            continue
+        config = entry.get("config", {})
+        # Entries tied to a beta branch don't apply to the public build (PEAK
+        # keeps its Linux entry behind an internal playtest key).
+        if config.get("BetaKey"):
+            continue
+        entries.append({"executable": entry["executable"], "oslist": config.get("oslist", "")})
+    return entries
+
+
+# --- Installed games -------------------------------------------------------
+
+def libraries():
+    folders = STEAM_ROOT / "steamapps/libraryfolders.vdf"
+    paths = [STEAM_ROOT]
+    if folders.exists():
+        paths += [Path(p) for p in re.findall(r'"path"\s+"([^"]+)"', folders.read_text(errors="replace"))]
+    seen, unique = set(), []
+    for path in paths:
+        if path.resolve() not in seen and (path / "steamapps").is_dir():
+            seen.add(path.resolve())
+            unique.append(path)
+    return unique
+
+
+def installed_games():
+    """Yield (appid, name, install directory)."""
+    for library in libraries():
+        for manifest in sorted((library / "steamapps").glob("appmanifest_*.acf")):
+            text = manifest.read_text(errors="replace")
+            fields = dict(re.findall(r'^\s*"(appid|name|installdir)"\s+"([^"]*)"', text, re.M))
+            if fields.get("appid") and fields.get("installdir"):
+                yield fields["appid"], fields.get("name", fields["appid"]), library / "steamapps/common" / fields["installdir"]
+
+
+def runs_on(entry, os_name):
+    oslist = entry["oslist"]
+    return not oslist or os_name in oslist.split(",")
+
+
+def missing_linux_build(entries, install_dir):
+    """True when Steam would launch a Linux entry whose files aren't installed
+    while a Windows entry's executable is there to run with Proton."""
+    def present(entry):
+        return (install_dir / entry["executable"].replace("\\", "/")).exists()
+
+    linux = [e for e in entries if e["oslist"] and runs_on(e, "linux")]
+    windows = [e for e in entries if e["oslist"] and runs_on(e, "windows")]
+    native = [e for e in linux if not e["executable"].lower().endswith(".exe")]
+    return bool(linux) and not any(present(e) for e in native) and any(present(e) for e in windows)
+
+
+def games_needing_proton():
+    apps = read_appinfo()
+    config = CONFIG.read_text(errors="replace") if CONFIG.exists() else ""
+    for appid, name, install_dir in installed_games():
+        if appid in STEAM_TOOLS or mapped(config, appid) or not install_dir.is_dir():
+            continue
+        if missing_linux_build(apps.get(appid, []), install_dir):
+            yield appid, name
+
+
+# --- config.vdf CompatToolMapping -------------------------------------------
+
+def mapping_block(text):
+    match = re.search(r'\n(\t+)"CompatToolMapping"\n\1\{\n(.*?)\n\1\}', text, re.S)
+    return match.group(2) if match else None
+
+
+def mapped(text, appid):
+    block = mapping_block(text)
+    return block is not None and re.search(rf'^\t+"{appid}"$', block, re.M) is not None
+
+
+def add_mappings(appids):
+    text = CONFIG.read_text()
+    new = [a for a in dict.fromkeys(appids) if not mapped(text, a)]
+    if not new:
+        return []
+
+    def entries(indent):
+        return "".join(
+            f'{indent}"{a}"\n{indent}{{\n'
+            f'{indent}\t"name"\t\t"{TOOL}"\n{indent}\t"config"\t\t""\n{indent}\t"priority"\t\t"250"\n'
+            f'{indent}}}\n' for a in new)
+
+    match = re.search(r'\n(\t+)"CompatToolMapping"\n\1\{\n', text)
+    if match:
+        indent = match.group(1) + "\t"
+        text = text[:match.end()] + entries(indent) + text[match.end():]
+    else:
+        match = re.search(r'\n(\t+)"Steam"\n\1\{\n', text)
+        if not match:
+            raise SystemExit(f"{CONFIG}: no Software/Valve/Steam section; not touching it")
+        indent = match.group(1) + "\t"
+        block = f'{indent}"CompatToolMapping"\n{indent}{{\n{entries(indent + chr(9))}{indent}}}\n'
+        text = text[:match.end()] + block + text[match.end():]
+
+    temporary = CONFIG.with_suffix(".vdf.omarchy-tmp")
+    temporary.write_text(text)
+    temporary.replace(CONFIG)
+    return new
+
+
+# --- Steam process ------------------------------------------------------------
+
+def steam_pid():
+    try:
+        pid = int(PID_FILE.read_text().strip())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
+def big_picture():
+    out = subprocess.run(["pgrep", "-u", str(os.getuid()), "-af", "steamwebhelper"], capture_output=True, text=True).stdout
+    return re.search(r"-uimode=(4|7)\b", out) is not None
+
+
+def stop_steam(pid):
+    subprocess.Popen(["steam", "-shutdown"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        fd = os.pidfd_open(pid)
+    except ProcessLookupError:
+        return True
+    try:
+        return bool(select.select([fd], [], [], 60)[0])
+    finally:
+        os.close(fd)
+
+
+def start_steam(big_picture_mode, appid):
+    args = ["uwsm-app", "--", "steam"] + (["-gamepadui"] if big_picture_mode else []) + [f"steam://rungameid/{appid}"]
+    subprocess.Popen(args, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+# --- Commands ---------------------------------------------------------------
+
+def scan(dry_run=False):
+    found = list(games_needing_proton())
+    for appid, name in found:
+        print(f"{appid}\t{name}")
+    if not found or dry_run:
+        return found
+    if steam_pid():
+        print("Steam is running; close it and run this again, or let the service do it when Steam exits.", file=sys.stderr)
+        return found
+    add_mappings([appid for appid, _ in found])
+    for _, name in found:
+        notify("omarchy-i18n steam.protonSet", "%1 will run with Proton", name)
+    return found
+
+
+def recover(appid, target, handled):
+    if appid in handled or target.lower().endswith(".exe") or Path(target).exists():
+        return
+    if CONFIG.exists() and mapped(CONFIG.read_text(errors="replace"), appid):
+        return
+    handled.add(appid)
+    name = next((n for a, n, _ in installed_games() if a == appid), appid)
+    notify("omarchy-i18n steam.protonRestart", "Restarting Steam to run %1 with Proton", name)
+    pid = steam_pid()
+    bp = big_picture()
+    if pid and not stop_steam(pid):
+        return
+    add_mappings([appid])
+    start_steam(bp, appid)
+
+
+def watch():
+    """React to two events: Steam's log reporting a failed launch, and the
+    Steam process exiting (the only time config.vdf can be edited)."""
+    handled = set()
+    CONSOLE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    tail = subprocess.Popen(["tail", "-F", "-n", "0", str(CONSOLE_LOG)], stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    signal.signal(signal.SIGTERM, lambda *_: (tail.terminate(), sys.exit(0)))
+
+    pidfd = None
+    if not steam_pid():
+        safe_scan()
+
+    while True:
+        if pidfd is None and (pid := steam_pid()):
+            try:
+                pidfd = os.pidfd_open(pid)
+            except ProcessLookupError:
+                pass
+        ready, _, _ = select.select([tail.stdout] + ([pidfd] if pidfd is not None else []), [], [])
+        if pidfd is not None and pidfd in ready:
+            os.close(pidfd)
+            pidfd = None
+            time.sleep(1)  # Steam's launcher script outlives the client by a moment
+            if not steam_pid():
+                safe_scan()
+        if tail.stdout in ready:
+            line = tail.stdout.readline()
+            if not line:
+                raise SystemExit("tail exited")
+            if match := LAUNCH_FAILED.search(line):
+                recover(*match.groups(), handled)
+
+
+def safe_scan():
+    try:
+        scan()
+    except (OSError, ValueError) as error:
+        print(f"scan skipped: {error}", file=sys.stderr)
+
+
+def main(argv):
+    command = argv[0] if argv else "watch"
+    if command == "watch":
+        watch()
+    elif command == "scan":
+        scan(dry_run="--dry-run" in argv[1:])
+    elif command == "force" and len(argv) > 1 and all(a.isdigit() for a in argv[1:]):
+        if steam_pid():
+            raise SystemExit("Close Steam first: it rewrites config.vdf when it exits.")
+        print("\n".join(add_mappings(argv[1:])) or "Already mapped.")
+    else:
+        raise SystemExit("Usage: omarchy-steam-proton-fallback [watch|scan [--dry-run]|force <appid>...]")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

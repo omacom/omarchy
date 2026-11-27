@@ -380,6 +380,8 @@
   "sshd.keyPaste": "Paste key manually",
   "sshd.publicKeyPrompt": "Public key> ",
   "sshd.removeAuthorizedKeys": "Also remove all authorized SSH keys (%1)?",
+  "steam.protonRestart": "Restarting Steam to run %1 with Proton",
+  "steam.protonSet": "%1 will run with Proton",
   "suspend.availableInMenu": "Suspend now available in system menu",
   "suspend.removedFromMenu": "Suspend removed from system menu",
   "suspend.turnedOffOnMachine": "Suspend is turned off on this machine",

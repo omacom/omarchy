@@ -6,6 +6,7 @@
 set -e
 
 omarchy-lifecycle-dispatch pre-remove steam
+systemctl --user disable --now omarchy-steam-proton-fallback.service 2>/dev/null || true
 omarchy-pkg-drop steam
 
 rm -rf \
