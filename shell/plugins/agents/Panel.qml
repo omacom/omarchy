@@ -1686,6 +1686,9 @@ Panel {
     font.pixelSize: Style.font.bodySmall
     text: "00h 00m"
   }
+  // The share of a meter row its title takes: wide enough for the longest
+  // window name ("Claude/GPT Weekly") without eliding it.
+  readonly property real labelColumnRatio: 0.34
   readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
 
   // ------------------------------------------------------------------ spend
@@ -2723,7 +2726,7 @@ Panel {
 
         Text {
           id: installTitle
-          width: parent.width * 0.3
+          width: parent.width * root.labelColumnRatio
           anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
           text: Commons.I18n.t("agents.installingMeter")
@@ -3435,7 +3438,7 @@ Panel {
       Text {
         id: balanceTitle
         textFormat: Text.PlainText
-        width: parent.width * 0.3
+        width: parent.width * root.labelColumnRatio
         anchors.verticalCenter: parent.verticalCenter
         text: Commons.I18n.t("agents.balance")
         color: root.foreground
@@ -3479,7 +3482,7 @@ Panel {
       Text {
         id: spendTitle
         textFormat: Text.PlainText
-        width: parent.width * 0.3
+        width: parent.width * root.labelColumnRatio
         anchors.verticalCenter: parent.verticalCenter
         text: section.spend && section.spend.cap > 0 ? Commons.I18n.t("agents.spendThisMonth") : Commons.I18n.t("agents.spendLast30Days")
         color: root.foreground
@@ -3669,7 +3672,7 @@ Panel {
     Text {
       id: meterTitle
       visible: meterRow.titled
-      width: meterRow.barless ? parent.width : parent.width * 0.3
+      width: meterRow.barless ? parent.width : parent.width * root.labelColumnRatio
       anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       text: meterRow.meter ? meterRow.meter.title : ""
@@ -3805,7 +3808,7 @@ Panel {
     Text {
       id: compactTitle
       textFormat: Text.PlainText
-      width: parent.width * 0.3
+      width: parent.width * root.labelColumnRatio
       anchors.verticalCenter: parent.verticalCenter
       text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground
