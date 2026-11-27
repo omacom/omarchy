@@ -1,29 +1,29 @@
-# Omarchy پر...
+# Omarchy ... پر
 
-### Apple M1/M2 چپس
+### Apple Silicon Macs
 
-[Asahi Alarm](https://asahi-alarm.org/) Apple M1/M2 کمپیوٹرز کے لیے Arch کا ایک ورژن ہے جو [Asahi Linux](https://asahilinux.org/) پر بنا ہے۔ آپ کچھ محنت سے اس کے اوپر Omarchy چلا سکتے ہیں۔ [صارف کی چلائی ہوئی گائیڈ](https://github.com/omarchy-mac/omarchy-mac) دیکھیں۔
+Apple Silicon کے لیے Omarchy، M1، M2 اور M3 Macs پر چلتا ہے اور macOS کے ساتھ ساتھ انسٹال ہو جاتا ہے۔ Mac سپورٹ کے باب میں [Apple Silicon کے لیے Omarchy](44-mac-support.md#omarchy-for-apple-silicon) دیکھیں۔
 
-### Apple ورچوئل مشین
+### Mac پر Omarchy آزمائیں
 
-آپ Omarchy کو Parallels VM کے اندر بھی انسٹال کر سکتے ہیں۔ کافی دشوار عمل ہے، لیکن اس کے لیے بھی [صارف کی چلائی ہوئی گائیڈ](https://github.com/omacom/omarchy/discussions/452) موجود ہے۔
+[Omarchy آزمائیں](https://github.com/omacom/try-omarchy) macOS 15 یا اس سے نئے ورژن والے کسی بھی Apple Silicon Mac پر ورچوئل مشین میں Omarchy چلاتا ہے، جس میں macOS کے ساتھ ساتھ نہ کچھ پارٹیشن کرنا پڑتا ہے اور نہ کچھ انسٹال کرنا پڑتا ہے۔
 
 ### VirtualBox
 
-VirtualBox ایک مقبول VM رنر ہے۔ [آپ اس کے اندر بھی Omarchy چلا سکتے ہیں](https://github.com/omacom/omarchy/discussions/176)۔ لیکن کارکردگی شاید عظیم نہ ہو۔
+VirtualBox ایک مقبول VM رنر ہے۔ [آپ اس کے اندر بھی Omarchy چلا سکتے ہیں](https://github.com/omacom/omarchy/discussions/176)۔ لیکن کارکردگی شاید زیادہ اچھی نہیں ہوگی۔
 
 ### Windows 11 پر VMware Workstation
 
-Windows کے لیے ایک اور مقبول VM رنر۔ [Omarchy اس کے اندر بھی لگایا گیا ہے](https://github.com/omacom/omarchy/discussions/572)۔
+Windows کے لیے ایک اور مقبول VM رنر۔ [Omarchy اس کے اندر بھی سیٹ اپ کیا جا چکا ہے](https://github.com/omacom/omarchy/discussions/572)۔
 
 ### Steam Deck
 
-Steam Deck Arch پر چلتا ہے، جس کا مطلب ہے کہ آپ اپنے Steam Deck پر Omarchy چلا سکتے ہیں۔ Altynbek Orumbayev کے پاس [اسے کرنے کے طریقے پر ایک مکمل سیٹ اپ اسکرپٹ اور وضاحت](https://github.com/aorumbayev/deckarchy) موجود ہے۔ یہ کتنا دلچسپ ہے!
+Steam Deck، Arch پر چلتا ہے، جس کا مطلب ہے کہ آپ اپنے Steam Deck پر Omarchy چلا سکتے ہیں۔ Altynbek Orumbayev کے پاس [اسے کرنے کے طریقے کی مکمل سیٹ اپ اسکرپٹ اور وضاحت](https://github.com/aorumbayev/deckarchy) موجود ہے۔ یہ کتنا زبردست ہے!
 
 ### NixOS
 
-Omarchy واقعی Arch + Hyprland ہے، لیکن Henry Sipp نے [سیٹ اپ کا جوہر NixOS میں منتقل](https://github.com/henrysipp/omarchy-nix) کر دیا ہے۔ لہٰذا اگر آپ کو nix کی گولی لگ گئی ہے تو یہاں ایک اچھا ابتدائی نقطہ ہے۔ یہ تازہ ترین Omarchy تبدیلیوں کے ساتھ تازہ رہ بھی سکتا ہے یا نہیں بھی، لیکن پھر بھی یہ کافی دلچسپ ہے!
+Omarchy دراصل Arch + Hyprland ہے، لیکن Henry Sipp نے [سیٹ اپ کے جوہر کو NixOS پر پورٹ کیا ہے](https://github.com/henrysipp/omarchy-nix)۔ تو اگر آپ nix-pilled ہو چکے ہیں، تو یہ ایک اچھا نقطۂ آغاز ہے۔ یہ تازہ ترین Omarchy تبدیلیوں کے ساتھ اپ ٹو ڈیٹ رہ بھی سکتا ہے اور نہیں بھی، لیکن بہرحال یہ کافی زبردست ہے!
 
 ### کچھ اور!
 
-اگر آپ Omarchy کو ایسی کنفگریشن پر چلانے کی کوشش کر رہے ہیں جو طے شدہ نہیں ہے تو آپ کو [ہماری کمیونٹی Discord](https://discord.gg/tXFUdasqhY) پر #omarchy-on-other چینل میں شامل ہونا چاہیے۔
+اگر آپ Omarchy کو کسی ایسی کنفیگریشن پر چلانے کی کوشش کر رہے ہیں جو ڈیفالٹ نہیں ہے، تو آپ کو [ہماری کمیونٹی Discord](https://discord.gg/tXFUdasqhY) پر #omarchy-on-other چینل میں شامل ہونا چاہیے۔

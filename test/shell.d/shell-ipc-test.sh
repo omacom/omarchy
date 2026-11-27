@@ -68,6 +68,14 @@ pass "shell IPC targets the newest live Quickshell instance of this config"
 # Display recovery: qs matches instances by display.
 display_run="$test_tmp/display-run"
 mkdir -p "$display_run"
+
+output=$(runtime="$display_run" display="" shell_call lock status 2>&1) && fail "shell ipc fails when no Wayland display exists"
+[[ $output == "omarchy-shell is not running" && ! -s $calls ]] ||
+  fail "shell ipc fails without starting qs when no Wayland display exists" "output: $output, calls: $(<"$calls")"
+runtime="$display_run" display="" shell_call -q lock status && [[ ! -s $calls ]] ||
+  fail "quiet shell ipc exits cleanly without starting qs when no Wayland display exists"
+pass "shell ipc skips qs when no Wayland display exists"
+
 touch "$display_run/wayland-1" "$display_run/wayland-1.lock"
 
 output=$(runtime="$display_run" display="" shell_call omarchy.indicators refresh)
@@ -228,6 +236,27 @@ first.target = 'omarchy.monitor'
 handlers.splice(0, 1)
 assert(leads(second, 0), 'the next handler takes over when the leader goes')
 assert(!leads(first, 0), 'a handler the registry no longer knows does not lead')
+
+// omarchy-shell hands every argument over the socket as text, and a bool
+// parameter takes the text "false" as true, so no IPC function declares one:
+// a flag arrives as "true" or "false" and is compared as text.
+const qmlFiles = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+  entry.isDirectory() ? qmlFiles(path.join(dir, entry.name)) : entry.name.endsWith('.qml') ? [path.join(dir, entry.name)] : [])
+const boolParams = qmlFiles(path.join(root, 'shell')).flatMap(file => {
+  const source = fs.readFileSync(file, 'utf8')
+  const found = []
+  for (let at = source.indexOf('ShellIpc {'); at >= 0; at = source.indexOf('ShellIpc {', at + 1)) {
+    let depth = 0, end = at
+    for (let i = source.indexOf('{', at); i < source.length; i++) {
+      if (source[i] === '{') depth++
+      else if (source[i] === '}' && --depth === 0) { end = i; break }
+    }
+    for (const match of source.slice(at, end).matchAll(/function (\w+)\([^)]*:\s*bool\b/g))
+      found.push(path.relative(root, file) + ' ' + match[1])
+  }
+  return found
+})
+assertDeepEqual(boolParams, [], 'no shell IPC function takes a bool, which the socket would hand over as text')
 JS
 
 # The same takeover in a real Quickshell: two ShellIpc handlers for one

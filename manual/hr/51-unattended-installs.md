@@ -1,36 +1,36 @@
 # Instalacije bez nadzora
 
-Omarchy ISO može se instalirati sam, bez ikoga za tipkovnicom. Ako instalacijski program pronađe drugi disk s oznakom `cidata` na kojem se nalaze njegove konfiguracijske datoteke, kopirat će ih, u potpunosti preskočiti čarobnjaka za postavljanje i samostalno se ponovno pokrenuti u dovršeni sustav. Nije potrebna posebna izrada ISO-a niti dodatna stavka u izborniku za pokretanje — ako takav disk nije priključen, ništa se ne mijenja i dobivate uobičajenog čarobnjaka.
+Omarchy ISO može se instalirati sam, bez ikoga za tipkovnicom. Ako instalacijski program pronađe drugi pogon s oznakom `cidata` koji sadrži njegove konfiguracijske datoteke, kopirat će ih, u potpunosti preskočiti čarobnjak za postavljanje i samostalno se ponovno pokrenuti u dovršeni sustav. Nije potrebna posebna ISO izrada ni dodatna stavka u izborniku pokretanja — bez priključenog takvog pogona ništa se ne mijenja i dobivate uobičajeni čarobnjak.
 
-Zbog toga je Omarchy izvrstan kao osnovna slika za jednokratna razvojna okruženja: stvorite VM u Proxmoxu ili pomoću Packera, pokrenite ga, odšetajte i povežite se putem SSH-a. `cidata` je cloud-init oznaka `NoCloud`, pa svi uobičajeni alati za virtualizaciju već znaju kako priključiti takav disk.
+Zbog toga je Omarchy odličan kao osnovna slika za jednokratna razvojna okruženja: stvorite VM u Proxmox ili pomoću Packer, pokrenite ga, odšetajte i povežite se putem SSH. `cidata` je cloud-init oznaka `NoCloud`, pa svi uobičajeni alati za virtualizaciju već znaju kako priključiti takav pogon.
 
 ## Konfiguracijske datoteke
 
-Te su datoteke upravo ono što zapisuje čarobnjak samog instalacijskog programa, pa je najlakši način da dobijete početni skup da jednom pokrenete interaktivnu instalaciju (recimo u VM-u) i kopirate ono što je zapisao u `/root`:
+Datoteke su upravo one koje zapisuje čarobnjak samog instalacijskog programa, pa je najlakši način da dobijete početni skup pokrenuti jednu interaktivnu instalaciju (u VM-u, recimo) i kopirati ono što je zapisao u `/root`:
 
 | Datoteka | Obvezno | Svrha |
 |------|----------|---------|
-| `user_configuration.json` | Da | Disk, hostname, vremenska zona, tipkovnica |
-| `user_credentials.json` | Da | Korisničko ime i hash lozinke |
+| `user_configuration.json` | Da | Disk, naziv računala, vremenska zona, tipkovnica |
+| `user_credentials.json` | Da | Korisničko ime i hash lozinke te LUKS lozinka za šifriranu instalaciju |
 | `user_encrypt_installation.txt` | Ne | `true` kada konfiguracija sadrži blok `disk_encryption` |
 | `authorized_keys` | Ne | SSH javni ključevi, jedan po retku |
-| `tailscale_authkey` | Ne | Tailscale ključ za autentifikaciju za pridruživanje vašem tailnetu pri prvom pokretanju |
+| `tailscale_authkey` | Ne | Tailscale autorizacijski ključ za pridruživanje vašem tailnetu pri prvom pokretanju |
 
-Hash lozinke za `user_credentials.json` generirajte pomoću `openssl passwd -6 "yourpassword"`.
+Generirajte hash lozinke za `user_credentials.json` pomoću `openssl passwd -6 "yourpassword"`.
 
-Ime i e-pošta za git commitove nisu dio instalacije. Postavite ih nakon što se računalo pokrene, primjerice putem SSH-a, pomoću `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+Ime i e-pošta za git commitove nisu dio instalacije. Postavite ih nakon što se računalo pokrene, primjerice putem SSH, pomoću `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-Možete i umjesto `user_credentials.json` ubaciti praznu datoteku pod nazivom `defer-provisioning`. Time se pokreće ista [instalacija s pripremom za drugog vlasnika](02-getting-started.md) koju možete pokrenuti interaktivno: računalo se instalira bez ikakvih osobnih podataka, a tko god ga prvi pokrene, odabire svoju tipkovnicu i stvara svog korisnika. To je način rada za postrojenja za izradu slika, na kojima disk uopće ne bi trebao nositi ničije vjerodajnice.
+Možete ubaciti i praznu datoteku pod nazivom `defer-provisioning` umjesto `user_credentials.json`. Time se pokreće ista [instalacija s pripremom za drugog vlasnika](02-getting-started.md) koju možete interaktivno pokrenuti: računalo se instalira bez osobnih podataka, a tko ga prvi pokrene, odabire svoju tipkovnicu i stvara svog korisnika. To je način rada za postaje za izradu slika, gdje pogon uopće ne bi trebao sadržavati ničije vjerodajnice.
 
-## Pristup putem SSH-a
+## SSH pristup
 
-Kada je prisutan `authorized_keys`, instalacija postavlja ključeve kao korisnikov `~/.ssh/authorized_keys`, omogućuje `sshd` i otvara vatrozid za njega. (Uobičajena instalacija Omarchyja isporučuje openssh s onemogućenom uslugom i zatvorenim portom, pa bi računalo bez nadzora inače bilo nedostupno.) Instalacija samo dodaje vaše ključeve — ne olabavljuje nijednu drugu postavku autentifikacije SSH daemona.
+Kada je `authorized_keys` prisutan, instalacija postavlja ključeve kao korisnikovu datoteku `~/.ssh/authorized_keys`, omogućuje `sshd` i otvara vatrozid za njega. (Standardna Omarchy instalacija isporučuje openssh s onemogućenim servisom i zatvorenim portom, pa bi nenadzirano računalo inače bilo nedostupno.) Instalacija samo dodaje vaše ključeve — ne ublažava nijednu drugu postavku autentifikacije SSH demona.
 
-Kada je prisutan `tailscale_authkey`, računalo se pri prvom pokretanju umjesto toga pridružuje vašem tailnetu: Tailscale se instalira iz paketa priloženih uz ISO, vatrozid dopušta sučelje tailneta, a pozadinski posao pokreće pridruživanje čim računalo doista dobije mrežu, ponavljajući pokušaje dok ne uspije. Upotrijebite višekratni, unaprijed autorizirani ključ kako bi jedna slika diska mogla poslužiti za mnoga računala.
+Kada je `tailscale_authkey` prisutan, računalo se umjesto toga pri prvom pokretanju pridružuje vašem tailnetu: Tailscale se instalira iz paketa priloženih uz ISO, vatrozid dopušta sučelje tailneta, a pozadinski zadatak pokreće pridruživanje čim računalo doista dobije mrežu, ponavljajući pokušaje dok ne uspije. Upotrijebite višekratni, unaprijed autorizirani ključ kako bi jedna slika pogona mogla poslužiti za mnoga računala.
 
 ## Izrada cidata pogona
 
-Bilo koji datotečni sustav s pravom oznakom funkcionirat će. Maleni ISO jednostavan je način:
+Radi svaki datotečni sustav s pravom oznakom. Mali ISO je jednostavan način:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Zatim ga priključite u VM uz Omarchy ISO. Evo potpunog primjera za Proxmox:
+Zatim ga priključite VM-u uz Omarchy ISO. Evo potpunog Proxmox primjera:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Redoslijed pokretanja namjerno prvo navodi disk: prazan disk pri prvom pokretanju propada do ISO-a, a instalirani sustav od tada se uvijek pokreće s diska.
+Redoslijed pokretanja namjerno prvo navodi disk: prazni disk pri prvom pokretanju preskače na ISO, a instalirani sustav od tada se uvijek pokreće s diska.
 
 ## Dva upozorenja
 
-Šifrirane instalacije bez nadzora nisu u potpunosti bez nadzora — netko ipak mora upisati LUKS lozinku pri prvom pokretanju. A blok `disk_encryption` u `user_configuration.json` tu lozinku nosi u običnom tekstu, pa cidata pogon izrađen na temelju šifrirane instalacije tretirajte kao tajnu, što i jest.
+Šifrirane instalacije bez nadzora nisu u potpunosti bez nadzora — netko ipak mora upisati LUKS lozinku pri prvom pokretanju. A ta lozinka ide na najvišu razinu datoteke `user_credentials.json` kao `encryption_password` — archinstall je čita ondje, a ne iz bloka `disk_encryption` u datoteci `user_configuration.json` — pa cidata pogon izrađen iz šifrirane instalacije tretirajte kao tajnu, što i jest.

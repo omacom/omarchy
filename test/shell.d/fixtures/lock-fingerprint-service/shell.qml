@@ -34,6 +34,14 @@ ShellRoot {
     throw new Error("Missing resume watch")
   }
 
+  function wakeProcess(service) {
+    var objects = service.data || []
+    for (var i = 0; i < objects.length; i++) {
+      if (String(objects[i].command || "").indexOf("omarchy-system-wake") !== -1) return objects[i]
+    }
+    throw new Error("Missing wake process")
+  }
+
   function run() {
     var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/lock/Service.qml", Component.PreferSynchronous)
     if (component.status !== Component.Ready) throw new Error(component.errorString())
@@ -214,10 +222,14 @@ ShellRoot {
       }
       check(!resumeTimer.running && service.fingerprintPaused && !retry.running, "a repeated lock with no sleep, as the idle service makes, leaves the reader paused")
 
+      // Likewise the wake, stood in for by a command that touches nothing.
+      var wake = wakeProcess(service)
+      wake.command = ["true"]
       service.noteSleepRequested()
       resumeTimer.lastTickMs = Date.now() - 60000
       resumeTimer.triggered()
       blankTimer.stop()
+      check(wake.running, "a resume lights a panel that was blank before the sleep")
       check(!resumeTimer.running, "the watch ends once it sees the sleep")
       check(!service.fingerprintPaused, "a resume with no input still brings the reader back")
       check(retry.running && retry.interval === 250, "a wake after a sleep while blank recovers at once")
