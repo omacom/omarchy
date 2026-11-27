@@ -200,7 +200,7 @@ done
 
 case "$1" in
 /bin/bash)
-  [[ ${2:-} == -c && $# == 9 ]] || exit 90
+  [[ ${2:-} == -c && $# == 10 ]] || exit 90
   code=$3
   shell_name=$4
   shift 4
@@ -473,6 +473,53 @@ batch_fresh_and_migrated() {
   done
 
   pass "a fresh installation receives complete mode-0644 Plymouth and SDDM theme files across restrictive umasks"
+
+  # A built-in theme is published by name. The transaction reads its unlock.png
+  # from the Omarchy tree under the same trust as the packaged assets, so
+  # nothing is opened on the caller's behalf.
+  set_built_in() {
+    run_in_fake_root 022 "$@" /bin/bash "$ROOT/bin/omarchy-plymouth-set" '#1d2021' '#ebdbb2' --theme tokyo-night
+  }
+
+  setup_fresh_run
+  output=$(set_built_in env 2>&1)
+  status=$?
+  (( status == 0 )) || fail "a built-in theme is published by name" "$output"
+  cmp -s "$ROOT/themes/tokyo-night/unlock.png" "$theme/logo.png" || fail "Plymouth receives the built-in theme's logo"
+  cmp -s "$ROOT/themes/tokyo-night/unlock.png" "$sddm/logo.png" || fail "SDDM receives the built-in theme's logo"
+  grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "a user publishing a built-in theme rebuilds the initramfs"
+
+  setup_fresh_run
+  output=$(set_built_in env TEST_UNTRUSTED_SOURCE="$ROOT/themes/tokyo-night/unlock.png" 2>&1)
+  status=$?
+  (( status != 0 )) || fail "a built-in theme's logo must pass the packaged-asset trust checks"
+  cmp -s "$ROOT/default/plymouth/logo.png" "$theme/logo.png" || fail "an untrusted built-in logo leaves the published one alone"
+
+  for name in ../tokyo-night Tokyo-Night 'tokyo night' ''; do
+    if run_in_fake_root 022 env /bin/bash "$ROOT/bin/omarchy-plymouth-set" '#1d2021' '#ebdbb2' --theme "$name" >/dev/null 2>&1; then
+      fail "a built-in theme is named by its folder alone" "accepted: '$name'"
+    fi
+  done
+  pass "a built-in theme's logo is published from the trusted Omarchy tree"
+
+  # Hardware setup runs as root, where only a built-in theme is accepted, and
+  # leaves the boot image to the install: an image's first boot is asked for
+  # the rebuild and nothing is rebuilt here.
+  if unshare --user --map-root-user true 2>/dev/null; then
+    setup_fresh_run
+    rebuild_request="$run_dir/boot-rebuild"
+    output=$(set_built_in unshare --user --map-root-user env OMARCHY_IMAGE_BOOT_REBUILD="$rebuild_request" 2>&1)
+    status=$?
+    (( status == 0 )) || fail "root publishes a built-in theme" "$output"
+    cmp -s "$ROOT/themes/tokyo-night/unlock.png" "$theme/logo.png" || fail "root publishes the built-in theme's logo"
+    [[ -e $rebuild_request ]] || fail "root asks an image's first boot for the rebuild"
+    if grep -Eq 'command (mkinitcpio|omarchy-boot-rebuild)' "$sudo_log"; then
+      fail "root leaves the boot image rebuild to the install" "$(cat "$sudo_log")"
+    fi
+    pass "hardware setup publishes a built-in theme as root without rebuilding the boot image"
+  else
+    skip "no unprivileged user namespace; skipping the root publication probe"
+  fi
 
   # An upgraded machine may already contain restrictive modes, destination
   # symlinks, and the legacy SDDM logo. Setting a theme must replace only the

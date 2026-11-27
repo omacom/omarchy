@@ -14,7 +14,12 @@ fi
 
 theme=$1
 
-theme_dir=$(omarchy-theme-dir "$theme")
+# Hardware setup runs as root and only ever means the built-in theme.
+if (( EUID == 0 )); then
+  theme_dir="$OMARCHY_PATH/themes/$theme"
+else
+  theme_dir=$(omarchy-theme-dir "$theme")
+fi
 
 theme_color() {
   local key="$1"
@@ -50,4 +55,9 @@ theme_color() {
 bg=$(theme_color background)
 text=$(theme_color foreground)
 
-exec omarchy-plymouth-set "$bg" "$text" "$theme_dir/unlock.png"
+# A built-in theme's logo is read from the Omarchy tree by the publisher itself.
+if [[ $theme_dir == "$OMARCHY_PATH/themes/$theme" ]]; then
+  exec omarchy-plymouth-set "$bg" "$text" --theme "$theme"
+else
+  exec omarchy-plymouth-set "$bg" "$text" "$theme_dir/unlock.png"
+fi
