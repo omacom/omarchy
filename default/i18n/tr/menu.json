@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Bu Anlık Görüntüyü Geri Yükle"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Parolasız Giriş"
   }
 }

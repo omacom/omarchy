@@ -98,6 +98,7 @@ omarchy_leaf_platform() {
       hardware/asus/fix-asus-zenbook-a16-firmware.sh | \
       hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh | \
       hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh | \
+      hardware/asus/fix-asus-zenbook-14-ux3480qa-power.sh | \
       hardware/asus/fix-asus-zenbook-a14-boot.sh | \
       hardware/asus/fix-asus-proart-pz13-speakers.sh | \
       hardware/asus/fix-asus-vivobook-s15-boot.sh | \

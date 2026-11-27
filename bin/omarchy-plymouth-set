@@ -1,22 +1,29 @@
 #!/bin/bash
 
 # omarchy:summary=Set the Plymouth boot theme colors and logo
-# omarchy:args=<background-hex> <text-hex> <path-to-logo.png>
-# omarchy:examples=omarchy plymouth set '#1d2021' '#ebdbb2' ~/.local/state/omarchy/current/theme/plymouth/logo.png
+# omarchy:args=<background-hex> <text-hex> <path-to-logo.png>|--theme <built-in-theme>
+# omarchy:examples=omarchy plymouth set '#1d2021' '#ebdbb2' ~/.local/state/omarchy/current/theme/plymouth/logo.png | omarchy plymouth set '#1a1b26' '#a9b1d6' --theme tokyo-night
 # omarchy:requires-sudo=true
 
 set -euo pipefail
 
 # Build the authoritative theme in a root-owned directory, then publish each
 # fixed destination atomically. The caller opens the selected logo before sudo,
-# so the privileged process never resolves a user-controlled input path.
+# so the privileged process never resolves a user-controlled input path. A
+# built-in theme named with --theme has no such path: its logo is read from the
+# Omarchy tree inside the transaction.
 
 usage() {
   echo "Usage: omarchy-plymouth-set <background-hex> <text-hex> <path-to-logo.png>" >&2
+  echo "       omarchy-plymouth-set <background-hex> <text-hex> --theme <built-in-theme>" >&2
   exit 1
 }
 
-if (( $# == 3 )); then
+theme=
+if (( $# == 4 )) && [[ $3 == "--theme" && $4 =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  mode=set
+  theme=$4
+elif (( $# == 3 )); then
   mode=set
 elif (( $# == 1 )); then
   case "$1" in
@@ -35,8 +42,12 @@ else
 fi
 
 if (( EUID == 0 )); then
-  echo "Error: run omarchy-plymouth-set as your user, not under sudo." >&2
-  exit 1
+  # Hardware setup runs as root and may publish a built-in theme. A logo path
+  # opened as root would be resolved with privilege, so that form stays refused.
+  if [[ -z $theme ]]; then
+    echo "Error: run omarchy-plymouth-set as your user, not under sudo." >&2
+    exit 1
+  fi
 fi
 
 logo_fd=
@@ -46,7 +57,6 @@ if [[ $mode != "set" ]]; then
 else
   bg_hex="${1#\#}"
   text_hex="${2#\#}"
-  logo_path="$3"
 
   if ! [[ $bg_hex =~ ^[0-9a-fA-F]{6}$ ]]; then
     echo "Invalid background color: $1 (expected #RRGGBB)" >&2
@@ -58,25 +68,29 @@ else
     exit 1
   fi
 
-  if [[ ! -f $logo_path ]]; then
-    echo "Logo file not found: $logo_path" >&2
-    exit 1
-  fi
+  if [[ -z $theme ]]; then
+    logo_path="$3"
 
-  if [[ -L $logo_path ]]; then
-    echo "Logo file is a symlink, which is not accepted: $logo_path" >&2
-    exit 1
-  fi
+    if [[ ! -f $logo_path ]]; then
+      echo "Logo file not found: $logo_path" >&2
+      exit 1
+    fi
 
-  # Open the logo while still unprivileged. A replacement symlink to a root-only
-  # file therefore fails here instead of being followed after sudo starts.
-  if ! exec {logo_fd}<"$logo_path"; then
-    echo "Unable to open logo file as the current user: $logo_path" >&2
-    exit 1
-  fi
-  if [[ ! -f /proc/$$/fd/$logo_fd ]]; then
-    echo "Logo input is no longer a regular file: $logo_path" >&2
-    exit 1
+    if [[ -L $logo_path ]]; then
+      echo "Logo file is a symlink, which is not accepted: $logo_path" >&2
+      exit 1
+    fi
+
+    # Open the logo while still unprivileged. A replacement symlink to a root-only
+    # file therefore fails here instead of being followed after sudo starts.
+    if ! exec {logo_fd}<"$logo_path"; then
+      echo "Unable to open logo file as the current user: $logo_path" >&2
+      exit 1
+    fi
+    if [[ ! -f /proc/$$/fd/$logo_fd ]]; then
+      echo "Logo input is no longer a regular file: $logo_path" >&2
+      exit 1
+    fi
   fi
 fi
 
@@ -106,9 +120,11 @@ run_root_transaction() {
     bg_hex=$3
     text_hex=$4
     max_asset_size=$5
+    theme=$6
 
     failure_context="the arguments of the privileged transaction"
     [[ $mode == "set" || $mode == "refresh-plymouth" || $mode == "refresh-sddm" ]]
+    [[ -z $theme || ($mode == "set" && $theme =~ ^[a-z0-9][a-z0-9-]*$) ]]
     [[ $source_root == /* ]]
     [[ $max_asset_size =~ ^[0-9]+$ ]]
     (( max_asset_size > 0 ))
@@ -268,10 +284,15 @@ run_root_transaction() {
     done
 
     if [[ $mode == "set" ]]; then
-      # stdin was opened by the unprivileged caller. Read no more than the
-      # documented limit into the root-owned stage before doing other work.
-      failure_context="the selected logo (expected 1 to $max_asset_size bytes)"
-      head -c "$((max_asset_size + 1))" >"$plymouth_stage/logo.png"
+      if [[ -n $theme ]]; then
+        # A built-in theme is held to the same trust as the packaged assets.
+        copy_trusted_file "$source_root/themes/$theme/unlock.png" "$plymouth_stage/logo.png"
+      else
+        # stdin was opened by the unprivileged caller. Read no more than the
+        # documented limit into the root-owned stage before doing other work.
+        failure_context="the selected logo (expected 1 to $max_asset_size bytes)"
+        head -c "$((max_asset_size + 1))" >"$plymouth_stage/logo.png"
+      fi
       logo_size=$(stat -c %s -- "$plymouth_stage/logo.png")
       (( logo_size > 0 && logo_size <= max_asset_size ))
       chown 0:0 -- "$plymouth_stage/logo.png"
@@ -361,10 +382,10 @@ run_root_transaction() {
       validate_trusted_directory "$sddm_dir"
       rm -f -- "$sddm_dir/logo.svg"
     fi
-  ' bash "$mode" "$OMARCHY_PATH" "$bg_hex" "$text_hex" "$((64 * 1024 * 1024))"
+  ' bash "$mode" "$OMARCHY_PATH" "$bg_hex" "$text_hex" "$((64 * 1024 * 1024))" "$theme"
 }
 
-if [[ $mode == "set" ]]; then
+if [[ $mode == "set" && -z $theme ]]; then
   run_root_transaction <&"$logo_fd"
 else
   run_root_transaction </dev/null
@@ -373,7 +394,10 @@ fi
 if [[ $mode != "refresh-sddm" ]]; then
   sudo plymouth-set-default-theme omarchy
 
-  if [[ $(omarchy-boot-backend) == none ]]; then
+  if (( EUID == 0 )); then
+    # Hardware setup builds the boot image itself, after its last step.
+    echo "Boot image not rebuilt: the unlock screen changes at the next omarchy-boot-rebuild"
+  elif [[ $(omarchy-boot-backend) == none ]]; then
     sudo mkinitcpio -P
   else
     sudo omarchy-boot-rebuild

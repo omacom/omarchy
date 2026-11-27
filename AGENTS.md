@@ -14,6 +14,7 @@ matching guide before starting:
 - [`agents/skills/visual-verification.md`](agents/skills/visual-verification.md) - verifying any change with a visual effect in the running UI
 - [`agents/skills/migrations.md`](agents/skills/migrations.md) - creating or changing migrations under `migrations/`
 - [`agents/skills/audio-tuning.md`](agents/skills/audio-tuning.md) - authoring, measuring, and verifying laptop speaker tunings under `default/audio/tunings/`
+- [`agents/skills/snapdragon-power-tuning.md`](agents/skills/snapdragon-power-tuning.md) - tuning active/idle power and deep sleep (`s2idle` / `deep`) on Qualcomm Snapdragon laptops
 
 # Documentation Layout
 
