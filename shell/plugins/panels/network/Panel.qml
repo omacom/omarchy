@@ -334,19 +334,33 @@ Panel {
 
     scannerDevice = nextDevice
 
-    if (scannerDevice)
+    if (scannerDevice && scannerDevice.scannerEnabled !== enabled)
       scannerDevice.scannerEnabled = enabled
   }
 
+  function otherPanelOpen() {
+    if (!bar || typeof bar.moduleWidgets !== "function") return false
+    var peers = bar.moduleWidgets(moduleName)
+    for (var i = 0; i < peers.length; i++)
+      if (peers[i] && peers[i] !== root && peers[i].opened === true) return true
+    return false
+  }
+
+  function releaseScanner() {
+    if (!scannerDevice) return
+    if (otherPanelOpen()) scannerDevice = null
+    else setScannerEnabled(false)
+  }
+
   Component.onDestruction: {
-    if (scannerDevice) scannerDevice.scannerEnabled = false
+    if (scannerDevice && !otherPanelOpen()) scannerDevice.scannerEnabled = false
   }
 
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
-      refresh(true)
+      refresh(!(wifiDevice && wifiDevice.scannerEnabled))
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -370,7 +384,11 @@ Panel {
       routerPingLatency = -1
       internetPingLatency = -1
       internetPingPacketLoss = 0
-      setScannerEnabled(false)
+      // Quickshell's WifiDevice.scannerEnabled write is synchronous on D-Bus
+      // (~80-100ms), so wait for KeyboardPanel's close fade to finish
+      // (panel.onVisibleChanged) before releasing it; release now only if the
+      // panel is already hidden.
+      if (!panel.visible) releaseScanner()
     }
   }
 
@@ -1296,6 +1314,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    onVisibleChanged: if (!visible && !root.opened) root.releaseScanner()
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
