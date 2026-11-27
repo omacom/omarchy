@@ -12,6 +12,7 @@ require_command lua
 # themselves rather than leaving the pass below to run regardless.
 OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
 local rules, handlers, spawned = {}, {}, {}
+local dispatched = {}
 local monitor = nil
 local workspace = nil
 
@@ -27,9 +28,16 @@ hl = {
   get_workspace_windows = function()
     local list = {}
     for _ = 1, workspace and workspace.windows or 0 do table.insert(list, { floating = false }) end
-    for _ = 1, workspace and workspace.floats or 0 do table.insert(list, { floating = true }) end
+    for _ = 1, workspace and workspace.floats or 0 do
+      table.insert(list, workspace.float or { floating = true })
+    end
     return list
   end,
+  dispatch = function(action) table.insert(dispatched, action) end,
+  dsp = { window = {
+    resize = function(args) return { action = "resize", args = args } end,
+    center = function(args) return { action = "center", args = args } end,
+  } },
   exec_scheduled_prop_refresh_immediately = function() end,
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
@@ -282,5 +290,44 @@ assert(left == 435 and right == 435, "moving it back off recenters the panel")
 -- window.close still counts the window on its way out, and window.destroy
 -- follows it with the settled count, so only destroy is hooked.
 assert(handlers["window.close"] == nil, "window.close counts the window on its way out")
+
+local laptop = { x = -1280, y = 0, width = 2560, height = 1600, scale = 2, transform = 0, reserved = { top = 26, bottom = 0, left = 0, right = 0 } }
+local floating = { floating = true, mapped = true, monitor = dell, size = { x = 3440, y = 600 }, at = { x = -1300, y = 0 } }
+workspace = { name = "special:qconsole", visible = false, monitor = laptop, floats = 1, float = floating }
+monitor = laptop
+handlers["monitor.focused"]()
+assert(#dispatched == 0, "a hidden console is not shrunk when another monitor gets focus")
+
+workspace.visible = true
+handlers["workspace.special_active"](workspace, laptop)
+assert(#dispatched == 0, "a window still assigned to its old output is left there")
+
+floating.monitor = laptop
+handlers["workspace.special_active"](workspace, laptop)
+assert(#dispatched == 2 and dispatched[1].action == "resize" and dispatched[2].action == "center",
+  "opening the console on a smaller monitor shrinks and centers the oversized float")
+local resize = dispatched[1].args
+assert(resize.window == floating and resize.relative == false and resize.x == 1280 and resize.y == 600,
+  "the resize uses logical pixels and keeps the dimension that already fits")
+assert(dispatched[2].args.window == floating, "the resized window is the one centered")
+
+dispatched = {}
+floating.size = { x = 640, y = 780 }
+handlers["layer.opened"]({ namespace = "omarchy-bar" })
+assert(#dispatched == 2 and dispatched[1].args.x == 640 and dispatched[1].args.y == 774,
+  "a bar that opens later reduces the maximum height of a floating console")
+
+dispatched = {}
+floating.size = { x = 640, y = 500 }
+handlers["window.update_rules"]()
+assert(#dispatched == 0, "unrelated rule changes leave the position of a float alone")
+handlers["workspace.special_active"](workspace, laptop)
+assert(#dispatched == 1 and dispatched[1].action == "center",
+  "a clipped float that fits the work area is centered on arrival without resizing")
+
+dispatched = {}
+floating.at = { x = -1000, y = 100 }
+handlers["workspace.special_active"](workspace, laptop)
+assert(#dispatched == 0, "a floating console already inside the work area is left in place")
 LUA
 pass "the console is a centered panel until a second app joins it"
