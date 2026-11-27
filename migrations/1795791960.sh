@@ -9,7 +9,7 @@ removed=false
 
 # The upgrade from Omarchy 3 runs migrations without mise's shims on PATH, and
 # an agent the user's own mise config installs is found only there.
-PATH="$PATH:${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims"
+PATH="$PATH:${MISE_SHIMS_DIR:-${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims}"
 
 for launcher in "$applications"/omarchy-agent-*.desktop; do
   [[ -f $launcher && ! -L $launcher ]] || continue
