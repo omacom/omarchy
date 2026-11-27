@@ -141,7 +141,7 @@
   "default.browserSet": "%1 kini menjadi peramban bawaan",
   "default.chromeOffer": "Beralih ke Google Chrome?",
   "default.chromeOfferBody": "Lebih cepat dan kini menjadi bawaan baru Omarchy, tapi Anda akan keluar dari semua situs.",
-  "default.chromeOfferDismiss": "Tidak Jadi",
+  "default.chromeOfferDismiss": "Jangan Beralih",
   "default.chromeOfferSwitch": "Beralih ke Chrome",
   "default.editorSet": "%1 kini menjadi editor bawaan",
   "default.terminalSet": "%1 kini menjadi terminal bawaan",

@@ -142,7 +142,7 @@
   "default.browserSet": "%1 is nu de standaardbrowser",
   "default.chromeOffer": "Overschakelen naar Google Chrome?",
   "default.chromeOfferBody": "Chrome is sneller en de nieuwe standaard in Omarchy, maar je wordt bij alle sites uitgelogd.",
-  "default.chromeOfferDismiss": "Laat maar",
+  "default.chromeOfferDismiss": "Niet overschakelen",
   "default.chromeOfferSwitch": "Overschakelen naar Chrome",
   "default.editorSet": "%1 is nu de standaardeditor",
   "default.terminalSet": "%1 is nu de standaardterminal",

@@ -143,7 +143,7 @@
   "default.browserSet": "%1 je sada zadani preglednik",
   "default.chromeOffer": "Prijeći na Google Chrome?",
   "default.chromeOfferBody": "Brži je i novi je zadani preglednik u Omarchyju, ali bit ćete odjavljeni sa svih web-mjesta.",
-  "default.chromeOfferDismiss": "Nema veze",
+  "default.chromeOfferDismiss": "Ne mijenjaj",
   "default.chromeOfferSwitch": "Prijeći na Chrome",
   "default.editorSet": "%1 je sada zadani uređivač",
   "default.terminalSet": "%1 je sada zadani terminal",

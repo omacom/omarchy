@@ -141,7 +141,7 @@
   "default.browserSet": "%1 が既定のブラウザになりました",
   "default.chromeOffer": "Google Chrome に切り替えますか？",
   "default.chromeOfferBody": "より高速で、新しい Omarchy の既定ですが、すべてのサイトからログアウトされます。",
-  "default.chromeOfferDismiss": "やめておく",
+  "default.chromeOfferDismiss": "切り替えない",
   "default.chromeOfferSwitch": "Chrome に切り替える",
   "default.editorSet": "%1 が既定のエディタになりました",
   "default.terminalSet": "%1 が既定のターミナルになりました",

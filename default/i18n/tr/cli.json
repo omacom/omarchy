@@ -142,7 +142,7 @@
   "default.browserSet": "%1 artık varsayılan tarayıcı",
   "default.chromeOffer": "Google Chrome'a geçilsin mi?",
   "default.chromeOfferBody": "Daha hızlı ve Omarchy'nin yeni varsayılanı, ancak tüm sitelerden çıkış yapılacak.",
-  "default.chromeOfferDismiss": "Vazgeç",
+  "default.chromeOfferDismiss": "Geçme",
   "default.chromeOfferSwitch": "Chrome'a Geç",
   "default.editorSet": "%1 artık varsayılan editör",
   "default.terminalSet": "%1 artık varsayılan terminal",

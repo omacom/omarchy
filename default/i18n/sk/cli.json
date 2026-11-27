@@ -143,7 +143,7 @@
   "default.browserSet": "%1 je teraz predvolený prehliadač",
   "default.chromeOffer": "Prejsť na Google Chrome?",
   "default.chromeOfferBody": "Je rýchlejší a je novým predvoleným prehliadačom v Omarchy, ale odhlási vás zo všetkých stránok.",
-  "default.chromeOfferDismiss": "Zatiaľ nie",
+  "default.chromeOfferDismiss": "Neprepínať",
   "default.chromeOfferSwitch": "Prejsť na Chrome",
   "default.editorSet": "%1 je teraz predvolený editor",
   "default.terminalSet": "%1 je teraz predvolený terminál",

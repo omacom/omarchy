@@ -142,7 +142,7 @@
   "default.browserSet": "%1 এখন ডিফল্ট ব্রাউজার",
   "default.chromeOffer": "Google Chrome-এ স্যুইচ করবেন?",
   "default.chromeOfferBody": "এটি আরও দ্রুত এবং নতুন Omarchy ডিফল্ট, তবে সব সাইট থেকে লগ আউট হয়ে যাবেন।",
-  "default.chromeOfferDismiss": "বাদ দিন",
+  "default.chromeOfferDismiss": "স্যুইচ করবেন না",
   "default.chromeOfferSwitch": "Chrome-এ স্যুইচ করুন",
   "default.editorSet": "%1 এখন ডিফল্ট এডিটর",
   "default.terminalSet": "%1 এখন ডিফল্ট টার্মিনাল",

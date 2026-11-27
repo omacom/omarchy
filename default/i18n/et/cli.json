@@ -142,7 +142,7 @@
   "default.browserSet": "%1 on nüüd vaikebrauser",
   "default.chromeOffer": "Lülitu Google Chrome'ile?",
   "default.chromeOfferBody": "See on kiirem ja Omarchy uus vaikebrauser, aga sind logitakse kõigilt saitidelt välja.",
-  "default.chromeOfferDismiss": "Pole vaja",
+  "default.chromeOfferDismiss": "Ära lülitu",
   "default.chromeOfferSwitch": "Lülitu Chrome'ile",
   "default.editorSet": "%1 on nüüd vaikeredaktor",
   "default.terminalSet": "%1 on nüüd vaiketerminal",

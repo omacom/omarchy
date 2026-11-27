@@ -143,7 +143,7 @@
   "default.browserSet": "%1 ara és el navegador per defecte",
   "default.chromeOffer": "Vols canviar a Google Chrome?",
   "default.chromeOfferBody": "És més ràpid i és el nou navegador per defecte d'Omarchy, però es tancarà la sessió de tots els llocs web.",
-  "default.chromeOfferDismiss": "Deixa-ho estar",
+  "default.chromeOfferDismiss": "No canviïs",
   "default.chromeOfferSwitch": "Canvia a Chrome",
   "default.editorSet": "%1 ara és l'editor per defecte",
   "default.terminalSet": "%1 ara és el terminal per defecte",
