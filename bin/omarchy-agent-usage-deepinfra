@@ -215,18 +215,23 @@ def signed_money(value: Any) -> float:
 
 
 def balance_from_checklist(checklist: dict[str, Any]) -> dict[str, Any]:
-  # Named for, and shaped like, Stripe's own balance: cents, like every other
-  # amount this billing API reports (UsageItem.cost, UsageMonth.total_cost).
-  stripe_balance_cents = signed_money(checklist.get("stripe_balance"))
-  recent_cents = signed_money(checklist.get("recent"))
-  remaining = max(0.0, -stripe_balance_cents) / 100
-  # "recent" (usage since the last invoice) is DeepInfra's own number, so it
-  # stands in for "spent" against this balance -- never a guess, unlike a
-  # lifetime funded figure DeepInfra's API has no way to answer.
-  spent = max(0.0, recent_cents) / 100
+  # Despite the name, Checklist.stripe_balance and .recent are plain dollar
+  # amounts, not cents (unlike UsageItem.cost/UsageMonth.total_cost, which
+  # the API docs say explicitly are in cents). Confirmed live: a $5 prepaid
+  # credit reads back as stripe_balance -5.0, not -500.
+  #
+  # stripe_balance is Stripe's own customer-balance ledger, only settled
+  # when an invoice finalizes -- it does NOT fall as usage happens. "recent"
+  # is exactly the usage accrued since the last invoice that hasn't been
+  # deducted from it yet. So the actual spendable balance right now is the
+  # ledger credit minus that not-yet-settled usage, not the credit alone:
+  # confirmed live against a real $5 account with $0.26 of unsettled recent
+  # usage, whose true remaining balance was $4.74 (5.0 - 0.26), not $5.00.
+  credit = max(0.0, -signed_money(checklist.get("stripe_balance")))
+  spent = max(0.0, signed_money(checklist.get("recent")))
   return {
-    "remaining": remaining,
-    "funded": remaining + spent,
+    "remaining": max(0.0, credit - spent),
+    "funded": credit,
     "spent": spent,
     "currency": "USD",
     # DeepInfra's checklist is always a live read, never an estimate.

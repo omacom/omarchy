@@ -27,7 +27,12 @@ agent_sandbox
 python3 - <<'PY'
 from agent_usage_fixtures import *
 
-BALANCE_CENTS = {"stripe_balance": -500.0, "recent": 125.0}
+# Despite the name, these are plain dollar amounts, not cents -- a real
+# account's $5 prepaid credit reads back as stripe_balance -5.0, not -500.
+# recent is usage since the last invoice, not yet deducted from that
+# ledger: a real account with $0.26 of such usage had a true remaining
+# balance of $4.74, not $5.00.
+BALANCE_DOLLARS = {"stripe_balance": -5.0, "recent": 0.26}
 USAGE_ITEMS = []
 
 
@@ -35,7 +40,7 @@ def checklist(request):
   token = request.get_header("Authorization").split(" ", 1)[1]
   if token != "good-key":
     raise FakeHttp.refusal(request.full_url, 401, b'{"detail":"bad key"}')
-  return {**BALANCE_CENTS, "limit": None, "suspend_reason": None}
+  return {**BALANCE_DOLLARS, "limit": None, "suspend_reason": None}
 
 
 def usage(request):
@@ -91,12 +96,12 @@ expect("a key in deepinfra.json is read the same way", record["ready"], True, re
 sandbox()
 write_key()
 record = deepinfra()
-expect("a negative stripe_balance reads as funds ready to spend, in dollars",
-       record["balance"], {"remaining": 5.0, "funded": 6.25, "spent": 1.25, "currency": "USD", "estimated": False}, record)
+expect("a negative stripe_balance is the ledger credit; recent usage not yet invoiced against it is subtracted, not added",
+       record["balance"], {"remaining": 4.74, "funded": 5.0, "spent": 0.26, "currency": "USD", "estimated": False}, record)
 
-BALANCE_CENTS["stripe_balance"] = 300.0
+BALANCE_DOLLARS["stripe_balance"] = 3.0
 record = deepinfra()
-BALANCE_CENTS["stripe_balance"] = -500.0
+BALANCE_DOLLARS["stripe_balance"] = -5.0
 expect("a positive stripe_balance reads as nothing ready to spend, never negative",
        record["balance"]["remaining"], 0.0, record)
 
