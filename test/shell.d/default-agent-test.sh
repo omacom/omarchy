@@ -170,7 +170,7 @@ cursor_agent_package="cursor-agent"
 muse_package="muse"
 # zycode is the name of the agent, and zypi is its command and its saved name.
 zypi_tool="http:zycode"
-zypi_package="$zypi_tool[platforms_linux_x64_url=https://github.com/zy1233/pi-python/releases/download/v{{ version }}/zycode-linux-x86_64-{{ version }}.tar.gz,platforms_linux_arm64_url=https://github.com/zy1233/pi-python/releases/download/v{{ version }}/zycode-linux-aarch64-{{ version }}.tar.gz,version_list_url=https://api.github.com/repos/zy1233/pi-python/releases,version_json_path=.[].tag_name,version_order=semver]"
+zypi_package="$zypi_tool[platforms_linux_x64_url=https://github.com/zy1233/zycode/releases/download/v{{ version }}/zycode-linux-x86_64-{{ version }}.tar.gz,platforms_linux_arm64_url=https://github.com/zy1233/zycode/releases/download/v{{ version }}/zycode-linux-aarch64-{{ version }}.tar.gz,version_list_url=https://api.github.com/repos/zy1233/zycode/releases,version_json_path=.[].tag_name,version_order=semver]"
 
 assert_lazy_stub() {
   local package=$1
