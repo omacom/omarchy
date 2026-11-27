@@ -14,8 +14,8 @@ notification_history="$test_tmp/notification-history"
 agent_open_log="$test_tmp/agent-open"
 launch_log="$test_tmp/launch"
 inline_log="$test_tmp/inline"
-mise_log="$test_tmp/mise"
-mise_history="$test_tmp/mise-history"
+install_log="$test_tmp/install"
+install_history="$test_tmp/install-history"
 stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
@@ -62,35 +62,22 @@ cat >"$mock_bin/opencode" <<'SH'
 printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 SH
 
-cat >"$mock_bin/omarchy-mise-install" <<'SH'
+cat >"$mock_bin/pi" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >>"$OMARCHY_TEST_STUB_LOG"
+printf '%s\0' pi "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 SH
 
-cat >"$mock_bin/mise" <<'SH'
+cat >"$mock_bin/omarchy-install-ai-cli" <<'SH'
 #!/bin/bash
-printf '%s\0' "$@" >"$OMARCHY_TEST_MISE_LOG"
-printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
-if [[ -n ${MISE_PRERELEASES:-} ]]; then
-  printf 'prereleases=%s %s\n' "$MISE_PRERELEASES" "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
-fi
-
-if [[ $1 == "tool" && $3 == "--backend" ]]; then
-  case "$2" in
-  npm:*) printf '%s\n' "$2" ;;
-  amp) printf '%s\n' "npm:@ampcode/cli" ;;
-  qwen) printf '%s\n' "npm:@qwen-code/qwen-code" ;;
-  *) printf '%s\n' "aqua:example/$2" ;;
-  esac
-  exit 0
-fi
-
-if [[ $1 == "where" || $1 == "which" ]]; then
+# Which agents are packages is the real installer's to say.
+[[ $1 == "--package" ]] && exec "$OMARCHY_PATH/bin/omarchy-install-ai-cli" "$@"
+printf '%s\n' "$*" >>"$OMARCHY_TEST_INSTALL_HISTORY"
+if [[ $1 == "--check" ]]; then
   [[ ${OMARCHY_TEST_AGENT_INSTALLED:-false} == "true" ]]
   exit
 fi
-
-[[ ${OMARCHY_TEST_MISE_FAIL:-false} != "true" ]]
+printf '%s\0' "$@" >"$OMARCHY_TEST_INSTALL_LOG"
+[[ ${OMARCHY_TEST_INSTALL_FAIL:-false} != "true" ]]
 SH
 
 cat >"$mock_bin/omarchy-menu" <<'SH'
@@ -100,7 +87,7 @@ SH
 
 cat >"$mock_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
-echo "Muse must install through mise" >&2
+echo "Agents install through omarchy-install-ai-cli" >&2
 exit 1
 SH
 ln -s omarchy-pkg-add "$mock_bin/omarchy-pkg-aur-add"
@@ -136,152 +123,24 @@ export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
 export OMARCHY_TEST_AGENT_LAUNCH_LOG="$launch_log"
 export OMARCHY_TEST_AGENT_INLINE_LOG="$inline_log"
-export OMARCHY_TEST_MISE_LOG="$mise_log"
-export OMARCHY_TEST_MISE_HISTORY="$mise_history"
+export OMARCHY_TEST_INSTALL_LOG="$install_log"
+export OMARCHY_TEST_INSTALL_HISTORY="$install_history"
 export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
-export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
 
-grok_package="grok"
-omp_package="oh-my-pi"
-crush_package="crush"
-agy_package="antigravity-cli"
-ori_package="ori"
-kimi_package="npm:@moonshot-ai/kimi-code"
-qwen_package="qwen"
-dsh_package="npm:@deepseek-ai/dsh"
-# Omarchy declares a tool with backend options under its bare name; the
-# bracketed package is what a user without the declarations gets.
-mcode_tool="npm:@minimax-ai/code"
-mcode_package="$mcode_tool[allow_builds=better-sqlite3]"
-kiro_cli_tool="http:kiro-cli"
-kiro_cli_package="$kiro_cli_tool[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]"
-freebuff_package="npm:freebuff"
-kilo_package="npm:@kilocode/cli"
-devin_tool="http:devin"
-devin_package="$devin_tool[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
-amp_package="amp"
-commandcode_package="npm:command-code"
-cursor_agent_package="cursor-agent"
-muse_package="muse"
-
-assert_lazy_stub() {
-  local package=$1
-  local command=$2
-
-  : >"$mise_history"
-  "$ROOT/bin/omarchy-mise-install" "$package" "$command"
-  "$test_home/.local/bin/$command" --version
-  mapfile -t mise_calls <"$mise_history"
-
-  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "x $package -- $command --version" ]] ||
-    fail "$command lazy stub preserves its mise package"
-}
-
-assert_lazy_stub "$grok_package" grok
-assert_lazy_stub "$omp_package" omp
-assert_lazy_stub "$crush_package" crush
-assert_lazy_stub "$ori_package" ori
-assert_lazy_stub "$kimi_package" kimi
-assert_lazy_stub "$cursor_agent_package" cursor-agent
-assert_lazy_stub "$muse_package" muse
-pass "custom agent lazy stubs preserve their mise packages"
-
-source "$ROOT/install/user/mise.sh"
-lazy_config="$ROOT/etc/mise/conf.d/omarchy-tools.toml"
-[[ -f $lazy_config ]] || fail "Omarchy ships the system mise config"
-grep -Fx 'locked_scopes = ["project", "global"]' "$lazy_config" >/dev/null ||
-  fail "system tools remain installable when the user enables locked mode"
-for tool in "$agy_package" "$grok_package" "$omp_package" "$crush_package" "$cursor_agent_package" "$muse_package"; do
-  grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
-    fail "user setup declares $tool as a self-updating native lazy tool"
-done
-for tool in "$ori_package" basecamp; do
-  grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
-    fail "user setup declares $tool as a native lazy tool"
-done
-for tool in codex claude copilot opencode pi "\"$kimi_package\""; do
-  grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", " "$lazy_config" ||
-    fail "user setup declares $tool as a self-updating native lazy tool"
-done
-grep -Eq "^$qwen_package = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
-  fail "user setup declares Qwen Code as a self-updating native lazy tool"
-# A tool without registry bin metadata names the commands mise shims for it.
-declare -A declared_bins=(
-  [$amp_package]='"amp"'
-  ["\"$dsh_package\""]='"dsh"'
-  ["\"$freebuff_package\""]='"freebuff"'
-  ["\"$kilo_package\""]='"kilo"'
-  ["\"$commandcode_package\""]='"commandcode"'
-)
-for tool in "${!declared_bins[@]}"; do
-  grep -Fx "$tool = { version = \"latest\", lazy = true, auto_update = \"4h\", lazy_bins = [${declared_bins[$tool]}], minimum_release_age = \"0s\" }" "$lazy_config" >/dev/null ||
-    fail "user setup declares $tool as a self-updating native lazy tool with its commands"
-done
-# mise drops bracket options from a table-valued key, so a tool with backend
-# options is declared by its bare name with the options inside the table: the
-# same options the launcher hands a user without the declarations.
-declare -A declared_option_bins=(
-  [mcode]='"mcode"'
-  [kiro_cli]='"kiro-cli"'
-  [devin]='"devin"'
-)
-for agent in "${!declared_option_bins[@]}"; do
-  tool_var="${agent}_tool"
-  package_var="${agent}_package"
-  declaration=$(grep -F "\"${!tool_var}\" = { version = \"latest\", lazy = true, auto_update = \"4h\", lazy_bins = [${declared_option_bins[$agent]}], minimum_release_age = \"0s\", " "$lazy_config") ||
-    fail "user setup declares ${!tool_var} as a self-updating native lazy tool with its commands"
-  options=${!package_var#*[}
-  IFS=, read -ra options <<<"${options%]}"
-  for option in "${options[@]}"; do
-    [[ $declaration == *" ${option%%=*} = \"${option#*=}\""* ]] ||
-      fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
-  done
-done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
-for tool in node uv; do
-  grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
-    fail "user setup declares $tool as a native lazy tool"
-done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
-grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
-pass "user setup configures system lazy tools from registry shorthands"
-: >"$stub_log"
-source "$ROOT/install/user/mise.sh"
-[[ ! -s $stub_log ]] || fail "user setup must not create handwritten mise wrappers"
-pass "user setup leaves ordinary lazy wrappers to mise"
-
-"$ROOT/bin/omarchy-mise-install" "$muse_package" muse
-"$ROOT/bin/omarchy-mise-install" "$kimi_package" kimi
-"$ROOT/bin/omarchy-mise-install" "$cursor_agent_package" cursor-agent
-"$ROOT/bin/omarchy-mise-install" "$grok_package" grok
-"$ROOT/bin/omarchy-mise-install" "$omp_package" omp
-"$ROOT/bin/omarchy-mise-install" "$crush_package" crush
-touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
+# An agent in ~/.local/bin is the user's own, from its own installer, and
+# Remove Preinstalls has no business with it.
+mkdir -p "$test_home/.local/bin"
+printf '#!/bin/bash\necho own-claude\n' >"$test_home/.local/bin/claude"
+chmod +x "$test_home/.local/bin/claude"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse kimi; do
-  [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
-done
-pass "Remove Preinstalls deletes every optional agent lazy stub"
-
-# Cursor's installer links the same path, so anything but the mise wrapper is
-# the user's own install.
-touch "$test_home/.local/bin/cursor-agent.official"
-ln -s cursor-agent.official "$test_home/.local/bin/cursor-agent"
-omarchy-remove-preinstalls >/dev/null
-[[ -L $test_home/.local/bin/cursor-agent ]] || fail "Remove Preinstalls keeps an official Cursor CLI install"
-rm -f "$test_home/.local/bin/cursor-agent" "$test_home/.local/bin/cursor-agent.official"
-pass "Remove Preinstalls keeps an official Cursor CLI install"
-printf '#!/bin/bash\necho user-muse\n' >"$test_home/.local/bin/muse"
-chmod +x "$test_home/.local/bin/muse"
-omarchy-remove-preinstalls >/dev/null
-[[ $("$test_home/.local/bin/muse") == "user-muse" ]] || fail "Remove Preinstalls deletes a user-managed Muse"
-rm "$test_home/.local/bin/muse"
-pass "Remove Preinstalls keeps a user-managed Muse install"
+[[ $("$test_home/.local/bin/claude") == "own-claude" ]] || fail "Remove Preinstalls keeps an agent the user installed"
+rm "$test_home/.local/bin/claude"
+pass "Remove Preinstalls keeps an agent the user installed"
 
 
 [[ -z $(omarchy-default-agent) ]] || fail "default agent is unset until one is chosen"
@@ -296,16 +155,77 @@ grep -Fq "Choose default agent with" "$test_tmp/no-agent-output" ||
 [[ ! -s $launch_log ]] || fail "agent launcher starts nothing without a default"
 pass "agent launcher refuses to launch without a default"
 
-# The keybinding uses --pick, where an error on stderr nobody sees would make
-# the keypress look broken. It offers the choice instead.
+# The agents panel launches a running local model whether or not a default was
+# chosen; it opens in pi, on pi's overlay, all the same.
+cat >"$mock_bin/omarchy-models" <<'SH'
+#!/bin/bash
+[[ $1 == "overlay" ]] && printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
+SH
+chmod +x "$mock_bin/omarchy-models"
 : >"$launch_log"
-: >"$menu_log"
-omarchy-agent --pick
-mapfile -d '' -t menu_args <"$menu_log"
-[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
-  fail "--pick opens the agent defaults menu when none is set"
+omarchy-agent --local-model test-model >"$test_tmp/local-output" 2>&1 ||
+  fail "agent launcher opens a local model without a default: $(<"$test_tmp/local-output")"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"--extension /overlays/pi-local.config"* ]] ||
+  fail "agent launcher points pi at the local model's overlay: ${launch_args[*]}"
+rm "$mock_bin/omarchy-models"
+pass "agent launcher opens a local model without a default"
+
+# A provider with no harness of its own opens in OpenCode on the model its
+# usage record has used most, under the id OpenCode lists it by rather than the
+# record's short name for it, and on the one OpenCode last used there when it
+# still lists it.
+provider_bin="$test_tmp/provider-bin"
+mkdir -p "$provider_bin" "$test_tmp/provider-state/omarchy/agents/usage" "$test_tmp/provider-state/opencode"
+cat >"$provider_bin/opencode" <<'SH'
+#!/bin/bash
+if [[ $1 == "models" ]]; then
+  printf '%s\n' "openrouter/other" "fireworks-ai/accounts/fireworks/models/kimi-k3" "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash"
+else
+  printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+fi
+SH
+chmod +x "$provider_bin/opencode"
+echo '{"modelUsage":{"kimi-k3":{"inputTokens":5},"deepseek-v4.1-flash":{"inputTokens":3,"cacheReadInputTokens":9}}}' \
+  >"$test_tmp/provider-state/omarchy/agents/usage/fireworks.json"
+: >"$launch_log"
+PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *'OPENCODE_CONFIG_CONTENT={"model":"fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash"}'*"opencode --auto --standalone" ]] ||
+  fail "agent launcher opens a provider in OpenCode on its most-used model: ${launch_args[*]}"
+pass "agent launcher opens a provider in OpenCode on its most-used model"
+
+echo '{"recent":[{"providerID":"openrouter","modelID":"other"},{"providerID":"fireworks-ai","modelID":"accounts/fireworks/models/kimi-k3"}]}' \
+  >"$test_tmp/provider-state/opencode/model.json"
+: >"$launch_log"
+PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *'"model":"fireworks-ai/accounts/fireworks/models/kimi-k3"'* ]] ||
+  fail "agent launcher reopens a provider on the model OpenCode last used there: ${launch_args[*]}"
+pass "agent launcher reopens a provider on the model last used there"
+
+# --pick is for callers with nowhere to show an error, where stderr nobody sees
+# would make them look broken. It opens the agents panel to set one up instead.
+: >"$launch_log"
+printf '#!/bin/bash
+printf "%%s" "$*" >"$OMARCHY_TEST_SHELL_LOG"
+' >"$mock_bin/omarchy-shell"
+chmod +x "$mock_bin/omarchy-shell"
+OMARCHY_TEST_SHELL_LOG="$test_tmp/shell" omarchy-agent --pick
+[[ $(<"$test_tmp/shell") == "omarchy.agents open" ]] ||
+  fail "--pick opens the agents panel when none is set" "$(<"$shell_log")"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
-pass "--pick opens the agent defaults menu when none is set"
+pass "--pick opens the agents panel when none is set"
+
+# The agents panel starts the chosen agent itself, so a prompt waits on the clipboard.
+: >"$clipboard_log"
+: >"$notification_history"
+OMARCHY_TEST_SHELL_LOG="$test_tmp/shell" omarchy-agent --pick --prompt "Diagnose this crash"
+rm "$mock_bin/omarchy-shell"
+[[ $(<"$clipboard_log") == "Diagnose this crash" ]] || fail "a prompt is kept on the clipboard while an agent is chosen"
+grep -q "Choose an agent for this task" "$notification_history" || fail "choosing an agent for a prompt says where the prompt went"
+[[ ! -s $launch_log ]] || fail "a prompt starts nothing before an agent is chosen"
+pass "a prompt is kept on the clipboard while an agent is chosen"
 
 source "$ROOT/default/bash/aliases"
 [[ $(alias a) == "alias a='omarchy-agent --inline'" ]] ||
@@ -354,8 +274,6 @@ declare -A expected_agents=(
   [mcode]="mcode"
   [minimax-code]="mcode"
   [minimax]="mcode"
-  [kiro-cli]="kiro-cli"
-  [kiro]="kiro-cli"
   [freebuff]="freebuff"
   [kilo]="kilo"
   [kilocode]="kilo"
@@ -364,9 +282,6 @@ declare -A expected_agents=(
   [devin-cli]="devin"
   [amp]="amp"
   [ampcode]="amp"
-  [commandcode]="commandcode"
-  [command-code]="commandcode"
-  [cmdc]="commandcode"
   [cursor]="cursor-agent"
   [cursor-agent]="cursor-agent"
   [muse]="muse"
@@ -374,35 +289,11 @@ declare -A expected_agents=(
   [musecode]="muse"
 )
 
-declare -A expected_packages=(
-  [pi]="pi"
-  [omp]="$omp_package"
-  [opencode]="opencode"
-  [ori]="$ori_package"
-  [claude]="claude"
-  [codex]="codex"
-  [crush]="$crush_package"
-  [grok]="$grok_package"
-  [agy]="$agy_package"
-  [copilot]="copilot"
-  [kimi]="$kimi_package"
-  [qwen]="$qwen_package"
-  [dsh]="$dsh_package"
-  [mcode]="$mcode_package"
-  [kiro-cli]="$kiro_cli_package"
-  [freebuff]="$freebuff_package"
-  [kilo]="$kilo_package"
-  [devin]="$devin_package"
-  [amp]="$amp_package"
-  [commandcode]="$commandcode_package"
-  [cursor-agent]="$cursor_agent_package"
-  [muse]="$muse_package"
-)
-
 for selection in "${!expected_agents[@]}"; do
   expected=${expected_agents[$selection]}
   : >"$agent_open_log"
   : >"$stub_log"
+  : >"$install_log"
   OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent "$selection"
   [[ $(omarchy-default-agent) == $expected ]] || fail "default agent canonicalizes $selection"
 
@@ -412,22 +303,39 @@ for selection in "${!expected_agents[@]}"; do
     [[ ! -s $stub_log ]] || fail "other agents do not install the Claude extension"
   fi
 
-  mapfile -d '' -t mise_args <"$mise_log"
-  [[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" ]] ||
-    fail "default agent installs $selection globally through mise"
-  case ${mise_args[2]} in
-    "${expected_packages[$expected]}") ;;
-    *) fail "default agent preserves $selection backend options" ;;
-  esac
+  [[ ! -s $install_log ]] || fail "selecting an installed $selection installs nothing"
 
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
     fail "default agent opens $selection after selecting it"
+
+  launcher="$test_home/.local/share/applications/omarchy-agent-$expected.desktop"
+  grep -qx "Exec=omarchy-agent --agent $expected --app-id=org.omarchy.$expected" "$launcher" 2>/dev/null ||
+    fail "installing $expected adds a launcher that starts it"
+  icon=$(sed -n 's/^Icon=//p' "$launcher")
+  [[ -f $ROOT/icons/papercraft/$icon.svg.tpl && -f $ROOT/icons/arcade/$icon.svg.tpl && -f $ROOT/applications/icons/$icon.png ]] ||
+    fail "the $expected launcher's icon is in the icon sets"
 done
 pass "default agent selects and opens every supported provider and alias"
+pass "each installed harness gets a launcher with its icon in the icon sets"
 [[ -f $agent_file && ! -e $test_home/.local/state/omarchy/defaults/agent ]] ||
   fail "default agent stores its selection in Omarchy user config"
 pass "default agent stores its selection in Omarchy user config"
+
+# The agents panel's star selects without opening, and only what is installed.
+: >"$agent_open_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --select codex
+[[ $(omarchy-default-agent) == "codex" && ! -s $agent_open_log ]] || fail "--select makes an agent the default without opening it"
+pass "--select makes an installed agent the default without opening it"
+
+# Starring a subscription whose CLI isn't installed here installs it in a
+# terminal first; the default changes only once it's there.
+: >"$terminal_log"
+OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --select claude
+[[ $(tr '\0' ' ' <"$terminal_log") == "omarchy-install-ai-cli claude && omarchy-default-agent --select claude " ]] ||
+  fail "--select installs a missing CLI in a terminal" "$(tr '\0' ' ' <"$terminal_log")"
+[[ $(omarchy-default-agent) == "codex" ]] || fail "--select leaves the default until the CLI is installed"
+pass "--select installs a missing CLI before making it the default"
 
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
@@ -450,10 +358,8 @@ mapfile -d '' -t terminal_args <"$terminal_log"
 [[ $(omarchy-default-agent) == "pi" ]] || fail "missing agent installation waits to change the selection"
 
 omarchy-default-agent --install github-copilot >"$test_tmp/install-output"
-mapfile -d '' -t mise_args <"$mise_log"
-[[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" && ${mise_args[2]} == "copilot" ]] ||
-  fail "visible agent installation activates the provider globally through mise"
-[[ $(omarchy-default-agent) == "copilot" ]] || fail "visible agent installation changes the selection after mise succeeds"
+[[ $(tr '\0' ' ' <"$install_log") == "copilot " ]] || fail "visible agent installation installs the agent"
+[[ $(omarchy-default-agent) == "copilot" ]] || fail "visible agent installation changes the selection after the install succeeds"
 [[ ! -s $notification_history ]] || fail "visible agent installation leaves progress to the terminal"
 [[ $(<"$test_tmp/install-output") == $'\033[2J\033[3J\033[H' ]] ||
   fail "visible agent installation clears its terminal before opening the agent"
@@ -462,48 +368,60 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
   fail "newly installed agent opens in the installation terminal"
 pass "missing agents install visibly and open in the same terminal"
 
+rm "$mock_bin/hyprctl"
+cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "clients" ]]; then
+  echo '[{"pid": $$, "address": "0xc0ffee", "workspace": {"name": "special:qconsole"}}]'
+else
+  printf '%s\n' "\$*" >>"$test_tmp/dispatch"
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+: >"$agent_open_log"
+omarchy-default-agent --install github-copilot >/dev/null
+[[ ! -s $agent_open_log ]] || fail "an install from the Quake console leaves its floating terminal"
+grep -qF 'hl.dsp.exec_cmd("omarchy-agent", { workspace = "special:qconsole silent" })' "$test_tmp/dispatch" ||
+  fail "an install from the Quake console opens the agent tiled in the console"
+grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
+  fail "an install from the Quake console closes its floating terminal"
+pass "an agent installed from the Quake console opens tiled in the console"
+
+# A terminal serving every window from one process matches them all by PID, so
+# the installer names its own window. The mock applies whatever title the
+# installer printed to the console window alone, as the terminal would.
+cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "clients" ]]; then
+  title=\$(grep -ao 'omarchy-default-agent-[0-9]*' "$test_tmp/installer-tty" 2>/dev/null | head -n1)
+  echo "[{\"pid\": $$, \"address\": \"0xdead\", \"title\": \"shell\", \"workspace\": {\"name\": \"1\"}},
+        {\"pid\": $$, \"address\": \"0xc0ffee\", \"title\": \"\$title\", \"workspace\": {\"name\": \"special:qconsole\"}}]"
+else
+  printf '%s\n' "\$*" >>"$test_tmp/dispatch"
+fi
+SH
+: >"$test_tmp/dispatch"
+: >"$agent_open_log"
+omarchy-default-agent --install github-copilot >"$test_tmp/installer-tty"
+[[ ! -s $agent_open_log ]] || fail "an install from a shared terminal process leaves its floating terminal"
+grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
+  fail "an install from a shared terminal process closes its own window"
+! grep -qF 'address:0xdead' "$test_tmp/dispatch" ||
+  fail "an install from a shared terminal process leaves the terminal's other windows alone"
+rm "$mock_bin/hyprctl"
+ln -s omarchy-test-noop "$mock_bin/hyprctl"
+pass "an install from a terminal sharing one process across windows finds its own window"
+
 : >"$notification_history"
 : >"$agent_open_log"
 : >"$terminal_log"
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent github-copilot
 [[ ! -s $terminal_log ]] || fail "installed agent selection skips the terminal"
 [[ ! -s $notification_history ]] || fail "installed agent selection skips notifications"
-mapfile -d '' -t mise_args <"$mise_log"
-[[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" && ${mise_args[2]} == "copilot" ]] ||
-  fail "default agent still activates an installed provider globally through mise"
 mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
   fail "installed agent opens in a new terminal after selection"
 pass "installed agents select and open without notifications"
-
-# Cursor's installer links the wrapper's path, and the mise shims precede
-# ~/.local/bin, so a mise copy would shadow the user's own install.
-touch "$test_home/.local/bin/cursor-agent.official"
-chmod +x "$test_home/.local/bin/cursor-agent.official"
-ln -s cursor-agent.official "$test_home/.local/bin/cursor-agent"
-: >"$terminal_log"
-: >"$mise_log"
-: >"$agent_open_log"
-omarchy-default-agent cursor-agent
-[[ ! -s $terminal_log ]] || fail "an official Cursor CLI install needs no install terminal"
-[[ ! -s $mise_log ]] || fail "an official Cursor CLI install is left to itself by mise"
-[[ $(<"$agent_file") == "cursor-agent" ]] || fail "an official Cursor CLI install becomes the default"
-mapfile -d '' -t agent_open_args <"$agent_open_log"
-[[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
-  fail "an official Cursor CLI install opens after selection"
-rm -f "$test_home/.local/bin/cursor-agent" "$test_home/.local/bin/cursor-agent.official"
-printf '%s\n' copilot >"$agent_file"
-pass "selecting an official Cursor CLI install skips mise"
-
-# A file nothing can run is not an install; the wrapper is still wanted.
-touch "$test_home/.local/bin/cursor-agent"
-: >"$terminal_log"
-omarchy-default-agent cursor-agent
-mapfile -d '' -t terminal_args <"$terminal_log"
-[[ ${terminal_args[*]} == "omarchy-default-agent --install cursor-agent" ]] ||
-  fail "a dead file at the wrapper's path still installs Cursor CLI"
-rm -f "$test_home/.local/bin/cursor-agent"
-pass "a dead file at the wrapper's path does not pass for an install"
 
 : >"$agent_open_log"
 if omarchy-default-agent unsupported >"$test_tmp/invalid-output" 2>&1; then
@@ -515,31 +433,31 @@ grep -F "Usage: omarchy-default-agent" "$test_tmp/invalid-output" >/dev/null ||
 [[ ! -s $agent_open_log ]] || fail "invalid selection does not open an agent"
 pass "default agent rejects unsupported providers without changing the selection"
 
+# --installed answers for one harness, as the launcher migration asks it,
+# without selecting, installing or opening anything.
+: >"$agent_open_log"
+: >"$terminal_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --installed kilo || fail "--installed reports an installed harness"
+if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --installed kilo; then
+  fail "--installed reports a missing harness"
+fi
+[[ $(omarchy-default-agent) == "copilot" && ! -s $agent_open_log && ! -s $terminal_log ]] ||
+  fail "--installed selects, installs and opens nothing"
+pass "--installed tells whether a harness is installed and changes nothing"
+
 : >"$notification_history"
 : >"$agent_open_log"
-if OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent --install codex >"$test_tmp/install-failure-output" 2>&1; then
-  fail "default agent rejects a failed mise installation"
+if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-agent --install codex >"$test_tmp/install-failure-output" 2>&1; then
+  fail "default agent rejects a failed installation"
 fi
 [[ $(omarchy-default-agent) == "copilot" ]] || fail "failed installation preserves the current default agent"
-grep -F "Could not install Codex with mise" "$test_tmp/install-failure-output" >/dev/null ||
-  fail "default agent reports a failed mise installation in the terminal"
+grep -F "Could not install Codex" "$test_tmp/install-failure-output" >/dev/null ||
+  fail "default agent reports a failed installation in the terminal"
 [[ ! -s $notification_history ]] || fail "failed visible agent installation skips notifications"
 [[ ! -s $agent_open_log ]] || fail "failed installation does not open an agent"
-pass "default agent opens only after mise installs the provider"
+pass "default agent opens only after the agent installs"
 
-: >"$notification_history"
-: >"$agent_open_log"
-if OMARCHY_TEST_AGENT_INSTALLED=true OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent codex >"$test_tmp/setup-failure-output" 2>&1; then
-  fail "default agent rejects a failed mise activation"
-fi
-[[ $(omarchy-default-agent) == "copilot" ]] || fail "failed activation preserves the current default agent"
-grep -F "Could not set Codex as the default coding agent" "$test_tmp/setup-failure-output" >/dev/null ||
-  fail "default agent reports a failed activation for an installed provider"
-[[ ! -s $notification_history ]] || fail "failed activation skips notifications"
-[[ ! -s $agent_open_log ]] || fail "failed activation does not open an agent"
-pass "default agent reports mise failures without notifications"
-
-# Muse follows the shared mise installation and launch path.
+# Muse follows the shared installation and launch path.
 : >"$notification_history"
 : >"$agent_open_log"
 : >"$terminal_log"
@@ -551,86 +469,14 @@ mapfile -d '' -t terminal_args <"$terminal_log"
 [[ ! -s $agent_open_log ]] || fail "missing Muse installation waits to open the agent"
 [[ $(omarchy-default-agent) == "copilot" ]] || fail "missing Muse installation waits to change the selection"
 
-if OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent --install muse >"$test_tmp/muse-install-failure-output" 2>&1; then
-  fail "missing Muse rejects a failed mise installation"
+if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-agent --install muse >"$test_tmp/muse-install-failure-output" 2>&1; then
+  fail "missing Muse rejects a failed installation"
 fi
 [[ $(omarchy-default-agent) == "copilot" ]] || fail "failed Muse installation preserves the current default"
 [[ ! -s $muse_login_log && ! -s $agent_open_log ]] || fail "failed Muse installation skips login and launch"
-grep -F "Could not install Muse Code with mise" "$test_tmp/muse-install-failure-output" >/dev/null ||
-  fail "failed Muse installation identifies mise"
-pass "failed Muse mise installation preserves the selection and skips login"
-
-# Without Omarchy's declarations nothing declares Muse, so selecting it adds it
-# to the user's config.
-: >"$mise_history"
-omarchy-default-agent --install muse >/dev/null
-grep -Fx "use -g $muse_package" "$mise_history" >/dev/null ||
-  fail "Muse selection adds Muse to the user config when no system config declares it"
-rm -f "$agent_file"
-
-# mise skips the declarations for a user who removed the preinstalls, so the
-# same applies.
-mkdir -p "$(dirname "$OMARCHY_MISE_CONFIG_PATH")" "$test_home/.config/mise"
-cp "$ROOT/etc/mise/conf.d/omarchy-tools.toml" "$OMARCHY_MISE_CONFIG_PATH"
-printf 'ignored_config_paths = ["%s"]\n' "$OMARCHY_MISE_CONFIG_PATH" >"$test_home/.config/mise/miserc.toml"
-: >"$mise_history"
-omarchy-default-agent --install muse >/dev/null
-grep -Fx "use -g $muse_package" "$mise_history" >/dev/null ||
-  fail "Muse selection adds Muse to the user config after Remove Preinstalls"
-# Every DSH release is a prerelease, which `mise use` skips unless told otherwise.
-: >"$mise_history"
-omarchy-default-agent --install dsh >/dev/null
-grep -Fx "prereleases=true use -g $dsh_package" "$mise_history" >/dev/null ||
-  fail "DSH selection lets mise pick a prerelease after Remove Preinstalls"
-: >"$mise_history"
-omarchy-default-agent --install kilo >/dev/null
-grep -q '^prereleases=' "$mise_history" && fail "other agents install only stable releases after Remove Preinstalls"
-# An npm-backed agent brings node along here too, since node may still be
-# declared without being installed; Muse isn't npm-backed and doesn't.
-node_line=$(grep -nx "install node" "$mise_history" | cut -d: -f1)
-kilo_line=$(grep -nFx "use -g $kilo_package" "$mise_history" | cut -d: -f1)
-[[ -n $node_line && -n $kilo_line ]] && (( node_line < kilo_line )) ||
-  fail "an npm-backed agent installs node before it after Remove Preinstalls"
-: >"$mise_history"
-omarchy-default-agent --install muse >/dev/null
-grep -qx "install node" "$mise_history" && fail "an agent that isn't npm-backed installs no node after Remove Preinstalls"
-rm -f "$agent_file" "$test_home/.config/mise/miserc.toml"
-
-# With Omarchy's system config, installing is enough; the user config stays alone.
-: >"$mise_history"
-: >"$stub_log"
-omarchy-default-agent --install muse >"$test_tmp/muse-install-output"
-grep -Fx "install $muse_package" "$mise_history" >/dev/null || fail "visible Muse installation uses the registry shorthand"
-grep -q '^use ' "$mise_history" && fail "Muse selection leaves the user config alone when the system config declares it"
-[[ ! -s $stub_log ]] || fail "Muse selection recreates its preinstalled wrapper"
-[[ ! -s $muse_login_log ]] || fail "Muse selection runs a separate login flow"
-[[ $(omarchy-default-agent) == "muse" ]] || fail "visible Muse installation changes the selection"
-mapfile -d '' -t agent_open_args <"$agent_open_log"
-[[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
-  fail "newly installed Muse opens in the installation terminal"
-pass "Muse installs visibly through mise and opens directly"
-
-saved_agent=$(<"$agent_file")
-for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
-  tool_var="${agent//-/_}_tool"
-  package_var="${agent//-/_}_package"
-  declared_tool=${!tool_var:-${!package_var}}
-  : >"$mise_history"
-  omarchy-default-agent --install "$agent" >/dev/null
-  # npm-backed agents bring node along, which a fresh machine doesn't have yet.
-  case "$agent" in
-  kiro-cli | devin) expected_install="install $declared_tool" ;;
-  *) expected_install="install node $declared_tool" ;;
-  esac
-  grep -Fx "$expected_install" "$mise_history" >/dev/null || fail "visible $agent installation installs Omarchy's declaration (expected: $expected_install)"
-  : >"$mise_history"
-  OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent "$agent" >/dev/null
-  grep -Fx "where $declared_tool" "$mise_history" >/dev/null || fail "$agent selection looks for Omarchy's declaration"
-  grep -q '^use ' "$mise_history" && fail "$agent selection leaves the user config alone when the system config declares it"
-  [[ $(omarchy-default-agent) == "$agent" ]] || fail "visible $agent installation changes the selection"
-done
-printf '%s\n' "$saved_agent" >"$agent_file"
-pass "the added agents install through Omarchy's mise declarations"
+grep -F "Could not install Muse Code" "$test_tmp/muse-install-failure-output" >/dev/null ||
+  fail "failed Muse installation says so"
+pass "failed Muse installation preserves the selection and skips login"
 
 : >"$terminal_log"
 : >"$muse_login_log"
@@ -644,33 +490,11 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
   fail "installed Muse opens in a new terminal after selection"
 pass "installed Muse selects and opens directly"
 
-OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
-: >"$agent_open_log"
-if OMARCHY_TEST_AGENT_INSTALLED=true OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent musecode >"$test_tmp/muse-failure-output" 2>&1; then
-  fail "default agent rejects a failed Muse activation"
-fi
-[[ $(omarchy-default-agent) == "pi" ]] || fail "failed Muse activation preserves the current default agent"
-grep -F "Could not set Muse Code as the default coding agent" "$test_tmp/muse-failure-output" >/dev/null ||
-  fail "default agent reports a failed Muse activation"
-[[ ! -s $agent_open_log ]] || fail "failed Muse activation does not open an agent"
-pass "default agent reports Muse mise failures without changing the selection"
-
-# A manually installed launcher belongs to the user; selecting it must not
-# install a second copy or replace it with the Omarchy wrapper.
-printf '#!/bin/bash\necho user-muse\n' >"$test_home/.local/bin/muse"
-chmod +x "$test_home/.local/bin/muse"
-: >"$mise_history"
-: >"$stub_log"
-: >"$terminal_log"
-omarchy-default-agent muse
-[[ $(omarchy-default-agent) == "muse" ]] || fail "a user-installed Muse can be selected"
-[[ ! -s $mise_history && ! -s $stub_log && ! -s $terminal_log ]] || fail "a user-installed Muse skips installation and wrapper creation"
-[[ $("$test_home/.local/bin/muse") == "user-muse" ]] || fail "a user-installed Muse is preserved"
-rm "$test_home/.local/bin/muse"
-pass "selecting a user-installed Muse preserves its launcher"
-
 rm "$mock_bin/omarchy-agent"
 hash -r
+
+# The launches below run agents that are installed.
+export OMARCHY_TEST_AGENT_INSTALLED=true
 
 assert_launched() {
   local agent=$1
@@ -739,13 +563,11 @@ assert_launched dsh "opens its browser UI for a prompt" env DSH_PERMISSION_MODE=
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
 assert_launch mcode mcode -- "Review this project"
-assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 : >"$notification_history"
 assert_launch freebuff freebuff
 assert_launch kilo kilo --auto "--prompt=Review this project"
 assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
 assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
-assert_launch commandcode commandcode --yolo -- "Review this project"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
@@ -781,14 +603,12 @@ assert_bypass kimi kimi --yolo
 assert_bypass qwen qwen --yolo
 assert_bypass dsh env DSH_PERMISSION_MODE=danger-full-access dsh web
 assert_bypass mcode mcode
-assert_bypass kiro-cli kiro-cli chat --trust-all-tools
 : >"$clipboard_log"
 : >"$notification_history"
 assert_bypass freebuff freebuff
 assert_bypass kilo kilo --auto
 assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust false
 assert_bypass amp amp --dangerously-allow-all
-assert_bypass commandcode commandcode --yolo
 [[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
 pass "agent launcher skips permission prompts for every supported agent"
 
@@ -798,6 +618,15 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
   fail "agent launcher starts the selected agent without an initial prompt"
 pass "agent launcher starts the selected agent without an initial prompt"
+
+# A make icon on one of the agents panel's lines starts that line's agent on
+# the task, not the default.
+: >"$launch_log"
+omarchy-agent-make --agent claude theme
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"claude"*"Make me a new Omarchy theme."* && ${launch_args[*]} != *opencode* ]] ||
+  fail "make starts the named agent on the task: ${launch_args[*]}"
+pass "make starts the named agent on the task"
 
 omarchy-agent-prompt --inline "Review this project"
 mapfile -d '' -t inline_args <"$inline_log"
@@ -823,6 +652,89 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ! -s $menu_log ]] || fail "--pick opens no menu once an agent is chosen"
 pass "--pick launches once an agent is chosen"
 
+# A default of "local" is the local model, which opens in pi. The mock reports
+# whatever status the test writes to OMARCHY_TEST_LOCAL_STATUS, and no status
+# at all when it is unset.
+cat >"$mock_bin/omarchy-models" <<'SH'
+#!/bin/bash
+case $1 in
+status) [[ -n ${OMARCHY_TEST_LOCAL_STATUS:-} ]] && printf '%s\n' "$OMARCHY_TEST_LOCAL_STATUS" || exit 1 ;;
+overlay) printf '%s\n' "/overlays/$2-${3:-last}.config" omarchy-local "${3:-last}" ;;
+esac
+SH
+chmod +x "$mock_bin/omarchy-models"
+# Selecting it installs nothing: pi is a base package.
+: >"$install_log"
+omarchy-default-agent local
+[[ $(omarchy-default-agent) == "local" && ! -s $install_log ]] || fail "the local model is a default agent that needs no install"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS='{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}' omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"pi --extension /overlays/pi-last.config --provider omarchy-local --model last" ]] ||
+  fail "a default of local opens the last local model in pi: ${launch_args[*]}"
+
+# A pinned model is the one it opens, while this machine still has it.
+running='{"last":"small","models":{"big":{"unit":"active","sub_state":"running"},"small":{"unit":"active","sub_state":"running"}}}'
+omarchy-default-agent --select local big
+[[ $(<"${agent_file%/*}/local-model") == "big" ]] || fail "starring a local model pins it"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS=$running omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"--model big" ]] || fail "a default of local opens the pinned model: ${launch_args[*]}"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS='{"last":"small","models":{"small":{"unit":"active","sub_state":"running"}}}' omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"--model last" ]] || fail "a pin to a removed model opens the last one instead: ${launch_args[*]}"
+omarchy-default-agent --select local
+[[ ! -e ${agent_file%/*}/local-model ]] || fail "choosing local alone clears the pin"
+printf '%s\n' "opencode" >"$agent_file"
+pass "a default of local opens the local model in pi"
+
+# A model that is set up but stopped, as one opened from its launcher may be,
+# is started in the agent's own terminal, where its loading shows: the launch
+# reruns itself inline there, and the inline run warms the model up before
+# the agent opens on it. A warm-up that fails opens nothing.
+stopped='{"last":"big","models":{"big":{"unit":"inactive","sub_state":"dead"}}}'
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --local-model big --app-id=org.omarchy.local.big
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.local.big omarchy-agent --inline --local-model big --app-id=org.omarchy.local.big" ]] ||
+  fail "a stopped local model is opened by rerunning the launch inside its terminal: ${launch_args[*]}"
+
+: >"$launch_log"
+printf '%s\n' "local" >"$agent_file"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent --inline" ]] ||
+  fail "a default of local with a stopped model starts the one last used: ${launch_args[*]}"
+printf '%s\n' "opencode" >"$agent_file"
+
+printf '#!/bin/bash\nprintf "%%s\\n" "warmup $*" >>"$OMARCHY_TEST_WARMUP_LOG"\nexit "${OMARCHY_TEST_WARMUP_STATUS:-0}"\n' >"$mock_bin/omarchy-models-warmup"
+chmod +x "$mock_bin/omarchy-models-warmup"
+export OMARCHY_TEST_WARMUP_LOG="$test_tmp/warmup"
+: >"$inline_log"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --inline --local-model big
+mapfile -d '' -t inline_args <"$inline_log"
+[[ $(<"$OMARCHY_TEST_WARMUP_LOG") == "warmup big" && ${inline_args[*]} == "pi --extension /overlays/pi-big.config --provider omarchy-local --model big" ]] ||
+  fail "an inline launch warms a stopped model up, then opens the agent on it: $(<"$OMARCHY_TEST_WARMUP_LOG") / ${inline_args[*]}"
+
+: >"$inline_log"
+if OMARCHY_TEST_WARMUP_STATUS=1 OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --inline --local-model big; then
+  fail "a model that didn't start fails the launch"
+fi
+[[ ! -s $inline_log ]] || fail "a model that didn't start opens no agent"
+
+: >"$OMARCHY_TEST_WARMUP_LOG"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS='{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}' omarchy-agent --local-model big
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ! -s $OMARCHY_TEST_WARMUP_LOG && ${launch_args[*]} == *"pi --extension /overlays/pi-big.config"* ]] ||
+  fail "a running local model opens at once: ${launch_args[*]}"
+rm "$mock_bin/omarchy-models-warmup"
+pass "a stopped local model is started in the agent's terminal before the agent opens"
+
+rm "$mock_bin/omarchy-models"
+
 : >"$launch_log"
 omarchy agent prompt "Review this project"
 mapfile -d '' -t launch_args <"$launch_log"
@@ -836,6 +748,12 @@ fi
 grep -F "omarchy agent prompt" "$test_tmp/positional-output" >/dev/null ||
   fail "omarchy agent points a positional prompt at the prompt route"
 [[ ! -s $launch_log ]] || fail "omarchy agent starts nothing for a positional prompt"
+if omarchy agent prompt '' >"$test_tmp/empty-prompt-output" 2>&1; then
+  fail "omarchy agent prompt rejects an empty prompt"
+fi
+[[ $(<"$test_tmp/empty-prompt-output") == "Usage: omarchy agent prompt [--inline] <prompt...>" ]] ||
+  fail "omarchy agent prompt answers an empty prompt with its usage" "$(<"$test_tmp/empty-prompt-output")"
+[[ ! -s $launch_log ]] || fail "omarchy agent prompt starts nothing for an empty prompt"
 pass "omarchy agent keeps prompts on the prompt route"
 
 printf '%s\n' "missing" >"$agent_file"
@@ -846,8 +764,8 @@ grep -F "missing is not installed" "$test_tmp/missing-output" >/dev/null ||
   fail "agent launcher explains when the default command is missing"
 pass "agent launcher reports a missing default command"
 
-# OpenClaw is its own self-updating runtime, not mise's: choosing it must route
-# through omarchy-install-openclaw-cli and never touch a mise environment.
+# OpenClaw is its own self-updating runtime, not a package: choosing it must
+# route through omarchy-install-openclaw-cli.
 # openclaw-cli-test.sh covers the installer itself.
 cat >"$mock_bin/omarchy-install-openclaw-cli" <<'SH'
 #!/bin/bash
@@ -870,7 +788,7 @@ chmod +x "$mock_bin/omarchy-install-openclaw-cli" \
 
 : >"$launch_log"
 : >"$terminal_log"
-: >"$mise_history"
+: >"$install_history"
 OMARCHY_TEST_OPENCLAW_INSTALLED=true omarchy-default-agent openclaw
 read -r chosen <"$agent_file"
 [[ $chosen == openclaw ]] || fail "choosing OpenClaw records it as the default agent"
@@ -878,7 +796,7 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-launch-openclaw --tui" ]] ||
   fail "choosing OpenClaw launches its terminal UI"
 [[ ! -s $terminal_log ]] || fail "an installed OpenClaw needs no install terminal"
-! grep -q 'use -g openclaw' "$mise_history" || fail "OpenClaw never installs through mise"
+[[ ! -s $install_history ]] || fail "OpenClaw never installs as a package"
 pass "choosing OpenClaw uses its runtime and launches its terminal UI"
 
 : >"$terminal_log"
@@ -932,29 +850,212 @@ fi
 [[ ! -s $launch_log ]] || fail "OpenClaw's agent without the package starts nothing"
 pass "OpenClaw's agent hands a missing command to its launcher only when the package is there"
 
-# Native lazy shims can precede ~/.local/bin. The agent launcher must still run
-# the official command when the default-agent selector recognized one, for
-# every agent and whether or not it is wrapped in env or bash.
-lazy_shims="$test_tmp/lazy-shims"
-mkdir -p "$lazy_shims"
-for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
-  printf '#!/bin/bash\nprintf "official %s\\n"\n' "$agent" >"$test_home/.local/bin/$agent"
-  printf '#!/bin/bash\nprintf "lazy shim %s\\n"\n' "$agent" >"$lazy_shims/$agent"
-  chmod +x "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
-  printf '%s\n' "$agent" >"$agent_file"
-  output=$(PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
-  [[ $output == "official $agent" ]] || fail "agent launcher preserves the user-installed $agent ahead of a mise shim"
-  output=$(PATH="$lazy_shims:$PATH" omarchy-agent-prompt --inline "Review this project")
-  [[ $output == "official $agent" ]] || fail "prompted agent launcher preserves the user-installed $agent ahead of a mise shim"
-  # Once mise has its own copy installed, a terminal runs that one, so the
-  # launcher does too rather than a leftover install in ~/.local/bin.
-  output=$(OMARCHY_TEST_AGENT_INSTALLED=true PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
-  [[ $output == "lazy shim $agent" ]] || fail "agent launcher runs mise's installed $agent over a leftover ~/.local/bin copy"
-  # An older wrapper set its variable on the install line; it is still a
-  # wrapper, not the user's own install.
-  printf '#!/bin/bash\nMISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet "%s" || exit 1\nprintf "old wrapper %s\\n"\n' "$agent" "$agent" >"$test_home/.local/bin/$agent"
-  output=$(PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
-  [[ $output == "lazy shim $agent" ]] || fail "agent launcher treats an older one-line mise wrapper for $agent as a wrapper"
-  rm "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
-done
-pass "agent launcher runs user-installed agents ahead of native lazy shims"
+# Each local model that is set up gets a launcher of its own, and the warm-up
+# behind it starts a stopped model before its agent opens.
+applications="$HOME/.local/share/applications"
+icons="$HOME/.local/share/icons/hicolor/scalable/apps"
+status_file="$test_tmp/status.json"
+export OMARCHY_TEST_STATUS_FILE="$status_file"
+export OMARCHY_TEST_START_LOG="$test_tmp/start"
+
+# The engine as the commands see it: status is whatever the test wrote, and a
+# start marks the model running, or fails with the engine's reason.
+cat >"$mock_bin/omarchy-models" <<'SH'
+#!/bin/bash
+case $1 in
+status) cat "$OMARCHY_TEST_STATUS_FILE" ;;
+start)
+  printf '%s\n' "$2" >>"$OMARCHY_TEST_START_LOG"
+  if [[ -n ${OMARCHY_TEST_START_FAILS:-} ]]; then
+    echo "Error: Not enough memory to start $2"
+    exit 1
+  fi
+  ;;
+esac
+SH
+printf '#!/bin/bash\n' >"$mock_bin/update-desktop-database"
+chmod +x "$mock_bin"/*
+
+model() {
+  jq -nc --arg recipe "$1" --arg name "$2" --arg vendor "$3" --arg unit "$4" --arg sub "${5:-dead}" \
+    '{($recipe): {recipe: $recipe, name: $name, vendor: $vendor, unit: $unit, sub_state: $sub, expected_load_seconds: 76.0}}'
+}
+
+write_status() {
+  jq -sc '{last: "qwen-fast", models: add}' <<<"$*" >"$status_file"
+}
+
+launchers() {
+  (cd "$applications" && printf '%s\n' omarchy-models-*.desktop | sort | paste -sd' ')
+}
+
+# Each model that is set up gets a launcher with its name and its vendor's
+# logo, which opens an agent on it. One still downloading has nothing to open.
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model glm-5.3 "GLM-5.3 Flash" zai active running)" \
+  "$(model nemotron "Nemotron 3.5 Bolt" nvidia installing)"
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-glm-5.3.desktop omarchy-models-qwen-fast.desktop" ]] ||
+  fail "each model that is set up gets a launcher, and one still installing none" "$(launchers)"
+entry=$(<"$applications/omarchy-models-qwen-fast.desktop")
+[[ $entry == *$'\nName=Qwen3.8 Flash Next\n'* ]] || fail "the launcher carries the model's name" "$entry"
+[[ $entry == *$'\nExec=omarchy-agent --local-model qwen-fast --app-id=org.omarchy.local.qwen-fast\n'* ]] ||
+  fail "the launcher opens an agent on its model" "$entry"
+[[ $entry == *$'\nIcon=omarchy-models-qwen\n'* && $entry == *$'\nStartupWMClass=org.omarchy.local.qwen-fast\n'* ]] ||
+  fail "the launcher has its vendor's icon and a window class of its own" "$entry"
+pass "each local model that is set up gets a launcher of its own"
+
+# An image model gets no launcher, and loses the one an earlier Omarchy gave
+# it: no agent runs on one, and Fantasi lists it.
+jq -c '.models += {"klein": {recipe: "klein", name: "FLUX.2 Klein 4B", vendor: "bfl", kind: "image", unit: "active"}}' "$status_file" >"$status_file.new" && mv "$status_file.new" "$status_file"
+touch "$applications/omarchy-models-klein.desktop"
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-glm-5.3.desktop omarchy-models-qwen-fast.desktop" ]] ||
+  fail "an image model gets no launcher" "$(launchers)"
+pass "an image model gets no launcher"
+
+# The icon is the vendor's logo on a tile: the logo's paths, scaled to fit,
+# with the fill a logo keeps on its root.
+[[ $(<"$icons/omarchy-models-qwen.svg") == *'fill="#6D44E8"'* ]] || fail "the icon holds the vendor's logo"
+grep -q '<g transform="translate([0-9. -]*) scale([0-9.]*)" fill="#fff" fill-rule="evenodd">' "$icons/omarchy-models-zai.svg" ||
+  fail "a logo filled from its root keeps that fill on the tile" "$(<"$icons/omarchy-models-zai.svg")"
+if omarchy-cmd-present xmllint; then
+  for icon in "$icons"/omarchy-models-*.svg; do
+    xmllint --noout "$icon" || fail "the icon is well-formed: $icon"
+  done
+fi
+pass "the launcher's icon is the model's vendor logo"
+
+# A vendor without a logo gets the local model's, and names that could reach
+# a command line or a path are not written anywhere.
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model odd "Odd One" ../mystery inactive)" \
+  "$(model 'bad; rm -rf ~' "Bad" qwen inactive)"
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-odd.desktop omarchy-models-qwen-fast.desktop" ]] ||
+  fail "a recipe that isn't a plain id gets no launcher" "$(launchers)"
+grep -q '^Icon=omarchy-models-local$' "$applications/omarchy-models-odd.desktop" ||
+  fail "a vendor without a logo gets the local model's icon"
+[[ -f $icons/omarchy-models-local.svg ]] || fail "the local model's icon is drawn"
+pass "a vendor without a logo gets the local model's icon"
+
+# Removing a model takes its launcher, and an icon no launcher uses, with it.
+# Launchers that aren't a local model's are never touched.
+touch "$applications/omarchy-agent-claude.desktop" "$icons/omarchy-agent-claude.svg"
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model glm-5.3 "GLM-5.3 Flash" zai removing)"
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-qwen-fast.desktop" ]] || fail "a removed model loses its launcher" "$(launchers)"
+[[ ! -e $icons/omarchy-models-zai.svg && ! -e $icons/omarchy-models-local.svg && -f $icons/omarchy-models-qwen.svg ]] ||
+  fail "an icon no launcher uses goes with it" "$(ls "$icons")"
+[[ -f $applications/omarchy-agent-claude.desktop && -f $icons/omarchy-agent-claude.svg ]] ||
+  fail "launchers that aren't a local model's are left alone"
+echo '{"models":{}}' >"$status_file"
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-*.desktop" ]] || fail "the last model removed leaves no launcher" "$(launchers)"
+pass "removing a local model removes its launcher"
+
+# A reading that fails says nothing about which models are gone, so it leaves
+# every launcher where it was and says so.
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
+omarchy-models-launchers
+echo "not json" >"$status_file"
+if omarchy-models-launchers 2>/dev/null; then
+  fail "a status that can't be read fails the sync"
+fi
+[[ $(launchers) == "omarchy-models-qwen-fast.desktop" && -f $icons/omarchy-models-qwen.svg ]] ||
+  fail "a status that can't be read leaves the launchers alone" "$(launchers)"
+pass "a status that can't be read leaves the launchers alone"
+
+# The warm-up starts a stopped model before its agent opens. Without a
+# terminal it draws nothing and just waits.
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
+: >"$OMARCHY_TEST_START_LOG"
+omarchy-models-warmup qwen-fast </dev/null >"$test_tmp/warmup-output" 2>&1 ||
+  fail "the warm-up starts a stopped model" "$(<"$test_tmp/warmup-output")"
+[[ $(<"$OMARCHY_TEST_START_LOG") == "qwen-fast" ]] || fail "the warm-up starts the model it was given"
+: >"$OMARCHY_TEST_START_LOG"
+omarchy-models-warmup </dev/null >/dev/null 2>&1 || fail "the warm-up starts the model last used when given none"
+[[ $(<"$OMARCHY_TEST_START_LOG") == "qwen-fast" ]] || fail "the warm-up defaults to the model last used"
+pass "the warm-up starts a stopped model"
+
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen active running)"
+: >"$OMARCHY_TEST_START_LOG"
+omarchy-models-warmup qwen-fast </dev/null >/dev/null 2>&1 || fail "the warm-up passes a running model"
+[[ ! -s $OMARCHY_TEST_START_LOG ]] || fail "a running model is not started again"
+pass "the warm-up leaves a running model alone"
+
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
+if OMARCHY_TEST_START_FAILS=1 omarchy-models-warmup qwen-fast </dev/null >"$test_tmp/warmup-output" 2>&1; then
+  fail "a model that didn't start fails the warm-up"
+fi
+[[ $(<"$test_tmp/warmup-output") == *"Qwen3.8 Flash Next didn't start."*"Not enough memory to start qwen-fast"* ]] ||
+  fail "the warm-up says why the model didn't start" "$(<"$test_tmp/warmup-output")"
+if omarchy-models-warmup missing </dev/null >"$test_tmp/warmup-output" 2>&1; then
+  fail "a model that isn't set up fails the warm-up"
+fi
+[[ $(<"$test_tmp/warmup-output") == *"missing is not set up"* ]] || fail "the warm-up says a model isn't set up" "$(<"$test_tmp/warmup-output")"
+pass "the warm-up reports a model that didn't start"
+
+# A model someone else is already starting is waited for, not started again:
+# the panel's status file says when it is up.
+write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen activating start)"
+state_file="$HOME/.local/state/omarchy/agent-local/status.json"
+mkdir -p "${state_file%/*}"
+cp "$status_file" "$state_file"
+: >"$OMARCHY_TEST_START_LOG"
+(
+  sleep 1.5
+  jq -c '.models["qwen-fast"] += {unit: "active", sub_state: "running"}' "$status_file" >"$state_file.tmp"
+  mv "$state_file.tmp" "$state_file"
+) &
+omarchy-models-warmup qwen-fast </dev/null >/dev/null 2>&1 || fail "the warm-up waits for a model that is already loading"
+wait
+[[ ! -s $OMARCHY_TEST_START_LOG ]] || fail "a model already loading is not started again"
+pass "the warm-up waits for a model that is already loading"
+
+# In a terminal the wait is a show: the model's name, how far along it is,
+# and the terminal handed back as it was found.
+if omarchy-cmd-present script; then
+  write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
+  cat >"$mock_bin/omarchy-models" <<'SH'
+#!/bin/bash
+case $1 in
+status) cat "$OMARCHY_TEST_STATUS_FILE" ;;
+start) sleep 1 ;;
+esac
+SH
+  script -qec "stty rows 30 cols 100; omarchy-models-warmup qwen-fast" "$test_tmp/show" </dev/null >/dev/null ||
+    fail "the warm-up's show ends well once the model is up"
+  show=$(sed -E $'s/\e\\[[0-9;?]*[A-Za-z]//g' "$test_tmp/show")
+  [[ $show == *"Q W E N 3 . 8   F L A S H   N E X T"* && $show == *"... 1%"* && $show == *"Qwen3.8 Flash Next is ready"* ]] ||
+    fail "the show names the model, how far along it is and when it is ready"
+  grep -q $'\e\\[?1049h' "$test_tmp/show" && grep -q $'\e\\[?25h\e\\[?1049l' "$test_tmp/show" ||
+    fail "the show takes the alternate screen and gives the terminal back"
+  pass "the warm-up puts on a show in a terminal"
+else
+  skip "the warm-up puts on a show in a terminal (no script command)"
+fi
+rm "$mock_bin/omarchy-models" "$mock_bin/update-desktop-database"
+
+# Removing an agent's CLI leaves its sign-ins, but a default that's gone would
+# leave the AI hotkey with nothing to open, so it asks for a new one.
+applications="$HOME/.local/share/applications"
+mkdir -p "$applications"
+touch "$applications/omarchy-agent-codex.desktop"
+printf '%s\n' codex >"$agent_file"
+omarchy-remove-ai-cli codex
+[[ ! -e $agent_file ]] || fail "removing the default agent's CLI clears the default"
+[[ ! -e $applications/omarchy-agent-codex.desktop ]] || fail "removing an agent's CLI removes its launcher"
+printf '%s\n' claude >"$agent_file"
+omarchy-remove-ai-cli codex
+[[ $(<"$agent_file") == "claude" ]] || fail "removing another agent's CLI keeps the default"
+pass "removing an agent's CLI clears its launcher and a default it held"
+
+# A sign-in whose CLI isn't installed here installs it in a terminal and then
+# opens, rather than opening a window that fails.
+: >"$launch_log"
+: >"$terminal_log"
+printf '%s\n' claude >"$agent_file"
+OMARCHY_TEST_MISSING_COMMAND=claude omarchy-agent </dev/null >/dev/null 2>&1
+[[ $(tr '\0' ' ' <"$terminal_log") == "omarchy-install-ai-cli claude && omarchy-agent " ]] ||
+  fail "launching a claude that isn't installed installs it first" "$(tr '\0' ' ' <"$terminal_log")"
+[[ ! -s $launch_log ]] || fail "a claude that isn't installed opens no window before it is"
+pass "launching an agent whose CLI isn't installed installs it, then opens it"

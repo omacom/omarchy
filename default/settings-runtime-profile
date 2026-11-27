@@ -22,3 +22,6 @@
 #   install/omarchy-aarch64.packages on aarch64.
 # etc/modprobe.d/omarchy-usb-autosuspend.conf
 #   Applies where usbcore is a module; a kernel that builds it in ignores it.
+# etc/tmpfiles.d/omarchy-intel-hwp-boost.conf
+#   Writes only when /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
+#   exists; systemd-tmpfiles treats it as a no-op on AMD, ARM, and non-HWP CPUs.

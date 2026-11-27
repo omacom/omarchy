@@ -174,4 +174,6 @@ if [[ -z $dev_checkout ]]; then
   export OMARCHY_PATH=/usr/share/omarchy
 fi
 
-"$OMARCHY_PATH/bin/omarchy-update" -y
+# The switch was already confirmed, but the user is still here: keep the
+# reboot prompt interactive.
+OMARCHY_UPDATE_UNATTENDED=0 "$OMARCHY_PATH/bin/omarchy-update" -y

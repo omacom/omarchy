@@ -22,11 +22,12 @@ trap 'rm -rf "$fixture"' EXIT
 mkdir -p "$fixture/qs/Commons" "$fixture/qs/Ui" "$fixture/home"
 cp "$SHELL_TEST_DIR/dropdown/Commons/"* "$fixture/qs/Commons/"
 cp "$ROOT/shell/Commons/Border.qml" "$ROOT/shell/Commons/BorderGeometry.js" "$fixture/qs/Commons/"
-cp "$ROOT/shell/Ui/Dropdown.qml" "$ROOT/shell/Ui/BorderSurface.qml" "$ROOT/shell/Ui/BorderOverlay.qml" "$fixture/qs/Ui/"
+cp "$ROOT/shell/Ui/Dropdown.qml" "$ROOT/shell/Ui/SearchableDropdown.qml" "$ROOT/shell/Ui/TextField.qml" \
+  "$ROOT/shell/Ui/BorderSurface.qml" "$ROOT/shell/Ui/BorderOverlay.qml" "$fixture/qs/Ui/"
 cp "$SHELL_TEST_DIR/dropdown/qml/"* "$fixture/"
 
 output=$(HOME="$fixture/home" XDG_CONFIG_HOME="$fixture/home/.config" XDG_STATE_HOME="$fixture/home/.state" \
-  QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic \
+  QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic \
   "$qml_test_runner" -import "$fixture" -input "$fixture" -o -,txt 2>&1) ||
   fail "dropdown popup fits short lists and preserves capped scrolling" "$output"
 printf '%s\n' "$output" | sed -n '/^Totals:/p'
