@@ -56,6 +56,16 @@ assertEqual(
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'off'), 'power does not flag stalled charging as threshold when limit is off')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'once'), 'power does not flag stalled charging as threshold during a one-time top-up')
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'on'), 'power flags stalled charging as threshold when limit is on')
+assertEqual(
+  power.batteryIcon({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'off'),
+  power.batteryIcon({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states, true, 'off'),
+  'power keeps charging icon when limit is off and charge rate is low'
+)
+assertEqual(
+  power.modeLabel({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, undefined, true, 'once'),
+  'Charging',
+  'power keeps charging label during a one-time top-up when charge rate is low'
+)
 
 assertEqual(power.chargeLimitFraction({ limit_mode: 'threshold', limit_end: '80' }), 0.8, 'power computes numeric charge limit fraction for the bar tick')
 assertEqual(power.chargeLimitFraction({ limit_mode: 'firmware', limit_end: '80' }), 0, 'power omits bar tick for firmware-only conservation mode')

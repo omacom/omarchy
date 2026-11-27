@@ -81,12 +81,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh)
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh, root.activeChargeLimit)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh, root.activeChargeLimit)
   }
 
   function profileIcon(name) {
@@ -575,7 +575,7 @@ Panel {
             width: Math.max(2, Style.space(2))
             height: barTrack.height + Style.space(4)
             radius: 1
-            x: Math.round(barTrack.width * root.chargeLimitFraction) - width / 2
+            x: Math.round(barTrack.width * (LayoutMirroring.enabled ? 1 - root.chargeLimitFraction : root.chargeLimitFraction)) - width / 2
             anchors.verticalCenter: barTrack.verticalCenter
             color: root.bar.foreground
             opacity: root.activeChargeLimit === "once" ? 0.25 : 0.65
@@ -631,7 +631,7 @@ Panel {
                   id: sleepPair
                   label: Commons.I18n.t("power.lastSleep")
                   value: root.sleepShort
-                  valueColor: root.sleepLowS0ix ? Commons.Color.color3 : root.bar.foreground
+                  valueColor: root.sleepLowS0ix ? Commons.Color.warning : root.bar.foreground
                 }
 
                 MouseArea {
@@ -658,7 +658,7 @@ Panel {
               id: s0ixWarnIcon
               text: "󰀦"
               textFormat: Text.PlainText
-              color: Commons.Color.color3
+              color: Commons.Color.warning
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
               anchors.verticalCenter: parent.verticalCenter
@@ -667,7 +667,7 @@ Panel {
             Text {
               text: Commons.I18n.t("power.shallowSleep").arg(root.reading(root.batteryInfo.sleep_s0ix))
               textFormat: Text.PlainText
-              color: Commons.Color.color3
+              color: Commons.Color.warning
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
               elide: Text.ElideRight
@@ -737,7 +737,7 @@ Panel {
             opacity: root.showTopUpButton ? 1 : 0
 
             Behavior on height {
-              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
             }
             Behavior on opacity {
               NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
@@ -774,7 +774,7 @@ Panel {
             visible: root.chargeLimitError !== ""
             text: root.chargeLimitError
             textFormat: Text.PlainText
-            color: Commons.Color.color1
+            color: Commons.Color.urgent
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight

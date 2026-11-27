@@ -68,14 +68,14 @@ function chargeThresholdActive(device, onBattery, states, rateFresh, limitState)
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states, rateFresh) {
+function batteryIcon(device, onBattery, states, rateFresh, limitState) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh)
+  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh, limitState)
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
@@ -83,13 +83,13 @@ function batteryIcon(device, onBattery, states, rateFresh) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr, rateFresh) {
+function modeLabel(device, onBattery, states, tr, rateFresh, limitState) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states, rateFresh)) return t("power.threshold", "Threshold")
+  if (chargeThresholdActive(d, onBattery, states, rateFresh, limitState)) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")

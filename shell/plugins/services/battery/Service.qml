@@ -30,6 +30,7 @@ Item {
     return stateHome + "/omarchy/battery/top-up-once"
   }
   readonly property bool topUpOnce: topUpOnceFile.text.trim().length > 0
+  onTopUpOnceChanged: if (topUpOnce) checkTopUpOnceRearm()
 
   PersistentProperties {
     id: persisted
@@ -91,6 +92,7 @@ Item {
   function refreshChargeLimit() {
     topUpOnceFile.reread()
     chargeLimitSignals++
+    checkTopUpOnceRearm()
   }
 
   function rearmChargeLimit() {
