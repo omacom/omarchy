@@ -262,3 +262,43 @@ for platform in x86 aarch64 aarch64-apple; do
   fi
 done
 pass "omarchy-hw-x86 and omarchy-hw-aarch64 split every platform by its CPU"
+
+# omarchy-hw-pci matches sysfs PCI IDs and class prefixes without invoking lspci.
+pci_root="$test_tmp/pci"
+mkdir -p "$pci_root/0000:00:02.0" "$pci_root/0000:00:1f.3" "$pci_root/0000:01:00.0"
+printf '0x8086\n' >"$pci_root/0000:00:02.0/vendor"
+printf '0x7d55\n' >"$pci_root/0000:00:02.0/device"
+printf '0x030000\n' >"$pci_root/0000:00:02.0/class"
+printf '0x8086\n' >"$pci_root/0000:00:1f.3/vendor"
+printf '0x7e28\n' >"$pci_root/0000:00:1f.3/device"
+printf '0x040380\n' >"$pci_root/0000:00:1f.3/class"
+printf '0x14e4\n' >"$pci_root/0000:01:00.0/vendor"
+printf '0x1570\n' >"$pci_root/0000:01:00.0/device"
+printf '0x048000\n' >"$pci_root/0000:01:00.0/class"
+
+OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" 14e4:1570 || fail "omarchy-hw-pci matches an exact vendor:device"
+! OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" 14e4:43a0 || fail "omarchy-hw-pci rejects a missing device"
+OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 03 8086:* || fail "omarchy-hw-pci matches a vendor wildcard with class prefix"
+! OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 03 1002:* || fail "omarchy-hw-pci rejects an absent GPU vendor"
+OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 0401,0403 8086:* || fail "omarchy-hw-pci matches comma-separated class prefixes"
+! OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 0401,0403 14e4:* || fail "omarchy-hw-pci enforces class prefix"
+pass "omarchy-hw-pci matches PCI vendor/device IDs and classes from sysfs"
+
+# omarchy-hw-dell-xps-haptic-touchpad matches both x86 (VEN_06CB:00) and
+# NVIDIA N1x (DELL06CB:00) Synaptics haptic touchpads on Dell XPS laptops.
+xps_bin="$test_tmp/xps-bin"
+non_xps_bin="$test_tmp/non-xps-bin"
+mkdir -p "$xps_bin" "$non_xps_bin" "$test_tmp/i2c-ven/i2c-VEN_06CB:00" "$test_tmp/i2c-dell/i2c-DELL06CB:00" "$test_tmp/i2c-empty"
+printf '#!/bin/bash\n[[ ${1:-} == "XPS" ]]\n' >"$xps_bin/omarchy-hw-match"
+printf '#!/bin/bash\nexit 1\n' >"$non_xps_bin/omarchy-hw-match"
+chmod +x "$xps_bin/omarchy-hw-match" "$non_xps_bin/omarchy-hw-match"
+
+PATH="$xps_bin:$ROOT/bin:$PATH" OMARCHY_I2C_DEVICES_PATH="$test_tmp/i2c-ven" "$ROOT/bin/omarchy-hw-dell-xps-haptic-touchpad" ||
+  fail "omarchy-hw-dell-xps-haptic-touchpad matches i2c-VEN_06CB:00 on XPS"
+PATH="$xps_bin:$ROOT/bin:$PATH" OMARCHY_I2C_DEVICES_PATH="$test_tmp/i2c-dell" "$ROOT/bin/omarchy-hw-dell-xps-haptic-touchpad" ||
+  fail "omarchy-hw-dell-xps-haptic-touchpad matches i2c-DELL06CB:00 on XPS"
+! PATH="$xps_bin:$ROOT/bin:$PATH" OMARCHY_I2C_DEVICES_PATH="$test_tmp/i2c-empty" "$ROOT/bin/omarchy-hw-dell-xps-haptic-touchpad" ||
+  fail "omarchy-hw-dell-xps-haptic-touchpad rejects XPS without a Synaptics haptic touchpad"
+! PATH="$non_xps_bin:$ROOT/bin:$PATH" OMARCHY_I2C_DEVICES_PATH="$test_tmp/i2c-dell" "$ROOT/bin/omarchy-hw-dell-xps-haptic-touchpad" ||
+  fail "omarchy-hw-dell-xps-haptic-touchpad rejects non-XPS machines"
+pass "omarchy-hw-dell-xps-haptic-touchpad matches x86 and N1x Dell XPS haptic touchpads"

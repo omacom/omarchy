@@ -1,3 +1,5 @@
+local keyboard = require("default.hypr.keyboard")
+
 -- Essential application bindings.
 o.bind("SUPER + RETURN", "Terminal", o.launch_terminal())
 o.bind("SUPER + SHIFT + RETURN", "Browser", { omarchy = "browser" })
@@ -19,7 +21,7 @@ if o.preinstalled_bindings_enabled() then
   end
   o.bind("SUPER + SHIFT + O", "Obsidian", { launch = "obsidian", focus = "^obsidian$" })
   o.bind("SUPER + SHIFT + W", "Omawrite", { launch = "omawrite" })
-  o.bind("SUPER + SHIFT + SLASH", "Passwords", { omarchy = "1password" })
+  o.bind("SUPER + SHIFT + " .. keyboard.key("SLASH"), "Passwords", { omarchy = "1password" })
 
   -- Hotkeys for apps and web apps whose services depend on the region
   -- (docs/regions.md).

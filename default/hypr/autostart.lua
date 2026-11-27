@@ -8,14 +8,13 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("omarchy-powerprofiles-init")
   hl.exec_cmd("omarchy-hyprland-software-rendering")
   hl.exec_cmd(o.launch("omarchy-hyprland-monitor-watch"))
-  hl.exec_cmd(o.launch("udiskie --automount --no-notify --no-tray"))
 
-  -- Start the herdr server inside the graphical session so its panes inherit
-  -- WAYLAND_DISPLAY. Otherwise the first SSH login from a remote herdr starts
-  -- it with a tty environment, and agents in its panes can't read the clipboard.
-  -- setsid makes it lead its own session, as when herdr starts it itself, so
-  -- remote clients don't ask to restart it on every attach.
-  hl.exec_cmd(o.launch("setsid herdr server"))
+  -- Defer background daemons that aren't needed for the first frame so
+  -- omarchy-shell brings up the desktop without competing for CPU and I/O.
+  -- Encrypted drives ask for their password in the shell (omarchy-drive-unlock).
+  hl.exec_cmd(
+    "sleep 2 && " .. o.launch("udiskie --automount --no-notify --no-tray --password-prompt 'omarchy-drive-unlock {device_file}'")
+  )
 
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")

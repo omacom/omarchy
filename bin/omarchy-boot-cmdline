@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# omarchy:summary=Set, remove or show a named group of kernel command line parameters
+# omarchy:args=set NAME PARAMS... | unset NAME | get NAME
+# omarchy:examples=omarchy-boot-cmdline set fred fred=on | omarchy-boot-cmdline unset fred
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Each group is one file, in the format of every boot loader Omarchy manages:
+#   Limine:      /etc/limine-entry-tool.d/NAME.conf   KERNEL_CMDLINE[default]+=" PARAMS"
+#   systemd-boot /etc/cmdline.d/NAME.conf             PARAMS
+# Rebuild the boot images afterwards (omarchy-boot-rebuild) for the change to
+# reach the next boot.
+
+set -euo pipefail
+
+LIMINE_DIR=${OMARCHY_BOOT_LIMINE_DROPINS:-/etc/limine-entry-tool.d}
+CMDLINE_DIR=${OMARCHY_BOOT_CMDLINE_DIR:-/etc/cmdline.d}
+
+usage() {
+  echo "Usage: omarchy-boot-cmdline set NAME PARAMS... | unset NAME | get NAME" >&2
+  exit 2
+}
+
+(($# >= 2)) || usage
+action=$1 name=$2
+shift 2
+[[ $name =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "Invalid group name: $name" >&2; exit 2; }
+
+mapfile -t backends < <(omarchy-boot-backend --managed)
+# Before any boot loader tooling is installed (the installer writes hardware
+# parameters early), the machine is about to get Limine: write its format.
+[[ ${backends[*]} == "none" || ${#backends[@]} == 0 ]] && backends=(limine)
+
+case $action in
+set)
+  (($#)) || usage
+  params="$*"
+  [[ $params != *'"'* && $params != *$'\n'* ]] || { echo "Parameters cannot contain quotes or newlines" >&2; exit 2; }
+  for backend in "${backends[@]}"; do
+    case $backend in
+    limine)
+      mkdir -p "$LIMINE_DIR"
+      printf 'KERNEL_CMDLINE[default]+=" %s"\n' "$params" >"$LIMINE_DIR/$name.conf.new"
+      mv -f "$LIMINE_DIR/$name.conf.new" "$LIMINE_DIR/$name.conf"
+      ;;
+    systemd-boot)
+      mkdir -p "$CMDLINE_DIR"
+      printf '%s\n' "$params" >"$CMDLINE_DIR/$name.conf.new"
+      mv -f "$CMDLINE_DIR/$name.conf.new" "$CMDLINE_DIR/$name.conf"
+      ;;
+    esac
+  done
+  ;;
+unset)
+  (($# == 0)) || usage
+  rm -f "$LIMINE_DIR/$name.conf" "$CMDLINE_DIR/$name.conf"
+  ;;
+get)
+  (($# == 0)) || usage
+  if [[ -f $CMDLINE_DIR/$name.conf && ${backends[*]} == *systemd-boot* ]]; then
+    { grep -v '^[[:space:]]*#' "$CMDLINE_DIR/$name.conf" || true; } | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'
+    echo
+  elif [[ -f $LIMINE_DIR/$name.conf ]]; then
+    sed -n 's/^KERNEL_CMDLINE\[default\]+="[[:space:]]*\(.*\)"[[:space:]]*$/\1/p' "$LIMINE_DIR/$name.conf" | paste -sd' ' -
+  fi
+  ;;
+*)
+  usage
+  ;;
+esac
