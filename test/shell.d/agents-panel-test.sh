@@ -51,6 +51,74 @@ for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
 }
 JS
 
+# DeepSeek is both a key provider (its key opens in OpenCode) and a harness
+# mapping (dsh). The harness wins only when it is installed, so the launch
+# button and the default id honor dsh without breaking OpenCode-key users.
+# Regression for #20366, where opensInAgent() shadowed the dsh mapping and
+# DeepSeek always opened OpenCode.
+run_node_test <<'JS'
+const fs = require('fs')
+const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+
+// The extracted bodies come from this repo's own Panel.qml — same source
+// trust as the sign-in tests above.
+const block = (pattern, transform) => {
+  const match = panelSource.match(pattern)
+  if (!match) fail('agents panel exposes ' + pattern.source.slice(0, 60))
+  return transform(match[0])
+}
+const harnessesDecl = block(/readonly property var harnesses: \(\{[^]*?\n  \}\)/,
+  src => src.replace('readonly property var harnesses:', 'const harnesses ='))
+const keyProvidersDecl = block(/readonly property var keyProviders: \[.*\]/,
+  src => src.replace('readonly property var keyProviders:', 'const keyProviders ='))
+const keyProviderHarnessesDecl = block(/readonly property var keyProviderHarnesses: \{[^]*?\n  \}/,
+  src => src.replace('readonly property var keyProviderHarnesses:', 'const keyProviderHarnesses = function ()') + '()')
+const routingFns = ['harnessFor', 'opensInAgent', 'harnessReady', 'launchCommand', 'defaultIdFor'].map(name => {
+  const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
+  if (!match) fail('agents panel exposes ' + name)
+  return match[0]
+}).join('\n')
+const routing = new Function('installedHarnesses',
+  harnessesDecl + '\n' + keyProvidersDecl + '\n' + keyProviderHarnessesDecl +
+  '\n' + routingFns + '\nreturn {launchCommand, defaultIdFor, harnessReady, keyProviderHarnesses}')
+
+const deepseek = { providerId: 'deepseek' }
+const fireworks = { providerId: 'fireworks' }
+const claude = { providerId: 'claude' }
+const local = { providerId: 'pi', localModel: { target: 'qwen3.8-27b' } }
+
+// dsh installed: the DeepSeek line launches DeepSeek Harness and stars it as dsh.
+const withDsh = routing({ dsh: true })
+assertDeepEqual(withDsh.launchCommand(deepseek), ['omarchy-agent', '--agent', 'dsh'],
+  'DeepSeek with dsh installed launches DeepSeek Harness')
+assertEqual(withDsh.defaultIdFor(deepseek), 'dsh', 'DeepSeek with dsh installed defaults to dsh')
+
+// dsh missing (the probe answered "no"): the OpenCode key route stays exactly as it was.
+const withoutDsh = routing({ dsh: false })
+assertDeepEqual(withoutDsh.launchCommand(deepseek), ['omarchy-agent', '--provider', 'deepseek'],
+  'DeepSeek without dsh still opens in OpenCode')
+assertEqual(withoutDsh.defaultIdFor(deepseek), 'opencode', 'DeepSeek without dsh still defaults to opencode')
+
+// Providers with no stake in the mapping are untouched either way.
+assertDeepEqual(withDsh.launchCommand(fireworks), ['omarchy-agent', '--provider', 'fireworks'],
+  'Fireworks still opens in OpenCode with dsh installed')
+assertEqual(withDsh.defaultIdFor(fireworks), 'opencode', 'Fireworks still defaults to opencode')
+assertDeepEqual(withDsh.launchCommand(claude), ['omarchy-agent', '--agent', 'claude'],
+  'Claude still launches its own harness')
+assertEqual(withDsh.defaultIdFor(claude), 'claude', 'Claude still defaults to its harness')
+assertEqual(withDsh.defaultIdFor(null), '', 'a missing provider still has no default')
+assertEqual(withDsh.defaultIdFor({ providerId: 'local' }), 'local', 'the local default is still local')
+
+// The make prompts ride the same routing, and a local model line is untouched.
+assertDeepEqual(withDsh.launchCommand(deepseek, 'theme'), ['omarchy-agent-make', '--agent', 'dsh', 'theme'],
+  'a make prompt follows the harness routing')
+assertDeepEqual(withDsh.launchCommand(local), ['omarchy-agent', '--local-model', 'qwen3.8-27b'],
+  'a local model still opens on its target')
+
+// The probe asks about every harness a key provider maps to.
+assert(withDsh.keyProviderHarnesses.indexOf('dsh') >= 0, 'the probe covers the deepseek mapping')
+JS
+
 # The panel reads a window out of a label, and that guess cannot survive a
 # model name — "Opus 5 (1M context)" parses as a one-minute window. A collector
 # that states the title outright is taken at its word.

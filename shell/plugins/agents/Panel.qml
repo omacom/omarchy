@@ -1239,15 +1239,26 @@ Panel {
     Util.execArgv(["uwsm-app", "--", "gtk-launch", entry.id + ".desktop"])
   }
 
+  // The argv that launches a line's agent, or has it make `kind` when one is
+  // given. Split from runLine so the routing rules stay testable on their own.
+  // A provider with a harness of its own opens the harness when it is on the
+  // machine — DeepSeek maps to dsh, and its key in OpenCode must not shadow
+  // that (#20366). Without the harness, a key provider still opens in
+  // OpenCode, where the panel's sign-in saved its key.
+  function launchCommand(line, kind) {
+    var command = [kind ? "omarchy-agent-make" : "omarchy-agent"]
+    if (line.localModel) command.push("--local-model", line.localModel.target)
+    else if (opensInAgent(line) && !harnessReady(line)) command.push("--provider", line.providerId)
+    else command.push("--agent", harnessFor(line))
+    if (kind) command.push(kind)
+    return command
+  }
+
   // Starts a line's agent, or has it make `kind` when one is given, first
   // switching to the line's account when it isn't the one in use.
   function runLine(line, kind) {
     if (!launches(line)) return
-    var command = [kind ? "omarchy-agent-make" : "omarchy-agent"]
-    if (line.localModel) command.push("--local-model", line.localModel.target)
-    else if (opensInAgent(line)) command.push("--provider", line.providerId)
-    else command.push("--agent", harnessFor(line))
-    if (kind) command.push(kind)
+    var command = launchCommand(line, kind)
     if (command[1] === "--agent" && line.account && !line.account.active)
       command = ["bash", "-c", 'omarchy-agent-account-use "$1" "$2" >/dev/null && exec "${@:3}"',
                  "run-line", line.providerId, String(line.account.id)].concat(command)
@@ -1389,8 +1400,8 @@ Panel {
   }
 
   // The coding agent made for each subscription, by usage provider id. A
-  // provider with none of its own (Z.ai, DeepSeek…) gets no terminal button:
-  // which harness to point at it is the user's choice.
+  // provider with no mapping here (Z.ai…) opens through its OpenCode key
+  // route instead.
   readonly property var harnesses: ({
     agy: "agy",
     claude: "claude",
@@ -1419,6 +1430,29 @@ Panel {
     return !!provider && keyProviders.indexOf(provider.providerId) >= 0
   }
 
+  // A provider can be both: DeepSeek is a key provider (its key opens in
+  // OpenCode) and maps to a harness of its own (dsh). The harness wins only
+  // when it is on the machine — probed at shell start and per open — so a
+  // DeepSeek key used through OpenCode keeps opening OpenCode until dsh is
+  // installed. Installed-wins is the deliberate call: someone who put dsh
+  // on the machine made it their DeepSeek tool; a key-only user without it
+  // keeps today's route. dsh reads its own credentials under $DSH_HOME, not
+  // OpenCode's (#20366).
+  readonly property var keyProviderHarnesses: {
+    var ids = []
+    for (var i = 0; i < keyProviders.length; i++) {
+      var id = harnesses[keyProviders[i]]
+      if (id && ids.indexOf(id) < 0) ids.push(id)
+    }
+    return ids
+  }
+  property var installedHarnesses: ({})
+
+  function harnessReady(provider) {
+    var id = harnessFor(provider)
+    return id !== "" && installedHarnesses[id] === true
+  }
+
   // A local model opens once it's set up, starting first when it's stopped.
   function launches(provider) {
     // A local model opens an agent only while it runs; until then its line
@@ -1429,11 +1463,12 @@ Panel {
 
   // What choosing this agent as the default writes: its harness, OpenCode for
   // a provider that runs there, or "local" for models on hardware you own.
-  // Empty for one that can't be the default.
+  // Empty for one that can't be the default. A harness the machine has wins
+  // over the OpenCode key route, like the launch button does (#20366).
   function defaultIdFor(provider) {
     if (!provider) return ""
     if (provider.providerId === "local") return "local"
-    if (opensInAgent(provider)) return "opencode"
+    if (opensInAgent(provider) && !harnessReady(provider)) return "opencode"
     return harnessFor(provider)
   }
 
@@ -1924,8 +1959,10 @@ Panel {
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.reloadDefaults()
-    // Defer the external usage/network refresh past the open animation so
-    // spawning omarchy-agent-usage-update doesn't compete with rendering it.
+    // Defer the external usage/network refresh and the harness probe past
+    // the open animation so spawning processes doesn't compete with
+    // rendering it. The map is already valid from the startup probe; this
+    // refresh only picks up an install or uninstall between opens.
     openRefresh.restart()
     // Whether a stopped model fits is as the engine last judged it; memory
     // freed since lets it start, so it's judged again.
@@ -1941,8 +1978,13 @@ Panel {
       if (!root.opened) return
       usage.refreshLimits()
       if (localModelsService) localModelsService.refreshNetwork()
+      probeHarnesses()
     }
   }
+
+  // The first answer, before any open: panel start, not the first open, so
+  // the routing map is ready when the panel is.
+  Component.onCompleted: probeHarnesses()
 
   // The tailnet has no change signal, so while the panel is open the paired
   // machines' models are surveyed again every 2 seconds, as the local models
@@ -1984,6 +2026,41 @@ Panel {
         root.addChecks = checks
       }
     }
+  }
+
+  // Which key-provider harnesses are on the machine, probed at shell start
+  // and again after each open settles: the launch routing and the default id
+  // need to know whether a provider's own harness (dsh for DeepSeek) is
+  // installed, and there is no change signal for a CLI appearing or leaving.
+  // The collector waits for the end of the stream, so each probe replaces
+  // the whole map from one complete answer set — an id it could not answer
+  // reads as absent (the OpenCode key route) rather than keeping a stale
+  // "installed" from before an uninstall.
+  Process {
+    id: harnessCheckProcess
+    running: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var installed = {}
+        var lines = String(text || "").split("\n")
+        for (var i = 0; i < lines.length; i++) {
+          var parts = lines[i].trim().split(" ")
+          if (parts.length === 2) installed[parts[0]] = parts[1] === "yes"
+        }
+        // Assign only on change: the map feeds every star binding.
+        if (JSON.stringify(installed) !== JSON.stringify(root.installedHarnesses))
+          root.installedHarnesses = installed
+      }
+    }
+  }
+
+  function probeHarnesses() {
+    if (keyProviderHarnesses.length === 0 || harnessCheckProcess.running) return
+    harnessCheckProcess.command = ["bash", "-c",
+      'for id in "$@"; do if omarchy-default-agent --installed "$id" >/dev/null 2>&1; then echo "$id yes"; else echo "$id no"; fi; done',
+      "bash"].concat(keyProviderHarnesses)
+    harnessCheckProcess.running = true
   }
 
   Process {
