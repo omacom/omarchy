@@ -370,6 +370,8 @@ Panel {
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
+      dnsChangeFailed = false
+      dnsFailureDetail = ""
       refresh(!(wifiDevice && wifiDevice.scannerEnabled))
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
