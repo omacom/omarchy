@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Install Sublime Text with the current Omarchy theme
+
+set -e
+
+echo "Installing Sublime Text..."
+omarchy-pkg-add sublime-text-4
+omarchy-setup-sublime
+
+setsid uwsm-app -- gtk-launch sublime_text >/dev/null 2>&1 &
