@@ -65,6 +65,10 @@ Sink Input #42
 OUT
     ;;
   "-f json list sinks")
+    if [[ -n ${SINKS_JSON:-} ]]; then
+      cat "$SINKS_JSON"
+      exit 0
+    fi
     cat <<'OUT'
 [
   {
@@ -102,8 +106,15 @@ OUT
 esac
 exit 0
 SH
+# PipeWire's node graph, for sinks whose pactl description came back broken.
+cat >"$work/bin/pw-dump" <<'SH'
+#!/bin/bash
+printf 'pw-dump %s\n' "$*" >>"$CALLS"
+cat "$PW_DUMP_JSON" 2>/dev/null || echo "[]"
+SH
 chmod +x "$work/bin"/*
 
+export PW_DUMP_JSON="$work/pw-dump.json"
 export MIC_STATE="$work/mic" CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
@@ -137,7 +148,30 @@ grep -qx 'C pactl get-sink-mute alsa_output.headphones' "$CALLS" ||
   fail 'audio-output-switch reads sink mute in the C locale' "$(calls)"
 grep -Fxq 'omarchy-osd -i volume-medium -m Studio\DAC Headphones' "$CALLS" ||
   fail 'audio-output-switch preserves backslashes in sink descriptions' "$(calls)"
+! grep -q '^pw-dump' "$CALLS" || fail 'audio-output-switch asks PipeWire although pactl had the description' "$(calls)"
 pass 'audio-output-switch reads pactl outputs in the C locale'
+
+# PipeWire hands pactl a non-ASCII description as "(null)" (#14832); its node
+# graph still has the real one, and without that the OSD names the sink.
+cat >"$work/null-sink.json" <<'JSON'
+[{"index": 3, "name": "bluez_output.bose", "description": "(null)",
+  "properties": {"device.description": "(null)"}, "ports": [],
+  "volume": {"front-left": {"value_percent": "50%"}}}]
+JSON
+cat >"$PW_DUMP_JSON" <<'JSON'
+[{"type": "PipeWire:Interface:Node",
+  "info": {"props": {"node.name": "bluez_output.bose", "node.description": "Bose Café"}}}]
+JSON
+: >"$CALLS"
+SINKS_JSON="$work/null-sink.json" omarchy-audio-output-switch 2>/dev/null || true
+grep -Fxq 'omarchy-osd -i volume-medium -m Bose Café' "$CALLS" ||
+  fail 'audio-output-switch takes a (null) description from PipeWire' "$(calls)"
+echo "[]" >"$PW_DUMP_JSON"
+: >"$CALLS"
+SINKS_JSON="$work/null-sink.json" omarchy-audio-output-switch 2>/dev/null || true
+grep -Fxq 'omarchy-osd -i volume-medium -m bluez_output.bose' "$CALLS" ||
+  fail 'audio-output-switch shows "(null)" for a sink PipeWire does not describe' "$(calls)"
+pass 'audio-output-switch recovers a (null) sink description'
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 2>/dev/null || true
