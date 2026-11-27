@@ -1130,7 +1130,7 @@ Panel {
     root.close()
     if (id === "kimi") {
       Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
-                     'omarchy-install-ai-cli kimi && kimi login && { omarchy-agent-usage-update --force kimi || true; } && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select kimi; }'])
+                     'omarchy-install-ai-cli kimi && kimi login && { omarchy-shell omarchy.agents showAgent kimi true >/dev/null 2>&1 || true; } && { omarchy-agent-launcher kimi || true; } && { omarchy-agent-usage-update --force kimi || true; } && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select kimi; }'])
     }
   }
 
