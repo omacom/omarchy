@@ -378,7 +378,8 @@ while i < len(args):
         i += 1
 
 if cmd == ["list"]:
-    if os.environ.get("TEST_NO_CTRL") != "1":
+    detached = os.environ.get("TEST_RFKILL_DETACHED") == "1" and read_s("powered", "yes") != "yes"
+    if os.environ.get("TEST_NO_CTRL") != "1" and not detached:
         print("Controller 50:2E:66:58:2A:60 dhh-bc [default]")
     raise SystemExit(0)
 
@@ -398,6 +399,8 @@ if cmd[:1] == ["power"] and len(cmd) >= 2:
     raise SystemExit(0)
 
 if cmd[:1] == ["devices"]:
+    if os.environ.get("TEST_RFKILL_DETACHED") == "1" and read_s("powered", "yes") != "yes":
+        raise SystemExit(0)
     filt = cmd[1] if len(cmd) >= 2 else ""
     if not filt or (filt == "Connected" and read_s("airpods_connected", "yes") == "yes") or filt in ("Paired", "Trusted"):
         print("Device AA:BB:CC:DD:EE:01 AirPods Pro")
@@ -523,6 +526,13 @@ cat >"$cli_tmp/bin/rfkill" <<'SH'
 printf 'rfkill %s\n' "$*" >>"$TEST_STATE_DIR/bt.log"
 [[ $1 == "block" ]] && printf 'no\n' >"$TEST_STATE_DIR/powered"
 [[ $1 == "unblock" ]] && printf 'yes\n' >"$TEST_STATE_DIR/powered"
+if [[ $* == *"list bluetooth"* && ${TEST_RFKILL_DETACHED:-0} == "1" ]]; then
+  if [[ $(<"$TEST_STATE_DIR/powered") == "no" ]]; then
+    printf 'blocked\n'
+  else
+    printf 'unblocked\n'
+  fi
+fi
 exit 0
 SH
 
@@ -656,3 +666,37 @@ status=0
 bt_cli scan --timeout 0 >/dev/null 2>&1 || status=$?
 (( status == 2 )) || fail "invalid --timeout should exit 2" "got $status"
 pass "bluetooth CLI scan rejects out-of-range --timeout with exit 2"
+
+# On laptops whose platform rfkill switch disconnects the USB controller when
+# soft-blocked, BlueZ lists no controller while Bluetooth is off, but the
+# rfkill switch is still present.
+: >"$BT_STATE_DIR/bt.log"
+TEST_RFKILL_DETACHED=1 bt_cli off >/dev/null
+out=$(TEST_RFKILL_DETACHED=1 bt_cli status --json)
+python3 - "$out" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["available"] is True and d["powered"] is False and d["power"] == "off", d
+assert d["controller"] is None, d
+PY
+out=$(TEST_RFKILL_DETACHED=1 bt_cli scan --timeout 1 --json)
+grep -qx "rfkill unblock bluetooth" "$BT_STATE_DIR/bt.log" || fail "bluetooth scan unblocks rfkill when controller is detached"
+pass "bluetooth CLI treats an rfkill-detached radio as off rather than unavailable and unblocks it on scan"
+
+# Connecting by device name while detached has to unblock rfkill before BlueZ
+# can resolve the name.
+TEST_RFKILL_DETACHED=1 bt_cli off >/dev/null
+: >"$BT_STATE_DIR/bt.log"
+out=$(TEST_RFKILL_DETACHED=1 bt_cli connect "AirPods Pro" --json)
+python3 - "$out" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["address"] == "AA:BB:CC:DD:EE:01" and d["connected"] is True, d
+PY
+grep -qx "rfkill unblock bluetooth" "$BT_STATE_DIR/bt.log" || fail "bluetooth connect by name unblocks rfkill before resolving"
+pass "bluetooth CLI connect by device name unblocks an rfkill-detached radio first"
+
+status=0
+TEST_RFKILL_DETACHED=1 bt_cli connect "" >/dev/null 2>&1 || status=$?
+(( status == 2 )) || fail "empty device names should exit 2" "got $status"
+pass "bluetooth CLI rejects empty device names before powering the radio"
