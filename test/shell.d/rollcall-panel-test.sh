@@ -33,12 +33,12 @@ const list = model.parseList(JSON.stringify([
   { id: 'speakers', title: 'Speakers', kind: 'verify', needs: '', applicable: true, reason: '', result: null },
   { id: 'lid', title: 'Lid', kind: 'interact', needs: '', applicable: false, reason: 'not a laptop', result: null },
   { id: 'Bad Id; rm', title: 'x', kind: 'verify', applicable: true },
-  { id: 'keyboard', kind: 'panel', applicable: true, result: 'pass' },
+  { id: 'keyboard', kind: 'panel', applicable: true, result: 'pass', detail: '60 keys' },
   { id: 'odd', kind: 'telepathy', applicable: 'yes' }
 ]))
 assert(list.length === 4, 'malformed ids are dropped')
 assert(list[1].applicable === false && list[1].reason === 'not a laptop', 'applicability and its reason are kept')
-assert(list[2].kind === 'panel' && list[2].result === 'pass', 'panel kind and a stored result are kept')
+assert(list[2].kind === 'panel' && list[2].result === 'pass' && list[2].detail === '60 keys', 'panel kind and a stored result with its detail are kept')
 assert(list[3].kind === 'interact' && list[3].applicable === false, 'an unknown kind falls back and only true is applicable')
 assert(model.parseList('not json').length === 0, 'unreadable output lists nothing')
 

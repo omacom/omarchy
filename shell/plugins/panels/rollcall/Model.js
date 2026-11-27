@@ -51,7 +51,8 @@ function parseList(raw) {
       needs: typeof t.needs === "string" ? t.needs : "",
       applicable: t.applicable === true,
       reason: String(t.reason || "").slice(0, 160),
-      result: ["pass", "fail", "skip", "pending"].indexOf(t.result) >= 0 ? t.result : ""
+      result: ["pass", "fail", "skip", "pending"].indexOf(t.result) >= 0 ? t.result : "",
+      detail: typeof t.detail === "string" ? t.detail.slice(0, 200) : ""
     })
   }
   return out

@@ -193,7 +193,7 @@ Item {
         var copy = {}
         for (var i = 0; i < root.tests.length; i++) {
           var t = root.tests[i]
-          if (t.result === "pass" || t.result === "fail" || t.result === "skip") copy[t.id] = { result: t.result, detail: "" }
+          if (t.result === "pass" || t.result === "fail" || t.result === "skip") copy[t.id] = { result: t.result, detail: t.detail }
         }
         root.outcomes = copy
       }

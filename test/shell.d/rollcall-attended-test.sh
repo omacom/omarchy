@@ -398,7 +398,7 @@ expect "the list names every test in walkthrough order" \
   "speakers microphone headphones camera volume-keys mic-mute-key brightness-keys keyboard-backlight-key wireless-key media-keys caps-lock-light external-display usb-port bluetooth-device suspend lid charger fingerprint keyboard touchpad touchscreen" \
   "$(attended --list --json | jq -r 'map(.id) | join(" ")')"
 expect "every entry has the contract's fields and nothing has a result yet" "true" \
-  "$(attended --list --json | jq 'all(.[]; (keys == ["applicable", "id", "kind", "needs", "reason", "result", "title"]) and .result == null)')"
+  "$(attended --list --json | jq 'all(.[]; (keys == ["applicable", "detail", "id", "kind", "needs", "reason", "result", "title"]) and .result == null and .detail == "")')"
 expect "needs uses the fixed vocabulary" "true" \
   "$(attended --list --json | jq 'all(.[]; .needs | IN("", "headphones", "usb-device", "external-display", "bluetooth-device", "charger", "enrolled-finger"))')"
 expect "kinds are verify, interact or panel, and keyboard, touchpad and touchscreen are the panel's" "keyboard touchpad touchscreen" \
@@ -463,6 +463,7 @@ attended speakers --record skip
 expect "a skipped question records a skip" "skip not answered" "$(stored speakers '"\(.result) \(.detail)"')"
 attended keyboard --record pass --detail "every key on 6 rows"
 expect "a panel measurement is recorded with its own detail" "pass every key on 6 rows" "$(stored keyboard '"\(.result) \(.detail)"')"
+expect "the list carries a stored result's detail" "pass every key on 6 rows" "$(attended --list --json | jq -r '.[] | select(.id == "keyboard") | "\(.result) \(.detail)"')"
 status=0
 attended keyboard --record maybe >/dev/null 2>&1 || status=$?
 expect "an unknown answer is a usage error" "2" "$status"

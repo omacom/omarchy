@@ -1690,15 +1690,17 @@ stored_result() {
 }
 
 list_tests() {
-  local test applicable result
+  local test applicable result detail
   for test in "${TESTS[@]}"; do
     applicable=true
     applies "$test" || applicable=false
     result=$(stored_result "$test")
     if [[ $json == "true" ]]; then
+      detail=""
+      [[ $result == "pending" ]] || detail=$(jq -r '.detail // empty' "$store/$test.json" 2>/dev/null)
       jq -nc --arg id "$test" --arg title "${TITLE[$test]}" --arg kind "${KIND[$test]}" --arg needs "${NEEDS[$test]:-}" \
-        --argjson applicable "$applicable" --arg reason "$reason" --arg result "$result" \
-        '{id: $id, title: $title, kind: $kind, needs: $needs, applicable: $applicable, reason: $reason, result: (if $result == "" then null else $result end)}'
+        --argjson applicable "$applicable" --arg reason "$reason" --arg result "$result" --arg detail "$detail" \
+        '{id: $id, title: $title, kind: $kind, needs: $needs, applicable: $applicable, reason: $reason, result: (if $result == "" then null else $result end), detail: $detail}'
     elif [[ $applicable == "true" ]]; then
       printf '%-24s %-24s %s\n' "$test" "${TITLE[$test]}" "${result:-not run}"
     else
