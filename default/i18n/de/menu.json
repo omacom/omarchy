@@ -1249,8 +1249,7 @@
     "label": "Cloudflare"
   },
   "install.cli.github": {
-    "label": "GitHub",
-    "description": "gh und ghui"
+    "label": "GitHub"
   },
   "install.cli.hey": {
     "label": "HEY"
@@ -1442,10 +1441,15 @@
     "label": "Cloudflare"
   },
   "remove.cli.github": {
-    "label": "GitHub",
-    "description": "gh und ghui"
+    "label": "GitHub"
   },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "system.snapshots": {
+    "label": "Snapshots"
+  },
+  "system.snapshots.restore": {
+    "label": "Diesen Snapshot wiederherstellen"
   }
 }

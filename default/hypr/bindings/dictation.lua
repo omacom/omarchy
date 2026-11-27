@@ -2,13 +2,27 @@
 -- installed (Omarchy ships every adapter), so a selected backend that was
 -- removed doesn't hold Right Alt (AltGr) or Alt + Space for nothing.
 -- Personal bindings.lua dictation keys use the same check.
-function o.dictation_installed()
-  local pipe = io.popen("omarchy-default-dictation 2>/dev/null", "r")
-  local backend = pipe and pipe:read("*l")
-  if pipe then
-    pipe:close()
+local paths = require("default.hypr.paths")
+
+local function default_dictation()
+  local file = io.open(paths.config_home .. "/omarchy/defaults/dictation", "r")
+  if not file then
+    return nil
   end
-  return backend ~= nil and backend:match("^[%w%-]+$") ~= nil and not o.cmd_missing(backend)
+
+  local backend = file:read("*l")
+  file:close()
+
+  if backend and backend:match("^[a-z0-9][a-z0-9-]*$") then
+    return backend
+  end
+
+  return nil
+end
+
+function o.dictation_installed()
+  local backend = default_dictation()
+  return backend ~= nil and not o.cmd_missing(backend)
 end
 
 if o.dictation_installed() then

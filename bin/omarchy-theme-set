@@ -257,16 +257,16 @@ set_theme_background() {
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") &
+    (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") </dev/null >/dev/null 2>&1 9>&- &
   elif [[ -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$new_background_snapshot") &
+    (sleep 3; rm -f "$new_background_snapshot") </dev/null >/dev/null 2>&1 9>&- &
   else
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     if [[ -f $OLD_BACKGROUND_SNAPSHOT ]]; then
-      (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") &
+      (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") </dev/null >/dev/null 2>&1 9>&- &
     fi
   fi
 
