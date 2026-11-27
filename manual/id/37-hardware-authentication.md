@@ -2,18 +2,18 @@
 
 ### Autentikasi sidik jari
 
-Banyak laptop dilengkapi sensor sidik jari untuk melakukan autentikasi. Kamu bisa menggunakannya dengan Omarchy dengan menjalankan _Setup > Security > Fingerprint_ di menu Omarchy (`Super + Space`).
+Banyak laptop dilengkapi sensor sidik jari untuk melakukan autentikasi. Anda bisa menggunakannya dengan Omarchy dengan menjalankan _Setup > Security > Fingerprint_ di menu Omarchy (`Super + Space`).
 
-Itu akan memasang paket sidik jari, merekam sidik jarimu, memverifikasinya, dan kamu siap menggunakan sidik jarimu untuk membuka kunci dari layar kunci (yang bisa kamu picu dengan `Super + Ctrl + L`), masuk ke mode sudo, dan mengotorisasi prompt sistem.
+Itu akan membuka sidik jari layar penuh yang terisi saat Anda menyentuh sensor. Di baliknya, Omarchy akan menginstal paket sidik jari, mengumpulkan sidik jari Anda, memverifikasinya, dan Anda siap menggunakan sidik jari untuk membuka kunci dari layar kunci (yang bisa Anda picu dengan `Super + Ctrl + L`), masuk ke mode sudo, dan mengotorisasi prompt sistem.
 
-Begitu layar kunci telah mematikan layar, sensor beristirahat untuk menghemat daya, jadi bangunkan layar dengan tombol apa saja atau touchpad sebelum menyentuhnya.
+Setelah layar kunci mematikan layar, sensor beristirahat untuk menghemat daya, jadi bangunkan layar dengan tombol apa pun atau touchpad sebelum menyentuhnya.
 
-Saat penutup laptopmu tertutup, prompt sidik jari otomatis dilewati, jadi kamu langsung menuju prompt kata sandi, bukan menunggu sensor yang tidak bisa kamu jangkau. Jika di lain waktu kamu perlu bekerja menggunakan keyboard eksternal yang tidak punya sensor, cukup tekan `CTRL + C` saat kamu diminta sidik jarimu selama `sudo`.
+Saat penutup laptop Anda tertutup, prompt sidik jari otomatis dilewati, jadi Anda langsung masuk ke prompt kata sandi alih-alih menunggu sensor yang tidak bisa Anda jangkau. Jika Anda perlu bekerja dengan keyboard eksternal yang tidak memiliki sensor, cukup tekan `CTRL + C`, saat Anda diminta sidik jari selama `sudo`.
 
-Kamu bisa menghapus autentikasi sidik jari di _Remove > Security > Fingerprint_ pada menu Omarchy.
+Anda bisa menghapus autentikasi sidik jari di _Remove > Security > Fingerprint_ di menu Omarchy.
 
 ### Autentikasi Fido2
 
-Jika kamu menggunakan perangkat Fido2, kamu bisa mengaturnya untuk autentikasi `sudo` menggunakan _Setup > Security > Fido2_ di menu Omarchy (`Super + Space`). Namun, ini mencakup `sudo` dan prompt otorisasi sistem, bukan membuka kunci komputermu.
+Jika Anda menggunakan perangkat Fido2, Anda bisa mengaturnya untuk autentikasi `sudo` menggunakan _Setup > Security > Fido2_ di menu Omarchy (`Super + Space`). Namun, ini mencakup prompt `sudo` dan otorisasi sistem, bukan membuka kunci komputer Anda.
 
-Kamu bisa menghapus autentikasi fido2 di _Remove > Security > Fido2_ pada menu Omarchy.
+Anda bisa menghapus autentikasi fido2 di _Remove > Security > Fido2_ di menu Omarchy.

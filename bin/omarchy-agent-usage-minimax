@@ -48,6 +48,7 @@ from collectors import (  # noqa: E402
   scan_routed,
   trusted_endpoint,
   warn,
+  opencode_credential_key,
 )
 
 AGENT_ID = "minimax"
@@ -173,7 +174,11 @@ def credentials() -> tuple[str, str]:
     return mmx_key, override or config_base_url(config)
 
   # The key opencode or pi signed in to MiniMax with; a China-region
-  # provider's key only answers on the China host.
+  # provider's key only answers on the China host. opencode keeps a key it's
+  # given in its database.
+  for provider in PROVIDERS:
+    if api_key := opencode_credential_key(provider):
+      return api_key, override or (CN_BASE_URL if provider.startswith("minimax-cn") else DEFAULT_BASE_URL)
   for path in (data_home() / "opencode" / "auth.json", pi_agent_dir() / "auth.json", Path.home() / ".omp" / "agent" / "auth.json"):
     # Only the provider ids MiniMax bills: a key saved under any other
     # name belongs to a gateway, and is never sent to MiniMax.

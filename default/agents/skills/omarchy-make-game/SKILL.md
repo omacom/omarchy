@@ -6,7 +6,7 @@ description: >
 
 # Building a Web Game
 
-A game is one file, `~/Games/vibes/<name>/index.html` (unless the user asked for it somewhere else): three.js from a pinned CDN, everything else written in the file — shapes from three.js geometry, sound synthesized with Web Audio, text in HTML over the canvas. It's listed in Game Vibes, one launcher for every game made this way, and opens in the desktop's current theme, plays from the keyboard (and the mouse, where that's natural), and keeps its best score.
+A game is one file, `~/Games/vibes/<name>/index.html` (unless the user asked for it somewhere else): three.js from the `../three.min.js` Game Vibes keeps beside the games, everything else written in the file — shapes from three.js geometry, sound synthesized with Web Audio, text in HTML over the canvas. It's listed in Game Vibes, one launcher for every game made this way, and opens in the desktop's current theme, plays from the keyboard (and the mouse, where that's natural), and keeps its best score.
 
 Every game starts from `template.html` beside this file: a complete, working game (dodge the falling blocks) with what every game needs already done — title screen, pause on Esc and on losing focus, game over, restart, help, sound, a saved best score, a fixed-step loop that survives slow frames, seeded randomness, mouse picking, a camera fit, and lights that show the theme's colours true. You replace the game inside it, not the frame around it. Below, `SKILL_DIR` is the directory you read this file from (such as `~/.agents/skills/omarchy-make-game`).
 
@@ -39,7 +39,10 @@ If `~/Games/vibes/<name>` already holds a game, ask before replacing it. Otherwi
 ```bash
 mkdir -p ~/Games/vibes/<name>
 cp "$SKILL_DIR/template.html" ~/Games/vibes/<name>/index.html
+cp "$OMARCHY_PATH/default/games/vibes/three.min.js" ~/Games/vibes/
 ```
+
+The second copy is three.js, which the game loads from `../three.min.js`; Game Vibes puts it there too, but only once it has opened.
 
 Read the whole template once, then edit that copy in place, section by section. Never write the file from scratch or rewrite the frame.
 
@@ -60,7 +63,7 @@ A plain version that plays comes first; check it (step 4), then add these in one
 - **Fairness**: the first ten seconds are easy and it gets harder steadily, with obstacles in patterns (gaps to thread, walls with one opening) rather than at random, so a run has rhythm. A loss is the player's mistake, never something they couldn't see coming: hazards appear far enough away to react, and no single key press ends the round by surprise (a snake ignores a turn straight back into itself; a ball starts on the paddle; a first reveal is never a mine).
 - **Clarity**: one player, big enough to find at a glance and the most vivid thing on screen, never a dot. The score is always visible. `fitCamera()` from `resized()` keeps the whole play area in view at any window shape.
 - **Colour**: every colour comes from `PALETTE`, mixed from its colours, or lightened or darkened toward white or black (`new THREE.Color(PALETTE.green).lerp(new THREE.Color(PALETTE.background), 0.4)`). Never a hex written for one theme. Tell things apart by brightness and size as well as hue, since some themes are nearly monochrome.
-- **Glow**: in a dark theme (`PALETTE.mode === 'dark'`), emissive materials on what matters and bloom (`EffectComposer`, `RenderPass`, `UnrealBloomPass` and, last, `OutputPass`, which puts the colours right, from `three/addons/postprocessing/`) make it come alive: build the composer once and call `composer.render()` where the frame calls `renderer.render(scene, camera)`, resizing it in `resized()`. Leave bloom off in a light theme, where it washes everything out.
+- **Glow**: in a dark theme (`PALETTE.mode === 'dark'`), emissive materials on what matters and bloom (`EffectComposer`, `RenderPass`, `UnrealBloomPass` and, last, `OutputPass`, which puts the colours right, all on `THREE`) make it come alive: build the composer once and call `composer.render()` where the frame calls `renderer.render(scene, camera)`, resizing it in `resized()`. Leave bloom off in a light theme, where it washes everything out.
 - **Polish**: the end screen says what happened and whether it was a new best; a game that can be won or drawn says so in `endRound`'s title.
 
 Done is a playable game with most of these in place, each checked once. Don't tune numbers turn after turn: when they're in and the checks pass, finish the icon, open it in Game Vibes, and tell the user what you built and what could come next.
@@ -77,6 +80,8 @@ omarchy agent look page ~/Games/vibes/<name>/index.html#seed=1 --keys "Space Arr
 
 `#seed=1` plays the same round every time, so a change you made is what changed. In a game that runs on its own, the world should have moved between the first two shots, and the score risen if your keys did what scores; in a turn-based one, the shots should show the moves your keys made. If the round is already over, or nothing changed, find out why before adding anything else. Without `--theme` a game shows in the template's stand-in colours.
 
+Keys go a quarter of a second apart. To steer, put a wait between them, `+600` for 600ms, and hold a key down with `ArrowLeft:800`, as a player would: `--keys "Space +900 ArrowUp +600 ArrowLeft"` turns up after almost a second and left a little later. A round that keeps ending against a wall because the keys came too early needs waits, not a change to the game. When you need to win, lose or reach some state to look at it, don't hunt for the right key sequence: make it happen at once in a scratch copy (below).
+
 Then check the way back, from the list as a player comes in, mid-round: start a round, pause it, and leave. The shot must show the Game Vibes list, not the game.
 
 ```bash
@@ -90,7 +95,23 @@ Open every screenshot with your tool for viewing images; reading the path is not
 - Does it look like the game you set out to make, with enough in it to be worth playing, not a few shapes on an empty field?
 - In the light theme, is it as readable and as good-looking?
 
-Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Check with `look page` only; the user sees the game once, when it's done (step 5).
+Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Keep the copy in the game's own folder, as `~/Games/vibes/<name>/scratch.html`, where it still finds `../three.min.js` and Game Vibes doesn't list it, and delete it when done; a folder of its own in `~/Games/vibes` would show up in the list as another game.
+
+When a fixed key sequence isn't enough, play it step by step with `playwright-cli`: one headless Chrome session that stays open between commands, so you can press, click, read the game's state and look again. It writes its screenshots and logs under `.playwright-cli/` in the current directory, and opens local files only when told to:
+
+```bash
+cd ~/Games/vibes/<name>
+PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS=1 playwright-cli open "file://$PWD/index.html#seed=1"
+playwright-cli press Space                # keydown / keyup <key> hold a key
+playwright-cli click <ref>                # refs come from playwright-cli snapshot
+playwright-cli eval "() => document.querySelector('#score').textContent"
+playwright-cli screenshot --filename=shot.png
+playwright-cli console error              # console errors and uncaught exceptions
+playwright-cli reload                     # after editing the file
+playwright-cli close
+```
+
+Delete `.playwright-cli/` when you're done. Either way, check it yourself; the user sees the game once, when it's done (step 5).
 
 ## 5. Give it an icon and open it in Game Vibes
 
@@ -121,7 +142,7 @@ omarchy games vibes install <git-repo-url>
 
 The template pins three.js 0.180. Much of what you remember is for older versions:
 
-- Import only `three` and `three/addons/...` through the importmap. Never `examples/js/`, `THREE.Geometry`, `THREE.Face3`, `THREE.Math` (it's `THREE.MathUtils`), `*BufferGeometry` names (it's `BoxGeometry`), `renderer.outputEncoding` (it's `outputColorSpace`), or `physicallyCorrectLights`. `THREE.Clock` has `getDelta()` and `getElapsedTime()` and nothing else. When unsure of an API, read `https://threejs.org/docs/` or the module source at the pinned version.
+- three.js is the global `THREE` from the template's `<script src="../three.min.js">`: no importmap, no `import`, and nothing from a CDN, so a game plays offline. Its addons are the bloom passes alone (`THREE.EffectComposer`, `THREE.RenderPass`, `THREE.UnrealBloomPass`, `THREE.OutputPass`). A game kept outside `~/Games/vibes` needs a copy of `~/Games/vibes/three.min.js` in the folder above it. Never `examples/js/`, `THREE.Geometry`, `THREE.Face3`, `THREE.Math` (it's `THREE.MathUtils`), `*BufferGeometry` names (it's `BoxGeometry`), `renderer.outputEncoding` (it's `outputColorSpace`), or `physicallyCorrectLights`. `THREE.Clock` has `getDelta()` and `getElapsedTime()` and nothing else. When unsure of an API, read `https://threejs.org/docs/` or the module source at the pinned version.
 - Lights use physical units. Keep the template's hemisphere and sun, which show the palette true. A `PointLight` or `SpotLight` needs an intensity in the tens to hundreds to be seen a few units away, or `decay: 0`. A floor that should match the page is `MeshBasicMaterial`, with a `ShadowMaterial` plane over it for shadows, as the template does.
 - One file, with nothing fetched: a page opened from a file can't `fetch` or `import` its neighbours, and an image from a path can't become a WebGL texture, so no `TextureLoader`, `GLTFLoader` or font files. (An `<img>` or a CSS background from a file beside the page does work, for a backdrop behind the canvas.) Build shapes from geometry (`LatheGeometry` turns a profile into a chess piece), draw textures on a `<canvas>` with `THREE.CanvasTexture` (card faces, numbers), and put text in the HTML. No symbol glyphs such as ♛ ♠, which can draw as empty boxes; draw them.
 - Collisions are your own arithmetic in `update()`, in world coordinates: use `getWorldPosition()` for meshes inside a group. Fast things move less than their own size per step or they pass through walls: split a step into substeps for a ball against flippers.

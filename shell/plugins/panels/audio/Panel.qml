@@ -161,10 +161,12 @@ Panel {
 
   function resolveVolumeSink() {
     volumeSinkGeneration++
-    // A hardware output is its own volume sink, as omarchy-audio-output-sink
-    // reports without looking further, so only a DSP sink needs the script.
-    if (sink && String(sink.name).indexOf("alsa_output.") === 0) {
-      volumeSinkName = String(sink.name)
+    // A hardware output (ALSA or Bluetooth) is its own volume sink, as
+    // omarchy-audio-output-sink reports without looking further, so only a DSP
+    // sink needs the script.
+    var name = sink ? String(sink.name) : ""
+    if (name.indexOf("alsa_output.") === 0 || name.indexOf("bluez_output.") === 0) {
+      volumeSinkName = name
       return
     }
     if (volumeSinkProc.running) {
@@ -830,7 +832,7 @@ Panel {
             Column {
               id: heroLabels
               anchors.left: heroIcon.right
-              anchors.leftMargin: Style.space(14)
+              anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
               anchors.right: parent.right
               anchors.rightMargin: powerSwitch.width + Style.space(12)
               anchors.verticalCenter: parent.verticalCenter
@@ -1025,9 +1027,12 @@ Panel {
                   onRightClicked: root.toggleInputMute()
                 }
 
+                // Inset like the slider's track, so the meter starts and
+                // ends where the track does rather than under the knob's overhang.
                 Rectangle {
                   visible: root.inputLevelShown
-                  width: parent.width
+                  x: inputSlider.knobSize / 2
+                  width: parent.width - inputSlider.knobSize
                   height: Math.max(Style.space(5), Style.spacing.xs)
                   color: Util.alpha(root.bar.foreground, 0.18)
                   opacity: root.inputMuted ? 0.35 : 1.0

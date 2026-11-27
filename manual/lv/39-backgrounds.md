@@ -1,17 +1,19 @@
 # Foni
 
-Katrai tēmai ir savs fonu komplekts, un jūs varat pievienot papildu fonus pēc savas izvēles mapē `~/.config/omarchy/backgrounds/[theme]`. Ja vēlaties pievienot papildu fona attēlu, piemēram, nord tēmai, vienkārši ievietojiet failu mapē `~/.config/omarchy/backgrounds/nord`.
+Katrai tēmai ir savs fonu komplekts, un jūs varat pievienot savus papildu fonus mapē `~/.config/omarchy/backgrounds/[theme]`. Ja vēlaties pievienot papildu fona attēlu, piemēram, nord tēmai, vienkārši ievietojiet failu mapē `~/.config/omarchy/backgrounds/nord`.
 
-Visvieglāk to izdarīt, Omarchy Menu atverot _Install > Style > Background_. Tiks atvērta mape, kurā tiek glabāti attiecīgās tēmas foni. Nospiediet `Super + Shift + F`, lai palaistu vēl vienu failu pārvaldnieku, atrodiet savu fonu un pārkopējiet to. Tagad tas būs iekļauts fonu izvēlē, starp kuriem varat izvēlēties ar `Super + Ctrl + W`.
+Visvieglāk to izdarīt, Omarchy izvēlnē dodoties uz _Instalēšana > Stils > Fons_. Tas atvērs mapi, kurā glabājas šīs tēmas foni. Nospiediet `Super + Shift + F`, lai palaistu citu failu pārvaldnieku, atrodiet savu fonu un pārkopējiet to. Tagad tas būs iekļauts fonu izvēlē, starp kuriem varat izvēlēties, izmantojot `Super + Ctrl + W`.
 
-Foni var būt gan video, gan nekustīgi attēli. Ievietojiet `mp4`, `m4v`, `mov`, `webm`, `mkv` vai `avi` failu tajā pašā mapē, un tas parādīsies līdzās attēliem. Video atskaņo OWE tapešu dzinējs. Tas dekodē video vienreiz visiem monitoriem, atskaņo tā skaņu caur noklusējuma audio izvadi un aptur atskaņošanu ikreiz, kad to nekas nevar redzēt. Video fons joprojām patērē daudz vairāk enerģijas nekā nekustīgs fons.
+Tēma, kurai nav savu fonu, saņem vienu, kas uzzīmēts no tās krāsām: Omarchy logotipu tēmas akcenta krāsā uz tās fona krāsas. Pievienojiet savus, lai to aizstātu.
 
-Tēmās nekustīgam fonam var būt īss ievads. Failam `backgrounds/road.webp` atbilstošais video atrodas vietā `backgrounds/intros/road.mp4`. Tas tiek automātiski atskaņots sāknēšanas laikā, pārslēdzoties uz tēmu ar atlasītu šo fonu un izvēloties šo fonu, un pēc tam atgriežas pie nekustīgā attēla. Ievadvideo netiek rādīti fonu atlasītājā un nekad netiek atkārtoti cilpā.
+Foni var būt arī video, ne tikai nekustīgi attēli. Ievietojiet `mp4`, `m4v`, `mov`, `webm`, `mkv` vai `avi` failu tajā pašā mapē, un tas parādīsies līdzās attēliem. Video atskaņo OWE tapešu dzinējs. Tas dekodē video vienu reizi visiem monitoriem un atskaņo tā skaņu caur noklusējuma audio izvadi, un tas aptur atskaņošanu ikreiz, kad nekas to nevar redzēt. Video fons joprojām patērē daudz vairāk enerģijas nekā nekustīgs fons.
 
-Izslēdzot _Appearance > Animations_, tiek izslēgti arī fonu ievadi. Virtuālajā mašīnā Omarchy to pēc noklusējuma dara automātiski. Ar komandu `omarchy theme bg intro toggle` ievadus var pārslēgt atsevišķi. Atsvaidzinot tēmu, ievads netiek atskaņots.
+Tēmas var ietvert īsu intro nekustīgam fonam. Fonam `backgrounds/road.webp` atbilstošais video atrodas `backgrounds/intros/road.mp4`. Tas automātiski atskaņojas, sistēmai palaižoties, pārslēdzoties uz tēmu ar izvēlētu šo fonu un izvēloties šo fonu, pēc tam atgriežas pie nekustīgā attēla. Intro video neparādās fonu izvēlnē un nekad neatkārtojas ciklā.
 
-Nekustīgam attēlam var būt arī cilpa — klusa tā paša attēla versija, kas nepārtraukti kustas, — vietā `backgrounds/loops/road.mp4`. Tā tiek atskaņota nekustīgā attēla vietā, pēc tā ievada, ja tam tāds ir, un apstājas, kad animācijas ir izslēgtas. Darbojoties ar akumulatoru, tās vietā tiek rādīts nekustīgais attēls, un cilpa atgriežas, tiklīdz pievienojat strāvas padevi. Cilpas netiek rādītas fonu atlasītājā.
+Izvēloties _Izskats > Animācijas izslēgtas_, tiek izslēgti arī fonu intro. Omarchy to pēc noklusējuma dara virtuālajā mašīnā. Komanda `omarchy theme bg intro toggle` var pārslēgt intro atsevišķi. Tēmas atsvaidzināšana intro neatskaņo.
 
-Milzīgu lielisku atlasītu fonu kolekciju varat atrast vietnē [dharmx/walls](https://github.com/dharmx/walls).
+Nekustīgam attēlam var būt arī cikls, klusa tā paša attēla versija, kas turpina kustēties, `backgrounds/loops/road.mp4`. Tas atskaņojas nekustīgā attēla vietā, pēc tā intro, ja tāds ir, un apstājas, kad animācijas tiek izslēgtas. Darbojoties ar akumulatoru, tā vietā tiek rādīts nekustīgais attēls, un cikls atgriežas, tiklīdz pieslēdzat strāvu. Cikli neparādās fonu izvēlnē.
 
-Bloķēšanas ekrānā tiek rādīts nekustīgs video fona kadrs, tāpat kā tas rāda nekustīgu animēta GIF kadru.
+Milzīgu stilīgu, rūpīgi atlasītu fonu kolekciju varat atrast [dharmx/walls](https://github.com/dharmx/walls).
+
+Bloķēšanas ekrānā tiek rādīts video fona nekustīgs kadrs, tāpat kā tajā tiek rādīts animēta GIF nekustīgs kadrs.

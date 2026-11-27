@@ -1,15 +1,15 @@
 -- Backends may supply their own desktop integration without editing the
 -- user's Hyprland config. Recording bindings remain owned by Omarchy.
 local paths = require("default.hypr.paths")
-local pipe = io.popen("omarchy-default-dictation 2>/dev/null", "r")
-if not pipe then
+local file = io.open(paths.config_home .. "/omarchy/defaults/dictation", "r")
+if not file then
   return
 end
 
-local backend = pipe:read("*l")
-pipe:close()
+local backend = file:read("*l")
+file:close()
 
-if not backend or not backend:match("^[%w%-]+$") or o.cmd_missing("omarchy-dictation-" .. backend) then
+if not backend or not backend:match("^[a-z0-9][a-z0-9-]*$") or o.cmd_missing("omarchy-dictation-" .. backend) then
   return
 end
 

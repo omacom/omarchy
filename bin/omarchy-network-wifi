@@ -1,0 +1,1128 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Control Wi-Fi radio, networks, connections, and band
+# omarchy:group=network
+# omarchy:subcommand=status [--json] — Show Wi-Fi radio, active connection, signal, band, and IP details
+# omarchy:subcommand=on|off|toggle [--json] — Turn the Wi-Fi radio on, off, or toggle it
+# omarchy:subcommand=list [--rescan] [--known] [--json] — List nearby Wi-Fi networks or saved profiles
+# omarchy:subcommand=scan [--json] — Rescan and list nearby Wi-Fi networks
+# omarchy:subcommand=connect <ssid> [options] — Connect to a Wi-Fi network (known, open, PSK, or enterprise)
+# omarchy:subcommand=disconnect [interface] — Disconnect the active Wi-Fi interface
+# omarchy:subcommand=forget <ssid|uuid> — Delete saved Wi-Fi connection profile(s)
+# omarchy:subcommand=password [interface] — Print the active Wi-Fi connection's password
+# omarchy:subcommand=band [auto|2.4|5|6] [--json] — Show or pin the Wi-Fi frequency band
+# omarchy:examples=omarchy network wifi status | omarchy network wifi list --rescan | omarchy network wifi connect "MyWiFi" --password-stdin | omarchy network wifi band 5
+
+"""Human- and agent-friendly CLI for Wi-Fi management via NetworkManager."""
+
+import getpass
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import uuid as uuid_mod
+
+USAGE = """\
+Usage: omarchy network wifi [--json] <command> [args...]
+
+  status [--json]                       Show Wi-Fi radio, link, signal, band, and IP
+  on | off | toggle [--json]            Turn the Wi-Fi radio on, off, or toggle it
+  list [--rescan] [--known] [--json]    List nearby networks (or saved profiles with --known)
+  scan [--json]                         Rescan and list nearby Wi-Fi networks
+  connect <ssid> [options]              Connect to a Wi-Fi network
+    --password <secret>                   Passphrase (visible in /proc; prefer --password-stdin)
+    --password-stdin                      Read passphrase from stdin (recommended for scripts/agents)
+    --identity <user>                     Username for WPA-Enterprise (PEAP/MSCHAPv2)
+    --hidden                              Connect to a hidden SSID
+    --interface <dev>                     Use a specific Wi-Fi interface
+  disconnect [interface] [--json]       Disconnect the active Wi-Fi interface
+  forget [--ssid] <ssid|uuid> [--json]  Delete saved Wi-Fi profile(s) matching SSID or UUID
+  password [interface]                  Print the active Wi-Fi connection's password
+  band [auto|2.4|5|6] [--json]          Show or pin the Wi-Fi frequency band
+"""
+
+
+class UsageError(Exception):
+    pass
+
+
+class CancelledError(BaseException):
+    pass
+
+
+def _handle_sigterm(_signum: int, _frame: object) -> None:
+    raise CancelledError("cancelled")
+
+
+def c_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    return env
+
+
+def run_cmd(
+    args: list[str],
+    *,
+    input_text: str | None = None,
+    check: bool = False,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        proc = subprocess.run(
+            args,
+            input=input_text,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=c_env(),
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"command timed out: {' '.join(args)}") from exc
+    if check and proc.returncode != 0:
+        msg = (proc.stderr or proc.stdout).strip()
+        raise RuntimeError(msg or f"{args[0]} exited with status {proc.returncode}")
+    return proc
+
+
+def cleanup_cancelled_connection(
+    con_uuid: str,
+    *,
+    delete_profile: bool = False,
+    restore_key_mgmt: str | None = None,
+) -> None:
+    """Cancel an in-progress activation and roll back profile changes without interruption."""
+    prev_handler = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    try:
+        run_cmd(["nmcli", "connection", "down", "uuid", con_uuid], timeout=3)
+        if delete_profile:
+            run_cmd(["nmcli", "connection", "delete", "uuid", con_uuid], timeout=3)
+        elif restore_key_mgmt:
+            run_cmd(
+                ["nmcli", "connection", "modify", "uuid", con_uuid, "wifi-sec.key-mgmt", restore_key_mgmt],
+                timeout=3,
+            )
+    except Exception:
+        pass
+    finally:
+        signal.signal(signal.SIGTERM, prev_handler)
+
+
+def nm_split_escaped(line: str) -> list[str]:
+    """Split an nmcli `-t` line on unescaped `:` and unescape `\\:` / `\\\\`."""
+    fields: list[str] = []
+    cur: list[str] = []
+    esc = False
+    for ch in line:
+        if esc:
+            cur.append(ch)
+            esc = False
+        elif ch == "\\":
+            esc = True
+        elif ch == ":":
+            fields.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if esc:
+        cur.append("\\")
+    fields.append("".join(cur))
+    return fields
+
+
+def nm_parse_kv(output: str) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
+    for line in output.splitlines():
+        if ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        key = key.strip()
+        val = val.strip()
+        if not val or val == "--":
+            continue
+        result.setdefault(key, []).append(val)
+    return result
+
+
+def band_for_freq(freq_raw: str) -> str:
+    match = re.match(r"^\s*(\d+)", str(freq_raw or ""))
+    if not match:
+        return ""
+    mhz = int(match.group(1))
+    if 2400 <= mhz < 2500:
+        return "2.4"
+    if 4900 <= mhz < 5925:
+        return "5"
+    if 5925 <= mhz < 7125:
+        return "6"
+    return ""
+
+
+def normalize_security(raw: str) -> str:
+    sec = (raw or "").strip()
+    if not sec or sec == "--":
+        return "open"
+    return sec
+
+
+IDLE_DEVICE_STATES = {"disconnected", "unavailable", "unmanaged"}
+
+
+def radio_enabled() -> bool:
+    proc = run_cmd(["nmcli", "radio", "wifi"], check=True)
+    return proc.stdout.strip().lower() == "enabled"
+
+
+def wifi_devices() -> list[dict]:
+    proc = run_cmd(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"], check=True)
+    devices: list[dict] = []
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) < 4:
+            continue
+        dev, dev_type, state, conn = parts[0], parts[1], parts[2], parts[3]
+        if dev_type != "wifi":
+            continue
+        devices.append(
+            {
+                "device": dev,
+                "state": state,
+                "connection": "" if conn in ("", "--") else conn,
+            }
+        )
+    return devices
+
+
+def pick_wifi_device(preferred: str | None = None) -> dict | None:
+    devs = wifi_devices()
+    if preferred:
+        for d in devs:
+            if d["device"] == preferred:
+                return d
+        raise RuntimeError(f"Wi-Fi interface '{preferred}' not found")
+    for d in devs:
+        if d["state"] == "connected":
+            return d
+    return devs[0] if devs else None
+
+
+def saved_wifi_profiles() -> list[dict]:
+    proc = run_cmd(
+        ["nmcli", "-t", "-f", "NAME,UUID,TYPE,DEVICE,AUTOCONNECT", "connection", "show"],
+        check=True,
+    )
+    profiles: list[dict] = []
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) < 5:
+            continue
+        name, uid, ctype, dev, auto = parts[0], parts[1], parts[2], parts[3], parts[4]
+        if ctype != "802-11-wireless":
+            continue
+        meta_lines = run_cmd(
+            [
+                "nmcli",
+                "-e",
+                "no",
+                "-g",
+                "802-11-wireless.ssid,connection.interface-name",
+                "connection",
+                "show",
+                "uuid",
+                uid,
+            ]
+        ).stdout.splitlines()
+        ssid = (meta_lines[0].strip() if len(meta_lines) >= 1 else "") or name
+        bound_iface = meta_lines[1].strip() if len(meta_lines) >= 2 else ""
+        if bound_iface == "--":
+            bound_iface = ""
+        profiles.append(
+            {
+                "name": name,
+                "ssid": ssid,
+                "uuid": uid,
+                "device": "" if dev in ("", "--") else dev,
+                "interface": bound_iface,
+                "active": dev not in ("", "--"),
+                "autoconnect": auto.lower() == "yes",
+            }
+        )
+    return profiles
+
+
+def matching_wifi_profiles(ssid: str, target_iface: str) -> list[dict]:
+    """Return saved profiles for `ssid` compatible with `target_iface`, exact adapter match first."""
+    compatible = [
+        p
+        for p in saved_wifi_profiles()
+        if p["ssid"] == ssid and p["interface"] in ("", target_iface)
+    ]
+    compatible.sort(key=lambda p: (p["interface"] != target_iface, not p["active"]))
+    return compatible
+
+
+def decode_iw_ssid(raw: str) -> str:
+    """Decode `iw` \\xNN byte escapes into UTF-8 text."""
+    if "\\x" not in raw:
+        return raw
+    out = bytearray()
+    i = 0
+    n = len(raw)
+    while i < n:
+        if raw[i : i + 2] == "\\x" and i + 4 <= n:
+            hex_part = raw[i + 2 : i + 4]
+            if all(c in "0123456789abcdefABCDEF" for c in hex_part):
+                out.append(int(hex_part, 16))
+                i += 4
+                continue
+        out.extend(raw[i].encode("utf-8"))
+        i += 1
+    try:
+        return out.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw
+
+
+def read_iw_link(device: str) -> dict:
+    proc = run_cmd(["iw", "dev", device, "link"])
+    info = {"ssid": "", "freq_mhz": None, "signal_dbm": None, "bitrate": ""}
+    if proc.returncode != 0:
+        return info
+    for line in proc.stdout.splitlines():
+        s = line.strip()
+        if s.startswith("SSID:"):
+            info["ssid"] = decode_iw_ssid(s.split("SSID:", 1)[1].strip())
+        elif s.startswith("freq:"):
+            m = re.match(r"freq:\s*(\d+)", s)
+            if m:
+                info["freq_mhz"] = int(m.group(1))
+        elif s.startswith("signal:"):
+            m = re.match(r"signal:\s*(-?\d+)", s)
+            if m:
+                info["signal_dbm"] = int(m.group(1))
+        elif s.startswith("tx bitrate:"):
+            m = re.match(r"tx bitrate:\s*([0-9.]+\s+\S+)", s)
+            if m:
+                info["bitrate"] = m.group(1)
+    return info
+
+
+def band_from_nm(raw: str) -> str:
+    return {"bg": "2.4", "a": "5", "6GHz": "6"}.get(raw.strip(), "auto")
+
+
+def read_band_info_for(iface: str, ssid: str, freq_mhz: int | None, con_uuid: str) -> dict:
+    current = band_for_freq(str(freq_mhz)) if freq_mhz else ""
+    selected = "auto"
+    if con_uuid:
+        sel_proc = run_cmd(
+            ["nmcli", "-e", "no", "-g", "802-11-wireless.band", "connection", "show", "uuid", con_uuid]
+        )
+        if sel_proc.returncode == 0:
+            selected = band_from_nm(sel_proc.stdout)
+
+    bands: set[str] = set()
+    if current:
+        bands.add(current)
+    if ssid:
+        scan_proc = run_cmd(
+            ["nmcli", "-t", "-f", "FREQ,SSID", "device", "wifi", "list", "ifname", iface, "--rescan", "no"]
+        )
+        if scan_proc.returncode == 0:
+            for line in scan_proc.stdout.splitlines():
+                parts = nm_split_escaped(line)
+                if len(parts) >= 2 and parts[1] == ssid:
+                    b = band_for_freq(parts[0])
+                    if b:
+                        bands.add(b)
+    available = sorted(bands, key=lambda b: float(b))
+    return {"current": current, "selected": selected, "available": available}
+
+
+def omarchy_bin(name: str) -> str:
+    return os.path.join(os.environ["OMARCHY_PATH"], "bin", name)
+
+
+def read_band_info() -> dict:
+    proc = run_cmd([omarchy_bin("omarchy-network-band")])
+    info = {"current": "", "selected": "auto", "available": []}
+    if proc.returncode != 0:
+        return info
+    for line in proc.stdout.splitlines():
+        if "\t" not in line:
+            continue
+        k, v = line.split("\t", 1)
+        v = v.strip()
+        if k == "band":
+            info["current"] = v
+        elif k == "selected":
+            info["selected"] = v or "auto"
+        elif k == "available":
+            info["available"] = [tok for tok in v.split() if tok]
+    return info
+
+
+def active_ap_signal(device: str) -> int | None:
+    proc = run_cmd(
+        ["nmcli", "-t", "-f", "IN-USE,SIGNAL", "device", "wifi", "list", "ifname", device, "--rescan", "no"]
+    )
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) >= 2 and parts[0] == "*" and parts[1].isdigit():
+            return int(parts[1])
+    return None
+
+
+def read_wifi_status(preferred_iface: str | None = None) -> dict:
+    enabled = radio_enabled()
+    dev = pick_wifi_device(preferred_iface)
+    if dev is None:
+        return {
+            "radio": "on" if enabled else "off",
+            "available": False,
+            "connected": False,
+            "state": "unavailable",
+            "device": "",
+            "ssid": "",
+            "connection": "",
+            "uuid": "",
+            "signal": None,
+            "signal_dbm": None,
+            "freq_mhz": None,
+            "band": "",
+            "band_selected": "auto",
+            "band_available": [],
+            "bitrate": "",
+            "ip": "",
+            "prefix": None,
+            "gateway": "",
+            "dns": [],
+            "mac": "",
+        }
+
+    iface = dev["device"]
+    connected = enabled and dev["state"] == "connected"
+    kv = nm_parse_kv(
+        run_cmd(
+            [
+                "nmcli",
+                "-e",
+                "no",
+                "-t",
+                "-f",
+                "GENERAL.HWADDR,GENERAL.CON-UUID,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS",
+                "device",
+                "show",
+                iface,
+            ],
+            check=True,
+        ).stdout
+    )
+    mac = (kv.get("GENERAL.HWADDR") or [""])[0]
+    con_uuid = (kv.get("GENERAL.CON-UUID") or [""])[0]
+    ip_cidr = (kv.get("IP4.ADDRESS[1]") or [""])[0]
+    ip_addr = ""
+    prefix: int | None = None
+    if "/" in ip_cidr:
+        ip_addr, pref_s = ip_cidr.split("/", 1)
+        prefix = int(pref_s) if pref_s.isdigit() else None
+    elif ip_cidr:
+        ip_addr = ip_cidr
+    gateway = (kv.get("IP4.GATEWAY") or [""])[0]
+    dns = [v for k, vals in kv.items() if k.startswith("IP4.DNS[") for v in vals]
+
+    iw = read_iw_link(iface) if connected else {"ssid": "", "freq_mhz": None, "signal_dbm": None, "bitrate": ""}
+    sig = active_ap_signal(iface) if connected else None
+    ssid = iw["ssid"] or dev["connection"]
+    band_info = (
+        read_band_info_for(iface, ssid, iw["freq_mhz"], con_uuid)
+        if connected
+        else {"current": "", "selected": "auto", "available": []}
+    )
+    band = band_info["current"]
+
+    return {
+        "radio": "on" if enabled else "off",
+        "available": True,
+        "connected": connected,
+        "state": "disabled" if not enabled else dev["state"],
+        "device": iface,
+        "ssid": iw["ssid"] or dev["connection"],
+        "connection": dev["connection"],
+        "uuid": con_uuid,
+        "signal": sig,
+        "signal_dbm": iw["signal_dbm"],
+        "freq_mhz": iw["freq_mhz"],
+        "band": band,
+        "band_selected": band_info["selected"],
+        "band_available": band_info["available"],
+        "bitrate": iw["bitrate"],
+        "ip": ip_addr,
+        "prefix": prefix,
+        "gateway": gateway,
+        "dns": dns,
+        "mac": mac,
+    }
+
+
+def print_wifi_status(st: dict, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(st))
+        return
+    if not st["available"]:
+        print("Wi-Fi:       unavailable (no Wi-Fi interface found)")
+        return
+    print(f"Radio:       {st['radio']}")
+    print(f"Interface:   {st['device']}")
+    print(f"State:       {st['state']}")
+    if not st["connected"]:
+        return
+    print(f"SSID:        {st['ssid']}")
+    if st["signal"] is not None or st["signal_dbm"] is not None:
+        parts = []
+        if st["signal"] is not None:
+            parts.append(f"{st['signal']}%")
+        if st["signal_dbm"] is not None:
+            parts.append(f"{st['signal_dbm']} dBm")
+        print(f"Signal:      {' / '.join(parts)}")
+    if st["band"] or st["freq_mhz"]:
+        band_s = f"{st['band']} GHz" if st["band"] else ""
+        if st["freq_mhz"]:
+            band_s = f"{band_s} ({st['freq_mhz']} MHz)".strip()
+        if st["band_selected"] and st["band_selected"] != "auto":
+            band_s += f" [pinned {st['band_selected']} GHz]"
+        print(f"Band:        {band_s}")
+    if st["bitrate"]:
+        print(f"Bitrate:     {st['bitrate']}")
+    if st["ip"]:
+        addr = f"{st['ip']}/{st['prefix']}" if st["prefix"] is not None else st["ip"]
+        print(f"IPv4:        {addr}")
+    if st["gateway"]:
+        print(f"Gateway:     {st['gateway']}")
+    if st["dns"]:
+        print(f"DNS:         {', '.join(st['dns'])}")
+
+
+def list_nearby_networks(rescan: bool, preferred_iface: str | None = None) -> list[dict]:
+    if not radio_enabled():
+        return []
+    dev = pick_wifi_device(preferred_iface)
+    if dev is None:
+        return []
+    iface = dev["device"]
+    known_ssids = {p["ssid"] for p in saved_wifi_profiles()}
+
+    cmd = [
+        "nmcli",
+        "-t",
+        "-f",
+        "IN-USE,SSID,SIGNAL,SECURITY,FREQ",
+        "device",
+        "wifi",
+        "list",
+        "ifname",
+        iface,
+        "--rescan",
+        "yes" if rescan else "no",
+    ]
+    proc = run_cmd(cmd, check=True)
+    by_ssid: dict[str, dict] = {}
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) < 5:
+            continue
+        in_use, ssid, sig_s, sec, freq = parts[0], parts[1], parts[2], parts[3], parts[4]
+        if not ssid:
+            continue
+        sig = int(sig_s) if sig_s.isdigit() else 0
+        band = band_for_freq(freq)
+        connected = in_use == "*"
+        existing = by_ssid.get(ssid)
+        if existing is None:
+            by_ssid[ssid] = {
+                "ssid": ssid,
+                "signal": sig,
+                "security": normalize_security(sec),
+                "bands": [band] if band else [],
+                "connected": connected,
+                "known": ssid in known_ssids,
+            }
+        else:
+            if connected:
+                existing["connected"] = True
+            if sig > existing["signal"]:
+                existing["signal"] = sig
+                existing["security"] = normalize_security(sec)
+            if band and band not in existing["bands"]:
+                existing["bands"].append(band)
+
+    rows = list(by_ssid.values())
+    for row in rows:
+        row["bands"].sort(key=lambda b: float(b))
+    rows.sort(key=lambda r: (not r["connected"], not r["known"], -r["signal"], r["ssid"].lower()))
+    return rows
+
+
+def print_network_list(rows: list[dict], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(rows))
+        return
+    if not rows:
+        print("No Wi-Fi networks found.")
+        return
+    print(f"{'':2s} {'SSID':32s} {'SIGNAL':>6s}  {'BANDS':11s}  {'SECURITY':16s}  STATUS")
+    for r in rows:
+        mark = "*" if r["connected"] else " "
+        bands = ",".join(r["bands"]) + "G" if r["bands"] else "-"
+        status = "connected" if r["connected"] else ("known" if r["known"] else "")
+        print(f"{mark:2s} {r['ssid'][:32]:32s} {r['signal']:5d}%  {bands:11s}  {r['security'][:16]:16s}  {status}")
+
+
+def print_known_profiles(profiles: list[dict], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(profiles))
+        return
+    if not profiles:
+        print("No saved Wi-Fi profiles.")
+        return
+    print(f"{'':2s} {'SSID':32s} {'AUTO':5s}  UUID")
+    for p in profiles:
+        mark = "*" if p["active"] else " "
+        auto = "yes" if p["autoconnect"] else "no"
+        print(f"{mark:2s} {p['ssid'][:32]:32s} {auto:5s}  {p['uuid']}")
+
+
+def validate_secret(prop: str, secret: str) -> None:
+    if not secret:
+        raise UsageError("passphrase cannot be empty")
+    if "\n" in secret or "\r" in secret:
+        raise UsageError("passphrase cannot contain newlines")
+    if secret != secret.strip():
+        raise UsageError("passphrase cannot start or end with whitespace")
+    if prop == "wifi-sec.psk":
+        is_hex_psk = len(secret) == 64 and all(c in "0123456789abcdefABCDEF" for c in secret)
+        if not (8 <= len(secret) <= 63 or is_hex_psk):
+            raise UsageError("Wi-Fi passphrase must be 8-63 characters (or 64 hex characters)")
+
+
+def nm_set_secret_via_edit(
+    profile_uuid: str,
+    prop: str,
+    secret: str,
+) -> None:
+    """Write a secret via `nmcli connection edit` stdin so it never appears in /proc argv."""
+    validate_secret(prop, secret)
+    script = f"set {prop} {secret}\nsave\nquit\n"
+    proc = run_cmd(["nmcli", "connection", "edit", "uuid", profile_uuid], input_text=script, check=True)
+    for stream in (proc.stderr, proc.stdout):
+        for line in stream.splitlines():
+            if line.strip().startswith("Error:"):
+                raise RuntimeError(line.strip())
+
+
+def detect_psk_key_mgmt(ssid: str, iface: str, pinned_band: str = "auto") -> str | None:
+    proc = run_cmd(
+        ["nmcli", "-t", "-f", "SSID,SECURITY,FREQ", "device", "wifi", "list", "ifname", iface, "--rescan", "no"]
+    )
+    if proc.returncode != 0:
+        return None
+    saw_match = False
+    saw_wpa_psk = False
+    saw_sae = False
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) < 3 or parts[0] != ssid:
+            continue
+        ap_band = band_for_freq(parts[2])
+        if pinned_band != "auto" and ap_band != pinned_band:
+            continue
+        saw_match = True
+        tokens = set(parts[1].upper().split())
+        if "WPA2" in tokens or "WPA1" in tokens:
+            saw_wpa_psk = True
+        elif "WPA3" in tokens or "SAE" in tokens:
+            saw_sae = True
+    if not saw_match:
+        return None
+    if saw_sae and not saw_wpa_psk:
+        return "sae"
+    return "wpa-psk"
+
+
+def connect_enterprise(
+    ssid: str,
+    identity: str,
+    password: str,
+    target_iface: str,
+) -> None:
+    validate_secret("802-1x.password", password)
+    con_uuid = str(uuid_mod.uuid4())
+    add_cmd = [
+        "nmcli",
+        "connection",
+        "add",
+        "type",
+        "wifi",
+        "con-name",
+        ssid,
+        "ssid",
+        ssid,
+        "connection.uuid",
+        con_uuid,
+        "connection.autoconnect",
+        "no",
+        "wifi-sec.key-mgmt",
+        "wpa-eap",
+        "802-1x.eap",
+        "peap",
+        "802-1x.phase2-auth",
+        "mschapv2",
+        "802-1x.identity",
+        identity,
+        "802-1x.auth-timeout",
+        "8",
+    ]
+    try:
+        run_cmd(add_cmd, check=True)
+        nm_set_secret_via_edit(con_uuid, "802-1x.password", password)
+        run_cmd(
+            ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+            check=True,
+            timeout=30,
+        )
+        run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "connection.autoconnect", "yes"], check=True)
+    except BaseException:
+        cleanup_cancelled_connection(con_uuid, delete_profile=True)
+        raise
+
+
+def connect_psk_via_profile(
+    ssid: str,
+    password: str,
+    hidden: bool,
+    target_iface: str,
+) -> None:
+    # Validate before touching NetworkManager profiles, then set the PSK via
+    # `nmcli connection edit` stdin so the passphrase never appears in argv.
+    validate_secret("wifi-sec.psk", password)
+    matches = matching_wifi_profiles(ssid, target_iface)
+    created = False
+    prev_km: str | None = None
+    reused: tuple[str, str, str] | None = None
+    for p in matches:
+        meta_lines = run_cmd(
+            [
+                "nmcli",
+                "-e",
+                "no",
+                "-g",
+                "802-11-wireless-security.key-mgmt,802-11-wireless.band",
+                "connection",
+                "show",
+                "uuid",
+                p["uuid"],
+            ],
+            check=True,
+        ).stdout.splitlines()
+        km = meta_lines[0].strip() if len(meta_lines) >= 1 else ""
+        if km in ("", "wpa-psk", "sae"):
+            band_raw = meta_lines[1] if len(meta_lines) >= 2 else ""
+            reused = (p["uuid"], km, band_raw)
+            break
+
+    if reused is not None:
+        con_uuid, cur_km, band_raw = reused
+        pinned_band = band_from_nm(band_raw)
+        detected_km = detect_psk_key_mgmt(ssid, target_iface, pinned_band=pinned_band)
+        desired_km = detected_km if detected_km is not None else (cur_km if cur_km in ("wpa-psk", "sae") else "wpa-psk")
+        if cur_km != desired_km:
+            prev_km = cur_km
+            run_cmd(
+                ["nmcli", "connection", "modify", "uuid", con_uuid, "wifi-sec.key-mgmt", desired_km],
+                check=True,
+            )
+    else:
+        key_mgmt = detect_psk_key_mgmt(ssid, target_iface) or "wpa-psk"
+        con_uuid = str(uuid_mod.uuid4())
+        add_cmd = [
+            "nmcli",
+            "connection",
+            "add",
+            "type",
+            "wifi",
+            "con-name",
+            ssid,
+            "ssid",
+            ssid,
+            "connection.uuid",
+            con_uuid,
+            "connection.autoconnect",
+            "no",
+            "wifi-sec.key-mgmt",
+            key_mgmt,
+        ]
+        if hidden:
+            add_cmd += ["802-11-wireless.hidden", "yes"]
+        created = True
+    try:
+        if created:
+            run_cmd(add_cmd, check=True)
+        nm_set_secret_via_edit(con_uuid, "wifi-sec.psk", password)
+        run_cmd(
+            ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+            check=True,
+            timeout=30,
+        )
+        if created:
+            run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "connection.autoconnect", "yes"], check=True)
+    except BaseException:
+        cleanup_cancelled_connection(con_uuid, delete_profile=created, restore_key_mgmt=prev_km)
+        raise
+
+
+def connect_open_via_profile(
+    ssid: str,
+    hidden: bool,
+    target_iface: str,
+    *,
+    owe: bool = False,
+) -> None:
+    con_uuid = str(uuid_mod.uuid4())
+    add_cmd = [
+        "nmcli",
+        "connection",
+        "add",
+        "type",
+        "wifi",
+        "con-name",
+        ssid,
+        "ssid",
+        ssid,
+        "connection.uuid",
+        con_uuid,
+        "connection.autoconnect",
+        "no",
+    ]
+    if owe:
+        add_cmd += ["wifi-sec.key-mgmt", "owe"]
+    if hidden:
+        add_cmd += ["802-11-wireless.hidden", "yes"]
+    try:
+        run_cmd(add_cmd, check=True)
+        run_cmd(
+            ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+            check=True,
+            timeout=30,
+        )
+        run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "connection.autoconnect", "yes"], check=True)
+    except BaseException:
+        cleanup_cancelled_connection(con_uuid, delete_profile=True)
+        raise
+
+
+def strip_double_dash(args: list[str]) -> list[str]:
+    if args and args[0] == "--":
+        return args[1:]
+    return args
+
+
+def cmd_connect(args: list[str], as_json: bool) -> int:
+    ssid: str | None = None
+    password: str | None = None
+    password_stdin = False
+    identity: str | None = None
+    hidden = False
+    iface: str | None = None
+    after_dash = False
+
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if not after_dash and tok == "--":
+            after_dash = True
+            i += 1
+        elif not after_dash and tok == "--password":
+            if i + 1 >= len(args):
+                raise UsageError("--password requires a value")
+            password = args[i + 1]
+            i += 2
+        elif not after_dash and tok == "--password-stdin":
+            password_stdin = True
+            i += 1
+        elif not after_dash and tok == "--identity":
+            if i + 1 >= len(args):
+                raise UsageError("--identity requires a username")
+            identity = args[i + 1]
+            i += 2
+        elif not after_dash and tok == "--hidden":
+            hidden = True
+            i += 1
+        elif not after_dash and tok == "--interface":
+            if i + 1 >= len(args):
+                raise UsageError("--interface requires a device name")
+            iface = args[i + 1]
+            i += 2
+        elif not after_dash and tok.startswith("-"):
+            raise UsageError(f"unknown option '{tok}'")
+        elif ssid is None:
+            ssid = tok
+            i += 1
+        else:
+            raise UsageError(f"unexpected argument '{tok}'")
+
+    if not ssid:
+        raise UsageError("Usage: omarchy network wifi connect <ssid> [options]")
+    if password is not None and password_stdin:
+        raise UsageError("use only one of --password or --password-stdin")
+    if password_stdin:
+        line = sys.stdin.readline()
+        password = line.rstrip("\r\n")
+
+    if not radio_enabled():
+        run_cmd(["nmcli", "radio", "wifi", "on"], check=True)
+
+    dev = pick_wifi_device(iface)
+    if dev is None:
+        raise RuntimeError("no Wi-Fi interface found")
+    target_iface = dev["device"]
+
+    if identity is not None:
+        if password is None:
+            if sys.stdin.isatty():
+                password = getpass.getpass(f"Password for {identity}@{ssid}: ")
+            else:
+                raise UsageError("--identity requires --password or --password-stdin")
+        connect_enterprise(ssid, identity, password, target_iface)
+    elif password is not None:
+        connect_psk_via_profile(ssid, password, hidden, target_iface)
+    else:
+        existing = matching_wifi_profiles(ssid, target_iface)
+        if existing:
+            con_uuid = existing[0]["uuid"]
+            try:
+                run_cmd(
+                    ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
+                    check=True,
+                    timeout=30,
+                )
+            except BaseException:
+                cleanup_cancelled_connection(con_uuid)
+                raise
+        else:
+            # Check if the scanned network requires credentials so a TTY user gets a prompt.
+            nearby = {r["ssid"]: r for r in list_nearby_networks(False, target_iface)}
+            sec = nearby.get(ssid, {}).get("security", "open").upper()
+            needs_pw = sec not in ("OPEN", "OWE", "")
+            if needs_pw and sys.stdin.isatty():
+                pw = getpass.getpass(f"Passphrase for {ssid}: ")
+                connect_psk_via_profile(ssid, pw, hidden, target_iface)
+            elif needs_pw:
+                raise UsageError(f"network '{ssid}' requires credentials (pass --password-stdin or --identity)")
+            else:
+                connect_open_via_profile(ssid, hidden, target_iface, owe=(sec == "OWE"))
+
+    st = read_wifi_status(target_iface)
+    if as_json:
+        print(json.dumps(st))
+    else:
+        print(f"Connected to {st['ssid'] or ssid} on {target_iface}")
+    return 0
+
+
+def cmd_forget(args: list[str], as_json: bool) -> int:
+    ssid_only = False
+    pos: list[str] = []
+    after_dash = False
+    for tok in args:
+        if not after_dash and tok == "--":
+            after_dash = True
+            continue
+        if not after_dash and tok == "--ssid":
+            ssid_only = True
+            continue
+        if not after_dash and tok.startswith("-"):
+            raise UsageError(f"unknown option '{tok}'")
+        pos.append(tok)
+    if len(pos) != 1:
+        raise UsageError("Usage: omarchy network wifi forget [--ssid] <ssid|uuid>")
+    target = pos[0]
+    profiles = saved_wifi_profiles()
+    if ssid_only:
+        matches = [p for p in profiles if p["ssid"] == target]
+    else:
+        matches = [p for p in profiles if p["uuid"] == target or p["ssid"] == target]
+        if not matches:
+            matches = [p for p in profiles if p["name"] == target]
+    if not matches:
+        raise RuntimeError(f"no saved Wi-Fi profile matching '{target}'")
+    deleted = []
+    for p in matches:
+        run_cmd(["nmcli", "connection", "delete", "uuid", p["uuid"]], check=True)
+        deleted.append({"name": p["name"], "ssid": p["ssid"], "uuid": p["uuid"]})
+    if as_json:
+        print(json.dumps({"forgotten": deleted}))
+    else:
+        for p in deleted:
+            print(f"Forgot Wi-Fi profile: {p['ssid']} ({p['uuid']})")
+    return 0
+
+
+def cmd_band(args: list[str], as_json: bool) -> int:
+    pos = strip_double_dash(args)
+    if len(pos) > 1:
+        raise UsageError("Usage: omarchy network wifi band [auto|2.4|5|6]")
+    if pos and pos[0] not in ("auto", "2.4", "5", "6"):
+        raise UsageError(f"invalid band '{pos[0]}' (expected auto, 2.4, 5, or 6)")
+    if pos:
+        run_cmd([omarchy_bin("omarchy-network-band"), pos[0]], check=True)
+    info = read_band_info()
+    if as_json:
+        print(json.dumps(info))
+    elif not info["current"] and not info["available"]:
+        print("No active Wi-Fi connection.")
+    else:
+        print(f"Band:        {info['current'] or 'unknown'} GHz")
+        print(f"Selected:    {info['selected']}")
+        if info["available"]:
+            print(f"Available:   {', '.join(b + ' GHz' for b in info['available'])}")
+    return 0
+
+
+def parse_global_flags(argv: list[str]) -> tuple[bool, list[str]]:
+    as_json = False
+    rest: list[str] = []
+    after_dash = False
+    skip_next = False
+    value_flags = {"--password", "--identity", "--interface"}
+    for arg in argv:
+        if skip_next:
+            rest.append(arg)
+            skip_next = False
+            continue
+        if not after_dash and arg == "--":
+            after_dash = True
+            rest.append(arg)
+            continue
+        if not after_dash and arg in value_flags:
+            rest.append(arg)
+            skip_next = True
+            continue
+        if not after_dash and arg == "--json":
+            as_json = True
+            continue
+        rest.append(arg)
+    return as_json, rest
+
+
+def main(argv: list[str]) -> int:
+    if any(a in ("-h", "--help") for a in argv[:2]) and "--" not in argv[:2]:
+        print(USAGE, end="")
+        return 0
+
+    as_json, args = parse_global_flags(argv)
+    cmd = args[0] if args else "status"
+    rest = args[1:]
+
+    if cmd == "status":
+        pos = strip_double_dash(rest)
+        if len(pos) > 1:
+            raise UsageError("Usage: omarchy network wifi status [interface]")
+        print_wifi_status(read_wifi_status(pos[0] if pos else None), as_json)
+        return 0
+
+    if cmd in ("on", "off", "toggle"):
+        if strip_double_dash(rest):
+            raise UsageError(f"Usage: omarchy network wifi {cmd}")
+        target = ("off" if radio_enabled() else "on") if cmd == "toggle" else cmd
+        run_cmd(["nmcli", "radio", "wifi", target], check=True)
+        if as_json:
+            print(json.dumps(read_wifi_status()))
+        else:
+            print(f"Wi-Fi radio {target}")
+        return 0
+
+    if cmd in ("list", "scan"):
+        rescan = cmd == "scan"
+        known_only = False
+        iface: str | None = None
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok == "--rescan":
+                rescan = True
+                i += 1
+            elif tok == "--known":
+                known_only = True
+                i += 1
+            elif tok == "--interface":
+                if i + 1 >= len(rest):
+                    raise UsageError("--interface requires a device name")
+                iface = rest[i + 1]
+                i += 2
+            else:
+                raise UsageError(f"unknown option '{tok}'")
+        if known_only:
+            print_known_profiles(saved_wifi_profiles(), as_json)
+        else:
+            print_network_list(list_nearby_networks(rescan, iface), as_json)
+        return 0
+
+    if cmd == "connect":
+        return cmd_connect(rest, as_json)
+
+    if cmd == "disconnect":
+        pos = strip_double_dash(rest)
+        if len(pos) > 1:
+            raise UsageError("Usage: omarchy network wifi disconnect [interface]")
+        dev = pick_wifi_device(pos[0] if pos else None)
+        if dev is None:
+            raise RuntimeError("no Wi-Fi interface found")
+        if dev["state"] not in IDLE_DEVICE_STATES:
+            run_cmd(["nmcli", "device", "disconnect", dev["device"]], check=True)
+        st = read_wifi_status(dev["device"])
+        if as_json:
+            print(json.dumps(st))
+        else:
+            print(f"Disconnected {dev['device']}")
+        return 0
+
+    if cmd == "forget":
+        return cmd_forget(rest, as_json)
+
+    if cmd == "password":
+        pos = strip_double_dash(rest)
+        if len(pos) > 1:
+            raise UsageError("Usage: omarchy network wifi password [interface]")
+        dev = pick_wifi_device(pos[0] if pos else None)
+        if dev is None or dev["state"] != "connected":
+            raise RuntimeError("no active Wi-Fi connection")
+        proc = run_cmd([omarchy_bin("omarchy-network-password"), dev["device"]], check=True)
+        pw = proc.stdout.rstrip("\r\n")
+        if as_json:
+            print(json.dumps({"interface": dev["device"], "ssid": dev["connection"], "password": pw}))
+        else:
+            print(pw)
+        return 0
+
+    if cmd == "band":
+        return cmd_band(rest, as_json)
+
+    raise UsageError(f"unknown command '{cmd}'\n\n{USAGE}")
+
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except CancelledError:
+        raise SystemExit(143)
+    except KeyboardInterrupt:
+        raise SystemExit(130)
+    except UsageError as exc:
+        sys.stderr.write(f"omarchy-network-wifi: {exc}\n")
+        raise SystemExit(2)
+    except (RuntimeError, OSError) as exc:
+        sys.stderr.write(f"omarchy-network-wifi: {exc}\n")
+        raise SystemExit(1)

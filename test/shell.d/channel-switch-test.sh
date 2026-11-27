@@ -65,6 +65,27 @@ for channel in stable rc edge dev; do
   pass "$channel runs the refresh hook before the transaction and hands off to one update authorization"
 done
 
+# sudo remembers a password per terminal, and script(1) opens a new one: the
+# switch starts the update's log before its first sudo, and the update stays in it.
+cat >"$SUDO_TEST_ROOT/bin/script" <<'STUB'
+#!/bin/bash
+printf 'step:script %s\n' "${@: -1}" >>"$SUDO_TEST_LOG"
+exec /usr/bin/bash -c "$2"
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/script"
+reset_boundary
+OMARCHY_UPDATE_LOGGED='' run_channel rc || fail "an unlogged rc switch failed" "$(<"$boundary_tmp/output")"
+assert_channel_order
+python3 - "$SUDO_TEST_LOG" <<'PY' || fail "the switch and its update share one log" "$(<"$SUDO_TEST_LOG")"
+import sys
+events = open(sys.argv[1]).read().splitlines()
+scripts = [i for i, event in enumerate(events) if event.startswith('step:script ')]
+assert len(scripts) == 1 and events[scripts[0]] == 'step:script /tmp/omarchy-update.log', events
+assert scripts[0] < next(i for i, event in enumerate(events) if event.startswith('sudo ')), events
+PY
+rm "$SUDO_TEST_ROOT/bin/script"
+pass "an unlogged switch logs before its first sudo, so its update asks for the password no second time"
+
 # Every aarch64 platform switches to all four channels, copying its own
 # templates.
 for platform in aarch64 aarch64-apple; do

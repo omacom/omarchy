@@ -1,8 +1,8 @@
-# Inštalácia dual boot
+# Inštalácia v režime dual boot
 
-Môžete nainštalovať Omarchy na jednu partíciu popri Windowse alebo iných inštaláciách.
+Omarchy môžete nainštalovať na jeden oddiel popri Windowse alebo iných inštaláciách.
 
-Táto metóda inštalácie stále predvolene ponúka šifrovanie LUKS pre partíciu, takže sa v podstate nelíši od inštalácie na celý disk a jednoducho vyžaduje, aby bolo na disku k dispozícii voľné miesto.
+Táto metóda inštalácie stále predvolene zahŕňa šifrovanie oddielu pomocou LUKS, takže sa v podstate nelíši od inštalácie na celý disk a jednoducho vyžaduje, aby bolo na disku k dispozícii voľné miesto.
 
 ## Uvoľnenie miesta vo Windowse
 
@@ -10,15 +10,15 @@ Ak chcete inštalovať popri Windowse, zadajte do ponuky Štart `disk management
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Nájdite príslušnú partíciu, kliknite na ňu pravým tlačidlom myši a vyberte **Shrink Volume**.
+Nájdite príslušný oddiel, kliknite naň pravým tlačidlom myši a vyberte možnosť **Shrink Volume**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Zadajte veľkosť, o ktorú chcete zmenšiť zväzok. Upozorňujeme, že to bude veľkosť vašej budúcej inštalácie Omarchy vrátane zavádzacej partície.
+ Zadajte veľkosť, o ktorú chcete zväzok zmenšiť. Upozorňujeme, že to bude veľkosť vašej budúcej inštalácie Omarchy vrátane zavádzacieho oddielu.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Keď skončíte, mali by ste vidieť niečo takéto, kde 50GB časť je miesto, kam v tomto príklade nainštalujeme Omarchy.
+Keď budete hotoví, mali by ste vidieť niečo podobné, kde 50GB časť je v tomto príklade miestom, kam nainštalujeme Omarchy.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
@@ -28,17 +28,21 @@ Proces inštalácie Omarchy je v podstate rovnaký ako zvyčajne. Po výbere dis
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Potvrďte, že všetko vyzerá dobre, a počkajte na dokončenie inštalácie ako zvyčajne. Tu si tiež môžete zvoliť inštaláciu bez šifrovania (neodporúča sa), rovnako ako pri inštalácii na celý disk.
+Skontrolujte, či všetko vyzerá dobre, a počkajte, kým sa inštalácia dokončí ako zvyčajne. Tu sa tiež môžete rozhodnúť pre inštaláciu bez šifrovania (neodporúča sa), rovnako ako pri inštalácii na celý disk.
  ![dual-boot-6](images/dual-boot-6.webp)
 
 ## Pridanie ďalších inštalácií do zavádzača
 
-Po dokončení inštalácie Omarchy si všimnete, že zavádzač Limine je teraz predvolený. Pomocou neho môžete do Limine pridať aj možnosti pre vaše ďalšie inštalácie, napríklad Windows.
+Po dokončení inštalácie Omarchy si všimnete, že zavádzač Limine je teraz predvolený. Pomocou neho môžete do Limine pridať aj možnosti pre svoje ďalšie inštalácie, napríklad Windows.
 
-Ak chcete pridať ďalšie operačné systémy, spustite `limine-scan` a podľa pokynov pridajte požadované položky do svojej konfigurácie Limine. Ponuka zavádzania zostáva predvolene skrytá a po jednej sekunde spustí Omarchy. Ak chcete vybrať Windows alebo inú položku, stlačte ľubovoľnú klávesu hneď, ako sa Limine spustí; keď sa zobrazí ponuka, pomocou klávesov so šípkami vyberte položku a stlačte Enter. Ak sa Omarchy spustí skôr, ako stlačíte klávesu, reštartujte počítač a skúste to znova.
+Ak chcete pridať ďalšie operačné systémy, spustite `limine-scan` a podľa pokynov pridajte požadované položky do svojej konfigurácie Limine. Ponuka zavádzania zostáva predvolene skrytá a Omarchy sa spustí po jednej sekunde. Ak chcete vybrať Windows alebo inú položku, stlačte ľubovoľnú klávesu hneď, ako sa Limine spustí; keď sa zobrazí ponuka, pomocou klávesov so šípkami vyberte položku a stlačte Enter. Ak sa Omarchy spustí skôr, než stihnete stlačiť klávesu, reštartujte počítač a skúste to znova.
 
 ## Bitlocker
 
-Je dôležité poznamenať, že táto metóda inštalácie nie je kompatibilná s Bitlockerom, pretože šifruje celý disk, nielen partíciu. Ak sa zobrazí chyba, že je Bitlocker povolený, spustite Windows, prejdite na **Settings -> Privacy & Security -> Device encryption** a Bitlocker vypnite. Dešifrovanie disku môže chvíľu trvať.
+Je dôležité poznamenať, že táto metóda inštalácie nie je kompatibilná s nástrojom Bitlocker, pretože ten šifruje celý disk, nielen oddiel. Ak narazíte na chybu oznamujúcu, že je Bitlocker povolený, spustite Windows, prejdite do časti **Settings -> Privacy & Security -> Device encryption** a Bitlocker vypnite. Dešifrovanie disku môže chvíľu trvať.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Opätovná inštalácia Windowsu
+
+Ak bol tento počítač dodaný s Windowsom, jeho produktový kľúč je uložený vo firmvéri. Spustite `omarchy windows key`, aby sa zobrazil, takže si budete môcť Windows znova aktivovať, ak ho niekedy na tomto počítači preinštalujete.

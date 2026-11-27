@@ -21,7 +21,7 @@ printf '%s\0' apple,j416c qcom,x1e80100 >"$test_tmp/platforms/contradiction/proc
 etc="$test_tmp/etc"
 devices="$test_tmp/devices"
 
-omarchy_hooks="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck btrfs-overlayfs"
+omarchy_hooks="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck omarchy-snapshot-overlay omarchy-restore"
 omarchy_hooks_without_kms=${omarchy_hooks/ kms / }
 apple_hooks="base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block filesystems fsck"
 nvidia_modules="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
@@ -78,9 +78,12 @@ pci_devices() {
 
 # mkinitcpio appends the drop-ins to mkinitcpio.conf in its own order and
 # sources the result once. Do the same on a platform fixture and print what the
-# image is built from. The drop-ins read /etc/vconsole.conf, so point them at
-# $vconsole, which only the cases that need a layout write.
+# image is built from. The drop-ins read /etc/vconsole.conf and
+# /etc/systemd/system.conf.d/20-mount-events.conf, so point them at fixtures in
+# $test_tmp (only cases that need a keyboard layout write $vconsole).
 vconsole="$test_tmp/vconsole.conf"
+mount_events="$test_tmp/20-mount-events.conf"
+cp "$ROOT/etc/systemd/system.conf.d/20-mount-events.conf" "$mount_events"
 compose() {
   local fixture="$test_tmp/platforms/$1" config="$test_tmp/buildconfig" conf
   local -a conf_files=()
@@ -90,7 +93,8 @@ compose() {
   for conf in "${conf_files[@]}"; do
     cat -- "$etc/mkinitcpio.conf.d/$conf" >>"$config"
   done
-  sed -i "s|/etc/vconsole.conf|$vconsole|g" "$config"
+  sed -i -e "s|/etc/vconsole.conf|$vconsole|g" \
+    -e "s|/etc/systemd/system.conf.d/20-mount-events.conf|$mount_events|g" "$config"
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
@@ -179,15 +183,15 @@ CONF
 assert_hooks "a platform fragment's hooks survive on Apple Silicon" aarch64-apple \
   "base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block platform-firmware filesystems fsck platform-late"
 assert_hooks "a platform fragment's hooks survive on plain aarch64" aarch64 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 assert_hooks "a platform fragment's hooks survive on x86" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 
 # The NVIDIA filter still runs after the fragment and removes only kms.
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x10de:0x030000
 assert_hooks "the NVIDIA filter keeps a platform fragment's hooks" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev plymouth keyboard autodetect microcode modconf keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 
 # Existing x86 configurations build the image they built before the baseline
 # moved: the same HOOKS, MODULES and FILES.
@@ -266,7 +270,7 @@ KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "without the runtime's d
   "$omarchy_hooks" "thunderbolt" ""
 new_etc
 KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "an Apple Silicon Mac leaves i2c-hid-of out" aarch64-apple \
-  "$apple_hooks" "thunderbolt" ""
+  "$apple_hooks" "thunderbolt" "$mount_events"
 new_etc
 KERNEL_MODULES="thunderbolt" KERNEL_BUILTINS="i2c-hid-of" assert_composed "a kernel with i2c-hid-of built in leaves it out" aarch64-qualcomm \
   "$omarchy_hooks" "thunderbolt" ""
@@ -276,7 +280,7 @@ KERNEL_MODULES="thunderbolt" KERNEL_BUILTINS="i2c-hid-of" assert_composed "a ker
 # an optional thunderbolt? nor a module the kernel lacks may reach it.
 new_etc
 assert_composed "Apple Silicon early-loads the Aurora kernel's thunderbolt module" aarch64-apple \
-  "$apple_hooks" "thunderbolt" ""
+  "$apple_hooks" "thunderbolt" "$mount_events"
 new_etc
 KERNEL_MODULES="" assert_composed "a plain aarch64 kernel without thunderbolt leaves it out" aarch64 \
   "$omarchy_hooks" "" ""
