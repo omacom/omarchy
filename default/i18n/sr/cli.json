@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Токени сада теку са %1 налога",
   "agents.readyToCode": "%1 је спреман",
   "agents.readyToCodeBody": "Направите нешто кул",
+  "agents.resumeDirMissing": "Наставак агента је прескочен",
+  "agents.resumeDirMissingBody": "Сачувани директоријум не постоји: %1",
   "agents.runningCaughtUp": "И покренуте сесије са %1 су пребачене.",
   "agents.runningFollow": "И покренуте сесије га користе.",
   "agents.runningStayOn": "Покренуте сесије остају на %1.",

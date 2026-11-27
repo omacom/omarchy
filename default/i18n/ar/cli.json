@@ -41,6 +41,8 @@
   "agents.readyForMoreBody": "تتدفق الرموز الآن من حساب %1",
   "agents.readyToCode": "%1 جاهز",
   "agents.readyToCodeBody": "اصنع شيئًا رائعًا",
+  "agents.resumeDirMissing": "تم تخطي استئناف الوكيل",
+  "agents.resumeDirMissingBody": "الدليل المحفوظ غير موجود: %1",
   "agents.runningCaughtUp": "انتقلت الجلسات الجارية على %1 أيضًا.",
   "agents.runningFollow": "الجلسات الجارية تستخدمه أيضًا.",
   "agents.runningStayOn": "ستبقى الجلسات الجارية على %1.",

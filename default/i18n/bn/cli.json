@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "%1 অ্যাকাউন্ট থেকে এখন টোকেন আসছে",
   "agents.readyToCode": "%1 প্রস্তুত",
   "agents.readyToCodeBody": "দারুণ কিছু বানান",
+  "agents.resumeDirMissing": "এজেন্ট রিজিউম বাদ দেওয়া হয়েছে",
+  "agents.resumeDirMissingBody": "সংরক্ষিত ডিরেক্টরি নেই: %1",
   "agents.runningCaughtUp": "%1-এর চলমান সেশনগুলোও এতে সরে এসেছে।",
   "agents.runningFollow": "চলমান সেশনগুলোও এটি ব্যবহার করছে।",
   "agents.runningStayOn": "চলমান সেশনগুলো %1-এই থাকবে।",

@@ -36,6 +36,8 @@
   "agents.readyForMoreBody": "トークンは現在%1アカウントから供給されています",
   "agents.readyToCode": "%1 の準備ができました",
   "agents.readyToCodeBody": "何か面白いものを作りましょう",
+  "agents.resumeDirMissing": "エージェントの再開をスキップしました",
+  "agents.resumeDirMissingBody": "保存されたディレクトリが存在しません: %1",
   "agents.runningCaughtUp": "%1の実行中のセッションも切り替わりました。",
   "agents.runningFollow": "実行中のセッションもこれを使用します。",
   "agents.runningStayOn": "実行中のセッションは %1 のままです。",

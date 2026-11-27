@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "ٹوکنز اب %1 اکاؤنٹ سے آ رہے ہیں",
   "agents.readyToCode": "%1 تیار ہے",
   "agents.readyToCodeBody": "کچھ زبردست بنائیں",
+  "agents.resumeDirMissing": "ایجنٹ دوبارہ شروع کرنا چھوڑ دیا گیا",
+  "agents.resumeDirMissingBody": "محفوظ کردہ ڈائریکٹری موجود نہیں ہے: %1",
   "agents.runningCaughtUp": "%1 پر چل رہے سیشنز بھی منتقل ہو گئے۔",
   "agents.runningFollow": "چل رہے سیشنز بھی اسے استعمال کرتے ہیں۔",
   "agents.runningStayOn": "چل رہے سیشنز %1 پر ہی رہیں گے۔",

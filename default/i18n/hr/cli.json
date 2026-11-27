@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Tokeni sada teku s računa %1",
   "agents.readyToCode": "%1 je spreman",
   "agents.readyToCodeBody": "Napravi nešto fora",
+  "agents.resumeDirMissing": "Preskočeno nastavljanje agenta",
+  "agents.resumeDirMissingBody": "Spremljeni direktorij ne postoji: %1",
   "agents.runningCaughtUp": "Sesije u tijeku na %1 također su prebačene.",
   "agents.runningFollow": "Sesije u tijeku također ga koriste.",
   "agents.runningStayOn": "Sesije u tijeku ostaju na %1.",

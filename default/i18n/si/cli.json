@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "ටෝකන් දැන් %1 ගිණුමෙන් ගලා එයි",
   "agents.readyToCode": "%1 සූදානම්",
   "agents.readyToCodeBody": "අපූරු දෙයක් හදන්න",
+  "agents.resumeDirMissing": "ඒජන්ට් නැවත ආරම්භය මඟ හැරුණි",
+  "agents.resumeDirMissingBody": "සුරකින ලද නාමාවලිය නොපවතී: %1",
   "agents.runningCaughtUp": "%1 මත ධාවනය වන සැසි ද මාරු විය.",
   "agents.runningFollow": "ධාවනය වන සැසි ද එය භාවිතා කරයි.",
   "agents.runningStayOn": "ධාවනය වන සැසි %1 මතම පවතී.",

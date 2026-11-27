@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Tokeny teraz prúdia z účtu %1",
   "agents.readyToCode": "%1 je pripravený",
   "agents.readyToCodeBody": "Vytvorte niečo skvelé",
+  "agents.resumeDirMissing": "Obnovenie agenta preskočené",
+  "agents.resumeDirMissingBody": "Uložený adresár neexistuje: %1",
   "agents.runningCaughtUp": "Bežiace relácie na %1 sa tiež presunuli.",
   "agents.runningFollow": "Bežiace relácie ho používajú tiež.",
   "agents.runningStayOn": "Bežiace relácie zostanú na %1.",

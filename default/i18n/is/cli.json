@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tákn flæða nú frá %1-reikningi",
   "agents.readyToCode": "%1 er tilbúið",
   "agents.readyToCodeBody": "Gerðu eitthvað flott",
+  "agents.resumeDirMissing": "Sleppt að halda áfram með agent",
+  "agents.resumeDirMissingBody": "Vistaða mappan er ekki til: %1",
   "agents.runningCaughtUp": "Lotur í gangi á %1 fluttust líka yfir.",
   "agents.runningFollow": "Lotur í gangi nota það líka.",
   "agents.runningStayOn": "Lotur í gangi halda áfram á %1.",

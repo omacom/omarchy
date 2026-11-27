@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Tokens a fluir agora da conta %1",
   "agents.readyToCode": "%1 está pronto",
   "agents.readyToCodeBody": "Faça algo fixe",
+  "agents.resumeDirMissing": "Retoma do agente ignorada",
+  "agents.resumeDirMissingBody": "A pasta guardada não existe: %1",
   "agents.runningCaughtUp": "As sessões em curso em %1 também foram transferidas.",
   "agents.runningFollow": "As sessões em curso também a usam.",
   "agents.runningStayOn": "As sessões em curso continuam em %1.",

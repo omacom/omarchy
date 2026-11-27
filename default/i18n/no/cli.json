@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tokens flyter nå fra %1-kontoen",
   "agents.readyToCode": "%1 er klar",
   "agents.readyToCodeBody": "Lag noe kult",
+  "agents.resumeDirMissing": "Agentgjenopptak hoppet over",
+  "agents.resumeDirMissingBody": "Lagret katalog finnes ikke: %1",
   "agents.runningCaughtUp": "Kjørende økter på %1 ble også flyttet over.",
   "agents.runningFollow": "Kjørende økter bruker den også.",
   "agents.runningStayOn": "Kjørende økter blir værende på %1.",
