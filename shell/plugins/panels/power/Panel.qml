@@ -18,6 +18,10 @@ Panel {
   property var profiles: []
   property string activeProfile: ""
   property int profileIndex: 0
+  property string activeChargeLimit: ""
+  property int limitIndex: 0
+  property string focusRow: "profile"
+  property string chargeLimitError: ""
   property bool cursorActive: false
   readonly property var batteryService: bar && bar.shell && typeof bar.shell.firstPartyServiceFor === "function"
     ? bar.shell.firstPartyServiceFor("omarchy.battery") : null
@@ -30,6 +34,10 @@ Panel {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
   }
+  readonly property bool chargeLimitSupported: root.batteryInfo.limit_supported === "1"
+  readonly property var chargeLimitOptions: Model.chargeLimitOptions(root.batteryInfo, Commons.I18n.t, Commons.I18n.formatNumber)
+  readonly property string sleepSummary: Model.formatSleepSummary(root.batteryInfo, Commons.I18n.formatNumber)
+  readonly property bool sleepLowS0ix: Model.isLowS0ix(root.batteryInfo)
 
   function upowerStates() {
     return {
@@ -40,11 +48,28 @@ Panel {
     }
   }
 
-  function selectProfileByDelta(delta) {
-    profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+  function moveCursor(dx, dy) {
+    var next = Model.moveFocus(
+      focusRow,
+      limitIndex,
+      profileIndex,
+      dx,
+      dy,
+      chargeLimitSupported,
+      chargeLimitOptions.length,
+      profiles.length
+    )
+    focusRow = next.focusRow
+    limitIndex = next.limitIndex
+    profileIndex = next.profileIndex
   }
 
-  function activateSelectedProfile() {
+  function activateCursor() {
+    if (focusRow === "limit" && chargeLimitSupported) {
+      if (limitIndex < 0 || limitIndex >= chargeLimitOptions.length) return
+      setChargeLimit(chargeLimitOptions[limitIndex].key)
+      return
+    }
     if (profileIndex < 0 || profileIndex >= profiles.length) return
     setProfile(profiles[profileIndex])
   }
@@ -87,7 +112,7 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh)
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh, root.activeChargeLimit)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -190,6 +215,15 @@ Panel {
     // around AC plug/unplug events. Avoids the section collapsing mid-transition.
     if (Object.keys(next).length === 0) return
     batteryInfo = next
+    if (!limitProc.running && next.limit_state) {
+      activeChargeLimit = next.limit_state
+      if (opened && !cursorActive) {
+        limitIndex = Model.chargeLimitIndexForState(activeChargeLimit)
+      }
+    }
+    if (next.limit_supported !== "1" && focusRow === "limit") {
+      focusRow = "profile"
+    }
   }
 
   function updateProfiles(raw) {
@@ -216,6 +250,15 @@ Panel {
     if (idx >= 0) profileIndex = idx
     actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
     actionProc.running = true
+  }
+
+  function setChargeLimit(mode) {
+    if (!mode || limitProc.running || !chargeLimitSupported) return
+    chargeLimitError = ""
+    activeChargeLimit = mode
+    limitIndex = Model.chargeLimitIndexForState(mode)
+    limitProc.command = ["omarchy-battery-limit", mode]
+    limitProc.running = true
   }
 
   function togglePercentage() {
@@ -246,9 +289,12 @@ Panel {
 
       if (batteryService && batteryService.activePowerProfile)
         syncActiveProfile(batteryService.activePowerProfile)
+      chargeLimitError = ""
       refresh()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
+      limitIndex = Model.chargeLimitIndexForState(activeChargeLimit)
+      focusRow = "profile"
       cursorActive = false
     }
   }
@@ -268,6 +314,9 @@ Panel {
     target: root.batteryService
     function onActivePowerProfileChanged() {
       if (root.batteryService) root.syncActiveProfile(root.batteryService.activePowerProfile)
+    }
+    function onChargeLimitSignalsChanged() {
+      if (root.opened) root.refresh()
     }
   }
 
@@ -297,6 +346,18 @@ Panel {
         if (root.batteryService) root.batteryService.refreshPowerProfile()
         else if (!profilesProc.running) profilesProc.running = true
       }
+    }
+  }
+
+  Process {
+    id: limitProc
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.chargeLimitError = Commons.I18n.t("power.chargeLimitFailed")
+      } else {
+        root.chargeLimitError = ""
+      }
+      if (!batteryProc.running) batteryProc.running = true
     }
   }
 
@@ -377,10 +438,9 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
+        root.moveCursor(dx, dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -500,29 +560,111 @@ Panel {
         // of the condition: UPower briefly reports FullyCharged on plug-in when
         // the battery sits above the charge-control start threshold, and we
         // refuse to flicker the whole panel for that ~1s window.
-        Row {
+        Column {
           visible: root.batteryInfo.percentage !== undefined
           width: parent.width
-          spacing: Style.space(20)
+          spacing: Style.spacing.labelGap
 
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
-            InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
+          Row {
+            width: parent.width
+            spacing: Style.space(20)
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              spacing: Style.spacing.labelGap
+              InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
+              InfoPair {
+                visible: !!root.batteryInfo.health
+                label: Commons.I18n.t("power.batteryHealth")
+                value: root.reading(root.batteryInfo.health)
+              }
+              InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
+            }
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              spacing: Style.spacing.labelGap
+              InfoPair {
+                label: root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull"))
+                value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+              }
+              InfoPair {
+                label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
+                value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
+              }
+            }
           }
 
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull"))
-              value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+          InfoPair {
+            visible: root.sleepSummary !== ""
+            label: Commons.I18n.t("power.lastSleep")
+            value: root.sleepSummary
+            valueColor: root.sleepLowS0ix ? Commons.Color.color3 : root.bar.foreground
+          }
+        }
+
+        // ---------- Charge limit picker ----------
+        PanelSeparator {
+          visible: root.chargeLimitSupported
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.chargeLimitSupported
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: Commons.I18n.t("power.chargeLimitSection")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Row {
+            id: limitRow
+            width: parent.width
+            spacing: Style.space(6)
+
+            readonly property real cellWidth: root.chargeLimitOptions.length > 0
+              ? (width - spacing * (root.chargeLimitOptions.length - 1)) / root.chargeLimitOptions.length
+              : 0
+
+            Repeater {
+              model: root.chargeLimitOptions
+              Button {
+                required property var modelData
+                required property int index
+                width: limitRow.cellWidth
+                text: modelData.label
+                fontSize: Style.font.bodySmall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                horizontalPadding: Style.spacing.controlPaddingX
+                verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                bordered: true
+                active: root.activeChargeLimit === modelData.key
+                hasCursor: root.cursorActive && root.focusRow === "limit" && root.limitIndex === index
+                onClicked: root.setChargeLimit(modelData.key)
+                onHovered: function(h) {
+                  if (h) {
+                    root.cursorActive = true
+                    root.focusRow = "limit"
+                    root.limitIndex = index
+                  }
+                }
+              }
             }
-            InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
-              value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
-            }
+          }
+
+          Text {
+            visible: root.chargeLimitError !== ""
+            text: root.chargeLimitError
+            textFormat: Text.PlainText
+            color: Commons.Color.color1
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+            width: parent.width
           }
         }
 
@@ -566,11 +708,12 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.focusRow === "profile" && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.focusRow = "profile"
                     root.profileIndex = index
                   }
                 }
@@ -585,13 +728,14 @@ Panel {
   component InfoPair: Row {
     property string label: ""
     property string value: ""
+    property color valueColor: root.bar.foreground
 
     width: parent.width
     spacing: Style.space(8)
 
     InfoLabel { text: label }
     Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth - parent.spacing * 2); height: 1 }
-    InfoValue { text: value }
+    InfoValue { text: value; color: valueColor }
   }
 
   component InfoLabel: Text {

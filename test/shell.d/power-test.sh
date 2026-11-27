@@ -52,4 +52,58 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
+
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'off'), 'power does not flag stalled charging as threshold when limit is off')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'once'), 'power does not flag stalled charging as threshold during a one-time top-up')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, 'on'), 'power flags stalled charging as threshold when limit is on')
+
+assertDeepEqual(
+  power.chargeLimitOptions({ limit_mode: 'threshold', limit_end: '80' }),
+  [{ key: 'on', label: '80%' }, { key: 'once', label: '100% once' }, { key: 'off', label: '100%' }],
+  'power builds numeric charge limit buttons'
+)
+assertDeepEqual(
+  power.chargeLimitOptions({ limit_mode: 'firmware' }),
+  [{ key: 'on', label: 'Conserve' }, { key: 'once', label: '100% once' }, { key: 'off', label: 'Full' }],
+  'power builds firmware conservation charge limit buttons'
+)
+assertEqual(power.chargeLimitIndexForState('on'), 0, 'power maps on limit state to index 0')
+assertEqual(power.chargeLimitIndexForState('once'), 1, 'power maps once limit state to index 1')
+assertEqual(power.chargeLimitIndexForState('off'), 2, 'power maps off limit state to index 2')
+
+assertEqual(
+  power.formatSleepSummary({ sleep_duration: '8h 12m', sleep_drain_pct_hr: '0.4%/h', sleep_drain_w: '0.3W', sleep_mode: 's2idle', sleep_s0ix: '97%' }),
+  '8h 12m · 0.4%/h · 0.3W · S0ix 97%',
+  'power formats s2idle sleep drain summary with S0ix'
+)
+assertEqual(
+  power.formatSleepSummary({ sleep_duration: '3h', sleep_drain_pct_hr: '0.2%/h', sleep_mode: 'deep' }),
+  '3h · 0.2%/h',
+  'power omits S0ix for non-s2idle sleeps'
+)
+assertEqual(power.formatSleepSummary({}), '', 'power hides sleep summary when empty')
+assert(power.isLowS0ix({ sleep_mode: 's2idle', sleep_s0ix: '64%' }), 'power flags low S0ix residency under 80%')
+assert(!power.isLowS0ix({ sleep_mode: 's2idle', sleep_s0ix: '97%' }), 'power does not flag healthy S0ix residency')
+assert(!power.isLowS0ix({ sleep_mode: 'deep', sleep_s0ix: '0%' }), 'power ignores S0ix outside s2idle')
+
+assertDeepEqual(
+  power.moveFocus('profile', 0, 1, 0, -1, true, 3, 3),
+  { focusRow: 'limit', limitIndex: 0, profileIndex: 1 },
+  'power moves keyboard focus up from profile row to charge limit row'
+)
+assertDeepEqual(
+  power.moveFocus('limit', 0, 1, 1, 0, true, 3, 3),
+  { focusRow: 'limit', limitIndex: 1, profileIndex: 1 },
+  'power moves keyboard focus sideways within charge limit row'
+)
+assertDeepEqual(
+  power.moveFocus('limit', 1, 1, 0, 1, true, 3, 3),
+  { focusRow: 'profile', limitIndex: 1, profileIndex: 1 },
+  'power moves keyboard focus down from charge limit row to profile row'
+)
+assertDeepEqual(
+  power.moveFocus('profile', 0, 0, 0, 1, false, 3, 3),
+  { focusRow: 'profile', limitIndex: 0, profileIndex: 1 },
+  'power keeps profile-row vertical movement when charge limit is unsupported'
+)
 JS

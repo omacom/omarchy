@@ -52,7 +52,7 @@ function batteryFraction(device) {
 // rateFresh is false while the charge rate still dates from before external
 // power arrived. A battery that reports its rate every half minute reads
 // "charging at 0 W" until then, which is not a threshold holding it.
-function chargeThresholdActive(device, onBattery, states, rateFresh) {
+function chargeThresholdActive(device, onBattery, states, rateFresh, limitState) {
   var d = device || {}
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
@@ -63,6 +63,7 @@ function chargeThresholdActive(device, onBattery, states, rateFresh) {
   if (d.state === s.FullyCharged && fraction < 0.99) return true
   if (d.state !== s.Charging || fraction >= 0.99) return false
   if (rateFresh === false) return false
+  if (limitState === "off" || limitState === "once") return false
 
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
@@ -114,6 +115,63 @@ function profileLabel(name, tr) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function chargeLimitOptions(batteryInfo, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var info = batteryInfo || {}
+  var firmwareOnly = info.limit_mode === "firmware"
+  var endVal = info.limit_end || "80"
+  var onLabel = firmwareOnly ? t("power.chargeLimitConserve", "Conserve") : localizeReading(endVal + "%", fmt)
+  var offLabel = firmwareOnly ? t("power.chargeLimitFull", "Full") : localizeReading("100%", fmt)
+  return [
+    { key: "on", label: onLabel },
+    { key: "once", label: t("power.chargeLimitOnce", "100% once") },
+    { key: "off", label: offLabel }
+  ]
+}
+
+function chargeLimitIndexForState(state) {
+  if (state === "on") return 0
+  if (state === "once") return 1
+  if (state === "off") return 2
+  return 0
+}
+
+function formatSleepSummary(batteryInfo, fmt) {
+  var info = batteryInfo || {}
+  if (!info.sleep_duration) return ""
+  var parts = [info.sleep_duration]
+  if (info.sleep_drain_pct_hr) parts.push(localizeReading(info.sleep_drain_pct_hr, fmt))
+  if (info.sleep_drain_w) parts.push(localizeReading(info.sleep_drain_w, fmt))
+  if (info.sleep_mode === "s2idle" && info.sleep_s0ix) parts.push("S0ix " + localizeReading(info.sleep_s0ix, fmt))
+  return parts.join(" · ")
+}
+
+function isLowS0ix(batteryInfo) {
+  var info = batteryInfo || {}
+  if (info.sleep_mode !== "s2idle" || !info.sleep_s0ix) return false
+  var n = parseFloat(String(info.sleep_s0ix).replace("%", ""))
+  return !isNaN(n) && n < 80
+}
+
+function moveFocus(focusRow, limitIndex, profileIndex, dx, dy, hasLimit, limitCount, profileCount) {
+  var row = hasLimit ? (focusRow === "limit" ? "limit" : "profile") : "profile"
+  var lIdx = clampIndex(limitIndex, limitCount)
+  var pIdx = clampIndex(profileIndex, profileCount)
+
+  if (dy !== 0 && hasLimit) {
+    if (dy < 0 && row === "profile") return { focusRow: "limit", limitIndex: lIdx, profileIndex: pIdx }
+    if (dy > 0 && row === "limit") return { focusRow: "profile", limitIndex: lIdx, profileIndex: pIdx }
+  }
+
+  var step = dx !== 0 ? dx : dy
+  if (row === "limit") {
+    lIdx = clampIndex(lIdx + step, limitCount)
+  } else {
+    pIdx = clampIndex(pIdx + step, profileCount)
+  }
+  return { focusRow: row, limitIndex: lIdx, profileIndex: pIdx }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
@@ -126,6 +184,11 @@ if (typeof module !== "undefined") {
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
-    localizeReading: localizeReading
+    localizeReading: localizeReading,
+    chargeLimitOptions: chargeLimitOptions,
+    chargeLimitIndexForState: chargeLimitIndexForState,
+    formatSleepSummary: formatSleepSummary,
+    isLowS0ix: isLowS0ix,
+    moveFocus: moveFocus
   }
 }
