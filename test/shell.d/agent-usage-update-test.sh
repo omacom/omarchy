@@ -64,6 +64,34 @@ pass "update succeeds when the requested collectors all pass"
   fail "update with agent arguments only runs the named collectors"
 pass "update with agent arguments only runs the named collectors"
 
+
+# Both a scoped account refresh and a full refresh must wait, then collect
+# their own scope rather than losing it behind the active scan.
+for kind in scoped full; do
+  exec {update_lock_fd}>"$usage_dir/.update.lock"
+  flock "$update_lock_fd"
+  rm -f "$usage_dir/good.json" "$usage_dir/skipped.json"
+  args=()
+  [[ $kind == "scoped" ]] && args=(--force good)
+  HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+    "$ROOT/bin/omarchy-agent-usage-update" "${args[@]}" 2>/dev/null &
+  queued_pid=$!
+  sleep 0.1
+  kill -0 "$queued_pid" 2>/dev/null || fail "$kind refresh waits for the active scan"
+  [[ ! -e $usage_dir/good.json && ! -e $usage_dir/skipped.json ]] || fail "$kind refresh does not overlap the active scan"
+  flock -u "$update_lock_fd"
+  exec {update_lock_fd}>&-
+  status=0
+  wait "$queued_pid" || status=$?
+  [[ -e $usage_dir/good.json ]] || fail "$kind refresh runs after the active scan"
+  if [[ $kind == "scoped" ]]; then
+    (( status == 0 )) && [[ ! -e $usage_dir/skipped.json ]] || fail "queued account refresh preserves its scope"
+  else
+    (( status == 1 )) && [[ -e $usage_dir/skipped.json ]] || fail "queued full refresh still collects every agent"
+  fi
+  pass "$kind refresh waits and then collects its own scope"
+done
+
 rm -rf "$usage_dir"
 if output=$(HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
   "$ROOT/bin/omarchy-agent-usage-update" --except '' 2>&1); then

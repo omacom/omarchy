@@ -466,3 +466,141 @@ const pairedView = evalPanelView({
 assertEqual(pairedView.blankSlate, false, 'an added paired tailnet model leaves the blank-slate picker')
 assertDeepEqual(pairedView.sections, [pairedLine], 'an added paired tailnet model shows in providerSections')
 JS
+
+# Each monitor builds its own panel; the usage poll must not come with it.
+# Real Main.qml and Panel.qml in a bare shell, with a stand-in collector that
+# logs every run under the step the fixture was on when it started.
+if ! compositor_reachable || ! command -v quickshell >/dev/null 2>&1; then
+  skip "agents usage poll lifecycle needs a compositor and quickshell"
+  exit 0
+fi
+ulimit -c 0 2>/dev/null || true
+
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+mkdir -p "$stage/bin" "$stage/home"
+ln -s "$ROOT/shell/Commons" "$stage/Commons"
+ln -s "$ROOT/shell/Ui" "$stage/Ui"
+ln -s "$ROOT/shell/plugins/agents" "$stage/agents"
+ln -s "$ROOT/shell/plugins/panels" "$stage/panels"
+cat >"$stage/bin/omarchy-agent-usage-update" <<'SH'
+#!/bin/bash
+printf 'poll during %s\n' "$(<"$AGENTS_POLL_STEP")" >>"$AGENTS_POLL_LOG"
+SH
+chmod +x "$stage/bin/omarchy-agent-usage-update"
+
+cat >"$stage/shell.qml" <<'QML'
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import "agents" as Agents
+
+ShellRoot {
+  id: test
+  property var services: ({})
+  function firstPartyServiceFor(id) { return services[id] || null }
+  // Written before the step acts, so any run it starts reads its name.
+  FileView { id: stepFile; path: Quickshell.env("AGENTS_POLL_STEP"); blockWrites: true }
+  function mark(name) { stepFile.setText(name) }
+
+  Agents.Main { id: usage }
+  QtObject {
+    id: localModels
+    property var localModel: ({ models: { fixture: { recipe: "fixture", kind: "text", unit: "active" } }, last: "fixture" })
+    property var localRecipes: []
+    property var networkModels: ({})
+    function setupRows() { return [] }
+    function readFreeMemory() {}
+  }
+  Component.onCompleted: services = ({ "omarchy.agents": usage, "omarchy.local-models": localModels })
+  function checkLocalModels() {
+    if (usage.panelProviders.length !== 1 || usage.panelProviders[0].localModel.target !== "fixture" || usage.localDefaultTarget !== "fixture")
+      console.error("shared usage lost the panel's local model inputs")
+  }
+
+  // The same stand-in bar the bar-widget contract fixture uses.
+  QtObject {
+    id: fakeBar
+    property bool vertical: false
+    property int barSize: 26
+    property string fontFamily: "monospace"
+    property color foreground: "white"
+    property color background: "black"
+    property color urgent: "red"
+    property var shell: test
+    function run(command) {}
+    function showTooltip(target, text) {}
+    function hideTooltip(target) {}
+    function requestPopout(owner) {}
+    function releasePopout(owner) {}
+    function registerClickTarget(target) {}
+    function unregisterClickTarget(target) {}
+  }
+  Component { id: panelComponent; Agents.Panel { bar: fakeBar } }
+  property var panels: []
+
+  property int step: 0
+  Timer {
+    interval: 600
+    repeat: true
+    running: true
+    onTriggered: {
+      switch (test.step++) {
+      case 0: test.mark("no bar"); break
+      case 1:
+        test.mark("two bars")
+        test.panels = [panelComponent.createObject(test), panelComponent.createObject(test)]
+        break
+      case 2:
+        test.checkLocalModels()
+        test.panels[0].destroy()
+        test.panels = [test.panels[1]]
+        break
+      case 3:
+        if (usage.panels.length !== 1)
+          console.error("shared usage kept a destroyed panel")
+        test.mark("bar detached")
+        fakeBar.shell = null
+        break
+      case 4:
+        if (usage.panels.length !== 0 || usage.settings !== null)
+          console.error("shared usage kept a detached panel")
+        test.mark("widget off every bar")
+        test.panels.forEach(function(p) { p.destroy() })
+        test.panels = []
+        break
+      case 5: test.mark("refresh with no widget"); usage.refreshAll(true); break
+      case 6:
+        test.mark("widget back on a bar")
+        fakeBar.shell = test
+        test.panels = [panelComponent.createObject(test)]
+        break
+      default: test.checkLocalModels(); Qt.quit()
+      }
+    }
+  }
+}
+QML
+
+: >"$stage/polls"
+: >"$stage/step"
+output=$(HOME="$stage/home" XDG_STATE_HOME="$stage/home/state" PATH="$stage/bin:$PATH" AGENTS_POLL_LOG="$stage/polls" AGENTS_POLL_STEP="$stage/step" \
+  timeout 20 quickshell -p "$stage" --no-color 2>&1) || fail "agents poll fixture exits cleanly" "$output"
+if rg -q 'agents/(Main|Panel)\.qml.*(ReferenceError|TypeError|Unable to assign|Binding loop)|is not a type' <<<"$output"; then
+  fail "agents poll fixture has no QML errors" "$output"
+fi
+if [[ $output == *"shared usage lost the panel's local model inputs"* ]]; then
+  fail "shared usage keeps local model lines and the default target from its panel" "$output"
+fi
+pass "shared usage keeps local model lines and the default target from its panel"
+if [[ $output == *"shared usage kept a destroyed panel"* ]]; then
+  fail "shared usage detaches a destroyed panel while its bar remains" "$output"
+fi
+pass "shared usage detaches a destroyed panel while its bar remains"
+if [[ $output == *"shared usage kept a detached panel"* ]]; then
+  fail "shared usage detaches when the panel loses its bar's service" "$output"
+fi
+pass "shared usage detaches when the panel loses its bar's service"
+expected=$'poll during two bars\npoll during widget back on a bar'
+[[ $(cat "$stage/polls") == "$expected" ]] || fail "agents usage polls once per shell and only while the widget is on a bar" "$(cat "$stage/polls")"
+pass "agents usage polls once per shell, waits for a bar, and stops when the widget leaves the last bar"

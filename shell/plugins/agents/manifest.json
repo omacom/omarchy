@@ -6,9 +6,10 @@
   "author": "Omarchy",
   "license": "MIT",
   "description": "Usage, limits, pace, and prepaid balances for every AI agent and provider in a native Omarchy bar panel.",
-  "kinds": ["bar-widget"],
+  "kinds": ["service", "bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
+    "service": "Main.qml",
     "barWidget": "Panel.qml"
   },
   "barWidget": {

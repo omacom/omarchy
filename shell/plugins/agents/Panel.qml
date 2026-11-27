@@ -31,7 +31,8 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: dragProviders !== null ? dragProviders : usage.panelProviders
+  readonly property var usage: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.agents") : null
+  readonly property var providers: dragProviders !== null ? dragProviders : usage ? usage.panelProviders : []
 
   property var deleteTarget: null
   function deleteSelected() {
@@ -69,11 +70,12 @@ Panel {
   }
 
   function opensByDefault(line) {
-    return !!line && !!line.localModel && usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget
+    return !!line && !!line.localModel && !!usage && usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget
   }
 
   // The highest line but this one that can be the default.
   function defaultSuccessor(line) {
+    if (!usage) return null
     return usage.panelProviders.find(function(other) {
       return usage.lineId(other) !== usage.lineId(line) && defaultIdFor(other) !== ""
     }) || null
@@ -107,7 +109,7 @@ Panel {
       }
       if (model && model.install.phase === "failed") localModelsService.dismissSetupFailure()
       else if (model) localModelsService.unqueueSetup(model.recipe)
-      usage.removeLocalModels([target.localModel.target])
+      if (usage) usage.removeLocalModels([target.localModel.target])
       return
     }
     var args = signOutArgs(target)
@@ -285,7 +287,7 @@ Panel {
     if (from < 0) return
     var to = clamp(from + dy, 0, providers.length - 1)
     if (to === from) return
-    usage.moveProvider(usage.lineId(providers[from]), to)
+    if (usage) usage.moveProvider(usage.lineId(providers[from]), to)
     Qt.callLater(function() { pointAtProvider(to) })
   }
 
@@ -338,7 +340,7 @@ Panel {
     var moved = dragIndex >= 0 && to !== dragIndex
     // Disable slot motion before replacing the model: it already matches the preview.
     dragIndex = -1
-    if (moved) usage.moveProvider(id, to)
+    if (moved && usage) usage.moveProvider(id, to)
     resetProviderDrag()
     if (moved) Qt.callLater(function() { pointAtProvider(to) })
   }
@@ -405,7 +407,7 @@ Panel {
   // judged by its length.
 
   function refreshNow() {
-    usage.refreshAll(true)
+    if (usage) usage.refreshAll(true)
   }
 
   // ------------------------------------------------------------ adding
@@ -542,7 +544,7 @@ Panel {
   readonly property var ownModelOffers: {
     var offers = []
     var lines = localModelLines.filter(function(line) {
-      return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
+      return !usage || !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
     })
     var offerLine = function(targetList, line) {
       var model = localModelState(line.localModel)
@@ -627,13 +629,13 @@ Panel {
   }
 
   readonly property var removedLocalModels: {
-    if (!localModelsService) return []
+    if (!localModelsService || !usage) return []
     return findRemovedLocalModels(usage.addedLocalModels, localModels, localModelsService.setupRows(),
       localModelsService.localRecipes || [], settingUpLocal, localModelsService.handingOff || [])
   }
   onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) Qt.callLater(function() {
     var dropped = removedLocalModels
-    if (dropped.length > 0) usage.removeLocalModels(dropped)
+    if (dropped.length > 0 && usage) usage.removeLocalModels(dropped)
   })
 
   // A model set up or started from the add screen keeps its row there,
@@ -649,7 +651,7 @@ Panel {
   property string pairingLocal: ""
   onLocalModelLinesChanged: {
     if (pairingLocal === "" || !localModelLines.some(function(line) { return line.localModel.target === pairingLocal })) return
-    if (usage.defaultAgent === "") selectLocalDefault(pairingLocal)
+    if (usage && usage.defaultAgent === "") selectLocalDefault(pairingLocal)
     pairingLocal = ""
     if (settingUpLocal === "" && addStage === "pick") cancelAdd()
   }
@@ -683,7 +685,7 @@ Panel {
     Qt.callLater(function() {
       if (settingUpLocal !== target) return
       settingUpLocal = ""
-      if (usage.defaultAgent === "") selectLocalDefault(target)
+      if (usage && usage.defaultAgent === "") selectLocalDefault(target)
       if (pairingLocal === "" && addStage === "pick") cancelAdd()
     })
   }
@@ -844,6 +846,7 @@ Panel {
   }
 
   function selectLocalDefault(target) {
+    if (!usage) return
     usage.defaultAgent = "local"
     usage.localPin = target
     selectDefault.command = ["omarchy-default-agent", "--select", "local", target]
@@ -862,7 +865,7 @@ Panel {
   // last.
   readonly property string localDefaultTarget: {
     var local = localModelsService && localModelsService.localModel ? localModelsService.localModel : {}
-    var pin = usage.localPin
+    var pin = usage ? usage.localPin : ""
     if (pin !== "" && (pin.indexOf("/") >= 0 || localModels[pin])) return pin
     return String(local.last || "")
   }
@@ -884,7 +887,7 @@ Panel {
     // row saying how that goes; once paired, it has its line in the panel.
     if (offer.pair) {
       if (localModelsService.pairingId !== "") return
-      usage.addLocalModel(offer.target)
+      if (usage) usage.addLocalModel(offer.target)
       pairingLocal = offer.target
       localModelsService.pair(offer.pair)
       return
@@ -893,13 +896,13 @@ Panel {
     // whose password prompt was dismissed, is tried again. One downloading
     // from a terminal is added and followed.
     var meter = offerMeter(offer)
-    if (meter && !meter.failed && usage.addedLocalModels.indexOf(offer.target) >= 0) return
+    if (meter && !meter.failed && usage && usage.addedLocalModels.indexOf(offer.target) >= 0) return
     var local = { target: offer.target, host: offer.host }
     var model = localModelState(local)
-    usage.addLocalModel(offer.target)
+    if (usage) usage.addLocalModel(offer.target)
     if (localRunning(local)) {
       // Ready now, so it's the first one finished when nothing else is.
-      if (usage.defaultAgent === "") selectLocalDefault(offer.target)
+      if (usage && usage.defaultAgent === "") selectLocalDefault(offer.target)
       if (settingUpLocal === "" && pairingLocal === "") {
         if (addStage === "pick") cancelAdd()
         else root.focusKeys()
@@ -1109,9 +1112,9 @@ Panel {
           setProviderShown(addProvider, true)
           addProvider = ""
           addReauth = false
-          usage.refreshLimits()
+          if (usage) usage.refreshLimits()
           // Nothing to show yet means the sign-in is what counts as set up.
-          if (usage.enabledProviders.length === 0 && !checkProcess.running) {
+          if ((!usage || usage.enabledProviders.length === 0) && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
@@ -1439,12 +1442,13 @@ Panel {
 
   function isDefault(provider) {
     var id = defaultIdFor(provider)
-    return id !== "" && usage.defaultAgent === id
+    return id !== "" && !!usage && usage.defaultAgent === id
   }
 
   // The star: the agent becomes the default without opening, and with several
   // accounts the one starred becomes the one sessions use.
   function makeDefault(provider, account) {
+    if (!usage) return
     var id = defaultIdFor(provider)
     if (id === "") return
     // A local model's star pins it as the one the default opens.
@@ -1736,6 +1740,7 @@ Panel {
   // every agent, now that they no longer get charts of their own.
 
   readonly property var summaryPhrases: {
+    if (!usage) return []
     var rev = usage.dataRevision
     var week = 0
     var today = 0
@@ -1811,6 +1816,7 @@ Panel {
 
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
+    if (!usage) return ""
     if (usage.syncStatusText !== "") return usage.syncStatusText
     var providers = usage.enabledProviders
     for (var i = 0; i < providers.length; i++) {
@@ -1848,11 +1854,11 @@ Panel {
   // loading, stopping, failed, or removing), while a model still being set up
   // or started from the picker stays on the blank-slate picker.
   readonly property bool hasIndexLocalModel: localModelLines.some(function(line) {
-    return usage.localModelAdded(line)
+    return !!usage && usage.localModelAdded(line)
       && line.localModel.target !== settingUpLocal
       && !localSettingUp(localModelState(line.localModel))
   })
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !hasIndexLocalModel
+  readonly property bool blankSlate: (!usage || usage.enabledProviders.length === 0) && !anySignedIn && !hasIndexLocalModel
   readonly property bool indexShown: addStage === "" && !blankSlate
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
@@ -1916,11 +1922,11 @@ Panel {
       addReauth = false
     }
     resetKeys()
-    if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
+    if ((!usage || usage.enabledProviders.length === 0) && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
-    usage.reloadDefaults()
+    if (usage) usage.refreshLimits()
+    if (usage) usage.reloadDefaults()
     if (localModelsService) localModelsService.refreshNetwork()
     // Whether a stopped model fits is as the engine last judged it; memory
     // freed since lets it start, so it's judged again.
@@ -1945,16 +1951,23 @@ Panel {
   Process {
     id: selectDefault
     onExited: {
-      usage.reloadDefaults()
+      if (usage) usage.reloadDefaults()
     }
   }
 
-  Main {
-    id: usage
-    settings: root.settings
-    localModelLines: root.localModelLines
-    localDefaultTarget: root.localDefaultTarget
+  // Remember the service even when the bar goes away before its panel.
+  property var attachedUsage: null
+
+  function attachUsage(next) {
+    if (attachedUsage === next) return
+    if (attachedUsage) attachedUsage.detachPanel(root)
+    attachedUsage = next
+    if (next) next.attachPanel(root)
   }
+
+  onUsageChanged: attachUsage(usage)
+  Component.onCompleted: attachUsage(usage)
+  Component.onDestruction: attachUsage(null)
 
   Process {
     id: checkProcess

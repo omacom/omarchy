@@ -33,6 +33,11 @@ while (( $# > 0 )); do
   shift
 done
 
+# Account and CLI refreshes share the panel's records; finish the active scan
+# before collecting another scope or publishing an account's new limits.
+exec {update_lock_fd}>"$USAGE_DIR/.update.lock" || exit 1
+flock "$update_lock_fd" || exit 1
+
 wanted() {
   local agent="$1"
   [[ -n ${excluded[$agent]} ]] && return 1
