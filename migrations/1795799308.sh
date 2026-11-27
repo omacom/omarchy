@@ -56,11 +56,14 @@ def match_of(rule):
 def matches(rule, uuid):
     """True or False when the rule's match can be decided from the UUID alone, else unknown."""
     match = match_of(rule)
-    if set(match) - {"id_uuid"}:
-        return unknown
     patterns = match.get("id_uuid", "*")
     patterns = patterns if isinstance(patterns, list) else [patterns]
-    return any(fnmatch.fnmatch(uuid, str(p).lower()) for p in patterns)
+    # Every condition must hold, so a UUID that rules the drive out settles it.
+    if not any(fnmatch.fnmatch(uuid, str(p).lower()) for p in patterns):
+        return False
+    if set(match) - {"id_uuid"}:
+        return unknown
+    return True
 
 
 # udiskie resolves each setting on its own, from the first matching rule that sets
