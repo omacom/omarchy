@@ -105,6 +105,14 @@ report_unsecured() {
   exit 1
 }
 
+# When passwordless login is active, waking from sleep should also stay
+# passwordless: skip locking, still reconcile clamshell state, and release the
+# sleep inhibitor immediately.
+if omarchy-setup-security-passwordless-login --active; then
+  sync_clamshell
+  exit 0
+fi
+
 # Request the lock before touching monitor state, so a stuck Hyprland IPC call
 # cannot consume the window before Quickshell has begun securing the session.
 request_lock

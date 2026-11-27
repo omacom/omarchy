@@ -1,29 +1,88 @@
 #!/bin/bash
 
-# omarchy:summary=Watch for process crashes and offer an AI diagnosis
+# omarchy:summary=Watch for process crashes and OOM kills and notify the user
 # omarchy:hidden=true
 
-# systemd-coredump journals every core dump under a known MESSAGE_ID with
-# structured COREDUMP_* fields, which carry more than the core filenames do.
+# systemd-coredump journals every core dump under COREDUMP_MESSAGE_ID with
+# structured COREDUMP_* fields. systemd journals systemd-oomd kills under
+# OOMD_KILL_MESSAGE_ID and kernel cgroup OOM kills under OOM_KILL_MESSAGE_ID
+# with USER_UNIT.
 
 set -uo pipefail
 
-# See systemd.journal-fields(7).
+# See systemd.journal-fields(7) and systemd/sd-messages.h.
 readonly COREDUMP_MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1
+readonly OOMD_KILL_MESSAGE_ID=d989611b15e44c9dbf31e3c81256e4ed
+readonly OOM_KILL_MESSAGE_ID=fe6faa94e7774663a0da52717891d8ef
 
-# nf-md-robot_dead, escaped so this file reads without a Nerd Font.
+# nf-md-robot_dead and nf-md-memory, escaped so this file reads without a Nerd Font.
 readonly CRASH_GLYPH=$'\U000f16a1'
+readonly OOM_GLYPH=$'\U000f035b'
 
 # Crash loops dump core repeatedly, so announce each program at most once a
 # window.
 readonly dedupe_seconds=${OMARCHY_CRASH_DEDUPE_SECONDS:-60}
 
+# Suppress secondary crash toasts briefly after an OOM kill: when systemd-oomd
+# kills an app's scope, sibling or parent processes (such as Chrome's browser
+# process) often trap and dump core right afterward.
+readonly oom_grace_seconds=${OMARCHY_OOM_CRASH_GRACE_SECONDS:-15}
+
 # Extended regex of process names never worth announcing.
 readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
 
 declare -A last_notified
+declare -A last_oom_notified
+last_oom_at=0
 
-announce() {
+# Resolve a systemd USER_UNIT (such as
+# app-Hyprland-google\x2dchrome\x2dstable-5ab4d154.scope) to a user-facing app
+# name via its .desktop entry, falling back to the unescaped identifier.
+oom_app_name() {
+  local unit=$1 id dir candidate name
+  local -a dirs=()
+
+  [[ $unit == app-*.scope || $unit == app-*.service ]] || return 0
+  unit=${unit%.scope}
+  unit=${unit%.service}
+  unit=$(systemd-escape --unescape -- "$unit" 2>/dev/null) || return 0
+
+  # Strip trailing UWSM/systemd random hex or PID scope suffix.
+  if [[ $unit == */* && ${unit##*/} =~ ^([0-9a-fA-F]{8}|[0-9]+)$ ]]; then
+    unit=${unit%/*}
+  fi
+
+  id=${unit##*/}
+  id=${id%%@*}
+  [[ -n $id ]] || return 0
+
+  IFS=':' read -ra dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for dir in "${dirs[@]}"; do
+    [[ -d $dir/applications ]] || continue
+    # Strip -stable so binaries like google-chrome-stable match google-chrome.desktop.
+    for candidate in "$id" "${id%-stable}" "${id,,}"; do
+      [[ -f $dir/applications/$candidate.desktop ]] || continue
+      name=$(awk -F= '{ sub(/\r$/, "") }
+        /^\[/ { in_entry = ($0 == "[Desktop Entry]") }
+        in_entry && $1 == "Name" { sub(/^[^=]*=/, ""); print; exit }' \
+        "$dir/applications/$candidate.desktop")
+      if [[ -n $name ]]; then
+        printf '%s' "$name"
+        return 0
+      fi
+    done
+  done
+
+  [[ $id == *.*.* ]] && id=${id##*.}
+  printf '%s' "$id"
+}
+
+recent_oom() {
+  local t=$1
+  (( last_oom_at && t >= last_oom_at - 1 && t - last_oom_at <= oom_grace_seconds ))
+}
+
+announce_crash() {
   local comm=$1 pid=$2 exe=$3 signal=$4
 
   # The shell owns org.freedesktop.Notifications, so a shell crash takes the
@@ -45,21 +104,72 @@ announce() {
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 
-# -n 0 so a restart does not re-announce crashes already dealt with.
-journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
+announce_oom() {
+  local app_name=$1 body
+
+  omarchy-notification-wait || return 1
+
+  if [[ -n $app_name ]]; then
+    body=$(omarchy-i18n oom.closed "$app_name")
+  else
+    body=$(omarchy-i18n oom.closedGeneric)
+  fi
+
+  omarchy-notification-send \
+    --urgency critical \
+    --glyph "$OOM_GLYPH" \
+    "$(omarchy-i18n oom.title)" \
+    "$body"
+}
+
+# -n 0 so a restart does not re-announce events already dealt with. Passing
+# multiple MESSAGE_ID= matches tells journalctl to OR them into one stream.
+journalctl -f -n 0 -o json \
+  "MESSAGE_ID=$COREDUMP_MESSAGE_ID" \
+  "MESSAGE_ID=$OOMD_KILL_MESSAGE_ID" \
+  "MESSAGE_ID=$OOM_KILL_MESSAGE_ID" 2>/dev/null |
   while IFS= read -r entry; do
-    # A dash for a field that is empty as well as one that is missing: tab is
-    # IFS whitespace, so an empty field collapses into the next delimiter and
-    # every field after it shifts along one. A process can set its own comm to
-    # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
-      jq -r 'def field: if . == null or . == "" then "-" else . end;
-             [(._UID | field),
+    # A dash for a field that is empty, missing, or non-string (journalctl
+    # emits non-UTF-8 values as byte arrays): tab is IFS whitespace, so an
+    # empty field collapses into the next delimiter and shifts fields along.
+    IFS=$'\t' read -r msg_id uid comm pid exe signal user_unit rt_us cd_us < <(
+      jq -r 'def field:
+               if type == "string" and . != "" then
+                 gsub("[\t\r\n]"; "") | if . == "" then "-" else . end
+               else "-"
+               end;
+             [(.MESSAGE_ID | field),
+              (._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.USER_UNIT | field),
+              (.__REALTIME_TIMESTAMP | field),
+              (.COREDUMP_TIMESTAMP | field)] | join("\t")' <<<"$entry" 2>/dev/null
     )
+
+    # Only this user's events; a daemon dying is a sysadmin's problem.
+    [[ $uid =~ ^[0-9]+$ ]] || continue
+    ((uid == UID)) || continue
+
+    if [[ $msg_id == $OOMD_KILL_MESSAGE_ID || $msg_id == $OOM_KILL_MESSAGE_ID ]]; then
+      # Kernel OOM events can propagate to parent slices; notify only for the
+      # killed unit itself.
+      [[ $user_unit == *.slice ]] && continue
+
+      now=$EPOCHSECONDS
+      last_oom_at=$now
+      [[ $rt_us =~ ^[0-9]{7,}$ ]] && last_oom_at=$(( rt_us / 1000000 ))
+
+      oom_app=""
+      [[ $user_unit != "-" ]] && oom_app=$(oom_app_name "$user_unit")
+      oom_key=${oom_app:-generic}
+
+      (((now - ${last_oom_notified[$oom_key]:-0}) < dedupe_seconds)) && continue
+      announce_oom "$oom_app" && last_oom_notified[$oom_key]=$now
+      continue
+    fi
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
 
@@ -68,9 +178,10 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # effect without restarting this service.
     [[ -n $(omarchy-default-agent) ]] || continue
 
-    # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
-    [[ $uid =~ ^[0-9]+$ ]] || continue
-    ((uid == UID)) || continue
+    now=$EPOCHSECONDS
+    crash_at=$now
+    [[ $cd_us =~ ^[0-9]{7,}$ ]] && crash_at=$(( cd_us / 1000000 ))
+    recent_oom "$crash_at" && continue
 
     # comm is truncated to 15 characters, so prefer the executable's basename.
     name=$comm
@@ -99,11 +210,10 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # lift one without reading, rewriting and re-parsing the rest.
     omarchy-toggle-enabled "crash-ignore/$name" && continue
 
-    now=$EPOCHSECONDS
     (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
 
     # Only a delivered toast starts the dedupe window. A failed send that
     # counted would suppress the rest of a crash loop for a minute, and
     # `journalctl -n 0` never replays what was missed.
-    announce "$name" "$pid" "$exe" "$signal" && last_notified[$name]=$now
+    announce_crash "$name" "$pid" "$exe" "$signal" && last_notified[$name]=$now
   done

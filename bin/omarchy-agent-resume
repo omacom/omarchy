@@ -1,0 +1,394 @@
+#!/bin/bash
+
+# omarchy:summary=Resume a coding agent session once on the next login
+# omarchy:subcommand=set [--agent <name>] [--session <id>|--continue] [--dir <path>] [--prompt <text>|--prompt-file <path>] [--app-id=<id>] — Arm a one-shot resume on the next login
+# omarchy:subcommand=status [--json] — Show the armed resume state
+# omarchy:subcommand=off — Disarm resume on next login and remove its user service
+# omarchy:subcommand=--active — Exit 0 when a one-shot resume is armed
+# omarchy:examples=omarchy agent resume set --prompt "Check kernel logs after reboot" | omarchy agent resume status | omarchy agent resume off
+
+set -euo pipefail
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+state_file="$state_dir/agent-resume.json"
+lock_file="$state_dir/agent-resume.lock"
+unit_name="omarchy-agent-resume.service"
+unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+unit_file="$unit_dir/$unit_name"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  omarchy agent resume set [options]
+  omarchy agent resume status [--json]
+  omarchy agent resume off
+  omarchy agent resume --active
+
+Options for `set`:
+  --agent <name>         Coding agent to resume (defaults to omarchy-default-agent)
+  --session <id>         Conversation or session ID to resume
+  --continue             Continue the most recent session in the working directory
+  --dir <path>           Working directory (defaults to current directory)
+  --prompt <text>        Prompt to send when the session reopens
+  --prompt-file <path>   Read the prompt from a file
+  --app-id=<id>          Terminal app-id (default: org.omarchy.agent)
+USAGE
+}
+
+with_lock() (
+  mkdir -p "$state_dir"
+  exec 9>"$lock_file"
+  flock 9
+  "$@"
+)
+
+account_home_env_for() {
+  case "$1" in
+    claude) echo "CLAUDE_CONFIG_DIR" ;;
+    codex) echo "CODEX_HOME" ;;
+    grok) echo "GROK_HOME" ;;
+    *) echo "" ;;
+  esac
+}
+
+is_armed() {
+  [[ -f $state_file ]] || return 1
+  jq -e '.agent | type == "string" and length > 0' "$state_file" >/dev/null 2>&1
+}
+
+write_state_atomic() {
+  local content=$1 tmp_file
+  mkdir -p "$state_dir"
+  tmp_file=$(mktemp "$state_dir/agent-resume.XXXXXX")
+  printf '%s\n' "$content" >"$tmp_file"
+  mv -f "$tmp_file" "$state_file"
+}
+
+remove_unit_and_state() {
+  systemctl --user disable "$unit_name" >/dev/null 2>&1 || true
+  rm -f "$unit_file" "$state_file"
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+}
+
+install_and_enable_unit() {
+  mkdir -p "$unit_dir"
+  cat >"$unit_file" <<'UNIT'
+[Unit]
+Description=Resume coding agent session once after login
+After=graphical-session.target wayland-session-waitenv.service
+ConditionEnvironment=OMARCHY_PATH
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=oneshot
+KillMode=process
+ExecStart=/bin/bash -c 'exec "$OMARCHY_PATH/bin/omarchy-agent-resume" run'
+
+[Install]
+WantedBy=graphical-session.target
+UNIT
+
+  systemctl --user daemon-reload || return 1
+  systemctl --user enable "$unit_name" >/dev/null || return 1
+}
+
+arm_locked() {
+  local state_json=$1 was_armed=false
+  is_armed && was_armed=true
+
+  # Enable the user unit before replacing the state file so a systemd failure
+  # never discards an earlier armed resume.
+  if ! install_and_enable_unit; then
+    if [[ $was_armed != "true" ]]; then
+      rm -f "$unit_file"
+    fi
+    return 1
+  fi
+  write_state_atomic "$state_json"
+}
+
+consume_state_locked() {
+  if ! is_armed; then
+    remove_unit_and_state
+    return 0
+  fi
+
+  cat "$state_file"
+  remove_unit_and_state
+}
+
+cmd_set() {
+  local agent="" session="" continue_last=false dir=""
+  local prompt="" prompt_set=false prompt_file="" app_id="org.omarchy.agent"
+
+  while (( $# > 0 )); do
+    case "$1" in
+      --agent)
+        agent=${2:?--agent needs a value}
+        shift 2
+        ;;
+      --session)
+        session=${2:?--session needs a value}
+        shift 2
+        ;;
+      --continue)
+        continue_last=true
+        shift
+        ;;
+      --dir)
+        dir=${2:?--dir needs a value}
+        shift 2
+        ;;
+      --prompt)
+        prompt=${2:?--prompt needs a value}
+        prompt_set=true
+        shift 2
+        ;;
+      --prompt-file)
+        prompt_file=${2:?--prompt-file needs a value}
+        shift 2
+        ;;
+      --app-id=*)
+        app_id=${1#--app-id=}
+        shift
+        ;;
+      -h|--help)
+        usage
+        return 0
+        ;;
+      *)
+        echo "Unexpected argument: $1" >&2
+        usage >&2
+        return 2
+        ;;
+    esac
+  done
+
+  if [[ -n $session && $continue_last == "true" ]]; then
+    echo "Use either --session or --continue, not both." >&2
+    return 2
+  fi
+
+  if [[ $prompt_set == "true" && -n $prompt_file ]]; then
+    echo "Use either --prompt or --prompt-file, not both." >&2
+    return 2
+  fi
+
+  if [[ -n $prompt_file ]]; then
+    if [[ ! -r $prompt_file ]]; then
+      echo "Prompt file is not readable: $prompt_file" >&2
+      return 1
+    fi
+    prompt=$(<"$prompt_file")
+  fi
+
+  if [[ -z $agent ]]; then
+    agent=$(omarchy-default-agent)
+  fi
+  if [[ -z $agent ]]; then
+    echo "No default agent configured. Pass --agent <name> or run: omarchy default agent <name>" >&2
+    return 1
+  fi
+
+  local check_args=(--check --agent "$agent")
+  if [[ -n $session ]]; then
+    check_args+=(--session "$session")
+  elif [[ $continue_last == "true" ]]; then
+    check_args+=(--continue)
+  fi
+  omarchy-agent "${check_args[@]}"
+
+  if [[ -n $dir ]]; then
+    if [[ ! -d $dir ]]; then
+      echo "Directory does not exist: $dir" >&2
+      return 1
+    fi
+    dir=$(cd -- "$dir" && pwd)
+  else
+    dir=$PWD
+    if [[ $dir == "$HOME" && -d $HOME/Work ]]; then
+      dir="$HOME/Work"
+    fi
+  fi
+
+  local home_env account_env_value=""
+  home_env=$(account_home_env_for "$agent")
+  if [[ -n $home_env ]]; then
+    if [[ -n ${!home_env:-} ]]; then
+      account_env_value=${!home_env}
+    else
+      account_env_value=$(omarchy-agent-account-home "$agent" 2>/dev/null || true)
+    fi
+  fi
+
+  local armed_at state_json
+  armed_at=$(date -Iseconds)
+
+  state_json=$(jq -n \
+    --arg agent "$agent" \
+    --arg session "$session" \
+    --argjson continue_last "$continue_last" \
+    --arg dir "$dir" \
+    --arg prompt "$prompt" \
+    --arg app_id "$app_id" \
+    --arg account_env_name "$home_env" \
+    --arg account_env_value "$account_env_value" \
+    --arg armed_at "$armed_at" \
+    '{
+      agent: $agent,
+      session: $session,
+      continue_last: $continue_last,
+      dir: $dir,
+      prompt: $prompt,
+      app_id: $app_id,
+      account_env_name: $account_env_name,
+      account_env_value: $account_env_value,
+      armed_at: $armed_at
+    }')
+
+  with_lock arm_locked "$state_json"
+
+  echo "Armed for next login:"
+  cmd_status
+}
+
+cmd_status() {
+  local json_mode=false
+  if [[ ${1:-} == "--json" ]]; then
+    json_mode=true
+  elif (( $# > 0 )); then
+    echo "Unexpected argument: $1" >&2
+    return 2
+  fi
+
+  if ! is_armed; then
+    if [[ $json_mode == "true" ]]; then
+      echo '{"armed":false}'
+    else
+      echo "Resume on next login is off."
+    fi
+    return 0
+  fi
+
+  if [[ $json_mode == "true" ]]; then
+    jq '. + {armed: true}' "$state_file"
+    return 0
+  fi
+
+  local agent session continue_last dir armed_at prompt session_label
+  agent=$(jq -r '.agent' "$state_file")
+  session=$(jq -r '.session // ""' "$state_file")
+  continue_last=$(jq -r '.continue_last // false' "$state_file")
+  dir=$(jq -r '.dir // ""' "$state_file")
+  armed_at=$(jq -r '.armed_at // ""' "$state_file")
+  prompt=$(jq -r '.prompt // ""' "$state_file")
+
+  if [[ -n $session ]]; then
+    session_label=$session
+  elif [[ $continue_last == "true" ]]; then
+    session_label="(continue latest)"
+  else
+    session_label="(new session)"
+  fi
+
+  printf '  agent:    %s\n' "$agent"
+  printf '  session:  %s\n' "$session_label"
+  printf '  dir:      %s\n' "$dir"
+  [[ -n $armed_at ]] && printf '  armed_at: %s\n' "$armed_at"
+  if [[ -n $prompt ]]; then
+    local indented_prompt=${prompt//$'\n'/$'\n            '}
+    printf '  prompt:   %s\n' "$indented_prompt"
+  fi
+}
+
+cmd_off() {
+  if (( $# > 0 )); then
+    echo "Unexpected argument: $1" >&2
+    return 2
+  fi
+
+  with_lock remove_unit_and_state
+  echo "Resume on next login is off."
+}
+
+cmd_run() {
+  if (( $# > 0 )); then
+    echo "Unexpected argument: $1" >&2
+    return 2
+  fi
+
+  # Atomically read and disarm under the lock, then release the lock before
+  # launching the terminal so a concurrent `set` can never be mixed or wiped.
+  local state_json
+  state_json=$(with_lock consume_state_locked)
+  if [[ -z $state_json ]]; then
+    return 0
+  fi
+
+  local agent session continue_last dir prompt app_id
+  local account_env_name account_env_value
+  agent=$(jq -r '.agent' <<<"$state_json")
+  session=$(jq -r '.session // ""' <<<"$state_json")
+  continue_last=$(jq -r '.continue_last // false' <<<"$state_json")
+  dir=$(jq -r '.dir // ""' <<<"$state_json")
+  prompt=$(jq -r '.prompt // ""' <<<"$state_json")
+  app_id=$(jq -r '.app_id // "org.omarchy.agent"' <<<"$state_json")
+  account_env_name=$(jq -r '.account_env_name // ""' <<<"$state_json")
+  account_env_value=$(jq -r '.account_env_value // ""' <<<"$state_json")
+
+  if [[ -n $dir ]]; then
+    if [[ ! -d $dir ]]; then
+      echo "Saved working directory no longer exists: $dir" >&2
+      omarchy-notification-send -u critical "$(omarchy-i18n agents.resumeDirMissing)" "$(omarchy-i18n agents.resumeDirMissingBody "$dir")" >/dev/null 2>&1 || true
+      return 1
+    fi
+    cd -- "$dir"
+  elif [[ -d $HOME/Work ]]; then
+    cd -- "$HOME/Work"
+  else
+    cd -- "$HOME"
+  fi
+
+  local agent_args=(--agent "$agent" --app-id="$app_id")
+  if [[ -n $session ]]; then
+    agent_args+=(--session "$session")
+  elif [[ $continue_last == "true" ]]; then
+    agent_args+=(--continue)
+  fi
+  if [[ -n $account_env_name ]]; then
+    agent_args+=("--account-home=$account_env_value")
+  fi
+  [[ -n $prompt ]] && agent_args+=(--prompt "$prompt")
+
+  exec omarchy-agent "${agent_args[@]}"
+}
+
+case "${1:-status}" in
+  set)
+    shift
+    cmd_set "$@"
+    ;;
+  status)
+    shift || true
+    cmd_status "$@"
+    ;;
+  off)
+    shift
+    cmd_off "$@"
+    ;;
+  run)
+    shift
+    cmd_run "$@"
+    ;;
+  --active)
+    is_armed
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    echo "Unknown subcommand: $1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

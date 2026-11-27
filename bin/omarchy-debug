@@ -46,6 +46,13 @@ SYSTEM INFORMATION
 $(inxi -Farz)
 
 =========================================
+SLEEP & BATTERY
+=========================================
+Sleep mode: $(cat /sys/power/mem_sleep 2>/dev/null || echo "unknown")
+$(omarchy-battery-status --shell 2>/dev/null || true)
+$(if [[ -r /var/lib/omarchy/sleep-history.tsv ]]; then echo "Recent sleeps (ts mode dur_s ac delta_pct delta_wh pct_hr w s0ix):"; tail -n 10 /var/lib/omarchy/sleep-history.tsv; fi)
+
+=========================================
 DMESG
 =========================================
 $DMESG_OUTPUT

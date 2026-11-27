@@ -1,125 +1,60 @@
-# Packages installed outside of install/packages.sh or optional packages
-# Utilized by ISO builder to ensure package availability in the ISO
+# Hardware-specific and optional packages installed by install/hardware/*.
+# Read by omarchy-iso when building the offline mirror; not baked into the
+# root image (unlike omarchy-base.packages). Packages built for aarch64 only
+# live in omarchy-other-aarch64.packages.
 
-autoconf-archive
-asusctl
-base
-base-devel
-broadcom-wl-dkms
-btrfs-progs
-dkms
-egl-wayland
-gst-plugin-pipewire
-gtk4-layer-shell
-libpulse
-intel-ipu7-camera
-intel-ipu7-drivers-dkms
-linux-omarchy-ipu7
-intel-lpmd
+# GPU drivers and hardware video acceleration
 intel-media-driver
 libva-intel-driver
 libva-nvidia-driver
-limine
-limine-mkinitcpio-hook
-limine-snapper-sync
-linux-firmware
-linux-omarchy
-linux-omarchy-headers
-macbook12-spi-driver-dkms
-nvidia-580xx-dkms
-nvidia-dkms
-nvidia-open-dkms
-linux-omarchy-nvidia-open
-nvidia-580xx-utils
-nvidia-utils
-nvidia-container-toolkit
-pipewire
-pipewire-alsa
-pipewire-jack
-pipewire-libcamera
-pipewire-pulse
-qt6-wayland
-snapper
-sof-firmware
-thermald
-webp-pixbuf-loader
-yay-debug
-zram-generator
-
-# Intel encoding processing
 libvpl
 vpl-gpu-rt
-
-# Vulkan drivers (auto-detected by hardware)
 vulkan-intel
 vulkan-radeon
-vulkan-asahi
+linux-omarchy-nvidia-open
+nvidia-utils
+nvidia-580xx-dkms
+nvidia-580xx-utils
+nvidia-container-toolkit
 
-# Surface laptop support packages
-linux-firmware-marvell
+# Intel power, thermal, audio DSP, and MIPI camera
+intel-lpmd
+thermald
+sof-firmware
+intel-ipu7-camera
+intel-ipu7-drivers-dkms
+linux-omarchy-ipu7
 
-# Surface Pro 11 (Snapdragon) support packages
-iptsd
-microsoft-surface-pro-11-sensors
-microsoft-surface-pro-11-support
-
-# Surface Laptop 7 15" (Snapdragon) support packages; iptsd is listed above
-microsoft-surface-snapdragon-addresses
-microsoft-surface-laptop-7-support
-
-# Surface Laptop 7 (Snapdragon) support packages; the 13.8" model installs it
-# for its front camera relay
-microsoft-surface-laptop-7-support
-
-# Surface Laptop 8 (Snapdragon) support packages
-microsoft-surface-laptop-8-support
-
-# Samsung Galaxy Book4 Edge 14 (Snapdragon) support packages
-samsung-galaxy-book4-edge-14-support
-
-# Raspberry Pi 4 support packages
-raspberry-pi-4-bluetooth-firmware
-
-# Dell laptop support packages
-dell-xps-touchpad-haptics
-dell-xps13-sidecar-amps
-linux-firmware-cirrus-dx13260
-
-# Acer laptop support packages
-acer-aspire-16-ai-audio
-
-# HP laptop support packages
-hp-omnibook-3-audio
-
-# ASUS laptop support packages
-asus-proart-p14-audio
-asus-proart-pz13-audio
-asus-zenbook-a16-audio
-asus-zenbook-14-ux3480qa-audio
-asus-zenbook-a16-firmware
-
-# Qualcomm Wi-Fi board data for cards linux-firmware does not list
-ath12k-board-fallback
-
-# Speaker tunings (LV2 limiter every tuning ends in)
+# Audio and camera plumbing (installed when hardware needs them)
 lsp-plugins-lv2
+pipewire-libcamera
+linux-omarchy-v4l2loopback
+v4l2loopback-dkms
+v4l2loopback-utils
+v4l2-relayd
 
-# T2 MacBook support packages
+# Wireless
+ath12k-board-fallback
+broadcom-wl-dkms
+
+# Apple Intel Macs (T2, FaceTime HD, SPI keyboard)
 apple-bcm-firmware-fetcher
 apple-t2-audio-config
 linux-t2
 linux-t2-headers
 t2fanrd
-
-# FaceTime HD camera on Intel Macs
 facetimehd-dkms
 facetimehd-firmware-fetcher
+macbook12-spi-driver-dkms
+
+# ASUS ROG
+asusctl
+
+# Dell XPS
+dell-xps-touchpad-haptics
 
 # Framework 16
 qmk-hid
 
-# Elgato Cam Link 4K virtual camera
-linux-omarchy-v4l2loopback
-v4l2loopback-dkms
-v4l2loopback-utils
-v4l2-relayd
+# Microsoft Surface
+linux-firmware-marvell
