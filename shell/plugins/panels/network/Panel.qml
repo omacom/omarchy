@@ -1490,7 +1490,7 @@ Panel {
         Column {
           id: heroLabels
           anchors.left: heroIcon.right
-          anchors.leftMargin: Style.space(14)
+          anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
           anchors.right: parent.right
           anchors.rightMargin: heroActions.width > 0 ? heroActions.width + Style.space(12) : 0
           anchors.verticalCenter: parent.verticalCenter
@@ -1821,7 +1821,7 @@ Panel {
         id: networkList
         visible: root.wifiStationAvailable
         width: parent.width
-        height: Math.min(contentHeight, Style.space(240))
+        height: Math.min(contentHeight, Style.space(252))
         spacing: Style.space(4)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -1854,6 +1854,9 @@ Panel {
             id: delegateColumn
             width: parent.width
             spacing: Style.space(4)
+            // A header that follows rows needs air above it, or it reads as
+            // a caption for the row it sits under.
+            topPadding: index > 0 && sectionTitle !== "" ? Style.space(8) : 0
 
             PanelSectionHeader {
               visible: sectionTitle !== ""
