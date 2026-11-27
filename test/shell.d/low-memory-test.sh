@@ -73,13 +73,6 @@ grep -Fqx 'MemoryMax=116736M' "$app_cap" ||
   fail "128 GiB machine reserves 11 GiB outside app.slice" "$(cat "$app_cap" 2>/dev/null || true)"
 pass "128 GiB machine reserves 11 GiB outside app.slice"
 
-# Shrinking below 56 GiB cleans up an existing runtime drop-in.
-printf 'MemTotal:       32768000 kB\n' >"$meminfo"
-run_high_memory
-[[ ! -e $app_cap ]] ||
-  fail "shrinking below 56 GiB removes stale app.slice cap"
-pass "shrinking below 56 GiB removes stale app.slice cap"
-
 # Corrupt or missing /proc/meminfo on a fresh directory exits cleanly and writes nothing.
 printf 'corrupt\n' >"$meminfo"
 rm -rf "$runtime_dir"

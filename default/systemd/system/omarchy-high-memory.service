@@ -1,11 +1,8 @@
 [Unit]
 Description=Cap app.slice MemoryMax on >=64 GiB machines
-Before=systemd-user-sessions.service
+ConditionMemory=>=56G
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/omarchy-hw-app-slice-cap
 RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
+ExecStart=/usr/bin/omarchy-hw-app-slice-cap

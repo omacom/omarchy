@@ -1466,7 +1466,6 @@ EOF
   enable_system_service bluetooth.service
   enable_system_service power-profiles-daemon.service
   enable_system_service sddm.service
-  enable_system_service omarchy-high-memory.service
 
   apply_firewall_defaults
 
