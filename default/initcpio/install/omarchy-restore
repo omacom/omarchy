@@ -4,6 +4,7 @@ build() {
   add_module btrfs
   add_binary btrfs
   add_binary mountpoint
+  add_binary tr
   add_runscript
 }
 

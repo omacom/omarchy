@@ -611,16 +611,10 @@ def nm_set_secret_via_edit(
     profile_uuid: str,
     prop: str,
     secret: str,
-    *,
-    enable_autoconnect: bool = False,
 ) -> None:
     """Write a secret via `nmcli connection edit` stdin so it never appears in /proc argv."""
     validate_secret(prop, secret)
-    lines = [f"set {prop} {secret}"]
-    if enable_autoconnect:
-        lines.append("set connection.autoconnect yes")
-    lines += ["save", "quit"]
-    script = "\n".join(lines) + "\n"
+    script = f"set {prop} {secret}\nsave\nquit\n"
     proc = run_cmd(["nmcli", "connection", "edit", "uuid", profile_uuid], input_text=script, check=True)
     for stream in (proc.stderr, proc.stdout):
         for line in stream.splitlines():
@@ -692,12 +686,13 @@ def connect_enterprise(
     ]
     try:
         run_cmd(add_cmd, check=True)
-        nm_set_secret_via_edit(con_uuid, "802-1x.password", password, enable_autoconnect=True)
+        nm_set_secret_via_edit(con_uuid, "802-1x.password", password)
         run_cmd(
             ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
             check=True,
             timeout=30,
         )
+        run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "connection.autoconnect", "yes"], check=True)
     except BaseException:
         cleanup_cancelled_connection(con_uuid, delete_profile=True)
         raise
@@ -774,12 +769,14 @@ def connect_psk_via_profile(
     try:
         if created:
             run_cmd(add_cmd, check=True)
-        nm_set_secret_via_edit(con_uuid, "wifi-sec.psk", password, enable_autoconnect=created)
+        nm_set_secret_via_edit(con_uuid, "wifi-sec.psk", password)
         run_cmd(
             ["nmcli", "--wait", "28", "connection", "up", "uuid", con_uuid, "ifname", target_iface],
             check=True,
             timeout=30,
         )
+        if created:
+            run_cmd(["nmcli", "connection", "modify", "uuid", con_uuid, "connection.autoconnect", "yes"], check=True)
     except BaseException:
         cleanup_cancelled_connection(con_uuid, delete_profile=created, restore_key_mgmt=prev_km)
         raise
