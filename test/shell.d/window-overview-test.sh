@@ -518,6 +518,11 @@ ws_lookup = re.search(r"  function workspaceEntryById\(id\) \{[\s\S]*?\n  \}", s
 refresh = re.search(r"  function refresh\(\) \{[\s\S]*?\n  \}", source)[0]
 select_ws = re.search(r"  function selectWorkspace\(targetId\) \{[\s\S]*?\n  \}", source)[0]
 switch_ws = re.search(r"  function switchToWorkspace\(targetId\) \{[\s\S]*?\n  \}", source)[0]
+update_drop = re.search(r"  function updateDropTarget\(pointInCatcher\) \{[\s\S]*?\n  \}", source)[0]
+scroll_to = re.search(r"  function scrollStripTo\(nextX\) \{[\s\S]*?\n  \}", source)[0]
+scroll_by = re.search(r"  function scrollStripBy\(delta\) \{[\s\S]*?\n  \}", source)[0]
+reveal_ws = re.search(r"  function revealWorkspaceCard\(targetId\) \{[\s\S]*?\n  \}", source)[0]
+drag_autoscroll = re.search(r"  function dragStripAutoScrollDir\(pointInCatcher\) \{[\s\S]*?\n  \}", source)[0]
 begin_ws_drag = re.search(r"  function beginWorkspaceDrag\([^)]*\) \{[\s\S]*?\n  \}", source)[0]
 update_ws_drag = re.search(r"  function updateWorkspaceDrag\([^)]*\) \{[\s\S]*?\n  \}", source)[0]
 cancel_ws_drag = re.search(r"  function cancelWorkspaceDrag\(\) \{[\s\S]*?\n  \}", source)[0]
@@ -526,7 +531,10 @@ move_win = re.search(r"  function moveWindowToWorkspace\(window, targetWorkspace
 reorder_ws = re.search(r"  function reorderWorkspace\(sourceWorkspaceId, targetWorkspaceId\) \{[\s\S]*?\n  \}", source)[0]
 update_ws_drop = re.search(r"  function updateWorkspaceDropTarget\(pointInCatcher\) \{[\s\S]*?\n  \}", source)[0]
 ws_translate_x = re.search(r"transform: Translate \{\n\s*x: ([^\n]+)", source)[1]
-ws_mouse = re.search(r"              MouseArea \{\n                id: wsMouse[\s\S]*?\n              \}", source)[0]
+ws_mouse = re.search(r"([ ]+)MouseArea \{\n\1  id: wsMouse[\s\S]*?\n\1\}", source)[0]
+strip_shell_props = re.search(r"          readonly property real maxWidth:[\s\S]*?\n          height: workspaceStripViewport\.height", source)[0]
+viewport_props = re.search(r"            readonly property real vPad:[\s\S]*?\n            onMaxContentXChanged:[^\n]+", source)[0]
+row_props = re.search(r"              spacing: layout\.snap\(Style\.space\(12\)\)[\s\S]*?\n              readonly property real totalWidth:[^\n]+", source)[0]
 reconcile = re.search(r"  function reconcilePendingMoves\(\) \{[\s\S]*?\n  \}", source)[0]
 events = re.search(r"    function onFocusedMonitorChanged\(\) \{[\s\S]*?\n    function onRawEvent\(event\) \{[\s\S]*?\n    \}", source)[0]
 
@@ -536,8 +544,8 @@ import "OverviewModel.js" as OverviewModel
 
 Item {
   id: root
-  width: 800
-  height: 120
+  width: panel.width
+  height: 160
   property var windows: []
   property int selectedIndex: -1
   property bool opened: true
@@ -548,6 +556,7 @@ Item {
   property var monitorBlocks: ({"one": 0})
   property var pendingMoves: ({})
   property bool dragActive: false
+  property int hoveredDropWorkspaceId: -1
   property bool wsDragActive: false
   property var draggedWorkspaceEntry: null
   property int draggedWorkspaceId: -1
@@ -555,6 +564,7 @@ Item {
   property int wsDragTargetIndex: -1
   property int wsDragTargetId: -1
   property point wsDragPoint: Qt.point(0, 0)
+  property int stripAutoScrollDir: 0
   property bool rtl: false
   property int optimisticActiveWorkspaceId: -1
   property double optimisticActiveAt: 0
@@ -564,7 +574,19 @@ Item {
   property int displayModelChanges: 0
   onDisplayWorkspaceEntriesChanged: displayModelChanges++
 
-  QtObject { id: styleStub; function space(n) { return n } }
+  QtObject {
+    id: styleStub
+    property real scale: 1.0
+    function space(n) { return Math.round(n * scale) }
+  }
+  QtObject {
+    id: panel
+    property real width: 1200
+  }
+  QtObject {
+    id: layout
+    function snap(v) { return Math.round(v) }
+  }
 
   QtObject { id: workspaceOne; property int number: 1 }
   QtObject { id: workspaceTwo; property int number: 2 }
@@ -610,6 +632,11 @@ WS_LOOKUP
 REFRESH
 SELECT_WS
 SWITCH_WS
+SCROLL_TO
+SCROLL_BY
+REVEAL_WS
+DRAG_AUTOSCROLL
+UPDATE_DROP
 BEGIN_WS_DRAG
 UPDATE_WS_DRAG
 CANCEL_WS_DRAG
@@ -620,37 +647,45 @@ UPDATE_WS_DROP
 RECONCILE
   Item {
     id: keyCatcher
-    width: 800
-    height: 120
+    width: panel.width
+    height: 160
     LayoutMirroring.enabled: root.rtl
     LayoutMirroring.childrenInherit: true
-    Row {
-      id: workspaceRow
+    Item {
+      id: workspaceStripShell
       anchors.horizontalCenter: parent.horizontalCenter
-      spacing: 10
-      readonly property real cardWidth: 100
-      readonly property real cardHeight: 62
-      Repeater {
-        id: workspaceRepeater
-        model: root.displayWorkspaceEntries
-        delegate: Item {
-          id: wsCard
-          required property var modelData
-          required property int index
-          readonly property int workspaceId: modelData.id
-          readonly property bool isReorderSource: root.wsDragActive && workspaceId === root.draggedWorkspaceId
-          readonly property int reorderShiftSlots: root.wsDragActive && !modelData.guest && !modelData.isNewSlot
-            ? OverviewModel.reorderShiftSlots(index, root.wsDragFromIndex, root.wsDragTargetIndex >= 0 ? root.wsDragTargetIndex : root.wsDragFromIndex)
-            : 0
-          property point wsPressPoint
-          property bool wsDragMoved: false
-          width: workspaceRow.cardWidth
-          height: workspaceRow.cardHeight
-          transform: Translate {
-            id: cardTranslate
-            x: WS_TRANSLATE_X
-          }
+STRIP_SHELL_PROPS
+      Flickable {
+        id: workspaceStripViewport
+VIEWPORT_PROPS
+        Row {
+          id: workspaceRow
+          x: 0
+          y: workspaceStripViewport.vPad
+ROW_PROPS
+          Repeater {
+            id: workspaceRepeater
+            model: root.displayWorkspaceEntries
+            delegate: Item {
+              id: wsCard
+              required property var modelData
+              required property int index
+              readonly property int workspaceId: modelData.id
+              readonly property bool isReorderSource: root.wsDragActive && workspaceId === root.draggedWorkspaceId
+              readonly property int reorderShiftSlots: root.wsDragActive && !modelData.guest && !modelData.isNewSlot
+                ? OverviewModel.reorderShiftSlots(index, root.wsDragFromIndex, root.wsDragTargetIndex >= 0 ? root.wsDragTargetIndex : root.wsDragFromIndex)
+                : 0
+              property point wsPressPoint
+              property bool wsDragMoved: false
+              width: workspaceRow.cardWidth
+              height: workspaceRow.cardHeight
+              transform: Translate {
+                id: cardTranslate
+                x: WS_TRANSLATE_X
+              }
 WS_MOUSE
+            }
+          }
         }
       }
     }
@@ -674,13 +709,18 @@ EVENTS
       root.viewedWorkspaceId = 2
       root.pendingMoves = ({})
       root.dragActive = false
+      root.hoveredDropWorkspaceId = -1
       root.wsDragActive = false
       root.draggedWorkspaceEntry = null
       root.draggedWorkspaceId = -1
       root.wsDragFromIndex = -1
       root.wsDragTargetIndex = -1
       root.wsDragTargetId = -1
+      root.stripAutoScrollDir = 0
       root.rtl = false
+      panel.width = 1200
+      styleStub.scale = 1.0
+      workspaceStripViewport.contentX = 0
       root.optimisticActiveWorkspaceId = -1
       root.optimisticActiveAt = 0
       root.ignoreWorkspaceEventsUntil = 0
@@ -861,32 +901,91 @@ EVENTS
       compare(root.displayWorkspaceEntries.length, countBefore + 1)
       compare(root.dispatches.length, 0)
     }
+    function test_overflowing_workspace_strip_stays_onscreen_and_scrolls() {
+      panel.width = 960
+      styleStub.scale = 16 / 12
+      wsModel.values = [{id: 1}, {id: 2}, {id: 3}, {id: 4}, {id: 5}, {id: 6}, {id: 7}, {id: 8}, {id: 9}, {id: 10}]
+      root.refresh()
+      workspaceRow.forceLayout()
+      wait(0)
+      verify(workspaceStripShell.overflows, "10 workspaces at text size 16 on a 960px display overflow the strip")
+      verify(workspaceStripShell.width <= workspaceStripShell.maxWidth + 0.5, "strip container stays within maxWidth")
+      verify(workspaceStripShell.x >= 0 && workspaceStripShell.x + workspaceStripShell.width <= panel.width + 0.5, "strip container never leaves the screen")
+      verify(workspaceStripViewport.maxContentX > 0, "overflowing strip has positive scroll range")
+
+      // Card 10 starts offscreen in LTR; pointing outside the viewport must not hit it.
+      var card10 = workspaceRepeater.itemAt(9)
+      verify(card10.x + card10.width > workspaceStripViewport.width, "card 10 starts beyond the right viewport edge")
+      var clippedPt = card10.mapToItem(keyCatcher, card10.width / 2, card10.height / 2)
+      root.dragActive = true
+      root.updateDropTarget(clippedPt)
+      compare(root.hoveredDropWorkspaceId, -1, "clipped offscreen cards cannot steal window drops")
+
+      // Dragging near the right edge requests rightward auto-scroll.
+      var rightEdge = workspaceStripViewport.mapToItem(keyCatcher, workspaceStripViewport.width - 10, workspaceStripViewport.height / 2)
+      compare(root.dragStripAutoScrollDir(rightEdge), 1, "dragging near the right edge auto-scrolls right")
+
+      // Revealing workspace 10 brings card 10 into the visible viewport so drops and clicks reach it.
+      root.revealWorkspaceCard(10)
+      verify(workspaceStripViewport.contentX > 0, "revealing workspace 10 scrolls the strip")
+      verify(card10.x >= workspaceStripViewport.contentX - 0.5, "card 10 left edge is inside viewport")
+      verify(card10.x + card10.width <= workspaceStripViewport.contentX + workspaceStripViewport.width + 0.5, "card 10 right edge is inside viewport")
+      var visiblePt = card10.mapToItem(keyCatcher, card10.width / 2, card10.height / 2)
+      root.updateDropTarget(visiblePt)
+      compare(root.hoveredDropWorkspaceId, 10, "scrolled-in card 10 accepts window drops")
+
+      // At the right scroll bound, right auto-scroll stops and left edge auto-scrolls left.
+      compare(root.dragStripAutoScrollDir(rightEdge), 0, "auto-scroll stops at the right bound")
+      var leftEdge = workspaceStripViewport.mapToItem(keyCatcher, 10, workspaceStripViewport.height / 2)
+      compare(root.dragStripAutoScrollDir(leftEdge), -1, "dragging near the left edge auto-scrolls left")
+      root.dragActive = false
+
+      // In RTL, revealing workspace 1 shows the rightmost card and revealing workspace 10 scrolls left.
+      root.rtl = true
+      workspaceRow.forceLayout()
+      wait(0)
+      verify(workspaceRow.LayoutMirroring.enabled, "workspaceRow inherits RTL mirroring inside Flickable")
+      root.revealWorkspaceCard(1)
+      var rtlCard1 = workspaceRepeater.itemAt(0)
+      verify(rtlCard1.x >= workspaceStripViewport.contentX - 0.5 && rtlCard1.x + rtlCard1.width <= workspaceStripViewport.contentX + workspaceStripViewport.width + 0.5, "RTL reveal keeps workspace 1 inside the viewport")
+      root.revealWorkspaceCard(10)
+      var rtlCard10 = workspaceRepeater.itemAt(9)
+      verify(rtlCard10.x >= workspaceStripViewport.contentX - 0.5 && rtlCard10.x + rtlCard10.width <= workspaceStripViewport.contentX + workspaceStripViewport.width + 0.5, "RTL reveal scrolls workspace 10 into the viewport")
+    }
   }
 }
 """
 for token, snippet in [
-    ("ACTIVE_PROP", active_prop),
-    ("ACTIVE_EFFECTIVE", active_effective),
-    ("WS_ENTRIES", ws_entries),
-    ("DISPLAY_ENTRIES", display_entries),
-    ("BINDING", binding),
-    ("WS_LOOKUP", ws_lookup),
-    ("REFRESH", refresh),
-    ("SELECT_WS", select_ws),
-    ("SWITCH_WS", switch_ws),
-    ("BEGIN_WS_DRAG", begin_ws_drag),
-    ("UPDATE_WS_DRAG", update_ws_drag),
-    ("CANCEL_WS_DRAG", cancel_ws_drag),
-    ("FINISH_WS_DRAG", finish_ws_drag),
-    ("MOVE_WIN", move_win),
-    ("REORDER_WS", reorder_ws),
-    ("UPDATE_WS_DROP", re.sub(r"\bStyle\b", "styleStub", update_ws_drop)),
-    ("WS_TRANSLATE_X", ws_translate_x),
-    ("WS_MOUSE", re.sub(r"\bStyle\b", "styleStub", ws_mouse)),
-    ("RECONCILE", reconcile),
-    ("EVENTS", events),
+  ("ACTIVE_PROP", active_prop),
+  ("ACTIVE_EFFECTIVE", active_effective),
+  ("WS_ENTRIES", ws_entries),
+  ("DISPLAY_ENTRIES", display_entries),
+  ("BINDING", binding),
+  ("WS_LOOKUP", ws_lookup),
+  ("REFRESH", refresh),
+  ("SELECT_WS", select_ws),
+  ("SWITCH_WS", switch_ws),
+  ("SCROLL_TO", scroll_to),
+  ("SCROLL_BY", scroll_by),
+  ("REVEAL_WS", reveal_ws),
+  ("DRAG_AUTOSCROLL", re.sub(r"\bStyle\b", "styleStub", drag_autoscroll)),
+  ("UPDATE_DROP", re.sub(r"\bStyle\b", "styleStub", update_drop)),
+  ("BEGIN_WS_DRAG", begin_ws_drag),
+  ("UPDATE_WS_DRAG", update_ws_drag),
+  ("CANCEL_WS_DRAG", cancel_ws_drag),
+  ("FINISH_WS_DRAG", finish_ws_drag),
+  ("MOVE_WIN", move_win),
+  ("REORDER_WS", reorder_ws),
+  ("UPDATE_WS_DROP", re.sub(r"\bStyle\b", "styleStub", update_ws_drop)),
+  ("STRIP_SHELL_PROPS", re.sub(r"\bStyle\b", "styleStub", strip_shell_props)),
+  ("VIEWPORT_PROPS", re.sub(r"\bStyle\b", "styleStub", viewport_props)),
+  ("ROW_PROPS", re.sub(r"\bStyle\b", "styleStub", row_props)),
+  ("WS_TRANSLATE_X", ws_translate_x),
+  ("WS_MOUSE", re.sub(r"\bStyle\b", "styleStub", ws_mouse)),
+  ("RECONCILE", reconcile),
+  ("EVENTS", events),
 ]:
-    qml = qml.replace(token, re.sub(r"\bHyprland\b", "fixtures", snippet))
+  qml = qml.replace(token, re.sub(r"\bHyprland\b", "fixtures", snippet))
 (tmp / "tst_overview_refresh.qml").write_text(qml)
 PY
   QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \

@@ -37,6 +37,7 @@ Item {
   property int wsDragTargetIndex: -1
   property int wsDragTargetId: -1
   property point wsDragPoint: Qt.point(0, 0)
+  property int stripAutoScrollDir: 0
   property int optimisticActiveWorkspaceId: -1
   property double optimisticActiveAt: 0
   property double ignoreWorkspaceEventsUntil: 0
@@ -128,8 +129,58 @@ Item {
     wsDragFromIndex = -1
     wsDragTargetIndex = -1
     wsDragTargetId = -1
+    stripAutoScrollDir = 0
     pendingRefresh = false
     syncDisplayWorkspaceEntries()
+  }
+
+  onOpenedChanged: if (opened) Qt.callLater(function() { revealWorkspaceCard(viewedWorkspaceId) })
+  onViewedWorkspaceIdChanged: if (opened) Qt.callLater(function() { revealWorkspaceCard(viewedWorkspaceId) })
+
+  function scrollStripTo(nextX) {
+    workspaceStripViewport.contentX = Math.max(0, Math.min(workspaceStripViewport.maxContentX, nextX))
+  }
+
+  function scrollStripBy(delta) {
+    scrollStripTo(workspaceStripViewport.contentX + delta)
+  }
+
+  function revealWorkspaceCard(targetId) {
+    if (!workspaceStripShell.overflows) {
+      workspaceStripViewport.contentX = 0
+      return
+    }
+    var targetItem = null
+    for (var i = 0; i < workspaceRepeater.count; i++) {
+      var item = workspaceRepeater.itemAt(i)
+      if (item && item.workspaceId === targetId) {
+        targetItem = item
+        break
+      }
+    }
+    if (!targetItem) {
+      scrollStripTo(workspaceRow.LayoutMirroring.enabled ? workspaceStripViewport.maxContentX : 0)
+      return
+    }
+    var left = targetItem.x
+    var right = targetItem.x + targetItem.width
+    var viewLeft = workspaceStripViewport.contentX
+    var viewRight = viewLeft + workspaceStripViewport.width
+    if (left < viewLeft) scrollStripTo(left)
+    else if (right > viewRight) scrollStripTo(right - workspaceStripViewport.width)
+    else scrollStripTo(viewLeft)
+  }
+
+  function dragStripAutoScrollDir(pointInCatcher) {
+    if (!workspaceStripShell.overflows || (!dragActive && !wsDragActive)) return 0
+    var vp = workspaceStripViewport.mapFromItem(keyCatcher, pointInCatcher.x, pointInCatcher.y)
+    if (vp.y < -Style.space(48) || vp.y > workspaceStripViewport.height + Style.space(64)) return 0
+    var zone = Math.min(Style.space(56), workspaceStripViewport.width * 0.25)
+    var outer = workspaceStripShell.scrollButtonWidth + workspaceStripShell.scrollButtonGap + Style.space(24)
+    if (vp.x >= -outer && vp.x <= zone && workspaceStripViewport.contentX > 0.5) return -1
+    if (vp.x >= workspaceStripViewport.width - zone && vp.x <= workspaceStripViewport.width + outer
+        && workspaceStripViewport.contentX < workspaceStripViewport.maxContentX - 0.5) return 1
+    return 0
   }
 
   function open(payloadJson) {
@@ -203,18 +254,28 @@ Item {
     dragPoint = pointInCatcher
     dragActive = true
     updateDropTarget(pointInCatcher)
+    stripAutoScrollDir = dragStripAutoScrollDir(pointInCatcher)
   }
 
   function updateDrag(pointInCatcher) {
     if (!dragActive) return
     dragPoint = pointInCatcher
     updateDropTarget(pointInCatcher)
+    stripAutoScrollDir = dragStripAutoScrollDir(pointInCatcher)
   }
 
   function updateDropTarget(pointInCatcher) {
     var hitId = -1
     var bestDistance = Infinity
     var pad = Style.space(6)
+    if (workspaceStripShell.overflows) {
+      var vp = workspaceStripViewport.mapFromItem(keyCatcher, pointInCatcher.x, pointInCatcher.y)
+      if (vp.x < -pad || vp.x > workspaceStripViewport.width + pad
+          || vp.y < -pad || vp.y > workspaceStripViewport.height + pad) {
+        hoveredDropWorkspaceId = -1
+        return
+      }
+    }
     for (var i = 0; i < workspaceRepeater.count; i++) {
       var item = workspaceRepeater.itemAt(i)
       if (!item) continue
@@ -237,6 +298,7 @@ Item {
     dragAddress = ""
     dragSourceWorkspaceId = -1
     hoveredDropWorkspaceId = -1
+    stripAutoScrollDir = 0
     if (pendingRefresh && opened) {
       pendingRefresh = false
       refresh()
@@ -262,15 +324,26 @@ Item {
     wsDragPoint = pointInCatcher
     wsDragActive = true
     updateWorkspaceDropTarget(pointInCatcher)
+    stripAutoScrollDir = dragStripAutoScrollDir(pointInCatcher)
   }
 
   function updateWorkspaceDrag(pointInCatcher) {
     if (!wsDragActive) return
     wsDragPoint = pointInCatcher
     updateWorkspaceDropTarget(pointInCatcher)
+    stripAutoScrollDir = dragStripAutoScrollDir(pointInCatcher)
   }
 
   function updateWorkspaceDropTarget(pointInCatcher) {
+    if (workspaceStripShell.overflows) {
+      var vp = workspaceStripViewport.mapFromItem(keyCatcher, pointInCatcher.x, pointInCatcher.y)
+      var edgeMargin = workspaceStripShell.scrollButtonWidth + workspaceStripShell.scrollButtonGap + Style.space(24)
+      if (vp.x < -edgeMargin || vp.x > workspaceStripViewport.width + edgeMargin) {
+        wsDragTargetIndex = -1
+        wsDragTargetId = -1
+        return
+      }
+    }
     var local = workspaceRow.mapFromItem(keyCatcher, pointInCatcher.x, pointInCatcher.y)
     var target = OverviewModel.workspaceDropTarget(
       displayWorkspaceEntries,
@@ -294,6 +367,7 @@ Item {
     wsDragFromIndex = -1
     wsDragTargetIndex = -1
     wsDragTargetId = -1
+    stripAutoScrollDir = 0
     syncDisplayWorkspaceEntries()
     if (pendingRefresh && opened) {
       pendingRefresh = false
@@ -505,6 +579,20 @@ Item {
     function onValuesChanged() { root.reconcilePendingMoves() }
   }
 
+  Timer {
+    id: stripAutoScrollTimer
+    interval: 16
+    repeat: true
+    running: root.opened && workspaceStripShell.overflows && (root.dragActive || root.wsDragActive) && root.stripAutoScrollDir !== 0
+    onTriggered: {
+      var step = Math.max(4, Math.round(Style.space(10)))
+      root.scrollStripBy(root.stripAutoScrollDir * step)
+      if (root.dragActive) root.updateDropTarget(root.dragPoint)
+      else if (root.wsDragActive) root.updateWorkspaceDropTarget(root.wsDragPoint)
+      root.stripAutoScrollDir = root.dragStripAutoScrollDir(root.dragActive ? root.dragPoint : root.wsDragPoint)
+    }
+  }
+
   Process {
     id: modeRead
     stdout: StdioCollector {
@@ -579,181 +667,306 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: layout.snap(Style.space(10))
 
-        Row {
-          id: workspaceRow
+        Item {
+          id: workspaceStripShell
           anchors.horizontalCenter: parent.horizontalCenter
-          spacing: layout.snap(Style.space(12))
-          readonly property int entryCount: Math.max(1, root.displayWorkspaceEntries.length)
-          readonly property real maxWidth: Math.max(Style.space(240), panel.width - Style.space(80))
-          readonly property real cardWidth: layout.snap(Math.min(Style.space(156), Math.max(Style.space(88), (maxWidth - spacing * (entryCount - 1)) / entryCount)))
-          readonly property real cardHeight: layout.snap(Math.round(cardWidth * 0.62))
+          readonly property real maxWidth: Math.max(1, panel.width - Math.min(Style.space(80), Math.round(panel.width * 0.1)))
+          readonly property bool overflows: workspaceRow.totalWidth > maxWidth + 0.5
+          readonly property real scrollButtonWidth: overflows ? layout.snap(Style.space(28)) : 0
+          readonly property real scrollButtonGap: overflows ? layout.snap(Style.space(8)) : 0
+          readonly property real viewportMaxWidth: Math.max(1, maxWidth - 2 * (scrollButtonWidth + scrollButtonGap))
+          width: Math.min(maxWidth, workspaceStripViewport.width + 2 * (scrollButtonWidth + scrollButtonGap))
+          height: workspaceStripViewport.height
 
-          Repeater {
-            id: workspaceRepeater
-            model: root.displayWorkspaceEntries
-            delegate: BorderSurface {
-              id: wsCard
-              required property var modelData
-              required property int index
-              readonly property int workspaceId: modelData.id
-              readonly property bool isViewed: workspaceId === root.viewedWorkspaceId
-              readonly property bool isCurrentDesktop: workspaceId === root.activeHyprlandWorkspaceId
-              readonly property bool isDropTarget: root.dragActive && root.hoveredDropWorkspaceId === workspaceId && workspaceId !== root.dragSourceWorkspaceId
-              readonly property bool isReorderSource: root.wsDragActive && workspaceId === root.draggedWorkspaceId
-              readonly property bool isReorderTarget: isReorderSource && root.wsDragTargetIndex >= 0 && root.wsDragTargetIndex !== root.wsDragFromIndex
-              readonly property bool isHovered: wsMouse.containsMouse && !root.dragActive && !root.wsDragActive
-              readonly property int reorderShiftSlots: root.wsDragActive && !modelData.guest && !modelData.isNewSlot
-                ? OverviewModel.reorderShiftSlots(
-                    index,
-                    root.wsDragFromIndex,
-                    root.wsDragTargetIndex >= 0 ? root.wsDragTargetIndex : root.wsDragFromIndex)
-                : 0
-              readonly property var wsWindows: root.opened
-                ? OverviewModel.windowsOnWorkspace(Hyprland.toplevels.values, workspaceId, root.pendingMoves) : []
-              readonly property var miniRects: OverviewModel.miniWindowRects(wsWindows, root.monitorBounds)
+          BorderSurface {
+            id: leftScrollButton
+            visible: workspaceStripShell.overflows
+            x: 0
+            y: workspaceStripViewport.vPad
+            width: workspaceStripShell.scrollButtonWidth
+            height: workspaceRow.cardHeight
+            radius: Style.cornerRadius
+            antialiasing: true
+            border.pixelAligned: false
+            readonly property bool canScroll: workspaceStripViewport.contentX > 0.5
+            opacity: canScroll ? (leftScrollMouse.containsMouse ? 1.0 : 0.85) : 0.35
+            Behavior on opacity {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+            color: leftScrollMouse.containsMouse && canScroll
+              ? Util.alpha(Commons.Color.foreground, 0.10)
+              : Commons.Color.popups.background
+            borderSpec: leftScrollMouse.containsMouse && canScroll
+              ? Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.foreground, Style.normalBorderWidth)
+              : Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.muted, Style.normalBorderWidth)
+            Text {
+              anchors.centerIn: parent
+              text: "‹"
+              textFormat: Text.PlainText
+              color: leftScrollButton.canScroll ? Commons.Color.foreground : Commons.Color.muted
+              font.family: Style.font.family
+              font.pixelSize: Style.font.heading
+            }
+            MouseArea {
+              id: leftScrollMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              enabled: leftScrollButton.canScroll
+              cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+              onClicked: root.scrollStripBy(-workspaceStripViewport.scrollStep)
+            }
+          }
 
-              property point wsPressPoint
-              property bool wsDragMoved: false
+          Flickable {
+            id: workspaceStripViewport
+            readonly property real vPad: workspaceStripShell.overflows ? layout.snap(Style.space(4)) : 0
+            readonly property real maxContentX: Math.max(0, contentWidth - width)
+            readonly property real scrollStep: Math.max(workspaceRow.cardWidth + workspaceRow.spacing, Math.round(width * 0.65))
+            x: workspaceStripShell.overflows ? (workspaceStripShell.scrollButtonWidth + workspaceStripShell.scrollButtonGap) : 0
+            y: 0
+            width: Math.min(workspaceRow.totalWidth, workspaceStripShell.viewportMaxWidth)
+            height: workspaceRow.cardHeight + vPad * 2
+            contentWidth: workspaceRow.totalWidth
+            contentHeight: height
+            clip: workspaceStripShell.overflows
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.HorizontalFlick
+            interactive: workspaceStripShell.overflows && !root.dragActive && !root.wsDragActive
+            onMaxContentXChanged: root.scrollStripTo(contentX)
 
-              width: workspaceRow.cardWidth
-              height: workspaceRow.cardHeight
-              radius: Style.cornerRadius
-              antialiasing: true
-              border.pixelAligned: false
-              opacity: isReorderSource
-                ? (isReorderTarget ? 0.55 : 0.25)
-                : (isDropTarget || isViewed || isHovered || modelData.occupied ? 1.0 : 0.72)
-              scale: isDropTarget ? 1.06 : (isReorderSource ? 0.96 : 1.0)
-              transform: Translate {
-                x: (workspaceRow.LayoutMirroring.enabled ? -1 : 1) * wsCard.reorderShiftSlots * (workspaceRow.cardWidth + workspaceRow.spacing)
-                Behavior on x {
-                  enabled: root.wsDragActive
-                  NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
-                }
+            WheelHandler {
+              enabled: workspaceStripShell.overflows
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+              onWheel: function(event) {
+                var pixel = Math.abs(event.pixelDelta.x) > Math.abs(event.pixelDelta.y)
+                  ? event.pixelDelta.x : event.pixelDelta.y
+                var angle = Math.abs(event.angleDelta.x) > Math.abs(event.angleDelta.y)
+                  ? event.angleDelta.x : event.angleDelta.y
+                var delta = pixel !== 0 ? -pixel : -angle * 0.6
+                if (delta === 0) return
+                root.scrollStripBy(delta)
+                event.accepted = true
               }
-              Behavior on scale {
-                NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
-              }
-              Behavior on opacity {
-                NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
-              }
-              color: isDropTarget
-                ? Util.alpha(Commons.Color.accent, 0.22)
-                : isReorderTarget
-                  ? Util.alpha(Commons.Color.accent, 0.14)
-                  : isViewed
-                    ? Util.alpha(Commons.Color.accent, 0.10)
-                    : isHovered
-                      ? Util.alpha(Commons.Color.foreground, 0.08)
-                      : Commons.Color.popups.background
-              borderSpec: isDropTarget || isReorderTarget
-                ? Border.hyprlandActiveSpec(Commons.Color.accent, Math.max(2, Style.normalBorderWidth + 1))
-                : isViewed
-                  ? Border.hyprlandActiveSpec(Commons.Color.accent, Style.normalBorderWidth)
-                  : isHovered
-                    ? Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.foreground, Style.normalBorderWidth)
-                    : Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.muted, Style.normalBorderWidth)
-              clip: true
+            }
 
-              MiniDesktopPreview {
-                anchors.fill: parent
-                anchors.margins: Style.space(6)
-                visible: !wsCard.isReorderSource
-                rects: wsCard.miniRects
-              }
+            Row {
+              id: workspaceRow
+              x: 0
+              y: workspaceStripViewport.vPad
+              spacing: layout.snap(Style.space(12))
+              readonly property int entryCount: Math.max(1, root.displayWorkspaceEntries.length)
+              readonly property real maxWidth: workspaceStripShell.maxWidth
+              readonly property real cardWidth: layout.snap(Math.min(Style.space(156), Math.max(Style.space(88), (maxWidth - spacing * (entryCount - 1)) / entryCount)))
+              readonly property real cardHeight: layout.snap(Math.round(cardWidth * 0.62))
+              readonly property real totalWidth: entryCount * cardWidth + Math.max(0, entryCount - 1) * spacing
 
-              Text {
-                anchors.centerIn: parent
-                visible: !wsCard.isReorderSource && wsCard.wsWindows.length === 0
-                text: (wsCard.modelData.isNewSlot || wsCard.isDropTarget) ? "+" : root.workspaceLabel(wsCard.modelData)
-                textFormat: Text.PlainText
-                color: wsCard.isDropTarget ? Commons.Color.accent : Commons.Color.muted
-                opacity: wsCard.isDropTarget ? 1.0 : 0.65
-                font.family: Style.font.family
-                font.pixelSize: Style.font.heading
-                font.bold: wsCard.isDropTarget
-              }
+              Repeater {
+                id: workspaceRepeater
+                model: root.displayWorkspaceEntries
+                delegate: BorderSurface {
+                  id: wsCard
+                  required property var modelData
+                  required property int index
+                  readonly property int workspaceId: modelData.id
+                  readonly property bool isViewed: workspaceId === root.viewedWorkspaceId
+                  readonly property bool isCurrentDesktop: workspaceId === root.activeHyprlandWorkspaceId
+                  readonly property bool isDropTarget: root.dragActive && root.hoveredDropWorkspaceId === workspaceId && workspaceId !== root.dragSourceWorkspaceId
+                  readonly property bool isReorderSource: root.wsDragActive && workspaceId === root.draggedWorkspaceId
+                  readonly property bool isReorderTarget: isReorderSource && root.wsDragTargetIndex >= 0 && root.wsDragTargetIndex !== root.wsDragFromIndex
+                  readonly property bool isHovered: wsMouse.containsMouse && !root.dragActive && !root.wsDragActive
+                  readonly property int reorderShiftSlots: root.wsDragActive && !modelData.guest && !modelData.isNewSlot
+                    ? OverviewModel.reorderShiftSlots(
+                        index,
+                        root.wsDragFromIndex,
+                        root.wsDragTargetIndex >= 0 ? root.wsDragTargetIndex : root.wsDragFromIndex)
+                    : 0
+                  readonly property var wsWindows: root.opened
+                    ? OverviewModel.windowsOnWorkspace(Hyprland.toplevels.values, workspaceId, root.pendingMoves) : []
+                  readonly property var miniRects: OverviewModel.miniWindowRects(wsWindows, root.monitorBounds)
 
-              Rectangle {
-                visible: !wsCard.isReorderSource
-                anchors.left: parent.left; anchors.bottom: parent.bottom
-                anchors.margins: Style.space(6)
-                width: wsBadgeRow.implicitWidth + Style.space(10)
-                height: wsBadgeRow.implicitHeight + Style.space(4)
-                radius: Math.max(3, Style.cornerRadius)
-                color: wsCard.isDropTarget
-                  ? Commons.Color.accent
-                  : Util.alpha(Commons.Color.background, 0.82)
-                Row {
-                  id: wsBadgeRow
-                  anchors.centerIn: parent
-                  spacing: Style.space(4)
-                  Rectangle {
-                    visible: wsCard.isCurrentDesktop
-                    width: Style.space(5); height: Style.space(5)
-                    radius: width / 2
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: wsCard.isDropTarget ? Commons.Color.background : Commons.Color.accent
+                  property point wsPressPoint
+                  property bool wsDragMoved: false
+
+                  width: workspaceRow.cardWidth
+                  height: workspaceRow.cardHeight
+                  radius: Style.cornerRadius
+                  antialiasing: true
+                  border.pixelAligned: false
+                  opacity: isReorderSource
+                    ? (isReorderTarget ? 0.55 : 0.25)
+                    : (isDropTarget || isViewed || isHovered || modelData.occupied ? 1.0 : 0.72)
+                  scale: isDropTarget ? 1.06 : (isReorderSource ? 0.96 : 1.0)
+                  transform: Translate {
+                    x: (workspaceRow.LayoutMirroring.enabled ? -1 : 1) * wsCard.reorderShiftSlots * (workspaceRow.cardWidth + workspaceRow.spacing)
+                    Behavior on x {
+                      enabled: root.wsDragActive
+                      NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+                    }
                   }
+                  Behavior on scale {
+                    NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+                  }
+                  Behavior on opacity {
+                    NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+                  }
+                  color: isDropTarget
+                    ? Util.alpha(Commons.Color.accent, 0.22)
+                    : isReorderTarget
+                      ? Util.alpha(Commons.Color.accent, 0.14)
+                      : isViewed
+                        ? Util.alpha(Commons.Color.accent, 0.10)
+                        : isHovered
+                          ? Util.alpha(Commons.Color.foreground, 0.08)
+                          : Commons.Color.popups.background
+                  borderSpec: isDropTarget || isReorderTarget
+                    ? Border.hyprlandActiveSpec(Commons.Color.accent, Math.max(2, Style.normalBorderWidth + 1))
+                    : isViewed
+                      ? Border.hyprlandActiveSpec(Commons.Color.accent, Style.normalBorderWidth)
+                      : isHovered
+                        ? Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.foreground, Style.normalBorderWidth)
+                        : Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.muted, Style.normalBorderWidth)
+                  clip: true
+
+                  MiniDesktopPreview {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(6)
+                    visible: !wsCard.isReorderSource
+                    rects: wsCard.miniRects
+                  }
+
                   Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: (wsCard.modelData.isNewSlot ? "+ " : "") + root.workspaceLabel(wsCard.modelData)
+                    anchors.centerIn: parent
+                    visible: !wsCard.isReorderSource && wsCard.wsWindows.length === 0
+                    text: (wsCard.modelData.isNewSlot || wsCard.isDropTarget) ? "+" : root.workspaceLabel(wsCard.modelData)
                     textFormat: Text.PlainText
-                    color: wsCard.isDropTarget
-                      ? Commons.Color.background
-                      : wsCard.isViewed ? Commons.Color.accent : Commons.Color.foreground
+                    color: wsCard.isDropTarget ? Commons.Color.accent : Commons.Color.muted
+                    opacity: wsCard.isDropTarget ? 1.0 : 0.65
                     font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                    font.bold: wsCard.isViewed || wsCard.isDropTarget
+                    font.pixelSize: Style.font.heading
+                    font.bold: wsCard.isDropTarget
                   }
-                }
-              }
 
-              Rectangle {
-                visible: !wsCard.isReorderSource && wsCard.modelData.windowCount > 0
-                anchors.right: parent.right; anchors.bottom: parent.bottom
-                anchors.margins: Style.space(6)
-                width: wsCountText.implicitWidth + Style.space(8)
-                height: wsCountText.implicitHeight + Style.space(4)
-                radius: Math.max(3, Style.cornerRadius)
-                color: Util.alpha(Commons.Color.background, 0.78)
-                Text {
-                  id: wsCountText
-                  anchors.centerIn: parent
-                  text: Commons.I18n.formatNumber(wsCard.modelData.windowCount)
-                  textFormat: Text.PlainText
-                  color: Commons.Color.muted
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.caption
-                }
-              }
-
-              MouseArea {
-                id: wsMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                preventStealing: true
-                cursorShape: wsCard.isReorderSource ? Qt.ClosedHandCursor : Qt.PointingHandCursor
-                onPressed: function(event) {
-                  if (event.button !== Qt.LeftButton) return
-                  wsCard.wsDragMoved = false
-                  wsCard.wsPressPoint = Qt.point(event.x, event.y)
-                }
-                onPositionChanged: function(event) {
-                  if (!(pressedButtons & Qt.LeftButton)) return
-                  if (wsCard.modelData.guest || wsCard.modelData.isNewSlot) return
-                  if (!wsCard.wsDragMoved && Math.hypot(event.x - wsCard.wsPressPoint.x, event.y - wsCard.wsPressPoint.y) >= Style.space(10)) {
-                    wsCard.wsDragMoved = true
-                    root.beginWorkspaceDrag(wsCard.modelData, wsCard.index, wsCard.mapToItem(keyCatcher, event.x, event.y))
+                  Rectangle {
+                    visible: !wsCard.isReorderSource
+                    anchors.left: parent.left; anchors.bottom: parent.bottom
+                    anchors.margins: Style.space(6)
+                    width: wsBadgeRow.implicitWidth + Style.space(10)
+                    height: wsBadgeRow.implicitHeight + Style.space(4)
+                    radius: Math.max(3, Style.cornerRadius)
+                    color: wsCard.isDropTarget
+                      ? Commons.Color.accent
+                      : Util.alpha(Commons.Color.background, 0.82)
+                    Row {
+                      id: wsBadgeRow
+                      anchors.centerIn: parent
+                      spacing: Style.space(4)
+                      Rectangle {
+                        visible: wsCard.isCurrentDesktop
+                        width: Style.space(5); height: Style.space(5)
+                        radius: width / 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: wsCard.isDropTarget ? Commons.Color.background : Commons.Color.accent
+                      }
+                      Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: (wsCard.modelData.isNewSlot ? "+ " : "") + root.workspaceLabel(wsCard.modelData)
+                        textFormat: Text.PlainText
+                        color: wsCard.isDropTarget
+                          ? Commons.Color.background
+                          : wsCard.isViewed ? Commons.Color.accent : Commons.Color.foreground
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        font.bold: wsCard.isViewed || wsCard.isDropTarget
+                      }
+                    }
                   }
-                  if (wsCard.wsDragMoved) root.updateWorkspaceDrag(wsCard.mapToItem(keyCatcher, event.x, event.y))
-                }
-                onReleased: function(event) {
-                  if (wsCard.wsDragMoved && event.button === Qt.LeftButton) root.finishWorkspaceDrag()
-                }
-                onCanceled: if (wsCard.wsDragMoved) root.cancelWorkspaceDrag()
-                onClicked: if (!wsCard.wsDragMoved && !root.dragActive && !root.wsDragActive) root.switchToWorkspace(wsCard.workspaceId)
-              }
+
+                  Rectangle {
+                    visible: !wsCard.isReorderSource && wsCard.modelData.windowCount > 0
+                    anchors.right: parent.right; anchors.bottom: parent.bottom
+                    anchors.margins: Style.space(6)
+                    width: wsCountText.implicitWidth + Style.space(8)
+                    height: wsCountText.implicitHeight + Style.space(4)
+                    radius: Math.max(3, Style.cornerRadius)
+                    color: Util.alpha(Commons.Color.background, 0.78)
+                    Text {
+                      id: wsCountText
+                      anchors.centerIn: parent
+                      text: Commons.I18n.formatNumber(wsCard.modelData.windowCount)
+                      textFormat: Text.PlainText
+                      color: Commons.Color.muted
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption
+                    }
+                  }
+
+                  MouseArea {
+                    id: wsMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    preventStealing: true
+                    cursorShape: wsCard.isReorderSource ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+                    onPressed: function(event) {
+                      if (event.button !== Qt.LeftButton) return
+                      wsCard.wsDragMoved = false
+                      wsCard.wsPressPoint = Qt.point(event.x, event.y)
+                    }
+                    onPositionChanged: function(event) {
+                      if (!(pressedButtons & Qt.LeftButton)) return
+                      if (wsCard.modelData.guest || wsCard.modelData.isNewSlot) return
+                      if (!wsCard.wsDragMoved && Math.hypot(event.x - wsCard.wsPressPoint.x, event.y - wsCard.wsPressPoint.y) >= Style.space(10)) {
+                        wsCard.wsDragMoved = true
+                        root.beginWorkspaceDrag(wsCard.modelData, wsCard.index, wsCard.mapToItem(keyCatcher, event.x, event.y))
+                      }
+                      if (wsCard.wsDragMoved) root.updateWorkspaceDrag(wsCard.mapToItem(keyCatcher, event.x, event.y))
+                    }
+                    onReleased: function(event) {
+                      if (wsCard.wsDragMoved && event.button === Qt.LeftButton) root.finishWorkspaceDrag()
+                    }
+                    onCanceled: if (wsCard.wsDragMoved) root.cancelWorkspaceDrag()
+                    onClicked: if (!wsCard.wsDragMoved && !root.dragActive && !root.wsDragActive) root.switchToWorkspace(wsCard.workspaceId)
+                  }
+            }
+          }
+            }
+          }
+
+          BorderSurface {
+            id: rightScrollButton
+            visible: workspaceStripShell.overflows
+            x: workspaceStripViewport.x + workspaceStripViewport.width + workspaceStripShell.scrollButtonGap
+            y: workspaceStripViewport.vPad
+            width: workspaceStripShell.scrollButtonWidth
+            height: workspaceRow.cardHeight
+            radius: Style.cornerRadius
+            antialiasing: true
+            border.pixelAligned: false
+            readonly property bool canScroll: workspaceStripViewport.contentX < workspaceStripViewport.maxContentX - 0.5
+            opacity: canScroll ? (rightScrollMouse.containsMouse ? 1.0 : 0.85) : 0.35
+            Behavior on opacity {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+            color: rightScrollMouse.containsMouse && canScroll
+              ? Util.alpha(Commons.Color.foreground, 0.10)
+              : Commons.Color.popups.background
+            borderSpec: rightScrollMouse.containsMouse && canScroll
+              ? Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.foreground, Style.normalBorderWidth)
+              : Border.surfaceSpec("hyprland", "inactive-border", Commons.Color.muted, Style.normalBorderWidth)
+            Text {
+              anchors.centerIn: parent
+              text: "›"
+              textFormat: Text.PlainText
+              color: rightScrollButton.canScroll ? Commons.Color.foreground : Commons.Color.muted
+              font.family: Style.font.family
+              font.pixelSize: Style.font.heading
+            }
+            MouseArea {
+              id: rightScrollMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              enabled: rightScrollButton.canScroll
+              cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+              onClicked: root.scrollStripBy(workspaceStripViewport.scrollStep)
             }
           }
         }
