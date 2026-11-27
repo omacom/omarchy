@@ -4,9 +4,9 @@
 # omarchy:args=<theme-name>
 # omarchy:hidden=true
 
-# A theme made for one machine ships a `hardware` file naming it, one line per
-# machine: `device-tree <compatible>` or `dmi <product name pattern>`. Any line
-# that matches offers the theme; a theme without the file is offered everywhere.
+# A theme made for one machine ships a `hardware` file listing the device-tree
+# compatible strings of the machines it is for, one per line. A theme without
+# the file is offered everywhere.
 
 theme="${1:-}"
 
@@ -16,18 +16,8 @@ if [[ -z $theme ]]; then
 fi
 
 hardware="$OMARCHY_PATH/themes/$theme/hardware"
-offered=1
 
 if [[ -f $hardware ]]; then
-  offered=0
-  while read -r kind value; do
-    if [[ -n $value ]]; then
-      case $kind in
-        device-tree) omarchy-hw-match-device-tree "$value" && offered=1 ;;
-        dmi) omarchy-hw-match "$value" && offered=1 ;;
-      esac
-    fi
-  done <"$hardware"
+  mapfile -t compatibles <"$hardware"
+  omarchy-hw-match-device-tree "${compatibles[@]}"
 fi
-
-(( offered ))
