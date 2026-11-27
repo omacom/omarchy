@@ -511,7 +511,7 @@
   },
   "setup.welcome": {
     "label": "Welcome",
-    "description": "Take the welcome tour again, or see every setting illustrated"
+    "description": "Take the welcome tour again"
   },
   "setup.default": {
     "label": "Defaults"

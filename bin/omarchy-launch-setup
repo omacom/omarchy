@@ -1,26 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Open Setup: the welcome tour, or the page for one part of the Setup menu
-# omarchy:args=[welcome|<page>] [--wait]
-# omarchy:examples=omarchy launch setup | omarchy launch setup welcome | omarchy launch setup security
+# omarchy:summary=Open the Omarchy welcome tour
+# omarchy:args=[--wait]
 
 set -euo pipefail
 
 usage() {
   cat <<USAGE
-Usage: omarchy-launch-setup [welcome|<page>] [--wait]
+Usage: omarchy-launch-setup [--wait]
 
-Opens Setup on its first page. "welcome" opens the welcome tour instead, and
-a page's name (security, defaults) opens that page.
+Opens the Omarchy welcome tour.
 
-  --wait  Return once Setup has been closed, printing the steps a finished
-          tour set off, one a line. Fails if Setup never reached the screen,
-          or went away without being closed.
+  --wait  Return once Welcome has been closed, printing the steps a finished
+          tour set off (and markers for steps reached), one a line. Fails if
+          Welcome never reached the screen, or went away without being closed.
 USAGE
 }
 
-page=""
 wait_for_close=0
+seen_operand=0
 while (($#)); do
   case "$1" in
     --wait)
@@ -35,33 +33,36 @@ while (($#)); do
       usage >&2
       exit 1
       ;;
+    welcome)
+      if (( seen_operand )); then
+        echo "Unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      seen_operand=1
+      ;;
     *)
-      page=$1
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
       ;;
   esac
   shift
 done
 
-# Setup answers a wait in a directory of its own, the way the menu answers
-# omarchy-menu-select in a file: a file for each step a finished tour set off,
-# and `closed` last. The directory is also the request's name. Setup can be
-# opened again while this waits, and only what this request's Setup did counts.
+# Welcome answers a wait in a directory of its own: a file for each outcome
+# marker, and `closed` last. The directory is also the request's id so a second
+# opening cannot steal an earlier caller's wait.
 reply=""
 if (( wait_for_close )); then
   reply=$(mktemp -d -p "${XDG_RUNTIME_DIR:-/run/user/$UID}" omarchy-setup.XXXXXX)
   trap 'rm -rf "$reply"' EXIT
 fi
 
-# Where this request stands: opening, shown, or other once Setup has moved on
-# to another. A shell with no Setup loaded says unknown, and one that does not
-# answer within a second says nothing.
 request_state() {
   OMARCHY_SHELL_IPC_TIMEOUT=1s omarchy-shell shell call omarchy.setup state "$reply" 2>/dev/null || true
 }
 
-# Once Setup has let go of this request, whether it was closed is the file,
-# which is written as it closes by a process of its own. So it gets a few
-# seconds to turn up.
 closed_soon() {
   local deadline=$((SECONDS + 5))
 
@@ -71,31 +72,20 @@ closed_soon() {
   [[ -e $reply/closed ]]
 }
 
-# How long a wait gives Setup to reach the screen. The request says when that
-# runs out, so one still queued while the plugin loads is dropped rather than
-# opened after its caller has gone.
 patience=15
 expires=0
 if (( wait_for_close )); then
   expires=$((EPOCHSECONDS + patience))
 fi
 
-if [[ $page == "welcome" ]]; then
-  payload=$(jq -nc --arg reply "$reply" --argjson expires "$expires" '{ mode: "tour", reply: $reply, expires: $expires }')
-else
-  payload=$(jq -nc --arg page "$page" --arg reply "$reply" --argjson expires "$expires" '{ page: $page, reply: $reply, expires: $expires }')
-fi
+payload=$(jq -nc --arg reply "$reply" --argjson expires "$expires" '{ reply: $reply, expires: $expires }')
 
 if [[ $(omarchy-shell shell summon omarchy.setup "$payload") != "ok" ]]; then
-  echo "omarchy-launch-setup: the shell could not open Setup" >&2
+  echo "omarchy-launch-setup: the shell could not open Welcome" >&2
   exit 1
 fi
 
 if (( wait_for_close )); then
-  # Its plugin loads when summoned, and its window waits for the screen's
-  # scale. One that has not been shown in fifteen seconds is not going to be.
-  # The clock is what is watched, since a shell that has stopped answering
-  # takes its time over each question.
   deadline=$((SECONDS + patience))
   ours=0
   until [[ -e $reply/closed ]]; do
@@ -108,23 +98,19 @@ if (( wait_for_close )); then
       if closed_soon; then
         break
       else
-        echo "omarchy-launch-setup: Setup was closed before it reached the screen" >&2
+        echo "omarchy-launch-setup: Welcome was closed before it reached the screen" >&2
         exit 1
       fi
     fi
 
     if (( SECONDS >= deadline )) && [[ ! -e $reply/closed ]]; then
-      # Closes it only if it is still this request's.
       omarchy-shell -q shell call omarchy.setup cancel "$reply"
-      echo "omarchy-launch-setup: Setup never reached the screen" >&2
+      echo "omarchy-launch-setup: Welcome never reached the screen" >&2
       exit 1
     fi
     sleep 0.1
   done
 
-  # Closed is the file. A shell that went away took Setup with it and left
-  # none, so every two seconds it is asked whether this request still has the
-  # screen. A question that goes unanswered is asked again, fifteen times.
   ticks=0
   silent=0
   until [[ -e $reply/closed ]]; do
@@ -136,7 +122,7 @@ if (( wait_for_close )); then
       silent=0
     elif [[ $state == "other" || $state == "unknown" ]] || (( ++silent >= 15 )); then
       if ! closed_soon; then
-        echo "omarchy-launch-setup: Setup went away without being closed" >&2
+        echo "omarchy-launch-setup: Welcome went away without being closed" >&2
         exit 1
       fi
     fi

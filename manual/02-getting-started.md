@@ -38,11 +38,11 @@ But in special circumstances, like remote Omarchy installs on protected computer
 
 ### The welcome tour
 
-The first time you log in, Omarchy greets you with a short tour of the choices worth making early: how windows arrange themselves (tiling, scrolling or floating), whether to add a coding agent, how dictation works, whether to run an AI model on your own machine (offered only if your hardware can), and Tailscale. Each step draws the option you have picked, so you can try each one and see what it does before anything changes.
+The first time you log in, Omarchy greets you with a short tour of the choices worth making early: how windows arrange themselves (tiling, scrolling, or floating), how dictation works, whether to add a coding agent, whether to run a local AI model on your own machine (offered only if your hardware supports it), and Tailscale. Each step previews the option live, so you can see what it does before anything changes.
 
-Nothing changes until you hit _Finish_ on the last screen, which lists what you picked. Skip the whole thing with `Escape` or _Skip tour_ and your system stays exactly as it was installed. If you picked anything that needs installing, one terminal opens and works through it all in turn. If you chose to add an agent, the agents panel opens once that is done. Once closed, the tour won't open again on its own.
+Nothing changes until you confirm on the last screen. Skip the whole thing with `Escape` or _Skip_ and your system stays on Omarchy's defaults. If you picked anything that needs installing, one terminal opens and works through it in turn; if you also chose to add an agent, the agents panel opens cleanly once that terminal closes. Once closed, the tour won't open again on its own.
 
-You can take the tour again any time under _Setup > Welcome_ in the Omarchy menu (`Super + Space`), or with `omarchy launch setup welcome`. From its first screen, _All of Setup_ opens the same kind of illustrated page for every part of the Setup menu, and `omarchy launch setup` goes straight there.
+You can take the tour again any time under _Setup > Welcome_ in the Omarchy menu (`Super + Space`), or with `omarchy launch setup`.
 
 ### Language
 

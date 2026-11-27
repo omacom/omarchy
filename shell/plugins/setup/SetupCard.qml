@@ -5,289 +5,291 @@ import qs.Ui
 import "SetupModel.js" as SetupModel
 import "scenes"
 
-// The card Setup is drawn on. It decides nothing about the system itself: it
-// reports the row to run, or the command a finished tour adds up to.
-//
-// It is drawn from the [menu] colors, as the menu is, rather than from the
-// kit's Button: a row's mark and its label need two fonts, and a button filled
-// in the text color is not something Button can be asked for.
+// The centered single-column Welcome OOBE card. Decides nothing about the
+// system itself: it stages choices across the essentials and reports the one
+// `omarchy-setup-essentials` command Finish runs, or nothing when skipped.
 BorderSurface {
   id: root
 
-  // Every page, and the tour's steps among them, from SetupData.
-  property var pages: []
   property var steps: []
-  // The local model on offer, for the page that describes it.
-  property var offer: null
-  // Once the menu, its guards and the local listing have answered. Until
-  // then nothing can be picked: a row could still vanish, gain its check, or
-  // move as a page arrives above it.
+  property var offers: []
+  readonly property var offer: offers && offers.length > 0 ? offers[0] : null
   property bool ready: false
 
-  // "tour" walks the essentials and changes nothing until Finish. "app" lists
-  // every page and runs a row as the menu would.
-  property string mode: "app"
-  // In the tour, -1 is the splash and steps.length the summary.
+  // -1 is the splash, 0..steps.length-1 are the essentials, steps.length is Ready.
   property int stepIndex: -1
-  property int pageIndex: 0
-  // What the tour has picked so far, step id to option id.
+  // Staged choices by step id: option id (or "" for keep-current) on choice
+  // steps, boolean true/false on toggle steps.
   property var staged: ({})
-  // The option the picture and the line under the options are about. On the
-  // pages it is the one under the keyboard cursor or the pointer. In the tour
-  // it is the step's pick and nothing else, so the card that is marked, the
-  // picture and what Finish sets up are never different things.
-  property int cursor: 0
-  // In the tour the pointer lights the card it is over, and picks nothing
-  // until it clicks. It lights nothing until it moves: not where it happens
-  // to rest as a step opens, nor once the arrow keys take over.
+  // Staged sub-options by step id (e.g. Superwhisper "cloud" vs "offline").
+  property var stagedSub: ({})
+  // Keyboard focus zone within the current screen.
+  // Steps: "control", "sub", "keep", "continue", "skip", "back"
+  // Ready: "finish", "skip", "back"
+  property string focusZone: "control"
+  // Pointer hover lights cards only after the pointer physically moves.
   property bool pointerAwake: false
-  // On the summary, the button the keyboard is on: 0 goes back, 1 finishes.
-  property int summaryCursor: 1
-  // The page a summon asked for, until the pages are there to find it in.
-  property string wantedPage: ""
-  // Get started was pressed before there were steps to start on.
+  // Get started pressed before SetupData finished settling.
   property bool pendingStart: false
-  // On the pages, the keyboard has tabbed past the last one to the tour's link.
-  property bool onTourLink: false
-  // The cursor is being moved, or a card picked, by the pointer. The card is
-  // under it already, so the list is not scrolled out from under it: not for
-  // this, nor by a scroll already on its way.
+  // Suppresses keyboard-follow scrolling while a click is being handled.
   property bool pointing: false
   onPointingChanged: if (pointing) optionScroll.due = false
+  // Subtle entrance settle on step switches (180ms easeOut; instant under reduced motion).
+  property real stepEnter: 1
+
+  NumberAnimation {
+    id: stepEnterAnim
+    target: root
+    property: "stepEnter"
+    from: 0
+    to: 1
+    duration: Style.duration(180)
+    easing.type: Easing.Bezier
+    easing.bezierCurve: Style.easeOut
+  }
 
   signal dismissed()
-  // The pages are about to be listed, or the tour's steps as it leaves its
-  // first screen. Whoever supplies them hears now, while nothing of them is
-  // on show, and not again until they are listed afresh.
+  // Emitted once as the tour leaves Splash so Setup can freeze IPC availability.
   signal aboutToList()
-  // A row to run as the menu would: its action, or its route into the menu.
-  signal activated(var option)
-  // The tour is done, with the command its choices add up to, or none, and
-  // the steps those choices were made at.
+  // Emitted whenever a step or "ready" is presented on screen.
+  signal stepViewed(string stepId)
+  // Emitted when Finish is confirmed: argv to execute and step ids changed.
   signal finished(var argv, var steps)
 
-  readonly property bool touring: mode === "tour"
-  readonly property bool onSplash: touring && stepIndex < 0
-  readonly property bool onSummary: touring && stepIndex >= steps.length
-  readonly property var page: touring ? (onSplash || onSummary ? null : steps[stepIndex]) : (pages[pageIndex] || null)
-  readonly property var options: SetupModel.flatOptions(page)
-  readonly property var cursorOption: options[cursor] || null
-  readonly property var plan: SetupModel.tourPlan(steps, staged)
-  readonly property bool large: !!page && page.groups.length === 1 && options.length <= 4
-  // Up to four options get a tall card each. Five or six sit three to a row,
-  // so the second row is not one or two stragglers; more than that, four.
-  readonly property int columns: large ? Math.max(1, options.length)
-    : page && page.groups.length === 1 && options.length <= 6 ? 3
-    : 4
-  // One size for the labels on a page of small cards: the largest at which
-  // the longest of them fits its card, down to nine tenths, so that one long
-  // name is not set smaller than its neighbours.
-  readonly property real labelSize: {
-    if (large || single || options.length === 0) return Style.font.body
-    // What a small card spends on its margins and its mark.
-    var room = (pane.width - (columns - 1) * Style.space(6)) / columns - Style.space(44)
-    var widest = 0
-    for (var i = 0; i < options.length; i++) widest = Math.max(widest, labelMetrics.advanceWidth(options[i].label))
-    if (widest <= room) return Style.font.body
-    return Math.max(Math.round(Style.font.body * 0.9), Math.floor(Style.font.body * room / widest))
-  }
-  // A page that is one row needs no card repeating its title: it gets a button.
-  readonly property bool single: !touring && options.length === 1
-  readonly property bool hasDetails: options.some(function(option) { return option.detail !== "" })
+  readonly property bool onSplash: stepIndex < 0
+  readonly property bool onSummary: stepIndex >= 0 && stepIndex >= steps.length
+  readonly property var step: onSplash || onSummary ? null : (steps[stepIndex] || null)
+  readonly property bool isChoice: !!step && step.kind === "choice"
+  readonly property bool isToggle: !!step && step.kind === "toggle"
+  readonly property var options: isChoice ? step.options : []
+  readonly property var pickedOption: SetupModel.pick(step, staged)
+  readonly property var subOptions: pickedOption && pickedOption.subOptions ? pickedOption.subOptions : []
+  readonly property var pickedSubOption: SetupModel.pickSubOption(pickedOption, step ? stagedSub[step.id] : "")
+  readonly property bool showSubOptions: isChoice && subOptions.length > 0
+  readonly property bool hasStepSubOptions: isChoice && options.some(function(opt) { return !!opt.subOptions && opt.subOptions.length > 0 })
+  readonly property bool toggleEnabled: isToggle && !!pickedOption
+  readonly property var plan: SetupModel.tourPlan(steps, staged, stagedSub)
+  readonly property bool compactChoices: isChoice && options.length > 3
+  readonly property int columns: !isChoice ? 1
+    : options.length <= 3 ? Math.max(1, options.length)
+    : 2
+  // Shown only when no offered choice matches the machine's saved setting and
+  // the user has staged a choice, giving a clean way back to "unchanged".
+  readonly property bool showKeepCurrent: isChoice && !SetupModel.currentOption(step) && !!pickedOption
 
   readonly property color foreground: Commons.Color.menu.text
   readonly property color accent: Commons.Color.accent
   readonly property color dim: Util.alpha(foreground, 0.66)
   readonly property string fontFamily: Style.font.menuFamily
 
-  width: Style.space(900)
-  height: Style.space(612)
+  width: Style.space(760)
+  height: Style.space(592)
   radius: Style.cornerRadius
   color: Commons.Color.menu.background
   borderSpec: Border.surfaceSpec("menu", "border", Commons.Color.menu.border, Math.max(1, Style.space(2)))
-  padding: Style.space(20)
+  padding: Style.space(24)
 
-  // ------------------------------------------------------------- moving about
+  // ------------------------------------------------------------- navigation
 
-  function start(nextMode, pageName) {
+  function start() {
     staged = ({})
-    mode = nextMode === "tour" ? "tour" : "app"
+    stagedSub = ({})
     stepIndex = -1
-    pageIndex = 0
-    wantedPage = String(pageName || "")
+    focusZone = "control"
+    pointerAwake = false
     pendingStart = false
-    onTourLink = false
     splash.cursor = 0
-    summaryCursor = 1
-    if (!touring) aboutToList()
-    seekPage()
-    settleCursor()
     entered()
   }
 
-  // The splash plays from its start for whoever has just been shown it.
   function entered() {
     if (onSplash) splash.play()
   }
 
-  // The page asked for is looked up once every page is there to look in.
-  function seekPage() {
-    if (!ready || wantedPage === "") return
-    var index = SetupModel.pageIndex(pages, wantedPage)
-    if (index >= 0) pageIndex = index
-    wantedPage = ""
-  }
-
-  // The tour starts on its first step once there are steps to start on.
   function begin() {
     if (ready) goToStep(0)
     else pendingStart = true
   }
 
-  // What the tour has picked at a step: the choice made there, else what the
-  // machine has now.
-  function chosenId(step) {
-    var option = SetupModel.pick(step, staged)
-    return option ? option.id : ""
-  }
-
-  // The cursor rests on the choice a page already shows, not on its first row.
-  function settleCursor() {
-    var index = 0
-    var wanted = touring ? chosenId(page) : null
-    // Read from the page itself: a handler for its change runs before the
-    // bindings that follow from it have caught up.
-    var list = SetupModel.flatOptions(page)
-    for (var i = 0; i < list.length; i++) {
-      if (touring ? list[i].id === wanted : list[i].current) { index = i; break }
-    }
-    cursor = index
-  }
-
-  onPageChanged: {
-    pointerAwake = false
-    // A page opens from its top, and from there shows its marked card.
-    optionScroll.contentY = 0
-    settleCursor()
-  }
-  // The tour's cursor has no say of its own: it goes where the pick goes.
-  onStagedChanged: settleCursor()
-  onReadyChanged: {
-    if (!ready) return
-    seekPage()
-    settleCursor()
-    if (pendingStart && onSplash) goToStep(0)
-    pendingStart = false
-  }
-  // Options that move under a resting pointer, as a page changes or scrolls
-  // to follow the keyboard, must not take the cursor from it. Nor must the
-  // card growing in as it opens, so the pointer is placed in the window.
-  onCursorChanged: pointerGate.reset()
-
-  PointerMoveGate {
-    id: pointerGate
-    referenceItem: root.Window.contentItem
-  }
-
-  // The tour's own gate, for waking the pointer. It is fed from all of the
-  // card, so what it compares with is where the pointer last was, and it
-  // places the pointer in the window, which the card growing in as it opens
-  // does not change. That tells the pointer moving from a card arriving
-  // under it, with no reset.
-  PointerMoveGate {
-    id: wakeGate
-    referenceItem: root.Window.contentItem
-  }
-
-  HoverHandler {
-    onPointChanged: if (wakeGate.moved(root, point.position) && root.touring) root.pointerAwake = true
-  }
-
-  FontMetrics {
-    id: labelMetrics
-    font.family: root.fontFamily
-    font.pixelSize: Style.font.body
-  }
-
-  // The splash is where the tour starts, and is not somewhere to go back to.
   function goToStep(index) {
     if (!ready) return
     if (onSplash) aboutToList()
-    stepIndex = Math.max(0, Math.min(steps.length, index))
-    summaryCursor = 1
+    var next = Math.max(0, Math.min(steps.length, index))
+    stepIndex = next
+    pointerAwake = false
+    optionScroll.contentY = 0
+    focusZone = next >= steps.length ? "finish" : "control"
+    if (Style.reduceMotion) {
+      stepEnterAnim.stop()
+      stepEnter = 1
+    } else {
+      stepEnterAnim.restart()
+    }
+    stepViewed(next >= steps.length ? "ready" : steps[next].id)
   }
 
-  // Past the last page, or back from the first, is the tour's link, so the
-  // keyboard reaches it too.
-  function goToPage(index) {
-    if (!ready || pages.length === 0) return
-    onTourLink = index < 0 || index >= pages.length
-    if (!onTourLink) pageIndex = index
+  onReadyChanged: {
+    if (!ready) return
+    if (pendingStart && onSplash) goToStep(0)
+    pendingStart = false
   }
 
-  function stage(option) {
-    if (!page || !option) return
+  function setStaged(stepId, value) {
     var next = ({})
     for (var key in staged) next[key] = staged[key]
-    next[page.id] = option.id
+    next[stepId] = value
     staged = next
   }
 
-  // A click, or Enter on a page: the tour remembers the option as the step's
-  // pick, and the pages run the row.
-  function choose(index) {
-    var option = options[index]
-    if (!ready || !option || option.installed) return
-    if (touring) {
-      stage(option)
-    } else {
-      cursor = index
-      activated(option)
-    }
+  function setStagedSub(stepId, value) {
+    var next = ({})
+    for (var key in stagedSub) next[key] = stagedSub[key]
+    next[stepId] = value
+    stagedSub = next
   }
 
-  // An arrow key. On a page it moves the cursor. In the tour it picks the
-  // option it lands on, since a cursor apart from the pick would have the
-  // picture show one option while another is marked.
-  function move(dx, dy) {
-    var next = SetupModel.moveCursor(page, columns, cursor, dx, dy)
+  function pickChoice(option) {
+    if (!ready || !isChoice || !option) return
+    if (step.optional && pickedOption && pickedOption.id === option.id) {
+      setStaged(step.id, "")
+    } else {
+      setStaged(step.id, option.id)
+    }
+    focusZone = "control"
+  }
+
+  function pickSubOption(sub) {
+    if (!ready || !showSubOptions || !sub) return
+    setStagedSub(step.id, sub.id)
+    focusZone = "sub"
+  }
+
+  function moveSubOption(delta, wrap) {
+    if (!showSubOptions || subOptions.length === 0) return
     pointerAwake = false
-    if (touring) choose(next)
-    else cursor = next
+    focusZone = "sub"
+    var currentIndex = 0
+    if (pickedSubOption) {
+      for (var i = 0; i < subOptions.length; i++) {
+        if (subOptions[i].id === pickedSubOption.id) { currentIndex = i; break }
+      }
+    }
+    var nextIndex = wrap
+      ? (currentIndex + delta + subOptions.length) % subOptions.length
+      : Math.max(0, Math.min(subOptions.length - 1, currentIndex + delta))
+    if (nextIndex !== currentIndex || !stagedSub[step.id]) setStagedSub(step.id, subOptions[nextIndex].id)
+  }
+
+  function keepCurrentChoice() {
+    if (!ready || !isChoice) return
+    setStaged(step.id, "")
+    focusZone = "control"
+  }
+
+  function setToggle(value) {
+    if (!ready || !isToggle) return
+    setStaged(step.id, !!value)
+    focusZone = "control"
+  }
+
+  function flipToggle() {
+    setToggle(!toggleEnabled)
+  }
+
+  function moveChoice(dx, dy) {
+    if (!isChoice || options.length === 0) return
+    pointerAwake = false
+    focusZone = "control"
+    var currentIndex = -1
+    if (pickedOption) {
+      for (var i = 0; i < options.length; i++) {
+        if (options[i].id === pickedOption.id) { currentIndex = i; break }
+      }
+    }
+    if (currentIndex < 0) {
+      setStaged(step.id, options[0].id)
+      return
+    }
+    var nextIndex = currentIndex
+    if (dx !== 0) {
+      var rowStart = Math.floor(currentIndex / columns) * columns
+      var rowEnd = Math.min(options.length - 1, rowStart + columns - 1)
+      nextIndex = Math.max(rowStart, Math.min(rowEnd, currentIndex + dx))
+    } else if (dy !== 0) {
+      var target = currentIndex + dy * columns
+      if (target >= 0 && target < options.length) nextIndex = target
+      else if (dy > 0 && Math.floor(currentIndex / columns) < Math.floor((options.length - 1) / columns)) nextIndex = options.length - 1
+      else if (dy > 0 && showSubOptions) { focusZone = "sub"; return }
+    }
+    if (nextIndex !== currentIndex) setStaged(step.id, options[nextIndex].id)
+  }
+
+  function stepFocusOrder() {
+    if (onSummary) return steps.length > 0 ? ["finish", "skip", "back"] : ["finish", "skip"]
+    var zones = ["control"]
+    if (showSubOptions) zones.push("sub")
+    if (showKeepCurrent) zones.push("keep")
+    zones.push("continue")
+    zones.push("skip")
+    if (stepIndex > 0) zones.push("back")
+    return zones
+  }
+
+  function cycleFocus(delta) {
+    var zones = stepFocusOrder()
+    var idx = zones.indexOf(focusZone)
+    if (idx < 0) idx = 0
+    focusZone = zones[(idx + delta + zones.length) % zones.length]
+  }
+
+  function activateFocusedButton() {
+    if (focusZone === "skip") dismissed()
+    else if (focusZone === "back") goToStep(stepIndex - 1)
+    else if (focusZone === "keep") keepCurrentChoice()
+    else if (focusZone === "continue") goToStep(stepIndex + 1)
+    else if (focusZone === "finish") finish()
   }
 
   function finish() {
     if (ready) finished(plan.argv, plan.changes.map(function(change) { return change.page }))
   }
 
-  // What the model on offer takes and gives. The agents panel says the same
-  // in its own shorthand, which a first login has not learned yet.
-  function localFacts() {
-    if (!offer) return ""
-    var facts = []
-    if (offer.memoryGib > 0) facts.push(Commons.I18n.t("setup.localMemoryFact").arg(Commons.I18n.formatNumber(offer.memoryGib, 0)))
-    if (offer.context > 0) facts.push(Commons.I18n.t("setup.localContextFact").arg(Commons.I18n.formatNumber(Math.round(offer.context / 1024), 0)))
-    if (offer.tokensPerSecond > 0) facts.push(Commons.I18n.t("setup.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(offer.tokensPerSecond), 0)))
-    return facts.join("  \u{b7}  ")
+  function localFacts(item, multiline) {
+    var target = item || offer
+    if (!target) return ""
+    var mem = target.memoryGib > 0 ? Commons.I18n.t("setup.localMemoryFact").arg(Commons.I18n.formatNumber(target.memoryGib, 0)) : ""
+    var rest = []
+    if (target.context > 0) rest.push(Commons.I18n.t("setup.localContextFact").arg(Commons.I18n.formatNumber(Math.round(target.context / 1024), 0)))
+    if (target.tokensPerSecond > 0) rest.push(Commons.I18n.t("setup.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(target.tokensPerSecond), 0)))
+    if (multiline) {
+      if (mem && rest.length > 0) return mem + "\n" + rest.join(" \u{b7} ")
+      return mem || rest.join(" \u{b7} ")
+    }
+    var all = mem ? [mem].concat(rest) : rest
+    return all.join("  \u{b7}  ")
   }
 
-  // What a lone row's button says: where pressing it leads.
-  function actionLabel(option) {
-    if (!option) return ""
-    if (option.installed) return Commons.I18n.t("setup.installed")
-    if (option.handoff === "terminal") return Commons.I18n.t("setup.actionStart")
-    if (option.handoff === "editor") return Commons.I18n.t("setup.actionEdit")
-    if (option.handoff === "menu") return Commons.I18n.t("setup.actionChoose")
-    return Commons.I18n.t("setup.actionOpen")
+  // Tracks actual pointer motion in window coordinates so a card arriving
+  // under a resting pointer never lights up until the user moves it.
+  PointerMoveGate {
+    id: wakeGate
+    referenceItem: root.Window.contentItem
   }
 
-  // ------------------------------------------------------------- the keyboard
+  HoverHandler {
+    onPointChanged: if (wakeGate.moved(root, point.position)) root.pointerAwake = true
+  }
+
+  // ------------------------------------------------------------- keyboard
 
   function handleKey(event) {
     var key = Util.readingKey(event, true)
-    var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space
-    var forward = event.key === Qt.Key_Tab
-    var back = event.key === Qt.Key_Backtab || event.key === Qt.Key_Backspace
+    var isReturn = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+    var isSpace = event.key === Qt.Key_Space
+    var isTab = event.key === Qt.Key_Tab
+    var isBacktab = event.key === Qt.Key_Backtab
+    var isBack = event.key === Qt.Key_Backspace || event.key === Qt.Key_PageUp
+    var isPageNext = event.key === Qt.Key_PageDown
     var up = event.key === Qt.Key_Up || event.text === "k"
     var down = event.key === Qt.Key_Down || event.text === "j"
 
@@ -295,149 +297,99 @@ BorderSurface {
       dismissed()
       return true
     }
-    // A key held down must not walk the tour, or run a row over and over.
-    if (event.isAutoRepeat && (enter || forward || back)) return true
+    if (event.isAutoRepeat && (isReturn || isSpace || isTab || isBacktab || isBack || isPageNext)) return true
 
     if (onSplash) {
-      if (enter) splash.activate()
-      else if (forward) splash.cursor = (splash.cursor + 1) % 3
-      else if (event.key === Qt.Key_Backtab) splash.cursor = (splash.cursor + 2) % 3
+      if (isReturn || isSpace) splash.activate()
+      else if (isTab || isBacktab) splash.cursor = (splash.cursor + 1) % 2
       else if (key === Qt.Key_Right && splash.cursor === 0) splash.cursor = 1
       else if (key === Qt.Key_Left && splash.cursor === 1) splash.cursor = 0
-      else if (down) splash.cursor = 2
-      else if (up && splash.cursor === 2) splash.cursor = 0
-    } else if (!ready) {
-      // Nothing is on the page yet to act on.
-    } else if (onSummary) {
-      if (enter && summaryCursor === 1) finish()
-      else if (enter || back) goToStep(stepIndex - 1)
-      else if (key === Qt.Key_Left) summaryCursor = 0
-      else if (key === Qt.Key_Right || forward) summaryCursor = 1
-    } else if (onTourLink) {
-      if (enter) start("tour", "")
-      else if (forward) goToPage(0)
-      else if (back) goToPage(pages.length - 1)
-    } else if (enter && !touring) {
-      choose(cursor)
-    } else if (enter) {
-      // The step's pick is made by moving to it, so Enter only moves on, and
-      // Space, which would pick, has nothing left to do.
-      if (event.key !== Qt.Key_Space) goToStep(stepIndex + 1)
-    } else if (forward || event.key === Qt.Key_PageDown) {
-      if (touring) goToStep(stepIndex + 1)
-      else goToPage(pageIndex + 1)
-    } else if (back || event.key === Qt.Key_PageUp) {
-      if (touring) goToStep(stepIndex - 1)
-      else goToPage(pageIndex - 1)
-    } else if (key === Qt.Key_Left) {
-      move(-1, 0)
-    } else if (key === Qt.Key_Right) {
-      move(1, 0)
-    } else if (up) {
-      move(0, -1)
-    } else if (down) {
-      move(0, 1)
-    } else {
+      else return false
+      return true
+    }
+
+    if (!ready) return true
+
+    if (onSummary) {
+      if (isReturn || isSpace) activateFocusedButton()
+      else if (isTab) cycleFocus(1)
+      else if (isBacktab) cycleFocus(-1)
+      else if (isBack && steps.length > 0) goToStep(stepIndex - 1)
+      else if (key === Qt.Key_Left && steps.length > 0) focusZone = "back"
+      else if (key === Qt.Key_Right) focusZone = "finish"
+      else return false
+      return true
+    }
+
+    // Essential step: every key has one clear job.
+    if (isTab) {
+      cycleFocus(1)
+      return true
+    }
+    if (isBacktab) {
+      cycleFocus(-1)
+      return true
+    }
+    if (isBack) {
+      if (stepIndex > 0) goToStep(stepIndex - 1)
+      return true
+    }
+    if (isPageNext) {
+      goToStep(stepIndex + 1)
+      return true
+    }
+
+    if (focusZone === "sub") {
+      if (isReturn) { goToStep(stepIndex + 1); return true }
+      if (isSpace) { moveSubOption(1, true); return true }
+      if (key === Qt.Key_Left) { moveSubOption(-1, false); return true }
+      if (key === Qt.Key_Right) { moveSubOption(1, false); return true }
+      if (up) { focusZone = "control"; return true }
       return false
     }
-    return true
+
+    if (focusZone !== "control") {
+      if (isReturn || isSpace) {
+        activateFocusedButton()
+        return true
+      }
+      if (key === Qt.Key_Left || key === Qt.Key_Right || up || down) {
+        if (isChoice) moveChoice(key === Qt.Key_Left ? -1 : key === Qt.Key_Right ? 1 : 0, up ? -1 : down ? 1 : 0)
+        else if (isToggle && (key === Qt.Key_Left || key === Qt.Key_Right)) setToggle(key === Qt.Key_Right)
+        else focusZone = "control"
+        return true
+      }
+      return false
+    }
+
+    // Focus is on the step's primary control.
+    if (isReturn) {
+      goToStep(stepIndex + 1)
+      return true
+    }
+    if (isToggle) {
+      if (isSpace) { flipToggle(); return true }
+      if (key === Qt.Key_Left) { pointerAwake = false; setToggle(false); return true }
+      if (key === Qt.Key_Right) { pointerAwake = false; setToggle(true); return true }
+      return false
+    }
+    if (isChoice) {
+      if (isSpace) {
+        if (step.optional) {
+          if (pickedOption) keepCurrentChoice()
+          else moveChoice(0, 0)
+        }
+        return true
+      }
+      if (key === Qt.Key_Left) { moveChoice(-1, 0); return true }
+      if (key === Qt.Key_Right) { moveChoice(1, 0); return true }
+      if (up) { moveChoice(0, -1); return true }
+      if (down) { moveChoice(0, 1); return true }
+    }
+    return false
   }
 
-  // ------------------------------------------------------------- the pieces
-
-  // A caption is set in spaced capitals, whatever case its words come in.
-  component Caption: PanelSectionHeader {
-    property string words: ""
-
-    text: words.toUpperCase()
-    foreground: root.foreground
-    fontFamily: root.fontFamily
-    font.letterSpacing: 1.6
-  }
-
-  component RailRow: Item {
-    id: row
-
-    property string label: ""
-    property string icon: ""
-    property string iconFont: ""
-    property bool here: false
-    // In the tour, a step whose pick differs from what the machine has.
-    property bool changed: false
-
-    signal picked()
-
-    width: parent ? parent.width : 0
-    height: Style.space(27)
-
-    Rectangle {
-      anchors.fill: parent
-      radius: Style.cornerRadius
-      color: row.here ? Commons.Color.menu.selectedBackground : hover.containsMouse ? Style.hoverFillFor(root.foreground, root.accent) : "transparent"
-    }
-
-    Rectangle {
-      visible: row.here
-      width: Style.space(3)
-      height: parent.height - Style.space(12)
-      anchors.left: parent.left
-      anchors.verticalCenter: parent.verticalCenter
-      color: Commons.Color.menu.selectedText
-    }
-
-    Text {
-      id: railGlyph
-      textFormat: Text.PlainText
-      text: row.icon
-      color: row.here ? Commons.Color.menu.selectedText : root.dim
-      font.family: row.iconFont !== "" ? row.iconFont : root.fontFamily
-      font.pixelSize: Style.font.icon
-      horizontalAlignment: Text.AlignHCenter
-      width: Style.space(18)
-      anchors.left: parent.left
-      anchors.leftMargin: Style.space(12)
-      anchors.verticalCenter: parent.verticalCenter
-    }
-
-    Text {
-      textFormat: Text.PlainText
-      text: row.label
-      color: row.here ? Commons.Color.menu.selectedText : root.foreground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.body
-      font.bold: row.here
-      elide: Text.ElideRight
-      anchors.left: railGlyph.right
-      anchors.leftMargin: Style.space(8)
-      anchors.right: railMark.visible ? railMark.left : parent.right
-      anchors.rightMargin: Style.space(8)
-      anchors.verticalCenter: parent.verticalCenter
-    }
-
-    // A dot, as an editor marks a file with changes: the check is the mark of
-    // a pick, and of what the machine already has.
-    Rectangle {
-      id: railMark
-      visible: row.changed
-      width: Style.space(6)
-      height: width
-      radius: width / 2
-      color: root.foreground
-      anchors.right: parent.right
-      anchors.rightMargin: Style.space(10)
-      anchors.verticalCenter: parent.verticalCenter
-    }
-
-    MouseArea {
-      id: hover
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onClicked: row.picked()
-    }
-  }
-
-  // Clicks on the card are not clicks on the scrim behind it.
+  // Swallow clicks inside the card so they do not bubble to the scrim.
   MouseArea { anchors.fill: parent; onClicked: {} }
 
   Item {
@@ -453,179 +405,167 @@ BorderSurface {
       anchors.fill: parent
       visible: root.onSplash
       foreground: root.foreground
+      accent: root.accent
+      surface: root.color
       onStarted: root.begin()
       onSkipped: root.dismissed()
-      onBrowsed: root.start("app", "")
     }
 
-    // ----------------------------------------------------------- header
+    // ----------------------------------------------------------- top bar
 
     Item {
-      id: header
+      id: topBar
       visible: !root.onSplash
       anchors.top: parent.top
       anchors.left: parent.left
       anchors.right: parent.right
       height: Style.space(24)
 
-      Text {
-        id: brand
-        textFormat: Text.PlainText
-        text: "\u{e900}"
-        color: root.accent
-        font.family: "omarchy"
-        font.pixelSize: Style.font.heading
+      BrandMark {
+        width: Style.space(22)
+        height: width
+        foreground: root.foreground
+        accent: root.accent
+        surface: root.color
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
       }
 
-      Caption {
-        words: root.touring ? Commons.I18n.t("setup.welcomeHeader") : Commons.I18n.t("setup.title")
-        color: root.foreground
-        anchors.left: brand.right
-        anchors.leftMargin: Style.space(10)
-        anchors.verticalCenter: parent.verticalCenter
-      }
+      // Passive step pills: elongated for the active screen, accent-tinted for
+      // steps with a staged change, softly lit once visited.
+      Row {
+        id: progressPills
+        anchors.centerIn: parent
+        spacing: Style.space(7)
 
-      Caption {
-        visible: root.touring && !root.onSummary
-        words: Commons.I18n.t("setup.stepOf").arg(Commons.I18n.formatNumber(root.stepIndex + 1)).arg(Commons.I18n.formatNumber(root.steps.length))
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-      }
-    }
+        Repeater {
+          model: root.steps.length + 1
 
-    // ----------------------------------------------------------- rail
+          Rectangle {
+            required property int index
+            readonly property bool isCurrent: root.onSummary ? index === root.steps.length : index === root.stepIndex
+            readonly property bool visited: root.onSummary ? index < root.steps.length : index < root.stepIndex
+            readonly property var stepObj: index < root.steps.length ? root.steps[index] : null
+            readonly property bool changed: !!stepObj && root.plan.changes.some(function(change) { return change.page === stepObj.id })
 
-    Item {
-      id: rail
-      visible: !root.onSplash
-      anchors.top: header.bottom
-      anchors.topMargin: Style.space(16)
-      anchors.left: parent.left
-      anchors.bottom: footer.top
-      anchors.bottomMargin: Style.space(14)
-      width: Style.space(184)
+            width: isCurrent ? Style.space(22) : Style.space(7)
+            height: Style.space(7)
+            radius: Style.cornerRadius > 0 ? height / 2 : 0
+            color: isCurrent ? root.foreground
+              : changed ? root.accent
+              : visited ? Util.alpha(root.foreground, 0.42)
+              : Util.alpha(root.foreground, 0.2)
 
-      Flickable {
-        id: railScroll
-        anchors.fill: parent
-        clip: true
-        contentHeight: railColumn.height
-        boundsBehavior: Flickable.StopAtBounds
-        interactive: contentHeight > height
+            Accessible.role: Accessible.Indicator
+            Accessible.name: stepObj ? stepObj.title : Commons.I18n.t("setup.readyPill")
 
-        Column {
-          id: railColumn
-          width: railScroll.width
-          spacing: Style.space(1)
-
-          Repeater {
-            model: root.touring ? root.steps : root.pages
-
-            Column {
-              id: railEntry
-
-              required property int index
-              required property var modelData
-              // Each group of pages gets its name above its first row.
-              readonly property bool opensSection: !root.touring && (index === 0 || root.pages[index - 1].section !== modelData.section)
-
-              width: railColumn.width
-              spacing: Style.space(1)
-
-              Item {
-                visible: railEntry.opensSection
-                width: parent.width
-                height: railEntry.index === 0 ? Style.space(20) : Style.space(34)
-
-                Caption {
-                  words: railEntry.modelData.section === "essentials" ? Commons.I18n.t("setup.essentialsHeader") : Commons.I18n.t("setup.menuHeader")
-                  anchors.left: parent.left
-                  anchors.leftMargin: Style.space(12)
-                  anchors.bottom: parent.bottom
-                  anchors.bottomMargin: Style.space(6)
-                }
-              }
-
-              RailRow {
-                label: railEntry.modelData.title
-                icon: railEntry.modelData.icon
-                iconFont: railEntry.modelData.iconFont
-                here: !root.onTourLink && (root.touring ? railEntry.index === root.stepIndex : railEntry.index === root.pageIndex)
-                changed: root.touring && root.plan.changes.some(function(change) { return change.page === railEntry.modelData.id })
-                onPicked: root.touring ? root.goToStep(railEntry.index) : root.goToPage(railEntry.index)
+            Behavior on width {
+              NumberAnimation {
+                duration: Style.duration(220)
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Style.easeOut
               }
             }
-          }
-
-          RailRow {
-            visible: root.touring
-            label: Commons.I18n.t("setup.review")
-            icon: "\u{f11e}"
-            here: root.onSummary
-            onPicked: root.goToStep(root.steps.length)
+            Behavior on color { ColorAnimation { duration: Style.duration(160) } }
           }
         }
       }
     }
 
-    Rectangle {
-      id: divider
-      visible: rail.visible
-      anchors.top: rail.top
-      anchors.bottom: rail.bottom
-      anchors.left: rail.right
-      anchors.leftMargin: Style.space(14)
-      width: Style.spacing.hairline
-      color: Util.alpha(root.foreground, 0.12)
-    }
-
-    // ----------------------------------------------------------- a page
+    // ----------------------------------------------------------- essential step
 
     Item {
       id: pane
-      visible: !root.onSplash && !root.onSummary && !!root.page
+      visible: !root.onSplash && !root.onSummary && !!root.step
       enabled: root.ready
-      opacity: root.ready ? 1 : 0
-      anchors.top: rail.top
-      anchors.bottom: rail.bottom
-      anchors.left: divider.right
-      anchors.leftMargin: Style.space(18)
+      opacity: root.ready ? root.stepEnter : 0
+      transform: Translate { y: (1 - root.stepEnter) * Style.space(6) }
+      anchors.top: topBar.bottom
+      anchors.topMargin: Style.space(18)
+      anchors.bottom: footer.top
+      anchors.bottomMargin: Style.space(18)
+      anchors.left: parent.left
       anchors.right: parent.right
 
-      // A step with a Not now card pictures the thing set up while it is the
-      // pick, and left alone while Not now is.
-      readonly property bool wanted: !!root.cursorOption && root.cursorOption.id !== ""
-      // What sits under the scene: the words, the options and the detail line,
-      // with the gaps between them.
-      readonly property real below: words.anchors.topMargin + words.height + optionScroll.anchors.topMargin + optionScroll.contentHeight
-        + (detail.visible ? detail.anchors.topMargin + detail.height : 0)
+      readonly property real subBarHeight: Style.space(40)
+      readonly property real subSlot: root.hasStepSubOptions ? (Style.space(10) + subBarHeight) : 0
+      readonly property real controlsHeight: root.isToggle ? toggleCard.implicitHeight : (optionScroll.contentHeight + subSlot)
+      readonly property real reserved: words.height + Style.space(14) + Style.space(16) + controlsHeight
 
-      Behavior on opacity { NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic } }
-
-      Loader {
-        id: scene
+      // Step title and description sit at the top so every tour screen and
+      // Ready share the same top-down hierarchy: what -> preview -> choice.
+      Column {
+        id: words
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        // The scene takes what is left over, so a page with many options
-        // trades some of its picture for room to list them.
-        height: Util.clamp(pane.height - pane.below, Style.space(112), Style.space(268))
-        sourceComponent: !root.page ? null
-          : root.page.scene === "layout" ? layoutScene
-          : root.page.scene === "agent" ? agentScene
-          : root.page.scene === "dictation" ? dictationScene
-          : root.page.scene === "local-ai" ? localAiScene
-          : root.page.scene === "tailscale" ? tailscaleScene
-          : root.page.scene === "defaults" ? defaultsScene
-          : root.page.scene === "plugins" ? pluginsScene
-          : root.page.scene === "security" ? securityScene
-          : root.page.scene === "git" ? gitScene
-          : root.page.scene === "keyboard" ? keyboardScene
-          : root.page.scene === "region" ? regionScene
-          : root.page.scene === "network" ? networkScene
-          : handoffScene
+        spacing: Style.space(4)
+
+        Item {
+          width: parent.width
+          height: Math.max(stepTitle.implicitHeight, keepCurrentLink.implicitHeight)
+
+          Text {
+            id: stepTitle
+            textFormat: Text.PlainText
+            text: root.step ? root.step.title : ""
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
+            font.bold: true
+            horizontalAlignment: Text.AlignLeft
+            wrapMode: Text.WordWrap
+            anchors.left: parent.left
+            anchors.right: keepCurrentLink.visible ? keepCurrentLink.left : parent.right
+            anchors.rightMargin: keepCurrentLink.visible ? Style.space(12) : 0
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          // Anchored on the heading baseline so showing or hiding it never
+          // shifts the scene height or choice grid below.
+          SetupButton {
+            id: keepCurrentLink
+            visible: root.showKeepCurrent
+            text: root.step && root.step.optional ? Commons.I18n.t("setup.notNow") : Commons.I18n.t("setup.keepCurrent")
+            quiet: true
+            hasCursor: root.focusZone === "keep"
+            foreground: root.foreground
+            accent: root.accent
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.keepCurrentChoice()
+          }
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          visible: text !== ""
+          text: root.step ? root.step.description : ""
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          lineHeight: 1.35
+          horizontalAlignment: Text.AlignLeft
+          wrapMode: Text.WordWrap
+          width: parent.width
+        }
+      }
+
+      // Hero illustration shrinks first on short displays so translated copy
+      // wraps cleanly at full size.
+      Loader {
+        id: scene
+        anchors.top: words.bottom
+        anchors.topMargin: Style.space(14)
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Util.clamp(pane.height - pane.reserved, Style.space(120), Style.space(248))
+        sourceComponent: !root.step ? null
+          : root.step.scene === "layout" ? layoutScene
+          : root.step.scene === "dictation" ? dictationScene
+          : root.step.scene === "agent" ? agentScene
+          : root.step.scene === "local-ai" ? localAiScene
+          : tailscaleScene
       }
 
       Component {
@@ -633,150 +573,78 @@ BorderSurface {
         LayoutScene {
           foreground: root.foreground
           accent: root.accent
-          // An option that sets no layout, Not now among them, draws none.
-          mode: root.cursorOption && root.cursorOption.args && root.cursorOption.args.length > 1 ? root.cursorOption.args[1] : ""
+          mode: root.pickedOption && root.pickedOption.args && root.pickedOption.args.length > 1 ? root.pickedOption.args[1] : ""
+        }
+      }
+      Component {
+        id: dictationScene
+        DictationScene {
+          foreground: root.foreground
+          accent: root.accent
+          place: root.pickedSubOption ? root.pickedSubOption.place : (root.pickedOption ? root.pickedOption.place : "")
+          listening: !!root.pickedOption
         }
       }
       Component {
         id: agentScene
-        AgentScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: dictationScene
-        DictationScene { foreground: root.foreground; accent: root.accent; place: root.cursorOption ? root.cursorOption.place : ""; listening: pane.wanted }
+        AgentScene {
+          foreground: root.foreground
+          accent: root.accent
+          option: root.pickedOption
+        }
       }
       Component {
         id: localAiScene
-        LocalAiScene { foreground: root.foreground; accent: root.accent; running: pane.wanted }
+        LocalAiScene {
+          foreground: root.foreground
+          accent: root.accent
+          running: root.isToggle ? root.toggleEnabled : !!root.pickedOption
+        }
       }
       Component {
         id: tailscaleScene
-        TailscaleScene { foreground: root.foreground; accent: root.accent; connected: pane.wanted }
-      }
-      Component {
-        id: defaultsScene
-        DefaultsScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: pluginsScene
-        PluginsScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: securityScene
-        SecurityScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: gitScene
-        GitScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: keyboardScene
-        KeyboardScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: regionScene
-        RegionScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: networkScene
-        NetworkScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-      Component {
-        id: handoffScene
-        HandoffScene { foreground: root.foreground; accent: root.accent; option: root.cursorOption }
-      }
-
-      Column {
-        id: words
-        anchors.top: scene.bottom
-        anchors.topMargin: Style.space(14)
-        anchors.left: parent.left
-        anchors.right: parent.right
-        spacing: Style.space(5)
-
-        Text {
-          textFormat: Text.PlainText
-          text: root.page ? root.page.title : ""
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.heading
-          font.bold: true
-          elide: Text.ElideRight
-          width: parent.width
-        }
-
-        Text {
-          textFormat: Text.PlainText
-          visible: text !== ""
-          text: root.page ? root.page.description : ""
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          lineHeight: 1.3
-          wrapMode: Text.WordWrap
-          maximumLineCount: 2
-          elide: Text.ElideRight
-          width: parent.width
-        }
-
-        Text {
-          textFormat: Text.PlainText
-          visible: !!root.page && root.page.scene === "local-ai" && text !== ""
-          text: root.localFacts()
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-          width: parent.width
+        TailscaleScene {
+          foreground: root.foreground
+          accent: root.accent
+          connected: root.toggleEnabled
         }
       }
 
+      // Choice cards (Workspace Layout, Dictation, multi-blueprint Local AI)
       Flickable {
         id: optionScroll
+        visible: root.isChoice
 
-        // It reaches a little past its options on every side, so the ring
-        // around the one under the cursor is not cut by the clip.
         readonly property real bleed: Style.space(4)
-        // How far in from an edge the options fade out, once there are more
-        // past it.
-        readonly property real fade: Math.min(Style.space(28), height / 2)
+        readonly property real fade: Math.min(Style.space(24), height / 2)
 
-        anchors.top: words.bottom
-        anchors.topMargin: Style.space(12) - bleed
+        anchors.top: scene.bottom
+        anchors.topMargin: Style.space(16) - bleed
         anchors.left: parent.left
         anchors.leftMargin: -bleed
         anchors.right: parent.right
         anchors.rightMargin: -bleed
-        // As tall as its options, up to the room there is; then it scrolls.
-        height: Math.min(contentHeight, pane.height - y - (detail.visible ? detail.anchors.topMargin + detail.height : 0))
+        height: Math.min(contentHeight, Math.max(Style.space(60), pane.height - y - pane.subSlot))
         clip: true
-        contentHeight: optionColumn.height + bleed * 2
+        contentHeight: choiceGrid.height + bleed * 2
         boundsBehavior: Flickable.StopAtBounds
         interactive: contentHeight > height
 
-        // The card that is marked: a page's cursor, or a step's pick.
         property Item kept: null
-        // A scroll to it is on its way.
         property bool due: false
 
-        // Brings that card into view on a page long enough to scroll, and
-        // clear of the fade wherever more lies past it, moving the list no
-        // further than that takes.
         function reveal() {
           if (!due) return
           due = false
           if (!kept) return
-          var top = kept.place
+          var top = kept.y
           var bottom = top + kept.height + bleed * 2
-          var y = contentY
-          if (top - fade < y) y = Math.floor(top - fade)
-          else if (bottom + fade > y + height) y = Math.ceil(bottom + fade - height)
-          contentY = Math.max(0, Math.min(contentHeight - height, y))
+          var yPos = contentY
+          if (top - fade < yPos) yPos = Math.floor(top - fade)
+          else if (bottom + fade > yPos + height) yPos = Math.ceil(bottom + fade - height)
+          contentY = Math.max(0, Math.min(contentHeight - height, yPos))
         }
 
-        // Asked for whenever the marked card, where it sits or the room for
-        // the list changes, and done once those have settled: a card is
-        // created before its grid and its group have placed it, and the list
-        // is as long as it will be later still.
         function follow() {
           if (root.pointing) return
           due = true
@@ -786,113 +654,62 @@ BorderSurface {
         onContentHeightChanged: follow()
         onHeightChanged: follow()
 
-        // With the pointer gone, a page's picture goes back to what the
-        // machine has rather than staying on whichever option the pointer
-        // crossed last on its way out.
-        HoverHandler {
-          onHoveredChanged: if (!hovered) root.settleCursor()
-        }
-
-        Column {
-          id: optionColumn
+        Grid {
+          id: choiceGrid
           x: optionScroll.bleed
           y: optionScroll.bleed
           width: optionScroll.width - optionScroll.bleed * 2
+          columns: root.columns
           spacing: Style.space(10)
 
           Repeater {
-            model: root.page ? root.page.groups : []
+            model: root.options
 
-            Column {
-              id: group
+            SetupOption {
+              id: choiceCard
 
               required property int index
               required property var modelData
-              // Where this group's options start among the page's.
-              readonly property int base: {
-                var before = 0
-                for (var i = 0; i < index; i++) before += root.page.groups[i].options.length
-                return before
+              readonly property bool selected: !!root.pickedOption && root.pickedOption.id === modelData.id
+
+              width: (choiceGrid.width - (choiceGrid.columns - 1) * choiceGrid.spacing) / choiceGrid.columns
+              label: modelData.label
+              detail: modelData.facts ? (root.localFacts(modelData.facts, !root.compactChoices) || modelData.detail) : modelData.detail
+              icon: selected && root.pickedSubOption && root.pickedSubOption.icon ? root.pickedSubOption.icon : modelData.icon
+              iconFont: selected && root.pickedSubOption && root.pickedSubOption.icon ? "" : modelData.iconFont
+              vendor: modelData.vendor || ""
+              pictogram: modelData.pictogram
+              compact: root.compactChoices
+              lights: root.pointerAwake
+              chosen: selected
+              focused: root.focusZone === "control"
+              focusedAnchor: !root.pickedOption && index === 0 && root.focusZone === "control"
+              current: modelData.current
+              recommended: !!modelData.recommended
+              foreground: root.foreground
+              accent: root.accent
+              onClicked: {
+                root.pointing = true
+                root.pickChoice(modelData)
+                root.pointing = false
               }
-
-              width: optionColumn.width
-              spacing: Style.space(6)
-
-              Caption {
-                visible: group.modelData.title !== ""
-                words: group.modelData.title
-                width: parent.width
-              }
-
-              Grid {
-                id: grid
-                width: parent.width
-                columns: root.columns
-                spacing: Style.space(6)
-
-                Repeater {
-                  model: group.modelData.options
-
-                  SetupOption {
-                    id: card
-
-                    required property int index
-                    required property var modelData
-                    readonly property int flat: group.base + index
-                    // Where the card sits among the options, once its grid
-                    // and its group have placed it.
-                    readonly property real place: group.y + grid.y + y
-                    readonly property bool marked: cursor || chosen
-
-                    width: root.single ? Style.space(200) : (grid.width - (grid.columns - 1) * grid.spacing) / grid.columns
-                    label: root.single ? root.actionLabel(modelData) : modelData.label
-                    icon: modelData.icon
-                    iconFont: modelData.iconFont
-                    large: root.large && !root.single
-                    labelSize: root.labelSize
-                    // A page marks its cursor and, as the menu does, what the
-                    // machine has. A step of the tour marks its pick alone.
-                    cursor: !root.touring && root.cursor === flat && !root.onTourLink
-                    lights: root.touring && root.pointerAwake
-                    chosen: root.touring && root.chosenId(root.page) === modelData.id
-                    current: !root.touring && modelData.current
-                    installed: modelData.installed
-                    foreground: root.foreground
-                    accent: root.accent
-                    // On a page the cursor goes where the pointer moves. In
-                    // the tour the pointer picks nothing by moving.
-                    onPointed: function(mouse) {
-                      if (root.touring || !pointerGate.moved(card, mouse)) return
-                      root.pointing = true
-                      root.cursor = flat
-                      root.pointing = false
-                    }
-                    onClicked: {
-                      root.pointing = true
-                      root.choose(flat)
-                      root.pointing = false
-                    }
-                    onMarkedChanged: {
-                      if (marked) {
-                        optionScroll.kept = card
-                        optionScroll.follow()
-                      } else if (optionScroll.kept === card) {
-                        optionScroll.kept = null
-                      }
-                    }
-                    onPlaceChanged: if (marked) optionScroll.follow()
-                  }
+              onChosenChanged: {
+                if (chosen) {
+                  optionScroll.kept = choiceCard
+                  optionScroll.follow()
+                } else if (optionScroll.kept === choiceCard) {
+                  optionScroll.kept = null
                 }
               }
+              onYChanged: if (chosen) optionScroll.follow()
             }
           }
         }
       }
 
-      // Fades at the edges once there is more than fits, as in the menu: how
-      // strong follows how much is still hidden past each edge.
+      // Edge fades only when an extension adds enough choices to scroll.
       Repeater {
-        model: 2
+        model: root.isChoice ? 2 : 0
 
         Rectangle {
           required property int index
@@ -912,147 +729,412 @@ BorderSurface {
         }
       }
 
-      // Two empty lines set as the detail is, for the room it is given.
-      Text {
-        id: twoLines
-        visible: false
-        textFormat: Text.PlainText
-        text: "\n"
-        font: detail.font
-        lineHeight: detail.lineHeight
-      }
+      // Segmented sub-option bar (e.g. Superwhisper Cloud vs On-device).
+      // Its vertical slot is reserved across every option on the step so
+      // switching between options with and without sub-options causes zero jump.
+      Item {
+        id: subBar
+        property var cachedSubOptions: []
+        readonly property var shownSubOptions: root.subOptions.length > 0 ? root.subOptions : cachedSubOptions
 
-      Text {
-        id: detail
-        textFormat: Text.PlainText
-        visible: root.hasDetails
-        text: root.cursorOption ? root.cursorOption.detail : ""
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        lineHeight: 1.3
-        wrapMode: Text.WordWrap
-        maximumLineCount: 2
-        elide: Text.ElideRight
+        Connections {
+          target: root
+          function onSubOptionsChanged() {
+            if (root.subOptions.length > 0) subBar.cachedSubOptions = root.subOptions
+          }
+          function onStepChanged() {
+            subBar.cachedSubOptions = root.subOptions
+          }
+        }
+
+        visible: root.hasStepSubOptions
+        enabled: root.showSubOptions
+        opacity: root.showSubOptions ? 1 : 0
+        anchors.top: optionScroll.bottom
+        anchors.topMargin: Style.space(6)
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: optionScroll.bottom
-        anchors.topMargin: Style.space(10) - optionScroll.bleed
-        // Two lines whether or not the words fill them, so nothing below shifts.
-        height: twoLines.implicitHeight
-      }
-    }
+        height: pane.subBarHeight
 
-    // ----------------------------------------------------------- summary
+        transform: Translate {
+          y: root.showSubOptions ? 0 : Style.space(4)
+          Behavior on y {
+            NumberAnimation {
+              duration: Style.duration(150)
+              easing.type: Easing.Bezier
+              easing.bezierCurve: Style.easeOut
+            }
+          }
+        }
 
-    Column {
-      id: summary
-      visible: root.onSummary
-      anchors.left: divider.right
-      anchors.leftMargin: Style.space(18)
-      anchors.right: parent.right
-      anchors.top: rail.top
-      anchors.topMargin: Style.space(8)
-      spacing: Style.space(20)
-
-      Column {
-        width: parent.width
-        spacing: Style.space(6)
-
-        Text {
-          textFormat: Text.PlainText
-          text: Commons.I18n.t("setup.summaryTitle")
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.heading
-          font.bold: true
-          width: parent.width
+        Behavior on opacity {
+          NumberAnimation {
+            duration: Style.duration(150)
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Style.easeOut
+          }
         }
 
         Text {
+          id: subLabel
           textFormat: Text.PlainText
-          text: root.plan.changes.length > 0 ? Commons.I18n.t("setup.summaryChanges") : Commons.I18n.t("setup.summaryNone")
+          text: Commons.I18n.t("setup.dictationModeLabel")
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          lineHeight: 1.3
-          wrapMode: Text.WordWrap
-          width: parent.width
+          font.pixelSize: Style.font.bodySmall
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
         }
-      }
 
-      Column {
-        visible: root.plan.changes.length > 0
-        width: parent.width
-        spacing: Style.space(8)
+        Row {
+          id: subRow
+          anchors.left: subLabel.right
+          anchors.leftMargin: Style.space(14)
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          height: parent.height
+          spacing: Style.space(8)
 
-        Repeater {
-          model: root.plan.changes
+          Repeater {
+            model: subBar.shownSubOptions
 
-          Row {
-            required property var modelData
-            width: parent.width
-            // One height for every row, whatever the height of its mark.
-            height: Style.space(26)
-            spacing: Style.space(10)
+            BorderSurface {
+              id: subPill
+              required property var modelData
+              readonly property bool picked: !!root.pickedSubOption && root.pickedSubOption.id === modelData.id
+              readonly property bool hovered: root.pointerAwake && segHover.hovered
 
-            Text {
-              textFormat: Text.PlainText
-              text: modelData.icon
-              color: root.accent
-              font.family: modelData.iconFont !== "" ? modelData.iconFont : root.fontFamily
-              font.pixelSize: Style.font.icon
-              horizontalAlignment: Text.AlignHCenter
-              width: Style.space(18)
-              anchors.verticalCenter: parent.verticalCenter
-            }
+              width: (subRow.width - Math.max(0, subBar.shownSubOptions.length - 1) * subRow.spacing) / Math.max(1, subBar.shownSubOptions.length)
+              height: subRow.height
+              radius: Style.cornerRadius
+              color: picked ? Style.selectedFillFor(root.foreground, root.accent)
+                : hovered ? Style.hoverFillFor(root.foreground, root.accent)
+                : Style.normalFillFor(root.foreground, root.accent)
+              borderSpec: Border.flat(
+                picked ? (root.focusZone === "sub" ? root.accent : Util.alpha(root.accent, 0.72))
+                  : hovered ? Util.alpha(root.foreground, 0.34)
+                  : Util.alpha(root.foreground, 0.16),
+                picked && root.focusZone === "sub" ? Math.max(1.5, Style.space(1.5)) : Style.spacing.hairline
+              )
 
-            Text {
-              textFormat: Text.PlainText
-              text: modelData.title
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              width: Style.space(150)
-              elide: Text.ElideRight
-              anchors.verticalCenter: parent.verticalCenter
-            }
+              Behavior on color { ColorAnimation { duration: Style.duration(130) } }
 
-            // A step with one thing to set up is named for it already.
-            Text {
-              textFormat: Text.PlainText
-              text: modelData.label === modelData.title ? Commons.I18n.t("setup.actionStart") : modelData.label
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-              anchors.verticalCenter: parent.verticalCenter
+              Accessible.role: Accessible.RadioButton
+              Accessible.name: modelData.label + (modelData.detail ? " " + modelData.detail : "")
+              Accessible.checked: picked
+
+              HoverHandler {
+                id: segHover
+                cursorShape: Qt.PointingHandCursor
+              }
+
+              TapHandler {
+                onTapped: root.pickSubOption(modelData)
+              }
+
+              Row {
+                anchors.centerIn: parent
+                spacing: Style.space(7)
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: modelData.icon || ""
+                  visible: text !== ""
+                  color: subPill.picked ? root.accent : Util.alpha(root.foreground, 0.62)
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.icon
+                  anchors.verticalCenter: parent.verticalCenter
+                  Behavior on color { ColorAnimation { duration: Style.duration(130) } }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: modelData.label
+                  color: subPill.picked ? root.foreground : Util.alpha(root.foreground, 0.84)
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: subPill.picked
+                  anchors.verticalCenter: parent.verticalCenter
+                  Behavior on color { ColorAnimation { duration: Style.duration(130) } }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  visible: !!modelData.detail
+                  text: "\u{b7}  " + (modelData.detail || "")
+                  color: subPill.picked ? Util.alpha(root.foreground, 0.68) : Util.alpha(root.foreground, 0.46)
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  anchors.verticalCenter: parent.verticalCenter
+                  Behavior on color { ColorAnimation { duration: Style.duration(130) } }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  visible: subPill.picked
+                  text: "\u{f00c}"
+                  color: root.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+              }
             }
           }
         }
       }
 
+      // Single opt-in feature toggle card (Agent, single-model Local AI, Tailscale)
+      SetupToggleCard {
+        id: toggleCard
+        visible: root.isToggle
+        anchors.top: scene.bottom
+        anchors.topMargin: Style.space(16)
+        anchors.left: parent.left
+        anchors.right: parent.right
+        label: root.isToggle ? root.step.option.label : ""
+        detail: root.isToggle ? root.step.option.detail : ""
+        meta: root.isToggle && root.step.id === "local-ai" ? root.localFacts(root.step.option.facts, false) : ""
+        icon: root.isToggle ? root.step.option.icon : ""
+        iconFont: root.isToggle ? root.step.option.iconFont : ""
+        vendor: root.isToggle ? (root.step.option.vendor || "") : ""
+        enabled: root.toggleEnabled
+        focused: root.focusZone === "control"
+        lights: root.pointerAwake
+        foreground: root.foreground
+        accent: root.accent
+        onToggled: root.flipToggle()
+      }
     }
 
-    // Two things worth knowing on the way out, at the foot of the page.
-    Column {
+    // ----------------------------------------------------------- Ready screen
+
+    Item {
+      id: summaryPane
       visible: root.onSummary
-      anchors.left: summary.left
-      anchors.right: summary.right
-      anchors.bottom: rail.bottom
-      spacing: Style.space(4)
+      opacity: root.stepEnter
+      transform: Translate { y: (1 - root.stepEnter) * Style.space(6) }
+      anchors.top: topBar.bottom
+      anchors.topMargin: Style.space(18)
+      anchors.bottom: footer.top
+      anchors.bottomMargin: Style.space(18)
+      anchors.left: parent.left
+      anchors.right: parent.right
 
-      Repeater {
-        model: [Commons.I18n.t("setup.summaryHintMenu"), Commons.I18n.t("setup.summaryHintKeys")]
+      Column {
+        id: summaryBody
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: parent.left
+        anchors.right: parent.right
+        spacing: Style.space(22)
 
-        Text {
-          required property string modelData
-          textFormat: Text.PlainText
-          text: modelData
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
+        Column {
+          id: summaryHeader
           width: parent.width
+          spacing: Style.space(14)
+
+          Column {
+            width: parent.width
+            spacing: Style.space(8)
+
+            // Calm 5-band Omarchy emblem when keeping current settings so the
+            // zero-change finale feels intentional and ties back to Splash.
+            Item {
+              visible: root.plan.changes.length === 0
+              anchors.horizontalCenter: parent.horizontalCenter
+              width: Style.space(52)
+              height: width
+
+              BrandMark {
+                anchors.centerIn: parent
+                width: Style.space(40)
+                height: width
+                foreground: root.foreground
+                accent: root.accent
+                surface: root.color
+              }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: root.plan.changes.length > 0 ? Commons.I18n.t("setup.summaryTitleChanges") : Commons.I18n.t("setup.summaryTitle")
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+              font.bold: true
+              horizontalAlignment: root.plan.changes.length === 0 ? Text.AlignHCenter : Text.AlignLeft
+              wrapMode: Text.WordWrap
+              width: parent.width
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: root.plan.changes.length === 0 ? Commons.I18n.t("setup.summaryNone")
+                : root.plan.hasInstalls ? Commons.I18n.t("setup.summaryInstalls")
+                : Commons.I18n.t("setup.summaryInstant")
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              lineHeight: 1.35
+              horizontalAlignment: root.plan.changes.length === 0 ? Text.AlignHCenter : Text.AlignLeft
+              wrapMode: Text.WordWrap
+              width: parent.width
+            }
+          }
+
+          // Staged changes summary card with full-width left-label / right-value
+          // alignment and subtle hairline row dividers.
+          BorderSurface {
+            visible: root.plan.changes.length > 0
+            width: parent.width
+            implicitHeight: changesCol.implicitHeight + Style.space(12)
+            radius: Style.cornerRadius
+            color: Style.normalFillFor(root.foreground, root.accent)
+            borderSpec: Border.flat(Util.alpha(root.foreground, 0.2), Style.spacing.hairline)
+
+            Column {
+              id: changesCol
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.leftMargin: Style.space(16)
+              anchors.rightMargin: Style.space(16)
+
+              Repeater {
+                model: root.plan.changes
+
+                Item {
+                  required property int index
+                  required property var modelData
+                  width: parent.width
+                  height: Style.space(34)
+
+                  Rectangle {
+                    visible: index > 0
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: Style.spacing.hairline
+                    color: Util.alpha(root.foreground, 0.1)
+                  }
+
+                  Text {
+                    id: sumIcon
+                    textFormat: Text.PlainText
+                    text: modelData.icon
+                    color: root.accent
+                    font.family: modelData.iconFont !== "" ? modelData.iconFont : root.fontFamily
+                    font.pixelSize: Style.font.icon
+                    horizontalAlignment: Text.AlignHCenter
+                    width: Style.space(20)
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  Text {
+                    id: sumStep
+                    textFormat: Text.PlainText
+                    text: modelData.title
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    elide: Text.ElideRight
+                    anchors.left: sumIcon.right
+                    anchors.leftMargin: Style.space(10)
+                    anchors.right: sumValue.left
+                    anchors.rightMargin: Style.space(16)
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  Text {
+                    id: sumValue
+                    textFormat: Text.PlainText
+                    text: modelData.label
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, parent.width * 0.55)
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Three essential Omarchy shortcuts, sitting directly below the summary
+        // without a giant gap.
+        Column {
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: Commons.I18n.t("setup.shortcutsHeader").toUpperCase()
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            font.letterSpacing: 1.4
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(10)
+
+            Repeater {
+              model: [
+                { keys: ["Super", "Space"], label: Commons.I18n.t("setup.shortcutMenu") },
+                { keys: ["Super", "L"], label: Commons.I18n.t("setup.shortcutLayout") },
+                { keys: ["Super", "K"], label: Commons.I18n.t("setup.shortcutKeys") }
+              ]
+
+              BorderSurface {
+                required property var modelData
+                width: (parent.width - Style.space(20)) / 3
+                height: shortcutCol.implicitHeight + Style.space(20)
+                radius: Style.cornerRadius
+                color: Style.normalFillFor(root.foreground, root.accent)
+                borderSpec: Border.flat(Util.alpha(root.foreground, 0.2), Style.spacing.hairline)
+
+                Column {
+                  id: shortcutCol
+                  anchors.left: parent.left
+                  anchors.right: parent.right
+                  anchors.margins: Style.space(12)
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(8)
+
+                  Row {
+                    spacing: Style.space(4)
+                    LayoutMirroring.enabled: false
+
+                    Repeater {
+                      model: modelData.keys
+
+                      Keycap {
+                        required property string modelData
+                        legend: modelData
+                        foreground: root.foreground
+                        accent: root.accent
+                      }
+                    }
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: modelData.label
+                    color: Util.alpha(root.foreground, 0.82)
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    wrapMode: Text.WordWrap
+                    width: parent.width
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -1065,22 +1147,20 @@ BorderSurface {
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.bottom: parent.bottom
-      height: Style.space(32)
+      height: Style.space(34)
 
       SetupButton {
         id: leave
-        text: root.touring ? Commons.I18n.t("setup.skipTour") : Commons.I18n.t("setup.tour")
+        text: Commons.I18n.t("setup.skipTour")
         quiet: true
-        hasCursor: root.onTourLink
+        hasCursor: root.focusZone === "skip"
         foreground: root.foreground
+        accent: root.accent
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        onClicked: root.touring ? root.dismissed() : root.start("tour", "")
+        onClicked: root.dismissed()
       }
 
-      // The keys, in the middle of the footer in the tour, whatever flanks
-      // them, so they do not shift as Back comes and goes. On the pages they
-      // have the right-hand side to themselves.
       TextMetrics {
         id: hintMetrics
         font: hint.font
@@ -1089,47 +1169,45 @@ BorderSurface {
 
       Text {
         id: hint
-
-        // What the link and the buttons leave it.
-        readonly property real room: root.touring
-          ? footer.width - 2 * (Math.max(leave.width, buttons.width) + Style.space(12))
-          : footer.width - leave.width - Style.space(12)
+        readonly property real room: Math.max(0, footer.width - 2 * (Math.max(leave.width, buttons.width) + Style.space(12)))
 
         textFormat: Text.PlainText
-        text: root.onSummary ? Commons.I18n.t("setup.reviewHint") : root.touring ? Commons.I18n.t("setup.tourHint") : Commons.I18n.t("setup.appHint")
-        color: Util.alpha(root.foreground, 0.45)
+        text: root.onSummary ? Commons.I18n.t("setup.reviewHint")
+          : root.isToggle ? Commons.I18n.t("setup.toggleHint")
+          : Commons.I18n.t("setup.tourHint")
+        color: Util.alpha(root.foreground, 0.42)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         elide: Text.ElideRight
         width: Math.min(Math.ceil(hintMetrics.advanceWidth), room)
-        // Placed by hand, so the side it takes on the pages is mirrored by
-        // hand too.
-        x: root.touring ? (footer.width - width) / 2
-          : LayoutMirroring.enabled ? 0
-          : footer.width - width
+        visible: room > Style.space(80)
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
       }
 
       Row {
         id: buttons
-        visible: root.touring
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         spacing: Style.space(10)
 
         SetupButton {
-          visible: root.stepIndex > 0
+          visible: root.onSummary ? root.steps.length > 0 : root.stepIndex > 0
           text: Commons.I18n.t("setup.back")
-          hasCursor: root.onSummary && root.summaryCursor === 0
+          hasCursor: root.focusZone === "back"
           foreground: root.foreground
+          accent: root.accent
           onClicked: root.goToStep(root.stepIndex - 1)
         }
 
         SetupButton {
-          text: root.onSummary ? Commons.I18n.t("setup.finish") : Commons.I18n.t("setup.continue")
+          text: root.onSummary
+            ? (root.plan.changes.length > 0 ? Commons.I18n.t("setup.apply") : Commons.I18n.t("setup.startUsing"))
+            : Commons.I18n.t("setup.continue")
           primary: true
-          hasCursor: root.onSummary && root.summaryCursor === 1
+          hasCursor: root.onSummary ? root.focusZone === "finish" : root.focusZone === "continue"
           foreground: root.foreground
+          accent: root.accent
           onClicked: root.onSummary ? root.finish() : root.goToStep(root.stepIndex + 1)
         }
       }

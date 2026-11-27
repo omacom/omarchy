@@ -6,11 +6,10 @@ import qs.Commons as Commons
 import "../menu/MenuModel.js" as MenuModel
 import "SetupModel.js" as SetupModel
 
-// What Setup reads from the system: the menu definition its pages are a lens
-// over, the answers to that menu's guards, the default agent and the local
-// model on offer. Each is asked for once, when Setup opens, and only asked:
-// opening Setup must not change the machine it is about to describe. Nothing
-// here polls.
+// What the Welcome tour reads from the system: the menu entries for layout,
+// dictation and Tailscale, their guard answers, the default agent, and the
+// local model omarchy-models recommends for this hardware. Nothing polls, and
+// opening Welcome never mutates the machine.
 Item {
   id: root
 
@@ -24,32 +23,78 @@ Item {
   property var order: []
   property var guards: ({ when: ({}), checked: ({}), disabled: ({}) })
   property string localList: ""
-  // The default agent, as `omarchy default agent` keeps it: empty until one is
-  // chosen, which is when the tour has the agents panel to offer.
+  // Superwhisper's active processing mode ("cloud", "offline", or "").
+  property string dictationMode: ""
+  // The default agent as `omarchy default agent` writes it; empty until chosen.
   property string defaultAgent: ""
-  // Whether the agents panel is there to open, which Setup says whenever
-  // the card is about to list its pages or the tour's steps.
+  // Whether the agents panel has an IPC handler ready to open. Sampled once as
+  // the tour leaves Splash and frozen for the duration of that tour.
   property bool agentsPanel: false
 
-  // Each source has answered once, found or not.
   property bool defaultSettled: false
   property bool userSettled: false
   property bool catalogSettled: false
   property bool guardsSettled: false
   property bool guardsPending: false
   property bool localSettled: false
+  property bool dictationModeSettled: false
   property bool agentSettled: false
 
-  // Until all of them have, a row could show and then vanish, gain its check
-  // late, or move as a page arrives above it, so nothing may be picked. The
-  // translations count too: a page can be asked for by the name they give it.
-  readonly property bool ready: defaultSettled && userSettled && catalogSettled && guardsSettled && localSettled && agentSettled
-  readonly property var offer: SetupModel.localOffer(localList)
-  readonly property var pages: SetupModel.pages(items, order, guards, offer, { panel: agentsPanel, chosen: defaultAgent }, Commons.I18n.t, MenuModel.resolveRoute)
-  readonly property var steps: SetupModel.tourSteps(pages, Commons.I18n.t)
+  readonly property bool ready: defaultSettled && userSettled && catalogSettled && guardsSettled && localSettled && dictationModeSettled && agentSettled
+  readonly property var offers: SetupModel.localOffers(localList)
+  readonly property var offer: offers.length > 0 ? offers[0] : null
+  // Frozen snapshot of the tour's steps once Splash transitions into the tour,
+  // or kept empty while on Splash; language changes still relabel live.
+  property bool frozen: false
+  property bool frozenAgentsPanel: false
+  readonly property var steps: SetupModel.tourSteps(
+    items, order, guards, offers,
+    { panel: frozen ? frozenAgentsPanel : agentsPanel, chosen: defaultAgent },
+    Commons.I18n.t,
+    dictationMode
+  )
 
-  // Translations go on the shipped rows before the user's extension merges, as
-  // in the menu, so a user's own rows and retitles win.
+  function freezeAgents(panelThere) {
+    agentsPanel = panelThere
+    frozenAgentsPanel = panelThere
+    frozen = true
+  }
+
+  property int generation: 0
+  property bool localPending: false
+  property bool dictationModePending: false
+
+  // Re-reads live system state if Welcome is summoned again while already open.
+  // Bumping `generation` ensures an in-flight guard or model process from the
+  // previous opening cannot mark the new opening ready with stale answers.
+  function reload() {
+    generation++
+    frozen = false
+    defaultSettled = false
+    userSettled = false
+    guardsSettled = false
+    localSettled = false
+    dictationModeSettled = false
+    agentSettled = false
+    defaultAgent = ""
+    dictationMode = ""
+    defaultMenuFile.reload()
+    userMenuFile.reload()
+    agentFile.reload()
+    if (localProc.running) {
+      localPending = true
+    } else {
+      localProc.gen = generation
+      localProc.running = true
+    }
+    if (dictationModeProc.running) {
+      dictationModePending = true
+    } else {
+      dictationModeProc.gen = generation
+      dictationModeProc.running = true
+    }
+  }
+
   function rebuild(labelsOnly) {
     var merged = MenuModel.mergeMenuSources(MenuModel.applyTranslations(defaultItems, catalog), userItems, "")
     items = merged.items
@@ -57,8 +102,7 @@ Item {
     if (!labelsOnly && defaultSettled && userSettled) evaluateGuards()
   }
 
-  // One bash process answers every guard the pages read, as the menu's batch
-  // does for the whole menu. A run in flight is waited for, not replaced.
+  // One bash batch answers only the guards the tour's menu rows need.
   function evaluateGuards() {
     if (guardProc.running) {
       guardsPending = true
@@ -72,6 +116,7 @@ Item {
       guardsSettled = true
       return
     }
+    guardProc.gen = root.generation
     guardProc.collected = ""
     guardProc.command = ["bash", "-lc", script]
     guardProc.running = true
@@ -79,27 +124,31 @@ Item {
 
   Process {
     id: guardProc
-    // The entries this batch was asked about, to tell whether it answered.
+    property int gen: 0
     property var asked: ({})
     property string collected: ""
     stdout: SplitParser {
       onRead: function(data) { guardProc.collected += data + "\n" }
     }
     onExited: function(exitCode, exitStatus) {
-      // A batch that broke off part way, a guard having exited its group's
-      // subshell say, has answered only some rows. Those answers stand, and
-      // `partial` has the pages leave out the rows it never got to. A signal
-      // leaves the exit code at 0, and a guard that exits cleanly leaves the
-      // status clean too, so the answers are counted as well.
-      var answers = SetupModel.parseGuards(guardProc.collected)
-      if (exitCode !== 0 || exitStatus !== 0 || !SetupModel.answeredAll(guardProc.asked, answers)) answers.partial = true
-      root.guards = answers
-      if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
-      else root.guardsSettled = true
+      var fresh = guardProc.gen === root.generation && root.defaultSettled && root.userSettled
+      if (fresh) {
+        var answers = SetupModel.parseGuards(guardProc.collected)
+        if (exitCode !== 0 || exitStatus !== 0 || !SetupModel.answeredAll(guardProc.asked, answers)) answers.partial = true
+        root.guards = answers
+      }
+      if (root.guardsPending) {
+        Qt.callLater(function() { root.evaluateGuards() })
+      } else if (fresh) {
+        root.guardsSettled = true
+      } else if (root.defaultSettled && root.userSettled) {
+        Qt.callLater(function() { root.evaluateGuards() })
+      }
     }
   }
 
   FileView {
+    id: defaultMenuFile
     path: root.omarchyPath + "/default/omarchy/omarchy-menu.jsonc"
     printErrors: false
     onLoaded: {
@@ -114,6 +163,7 @@ Item {
   }
 
   FileView {
+    id: userMenuFile
     path: root.home + "/.config/omarchy/extensions/omarchy-menu.jsonc"
     printErrors: false
     onLoaded: {
@@ -122,6 +172,7 @@ Item {
       root.rebuild(false)
     }
     onLoadFailed: {
+      root.userItems = []
       root.userSettled = true
       root.rebuild(false)
     }
@@ -130,8 +181,6 @@ Item {
   FileView {
     path: root.omarchyPath + "/default/i18n/" + Commons.I18n.language + "/menu.json"
     printErrors: false
-    // Settled only once the rows carry the names it gives them: being ready
-    // is what lets a page be looked up by name.
     onLoaded: {
       root.catalog = Commons.I18n.parseCatalog(text())
       root.rebuild(true)
@@ -144,32 +193,62 @@ Item {
     }
   }
 
-  // Where `omarchy default agent` keeps its choice, as it writes it: the
-  // agent's name on a line. A machine that has chosen none has no such file.
   FileView {
+    id: agentFile
     path: root.home + "/.config/omarchy/defaults/agent"
     printErrors: false
     onLoaded: {
       root.defaultAgent = text().split("\n")[0].trim()
       root.agentSettled = true
     }
-    onLoadFailed: root.agentSettled = true
+    onLoadFailed: {
+      root.defaultAgent = ""
+      root.agentSettled = true
+    }
   }
 
-  // omarchy-local-ai's own listing of what fits this machine. Its `refresh`
-  // would also republish shares and rewrite an agent's provider file; `list`
-  // only works the listing out, and saves it where the engine keeps its own
-  // copy, as it does whenever the agents panel asks. A machine without the
-  // engine offers nothing. The stream closing is the answer, whatever came of
-  // the run.
   Process {
+    id: localProc
+    property int gen: 0
     command: ["bash", "-c", "exec omarchy-models list --json 2>/dev/null"]
     running: true
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        root.localList = text
-        root.localSettled = true
+        var fresh = localProc.gen === root.generation
+        if (fresh) root.localList = text
+        if (root.localPending || !fresh) {
+          root.localPending = false
+          Qt.callLater(function() {
+            localProc.gen = root.generation
+            localProc.running = true
+          })
+        } else {
+          root.localSettled = true
+        }
+      }
+    }
+  }
+
+  Process {
+    id: dictationModeProc
+    property int gen: 0
+    command: ["bash", "-c", "omarchy-cmd-present superwhisper && exec superwhisper models show 2>/dev/null || true"]
+    running: true
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var fresh = dictationModeProc.gen === root.generation
+        if (fresh) root.dictationMode = SetupModel.parseSuperwhisperMode(text)
+        if (root.dictationModePending || !fresh) {
+          root.dictationModePending = false
+          Qt.callLater(function() {
+            dictationModeProc.gen = root.generation
+            dictationModeProc.running = true
+          })
+        } else {
+          root.dictationModeSettled = true
+        }
       }
     }
   }

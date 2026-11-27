@@ -18,7 +18,7 @@ removed, so an inline trailing comment breaks the parse. A file that fails to
 parse contributes no entries — a broken user extension silently drops every
 user entry while the shipped menu keeps working.
 
-Setup, the plugin behind _Setup > Welcome_, reads the same two files: its pages are the rows of the Setup menu and a few others, so a row added here appears there too. [`setup.md`](setup.md) covers which rows and how.
+Welcome, the plugin behind _Setup > Welcome_, reads the same two files for its workspace layout, dictation, and Tailscale choices so rows and translations stay in one place. [`setup.md`](setup.md) covers how it works.
 
 ## Entry schema
 

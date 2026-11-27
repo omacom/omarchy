@@ -1,84 +1,50 @@
-# Setup
+# Welcome Setup
 
-Setup is the `omarchy.setup` plugin of the Quickshell desktop: the welcome tour a new user is greeted with, and pages that show what each row of the Setup menu does before it is picked. It is loaded when summoned and unloaded when closed, so an idle shell pays nothing for it.
+Welcome is the `omarchy.setup` plugin of the Quickshell desktop: a focused, animated onboarding tour for first login that can be reopened anytime from _Setup > Welcome_ or `omarchy launch setup`. It is loaded when summoned and unloaded when closed, so an idle shell pays nothing for it.
 
 ```bash
-omarchy launch setup            # every page, opened on the first
-omarchy launch setup welcome    # the welcome tour
-omarchy launch setup security   # one page, by id, the last part of its id, or its name
+omarchy launch setup          # open the welcome tour
+omarchy launch setup --wait   # return once Welcome is closed
 ```
 
-_Setup > Welcome_ in the menu opens the tour. `bin/omarchy-launch-setup` is a thin wrapper over the standard plugin summon, with a payload of `{"mode": "tour"}` or `{"page": "<name>"}`.
+`bin/omarchy-launch-setup` wraps `omarchy-shell shell summon omarchy.setup` (accepting an optional `welcome` operand for compatibility and rejecting unknown arguments).
 
-With `--wait` it returns once Setup has been closed, the way `omarchy-menu-select` waits on the menu. The payload names a directory under `$XDG_RUNTIME_DIR` for the reply, and Setup leaves a file there for each step a finished tour set off, then `closed`; the launcher prints the steps, one a line. The directory is also what the request goes by. Setup answers only if that request's window had been shown, and says through `omarchy-shell shell call omarchy.setup state <directory>` whether it still has the screen (`opening`, `shown`, or `other` once Setup has closed or been opened again for someone else). So a Setup that never reached the screen, went down with the shell, or was replaced fails the wait rather than passing for one that was closed, and a wait that gives up closes only its own request. The request also says when its caller will stop waiting, so one still queued while the plugin loads is dropped rather than shown to nobody.
+With `--wait` it returns once Welcome has been closed. The payload names a runtime directory under `$XDG_RUNTIME_DIR` for the reply, and Welcome writes marker files there for each step a finished tour set off, `seen-agent` when the Agent step was presented, `seen-ready` when the Ready screen was reached, and `closed` last; the launcher prints every marker except `closed`, one per line. The directory also identifies the request: Welcome answers only if that request reached the screen, and reports through `omarchy-shell shell call omarchy.setup state <directory>` whether it still owns the screen (`opening`, `shown`, or `other`). Requests carry an `expires` deadline so one queued while the plugin loads is dropped rather than shown after its caller gave up.
 
-## Pages are a lens over the menu
+## Essentials in order
 
-Setup keeps no list of settings of its own. Its pages are read out of `default/omarchy/omarchy-menu.jsonc` and the user's menu extension, through the same `MenuModel.js` the menu uses, so a browser, a dictation backend or a whole submenu added to the menu appears in Setup with no change here. `shell/plugins/setup/SetupModel.js` is the pure logic, plain JavaScript that Node loads for `test/shell.d/setup-test.sh`.
+The tour walks up to five essentials, omitting any step with nothing to offer on this machine:
 
-- **The essentials** come first, and are the tour's steps: the rows of _Appearance > Workspace Layout_ and _Setup > Defaults > Dictation_, the _Install > Service > Tailscale_ row, and two that are in no menu and have one card each: the agents panel, where an agent is added, and the local model `omarchy-local-ai` recommends for this machine. `ESSENTIALS` in `SetupModel.js` names them in the tour's order. A step with nothing to offer on this machine is left out: Local AI where no recipe fits, Tailscale once it is installed, and from the tour the agent once a default agent is chosen. The agent has no page either where nothing would answer for the agents panel, as when its icon has been taken off the bar.
-- **Every row of the Setup menu** gets a page after them. A row that is an action is a page with one button. A submenu's own rows are its options, and each submenu under it is a titled group of options; anything deeper, and anything a provider lists at runtime (the languages), is an option that opens the menu there. A submenu an essentials page already shows (Dictation) is not repeated under Defaults.
+1. **Workspace Layout** (choice) — reads the direct rows of _Appearance > Workspace Layout_ (`Tiling`, `Scrolling`, `Floating`) from `default/omarchy/omarchy-menu.jsonc` and the user's menu extension. Each card draws a miniature layout pictogram, labels the saved choice as `Current`, and previews the four windows rearranging in `scenes/LayoutScene.qml`.
+2. **Dictation** (choice) — reads the direct rows of _Setup > Defaults > Dictation_, distinguishing cloud and on-device options in both icon and inside-card subtitle, previewed in `scenes/DictationScene.qml`. When **Superwhisper** is selected, a compact processing mode bar offers **Cloud** (`--dictation-mode cloud`) and **On-device** (`--dictation-mode offline`, letting Superwhisper auto-select `offline_lite` on machines with under 12 GB RAM and queueing missing offline models in the background). `SetupData.qml` reads Superwhisper's current mode via `superwhisper models show` so unchanged selections stay no-ops and mode-only switches skip reinstalling.
+3. **Agent** (toggle) — offered when no default agent is set (`~/.config/omarchy/defaults/agent`) and the agents panel has a live IPC handler (`IpcRegistry.handlerFor("omarchy.agents")`). Availability is sampled once as the tour leaves Splash and frozen for that tour so steps never shift mid-flow.
+4. **Local AI** (opt-in toggle or choice) — follows the same hardware-blueprint filter as the Agents panel (`omarchy-models list --json`: `kind === "text" && available && !installed`, sorted with `best` first). Omitted when no blueprint fits; renders a single opt-in toggle card when one blueprint fits, or opt-in blueprint cards with the `best` recipe badged `Recommended` and memory/context/speed specs when two or more fit.
+5. **Tailscale** (toggle) — reads _Install > Service > Tailscale_ and is omitted once Tailscale is installed (`disabled:` guard true).
 
-Rows are found and judged as the menu does it. A submenu's rows are the entries whose parent it is, in order, without the rows that only stand in for another while Alt is held. A row whose `when:` fails is hidden, and so is a submenu left with nothing to show, and anything reached through a submenu the menu hides or switches off. `checked:` marks the current choice. A row whose `disabled:` succeeds is shown dimmed with nothing to run, which is how software already installed appears.
+`shell/plugins/setup/SetupModel.js` is the pure logic (loaded by Node in `test/shell.d/setup-test.sh`). `SetupData.qml` evaluates one compact bash guard batch covering only the layout, dictation, and Tailscale rows and their ancestor submenus, plus the default agent file and `omarchy-models list --json`. Unanswered `when:` or `disabled:` guards on a partial batch hide the affected row rather than guessing; an unanswered `checked:` stays unknown. If no offered option on a choice step matches the machine's saved setting, the step starts unstaged with a quiet _Keep current setting_ action so pressing Enter changes nothing.
 
-Two things Setup is stricter about than the menu. The menu opens a submenu from outside by route, which is made for typing: it folds case and underscores, follows aliases, and runs an action it lands on. A submenu that `MenuModel.resolveRoute` would not lead back to (an id it folds into another, a name it keeps for itself) is left out of Setup, which could only hand it over by route. And where the guard batch breaks off part way, or ends without answering every `when:` and `disabled:`, the menu falls back on its last full set of answers; Setup has none, so it keeps the answers that came and leaves out the rows whose guards got none.
+## Controls and scenes
 
-`SetupData.qml` asks for everything once, each time Setup opens: one batch of guards for just the rows Setup reads and the submenus above them, built with `MenuModel.guardScript`, `omarchy-models list --json` for the local model, which changes nothing but the engine's own saved copy of that listing, and the default agent from the file `omarchy default agent` keeps it in. `Setup.qml` adds whether the agents panel has a handler for `omarchy-shell omarchy.agents open` to reach, which it asks `IpcRegistry`: the saved bar layout does not say, since a bar can keep a widget it never builds. It asks when the card is about to list its pages, and when the tour leaves its first screen and is about to show its steps, which `SetupCard` signals with `aboutToList`: the bar builds its widgets after the shell is up, and a first login can open the tour before the panel's handler has registered. From then on the answer stands, so no step comes or goes part way through. Nothing polls, and nothing can be picked until every answer is in, translations included, so a row never shows and then vanishes, gains its check late, or moves under the pointer. A change of language while Setup is open renames its rows and keeps their order.
+- **Splash** brings in the Omarchy wordmark (`Wordmark.qml` from `logo.svg`) over a subtle accent glow with a single glint, and presents **Get started** and **Skip**.
+- **Choice steps** use Left/Right (in reading order) or click to pick an option and immediately update the animated hero scene. `Enter` continues; `Space` does not advance.
+- **Toggle steps** use a single full-width `SetupToggleCard` with an Omarchy `ToggleSwitch` (`interactive: false`) bound to the same staged boolean as the hero scene. `Space` or click toggles Off/On; reading-order Left/Right set Off/On idempotently. `Enter` continues, keeping un-toggled opt-ins off.
+- `Tab` / `Shift+Tab` cycle keyboard focus across controls and footer buttons; `Backspace` / `PageUp` go back; `Esc` closes with nothing changed.
+- Scenes build on `scenes/Desk.qml`, `scenes/Win.qml`, `scenes/Tile.qml`, `scenes/Way.qml`, and `scenes/Keycap.qml`. They never mirror for RTL languages, pass every animation duration through `Style.duration()`, and rest on an informative finished frame under reduced motion.
 
-What the plugin adds is a sentence about each page (`pageDescription`), a line about an option where its name alone doesn't say (`optionDetail`), and the scene.
+## Apply and handoff
 
-## Scenes
+Nothing changes until the **Ready** screen confirms (`Apply choices`, or `Start using Omarchy` when nothing changed). Ready also highlights Omarchy's three core shortcuts (`Super + Space`, `Super + L`, `Super + K`) and only mentions the terminal/password prompt when at least one install (`dictation`, `local-ai`, or `tailscale`) is staged.
 
-Each page has a scene: a miniature of the desktop that shows what one option does. On the pages that is the option under the cursor. In the tour it is the step's pick, and only that, so the card that is marked and the picture never disagree. The scenes are all built from `scenes/Desk.qml` (the screen and its bar), `scenes/Win.qml` (a window, with the accent border Hyprland gives the focused one), `scenes/Tile.qml` (anything that is not a window: a machine, a key, a file), `scenes/Way.qml` (the line between two of them, and something on its way along it) and `scenes/Keycap.qml` (a key), so they read as one set.
-
-| Scene | Shows |
-|---|---|
-| `LayoutScene` | The same four windows rearranging between tiling, scrolling and floating as the option shown changes, all four open at once on a change so the layouts are told apart. An option that sets no layout is an empty desk |
-| `AgentScene` | The hotkey, and an agent at work in the window it opens, which sits empty where none is being added |
-| `DictationScene` | Right Alt held while a voice becomes written words, by way of this machine or the cloud |
-| `LocalAiScene` | A model on this machine answering without leaving it |
-| `TailscaleScene` | Three machines that reach each other directly, or sit apart |
-| `DefaultsScene` | A link, a prompt or a text file handed to the app under the cursor |
-| `PluginsScene` | A piece of the bar and its panel switched on, switched off, brought in, copied or taken out |
-| `SecurityScene` | A password prompt answered by what the row sets up, with nothing typed; for SSHD, answered from another machine |
-| `GitScene` | A history filling up under a name and an address, beside GitHub, signed in to |
-| `KeyboardScene` | A chord opening a window, the legends of three layouts, or keys coming out in another script |
-| `RegionScene` | A window each for script, formats and the hour, the cursor's one running through what it could be |
-| `NetworkScene` | A name looked up through the resolver under the cursor, this computer's own name reaching another machine, or the Wi-Fi code read by a phone |
-| `HandoffScene` | What picking a row opens: a terminal wizard, the editor on the file it names, a list in the menu, or the app or setting itself |
-
-`SETUP_SCENES` in `SetupModel.js` gives a Setup submenu its scene. `HandoffScene` is the fallback for every page without one, which is what lets a row from a menu extension get a picture too. `handoffKind` reads which of the four it is from the row's action: a floating terminal, `omarchy-launch-editor`, or an `omarchy-menu` command.
-
-Scenes are pictures of the desktop, so they do not mirror for right-to-left languages. The splash and the scenes are illustrations someone has stopped to watch, so they run longer than [`agents/skills/motion.md`](../agents/skills/motion.md) allows the shell's own motion, and loop. Every animation's duration still goes through `Style.duration()`, the timers that step a scene stop under reduced motion, and each scene then rests on a finished frame. Nothing a key or a click does waits on any of them.
-
-## The welcome tour
-
-The tour walks the essentials one step at a time, after a splash that brings in the wordmark (drawn from the paths of `logo.svg` by `Wordmark.qml`).
-
-Nothing changes until Finish. Each step remembers the option picked there, and Escape or _Skip tour_ at any point closes the tour with the machine exactly as it was. A step has no cursor apart from its pick: an arrow key or a click picks the option it lands on, which gets the border, the check and the picture together, and Enter or _Continue_ moves on. The pointer passing over an option only lights it, since it crosses them on its way to a button. A click outside the card closes the pages but not the tour, because a stray click should not cost the choices made so far. A step with nothing chosen yet opens on a _Not now_ card, so pressing Enter through the tour changes nothing. The last screen, _Review_, lists what Finish is about to do.
-
-Finish runs one command, `omarchy-setup-essentials`, with a flag for each step whose choice differs from what the machine has:
+Applying runs one command:
 
 ```bash
 omarchy-setup-essentials --layout scrolling --dictation voxtype --tailscale --local-ai qwen3.8-27b-gufo --agent
 ```
 
-The flag's value is read out of the menu row's own action (`stageArgs`), so the tour runs what the menu row would, and the local model is named by the recipe that was shown rather than asked for again as the best one. The difference from the menu is the order. Picking these from the menu one at a time opens a terminal for each, and several at once would contend for pacman's lock. `omarchy-setup-essentials` sets the layout at once, then hands the rest to one presentation terminal as `omarchy-setup-essentials --install …`, which runs them one after another: dictation, Tailscale and the local model (handed to the background; once the engine lists it, the agents panel has it to add, with its download on show). It waits for a connection first, the way first run's own prompts do. Anything that failed is named at the end. Whether dictation was set up is judged by the backend in use, not by how its installer ended: one whose confirmation is turned down ends without an error, and is then reported as left alone.
-
-`--agent` takes no value. Agents are set up in the agents panel (a subscription signed in to, pay as you go with a key, or a local model), so the step has one card, _Add an agent_, and the flag opens the panel with `omarchy-shell omarchy.agents open`, as first run's own invitation does, and the agent hotkey where no agent is chosen yet. It comes last: at once where nothing needs a terminal, and otherwise at the end of the terminal's run, so the terminal opening does not take the screen from it. The panel opens on its add screen where the machine has no agent at all, and on its list, with + to add one, where it has one that is not the default.
-
-A row whose action the tour cannot read a value from, such as a dictation backend a menu extension adds with a command of its own, is offered on the pages and left out of the tour.
-
-## The pages
-
-Outside the tour, a click or Enter runs the row as the menu would and closes Setup. It closes for the same reason the menu does: most rows open a terminal, the editor or a picker, which could not be reached under an overlay that holds the keyboard. The scene previews the option under the cursor, so what is there to see is seen before anything runs.
+`omarchy-setup-essentials` switches the workspace layout immediately. When installs are staged, they run sequentially in one floating presentation terminal, waiting for an internet connection first if offline. When `--agent` is combined with installs, the terminal finishes its acknowledgement prompt and closes cleanly before a detached handoff opens the Agents panel (`omarchy-shell omarchy.agents open`); cancelling with Ctrl-C or closing the terminal early leaves Agents closed. When `--agent` is chosen without installs, the panel opens directly over the clean desktop.
 
 ## First run
 
-`install/user/first-run/welcome-tour.sh` opens the tour once for a new user, from `omarchy-provision-first-run`, ahead of first run's toasts. It runs `omarchy launch setup welcome --wait`, so the toasts arrive after the tour rather than over it. Closing the tour is an answer, whether or not anything was picked, and marks `welcome-tour` done.
+`install/user/first-run/welcome-tour.sh` runs `omarchy-launch-setup --wait` once from `omarchy-provision-first-run`, holding back first-run notifications until Welcome closes. Closing Welcome marks `welcome-tour` done. If the reply includes `agent` or `seen-agent`, `agent-setup-invitation` is marked done so `wifi.sh` does not immediately follow with a duplicate agent toast; if it includes `seen-ready`, `welcome-keybindings` is marked done so `welcome.sh` does not duplicate the shortcuts shown on Ready. Skipping on Splash leaves both fallback toasts eligible.
 
-A tour that could not be shown is left unmarked, and the step still passes: a failed step would run all of first run again at the next login, toasts included. The tour stays under _Setup > Welcome_.
-
-The tour is also the invitation to add an agent. When the wait's reply names the agent step, the same script marks first run's `agent-setup-invitation` done before first run goes on to send that toast. For a tour taken later from the menu, `omarchy-setup-essentials` marks it once the panel has opened, and asks for a toast already on screen to be taken down, which finds it by its title in the language in use, so one sent in another language stays; a panel that would not open leaves the invitation as it was.
-
-An image that should never show the tour, such as one for a kiosk or a test harness, creates the marker ahead of first login: `~/.local/state/omarchy/done/welcome-tour`. `test/acceptance` does the same, and closes a tour already open for as long as first run could still open one.
+Images that must suppress first-run Welcome (kiosks, acceptance VM runs) create `~/.local/state/omarchy/done/welcome-tour`; `test/acceptance` also hides any already-open `omarchy.setup` overlay until first run completes.

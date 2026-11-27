@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "omarchy.setup",
-  "name": "Setup",
+  "name": "Welcome",
   "version": "1.0.0",
   "author": "Omarchy",
-  "description": "The welcome tour, and pages that show what each row of the Setup menu does",
+  "description": "The Omarchy welcome tour for essential desktop settings",
   "kinds": [
     "overlay"
   ],

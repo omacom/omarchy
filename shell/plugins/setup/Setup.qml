@@ -4,13 +4,12 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "../menu/MenuModel.js" as MenuModel
 
-// Setup: the welcome tour a new user is greeted with, and pages that show what
-// each row of the Setup menu does. docs/setup.md has how it is put together.
+// Welcome: the first-login onboarding tour for Omarchy essentials, re-openable
+// anytime from Setup > Welcome or `omarchy launch setup`. docs/setup.md covers
+// the flow and IPC reply contract.
 //
-//   omarchy-shell shell summon omarchy.setup '{"mode":"tour"}'
-//   omarchy-shell shell summon omarchy.setup '{"page":"security"}'
+//   omarchy-shell shell summon omarchy.setup '{}'
 Item {
   id: root
 
@@ -19,34 +18,35 @@ Item {
   property var manifest: null
 
   property bool opened: false
-  // Each opening is a request. One that omarchy-launch-setup --wait made
-  // names a directory to be answered in, the way the menu answers
-  // omarchy-menu-select in a file, and goes by that name: Setup can be opened
-  // again while a caller waits, and the caller must not take the new
-  // request's window for its own.
+  property bool hasOpenedOnce: false
+  // Each opening is a request. One that `omarchy-launch-setup --wait` made
+  // names a runtime directory for the reply: one marker file per outcome token,
+  // then `closed` last.
   property string reply: ""
-  // Whether this request has been on screen. One that closed before its
-  // window was ever shown was not seen, and must not count as taken.
+  // Whether this request has actually appeared on screen.
   property bool seen: false
-  // The steps a finished tour set off, for the caller to be told.
+  // Steps a finished tour set off.
   property var picked: []
+  // Whether the user actually reached the Agent step or Ready screen during
+  // this request, so first-run can suppress duplicate notifications.
+  property bool sawAgent: false
+  property bool sawReady: false
 
   function open(payloadJson) {
     var payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) {}
 
-    // A request can sit queued while this plugin loads. One whose caller has
-    // stopped waiting by then must not be answered with a window nobody is
-    // waiting on.
     if (Number(payload.expires) > 0 && Date.now() / 1000 > Number(payload.expires)) {
-      if (!opened) Qt.callLater(root.dismiss)
+      if (!opened) Qt.callLater(function() { if (!root.opened) root.dismiss() })
       return
     }
 
-    // Opened again while open: the request before this one is over.
-    release()
+    var reopen = hasOpenedOnce
+    var replacing = opened
+    hasOpenedOnce = true
+
+    release(replacing)
     reply = String(payload.reply || "")
-    // A window already on screen shows this request from its next frame.
     if (opened && panel.contentRevealed) {
       var request = reply
       Qt.callLater(function() {
@@ -54,10 +54,9 @@ Item {
       })
     }
 
-    card.start(payload.mode === "tour" ? "tour" : "app", String(payload.page || ""))
+    if (reopen) data.reload()
+    card.start()
     opened = true
-    // The window is built hidden, so focus set then lands nowhere: take it
-    // again once the surface is mapped.
     Qt.callLater(function() {
       if (root.opened) keys.forceActiveFocus()
     })
@@ -65,47 +64,43 @@ Item {
 
   function close() {
     opened = false
-    release()
+    release(false)
   }
 
-  // Whether `omarchy-shell omarchy.agents open` has anyone to answer it: the
-  // agents panel's own handler, taking no arguments, there while its widget
-  // is live in a bar. The saved layout does not say, since a bar can keep a
-  // widget it never builds.
+  // Whether `omarchy-shell omarchy.agents open` has a live handler to reach.
   function agentsPanelThere() {
     var handler = IpcRegistry.handlerFor("omarchy.agents")
     return !!handler && IpcRegistry.declaredFunctions(handler).indexOf("open") !== -1 && handler.open.length === 0
   }
 
-  // Answers whoever is waiting on this request, if it was seen: a file for
-  // each step picked, then `closed`. The shell unloads this plugin as soon as
-  // it closes, so the files are written by a process of its own, and one that
-  // starts no login shell on its way.
-  function release() {
+  // Answers whoever is waiting on this request, if it was seen: a marker for
+  // each picked step (and seen-agent / seen-ready / replaced when applicable),
+  // then `closed` last.
+  function release(wasReplaced) {
     if (reply !== "" && seen) {
-      var names = picked.filter(function(step) { return /^[a-z][a-z-]*$/.test(step) }).concat(["closed"])
+      var names = picked.filter(function(step) { return /^[a-z][a-z-]*$/.test(step) })
+      if (sawAgent && names.indexOf("seen-agent") === -1) names.push("seen-agent")
+      if (sawReady && names.indexOf("seen-ready") === -1) names.push("seen-ready")
+      if (wasReplaced && names.indexOf("replaced") === -1) names.push("replaced")
+      names.push("closed")
       Quickshell.execDetached(["touch", "--"].concat(names.map(function(name) { return root.reply + "/" + name })))
     }
     reply = ""
     seen = false
     picked = []
+    sawAgent = false
+    sawReady = false
   }
 
-  // Whether a request is this one. A caller that names none means whichever
-  // is open.
   function owns(request) {
     return opened && (String(request || "").charAt(0) !== "/" || request === reply)
   }
 
-  // Where a request stands: "opening" until it is on screen, "shown" from
-  // then on, and "other" once Setup is closed or has moved on to another.
-  // omarchy-launch-setup --wait asks this before and while it waits.
   function state(request) {
     if (!owns(request)) return "other"
     return seen ? "shown" : "opening"
   }
 
-  // Closes a request that is still the one open, and leaves any other alone.
   function cancel(request) {
     if (owns(request)) dismiss()
   }
@@ -115,18 +110,12 @@ Item {
     else close()
   }
 
-  // A row runs as it does from the menu, which then has the screen to itself:
-  // a terminal or a picker opened under this overlay could not be reached.
-  function run(option) {
-    var summon = option.route ? { id: "omarchy.menu", payload: JSON.stringify({ menu: option.route }) } : MenuModel.summonAction(option.action)
-    if (!(summon && shell && shell.summon(summon.id, summon.payload)) && option.action) Util.execDetached(option.action)
-    dismiss()
-  }
-
   function finish(argv, steps) {
-    if (argv.length > 0) Util.execArgv(argv)
     picked = steps
+    // Close the overlay before launching anything so terminals or panels never
+    // open behind Welcome.
     dismiss()
+    if (argv.length > 0) Util.execArgv(argv)
   }
 
   SetupData {
@@ -139,8 +128,6 @@ Item {
     shown: root.opened
     WlrLayershell.namespace: "omarchy-setup"
 
-    // The splash plays for whoever can see it: a window still waiting for its
-    // scale would have spent the first frames unseen.
     onContentRevealedChanged: {
       if (!contentRevealed) return
       root.seen = true
@@ -152,11 +139,9 @@ Item {
       color: Commons.Color.menu.scrim
     }
 
-    // The pages close on a click outside them, as the menu does. The tour
-    // holds choices a stray click should not cost, so it leaves by Escape or Skip.
+    // Stray clicks outside the tour card should not discard choices in progress.
     MouseArea {
       anchors.fill: parent
-      onClicked: if (!card.touring) root.dismiss()
     }
 
     Item {
@@ -171,16 +156,13 @@ Item {
       SetupCard {
         id: card
         anchors.centerIn: parent
-        pages: data.pages
         steps: data.steps
-        offer: data.offer
+        offers: data.offers
         ready: data.ready
-        // A screen too small for the card shows all of it, smaller.
         readonly property real fit: Math.min(1, (keys.width - Style.space(32)) / width, (keys.height - Style.space(32)) / height)
         scale: fit * (panel.contentRevealed ? 1 : 0.97)
         opacity: panel.contentRevealed ? 1 : 0
 
-        // Grows in like a panel. Closing unmaps the window, so there is no way out to animate.
         Behavior on scale {
           enabled: panel.contentRevealed
           NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
@@ -191,12 +173,11 @@ Item {
         }
 
         onDismissed: root.dismiss()
-        // The bar builds its widgets once the shell is up, so a first login
-        // can open the tour before the agents panel's handler has registered.
-        // It is asked for as late as it can be, when the steps are about to
-        // show, and then stands, so none comes or goes part way through.
-        onAboutToList: data.agentsPanel = root.agentsPanelThere()
-        onActivated: function(option) { root.run(option) }
+        onAboutToList: data.freezeAgents(root.agentsPanelThere())
+        onStepViewed: function(stepId) {
+          if (stepId === "agent") root.sawAgent = true
+          else if (stepId === "ready") root.sawReady = true
+        }
         onFinished: function(argv, steps) { root.finish(argv, steps) }
       }
     }

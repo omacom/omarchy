@@ -3,38 +3,41 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 
-// The card's own buttons. `primary` is where a screen leads: filled in the
-// text color, so it leads even in a theme whose accent is quieter than its
-// text, where a tinted button reads as switched off.
+// Welcome's buttons. Primary buttons indicate keyboard focus with a subtle
+// label underline instead of a boxy double border, and hover stays visual
+// without moving keyboard focus.
 BorderSurface {
   id: root
 
   property string text: ""
   property bool primary: false
-  // A plain line of text until it is pointed at.
   property bool quiet: false
-  // The keyboard is on it.
   property bool hasCursor: false
 
   property color foreground: Commons.Color.menu.text
   property color surface: Commons.Color.menu.background
+  property color accent: Commons.Color.accent
 
   signal clicked()
-  signal entered()
 
   readonly property bool hot: pointer.containsMouse || hasCursor
 
-  implicitWidth: label.implicitWidth + Style.space(quiet ? 14 : 34)
-  implicitHeight: label.implicitHeight + Style.space(quiet ? 8 : 15)
+  implicitWidth: label.implicitWidth + Style.space(quiet ? 16 : 34)
+  implicitHeight: label.implicitHeight + Style.space(quiet ? 10 : 16)
   radius: Style.cornerRadius
   color: primary ? Util.alpha(foreground, hot ? 1 : 0.88)
-    : hot ? Style.hoverFillFor(foreground, foreground)
+    : hot ? Style.hoverFillFor(foreground, accent)
     : "transparent"
-  borderSpec: primary || quiet ? Border.none() : Border.flat(Util.alpha(foreground, hot ? 0.7 : 0.32), Style.spacing.hairline)
+  borderSpec: primary ? Border.none()
+    : quiet ? (hasCursor ? Border.flat(Util.alpha(foreground, 0.5), Style.spacing.hairline) : Border.none())
+    : Border.flat(Util.alpha(foreground, hasCursor ? 0.72 : hot ? 0.5 : 0.28), Style.spacing.hairline)
+
+  Accessible.role: Accessible.Button
+  Accessible.name: root.text
+  Accessible.onPressAction: root.clicked()
 
   Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
-  // Held down, it gives a little, as a Button does.
   scale: pointer.pressed ? 0.97 : 1
   Behavior on scale {
     NumberAnimation {
@@ -44,36 +47,37 @@ BorderSurface {
     }
   }
 
-  // Where Enter will land.
-  Rectangle {
-    visible: root.hasCursor
-    anchors.fill: parent
-    anchors.margins: -Style.space(3)
-    radius: root.radius > 0 ? root.radius + Style.space(3) : 0
-    color: "transparent"
-    border.width: Style.spacing.hairline
-    border.color: Util.alpha(root.foreground, 0.7)
-  }
-
   Text {
     id: label
     textFormat: Text.PlainText
     text: root.text
-    color: root.primary ? root.surface : root.quiet && !root.hot ? Util.alpha(root.foreground, 0.66) : root.foreground
+    color: root.primary ? root.surface
+      : root.quiet && !root.hot ? Util.alpha(root.foreground, 0.62)
+      : root.foreground
     font.family: Style.font.menuFamily
     font.pixelSize: root.quiet ? Style.font.bodySmall : Style.font.body
     font.bold: root.primary
     anchors.centerIn: parent
   }
 
+  // Crisp focus bar beneath the label on primary buttons so keyboard focus
+  // reads cleanly on both sharp and rounded themes without a double-box look.
+  Rectangle {
+    visible: root.primary && root.hasCursor
+    width: label.implicitWidth
+    height: Math.max(1, Style.space(1.5))
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.top: label.bottom
+    anchors.topMargin: Style.space(2)
+    color: Util.alpha(root.surface, 0.55)
+  }
+
   MouseArea {
     id: pointer
     anchors.fill: parent
-    // Undoes the press scale, so a press near the edge still counts.
     scale: 1 / root.scale
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
-    onEntered: root.entered()
     onClicked: root.clicked()
   }
 }
