@@ -12,6 +12,8 @@ OMARCHY_ROOT=$(cd -- "$OMARCHY_BIN_DIR/.." && pwd)
 REPEAT=5
 KEEP_CACHE=false
 
+source "$OMARCHY_BIN_DIR/omarchy-benchmark-functions"
+
 show_help() {
   cat <<'EOF'
 Usage:
@@ -28,11 +30,6 @@ Options:
 EOF
 }
 
-format_ms() {
-  local us="$1"
-  printf '%d.%03d' "$(( us / 1000 ))" "$(( us % 1000 ))"
-}
-
 measure_once() {
   local start_us end_us
   # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
@@ -42,32 +39,16 @@ measure_once() {
   printf '%s' "$(( end_us - start_us ))"
 }
 
+measure_run() {
+  local -n elapsed="$1"
+  shift 2
+  elapsed=$(measure_once "$@")
+}
+
 run_case() {
   local label="$1"
   shift
-  local total_us=0
-  local min_us=0
-  local max_us=0
-  local elapsed_us=0
-
-  for (( i = 1; i <= REPEAT; i++ )); do
-    elapsed_us=$(measure_once "$@")
-    total_us=$(( total_us + elapsed_us ))
-
-    if (( i == 1 || elapsed_us < min_us )); then
-      min_us=$elapsed_us
-    fi
-
-    if (( elapsed_us > max_us )); then
-      max_us=$elapsed_us
-    fi
-  done
-
-  printf '%-34s avg %8s ms  min %8s ms  max %8s ms\n' \
-    "$label" \
-    "$(format_ms "$(( total_us / REPEAT ))")" \
-    "$(format_ms "$min_us")" \
-    "$(format_ms "$max_us")"
+  benchmark_run_case "$label" "$REPEAT" measure_run "$@"
 }
 
 while (( $# > 0 )); do
@@ -153,12 +134,12 @@ prepare_image_cache() {
 }
 
 printf 'Theme switcher benchmark (%d warm runs each)\n\n' "$REPEAT"
-printf '%-34s %s ms\n' "theme index cold" "$(format_ms "$(measure_once build_theme_index)")"
+printf '%-34s %s ms\n' "theme index cold" "$(benchmark_format_ms "$(measure_once build_theme_index)")"
 run_case "theme index warm" build_theme_index
-printf '%-34s %s ms\n' "selector prep cold (lazy)" "$(format_ms "$(measure_once prepare_selector_lazy)")"
+printf '%-34s %s ms\n' "selector prep cold (lazy)" "$(benchmark_format_ms "$(measure_once prepare_selector_lazy)")"
 run_case "selector prep warm (lazy)" prepare_selector_lazy
 "${thumbnail_env[@]}" "$OMARCHY_BIN_DIR/omarchy-theme-switcher" >/dev/null
-printf '%-34s %s ms\n' "thumbnail cache cold" "$(format_ms "$(measure_once prepare_image_cache)")"
+printf '%-34s %s ms\n' "thumbnail cache cold" "$(benchmark_format_ms "$(measure_once prepare_image_cache)")"
 run_case "thumbnail cache warm" prepare_image_cache
 
 printf '\nTheme previews: %d\n' "$(find -L "$preview_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)"
