@@ -86,3 +86,43 @@ pass "scan maps a game with a missing Linux launcher to Proton and leaves beta-o
 [[ -z $(scan) ]] || fail "a second scan finds nothing left to map"
 (( $(grep -c '"CompatToolMapping"' "$steam/config/config.vdf") == 1 )) || fail "a second scan adds no second mapping block"
 pass "scan is idempotent"
+
+# The watcher: two failed launches arrive in one write while Steam runs. Only
+# the game with a Windows build to fall back on is mapped and relaunched; the
+# native game whose launcher is missing (300 with run.sh removed) is left be.
+rm "$steam/steamapps/common/game300/run.sh"
+python3 -I - "$steam/config/config.vdf" <<'EOF2'
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+open(path, "w").write(re.sub(r'\t+"100"\n\t+\{\n\t+"name"\t\t"proton_experimental"\n(?:\t+"[^"]+"\t\t"[^"]*"\n)*\t+\}\n', "", text, count=1))
+EOF2
+sleep 300 &
+fake_steam=$!
+echo "$fake_steam" >"$scratch/steam.pid"
+printf '#!/bin/bash\n[[ $1 == "-shutdown" ]] && kill %s\n' "$fake_steam" >"$scratch/bin/steam"
+printf '#!/bin/bash\necho "$*" >>%q\n' "$scratch/relaunched" >"$scratch/bin/uwsm-app"
+printf '#!/bin/bash\n' >"$scratch/bin/pgrep"
+chmod +x "$scratch/bin/steam" "$scratch/bin/uwsm-app" "$scratch/bin/pgrep"
+mkdir -p "$steam/logs"
+: >"$steam/logs/console_log.txt"
+
+PATH="$scratch/bin:$PATH" OMARCHY_STEAM_ROOT="$steam" OMARCHY_STEAM_PID_FILE="$scratch/steam.pid" \
+  "$ROOT/bin/omarchy-steam-proton-fallback" watch &
+watcher=$!
+trap 'kill "$watcher" "$fake_steam" 2>/dev/null; rm -rf "$scratch"' EXIT
+sleep 1
+printf '%s\n%s\n' \
+  "[2026-11-27 17:00:00] GameAction [AppID 300, ActionID 1] : LaunchApp failed with AppError_28 with \"$steam/steamapps/common/game300/run.sh\"" \
+  "[2026-11-27 17:00:00] GameAction [AppID 100, ActionID 2] : LaunchApp failed with AppError_28 with \"$steam/steamapps/common/game100/Game.sh\"" \
+  >>"$steam/logs/console_log.txt"
+
+for _ in {1..50}; do
+  [[ -s $scratch/relaunched ]] && break
+  sleep 0.2
+done
+[[ $(cat "$scratch/relaunched" 2>/dev/null) == "-- steam steam://rungameid/100" ]] ||
+  fail "a failed launch of a Windows-backed game restarts Steam and relaunches it" "$(cat "$scratch/relaunched" 2>/dev/null)"
+grep -Pzq '"CompatToolMapping"\n\t+\{\n\t+"100"\n' "$steam/config/config.vdf" || fail "the relaunched game is mapped to Proton"
+grep -q '"300"' "$steam/config/config.vdf" && fail "a native game with a missing launcher is not mapped to Proton"
+pass "the watcher recovers a failed launch read in the same chunk as another, and only for a game Proton can run"

@@ -282,7 +282,16 @@ def recover(appid, target, handled):
     if CONFIG.exists() and mapped(CONFIG.read_text(errors="replace"), appid):
         return
     handled.add(appid)
-    name = next((n for a, n, _ in installed_games() if a == appid), appid)
+    # Same test as the scan: a broken native-only game, or one whose Windows
+    # build isn't installed either, gains nothing from Proton or a restart.
+    game = next(((n, d) for a, n, d in installed_games() if a == appid), None)
+    try:
+        entries = read_appinfo().get(appid, [])
+    except (OSError, ValueError):
+        return
+    if game is None or not missing_linux_build(entries, game[1]):
+        return
+    name = game[0]
     notify("omarchy-i18n steam.protonRestart", "Restarting Steam to run %1 with Proton", name)
     pid = steam_pid()
     bp = big_picture()
@@ -298,7 +307,9 @@ def watch():
     handled = set()
     CONSOLE_LOG.parent.mkdir(parents=True, exist_ok=True)
     tail = subprocess.Popen(["tail", "-F", "-n", "0", str(CONSOLE_LOG)], stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+                            stderr=subprocess.DEVNULL)
+    log_fd, pending = tail.stdout.fileno(), b""
+
     signal.signal(signal.SIGTERM, lambda *_: (tail.terminate(), sys.exit(0)))
 
     pidfd = None
@@ -311,19 +322,23 @@ def watch():
                 pidfd = os.pidfd_open(pid)
             except ProcessLookupError:
                 pass
-        ready, _, _ = select.select([tail.stdout] + ([pidfd] if pidfd is not None else []), [], [])
+        ready, _, _ = select.select([log_fd] + ([pidfd] if pidfd is not None else []), [], [])
         if pidfd is not None and pidfd in ready:
             os.close(pidfd)
             pidfd = None
             time.sleep(1)  # Steam's launcher script outlives the client by a moment
             if not steam_pid():
                 safe_scan()
-        if tail.stdout in ready:
-            line = tail.stdout.readline()
-            if not line:
+        if log_fd in ready:
+            # Read the pipe directly: a buffered reader can hold whole lines
+            # that select() never reports again.
+            chunk = os.read(log_fd, 65536)
+            if not chunk:
                 raise SystemExit("tail exited")
-            if match := LAUNCH_FAILED.search(line):
-                recover(*match.groups(), handled)
+            *lines, pending = (pending + chunk).split(b"\n")
+            for line in lines:
+                if match := LAUNCH_FAILED.search(line.decode("utf-8", "replace")):
+                    recover(*match.groups(), handled)
 
 
 def safe_scan():
