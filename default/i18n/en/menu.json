@@ -57,6 +57,12 @@
   "system.shutdown": {
     "label": "Shutdown"
   },
+  "system.snapshots": {
+    "label": "Snapshots"
+  },
+  "system.snapshots.restore": {
+    "label": "Restore This Snapshot"
+  },
   "learn.keybindings": {
     "label": "Keybindings"
   },
@@ -65,18 +71,6 @@
   },
   "learn.hyprland": {
     "label": "Hyprland"
-  },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
   },
   "learn.herdr-keybindings": {
     "label": "Herdr"
@@ -859,8 +853,7 @@
     "label": "Cloudflare"
   },
   "install.cli.github": {
-    "label": "GitHub",
-    "description": "gh and ghui"
+    "label": "GitHub"
   },
   "install.cli.hey": {
     "label": "HEY"
@@ -1187,8 +1180,7 @@
     "label": "Cloudflare"
   },
   "remove.cli.github": {
-    "label": "GitHub",
-    "description": "gh and ghui"
+    "label": "GitHub"
   },
   "remove.cli.hey": {
     "label": "HEY"

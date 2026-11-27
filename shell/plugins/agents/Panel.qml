@@ -500,7 +500,8 @@ Panel {
           host: host || "",
           decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
           context: model.ctx != null ? model.ctx : recipe.context,
-          memory_gib: recipe.memory_gib
+          memory_gib: recipe.memory_gib,
+          best: recipe.best === true
         }
       })
     }
@@ -534,7 +535,7 @@ Panel {
   // What the network and local blocks of the add screen offer: each coding
   // model without a line, a paired machine's first, then one shared on the
   // tailnet by a machine not paired yet, which choosing pairs with. This
-  // machine's are those set up here, then every recipe that fits and isn't,
+  // machine's are those set up here and every recipe that fits and isn't,
   // recommended first, then another DGX Spark cabled to this one. Those
   // being set up or paired with, and the one being started from here, stay,
   // showing how that goes.
@@ -543,14 +544,15 @@ Panel {
     var lines = localModelLines.filter(function(line) {
       return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
     })
-    var offerLine = function(line) {
+    var offerLine = function(targetList, line) {
       var model = localModelState(line.localModel)
       if (model && model.unit === "removing") return
-      offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
-                    host: line.localModel.host, facts: line.localModel,
-                    shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
+      targetList.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
+                        host: line.localModel.host, facts: line.localModel,
+                        best: line.localModel.host === "" && line.localModel.best === true,
+                        shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
     }
-    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
+    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(function(line) { offerLine(offers, line) })
     var network = localModelsService ? localModelsService.networkModels || {} : {}
     for (var nid in network) {
       var shared = network[nid]
@@ -558,20 +560,26 @@ Panel {
       offers.push({ target: nid, name: shared.name || shared.recipe, vendor: shared.vendor || "local", host: shared.host,
                     facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, pair: shared })
     }
-    lines.filter(function(line) { return line.localModel.host === "" }).forEach(offerLine)
+    var localOffers = []
+    lines.filter(function(line) { return line.localModel.host === "" }).forEach(function(line) { offerLine(localOffers, line) })
     var recipes = (localModelsService ? localModelsService.localRecipes || [] : []).filter(function(recipe) {
       return recipe.kind === "text" && recipe.available === true
         && !localModelLines.some(function(line) { return line.localModel.target === String(recipe.id) })
     })
-    recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
     for (var r = 0; r < recipes.length; r++)
-      offers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
-                    host: "", facts: recipes[r], recipe: recipes[r], shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+      localOffers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
+                         host: "", facts: recipes[r], recipe: recipes[r], best: recipes[r].best === true,
+                         shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+    offers = offers.concat(sortLocalOffers(localOffers))
     var link = localModelsService && localModelsService.localModel ? localModelsService.localModel.link : null
     if (link && link.state === "available")
       offers.push({ target: "", name: link.host ? Commons.I18n.t("localModels.linkOffer").arg(link.host) : Commons.I18n.t("localModels.linkOfferUnnamed"),
                     vendor: "nvidia", host: "", facts: {}, link: link })
     return offers
+  }
+
+  function sortLocalOffers(offers) {
+    return offers.slice().sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
   }
 
   // A model on this machine that the memory free now can't start: one set up
@@ -596,20 +604,37 @@ Panel {
 
   // The network block's share of the offers, which come first.
   readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
+  // Local models offered for this machine, excluding a cabled-Spark link offer.
+  readonly property int localModelOfferCount: ownModelOffers.filter(function(offer) { return offer.host === "" && !offer.link }).length
+
+  function offerRecommended(offer, localCount) {
+    return !!offer && offer.host === "" && !offer.link && offer.best === true && localCount > 1
+  }
 
   // A model removed from this machine is no longer added, so set up again
-  // it's offered on the add screen first. One still being set up or
-  // downloaded isn't installed yet either, and stays.
-  readonly property var removedLocalModels: {
-    if (!localModelsService) return []
-    var recipes = localModelsService.localRecipes || []
-    var setups = localModelsService.setupRows()
-    return usage.addedLocalModels.filter(function(target) {
-      return target.indexOf("/") < 0 && !localModels[target] && !setups.some(function(row) { return row.recipe === target })
-        && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
+  // it's offered on the add screen first. One still being set up, handing off
+  // to the background unit, or downloading isn't installed yet either, and stays.
+  function findRemovedLocalModels(added, models, setups, recipes, settingUp, handingOff) {
+    var pending = handingOff || []
+    return (added || []).filter(function(target) {
+      return target.indexOf("/") < 0
+        && target !== settingUp
+        && pending.indexOf(target) < 0
+        && !(models && models[target])
+        && !(setups || []).some(function(row) { return row.recipe === target })
+        && (recipes || []).some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
     })
   }
-  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) usage.removeLocalModels(removedLocalModels)
+
+  readonly property var removedLocalModels: {
+    if (!localModelsService) return []
+    return findRemovedLocalModels(usage.addedLocalModels, localModels, localModelsService.setupRows(),
+      localModelsService.localRecipes || [], settingUpLocal, localModelsService.handingOff || [])
+  }
+  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) Qt.callLater(function() {
+    var dropped = removedLocalModels
+    if (dropped.length > 0) usage.removeLocalModels(dropped)
+  })
 
   // A model set up or started from the add screen keeps its row there,
   // showing how that goes, until it runs. Then it becomes the default if
@@ -618,8 +643,8 @@ Panel {
   property string settingUpLocal: ""
   readonly property var localSetup: settingUpLocal === "" ? null : localModelState({ target: settingUpLocal, host: "" })
 
-  // A tailnet model being paired with keeps its row too, its meter saying
-  // how the pairing goes; once paired, it has its line in the panel and
+  // A tailnet model being paired with keeps its row too, its metadata line
+  // saying how the pairing goes; once paired, it has its line in the panel and
   // becomes the default if nothing else was finished first.
   property string pairingLocal: ""
   onLocalModelLinesChanged: {
@@ -629,15 +654,15 @@ Panel {
     if (settingUpLocal === "" && addStage === "pick") cancelAdd()
   }
 
-  // The pairing's meter: under way, or why it failed.
-  readonly property var pairingMeter: {
+  // How the pairing is going: under way, or why it failed.
+  readonly property var pairingStatus: {
     if (pairingLocal === "" || !localModelsService) return null
     var host = pairingLocal.split("/")[0]
     if (localModelsService.pairingId === pairingLocal)
-      return { title: Commons.I18n.t("localModels.networkPairing").arg(host), value: -1, rate: "" }
+      return { text: Commons.I18n.t("localModels.networkPairing").arg(host), failed: false }
     var failure = localModelsService.pairFailures[pairingLocal]
     if (failure)
-      return { title: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), value: -1, rate: "", failed: true }
+      return { text: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), failed: true }
     return null
   }
 
@@ -655,9 +680,12 @@ Panel {
   onLocalSetupChanged: {
     if (!localSetup || localSetup.unit !== "active" || localSetup.sub_state !== "running") return
     var target = settingUpLocal
-    settingUpLocal = ""
-    if (usage.defaultAgent === "") selectLocalDefault(target)
-    if (pairingLocal === "" && addStage === "pick") cancelAdd()
+    Qt.callLater(function() {
+      if (settingUpLocal !== target) return
+      settingUpLocal = ""
+      if (usage.defaultAgent === "") selectLocalDefault(target)
+      if (pairingLocal === "" && addStage === "pick") cancelAdd()
+    })
   }
 
   // What a model on this machine is doing, as a meter: its title, how far
@@ -679,8 +707,8 @@ Panel {
     if (model.unit === "installing" && install.phase === "dependencies") return timed(Commons.I18n.t("localModels.installingMeter"), 30)
     if (model.unit === "installing") {
       var total = Number(install.total_bytes) || 0
-      return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
-               rate: downloadRate(Number(install.rate_bytes_s) || 0) }
+      return { title: "", value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
+               rate: downloadRate(Number(install.rate_bytes_s) || 0), downloading: true }
     }
     if (model.unit === "activating") return timed(Commons.I18n.t("localModels.loadingMeter"), expectedLoadSeconds(model))
     if (model.unit === "deactivating") return timed(Commons.I18n.t("localModels.stoppingMeter"), expectedStopSeconds(model))
@@ -1144,7 +1172,7 @@ Panel {
   readonly property bool starterAgentReady: localModelRunning || localModelStopped || providers.some(function(p) {
     return harnessFor(p) !== "" && !signedOut(p)
   })
-  readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
+  readonly property bool starterShown: indexShown && starterAgentReady
 
   function startPrompt(kind) {
     root.close()
@@ -1658,6 +1686,9 @@ Panel {
     font.pixelSize: Style.font.bodySmall
     text: "00h 00m"
   }
+  // The share of a meter row its title takes: wide enough for the longest
+  // window name ("Claude/GPT Weekly") without eliding it.
+  readonly property real labelColumnRatio: 0.34
   readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
 
   // ------------------------------------------------------------------ spend
@@ -1757,7 +1788,7 @@ Panel {
   // refreshes each agent in turn. Indexing the live list would swap the line
   // on each of those, so the hero holds what it shows until the next fade.
   property string shownPhrase: ""
-  readonly property string heroPhrase: addStage !== "" || blankSlate
+  readonly property string heroPhrase: !indexShown
     ? addHeading
     : (shownPhrase !== "" ? shownPhrase : Commons.I18n.t("agents.letsMakeSomethingCool"))
 
@@ -1793,29 +1824,15 @@ Panel {
     return ""
   }
 
-  // Agents that ship a white mark carry an `assets/<id>-light.svg` twin for
-  // light surfaces; marks that work on both (Claude's brand-orange) ship one
-  // file. The luminance check decides which candidate to try first.
-  function colorChannelLuminance(value) {
-    var channel = Number(value)
-    if (!isFinite(channel)) return 0
-    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4)
-  }
-
-  function colorLuminance(color) {
-    return 0.2126 * colorChannelLuminance(color.r)
-      + 0.7152 * colorChannelLuminance(color.g)
-      + 0.0722 * colorChannelLuminance(color.b)
-  }
-
   // Marks resolve by convention, so a new agent's data file needs nothing
   // from this panel: assets/<id>.svg if it ships one, the module's bar glyph
-  // if it doesn't.
+  // if it doesn't. Agents that ship a white mark carry an `assets/<id>-light.svg`
+  // twin for light surfaces.
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var id = p.iconId || p.providerId
     var candidates = []
-    if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
+    if (Util.luminance(surfaceColor || Commons.Color.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + id + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + id + ".svg"))
     return candidates
@@ -1830,8 +1847,16 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  // So does a running local model, which the starters can hand their task to.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !localModelRunning
+  // So does any local or paired coding model on the index (running, stopped,
+  // loading, stopping, failed, or removing), while a model still being set up
+  // or started from the picker stays on the blank-slate picker.
+  readonly property bool hasIndexLocalModel: localModelLines.some(function(line) {
+    return usage.localModelAdded(line)
+      && line.localModel.target !== settingUpLocal
+      && !localSettingUp(localModelState(line.localModel))
+  })
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !hasIndexLocalModel
+  readonly property bool indexShown: addStage === "" && !blankSlate
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -1884,6 +1909,7 @@ Panel {
   property Item pasteFieldItem: null
   readonly property Item openFocusItem: addStage === "running" && addNeedsPaste && pasteFieldItem ? pasteFieldItem : panel.loadedContent
   onOpenedChanged: if (!opened) {
+    openRefresh.stop()
     resetProviderDrag()
     makesOpenIndex = -1
   } else {
@@ -1897,14 +1923,25 @@ Panel {
     if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
     usage.reloadDefaults()
-    if (localModelsService) localModelsService.refreshNetwork()
+    // Defer the external usage/network refresh past the open animation so
+    // spawning omarchy-agent-usage-update doesn't compete with rendering it.
+    openRefresh.restart()
     // Whether a stopped model fits is as the engine last judged it; memory
     // freed since lets it start, so it's judged again.
     if (Object.keys(localModels).some(function(id) { return localModels[id].fits === false }))
       Util.execArgv(["omarchy-models", "status", "--write"])
     Qt.callLater(function() { if (root.openFocusItem) root.openFocusItem.forceActiveFocus() })
+  }
+
+  Timer {
+    id: openRefresh
+    interval: Math.max(16, Style.duration(220))
+    onTriggered: {
+      if (!root.opened) return
+      usage.refreshLimits()
+      if (localModelsService) localModelsService.refreshNetwork()
+    }
   }
 
   // The tailnet has no change signal, so while the panel is open the paired
@@ -1975,7 +2012,7 @@ Panel {
 
   Timer {
     interval: 2800
-    running: root.opened && root.summaryPhrases.length > 1 && root.addStage === "" && !root.blankSlate
+    running: root.opened && root.summaryPhrases.length > 1 && root.indexShown
     repeat: true
     onTriggered: phraseSwap.restart()
   }
@@ -2076,7 +2113,7 @@ Panel {
       }
       implicitHeight: column.implicitHeight
       anchors.fill: parent
-      reorderable: root.addStage === "" && !root.renaming
+      reorderable: root.indexShown && !root.renaming
       onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
@@ -2091,7 +2128,7 @@ Panel {
       // A text field keeps its own keys: Qt passes Return on after accepting
       // it, and here that would press the Cancel under the cursor too, or
       // steal letters like j/k/x from an account name.
-      blocked: root.renaming || root.deleteTarget !== null || addView.inputFocused
+      blocked: root.renaming || root.deleteTarget !== null || (!!addViewLoader.item && addViewLoader.item.inputFocused)
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
@@ -2101,7 +2138,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
+        else if (root.indexShown && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
       }
 
       Flickable {
@@ -2204,15 +2241,21 @@ Panel {
             }
           }
 
-          AddView {
-            id: addView
-            visible: root.addStage !== "" || root.blankSlate
+          Loader {
+            id: addViewLoader
+            active: !root.indexShown
+            visible: active
             width: column.width
+            sourceComponent: Component {
+              AddView {
+                visible: !root.indexShown
+              }
+            }
           }
 
           Repeater {
             id: providerSections
-            model: root.addStage === "" ? root.providers : []
+            model: root.indexShown ? root.providers : []
 
             ProviderSection {
               required property var modelData
@@ -2456,6 +2499,10 @@ Panel {
           readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
           // Too big for the memory free now: dimmed, saying so, and not chosen.
           readonly property var shortfall: modelData.shortfall || null
+          readonly property bool recommended: root.offerRecommended(modelData, root.localModelOfferCount)
+          readonly property var pairingState: modelData.pair && modelData.target === root.pairingLocal ? root.pairingStatus : null
+          readonly property var offerMeterState: modelData.pair ? null : root.offerMeter(modelData)
+          readonly property bool downloading: !!offerMeterState && offerMeterState.downloading === true
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
@@ -2482,42 +2529,85 @@ Panel {
             anchors.left: ownModelMark.right
             anchors.leftMargin: Style.space(12)
             anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(4)
 
-            Text {
+            Item {
+              id: ownModelHeader
               width: parent.width
-              text: ownModel.modelData.name
-              textFormat: Text.PlainText
-              color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-              elide: Text.ElideRight
+              implicitHeight: Math.max(ownModelName.implicitHeight, ownModelRecommended.visible ? ownModelRecommended.implicitHeight : 0)
+
+              Text {
+                id: ownModelName
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: ownModelRecommended.visible
+                  ? Math.max(0, Math.min(implicitWidth, parent.width - ownModelRecommended.implicitWidth - Style.space(8)))
+                  : parent.width
+                text: ownModel.modelData.name
+                textFormat: Text.PlainText
+                color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Rectangle {
+                id: ownModelRecommended
+                visible: ownModel.recommended
+                opacity: ownModel.shortfall ? 0.5 : 1
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: ownModelRecommendedLabel.implicitWidth + Style.space(12)
+                implicitHeight: ownModelRecommendedLabel.implicitHeight + Style.space(4)
+                radius: Style.cornerRadius
+                color: root.alpha(Commons.Color.accent, 0.14)
+                border.width: Style.spacing.hairline
+                border.color: root.alpha(Commons.Color.accent, 0.35)
+
+                Text {
+                  id: ownModelRecommendedLabel
+                  anchors.centerIn: parent
+                  text: Commons.I18n.t("localModels.recommended")
+                  textFormat: Text.PlainText
+                  color: Commons.Color.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
             }
 
             // A paired machine's model says whose it is before its facts; a
             // cabled Spark, what setting it up does; one too big for the
-            // memory free now, in red, why it can't start.
+            // memory free now, in red, why it can't start; one being paired
+            // with, that it's pairing or why pairing failed. While downloading,
+            // the progress bar takes this line's place.
             Text {
+              visible: !ownModel.downloading
               width: parent.width
-              text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
+              text: ownModel.pairingState ? ownModel.pairingState.text
+                : ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
                 : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
                 : [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
               textFormat: Text.PlainText
-              color: ownModel.shortfall ? root.urgent : root.dim
+              color: ownModel.pairingState ? (ownModel.pairingState.failed ? root.urgent : root.foreground)
+                : ownModel.shortfall ? root.urgent : root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
+              wrapMode: ownModel.pairingState && ownModel.pairingState.failed ? Text.Wrap : Text.NoWrap
+              elide: ownModel.pairingState && ownModel.pairingState.failed ? Text.ElideNone : Text.ElideRight
             }
 
             // The setup or start begun here: installing, downloading, then
-            // loading, as its line will show it; or the pairing.
+            // loading, as its line will show it.
             LocalMeterRow {
-              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
+              meter: ownModel.offerMeterState
               visible: !!meter
               width: parent.width
-              topPadding: Style.space(6)
+              topPadding: ownModel.downloading ? Style.space(2) : Style.space(6)
             }
           }
 
@@ -2621,7 +2711,9 @@ Panel {
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
-        onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
+        function claimFocus() { if (visible) { text = ""; forceActiveFocus() } }
+        onVisibleChanged: claimFocus()
+        Component.onCompleted: claimFocus()
         // Enter stops here, or the panel would press its cursor too.
         Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
@@ -2654,7 +2746,7 @@ Panel {
 
         Text {
           id: installTitle
-          width: parent.width * 0.3
+          width: parent.width * root.labelColumnRatio
           anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
           text: Commons.I18n.t("agents.installingMeter")
@@ -2766,10 +2858,12 @@ Panel {
             function submit() { root.submitPaste(text); text = "" }
             Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
             Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
-            onVisibleChanged: {
+            function syncPasteFocus() {
               root.pasteFieldItem = visible ? pasteField : null
               if (visible) forceActiveFocus()
             }
+            onVisibleChanged: syncPasteFocus()
+            Component.onCompleted: if (visible) syncPasteFocus()
             Connections {
               target: root
               function onAddStageChanged() { if (root.addStage !== "running") pasteField.text = "" }
@@ -3249,9 +3343,10 @@ Panel {
     }
 
     // The machine a local model runs on when that isn't this one, then its
-    // memory, speed, and context.
+    // memory, speed, and context. While downloading, the progress bar takes
+    // this line's place.
     Text {
-      visible: !!section.local && text !== ""
+      visible: !!section.local && text !== "" && !(section.localMeter && section.localMeter.downloading === true)
       width: parent.width
       textFormat: Text.PlainText
       text: section.local ? [section.local.host, root.ownModelFacts(section.local)].filter(function(part) { return part !== "" }).join(" · ") : ""
@@ -3365,7 +3460,7 @@ Panel {
       Text {
         id: balanceTitle
         textFormat: Text.PlainText
-        width: parent.width * 0.3
+        width: parent.width * root.labelColumnRatio
         anchors.verticalCenter: parent.verticalCenter
         text: Commons.I18n.t("agents.balance")
         color: root.foreground
@@ -3409,7 +3504,7 @@ Panel {
       Text {
         id: spendTitle
         textFormat: Text.PlainText
-        width: parent.width * 0.3
+        width: parent.width * root.labelColumnRatio
         anchors.verticalCenter: parent.verticalCenter
         text: section.spend && section.spend.cap > 0 ? Commons.I18n.t("agents.spendThisMonth") : Commons.I18n.t("agents.spendLast30Days")
         color: root.foreground
@@ -3590,13 +3685,16 @@ Panel {
     property var meter: null
     property real topPadding: 0
     readonly property bool failed: !!meter && meter.failed === true
-    // A step with no measure of its own, like a pairing, is its title alone.
+    // A failed step has no measure of its own, only its reason.
     readonly property bool barless: !meter || failed || meter.value < 0
-    implicitHeight: Math.max(meterTitle.implicitHeight, meterRate.implicitHeight) + topPadding
+    readonly property bool titled: !!meter && String(meter.title || "") !== ""
+    readonly property bool hasRate: meterRate.text !== ""
+    implicitHeight: Math.max(titled ? meterTitle.implicitHeight : 0, meterRate.implicitHeight, meterBar.implicitHeight) + topPadding
 
     Text {
       id: meterTitle
-      width: meterRow.barless ? parent.width : parent.width * 0.3
+      visible: meterRow.titled
+      width: meterRow.barless ? parent.width : parent.width * root.labelColumnRatio
       anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       text: meterRow.meter ? meterRow.meter.title : ""
@@ -3608,24 +3706,25 @@ Panel {
     }
 
     Meter {
+      id: meterBar
       visible: !meterRow.barless
-      anchors.left: meterTitle.right
-      anchors.right: meterRate.left
-      anchors.rightMargin: Style.space(20)
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.left: meterRow.titled ? meterTitle.right : parent.left
+      anchors.right: meterRow.hasRate ? meterRate.left : parent.right
+      anchors.rightMargin: meterRow.hasRate ? (meterRow.titled ? Style.space(20) : Style.space(10)) : 0
+      anchors.verticalCenter: meterRow.titled ? meterTitle.verticalCenter : meterRate.verticalCenter
       value: meterRow.meter ? meterRow.meter.value : 0
     }
 
     Text {
       id: meterRate
       anchors.right: parent.right
-      anchors.verticalCenter: meterTitle.verticalCenter
+      anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       horizontalAlignment: Text.AlignRight
       text: meterRow.meter && !meterRow.failed ? meterRow.meter.rate : ""
       color: root.dim
       font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: meterRow.titled ? Style.font.bodySmall : Style.font.caption
     }
   }
 
@@ -3731,7 +3830,7 @@ Panel {
     Text {
       id: compactTitle
       textFormat: Text.PlainText
-      width: parent.width * 0.3
+      width: parent.width * root.labelColumnRatio
       anchors.verticalCenter: parent.verticalCenter
       text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground

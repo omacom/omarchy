@@ -1,6 +1,93 @@
+_omarchy_prioritize_agent_accounts_path() {
+  local rc=$?
+  local dir="$HOME/.local/share/omarchy/agent-accounts/bin"
+  if [[ $PATH != "$dir":* && $PATH != "$dir" ]]; then
+    local p=":$PATH:"
+    p="${p//":$dir:"/:}"
+    p="${p#:}"
+    p="${p%:}"
+    export PATH="$dir${p:+:$p}"
+  fi
+  return "$rc"
+}
+
+_omarchy_starship_now() {
+  local t="${EPOCHREALTIME/[.,]/}"
+  printf -v "$1" '%s' "${t%???}"
+}
+
+_omarchy_starship_ps2_is_static() {
+  local cfg="$1"
+  if [[ -z $cfg || ! -r $cfg ]]; then
+    return 0
+  fi
+  local line
+  while IFS= read -r line || [[ -n $line ]]; do
+    line="${line%$'\r'}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -z $line || $line == "#"* ]] && continue
+    # Bail conservatively on escaped TOML keys (e.g. "\u0063ontinuation_prompt")
+    if [[ $line == *\\*=* ]]; then
+      return 1
+    fi
+    if [[ $line == *continuation_prompt* ]]; then
+      if [[ $line =~ ^(\"continuation_prompt\"|\'continuation_prompt\'|continuation_prompt)[[:space:]]*=[[:space:]]*(\'[^\'\$]*\'|\"[^\"\$\\]*\")[[:space:]]*(#.*)?$ ]]; then
+        continue
+      fi
+      return 1
+    fi
+  done <"$cfg"
+  return 0
+}
+
+_omarchy_transform_mise_init() {
+  local output="$1"
+  local line
+  local -a lines=()
+
+  while IFS= read -r line; do
+    case "$line" in
+      *'eval "$(mise hook-env '* | *'eval "$(command '*' "$command" "$@")"'*)
+        lines+=("$line; _omarchy_prioritize_agent_accounts_path")
+        ;;
+      *) lines+=("$line") ;;
+    esac
+  done <<<"$output"
+
+  printf '%s\n' "${lines[@]}"
+}
+
+_omarchy_transform_starship_init() {
+  local bin="$1" output="$2"
+  local bin_q ps2 ps2_assign
+
+  printf -v bin_q '%q' "$bin"
+  output="${output//"STARSHIP_START_TIME=\$($bin time)"/"_omarchy_starship_now STARSHIP_START_TIME"}"
+  output="${output//"STARSHIP_START_TIME=\$('$bin' time)"/"_omarchy_starship_now STARSHIP_START_TIME"}"
+  output="${output//"STARSHIP_START_TIME=\$($bin_q time)"/"_omarchy_starship_now STARSHIP_START_TIME"}"
+  output="${output//"STARSHIP_END_TIME=\$($bin time)"/"_omarchy_starship_now STARSHIP_END_TIME"}"
+  output="${output//"STARSHIP_END_TIME=\$('$bin' time)"/"_omarchy_starship_now STARSHIP_END_TIME"}"
+  output="${output//"STARSHIP_END_TIME=\$($bin_q time)"/"_omarchy_starship_now STARSHIP_END_TIME"}"
+  output="${output//'if [[ "${PS0-}" != *"starship_preexec_ps0"* ]]; then'/'if [[ "${PS0-}" != *"STARSHIP_START_TIME"* ]]; then'}"
+  output="${output//'STARSHIP_START_TIME="$(starship_preexec_ps0)"'/'STARSHIP_START_TIME=${EPOCHREALTIME/[.,]/},STARSHIP_START_TIME/=1000'}"
+
+  if _omarchy_starship_ps2_is_static "${_omarchy_starship_cfg:-}" && [[ $output == *"PS2=\"\$($bin prompt --continuation)\""* ||
+    $output == *"PS2=\"\$('$bin' prompt --continuation)\""* ||
+    $output == *"PS2=\"\$($bin_q prompt --continuation)\""* ]]; then
+    if ps2=$(STARSHIP_SHELL=bash "$bin" prompt --continuation 2>/dev/null); then
+      printf -v ps2_assign 'PS2=%q' "$ps2"
+      output="${output//"PS2=\"\$($bin prompt --continuation)\""/"$ps2_assign"}"
+      output="${output//"PS2=\"\$('$bin' prompt --continuation)\""/"$ps2_assign"}"
+      output="${output//"PS2=\"\$($bin_q prompt --continuation)\""/"$ps2_assign"}"
+    fi
+  fi
+
+  printf '%s\n' "$output"
+}
+
 _omarchy_source_cached_init() {
-  local name="$1" bin="$2" stamp="$3"
-  shift 3
+  local name="$1" bin="$2" stamp="$3" transform="$4"
+  shift 4
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/bash"
   local cache="$cache_dir/$name.bash"
   local header="# omarchy-init:$bin:$stamp"
@@ -18,6 +105,10 @@ _omarchy_source_cached_init() {
   output=$("$bin" "$@" 2>/dev/null) || return
   [[ -n $output ]] || return
 
+  if [[ -n $transform ]]; then
+    output=$("$transform" "$bin" "$output")
+  fi
+
   if [[ -n $stamp ]] && mkdir -p "$cache_dir" 2>/dev/null; then
     local tmp="$cache.$$"
     if printf '%s\n%s\n' "$header" "$output" >"$tmp" 2>/dev/null && mv -f "$tmp" "$cache" 2>/dev/null; then
@@ -31,30 +122,53 @@ _omarchy_source_cached_init() {
 }
 
 if command -v mise &> /dev/null; then
-  eval "$(mise activate bash)"
+  if _omarchy_mise_init=$(mise activate bash 2>/dev/null); then
+    eval "$(_omarchy_transform_mise_init "$_omarchy_mise_init")"
+    _omarchy_prioritize_agent_accounts_path
+  fi
+  unset _omarchy_mise_init
 fi
 
-_omarchy_init_bins=()
+_omarchy_init_paths=()
 _omarchy_starship=""
+_omarchy_starship_cfg=""
 _omarchy_zoxide=""
 if [[ $- == *i* ]] && [[ ${TERM:-} != "dumb" ]]; then
-  _omarchy_starship=$(type -P starship) && _omarchy_init_bins+=("$_omarchy_starship")
+  if _omarchy_starship=$(type -P starship); then
+    _omarchy_init_paths+=("$_omarchy_starship")
+    _omarchy_starship_cfg="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
+    if [[ -e $_omarchy_starship_cfg ]]; then
+      _omarchy_init_paths+=("$_omarchy_starship_cfg")
+    else
+      _omarchy_starship_cfg=""
+    fi
+  fi
 fi
-_omarchy_zoxide=$(type -P zoxide) && _omarchy_init_bins+=("$_omarchy_zoxide")
+if _omarchy_zoxide=$(type -P zoxide); then
+  _omarchy_init_paths+=("$_omarchy_zoxide")
+fi
 
-if (( ${#_omarchy_init_bins[@]} > 0 )); then
-  mapfile -t _omarchy_init_stamps < <(stat -Lc '%d:%i:%s:%Y' "${_omarchy_init_bins[@]}" 2>/dev/null)
+if (( ${#_omarchy_init_paths[@]} > 0 )); then
+  mapfile -t _omarchy_init_stamps < <(stat -Lc '%d:%i:%s:%y' "${_omarchy_init_paths[@]}" 2>/dev/null)
   _omarchy_stamp_idx=0
   if [[ -n $_omarchy_starship ]]; then
-    _omarchy_source_cached_init starship "$_omarchy_starship" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}" init bash --print-full-init
-    (( _omarchy_stamp_idx++ ))
+    _omarchy_starship_stamp="${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
+    (( ++_omarchy_stamp_idx ))
+    if [[ -n $_omarchy_starship_cfg ]]; then
+      _omarchy_starship_stamp+=":${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}"
+      (( ++_omarchy_stamp_idx ))
+    else
+      _omarchy_starship_stamp+=":none"
+    fi
+    _omarchy_starship_stamp+=":${NO_COLOR:+1}:${NO_COLOR+set}:v1"
+    _omarchy_source_cached_init starship "$_omarchy_starship" "$_omarchy_starship_stamp" _omarchy_transform_starship_init init bash --print-full-init
   fi
   if [[ -n $_omarchy_zoxide ]]; then
-    _omarchy_source_cached_init zoxide "$_omarchy_zoxide" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}" init bash
+    _omarchy_source_cached_init zoxide "$_omarchy_zoxide" "${_omarchy_init_stamps[$_omarchy_stamp_idx]:-}" "" init bash
   fi
 fi
-unset _omarchy_init_bins _omarchy_init_stamps _omarchy_stamp_idx _omarchy_starship _omarchy_zoxide
-unset -f _omarchy_source_cached_init
+unset _omarchy_init_paths _omarchy_init_stamps _omarchy_stamp_idx _omarchy_starship _omarchy_starship_cfg _omarchy_starship_stamp _omarchy_zoxide
+unset -f _omarchy_source_cached_init _omarchy_transform_mise_init _omarchy_transform_starship_init _omarchy_starship_ps2_is_static
 
 if command -v try &> /dev/null; then
   try() {

@@ -5,7 +5,9 @@
 limine_config_dir=${OMARCHY_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
 config_file=$limine_config_dir/zz-omarchy-dgx-spark.conf
 
-if omarchy-hw-aarch64-gb10 && omarchy-hw-match "NVIDIA_DGX_Spark"; then
+# systemd-boot starts the UKI without claiming that memory, so only Limine
+# needs it.
+if omarchy-hw-aarch64-gb10 && omarchy-hw-match "NVIDIA_DGX_Spark" && [[ $(omarchy-boot-backend) != systemd-boot ]]; then
   mkdir -p "$limine_config_dir"
   # Named to sort after omarchy-uki.conf, whose ENABLE_UKI=yes this overrides.
   cat >"$config_file" <<'CONF'
