@@ -261,6 +261,15 @@ BarWidget {
     bar: root.bar
     text: root.inputLabel
     fontSize: Style.font.caption
+    // Align the painted language label with the neighboring bar icons.
+    transform: Translate {
+      y: {
+        const window = root.QsWindow.window
+        const monitor = window && window.screen ? Hyprland.monitorFor(window.screen) : null
+        const scale = monitor && monitor.lastIpcObject ? monitor.lastIpcObject.scale : 1
+        return scale === 1.25 ? 0 : 1.5
+      }
+    }
     horizontalMargin: 6
     tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
     onPressed: function(button) {
