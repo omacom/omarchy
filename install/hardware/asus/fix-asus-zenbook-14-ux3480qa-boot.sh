@@ -14,13 +14,17 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3480QA"; then
 MODULES+=(qrtr? pmic_glink_altmode? gpio_sbu_mux?)
 CONF
 
-  # The kernel defaults to deep sleep, PSCI system suspend, here. Suspend to
-  # idle is the mode the lid, keyboard and Wi-Fi are proven on, so sleep that
-  # way.
+  # Use PSCI deep suspend (MemorySleepMode=deep). On the X1-26-100 Purwa
+  # firmware here, s2idle leaves apss/cxsd/aosd/ddr at 0 (~0.94 W drain),
+  # whereas deep suspend reaches ~99.99% APSS/CXSD/AOSD/DDR residency (~0.2-0.3 W)
+  # with working Wi-Fi, Bluetooth, audio, webcam and display on resume (paired
+  # with the switch-lid DTB fix in linux-omarchy-dtbs 7.3-77 and a200000.usb
+  # wakeup disabled in 90-asus-zenbook-14-ux3480qa-power.rules). Keep
+  # hibernation off as on the Zenbook A16.
   mkdir -p "$sleep_config_dir"
   cat >"$sleep_config_dir/zenbook-14-ux3480qa.conf" <<'CONF'
 [Sleep]
-MemorySleepMode=s2idle
+MemorySleepMode=deep
 AllowHibernation=no
 AllowSuspendThenHibernate=no
 AllowHybridSleep=no
