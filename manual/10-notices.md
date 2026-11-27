@@ -12,6 +12,8 @@ Cards offer what they carry: _Copy code_ for verification codes (kept out of [cl
 
 Silencing notifications holds them back, except Omarchy's own confirmations, emergency alerts, and verification codes, which you asked for a moment ago. Put the last few back on screen, held back or not, with `Super + Shift + Alt + ,`. History is kept for a day.
 
+To quiet one noisy app instead of all of them, mute it: `omarchy notification mute omasnap` holds back every notification from the screenshot tool, `omarchy notification mute omasnap off` brings them back, and `omarchy notification mute` on its own lists what you've muted. The name is the app's notification name, the `app` of its entries in `~/.local/state/omarchy/notifications/history.json`. Muted notifications are held back like silenced ones, so `Super + Shift + Alt + ,` still shows them. Verification codes always come through.
+
 ## Hotkey notices
 
 ### Date & Time

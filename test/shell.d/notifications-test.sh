@@ -57,3 +57,23 @@ used=$(
 missing=$(comm -13 <(echo "$declared") <(echo "$used"))
 [[ -z $missing ]] || fail "every notifications IPC method callers use is declared" "missing: $missing"
 pass "every notifications IPC method callers use is declared"
+
+# `omarchy notification mute` reports what the shell answers, and a full list
+# is an error rather than a mute that did not happen.
+stub="$tmp/mute-bin"
+mkdir -p "$stub"
+cat >"$stub/omarchy-shell" <<'SH'
+#!/bin/bash
+printf '%s' "$MUTE_ANSWER"
+SH
+chmod +x "$stub/omarchy-shell"
+for answer in on off full invalid; do
+  out=$(MUTE_ANSWER=$answer PATH="$stub:$PATH" "$ROOT/bin/omarchy-notification-mute" slack 2>&1) && status=0 || status=$?
+  case $answer in
+    on) [[ $status == 0 && $out == "Muted notifications from slack." ]] ;;
+    off) [[ $status == 0 && $out == "Notifications from slack are back on." ]] ;;
+    full) [[ $status == 1 && $out == "Too many apps are muted to add slack. Unmute one first." ]] ;;
+    invalid) [[ $status == 1 && $out == *"Not an app name: slack"* ]] ;;
+  esac || fail "the mute command reports the shell's answer: $answer" "status $status: $out"
+done
+pass "the mute command reports the shell's answer, a full list included"
