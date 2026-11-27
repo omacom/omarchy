@@ -12,24 +12,40 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 # The terminal stands in for the whole launch chain and records what the
 # command in the window would see.
-mkdir -p "$test_tmp/bin"
+mkdir -p "$test_tmp/bin" "$test_tmp/cfg" "$test_tmp/data/applications"
 for command in setsid uwsm-app; do
   printf '#!/bin/bash\n[[ $1 == "--" ]] && shift\nexec "$@"\n' >"$test_tmp/bin/$command"
 done
-cat >"$test_tmp/bin/xdg-terminal-exec" <<STUB
+cat >"$test_tmp/bin/foot" <<STUB
 #!/bin/bash
 printf 'NO_COLOR=%s PAGER=%s GIT_PAGER=%s args=%s\\n' "\${NO_COLOR-unset}" "\${PAGER-unset}" "\${GIT_PAGER-unset}" "\$*" >"$test_tmp/window"
 STUB
+cat >"$test_tmp/bin/xdg-terminal-exec" <<STUB
+#!/bin/bash
+printf 'XTE NO_COLOR=%s PAGER=%s GIT_PAGER=%s args=%s\\n' "\${NO_COLOR-unset}" "\${PAGER-unset}" "\${GIT_PAGER-unset}" "\$*" >"$test_tmp/window"
+STUB
 chmod +x "$test_tmp/bin"/*
+printf 'foot.desktop\n' >"$test_tmp/cfg/xdg-terminals.list"
+cat >"$test_tmp/data/applications/foot.desktop" <<'EOF'
+[Desktop Entry]
+TryExec=foot
+Exec=foot
+X-TerminalArgDir=--working-directory=
+X-TerminalArgAppId=--app-id=
+X-TerminalArgExec=-e
+EOF
 
 launch() {
   rm -f "$test_tmp/window"
-  env -u NO_COLOR -u PAGER -u GIT_PAGER "$@" PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force
+  env -u NO_COLOR -u PAGER -u GIT_PAGER "$@" \
+    XDG_CONFIG_HOME="$test_tmp/cfg" XDG_CONFIG_DIRS="$test_tmp/no-etc" \
+    XDG_DATA_HOME="$test_tmp/data" XDG_DATA_DIRS="$test_tmp/no-sys" \
+    PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force
   cat "$test_tmp/window"
 }
 
-[[ $(launch NO_COLOR=1 PAGER=cat GIT_PAGER=cat) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args=--app-id=org.omarchy.test -e btop --utf-force" ]] ||
-  fail "a window opened from an agent's command gets its colors and pager back" "$(cat "$test_tmp/window")"
+[[ $(launch NO_COLOR=1 PAGER=cat GIT_PAGER=cat) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args=--working-directory=$PWD --app-id=org.omarchy.test -e btop --utf-force" ]] ||
+  fail "a window opened from an agent's command gets its colors and pager back via fast path" "$(cat "$test_tmp/window")"
 pass "a window opened from an agent's command gets its colors and pager back"
 
 [[ $(launch NO_COLOR=1 PAGER=less) == "NO_COLOR=1 PAGER=less GIT_PAGER=unset args="* ]] ||
@@ -38,7 +54,16 @@ pass "a window opened from an agent's command gets its colors and pager back"
   fail "a pager the user chose stays" "$(cat "$test_tmp/window")"
 [[ $(launch) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args="* ]] ||
   fail "a plain launch is unchanged" "$(cat "$test_tmp/window")"
-pass "what the user set for themselves stays as it is"
+
+# Without a matching xdg-terminals.list entry, omarchy-launch-tui falls back to xdg-terminal-exec.
+rm -f "$test_tmp/window"
+env -u NO_COLOR -u PAGER -u GIT_PAGER \
+  XDG_CONFIG_HOME="$test_tmp/no-cfg" XDG_CONFIG_DIRS="$test_tmp/no-etc" \
+  XDG_DATA_HOME="$test_tmp/no-data" XDG_DATA_DIRS="$test_tmp/no-sys" \
+  PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force
+[[ $(cat "$test_tmp/window") == "XTE NO_COLOR=unset PAGER=unset GIT_PAGER=unset args=--dir=$PWD --app-id=org.omarchy.test -e btop --utf-force" ]] ||
+  fail "omarchy-launch-tui falls back to xdg-terminal-exec when no fast-path terminal is configured" "$(cat "$test_tmp/window")"
+pass "what the user set for themselves stays as it is and fallback to xdg-terminal-exec works"
 
 # launch-or-focus and its TUI/webapp wrappers must pass arguments without eval
 # splitting or shell-executing metacharacters such as & and $(...).

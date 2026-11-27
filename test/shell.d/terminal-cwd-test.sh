@@ -130,6 +130,8 @@ cat >"$launch_data/applications/foot.desktop" <<'EOF'
 TryExec=foot
 Exec=foot
 X-TerminalArgDir=--working-directory=
+X-TerminalArgAppId=--app-id=
+X-TerminalArgExec=-e
 EOF
 
 run_launch() {
@@ -143,8 +145,12 @@ run_launch() {
 
 [[ $(run_launch --pid="$terminal_pid") == *"ARGS=foot --working-directory=$work_dir" ]] ||
   fail "plain terminal launch uses X-TerminalArgDir directly without xdg-terminal-exec" "$(cat "$launch_out")"
-[[ $(run_launch --app-id=org.omarchy.herdr herdr) == *"ARGS=xdg-terminal-exec --dir=$work_dir --app-id=org.omarchy.herdr herdr" ]] ||
-  fail "terminal launch with extra arguments falls back to xdg-terminal-exec" "$(cat "$launch_out")"
+[[ $(run_launch --app-id=org.omarchy.herdr herdr) == *"ARGS=foot --working-directory=$work_dir --app-id=org.omarchy.herdr -e herdr" ]] ||
+  fail "terminal launch with --app-id and command uses fast path directly" "$(cat "$launch_out")"
+[[ $(run_launch --dir="$downloads_dir" --app-id=org.omarchy.btop -e btop --utf-force) == *"ARGS=foot --working-directory=$downloads_dir --app-id=org.omarchy.btop -e btop --utf-force" ]] ||
+  fail "terminal launch with --dir, --app-id, and -e uses fast path without running terminal-cwd" "$(cat "$launch_out")"
+[[ $(run_launch --title=Custom herdr) == *"ARGS=xdg-terminal-exec --dir=$work_dir --title=Custom herdr" ]] ||
+  fail "terminal launch with unsupported options falls back to xdg-terminal-exec" "$(cat "$launch_out")"
 
 printf 'foot.desktop:New\nfoot.desktop\n' >"$launch_cfg/xdg-terminals.list"
 [[ $(run_launch) == *"ARGS=xdg-terminal-exec --dir=$work_dir" ]] ||
