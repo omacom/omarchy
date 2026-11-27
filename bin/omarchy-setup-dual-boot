@@ -31,6 +31,13 @@ if omarchy-hw-aarch64-apple; then
   exit 1
 fi
 
+# Only Limine's menu is written here. On systemd-boot, or while a switch to it
+# is still settling, limine.conf is gone or no longer the menu that starts.
+if [[ $(omarchy-boot-backend --managed) != "limine" ]]; then
+  echo "Error: Dual Boot setup only supports Limine, and this machine boots with systemd-boot" >&2
+  exit 1
+fi
+
 limine_conf="${OMARCHY_LIMINE_CONF:-}"
 if [[ -z $limine_conf ]]; then
   esp=""

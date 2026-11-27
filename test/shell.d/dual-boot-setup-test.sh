@@ -27,6 +27,7 @@ cat >"$scratch/bin/gum" <<'SH'
 exit 0
 SH
 printf '#!/bin/bash\nexit 1\n' >"$scratch/bin/omarchy-hw-aarch64-apple"
+printf '#!/bin/bash\necho "${TEST_BOOT_BACKEND:-limine}"\n' >"$scratch/bin/omarchy-boot-backend"
 chmod +x "$scratch/bin/"*
 
 # The ESP spells the loader path its own way (a FAT tool wrote "efi" in lower
@@ -148,3 +149,15 @@ output=$(OMARCHY_LIMINE_CONF=$conf TEST_EFI_ENTRIES="BootOrder: 0001\n$limine" T
 [[ $output == *"more than one other ESP does"* ]] || fail "dual-boot setup says why it stops" "$output"
 [[ $(cat "$conf") == "$before" ]] || fail "an entry for a Windows that can't be told apart is left as it was" "$(cat "$conf")"
 pass "an entry whose Windows can't be told apart is left as it was"
+
+# systemd-boot has no limine.conf to edit, and a switch still in progress has a
+# limine.conf that no longer starts the machine: neither is touched.
+conf=$(menu systemd)
+before=$(cat "$conf")
+for backend in systemd-boot $'limine\nsystemd-boot'; do
+  if output=$(TEST_BOOT_BACKEND=$backend run_setup "$conf" "BootOrder: 0001,0000\n$windows_entry_line\n$limine"); then
+    fail "dual-boot setup runs on a machine booting systemd-boot" "$output"
+  fi
+done
+[[ $(cat "$conf") == "$before" ]] || fail "dual-boot setup edits Limine's menu outside Limine" "$(cat "$conf")"
+pass "dual-boot setup leaves systemd-boot machines and switches in progress alone"
