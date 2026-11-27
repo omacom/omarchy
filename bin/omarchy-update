@@ -54,19 +54,31 @@ cleanup_update() {
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
-  script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # Keep an untrapped shell as the PTY session leader. If script disappears,
+  # its hangup must reach the foreground prompt, not wait on our signal traps.
+  # script uses SHELL to interpret this Bash command; restore the caller's
+  # value inside it so hooks and package builds keep their original environment.
+  if [[ ${SHELL@a} == *x* ]]; then
+    printf -v script_command 'export SHELL=%q; ' "$SHELL"
+  else
+    script_command='unset SHELL; '
+  fi
+  script_command+="$(printf '%q ' "$0" "$@"); exit \$?"
+  exec env OMARCHY_UPDATE_LOGGED=1 SHELL=/usr/bin/bash script -qefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 if ! omarchy-update-lock held; then
   exec omarchy-update-lock run "$0" "$@"
 fi
 
-trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPlease review the output above carefully, correct the error, and retry the update.\n\nIf you need assistance, get help from the community at https://omarchy.org/discord\033[0m"' ERR
+trap 'echo ""; echo -e "\033[0;31m$(omarchy-i18n update.failed)\n\n$(omarchy-i18n update.failedReview)\n\n$(omarchy-i18n update.failedHelp https://omarchy.org/discord)\033[0m"' ERR
 trap cleanup_update EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# Where this update's own output starts, past anything a channel switch logged first.
+update_log_start=$(stat -c %s /tmp/omarchy-update.log 2>/dev/null || echo 0)
 
 omarchy-update-requires-free-space
 
@@ -87,7 +99,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # what went wrong, and a missing snapshot is not worth blocking an update
   # over, but it must not pass for one either.
   omarchy-snapshot create || (($? == 127)) ||
-    echo -e "\e[33mContinuing the update without a snapshot.\e[0m" >&2
+    echo -e "\e[33m$(omarchy-i18n update.noSnapshot)\e[0m" >&2
 
   omarchy-update-stay-awake start
 
@@ -107,11 +119,12 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-migrate
   omarchy-update-orphan-pkgs -y
 
-  omarchy-update-analyze-logs
+  omarchy-update-analyze-logs "$update_log_start"
 
   # The dev checkout was fast-forwarded and the full upgrade went through, so
   # there is no Omarchy update left to show. Rechecking would download every
   # sync database again and refetch the checkout only to hear the same.
+  omarchy-done mark first-update
   omarchy-shell -q omarchy.system-update clear
 
   # Service restart helpers can need sudo. The reboot-only phase below
@@ -143,13 +156,13 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   update_stay_awake_stopped=1
 
   if (( mise_updated == 0 )); then
-    echo -e "\e[33m\nSome mise tools could not be updated. Review the errors above and run 'omarchy update mise' to retry.\e[0m" >&2
+    echo -e "\e[33m\n$(omarchy-i18n update.miseFailed "'omarchy update mise'")\e[0m" >&2
   fi
 
   if (( boot_verified )); then
     "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
   else
-    echo -e "\e[31m\nThe update is not finished: its boot files did not pass verification (see above). Do not reboot until omarchy update completes.\e[0m" >&2
+    echo -e "\e[31m\n$(omarchy-i18n update.bootUnverified "omarchy update")\e[0m" >&2
     exit 1
   fi
 fi

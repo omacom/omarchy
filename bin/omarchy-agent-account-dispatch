@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Write the account dispatchers for the installed claude, codex and grok
+# omarchy:args=[claude|codex|grok...]
+# omarchy:hidden=true
+
+# A dispatcher runs its CLI as the selected subscription account
+# (omarchy-agent-account-exec), and leads PATH so scripts and editors follow
+# account switches too. One exists only while its CLI is installed: there's no
+# claude command before Claude Code is. Installing or removing an agent through
+# Omarchy runs this; with no agents named, every one is brought in line.
+
+dir="$HOME/.local/share/omarchy/agent-accounts/bin"
+
+# The real CLI is whatever PATH finds past the dispatchers.
+cli_path=""
+IFS=: read -r -a dirs <<<"$PATH"
+for entry in "${dirs[@]}"; do
+  [[ $entry == "$dir" ]] || cli_path+="${cli_path:+:}$entry"
+done
+
+agents=("$@")
+(( ${#agents[@]} )) || agents=(claude codex grok)
+
+for agent in "${agents[@]}"; do
+  case $agent in
+  claude | codex | grok) ;;
+  *) continue ;;
+  esac
+
+  if PATH=$cli_path type -P "$agent" >/dev/null; then
+    # Renamed into place, so a command starting while this runs never finds
+    # the dispatcher half written.
+    mkdir -p "$dir"
+    printf '#!/bin/bash\nexec omarchy-agent-account-exec %s "$@"\n' "$agent" >"$dir/.$agent.new"
+    chmod +x "$dir/.$agent.new"
+    mv -f "$dir/.$agent.new" "$dir/$agent"
+  else
+    rm -f "$dir/$agent"
+  fi
+done

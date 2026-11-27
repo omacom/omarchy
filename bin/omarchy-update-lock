@@ -6,8 +6,24 @@
 
 set -e
 
-lock_dir="${XDG_RUNTIME_DIR:-/tmp}"
+lock_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$EUID}"
 lock_path="$lock_dir/omarchy-update.lock"
+
+ensure_lock_dir() {
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    mkdir -m 700 -- "$lock_dir" 2>/dev/null || true
+    if [[ -d $lock_dir && ! -L $lock_dir && -O $lock_dir ]]; then
+      chmod 700 -- "$lock_dir" 2>/dev/null || true
+    fi
+  fi
+
+  if [[ -d $lock_dir && ! -L $lock_dir && -O $lock_dir && $(stat -c %a -- "$lock_dir" 2>/dev/null || true) == "700" ]]; then
+    return 0
+  fi
+
+  echo "Refusing to use an unsafe update lock directory: $lock_dir" >&2
+  return 1
+}
 
 lock_is_held() {
   local lock_fd_path=""
@@ -30,13 +46,29 @@ case "${1:-}" in
       exit 2
     fi
 
-    mkdir -p "$lock_dir" 2>/dev/null || true
-    exec {OMARCHY_UPDATE_LOCK_FD}>"$lock_path"
+    ensure_lock_dir
+    if [[ -L $lock_path || ( -e $lock_path && ! -f $lock_path ) ]]; then
+      echo "Refusing to use non-regular update lock: $lock_path" >&2
+      exit 1
+    fi
+    # Opening a contender must not erase the holder's diagnostic PID.
+    old_umask=$(umask)
+    umask 077
+    exec {OMARCHY_UPDATE_LOCK_FD}<>"$lock_path"
+    umask "$old_umask"
     if ! flock -n "$OMARCHY_UPDATE_LOCK_FD"; then
-      echo "An Omarchy update is already running."
+      echo "$(omarchy-i18n update.alreadyRunning)"
+      owner_pid=""
+      read -r owner_pid <"/proc/self/fd/$OMARCHY_UPDATE_LOCK_FD" || true
+      if [[ $owner_pid =~ ^[0-9]+$ ]]; then
+        echo "Update lock acquired by PID $owner_pid."
+      fi
       exit 1
     fi
 
+    # Informational only: children can inherit the flock and PIDs can be reused.
+    # Never use this value (or the file's existence) to decide to unlock.
+    printf '%s\n' "$$" >"/proc/self/fd/$OMARCHY_UPDATE_LOCK_FD"
     export OMARCHY_UPDATE_LOCK_FD
     exec "$@"
     ;;

@@ -779,12 +779,12 @@ Panel {
                     root.activateMullvadRegionCursor()
                   }
                   Keys.onPressed: function(event) {
-                    if (event.key === Qt.Key_Down || event.text === "j") {
+                    if (event.key === Qt.Key_Down) {
                       root.moveMullvadRegionCursor(1)
                       event.accepted = true
                       return
                     }
-                    if (event.key === Qt.Key_Up || event.text === "k") {
+                    if (event.key === Qt.Key_Up) {
                       root.moveMullvadRegionCursor(-1)
                       event.accepted = true
                       return

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Succeed when a built-in theme is offered on this computer
+# omarchy:args=<theme-name>
+# omarchy:hidden=true
+
+# A theme made for one machine ships a `hardware` file listing the device-tree
+# compatible strings of the machines it is for, one per line. A theme without
+# the file is offered everywhere.
+
+theme="${1:-}"
+
+if [[ -z $theme ]]; then
+  echo "Usage: omarchy-theme-available <theme-name>" >&2
+  exit 1
+fi
+
+hardware="$OMARCHY_PATH/themes/$theme/hardware"
+
+if [[ -f $hardware ]]; then
+  mapfile -t compatibles <"$hardware"
+  omarchy-hw-match-device-tree "${compatibles[@]}"
+fi

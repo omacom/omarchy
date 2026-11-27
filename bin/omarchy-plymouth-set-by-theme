@@ -14,7 +14,15 @@ fi
 
 theme=$1
 
-theme_dir=$(omarchy-theme-dir "$theme")
+# Hardware setup runs as root, where the publisher refuses a logo path and
+# reads a built-in theme's logo from the Omarchy tree itself.
+if (( EUID == 0 )); then
+  theme_dir="$OMARCHY_PATH/themes/$theme"
+  logo=(--theme "$theme")
+else
+  theme_dir=$(omarchy-theme-dir "$theme")
+  logo=("$theme_dir/unlock.png")
+fi
 
 theme_color() {
   local key="$1"
@@ -50,4 +58,4 @@ theme_color() {
 bg=$(theme_color background)
 text=$(theme_color foreground)
 
-exec omarchy-plymouth-set "$bg" "$text" "$theme_dir/unlock.png"
+exec omarchy-plymouth-set "$bg" "$text" "${logo[@]}"
