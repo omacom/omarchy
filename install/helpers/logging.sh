@@ -45,40 +45,65 @@ stop_install_log() {
   fi
 }
 
-omarchy_is_aarch64_leaf() {
+omarchy_leaf_platform() {
+  local -n _platform_out="$2"
+
   case "$1" in
-    hardware/gb10/sleep.sh | \
-      hardware/gb10/cpuidle.sh | \
-      hardware/gb10/memory-watermark.sh | \
-      hardware/gb10/nvidia-memory-pools.sh | \
-      hardware/nvidia/dgx-spark-boot.sh | \
-      hardware/n1x.sh | \
-      hardware/asus/fix-asus-zenbook-a16-speakers.sh | \
-      hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh | \
-      hardware/asus/fix-asus-proart-pz13-speakers.sh | \
+    hardware/intel/* | \
+      hardware/apple/* | \
+      hardware/asus-rog.sh | \
+      hardware/framework16.sh | \
+      hardware/framework/qmk-hid.sh | \
+      hardware/surface.sh | \
+      hardware/dell-xps13-ptl-speaker-firmware.sh | \
+      hardware/dell-xps13-sidecar-amps.sh | \
+      hardware/asus/fix-asus-ptl-display-backlight.sh | \
+      hardware/asus/fix-asus-ptl-b9406-display.sh | \
+      hardware/asus/fix-asus-ptl-b9406-touchpad.sh | \
+      hardware/asus/fix-z13-touchpad.sh | \
+      hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh | \
+      hardware/hp/fix-hp-zbook-ultra-g3a-display.sh | \
+      hardware/lenovo/fix-yoga-pro7-bass-speakers.sh | \
+      hardware/fix-bcm43xx.sh | \
+      hardware/fix-surface-keyboard.sh | \
+      user/hardware/asus/fix-audio-mixer.sh | \
+      user/hardware/asus/fix-mic.sh | \
+      user/hardware/framework/fix-f13-amd-audio-input.sh | \
+      user/hardware/dell/xps13-text-scaling.sh)
+      _platform_out=x86
+      return 0
+      ;;
+    hardware/gb10/* | \
+      hardware/nvidia/dgx-spark-boot.sh)
+      _platform_out=aarch64-gb10
+      return 0
+      ;;
+    hardware/n1x.sh | \
+      hardware/fix-n1x-gpu-memory.sh | \
+      hardware/asus/fix-asus-proart-p14-speakers.sh)
+      _platform_out=aarch64-n1x
+      return 0
+      ;;
+    hardware/raspberrypi/*)
+      _platform_out=aarch64
+      return 0
+      ;;
+    hardware/qualcomm/* | \
       hardware/acer/fix-acer-aspire-16-ai-speakers.sh | \
       hardware/acer/fix-acer-aspire-16-ai-boot.sh | \
-      hardware/hp/fix-hp-omnibook-3-speakers.sh | \
+      hardware/asus/fix-asus-zenbook-a16-speakers.sh | \
       hardware/asus/fix-asus-zenbook-a16-boot.sh | \
+      hardware/asus/fix-asus-zenbook-a16-wifi.sh | \
+      hardware/asus/fix-asus-zenbook-a16-firmware.sh | \
+      hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh | \
       hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh | \
       hardware/asus/fix-asus-zenbook-a14-boot.sh | \
+      hardware/asus/fix-asus-proart-pz13-speakers.sh | \
       hardware/asus/fix-asus-vivobook-s15-boot.sh | \
       hardware/asus/fix-asus-vivobook-s16-boot.sh | \
+      hardware/hp/fix-hp-omnibook-3-speakers.sh | \
       hardware/hp/fix-hp-omnibook-x14-boot.sh | \
       hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh | \
-      hardware/fix-n1x-gpu-memory.sh | \
-      hardware/raspberrypi/raspberry-pi-4.sh | \
-      hardware/qualcomm/dtb-uki.sh | \
-      hardware/qualcomm/kernel-params.sh | \
-      hardware/qualcomm/initramfs.sh | \
-      hardware/qualcomm/glymur-display.sh | \
-      hardware/qualcomm/hamoa-display.sh | \
-      hardware/asus/fix-asus-zenbook-a16-firmware.sh | \
-      hardware/qualcomm/oem-firmware.sh | \
-      hardware/qualcomm/firmware.sh | \
-      hardware/qualcomm/camera.sh | \
-      hardware/qualcomm/reboot-watchdog.sh | \
-      hardware/qualcomm/powerprofiles-floor.sh | \
       hardware/lenovo/yoga-slim7x.sh | \
       hardware/lenovo/thinkpad-t14s-camera.sh | \
       hardware/lenovo/ideapad-slim-5x.sh | \
@@ -87,6 +112,7 @@ omarchy_is_aarch64_leaf() {
       hardware/microsoft/surface-laptop8.sh | \
       hardware/samsung/galaxy-book4-edge-14.sh | \
       user/hardware/qualcomm/video-decode.sh)
+      _platform_out=aarch64-qualcomm
       return 0
       ;;
     *)
@@ -99,18 +125,19 @@ omarchy_skip_leaf() {
   local install_root="${OMARCHY_INSTALL:-}"
   [[ -n $install_root ]] || return 1
   local rel="${1#"${install_root%/}/"}"
+  local required=""
 
-  omarchy_is_aarch64_leaf "$rel" || return 1
+  omarchy_leaf_platform "$rel" required || return 1
 
-  if [[ -z ${_omarchy_hw_is_aarch64:-} ]]; then
-    if omarchy-hw-aarch64; then
-      _omarchy_hw_is_aarch64=1
+  if [[ -z ${_omarchy_hw_platform:-} ]]; then
+    if ! omarchy-hw-aarch64; then
+      _omarchy_hw_platform=x86
     else
-      _omarchy_hw_is_aarch64=0
+      _omarchy_hw_platform=$(omarchy-hw-platform 2>/dev/null || echo aarch64)
     fi
   fi
 
-  (( ! _omarchy_hw_is_aarch64 ))
+  [[ $_omarchy_hw_platform != "$required" ]]
 }
 
 run_logged() {

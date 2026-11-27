@@ -455,6 +455,7 @@ var GUARD_READERS = [
   "omarchy-bar get omarchy.clock format",
   "omarchy-bar get omarchy.clock verticalFormat",
   "omarchy-bar position",
+  "omarchy-boot-backend",
   "omarchy-channel-current",
   "omarchy-default-agent",
   "omarchy-default-browser",
