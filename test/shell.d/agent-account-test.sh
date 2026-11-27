@@ -351,7 +351,7 @@ agent_path=$(PATH="$dispatchers:$PATH:$dispatchers" OMARCHY_TEST_SHOW_PATH=1 "$d
   fail "an agent's own subprocesses dispatch too" "$agent_path"
 pass "account dispatch follows the active account"
 
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
+[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode bypassPermissions" ]] ||
   fail "omarchy-agent starts Claude in ~/.claude"
 omarchy-agent-account-use codex side >/dev/null
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
