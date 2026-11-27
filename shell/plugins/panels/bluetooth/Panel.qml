@@ -18,7 +18,7 @@ Panel {
   manageIpc: false
 
   // Address -> "connecting" | "disconnecting" | "forgetting".
-  // The actual Bluetooth sequencing lives in bin/omarchy-bluetooth-device;
+  // The actual Bluetooth sequencing lives in bin/omarchy-bluetooth;
   // this map only keeps the panel responsive while BlueZ catches up.
   property var pendingActions: ({})
 
@@ -265,7 +265,7 @@ Panel {
   }
 
   function deviceCommand(action, address) {
-    return ["omarchy-bluetooth-device", action, address]
+    return ["omarchy-bluetooth", action, "--", address]
   }
 
   function runDeviceAction(device, action, pending) {
@@ -284,6 +284,8 @@ Panel {
     if (!device || !device.address) return
     if (!device.connected) return
     setPendingAction(device.address, "disconnecting")
+    // Keep the native D-Bus disconnect so devices on a secondary adapter drop
+    // too, alongside the CLI call on the default controller.
     if (device.disconnect) device.disconnect()
     Quickshell.execDetached(deviceCommand("disconnect", device.address))
   }
@@ -398,7 +400,7 @@ Panel {
   }
 
   // 'x' forgets remembered devices. For connected devices this first
-  // disconnects, then removes the BlueZ pairing record via omarchy-bluetooth-device.
+  // disconnects, then removes the BlueZ pairing record via omarchy-bluetooth.
   function deleteSelected() {
     if (focusSection !== "known" && focusSection !== "connected") return
     var dev = deviceAt(focusSection, selectedIndex)
@@ -626,16 +628,17 @@ Panel {
   }
 
   // Not adapter.enabled: that writes BlueZ's Powered, which nothing persists, so
-  // the adapter came back on at the next boot. omarchy-bluetooth-power moves the
-  // rfkill soft block instead, which systemd-rfkill restores across reboots.
-  // Powered still follows the block, so the switch and icon read it as before.
+  // the adapter came back on at the next boot. omarchy-bluetooth delegates power
+  // changes to omarchy-bluetooth-power, moving the rfkill soft block so
+  // systemd-rfkill restores it across reboots. Powered still follows the block,
+  // so the switch and icon read it as before.
   //
   // Asking for a direction rather than a toggle: the helper runs detached and the
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
     if (!adapter) return
-    Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
+    Quickshell.execDetached(["omarchy-bluetooth", adapter.enabled ? "off" : "on"])
   }
 
   ShellIpc {

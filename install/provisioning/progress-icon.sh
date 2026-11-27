@@ -237,24 +237,50 @@ progress_icon_render() {
   ICON_DRAWN=$drawn
 }
 
+# Set the variable <name> to the columns <text> takes: CJK and fullwidth
+# characters take two, so counting characters would center Chinese half its
+# width too far right (the installer draws it in kmscon).
+# The ranges are written as escapes because editors may normalize a literal
+# U+F900 into U+8C48. Outside a UTF-8 locale bash counts bytes, so nothing is
+# doubled there.
+progress_icon_width() {
+  local probe=é narrow wide=
+  if (( ${#probe} == 1 )); then
+    printf -v narrow '[^\u1100-\u115F\u2E80-\u3029\u3030-\u303E\u3040-\u3098\u309B-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6\U0001F300-\U0001F64F\U0001F900-\U0001F9FF\U00020000-\U0003FFFD]'
+    wide=${2//$narrow/}
+  fi
+  printf -v "$1" '%s' $((${#2} + ${#wide}))
+}
+
 # Center one line of text, escapes included, across the console the layout
 # measured. The text is measured in bash, so drawing a line starts no process.
 progress_icon_line() {
-  local text="$1" plain pad
+  local text="$1" plain pad width
   printf -v plain '%b' "$text"
   while [[ $plain =~ $PROGRESS_ICON_ESCAPE ]]; do
     plain=${plain/"${BASH_REMATCH[0]}"/}
   done
-  pad=$(( (ICON_COLS - ${#plain}) / 2 ))
+  progress_icon_width width "$plain"
+  pad=$(( (ICON_COLS - width) / 2 ))
   (( pad < 0 )) && pad=0
   printf '\r%s2K%*s%b%s\n' "$PROGRESS_ICON_CSI" "$pad" '' "$text" "$PROGRESS_ICON_RESET"
 }
 
 # Set the variable <name> to <text>, cut to the text width.
 progress_icon_truncate() {
-  local text="$2" width="$ICON_TEXT_WIDTH"
-  if (( ${#text} > width )); then
-    printf -v "$1" '%s…' "${text:0:$((width - 1))}"
+  local text="$2" width="$ICON_TEXT_WIDTH" columns
+  (( width < 1 )) && width=1
+  progress_icon_width columns "$text"
+  if (( columns > width )); then
+    # Each character takes at most two columns, so dropping half the excess
+    # never cuts too much and a couple of passes reach the width.
+    text=${text:0:$((width - 1))}
+    progress_icon_width columns "$text"
+    while (( columns > width - 1 )); do
+      text=${text:0:$((${#text} - (columns - width + 2) / 2))}
+      progress_icon_width columns "$text"
+    done
+    printf -v "$1" '%s…' "$text"
   else
     printf -v "$1" '%s' "$text"
   fi
@@ -293,29 +319,16 @@ progress_icon_layout() {
 }
 
 progress_icon_static() {
-  progress_icon_layout "$ICON_TTY"
+  local rebuild="${1:-0}"
+  if (( rebuild || ICON_STEPS == 0 )) || [[ -z $ICON_SIZE ]]; then
+    progress_icon_layout "$ICON_TTY"
+  fi
   printf '%s2J%sH' "$PROGRESS_ICON_CSI" "$PROGRESS_ICON_CSI"
   progress_icon_render "$ICON_DISPLAY_PM" 1
 }
 
-# Draw one frame toward <pm>, which must never go back. Phase jumps ease over
-# several frames, with the percentage following the same position as the trace.
-# The status row is blank when no status is given, so the layout never changes
-# height. Callers draw ten frames a second while setup works the disk, so a
-# frame starts no process except the console size check on every fifth.
-progress_icon_frame() {
-  local pm="${1:-0}" status="${2:-}" tip="${3:-}" step shown_status="" shown_tip
-  [[ $pm =~ ^[0-9]+$ ]] || pm=$ICON_TARGET_PM
-  (( pm > 1000 )) && pm=1000
-  (( pm < ICON_TARGET_PM )) && pm=$ICON_TARGET_PM
-  ICON_TARGET_PM=$pm
-  # The framebuffer can settle late in VMs. Rebuild at the new size, preserving
-  # progress, instead of leaving the drawing at the old screen coordinates.
-  if (( ICON_FRAMES++ % 5 == 0 )); then
-    [[ "$(progress_icon_term_size)" == "$ICON_SIZE" ]] || progress_icon_static
-  fi
-  step=$(( (ICON_TARGET_PM - ICON_DISPLAY_PM + 3) / 4 ))
-  ICON_DISPLAY_PM=$((ICON_DISPLAY_PM + step))
+progress_icon_draw() {
+  local status="${1:-}" tip="${2:-}" shown_status="" shown_tip
   progress_icon_render "$ICON_DISPLAY_PM"
 
   printf '%s%d;1H' "$PROGRESS_ICON_CSI" "$((ICON_TOP + ICON_HEIGHT + 1))"
@@ -332,13 +345,43 @@ progress_icon_frame() {
   printf '%sJ' "$PROGRESS_ICON_CSI"
 }
 
-# Finish the trace, then draw the icon solid. Only a successful run calls this.
+# Draw one frame toward <pm>, which must never go back. Phase jumps ease over
+# several frames, with the percentage following the same position as the trace.
+# The status row is blank when no status is given, so the layout never changes
+# height. Callers draw ten frames a second while setup works the disk, so a
+# frame starts no process except the console size check on every fifth.
+progress_icon_frame() {
+  local pm="${1:-0}" status="${2:-}" tip="${3:-}" step
+  [[ $pm =~ ^[0-9]+$ ]] || pm=$ICON_TARGET_PM
+  (( pm > 1000 )) && pm=1000
+  (( pm < ICON_TARGET_PM )) && pm=$ICON_TARGET_PM
+  ICON_TARGET_PM=$pm
+  # The framebuffer can settle late in VMs. Rebuild at the new size, preserving
+  # progress, instead of leaving the drawing at the old screen coordinates.
+  if (( ICON_FRAMES++ % 5 == 0 )); then
+    [[ "$(progress_icon_term_size)" == "$ICON_SIZE" ]] || progress_icon_static 1
+  fi
+  step=$(( (ICON_TARGET_PM - ICON_DISPLAY_PM + 3) / 4 ))
+  ICON_DISPLAY_PM=$((ICON_DISPLAY_PM + step))
+  progress_icon_draw "$status" "$tip"
+}
+
+# Finish the trace in at most five frames, then draw the icon solid. Only a
+# successful run calls this. Fixed steps keep completion crisp (~0.15s) instead
+# of crawling asymptotically through the last few percent.
 progress_icon_finish() {
-  local status="${1:-}" tip="${2:-}"
-  while (( ICON_DISPLAY_PM < 999 )); do
-    progress_icon_frame 1000 "$status" "$tip"
-    sleep 0.05
-  done
+  local status="${1:-}" tip="${2:-}" remaining step
+  ICON_TARGET_PM=1000
+  remaining=$((1000 - ICON_DISPLAY_PM))
+  if (( remaining > 0 )); then
+    step=$(( (remaining + 4) / 5 ))
+    (( step < 50 )) && step=50
+    while (( ICON_DISPLAY_PM + step < 1000 )); do
+      ICON_DISPLAY_PM=$((ICON_DISPLAY_PM + step))
+      progress_icon_draw "$status" "$tip"
+      sleep 0.03
+    done
+  fi
   ICON_DISPLAY_PM=1000
-  progress_icon_frame 1000 "$status" "$tip"
+  progress_icon_draw "$status" "$tip"
 }

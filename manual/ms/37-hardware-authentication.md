@@ -2,18 +2,18 @@
 
 ### Pengesahan cap jari
 
-Banyak komputer riba dilengkapi dengan sensor cap jari untuk melakukan pengesahan. Anda boleh menggunakannya dengan Omarchy dengan menjalankan _Setup > Security > Fingerprint_ dalam menu Omarchy (`Super + Space`).
+Banyak komputer riba dilengkapi dengan sensor cap jari untuk melakukan pengesahan. Anda boleh menggunakannya dengan Omarchy dengan menjalankan _Persediaan > Keselamatan > Cap Jari_ dalam menu Omarchy (`Super + Space`).
 
-Itu akan memasang pakej cap jari, mengumpul cap jari anda, mengesahkannya, dan anda sudah bersedia untuk menggunakan cap jari anda bagi membuka kunci daripada skrin kunci (yang anda boleh picu dengan `Super + Ctrl + L`), memasuki mod sudo, dan mengizinkan gesaan sistem.
+Itu membuka cap jari skrin penuh yang akan terisi apabila anda menyentuh sensor. Di sebaliknya, Omarchy akan memasang pakej cap jari, mengumpul cap jari anda, mengesahkannya, dan anda sudah boleh menggunakan cap jari anda untuk membuka kunci dari skrin kunci (yang boleh anda cetuskan dengan `Super + Ctrl + L`), memasuki mod sudo, dan membenarkan gesaan sistem.
 
-Setelah skrin kunci mematikan paparan, sensor akan berehat untuk menjimatkan kuasa, jadi bangunkan skrin dengan mana-mana kekunci atau pad sentuh sebelum menyentuhnya.
+Sebaik sahaja skrin kunci mematikan paparan, sensor akan berehat untuk menjimatkan kuasa, jadi hidupkan skrin dengan sebarang kekunci atau pad sentuh sebelum menyentuhnya.
 
-Apabila penutup komputer riba anda tertutup, gesaan cap jari akan dilangkau secara automatik, jadi anda terus dibawa ke gesaan kata laluan dan bukannya menunggu sensor yang anda tidak dapat capai. Jika anda sebaliknya perlu bekerja pada papan kekunci luaran yang tidak mempunyai sensor, hanya tekan `CTRL + C`, apabila anda digesa untuk cap jari anda semasa `sudo`.
+Apabila penutup komputer riba anda ditutup, gesaan cap jari akan dilangkau secara automatik, jadi anda terus ke gesaan kata laluan dan bukannya menunggu sensor yang tidak dapat anda capai. Jika anda sebaliknya perlu bekerja menggunakan papan kekunci luaran yang tidak mempunyai sensor, tekan sahaja `CTRL + C`, apabila anda digesa memasukkan cap jari anda semasa `sudo`.
 
-Anda boleh membuang pengesahan cap jari di bawah _Remove > Security > Fingerprint_ dalam menu Omarchy.
+Anda boleh membuang pengesahan cap jari di bawah _Buang > Keselamatan > Cap Jari_ dalam menu Omarchy.
 
 ### Pengesahan Fido2
 
-Jika anda menggunakan peranti Fido2, anda boleh menyediakannya untuk pengesahan `sudo` menggunakan _Setup > Security > Fido2_ dalam menu Omarchy (`Super + Space`). Walau bagaimanapun, ia meliputi `sudo` dan gesaan keizinan sistem, bukan membuka kunci komputer anda.
+Jika anda menggunakan peranti Fido2, anda boleh menyediakannya untuk pengesahan `sudo` menggunakan _Persediaan > Keselamatan > Fido2_ dalam menu Omarchy (`Super + Space`). Walau bagaimanapun, ia meliputi `sudo` dan gesaan kebenaran sistem, bukan untuk membuka kunci komputer anda.
 
-Anda boleh membuang pengesahan fido2 di bawah _Remove > Security > Fido2_ dalam menu Omarchy.
+Anda boleh membuang pengesahan fido2 di bawah _Buang > Keselamatan > Fido2_ dalam menu Omarchy.
