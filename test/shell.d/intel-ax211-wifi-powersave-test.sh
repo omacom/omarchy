@@ -15,22 +15,29 @@ run_wifi_leaf() {
     bash -eE -c 'source "$1"' bash "$ROOT/install/hardware/intel/fix-ax211-wifi-powersave.sh"
 }
 
-# Meteor Lake CNVi Wi-Fi (8086:7e40) writes the override drop-in.
-mtl_pci="$test_tmp/pci-mtl"
-mtl_nm="$test_tmp/nm-mtl"
-mkdir -p "$mtl_pci/0000:00:14.3"
-printf '0x8086\n' >"$mtl_pci/0000:00:14.3/vendor"
-printf '0x7e40\n' >"$mtl_pci/0000:00:14.3/device"
+# Meteor Lake CNVi Wi-Fi (8086:7e40) co-present with a BE200 (8086:272b) scopes
+# the override strictly to the AX211 interface, leaving BE200 protected.
+mixed_pci="$test_tmp/pci-mixed"
+mixed_nm="$test_tmp/nm-mixed"
+mkdir -p "$mixed_pci/0000:00:14.3/net/wlp0s20f3" "$mixed_pci/0000:01:00.0/net/wlp1s0"
+printf '0x8086\n' >"$mixed_pci/0000:00:14.3/vendor"
+printf '0x7e40\n' >"$mixed_pci/0000:00:14.3/device"
+printf '0x8086\n' >"$mixed_pci/0000:01:00.0/vendor"
+printf '0x272b\n' >"$mixed_pci/0000:01:00.0/device"
 
-run_wifi_leaf "$mtl_pci" "$mtl_nm"
-grep -qxF 'wifi.powersave = 3' "$mtl_nm/zz-intel-ax211-wifi-powersave.conf" ||
-  fail "Meteor Lake AX211 (8086:7e40) enables wifi.powersave = 3"
-pass "Meteor Lake AX211 writes zz-intel-ax211-wifi-powersave.conf"
+run_wifi_leaf "$mixed_pci" "$mixed_nm"
+conf="$mixed_nm/zz-intel-ax211-wifi-powersave.conf"
+[[ -f $conf ]] || fail "Meteor Lake AX211 writes zz-intel-ax211-wifi-powersave.conf"
+grep -qxF 'match-device=interface-name:=wlp0s20f3' "$conf" ||
+  fail "AX211 override must match only the 8086:7e40 interface" "$(cat "$conf")"
+! grep -qF 'wlp1s0' "$conf" ||
+  fail "AX211 override must not include a co-present BE200 interface" "$(cat "$conf")"
+pass "Meteor Lake AX211 scopes the override to the 8086:7e40 interface only"
 
-# Intel BE200 (8086:272b) and BE211 (8086:e440) must NOT receive the override.
+# Intel BE200 (8086:272b) and BE211 (8086:e440) alone must not write the drop-in.
 be_pci="$test_tmp/pci-be"
 be_nm="$test_tmp/nm-be"
-mkdir -p "$be_pci/0000:00:14.3" "$be_pci/0000:01:00.0"
+mkdir -p "$be_pci/0000:00:14.3/net/wlp0s20f3" "$be_pci/0000:01:00.0/net/wlp1s0"
 printf '0x8086\n' >"$be_pci/0000:00:14.3/vendor"
 printf '0xe440\n' >"$be_pci/0000:00:14.3/device"
 printf '0x8086\n' >"$be_pci/0000:01:00.0/vendor"
