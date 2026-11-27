@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Succeed when a built-in theme is offered on this computer
+# omarchy:args=<theme-name>
+# omarchy:hidden=true
+
+# A theme made for one machine ships a `hardware` file naming it, one line per
+# machine: `device-tree <compatible>` or `dmi <product name pattern>`. Any line
+# that matches offers the theme; a theme without the file is offered everywhere.
+
+theme="${1:-}"
+
+if [[ -z $theme ]]; then
+  echo "Usage: omarchy-theme-available <theme-name>" >&2
+  exit 1
+fi
+
+hardware="$OMARCHY_PATH/themes/$theme/hardware"
+offered=1
+
+if [[ -f $hardware ]]; then
+  offered=0
+  while read -r kind value; do
+    if [[ -n $value ]]; then
+      case $kind in
+        device-tree) omarchy-hw-match-device-tree "$value" && offered=1 ;;
+        dmi) omarchy-hw-match "$value" && offered=1 ;;
+      esac
+    fi
+  done <"$hardware"
+fi
+
+(( offered ))

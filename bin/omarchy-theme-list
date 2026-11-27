@@ -5,5 +5,11 @@
 
 {
   find ~/.config/omarchy/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n'
-  find "$OMARCHY_PATH/themes/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+  for theme in "$OMARCHY_PATH"/themes/*/; do
+    theme=${theme%/}
+    # A theme made for other hardware is not offered here.
+    if [[ ! -f $theme/hardware ]] || omarchy-theme-available "${theme##*/}"; then
+      echo "${theme##*/}"
+    fi
+  done
 } | sort -u | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'

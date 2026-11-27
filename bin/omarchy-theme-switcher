@@ -103,6 +103,10 @@ if [[ ! -f $fast_signature_file ]] || ! cmp -s "$fast_signature_file" <(printf '
     for theme_path in "$OMARCHY_THEMES_PATH"/*; do
       [[ -d $theme_path ]] || continue
       theme_name=${theme_path##*/}
+      # A theme made for other hardware is not offered here.
+      if [[ -f $theme_path/hardware ]] && ! omarchy-theme-available "$theme_name"; then
+        continue
+      fi
       preview=$(find_preview "$theme_path")
       add_theme_preview "$theme_name" "$preview"
     done
