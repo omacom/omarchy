@@ -125,6 +125,7 @@ ShellRoot {
   }
 
   function persistShellConfig(nextConfig) {
+    var previous = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
@@ -132,11 +133,15 @@ ShellRoot {
       console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
       return
     }
-    pendingConfigWrite = JSON.stringify(payload)
+    // A queued batch keeps the base from before its first edit. Later edits
+    // replace only its desired result, so coalescing cannot drop an earlier edit.
+    var request = pendingConfigWrite ? JSON.parse(pendingConfigWrite) : { base: previous }
+    request.next = payload
+    pendingConfigWrite = JSON.stringify(request)
     flushConfigWrite()
   }
 
-  // Serialize shell saves; the writer rebases stale IDs against aliases on disk
+  // Serialize shell saves; the writer applies their changes to the latest file
   // under the same lock as CLI edits and checkout migrations.
   property string pendingConfigWrite: ""
   function flushConfigWrite() {
