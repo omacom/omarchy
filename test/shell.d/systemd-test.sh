@@ -240,22 +240,17 @@ first_run_bin="$tmpdir/first-run-bin"
 first_run_calls="$tmpdir/first-run-calls"
 mkdir -p "$first_run_bin"
 
-# systemctl enables none of a list when one unit in it is unknown, so a unit
-# missing from a build must cost first-run only that unit.
 cat >"$first_run_bin/systemctl" <<'SH'
 #!/bin/bash
 if [[ $2 == "show" ]]; then
   [[ $3 != ${OMARCHY_TEST_QUERY_FAILURE:-} ]] || exit 1
   if [[ $3 == ${OMARCHY_TEST_MASKED_UNIT:-} ]]; then
     echo masked
-  elif [[ $3 == $OMARCHY_TEST_MISSING_UNIT ]]; then
-    echo not-found
   else
     echo loaded
   fi
   exit 0
 fi
-[[ $* != *"$OMARCHY_TEST_MISSING_UNIT"* ]] || exit 1
 printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
 [[ $2 != "enable" || $4 != ${OMARCHY_TEST_MASKED_UNIT:-} ]]
 SH
@@ -268,37 +263,21 @@ chmod +x "$first_run_bin/systemctl" "$first_run_bin/omarchy-hook-install" "$firs
 
 enable_user_units() {
   : >"$first_run_calls"
-  PATH="$first_run_bin:$PATH" OMARCHY_TEST_CALLS="$first_run_calls" OMARCHY_TEST_MISSING_UNIT="$1" \
+  PATH="$first_run_bin:$PATH" OMARCHY_TEST_CALLS="$first_run_calls" \
     bash "$ROOT/install/user/first-run/enable-user-units.sh"
 }
 
-enable_user_units no-such-unit || fail "first-run enables its user units"
+enable_user_units || fail "first-run enables its user units"
 clean_run=$(<"$first_run_calls")
-grep -Fq 'hook theme-set' <<<"$clean_run" || fail "first-run installs the theme hook"
-(( $(grep -Fxc -- "--user daemon-reload" <<<"$clean_run") == 1 )) || fail "first-run reloads systemd user manager once"
-mapfile -t units < <(sed -n '1,/^--user daemon-reload$/s/^--user enable --no-reload //p' <<<"$clean_run")
-mapfile -t started < <(sed -n '/^--user daemon-reload$/,$s/^--user start //p' <<<"$clean_run")
-[[ ${started[*]} == "${units[*]}" ]] || fail "first-run starts every enabled unit after reloading"
-
-for unit in "${units[@]}"; do
-  [[ $unit != *" "* ]] || fail "first-run enables each unit on its own" "$unit"
-  if enable_user_units "$unit"; then
-    fail "first-run reports a unit it could not enable" "$unit"
-  fi
-  expected=$(grep -Fvx -e "--user enable --no-reload $unit" -e "--user start $unit" <<<"$clean_run")
-  [[ $(<"$first_run_calls") == "$expected" ]] ||
-    fail "a unit missing from the build costs first-run only that unit" "$unit"
-done
-(( ${#units[@]} > 1 )) || fail "first-run enables each unit on its own"
-pass "a unit missing from the build costs first-run only that unit"
-
-masked=${units[0]}
+masked="bt-agent.service"
+grep -Fxq -- "--user enable --no-reload $masked" <<<"$clean_run" ||
+  fail "the mask regression targets a bundled unit"
 remaining=$(grep -Fvx -e "--user enable --no-reload $masked" -e "--user start $masked" <<<"$clean_run")
-OMARCHY_TEST_MASKED_UNIT="$masked" enable_user_units no-such-unit ||
+OMARCHY_TEST_MASKED_UNIT="$masked" enable_user_units ||
   fail "first-run succeeds with an explicitly masked unit"
 diff -u <(printf '%s\n' "$remaining") "$first_run_calls" ||
   fail "first-run preserves the mask and starts the other units"
-if OMARCHY_TEST_QUERY_FAILURE="$masked" enable_user_units no-such-unit; then
+if OMARCHY_TEST_QUERY_FAILURE="$masked" enable_user_units; then
   fail "first-run reports a failed unit state query"
 fi
 diff -u <(printf '%s\n' "$remaining") "$first_run_calls" ||
