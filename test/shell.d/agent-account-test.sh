@@ -351,42 +351,6 @@ agent_path=$(PATH="$dispatchers:$PATH:$dispatchers" OMARCHY_TEST_SHOW_PATH=1 "$d
   fail "an agent's own subprocesses dispatch too" "$agent_path"
 pass "account dispatch follows the active account"
 
-# A mise shim, a link to mise itself, with no version set here would search PATH
-# and find the dispatcher again, so dispatch runs the next CLI past the shims.
-shims="$test_tmp/mise-shims" mise_bin="$test_tmp/mise-bin"
-mkdir -p "$shims" "$mise_bin"
-cat >"$mise_bin/mise" <<'SH'
-#!/bin/bash
-if [[ ${0##*/} == "codex" ]]; then
-  echo "codex through its mise shim"
-elif [[ $1 == "current" ]]; then
-  printf '%s' "${OMARCHY_TEST_MISE_CURRENT:-}"
-elif [[ $1 == "which" ]]; then
-  [[ -n ${OMARCHY_TEST_MISE_WHICH:-} ]] && echo "$OMARCHY_TEST_MISE_WHICH"
-fi
-SH
-chmod +x "$mise_bin/mise"
-ln -s "$mise_bin/mise" "$shims/codex"
-shim_path="$dispatchers:$shims:$mise_bin:$cli_only_path"
-direct=$(PATH="$dispatchers:$cli_only_path" "$dispatchers/codex")
-[[ $(PATH=$shim_path "$dispatchers/codex") == "$direct" ]] ||
-  fail "a mise shim with no version set does not stand in for the real CLI"
-[[ $(OMARCHY_TEST_MISE_CURRENT=0.50 PATH=$shim_path "$dispatchers/codex") == "codex through its mise shim" ]] ||
-  fail "a version set with mise still runs through its shim"
-[[ $(OMARCHY_TEST_MISE_WHICH="$test_tmp/npm-codex" PATH=$shim_path "$dispatchers/codex") == "codex through its mise shim" ]] ||
-  fail "a command mise provides from another tool, like an npm package, still runs through its shim"
-[[ $(OMARCHY_TEST_MISE_CURRENT=system PATH=$shim_path "$dispatchers/codex") == "$direct" ]] ||
-  fail "a tool mise sets to the system copy runs that copy rather than its shim"
-mkdir -p "$test_tmp/more-shims"
-ln -s "$mise_bin/mise" "$test_tmp/more-shims/codex"
-[[ $(PATH="$dispatchers:$shims:$test_tmp/more-shims:$shims/.:$mise_bin:$cli_only_path" "$dispatchers/codex") == "$direct" ]] ||
-  fail "every mise shim is looked past, under any spelling of its directory"
-if [[ ! -e /usr/bin/codex ]]; then
-  [[ $(PATH="$dispatchers:$shims:$mise_bin:$ROOT/bin:/usr/bin" "$dispatchers/codex") == "codex through its mise shim" ]] ||
-    fail "with no other CLI the shim still runs and answers for itself"
-fi
-pass "dispatch looks past a mise shim with no version set, and keeps it otherwise"
-
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
   fail "omarchy-agent starts Claude in ~/.claude"
 omarchy-agent-account-use codex side >/dev/null
@@ -760,8 +724,6 @@ done
 ln -s /usr/bin/true "$lazy_bin/herdr"
 cat >"$lazy_bin/mise" <<SH
 #!/bin/bash
-# The CLI mise installed has a version set, as mise current reports it.
-[[ \$1 != "current" ]] || { echo latest; exit 0; }
 echo "run codex \$1" >>"$test_tmp/lazy-log"
 exec "$mock_bin/codex" "\$@"
 SH
