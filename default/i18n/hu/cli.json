@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "A tokenek mostantól a(z) %1 fiókból érkeznek",
   "agents.readyToCode": "%1 készen áll",
   "agents.readyToCodeBody": "Alkoss valami menőt",
+  "agents.resumeDirMissing": "Ágens folytatása kihagyva",
+  "agents.resumeDirMissingBody": "A mentett könyvtár nem létezik: %1",
   "agents.runningCaughtUp": "A(z) %1-en futó munkamenetek is átkerültek.",
   "agents.runningFollow": "A futó munkamenetek is ezt használják.",
   "agents.runningStayOn": "A futó munkamenetek ezen maradnak: %1.",

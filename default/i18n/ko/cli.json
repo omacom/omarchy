@@ -36,6 +36,8 @@
   "agents.readyForMoreBody": "이제 %1 계정에서 토큰이 공급됩니다",
   "agents.readyToCode": "%1 준비 완료",
   "agents.readyToCodeBody": "멋진 걸 만들어 보세요",
+  "agents.resumeDirMissing": "에이전트 재개를 건너뜀",
+  "agents.resumeDirMissingBody": "저장된 디렉터리가 없습니다: %1",
   "agents.runningCaughtUp": "%1의 실행 중인 세션도 함께 이동했습니다.",
   "agents.runningFollow": "실행 중인 세션도 이를 사용합니다.",
   "agents.runningStayOn": "실행 중인 세션은 %1을(를) 계속 사용합니다.",

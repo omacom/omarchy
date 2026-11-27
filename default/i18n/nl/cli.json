@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tokens stromen nu via het %1-account",
   "agents.readyToCode": "%1 is klaar",
   "agents.readyToCodeBody": "Maak iets gaafs",
+  "agents.resumeDirMissing": "Hervatten van agent overgeslagen",
+  "agents.resumeDirMissingBody": "Opgeslagen map bestaat niet: %1",
   "agents.runningCaughtUp": "Actieve sessies op %1 zijn ook overgezet.",
   "agents.runningFollow": "Actieve sessies gebruiken het ook.",
   "agents.runningStayOn": "Actieve sessies blijven op %1.",

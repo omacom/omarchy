@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Les tokens proviennent désormais du compte %1",
   "agents.readyToCode": "%1 est prêt",
   "agents.readyToCodeBody": "Créez quelque chose de génial",
+  "agents.resumeDirMissing": "Reprise de l'agent ignorée",
+  "agents.resumeDirMissingBody": "Le répertoire enregistré n'existe pas : %1",
   "agents.runningCaughtUp": "Les sessions en cours sur %1 ont aussi basculé.",
   "agents.runningFollow": "Les sessions en cours l'utilisent aussi.",
   "agents.runningStayOn": "Les sessions en cours restent sur %1.",

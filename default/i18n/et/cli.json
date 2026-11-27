@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tokenid voolavad nüüd %1-kontolt",
   "agents.readyToCode": "%1 on valmis",
   "agents.readyToCodeBody": "Tee midagi lahedat",
+  "agents.resumeDirMissing": "Agendi jätkamine jäeti vahele",
+  "agents.resumeDirMissingBody": "Salvestatud kataloogi ei ole olemas: %1",
   "agents.runningCaughtUp": "%1-l töötavad seansid liikusid samuti üle.",
   "agents.runningFollow": "Käimasolevad seansid kasutavad seda ka.",
   "agents.runningStayOn": "Käimasolevad seansid jäävad kasutama %1.",

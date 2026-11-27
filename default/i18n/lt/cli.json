@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "Tokenai dabar teka iš %1 paskyros",
   "agents.readyToCode": "%1 paruošta",
   "agents.readyToCodeBody": "Sukurkite ką nors šaunaus",
+  "agents.resumeDirMissing": "Agento tęsimas praleistas",
+  "agents.resumeDirMissingBody": "Išsaugotas katalogas neegzistuoja: %1",
   "agents.runningCaughtUp": "Veikiantys seansai su %1 taip pat perkelti.",
   "agents.runningFollow": "Veikiantys seansai taip pat ją naudoja.",
   "agents.runningStayOn": "Veikiantys seansai lieka su %1.",

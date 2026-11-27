@@ -40,6 +40,8 @@
   "agents.readyForMoreBody": "Comharthaí ag sileadh ó chuntas %1 anois",
   "agents.readyToCode": "Tá %1 réidh",
   "agents.readyToCodeBody": "Déan rud éigin iontach",
+  "agents.resumeDirMissing": "Scipeadh atosú an ghníomhaire",
+  "agents.resumeDirMissingBody": "Níl an eolaire sábháilte ann: %1",
   "agents.runningCaughtUp": "Bhog seisiúin atá ag rith ar %1 anonn freisin.",
   "agents.runningFollow": "Úsáideann seisiúin atá ag rith é freisin.",
   "agents.runningStayOn": "Fanann seisiúin atá ar siúl ar %1.",

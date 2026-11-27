@@ -36,6 +36,8 @@
   "agents.readyForMoreBody": "Token kini mengalir daripada akaun %1",
   "agents.readyToCode": "%1 sedia",
   "agents.readyToCodeBody": "Buat sesuatu yang menarik",
+  "agents.resumeDirMissing": "Penyambungan semula ejen dilangkaui",
+  "agents.resumeDirMissingBody": "Direktori tersimpan tidak wujud: %1",
   "agents.runningCaughtUp": "Sesi yang sedang berjalan pada %1 turut beralih.",
   "agents.runningFollow": "Sesi yang sedang berjalan turut menggunakannya.",
   "agents.runningStayOn": "Sesi yang sedang berjalan kekal pada %1.",

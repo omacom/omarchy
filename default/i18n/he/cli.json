@@ -38,6 +38,8 @@
   "agents.readyForMoreBody": "טוקנים זורמים כעת מחשבון %1",
   "agents.readyToCode": "%1 מוכן",
   "agents.readyToCodeBody": "צרו משהו מגניב",
+  "agents.resumeDirMissing": "חידוש הסוכן דולג",
+  "agents.resumeDirMissingBody": "התיקייה השמורה לא קיימת: %1",
   "agents.runningCaughtUp": "גם הפעלות פעילות ב-%1 עברו.",
   "agents.runningFollow": "גם הפעלות פעילות משתמשות בו.",
   "agents.runningStayOn": "הפעלות פעילות יישארו ב-%1.",

@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Tokenit virtaavat nyt %1-tililtä",
   "agents.readyToCode": "%1 on valmis",
   "agents.readyToCodeBody": "Tee jotain siistiä",
+  "agents.resumeDirMissing": "Agentin jatkaminen ohitettu",
+  "agents.resumeDirMissingBody": "Tallennettua hakemistoa ei ole: %1",
   "agents.runningCaughtUp": "Myös tilillä %1 käynnissä olevat istunnot siirtyivät mukana.",
   "agents.runningFollow": "Käynnissä olevat istunnot käyttävät myös sitä.",
   "agents.runningStayOn": "Käynnissä olevat istunnot pysyvät tilillä %1.",

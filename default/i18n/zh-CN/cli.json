@@ -36,6 +36,8 @@
   "agents.readyForMoreBody": "Token 现在由 %1 账户提供",
   "agents.readyToCode": "%1 已就绪",
   "agents.readyToCodeBody": "做点酷的东西吧",
+  "agents.resumeDirMissing": "智能体恢复已跳过",
+  "agents.resumeDirMissingBody": "保存的目录不存在：%1",
   "agents.runningCaughtUp": "在 %1 上正在运行的会话也已切换过来。",
   "agents.runningFollow": "正在运行的会话也使用该账户。",
   "agents.runningStayOn": "正在运行的会话将继续使用 %1。",

@@ -37,6 +37,8 @@
   "agents.readyForMoreBody": "Τα tokens ρέουν πλέον από τον λογαριασμό %1",
   "agents.readyToCode": "%1 είναι έτοιμο",
   "agents.readyToCodeBody": "Φτιάξε κάτι ωραίο",
+  "agents.resumeDirMissing": "Παραλείφθηκε η συνέχιση του agent",
+  "agents.resumeDirMissingBody": "Ο αποθηκευμένος φάκελος δεν υπάρχει: %1",
   "agents.runningCaughtUp": "Μεταφέρθηκαν και οι τρέχουσες συνεδρίες σε %1.",
   "agents.runningFollow": "Το χρησιμοποιούν και οι τρέχουσες συνεδρίες.",
   "agents.runningStayOn": "Οι τρέχουσες συνεδρίες παραμένουν στο %1.",
