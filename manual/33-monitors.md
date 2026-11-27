@@ -31,9 +31,11 @@ That takes a pixel size between 9 and 20, and moves the Omarchy shell, GTK appli
 
 ### Extending and mirroring laptop displays
 
-When you connect an external screen to your laptop, the display is automatically extended. But you can change that to mirroring instead using _Trigger > Hardware_ in the Omarchy menu or `Super + Ctrl + Alt + Delete`. This is especially helpful if that external screen is a projector, and you want to show something while working.
+When you connect an external screen to your laptop, the display is automatically extended. But you can change that to mirroring instead with _Extend_ | _Mirror_ in the monitor panel in the top bar, _Trigger > Hardware_ in the Omarchy menu, or `Super + Ctrl + Alt + Delete`. This is especially helpful if that external screen is a projector, and you want to show something while working.
 
 When you're extending, closing the lid on the laptop will automatically turn off the internal screen. Opening the lid will turn it back on. You can also control this manually using _Trigger > Hardware_ in the Omarchy menu or `Super + Ctrl + Delete`.
+
+While the laptop is plugged in, closing the lid never puts it to sleep, so a docked laptop stays awake even if the external screen briefly disconnects. With no external screen attached, closing the lid on power just locks it. On battery, closing the lid suspends as usual.
 
 ### Arranging multiple screens
 

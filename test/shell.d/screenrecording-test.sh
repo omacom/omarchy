@@ -22,6 +22,12 @@ case "$1" in
   printf '\t%s\n' "/dev/video0"
   printf '\t%s\n' "/dev/video1"
 
+  # A Snapdragon's camera subsystem: raw I/O MC capture nodes of a media
+  # pipeline, listed ahead of the cameras apps can open.
+  printf '\n%s\n' "Qualcomm Camera Subsystem (platform:acb7000.isp):"
+  printf '\t%s\n' "/dev/video20"
+  printf '\t%s\n' "/dev/video21"
+
   if [[ ${OMARCHY_TEST_RAW_WEBCAM:-false} != "true" ]]; then
     printf '\n%s\n' "Built-in Webcam: Integrated Camera"
     printf '\t%s\n' "/dev/video42"
@@ -43,6 +49,7 @@ case "$1" in
   /dev/video0) device_capability="Video Output" ;;
   /dev/video1) device_capability="Metadata Capture" ;;
   /dev/video7 | /dev/video9) device_capability="Video Output" ;;
+  /dev/video20 | /dev/video21) device_capability="Video Capture Multiplanar" ;;
   *) device_capability="Video Capture" ;;
   esac
 
@@ -52,6 +59,10 @@ case "$1" in
     $'\t\tVideo Capture' \
     $'\tDevice Caps      : 0x04200001' \
     $'\t\t'"$device_capability"
+
+  case "$2" in
+  /dev/video20 | /dev/video21) printf '%s\n' $'\t\tI/O MC' ;;
+  esac
   ;;
 esac
 SH
@@ -131,6 +142,31 @@ if OMARCHY_TEST_NO_WEBCAM=true "$ROOT/bin/omarchy-hw-webcam"; then
   fail "webcam hardware detection fails when no video device is available"
 else
   pass "webcam hardware detection fails when no video device is available"
+fi
+
+# udev records :capture: for a Snapdragon camera subsystem's raw nodes, but they
+# are no camera for an app: with nothing else listed they must not answer yes.
+raw_v4l="$tmp_dir/v4l-camss"
+raw_udev="$tmp_dir/udev-camss"
+raw_dev="$tmp_dir/dev-camss"
+mkdir -p "$raw_v4l/video20/device" "$raw_udev" "$raw_dev"
+echo 81:20 >"$raw_v4l/video20/dev"
+ln -s "../../../../bus/platform/drivers/qcom-camss" "$raw_v4l/video20/device/driver"
+touch "$raw_dev/video20"
+printf '%s\n' "E:ID_V4L_CAPABILITIES=:capture:" >"$raw_udev/c81:20"
+
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+else
+  pass "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+fi
+
+rm "$raw_v4l/video20/device/driver"
+ln -s "../../../../bus/usb/drivers/uvcvideo" "$raw_v4l/video20/device/driver"
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  pass "webcam hardware detection still takes a recorded capture node of another driver"
+else
+  fail "webcam hardware detection still takes a recorded capture node of another driver"
 fi
 
 # With udev's record available the guard answers from it and opens no device.
@@ -512,6 +548,61 @@ navi_args=$(recorder_args_for_amd_gpu 73df)
 [[ -n $navi_args && $navi_args != *-encoder* ]] || fail "other AMD GPUs keep hardware encoding" "$navi_args"
 pass "only a Polaris GPU records on the CPU"
 
+# Large regions on 5K/6K displays would exceed GPU H.264 limits and fall back
+# to HEVC; capping regions above 4K keeps hardware H.264 while leaving smaller
+# regions at native pixels without upscaling.
+multi_bin="$tmp_dir/multi-bin"
+mkdir -p "$multi_bin"
+cat >"$stub_bin/omarchy-capture-region" <<'SH'
+#!/bin/bash
+printf '%s\n' "$OMARCHY_TEST_CAPTURE_TARGET"
+SH
+cat >"$multi_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "monitors" ]]; then
+  cat <<'JSON'
+[
+  {"id":1,"name":"DP-1","x":0,"y":0,"width":1920,"height":1080,"scale":1,"transform":0,"focused":true},
+  {"id":2,"name":"DP-2","x":1920,"y":0,"width":6016,"height":3384,"scale":2,"transform":0,"focused":false}
+]
+JSON
+fi
+SH
+chmod +x "$stub_bin/omarchy-capture-region" "$multi_bin/hyprctl"
+
+recorder_args_for_target() {
+  local run="$tmp_dir/res-$1"
+  local target=$2
+  shift 2
+  mkdir -p "$run/recordings"
+  PATH="$multi_bin:$PATH" XDG_RUNTIME_DIR="$run" OMARCHY_SCREENRECORD_DIR="$run/recordings" \
+    OMARCHY_TEST_CAPTURE_TARGET="$target" OMARCHY_TEST_GSR_ARGS="$run/args" \
+    "$ROOT/bin/omarchy-capture-screenrecording" "$@" >/dev/null 2>&1
+  pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+  cat "$run/args" 2>/dev/null || true
+}
+
+large_region_args=$(recorder_args_for_target large-5k "2000,100 2560x1408")
+[[ $large_region_args == *$'\n-s\n3840x2160\n'* ]] ||
+  fail "a region exceeding 4K physical pixels on a scaled monitor is capped to 3840x2160" "$large_region_args"
+
+small_region_args=$(recorder_args_for_target small-5k "2000,100 800x600")
+[[ -n $small_region_args && $small_region_args != *$'\n-s\n'* ]] ||
+  fail "a region within 4K omits -s so it is not upscaled" "$small_region_args"
+
+portrait_region_args=$(recorder_args_for_target portrait-5k "2000,100 1200x2000")
+[[ $portrait_region_args == *$'\n-s\n2160x3840\n'* ]] ||
+  fail "a portrait region exceeding 4K is capped to 2160x3840" "$portrait_region_args"
+
+override_region_args=$(recorder_args_for_target override-5k "2000,100 2560x1408" --resolution=0x0)
+[[ $override_region_args == *$'\n-s\n0x0\n'* ]] ||
+  fail "explicit --resolution overrides the region cap" "$override_region_args"
+
+unfocused_monitor_args=$(recorder_args_for_target monitor-6k "monitor:DP-2")
+[[ $unfocused_monitor_args == *$'\n-s\n3840x2160\n'* ]] ||
+  fail "selecting an unfocused 6K monitor caps to 3840x2160" "$unfocused_monitor_args"
+pass "regions and monitors above 4K are capped to stay on hardware H.264"
+
 # gpu-screen-recorder aborts before recording on a GPU it does not know, such
 # as Apple Silicon's. wf-recorder takes over when it is installed, on the same
 # monitor, and its pid is the one stop and status act on.
@@ -692,3 +783,28 @@ recorder --status || status=$?
 (( status == 1 )) || fail "status reports inactive before the recorder starts"
 [[ ! -s $audio_calls && -e $audio_modules ]] || fail "status preserves the audio mix created before the recorder starts"
 pass "status leaves the starting recorder's audio mix alone"
+
+# omarchy-capture-screenrecording-process inspects OMARCHY_PROC_ROOT directly
+# without pgrep, both for explicit --pid lookups and full scans.
+fake_proc="$tmp_dir/fake-proc"
+mkdir -p "$fake_proc/101" "$fake_proc/102" "$fake_proc/103"
+printf 'gpu-screen-reco\n' >"$fake_proc/101/comm"
+ln -s /usr/bin/gpu-screen-recorder "$fake_proc/101/exe"
+printf 'wf-recorder\n' >"$fake_proc/102/comm"
+ln -s '/usr/bin/wf-recorder (deleted)' "$fake_proc/102/exe"
+printf 'gpu-screen-reco\n' >"$fake_proc/103/comm"
+ln -s /usr/bin/impostor "$fake_proc/103/exe"
+
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" ||
+  fail "process helper finds recorders in OMARCHY_PROC_ROOT"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 101 ||
+  fail "process helper matches gpu-screen-recorder by --pid"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 102 ||
+  fail "process helper matches unlinked wf-recorder by --pid"
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 103; then
+  fail "process helper rejects impostor process whose exe is not a recorder"
+fi
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 999999; then
+  fail "process helper rejects missing --pid"
+fi
+pass "process helper verifies recorders directly via OMARCHY_PROC_ROOT"

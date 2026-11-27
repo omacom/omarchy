@@ -8,6 +8,7 @@
 set -euo pipefail
 
 OMARCHY_BIN_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+OMARCHY_ROOT=$(cd -- "$OMARCHY_BIN_DIR/.." && pwd)
 REPEAT=5
 KEEP_CACHE=false
 
@@ -27,12 +28,6 @@ Options:
 EOF
 }
 
-now_us() {
-  # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
-  local now="${EPOCHREALTIME//[!0-9]/}"
-  printf '%s' "$now"
-}
-
 format_ms() {
   local us="$1"
   printf '%d.%03d' "$(( us / 1000 ))" "$(( us % 1000 ))"
@@ -40,9 +35,10 @@ format_ms() {
 
 measure_once() {
   local start_us end_us
-  start_us=$(now_us)
+  # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+  start_us=${EPOCHREALTIME//[!0-9]/}
   "$@" >/dev/null
-  end_us=$(now_us)
+  end_us=${EPOCHREALTIME//[!0-9]/}
   printf '%s' "$(( end_us - start_us ))"
 }
 
@@ -122,14 +118,21 @@ exit 0
 EOF
 chmod +x "$stub_bin/omarchy-menu-images"
 
+omarchy_path_env=()
+if [[ -d $OMARCHY_ROOT/themes ]]; then
+  omarchy_path_env=("OMARCHY_PATH=$OMARCHY_ROOT")
+fi
+
 benchmark_env=(
   env
+  "${omarchy_path_env[@]}"
   "XDG_CACHE_HOME=$benchmark_cache"
   "PATH=$stub_bin:$OMARCHY_BIN_DIR:$PATH"
 )
 
 thumbnail_env=(
   env
+  "${omarchy_path_env[@]}"
   "XDG_CACHE_HOME=$thumbnail_cache"
   "PATH=$stub_bin:$OMARCHY_BIN_DIR:$PATH"
 )
