@@ -28,7 +28,7 @@ plugin="$SCRATCH_HOME/.config/omarchy/plugins/acme.old"
 mkdir -p "$plugin"
 printf '%s\n' '{"schemaVersion":1,"id":"acme.old","name":"Rename","version":"1","kinds":["bar-widget"],"entryPoints":{"barWidget":"Widget.qml"}}' > "$plugin/manifest.json"
 printf '%s\n' 'import QtQuick; Item { implicitWidth: 20; implicitHeight: 20 }' > "$plugin/Widget.qml"
-jq '.plugins += [{"id":"acme.old","settings":{"value":42}}] | .bar.layout.left += ["acme.old"]' "$ROOT/config/omarchy/shell.json" > "$SCRATCH_HOME/.config/omarchy/shell.json"
+jq '.bar.layout.centerBegin |= map(if .id == "omarchy.indicators" then .alwaysShow = 1 else . end) | .plugins += [{"id":"acme.old","settings":{"value":42}}] | .bar.layout.left += ["acme.old"]' "$ROOT/config/omarchy/shell.json" > "$SCRATCH_HOME/.config/omarchy/shell.json"
 start_scratch_shell
 wait_scratch_shell
 [[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm:ss"' '{}') == "ok" ]] || fail "shell accepts the settings edit"
@@ -44,6 +44,23 @@ printf 'go\n' | timeout 15 tee "$SCRATCH_DIR/save-release" >/dev/null
 for _ in {1..100}; do
   if jq -e '.bar.position == "bottom" and .pluginIdAliases["acme.old"] == "acme.new" and any(.plugins[]; .id == "acme.new" and .settings.value == 42) and (.bar.layout.left | index("acme.new")) and ([.bar.layout[][] | select(type == "object" and .id == "omarchy.clock") | select(.format == "HH:mm:ss" and .formatAlt == "yyyy" and .verticalFormat == "mm")] | length > 0)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
     pass "queued shell saves preserve intervening CLI edits, rename and all GUI edits"
+    for value in true 1 false 0; do
+      HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$SCRATCH_BIN:$SCRATCH_ROOT/bin:$PATH" \
+        "$ROOT/bin/omarchy-bar" set omarchy.indicators alwaysShow "$value" --json
+      saved=""
+      for _ in {1..100}; do
+        if jq -e --argjson expected "$value" '[.. | objects | select(.id? == "omarchy.indicators") | .alwaysShow][0] as $actual | $actual == $expected and ($actual | type) == ($expected | type)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
+          saved=1
+          break
+        fi
+        sleep 0.1
+      done
+      if [[ -z $saved ]]; then
+        jq '[.. | objects | select(.id? == "omarchy.indicators") | .alwaysShow]' "$SCRATCH_HOME/.config/omarchy/shell.json" >&2
+        fail "bar set saves JSON value and type $value after the shell reloads"
+      fi
+    done
+    pass "real bar set preserves boolean and numeric JSON setting types in both directions"
     exit 0
   fi
   sleep 0.1

@@ -98,6 +98,37 @@ with tempfile.TemporaryDirectory() as tmp:
       assert result.returncode != 0 and "changed concurrently" in result.stderr, result.stderr
       assert config.read_bytes() == before, "conflicting shell edit overwrote a committed CLI edit"
     print("ok - conflicting scalar and array edits refuse without changing the committed file")
+    # JSON booleans are distinct from numbers, recursively, in both change
+    # detection and conflict detection. Compare serialized results, not Python ==.
+    pairs = [(1, True), (True, 1), (0, False), (False, 0),
+             ({"enabled": 1}, {"enabled": True}),
+             ([{"enabled": 0}], [{"enabled": False}])]
+    for old, new in pairs:
+      base = copy.deepcopy(saved)
+      base["testSetting"] = old
+      desired = copy.deepcopy(base)
+      desired["testSetting"] = new
+      config.write_text(json.dumps(base))
+      result = subprocess.run([str(root/"bin/omarchy-plugin-id"),"config-save"],input=json.dumps({"base":base,"next":desired}),text=True,env=env,capture_output=True,timeout=10)
+      assert result.returncode == 0, result.stderr
+      actual = json.loads(config.read_text())["testSetting"]
+      assert json.dumps(actual, sort_keys=True) == json.dumps(new, sort_keys=True), f"JSON setting change lost: {old!r} -> {new!r}, saved {actual!r}"
+    print("ok - boolean/number changes retain their JSON types inside settings, objects and arrays")
+    for original, requested, intervening in [(0, True, 1), (0, 1, False),
+          ({"enabled": 0}, {"enabled": True}, {"enabled": 1}),
+          ([0], [True], [1])]:
+      base = copy.deepcopy(saved)
+      base["testSetting"] = original
+      desired = copy.deepcopy(base)
+      desired["testSetting"] = requested
+      current = copy.deepcopy(base)
+      current["testSetting"] = intervening
+      config.write_text(json.dumps(current))
+      before = config.read_bytes()
+      result = subprocess.run([str(root/"bin/omarchy-plugin-id"),"config-save"],input=json.dumps({"base":base,"next":desired}),text=True,env=env,capture_output=True,timeout=10)
+      assert result.returncode != 0 and "changed concurrently" in result.stderr, result.stderr
+      assert config.read_bytes() == before, "JSON boolean/number conflict overwrote the intervening edit"
+    print("ok - boolean/number conflicts preserve intervening CLI values and types")
   finally:
     if writer.poll() is None: writer.kill(); writer.wait()
     if "migration" in locals() and migration.poll() is None: migration.kill(); migration.wait()

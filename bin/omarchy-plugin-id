@@ -171,11 +171,22 @@ def save_config(value):
 
 MISSING = object()
 
+def json_equal(left, right):
+  # Python bool inherits int, but JSON booleans and numbers are distinct.
+  # Compare containers recursively so a nested true cannot equal a nested 1.
+  if isinstance(left, bool) or isinstance(right, bool):
+    return type(left) is type(right) and left == right
+  if isinstance(left, dict) and isinstance(right, dict):
+    return left.keys() == right.keys() and all(json_equal(left[key], right[key]) for key in left)
+  if isinstance(left, list) and isinstance(right, list):
+    return len(left) == len(right) and all(json_equal(a, b) for a, b in zip(left, right))
+  return left == right
+
 def merge_changes(base, desired, current, path="shell.json"):
   # Apply only the caller's changes, never its unchanged, possibly stale fields.
-  if desired == base:
+  if json_equal(desired, base):
     return current
-  if current == base or current == desired:
+  if json_equal(current, base) or json_equal(current, desired):
     return desired
   if isinstance(base, dict) and isinstance(desired, dict) and isinstance(current, dict):
     merged = {}
