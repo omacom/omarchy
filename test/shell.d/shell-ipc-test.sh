@@ -279,6 +279,8 @@ fi
 # The request is record-framed; peer EOF must not discard a deferred Qt reply.
 # Gate only this runtime section, preserving all protocol checks when headless.
 if compositor_reachable && command -v quickshell >/dev/null; then
+  # The runner recognizes this unindented probe for its compositor group and private display.
+require_quickshell "deferred shell IPC response"
   (
     test_tmp=$(mktemp -d)
     server_pid=""
