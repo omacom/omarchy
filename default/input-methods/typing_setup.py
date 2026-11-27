@@ -149,14 +149,15 @@ def save_inputs(selected, overrides=None):
   # restart returns the group so the menu's restored checks stay true.
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   try:
+    # Keyboard-only sessions start fcitx5 without xcb/xim to keep Xwayland asleep.
+    # Restart fcitx5 before writing font defaults once the first composition engine
+    # is saved so X11/XIM apps can reach it without waiting for the next login, and
+    # a failed restart rolls back the group cleanly without leaving font changes.
+    if not had_engine and any(not name.startswith("keyboard-") for name in selected):
+      setup.run(["omarchy-restart-xcompose"])
     for name in selected:
       if name in setup.PRESETS:
         setup.font_default(config_home, name)
-    # Keyboard-only sessions start fcitx5 without xcb/xim to keep Xwayland asleep.
-    # Restart fcitx5 once the first composition engine is saved so X11/XIM apps
-    # can reach it without waiting for the next login.
-    if not had_engine and any(not name.startswith("keyboard-") for name in selected):
-      setup.run(["omarchy-restart-xcompose"])
   except BaseException:
     setup.live_set(group, layout, items)
     raise
