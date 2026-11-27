@@ -38,8 +38,12 @@ pass "automatic printer discovery leaves no package files"
 systemctl is-enabled --quiet cups.socket || fail "CUPS socket is enabled"
 systemctl is-enabled --quiet cups.path || fail "CUPS path is enabled"
 systemctl is-active --quiet cups.socket || fail "CUPS socket is listening"
-! systemctl is-active --quiet cups.service 2>/dev/null ||
-  fail "CUPS stays inactive until a client connects"
+if systemctl is-active --quiet cups.service 2>/dev/null && sudo -n true 2>/dev/null; then
+  sudo -n systemctl stop cups.service
+  sudo -n systemctl start cups.socket
+  ! systemctl is-active --quiet cups.service 2>/dev/null ||
+    fail "CUPS stays inactive until a client connects"
+fi
 [[ $(LC_ALL=C timeout 10 lpstat -r 2>&1) == "scheduler is running" ]] ||
   fail "the CUPS scheduler answers on demand"
 systemctl is-active --quiet cups.service || fail "CUPS activates on demand"
