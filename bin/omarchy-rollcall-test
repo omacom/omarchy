@@ -1,0 +1,1786 @@
+#!/bin/bash
+
+# omarchy:summary=Walk through the hardware tests that need a person: speakers, camera, keys, ports, suspend and more
+# omarchy:subcommand=--list [--json] — List every attended test and whether it applies to this machine
+# omarchy:subcommand=<test> [--no-ask] — Run one test, asking its question at the end
+# omarchy:subcommand=<test> --record <pass|fail|skip> [--detail <text>] — Record a person's answer to a test
+# omarchy:subcommand=--reset — Forget every attended result
+# omarchy:examples=omarchy rollcall test --list | omarchy rollcall test speakers | omarchy rollcall test usb-port
+
+# The half of the roll call that needs a person's hand or eye: a tone to hear,
+# a key to press, a cable to plug. Each test observes the effect of what the
+# person does (a volume in PipeWire, a backlight value, an rfkill switch, a
+# monitor in Hyprland), never the raw key event, which would need root. Tests
+# change state only to observe it and put it back, also when stopped.
+#
+# Results go to a store under the runtime directory, which survives suspend but
+# not a reboot, for omarchy-rollcall to fold into its report. The walkthrough
+# panel drives this with --no-ask and reads the ::prompt::, ::progress::,
+# ::image:: and ::verify:: lines; the last plain line is the detail recorded.
+
+set -uo pipefail
+
+# Tests point this at a fake tree holding sys/, proc/, dev/ and run/udev/.
+root=${OMARCHY_ROLLCALL_ROOT:-}
+sys=$root/sys
+proc=$root/proc
+dev=$root/dev
+udev_data=$root/run/udev/data
+
+state_dir=${OMARCHY_ROLLCALL_STATE:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omarchy-rollcall}
+store=$state_dir/attended
+files=$state_dir/files
+
+PASS=0 FAIL=1 SKIP=77 ASKED=4 USAGE=2
+
+TESTS=(speakers microphone headphones camera volume-keys mic-mute-key brightness-keys keyboard-backlight-key wireless-key
+  media-keys caps-lock-light external-display usb-port bluetooth-device suspend lid charger fingerprint keyboard touchpad touchscreen)
+
+declare -A TITLE=(
+  [speakers]="Speakers"
+  [microphone]="Microphone"
+  [headphones]="Headphones"
+  [camera]="Camera"
+  [volume-keys]="Volume keys"
+  [mic-mute-key]="Microphone mute key"
+  [brightness-keys]="Brightness keys"
+  [keyboard-backlight-key]="Keyboard backlight key"
+  [wireless-key]="Wireless key"
+  [media-keys]="Media keys"
+  [caps-lock-light]="Caps Lock light"
+  [external-display]="External display"
+  [usb-port]="USB ports"
+  [charger]="Charger"
+  [bluetooth-device]="Bluetooth device"
+  [suspend]="Suspend"
+  [lid]="Lid"
+  [fingerprint]="Fingerprint reader"
+  [keyboard]="Keyboard"
+  [touchpad]="Touchpad"
+  [touchscreen]="Touchscreen"
+)
+
+declare -A KIND=(
+  [speakers]=verify [microphone]=verify [headphones]=verify [camera]=verify [volume-keys]=interact
+  [mic-mute-key]=interact [brightness-keys]=verify [keyboard-backlight-key]=interact [wireless-key]=interact
+  [media-keys]=verify [caps-lock-light]=verify [external-display]=verify [usb-port]=interact [charger]=interact
+  [bluetooth-device]=verify [suspend]=interact [lid]=interact [fingerprint]=interact [keyboard]=panel
+  [touchpad]=panel [touchscreen]=panel
+)
+
+declare -A NEEDS=(
+  [headphones]=headphones [external-display]=external-display [usb-port]=usb-device [charger]=charger
+  [bluetooth-device]=bluetooth-device [fingerprint]=enrolled-finger
+)
+
+declare -A STEPS=(
+  [speakers]="Set a comfortable volume, then listen to a tone from the left speaker and one from the right."
+  [microphone]="Speak for a few seconds, then listen to the recording played back."
+  [headphones]="Plug headphones into the headphone jack and listen to a tone in each ear."
+  [camera]="Look at the camera while it takes one picture, and watch for its light."
+  [volume-keys]="Press Volume Up, Volume Down, then Mute twice."
+  [mic-mute-key]="Press the microphone mute key twice."
+  [brightness-keys]="Press Brightness Down and Brightness Up, and watch the screen."
+  [keyboard-backlight-key]="Press the keyboard backlight key."
+  [wireless-key]="Press the airplane-mode or wireless key twice."
+  [media-keys]="Play something, then press Play/Pause twice."
+  [caps-lock-light]="Press Caps Lock twice and watch its light."
+  [external-display]="Plug in an external display, check the desktop shows on it, then unplug it."
+  [usb-port]="Plug a USB device into a port; repeat for each port you want to check."
+  [charger]="Unplug the charger, then plug it back in."
+  [bluetooth-device]="Connect a Bluetooth device you own from the Bluetooth panel."
+  [suspend]="Let the machine sleep, then wake it and unlock."
+  [lid]="Close the lid until the machine sleeps, then open it and unlock."
+  [fingerprint]="Touch the fingerprint reader with an enrolled finger."
+  [keyboard]="Type on every row of the keyboard."
+  [touchpad]="Move, tap and scroll on the touchpad."
+  [touchscreen]="Touch and drag across the screen."
+)
+
+# HDMI, DisplayPort and S/PDIF reach a monitor or a receiver, not the machine's own speakers.
+DIGITAL_AUDIO='hdmi|displayport|iec958|spdif'
+
+usage() {
+  echo "Usage: omarchy-rollcall-test --list [--json]"
+  echo "       omarchy-rollcall-test <test> [--no-ask]"
+  echo "       omarchy-rollcall-test <test> --record pass|fail|skip [--detail <text>]"
+  echo "       omarchy-rollcall-test --reset"
+  echo "Tests: ${TESTS[*]}"
+}
+
+read_file() {
+  local value
+  { value=$(<"$1"); } 2>/dev/null || return 1
+  printf '%s' "$value"
+}
+
+read_number() {
+  local value
+  value=$(read_file "$1") || return 1
+  [[ $value =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$value"
+}
+
+driver_of() {
+  local link
+  link=$(readlink "$1/driver" 2>/dev/null) || return 1
+  printf '%s' "${link##*/}"
+}
+
+laptop() {
+  OMARCHY_ACPI_LID_PATH=$proc/acpi/button/lid OMARCHY_INPUT_CLASS_PATH=$sys/class/input \
+    OMARCHY_DMI_CHASSIS_TYPE_PATH=$sys/class/dmi/id/chassis_type omarchy-hw-laptop
+}
+
+lid_closed() {
+  OMARCHY_ACPI_LID_PATH=$proc/acpi/button/lid OMARCHY_INPUT_CLASS_PATH=$sys/class/input omarchy-hw-laptop-closed
+}
+
+backlight_device() {
+  OMARCHY_BACKLIGHT_PATH=$sys/class/backlight omarchy-hw-display
+}
+
+external_monitors() {
+  OMARCHY_DRM_PATH=$sys/class/drm omarchy-hw-external-monitors
+}
+
+# Whether a device hangs off a USB port the firmware marks removable, anywhere up the chain.
+on_removable_usb() {
+  local dir
+  dir=$(readlink -f "$1/device") || return 1
+  while [[ $dir == "$sys"/* ]]; do
+    [[ $(read_file "$dir/removable") == "removable" ]] && return 0
+    dir=${dir%/*}
+  done
+  return 1
+}
+
+# "hard" when any switch of a radio type is held by hardware, "soft" when one is turned off.
+rfkill_block() {
+  local switch block=""
+  for switch in "$sys"/class/rfkill/rfkill*; do
+    [[ $(read_file "$switch/type") == "$1" ]] || continue
+    if [[ $(read_file "$switch/hard") == "1" ]]; then
+      echo hard
+      return
+    elif [[ $(read_file "$switch/soft") == "1" ]]; then
+      block=soft
+    fi
+  done
+  [[ -z $block ]] || echo "$block"
+}
+
+# The machine's own battery, decided as omarchy-battery-present decides it.
+system_battery() {
+  local battery
+  for battery in "$sys"/class/power_supply/*; do
+    [[ $(read_file "$battery/present") == "1" && $(read_file "$battery/type") == "Battery" ]] || continue
+    [[ $(read_file "$battery/scope") == "Device" ]] && continue
+    echo "$battery"
+    return 0
+  done
+  return 1
+}
+
+# --- Running a test: the protocol, waits, and putting things back ---
+
+terminal=false
+child=""
+restorers=()
+
+# Tests shorten every wait and pause.
+limit() {
+  local seconds=$1
+  if [[ ${OMARCHY_ROLLCALL_TIMEOUT:-} =~ ^[0-9]+$ ]] && (( OMARCHY_ROLLCALL_TIMEOUT < seconds )); then
+    seconds=$OMARCHY_ROLLCALL_TIMEOUT
+  fi
+  echo "$seconds"
+}
+
+# A child in the background, so a stop signal is handled at once rather than when it exits.
+bg_run() {
+  local status
+  "$@" &
+  child=$!
+  wait "$child"
+  status=$?
+  child=""
+  return "$status"
+}
+
+pause() {
+  bg_run sleep "${OMARCHY_ROLLCALL_PAUSE:-$1}"
+}
+
+# Polls a condition until it holds; one last look after the deadline, since a
+# suspend can carry the clock past it in one step.
+wait_until() {
+  local deadline=$((SECONDS + $1))
+  shift
+  until "$@"; do
+    if (( SECONDS >= deadline )); then
+      "$@"
+      return
+    fi
+    bg_run sleep 0.2
+  done
+}
+
+prompt() {
+  if [[ $terminal == "true" ]]; then
+    echo "$2"
+  else
+    echo "::prompt:: $1 $2"
+  fi
+}
+
+progress() {
+  [[ $terminal == "true" ]] || echo "::progress:: $1"
+}
+
+restore() {
+  local restorer
+  for restorer in "${restorers[@]}"; do
+    "$restorer"
+  done
+  restorers=()
+}
+
+stopped() {
+  [[ -n $child ]] && kill "$child" 2>/dev/null
+  exit 143
+}
+
+write_json() {
+  local target=$1 tmp
+  shift
+  mkdir -p -m 700 "$state_dir"
+  mkdir -p "$store"
+  tmp=$(mktemp "$store/.${target##*/}.XXXXXX") || return 1
+  if jq -n "$@" >"$tmp"; then
+    mv -f "$tmp" "$target"
+  else
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+record() {
+  write_json "$store/$1.json" --arg id "$1" --arg result "$2" --arg detail "$3" --argjson finished "$EPOCHSECONDS" \
+    '{id: $id, result: $result, detail: $detail, finished: $finished}' || return 1
+  rm -f "$store/$1.pending.json"
+}
+
+finish() {
+  local result=$1 detail=$2
+  restore
+  record "$test_id" "$result" "$detail"
+  if [[ $terminal == "true" ]]; then
+    case $result in
+      pass) echo "✓ $detail" ;;
+      fail) echo "✗ $detail" ;;
+      *) echo "– skipped: $detail" ;;
+    esac
+  else
+    echo "$detail"
+  fi
+  case $result in
+    pass) exit $PASS ;;
+    fail) exit $FAIL ;;
+    *) exit $SKIP ;;
+  esac
+}
+
+# The measured part is done and a person judges the rest. In a terminal the
+# question is asked here; otherwise it is left pending for the panel.
+ask() {
+  local key=$1 question=$2 detail=$3 answer
+  restore
+  if [[ $terminal == "true" ]]; then
+    echo "$detail"
+    # gum confirm answers Esc as No; a choice tells Skip apart.
+    answer=$(gum choose --header "$question" Yes No Skip) || answer=""
+    case $answer in
+      Yes) finish pass "$detail" ;;
+      No) finish fail "$detail" ;;
+      *) finish skip "not answered" ;;
+    esac
+  fi
+  write_json "$store/$test_id.pending.json" --arg id "$test_id" --arg key "$key" --arg detail "$detail" --arg question "$question" \
+    '{id: $id, key: $key, detail: $detail, question: $question}'
+  echo "$detail"
+  echo "::verify:: $key $question"
+  exit $ASKED
+}
+
+need_tools() {
+  local tool
+  for tool in "$@"; do
+    command -v "$tool" >/dev/null 2>&1 || finish skip "$tool is not installed"
+  done
+}
+
+# --- Audio ---
+
+pa() {
+  LC_ALL=C timeout 5s pactl "$@" 2>/dev/null
+}
+
+pa_list() {
+  pa -f json list "$1"
+}
+
+pipewire_reachable() {
+  pa info >/dev/null
+}
+
+need_pipewire() {
+  need_tools pactl
+  pipewire_reachable || finish skip "PipeWire is not reachable from this session"
+}
+
+default_sink() {
+  pa get-default-sink
+}
+
+default_source() {
+  pa get-default-source
+}
+
+# Where loudness really lives: a speaker tuning or EasyEffects sink resolves to the sink it feeds.
+physical_sink() {
+  local sink
+  sink=$(omarchy-audio-output-sink 2>/dev/null)
+  [[ -n $sink ]] || sink=$(default_sink)
+  printf '%s' "$sink"
+}
+
+# How a sink reaches a person: speakers, headphones, line, digital, bluetooth, usb or unknown.
+sink_route() {
+  pa_list sinks | jq -r --arg name "$1" --arg digital "$DIGITAL_AUDIO" '
+    first(.[] | select(.name == $name)) as $sink
+    | ([$sink.ports[]? | select(.name == $sink.active_port)] | first | .type // "" | ascii_downcase) as $type
+    | if ($name | startswith("bluez_output.")) then "bluetooth"
+      elif ($type | test($digital)) or ($name | test($digital)) then "digital"
+      elif ($type | test("headphone|headset")) then "headphones"
+      elif ($type | test("line")) then "line"
+      elif $sink.properties["device.bus"] == "usb" then "usb"
+      elif $type == "speaker" then "speakers"
+      else "unknown" end' 2>/dev/null
+}
+
+sink_driver() {
+  pa_list sinks | jq -r --arg name "$1" 'first(.[] | select(.name == $name)) | .properties["alsa.driver_name"] // "unknown"' 2>/dev/null
+}
+
+# "<average raw volume> <muted>" of one sink or source.
+audio_level() {
+  pa_list "$1" | jq -r --arg name "$2" 'first(.[] | select(.name == $name)) | "\([.volume[].value] | add / length | floor) \(.mute)"' 2>/dev/null
+}
+
+route_reason() {
+  case $1 in
+    bluetooth) echo "audio is going to a Bluetooth device, not the built-in speakers" ;;
+    digital) echo "audio is going to HDMI or DisplayPort, not the built-in speakers" ;;
+    headphones) echo "audio is going to headphones, not the built-in speakers" ;;
+    line) echo "audio is going to the line output, not the built-in speakers" ;;
+    usb) echo "audio is going to a USB device, not the built-in speakers" ;;
+    *) echo "audio is not going to built-in speakers" ;;
+  esac
+}
+
+# A stereo tone on one side or both, faded at each end so the edges do not click.
+make_tone() {
+  local pan
+  case $2 in
+    left) pan='pan=stereo|c0=c0|c1=0*c0' ;;
+    right) pan='pan=stereo|c0=0*c0|c1=c0' ;;
+    *) pan='pan=stereo|c0=c0|c1=c0' ;;
+  esac
+  timeout 10s ffmpeg -nostdin -loglevel error -y -f lavfi -i "sine=frequency=660:duration=${3:-1.5}:sample_rate=48000" \
+    -af "$pan,afade=t=in:d=0.05,areverse,afade=t=in:d=0.05,areverse" "$1" </dev/null >/dev/null 2>&1
+}
+
+play() {
+  bg_run timeout 15s pw-play --target "$1" "$2" </dev/null >/dev/null 2>&1
+}
+
+scratch() {
+  [[ -n ${scratch_dir:-} ]] || scratch_dir=$(mktemp -d)
+  printf '%s' "$scratch_dir"
+}
+
+remove_scratch() {
+  [[ -n ${scratch_dir:-} ]] && rm -rf "$scratch_dir"
+}
+
+# The volumes and mutes of every sink or source, put back exactly as found.
+snapshot_audio() {
+  saved_audio_kind=$1
+  saved_audio=$(pa_list "$1" | jq -c '[.[] | {name, volume: [.volume[].value], mute}]' 2>/dev/null)
+  [[ -n $saved_audio ]] && restorers+=(restore_audio)
+}
+
+restore_audio() {
+  local singular=${saved_audio_kind%s} line
+  local -a words
+  while IFS= read -r line; do
+    read -r -a words <<<"$line"
+    if [[ ${words[0]} == "volume" ]]; then
+      pa "set-$singular-volume" "${words[@]:1}" >/dev/null
+    else
+      pa "set-$singular-mute" "${words[@]:1}" >/dev/null
+    fi
+  done < <(pa_list "$saved_audio_kind" | jq -r --argjson saved "$saved_audio" '
+    (map({key: .name, value: {volume: [.volume[].value], mute}}) | from_entries) as $now
+    | $saved[] | select($now[.name] != null)
+    | (if $now[.name].volume != .volume and (.volume | length) > 0 then "volume \(.name) \(.volume | map(tostring) | join(" "))" else empty end),
+      (if $now[.name].mute != .mute then "mute \(.name) \(if .mute then 1 else 0 end)" else empty end)' 2>/dev/null)
+}
+
+# Ports of one type on the machine's own cards, from PipeWire's view of the cards.
+card_ports() {
+  jq -r --arg types "$1" '
+    .[] | select(.properties["device.bus"] != "usb" and .properties["device.bus"] != "bluetooth" and (.name | startswith("bluez") | not))
+    | .ports | to_entries[]? | select((.value.type // "" | ascii_downcase) | test($types)) | .value.availability // "availability unknown"' 2>/dev/null
+}
+
+# "available", "not available" or "unknown", for the headphone jack.
+jack_state() {
+  local states
+  states=$(pa_list cards | card_ports 'headphone|headset')
+  if grep -qx available <<<"$states"; then
+    echo available
+  elif [[ -n $states && $states != *unknown* ]]; then
+    echo "not available"
+  else
+    echo unknown
+  fi
+}
+
+test_speakers() {
+  local sink physical route driver level tones detail
+  need_pipewire
+  need_tools pw-play ffmpeg
+
+  sink=$(default_sink)
+  physical=$(physical_sink)
+  route=$(sink_route "$physical")
+  # A laptop's speakers on a card with no port types are still its speakers.
+  if [[ $route != "speakers" ]] && ! { [[ $route == "unknown" ]] && laptop; }; then
+    finish skip "$(route_reason "$route")"
+  fi
+  driver=$(sink_driver "$physical")
+
+  tones=$(scratch)
+  make_tone "$tones/left.wav" left && make_tone "$tones/right.wav" right || finish fail "the test tones could not be made"
+
+  prompt speakers.volume "Set the volume to a comfortable level."
+  pause 5
+  level=$(audio_level sinks "$physical")
+  if [[ $level == *true ]]; then
+    finish skip "the speakers are muted"
+  fi
+
+  prompt speakers.left "Listen: a tone from the left speaker."
+  play "$sink" "$tones/left.wav" || finish fail "pw-play could not play to the speakers ($driver)"
+  progress 0.5
+  prompt speakers.right "Listen: a tone from the right speaker."
+  play "$sink" "$tones/right.wav" || finish fail "pw-play could not play to the speakers ($driver)"
+  progress 1
+
+  detail="played left, then right, on the built-in speakers at $(( ${level%% *} * 100 / 65536 ))% ($driver)"
+  [[ $sink != "$physical" ]] && detail+=", through ${sink//_/ }"
+  ask speakers.question "Did you hear one tone from the left speaker, then one from the right, both clear and without crackle?" "$detail"
+}
+
+# "<peak dB> <rms dB> <loudest 0.1 s dB>", -inf as -200.
+loudness() {
+  timeout 15s ffmpeg -nostdin -hide_banner -ss 0.5 -i "$1" \
+    -af astats=length=0.1:measure_perchannel=none:measure_overall=Peak_level+RMS_level+RMS_peak -f null - 2>&1 </dev/null |
+    awk -F': ' '
+      function number(v) { return (v ~ /inf/) ? -200 : v + 0 }
+      /Peak level dB:/ { peak = number($2) }
+      /RMS level dB:/ { rms = number($2) }
+      /RMS peak dB:/ { loudest = number($2) }
+      END { if (peak != "") printf "%.0f %.0f %.0f\n", peak, rms, loudest }'
+}
+
+test_microphone() {
+  local source route muted driver recording measured peak rms loudest
+  need_pipewire
+  need_tools pw-record pw-play ffmpeg
+
+  source=$(default_source)
+  [[ -n $source && $source != *.monitor ]] || finish skip "no microphone is selected for recording"
+  route=$(pa_list sources | jq -r --arg name "$source" '
+    first(.[] | select(.name == $name)) as $source
+    | ([$source.ports[]? | select(.name == $source.active_port)] | first) as $port
+    | if ($name | startswith("bluez_input.")) then "a Bluetooth microphone"
+      elif $source.properties["device.bus"] == "usb" then "a USB microphone"
+      elif $port == null then "builtin"
+      elif ($port.name | ascii_downcase | test("headset|external|jack")) or ($port.type // "" | ascii_downcase | test("headset|line")) or $port.availability_group != null then "a headset or jack microphone"
+      else "builtin" end' 2>/dev/null)
+  [[ $route == "builtin" ]] || finish skip "recording from ${route:-another microphone}, not the built-in one"
+  muted=$(audio_level sources "$source")
+  [[ $muted == *true ]] && finish skip "the microphone is muted"
+  driver=$(pa_list sources | jq -r --arg name "$source" 'first(.[] | select(.name == $name)) | .properties["alsa.driver_name"] // "unknown"' 2>/dev/null)
+
+  recording="$(scratch)/microphone.wav"
+  prompt microphone.speak "Speak now, for a few seconds, as you would on a call."
+  bg_run timeout -s INT 5s pw-record --target "$source" --rate 48000 --channels 1 "$recording" </dev/null >/dev/null 2>&1
+  progress 0.5
+
+  measured=$(loudness "$recording")
+  [[ -s $recording && -n $measured ]] || finish fail "nothing could be recorded from the built-in microphone ($driver)"
+  read -r peak rms loudest <<<"$measured"
+  if (( peak <= -60 )); then
+    finish fail "the built-in microphone recorded silence, peak ${peak/-200/-inf} dB ($driver)"
+  elif (( loudest - rms < 6 )); then
+    finish fail "the built-in microphone recorded a steady level with no speech in it, peak $peak dB ($driver)"
+  fi
+
+  prompt microphone.playback "Listen: your recording plays back now."
+  play "$(default_sink)" "$recording" || finish fail "the recording could not be played back"
+  progress 1
+  ask microphone.question "Could you hear your own voice clearly in the playback?" \
+    "recorded speech from the built-in microphone, peak $peak dB, $((loudest - rms)) dB above its average ($driver)"
+}
+
+# A sink with a headphone port active, on one of the machine's own cards.
+headphone_sink() {
+  pa_list sinks | jq -r '
+    first(.[] | select((.name | startswith("bluez_")) | not) | select(.properties["device.bus"] != "usb")
+      | . as $sink | select([.ports[]? | select(.name == $sink.active_port) | .type // "" | ascii_downcase | test("headphone|headset")] | any)
+      | .name) // empty' 2>/dev/null
+}
+
+headphones_routed() {
+  local sink
+  sink=$(headphone_sink)
+  [[ -n $sink ]] || return 1
+  # Where the speakers had the output, the output has to move.
+  [[ $before_route != "speakers" || $(sink_route "$(physical_sink)") == "headphones" ]]
+}
+
+jack_plugged() {
+  [[ $(jack_state) == "available" ]]
+}
+
+jack_empty() {
+  [[ $(jack_state) == "not available" ]]
+}
+
+test_headphones() {
+  local seconds sink tones driver detail
+  need_pipewire
+  need_tools pw-play ffmpeg
+
+  case $(jack_state) in
+    unknown) finish fail "the headphone jack does not report whether anything is plugged in" ;;
+    available)
+      seconds=$(limit 60)
+      prompt headphones.unplug "Unplug the headphones from the headphone jack."
+      wait_until "$seconds" jack_empty || finish fail "the jack still reported headphones $seconds s after asking to unplug them"
+      ;;
+  esac
+
+  before_route=$(sink_route "$(physical_sink)")
+  seconds=$(limit 60)
+  prompt headphones.plug "Plug headphones into the headphone jack."
+  wait_until "$seconds" jack_plugged || finish fail "the jack reported nothing within $seconds s of asking to plug headphones in"
+  progress 0.4
+
+  seconds=$(limit 5)
+  if ! wait_until "$seconds" headphones_routed; then
+    if [[ $before_route == "speakers" ]]; then
+      finish fail "the jack reports headphones, but audio stayed on the speakers"
+    else
+      finish fail "the jack reports headphones, but no output plays to them"
+    fi
+  fi
+  sink=$(headphone_sink)
+  driver=$(sink_driver "$sink")
+
+  tones=$(scratch)
+  make_tone "$tones/left.wav" left && make_tone "$tones/right.wav" right || finish fail "the test tones could not be made"
+  prompt headphones.listen "Put the headphones on at a comfortable volume. A tone plays in the left ear, then the right."
+  pause 4
+  play "$sink" "$tones/left.wav" && play "$sink" "$tones/right.wav" || finish fail "pw-play could not play to the headphones ($driver)"
+  progress 1
+
+  if [[ $before_route == "speakers" ]]; then
+    detail="the jack sensed the plug and audio moved from the speakers to the headphones ($driver)"
+  else
+    detail="the jack sensed the plug and the headphones took a tone on each side ($driver)"
+  fi
+  ask headphones.question "Did you hear one tone in your left ear, then one in your right, both clear?" "$detail"
+}
+
+# --- Camera ---
+
+# Capture nodes apps can use, best first: Omarchy's relay for a sensor behind an
+# image processor, then cameras udev recorded as capturing, built in on a laptop.
+# Cameras an app can open, best first: behind an image processor only what a
+# relay (Omarchy's, or v4l2-relayd's) turns into an ordinary capture node, since
+# the processor's own nodes give no picture until something configures them;
+# otherwise built-in USB video functions.
+camera_nodes() {
+  local env label name node data relayed=false
+  if image_processor; then
+    env=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/camera-relay.env
+    label=$(sed -n 's/^CARD_LABEL=//p' "$env" 2>/dev/null | tr -d "\"'")
+    for name in "$sys"/devices/virtual/video4linux/video*/name; do
+      [[ -e $name ]] || continue
+      node=${name%/name}
+      if [[ -r $env && $(read_file "$name") == "${label:-Front Camera}" ]] || capture_node "$node"; then
+        echo "relay ${node##*/}"
+        relayed=true
+      fi
+    done
+  fi
+
+  for node in "$sys"/class/video4linux/video*; do
+    [[ -e $node/device && -r $node/dev ]] || continue
+    [[ $(readlink "$node/device/driver" 2>/dev/null) == */@(qcom-camss|intel-ipu*|intel_ipu*) ]] && continue
+    capture_node "$node" || continue
+    laptop && on_removable_usb "$node" && continue
+    echo "$(driver_of "$node/device" || echo unknown) ${node##*/}"
+  done
+}
+
+capture_node() {
+  grep -q '^E:ID_V4L_CAPABILITIES=.*:capture:' "$udev_data/c$(read_file "$1/dev")" 2>/dev/null
+}
+
+# Intel's IPU or a Snapdragon's camera subsystem: a camera only a relay or
+# libcamera can turn into a picture.
+image_processor() {
+  local device
+  for device in "$sys"/bus/pci/drivers/intel-ipu*/0000:*; do
+    [[ -e $device ]] && return 0
+  done
+  # A bound platform device is a link in its driver's directory, beside files
+  # like bind and the module link.
+  for device in "$sys"/bus/platform/drivers/qcom-camss/*; do
+    [[ -L $device && ${device##*/} != "module" ]] && return 0
+  done
+  return 1
+}
+
+# Whether libcamera hands the camera to PipeWire, where only apps can reach it.
+libcamera_camera() {
+  timeout 5s pw-dump 2>/dev/null |
+    jq -e 'any(.[]; (.info.props["media.class"]? == "Video/Source") and (.info.props | tostring | test("libcamera")))' >/dev/null 2>&1
+}
+
+# Only grey formats is an infrared camera, which has no picture to judge.
+infrared() {
+  local formats
+  formats=$(timeout 10s ffmpeg -nostdin -hide_banner -f v4l2 -list_formats all -i "$1" 2>&1 </dev/null | grep -E '(Raw|Compressed) *:')
+  [[ -n $formats ]] && ! grep -viqE ':[^:]*(gray|y8|y10|y12|y16)[^:]*: ' <<<"$formats"
+}
+
+test_camera() {
+  local found candidate driver="" node device="" frame log size range shown detail
+  need_tools ffmpeg ffprobe
+
+  if ! found=$(camera_nodes | grep .); then
+    if image_processor && libcamera_camera; then
+      finish skip "the camera reaches apps through PipeWire and libcamera; open a camera app to check its picture"
+    elif image_processor; then
+      finish fail "the camera sits behind an image processor and no relay or libcamera makes it available to apps"
+    elif laptop; then
+      finish fail "the laptop reports no camera"
+    else
+      finish skip "no camera"
+    fi
+  fi
+
+  # Listing a camera's formats opens it, so the person is told to watch first.
+  prompt camera.look "Look at the camera and watch for its light."
+  while read -r candidate node; do
+    [[ -r $dev/$node && -w $dev/$node ]] || { driver=$candidate; continue; }
+    infrared "$dev/$node" && continue
+    driver=$candidate
+    device=$dev/$node
+    break
+  done <<<"$found"
+  if [[ -z $device ]]; then
+    [[ -n $driver ]] && finish fail "this account cannot open the camera ($driver)"
+    finish skip "the only camera found is an infrared one"
+  fi
+
+  mkdir -p -m 700 "$state_dir"
+  mkdir -p -m 700 "$files"
+  frame=$files/camera.jpg
+  log="$(scratch)/camera.log"
+  rm -f "$frame"
+  # Two seconds of frames, keeping the last, so auto-exposure has settled.
+  bg_run timeout 20s ffmpeg -nostdin -hide_banner -loglevel error -f v4l2 -i "$device" -t 2 -update 1 -q:v 3 -y "$frame" </dev/null >/dev/null 2>"$log"
+  if [[ ! -s $frame ]]; then
+    if grep -qi "busy" "$log"; then
+      finish skip "the camera is in use by another application"
+    fi
+    finish fail "the camera gave no picture ($driver: $(tail -n 1 "$log" | sed 's/^.*: //'))"
+  fi
+  progress 1
+
+  size=$(timeout 10s ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=p=0:s=x "$frame" 2>/dev/null)
+  range=$(timeout 10s ffmpeg -nostdin -hide_banner -i "$frame" -vf signalstats,metadata=print -f null - 2>&1 </dev/null |
+    awk -F= '/signalstats.YMIN=/ {low = $2} /signalstats.YMAX=/ {high = $2} END {if (high != "") print high - low}')
+  if [[ $terminal == "true" ]]; then
+    echo "The picture is at $frame"
+  else
+    echo "::image:: $frame"
+  fi
+
+  [[ $driver == "relay" ]] && shown="Omarchy's camera relay" || shown=$driver
+  detail="took a ${size:-picture} frame ($shown)"
+  (( ${range:-255} < 16 )) && detail+=", nearly flat: a closed shutter or a dark room?"
+  ask camera.question "Is the picture clear, and did the camera light come on while it was taken?" "$detail"
+}
+
+# --- Keys observed through what they change ---
+
+sink_volume() {
+  local level
+  level=$(audio_level sinks "$watched")
+  echo "${level%% *}"
+}
+
+sink_muted() {
+  local level
+  level=$(audio_level sinks "$watched")
+  echo "${level##* }"
+}
+
+volume_above() {
+  local now
+  now=$(sink_volume)
+  [[ -n $now ]] && (( now > mark ))
+}
+
+volume_below() {
+  local now
+  now=$(sink_volume)
+  [[ -n $now ]] && (( now < mark ))
+}
+
+mute_is() {
+  [[ $(sink_muted) == "$mark" ]]
+}
+
+press_volume() {
+  local direction=$1 seconds
+  seconds=$(limit 30)
+  mark=$(sink_volume)
+  if [[ $direction == "up" ]]; then
+    prompt volume-keys.up "Press Volume Up."
+    wait_until "$seconds" volume_above || finish fail "Volume Up changed nothing within $seconds s"
+  else
+    prompt volume-keys.down "Press Volume Down."
+    wait_until "$seconds" volume_below || finish fail "Volume Down changed nothing within $seconds s"
+  fi
+}
+
+test_volume_keys() {
+  local muted seconds start
+  need_pipewire
+  watched=$(physical_sink)
+  start=$(sink_volume)
+  [[ -n $watched && -n $start ]] || finish skip "no audio output"
+  snapshot_audio sinks
+
+  # At full volume Volume Up has nowhere to go.
+  if (( start >= 65536 )); then
+    press_volume down
+    press_volume up
+  else
+    press_volume up
+    press_volume down
+  fi
+  progress 0.5
+
+  seconds=$(limit 30)
+  muted=$(sink_muted)
+  mark=$([[ $muted == "true" ]] && echo false || echo true)
+  prompt volume-keys.mute "Press Mute."
+  wait_until "$seconds" mute_is || finish fail "Mute changed nothing within $seconds s"
+  mark=$muted
+  prompt volume-keys.unmute "Press Mute again."
+  wait_until "$seconds" mute_is || finish fail "the second Mute changed nothing within $seconds s"
+  progress 1
+
+  finish pass "Volume Up, Volume Down and Mute each changed the output; volume and mute put back"
+}
+
+source_muted_is() {
+  local level
+  level=$(audio_level sources "$watched")
+  [[ ${level##* } == "$mark" ]]
+}
+
+test_mic_mute_key() {
+  local muted seconds
+  need_pipewire
+  watched=$(default_source)
+  [[ -n $watched && $watched != *.monitor ]] || finish skip "no microphone is selected for recording"
+  snapshot_audio sources
+
+  seconds=$(limit 30)
+  muted=$(audio_level sources "$watched")
+  muted=${muted##* }
+  mark=$([[ $muted == "true" ]] && echo false || echo true)
+  prompt mic-mute-key.press "Press the microphone mute key."
+  wait_until "$seconds" source_muted_is || finish fail "the microphone mute key changed nothing within $seconds s"
+  mark=$muted
+  prompt mic-mute-key.again "Press the microphone mute key again."
+  wait_until "$seconds" source_muted_is || finish fail "the second press changed nothing within $seconds s"
+  progress 1
+
+  finish pass "the key muted and unmuted the microphone; mute put back"
+}
+
+# A sysfs brightness that moved off the mark, in the asked direction.
+brightness_moved() {
+  local now
+  now=$(read_number "$brightness_file") || return 1
+  if [[ $direction == "up" ]]; then
+    (( now > mark ))
+  elif [[ $direction == "down" ]]; then
+    (( now < mark ))
+  else
+    (( now != mark )) || [[ $(read_file "$hw_changed_file") != "$hw_mark" ]]
+  fi
+}
+
+restore_brightness() {
+  [[ $(read_file "$brightness_file") == "$saved_brightness" ]] && return
+  timeout 5s brightnessctl -q -d "$brightness_device" set "$saved_brightness" >/dev/null 2>&1
+}
+
+press_brightness() {
+  local seconds
+  direction=$1
+  seconds=$(limit 30)
+  mark=$(read_number "$brightness_file")
+  if [[ $direction == "up" ]]; then
+    prompt brightness-keys.up "Press Brightness Up."
+    wait_until "$seconds" brightness_moved || finish fail "Brightness Up changed nothing within $seconds s ($brightness_device)"
+  else
+    prompt brightness-keys.down "Press Brightness Down."
+    wait_until "$seconds" brightness_moved || finish fail "Brightness Down changed nothing within $seconds s ($brightness_device)"
+  fi
+  steps+=("$(read_file "$brightness_file")")
+}
+
+test_brightness_keys() {
+  local max
+  local -a steps=()
+  laptop || finish skip "not a laptop"
+  lid_closed && finish skip "lid is closed"
+  brightness_device=$(backlight_device) || finish skip "no backlight control"
+  brightness_file=$sys/class/backlight/$brightness_device/brightness
+  max=$(read_number "$sys/class/backlight/$brightness_device/max_brightness") || max=0
+  saved_brightness=$(read_number "$brightness_file") || finish fail "$brightness_device brightness cannot be read"
+  restorers+=(restore_brightness)
+  steps=("$saved_brightness")
+
+  # Near the bottom Brightness Down may have nowhere to go.
+  if (( saved_brightness * 20 <= max )); then
+    press_brightness up
+    press_brightness down
+  else
+    press_brightness down
+    press_brightness up
+  fi
+  progress 1
+  restore
+
+  ask brightness-keys.question "Did the screen visibly dim and brighten again?" \
+    "$brightness_device went $(printf '%s → ' "${steps[@]}" | sed 's/ → $//') of $max; brightness put back"
+}
+
+test_keyboard_backlight_key() {
+  local led seconds now
+  for led in "$sys"/class/leds/*kbd_backlight*; do
+    [[ -e $led/brightness ]] && break
+  done
+  [[ -e $led/brightness ]] || finish skip "no keyboard backlight"
+  brightness_device=${led##*/}
+  brightness_file=$led/brightness
+  hw_changed_file=$led/brightness_hw_changed
+  saved_brightness=$(read_number "$brightness_file") || finish fail "$brightness_device brightness cannot be read"
+  restorers+=(restore_brightness)
+
+  seconds=$(limit 30)
+  direction=any
+  mark=$saved_brightness
+  hw_mark=$(read_file "$hw_changed_file")
+  prompt keyboard-backlight-key.press "Press the keyboard backlight key."
+  wait_until "$seconds" brightness_moved || finish fail "the keyboard backlight key changed nothing within $seconds s ($brightness_device)"
+  now=$(read_file "$brightness_file")
+  progress 1
+
+  finish pass "$brightness_device went from $saved_brightness to $now of $(read_file "$led/max_brightness"); brightness put back"
+}
+
+# "name soft hard" for every rfkill switch.
+# One line per radio type: whether any of its switches is soft- or hard-blocked.
+# Keyed by type rather than name, since a card whose power a switch cuts comes
+# back under a new name (phy0, then phy1).
+radio_states() {
+  local switch
+  for switch in "$sys"/class/rfkill/rfkill*; do
+    [[ -e $switch/type ]] || continue
+    echo "$(read_file "$switch/type") $(read_file "$switch/soft") $(read_file "$switch/hard")"
+  done | awk '{ soft[$1] = soft[$1] || $2; hard[$1] = hard[$1] || $3 } END { for (t in soft) print t, soft[t], hard[t] }' | sort
+}
+
+radios_changed() {
+  [[ $(radio_states) != "$mark" ]]
+}
+
+# Back means every radio that was on is on again. One that was off (Omarchy
+# turns Bluetooth off with a soft block) may come back on with the rest, which
+# restore_radios puts right.
+radios_back() {
+  local now type
+  now=$(radio_states)
+  for type in $(awk '$2 == 0 && $3 == 0 {print $1}' <<<"$initial_radios"); do
+    grep -qx "$type 0 0" <<<"$now" || return 1
+  done
+}
+
+# Puts each radio type's soft block back as it was at the start; a hardware
+# switch cannot be undone from here.
+restore_radios() {
+  local type soft hard
+  while read -r type soft hard; do
+    if [[ $soft == "1" ]] && grep -qx "$type 0 [01]" <<<"$initial_radios"; then
+      timeout 5s rfkill unblock "$type" >/dev/null 2>&1
+    elif [[ $soft == "0" ]] && grep -qx "$type 1 [01]" <<<"$initial_radios"; then
+      timeout 5s rfkill block "$type" >/dev/null 2>&1
+    fi
+  done < <(radio_states)
+}
+
+test_wireless_key() {
+  local seconds after types direction
+  laptop || finish skip "not a laptop"
+  initial_radios=$(radio_states)
+  [[ -n $initial_radios ]] || finish skip "no radios"
+  restorers+=(restore_radios)
+
+  seconds=$(limit 30)
+  mark=$initial_radios
+  prompt wireless-key.press "Press the airplane-mode or wireless key."
+  wait_until "$seconds" radios_changed || finish fail "no radio changed within $seconds s of asking for the wireless key"
+  # Radios can come and go as a switch above them turns off, so let them settle.
+  pause 1
+  after=$(radio_states)
+  if [[ $(awk '$2 == 1 || $3 == 1' <<<"$after" | wc -l) -gt $(awk '$2 == 1 || $3 == 1' <<<"$initial_radios" | wc -l) ]]; then
+    direction="off and on again"
+  else
+    direction="on and off again"
+  fi
+  progress 0.5
+
+  prompt wireless-key.again "Press the airplane-mode or wireless key again."
+  wait_until "$seconds" radios_back || finish fail "the radios did not return to how they were within $seconds s of the second press"
+  progress 1
+
+  types=$(for switch in "$sys"/class/rfkill/rfkill*; do read_file "$switch/type" && echo; done | sort -u | grep . | paste -sd, -)
+  finish pass "the key turned the radios $direction (${types:-radios})"
+}
+
+# MPRIS players on the session bus and whether each is playing.
+player_states() {
+  local name status
+  timeout 3s busctl --user --json=short call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ListNames 2>/dev/null |
+    jq -r '.data[0][] | select(startswith("org.mpris.MediaPlayer2."))' 2>/dev/null |
+    while IFS= read -r name; do
+      status=$(timeout 2s busctl --user get-property "$name" /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player PlaybackStatus 2>/dev/null)
+      status=${status#s }
+      echo "$name ${status//\"/}"
+    done
+}
+
+player_playing() {
+  player=$(player_states | awk '$2 == "Playing" {print $1; exit}')
+  [[ -n $player ]]
+}
+
+player_status_is() {
+  [[ $(player_states | awk -v name="$player" '$1 == name {print $2}') == "$mark" ]]
+}
+
+test_media_keys() {
+  local seconds app
+  need_tools busctl
+  player=""
+  if ! player_playing; then
+    seconds=$(limit 60)
+    prompt media-keys.start "Start playing a song or a video."
+    wait_until "$seconds" player_playing || finish fail "nothing started playing within $seconds s"
+  fi
+  # org.mpris.MediaPlayer2.chromium.instance1234 is Chromium.
+  app=${player#org.mpris.MediaPlayer2.}
+  app=${app%%.*}
+
+  seconds=$(limit 30)
+  mark=Paused
+  prompt media-keys.pause "Press Play/Pause."
+  wait_until "$seconds" player_status_is || finish fail "Play/Pause did not pause $app within $seconds s"
+  progress 0.5
+  mark=Playing
+  prompt media-keys.resume "Press Play/Pause again."
+  wait_until "$seconds" player_status_is || finish fail "Play/Pause did not resume $app within $seconds s"
+  progress 1
+
+  ask media-keys.question "Did playback pause, then carry on?" "Play/Pause paused and resumed $app"
+}
+
+caps_lock() {
+  local state
+  state=$(timeout 3s hyprctl devices -j 2>/dev/null | jq -r '[.keyboards[]? | select(.main)] + [.keyboards[]?] | first | .capsLock | if . == null then empty else tostring end' 2>/dev/null)
+  if [[ -z $state ]]; then
+    state=false
+    caps_light && state=true
+  fi
+  echo "$state"
+}
+
+caps_light() {
+  local led
+  for led in "$sys"/class/leds/input*::capslock; do
+    (( $(read_number "$led/brightness" || echo 0) > 0 )) && return 0
+  done
+  return 1
+}
+
+caps_is() {
+  [[ $(caps_lock) == "$mark" ]]
+}
+
+test_caps_lock_light() {
+  local seconds start lit=false detail
+  seconds=$(limit 30)
+  start=$(caps_lock)
+  mark=$([[ $start == "true" ]] && echo false || echo true)
+  prompt caps-lock-light.press "Press Caps Lock."
+  wait_until "$seconds" caps_is || finish fail "Caps Lock changed nothing within $seconds s"
+  pause 0.5
+  caps_light && lit=true
+  progress 0.5
+  mark=$start
+  prompt caps-lock-light.again "Press Caps Lock again."
+  wait_until "$seconds" caps_is || finish fail "the second Caps Lock changed nothing within $seconds s"
+  progress 1
+
+  detail="Caps Lock turned $([[ $start == "true" ]] && echo "off and on" || echo "on and off")"
+  if [[ $start == "false" && $lit == "false" ]]; then
+    detail+="; no keyboard light was lit"
+  fi
+  ask caps-lock-light.question "Did the Caps Lock light follow both presses? Skip if the keyboard has no such light." "$detail"
+}
+
+# --- Ports, displays, power ---
+
+monitors_json() {
+  timeout 3s hyprctl monitors -j 2>/dev/null
+}
+
+# Connectors that are not the built-in panel; "connected" limits them to those in use.
+external_connectors() {
+  local connector
+  for connector in "$sys"/class/drm/card*-*; do
+    [[ -e $connector/status ]] || continue
+    [[ ${connector##*/} =~ -(eDP|LVDS|DSI|Writeback)- ]] && continue
+    [[ -z ${1:-} || $(read_file "$connector/status") == "connected" ]] && echo "${connector##*/}"
+  done
+}
+
+no_external_connected() {
+  [[ -z $(external_connectors connected) ]]
+}
+
+new_monitor() {
+  added=$(monitors_json | jq -r --arg before "$monitors_before" '($before | split("\n")) as $names | first(.[] | select(.name | IN($names[]) | not) | .name) // empty' 2>/dev/null)
+  [[ -n $added ]]
+}
+
+monitor_gone() {
+  local names
+  names=$(monitors_json | jq -r '.[].name' 2>/dev/null) || return 1
+  [[ -n $names ]] && ! grep -qx "$added" <<<"$names"
+}
+
+# Mapped windows left on a monitor that no longer exists.
+stranded_windows() {
+  local ids
+  ids=$(monitors_json | jq -c '[.[].id]' 2>/dev/null)
+  [[ -n $ids ]] || return 1
+  timeout 3s hyprctl clients -j 2>/dev/null | jq --argjson ids "$ids" '[.[] | select(.mapped and (.hidden | not) and (.monitor as $m | $ids | index($m) | not))] | length' 2>/dev/null
+}
+
+no_stranded_windows() {
+  [[ $(stranded_windows) == "0" ]]
+}
+
+connector_kind() {
+  local typec
+  case $1 in
+    HDMI*) echo HDMI ;;
+    DP-*)
+      typec=$(compgen -G "$sys/class/drm/card*-$1/typec_connector")
+      if [[ -n $typec ]]; then
+        echo "USB-C (DisplayPort alt mode)"
+      else
+        echo DisplayPort
+      fi
+      ;;
+    USB-*) echo USB-C ;;
+    DVI*) echo DVI ;;
+    VGA*) echo VGA ;;
+    *) echo "${1%-*}" ;;
+  esac
+}
+
+test_external_display() {
+  local seconds mode kind stranded drm_before drm_after
+  need_tools hyprctl
+  monitors_json | jq -e 'length > 0' >/dev/null 2>&1 || finish skip "Hyprland is not reachable from this session"
+
+  if laptop && ! no_external_connected; then
+    seconds=$(limit 90)
+    prompt external-display.unplug-first "Unplug every external display."
+    wait_until "$seconds" no_external_connected || finish fail "an external display was still connected $seconds s after asking to unplug it"
+    pause 2
+  fi
+
+  monitors_before=$(monitors_json | jq -r '.[].name')
+  drm_before=$(external_connectors connected)
+  seconds=$(limit 90)
+  prompt external-display.plug "Plug in an external display."
+  if ! wait_until "$seconds" new_monitor; then
+    drm_after=$(external_connectors connected)
+    if [[ $drm_after != "$drm_before" ]]; then
+      finish fail "a display was connected, but Hyprland did not show the desktop on it"
+    fi
+    finish fail "no display appeared within $seconds s of asking to plug one in"
+  fi
+  kind=$(connector_kind "$added")
+  mode=$(monitors_json | jq -r --arg name "$added" 'first(.[] | select(.name == $name)) | "\(.width)x\(.height) at \(.refreshRate | round) Hz"')
+  progress 0.4
+
+  seconds=$(limit 90)
+  prompt external-display.check-unplug "Check the desktop shows on the new display, then unplug it."
+  wait_until "$seconds" monitor_gone || finish fail "the display was still there $seconds s after asking to unplug it ($kind, $mode)"
+  progress 0.8
+
+  if ! wait_until "$(limit 10)" no_stranded_windows; then
+    stranded=$(stranded_windows)
+    if [[ $stranded == "1" ]]; then
+      finish fail "a window stayed on the unplugged display ($kind, $mode)"
+    fi
+    finish fail "${stranded:-some} windows stayed on the unplugged display ($kind, $mode)"
+  fi
+  progress 1
+  ask external-display.question "Did the desktop show on the external display?" "$kind, $mode; every window came back when it was unplugged"
+}
+
+usb_devices() {
+  local device
+  for device in "$sys"/bus/usb/devices/*; do
+    [[ ${device##*/} =~ ^[0-9]+-[0-9.]+$ ]] && echo "${device##*/}"
+  done | sort
+}
+
+new_usb_device() {
+  usb_added=$(comm -13 <(echo "$usb_before") <(usb_devices) | awk '{print length, $0}' | sort -n | awk 'NR == 1 {print $2}')
+  [[ -n $usb_added ]]
+}
+
+hub_speed() {
+  read_number "$(dirname "$(dirname "$1")")/speed" || read_file "$(dirname "$(dirname "$1")")/speed"
+}
+
+# "usb1-port2" is port 1-2; "1-2-port3" is port 1-2.3.
+port_label() {
+  local name=${1##*/}
+  if [[ $name =~ ^usb([0-9]+)-port([0-9]+)$ ]]; then
+    echo "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+  else
+    echo "${name%-port*}.${name##*-port}"
+  fi
+}
+
+test_usb_port() {
+  local seconds device speed version major port peer capability label own other ok=true detail line failed=""
+  local -a tried=()
+  usb_before=$(usb_devices)
+  seconds=$(limit 60)
+  prompt usb-port.plug "Plug a USB device into the port you want to check."
+  wait_until "$seconds" new_usb_device || finish fail "no USB device appeared within $seconds s"
+  # Give a device's own hub and functions a moment to settle.
+  pause 1
+  device=$sys/bus/usb/devices/$usb_added
+  speed=$(read_file "$device/speed")
+  speed=${speed%%.*}
+  version=$(read_file "$device/version")
+  version=${version// /}
+  major=${version%%.*}
+
+  port=$(readlink -f "$device/port")
+  peer=""
+  [[ -e $port/peer ]] && peer=$(readlink -f "$port/peer")
+  own=$(hub_speed "$port")
+  own=${own%%.*}
+  own=${own:-0}
+  other=0
+  if [[ -n $peer ]]; then
+    other=$(hub_speed "$peer")
+    other=${other%%.*}
+    other=${other:-0}
+  fi
+  capability=$(( own > other ? own : other ))
+  # The same port is named on both of its buses; name it by the USB 2 one.
+  label=$(port_label "$port")
+  [[ -n $peer ]] && (( own > 480 )) && label=$(port_label "$peer")
+
+  if (( ${major:-0} >= 3 && capability >= 5000 && ${speed:-0} <= 480 )); then
+    ok=false
+    detail="port $label: a USB $major device came up at ${speed} Mb/s in a port that does ${capability} Mb/s; a cable, plug or the port's fast lanes"
+  else
+    detail="port $label: USB ${major:-?} device at ${speed:-?} Mb/s, port up to ${capability} Mb/s"
+  fi
+
+  mkdir -p -m 700 "$state_dir"
+  mkdir -p -m 700 "$files"
+  { grep -v "^$label " "$files/usb-ports" 2>/dev/null; echo "$label ${speed:-?}/$capability $ok"; } >"$files/usb-ports.tmp" && mv -f "$files/usb-ports.tmp" "$files/usb-ports"
+  while read -r line; do
+    tried+=("${line% *} Mb/s")
+    [[ ${line##* } == "false" && ${line%% *} != "$label" ]] && failed+=" ${line%% *}"
+  done < <(sort "$files/usb-ports")
+  detail+="; ports tried: $(IFS=,; echo "${tried[*]}" | sed 's/,/, /g')"
+  progress 1
+
+  if [[ $ok == "false" ]]; then
+    finish fail "$detail"
+  elif [[ -n $failed ]]; then
+    finish fail "$detail; slow earlier:$failed"
+  fi
+  finish pass "$detail"
+}
+
+# "1" when a charger is online, "0" when none is, nothing when the machine reports no charger at all.
+ac_online() {
+  local supply state="" online
+  for supply in "$sys"/class/power_supply/*; do
+    [[ $(read_file "$supply/type") == "Battery" || $(read_file "$supply/scope") == "Device" ]] && continue
+    online=$(read_file "$supply/online") || continue
+    [[ $online == "1" ]] && { echo 1; return; }
+    state=0
+  done
+  echo "$state"
+}
+
+charger_is() {
+  local online
+  online=$(ac_online)
+  if [[ -n $online ]]; then
+    [[ $online == "$mark" ]]
+  else
+    battery_follows
+  fi
+}
+
+battery_follows() {
+  local status
+  status=$(read_file "$battery/status")
+  if [[ $mark == "1" ]]; then
+    [[ $status != "Discharging" ]]
+  else
+    [[ $status == "Discharging" ]]
+  fi
+}
+
+charger_step() {
+  local seconds
+  mark=$1
+  seconds=$(limit 60)
+  if [[ $mark == "1" ]]; then
+    prompt charger.plug "Plug the charger in."
+    wait_until "$seconds" charger_is || finish fail "the machine reported no charger within $seconds s of asking to plug it in"
+    wait_until "$(limit 30)" battery_follows || finish fail "the charger is online, but the battery still reports discharging"
+  else
+    prompt charger.unplug "Unplug the charger."
+    wait_until "$seconds" charger_is || finish fail "the machine still reported the charger $seconds s after asking to unplug it"
+    wait_until "$(limit 30)" battery_follows || finish fail "the charger went offline, but the battery reports $(read_file "$battery/status" | tr '[:upper:]' '[:lower:]')"
+  fi
+}
+
+test_charger() {
+  local plugged after
+  battery=$(system_battery) || finish skip "no battery"
+  plugged=$(ac_online)
+  if [[ $plugged == "0" || ( -z $plugged && $(read_file "$battery/status") == "Discharging" ) ]]; then
+    charger_step 1
+  fi
+  progress 0.3
+  charger_step 0
+  progress 0.6
+  charger_step 1
+  progress 1
+  after=$(read_file "$battery/status" | tr '[:upper:]' '[:lower:]')
+  if [[ -n $(ac_online) ]]; then
+    finish pass "the charger went offline and online, and the battery went discharging, then $after"
+  fi
+  finish pass "the battery went discharging, then $after"
+}
+
+connected_bluetooth() {
+  timeout 5s bluetoothctl devices Connected 2>/dev/null | awk '$1 == "Device" {print $2}'
+}
+
+bluetooth_connected() {
+  bt_device=$(connected_bluetooth | head -n 1)
+  [[ -n $bt_device ]]
+}
+
+bluetooth_sink() {
+  bt_sink=$(pa_list sinks | jq -r --arg address "$bt_device" --arg name "${bt_device//:/_}" '
+    first(.[] | select((.name | startswith("bluez_output.")) and (.properties["api.bluez5.address"] == $address or (.name | contains($name)))) | .name) // empty' 2>/dev/null)
+  [[ -n $bt_sink ]]
+}
+
+test_bluetooth_device() {
+  local seconds icon codec tone
+  need_tools bluetoothctl
+  compgen -G "$sys/class/bluetooth/hci*" >/dev/null || finish skip "no Bluetooth controller"
+  [[ -n $(rfkill_block bluetooth) ]] && finish skip "Bluetooth is turned off"
+  systemctl is-active --quiet bluetooth.service 2>/dev/null || finish fail "bluetooth.service is not running"
+
+  if ! bluetooth_connected; then
+    seconds=$(limit 120)
+    prompt bluetooth-device.connect "Connect a Bluetooth device you own from the Bluetooth panel."
+    wait_until "$seconds" bluetooth_connected || finish fail "no Bluetooth device connected within $seconds s"
+  fi
+  icon=$(timeout 5s bluetoothctl info "$bt_device" 2>/dev/null | sed -n 's/^[[:space:]]*Icon: //p' | head -n 1)
+  icon=${icon:-device}
+  progress 0.4
+
+  # An audio device's sink follows its connection by a moment.
+  if command -v pactl >/dev/null && pipewire_reachable && wait_until "$(limit "$([[ $icon == audio* ]] && echo 10 || echo 3)")" bluetooth_sink; then
+    need_tools pw-play ffmpeg
+    codec=$(pa_list sinks | jq -r --arg name "$bt_sink" 'first(.[] | select(.name == $name)) | .properties["api.bluez5.codec"] // empty' 2>/dev/null)
+    tone="$(scratch)/tone.wav"
+    make_tone "$tone" both 2 || finish fail "the test tone could not be made"
+    prompt bluetooth-device.listen "Listen on the Bluetooth device at a comfortable volume: a tone plays in a moment."
+    pause 3
+    play "$bt_sink" "$tone" || finish fail "pw-play could not play to the Bluetooth device ($icon)"
+    progress 1
+    ask bluetooth-device.question "Did you hear the tone on the Bluetooth device, clear and without dropouts?" \
+      "$icon connected and took a tone${codec:+ over ${codec^^}}"
+  fi
+  progress 1
+  finish pass "$icon connected"
+}
+
+suspend_count() {
+  read_number "$sys/power/suspend_stats/$1" || echo 0
+}
+
+# A device name as the report may print it, or nothing: names that could
+# carry a serial are dropped, the same rule omarchy-rollcall applies.
+device_name() {
+  [[ $1 =~ ^[A-Za-z0-9:._-]{1,40}$ && ! $1 =~ [0-9A-Fa-f]{12} ]] || return 1
+  # Kernel device names are bus positions and ids; a long mix of letters and
+  # digits in one segment is a serial.
+  local segment
+  for segment in ${1//[:._-]/ }; do
+    (( ${#segment} >= 10 )) && [[ $segment =~ [0-9] && $segment =~ [A-Za-z] ]] && return 1
+  done
+  echo "$1"
+}
+
+resume_failures() {
+  local counter total=0
+  for counter in failed_resume failed_resume_early failed_resume_noirq; do
+    (( total += $(suspend_count "$counter") ))
+  done
+  echo "$total"
+}
+
+# A suspend a wake event called off on the way down (-16, a key pressed or the
+# mouse moved) is not a failure: take it as the new baseline and keep waiting.
+counters_moved() {
+  local fails
+  [[ $(suspend_count success) != "$success_before" ]] && return 0
+  fails=$(suspend_count fail)
+  [[ $fails != "$fail_before" ]] || return 1
+  if called_off; then
+    fail_before=$fails
+    return 1
+  fi
+  return 0
+}
+
+called_off() {
+  [[ $(read_file "$sys/power/suspend_stats/last_failed_errno") == "-16" && $(resume_failures) == "$resumes_before" ]]
+}
+
+suspend_baseline() {
+  success_before=$(suspend_count success)
+  fail_before=$(suspend_count fail)
+  resumes_before=$(resume_failures)
+  fails_at_start=$fail_before
+}
+
+# Judges a sleep that just happened, from the kernel's own counters.
+judge_sleep() {
+  local step device hw method
+  if (( $(suspend_count fail) > fail_before )) && ! called_off; then
+    step=$(read_file "$sys/power/suspend_stats/last_failed_step")
+    device=$(device_name "$(read_file "$sys/power/suspend_stats/last_failed_dev")")
+    finish fail "suspend failed${step:+ at $step}${device:+ ($device)}"
+  fi
+  method=$(read_file "$sys/power/mem_sleep" | grep -o '\[[a-z0-9]*\]' | tr -d '[]')
+  hw=$(read_number "$sys/power/suspend_stats/last_hw_sleep")
+  # s2idle that never reached the platform's low-power state drains the battery as if awake.
+  if [[ $method == "s2idle" && -n $hw ]] && (( hw == 0 )); then
+    finish fail "the machine slept but never reached hardware low-power sleep (s2idle)"
+  fi
+  sleep_detail="${method:-sleep}"
+  [[ -n $hw ]] && sleep_detail+=", $(( hw / 1000000 )) s in hardware sleep"
+}
+
+automated_checks() {
+  timeout 120s omarchy-rollcall --json "$@" 2>/dev/null | jq -c '[.checks[]? | {id, result, detail}]' 2>/dev/null
+}
+
+test_suspend() {
+  local before after regressed seconds status message ids count
+  need_tools systemctl
+  [[ -r $sys/power/state ]] && grep -qwE 'mem|freeze' "$sys/power/state" || finish skip "the kernel offers no suspend"
+
+  before=$(automated_checks)
+  suspend_baseline
+
+  prompt suspend.countdown "The machine will sleep in a few seconds. Wake it with a key or the power button, then unlock."
+  for count in 0.2 0.4 0.6 0.8 1; do
+    progress "$count"
+    pause 1
+  done
+
+  message=$(timeout 10s systemctl suspend 2>&1 >/dev/null)
+  status=$?
+  (( status == 0 )) || finish fail "systemctl suspend was refused: ${message%%$'\n'*}"
+
+  # systemctl returns before the kernel goes down, and the kernel counts the
+  # suspend only after it has thawed this process.
+  seconds=$(limit 300)
+  wait_until "$seconds" counters_moved
+  if ! wait_until "$(limit 15)" counters_moved; then
+    (( $(suspend_count fail) > fails_at_start )) && called_off && finish fail "every suspend was called off by a wake event on the way down; keep hands off the keyboard and mouse until it sleeps"
+    finish fail "the machine did not sleep within $seconds s"
+  fi
+  judge_sleep
+
+  # Wi-Fi and Bluetooth take a few seconds to come back after a wake.
+  pause 5
+  after=$(automated_checks)
+  ids=$(jq -rn --argjson before "${before:-[]}" --argjson after "${after:-[]}" \
+    '[$before[] | select(.result == "pass") | .id] as $passed | [$after[] | select(.result == "fail" and (.id | IN($passed[]))) | .id] | join(" ")')
+  for _ in 1 2 3 4 5 6; do
+    [[ -n $ids ]] || break
+    pause 5
+    # shellcheck disable=SC2086 # check names are single words
+    after=$(automated_checks $ids)
+    ids=$(jq -r --arg ids "$ids" '($ids | split(" ")) as $named | [.[] | select(.result == "fail" and (.id | IN($named[]))) | .id] | join(" ")' <<<"${after:-[]}")
+  done
+  if [[ -n $ids ]]; then
+    regressed=$(jq -r --arg ids "$ids" '($ids | split(" ")) as $named | [.[] | select(.result == "fail" and (.id | IN($named[]))) | "\(.id) (\(.detail))"] | join(", ")' <<<"$after")
+    finish fail "slept and woke ($sleep_detail), but these checks passed before and fail now: $regressed"
+  fi
+  finish pass "slept and woke ($sleep_detail); every check that passed before still passes"
+}
+
+ac_unplugged() {
+  [[ $(ac_online) == "0" ]]
+}
+
+lid_seen_closed() {
+  lid_closed && lid_was_closed=true
+  counters_moved
+}
+
+test_lid() {
+  local seconds action
+  laptop || finish skip "not a laptop"
+  external_monitors && finish skip "an external display is connected, so closing the lid does not sleep"
+  action=$(timeout 3s busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitch 2>/dev/null)
+  [[ $action == 's "ignore"' || $action == 's "lock"' ]] && finish skip "closing the lid is set not to sleep"
+  # Omarchy keeps a laptop on its charger awake with the lid closed.
+  if [[ $(ac_online) == "1" ]]; then
+    action=$(timeout 3s busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitchExternalPower 2>/dev/null)
+    if [[ $action == 's "ignore"' || $action == 's "lock"' ]]; then
+      prompt lid.unplug "Unplug the charger first: on the charger, closing the lid keeps the machine awake."
+      wait_until "$(limit 60)" ac_unplugged || finish skip "the charger stayed in, and on the charger closing the lid does not sleep"
+    fi
+  fi
+
+  suspend_baseline
+  lid_was_closed=false
+  seconds=$(limit 180)
+  prompt lid.close "Close the lid, wait until the machine sleeps, then open it and unlock."
+  wait_until "$seconds" lid_seen_closed
+  if ! wait_until "$(limit 15)" counters_moved; then
+    [[ $lid_was_closed == "true" ]] && finish fail "the lid closed, but the machine did not sleep"
+    finish fail "the lid was not closed within $seconds s"
+  fi
+  judge_sleep
+  progress 1
+  finish pass "closing the lid slept the machine and opening it woke it ($sleep_detail)"
+}
+
+test_fingerprint() {
+  local enrolled fingers output result
+  OMARCHY_USB_DEVICES_PATH=$sys/bus/usb/devices omarchy-hw-fingerprint || finish skip "no fingerprint reader"
+  command -v fprintd-verify >/dev/null && command -v fprintd-list >/dev/null || finish skip "fprintd is not installed; set up fingerprint login first"
+
+  enrolled=$(timeout 15s fprintd-list "$(id -un)" 2>&1)
+  if [[ $enrolled == *"No devices available"* ]]; then
+    finish fail "fprintd sees no fingerprint reader"
+  fi
+  fingers=$(grep -cE '^ *- #[0-9]+:' <<<"$enrolled")
+  (( fingers > 0 )) || finish skip "no finger enrolled"
+
+  prompt fingerprint.touch "Touch the fingerprint reader with an enrolled finger."
+  output="$(scratch)/verify.log"
+  bg_run timeout "$(limit 30)s" fprintd-verify </dev/null >"$output" 2>&1
+  result=$(grep -o 'verify-[a-z-]*' "$output" | tail -n 1)
+  progress 1
+  case $result in
+    verify-match) finish pass "the reader matched an enrolled finger ($fingers enrolled)" ;;
+    verify-no-match) finish fail "the reader did not match an enrolled finger" ;;
+    "") finish fail "no finger was read within $(limit 30) s" ;;
+    *) finish fail "the reader answered ${result#verify-}" ;;
+  esac
+}
+
+test_panel() {
+  finish_unrecorded "only the walkthrough can observe this; run it from Rollcall in the Omarchy menu"
+}
+
+# Not a result: nothing was tested.
+finish_unrecorded() {
+  echo "$1"
+  exit $SKIP
+}
+
+# --- Applicability: honest, cheap, and changing nothing ---
+
+pipewire_state=""
+pipewire_ok() {
+  if [[ -z $pipewire_state ]]; then
+    pipewire_state=no
+    command -v pactl >/dev/null && pipewire_reachable && pipewire_state=yes
+  fi
+  [[ $pipewire_state == "yes" ]] || { reason="PipeWire is not reachable from this session"; return 1; }
+}
+
+cards_cache=""
+cards_json() {
+  [[ -n $cards_cache ]] || cards_cache=$(pa_list cards)
+  printf '%s' "${cards_cache:-[]}"
+}
+
+applies() {
+  reason=""
+  case $1 in
+    speakers)
+      pipewire_ok || return 1
+      laptop && return 0
+      [[ -n $(cards_json | card_ports '^speaker$') ]] || { reason="no built-in speakers"; return 1; }
+      ;;
+    microphone)
+      pipewire_ok || return 1
+      laptop || { reason="not a laptop"; return 1; }
+      ;;
+    headphones)
+      pipewire_ok || return 1
+      [[ -n $(cards_json | card_ports 'headphone|headset') ]] || { reason="no headphone jack"; return 1; }
+      ;;
+    camera)
+      laptop && return 0
+      grep -qs '^E:ID_V4L_CAPABILITIES=.*:capture:' "$udev_data"/c81:* || { reason="no camera"; return 1; }
+      ;;
+    volume-keys)
+      pipewire_ok || return 1
+      ;;
+    mic-mute-key)
+      pipewire_ok || return 1
+      pa_list sources | jq -e 'any(.[]; .properties["device.class"] != "monitor")' >/dev/null 2>&1 || { reason="no microphone"; return 1; }
+      ;;
+    brightness-keys)
+      laptop || { reason="not a laptop"; return 1; }
+      backlight_device >/dev/null || { reason="no backlight control"; return 1; }
+      ;;
+    keyboard-backlight-key)
+      compgen -G "$sys/class/leds/*kbd_backlight*" >/dev/null || { reason="no keyboard backlight"; return 1; }
+      ;;
+    wireless-key)
+      laptop || { reason="not a laptop"; return 1; }
+      compgen -G "$sys/class/rfkill/rfkill*" >/dev/null || { reason="no radios"; return 1; }
+      ;;
+    caps-lock-light)
+      compgen -G "$sys/class/leds/input*::capslock" >/dev/null || { reason="no keyboard with a Caps Lock light"; return 1; }
+      ;;
+    external-display)
+      # A desktop's own screen is on an external connector, so it needs a second one free.
+      if laptop; then
+        [[ -n $(external_connectors) ]] || { reason="no display output"; return 1; }
+      else
+        (( $(external_connectors | wc -l) > $(external_connectors connected | wc -l) )) || { reason="no free display output"; return 1; }
+      fi
+      ;;
+    usb-port)
+      compgen -G "$sys/bus/usb/devices/usb*" >/dev/null || { reason="no USB controller"; return 1; }
+      ;;
+    charger)
+      system_battery >/dev/null || { reason="no battery"; return 1; }
+      ;;
+    bluetooth-device)
+      compgen -G "$sys/class/bluetooth/hci*" >/dev/null || { reason="no Bluetooth controller"; return 1; }
+      ;;
+    suspend | lid)
+      if [[ $1 == "lid" ]] && ! laptop; then
+        reason="not a laptop"
+        return 1
+      fi
+      grep -qswE 'mem|freeze' "$sys/power/state" || { reason="the kernel offers no suspend"; return 1; }
+      omarchy-hw-vm && { reason="virtual machine"; return 1; }
+      OMARCHY_SLEEP_CONFIG_DIR=$root/etc/systemd/sleep.conf.d omarchy-sleep-disabled && { reason="sleep is turned off on this machine"; return 1; }
+      ;;
+    fingerprint)
+      OMARCHY_USB_DEVICES_PATH=$sys/bus/usb/devices omarchy-hw-fingerprint || { reason="no fingerprint reader"; return 1; }
+      ;;
+    touchpad)
+      [[ -n $(omarchy-hw-touchpad 2>/dev/null) ]] && return 0
+      laptop && [[ ! $(read_file "$sys/class/dmi/id/chassis_type") =~ ^(30|32)$ ]] && return 0
+      reason="no touchpad"
+      return 1
+      ;;
+    touchscreen)
+      [[ -n $(omarchy-hw-touchscreen 2>/dev/null) ]] || { reason="no touchscreen"; return 1; }
+      ;;
+  esac
+  return 0
+}
+
+stored_result() {
+  if [[ -r $store/$1.pending.json ]]; then
+    echo pending
+  else
+    jq -r '.result // empty' "$store/$1.json" 2>/dev/null
+  fi
+}
+
+list_tests() {
+  local test applicable result
+  for test in "${TESTS[@]}"; do
+    applicable=true
+    applies "$test" || applicable=false
+    result=$(stored_result "$test")
+    if [[ $json == "true" ]]; then
+      jq -nc --arg id "$test" --arg title "${TITLE[$test]}" --arg kind "${KIND[$test]}" --arg needs "${NEEDS[$test]:-}" \
+        --argjson applicable "$applicable" --arg reason "$reason" --arg result "$result" \
+        '{id: $id, title: $title, kind: $kind, needs: $needs, applicable: $applicable, reason: $reason, result: (if $result == "" then null else $result end)}'
+    elif [[ $applicable == "true" ]]; then
+      printf '%-24s %-24s %s\n' "$test" "${TITLE[$test]}" "${result:-not run}"
+    else
+      printf '%-24s %-24s %s\n' "$test" "${TITLE[$test]}" "not applicable: $reason"
+    fi
+  done | if [[ $json == "true" ]]; then jq -s .; else cat; fi
+}
+
+record_answer() {
+  local pending detail
+  pending=$store/$test_id.pending.json
+  if [[ -r $pending ]]; then
+    if [[ $answer == "skip" ]]; then
+      detail=${answer_detail:-not answered}
+    else
+      detail=$(jq -r '.detail // ""' "$pending" 2>/dev/null)
+    fi
+  else
+    detail=${answer_detail:-$([[ $answer == "skip" ]] && echo "not tested" || echo "")}
+  fi
+  record "$test_id" "$answer" "$detail" || exit 1
+}
+
+json=false
+list=false
+reset=false
+no_ask=false
+test_id=""
+answer=""
+answer_detail=""
+
+while (( $# > 0 )); do
+  case $1 in
+    --list) list=true ;;
+    --json) json=true ;;
+    --reset) reset=true ;;
+    --no-ask) no_ask=true ;;
+    --record)
+      [[ ${2:-} =~ ^(pass|fail|skip)$ ]] || { usage >&2; exit $USAGE; }
+      answer=$2
+      shift
+      ;;
+    --detail)
+      (( $# > 1 )) || { usage >&2; exit $USAGE; }
+      answer_detail=$2
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ -z $test_id && -n $1 && -n ${TITLE[$1]:-} ]]; then
+        test_id=$1
+      else
+        usage >&2
+        exit $USAGE
+      fi
+      ;;
+  esac
+  shift
+done
+
+if [[ $list == "true" ]]; then
+  list_tests
+elif [[ $reset == "true" ]]; then
+  rm -rf "$store" "$files"
+elif [[ -z $test_id ]]; then
+  usage >&2
+  exit $USAGE
+elif [[ -n $answer ]]; then
+  record_answer
+else
+  [[ -t 0 && -t 1 && $no_ask == "false" ]] && terminal=true
+  trap stopped TERM INT HUP
+  trap 'restore; remove_scratch' EXIT
+
+  rm -f "$store/$test_id.pending.json"
+  if [[ ${KIND[$test_id]} == "panel" ]]; then
+    test_panel
+  fi
+  applies "$test_id" || finish_unrecorded "not applicable: $reason"
+  [[ $terminal == "true" ]] && echo "${STEPS[$test_id]}"
+  "test_${test_id//-/_}"
+fi
