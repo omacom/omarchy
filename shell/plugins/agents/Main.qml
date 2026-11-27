@@ -262,12 +262,14 @@ Item {
   // machine, built by the panel from the local models service.
   property var localModelLines: []
 
-  // The local models added from the add screen, by target (the recipe, or
-  // host/recipe for a paired machine's). Only these get a line, and the one
-  // a default of "local" opens, so the default never goes missing.
+  // Every coding model set up on this machine gets a line, whether it was set
+  // up from the add screen or from the CLI. Paired machines' models are kept
+  // here (by host/recipe) so unlinking one takes it off the panel while it
+  // keeps running there; the default local target always keeps a line too.
   property var addedLocalModels: []
 
   function localModelAdded(line) {
+    if (line.localModel.host === "") return true
     var target = line.localModel.target
     return addedLocalModels.indexOf(target) >= 0 || (defaultAgent === "local" && target === localDefaultTarget)
   }
@@ -340,6 +342,7 @@ Item {
           lineId: p.providerId + "/" + (a.email || a.id),
           account: a,
           accounts: [],
+          accountName: String(a.email || ""),
           limits: a.limits || [],
           limitsStale: a.stale === true,
           limitsFetchedAt: Number(a.fetchedAt || 0),
@@ -493,6 +496,7 @@ Item {
       limitsStale: record.limitsStale === true,
       limitsFetchedAt: numberValue(record.limitsFetchedAt),
       tierLabel: String(record.tierLabel || ""),
+      accountName: String(record.accountName || ""),
       // Every subscription account's own limits, once there's more than one.
       accounts: Array.isArray(record.accounts) ? record.accounts : [],
       accountSwitch: record.accountSwitch || ({ threshold: 95 }),

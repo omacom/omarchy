@@ -189,6 +189,8 @@ Item {
   property var setupFailure: null
   // Setups chosen while another was still starting, which run in turn.
   property var setupQueue: []
+  // Recipes whose detached setup just handed off, until status.json reloads with them.
+  property var handingOff: []
 
   property string setupOutput: ""
 
@@ -229,7 +231,9 @@ Item {
   // behind it would stop at the same place, so they go too; once it hands
   // off to the background, the next one starts. Returns that next one.
   function finishSetup(exitCode) {
-    if (exitCode !== 0 && exitCode !== 126 && settingUp)
+    if (exitCode === 0 && settingUp && handingOff.indexOf(settingUp.recipe) < 0)
+      handingOff = handingOff.concat([settingUp.recipe])
+    else if (exitCode !== 0 && exitCode !== 126 && settingUp)
       setupFailure = Object.assign({}, settingUp, { message: errorMessage(setupOutput) || I18n.t("localModels.setupFailed"), output: setupOutput })
     settingUp = null
     var next = exitCode === 0 ? setupQueue[0] || null : null
@@ -305,6 +309,8 @@ Item {
       root.noteReadyModels(parsed.models)
       root.noteLaunchableModels(parsed.models)
       root.noteSharedModels(parsed.models)
+      if (root.handingOff && root.handingOff.length > 0)
+        root.handingOff = root.handingOff.filter(function(recipe) { return !parsed.models[recipe] })
       root.localModel = parsed
     } catch (e) {
       // A missing or partially written file leaves the last good state intact.

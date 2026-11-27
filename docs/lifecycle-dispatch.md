@@ -47,7 +47,7 @@ The set is fixed in the dispatcher; adding one is a change to Omarchy. Every ope
 | `enable-fingerprint` | Fingerprint setup, once `sudo` is authenticated and before fprintd is asked about the reader | Turns on a reader the platform keeps off until the owner agrees, as a Mac does with Touch ID: it explains what turning it on leaves behind, asks on the caller's terminal, and turns the reader on only on yes. Exit 0 lets setup go on: the reader is on, was already, or has nothing to turn on here, so any other reader enrolls as usual; any other status stops setup before anything is enrolled. | optional | `omarchy-setup-security-fingerprint` |
 | `disable-fingerprint` | Fingerprint removal, once the prints and PAM lines are gone and before the packages go | Undoes what `enable-fingerprint` turned on, so the reader stays off from the next boot. Idempotent; nothing to undo is a success. A failure is not fatal. | optional | `omarchy-remove-security-fingerprint` |
 
-Snapshot restore is not an operation: a Limine machine restores through `limine-snapper-restore`, and a platform boot package that checks a restore does so through limine-snapper-sync's own hooks.
+Snapshot restore is not an operation: a Limine machine restores through `limine-snapper-restore`, and a platform boot package that checks a restore does so through limine-snapper-sync's own hooks. An x86 machine that switched to systemd-boot restores through `omarchy-snapshot restore` and the `omarchy-restore` initramfs hook ([`docs/boot.md`](boot.md)); it registers no platform package either.
 
 ## Platform registration
 

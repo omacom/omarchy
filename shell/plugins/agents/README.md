@@ -19,7 +19,7 @@ per local coding model added.
   corner has + to add a subscription and >_ to start the default agent.
 - **One line per subscription** — an agent with limits, a balance, a plan,
   or accounts to show gets one; local history alone only feeds the hero's
-  line. Its mark, name, and plan, then a compact line
+  line. Its mark, name, and plan (the account name or email on hover when known), then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
@@ -40,10 +40,10 @@ per local coding model added.
   into these; each is keyed by the account's email, or its id without one,
   so a renamed account keeps its place. Click an account's name to rename it
   in place. Only the account in use can turn the bar icon urgent.
-- **Local models** — each coding model added from the add screen gets a
-  line: one set up on this machine, in whatever state, or one a paired
-  machine that's online is running, as does the one a default of "local"
-  opens. The models added are kept in
+- **Local models** — every coding model set up on this machine (from the add
+  screen or the CLI) gets a line, in whatever state, as does each coding model
+  added from a paired machine that's online and running, and the one a default
+  of "local" opens. The paired models added are kept in
   `~/.local/state/omarchy/agents/local-models.json`. A line shows its
   maker's mark, its name, the machine for a paired one, and its memory,
   speed, and context where a subscription shows limits. While it runs, its
@@ -109,10 +109,11 @@ per local coding model added.
   other provider; every key is checked like Fireworks'), each a
   large mark four across, then _Use a network model_: a line for each coding model not added yet
   that a paired, online machine is running, then one for each a machine on
-  the tailnet shares but isn't paired with yet, and _Use a local model_: each
-  coding model set up on this machine and not added, then every one in the
-  local models catalog that fits this computer and isn't set up, the
-  recommended one first, then another DGX Spark cabled to this one, which
+  the tailnet shares but isn't paired with yet, and _Use a local model_: the
+  recommended coding model first (marked Recommended when more than one local
+  model is offered), then any others set up on this machine and not added or in
+  the local models catalog that fit this computer, then another DGX Spark cabled
+  to this one, which
   sets both up in a terminal (`omarchy models link setup`). The first one is
   focused and the hero reads Add an agent. A model on this machine the
   memory free now can't start, set up or not, is dimmed, says so (what it
