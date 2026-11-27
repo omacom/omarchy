@@ -11,7 +11,8 @@
 # beside OMARCHY_KMSCON=1.
 #
 #   omarchy_keymap_xkb <keymap>      XKB "layout model variant options" for a
-#                                    console keymap, us for one nobody knows
+#                                    console keymap, us for one nobody knows,
+#                                    and US first for one with no Latin letters
 #   omarchy_kmscon_face <lang>       the font family Han characters are drawn in
 #   omarchy_kmscon <log> <keymap> <lang> <#rrggbb or ""> <command...>
 #       run command in kmscon on this VT; returns when kmscon ends
@@ -28,12 +29,48 @@ fi
 # typed in it is typed again at boot under that keymap: the layouts must place
 # keys alike. From systemd's table, the one localectl and the installed system
 # use.
+#
+# A layout that types no Latin letters goes after US, a Shift+Shift away. The
+# LUKS prompt keeps such a layout out of the initramfs (omarchy_hooks.conf), so
+# it types US, and the login screen and the desktop start in US too. A password
+# typed as kmscon starts then types at each of them. Started in the layout
+# itself, a Cyrillic or Greek passphrase could never be typed at the prompt.
 omarchy_keymap_xkb() {
   local keymap=${1:-us} layout="" model=- variant=- options=-
+  local i moved=0 us_variant="" others="" other_variants=""
+  local -a layouts variants
+
   if ! read -r layout variant options < <(omarchy_keymap_xkb_extra "$keymap"); then
     read -r layout model variant options < <(awk -v k="$keymap" '$1 == k { print $2, $3, $4, $5; exit }' /usr/share/systemd/kbd-model-map 2>/dev/null) || true
   fi
-  printf '%s %s %s %s\n' "${layout:-us}" "${model:--}" "${variant:--}" "${options:--}"
+  layout=${layout:-us}
+
+  # omarchy_hooks.conf's list. Serbian Latin (rs with a latin variant) types
+  # Latin letters, and the ISO puts it in the prebuilt UKI's unlock prompt
+  # (uki_vconsole.py), so kmscon keeps it as it is.
+  local first_variant=${variant%%,*}
+  [[ ${layout%%,*} == rs && $first_variant == latin* ]] ||
+  case ${layout%%,*} in
+    af | am | ara | bd | bg | by | et | ge | gr | il | in | iq | ir | kg | kh | kz | la | lk | mk | mm | mn | mv | np | rs | ru | sy | th | tj | ua)
+      IFS=, read -ra layouts <<<"$layout"
+      IFS=, read -ra variants <<<"${variant#-}"
+      for i in "${!layouts[@]}"; do
+        if ((!moved)) && [[ ${layouts[i]} == us ]]; then
+          us_variant=${variants[i]:-} moved=1
+        else
+          others+=,${layouts[i]} other_variants+=,${variants[i]:-}
+        fi
+      done
+      layout=us$others variant=$us_variant$other_variants
+      [[ $variant == *[!,]* ]] || variant=-
+      if [[ $options != *grp:* ]]; then
+        [[ $options != "-" ]] || options=""
+        options=${options:+$options,}grp:shifts_toggle
+      fi
+      ;;
+  esac
+
+  printf '%s %s %s %s\n' "$layout" "${model:--}" "${variant:--}" "${options:--}"
 }
 
 # Han characters take a different form in each CJK language, and Noto's
