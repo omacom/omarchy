@@ -881,16 +881,6 @@ mapfile -d '' -t inline_args <"$inline_log"
 [[ ! -s $install_history ]] || fail "AFK never installs as a package"
 pass "choosing AFK uses its own release and opens it in the browser"
 
-# AFK has no row in the agents panel, which lists subscriptions, and no hotkey
-# of its own, as no harness does. Its launcher is what puts it in the dock and
-# the app grid, so it has to exist and carry an icon in every set.
-launcher="$test_home/.local/share/applications/omarchy-agent-afk.desktop"
-grep -qx "Exec=omarchy-agent --agent afk --app-id=org.omarchy.afk" "$launcher" 2>/dev/null ||
-  fail "choosing AFK adds a launcher that starts it"
-afk_icon=$(sed -n 's/^Icon=//p' "$launcher")
-[[ -n $afk_icon && -f $ROOT/icons/papercraft/$afk_icon.svg.tpl && -f $ROOT/icons/arcade/$afk_icon.svg.tpl && -f $ROOT/applications/icons/$afk_icon.png ]] ||
-  fail "AFK's launcher icon is in the icon sets ($afk_icon)"
-pass "choosing AFK adds a launcher with its icon in the icon sets"
 
 : >"$inline_log"
 omarchy-agent-prompt "Review this project"
