@@ -1,8 +1,8 @@
 [Unit]
-Description=Cap app.slice MemoryMax on >=64 GiB machines
+Description=Cap app-graphical.slice MemoryMax on >=56 GiB hosts (64 GiB+ RAM)
 ConditionMemory=>=56G
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/omarchy-hw-app-slice-cap
+ExecStart=/usr/bin/omarchy-apply-high-memory
