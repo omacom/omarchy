@@ -1,0 +1,843 @@
+#!/bin/bash
+
+# omarchy:summary=Check that this machine's hardware works: Wi-Fi, Bluetooth, audio, panel, touchpad, graphics, battery and services
+# omarchy:args=[--json] [--list] [check...]
+# omarchy:examples=omarchy rollcall | omarchy rollcall wifi bluetooth | omarchy rollcall --json
+
+# A roll call of the machine's hardware: each check passes, fails, or skips
+# with a reason. Hardware that is absent is a skip; hardware that is there
+# without a working driver is a failure, so presence comes from the bus (PCI,
+# USB) or from what every laptop has (speakers, a microphone, Wi-Fi,
+# Bluetooth, a battery), never from the interfaces a working driver would
+# create. A radio the user turned off is a skip. Nothing here changes state,
+# powers a device up or needs root.
+#
+# The report is meant to be pasted into an issue, so details name drivers and
+# counts, never interface, device, network or unit names that can carry a MAC,
+# an SSID, a serial, a username or a host.
+
+set -uo pipefail
+
+# Tests point this at a fake tree holding sys/, proc/, dev/ and run/udev/.
+root=${OMARCHY_ROLLCALL_ROOT:-}
+sys=$root/sys
+proc=$root/proc
+udev_data=$root/run/udev/data
+
+CHECKS=(wifi bluetooth audio-output audio-input panel backlight touchpad graphics battery services)
+
+declare -A SUMMARY=(
+  [wifi]="Wi-Fi adapter has a driver and NetworkManager can use it"
+  [bluetooth]="Bluetooth controller has a driver and is powered"
+  [audio-output]="Speaker or headphone output reaches PipeWire"
+  [audio-input]="Built-in microphone reaches PipeWire (laptops)"
+  [panel]="Built-in panel is connected (laptops)"
+  [backlight]="Built-in panel has a backlight control (laptops)"
+  [touchpad]="Built-in touchpad is detected (laptops)"
+  [graphics]="The desktop renders on the GPU, not the CPU"
+  [battery]="Battery charge and health can be read"
+  [services]="No system service has failed"
+)
+
+PASS=0 FAIL=1 SKIP=77
+
+# HDMI, DisplayPort and S/PDIF audio need something plugged in at the far end
+# and say nothing about the machine's own speakers or microphone. HDA names its
+# S/PDIF PCM "<codec> Digital"; that word marks only playback, since some
+# microphones are digital too.
+DIGITAL_AUDIO='hdmi|displayport|iec958|spdif|(^|[^a-z])dp[0-9]*([^a-z]|$)'
+
+usage() {
+  echo "Usage: omarchy-rollcall [--json] [--list] [check...]"
+  echo "Checks: ${CHECKS[*]}"
+}
+
+read_file() {
+  local value
+  { value=$(<"$1"); } 2>/dev/null || return 1
+  printf '%s' "$value"
+}
+
+# A sysfs number, or nothing: a readable battery file can still fail every read.
+read_number() {
+  local value
+  value=$(read_file "$1") || return 1
+  [[ $value =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$value"
+}
+
+driver_of() {
+  local link
+  link=$(readlink "$1/driver" 2>/dev/null) || return 1
+  printf '%s' "${link##*/}"
+}
+
+pci_id() {
+  local vendor device
+  vendor=$(read_file "$1/vendor") || return 1
+  device=$(read_file "$1/device") || return 1
+  printf '%s:%s' "${vendor#0x}" "${device#0x}"
+}
+
+# PCI devices whose class starts with one of the given prefixes.
+pci_devices() {
+  local device class prefix
+  for device in "$sys"/bus/pci/devices/*; do
+    class=$(read_file "$device/class") || continue
+    for prefix in "$@"; do
+      if [[ $class == "$prefix"* ]]; then
+        echo "$device"
+        break
+      fi
+    done
+  done
+}
+
+# "8086:a840 (iwlwifi)", or "8086:a840 (no driver)".
+describe_pci() {
+  local driver
+  driver=$(driver_of "$1") || driver="no driver"
+  printf '%s (%s)' "$(pci_id "$1")" "$driver"
+}
+
+laptop() {
+  OMARCHY_ACPI_LID_PATH=$proc/acpi/button/lid OMARCHY_INPUT_CLASS_PATH=$sys/class/input \
+    OMARCHY_DMI_CHASSIS_TYPE_PATH=$sys/class/dmi/id/chassis_type omarchy-hw-laptop
+}
+
+lid_closed() {
+  OMARCHY_ACPI_LID_PATH=$proc/acpi/button/lid OMARCHY_INPUT_CLASS_PATH=$sys/class/input omarchy-hw-laptop-closed
+}
+
+# rfkill state for a radio type: "hard" when any switch is held by hardware,
+# "soft" when one is turned off, nothing when every switch is open.
+rfkill_block() {
+  local switch block=""
+  for switch in "$sys"/class/rfkill/rfkill*; do
+    [[ $(read_file "$switch/type") == "$1" ]] || continue
+    if [[ $(read_file "$switch/hard") == "1" ]]; then
+      echo hard
+      return
+    elif [[ $(read_file "$switch/soft") == "1" ]]; then
+      block=soft
+    fi
+  done
+  [[ -z $block ]] || echo "$block"
+}
+
+blocked_reason() {
+  if [[ $1 == "hard" ]]; then
+    echo "turned off by a hardware switch"
+  else
+    echo "turned off"
+  fi
+}
+
+check_wifi() {
+  local device driver block radios devices status state connected=false unavailable=false managed=false
+  local -a drivers=() cards=() states=()
+
+  # A hardware switch can keep the interface from ever appearing.
+  block=$(rfkill_block wlan)
+  if [[ -n $block ]]; then
+    blocked_reason "$block"
+    return $SKIP
+  fi
+
+  for device in "$sys"/class/net/*; do
+    [[ -d $device/wireless || -d $device/phy80211 ]] || continue
+    driver=$(driver_of "$device/device") || driver=unknown
+    drivers+=("$driver")
+  done
+
+  # A card on the bus with no wireless interface is a driver that is missing or
+  # failed to load its firmware (ath12k, brcmfmac). 0x0280 is "other network
+  # controller", which is what Wi-Fi cards report. Every laptop has Wi-Fi,
+  # whatever bus it sits on.
+  if (( ${#drivers[@]} == 0 )); then
+    mapfile -t cards < <(pci_devices 0x0280)
+    if (( ${#cards[@]} )); then
+      echo "Wi-Fi card $(describe_pci "${cards[0]}") has no wireless interface"
+      return $FAIL
+    elif laptop; then
+      echo "the laptop reports no Wi-Fi adapter"
+      return $FAIL
+    else
+      echo "no Wi-Fi hardware found"
+      return $SKIP
+    fi
+  fi
+
+  driver=$(printf '%s\n' "${drivers[@]}" | sort -u | paste -sd, -)
+
+  # nmcli translates its state words; parse them in the C locale.
+  radios=$(LC_ALL=C timeout 5s nmcli -e no -g WIFI,NETWORKING general 2>/dev/null)
+  status=$?
+  if (( status == 124 )); then
+    echo "NetworkManager did not answer ($driver)"
+    return $FAIL
+  elif (( status != 0 )); then
+    echo "NetworkManager is not running"
+    return $SKIP
+  elif [[ $radios != "enabled:enabled" ]]; then
+    echo "turned off in NetworkManager"
+    return $SKIP
+  fi
+
+  if ! devices=$(LC_ALL=C timeout 5s nmcli -e no -g TYPE,STATE device status 2>/dev/null); then
+    echo "NetworkManager did not answer ($driver)"
+    return $FAIL
+  fi
+  mapfile -t states < <(awk -F: '$1 == "wifi" {print $2}' <<<"$devices")
+  for state in "${states[@]}"; do
+    case $state in
+      unmanaged) ;;
+      unavailable) unavailable=true managed=true ;;
+      connected*) connected=true managed=true ;;
+      *) managed=true ;;
+    esac
+  done
+
+  if (( ${#states[@]} == 0 )); then
+    echo "NetworkManager does not see the Wi-Fi adapter ($driver)"
+    return $FAIL
+  elif [[ $unavailable == "true" ]]; then
+    echo "NetworkManager reports the adapter unavailable ($driver)"
+    return $FAIL
+  elif [[ $managed == "false" ]]; then
+    echo "not managed by NetworkManager ($driver)"
+    return $SKIP
+  elif [[ $connected == "true" ]]; then
+    echo "connected ($driver)"
+    return $PASS
+  else
+    echo "on, not connected ($driver)"
+    return $PASS
+  fi
+}
+
+# Bluetooth hardware with no controller registered: a USB adapter (interface
+# class e0/01/01) or a PCIe one (class 0x0d11, Apple's).
+orphaned_bluetooth() {
+  local interface parent driver
+  local -a cards=()
+
+  for interface in "$sys"/bus/usb/devices/*:*; do
+    [[ $(read_file "$interface/bInterfaceClass") == "e0" && $(read_file "$interface/bInterfaceSubClass") == "01" &&
+      $(read_file "$interface/bInterfaceProtocol") == "01" ]] || continue
+    # 1-10:1.0 is an interface of the USB device 1-10.
+    parent=${interface%%:*}
+    driver=$(driver_of "$interface") || driver="no driver"
+    echo "$(read_file "$parent/idVendor"):$(read_file "$parent/idProduct") ($driver)"
+    return
+  done
+
+  mapfile -t cards < <(pci_devices 0x0d11)
+  (( ${#cards[@]} == 0 )) || describe_pci "${cards[0]}"
+}
+
+check_bluetooth() {
+  local hci controller driver block orphan
+  local -a controllers=()
+
+  shopt -s nullglob
+  local -a hcis=("$sys"/class/bluetooth/hci*)
+  shopt -u nullglob
+
+  # Omarchy turns Bluetooth off with an rfkill block (omarchy-bluetooth-power).
+  block=$(rfkill_block bluetooth)
+  if [[ -n $block ]]; then
+    blocked_reason "$block"
+    return $SKIP
+  fi
+
+  # Every laptop has Bluetooth, whatever bus it sits on (UART on Snapdragon).
+  if (( ${#hcis[@]} == 0 )); then
+    orphan=$(orphaned_bluetooth)
+    if [[ -n $orphan ]]; then
+      echo "Bluetooth adapter $orphan has no controller"
+      return $FAIL
+    elif laptop; then
+      echo "the laptop reports no Bluetooth controller"
+      return $FAIL
+    else
+      echo "no Bluetooth hardware found"
+      return $SKIP
+    fi
+  fi
+
+  driver=$(for hci in "${hcis[@]}"; do driver_of "$hci/device" || echo unknown; done | sort -u | paste -sd, -)
+
+  if ! systemctl is-active --quiet bluetooth.service 2>/dev/null; then
+    echo "bluetooth.service is not running ($driver)"
+    return $FAIL
+  fi
+
+  mapfile -t controllers < <(timeout 2s bluetoothctl list 2>/dev/null | awk '$1 == "Controller" {print $2}')
+  if (( ${#controllers[@]} == 0 )); then
+    echo "bluetoothd sees no controller ($driver)"
+    return $FAIL
+  fi
+
+  # Unblocked, bluetoothd powers every controller up on its own.
+  for controller in "${controllers[@]}"; do
+    if [[ $(timeout 2s bluetoothctl show "$controller" 2>/dev/null) != *"Powered: yes"* ]]; then
+      echo "a controller is not blocked but did not power up ($driver)"
+      return $FAIL
+    fi
+  done
+
+  echo "powered ($driver)"
+  return $PASS
+}
+
+# Audio controllers other than a graphics card's, which carry only HDMI and
+# DisplayPort audio: that one is NVIDIA's, or function 1 beside a GPU at
+# function 0. An AMD APU's analog controller shares the GPU's slot as function 6.
+onboard_audio_controllers() {
+  local device vendor
+  while IFS= read -r device; do
+    vendor=$(read_file "$device/vendor")
+    [[ $vendor == "0x10de" ]] && continue
+    # AMD's GPUs are 1002, its chipsets 1022: a GPU's audio left behind when
+    # Integrated mode detaches the GPU is still the GPU's.
+    [[ $device == *.1 && ( $vendor == "0x1002" || $(read_file "${device%.1}.0/class") == 0x03* ) ]] && continue
+    echo "$device"
+  done < <(pci_devices 0x0401 0x0403)
+}
+
+# Whether a controller registered a sound card: under it directly (HDA), under
+# the machine driver it spawns (SOF), or, for Intel's AVS driver, under the
+# platform devices it registers with no parent.
+has_sound_card() {
+  local dir
+  dir=$(readlink -f "$1") || return 1
+  if [[ $(driver_of "$1") == "snd_soc_avs" ]]; then
+    # avs_probe_mb is a debug card AVS registers whether or not any board works.
+    for dir in "$sys"/devices/platform/avs_*/sound/card[0-9]*; do
+      [[ -e $dir && $dir != */avs_probe* ]] && return 0
+    done
+    return 1
+  else
+    [[ -n $(find "$dir" -maxdepth 4 -path '*/sound/card[0-9]*' -print -quit 2>/dev/null) ]]
+  fi
+}
+
+# Whether the card holding this direction's analog PCM was switched to its HDMI
+# or S/PDIF profile, which on one shared HDA card closes the speakers and the
+# microphone: that card has an ACP-named digital sink open and no analog one.
+# Another card's HDMI, a graphics card's or Haswell's separate one, says
+# nothing about it.
+switched_to_digital() {
+  local direction=$1 sinks line card address
+  sinks=$(timeout 5s pactl list short sinks 2>/dev/null | awk '{print $2}')
+
+  while IFS= read -r line; do
+    # 01-00 is device 0 of card 1.
+    card=$((10#${line%%-*}))
+    address=$(readlink -f "$sys/class/sound/card$card/device") || continue
+    # alsa_output.pci-0000_00_1f.3.hdmi-stereo is PCI device 0000:00:1f.3.
+    address=alsa_output.pci-${address##*/}
+    address=${address//:/_}
+    grep -qE "^${address//./\\.}\\.(hdmi|iec958)-" <<<"$sinks" || continue
+    grep -E "^${address//./\\.}\\." <<<"$sinks" | grep -qviE "$DIGITAL_AUDIO" && continue
+    return 0
+  done < <(alsa_pcms "$direction")
+  return 1
+}
+
+# The sound cards that count: every card on a desktop, where a USB DAC is a
+# real output; on a laptop only the built-in ones, so a webcam, a headset or a
+# dock cannot stand in for dead speakers or a dead microphone. Internal USB
+# codecs sit on fixed ports.
+counted_cards() {
+  local card
+  local -a cards=()
+  if ! laptop; then
+    echo all
+    return
+  fi
+  for card in "$sys"/class/sound/card[0-9]*; do
+    [[ -e $card ]] || continue
+    on_removable_usb "$card" && continue
+    cards+=("$((10#${card##*card}))")
+  done
+  echo "${cards[*]}"
+}
+
+# Analog ALSA PCMs in one direction, on the given cards.
+alsa_pcms() {
+  local direction=$1 cards=${2-all} digital=$DIGITAL_AUDIO line
+  [[ $direction == "playback" ]] && digital+='|digital'
+  [[ -r $proc/asound/pcm ]] || return 0
+  while IFS= read -r line; do
+    # 01-00 is device 0 of card 1.
+    [[ $cards == "all" || " $cards " == *" $((10#${line%%-*})) "* ]] && echo "$line"
+  done < <(grep -E ": $direction [0-9]" "$proc/asound/pcm" | grep -viE "$digital")
+}
+
+# The drivers behind the sound cards, as /proc/asound/cards names them.
+alsa_drivers() {
+  [[ -r $proc/asound/cards ]] || return 0
+  sed -nE 's/^ *[0-9]+ \[[^]]*\]: ([^ ]+) - .*/\1/p' "$proc/asound/cards" | sort -u | paste -sd, -
+}
+
+# PipeWire's analog ALSA nodes of one kind, on the given cards.
+pipewire_nodes() {
+  timeout 5s pactl -f json list "$1" 2>/dev/null | jq -r --arg prefix "$2" --arg cards "${3-all}" '
+    ($cards | split(" ") | map(select(. != ""))) as $counted
+    | .[] | select((.name | startswith($prefix)) and (.name | endswith(".monitor") | not))
+      | select($cards == "all" or ((.properties["alsa.card"] // null) as $card | $card != null and ($counted | index($card) != null)))
+      | .name' 2>/dev/null | grep -viE "$DIGITAL_AUDIO"
+}
+
+# One direction of audio: ALSA has to have the device, and PipeWire a node for
+# it. Every laptop has speakers and a microphone, so on a laptop their absence
+# is a failure whatever bus the audio sits on.
+check_audio() {
+  local direction=$1 node_kind=$2 prefix=$3 noun=$4 device drivers count cards
+  local -a pcms=() nodes=() controllers=()
+
+  cards=$(counted_cards)
+  mapfile -t pcms < <(alsa_pcms "$direction" "$cards")
+  drivers=$(alsa_drivers)
+  drivers=${drivers:-no sound card}
+
+  # A controller with no driver or no sound card explains missing audio. When
+  # the audio is there it means nothing: boards whose analog codec is on USB,
+  # and AMD laptops on ACP, leave a chipset HDA controller with no codec.
+  if (( ${#pcms[@]} == 0 )); then
+    mapfile -t controllers < <(onboard_audio_controllers)
+    for device in "${controllers[@]}"; do
+      if ! driver_of "$device" >/dev/null; then
+        echo "audio controller $(pci_id "$device") has no driver"
+        return $FAIL
+      elif ! has_sound_card "$device"; then
+        echo "audio controller $(describe_pci "$device") has no sound card"
+        return $FAIL
+      fi
+    done
+
+    if laptop; then
+      echo "no built-in $noun ($drivers)"
+      return $FAIL
+    else
+      echo "no $noun found"
+      return $SKIP
+    fi
+  fi
+
+  if ! timeout 5s pactl info >/dev/null 2>&1; then
+    echo "PipeWire is not reachable from this session"
+    return $SKIP
+  fi
+
+  # A laptop's speakers and microphone have no jack to wait on, so PipeWire
+  # always has them open, unless the card's profile was switched to HDMI or
+  # DisplayPort, which on one shared HDA card closes them; a desktop's jack may
+  # simply be empty.
+  mapfile -t nodes < <(pipewire_nodes "$node_kind" "$prefix" "$cards")
+  count=${#nodes[@]}
+  if (( count )); then
+    echo "$count in PipeWire ($drivers)"
+    return $PASS
+  elif laptop; then
+    if switched_to_digital "$direction"; then
+      echo "audio is going to HDMI or DisplayPort ($drivers)"
+      return $SKIP
+    else
+      echo "PipeWire has not opened the built-in $noun ($drivers)"
+      return $FAIL
+    fi
+  else
+    echo "PipeWire has no $noun open; nothing plugged in? ($drivers)"
+    return $SKIP
+  fi
+}
+
+check_audio_output() {
+  check_audio playback sinks alsa_output. "speaker or headphone output"
+}
+
+check_audio_input() {
+  if laptop; then
+    check_audio capture sources alsa_input. microphone
+  else
+    echo "not a laptop"
+    return $SKIP
+  fi
+}
+
+# Built-in panels are eDP, LVDS or DSI connectors. Read from DRM so this works
+# from a TTY or over SSH too, and on whichever GPU drives the panel.
+internal_connectors() {
+  local connector
+  for connector in "$sys"/class/drm/card*-{eDP,LVDS,DSI}-*; do
+    [[ -e $connector/status ]] && echo "$connector"
+  done
+}
+
+open_laptop() {
+  if ! laptop; then
+    echo "not a laptop"
+    return 1
+  elif lid_closed; then
+    echo "lid is closed"
+    return 1
+  fi
+}
+
+check_panel() {
+  local connector driver name
+  local -a connectors=()
+
+  open_laptop || return $SKIP
+
+  mapfile -t connectors < <(internal_connectors)
+  if (( ${#connectors[@]} == 0 )); then
+    echo "no built-in panel connector"
+    return $FAIL
+  fi
+
+  for connector in "${connectors[@]}"; do
+    [[ $(read_file "$connector/status") == "connected" ]] || continue
+    driver=$(driver_of "${connector%-*-*}/device") || driver=unknown
+    # card1-eDP-1 is connector eDP-1 of card1.
+    name=${connector##*/}
+    name=${name#card*-}
+    echo "${name%-*} connected ($driver)"
+    return $PASS
+  done
+
+  echo "built-in panel reports disconnected"
+  return $FAIL
+}
+
+check_backlight() {
+  local device max
+
+  open_laptop || return $SKIP
+
+  if ! device=$(OMARCHY_BACKLIGHT_PATH=$sys/class/backlight omarchy-hw-display); then
+    echo "no backlight control"
+    return $FAIL
+  fi
+
+  max=$(read_number "$sys/class/backlight/$device/max_brightness") || max=0
+  if (( max == 0 )); then
+    echo "$device has no brightness range"
+    return $FAIL
+  else
+    echo "$device"
+    return $PASS
+  fi
+}
+
+# Whether an input device hangs off a USB port the firmware marks removable,
+# anywhere up the chain: a hub or dock's own ports read unknown. Internal USB
+# touchpads (T2 Macs, the Framework 16) sit on fixed ports all the way up.
+on_removable_usb() {
+  local dir
+  dir=$(readlink -f "$1/device") || return 1
+  while [[ $dir == "$sys"/* ]]; do
+    [[ $(read_file "$dir/removable") == "removable" ]] && return 0
+    dir=${dir%/*}
+  done
+  return 1
+}
+
+# A touchpad udev tagged that is not a Bluetooth or plugged-in USB one: an
+# external trackpad says nothing about the built-in one.
+check_touchpad() {
+  local event dev data chassis bus driver
+
+  if ! laptop; then
+    echo "not a laptop"
+    return $SKIP
+  fi
+
+  # Tablets and detachables may have no keyboard cover on.
+  chassis=$(read_file "$sys/class/dmi/id/chassis_type")
+  if [[ $chassis == "30" || $chassis == "32" ]]; then
+    echo "tablet or detachable"
+    return $SKIP
+  elif [[ ! -d $udev_data ]]; then
+    echo "no udev database"
+    return $SKIP
+  fi
+
+  for event in "$sys"/class/input/event*; do
+    dev=$(read_file "$event/dev") || continue
+    data=$udev_data/c$dev
+    [[ -r $data ]] && grep -qx 'E:ID_INPUT_TOUCHPAD=1' "$data" || continue
+    bus=$(sed -n 's/^E:ID_BUS=//p' "$data")
+    [[ $bus == "bluetooth" ]] && continue
+    [[ $bus == "usb" ]] && on_removable_usb "$event" && continue
+    driver=$(driver_of "$event/device/device") || driver=unknown
+    echo "found ($driver)"
+    return $PASS
+  done
+
+  echo "no built-in touchpad found"
+  return $FAIL
+}
+
+check_graphics() {
+  local renderer status
+
+  shopt -s nullglob
+  local -a nodes=("$root"/dev/dri/card*)
+  shopt -u nullglob
+  if (( ${#nodes[@]} == 0 )); then
+    echo "no GPU device in /dev/dri"
+    return $FAIL
+  fi
+
+  renderer=$(timeout 10s omarchy-hw-software-rendering --print 2>/dev/null)
+  status=$?
+
+  case $status in
+    0)
+      if omarchy-hw-vm; then
+        echo "virtual machine, rendering in software (${renderer:-unknown})"
+        return $SKIP
+      else
+        echo "rendering on the CPU (${renderer:-unknown})"
+        return $FAIL
+      fi
+      ;;
+    1)
+      echo "$renderer"
+      return $PASS
+      ;;
+    2)
+      echo "the renderer could not be read; run this from the desktop"
+      return $SKIP
+      ;;
+    *)
+      echo "asking the GPU for its renderer crashed or hung"
+      return $FAIL
+      ;;
+  esac
+}
+
+# The machine's own battery, decided as omarchy-battery-present decides it.
+system_battery() {
+  local battery
+  for battery in "$sys"/class/power_supply/*; do
+    [[ $(read_file "$battery/present") == "1" && $(read_file "$battery/type") == "Battery" ]] || continue
+    [[ $(read_file "$battery/scope") == "Device" ]] && continue
+    echo "$battery"
+    return 0
+  done
+  return 1
+}
+
+check_battery() {
+  local battery capacity status full design detail kind
+
+  if ! battery=$(system_battery); then
+    if laptop; then
+      echo "the laptop reports no battery"
+      return $FAIL
+    else
+      echo "no battery"
+      return $SKIP
+    fi
+  fi
+
+  if ! capacity=$(read_number "$battery/capacity"); then
+    echo "charge cannot be read"
+    return $FAIL
+  fi
+  status=$(read_file "$battery/status") || status=unknown
+  detail="$capacity%, ${status,,}"
+
+  # Batteries report energy (µWh) or charge (µAh); either gives health.
+  for kind in energy charge; do
+    full=$(read_number "$battery/${kind}_full") || continue
+    design=$(read_number "$battery/${kind}_full_design") || continue
+    (( design > 0 )) || continue
+    detail+=", health $((full * 100 / design))%"
+    break
+  done
+
+  echo "$detail"
+  return $PASS
+}
+
+# Only units a package ships are named, instances cut to their template. Units
+# made on the machine (a VPN, a mount, a disk's .device) can carry a host, a
+# path or a serial, so those are only counted.
+check_services() {
+  local units unit fragment others=0
+  local -a failed=() shown=()
+
+  if ! units=$(timeout 5s systemctl list-units --state=failed --no-legend --plain 2>/dev/null); then
+    echo "systemd did not answer"
+    return $SKIP
+  fi
+  mapfile -t failed < <(awk 'NF {print $1}' <<<"$units")
+
+  if (( ${#failed[@]} == 0 )); then
+    echo "none failed"
+    return $PASS
+  fi
+
+  for unit in "${failed[@]}"; do
+    fragment=$(timeout 2s systemctl show -p FragmentPath --value "$unit" 2>/dev/null)
+    if [[ $fragment == /usr/lib/systemd/system/* ]]; then
+      if [[ $unit == *@* ]]; then
+        shown+=("${unit%%@*}@")
+      else
+        shown+=("$unit")
+      fi
+    else
+      (( others += 1 ))
+    fi
+  done
+  (( others == 0 )) || shown+=("$others other")
+
+  echo "failed: $(printf '%s\n' "${shown[@]}" | sort -u | paste -sd' ' -)"
+  return $FAIL
+}
+
+# A last guard on what the machine and the check details say: MAC addresses (as
+# kernels, BlueZ and PipeWire write them, and inside wlx/enx interface names),
+# the hostname and the username. Names under three letters, and "omarchy",
+# which the kernel and Omarchy's own units carry, would garble the text rather
+# than hide anyone. Done in jq on values only, so a username that is also a key
+# stays a key.
+redact() {
+  local host user
+  host=$(uname -n 2>/dev/null)
+  user=$(id -un 2>/dev/null)
+  jq --arg host "$host" --arg user "$user" '
+    def escape: gsub("(?<c>[.*+?^${}()|\\[\\]\\\\/-])"; "\\\(.c)");
+    ([{word: $host, as: "<host>"}, {word: ($host | split(".")[0]), as: "<host>"}, {word: $user, as: "<user>"}]
+      | map(select((.word | length >= 3) and (.word | ascii_downcase) != "omarchy"))) as $words
+    | def scrub:
+        gsub("([0-9A-Fa-f]{2}[:_-]){5}[0-9A-Fa-f]{2}"; "<mac>")
+        | gsub("(?<p>wl|en)x[0-9a-fA-F]{12}"; "\(.p)x<mac>")
+        | reduce $words[] as $w (.; gsub("(?<![a-z0-9])" + ($w.word | escape) + "(?![a-z0-9])"; $w.as; "i"));
+    .machine |= map_values(if type == "string" then scrub elif type == "array" then map(scrub) else . end)
+    | .checks |= map(.detail |= scrub)'
+}
+
+machine_json() {
+  local dmi=$sys/class/dmi/id dt=$sys/firmware/devicetree/base model compatible cpu gpus card driver id
+
+  model=$(tr -d '\0' 2>/dev/null <"$dt/model")
+  compatible=$(tr '\0' ' ' 2>/dev/null <"$dt/compatible")
+  # One "Model name" per core cluster on big.LITTLE ARM; "-" when lscpu does
+  # not know the core.
+  cpu=$(LC_ALL=C lscpu 2>/dev/null | sed -n 's/^Model name: *//p' | grep -vx -- '-' | sort -u | paste -sd, - | sed 's/,/, /g')
+
+  # GPUs from DRM rather than lspci, which wakes a sleeping discrete GPU.
+  gpus=$(for card in "$sys"/class/drm/card[0-9]*; do
+    [[ ${card##*/} == *-* ]] && continue
+    driver=$(driver_of "$card/device") || continue
+    id=$(pci_id "$card/device") || id=""
+    echo "${id:+$id }$driver"
+  done | sort -u | jq -R . | jq -sc .)
+
+  jq -nc \
+    --arg vendor "$(read_file "$dmi/sys_vendor")" \
+    --arg product "$(read_file "$dmi/product_name")" \
+    --arg version "$(read_file "$dmi/product_version")" \
+    --arg family "$(read_file "$dmi/product_family")" \
+    --arg sku "$(read_file "$dmi/product_sku")" \
+    --arg board "$(read_file "$dmi/board_name")" \
+    --arg bios "$(read_file "$dmi/bios_version")" \
+    --arg chassis "$(read_file "$dmi/chassis_type")" \
+    --arg model "$model" \
+    --arg compatible "${compatible% }" \
+    --arg cpu "$cpu" \
+    --argjson gpus "${gpus:-[]}" \
+    '{vendor: $vendor, product: $product, version: $version, family: $family, sku: $sku, board: $board, bios: $bios,
+      chassis: $chassis, model: $model, compatible: $compatible, cpu: $cpu, gpus: $gpus}
+      | with_entries(select(.value != "" and .value != []))'
+}
+
+render_text() {
+  jq -r '
+    def mark: {pass: "✓", fail: "✗", skip: "–"}[.];
+    def line($k; $v): if $v == null or $v == "" then empty else "\($k | . + " " * (10 - length))\($v)" end;
+    "Omarchy roll call\n",
+    line("Machine"; [.machine.vendor, .machine.product, .machine.version, .machine.model] | map(select(. != null and . != "")) | join(" · ")),
+    line("CPU"; .machine.cpu),
+    line("GPU"; (.machine.gpus // []) | join(", ")),
+    line("Platform"; .platform),
+    line("Kernel"; .kernel),
+    line("Omarchy"; if .omarchy == "" then "" elif .channel == "" then .omarchy else "\(.omarchy) (\(.channel))" end),
+    "",
+    (.checks[] | "  \(.result | mark) \(.id | . + " " * (14 - length))\(if .result == "skip" then "skipped: " else "" end)\(.detail)"),
+    "",
+    ([.checks[] | .result] as $r | "\($r | map(select(. == "pass")) | length) passed, \($r | map(select(. == "fail")) | length) failed, \($r | map(select(. == "skip")) | length) skipped")
+  '
+}
+
+run_checks() {
+  local check detail status result
+  for check in "${CHECKS[@]}"; do
+    [[ " ${selected[*]} " == *" $check "* ]] || continue
+    detail=$("check_${check//-/_}")
+    status=$?
+    case $status in
+      "$PASS") result=pass ;;
+      "$SKIP") result=skip ;;
+      *) result=fail ;;
+    esac
+    jq -nc --arg id "$check" --arg result "$result" --arg detail "$detail" '{id: $id, result: $result, detail: $detail}'
+  done
+}
+
+json=false
+list=false
+selected=()
+
+while (( $# > 0 )); do
+  case $1 in
+    --json) json=true ;;
+    --list) list=true ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ -n $1 && -n ${SUMMARY[$1]:-} ]]; then
+        selected+=("$1")
+      else
+        usage >&2
+        exit 2
+      fi
+      ;;
+  esac
+  shift
+done
+
+if [[ $list == "true" ]]; then
+  for check in "${CHECKS[@]}"; do
+    printf '%-14s %s\n' "$check" "${SUMMARY[$check]}"
+  done
+else
+  (( ${#selected[@]} )) || selected=("${CHECKS[@]}")
+
+  report=$(jq -n \
+    --arg omarchy "$(omarchy-version 2>/dev/null)" \
+    --arg channel "$(omarchy-version-channel 2>/dev/null)" \
+    --arg kernel "$(uname -r)" \
+    --arg platform "$(omarchy-hw-platform 2>/dev/null)" \
+    --argjson machine "$(machine_json)" \
+    --argjson checks "$(run_checks | jq -sc .)" \
+    '{version: 1, omarchy: $omarchy, channel: $channel, kernel: $kernel, platform: $platform, machine: $machine, checks: $checks}')
+  report=$(redact <<<"$report")
+
+  if [[ $json == "true" ]]; then
+    printf '%s\n' "$report"
+  else
+    render_text <<<"$report"
+  fi
+
+  jq -e 'any(.checks[]; .result == "fail") | not' >/dev/null <<<"$report"
+fi

@@ -128,7 +128,7 @@ export default function (pi: ExtensionAPI) {
       "Fetch a URL and return its content. HTML pages are converted to Markdown (main content only;",
       "pass raw: true for the HTML). Text, JSON and other text formats come back as-is, images as images,",
       "PDFs as their text, and other files are saved to a temp file whose path is returned.",
-      "It fetches a URL you already have; it does not search the web.",
+      "It fetches a URL you already have; use web_search to search the web.",
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)};`,
       "the full text is then saved to a temp file whose path is given.",
     ].join(" "),

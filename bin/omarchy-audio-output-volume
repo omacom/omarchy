@@ -24,11 +24,10 @@ fi
 # over PA_VOLUME_NORM), so the OSD reads identically either way.
 # pactl translates its labels and yes/no; parse them in the C locale.
 volume_percent() {
-  LC_ALL=C pactl get-sink-volume "$sink" 2>/dev/null |
-    awk 'NR == 1 {
-      for (i = 1; i <= NF; i++)
-        if ($i ~ /%$/) {sub("%", "", $i); print $i; exit}
-    }'
+  local line
+  line=$(LC_ALL=C pactl get-sink-volume "$sink" 2>/dev/null) || return
+  line=${line%%$'\n'*}
+  [[ $line =~ ([0-9]+)% ]] && printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
 volume_muted() {
@@ -43,7 +42,8 @@ esac
 if [[ $action == "mute-toggle" ]]; then
   runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
   debounce_file="$runtime_dir/omarchy-audio-output-volume-mute-toggle.last"
-  now=$(date +%s%3N)
+  now_us=${EPOCHREALTIME//[!0-9]/}
+  now=$(( 10#$now_us / 1000 ))
   last=0
   [[ -r $debounce_file ]] && read -r last <"$debounce_file" || true
   if ((now - last < 250)); then
@@ -52,6 +52,12 @@ if [[ $action == "mute-toggle" ]]; then
   printf '%s\n' "$now" >"$debounce_file"
 
   pactl set-sink-mute "$sink" toggle
+  percent=$(volume_percent)
+  if volume_muted || ((${percent:-0} == 0)); then
+    icon="volume-muted"
+  else
+    icon="volume-high"
+  fi
 elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
   direction="${BASH_REMATCH[1]}"
   step="${BASH_REMATCH[2]}"
@@ -72,16 +78,15 @@ elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
 
   pactl set-sink-mute "$sink" 0
   pactl set-sink-volume "$sink" "${next}%"
+  percent=$next
+  if ((percent == 0)); then
+    icon="volume-muted"
+  else
+    icon="volume-high"
+  fi
 else
   echo "Unknown volume action: $action"
   exit 1
-fi
-
-percent=$(volume_percent)
-if volume_muted || ((${percent:-0} == 0)); then
-  icon="volume-muted"
-else
-  icon="volume-high"
 fi
 
 omarchy-osd -i "$icon" -p "${percent:-0}"

@@ -8,5 +8,5 @@
 # before speaker-tuning.sh, whose tuning for this laptop needs the speaker sink.
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  omarchy-pkg-add asus-zenbook-a16-audio
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add asus-zenbook-a16-audio
 fi

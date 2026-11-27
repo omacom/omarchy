@@ -2,63 +2,38 @@
 
 ## Vaihtoehtoiset editorit
 
-Omarchy toimitetaan niin, että Plain on uusissa asennuksissa oletuseditori ja [Neovim](https://neovim.io/) on esiasennettuna, mutta jos haluat jotain hieman valtavirtaisempaa ja tutumpaa, voit avata Omarchy Menun (`Super + Space`) ja katsoa vaihtoehdot kohdasta _Install > Editor_. Siellä on lueteltuna VSCode, Cursor, Zed, Sublime Text, Helix, Vim ja Emacs. Jos et löydä etsimääsi, käy kohdassa _Install > Package_ ja katso, eikö se löydy Arch-paketista (ja jos ei, kokeile kohtaa _Install > AUR_ tarkistaaksesi AUR:n).
+Omarchyssa on uusissa asennuksissa oletuseditorina Plain ja [Neovim](https://neovim.io/) esiasennettuna, mutta jos haluaisit jotain hieman valtavirtavampaa ja tutumpaa, voit avata Omarchy Menun (`Super + Space`) ja katsoa vaihtoehdot kohdasta _Install > Editor_. Siellä on listattuna VSCode, Cursor, Zed, Sublime Text, Helix, Vim ja Emacs. Jos et löydä etsimääsi, vilkaise kohtaa _Install > Package_ ja katso, onko se Arch-paketissa (ja jos ei ole, kokeile kohtaa _Install > AUR_ ja tarkista AUR).
 
-Alkuperäinen `vi`-editori on myös saatavilla suoraan. Muokkaa tiedostoa päätteessä ajamalla `vi filename`.
+Alkuperäinen `vi`-editori on myös heti käytettävissä. Aja `vi filename` muokataksesi tiedostoa terminaalissa.
 
-Teeman sovitus on tarjolla editoreille `VSCode`, `Cursor`, `VSCodium` ja `Helix`.
+Teeman sovitus tarjotaan ohjelmille `VSCode`, `Cursor`, `VSCodium` ja `Helix`.
 
-Järjestelmänlaajuisen oletuseditorin voit asettaa kohdassa `Setup > Defaults > Editor`.
+Voit asettaa järjestelmän laajuisen oletuseditorin kohdassa `Setup > Defaults > Editor`.
 
 ## Ympäristö
 
-Omarchy tukee kokonaisen joukon kehitysympäristöjen käyttöönottoa Omarchy Menun (`Super + Space`) osion _Install > Development_ kautta. Sieltä löydät tietenkin _Ruby on Rails_ -kehyksen, mutta myös kaikki kolme merkittävää JavaScript-ajonaikaista ympäristöä (Node.js, Bun, Deno) sekä suosittuja PHP-kehyksiä, kuten Laravel ja Symfony. Ai niin, ja tarjolla ovat myös Go, Rust, Python, Java, Elixir (Phoenixin kanssa), .NET, OCaml, Zig, Clojure ja Scala. Valikoima on todella laaja!
+Omarchy tukee kokonaisen liudan kehitysympäristöjen käyttöönottoa Omarchy Menun (`Super + Space`) kohdassa _Install > Development_. Löydät sieltä tietenkin _Ruby on Rails_:in, mutta myös kaikki kolme merkittävää JavaScript-ajoympäristöä (Node.js, Bun, Deno) sekä suositut PHP-kehykset, kuten Laravel ja Symfony. Ai niin, ja siellä on myös Go, Rust, Python, Java, Elixir (Phoenixin kanssa), .NET, OCaml, Zig, Clojure ja Scala. Valikoima on todella laaja!
 
-Suurinta osaa näistä ympäristöistä hallinnoi [Mise](https://mise.jdx.dev/). Se on työkalu, jonka avulla voit asentaa ja ajaa saman ohjelmointikielen useita versioita samalla koneella. Se on kuin rbenv tai rvm Rubylle tai virtualenv Pythonille, mutta se toimii monissa eri ympäristöissä.
+Useimpia näistä ympäristöistä hallinnoi [Mise](https://mise.jdx.dev/). Se on työkalu, jolla voit asentaa ja ajaa ohjelmointikielen useita versiota samalla koneella. Se on kuin rbenv tai rvm Rubylle tai virtualenv Pythonille, mutta se toimii koko joukolle eri ympäristöjä.
 
-Asentaaksesi esimerkiksi Rubyn ajaisit komennon `mise use -g ruby`, joka sekä asentaa Rubyn että asettaa sen yleiseksi oletukseksi. Tai jos projektissasi on .ruby-version-tiedosto, voit vain ajaa komennon `mise i` kyseisen projektin juuressa.
+Jos haluaisit asentaa esimerkiksi Rubyn, ajaisit `mise use -g ruby`, joka sekä asentaa Rubyn että asettaa sen globaaliksi oletukseksi. Tai jos projektillasi on .ruby-version-tiedosto, voit vain ajaa `mise i` kyseisen projektin juuressa.
 
 ## Esiasennetut CLI-työkalut
 
-Omarchy tuo työkalut, kuten `gh` ja `uv`, sekä useimmat [koodausagentit](17-ai.md) saataville [misen laiskan asennuksen](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools) kautta. Kun ajat jonkin niistä ensimmäisen kerran, mise asentaa sen. Koodausagentit tarkistavat sitten päivityksen ennen ajoaan, enintään kerran neljässä tunnissa; muut työkalut, kuten `gh` ja `uv`, käyttävät asennettua versiota uudelleen, kunnes päivität.
+`uv`, Node.js ja `playwright-cli` (agenteille selaimen ajamiseen, käyttäen asennettua Chromea) tulevat asennettuina paketteina, ja `omarchy update` pitää ne ajan tasalla muun järjestelmän kanssa. [Hunk](https://github.com/modem-dev/hunk) ja GitHubin, Basecampin, Cloudflaren ja HEYn CLI:t ovat yhden valinnan päässä kohdassa _Install > CLI_ ja [kodausagentit](17-ai.md) kohdassa _Install > AI > CLI_.
 
-Voit myös tarkastella oletuksia tai asentaa ne etukäteen:
-
-```bash
-mise ls --current              # List the tools configured for this directory
-mise install gh               # Install one tool now
-mise install --include-lazy    # Install all configured tools, including lazy tools
-```
-
-Päivitä asennetut työkalut muun Omarchyn mukana ajamalla `omarchy update`. `mup`-alias päivittää vain misen hallinnoimat työkalut. Lisää toinen työkalu omaan määritykseesi komennolla `mise use -g <tool>`.
-
-Pythonin käyttöönotto asentaa myös työkalun `uv` misen kautta. Python-kehitysympäristön poistaminen jättää työkalun `uv` saataville itsenäisenä työkaluna.
-
-### Oman asennuksen käyttäminen
-
-misen komennot tulevat `PATH`:ssa ennen hakemistoa `~/.local/bin`, joten itse asentamasi työkalu, esimerkiksi Claude Coden tai Cursorin omalla asennusohjelmalla asennettu, ajaa silti misen kopion. Myös työpöydältä käynnistetyt sovellukset löytävät misen komennot ennen järjestelmäpaketteja, joten sovellus, joka ajaa komennon `gh`, saa misen kopion, vaikka olisit asentanut paketin `github-cli` pacmanilla, ja mise asentaa kyseisen kopion ensimmäisellä kerralla. Jos haluat käyttää sen sijaan omaasi, poista misen kopio käytöstä tiedostossa `~/.config/mise/config.toml`. Jos esimerkiksi asensit Cursor CLI:n itse:
-
-```toml
-[settings]
-disable_tools = ["cursor-agent"]
-```
-
-Jos sinulla on jo `[settings]`-taulukko, lisää merkintä sinne; laajenna olemassa olevaa `disable_tools`-luetteloa sen korvaamisen sijaan. Varmista, että asennuksesi on `PATH`:ssa. Käytä misen työkalun nimeä, joka voi poiketa sen komennosta: esimerkiksi `oh-my-pi` tarjoaa komennon `omp`. Oletusagentin käynnistin suosii myös käyttäjän asentamaa Cursor- tai Claude Code -asennusta hakemistossa `~/.local/bin`.
-
-### Oletusten poistaminen ja palauttaminen
-
-_Remove > Preinstalls_ poistaa Omarchyn esiasennetut verkkosovellukset, TUI:t ja sovellukset ja saa misen ohittamaan Omarchyn työkalumääritykset käyttäjäsi osalta lisäämällä ne kohtaan `ignored_config_paths` tiedostossa `~/.config/mise/miserc.toml`. _Install > Preinstalls_ tuo ne takaisin ja poistaa kyseisen rivin uudelleen. Itse määrittämäsi työkalut, omassa määrityksessäsi tai projektin `mise.toml`-tiedostossa, toimivat edelleen kummassakin tapauksessa. Jos valitset oletusagentin tai otat Pythonin käyttöön esiasennusten poistamisen jälkeen, kyseinen työkalu lisätään omaan määritykseesi. mise-asetus koskee vain käyttäjääsi, ja muut käyttäjät säilyttävät oman valintansa; sovellukset ovat kuitenkin paketteja, joten niiden poistaminen tai palauttaminen muuttaa niitä kaikille koneen käyttäjille.
+mise hallinnoi vain ajoympäristöjä, jotka otat käyttöön kohdassa _Install > Development_; Omarchy ei asenna sen kautta omin päin mitään. Aja `omarchy update` päivittääksesi ne muun Omarchyn kanssa; `mup`-alias päivittää vain misellä hallitut työkalut. Jos haluat lisätä toisen työkalun omaan konfiguraatioosi, käytä komentoa `mise use -g <tool>`.
 
 ## Docker
 
-[Docker](https://www.docker.com/) tuskin kaipaa esittelyä. Sen avulla voit ajaa eristettyjä kontteja, ja Omarchy asentaa kaiken sen hyvään ajamiseen tarvittavan, mukaan lukien itse Dockerin ja [Docker Composen](https://docs.docker.com/compose/).
+[Docker](https://www.docker.com/) ei juuri esittelyjä kaipaa. Se mahdollistaa eristettyjen konttien ajamisen, ja Omarchy asentaa kaiken sen hyvään ajamiseen tarvittavan, mukaan lukien itse Dockerin ja [Docker Composen](https://docs.docker.com/compose/).
 
-Oletuksena käyttäjäsi *ei* kuulu `docker`-ryhmään. Kyseinen ryhmä on käytännössä salasanaa vaatimaton root — mikä tahansa siihen kuuluva voi ajaa komennon `docker run -v /:/host` ja ottaa koneen haltuunsa — joten yksi sinun käyttäjänäsi ajettava kelvoton skripti tai riippuvuus olisi muuten yhden komennon päässä root-oikeuksista. Niinpä ajat Dockeria komentorivillä komennolla `sudo` (`sudo docker ps`, `sudo docker compose up`), ja daemonin kanssa keskustelevat graafiset työkalut — Windows VM — pyytävät valtuutusta tarvittaessa. Jos haluat takaisin `sudo`a vaatimattoman käytön mukavuuden ja ymmärrät kompromissin, ota se käyttöön kohdasta **Setup > Security > Sudoless Docker** (tai aja `omarchy-setup-security-sudoless-docker`), joka lisää sinut `docker`-ryhmään varoituksen jälkeen; sen jälkeen tavallinen `docker` ja `d`-alias toimivat taas ilman `sudo`-komentoa.
+Oletuksena käyttäjäsi *ei* ole `docker`-ryhmässä. Tuo ryhmä on käytännössä salasanaton root — kaikki siihen kuuluvat voivat ajaa `docker run -v /:/host` ja ottaa koneen haltuunsa — joten yksi rogue-skripti tai käyttäjänäsi ajettava riippuvuus olisi muuten yhden komennon päässä rootista. Siksi komentorivillä ajat Dockeria `sudo`:lla (`sudo docker ps`, `sudo docker compose up`), ja daemonin kanssa juttelevat graafiset työkalut — Windows VM — pyytävät valtuutuksen sitä tarvittaessa. Jos haluat takaisin ryhmättömän käyttöönoton mukavuuden ja ymmärrät kompromissin, ota se käyttöön kohdasta **Setup > Security > Sudoless Docker** (tai aja `omarchy-setup-security-sudoless-docker`), joka lisää sinut varoituksen jälkeen `docker`-ryhmään; sitten tavallinen `docker` ja `d`-alias toimivat taas ilman `sudo`:a.
 
-Voit ottaa Dockerissa käyttöön yleiset tietokannat paikallista kehitystä varten Omarchy-valikon kohdasta _Install > Development > Docker DB_.
+Voit ottaa paikalliseen kehitykseen yleiset tietokannat käyttöön Dockerissa Omarchy-menun kohdasta _Install > Development > Docker DB_.
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) on saatavilla komennolla `gh`, jolla voit työskennellä repositorioiden, issueiden ja pull requestien parissa päätteestä. Aja `gh auth login` asentaaksesi sen ensimmäisellä käyttökerralla ja tunnistaaksesi itsesi, ja kloonaa sitten repositorio komennolla `gh repo clone org/repo`. Tutustu sen komentoihin ajamalla `gh --help`.
+[GitHub CLI](https://cli.github.com/) on `gh`, jolla työskennellään repositorioiden, issueiden ja pull requestien kanssa terminaalista. _Setup > Git_ asentaa sen, kun valitset kirjautumisesi GitHubiin siellä, tai voit asentaa sen erikseen kohdasta _Install > CLI > GitHub_. Sitten `gh repo clone org/repo` kloonaa repositorion; aja `gh --help` tutkiaksesi sen komentoja.
 
-Pull requestien päätekäyttöliittymää varten aja `ghui`; myös mise asentaa sen ensimmäisellä käyttökerralla. [Lazygit](https://github.com/jesseduffield/lazygit) on esiasennettu itse Gitin kanssa työskentelyyn.
+[Lazygit](https://github.com/jesseduffield/lazygit) on esiasennettu itse Gitin kanssa työskentelyä varten.

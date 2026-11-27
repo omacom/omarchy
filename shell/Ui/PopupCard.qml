@@ -29,9 +29,8 @@ PopupWindow {
   readonly property real screenW: popupScreen ? popupScreen.width : 0
   readonly property real screenH: popupScreen ? popupScreen.height : 0
   // Thickness of the painted bar strip on this screen, notch floor
-  // included. The bar window spans its whole screen (only the strip inside
-  // it is painted and takes input), so the window's dimensions say nothing
-  // about the bar.
+  // included. The bar window's size trails the strip while it settles into
+  // a new edge or thickness, so the window can lag the bar.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && popupScreen ? bar.barSizeFor(popupScreen.name) : bar.barSize)
   readonly property real availableCardWidth: screenW > 0

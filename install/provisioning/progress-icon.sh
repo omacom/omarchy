@@ -319,29 +319,16 @@ progress_icon_layout() {
 }
 
 progress_icon_static() {
-  progress_icon_layout "$ICON_TTY"
+  local rebuild="${1:-0}"
+  if (( rebuild || ICON_STEPS == 0 )) || [[ -z $ICON_SIZE ]]; then
+    progress_icon_layout "$ICON_TTY"
+  fi
   printf '%s2J%sH' "$PROGRESS_ICON_CSI" "$PROGRESS_ICON_CSI"
   progress_icon_render "$ICON_DISPLAY_PM" 1
 }
 
-# Draw one frame toward <pm>, which must never go back. Phase jumps ease over
-# several frames, with the percentage following the same position as the trace.
-# The status row is blank when no status is given, so the layout never changes
-# height. Callers draw ten frames a second while setup works the disk, so a
-# frame starts no process except the console size check on every fifth.
-progress_icon_frame() {
-  local pm="${1:-0}" status="${2:-}" tip="${3:-}" step shown_status="" shown_tip
-  [[ $pm =~ ^[0-9]+$ ]] || pm=$ICON_TARGET_PM
-  (( pm > 1000 )) && pm=1000
-  (( pm < ICON_TARGET_PM )) && pm=$ICON_TARGET_PM
-  ICON_TARGET_PM=$pm
-  # The framebuffer can settle late in VMs. Rebuild at the new size, preserving
-  # progress, instead of leaving the drawing at the old screen coordinates.
-  if (( ICON_FRAMES++ % 5 == 0 )); then
-    [[ "$(progress_icon_term_size)" == "$ICON_SIZE" ]] || progress_icon_static
-  fi
-  step=$(( (ICON_TARGET_PM - ICON_DISPLAY_PM + 3) / 4 ))
-  ICON_DISPLAY_PM=$((ICON_DISPLAY_PM + step))
+progress_icon_draw() {
+  local status="${1:-}" tip="${2:-}" shown_status="" shown_tip
   progress_icon_render "$ICON_DISPLAY_PM"
 
   printf '%s%d;1H' "$PROGRESS_ICON_CSI" "$((ICON_TOP + ICON_HEIGHT + 1))"
@@ -358,13 +345,43 @@ progress_icon_frame() {
   printf '%sJ' "$PROGRESS_ICON_CSI"
 }
 
-# Finish the trace, then draw the icon solid. Only a successful run calls this.
+# Draw one frame toward <pm>, which must never go back. Phase jumps ease over
+# several frames, with the percentage following the same position as the trace.
+# The status row is blank when no status is given, so the layout never changes
+# height. Callers draw ten frames a second while setup works the disk, so a
+# frame starts no process except the console size check on every fifth.
+progress_icon_frame() {
+  local pm="${1:-0}" status="${2:-}" tip="${3:-}" step
+  [[ $pm =~ ^[0-9]+$ ]] || pm=$ICON_TARGET_PM
+  (( pm > 1000 )) && pm=1000
+  (( pm < ICON_TARGET_PM )) && pm=$ICON_TARGET_PM
+  ICON_TARGET_PM=$pm
+  # The framebuffer can settle late in VMs. Rebuild at the new size, preserving
+  # progress, instead of leaving the drawing at the old screen coordinates.
+  if (( ICON_FRAMES++ % 5 == 0 )); then
+    [[ "$(progress_icon_term_size)" == "$ICON_SIZE" ]] || progress_icon_static 1
+  fi
+  step=$(( (ICON_TARGET_PM - ICON_DISPLAY_PM + 3) / 4 ))
+  ICON_DISPLAY_PM=$((ICON_DISPLAY_PM + step))
+  progress_icon_draw "$status" "$tip"
+}
+
+# Finish the trace in at most five frames, then draw the icon solid. Only a
+# successful run calls this. Fixed steps keep completion crisp (~0.15s) instead
+# of crawling asymptotically through the last few percent.
 progress_icon_finish() {
-  local status="${1:-}" tip="${2:-}"
-  while (( ICON_DISPLAY_PM < 999 )); do
-    progress_icon_frame 1000 "$status" "$tip"
-    sleep 0.05
-  done
+  local status="${1:-}" tip="${2:-}" remaining step
+  ICON_TARGET_PM=1000
+  remaining=$((1000 - ICON_DISPLAY_PM))
+  if (( remaining > 0 )); then
+    step=$(( (remaining + 4) / 5 ))
+    (( step < 50 )) && step=50
+    while (( ICON_DISPLAY_PM + step < 1000 )); do
+      ICON_DISPLAY_PM=$((ICON_DISPLAY_PM + step))
+      progress_icon_draw "$status" "$tip"
+      sleep 0.03
+    done
+  fi
   ICON_DISPLAY_PM=1000
-  progress_icon_frame 1000 "$status" "$tip"
+  progress_icon_draw "$status" "$tip"
 }

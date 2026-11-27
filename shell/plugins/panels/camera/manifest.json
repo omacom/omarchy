@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.camera",
+  "name": "Camera",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Live webcam gamma, contrast, and saturation controls that appear only while a tuned camera is active.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Camera",
+    "description": "Live webcam gamma, contrast, and saturation controls while the camera is active.",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
