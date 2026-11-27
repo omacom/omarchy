@@ -4,6 +4,8 @@
 # omarchy:examples=omarchy theme list | omarchy theme set "Tokyo Night"
 
 {
-  find ~/.config/omarchy/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n'
+  find ~/.config/omarchy/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null
   find "$OMARCHY_PATH/themes/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
-} | sort -u | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'
+} | sort -u | while IFS= read -r name; do
+  [[ -f $HOME/.config/omarchy/hidden-themes/$name ]] || printf '%s\n' "$name"
+done | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'

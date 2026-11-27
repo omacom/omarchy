@@ -18,13 +18,10 @@ function parseThemeNames(text) {
   return names
 }
 
-// A user directory shadowing a stock theme holds customizations, not an
-// extra theme: removing it from here would silently revert to stock (and a
-// shadow can even list twice, once per preview extension), so only themes
-// with no stock twin can be deleted from the picker.
+// Bundled entries are hidden, including those with a custom overlay.
 function canDeleteTheme(name, extraNames, stockNames) {
-  if (!name || !Array.isArray(extraNames) || extraNames.indexOf(name) === -1) return false
-  return !Array.isArray(stockNames) || stockNames.indexOf(name) === -1
+  return !!name && ((Array.isArray(extraNames) && extraNames.includes(name)) ||
+    (Array.isArray(stockNames) && stockNames.includes(name)))
 }
 
 // Where selection lands when the selected image goes away: the previous

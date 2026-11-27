@@ -81,6 +81,9 @@
   "appearance.theme": {
     "label": "Theme"
   },
+  "appearance.restore-theme": {
+    "label": "Restore Theme"
+  },
   "appearance.background": {
     "label": "Background"
   },

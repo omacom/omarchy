@@ -195,7 +195,7 @@ remove_theme() {
   : >"$theme_calls"
 
   HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
-    bash "$ROOT/bin/omarchy-theme-remove" "$1" >"$test_tmp/out" 2>&1 || return $?
+    bash "$ROOT/bin/omarchy-theme-remove" "$@" >"$test_tmp/out" 2>&1 || return $?
 }
 
 canary="$test_tmp/home/.config/omarchy/canary"
@@ -218,10 +218,28 @@ remove_theme "Walk Handmade Theme" || fail "omarchy-theme-remove removes a folde
 [[ ! -e $test_tmp/home/.config/omarchy/themes/my-theme && ! -e "$test_tmp/home/.config/omarchy/themes/Walk Handmade Theme" ]] ||
   fail "omarchy-theme-remove deletes the folders it named"
 
-if remove_theme "Tokyo Night"; then
-  fail "omarchy-theme-remove refuses a bundled theme"
-fi
-grep -Fq "comes with Omarchy" "$test_tmp/out" || fail "omarchy-theme-remove says a bundled theme cannot be removed" "$(cat "$test_tmp/out")"
-[[ -d $ROOT/themes/tokyo-night ]] || fail "omarchy-theme-remove leaves the bundled theme alone"
+cat >"$mock_bin/omarchy-menu-images" <<'EOF'
+#!/bin/bash
+find "${@: -1}" -maxdepth 1 -type l -printf '%f\n'
+EOF
+chmod +x "$mock_bin/omarchy-menu-images"
 
-pass "a theme is removed by the name omarchy-theme-list shows"
+preview_names() {
+  HOME="$test_tmp/home" XDG_CACHE_HOME="$test_tmp/cache" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$PATH" \
+    bash "$ROOT/bin/omarchy-theme-switcher" --print-rows
+}
+
+preview_names | grep -Eq '^tokyo-night\.' || fail "a bundled theme initially appears in the picker"
+remove_theme "Tokyo Night" || fail "a bundled theme can be hidden" "$(cat "$test_tmp/out")"
+if HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-theme-list" | grep -Fxq "Tokyo Night"; then
+  fail "a hidden bundled theme is still listed"
+fi
+if preview_names | grep -Eq '^tokyo-night\.'; then
+  fail "the picker still shows a cached preview for the hidden theme"
+fi
+[[ -d $ROOT/themes/tokyo-night ]] || fail "hiding a theme must preserve the packaged files"
+remove_theme --restore "Tokyo Night" || fail "a bundled theme can be restored"
+HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-theme-list" | grep -Fxq "Tokyo Night" ||
+  fail "a restored bundled theme is missing from the list"
+preview_names | grep -Eq '^tokyo-night\.' || fail "a restored bundled theme is missing from the picker"
+pass "a bundled theme can be hidden and restored without changing its files"

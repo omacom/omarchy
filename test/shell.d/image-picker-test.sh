@@ -183,10 +183,10 @@ assertEqual(typeof picker.parseThemeNames, 'function', 'image picker model parse
 assertDeepEqual(picker.parseThemeNames('fjord\ngiants\n\nspace\n'), ['fjord', 'giants', 'space'], 'image picker parses extra theme names one per line')
 assertDeepEqual(picker.parseThemeNames(''), [], 'image picker parses an empty extra theme listing')
 assert(picker.canDeleteTheme('fjord', ['fjord', 'giants']), 'an extra theme can be deleted from the picker')
-assert(!picker.canDeleteTheme('nord', ['fjord', 'giants']), 'a stock theme cannot be deleted from the picker')
+assert(picker.canDeleteTheme('nord', ['fjord', 'giants'], ['nord']), 'a bundled theme can be hidden from the picker')
 assert(!picker.canDeleteTheme('', ['fjord']), 'no selection cannot be deleted from the picker')
 assert(!picker.canDeleteTheme('fjord', []), 'nothing can be deleted before extra themes are known')
-assert(!picker.canDeleteTheme('nord', ['nord', 'fjord'], ['nord']), 'a user override of a stock theme is not deleted from the picker')
+assert(picker.canDeleteTheme('nord', ['nord', 'fjord'], ['nord']), 'a bundled theme with customizations can be hidden')
 assert(picker.canDeleteTheme('fjord', ['fjord'], ['nord']), 'an extra theme beside the stock list can be deleted from the picker')
 
 // Run the delete flow itself against a mocked selection and remove process.
@@ -230,8 +230,9 @@ deletion.confirmDeleteTheme()
 assertDeepEqual(deletion.deleteThemeProc.command, ['omarchy-theme-remove', 'fjord'], 'confirming deletion removes exactly the selected theme')
 assert(deletion.deleteThemeProc.running && !deletion.deleteConfirmOpen, 'confirming deletion runs the removal and closes the dialog')
 deletion = deleteContext('/cache/previews/nord.png', ['fjord'], true)
+deletion.stockThemeNames = ['nord']
 deletion.requestDeleteSelectedTheme()
-assert(!deletion.deleteConfirmOpen, 'Delete does nothing on a stock theme')
+assert(deletion.deleteConfirmOpen, 'Delete asks whether to hide a bundled theme')
 deletion = deleteContext('/cache/previews/fjord.jpg', ['fjord'], false)
 deletion.requestDeleteSelectedTheme()
 assert(!deletion.deleteConfirmOpen, 'Delete does nothing in the background picker')
@@ -279,7 +280,7 @@ assertDeepEqual(retention.deleteThemeProc.command, ['omarchy-theme-remove', 'bra
 deletion = deleteContext('/cache/previews/nord.png', ['nord', 'fjord'], true)
 deletion.stockThemeNames = ['nord']
 deletion.requestDeleteSelectedTheme()
-assert(!deletion.deleteConfirmOpen, 'Delete does nothing on a stock theme override')
+assert(deletion.deleteConfirmOpen, 'Delete can hide a bundled theme with a custom overlay')
 deletion = deleteContext('/cache/previews/fjord.jpg', ['fjord'], true)
 deletion.stockThemeNames = ['nord']
 deletion.deleteThemeProc.running = true
@@ -314,6 +315,11 @@ updateCtx.themeRows = 'new-rows'
 updateCtx.loaded = null
 updateCtx.updateThemeRows('new-rows')
 assertEqual(updateCtx.selectedImage, '/p/alpha.png', 'an unchanged refresh leaves the selection alone')
+updateCtx.awaitingDeleteRefresh = true
+updateCtx.updateThemeRows('')
+assert(!updateCtx.opened && !updateCtx.themeMode && !updateCtx.awaitingDeleteRefresh,
+  'hiding the last theme closes the picker and releases keyboard focus')
+
 
 deletion = deleteContext('/cache/previews/nord.png', ['nord', 'fjord'], true)
 deletion.stockThemeNames = []
@@ -347,6 +353,8 @@ application.applySelected()
 assertDeepEqual(application.applied, ['omarchy-theme-set', 'fjord'], 'Enter applies the selected theme once no deletion is pending')
 
 updateCtx.awaitingDeleteRefresh = true
+updateCtx.themeMode = true
+updateCtx.opened = true
 updateCtx.deleteSelectionPath = '/p/alpha.png'
 updateCtx.themeRows = 'new-rows'
 updateCtx.updateThemeRows('after-delete-rows')
