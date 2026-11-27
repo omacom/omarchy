@@ -1,8 +1,8 @@
-# Usein kysytyt kysymykset
+# UKK
 
-### Miten vaihdan näppäinasettelujen välillä?
+### Miten vaihdan näppäimistöasettelujen välillä?
 
-Muokkaa tiedostoasi `~/.config/hypr/input.lua` ja lisää tämä vaihtaaksesi asettelujen välillä näppäimillä `Left Alt + Right Alt`:
+Muokkaa tiedostoa `~/.config/hypr/input.lua` ja lisää tämä, jotta voit vaihtaa asettelujen välillä näppäimillä `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Palkki näyttää automaattisesti nykyisen näppäinasettelusi, kun sinulla on useita asetteluja määritettynä (ja voit myös napsauttaa sitä vaihtaaksesi).
+Palkki näyttää nykyisen näppäimistöasettelusi automaattisesti, kun olet määrittänyt useita asetteluja (ja voit vaihtaa myös napsauttamalla sitä).
 
-### Miten vaihdan kellon muodon 12 tunnin muotoon?
+### Miten muutan kellon muodon 12-tuntiseksi?
 
-Napsauta palkissa olevaa kelloa hiiren kakkospainikkeella selataksesi yleisiä muotoja, mukaan lukien 12 tunnin muodot. Voit myös asettaa muodon suoraan:
+Napsauta palkin kelloa hiiren oikealla painikkeella selataksesi yleisiä muotoja, mukaan lukien 12-tuntiset muodot. Voit asettaa muodon myös suoraan:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Tämä näyttää Sunday 10:55 AM.
+Tämä näyttää ajan muodossa sunnuntai 10:55 AM.
 
 ### Miten vaihdan aikavyöhykkeeni?
 
-Aja Omarchy-valikossa _Päivitä > Aikavyöhyke_ ja valitse luettelosta. Jos aikavyöhyke on oikein mutta itse kello on ajautunut, _Päivitä > Aika_ käynnistää ajansynkronoinnin uudelleen puolestasi.
+Aja Omarchy-valikossa _Setup > Region > Timezone_ ja valitse luettelosta. Jos aikavyöhyke on oikea mutta kello itse on ajautunut väärään aikaan, _Update > Time_ käynnistää ajansynkronoinnin uudelleen puolestasi.
 
-### Miten vaihdan DNS:ni, jaan Wi-Fini tai tarkistan yhteyden nopeuteni?
+### Miten vaihdan DNS-asetuksiani, jaan Wi-Fi-yhteyteni tai tarkistan yhteysnopeuteni?
 
-Ne ovat kaikki kohdassa [verkko](35-networking.md).
+Ne kaikki löytyvät kohdasta [verkko](35-networking.md).
 
 ### Miten tarkistan, kuinka nopea levyni on?
 
-_Käynnistä > Nopeustesti > Levyn nopeustesti_ mittaa asemasi reaaliaikaisen luku- ja kirjoitusnopeuden, tai `omarchy disk speedtest` terminaalista.
-
-### Miksi en voi kirjautua Google-tililleni Chromiumissa?
-
-Pelkkä avoimen lähdekoodin Chromium-koonti ei sisällä OAuth-tunnistetietoja, joita Google vaatii tilin kirjautumiseen. Aja Omarchy-valikossa _Asenna > Palvelu > Chromium Account_ lisätäksesi ne, käynnistä selain uudelleen, ja kirjautuminen menee läpi.
+_Trigger > Speed Test > Disk Speed Test_ mittaa aseman reaaliaikaisen luku- ja kirjoitusnopeuden, tai käytä päätteessä komentoa `omarchy disk speedtest`.
 
 ### Miten lisään tulostimen?
 
-Tulostus on asetettu ja käynnissä heti, ja lisäät jokaisen tulostimen itse sovelluskäynnistimestä (`Super + Space`) kohdasta _Print Settings_.
+Tulostus on määritetty ja käynnissä valmiiksi, ja lisäät jokaisen tulostimen itse sovellusten käynnistimen _Print Settings_ -kohdasta (`Super + Alt + Space`).
 
-Valitse _Add_ ja anna sille hetki etsiä: USB:n kautta kytketty tulostin ja useimmat verkkotulostimet löytyvät puolestasi. Jos omasi ei ole luettelossa, valitse _Network Printer > Internet Printing Protocol (ipp)_ ja syötä sen osoite — tulostimen oma näyttö tai sen verkkosivu kertoo, mikä se on, yleensä jotain kuten `192.168.1.50` jonolla `ipp/print`. _Forward_ tarjoaa sitten ajurin, jossa moderni tulostin toimii parhaiten ajurittomalla _IPP Everywhere_ -profiililla ja vanhempi haluaa mallin oman ajurin.
+Valitse _Add_ ja anna sille hetki aikaa etsiä: USB:n kautta kytketty tulostin ja useimmat verkkotulostimet löytyvät puolestasi. Jos omaasi ei ole luettelossa, valitse _Network Printer > Internet Printing Protocol (ipp)_ ja syötä sen osoite — tulostimen oma näyttö tai sen verkkosivu kertoo, mikä se on, yleensä jotain kuten `192.168.1.50` ja jonona `ipp/print`. _Forward_ tarjoaa sitten ajurin, jossa moderni tulostin toimii parhaiten ajurittomalla _IPP Everywhere_ -profiililla ja vanhempi haluaa mallin oman ajurin.
 
-Napsauta tulostinta hiiren kakkospainikkeella ja valitse _Set as Default_ valitaksesi, mihin sovelluksesi tarttuvat ensin, ja _Properties_ asettaaksesi paperikoko, kaksipuolisuus ja laatu.
+Napsauta tulostinta hiiren oikealla painikkeella ja valitse _Set as Default_ valitaksesi, mitä tulostinta sovelluksesi käyttävät ensin, ja _Properties_ asettaaksesi paperikoon, kaksipuolisuuden ja laadun.
 
-Automaattinen etsintä, jossa verkon tulostimet ilmestyvät ilman lisäämistä, on tilapäisesti pois käytöstä, kun sitä uudistetaan, minkä vuoksi yllä oleva ensimmäinen vaihe on sinun eikä automaattinen. Tulostaminen PDF-tiedostoon toimii ilman tulostinta lainkaan.
+Automaattinen etsintä, jossa verkon tulostimet tulevat näkyviin lisäämättä niitä, on tilapäisesti pois päältä, kun sitä uudistetaan, minkä vuoksi yllä oleva ensimmäinen vaihe on sinun tehtäväsi eikä automaattinen. Tulostaminen PDF-tiedostoon toimii ilman mitään tulostinta.
 
-### Miten vaihdan, minne kuvakaappaukset tai näytöntallennukset tallennetaan?
+### Miten muutan, minne kuvakaappaukset tai näyttötallenteet tallennetaan?
 
-Tallennetut kuvakaappaukset menevät oletuksena kansioon `~/Pictures/Screenshots`. Käyttääksesi toista hakemistoa lisää tämä tiedostoon hakemistossa `~/.config/uwsm/env.d/` (kuten `~/.config/uwsm/env.d/capture`):
+Tallennetut kuvakaappaukset menevät oletuksena kansioon `~/Pictures/Screenshots`. Jos haluat käyttää toista hakemistoa, lisää tämä tiedostoon hakemistossa `~/.config/uwsm/env.d/` (kuten `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Voit tehdä saman näytöntallennuksille käyttäen muuttujaa `OMARCHY_SCREENRECORD_DIR`.
+Voit tehdä saman näyttötallenteille käyttämällä muuttujaa `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap luo kuvakaappaushakemistonsa automaattisesti. Luo näytöntallennushakemisto itse ja käynnistä sitten Omarchy uudelleen, jotta ympäristömuutos tulee voimaan.
+Omasnap luo kuvakaappaushakemistonsa automaattisesti. Luo näyttötallenteiden hakemisto itse ja käynnistä sitten Omarchy uudelleen, jotta kumpikin ympäristömuutos tulee voimaan.
 
-### Miten saan kaiuttimet ja verkkokameran toimimaan Apple Studio Displayssäni?
+### Miten saan kaiuttimet + web-kameran toimimaan Apple Studio Display -näytössäni?
 
-Luulisi, että kaiken pitäisi toimia pelkällä USB C:n kytkemisellä, mutta valitettavasti niin ei ole. Ratkaisu, jonka olen löytänyt saadakseni sen toimimaan luotettavasti, on käyttää [WJESOG DisplayPort + USB-A => USB-C -kaapelia](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Sitten kaiuttimet ja verkkokamera toimivat kuin hurmio.
+Luulisi, että kaiken pitäisi toimia vain kytkemällä USB C, mutta valitettavasti näin ei ole. Ratkaisu, jonka olen löytänyt toimivan luotettavasti, on käyttää [WJESOG DisplayPort + USB-A => USB-C -kaapelia](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Sitten kaiuttimet ja web-kamera toimivat kuin unelma.
 
-Muista, että sinulla on Omarchyssa sisäänrakennettu kirkkaudensäätö Apple-näytöille (sekä Studio että XDR) tavallisilla näppäimistön kirkkauspainikkeilla.
+Muista, että Omarchyssä on sisäänrakennettu kirkkauden säätö Apple-näytöille (sekä Studio että XDR) tavallisilla näppäimistön kirkkauspainikkeilla.
 
-### Miten pääsen eroon kaikesta ylimääräisestä ohjelmistosta?
+### Miten pääsen eroon kaikista ylimääräisistä ohjelmistoista?
 
-Jos et halua ohjelmia kuten Obsidian tai LibreOffice tai mitään muuta esiasennettua, voit poistaa ne erittäin helposti.
+Jos et halua ohjelmia kuten Obsidian tai LibreOffice tai mitään muuta esiasennettua tavaraa, voit poistaa sen erittäin helposti.
 
-Aja _Poista > Package_ nähdäksesi jokaisen asennetun paketin. Sitten voit valita minkä tahansa paketin, jonka haluat poistaa, sarkaimella ja alkaa poistaa kaikkia valitsemiasi returnilla.
+Aja _Remove > Package_ nähdäksesi jokaisen asennetun paketin. Sitten voit valita tab-näppäimellä minkä tahansa paketin, jonka haluat poistaa, ja aloittaa kaiken valitsemasi poistamisen return-näppäimellä.
 
-Ja voit käyttää Omarchy-valikosta _Poista > Web App_ poistaaksesi minkä tahansa esiasennetuista verkkosovelluksista, joita et halua.
+Ja voit käyttää Omarchy-valikon kohtaa _Remove > Web App_ poistaaksesi minkä tahansa esiasennetuista verkko-sovelluksista, joita et halua.
 
-Tai aja _Poista > Preinstalls_ lakaistaksesi pois kaikki esiasennetut lisät — verkkosovellukset, TUI:t ja valinnaiset sovellukset — yhdellä kertaa. Niitä käynnistäneet pikanäppäimet lähtevät niiden mukana, joten sinulle jää puhdas lähtökohta sidoksille, jotka täytät omillasi tiedostossa `~/.config/hypr/bindings.lua`.
+Tai aja _Remove > Preinstalls_ lakaistaksesi kaikki esiasennetut lisät — verkko-sovellukset, TUI:t ja valinnaiset sovellukset — yhdellä kertaa. Niitä käynnistäneet pikanäppäimet katoavat niiden mukana, joten sinulle jää puhdas pohja sidonnoille, jotka voit täyttää omillasi tiedostossa `~/.config/hypr/bindings.lua`.
 
 ---
 
-Virheistä ja rikkinäisistä osista katso [Vianmääritys-osio](45-troubleshooting.md).
+Virheistä ja rikkinäisistä kohdista katso [vianmääritysosio](45-troubleshooting.md).

@@ -18,6 +18,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 WORK="$WORK" python3 - <<'PY'
 import contextlib
+import io
 import json
 import os
 import sqlite3
@@ -824,7 +825,21 @@ before = (db.parent / "opencode-v2.db").read_bytes()
 collectors.scan_opencode(["demo"], accept_demo)
 check("the database is opened read-only", (db.parent / "opencode-v2.db").read_bytes() == before)
 
+# opencode 2 keeps a key it's given in its credential table: the active one
+# of an integration is the key, an inactive one or another integration's isn't.
+with contextlib.closing(sqlite3.connect(db.parent / "opencode-v2.db")) as conn:
+  conn.execute("CREATE TABLE credential (id text PRIMARY KEY, integration_id text, label text NOT NULL, value text NOT NULL, connector_id text, method_id text, active integer, time_created integer NOT NULL, time_updated integer NOT NULL)")
+  conn.executemany("INSERT INTO credential VALUES (?, ?, 'k', ?, NULL, NULL, ?, 1, ?)", [
+    ("old", "fireworks-ai", json.dumps({"type": "key", "key": "fw_old"}), 0, 1),
+    ("new", "fireworks-ai", json.dumps({"type": "key", "key": "fw_new"}), 1, 2),
+    ("or", "openrouter", json.dumps({"type": "oauth", "key": "not-a-key"}), 1, 3),
+  ])
+  conn.commit()
+check("opencode's active credential is the key", collectors.opencode_credential_key("fireworks-ai") == "fw_new")
+check("a credential that isn't a key isn't one", collectors.opencode_credential_key("openrouter") == "")
+
 (db.parent / "opencode-v2.db").write_bytes(b"not a database at all, just bytes" * 200)
+check("an unreadable database has no key", collectors.opencode_credential_key("fireworks-ai") == "")
 rows, complete = collectors.scan_opencode(["demo"], accept_demo)
 check("a database error marks the scan incomplete", not complete and rows == [])
 
@@ -1319,6 +1334,16 @@ deep_header.write_text("[" * 200_000 + "\n")
 check("a session header nested deeper than the parser goes names no parent instead of stopping the scan",
       collectors.pi_parent_session(str(deep_header)) is None)
 
+# Bound both on-disk forms before decompression or splitting into lines.
+for extension in (".jsonl", ".jsonl.zstd"):
+  oversized = work / ("oversized" + extension)
+  with oversized.open("wb") as handle:
+    handle.truncate(collectors.DSH_MAX_LOG_BYTES + 1)
+  with contextlib.redirect_stderr(io.StringIO()):
+    oversized_result = collectors.dsh_log_lines(oversized)
+  check("oversized " + extension + " input is an incomplete scan", oversized_result == ([], False))
+  oversized.unlink()
+
 # --------------------------------------------------------------- accounts
 
 os.environ["XDG_STATE_HOME"] = str(work / "state")
@@ -1327,17 +1352,17 @@ registry.parent.mkdir(parents=True)
 registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}], "active": "main"}))
 check("a registry with one account adds nothing to the record", collectors.registered_accounts("demo") == [])
 check("no registry at all adds nothing either", collectors.registered_accounts("nothing") == [])
-registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}, {"label": "no id"}, "junk"], "active": "gone", "switch": "auto", "threshold": 80}))
+registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}, {"label": "no id"}, "junk"], "active": "gone", "threshold": 80}))
 accounts = collectors.registered_accounts("demo")
 check(
-  "registered accounts carry which is active (the first when the registry names none it has) and the switch settings",
-  [(a["id"], a["active"], a["switch"]) for a in accounts] == [("main", True, {"mode": "auto", "threshold": 80}), ("work", False, {"mode": "auto", "threshold": 80})],
+  "registered accounts carry which is active (the first when the registry names none it has) and the alert threshold",
+  [(a["id"], a["active"], a["switch"]) for a in accounts] == [("main", True, {"threshold": 80}), ("work", False, {"threshold": 80})],
   json.dumps(accounts),
 )
 for raw, held in ((20, 50), (180, 100), ("x", 95), (None, 95), (85.7, 85)):
   registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work"}], "threshold": raw}))
   check(f"a registry threshold of {raw!r} reads as {held}, as account state holds it", collectors.registered_accounts("demo")[0]["switch"]["threshold"] == held)
-registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}], "active": "gone", "switch": "auto", "threshold": 80}))
+registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}], "active": "gone", "threshold": 80}))
 limits = {"limits": [{"label": "Weekly", "percent": 0.5, "resetsAt": ""}], "live": False, "fetchedAtMs": 5, "usageStatusText": "", "authHelpText": "help"}
 entry = collectors.account_entry(accounts[1], limits, "", resetCredits=None)
 check(

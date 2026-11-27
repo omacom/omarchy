@@ -35,4 +35,9 @@ Singleton {
     interval: 5000
     onTriggered: watcher.running = true
   }
+
+  Component.onDestruction: {
+    restart.stop()
+    watcher.running = false
+  }
 }
