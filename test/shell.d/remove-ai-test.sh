@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
+trap 'chmod -R u+w "$tmp_dir" 2>/dev/null; rm -rf "$tmp_dir"' EXIT
 
 mkdir -p "$tmp_dir/bin"
 
@@ -15,8 +15,9 @@ printf 'drop:%s\n' "$*" >>"$TEST_LOG"
 SCRIPT
 chmod +x "$tmp_dir/bin/omarchy-pkg-drop"
 
-# omarchy-remove-ai-claude quits the running app before deleting its state;
-# a real pkill here would take the developer's own Claude with it.
+# omarchy-remove-ai-chatgpt and omarchy-remove-ai-claude quit the running app
+# before deleting its state; a real pkill here would take the developer's own
+# ChatGPT or Claude with it.
 cat >"$tmp_dir/bin/pkill" <<'SCRIPT'
 #!/bin/bash
 printf 'pkill:%s\n' "$*" >>"$TEST_LOG"
@@ -57,11 +58,59 @@ mkdir -p "$HOME/.config/Codex" "$HOME/.cache/Codex" "$HOME/.cache/codex-runtimes
 [[ ! -e $HOME/.config/Codex ]] || fail "ChatGPT removal deletes the desktop app's config"
 pass "ChatGPT removal deletes the desktop app's config"
 
+[[ ! -e $HOME/.cache/Codex ]] || fail "ChatGPT removal deletes the desktop app's caches"
+pass "ChatGPT removal deletes the desktop app's caches"
+
 [[ -d $HOME/.cache/codex-runtimes/codex-primary-runtime ]] || fail "ChatGPT removal keeps the Codex CLI's runtime cache"
 pass "ChatGPT removal keeps the Codex CLI's runtime cache"
 
 [[ -d $HOME/.codex ]] || fail "ChatGPT removal keeps the Codex CLI's config"
 pass "ChatGPT removal keeps the Codex CLI's config"
+
+grep -qx 'pkill:-x ChatGPT' "$TEST_LOG" || fail "ChatGPT removal quits the running app before deleting its state"
+pass "ChatGPT removal quits the running app before deleting its state"
+
+# The app's artifact runtime extracts into directories the user owns but
+# cannot write to (dr-x------), and rm -rf cannot delete a file inside one, so
+# the removal opens them first (#16033). As root rm -rf ignores the write
+# permission, so there the fixture cannot show the failure.
+if (( EUID == 0 )); then
+  skip "running as root, where rm -rf ignores read-only directories; skipping read-only Codex config removal"
+else
+  fresh_home
+  readonly_codex_dirs=(
+    "$HOME/.config/Codex/artifact-sessions/runtime-generations/generation-1/runtime"
+    "$HOME/.config/Codex/artifact-sessions/runtime-generations/generation-1/runtime/bin"
+    "$HOME/.config/Codex/artifact-sessions/runtime-generations/generation-1/runtime/node_modules/@oai/artifact-tool"
+    "$HOME/.cache/Codex/artifact-sessions/runtime-generations/generation-2/runtime"
+  )
+  mkdir -p "${readonly_codex_dirs[@]}"
+  printf 'module.exports = {}\n' >"${readonly_codex_dirs[1]}/index.js"
+  printf 'cache\n' >"${readonly_codex_dirs[3]}/cache.dat"
+  chmod 500 "${readonly_codex_dirs[@]}"
+  "$ROOT/bin/omarchy-remove-ai-chatgpt" >"$tmp_dir/out" 2>"$tmp_dir/err" ||
+    fail "ChatGPT removal exits 0 on a read-only Codex config" "$(cat "$tmp_dir/out" "$tmp_dir/err")"
+
+  for gone in .config/Codex .cache/Codex; do
+    [[ ! -e $HOME/$gone ]] || fail "ChatGPT removal takes the read-only Codex config and cache with it" "$gone"
+  done
+  pass "ChatGPT removal takes the read-only Codex config and cache with it"
+
+  grep -q "ChatGPT has been removed." "$tmp_dir/out" ||
+    fail "ChatGPT removal reports success on a read-only Codex config" "$(cat "$tmp_dir/out" "$tmp_dir/err")"
+  pass "ChatGPT removal reports success on a read-only Codex config"
+
+  # A Codex directory that is a symlink goes; the target it points at stays
+  # as it was, permissions included.
+  fresh_home
+  mkdir -p "$tmp_dir/linked/runtime" "$HOME/.config"
+  chmod 500 "$tmp_dir/linked/runtime"
+  ln -s "$tmp_dir/linked" "$HOME/.config/Codex"
+  "$ROOT/bin/omarchy-remove-ai-chatgpt" >/dev/null 2>&1 || fail "ChatGPT removal exits 0 on a symlinked Codex config"
+  [[ ! -e $HOME/.config/Codex && ! -L $HOME/.config/Codex && $(stat -c %a "$tmp_dir/linked/runtime") == "500" ]] ||
+    fail "ChatGPT removal removes a symlinked Codex config and leaves its target untouched" "$(ls -la "$HOME/.config" "$tmp_dir/linked" 2>&1)"
+  pass "ChatGPT removal removes a symlinked Codex config and leaves its target untouched"
+fi
 
 # The Claude Code CLI ships in its own package and keeps its state in
 # ~/.claude, ~/.claude.json, and ~/.cache/claude-cli-nodejs, so removing the
