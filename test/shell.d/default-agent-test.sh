@@ -131,6 +131,8 @@ export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
+# A runner inside a crash diagnosis would carry its marker into every launch.
+unset OMARCHY_CRASH_DIAGNOSIS
 
 # An agent in ~/.local/bin is the user's own, from its own installer, and
 # Remove Preinstalls has no business with it.
@@ -1059,3 +1061,25 @@ OMARCHY_TEST_MISSING_COMMAND=claude omarchy-agent </dev/null >/dev/null 2>&1
   fail "launching a claude that isn't installed installs it first" "$(tr '\0' ' ' <"$terminal_log")"
 [[ ! -s $launch_log ]] || fail "a claude that isn't installed opens no window before it is"
 pass "launching an agent whose CLI isn't installed installs it, then opens it"
+
+# omarchy-agent-crash marks a diagnosis, and uwsm does not pass our environment
+# on, so the marker rides in the terminal's command, directly in front of the
+# agent wherever any wrapper puts that, and in the relaunch an install runs.
+: >"$launch_log"
+printf '%s\n' opencode >"$agent_file"
+OMARCHY_CRASH_DIAGNOSIS=4242:1700000000 omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+carried=false
+for ((index = 0; index + 2 < ${#launch_args[@]}; index++)); do
+  if [[ ${launch_args[index]} == "env" && ${launch_args[index + 1]} == "OMARCHY_CRASH_DIAGNOSIS=4242:1700000000" &&
+    ${launch_args[index + 2]} == "opencode" ]]; then
+    carried=true
+  fi
+done
+[[ $carried == "true" ]] ||
+  fail "a crash diagnosis's marker does not reach the agent's terminal command" "argv: ${launch_args[*]}"
+: >"$terminal_log"
+OMARCHY_CRASH_DIAGNOSIS=4242:1700000000 OMARCHY_TEST_MISSING_COMMAND=opencode omarchy-agent </dev/null >/dev/null 2>&1
+[[ $(tr '\0' ' ' <"$terminal_log") == *"&& env OMARCHY_CRASH_DIAGNOSIS=4242:1700000000 omarchy-agent "* ]] ||
+  fail "a crash diagnosis's marker is lost when its agent is installed first" "$(tr '\0' ' ' <"$terminal_log")"
+pass "a crash diagnosis's marker rides in the agent's terminal command, an install's relaunch included"

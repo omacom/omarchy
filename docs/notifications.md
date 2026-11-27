@@ -207,12 +207,7 @@ The `notifications` IPC target also answers `ping` (used by `omarchy-notificatio
 Everything goes through the same sender contract, so the pieces are small:
 
 - **Low battery** — `omarchy-battery-low` sends a normal toast that expires after 30 seconds (paused, like any card, while the deck is open) and runs the `battery-low` hook. Not critical: a critical toast never expires and comes back on every shell start, so the warning would outlive the charger going in. As an `omarchy-action` toast it still gets through Do Not Disturb.
-- **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump
-  journal stream and announces each crashed program (deduped per minute) as a
-  critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a
-  hostile process name stays a discrete argument). It waits for the
-  server first: a shell crash takes the notification server down with it, and
-  that crash is the one most worth reporting.
+- **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump journal stream and announces each crashed program (deduped per minute) as a critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a hostile process name stays a discrete argument). It waits for the server first: a shell crash takes the notification server down with it, and that crash is the one most worth reporting. A diagnosis runs with `OMARCHY_CRASH_DIAGNOSIS=<pid>:<start>` in its environment, inherited by what is started directly from the agent's terminal (a nested `omarchy agent` launch included), though not by a program started in a `systemd-run` unit of its own (as `omarchy-launch-browser` starts a browser), nor by anything an agent runs from a background service rather than from its terminal. For `OMARCHY_CRASH_DIAGNOSIS_MAX_SECONDS` (an hour) from the start, a crash carrying it is announced without the diagnose action. The diagnosed program is also stamped, one line per diagnosis, under `~/.local/state/omarchy/crash-diagnosis`, and its crashes are announced without the action for `OMARCHY_CRASH_DIAGNOSIS_COOLDOWN_SECONDS` (ten minutes), then for as long as a process still carries that diagnosis's marker, up to the hour, so one diagnosis never chains another. A click on an older toast for a program held this way says so and offers `omarchy agent crash --again` to start another anyway.
 - **Pending migrations** — `omarchy-migrate-notify` (from its user service
   after `graphical-session.target`) waits for the server, then sends a
   critical toast whose click opens a terminal running `omarchy-migrate`,
