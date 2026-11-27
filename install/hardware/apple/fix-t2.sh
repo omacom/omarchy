@@ -39,6 +39,9 @@ if omarchy-hw-pci 106b:1801 106b:1802; then
   install -Dm644 "$OMARCHY_PATH/default/systemd/system/omarchy-t2-prochot.service" \
     /etc/systemd/system/omarchy-t2-prochot.service
   systemctl enable omarchy-t2-prochot.service
+  if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
+    systemctl start --no-block omarchy-t2-prochot.service || true
+  fi
 
   omarchy-boot-cmdline set t2-mac intel_iommu=on iommu=pt pm_async=off mem_sleep_default=deep
 
