@@ -1,16 +1,9 @@
-# Disk unlock, display power and sleep on the ASUS Zenbook A16 UX3607OA (Snapdragon X2 Elite).
+# Disk unlock and display power on the ASUS Zenbook A16 UX3607OA (Snapdragon X2 Elite).
 
 mkinitcpio_dir=${OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 limine_config_dir=${OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
-sleep_config_dir=${OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR:-/etc/systemd/sleep.conf.d}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  # Suspend is configured by asus-zenbook-a16-support (/usr/lib/systemd/sleep.conf.d/
-  # 60-zenbook-a16.conf, 90-asus-zenbook-a16-power.rules, and the zenbook-a16-sleep
-  # hook) together with linux-omarchy-dtbs >= 7.3-75. Clear any legacy /etc sleep
-  # overrides left from earlier installs so s2idle reaches full SoC deep sleep.
-  rm -f "$sleep_config_dir/omarchy-sleep-disabled.conf" "$sleep_config_dir/zenbook-a16.conf"
-
   # Bring up the keyboard, the embedded controller and the USB-C and USB-A
   # chains before disk unlock. The ? skips a module a kernel does not have.
   # The DSP driver stays out: listing it here would bypass the USB-root guard.
