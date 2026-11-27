@@ -1,0 +1,354 @@
+#!/bin/bash
+
+# omarchy:summary=Check that the desktop and system services answer after an update
+# omarchy:alias=omarchy up health
+
+# Read-only probes, run at the end of omarchy update and on demand. Each one
+# passes, fails, or is skipped with its reason, and each runs under a timeout
+# so a wedged service is reported rather than waited on. The report is only
+# information: it never prompts, never starts or changes anything, and exits 0
+# whatever it found, so an unattended update is never held up by it.
+#
+# omarchy update passes two things in: OMARCHY_UPDATE_HEALTH_BASELINE, a
+# directory listing the units that had already failed before it, one file per
+# scope (system, user), and the package database's problems (packages), and
+# OMARCHY_UPDATE_HEALTH_SNAPSHOT=1 when it took a snapshot first.
+#
+# Like the rest of omarchy update, what the report itself writes goes through
+# omarchy-i18n; what a probed command printed is relayed as it printed it.
+# Hyprland and Omarchy are names, the same in every language.
+
+# timeout takes 0 as no limit at all and fails on anything that is not a
+# number, so only a positive number is used.
+probe_timeout=${OMARCHY_UPDATE_HEALTH_TIMEOUT:-5}
+if [[ ! $probe_timeout =~ ^([0-9]+\.?[0-9]*|\.[0-9]+)$ || ! $probe_timeout =~ [1-9] ]]; then
+  probe_timeout=5
+fi
+runtime_dir=${XDG_RUNTIME_DIR:-}
+baseline=${OMARCHY_UPDATE_HEALTH_BASELINE:-}
+failed=()
+
+word_passed=$(omarchy-i18n update.healthPassed)
+word_failed=$(omarchy-i18n update.healthFailed)
+word_skipped=$(omarchy-i18n update.healthSkipped)
+word_noted=$(omarchy-i18n update.healthNoted)
+word_width=0
+for word in "$word_passed" "$word_failed" "$word_skipped" "$word_noted"; do
+  (( ${#word} <= word_width )) || word_width=${#word}
+done
+
+# Only what a probe prints on stdout is read; a warning on stderr, such as
+# nmcli's after an upgrade replaced NetworkManager under it, is kept aside as
+# the reason if the probe fails.
+probe_errors=$(mktemp 2>/dev/null) || probe_errors=/dev/null
+trap '[[ $probe_errors == /dev/null ]] || rm -f "$probe_errors"' EXIT
+
+# The names line up in one column, two spaces past the longest word for a
+# result in the current language.
+report() {
+  local result="$1" name="$2" detail="${3:-}" color word
+
+  case $result in
+    passed) color=32 word=$word_passed ;;
+    failed) color=31 word=$word_failed; failed+=("$name") ;;
+    skipped) color=33 word=$word_skipped ;;
+    noted) color=34 word=$word_noted ;;
+  esac
+  printf '  \e[%sm%s\e[0m%*s%s' "$color" "$word" "$(( word_width + 2 - ${#word} ))" "" "$name"
+  [[ -z $detail ]] || printf ' (%s)' "$detail"
+  printf '\n'
+}
+
+first_line() {
+  local text="$1"
+
+  text=${text#"${text%%[!$'\n']*}"}
+  printf '%s' "${text%%$'\n'*}"
+}
+
+# Runs a command under the probe timeout, leaving its stdout in probe_output.
+# probe_reason is the first line of that on success, and on failure the first
+# line of what it printed to stderr, else to stdout, else its exit status.
+probe() {
+  local status=0 errors=""
+
+  probe_output=$(timeout --kill-after=1 "$probe_timeout" "$@" 2>"$probe_errors") || status=$?
+  if (( status == 124 || status == 137 )); then
+    probe_reason=$(omarchy-i18n update.healthNoAnswer "$probe_timeout")
+    return "$status"
+  fi
+
+  (( status == 0 )) || errors=$(first_line "$(<"$probe_errors")")
+  probe_reason=${errors:-$(first_line "$probe_output")}
+  if [[ -z $probe_reason ]] && (( status != 0 )); then
+    probe_reason=$(omarchy-i18n update.healthExitStatus "$status")
+  fi
+
+  return "$status"
+}
+
+check() {
+  local name="$1"
+  shift
+
+  if probe "$@"; then
+    report passed "$name"
+  else
+    report failed "$name" "$probe_reason"
+  fi
+}
+
+# Failed units are listed by name, since that is where a look starts. Units
+# that had already failed before the update are noted, not failed: the update
+# did not break them, and rolling it back would not mend them. Without that
+# list nothing tells the two apart, so every failed unit fails the check.
+check_failed_units() {
+  local name="$1" scope="$2" unit
+  local -a units new=() old=()
+  shift 2
+
+  if ! probe systemctl "$@" --failed --no-legend --plain; then
+    report failed "$name" "$probe_reason"
+    return
+  fi
+
+  mapfile -t units < <(awk 'NF { print $1 }' <<<"$probe_output")
+  if [[ -z $baseline || ! -r $baseline/$scope ]]; then
+    if (( ${#units[@]} == 0 )); then
+      report passed "$name"
+    else
+      report failed "$name" "$(omarchy-i18n update.healthMayPredate "${units[*]}")"
+    fi
+    return
+  fi
+
+  for unit in "${units[@]}"; do
+    if grep -qxF -- "$unit" "$baseline/$scope"; then
+      old+=("$unit")
+    else
+      new+=("$unit")
+    fi
+  done
+
+  if (( ${#new[@]} == 0 )); then
+    report passed "$name"
+  else
+    report failed "$name" "${new[*]}"
+  fi
+  (( ${#old[@]} == 0 )) || report noted "$name" "$(omarchy-i18n update.healthFailedBefore "${old[*]}")"
+}
+
+# Each problem is a sentence of its own, so they are listed apart by "; ".
+# Past the first three the rest are only counted: pacman -Dk prints a line
+# for every file owned twice, which could bury the report in one line.
+join_problems() {
+  local joined
+
+  printf -v joined '%s; ' "${@:1:3}"
+  joined=${joined%; }
+  if (( $# > 3 )); then
+    joined=$(omarchy-i18n update.healthAndMore "$joined" "$(( $# - 3 ))")
+  fi
+  printf '%s' "$joined"
+}
+
+# pacman -Dk prints each problem it finds in the package database as an
+# error: a dependency missing, a conflict, a file owned twice. Problems that
+# were there before the update are noted, not failed, as with units: a package
+# removed with -Rdd, say, leaves one that rolling the update back would not
+# mend. Without that list every problem fails the check.
+check_package_database() {
+  local name="$1" status=0 line
+  local -a problems new=() old=()
+
+  probe pacman -Dkq || status=$?
+  if (( status == 0 )); then
+    report passed "$name"
+    return
+  fi
+  if (( status == 124 || status == 137 )) || [[ -z $baseline || ! -r $baseline/packages ]]; then
+    report failed "$name" "$probe_reason"
+    return
+  fi
+
+  mapfile -t problems < <({ cat "$probe_errors"; printf '%s\n' "$probe_output"; } | grep .)
+  for line in "${problems[@]}"; do
+    if grep -qxF -- "$line" "$baseline/packages"; then
+      old+=("$line")
+    else
+      new+=("$line")
+    fi
+  done
+
+  if (( ${#new[@]} > 0 )); then
+    report failed "$name" "$(join_problems "${new[@]}")"
+  elif (( ${#old[@]} == 0 )); then
+    report failed "$name" "$probe_reason"
+  else
+    report passed "$name"
+  fi
+  if (( ${#old[@]} > 0 )); then
+    report noted "$name" "$(omarchy-i18n update.healthProblemBefore "$(join_problems "${old[@]}")")"
+  fi
+}
+
+user_bus=0
+[[ -z $runtime_dir || ! -S $runtime_dir/bus ]] || user_bus=1
+
+# The shell and the notification server live in the Wayland session. An
+# update from a TTY or over SSH while no desktop is running has none to check.
+# The session's display is looked for first, by its name in the runtime
+# directory or, as omarchy-shell also takes it, an absolute path to its socket.
+# One whose socket is gone, or none at all, falls back to any display there.
+wayland_session=0
+display_socket=${WAYLAND_DISPLAY:-}
+if [[ -n $display_socket && $display_socket != /* ]]; then
+  display_socket=${runtime_dir:+$runtime_dir/$display_socket}
+fi
+if [[ -n $display_socket && -S $display_socket ]]; then
+  wayland_session=1
+elif [[ -n $runtime_dir ]]; then
+  for socket in "$runtime_dir"/wayland-[0-9]*; do
+    [[ ! -S $socket ]] || wayland_session=1
+  done
+fi
+
+# hyprctl reaches the compositor through its instance signature. One left over
+# from an earlier session, say in a tmux server, or none at all over SSH, is
+# replaced by the newest instance whose socket is still there.
+signature=${HYPRLAND_INSTANCE_SIGNATURE:-}
+if [[ -z $runtime_dir ]]; then
+  signature=""
+elif [[ -z $signature || ! -S $runtime_dir/hypr/$signature/.socket.sock ]]; then
+  signature=$(find "$runtime_dir/hypr" -mindepth 2 -maxdepth 2 -name .socket.sock -type s -printf '%T@ %h\n' 2>/dev/null |
+    sort -n | tail -n 1 | cut -d' ' -f2-)
+  signature=${signature##*/}
+fi
+
+echo -e "\e[32m\n$(omarchy-i18n update.health)\e[0m"
+
+no_wayland=$(omarchy-i18n update.healthNoWayland)
+no_user_bus=$(omarchy-i18n update.healthNoUserBus)
+
+if [[ -z $signature ]]; then
+  report skipped "Hyprland" "$(omarchy-i18n update.healthNoHyprland)"
+else
+  check "Hyprland" env HYPRLAND_INSTANCE_SIGNATURE="$signature" hyprctl version
+fi
+
+# The shell answers on the socket of the checkout the session started from,
+# which a caller opened after omarchy dev link or unlink may not share. The
+# user manager holds the session's own OMARCHY_PATH.
+shell_name=$(omarchy-i18n update.healthShell)
+if (( ! wayland_session )); then
+  report skipped "$shell_name" "$no_wayland"
+else
+  session_path=""
+  if (( user_bus )) && probe systemctl --user show-environment; then
+    session_path=$(sed -n 's/^OMARCHY_PATH=//p' <<<"$probe_output" | tail -n 1)
+  fi
+  check "$shell_name" env OMARCHY_PATH="${session_path:-$OMARCHY_PATH}" omarchy-shell shell ping
+fi
+
+# --auto-start=no: an activatable notification service must not be started
+# by the question, which would also pass a server that was not running. With
+# no server answering, the shell is asked whether its own was turned off
+# (omarchy plugin disable omarchy.notifications): then none need answer. A
+# shell that does not say so leaves the failure standing.
+notifications_name=$(omarchy-i18n update.healthNotifications)
+if (( ! wayland_session )); then
+  report skipped "$notifications_name" "$no_wayland"
+elif (( ! user_bus )); then
+  report skipped "$notifications_name" "$no_user_bus"
+elif probe busctl --user --auto-start=no call org.freedesktop.Notifications /org/freedesktop/Notifications \
+  org.freedesktop.Notifications GetServerInformation; then
+  report passed "$notifications_name"
+else
+  notifications_reason=$probe_reason
+  if probe env OMARCHY_PATH="${session_path:-$OMARCHY_PATH}" omarchy-shell shell listPlugins &&
+    jq -e '.[] | select(.id == "omarchy.notifications") | .enabled == false' <<<"$probe_output" >/dev/null 2>&1; then
+    report skipped "$notifications_name" "$(omarchy-i18n update.healthNotificationsOff)"
+  else
+    report failed "$notifications_name" "$notifications_reason"
+  fi
+fi
+
+# PipeWire is socket activated and pulls WirePlumber in, so its socket is
+# there on every login and asking wpctl would start both. Only a running pair
+# is asked; one that failed is a failure, one never started is skipped.
+audio_name=$(omarchy-i18n update.healthAudio)
+if (( ! user_bus )); then
+  report skipped "$audio_name" "$no_user_bus"
+else
+  probe systemctl --user is-active pipewire.service wireplumber.service
+  mapfile -t states <<<"$probe_output"
+  if (( ${#states[@]} != 2 )); then
+    report failed "$audio_name" "$probe_reason"
+  elif [[ ${states[0]} == "failed" || ${states[1]} == "failed" ]]; then
+    report failed "$audio_name" "$(omarchy-i18n update.healthAudioUnits "${states[0]}" "${states[1]}")"
+  elif [[ ${states[0]} != "active" ]]; then
+    report skipped "$audio_name" "$(omarchy-i18n update.healthPipewireStopped)"
+  elif [[ ${states[1]} != "active" ]]; then
+    report failed "$audio_name" "$(omarchy-i18n update.healthWireplumberStopped)"
+  elif ! probe wpctl status; then
+    report failed "$audio_name" "$probe_reason"
+  elif [[ $probe_output != *WirePlumber* ]]; then
+    report failed "$audio_name" "$(omarchy-i18n update.healthWireplumberDisconnected)"
+  else
+    report passed "$audio_name"
+  fi
+fi
+
+# nmcli localizes its states, so pin the locale before matching them. Any
+# connected state passes: a network that only reaches the local site still
+# has a working NetworkManager.
+network_name=$(omarchy-i18n update.healthNetwork)
+if ! probe env LC_ALL=C nmcli -t -f STATE general; then
+  report failed "$network_name" "$probe_reason"
+elif [[ $probe_output == connected* ]]; then
+  report passed "$network_name"
+else
+  report failed "$network_name" "$(omarchy-i18n update.healthNetworkState "$probe_reason")"
+fi
+
+check_failed_units "$(omarchy-i18n update.healthSystemServices)" system
+user_services_name=$(omarchy-i18n update.healthUserServices)
+if (( ! user_bus )); then
+  report skipped "$user_services_name" "$no_user_bus"
+else
+  check_failed_units "$user_services_name" user --user
+fi
+
+check_package_database "$(omarchy-i18n update.healthPackageDatabase)"
+
+# A dev checkout's version is "dev (<hash>)", flattened so it does not nest
+# inside the report's own parentheses.
+if ! probe omarchy-version; then
+  report failed "Omarchy" "$probe_reason"
+elif [[ -z $probe_output ]]; then
+  report failed "Omarchy" "$(omarchy-i18n update.healthNoVersion)"
+else
+  version=$probe_reason
+  if [[ $version =~ ^dev\ \((.+)\)$ ]]; then
+    version="dev ${BASH_REMATCH[1]}"
+  fi
+  report passed "Omarchy" "$version"
+fi
+
+echo
+if (( ${#failed[@]} > 0 )); then
+  summary=${failed[0]}
+  for name in "${failed[@]:1}"; do
+    summary+=", $name"
+  done
+  echo -e "\e[33m$(omarchy-i18n update.healthFailedChecks "$summary")\e[0m"
+  echo "$(omarchy-i18n update.healthReportOnly)"
+  # Only a snapshot this update took is one to point at. Booted from the boot
+  # menu, Limine's or systemd-boot's, restore makes that snapshot the system.
+  if [[ ${OMARCHY_UPDATE_HEALTH_SNAPSHOT:-} == "1" ]]; then
+    echo "$(omarchy-i18n update.healthRollback "omarchy snapshot restore")"
+  fi
+  echo
+fi
+
+exit 0
