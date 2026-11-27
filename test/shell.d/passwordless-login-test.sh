@@ -77,8 +77,34 @@ case "$action" in
     done
     ;;
   luksAddKey)
+    stdin_key=0
+    while (($# > 2)); do
+      case "$1" in
+        --iter-time) shift 2 ;;
+        --key-file)
+          [[ $2 == "-" ]] && stdin_key=1
+          shift 2
+          ;;
+        *) shift ;;
+      esac
+    done
     keyfile=$2
     [[ -f $keyfile ]] || exit 1
+    if (( stdin_key )); then
+      entered=$(cat)
+      matched=0
+      for f in "$SLOTS_DIR"/*; do
+        [[ -f $f ]] || continue
+        if [[ $entered == "$(<"$f")" ]]; then
+          matched=1
+          break
+        fi
+      done
+      if (( matched == 0 )); then
+        echo "No key available with this passphrase." >&2
+        exit 2
+      fi
+    fi
     next=1
     while [[ -f "$SLOTS_DIR/$next" ]]; do
       next=$((next + 1))
@@ -156,6 +182,19 @@ case "$sub" in
     ;;
   confirm)
     exit "${TEST_GUM_CONFIRM:-0}"
+    ;;
+  input)
+    printf '%s\n' "${TEST_PASSPHRASE:-user-passphrase}"
+    ;;
+  spin)
+    while (($#)); do
+      if [[ $1 == "--" ]]; then
+        shift
+        break
+      fi
+      shift
+    done
+    "$@"
     ;;
 esac
 STUB
@@ -295,3 +334,10 @@ if run_cmd 1 >/dev/null 2>&1; then
 fi
 [[ $(<"$FAKE_ROOT/crypto_keyfile.bin") == "existing-custom-key" ]] || fail "unmanaged keyfile content stays untouched"
 pass "rejects non-LUKS root drives and preserves unmanaged /crypto_keyfile.bin"
+
+# 8. Wrong disk passphrase fails cleanly and rolls back the keyfile
+reset_fixture
+wrong_err=$(TEST_PASSPHRASE="wrong-password" run_cmd 1 2>&1) && fail "wrong disk passphrase fails" || true
+[[ $wrong_err == *"No key available with this passphrase."* ]] || fail "wrong passphrase prints cryptsetup error" "$wrong_err"
+[[ ! -e $FAKE_ROOT/crypto_keyfile.bin && ! -e $SLOTS_DIR/1 ]] || fail "wrong passphrase rolls back keyfile and adds no slot"
+pass "wrong disk passphrase prints error and rolls back cleanly"
