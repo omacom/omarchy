@@ -167,6 +167,7 @@ Singleton {
         restart.restart()
       } else {
         root.applyProfile(profileFile.text())
+        root.refreshProfilePath()
       }
     }
   }
