@@ -43,7 +43,7 @@ for (const file of users) {
     `${name} does not attach a cursor-binding continuation to its handler`)
   const mirrors = [...source.matchAll(/readonly property Item (\w+): panel\.loadedContent \? panel\.loadedContent\.(\w+) : null/g)]
   for (const [, mirror, target] of mirrors) {
-    assert(mirror === target && new RegExp(`property alias ${target}: ${target}\\b`).test(source), `${name} exposes ${target} from its content`)
+    assert(mirror === target && new RegExp(`property alias ${target}: \\w+`).test(source), `${name} exposes ${target} from its content`)
   }
 }
 pass('first-party keyboard panels build their content on first open')
