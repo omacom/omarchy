@@ -56,7 +56,7 @@ def usage(request):
 ROUTES = {"/payment/checklist": checklist, "/payment/usage": usage}
 
 
-def item(model, units, pricing_type="token", cost=0):
+def item(model, units, pricing_type="input_tokens", cost=0):
   return {
     "model": {"provider": "deepinfra", "model_name": model, "task": "text-generation"},
     "units": units, "rate": 0.0, "cost": cost, "pricing_type": pricing_type,
@@ -118,6 +118,19 @@ expect("only token-metered rows count as tokens; a GPU-rental second row doesn't
        [True, {"Llama-3.3-70B-Instruct": {"inputTokens": 1000, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0}}, 1],
        record)
 
+# ---------------------------------------------------------- the recent spend
+
+# recentSpend is a dollar total, so unlike the token stats it counts every
+# pricing_type, GPU rental included -- real money spent either way.
+sandbox()
+write_key()
+USAGE_ITEMS.append(item("meta-llama/Llama-3.3-70B-Instruct", 1000, cost=50))
+USAGE_ITEMS.append(item("stability-ai/sdxl", 42, pricing_type="second", cost=75))
+record = deepinfra()
+USAGE_ITEMS.clear()
+expect("recentSpend sums cost across every pricing_type, in dollars, over a fixed 48-hour window",
+       record["recentSpend"], {"amount": 1.25, "hours": 48, "currency": "USD", "estimated": False}, record)
+
 # ---------------------------------------------------------------- caching
 
 sandbox()
@@ -128,7 +141,8 @@ with FakeHttp({"/payment/checklist": lambda r: (_ for _ in ()).throw(AssertionEr
                "/payment/usage": lambda r: (_ for _ in ()).throw(AssertionError("should not be asked"))}):
   reused = collect("deepinfra")
 expect("a normal run inside the probe interval reuses the fresh answer, asking nothing",
-       [reused["balance"], reused["limitsFetchedAt"], reused["limitsStale"]], [fresh["balance"], fresh["limitsFetchedAt"], False], reused)
+       [reused["balance"], reused["recentSpend"], reused["limitsFetchedAt"], reused["limitsStale"]],
+       [fresh["balance"], fresh["recentSpend"], fresh["limitsFetchedAt"], False], reused)
 
 forced = deepinfra("--force")
 check("--force asks the service again even inside the probe interval", forced["limitsFetchedAt"] >= fresh["limitsFetchedAt"])
@@ -140,8 +154,9 @@ write_key()
 good = deepinfra("--force")
 with FakeHttp(ROUTES, mode=500):
   kept = collect("deepinfra", "--force")
-expect("a failed check (500) keeps the last balance, stale, with no retry",
-       [kept["balance"], kept["limitsStale"], kept.get("retryAdvised", False)], [good["balance"], True, False], kept)
+expect("a failed check (500) keeps the last balance and recent spend, stale, with no retry",
+       [kept["balance"], kept["recentSpend"], kept["limitsStale"], kept.get("retryAdvised", False)],
+       [good["balance"], good["recentSpend"], True, False], kept)
 expect("a failed check reports no status text of its own", kept["usageStatusText"], "", kept)
 
 with FakeHttp(ROUTES, mode="down"):
