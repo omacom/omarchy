@@ -84,7 +84,7 @@ _omarchy_complete() {
 
   if [[ -n ${command_path:-} && -x $command_path ]] && (( COMP_CWORD == first_arg_index || ${#candidates[@]} == 0 )); then
     local args spec alt token actual alts value match current_arg_index
-    args=$(grep -m 1 '^# omarchy:args=' "$command_path" 2>/dev/null)
+    args=$(grep -m 1 '^# omarchy:args=' "$command_path" 2>/dev/null) || true
     args="${args#*omarchy:args=}"
     current_arg_index=$((COMP_CWORD - first_arg_index))
 
