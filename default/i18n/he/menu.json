@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "שחזר תמונת מצב זו"
+  },
+  "setup.security.passwordless-login": {
+    "label": "כניסה ללא סיסמה"
   }
 }

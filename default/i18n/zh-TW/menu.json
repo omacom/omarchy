@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "還原此快照"
+  },
+  "setup.security.passwordless-login": {
+    "label": "免密碼登入"
   }
 }

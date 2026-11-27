@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "यह स्नैपशॉट पुनर्स्थापित करें"
+  },
+  "setup.security.passwordless-login": {
+    "label": "पासवर्ड-रहित लॉगिन"
   }
 }

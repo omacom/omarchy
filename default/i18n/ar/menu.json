@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "استعادة هذه اللقطة"
+  },
+  "setup.security.passwordless-login": {
+    "label": "تسجيل الدخول بدون كلمة مرور"
   }
 }

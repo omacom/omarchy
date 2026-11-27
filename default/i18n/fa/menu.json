@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "بازیابی این اسنپ‌شات"
+  },
+  "setup.security.passwordless-login": {
+    "label": "ورود بدون رمز"
   }
 }

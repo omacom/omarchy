@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "මෙම ස්නැප්ෂොටය ප්‍රතිස්ථාපනය කරන්න"
+  },
+  "setup.security.passwordless-login": {
+    "label": "මුරපද රහිත පිවිසුම"
   }
 }

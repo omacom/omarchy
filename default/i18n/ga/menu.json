@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Athchuir an Seatradán Seo"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Logáil Isteach Gan Pasfhocal"
   }
 }

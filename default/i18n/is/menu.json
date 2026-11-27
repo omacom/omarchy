@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Endurheimta þessa skyndimynd"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Innskráning án lykilorðs"
   }
 }

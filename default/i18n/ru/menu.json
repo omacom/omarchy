@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Восстановить этот снимок"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Беспарольный вход"
   }
 }

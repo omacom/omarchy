@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Rejesha Snapshot Hii"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Kuingia Bila Nenosiri"
   }
 }

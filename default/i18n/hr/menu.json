@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Vrati ovu snimku"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Prijava bez lozinke"
   }
 }

@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "กู้คืนสแนปชอตนี้"
+  },
+  "setup.security.passwordless-login": {
+    "label": "เข้าสู่ระบบแบบไร้รหัสผ่าน"
   }
 }

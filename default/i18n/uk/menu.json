@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Відновити цей знімок"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Вхід без пароля"
   }
 }

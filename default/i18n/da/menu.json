@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Gendan dette snapshot"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Login uden adgangskode"
   }
 }

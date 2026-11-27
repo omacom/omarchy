@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "இந்த ஸ்னாப்ஷாட்டை மீட்டமை"
+  },
+  "setup.security.passwordless-login": {
+    "label": "கடவுச்சொல்லற்ற உள்நுழைவு"
   }
 }

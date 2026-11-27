@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Atjaunot šo momentuzņēmumu"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Pieteikšanās bez paroles"
   }
 }

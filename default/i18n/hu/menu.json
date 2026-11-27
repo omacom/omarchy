@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Pillanatkép visszaállítása"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Jelszó nélküli bejelentkezés"
   }
 }

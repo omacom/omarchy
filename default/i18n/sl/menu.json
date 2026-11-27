@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Obnovi ta posnetek"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Prijava brez gesla"
   }
 }

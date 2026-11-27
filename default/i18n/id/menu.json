@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Pulihkan Snapshot Ini"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Login Tanpa Kata Sandi"
   }
 }

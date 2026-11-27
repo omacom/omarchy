@@ -1439,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "이 스냅샷 복원"
+  },
+  "setup.security.passwordless-login": {
+    "label": "비밀번호 없는 로그인"
   }
 }
