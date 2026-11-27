@@ -653,35 +653,23 @@ function barSizeFor(sizes, screenName, fallback) {
   return size > 0 ? size : fallback
 }
 
-// The indicator peek opens over the bar from its start up to where the center
-// box starts, and stays shut past it, over the clock and the panel icons.
-// `position` is the pointer's point on the bar surface.
-function peeksAt(position, edge, vertical) {
-  if (!position) return false
-  return (vertical ? position.y : position.x) < edge
-}
-
-// Revealing the indicators can move the center box's start: beside a display
-// notch the center sections hang off the right section, so indicators in
-// centerEnd or the right section pull it toward the start. An edge that
-// followed would slip out from under a stationary pointer and close the peek,
-// and closing would slide it back and reopen it. So the edge is measured only
-// while the peek is shut and held where it was while it is open.
-function nextPeekEdge(edge, measured, held) {
-  return held ? edge : measured
-}
-
-// Whether a workspace holds a real fullscreen window, which fades the bar out
-// and has to take the clicks along its edge. Hyprland reports a maximized
-// window as fullscreen 1 and a real one with bit 2 set; only the latter hides
-// the bar. `toplevels` are Quickshell's Hyprland toplevels.
-function fullscreenOn(toplevels, workspaceId) {
+// Only a real fullscreen window covering the output takes the bar's clicks.
+// Scrolling keeps fullscreen flags on columns outside the viewport.
+function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceName, screen) {
+  if (!specialWorkspaceName && !hasFullscreen) return false
   var list = toplevels || []
   for (var i = 0; i < list.length; i++) {
     var toplevel = list[i]
-    if (!toplevel || !toplevel.workspace || toplevel.workspace.id !== workspaceId) continue
+    if (!toplevel || !toplevel.workspace) continue
+    if (specialWorkspaceName) {
+      if (toplevel.workspace.name !== specialWorkspaceName) continue
+    } else if (toplevel.workspace.id !== workspaceId) continue
     var ipc = toplevel.lastIpcObject
-    if (ipc && (Number(ipc.fullscreen) & 2) !== 0) return true
+    if (!ipc || (Number(ipc.fullscreen) & 2) === 0 || !ipc.at || !ipc.size) continue
+    // IPC geometry rounds logical pixels at fractional scales.
+    if (ipc.at[0] <= screen.x + 1 && ipc.at[1] <= screen.y + 1
+        && ipc.at[0] + ipc.size[0] >= screen.x + screen.width - 1
+        && ipc.at[1] + ipc.size[1] >= screen.y + screen.height - 1) return true
   }
   return false
 }
@@ -689,8 +677,6 @@ function fullscreenOn(toplevels, workspaceId) {
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
-    nextPeekEdge: nextPeekEdge,
-    peeksAt: peeksAt,
     fullscreenOn: fullscreenOn,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,

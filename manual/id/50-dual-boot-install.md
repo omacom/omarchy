@@ -1,44 +1,48 @@
-# Pemasangan Dual Boot
+# Instalasi Dual Boot
 
-Kamu bisa memasang Omarchy ke satu partisi di samping Windows atau pemasangan lainnya.
+Anda dapat menginstal Omarchy ke satu partisi di samping Windows atau instalasi lainnya.
 
-Metode pemasangan ini tetap dilengkapi enkripsi LUKS untuk partisi secara bawaan jadi secara efektif tidak berbeda dari drive penuh dan hanya membutuhkan ruang kosong yang tersedia pada disk.
+Metode instalasi ini tetap dilengkapi enkripsi LUKS untuk partisi secara default, jadi pada dasarnya tidak berbeda dengan instalasi satu drive penuh dan hanya membutuhkan ruang kosong yang tersedia di disk.
 
 ## Membuat Ruang di Windows
 
-Untuk memasang di samping Windows, ketik `disk management` di menu start dan pilih opsi untuk **Create and format hard disk partitions**.
+Untuk menginstal di samping Windows, ketik `disk management` di menu Start dan pilih opsi **Create and format hard disk partitions**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Temukan partisi yang tepat, klik kanan, dan pilih **Shrink Volume**.
+Temukan partisi yang sesuai, klik kanan, dan pilih **Shrink Volume**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Masukkan jumlah yang ingin kamu kecilkan dari volume. Perhatikan bahwa ini akan menjadi ukuran pemasangan Omarchy kamu di masa depan termasuk partisi boot.
+ Masukkan jumlah yang ingin Anda kecilkan dari volume tersebut. Perhatikan bahwa ini akan menjadi ukuran instalasi Omarchy Anda di masa mendatang, termasuk partisi boot.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Saat kamu selesai, kamu seharusnya melihat sesuatu seperti ini di mana bagian 50GB adalah tempat kami akan memasang Omarchy dalam contoh ini.
+Setelah selesai, Anda akan melihat sesuatu seperti ini, di mana bagian 50GB adalah tempat kami akan menginstal Omarchy dalam contoh ini.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
-## Memasang Omarchy
+## Menginstal Omarchy
 
-Proses pemasangan untuk Omarchy secara efektif sama seperti biasa. Setelah kamu memilih disk kamu, kamu akan diberi opsi **Free space install**. Pilih opsi itu untuk mencegah menghapus seluruh disk.
+Proses instalasi Omarchy pada dasarnya sama seperti biasa. Setelah Anda memilih disk, Anda akan diberikan opsi **Free space install**. Pilih opsi tersebut untuk mencegah penghapusan seluruh disk.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Konfirmasikan bahwa semuanya terlihat baik dan tunggu pemasangan selesai seperti biasa. Di sini juga kamu bisa memilih untuk memasang tanpa enkripsi (tidak disarankan) sama seperti pada pemasangan drive penuh.
+Konfirmasi bahwa semuanya terlihat baik dan tunggu hingga instalasi selesai seperti biasa. Di sini Anda juga dapat memilih untuk menginstal tanpa enkripsi (tidak disarankan), sama seperti pada instalasi satu drive penuh.
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Menambahkan Pemasangan Lain ke Bootloader
+## Menambahkan Instalasi Lain ke Bootloader
 
-Saat kamu menyelesaikan pemasangan Omarchy, kamu akan melihat bahwa bootloader Limine sekarang menjadi bawaan. Dengan ini, kamu juga bisa menambahkan opsi ke Limine untuk pemasanganmu yang lain seperti Windows.
+Setelah Anda menyelesaikan instalasi Omarchy, Anda akan melihat bahwa bootloader Limine kini menjadi default. Dengan ini, Anda juga dapat menambahkan opsi ke Limine untuk instalasi lain Anda, seperti Windows.
 
-Untuk melakukannya, jalankan `limine-scan` dan ikuti prompt untuk menambahkan item apa pun yang kamu inginkan ke konfigurasi limine kamu. Lalu saat kamu boot, kamu akan melihat opsi normalmu untuk Omarchy, serta Windows Boot Manager atau lainnya.
+Untuk menambahkan sistem operasi lain, jalankan `limine-scan` dan ikuti petunjuk untuk menambahkan entri yang Anda inginkan ke konfigurasi Limine Anda. Menu boot tetap tersembunyi secara default dan memulai Omarchy setelah satu detik. Untuk memilih Windows atau entri lain, tekan tombol apa saja segera setelah Limine mulai; saat menu muncul, gunakan tombol panah untuk memilih entri dan tekan Enter. Jika Omarchy mulai sebelum Anda menekan tombol, mulai ulang dan coba lagi.
 
 ## Bitlocker
 
-Penting untuk dicatat bahwa metode pemasangan ini tidak kompatibel dengan Bitlocker karena ia mengenkripsi seluruh drive, bukan hanya partisi. Jika kamu menemui kesalahan yang menyatakan Bitlocker diaktifkan, boot ke Windows, pergi ke **Settings -> Privacy & Security -> Device encryption** dan matikan Bitlocker. Mungkin perlu beberapa waktu untuk mendekripsi drive.
+Penting untuk dicatat bahwa metode instalasi ini tidak kompatibel dengan Bitlocker karena Bitlocker mengenkripsi seluruh drive, bukan hanya partisi. Jika Anda menemukan error yang menyatakan bahwa Bitlocker diaktifkan, boot ke Windows, buka **Settings -> Privacy & Security -> Device encryption** dan nonaktifkan Bitlocker. Mungkin perlu waktu untuk mendekripsi drive.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Menginstal Ulang Windows
+
+Jika komputer ini dikirim dengan Windows, product key-nya disimpan di firmware. Jalankan `omarchy windows key` untuk mencetaknya, sehingga Anda dapat mengaktifkan Windows lagi jika Anda pernah menginstal ulang Windows di mesin ini.

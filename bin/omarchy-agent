@@ -1,11 +1,17 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
-# omarchy:examples=omarchy agent | omarchy agent --inline
+# omarchy:args=[--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --agent codex | omarchy agent --provider fireworks
 
 inline=false
 pick=false
+use_local=false
+local_model=""
+agent_override=""
+provider=""
+app_id="org.omarchy.agent"
+launch_args=("$@")
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -17,6 +23,25 @@ while (($#)); do
       ;;
     --pick)
       pick=true
+      shift
+      ;;
+    --local-model)
+      use_local=true
+      local_model=${2:?--local-model needs a recipe id}
+      shift 2
+      ;;
+    --agent)
+      agent_override=${2:?--agent needs an agent id}
+      shift 2
+      ;;
+    --provider)
+      provider=${2:?--provider needs a provider id}
+      shift 2
+      ;;
+    # A launcher of its own (Codex, Claude Code, Grok Build) gives its windows
+    # their own class, so the dock keeps them under that launcher.
+    --app-id=*)
+      app_id=${1#--app-id=}
       shift
       ;;
     --prompt)
@@ -35,13 +60,52 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
-agent=$(omarchy-default-agent)
+# --agent launches a given agent instead of the default: the panel's terminal
+# button on each subscription opens the harness made for it, Codex for OpenAI.
+if [[ -n $agent_override ]]; then
+  agent=$agent_override
+else
+  agent=$(omarchy-default-agent)
+fi
+
+# --provider opens a pay-as-you-go provider with no harness of its own
+# (Fireworks, OpenRouter, and the agents panel's More list) in OpenCode, where
+# the panel's sign-in saves its key.
+[[ -n $provider ]] && agent=opencode
+
+# A default of "local" is the local model. It opens in pi, as --local-model
+# does whatever the default agent is: the agents panel launches a model
+# whether or not a default was chosen. An agent asked for by name is opened
+# as asked.
+if [[ $agent == "local" ]]; then
+  use_local=true
+  agent=pi
+  # The model the default pins, unless it's since been removed from this
+  # machine; a paired machine's is that machine's to answer for.
+  pinned=$(cat "$HOME/.config/omarchy/defaults/local-model" 2>/dev/null)
+  if [[ -z $local_model && -n $pinned ]]; then
+    if [[ $pinned == */* ]] || omarchy-models status --json 2>/dev/null | jq -e --arg recipe "$pinned" '.models[$recipe]' >/dev/null; then
+      local_model=$pinned
+    fi
+  fi
+elif [[ $use_local == "true" ]]; then
+  agent=pi
+fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
 if [[ -z $agent ]]; then
-  [[ $pick == "true" ]] && exec omarchy-menu summon setup.default.agent
+  if [[ $pick == "true" ]]; then
+    # The agents panel sets one up, and its agent is started from there, so a
+    # prompt (a crash report, a Make something task) waits on the clipboard
+    # to paste into it.
+    if [[ -n ${prompt:-} ]]; then
+      printf '%s' "$prompt" | wl-copy
+      omarchy-notification-send -g 󰅇 "$(omarchy-i18n agents.chooseForPrompt)" "$(omarchy-i18n agents.promptOnClipboardBody)"
+    fi
+    exec omarchy-shell omarchy.agents open
+  fi
   echo "Choose default agent with: omarchy default agent <name>" >&2
   exit 1
 fi
@@ -49,8 +113,20 @@ fi
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
 if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
-  echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
-  exit 1
+  # An agent you still have a sign-in for can be missing its CLI: removed, or
+  # signed in to on another machine and copied over. Launching it installs the
+  # CLI first and then opens as asked, in this terminal or a floating one.
+  if omarchy-install-ai-cli --package "$agent" &>/dev/null; then
+    if [[ -t 0 ]]; then
+      omarchy-install-ai-cli "$agent" || exit 1
+    else
+      printf -v relaunch '%q ' omarchy-agent "${launch_args[@]}"
+      exec omarchy-launch-floating-terminal-with-presentation "omarchy-install-ai-cli $agent && ${relaunch% }"
+    fi
+  else
+    echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
+    exit 1
+  fi
 fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts
@@ -157,12 +233,6 @@ mcode)
   command=(mcode)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
-kiro-cli)
-  # A positional input seeds the interactive chat; -- keeps a prompt starting
-  # with a dash literal.
-  command=(kiro-cli chat --trust-all-tools)
-  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
-  ;;
 freebuff)
   # Freebuff takes no starting prompt and asks no tool permissions, so a
   # prompt goes to the clipboard below instead.
@@ -183,25 +253,90 @@ devin)
   ;;
 amp)
   # Amp takes its first interactive message from piped input; a positional
-  # message is for --execute, which exits after one turn. The binary rides in
-  # as $0 so a user install below can replace it.
+  # message is for --execute, which exits after one turn.
   if [[ -n ${prompt:-} ]]; then
     command=(bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "$prompt")
   else
     command=(amp --dangerously-allow-all)
   fi
   ;;
-commandcode)
-  # --yolo skips permission prompts and implies --trust. A positional prompt
-  # seeds the interactive session; -- keeps one starting with a dash literal.
-  command=(commandcode --yolo)
-  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
-  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
   ;;
 esac
+
+# A model that is set up but not running, as one opened from its launcher may
+# be, is started first, in the terminal the agent will have: loading takes a
+# minute or so, and omarchy-models-warmup puts on a show for it there. So
+# a launch from outside a terminal reruns itself inside one. A model on a
+# paired machine is that machine's to start.
+if [[ $use_local == "true" && $local_model != */* ]]; then
+  local_state=$(omarchy-models status --json 2>/dev/null | jq -r --arg recipe "$local_model" '
+    (if $recipe == "" then .last // "" else $recipe end) as $recipe
+    | .models[$recipe] // empty | "\(.unit)/\(.sub_state)"' 2>/dev/null)
+  if [[ -n $local_state && $local_state != "active/running" ]]; then
+    if [[ $inline == "true" ]]; then
+      omarchy-models-warmup ${local_model:+"$local_model"} || exit 1
+    else
+      exec omarchy-launch-tui --app-id="$app_id" omarchy-agent --inline "${launch_args[@]}"
+    fi
+  fi
+fi
+
+# A local model points pi at the model `omarchy models use` runs, through a
+# launch-time overlay Omarchy owns, never by editing pi's own config.
+if [[ $use_local == "true" ]]; then
+  mapfile -t overlay < <(omarchy-models overlay pi ${local_model:+"$local_model"})
+  if (( ${#overlay[@]} != 3 )); then
+    omarchy-notification-send -u critical "$(omarchy-i18n agents.localMissing)" "$(omarchy-i18n agents.localMissingBody)"
+    exit 1
+  fi
+  command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
+fi
+
+# --provider starts the session on one of the provider's models, passed at
+# launch rather than written to the agent's config, so it never opens on
+# another provider: the model the agent last used there, so a switch made in
+# a session sticks; else the one the provider's usage record has spent most
+# tokens on; else the first the agent lists. The record names a model by its
+# short name ("deepseek-v4.1-flash"), so the agent's own list supplies the id
+# it knows it by ("accounts/fireworks/models/deepseek-v4p1-flash"). An agent
+# that lists no models for the provider opens as it was.
+if [[ -n $provider ]]; then
+  provider_id=$provider
+  [[ $provider == "fireworks" ]] && provider_id="fireworks-ai"
+  provider_models=$(opencode models 2>/dev/null | sed -n "s|^$provider_id/||p")
+  # OpenCode keeps the models it used, latest first.
+  provider_last=$(jq -r --arg provider "$provider_id" 'first(.recent[]? | select(.providerID == $provider) | .modelID) // empty' \
+    "${XDG_STATE_HOME:-$HOME/.local/state}/opencode/model.json" 2>/dev/null)
+
+  provider_record="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage/$provider.json"
+  provider_model=$(awk -v last="$provider_last" '
+    FILENAME == ARGV[1] { used[++count] = $0; next }
+    $0 == "" { next }
+    {
+      if (first == "") first = $0
+      listed[$0] = 1
+      short = $0
+      sub(/.*\//, "", short)
+      while (match(short, /[0-9]p[0-9]/)) short = substr(short, 1, RSTART) "." substr(short, RSTART + 2)
+      if (!(short in id)) id[short] = $0
+    }
+    END {
+      if (last in listed) { print last; exit }
+      for (i = 1; i <= count; i++) if (used[i] in id) { print id[used[i]]; exit }
+      print first
+    }
+  ' <(jq -r '.modelUsage // {} | to_entries | sort_by(-([.value[]? | numbers] | add // 0)) | .[].key' "$provider_record" 2>/dev/null) \
+    <(printf '%s\n' "$provider_models"))
+
+  if [[ -n $provider_model ]]; then
+    # The shared background service never sees the choice, so run a private one.
+    model=$(jq -nc --arg model "$provider_id/$provider_model" '{model: $model}')
+    command=(env "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)
+  fi
+fi
 
 # An agent with no way to take a starting prompt still opens, with the prompt
 # on the clipboard to paste as its first message, so a prompted launch from the
@@ -210,29 +345,6 @@ if [[ -n ${prompt:-} && -n ${prompt_via_clipboard:-} ]]; then
   printf '%s' "$prompt" | wl-copy
   omarchy-notification-send -g 󰅇 "$(omarchy-i18n agents.promptOnClipboard "$prompt_via_clipboard")" \
     "$(omarchy-i18n agents.promptOnClipboardBody)"
-fi
-
-# omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
-# lines of their own and older ones after an inline variable; either way
-# running one installs the tool it wraps. A symlink is the user's own install.
-mise_wrapper() {
-  [[ ! -L $1 ]] && head -c 4096 "$1" | grep -qaE 'mise (use|x) '
-}
-
-# The user's own install in ~/.local/bin, which omarchy-default-agent counts as
-# installed, still wins over mise's lazy shim earlier on PATH, which would
-# install and run mise's copy instead. Once mise has installed its own, a
-# terminal runs that one, so the launcher does too. OpenClaw's command runs its
-# launcher, so its prompt is the only argument that could match the name.
-user_install="$HOME/.local/bin/$agent"
-if [[ $agent != "openclaw" && -f $user_install && -x $user_install ]] &&
-  ! mise_wrapper "$user_install" && ! MISE_OFFLINE=1 mise which "$agent" &>/dev/null; then
-  for i in "${!command[@]}"; do
-    if [[ ${command[i]} == "$agent" ]]; then
-      command[i]=$user_install
-      break
-    fi
-  done
 fi
 
 # A new session uses the current selection rather than its parent's account
@@ -263,5 +375,5 @@ if [[ $inline == "true" ]]; then
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent
   # window shares one class for window rules and themes to single out.
-  exec omarchy-launch-tui --app-id=org.omarchy.agent "${command[@]}"
+  exec omarchy-launch-tui --app-id="$app_id" "${command[@]}"
 fi

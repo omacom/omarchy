@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Show, list, or set the kernel Limine boots by default
+# omarchy:summary=Show, list, or set the kernel that boots by default
 # omarchy:args=[get|list|set <kernel>]
 # omarchy:examples=omarchy kernel | omarchy kernel list | omarchy kernel set linux-omarchy
 # omarchy:requires-sudo=true
@@ -21,8 +21,15 @@ LOCK_FILE="${OMARCHY_KERNEL_LOCK:-/run/lock/omarchy-kernel.lock}"
 
 usage() { echo "Usage: omarchy-kernel [get|list|set <kernel>]"; }
 
+# systemd-boot starts the kernel omarchy-boot-sync prefers; Limine the first one
+# BOOT_ORDER names.
+systemd_boot() {
+  [[ $(omarchy-boot-backend) == systemd-boot ]]
+}
+
 # Every kernel package records its pkgbase in its module tree, and that is the
-# name Limine's boot entries and BOOT_ORDER patterns refer to.
+# name Limine's boot entries and BOOT_ORDER patterns refer to, and the name
+# omarchy-boot-sync keeps each kernel's boot image under.
 installed_kernels() {
   cat "$MODULES_DIR"/*/pkgbase 2>/dev/null | sort -u
 }
@@ -83,24 +90,21 @@ write_boot_order() {
 # The first installed kernel in the boot menu, read from the tree lines that
 # sit directly under an OS entry ("├─ linux-omarchy").
 first_menu_kernel() {
-  local entry
+  local entry kernel
   local -a kernels entries
 
   mapfile -t kernels < <(installed_kernels)
   mapfile -t entries < <(limine-entry-tool --tree | sed -nE 's/^(├|└)─ (.*)$/\2/p')
+  # Compared in Bash: piped to grep -q, a match before the last kernel can
+  # SIGPIPE printf, and pipefail then reads the match as a miss.
   for entry in "${entries[@]}"; do
-    if printf '%s\n' "${kernels[@]}" | grep -Fxq -- "$entry"; then
-      echo "$entry"
-      return
-    fi
+    for kernel in "${kernels[@]}"; do
+      if [[ $entry == "$kernel" ]]; then
+        echo "$entry"
+        return
+      fi
+    done
   done
-}
-
-# Direct Boot has the firmware load one UKI and skip Limine, so reordering the
-# boot menu would change nothing that boots. Read as omarchy-boot-direct does,
-# from efibootmgr directly, since root runs on a PATH without omarchy-*.
-direct_boot_active() {
-  efibootmgr 2>/dev/null | cut -f1 | grep -Eq '^Boot[0-9A-Fa-f]+\*[[:space:]]+Omarchy[[:space:]]*$'
 }
 
 # Rebuilding one kernel rewrites limine.conf in BOOT_ORDER order, which
@@ -142,16 +146,19 @@ set_kernel() {
   elif ! installed_kernels | grep -Fxq -- "$kernel"; then
     echo "Error: $kernel is not an installed kernel. Installed: $(installed_kernels | paste -sd ' ')" >&2
     exit 1
-  elif direct_boot_active; then
-    echo "Error: Direct Boot skips the boot menu. Turn it off in Setup > Direct Boot to switch kernels." >&2
-    if (( EUID != 0 )) && [[ ! -t 0 ]]; then
-      omarchy-notification-send -g  -u critical "$(omarchy-i18n kernel.directBoot)"
-    fi
-    exit 1
   fi
 
+  # While a switch to systemd-boot is under way both loaders can start the
+  # machine, so the choice goes to each.
   if (( EUID == 0 )); then
-    apply_kernel "$kernel"
+    local backend
+    for backend in $(omarchy-boot-backend --managed); do
+      if [[ $backend == systemd-boot ]]; then
+        omarchy-boot-sync prefer "$kernel"
+      else
+        apply_kernel "$kernel"
+      fi
+    done
     return
   fi
 
@@ -177,7 +184,13 @@ set_kernel() {
 }
 
 case "${1:-get}" in
-  get) default_kernel ;;
+  get)
+    if systemd_boot; then
+      omarchy-boot-sync preferred
+    else
+      default_kernel
+    fi
+    ;;
   list) installed_kernels ;;
   set) set_kernel "${2:-}" ;;
   -h | --help | help) usage ;;
