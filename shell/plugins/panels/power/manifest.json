@@ -15,6 +15,26 @@
     "displayName": "Power",
     "description": "Battery, power profile, and system stats",
     "category": "System",
-    "allowMultiple": false
+    "allowMultiple": false,
+    "defaults": {
+      "showPercentage": false,
+      "rotatingPhrases": true
+    },
+    "schema": [
+      {
+        "key": "showPercentage",
+        "type": "boolean",
+        "label": "Show battery percentage",
+        "description": "Display the battery percentage next to the bar icon.",
+        "defaultValue": false
+      },
+      {
+        "key": "rotatingPhrases",
+        "type": "boolean",
+        "label": "Rotating status phrases",
+        "description": "Cycle playful status phrases in the power panel instead of showing the static battery state.",
+        "defaultValue": true
+      }
+    ]
   }
 }

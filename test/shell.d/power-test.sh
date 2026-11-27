@@ -52,4 +52,11 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
+assertEqual(power.showRotatingPhrases(undefined), true, 'power rotates status phrases by default')
+assertEqual(power.showRotatingPhrases(null), true, 'power rotates status phrases when setting is null')
+assertEqual(power.showRotatingPhrases(true), true, 'power rotates status phrases when enabled')
+assertEqual(power.showRotatingPhrases(false), false, 'power disables rotating status phrases when set to false')
+assertEqual(power.showRotatingPhrases('false'), false, 'power disables rotating status phrases when set to string false')
+assertEqual(power.showRotatingPhrases(' FALSE '), false, 'power disables rotating status phrases when set to trimmed string false')
+assertEqual(power.showRotatingPhrases('true'), true, 'power keeps rotating status phrases when set to string true')
 JS

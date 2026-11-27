@@ -22,6 +22,7 @@ Panel {
   readonly property var batteryService: bar && bar.shell && typeof bar.shell.firstPartyServiceFor === "function"
     ? bar.shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool showPercentage: setting("showPercentage", false) === true
+  readonly property bool rotatingPhrasesEnabled: Model.showRotatingPhrases(setting("rotatingPhrases", true))
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
@@ -135,7 +136,7 @@ Panel {
 
   // Whichever list is "active" given the current power state.
   readonly property var activePhrases: {
-    if (fullyCharged) return []
+    if (!rotatingPhrasesEnabled || fullyCharged) return []
     if (charging) return chargingPhrases
     if (discharging) return onBatteryPhrases
     return []
