@@ -432,8 +432,9 @@ var REGIONAL_ZONE_PLACES = {
 }
 
 // Pure same-place renames, excluding cross-place links (e.g. Iceland ->
-// Africa/Abidjan, Pacific/Truk -> Pacific/Port_Moresby) so they stay unknown
-// rather than jumping continents.
+// Africa/Abidjan, Pacific/Truk -> Pacific/Port_Moresby) and distinct cities
+// (Canberra, Belfast, Tel Aviv) so offline zoneTabCoords never places one city
+// at another city's coordinates.
 var LEGACY_ZONE_PLACES = Object.assign({}, REGIONAL_ZONE_PLACES, {
   "Asia/Calcutta": "Asia/Kolkata",
   "Asia/Dacca": "Asia/Dhaka",
@@ -445,12 +446,9 @@ var LEGACY_ZONE_PLACES = Object.assign({}, REGIONAL_ZONE_PLACES, {
   "Asia/Ashkhabad": "Asia/Ashgabat",
   "Asia/Macao": "Asia/Macau",
   "Asia/Thimbu": "Asia/Thimphu",
-  "Asia/Tel_Aviv": "Asia/Jerusalem",
   "Asia/Ujung_Pandang": "Asia/Makassar",
   "Atlantic/Faeroe": "Atlantic/Faroe",
   "Europe/Kiev": "Europe/Kyiv",
-  "Europe/Belfast": "Europe/London",
-  "Australia/Canberra": "Australia/Sydney",
   "Australia/Yancowinna": "Australia/Broken_Hill",
   "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
   "America/Catamarca": "America/Argentina/Catamarca",
@@ -464,6 +462,14 @@ var LEGACY_ZONE_PLACES = Object.assign({}, REGIONAL_ZONE_PLACES, {
   "Kwajalein": "Pacific/Kwajalein"
 })
 
+// Same-zone legacy cities whose own coordinates come from the geocoder, not
+// from the target zone's representative city in zone1970.tab.
+var GEOCODE_ZONE_ALIASES = Object.assign({}, LEGACY_ZONE_PLACES, {
+  "Asia/Tel_Aviv": "Asia/Jerusalem",
+  "Europe/Belfast": "Europe/London",
+  "Australia/Canberra": "Australia/Sydney"
+})
+
 var NON_PLACE_ZONES = {
   "UTC": true, "UCT": true, "GMT": true, "GMT+0": true, "GMT-0": true,
   "GMT0": true, "Universal": true, "Zulu": true, "Factory": true,
@@ -474,6 +480,12 @@ var NON_PLACE_ZONES = {
 function canonicalPlaceZone(id) {
   var zone = String(id || "")
   var target = LEGACY_ZONE_PLACES[zone]
+  return typeof target === "string" ? target : zone
+}
+
+function geocodeZoneFor(id) {
+  var zone = String(id || "")
+  var target = GEOCODE_ZONE_ALIASES[zone]
   return typeof target === "string" ? target : zone
 }
 
@@ -1073,15 +1085,15 @@ function pickGeocode(text, zone) {
   if (!results) return { place: null, answered: false }
   var want = String(zone || "")
   if (want === "") return { place: null, answered: true }
-  var canonical = canonicalPlaceZone(want)
+  var target = geocodeZoneFor(want)
   var best = null
   var i, r
   for (i = 0; i < results.length && !best; i++)
     if ((r = results[i]) && r.timezone === want) best = r
-  for (i = 0; !best && canonical !== want && i < results.length; i++)
-    if ((r = results[i]) && r.timezone === canonical) best = r
+  for (i = 0; !best && target !== want && i < results.length; i++)
+    if ((r = results[i]) && r.timezone === target) best = r
   for (i = 0; !best && i < results.length; i++)
-    if ((r = results[i]) && r.timezone && canonicalPlaceZone(r.timezone) === canonical) best = r
+    if ((r = results[i]) && r.timezone && canonicalPlaceZone(r.timezone) === target) best = r
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 

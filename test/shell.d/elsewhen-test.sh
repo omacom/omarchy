@@ -127,11 +127,14 @@ assertDeepEqual(
 )
 
 // zoneTabCoords resolves pure-rename legacy/regional zones to canonical entries
-// in zone1970.tab while leaving cross-place links unplaced.
+// in zone1970.tab while leaving cross-place and distinct-city links unplaced.
 const sampleZoneTab = [
   '# comment',
   'US\t+415100-0873900\tAmerica/Chicago\tCentral (most areas)',
   'IN\t+223200+0882200\tAsia/Kolkata\t',
+  'AU\t-335200+1511300\tAustralia/Sydney\t',
+  'GB\t+513030-0000731\tEurope/London\t',
+  'IL\t+314650+0351326\tAsia/Jerusalem\t',
   'PG\t-093000+1471000\tPacific/Port_Moresby\t'
 ].join('\n')
 
@@ -149,6 +152,32 @@ assertEqual(
   model.zoneTabCoords(sampleZoneTab, 'Pacific/Truk'),
   null,
   'zoneTabCoords does not map cross-place links onto another country'
+)
+assertEqual(
+  model.zoneTabCoords(sampleZoneTab, 'Australia/Canberra'),
+  null,
+  'zoneTabCoords does not place Canberra at Sydney coordinates offline'
+)
+assertEqual(
+  model.zoneTabCoords(sampleZoneTab, 'Europe/Belfast'),
+  null,
+  'zoneTabCoords does not place Belfast at London coordinates offline'
+)
+assertEqual(
+  model.zoneTabCoords(sampleZoneTab, 'Asia/Tel_Aviv'),
+  null,
+  'zoneTabCoords does not place Tel Aviv at Jerusalem coordinates offline'
+)
+
+const canberraHits = JSON.stringify({
+  results: [
+    { name: 'Canberra', latitude: -35.28346, longitude: 149.12807, timezone: 'Australia/Sydney' }
+  ]
+})
+assertDeepEqual(
+  model.pickGeocode(canberraHits, 'Australia/Canberra'),
+  { place: { lat: -35.28346, lon: 149.12807 }, answered: true },
+  'pickGeocode still accepts geocoded Canberra results carrying Australia/Sydney'
 )
 
 assertEqual(model.isPlaceZone('US/Central'), true, 'isPlaceZone allows regional place zones')
