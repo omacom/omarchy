@@ -5,22 +5,11 @@ limine_config_dir=${OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR:-/etc/limine-entry-too
 sleep_config_dir=${OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR:-/etc/systemd/sleep.conf.d}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  # Neither sleep mode is reliable yet. Resuming from deep sleep, PSCI system
-  # suspend, resets the SoC. Suspend to idle survives a short nap, but the SoC
-  # never collapses its CX rail (qcom_stats cxsd stays at 0, with a PCIe link
-  # timing out on L2 entry), and an overnight suspend hung until a forced power
-  # off. Keep the laptop awake until suspend reaches real SoC sleep.
-  # The shared file name is what omarchy-sleep-disabled looks for to hide
-  # Suspend from the menu; the one suspend to idle was set in goes away.
-  mkdir -p "$sleep_config_dir"
-  rm -f "$sleep_config_dir/zenbook-a16.conf"
-  cat >"$sleep_config_dir/omarchy-sleep-disabled.conf" <<'CONF'
-[Sleep]
-AllowSuspend=no
-AllowHibernation=no
-AllowSuspendThenHibernate=no
-AllowHybridSleep=no
-CONF
+  # Suspend is configured by asus-zenbook-a16-support (/usr/lib/systemd/sleep.conf.d/
+  # 60-zenbook-a16.conf, 90-asus-zenbook-a16-power.rules, and the zenbook-a16-sleep
+  # hook) together with linux-omarchy-dtbs >= 7.3-75. Clear any legacy /etc sleep
+  # overrides left from earlier installs so s2idle reaches full SoC deep sleep.
+  rm -f "$sleep_config_dir/omarchy-sleep-disabled.conf" "$sleep_config_dir/zenbook-a16.conf"
 
   # Bring up the keyboard, the embedded controller and the USB-C and USB-A
   # chains before disk unlock. The ? skips a module a kernel does not have.
