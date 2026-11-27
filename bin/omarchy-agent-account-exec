@@ -45,6 +45,26 @@ if ! agent_binary=$(PATH=$cli_path type -P "$provider"); then
   exit 127
 fi
 
+# A mise shim, a link to mise itself, that mise cannot resolve here or that is
+# set to the system copy searches PATH, finds this dispatcher again and gives
+# up, so run the next CLI past every mise shim.
+mise_binary=$(readlink -f "$agent_binary")
+if [[ ${mise_binary##*/} == "mise" ]]; then
+  version=$(MISE_OFFLINE=1 "$mise_binary" current "$provider" 2>/dev/null || true)
+  if [[ $version == "system" ]] || { [[ -z $version ]] && ! MISE_OFFLINE=1 "$mise_binary" which "$provider" >/dev/null 2>&1; }; then
+    past_shims=""
+    for dir in "${dirs[@]}"; do
+      shim_target=$(readlink -f "$dir/$provider" 2>/dev/null || true)
+      [[ $dir == "$dispatchers" || ${shim_target##*/} == "mise" ]] || past_shims+="${past_shims:+:}$dir"
+    done
+    # With nothing past the shims, the shim still runs: mise may fall back to an
+    # installed version, and otherwise says to set one.
+    if past_binary=$(PATH=$past_shims type -P "$provider"); then
+      agent_binary=$past_binary
+    fi
+  fi
+fi
+
 # The agent's own subprocesses dispatch too, so another provider they start
 # runs as its selected account.
 export PATH="$dispatchers:$cli_path"
