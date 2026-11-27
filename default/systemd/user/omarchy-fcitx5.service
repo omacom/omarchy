@@ -30,9 +30,12 @@ ConditionPathExists=/usr/bin/fcitx5
 Type=dbus
 BusName=org.fcitx.Fcitx5
 # notificationitem duplicates the tray entry omarchy already renders itself.
+# xcb and xim open $DISPLAY on startup, which wakes Hyprland's on-demand
+# Xwayland (~35 MiB) on every boot even when no X11 client is running; Wayland
+# clients use text-input/waylandim and Qt/GTK clients use the D-Bus frontend.
 # --replace takes the bus name from a fcitx5 started outside the unit (a user
 # autostart, say), which would otherwise make every restart exit on arrival.
-ExecStart=/usr/bin/fcitx5 --replace --disable notificationitem
+ExecStart=/usr/bin/fcitx5 --replace --disable notificationitem,xcb,xim
 # always, not on-failure: fcitx5 exits 0 when it detects another instance owning
 # its bus name, and a clean exit still leaves the user with no input method.
 Restart=always
