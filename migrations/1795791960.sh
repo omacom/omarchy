@@ -8,10 +8,12 @@ applications="$HOME/.local/share/applications"
 removed=false
 
 for launcher in "$applications"/omarchy-agent-*.desktop; do
-  [[ -f $launcher ]] || continue
+  [[ -f $launcher && ! -L $launcher ]] || continue
   agent=${launcher##*/omarchy-agent-}
   agent=${agent%.desktop}
-  [[ -f $OMARCHY_PATH/default/applications/omarchy-agent-$agent.desktop ]] || continue
+  # Only an unchanged copy of Omarchy's launcher goes. One the user edited, to
+  # run the agent in a container say, is theirs.
+  cmp -s "$launcher" "$OMARCHY_PATH/default/applications/omarchy-agent-$agent.desktop" || continue
   omarchy-default-agent --installed "$agent" 2>/dev/null && continue
   rm -f "$launcher"
   removed=true
