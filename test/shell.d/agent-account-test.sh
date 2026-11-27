@@ -560,9 +560,11 @@ loader.exec_module(state)
 
 home = Path(tempfile.mkdtemp(dir=os.environ["HOME"]))
 (home / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"rateLimitTier": "default_claude_max_20x", "subscriptionType": "max"}}))
-state.claude_account_file(home).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-ultra", "planDisplayName": "Ultra"}}))
-found = state.identity("claude", home)
-assert found["plan"] == "Ultra", found
+for name, expected in [("Ultra", "Ultra"), ("Ultra\tPlan", "Ultra Plan"), ("Ultra" + " " * 40 + "Plan", "Ultra Plan"),
+                       (None, "Max 20x"), ("", "Max 20x"), (12, "Max 20x"), ("a" * 33, "Max 20x"), ("Ultra\x1b", "Max 20x")]:
+  state.claude_account_file(home).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-ultra", "planDisplayName": name}}))
+  found = state.identity("claude", home)
+  assert found["plan"] == expected, (name, found)
 PY
 pass "a Claude Max plan reads the profile's plan name"
 

@@ -177,8 +177,10 @@ def identity(provider: str, home: Path) -> dict[str, str]:
     plan = plan_label(str(login.get("rateLimitTier") or ""), subscription)
     # Max 20x is now called Ultra; only the profile's display name says so.
     name = account.get("planDisplayName")
-    if subscription.lower() == "max" and isinstance(name, str) and 0 < len(name.strip()) <= 32 and name.isprintable():
-      plan = " ".join(name.split())
+    if isinstance(name, str):
+      name = " ".join(name.split())
+    if subscription.lower() == "max" and isinstance(name, str) and 0 < len(name) <= 32 and name.isprintable():
+      plan = name
     return {
       "accountId": str(account.get("accountUuid") or ""),
       "email": str(account.get("emailAddress") or ""),
