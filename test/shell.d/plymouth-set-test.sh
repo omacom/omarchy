@@ -224,6 +224,8 @@ case "$1" in
   code=${code/sddm_dir=\/usr\/share\/sddm\/themes\/omarchy/sddm_dir=$TEST_FAKE_ROOT\/usr\/share\/sddm\/themes\/omarchy}
   code=${code/\/run\/lock\/omarchy-plymouth.lock/$TEST_LOCK_FILE}
   code=${code//\/usr\/bin\/plymouth-set-default-theme/$TEST_ROOT_TOOLS\/plymouth-set-default-theme}
+  code=${code//\/usr\/bin\/omarchy-boot-backend/$TEST_ROOT_TOOLS\/omarchy-boot-backend}
+  code=${code//\/usr\/bin\/omarchy-boot-rebuild/$TEST_ROOT_TOOLS\/omarchy-boot-rebuild}
   code=${code//\/usr\/bin\/limine-mkinitcpio/$TEST_ROOT_TOOLS\/limine-mkinitcpio}
   code=${code//\/usr\/bin\/mkinitcpio/$TEST_ROOT_TOOLS\/mkinitcpio}
 
@@ -238,7 +240,7 @@ case "$1" in
   PATH="$TEST_ROOT_TOOLS:/usr/bin:/bin" \
     /bin/bash -c "$code" "$shell_name" "$@"
   ;;
-plymouth-set-default-theme | limine-mkinitcpio | mkinitcpio)
+plymouth-set-default-theme | omarchy-boot-rebuild | mkinitcpio)
   printf 'command %s\n' "$*" >>"$TEST_SUDO_LOG"
   exit 0
   ;;
@@ -393,9 +395,14 @@ fi
 exec /usr/bin/rm "$@"
 SH
 
-cat >"$fake_bin/omarchy-cmd-present" <<'SH'
+cat >"$root_tools/omarchy-boot-backend" <<'SH'
 #!/bin/bash
-exit 1
+echo "${TEST_BOOT_BACKEND:-none}"
+SH
+
+cat >"$root_tools/omarchy-boot-rebuild" <<'SH'
+#!/bin/bash
+printf 'command omarchy-boot-rebuild %s\n' "$*" >>"$TEST_SUDO_LOG"
 SH
 
 chmod +x "$fake_bin"/* "$root_tools"/*
@@ -1026,6 +1033,17 @@ batch_refreshes_and_fresh_reset() {
   grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "Plymouth refresh rebuilds the initramfs"
 
   pass "refresh safely publishes its complete fixed asset set, including logos/oma.png"
+
+  # Where Omarchy manages a boot loader (Limine or systemd-boot), the rebuild
+  # goes through the loader-neutral omarchy-boot-rebuild.
+  setup_run
+  output=$(run_refresh_plymouth env TEST_BOOT_BACKEND=systemd-boot 2>&1)
+  status=$?
+  (( status == 0 )) || fail "Plymouth refresh succeeds on systemd-boot" "$output"
+  grep -Fxq 'command omarchy-boot-rebuild ' "$sudo_log" || fail "Plymouth refresh rebuilds through omarchy-boot-rebuild" "$(cat "$sudo_log")"
+  ! grep -Fq 'command mkinitcpio' "$sudo_log" || fail "Plymouth refresh on systemd-boot does not run mkinitcpio -P directly"
+
+  pass "refresh rebuilds the boot images through omarchy-boot-rebuild"
 
   # The static recovery script can be upgraded without resetting an existing
   # installation's selected logo, colors, or other branding assets.

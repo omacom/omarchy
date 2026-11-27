@@ -175,7 +175,13 @@ publish_state() {
     restore_required=false
 
     rebuild_initramfs() {
-      if [[ -x /usr/bin/limine-mkinitcpio ]]; then
+      if [[ -x /usr/bin/omarchy-boot-backend ]]; then
+        if [[ $(/usr/bin/omarchy-boot-backend) == none ]]; then
+          /usr/bin/mkinitcpio -P
+        else
+          /usr/bin/omarchy-boot-rebuild
+        fi
+      elif [[ -x /usr/bin/limine-mkinitcpio ]]; then
         /usr/bin/limine-mkinitcpio
       else
         /usr/bin/mkinitcpio -P

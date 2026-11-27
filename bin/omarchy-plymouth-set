@@ -357,8 +357,18 @@ run_root_transaction() {
       sddm_transaction_assets=("${sddm_assets[@]}" logo.svg)
     fi
 
+    # omarchy-boot-rebuild publishes the images for whichever loader boots
+    # the machine (Limine or systemd-boot). A machine with neither, and a
+    # release that predates the loader-neutral commands, keep the direct
+    # rebuild.
     rebuild_boot_image() {
-      if [[ -x /usr/bin/limine-mkinitcpio ]]; then
+      if [[ -x /usr/bin/omarchy-boot-backend ]]; then
+        if [[ $(/usr/bin/omarchy-boot-backend) == none ]]; then
+          /usr/bin/mkinitcpio -P
+        else
+          /usr/bin/omarchy-boot-rebuild
+        fi
+      elif [[ -x /usr/bin/limine-mkinitcpio ]]; then
         /usr/bin/limine-mkinitcpio
       else
         /usr/bin/mkinitcpio -P

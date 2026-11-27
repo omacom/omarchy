@@ -49,6 +49,16 @@ count=0
 [[ ! -f $count_file ]] || count=$(<"$count_file")
 printf '%s' "$((count + 1))" >"$count_file"
 if [[ ${TEST_FAIL_FIRST_REBUILD:-0} == 1 && $count == 0 ]]; then exit 1; fi
+if [[ ${TEST_BOOT_FORMAT:-uki} == "systemd-boot" ]]; then
+  # Like omarchy-boot-rebuild: store a new image and point current at it,
+  # leaving the images snapshots are pinned to where they are.
+  store=${TEST_ROOT:?}/var/lib/omarchy/boot
+  image=rebuild-$((count + 1))
+  mkdir -p "$store/images/$image" "$store/current"
+  printf 'initramfs:%s' "$(cat "${TEST_CURRENT_THEME:?}")" >"$store/images/$image/initramfs.img"
+  ln -sfn "../images/$image" "$store/current/linux"
+  exit 0
+fi
 if [[ ${TEST_BOOT_FORMAT:-uki} == "classic" ]]; then
   mkdir -p "${TEST_ROOT:?}/boot"
   if [[ ! -f ${TEST_ROOT:?}/etc/mkinitcpio.d/linux-asahi.preset ]]; then
@@ -506,6 +516,61 @@ fi
 [[ $(<"$classic_root/boot/initramfs-asahi-previous.img") == "kept-by-hand" ]] ||
   fail "rollback leaves a hand-saved classic image as it was"
 pass "classic install verifies and rolls back only the images the presets name"
+
+# systemd-boot keeps the boot images in Omarchy's boot store. Only each
+# kernel's current image carries the install; a snapshot's pinned image and a
+# classic image left from before the switch are neither verified nor touched.
+sdboot_root="$tmp/sdboot-root"
+cp -a "$root" "$sdboot_root"
+mv -- "$sdboot_root/boot/EFI/Linux" "$tmp/retired-sdboot-uki"
+mkdir -p "$sdboot_root/etc/mkinitcpio.d" "$sdboot_root/var/lib/omarchy/boot/images/pinned" \
+  "$sdboot_root/var/lib/omarchy/boot/current"
+cat >"$sdboot_root/etc/mkinitcpio.d/linux.preset" <<'PRESET'
+PRESETS=('default')
+default_image="/boot/initramfs-linux.img"
+PRESET
+printf kept-by-hand >"$sdboot_root/boot/initramfs-linux.img"
+printf kept-by-hand >"$sdboot_root/var/lib/omarchy/boot/images/pinned/initramfs.img"
+ln -sfn ../images/pinned "$sdboot_root/var/lib/omarchy/boot/current/linux"
+printf spinner >"$tmp/sdboot-current-theme"
+: >"$tmp/sdboot-log"
+rm -f "$tmp/sdboot-rebuild-count"
+sdboot_env=(
+  "${env_common[@]}"
+  OMARCHY_PLYMOUTH_TEST_ROOT="$sdboot_root"
+  TEST_ROOT="$sdboot_root"
+  TEST_CURRENT_THEME="$tmp/sdboot-current-theme"
+  TEST_LOG="$tmp/sdboot-log"
+  TEST_REBUILD_COUNT="$tmp/sdboot-rebuild-count"
+  TEST_BOOT_FORMAT=systemd-boot
+  OMARCHY_LSINITCPIO="$tmp/bin/lsinitcpio-classic" TEST_LSINITCPIO="$tmp/bin/lsinitcpio"
+)
+env "${sdboot_env[@]}" "$installer" --module "$module_source" >"$tmp/out" 2>"$tmp/err" ||
+  fail "native install succeeds on systemd-boot" "$(cat "$tmp/err")"
+sdboot_store=$sdboot_root/var/lib/omarchy/boot
+[[ $(readlink "$sdboot_store/current/linux") == ../images/rebuild-1 ]] ||
+  fail "systemd-boot install stores a new current image"
+[[ $(<"$sdboot_store/images/rebuild-1/initramfs.img") == "initramfs:omarchy" ]] ||
+  fail "systemd-boot current image is rebuilt with the native theme"
+[[ $(<"$sdboot_store/images/pinned/initramfs.img") == "kept-by-hand" ]] ||
+  fail "a snapshot's pinned image is left as it was"
+[[ $(<"$sdboot_root/boot/initramfs-linux.img") == "kept-by-hand" ]] ||
+  fail "a classic image left from before the switch is left as it was"
+[[ ! -e $sdboot_root/boot/EFI/Linux ]] || fail "systemd-boot install does not fabricate a Limine UKI directory"
+pass "native install verifies systemd-boot's current boot images"
+
+ln -sfn ../images/pinned "$sdboot_store/current/linux"
+printf spinner >"$tmp/sdboot-current-theme"
+rm -f "$tmp/sdboot-rebuild-count"
+if env "${sdboot_env[@]}" TEST_FAIL_FIRST_REBUILD=1 "$installer" --module "$module_source" >"$tmp/out" 2>"$tmp/err"; then
+  fail "a failed systemd-boot rebuild reports failure"
+fi
+[[ $(<"$tmp/sdboot-current-theme") == "spinner" ]] || fail "systemd-boot rollback restores the previous theme"
+[[ $(<"$sdboot_store/images/$(basename "$(readlink "$sdboot_store/current/linux")")/initramfs.img") == "initramfs:spinner" ]] ||
+  fail "systemd-boot rollback stores an image of the restored theme"
+[[ $(<"$sdboot_store/images/pinned/initramfs.img") == "kept-by-hand" ]] ||
+  fail "systemd-boot rollback leaves a snapshot's pinned image as it was"
+pass "systemd-boot rollback rebuilds the restored state"
 
 # The outer installer owns the same shared lock across snapshot and commit.
 # A child must inherit the exact open file description, not just any descriptor

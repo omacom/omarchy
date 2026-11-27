@@ -71,14 +71,17 @@ fi
 
 # What the boot image is built from: mkinitcpio's configuration, the module
 # options its modconf hook copies in (leaves such as nvidia.sh write them), and
-# the kernel command line Limine's entry tool adds (leaves such as intel/fred.sh
-# add to it).
+# the kernel command line each boot loader adds (leaves such as intel/fred.sh
+# add to it through omarchy-boot-cmdline): Limine's entry tool reads
+# /etc/default/limine and its drop-ins, systemd-boot's images take
+# /etc/kernel/cmdline and /etc/cmdline.d.
 initramfs_inputs() {
   local file
 
   for file in "$omarchy_image_root/etc/mkinitcpio.conf" "$omarchy_image_root/etc/mkinitcpio.conf.d/"* \
     "$omarchy_image_root/etc/modprobe.d/"* "$omarchy_image_root/usr/lib/modprobe.d/"* \
-    "$omarchy_image_root/etc/default/limine" "$omarchy_image_root/etc/limine-entry-tool.d/"*; do
+    "$omarchy_image_root/etc/default/limine" "$omarchy_image_root/etc/limine-entry-tool.d/"* \
+    "$omarchy_image_root/etc/kernel/cmdline" "$omarchy_image_root/etc/cmdline.d/"*; do
     [[ -e $file ]] || continue
     printf '%s\0' "$file"
     cat -- "$file"
@@ -141,10 +144,10 @@ done
 
 if [[ -e $omarchy_image_boot_rebuild || $(initramfs_inputs) != "$(<"$omarchy_image_initramfs_baseline")" ]]; then
   echo "Rebuilding the initramfs for the deferred hardware setup"
-  if omarchy-cmd-present limine-mkinitcpio; then
-    limine-mkinitcpio </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
-  else
+  if [[ $(omarchy-boot-backend) == none ]]; then
     mkinitcpio -P </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
+  else
+    omarchy-boot-rebuild </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
   fi || fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
   # The new image must be on disk before the queue that owes it is cleared.
   sync || fail "could not flush the rebuilt initramfs to disk"

@@ -66,6 +66,8 @@ code=${code/theme_file=\/usr\/share\/plymouth\/themes\/omarchy\/omarchy.plymouth
 code=${code/effects_file=\/usr\/share\/plymouth\/themes\/omarchy\/ttfx-effects.txt/effects_file=$TEST_TRUSTED_CATALOG}
 code=${code/\/run\/lock\/omarchy-plymouth.lock/$TEST_LOCK_FILE}
 code=${code/module_file=\/usr\/lib\/plymouth\/ttfx-plymouth.so/module_file=$TEST_NATIVE_MODULE}
+code=${code//\/usr\/bin\/omarchy-boot-backend/$TEST_FAKE_BIN\/omarchy-boot-backend}
+code=${code//\/usr\/bin\/omarchy-boot-rebuild/$TEST_FAKE_BIN\/omarchy-boot-rebuild}
 code=${code//\/usr\/bin\/limine-mkinitcpio/$TEST_FAKE_BIN\/limine-mkinitcpio}
 code=${code//\/usr\/bin\/mkinitcpio/$TEST_FAKE_BIN\/mkinitcpio}
 /bin/bash -c "$code" bash "$@"
@@ -204,6 +206,25 @@ TEST_SEED=7 run_set off >/dev/null
 [[ $(run_set resolved) == $'mode=off\neffect=off\nseed=0' ]] || fail "off stores static-only state"
 (( $(grep -c '^rebuild limine$' "$log") == 1 )) || fail "off rebuilds exactly once"
 pass "off publishes native static-only state"
+
+# A release with the loader-neutral commands rebuilds through them, which
+# covers systemd-boot as well as Limine.
+cat >"$fake_bin/omarchy-boot-backend" <<'SH'
+#!/bin/bash
+echo systemd-boot
+SH
+cat >"$fake_bin/omarchy-boot-rebuild" <<'SH'
+#!/bin/bash
+printf 'rebuild omarchy-boot\n' >>"$TEST_LOG"
+SH
+chmod +x "$fake_bin/omarchy-boot-backend" "$fake_bin/omarchy-boot-rebuild"
+: >"$log"
+run_set decrypt >/dev/null
+(( $(grep -c '^rebuild omarchy-boot$' "$log") == 1 )) || fail "the loader-neutral rebuild runs once" "$(<"$log")"
+! grep -q '^rebuild limine$' "$log" || fail "the loader-neutral rebuild replaces limine-mkinitcpio"
+rm -f "$fake_bin/omarchy-boot-backend" "$fake_bin/omarchy-boot-rebuild"
+TEST_SEED=7 run_set off >/dev/null
+pass "selection rebuilds through omarchy-boot-rebuild where the release has it"
 
 if run_set unknown >/dev/null 2>&1; then fail "setter rejects unknown effect"; fi
 if TEST_SEED=18446744073709551616 run_set decrypt >/dev/null 2>&1; then fail "setter rejects seed overflow"; fi

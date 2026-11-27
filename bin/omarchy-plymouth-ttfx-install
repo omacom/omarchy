@@ -46,6 +46,7 @@ theme_dir="$system_root/usr/share/plymouth/themes/omarchy"
 recovery_dir="$system_root/usr/share/plymouth/themes/omarchy-static"
 native_template="$system_root/usr/share/omarchy/default/plymouth/omarchy.plymouth"
 uki_dir="$system_root/boot/EFI/Linux"
+boot_store="$system_root/var/lib/omarchy/boot"
 
 # The classic images mkinitcpio -P writes are the ones its presets name. A
 # kept copy beside them, such as a previous kernel's initramfs saved by hand,
@@ -72,20 +73,53 @@ preset_images() {
   done | sort -zu
 }
 
+limine_ukis() {
+  find "$uki_dir" -maxdepth 1 -type f -name 'omarchy_linux*.efi' -print0 2>/dev/null | sort -z
+}
+
+# systemd-boot keeps each kernel's current boot image in Omarchy's boot store.
+# omarchy-boot-rebuild stores a new one on every rebuild and leaves the images
+# snapshots are pinned to alone, so only the current ones carry this install.
+store_images() {
+  local link image
+  for link in "$boot_store"/current/*; do
+    [[ -L $link ]] || continue
+    image="$boot_store/images/$(basename "$(readlink "$link")")/initramfs.img"
+    [[ -f $image ]] && printf '%s\0' "$image"
+  done
+  return 0
+}
+
 # Omarchy on Limine builds UKIs. GRUB/Asahi uses classic initramfs images.
 # Both are inspected by lsinitcpio and must be rolled back transactionally.
+# systemd-boot images are not copied back: a rollback rebuild stores new ones.
 boot_artifacts() {
-  local -a ukis
-  mapfile -d '' -t ukis < <(find "$uki_dir" -maxdepth 1 -type f -name 'omarchy_linux*.efi' -print0 2>/dev/null | sort -z)
+  local -a ukis store
+  mapfile -d '' -t ukis < <(limine_ukis)
   if (( ${#ukis[@]} )); then
     printf '%s\0' "${ukis[@]}"
     return
   fi
+  mapfile -d '' -t store < <(store_images)
+  (( ${#store[@]} == 0 )) || return 0
   if compgen -G "$system_root/etc/mkinitcpio.d/*.preset" >/dev/null; then
     preset_images
     return
   fi
   find "$system_root/boot" -maxdepth 1 -type f -name 'initramfs-*.img' -print0 2>/dev/null | sort -z
+}
+
+# The images the next boot loads: the boot store's on systemd-boot, plus
+# Limine's UKIs, which stay current next to them while a switch is on trial.
+verified_images() {
+  local -a store
+  mapfile -d '' -t store < <(store_images)
+  if (( ${#store[@]} )); then
+    printf '%s\0' "${store[@]}"
+    limine_ukis
+    return
+  fi
+  boot_artifacts
 }
 
 # Writes the image list only after every image is copied, so the list means a
@@ -143,9 +177,18 @@ check_abi() {
   (( $(wc -l <<<"$versions") == 2 ))
 }
 
+# omarchy-boot-rebuild publishes the images for whichever loader boots the
+# machine (Limine or systemd-boot). A machine with neither, and a release that
+# predates the loader-neutral commands, keep the direct rebuild.
 rebuild() {
   if [[ -n $rebuild_command ]]; then
     "$rebuild_command"
+  elif [[ -x /usr/bin/omarchy-boot-backend ]]; then
+    if [[ $(/usr/bin/omarchy-boot-backend) == none ]]; then
+      /usr/bin/mkinitcpio -P
+    else
+      /usr/bin/omarchy-boot-rebuild
+    fi
   elif [[ -x /usr/bin/limine-mkinitcpio ]]; then
     /usr/bin/limine-mkinitcpio
   else
@@ -617,7 +660,7 @@ install_module() {
   if ! rebuild; then
     rollback 1
   fi
-  mapfile -d '' -t boot_images < <(boot_artifacts)
+  mapfile -d '' -t boot_images < <(verified_images)
   if (( ${#boot_images[@]} == 0 )); then
     echo "omarchy-plymouth-ttfx-install: rebuild produced no boot image" >&2
     rollback 1
