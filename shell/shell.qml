@@ -132,7 +132,36 @@ ShellRoot {
       console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
       return
     }
-    userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
+    pendingConfigWrite = JSON.stringify(payload)
+    flushConfigWrite()
+  }
+
+  // Serialize shell saves; the writer rebases stale IDs against aliases on disk
+  // under the same lock as CLI edits and checkout migrations.
+  property string pendingConfigWrite: ""
+  function flushConfigWrite() {
+    if (configWriter.running || !pendingConfigWrite) return
+    configWriter.payload = pendingConfigWrite
+    pendingConfigWrite = ""
+    configWriter.stdinEnabled = true
+    configWriter.running = true
+  }
+
+  Process {
+    id: configWriter
+    property string payload: ""
+    command: [shell.omarchyPath + "/bin/omarchy-plugin-id", "config-save"]
+    onStarted: {
+      write(payload + "\n")
+      payload = ""
+      stdinEnabled = false
+    }
+    stderr: StdioCollector { id: configWriteError; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) console.warn("shell config save failed: " + configWriteError.text)
+      if (!shell.pendingConfigWrite) userConfigFile.reload()
+      Qt.callLater(shell.flushConfigWrite)
+    }
   }
 
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
@@ -159,7 +188,7 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
+    onLoaded: if (!configWriter.running && !shell.pendingConfigWrite) shell.applyShellConfig()
     onLoadFailed: function(error) { shell.applyShellConfig() }
     onFileChanged: reload()
   }
