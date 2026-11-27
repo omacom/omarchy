@@ -132,8 +132,8 @@ pending_migrations() {
   local file filename
   for file in "$MIGRATIONS_DIR"/*.sh; do
     [[ -f $file ]] || continue
-    filename=$(basename "$file")
-    if [[ ! -f "$STATE_DIR/$filename" ]]; then
+    filename=${file##*/}
+    if [[ ! -f $STATE_DIR/$filename ]]; then
       printf '%s\n' "$filename"
     fi
   done
