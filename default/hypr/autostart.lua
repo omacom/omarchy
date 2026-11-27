@@ -14,6 +14,9 @@ hl.on("hyprland.start", function()
   -- Encrypted drives unlock with their keyfile or ask for their password in the shell (omarchy-drive-unlock).
   hl.exec_cmd("sleep 2 && " .. o.launch("omarchy-drive-automount"))
 
+  -- Keyboards that forget their color at boot take the theme's again.
+  hl.exec_cmd("sleep 2 && omarchy-hw-asus-lamparray-keyboard && omarchy-theme-set-keyboard-asus-lamparray")
+
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
 end)

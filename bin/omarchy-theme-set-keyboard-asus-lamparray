@@ -1,0 +1,58 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Apply the current theme keyboard color to ASUS LampArray keyboards (Vivobook S16 and similar)
+# omarchy:hidden=true
+
+# The keyboard is a single-lamp HID LampArray. Taking it out of autonomous mode
+# (the firmware's rainbow at boot, then white once the kernel binds) and sending
+# one LampRangeUpdate sets its color. Access to the hidraw node comes from
+# default/udev/asus-lamparray-keyboard.rules.
+
+import fcntl
+import glob
+import os
+import re
+
+THEME = os.path.expanduser("~/.local/state/omarchy/current/theme/keyboard.rgb")
+
+
+def set_feature(fd, report):
+  buf = bytearray(report)
+  fcntl.ioctl(fd, (3 << 30) | (len(buf) << 16) | (ord("H") << 8) | 0x06, buf)  # HIDIOCSFEATURE
+
+
+def keyboard():
+  for node in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
+    device = os.path.basename(os.path.realpath(node + "/device"))
+    if device.upper().startswith("0018:0B05:19B6."):
+      return "/dev/" + os.path.basename(node)
+  return None
+
+
+def main():
+  try:
+    color = open(THEME).read().strip().lstrip("#")
+  except OSError:
+    return
+  if not re.fullmatch(r"[0-9A-Fa-f]{6}", color):
+    return
+
+  path = keyboard()
+  if not path:
+    return
+
+  red, green, blue = (int(color[i:i + 2], 16) for i in (0, 2, 4))
+  try:
+    fd = os.open(path, os.O_RDWR)
+  except OSError:
+    return
+  try:
+    set_feature(fd, [0x0B, 0x00])  # LampArrayControl: host controls the lamps
+    set_feature(fd, [0x05, 0x01, 0, 0, 0, 0, red, green, blue, 0xFF])  # LampRangeUpdate: lamps 0..0, update complete
+  except OSError:
+    pass
+  finally:
+    os.close(fd)
+
+
+main()

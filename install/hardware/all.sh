@@ -56,6 +56,7 @@ run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/asus-lamparray-keyboard.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-spi-keyboard.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-suspend-nvme.sh"
