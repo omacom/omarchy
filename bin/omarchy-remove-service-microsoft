@@ -4,6 +4,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-service-microsoft"
+    echo
+    echo "Remove the Microsoft Outlook, Word, Excel, PowerPoint, Teams, and OneDrive web apps."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-service-microsoft: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 for app in "Microsoft Outlook" "Microsoft Word" "Microsoft Excel" "Microsoft PowerPoint" "Microsoft Teams" "Microsoft OneDrive"; do
   if [[ -f "$HOME/.local/share/applications/$app.desktop" ]]; then
     omarchy-webapp-remove "$app"

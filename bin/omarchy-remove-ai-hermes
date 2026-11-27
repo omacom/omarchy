@@ -6,6 +6,22 @@
 # -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
 set -euo pipefail
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-ai-hermes"
+    echo
+    echo "Remove the Hermes desktop app along with the Hermes runtime it installed."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-ai-hermes: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
 # Only systemd's own word counts as "stopped": a non-zero exit from is-active

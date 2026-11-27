@@ -271,6 +271,57 @@ assert_output_contains "pkg add help shows direct route" "$output" "omarchy pkg 
 output=$("$CLI" system reboot --help)
 assert_output_contains "system command help is safe" "$output" "omarchy-system"
 
+# Called directly, a removal asked for help must not start removing: the router
+# answers --help itself, but the binary is what tab completion offers. Each runs
+# with a PATH that holds nothing and a not-found handler that logs, so whatever
+# it would have run (omarchy-pkg-drop, sudo, rm) is recorded instead of happening.
+make_tmpdir remove_help_tmp
+remove_help_calls="$remove_help_tmp/calls.log"
+mkdir -p "$remove_help_tmp/bin"
+cat >"$remove_help_tmp/not-found.sh" <<'SH'
+command_not_found_handle() {
+  printf '%s\n' "$*" >>"$TEST_CALLS"
+  return 127
+}
+SH
+
+run_remove() {
+  local command="$1"
+  shift
+  rm -rf "$remove_help_tmp/home"
+  mkdir -p "$remove_help_tmp/home"
+  : >"$remove_help_calls"
+  env -i HOME="$remove_help_tmp/home" PATH="$remove_help_tmp/bin" BASH_ENV="$remove_help_tmp/not-found.sh" TEST_CALLS="$remove_help_calls" \
+    "$BASH" "$command" "$@" </dev/null 2>&1
+}
+
+remove_help_checked=0
+for command in "$ROOT"/bin/omarchy-remove-*; do
+  name=$(basename "$command")
+
+  # Commands that take what to remove as their argument (a browser, a dev
+  # environment) refuse an unknown one before acting, --help included.
+  grep -q '^# omarchy:args=' "$command" && continue
+
+  status=0
+  output=$(run_remove "$command" --help) || status=$?
+  if (( status != 0 )) || [[ ${output%%$'\n'*} != "Usage: $name" || -s $remove_help_calls ]]; then
+    printf '%s\n' "$output" "$(<"$remove_help_calls")" >&2
+    fail "$name --help prints its usage and runs nothing"
+  fi
+
+  status=0
+  output=$(run_remove "$command" --bogus) || status=$?
+  if (( status != 2 )) || [[ -s $remove_help_calls ]]; then
+    printf '%s\n' "$output" "$(<"$remove_help_calls")" >&2
+    fail "$name refuses an unknown option and runs nothing"
+  fi
+
+  remove_help_checked=$(( remove_help_checked + 1 ))
+done
+(( remove_help_checked > 0 )) || fail "found removal commands to check"
+pass "every argument-less removal prints usage for --help and refuses unknown options without running anything"
+
 output=$("$CLI" dev benchmark cli --repeat=1)
 assert_output_contains "benchmark command runs" "$output" "Omarchy CLI benchmark"
 

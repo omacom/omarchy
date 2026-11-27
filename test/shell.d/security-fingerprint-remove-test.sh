@@ -263,7 +263,10 @@ if unshare -Ur true >/dev/null 2>&1; then
     resolved=$(unshare -Ur -m bash -c '
       mount --make-rprivate /
       mount --bind "$1" /etc/passwd
-      SUDO_UID=1000 source "$2"
+      # The command takes no arguments: source it with none, as it runs.
+      identity=$2
+      set --
+      SUDO_UID=1000 source "$identity"
       printf "%s\n" "$fingerprint_user"
     ' bash "$test_tmp/passwd" "$test_tmp/identity.sh")
     [[ $resolved == alice ]] || fail "numeric UID lookup ignores a numeric username" "$resolved"

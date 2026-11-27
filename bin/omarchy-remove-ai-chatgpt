@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-ai-chatgpt"
+    echo
+    echo "Remove the ChatGPT desktop app along with its configuration and caches."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-ai-chatgpt: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 # The app rewrites ~/.config/Codex for as long as it runs, so a removal that
 # leaves it running deletes the directory and watches it come straight back.
 pkill -x ChatGPT || true

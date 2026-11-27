@@ -3,6 +3,22 @@
 # omarchy:summary=Remove Dropbox and its bar plugin.
 # omarchy:requires-sudo=true
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-service-dropbox"
+    echo
+    echo "Remove Dropbox and its bar plugin."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-service-dropbox: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 dropbox-cli stop 2>/dev/null || true
 omarchy-plugin-disable omarchy.dropbox
 omarchy-pkg-drop dropbox dropbox-cli python-gpgme nautilus-dropbox

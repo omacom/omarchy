@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-gaming-minecraft"
+    echo
+    echo "Remove the Minecraft launcher along with its worlds, mods, and caches."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-gaming-minecraft: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 omarchy-pkg-drop minecraft-launcher
 
 rm -rf \

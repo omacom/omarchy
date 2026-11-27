@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-gaming-steam"
+    echo
+    echo "Remove Steam and all of its game libraries, configs, and caches."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-gaming-steam: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 omarchy-lifecycle-dispatch pre-remove steam
 omarchy-pkg-drop steam
 
