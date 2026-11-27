@@ -110,4 +110,94 @@ record, _ = agy({
 expect("404 on retrieveUserQuota degrades cleanly to summary limits",
        [record["tierLabel"], record["limits"], record["usageStatusText"]],
        ["Ultra", [], ""], record)
+
+
+def plant_t3(hash_name="hash-1", *, token=None, summaries=(), transcripts=None):
+  acp = home() / "t3" / "userdata" / "providers" / "antigravity" / hash_name / "antigravity-acp"
+  acp.mkdir(parents=True, exist_ok=True)
+  os.environ["T3CODE_HOME"] = str(home() / "t3")
+  if token is not None:
+    write_json(acp / "antigravity-oauth-token", token)
+  if summaries:
+    db = acp / "conversation_summaries.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE conversation_summaries (conversation_id text PRIMARY KEY, last_modified_time datetime NOT NULL, parent_conversation_id text NOT NULL DEFAULT '')")
+    conn.executemany("INSERT INTO conversation_summaries VALUES (?, ?, ?)", summaries)
+    conn.commit()
+    conn.close()
+  for cid, steps in (transcripts or {}).items():
+    transcript = acp / "brain" / cid / ".system_generated" / "logs" / "transcript.jsonl"
+    transcript.parent.mkdir(parents=True, exist_ok=True)
+    transcript.write_text("".join(json.dumps(step) + "\n" for step in steps))
+  return acp
+
+
+# T3 Code's antigravity-acp sign-in is picked up ahead of a lapsed agy keyring
+# token, and a lapsed T3 token names 'T3 Code' in authHelpText.
+machine()
+os.environ.pop("T3CODE_HOME", None)
+write_json(home() / "keyring.json", {
+  "auth_method": "consumer",
+  "id_token_email": "me@example.com",
+  "token": {"access_token": "token-lapsed", "refresh_token": "refresh-main", "expiry": iso_in(-3600)},
+})
+plant_t3(token={
+  "auth_method": "consumer",
+  "id_token_email": "me@example.com",
+  "token": {"access_token": "token-t3", "refresh_token": "refresh-t3", "expiry": iso_in(3600)},
+})
+record, http = agy({
+  TIER: {"paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}},
+  SUMMARY: {"groups": [{"displayName": "Gemini Models", "buckets": [{"window": "5h", "remainingFraction": 0.6, "resetTime": reset_early}]}]},
+})
+expect("T3 Code token is picked up ahead of a lapsed agy keyring token",
+       (record["tierLabel"], record["accountName"], [w["percent"] for w in record["limits"]],
+        [r["headers"].get("authorization") for r in http.requests[:1]]),
+       ("Pro", "me@example.com", [0.4], ["Bearer token-t3"]), record)
+
+plant_t3(token={
+  "auth_method": "consumer",
+  "id_token_email": "me@example.com",
+  "token": {"access_token": "token-t3-lapsed", "refresh_token": "refresh-t3", "expiry": iso_in(-60)},
+})
+record, _ = agy({})
+expect("lapsed T3 Code token names 'T3 Code' in authHelpText",
+       (record["usageStatusText"], "T3 Code" in record["authHelpText"]),
+       ("Limits paused", True), record)
+
+# Without history.jsonl in antigravity-acp, USER_INPUT steps count as prompts
+# while subagent transcripts are excluded from prompt and session counts; an
+# AGY_DIR with history.jsonl still counts from history.jsonl alone.
+freeze_today()
+machine()
+os.environ.pop("T3CODE_HOME", None)
+(home() / "keyring.json").unlink()
+now_iso = today_stamp(10)
+write_json(home() / "agy" / "history.jsonl", {"timestamp": now_iso, "conversationId": "agy-main"})
+agy_transcript = home() / "agy" / "brain" / "agy-main" / ".system_generated" / "logs" / "transcript.jsonl"
+agy_transcript.parent.mkdir(parents=True, exist_ok=True)
+agy_transcript.write_text(
+  json.dumps({"type": "USER_INPUT", "source": "USER_EXPLICIT", "created_at": now_iso}) + "\n" +
+  json.dumps({"type": "USER_INPUT", "source": "USER_EXPLICIT", "created_at": now_iso}) + "\n"
+)
+plant_t3(
+  summaries=[("conv-main", now_iso, ""), ("conv-sub", now_iso, "conv-main")],
+  transcripts={
+    "conv-main": [
+      {"type": "USER_INPUT", "source": "USER_EXPLICIT", "created_at": now_iso},
+      {"type": "PLANNER_RESPONSE", "created_at": now_iso, "model": "gemini-4-hydrogen-high", "input_tokens": 300, "output_tokens": 50},
+      {"type": "USER_INPUT", "source": "USER_EXPLICIT", "created_at": now_iso},
+      {"type": "PLANNER_RESPONSE", "created_at": now_iso, "input_tokens": 200, "output_tokens": 10},
+    ],
+    "conv-sub": [
+      {"type": "USER_INPUT", "source": "USER_EXPLICIT", "created_at": now_iso},
+      {"type": "PLANNER_RESPONSE", "created_at": now_iso, "model": "gemini-4-hydrogen-high", "input_tokens": 40, "output_tokens": 10},
+    ],
+  },
+)
+record, _ = agy({})
+expect("T3 Code USER_INPUT steps count as prompts without history.jsonl, excluding subagents",
+       (record["ready"], record["hasLocalStats"], record["todayPrompts"], record["totalPrompts"],
+        record["todaySessions"], record["totalSessions"], record["todayTotalTokens"]),
+       (True, True, 3, 3, 2, 2, 610), record)
 PY

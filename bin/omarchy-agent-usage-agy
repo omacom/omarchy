@@ -8,16 +8,17 @@ The id is agy, the name omarchy-default-agent and omarchy-agent know the CLI
 by, so the record and the default agent agree on which agent this is.
 
 Local stats come from Antigravity's history log, conversation summaries, and
-conversation transcripts under ~/.gemini/antigravity-cli/, and from the
+conversation transcripts under ~/.gemini/antigravity-cli/ and T3 Code's
+antigravity-acp roots under ~/.t3/userdata/providers/antigravity/, and from the
 Antigravity answers pi, omp, OpenClaw, and opencode's Antigravity plugin
 recorded; no other collector counts those. The plan and
 limits come from the Google Cloud Code API (v1internal:loadCodeAssist,
 v1internal:retrieveUserQuotaSummary, and v1internal:retrieveUserQuota when the
 summary omits Gemini), asked with the sign-in agy keeps in the
 Secret Service keyring (or its antigravity-oauth-token file), or with the
-Antigravity sign-in omp, pi, or opencode's Antigravity plugin keeps; a lapsed
-omp sign-in is asked through `omp usage`, which renews it. Those stores are
-only ever read. The agents panel only ever reads the JSON this prints.
+Antigravity sign-in T3 Code, omp, pi, or opencode's Antigravity plugin keeps; a
+lapsed omp sign-in is asked through `omp usage`, which renews it. Those stores
+are only ever read. The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
@@ -61,14 +62,27 @@ AGENT_ID = "agy"
 # The panel names the subscription, as it does Claude and Grok; Antigravity is
 # the harness that codes on it.
 AGENT_NAME = "Gemini"
-AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or opencode."
+AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in T3 Code, omp, pi, or opencode."
 # How each source of a sign-in is named when it needs attention.
-SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
+SOURCE_NAMES = {"agy": "`agy`", "t3": "T3 Code", "omp": "omp", "pi": "pi", "opencode": "opencode"}
 DEFAULT_CLOUD_CODE_URL = "https://daily-cloudcode-pa.googleapis.com"
 
 
 def app_root():
   return Path(os.environ.get("AGY_DIR") or (Path.home() / ".gemini" / "antigravity-cli"))
+
+
+def t3_home():
+  return Path(os.environ.get("T3CODE_HOME") or (Path.home() / ".t3")).expanduser()
+
+
+def t3_roots():
+  base = t3_home() / "userdata" / "providers" / "antigravity"
+  try:
+    roots = [path for path in sorted(base.glob("*/antigravity-acp")) if path.is_dir()]
+  except OSError:
+    return []
+  return canonical_roots(roots)
 
 
 # Times on disk are untrusted: a boolean, an epoch at or below zero, one too
@@ -110,6 +124,25 @@ def local_day(value):
 # The sign-in agy keeps in the keyring: its access token, when that lapses,
 # whether a refresh token stands behind it, and which kind of account it is.
 # Without a Secret Service, agy keeps the same sign-in in a file of its own.
+def oauth_login(source, data):
+  if not isinstance(data, dict):
+    return None
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  raw_access = token.get("access_token") or data.get("access_token")
+  access_token = raw_access if isinstance(raw_access, str) else ""
+  if source != "agy" and not access_token:
+    return None
+  expires = parse_time(token.get("expiry") or data.get("expiry"))
+  return {
+    "source": source,
+    "accessToken": access_token,
+    "expiresAt": expires.timestamp() if expires else 0,
+    "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
+    "authMethod": str(data.get("auth_method") or "consumer"),
+    "email": str(data.get("id_token_email") or "") or email_of(data.get("id_token")),
+  }
+
+
 def login():
   try:
     raw = subprocess.check_output(
@@ -121,19 +154,7 @@ def login():
     data = None
   if not isinstance(data, dict):
     data = read_json(app_root() / "antigravity-oauth-token") or None
-  if not isinstance(data, dict):
-    return None
-
-  token = data.get("token") if isinstance(data.get("token"), dict) else {}
-  expires = parse_time(token.get("expiry") or data.get("expiry"))
-  return {
-    "source": "agy",
-    "accessToken": str(token.get("access_token") or data.get("access_token") or ""),
-    "expiresAt": expires.timestamp() if expires else 0,
-    "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
-    "authMethod": str(data.get("auth_method") or "consumer"),
-    "email": str(data.get("id_token_email") or "") or email_of(data.get("id_token")),
-  }
+  return oauth_login("agy", data)
 
 
 # omp, pi, and opencode's Antigravity plugin sign in with the same Google
@@ -203,9 +224,20 @@ def opencode_logins():
   return [entry] if entry else []
 
 
+# T3 Code keeps its Antigravity sign-in in each antigravity-acp directory
+# using the same antigravity-oauth-token format as agy.
+def t3_logins():
+  entries = []
+  for root in t3_roots():
+    entry = oauth_login("t3", read_json(root / "antigravity-oauth-token"))
+    if entry:
+      entries.append(entry)
+  return entries
+
+
 def logins():
   entry = login()
-  return ([entry] if entry else []) + omp_logins() + pi_logins() + opencode_logins()
+  return ([entry] if entry else []) + t3_logins() + omp_logins() + pi_logins() + opencode_logins()
 
 
 def email_of(id_token):
@@ -703,16 +735,12 @@ def harness_rows(problems):
   return pi_rows + db_rows
 
 
-# Every prompt from history.jsonl, every conversation from it and from the
-# conversation summaries, and the tokens each model step in a transcript
-# reports. Steps that report no usage add no tokens; steps without a usable
-# date still count toward the lifetime totals. Antigravity driven from
-# another harness adds each answer it recorded as a prompt, the way the
-# Codex collector counts them, with every token it reports.
-def local_stats(root, problems=None):
-  problems = [] if problems is None else problems
-  stats = Stats()
-
+# Every prompt from history.jsonl (or USER_INPUT transcript steps when
+# history.jsonl is absent, as in T3 Code's antigravity-acp store), every
+# conversation from it and from the conversation summaries, and the tokens each
+# model step in a transcript reports. Steps that report no usage add no tokens;
+# steps without a usable date still count toward the lifetime totals.
+def scan_root(root, stats, problems):
   # A subagent's conversation is part of the one that spawned it, so it
   # counts toward that conversation rather than as a session of its own.
   summaries = conversation_summaries(root, problems)
@@ -725,6 +753,7 @@ def local_stats(root, problems=None):
       conversation = parents[conversation]
     return conversation
 
+  has_history = (root / "history.jsonl").exists()
   for entry in history_entries(root, problems):
     day = local_day(entry.get("timestamp"))
     if not day:
@@ -738,12 +767,13 @@ def local_stats(root, problems=None):
     if conversation:
       stats.add_prompts(stats.today if local_day(modified) == stats.today else None, session_of(conversation), 0)
 
-  for transcript in (root / "brain").glob("*/.system_generated/logs/transcript.jsonl"):
+  for transcript in sorted((root / "brain").glob("*/.system_generated/logs/transcript.jsonl")):
     try:
       lines = transcript.read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError:
       problems.append(str(transcript))
       continue
+    conversation = transcript.parent.parent.parent.name
     # The model a conversation runs on carries from step to step until a
     # step names another one.
     current = ""
@@ -755,11 +785,25 @@ def local_stats(root, problems=None):
       if not isinstance(step, dict):
         continue
       current = step_model(step) or selected_model(step) or current
+      if not has_history and step.get("type") == "USER_INPUT" and conversation not in parents:
+        day = local_day(step.get("created_at") or step.get("timestamp"))
+        if day:
+          stats.add_prompts(day, session_of(conversation))
       tokens = step_tokens(step)
       if not tokens or not any(tokens):
         continue
       # Tokens with no prompt, and maybe no date.
       stats.add(local_day(step.get("created_at") or step.get("timestamp")) or None, None, current or "unknown", *tokens, prompts=0)
+
+
+# Antigravity driven from another harness adds each answer it recorded as a
+# prompt, the way the Codex collector counts them, with every token it reports.
+def local_stats(root, problems=None):
+  problems = [] if problems is None else problems
+  stats = Stats()
+
+  for scan_dir in canonical_roots([root, *t3_roots()]):
+    scan_root(scan_dir, stats, problems)
 
   for row in harness_rows(problems):
     stats.add_row(row, model_key(row.model) or "unknown")
@@ -777,7 +821,7 @@ def cached_local_stats(root, max_age):
     stats = local_stats(root, problems)
     return stats, not problems
 
-  return cached_scan(AGENT_ID, [root, opencode_db(), *session_roots()], max_age, scan)
+  return cached_scan(AGENT_ID, [root, *t3_roots(), opencode_db(), *session_roots()], max_age, scan)
 
 
 def main():
@@ -796,7 +840,7 @@ def main():
     "limits": [], "tierLabel": "", "accountName": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
   }
   tier = limits["tierLabel"]
-  agy = next((e for e in entries if e["source"] == "agy"), None)
+  agy = next((e for e in entries if e["source"] in ("agy", "t3")), None)
   if not tier and agy and agy["authMethod"] == "enterprise":
     tier = "Enterprise"
   elif not tier and agy and agy["authMethod"] in ("cloud", "vertex"):
