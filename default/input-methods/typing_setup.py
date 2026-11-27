@@ -145,18 +145,18 @@ def save_inputs(selected, overrides=None):
     load_engines(missing, catalog)
     group, layout, items = setup.live_group()
   set_inputs(group, layout, items, input_items(items, selected, overrides, layout))
-  # Keyboard-only sessions start fcitx5 without xcb/xim to keep Xwayland asleep.
-  # Restart fcitx5 once the first composition engine is saved so X11/XIM apps
-  # can reach it without waiting for the next login.
-  if not had_engine and any(not name.startswith("keyboard-") for name in selected):
-    setup.run(["omarchy-restart-xcompose"])
-  # Only a saved engine claims the CJK font fallback, and a failed font write
-  # returns the group so the menu's restored checks stay true.
+  # Only a saved engine claims the CJK font fallback, and a failed font write or
+  # restart returns the group so the menu's restored checks stay true.
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   try:
     for name in selected:
       if name in setup.PRESETS:
         setup.font_default(config_home, name)
+    # Keyboard-only sessions start fcitx5 without xcb/xim to keep Xwayland asleep.
+    # Restart fcitx5 once the first composition engine is saved so X11/XIM apps
+    # can reach it without waiting for the next login.
+    if not had_engine and any(not name.startswith("keyboard-") for name in selected):
+      setup.run(["omarchy-restart-xcompose"])
   except BaseException:
     setup.live_set(group, layout, items)
     raise
