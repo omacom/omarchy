@@ -51,10 +51,6 @@
   "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-shell shell summon omarchy.menu '{\"mode\":\"keybindings\"}'"},
   "learn.omarchy": {"icon":"","label":"Omarchy","action":"omarchy-launch-manual"},
   "learn.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-webapp 'https://wiki.hypr.land/'"},
-  "learn.arch": {"icon":"󰣇","label":"Arch","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
-  "learn.neovim": {"icon":"","label":"Neovim","action":"omarchy-launch-webapp 'https://www.lazyvim.org/keymaps'"},
-  "learn.bash": {"icon":"󱆃","label":"Bash","action":"omarchy-launch-webapp 'https://devhints.io/bash'"},
-  "learn.tmux-keybindings": {"icon":"","label":"Tmux","action":"omarchy-menu-tmux-keybindings"},
   "learn.herdr-keybindings": {"icon":"","label":"Herdr","action":"omarchy-menu-herdr-keybindings"},
   "learn.community": {"icon":"󰙯","label":"Community","when":"omarchy-region-global","action":"omarchy-launch-discord-community"},
 
