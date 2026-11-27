@@ -21,7 +21,7 @@ DEFAULT_FILE="$MODES_DIR/default.lua"
 # Without a saved default, Hyprland's own layout is the default, which the
 # user's looknfeel may have set.
 if (( $# == 0 )); then
-  MODE=$(sed -n 's/.*default = "\([a-z]*\)".*/\1/p' "$DEFAULT_FILE" 2>/dev/null)
+  MODE=$(LC_ALL=C sed -n 's/.*default = "\([a-z]*\)".*/\1/p' "$DEFAULT_FILE" 2>/dev/null)
   [[ -n $MODE ]] || MODE=$(hyprctl getoption general.layout -j 2>/dev/null | jq -r '.str // empty')
   echo "${MODE:-dwindle}"
   exit 0

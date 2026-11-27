@@ -59,7 +59,7 @@ if [[ -n ${NO_COLOR:-} ]]; then
 fi
 
 normalize_theme_name() {
-  printf '%s' "$1" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
+  printf '%s' "$1" | sed -E 's/<[^>]+>//g' | LC_ALL=C tr '[:upper:]' '[:lower:]' | tr ' ' '-'
 }
 
 resolve_colors_file() {
