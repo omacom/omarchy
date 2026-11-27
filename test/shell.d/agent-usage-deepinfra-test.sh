@@ -157,4 +157,18 @@ with FakeHttp(ROUTES, mode=401):
 del os.environ["DEEPINFRA_API_KEY"]
 expect("a refused key with nothing cached shows no balance and isn't ready",
        [refused_cold["usageStatusText"], "balance" in refused_cold, refused_cold["ready"]], ["Sign-in expired", False, True], refused_cold)
+
+# A 403 for a key missing the billing:read scope (confirmed live against a
+# real account) isn't the key being wrong at all -- DeepInfra's own message
+# is the one thing to do about it, so it replaces the generic help text
+# rather than sitting beside it.
+sandbox()
+write_key()
+deepinfra("--force")
+with FakeHttp({"/payment/checklist": lambda r: FakeHttp.refusal(r.full_url, 403, b'{"detail":{"error":"this API key does not have the \'billing:read\' scope"}}'),
+               "/payment/usage": lambda r: FakeHttp.refusal(r.full_url, 403, b'{"detail":{"error":"this API key does not have the \'billing:read\' scope"}}')}):
+  scoped = collect("deepinfra", "--force")
+expect("a key missing the billing:read scope surfaces DeepInfra's own message, not the generic one",
+       [scoped["usageStatusText"], "billing:read" in scoped["authHelpText"], "DEEPINFRA_API_KEY" in scoped["authHelpText"]],
+       ["Sign-in expired", True, False], scoped)
 PY

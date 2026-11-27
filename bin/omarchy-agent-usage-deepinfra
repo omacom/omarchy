@@ -21,6 +21,7 @@ agent-usage cache, so a failed check shows them stale rather than blank.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import sys
@@ -67,6 +68,21 @@ class DeepInfraTransportError(DeepInfraError):
 # The key itself was refused, so only a new one helps.
 class DeepInfraAuthError(DeepInfraError):
   pass
+
+
+# Confirmed live against a real account (403, not the key being wrong at
+# all): {"detail": {"error": "this API key does not have the 'billing:read'
+# scope"}}. Neither 401 nor 403 is documented, so this is read best-effort
+# and never raises -- a body of another shape just falls back to the
+# generic message the caller already has.
+def api_error_detail(error: HttpError) -> str:
+  try:
+    body = json.loads(error.body.decode("utf-8"))
+  except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+    return ""
+  detail = body.get("detail") if isinstance(body, dict) else None
+  message = detail.get("error") if isinstance(detail, dict) else None
+  return f"DeepInfra: {message}" if isinstance(message, str) and message else ""
 
 
 def base_record(**overrides: Any) -> dict[str, Any]:
@@ -162,7 +178,7 @@ class DeepInfraClient:
       decoded = open_json(request, timeout=15)
     except HttpError as error:
       if error.status in (401, 403):
-        raise DeepInfraAuthError("DeepInfra rejected the API key") from error
+        raise DeepInfraAuthError(api_error_detail(error) or "DeepInfra rejected the API key") from error
       if error.status == 422:
         raise DeepInfraError("DeepInfra rejected the usage request") from error
       if error.status:
@@ -302,9 +318,14 @@ def scan(api_base_url: str, force: bool = False, limits_only: bool = False) -> d
     # tries once more soon instead of waiting out its refresh interval.
     record["retryAdvised"] = True
 
-  if any(isinstance(error, DeepInfraAuthError) for error in errors):
+  auth_errors = [error for error in errors if isinstance(error, DeepInfraAuthError)]
+  if auth_errors:
     record["usageStatusText"] = "Sign-in expired"
-    record["authHelpText"] = "DeepInfra rejected the API key. " + AUTH_HELP
+    # DeepInfra's own detail (e.g. a key missing the billing:read scope) is
+    # already the one thing to do about it; AUTH_HELP is only for a plain
+    # rejection with nothing more specific to say.
+    detail = str(auth_errors[0])
+    record["authHelpText"] = detail if detail != "DeepInfra rejected the API key" else detail + " " + AUTH_HELP
   elif "usage" in failed and usage_part is None:
     record["usageStatusText"] = "DeepInfra unavailable"
     record["authHelpText"] = str(errors[0])
