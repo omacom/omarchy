@@ -135,7 +135,10 @@ ShellRoot {
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
-  readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
+  readonly property var barConfig: barConfigOf(shellConfig)
+  function barConfigOf(config) {
+    return config && Util.isPlainObject(config.bar) ? config.bar : builtinShellConfig.bar
+  }
   onBarConfigChanged: {
     if (bar && "barConfig" in bar)
       bar.barConfig = shell.barConfigFor(shell.activeBarManifest)
@@ -347,8 +350,11 @@ ShellRoot {
     return copy
   }
 
+  // Read from shellConfig, as publicIdleConfigFor does, not from barConfig:
+  // syncPluginApis runs from onShellConfigChanged, before the barConfig
+  // binding has caught up, and would hand plugins the previous config.
   function publicBarConfig() {
-    return JSON.parse(JSON.stringify(shell.barConfig || {}))
+    return JSON.parse(JSON.stringify(shell.barConfigOf(shell.shellConfig) || {}))
   }
 
   function barConfigFor(manifest) {

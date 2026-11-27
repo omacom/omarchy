@@ -62,6 +62,7 @@ import Quickshell.Io
 
 Item {
   property string marker: ""
+  property var shell: null
 
   IpcHandler {
     target: "acme-keep"
@@ -73,6 +74,10 @@ Item {
 
     function get(): string {
       return marker
+    }
+
+    function barBackground(): string {
+      return shell && shell.barConfig ? String(shell.barConfig.background || "") : ""
     }
   }
 }
@@ -757,6 +762,23 @@ for _ in {1..40}; do
 done
 jq -e "$saved" "$config" >/dev/null || fail "a bar change is saved again once shell.json is fixed" "$(cat "$config")"
 pass "a bar change is saved again once shell.json is fixed"
+
+# A hand edit reloads the config once, and plugins must get that config rather
+# than the one before it. omarchy-bar reloads twice, so it can't show this.
+for background in glassy opaque; do
+  jq --arg background "$background" '.bar.background = $background' "$config" >"$config.tmp"
+  mv "$config.tmp" "$config"
+  plugin_background=""
+  for _ in {1..40}; do
+    plugin_background=$(scratch_ipc acme-plain barBackground 2>/dev/null || true)
+    [[ $plugin_background == "$background" ]] && break
+    kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading an edited shell.json"
+    sleep 0.1
+  done
+  [[ $plugin_background == "$background" ]] ||
+    fail_with_log "a plugin sees bar background $background after a hand edit (saw '$plugin_background')"
+done
+pass "a hand edit of shell.json reaches plugins' bar config"
 
 # Run the replacement-bar probes last: switching bar loaders can transiently
 # leave bar-aware panels without a visual host, which should not add noise to
