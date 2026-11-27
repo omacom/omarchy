@@ -279,7 +279,7 @@ if [[ $shell_output == "true" ]]; then
     if [[ $upower_threshold_enabled == "yes" ]] || { [[ -n $threshold_end ]] && (( threshold_end < 100 )); }; then
       limit_state="on"
     elif [[ $limit_mode == "firmware" ]] && command -v busctl >/dev/null 2>&1; then
-      if [[ $(busctl get-property org.freedesktop.UPower "$battery" org.freedesktop.UPower.Device ChargeThresholdEnabled 2>/dev/null || true) == "b true" ]]; then
+      if [[ $(busctl get-property org.freedesktop.UPower "$primary_battery" org.freedesktop.UPower.Device ChargeThresholdEnabled 2>/dev/null || true) == "b true" ]]; then
         limit_state="on"
       elif [[ -f $battery_state_dir/top-up-once ]]; then
         limit_state="once"
