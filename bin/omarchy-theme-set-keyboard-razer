@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Apply the current theme keyboard color to Razer laptop keyboards
+# omarchy:hidden=true
+
+RAZER_THEME=$HOME/.local/state/omarchy/current/theme/keyboard.rgb
+
+[[ -f $RAZER_THEME ]] || exit 0
+
+hex=$(<"$RAZER_THEME")
+hex=${hex#\#}
+[[ $hex =~ ^[0-9A-Fa-f]{6}$ ]] || exit 0
+
+# OpenRazer takes the color as three raw bytes. Only the openrazer group may
+# write it, which a user joins at install and holds from their next login.
+for effect in /sys/bus/hid/drivers/razerkbd/*/matrix_effect_static; do
+  if [[ -w $effect ]]; then
+    printf "\\x${hex:0:2}\\x${hex:2:2}\\x${hex:4:2}" >"$effect"
+  fi
+done

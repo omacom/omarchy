@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer is a Razer laptop.
+
+[[ $(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) == "Razer" ]]
