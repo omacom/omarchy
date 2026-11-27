@@ -45,6 +45,14 @@ if [[ ! $total_kib =~ ^[0-9]+$ ]] || (( total_kib == 0 )); then
   exit 0
 fi
 
+if [[ ${1:-} == "--print-limit-bytes" ]]; then
+  if (( total_kib >= high_memory_kib )); then
+    total_mib=$(( total_kib / 1024 ))
+    printf '%d\n' $(( (total_mib - reserve_mib) * 1048576 ))
+  fi
+  exit 0
+fi
+
 if (( total_kib >= high_memory_kib )); then
   total_mib=$(( total_kib / 1024 ))
   app_max_mib=$(( total_mib - reserve_mib ))

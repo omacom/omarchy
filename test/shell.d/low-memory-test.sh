@@ -87,3 +87,15 @@ run_high_memory
 [[ ! -e $runtime_dir ]] ||
   fail "unreadable MemTotal writes no runtime app.slice cap"
 pass "unreadable MemTotal exits cleanly without writing app.slice cap"
+
+# --print-limit-bytes reports exact cap bytes without writing any files.
+printf 'MemTotal:      131072000 kB\n' >"$meminfo"
+rm -rf "$runtime_dir"
+limit_bytes=$(OMARCHY_MEMINFO="$meminfo" OMARCHY_USER_RUNTIME_DIR="$runtime_dir" "$ROOT/bin/omarchy-hw-app-slice-cap" --print-limit-bytes)
+[[ $limit_bytes == "122406567936" && ! -e $runtime_dir ]] ||
+  fail "--print-limit-bytes prints exact cap without creating files" "got=$limit_bytes"
+printf 'MemTotal:       32768000 kB\n' >"$meminfo"
+limit_bytes=$(OMARCHY_MEMINFO="$meminfo" OMARCHY_USER_RUNTIME_DIR="$runtime_dir" "$ROOT/bin/omarchy-hw-app-slice-cap" --print-limit-bytes)
+[[ -z $limit_bytes && ! -e $runtime_dir ]] ||
+  fail "--print-limit-bytes prints empty below 56 GiB" "got=$limit_bytes"
+pass "--print-limit-bytes computes cap without modifying the filesystem"

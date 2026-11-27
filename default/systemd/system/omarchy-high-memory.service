@@ -1,6 +1,6 @@
 [Unit]
 Description=Cap app.slice MemoryMax on >=64 GiB machines
-Before=user@.service
+Before=systemd-user-sessions.service
 
 [Service]
 Type=oneshot
