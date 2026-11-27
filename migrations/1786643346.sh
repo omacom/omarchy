@@ -77,7 +77,8 @@ if changed:
 PY
 )
 
-profile_roots=(
+# A rerun that needs only some of these roots sets profile_roots before sourcing.
+[[ -v profile_roots ]] || profile_roots=(
   "$HOME/.config/chromium"
   "$HOME/.config/google-chrome"
   "$HOME/.config/google-chrome-beta"

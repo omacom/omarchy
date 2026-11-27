@@ -97,6 +97,14 @@ bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+## Keeping the clock current
+
+The clock's `WallClock` moves only on its next whole-minute tick (whole-second with a seconds format), and its Qt timer counts on `CLOCK_MONOTONIC`. So after a resume, a stepped clock or a new timezone the label keeps the old time until that tick, up to a minute later. `omarchy-clock-resync.timer` closes that gap without a process or a poll. `omarchy-settings` ships it and `omarchy-clock-resync.service` in `/usr/lib/systemd/user`; first-run enables the timer on new installs and a migration enables it on existing ones.
+
+`OnClockChange=yes` makes the user manager wait on a `timerfd` created with `TFD_TIMER_CANCEL_ON_SET`. The kernel cancels that timerfd when `CLOCK_REALTIME` jumps against `CLOCK_MONOTONIC`, which a resume from suspend, an NTP step, `settimeofday` and `timedatectl set-time` all do. `OnTimezoneChange=yes` fires when `/etc/localtime` is replaced or relinked, which `timedatectl set-timezone` and `ln -sf` both do. The timer starts the service, which runs `omarchy-shell -q omarchy.clock resync`.
+
+`resync` makes the label's `WallClock` and the calendar's re-read the time and arm their next tick from now. Unlike `refresh`, it leaves a month the user is browsing in the calendar where it is. A plugin with a clock of its own can register an IPC method that does the same and have a user unit call it.
+
 ## Elsewhen
 
 Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately after the clock, before Weather; the placement migration uses `omarchy bar put omarchy.elsewhen --after omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
@@ -235,8 +243,9 @@ The shell exposes these tokens to QML via three singletons in
   by the launcher outside shell QML.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
-  the type scale (`Style.font.*`), and bar dimensions
-  (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`).
+  the type scale (`Style.font.*`), bar dimensions
+  (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`), and motion:
+  `Style.duration(ms)`, which every animation length goes through and which returns 0 when `omarchy toggle animations` has turned Hyprland's animations off (`Style.reduceMotion`), and `Style.easeOut`, the strong ease-out curve (`cubic-bezier(0.23, 1, 0.32, 1)`) for movement and entrances, used as `easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut`. [`agents/skills/motion.md`](../agents/skills/motion.md) has the rules for using them.
 - `Border` — border-spec helpers for QML surfaces. Use with
   `BorderSurface` from `qs.Ui` when a border should honor shell theme
   gradients or per-side widths. `Commons.Color.<section>.border` is only the

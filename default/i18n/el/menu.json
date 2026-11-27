@@ -8,11 +8,11 @@
   "learn": {
     "label": "Μάθηση"
   },
+  "appearance": {
+    "label": "Εμφάνιση"
+  },
   "trigger": {
     "label": "Ενεργοποίηση"
-  },
-  "style": {
-    "label": "Στυλ"
   },
   "setup": {
     "label": "Ρύθμιση"
@@ -26,11 +26,11 @@
   "update": {
     "label": "Ενημέρωση"
   },
-  "about": {
-    "label": "Σχετικά"
-  },
   "system": {
     "label": "Σύστημα"
+  },
+  "system.about": {
+    "label": "Σχετικά"
   },
   "system.screensaver": {
     "label": "Προφύλαξη οθόνης"
@@ -62,204 +62,195 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
   "learn.community": {
     "label": "Κοινότητα"
   },
-  "trigger.appearance": {
-    "label": "Εμφάνιση"
+  "appearance.theme": {
+    "label": "Θέμα"
   },
-  "trigger.appearance.animations": {
-    "label": "Κινήσεις"
+  "appearance.background": {
+    "label": "Φόντο"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Γραμματοσειρά"
+  },
+  "appearance.top-bar": {
     "label": "Γραμμή μενού"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Απόκρυψη γραμμής"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Εμφάνιση γραμμής"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Θέση γραμμής"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Φόντο γραμμής"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Αδιαφανής γραμμή"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Γυάλινη γραμμή"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Διάφανη γραμμή"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Ενδείξεις γραμμής"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Ποσοστό μπαταρίας"
-  },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.clock": {
     "label": "Ρολόι"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Κυριακή 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Κυριακή 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Κυριακή 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Κυριακή 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Κυρ 3 Μαΐ 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Κυρ 3 Μαΐ 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 Μαΐ Ε18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 Μαΐ Ε18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Πάνω γραμμή"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Κάτω γραμμή"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Αριστερή γραμμή"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Δεξιά γραμμή"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
-  },
-  "trigger.appearance.dock.autohide": {
-    "label": "Αυτόματη απόκρυψη dock"
-  },
-  "trigger.appearance.dock.always-on": {
-    "label": "Πάντα ορατό dock"
-  },
-  "trigger.appearance.dock.position": {
-    "label": "Θέση dock"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Πάνω dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Κάτω dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Αριστερό dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Δεξί dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Κενά παραθύρων"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Γωνίες παραθύρων"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Γωνίες θέματος"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Οξείες γωνίες"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Στρογγυλές γωνίες"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Αδιαφάνεια παραθύρων"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Αδιαφανή παράθυρα"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Διάφανα παράθυρα"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Γυάλινα παράθυρα"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "Λόγος 1 παραθύρου"
+  "appearance.branding.screensaver": {
+    "label": "Προφύλαξη οθόνης"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.branding.about": {
+    "label": "Σχετικά"
+  },
+  "appearance.branding.about.text": {
+    "label": "Επεξεργασία κειμένου"
+  },
+  "appearance.branding.about.image": {
+    "label": "Ορισμός από εικόνα"
+  },
+  "appearance.branding.about.default": {
+    "label": "Επαναφορά προεπιλογής"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Επεξεργασία κειμένου"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Ορισμός από εικόνα"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Επαναφορά προεπιλογής"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Αυτόματη απόκρυψη dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Πάντα ορατό dock"
+  },
+  "appearance.dock.position": {
+    "label": "Θέση dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Πάνω dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Κάτω dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Αριστερό dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Δεξί dock"
+  },
+  "appearance.workspace-layout": {
     "label": "Διάταξη χώρου",
     "title": "Προεπιλεγμένη διάταξη χώρου"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Πλακιδωτή"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Κύλιση"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Αιωρούμενα"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Συγχρονισμός θέματος Herdr"
+  "appearance.unlock": {
+    "label": "Ξεκλείδωμα"
   },
   "trigger.toggle": {
     "label": "Εναλλαγή"
-  },
-  "trigger.toggle.idle-lock": {
-    "label": "Μείνε ξύπνιο"
-  },
-  "trigger.toggle.notifications": {
-    "label": "Ειδοποιήσεις"
-  },
-  "trigger.toggle.nightlight": {
-    "label": "Νυχτερινό φως"
-  },
-  "trigger.toggle.screensaver": {
-    "label": "Προφύλαξη οθόνης"
-  },
-  "trigger.toggle.crash-capture": {
-    "label": "Καταγραφή κρασαρίσματος"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,18 +306,6 @@
   "trigger.tests": {
     "label": "Δοκιμή ταχύτητας"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Οθόνη φορητού"
-  },
-  "trigger.hardware.mirror-display": {
-    "label": "Κατοπτρισμός οθόνης"
-  },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Υβριδική GPU"
-  },
-  "trigger.hardware.touchpad": {
-    "label": "Επιφάνεια αφής"
-  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Απτικά επιφάνειας"
   },
@@ -338,9 +317,6 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "υψηλό"
-  },
-  "trigger.hardware.touchscreen": {
-    "label": "Οθόνη αφής"
   },
   "trigger.reminder.set": {
     "label": "Ορισμός μίας"
@@ -369,65 +345,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Δοκιμή ταχύτητας δίσκου"
   },
-  "style.theme": {
-    "label": "Θέμα"
-  },
-  "style.background": {
-    "label": "Φόντο"
-  },
-  "style.unlock": {
-    "label": "Ξεκλείδωμα"
-  },
-  "style.font": {
-    "label": "Γραμματοσειρά"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Προφύλαξη οθόνης"
-  },
-  "style.about": {
-    "label": "Σχετικά"
-  },
-  "style.about.text": {
-    "label": "Επεξεργασία κειμένου"
-  },
-  "style.about.image": {
-    "label": "Ορισμός από εικόνα"
-  },
-  "style.about.default": {
-    "label": "Επαναφορά προεπιλογής"
-  },
-  "style.screensaver.text": {
-    "label": "Επεξεργασία κειμένου"
-  },
-  "style.screensaver.image": {
-    "label": "Ορισμός από εικόνα"
-  },
-  "style.screensaver.default": {
-    "label": "Επαναφορά προεπιλογής"
-  },
-  "setup.monitors": {
-    "label": "Οθόνες"
-  },
-  "setup.keybindings": {
-    "label": "Συντομεύσεις"
-  },
   "setup.input": {
     "label": "Είσοδος"
   },
-  "setup.typing": {
-    "label": "Πληκτρολόγηση"
-  },
-  "setup.typing.keyboard": {
-    "label": "Διατάξεις πληκτρολογίου"
-  },
-  "setup.typing.input": {
-    "label": "Μέθοδοι εισαγωγής"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Γλώσσα"
+  },
+  "setup.region.timezone": {
+    "label": "Ζώνη ώρας"
   },
   "setup.network": {
     "label": "Δίκτυο"
@@ -452,52 +377,6 @@
   },
   "setup.default": {
     "label": "Προεπιλογές"
-  },
-  "setup.default.agent": {
-    "label": "Πράκτορας",
-    "title": "Προεπιλεγμένος πράκτορας"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Περιηγητής",
@@ -629,11 +508,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Απευθείας εκκίνηση"
-  },
-  "setup.reset": {
-    "label": "Επαναφορά υπολογιστή"
+  "remove.factory-reset": {
+    "label": "Εργοστασιακή επαναφορά"
   },
   "install.package": {
     "label": "Πακέτο"
@@ -728,9 +604,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -751,9 +624,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Λογαριασμός Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -787,33 +657,6 @@
   },
   "install.terminal.kitty": {
     "label": "Kitty"
-  },
-  "install.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "install.ai.claude": {
-    "label": "Claude Desktop"
-  },
-  "install.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "install.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
-  "install.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "install.ai.ollama": {
-    "label": "Ollama"
-  },
-  "install.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "install.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "install.ai.t3-code": {
-    "label": "T3 Code"
   },
   "install.gaming.steam": {
     "label": "Steam"
@@ -968,9 +811,6 @@
   "remove.security.sudoless-docker": {
     "label": "Docker χωρίς sudo"
   },
-  "remove.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -1001,35 +841,11 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
-  "remove.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "remove.ai.claude": {
-    "label": "Claude Desktop"
-  },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
   },
   "remove.dictation.voxtype": {
     "label": "Voxtype"
-  },
-  "remove.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "remove.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "remove.ai.ollama": {
-    "label": "Ollama"
-  },
-  "remove.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "remove.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "remove.ai.t3-code": {
-    "label": "T3 Code"
   },
   "remove.gaming.steam": {
     "label": "Steam"
@@ -1151,9 +967,6 @@
   "update.password": {
     "label": "Κωδικός"
   },
-  "update.timezone": {
-    "label": "Ζώνη ώρας"
-  },
   "update.time": {
     "label": "Ώρα"
   },
@@ -1202,16 +1015,432 @@
   "update.hardware.trackpad": {
     "label": "Επιφάνεια αφής"
   },
-  "update.password.drive": {
-    "label": "Κρυπτογράφηση δίσκου"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Καταγραφή σφαλμάτων ανενεργή"
   },
-  "update.password.user": {
-    "label": "Χρήστης"
+  "trigger.hardware.laptop-display-on": {
+    "label": "Οθόνη φορητού ενεργή"
   },
-  "system.reboot-boot-menu": {
-    "label": "Επανεκκίνηση στο μενού εκκίνησης"
+  "trigger.hardware.laptop-display-off": {
+    "label": "Οθόνη φορητού ανενεργή"
   },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
+  "trigger.hardware.mirror-display-on": {
+    "label": "Κατοπτρισμός οθόνης ενεργός"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Κατοπτρισμός οθόνης ανενεργός"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Μετάβαση σε υβριδική GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Μετάβαση σε ενσωματωμένη GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ενεργοποίηση επιφάνειας αφής"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Απενεργοποίηση επιφάνειας αφής"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ενεργοποίηση οθόνης αφής"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Απενεργοποίηση οθόνης αφής"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Πυρήνας"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Εμφάνιση % μπαταρίας"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Απόκρυψη % μπαταρίας"
+  },
+  "appearance.windows": {
+    "label": "Παράθυρα"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Κενά παραθύρων ενεργά"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Κενά παραθύρων ανενεργά"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Αναλογία 1 παραθύρου ενεργή"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Αναλογία 1 παραθύρου ανενεργή"
+  },
+  "appearance.branding": {
+    "label": "Επωνυμία"
+  },
+  "appearance.animations-on": {
+    "label": "Κινήσεις ενεργές"
+  },
+  "appearance.animations-off": {
+    "label": "Κινήσεις ανενεργές"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Μείνε ξύπνιος"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Επίτρεψε ύπνο"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Ειδοποιήσεις ενεργές"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Σίγαση ειδοποιήσεων"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Νυχτερινός φωτισμός ενεργός"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Νυχτερινός φωτισμός ανενεργός"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Προφύλαξη οθόνης ενεργή"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Προφύλαξη οθόνης ανενεργή"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Καταγραφή σφαλμάτων ενεργή"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Πληκτρολόγιο"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Συντομεύσεις"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Είσοδοι πληκτρολογίου"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Μέθοδοι εισαγωγής"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Απλό"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Εικονίδια"
+  },
+  "install.style.icons": {
+    "label": "Εικονίδια"
+  },
+  "remove.icons": {
+    "label": "Εικονίδια"
+  },
+  "update.icons": {
+    "label": "Πρόσθετα εικονίδια"
+  },
+  "system.firmware": {
+    "label": "Επανεκκίνηση στο BIOS",
+    "description": "Επανεκκίνηση στις ρυθμίσεις υλικολογισμικού UEFI"
+  },
+  "setup.region": {
+    "label": "Περιοχή"
+  },
+  "setup.region.formats": {
+    "label": "Μορφές",
+    "description": "Πώς γράφονται ημερομηνίες, ώρες, αριθμοί και μονάδες"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Παιχνίδι Game Vibes"
+  },
+  "update.games": {
+    "label": "Παιχνίδια Game Vibes"
+  },
+  "setup.network.hostname": {
+    "label": "Όνομα υπολογιστή"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "Επιτραπέζια"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "Αφαίρεση"
+  },
+  "remove.ai.desktop": {
+    "label": "Desktop",
+    "title": "Αφαίρεση"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "Αφαίρεση"
+  },
+  "remove.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "system.snapshots": {
+    "label": "Στιγμιότυπα"
+  },
+  "system.snapshots.restore": {
+    "label": "Αποκατάσταση αυτού του στιγμιότυπου"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Σύνδεση χωρίς κωδικό"
   }
 }

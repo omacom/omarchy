@@ -31,6 +31,12 @@ Item {
   property var revealHost: bar
   property string tooltipText: ""
   property var registeredBar: null
+  // Set by the bar while its own press handler, laid over the widget for
+  // dragging, holds this button down; mouseArea never sees that press.
+  property int heldButtons: Qt.NoButton
+  // The mouse buttons the mark gives under; none for a label that is read
+  // rather than pressed, like the clock.
+  property int pressFeedbackButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
   signal pressed(int button)
   signal wheelMoved(int delta)
@@ -55,7 +61,11 @@ Item {
   onInteractiveChanged: if (!interactive) hideOwnTooltip()
   onConcealedChanged: if (concealed) hideOwnTooltip()
   Component.onCompleted: syncClickRegistration()
-  Component.onDestruction: if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(root)
+  Component.onDestruction: {
+    if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
+      root.revealHost.setIndicatorItemHovered(false, root)
+    if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(root)
+  }
 
   readonly property bool vertical: bar ? bar.vertical : false
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
@@ -95,6 +105,19 @@ Item {
     NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
   }
 
+  // Held down, the mark gives a little, so a click is felt as well as seen.
+  // Only the label and glyph shrink, never the button, so the hit area and
+  // the bar's layout hold still. A bar glyph is small, so it gives more than
+  // a panel button's 0.97, or nothing would show.
+  property real pressScale: root.pressable && ((mouseArea.pressedButtons | root.heldButtons) & root.pressFeedbackButtons) ? 0.9 : 1
+  Behavior on pressScale {
+    NumberAnimation {
+      duration: Style.duration(160)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+
   Text {
     id: label
     textFormat: Text.PlainText
@@ -112,6 +135,7 @@ Item {
     font.pixelSize: root.fontSize
     renderType: Text.NativeRendering
     rotation: root.textRotation
+    scale: root.pressScale
     horizontalAlignment: Text.AlignHCenter
     verticalAlignment: Text.AlignVCenter
 
@@ -133,6 +157,7 @@ Item {
     height: Style.bar.iconCanvas
     x: (root.width - width) / 2
     y: (root.height - height) / 2
+    scale: root.pressScale
     sourceComponent: Component {
       OpticalGlyph {
         text: root.text
@@ -157,14 +182,14 @@ Item {
         root.bar.showTooltip(root, root.tooltipText)
       }
       if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
-        root.revealHost.setIndicatorItemHovered(true)
+        root.revealHost.setIndicatorItemHovered(true, root)
     }
     onExited: {
       if (root.bar) {
         root.bar.hideTooltip(root)
       }
       if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
-        root.revealHost.setIndicatorItemHovered(false)
+        root.revealHost.setIndicatorItemHovered(false, root)
     }
     onClicked: function(mouse) { if (root.pressable) root.triggerPress(mouse.button) }
     onWheel: function(wheel) { root.wheelMoved(wheel.angleDelta.y) }

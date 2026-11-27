@@ -1,19 +1,21 @@
 # Systemvila
 
-Omarchy aktiverar viloläge och dvala som standard, men om du har problem med någon av dem på din dator kan du stänga av dem.
+Omarchy aktiverar viloläge som standard, och dvala när det väl har konfigurerats, men om du har problem med något av dem på din dator kan du stänga av dem.
 
-### Effektprofiler
+På datorer med NVIDIA GB10, som DGX Spark och ASUS Ascent GX10, är viloläge och dvala avstängda, precis som i NVIDIA:s DGX OS, eftersom viloläget ännu inte har visats fungera på den hårdvaran. Växlingen för viloläge och konfigurationen av dvala gäller inte där. För att slå på viloläget igen tar du bort `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` med `sudo rm`; då återkommer Suspend till menyn, och dvala kan konfigureras som på andra datorer. Att köra `sudo omarchy apply hardware --install-user "$USER"` lägger tillbaka filen.
 
-På en bärbar dator minns Omarchy din effektprofil separat för inkopplad och för batteridrift, och växlar mellan de två när du kopplar i och ur. Direkt ur lådan betyder det prestanda på nätström och balanserat på batteri.
+### Energiprofiler
 
-Du kan se vad din dator erbjuder med `omarchy powerprofiles list`, och ställa in den du vill ha för det tillstånd du för närvarande befinner dig i med `omarchy powerprofiles set autodetect power-saver`. För att ställa in det andra tillståndet utan att koppla ur något namnger du det direkt: `omarchy powerprofiles set battery power-saver`. Vad du än väljer är det du får tillbaka nästa gång du befinner dig i det tillståndet.
+På en bärbar dator kommer Omarchy ihåg din energiprofil separat för när datorn är ansluten till elnätet och när den körs på batteri, och växlar mellan de två när du ansluter och kopplar ur strömmen. Direkt från start innebär det prestanda med nätström och balanserat på batteri.
 
-### Växla viloläge
+Du kan se vad din dator erbjuder med `omarchy powerprofiles list`, och ställa in den du vill ha för det läge du befinner dig i just nu med `omarchy powerprofiles set autodetect power-saver`. För att ställa in det andra läget utan att koppla ur något anger du det direkt: `omarchy powerprofiles set battery power-saver`. Vad du än väljer är det vad du får tillbaka nästa gång du befinner dig i det läget.
 
-Du växlar viloläge genom att köra `omarchy toggle suspend` från terminalen. Det visar/döljer bara alternativet under _System_ (eller `Super + Esc`), och sedan kan du se om det fungerar konsekvent på ditt system. Om inte kan du dölja det igen med samma kommando.
+### Slå av/på viloläge
 
-### Växla dvala
+Du slår av/på viloläge genom att köra `omarchy toggle suspend` från terminalen. Det visar/döljer bara alternativet under _System_ (eller `Super + Esc`), och sedan kan du se om det fungerar konsekvent på ditt system. Om inte kan du dölja det igen med samma kommando.
 
-Du konfigurerar dvala genom att köra `omarchy hibernation setup` från terminalen. Dvala skapar en /swap-undervolym på din startenhet i storlek med din fysiska RAM-allokering, så se till att du har gott om utrymme över. På en 32GB-dator behöver du alltid 32GB+ ledigt för denna volym. Dvala kräver också den standardmässiga Limine-bootloadern.
+### Slå av/på dvala
 
-När det är konfigurerat ser du dvala-alternativet under _System_ (eller `Super + Esc`), och sedan kan du se om det fungerar konsekvent på ditt system. Om inte kan du ta bort det igen genom att köra `omarchy hibernation remove`.
+Du konfigurerar dvala genom att köra `omarchy hibernation setup` från terminalen (det är inte tillgängligt på Apple Silicon-Macar). Dvala skapar en /swap-undervolym på din startenhet i samma storlek som din fysiska RAM-tilldelning, så se till att du har gott om utrymme över. På en dator med 32GB behöver du alltid ha 32GB+ ledigt för den här volymen. Dvala kräver också standardbootloadern Limine.
+
+När det är konfigurerat ser du alternativet för dvala under _System_ (eller `Super + Esc`), och sedan kan du se om det fungerar konsekvent på ditt system. Om inte kan du ta bort det igen genom att köra `omarchy hibernation remove`.

@@ -1,19 +1,21 @@
 # Rendszeralvás
 
-Az Omarchy alapértelmezetten engedélyezi a felfüggesztést és a hibernálást, de ha bármelyikkel problémád van a gépeden, kikapcsolhatod őket.
+Az Omarchy alapértelmezetten engedélyezi a felfüggesztést, a beállítása után pedig a hibernálást is, de ha bármelyikkel gondod van a gépeden, kikapcsolhatod őket.
+
+NVIDIA GB10 gépeken, például a DGX Spark és az ASUS Ascent GX10 esetén a felfüggesztés és a hibernálás ki van kapcsolva, ahogy az NVIDIA DGX OS rendszerében is, mert az alvás még nem bizonyult működőképesnek azon a hardveren. A felfüggesztés kapcsolója és a hibernálás beállítása ott nem érvényes. Az alvás visszakapcsolásához töröld a `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` fájlt a `sudo rm` paranccsal; a Felfüggesztés ezután visszakerül a menübe, és a hibernálás a többi géphez hasonlóan beállítható. A `sudo omarchy apply hardware --install-user "$USER"` futtatása visszaállítja a fájlt.
 
 ### Energiaprofilok
 
-Laptopon az Omarchy külön megjegyzi az energiaprofilod a hálózati tápláláshoz és az akkumulátoros működéshez, és a kettő között vált, ahogy bedugod és kihúzod. Alapból ez teljesítményt jelent hálózatról, és kiegyensúlyozott módot akkumulátorról.
+Laptopon az Omarchy külön megjegyzi az energiaprofilodat hálózatra csatlakoztatott és akkumulátorról működő állapothoz, és vált a kettő között, ahogy csatlakoztatod és kihúzod. Alapból ez teljesítményt jelent AC mellett és kiegyensúlyozottat akkumulátoron.
 
-Az `omarchy powerprofiles list` paranccsal megnézheted, mit kínál a géped, és az `omarchy powerprofiles set autodetect power-saver` paranccsal beállíthatod azt, amelyiket az éppen aktuális állapotodhoz akarod. Ha a másik állapotot akarod beállítani anélkül, hogy bármit kihúznál, nevezd meg közvetlenül: `omarchy powerprofiles set battery power-saver`. Amit kiválasztasz, azt kapod vissza legközelebb is, amikor abban az állapotban vagy.
+Megnézheted, mit kínál a géped az `omarchy powerprofiles list` paranccsal, és beállíthatod a kívántat az aktuális állapotodhoz az `omarchy powerprofiles set autodetect power-saver` paranccsal. A másik állapot beállításához anélkül, hogy bármit kihúznál, nevezd meg közvetlenül: `omarchy powerprofiles set battery power-saver`. Bármit választasz, azt kapod vissza legközelebb, amikor abban az állapotban vagy.
 
 ### Felfüggesztés kapcsolása
 
-A felfüggesztést az `omarchy toggle suspend` terminálparancs futtatásával kapcsolod. Ez csak megmutatja/elrejti a lehetőséget a _Rendszer_ alatt (vagy `Super + Esc`), és így megnézheted, következetesen működik-e a rendszereden. Ha nem, ugyanazzal a paranccsal újra elrejtheted.
+A felfüggesztést a terminálból az `omarchy toggle suspend` futtatásával kapcsolhatod. Ez csak megjeleníti/elrejti a lehetőséget a _System_ alatt (vagy `Super + Esc`), és ezután megnézheted, megbízhatóan működik-e a rendszereden. Ha nem, ugyanazzal a paranccsal újra elrejtheted.
 
 ### Hibernálás kapcsolása
 
-A hibernálást az `omarchy hibernation setup` terminálparancs futtatásával állítod be. A hibernálás egy /swap alkötetet hoz létre a rendszerindító meghajtódon a fizikai RAM-kiosztásod méretében, úgyhogy győződj meg róla, hogy bőven van szabad helyed. Egy 32 GB-os gépen ehhez a kötethez mindig több mint 32 GB szabad helyre lesz szükséged. A hibernáláshoz az alapértelmezett Limine rendszerbetöltő is szükséges.
+A hibernálást a terminálból az `omarchy hibernation setup` futtatásával állíthatod be (Apple Silicon Mac gépeken nem elérhető). A hibernálás létrehoz egy /swap alkötetet a rendszerindító meghajtódon a fizikai RAM méretével egyező méretben, ezért gondoskodj róla, hogy bőven legyen szabad helyed. Egy 32GB-os gépen ehhez a kötethez mindig 32GB+ szabad helyre lesz szükséged. A hibernáláshoz az alapértelmezett Limine bootloader is szükséges.
 
-Ha be van állítva, a hibernálás lehetőségét a _Rendszer_ alatt (vagy `Super + Esc`) látod, és így megnézheted, következetesen működik-e a rendszereden. Ha nem, az `omarchy hibernation remove` futtatásával újra eltávolíthatod.
+Ha be van állítva, a hibernálás lehetőséget a _System_ alatt (vagy `Super + Esc`) látod, és ezután megnézheted, megbízhatóan működik-e a rendszereden. Ha nem, az `omarchy hibernation remove` futtatásával újra eltávolíthatod.

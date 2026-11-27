@@ -348,6 +348,19 @@ print("ok - the watched profile follows Fcitx's FCITX_CONFIG_HOME override")
 os.makedirs(scratch.name + "/daemon/fcitx")
 daemon = subprocess.Popen(["sleep", "30"], cwd=scratch.name,
                           env={"HOME": scratch.name, "FCITX_CONFIG_HOME": "daemon/fcitx"})
+# Popen returns while the exec is still under way, and until it finishes the
+# child's /proc environ reads empty, is refused, or is the parent's. Fcitx owns
+# its bus name only well after its exec, so wait for the environment here too.
+def daemon_environment():
+  try:
+    with open(f"/proc/{daemon.pid}/environ", "rb") as file:
+      return file.read()
+  except PermissionError:
+    return b""
+for _ in range(500):
+  if b"FCITX_CONFIG_HOME=" in daemon_environment():
+    break
+  time.sleep(0.01)
 class OwnerBus:
   def call_sync(self, name, path, interface, method, args, *rest):
     assert method == "GetConnectionUnixProcessID" and args.unpack() == (indicator.BUS,)
@@ -412,3 +425,29 @@ if CALLS=$calls PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-inpu
   fail "an unknown cycle direction is rejected"
 fi
 pass "Super+Shift+I cycles back through the shell, and other directions are rejected"
+
+ROOT="$ROOT" run_node_test <<'JS'
+const profile = requireFromRoot('shell/Commons/InputMethodProfile.js')
+
+assertDeepEqual(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n'),
+  { needsWatcher: false, methods: ['keyboard-us'] },
+  'single keyboard method in one group skips the Python watcher'
+)
+assert(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n[Groups/0/Items/1]\nName=mozc\n').needsWatcher,
+  'a second input method starts the Python watcher'
+)
+assert(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=mozc\n').needsWatcher,
+  'a lone composition engine starts the Python watcher'
+)
+assert(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n[Groups/1]\nName=Alt\n').needsWatcher,
+  'a second group starts the Python watcher'
+)
+assert(
+  profile.parseProfile('').needsWatcher,
+  'an empty or unreadable profile falls back to the Python watcher'
+)
+JS
