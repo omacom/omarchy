@@ -51,13 +51,14 @@ The pipeline:
 - **`active`.** The next boot came through `BootOrder` itself. Then:
   - `omarchy-boot-systemd` replaces `omarchy-boot` and the Limine packages;
   - a recovery snapshot is taken and its entry verified;
+  - the snapshots taken on Limine are deleted: they have no boot image, so systemd-boot can't start them and they can't be restored;
   - Limine's files, its per-snapshot copies and its NVRAM entry go;
   - `EFI/BOOT/BOOTX64.EFI` becomes systemd-boot if it was Limine's.
 
   Each step records itself in `final_step`, so an interrupted finish resumes.
 - **`trial-failed`.** The trial or promotion didn't hold. Limine keeps booting, and running the switch again retries.
 
-`omarchy-boot-switch revert` undoes everything before `active`. Snapshots taken before the switch stay on disk but have no systemd-boot entry and can't be restored: their roots expect Limine.
+`omarchy-boot-switch revert` undoes everything before `active`. Snapshots taken before the switch have no systemd-boot entry and can't be restored, since their roots expect Limine, so the finish deletes them. Factory reset is unaffected: it clones `@factory`, a top-level subvolume that is not a snapper snapshot.
 
 ## Installed with systemd-boot
 

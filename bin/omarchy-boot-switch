@@ -23,8 +23,8 @@
 # confirm (run at every boot by omarchy-boot-confirm.service) moves trial to
 # promoted and promoted to active. revert puts Limine back up to active.
 #
-# Snapshots taken before the switch stay on disk but can't be booted from
-# systemd-boot: their roots expect Limine.
+# Snapshots taken before the switch can't be booted from systemd-boot: their
+# roots expect Limine. They are deleted when the switch finishes.
 #
 # install sets up a machine that never had Limine: the installer and a factory
 # reset run it inside the new root, with omarchy-boot-systemd installed and the
@@ -52,6 +52,7 @@ BOOT_DEFAULTS=${OMARCHY_PATH:-/usr/share/omarchy}/default/boot
 LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
 TOP=/run/omarchy-boot/top
 MACHINE_ID_FILE=${OMARCHY_BOOT_MACHINE_ID:-/etc/machine-id}
+SNAPSHOTS=/.snapshots
 
 die() {
   echo -e "\e[31m$*\e[0m" >&2
@@ -518,6 +519,23 @@ cached_package() {
   ls -t "$STORE"/packages/omarchy-boot-systemd-*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | sed -n 1p || true
 }
 
+# Snapshots without a boot image were taken while Limine booted the machine.
+# systemd-boot can't start them and they can't be restored, so they only hold
+# disk space. The recovery snapshot and any taken since are pinned and stay.
+drop_unbootable_snapshots() {
+  local dir number numbers=()
+  for dir in "$SNAPSHOTS"/*/; do
+    number=$(basename "$dir")
+    if [[ $number =~ ^[0-9]+$ && -d $dir/snapshot && ! -f $dir/omarchy-boot-image ]]; then
+      numbers+=("$number")
+    fi
+  done
+  if ((${#numbers[@]})); then
+    snapper -c root delete "${numbers[@]}" ||
+      echo "Could not delete the snapshots from before the switch: ${numbers[*]}" >&2
+  fi
+}
+
 finalize() {
   local step
   step=$(state_get final_step)
@@ -559,6 +577,7 @@ finalize() {
   fi
 
   if [[ $step == "snapshot" ]]; then
+    drop_unbootable_snapshots
     rm -rf "$ESP/EFI/limine" "$ESP/limine.conf" "$ESP/limine.conf.old" "$ESP/limine.conf.bak" "$ESP/limine_history"
     # limine-snapper-sync's copies of boot files, per machine.
     rm -rf "$ESP/$(cat "$MACHINE_ID_FILE")/limine_history"
@@ -792,8 +811,8 @@ machine starts) or from System > Snapshots, and restore it from there.
 
 The switch is careful about it: systemd-boot starts once on trial while Limine
 stays the fallback, and Limine is only removed after a second boot proves the
-firmware starts systemd-boot on its own. Snapshots taken before the switch stay
-on disk but can no longer be booted.
+firmware starts systemd-boot on its own. Snapshots taken before the switch can
+no longer be booted, so they are deleted once it finishes.
 
 EOF
     as_root "$0" --check || exit 1
