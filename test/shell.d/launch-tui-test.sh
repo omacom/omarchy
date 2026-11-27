@@ -38,6 +38,7 @@ EOF
 launch() {
   rm -f "$test_tmp/window"
   env -u NO_COLOR -u PAGER -u GIT_PAGER "$@" \
+    OMARCHY_PATH="$ROOT" \
     XDG_CONFIG_HOME="$test_tmp/cfg" XDG_CONFIG_DIRS="$test_tmp/no-etc" \
     XDG_DATA_HOME="$test_tmp/data" XDG_DATA_DIRS="$test_tmp/no-sys" \
     PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force
@@ -58,6 +59,7 @@ pass "a window opened from an agent's command gets its colors and pager back"
 # Without a matching xdg-terminals.list entry, omarchy-launch-tui falls back to xdg-terminal-exec.
 rm -f "$test_tmp/window"
 env -u NO_COLOR -u PAGER -u GIT_PAGER \
+  OMARCHY_PATH="$ROOT" \
   XDG_CONFIG_HOME="$test_tmp/no-cfg" XDG_CONFIG_DIRS="$test_tmp/no-etc" \
   XDG_DATA_HOME="$test_tmp/no-data" XDG_DATA_DIRS="$test_tmp/no-sys" \
   PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force

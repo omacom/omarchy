@@ -19,6 +19,4 @@ if [[ ${NO_COLOR:-} == "1" && ${PAGER:-} == "cat" ]]; then
   [[ ${GIT_PAGER:-} == "cat" ]] && unset GIT_PAGER
 fi
 
-bin_dir=${BASH_SOURCE[0]%/*}
-[[ $bin_dir == "${BASH_SOURCE[0]}" ]] && bin_dir="."
-exec "$bin_dir/omarchy-launch-terminal" --dir="$PWD" --app-id="$APP_ID" -e "$1" "${@:2}"
+exec "$OMARCHY_PATH/bin/omarchy-launch-terminal" --dir="$PWD" --app-id="$APP_ID" -e "$1" "${@:2}"
