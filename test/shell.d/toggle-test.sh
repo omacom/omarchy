@@ -85,6 +85,16 @@ HOME="$test_home" omarchy-toggle-fullscreen-desktop on
 [[ -f $bar_flag && -f $gaps_flag ]] || fail "fullscreen on enters full screen"
 pass "fullscreen on enters full screen"
 
+# Hyprland must reload for the gaps before the bar's flag changes: a reload in
+# the middle of the resize the bar starts leaves windows drawn at a stale size.
+reload_log="$TMPDIR/reload-log"
+printf '#!/bin/bash\n[[ -f %q ]] && echo bar-off >>%q || echo bar-on >>%q\n' "$bar_flag" "$reload_log" "$reload_log" >"$stub_bin/hyprctl"
+HOME="$test_home" omarchy-toggle-fullscreen-desktop off
+HOME="$test_home" omarchy-toggle-fullscreen-desktop on
+[[ $(cat "$reload_log") == $'bar-off\nbar-on' ]] || fail "fullscreen reloads Hyprland before the bar moves"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/hyprctl"
+pass "fullscreen reloads Hyprland before the bar moves"
+
 # The flag records animations being off, so on and off are the other way round.
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-notification-send"
 chmod +x "$stub_bin/omarchy-notification-send"
