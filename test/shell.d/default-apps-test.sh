@@ -79,6 +79,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   vim) command=vim ;;
   neovim) command=nvim ;;
   plain) command=plain ;;
+  nano) command=nano ;;
   esac
   ;;
 omarchy-install-browser)
@@ -202,6 +203,7 @@ editor_cases=(
   'vim vim pkg:vim'
   'emacs emacs editor:emacs'
   'nvim nvim pkg:neovim'
+  'nano nano pkg:nano'
 )
 
 for entry in "${browser_cases[@]}"; do
