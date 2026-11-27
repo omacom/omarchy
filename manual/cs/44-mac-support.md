@@ -2,9 +2,9 @@
 
 ## Omarchy pro Apple Silicon
 
-Omarchy pro Apple Silicon je oficiální řešení Omacom, poprvé vydané s Omarchy 4.5. Instaluje se vedle macOS a při spuštění Macu si vybíráte mezi těmito dvěma systémy.
+Omarchy pro Apple Silicon je oficiální řešení od Omacomu, poprvé vydané s Omarchy 4.5. Instaluje se vedle macOS a při spuštění Macu si mezi oběma vybíráte.
 
-Objevilo se vám upozornění na Omarchy Mac? Přejděte na [Přecházíte z Omarchy Mac](#coming-from-omarchy-mac).
+Dostali jste upozornění na Omarchy Mac? Přejděte na [Přechod z Omarchy Mac](#coming-from-omarchy-mac).
 
 Běží na těchto Macích:
 
@@ -18,19 +18,19 @@ Běží na těchto Macích:
 | iMac | M1, M3 |
 | Mac Pro | M2 Ultra |
 
-Macy s M4 a novější zatím nejsou podporované. Podpora M4 se testuje na kanálu edge a přijde jako další. Instalátor váš Mac zkontroluje, než cokoli změní.
+Macy s M4 a novější zatím nejsou podporované. Podpora M4 se testuje na kanálu edge a přijde jako další. Instalační program váš Mac zkontroluje, než cokoli změní.
 
-Na libovolném Macu s Apple Silicon, včetně M4 a novějších, můžete Omarchy spustit ve virtuálním stroji pomocí [Try Omarchy](https://github.com/omacom/try-omarchy).
+Na jakémkoli Macu s Apple Silicon, včetně M4 a novějších, můžete Omarchy spustit ve virtuálním počítači pomocí [Try Omarchy](https://github.com/omacom/try-omarchy).
 
 ### Co potřebujete
 
 - macOS 15 Sequoia nebo novější a účet správce
-- Volné místo na disku pro Omarchy. Instalátor navrhne velikost a nechá vás ji změnit.
-- Zálohu Macu, napájení a připojení k internetu. Instalace stahuje několik gigabajtů.
+- Volné místo na disku pro Omarchy. Instalační program navrhne velikost a umožní vám ji změnit.
+- Zálohu svého Macu, napájení a připojení k internetu. Instalace stahuje několik gigabajtů.
 
 ### Instalace
 
-Instalujete z macOS. Nainstalujte Omarchy Installer pomocí [Homebrew](https://brew.sh):
+Instalujete z macOS. Nainstalujte si Omarchy Installer pomocí [Homebrew](https://brew.sh):
 
 ```sh
 brew install omacom/mac/omarchy
@@ -38,29 +38,29 @@ brew install omacom/mac/omarchy
 
 Nebo si stáhněte nejnovější Omarchy Installer z jeho [stránky vydání](https://github.com/omacom/omarchy-mac-installer/releases) a otevřete ho.
 
-Instalátor zkontroluje váš Mac, ukáže vám plán a uvolní místo pro Omarchy zmenšením oddílu macOS. macOS na disku zůstává a žádný USB disk není potřeba. Po dokončení první fáze vás provede dokončením nastavení v macOS Recovery: vypněte počítač, podržte tlačítko napájení, dokud se neobjeví "Loading startup options", zvolte Omarchy a postupujte podle kroků.
+Instalační program zkontroluje váš Mac, ukáže vám plán a uvolní místo pro Omarchy zmenšením oddílu macOS. macOS na disku zůstává a není potřeba žádný USB disk. Po dokončení první fáze vás provede dokončením nastavení v macOS Recovery: vypněte počítač, držte tlačítko napájení, dokud se nezobrazí „Loading startup options“, vyberte Omarchy a postupujte podle kroků.
 
-Při prvním spuštění si Omarchy vyžádá heslo, které šifruje její disk. Žádný obnovovací klíč neexistuje: pokud heslo zapomenete, vaše soubory v Omarchy nepůjde obnovit.
+Při prvním spuštění vás Omarchy požádá o heslo, které šifruje jeho disk. Neexistuje žádný obnovovací klíč: pokud heslo zapomenete, vaše soubory v Omarchy nepůjde obnovit.
 
-Později mezi Omarchy a macOS přepnete tak, že počítač vypnete, podržíte tlačítko napájení, dokud se neobjeví možnosti spuštění, a jednu z nich zvolíte.
+Pokud chcete později přepínat mezi Omarchy a macOS, vypněte počítač, pak držte tlačítko napájení, dokud se nezobrazí možnosti spuštění, a jednu vyberte.
 
-### Přecházíte z Omarchy Mac
+### Přechod z Omarchy Mac
 
-Omarchy Mac je nyní součástí Omarchy pro Apple Silicon a podporovaný je každý Mac, na kterém běžela. Vaše stávající instalace poběží dál a její systémové balíčky se stále aktualizují, ale aktualizace Omarchy už nedostane. Není žádný termín ani upgrade přímo na místě: zazálohujete, starou instalaci odstraníte, nainstalujete čistou a obnovíte. Kroky 2 až 5 probíhají v macOS, takže si tuto stránku před restartem otevřete v telefonu.
+Omarchy Mac je nyní součástí Omarchy pro Apple Silicon a podporovaný je každý Mac, na kterém běžel. Vaše stávající instalace dál běží a její systémové balíčky se stále aktualizují, ale už nedostává žádné aktualizace Omarchy. Není žádný termín ani upgrade na místě: zálohujete, odstraníte starou instalaci, nainstalujete načisto a obnovíte. Kroky 2 až 5 probíhají v macOS, takže si tuto stránku před restartem otevřete na telefonu.
 
-1. **Zálohujte z Omarchy, mimo Mac.** Odstranění staré instalace ji smaže a macOS disk Omarchy nepřečte. Zkopírujte svůj domovský adresář na externí disk nebo jiný počítač, včetně klíčů SSH a GPG, profilů prohlížeče a práce, kterou jste ještě neodeslali. Uložte si seznam balíčků pomocí `pacman -Qqe > ~/packages.txt`. Zálohujte i macOS, protože odstranění i instalace mění velikost jeho disku.
-2. **Spusťte Mac v macOS.** Vypněte ho, podržte tlačítko napájení, dokud se neobjeví možnosti spuštění, a zvolte macOS.
-3. **Nainstalujte Omarchy Installer** podle části [Instalace](#installing).
-4. **Odstraňte starou instalaci.** Otevřete Omarchy Installer a zvolte Installation > Remove Omarchy. Ukáže vám, co smaže, a vrátí místo macOS. Pokud vaši instalaci nerozpozná, zastaví se, aniž by disk změnil. Požádejte o pomoc na [Discord](https://discord.gg/tXFUdasqhY), místo abyste oddíly mazali ručně, což může smazat i macOS.
-5. **Nainstalujte Omarchy pro Apple Silicon** pomocí instalátoru.
-6. **Obnovte své soubory.** Nastavení vracejte po částech, místo abyste celé `~/.config` zkopírovali přes nová výchozí nastavení, protože stará nastavení je mohou přepsat.
+1. **Zálohujte z Omarchy, mimo Mac.** Odstranění staré instalace ji smaže a macOS disk Omarchy nepřečte. Zkopírujte svou domovskou složku na externí disk nebo do jiného počítače, včetně klíčů SSH a GPG, profilů prohlížeče a neodeslané práce. Uložte si seznam balíčků pomocí `pacman -Qqe > ~/packages.txt`. Zálohujte i macOS, protože odstranění i instalace mění velikost jeho disku.
+2. **Spusťte Mac v macOS.** Vypněte počítač, držte tlačítko napájení, dokud se nezobrazí možnosti spuštění, a vyberte macOS.
+3. **Nainstalujte Omarchy Installer** podle popisu v části [Instalace](#installing).
+4. **Odstraňte starou instalaci.** Otevřete Omarchy Installer a zvolte Installation > Remove Omarchy. Ukáže vám, co smaže, a vrátí místo systému macOS. Pokud vaši instalaci nerozpozná, zastaví se, aniž by disk jakkoli změnil. Požádejte o pomoc na [Discordu](https://discord.gg/tXFUdasqhY), místo abyste oddíly mazali ručně, což může smazat macOS.
+5. **Nainstalujte Omarchy pro Apple Silicon** pomocí instalačního programu.
+6. **Obnovte své soubory.** Nastavení vracejte po částech, místo abyste přes nová výchozí nastavení zkopírovali celé `~/.config`, protože stará nastavení je mohou přepsat.
 
 ### Dobré vědět
 
-- U MacBooků s M1 a M2 probudíte počítač ze spánku otevřením víka nebo stisknutím tlačítka napájení.
-- Dotazy nebo problémy: ptejte se na našem [Discord](https://discord.gg/tXFUdasqhY).
+- Na MacBoocích s M1 a M2 probudíte počítač z režimu spánku otevřením víka nebo stisknutím tlačítka napájení.
+- Otázky nebo problémy: ptejte se na našem [Discordu](https://discord.gg/tXFUdasqhY).
 
-[README instalátoru](https://github.com/omacom/omarchy-mac-installer#readme) popisuje kanály vydání, aktualizaci instalátoru a odstranění Omarchy.
+[README instalačního programu](https://github.com/omacom/omarchy-mac-installer#readme) se věnuje kanálům vydání, aktualizaci instalačního programu a odstranění Omarchy.
 
 ## Macy s Intelem
 
@@ -70,40 +70,46 @@ V jednoduchém testu se nám na MacBooku Pro z roku 2019 podařilo dosáhnout 36
 
 ### Instalace Omarchy na Mac
 
-Omarchy v tuto chvíli podporuje pouze instalaci jako **jediný** OS. Během instalace bude disk vymazán a MacOS už nepůjde spustit.
+Omarchy v tuto chvíli podporuje pouze to, že je **jediným** nainstalovaným OS. Během instalace bude disk vymazán a MacOS už nepůjde spustit.
 
-Pokud budete chtít, můžete ho později stále obnovit přes Internet Recovery.
+Později ho ale můžete obnovit přes Internet Recovery, pokud budete chtít.
 
-V této části budeme předpokládat, že jste si už prošli [Začínáme](02-getting-started.md) a máte připravený USB disk. Pokud ne, udělejte to teď.
+Pro účely této části budeme předpokládat, že jste si už prošli [Začínáme](02-getting-started.md) a máte připravený USB disk. Pokud ne, udělejte to teď.
 
 #### Vypnutí Secure Boot
 
-Aby bylo možné spustit bootovatelné USB i samotný OS, je nutné vypnout Secure Boot od Applu. Vypnete ho takto:
+Aby šel spustit zaváděcí USB disk i samotný OS, je nutné vypnout Secure Boot od Applu. Vypnete ho takto:
 
 1. Vypněte Mac
-2. Zapněte ho a _okamžitě_ stiskněte a podržte Command-R, dokud se neobjeví načítací obrazovka
+2. Zapněte ho a _okamžitě_ stiskněte a držte Command-R, dokud se nezobrazí načítací obrazovka
 3. Vyberte svého uživatele a na výzvu zadejte heslo
-4. Na obrazovce zotavení zvolte z panelu nabídek **Utilities > Startup Security Utility**
+4. Jakmile jste na obrazovce obnovy, zvolte z lišty nabídek **Utilities > Startup Security Utility**
 5. Na výzvu k ověření zadejte heslo
-6. V možnostech Secure Boot zvolte "No Security"
-7. V možnostech External Boot zvolte "Allow booting from external or removable media"
+6. Z možností Secure Boot zvolte „No Security“
+7. Z možností External Boot zvolte „Allow booting from external or removable media“
 
 #### Zahájení instalace
 
 1. Vložte USB disk
-2. Restartujte Mac a _okamžitě_ stiskněte a podržte Option, dokud se neobjeví obrazovka se spouštěcími zařízeními
+2. Restartujte Mac a _okamžitě_ stiskněte a držte Option, dokud se nezobrazí obrazovka zaváděcích zařízení
 3. Vyberte oranžové zařízení EFI Boot
-4. Pokračujte [instalací jako obvykle](02-getting-started.md)
+4. Pokračujte [běžnou instalací](02-getting-started.md)
 
-Instalátor rozpozná hardware Macu a potřebné opravy použije automaticky: ovladače a firmware pro Broadcom Wi-Fi, ovladač SPI klávesnice u modelů MacBooků, které ho potřebují, a opravu uspávání NVMe u týchž modelů.
+Instalační program rozpozná hardware Macu a automaticky použije potřebné opravy: ovladače a firmware pro Broadcom Wi-Fi, ovladač kamery FaceTime HD na počítačích s Broadcom 1570 (její firmware se stahuje od Applu, jakmile je Mac online, protože instalační program funguje offline), ovladač klávesnice SPI na modelech MacBook, které ho potřebují, a opravu uspávání NVMe pro tytéž modely.
 
 ### Známá omezení
 
-Členové komunity na řešeních těchto potíží neustále pracují, takže pokud vám vadí, přidejte se do #omarchy-on-other na našem [Discord](https://discord.gg/tXFUdasqhY) a podívejte se, jestli neexistují nějaké aktuální způsoby, jak je vyřešit.
+Členové komunity neustále pracují na řešeních těchto problémů, takže pokud vám vadí, přidejte se do #omarchy-on-other na našem [Discordu](https://discord.gg/tXFUdasqhY) a zjistěte, jestli nejsou nějaké aktuální způsoby, jak je vyřešit.
+
+#### Kamera FaceTime HD
+
+Ovladač kamery zasekne počítač, pokud je načtený, když Mac hibernuje, takže se předtím odpojí. Odpojit ho nelze, dokud má nějaká aplikace kameru otevřenou, takže se hibernace zruší a oznámení pojmenuje danou aplikaci: zavřete ji a hibernujte znovu. To zahrnuje i automatickou hibernaci při kritickém stavu baterie a suspend-then-hibernate, která je odmítnuta ještě před uspáním. Běžné uspání odmítne sám ovladač, dokud je kamera otevřená, a to bez oznámení.
+
+Firmware kamery se stahuje od Applu, takže kamera funguje až poté, co byl Mac online. Stahování začíná při spuštění a každých 15 minut se opakuje, dokud je problémem síť; pokud se soubor od Applu změnil, zastaví se a čeká na aktualizaci Omarchy. Pokud se kamera neobjeví, `journalctl -u facetimehd-firmware-fetcher` řekne proč, `sudo systemctl restart facetimehd-firmware-fetcher` to zkusí znovu a restart načte ovladač, pokud stahování skončilo, ale kamera tam stále není.
 
 #### Zařízení s čipem T1
 
-Čip Apple T1 byl uveden na konci roku 2016 a používal se výhradně v modelech MacBook Pro první generace s Touch Barem.
+Čip Apple T1 byl uveden koncem roku 2016 a používal se výhradně v modelech MacBook Pro první generace s Touch Barem.
 - MacBook Pro 13-inch (2016, two Thunderbolt 3 ports) – Model: A1706
 - MacBook Pro 13-inch (2016, four Thunderbolt 3 ports) – Model: A1708
 - MacBook Pro 15-inch (2016) – Model: A1707
@@ -129,11 +135,11 @@ Bezpečnostní čip Apple T2 byl uveden v roce 2017. Čip T2 byl ukončen s pře
 - MacBook Pro 13-inch (2020, two Thunderbolt 3 ports) – Model: A2265
 - MacBook Pro 15-inch (2020) – Model: A1990
 
-U těchto modelů instalátor automaticky nastaví opravené jádro `linux-t2`, konfiguraci zvuku pro T2, firmware Broadcom Wi-Fi/Bluetooth od Applu a ovládání ventilátorů přes `t2fanrd`. Touch Bar běží na vestavěné podpoře ve stylu Boot Camp v jádru.
+Na těchto modelech instalační program automaticky nastaví opravené jádro `linux-t2`, konfiguraci zvuku T2, firmware Broadcom Wi-Fi/Bluetooth od Applu a ovládání ventilátorů přes `t2fanrd`. Touch Bar běží na vestavěné podpoře ve stylu Boot Camp v jádře.
 
 #### iMac Retina 5K (2017)
 
-27palcový iMac z roku 2017 nemá čip T2, takže ho instalátor nastaví stejně jako ostatní Macy s Intelem.
+27palcový iMac z roku 2017 nemá čip T2, takže ho instalační program nastaví stejně jako ostatní Macy s Intelem.
 
 - iMac (Retina 5K, 27-inch, 2017) – Model: A1419
 
@@ -142,6 +148,6 @@ U těchto modelů instalátor automaticky nastaví opravené jádro `linux-t2`, 
 - Displej neběží v nativním rozlišení 5120×2880: panel tvoří dvě dlaždice a standardní ovladač rozsvítí jen jednu
 - Zvuk nefunguje
 - Ovládání jasu nemá žádný účinek
-- Uspání počítač zasekne; obnoví ho jen vypnutí a opětovné zapnutí
+- Režim spánku počítač zasekne; obnoví ho jen vypnutí a zapnutí napájení
 
-Komunitní patcher pro tento model opravuje displej, zvuk a jas: [omarchy-imac18-3](https://github.com/ahmadtv/omarchy-imac18-3).
+Komunitní patcher pro tento model opravuje displej, zvuk i jas: [omarchy-imac18-3](https://github.com/ahmadtv/omarchy-imac18-3).

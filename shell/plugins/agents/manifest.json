@@ -9,6 +9,7 @@
   "kinds": ["bar-widget"],
   "omarchy": {
     "clonePaths": [
+      { "source": "../panels/tailscale", "target": "tailscale" },
       { "source": "../panels/elsewhen/Model.js", "target": "elsewhen/Model.js" }
     ]
   },

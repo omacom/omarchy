@@ -1,0 +1,170 @@
+#!/bin/bash
+
+# omarchy:summary=Rebuild the boot images after an initramfs, kernel or command line change
+# omarchy:args=[--initramfs PKGBASE=FILE]... [PKGBASE...] | --pacman-install | --pacman-remove
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Limine: limine-mkinitcpio, which reports a kernel it could not rebuild but
+# still exits 0, so its output is checked. systemd-boot: mkinitcpio builds a
+# plain initramfs per kernel, omarchy-boot-sync stores it as a boot image with
+# the command line in effect and publishes the images. Either way a failure
+# exits non-zero.
+#
+# --pacman-install / --pacman-remove are the pacman hooks' entry points on
+# systemd-boot machines; --pacman-install reads the hook targets on stdin.
+#
+# --initramfs PKGBASE=FILE stores FILE as that kernel's initramfs on
+# systemd-boot instead of building one: the installer passes the generic one
+# its root image carries, which saves the install its 4 s of mkinitcpio. Every
+# other kernel builds as usual, and so does this one when FILE is missing or
+# the kernel isn't installed. The first kernel update builds its own, with
+# autodetect, as on any machine.
+
+set -euo pipefail
+
+MODULES=${OMARCHY_BOOT_MODULES:-/usr/lib/modules}
+MKINITCPIO=${OMARCHY_BOOT_MKINITCPIO:-/usr/bin/mkinitcpio}
+declare -A PREBUILT=()
+
+installed_kernels() {
+  local pkgbase
+  for pkgbase in "$MODULES"/*/pkgbase; do
+    [[ -f $pkgbase ]] && printf '%s %s\n' "$(<"$pkgbase")" "$(basename "$(dirname "$pkgbase")")"
+  done
+  return 0
+}
+
+rebuild_limine() {
+  local log status=0
+  log=$(mktemp)
+  limine-mkinitcpio "$@" 2>&1 | tee "$log" || status=$?
+  if grep -q 'mkinitcpio failed for kernel' "$log"; then
+    status=1
+  fi
+  rm -f "$log"
+  return "$status"
+}
+
+# The boot hooks Limine's entry tool runs before it builds an image, kept as
+# the contract: Snapdragon's device tree list refreshes there
+# (install/hardware/qualcomm/dtb-uki.sh). Exit codes 100 and up stop the build.
+run_pre_hooks() {
+  local hook status
+  for hook in "${OMARCHY_BOOT_HOOKS_DIR:-/etc/boot/hooks/pre.d}"/*; do
+    [[ -x $hook && $hook != *.disabled ]] || continue
+    # Limine's own hooks (config enrollment) are Limine's business.
+    [[ $(readlink -f "$hook") == */limine-* ]] && continue
+    status=0
+    HOOK_CALLER=omarchy-boot-rebuild "$hook" || status=$?
+    if ((status >= 100)); then
+      echo "Boot hook $hook failed ($status); not building boot images" >&2
+      return 1
+    fi
+  done
+}
+
+rebuild_systemd_boot() {
+  local -a only=("$@")
+  local pkgbase kver initramfs failed=0 built=0
+  run_pre_hooks || return 1
+  while read -r pkgbase kver; do
+    if ((${#only[@]})) && [[ " ${only[*]} " != *" $pkgbase "* ]]; then
+      continue
+    fi
+    initramfs=${PREBUILT[$pkgbase]:-}
+    unset "PREBUILT[$pkgbase]"
+    if [[ -n $initramfs && ! -s $initramfs ]]; then
+      echo "The pre-built initramfs $initramfs for $pkgbase is missing; building one" >&2
+      initramfs=""
+    fi
+    if [[ -n $initramfs ]]; then
+      echo "Using the pre-built initramfs $initramfs for kernel $pkgbase ($kver)"
+      omarchy-boot-sync import "$pkgbase" "$kver" "$MODULES/$kver/vmlinuz" "$initramfs" || failed=1
+      built=1
+    else
+      initramfs=$(mktemp --suffix=.img)
+      if "$MKINITCPIO" -k "$kver" -g "$initramfs"; then
+        omarchy-boot-sync import "$pkgbase" "$kver" "$MODULES/$kver/vmlinuz" "$initramfs" || failed=1
+        built=1
+      else
+        echo "mkinitcpio failed for kernel $pkgbase ($kver)" >&2
+        failed=1
+      fi
+      rm -f "$initramfs"
+    fi
+  done < <(installed_kernels)
+  for pkgbase in "${!PREBUILT[@]}"; do
+    echo "Kernel $pkgbase isn't installed or isn't being rebuilt; ignoring its pre-built initramfs" >&2
+  done
+  if ((built)); then
+    omarchy-boot-sync sync || failed=1
+  fi
+  return "$failed"
+}
+
+# Kernels whose vmlinuz changed; nothing (meaning all kernels) when anything
+# else the initramfs is built from changed.
+pacman_kernels() {
+  local -a kernels=()
+  local target all=0 kver
+  while read -r target; do
+    if [[ $target == usr/lib/modules/*/vmlinuz ]]; then
+      kver=${target#usr/lib/modules/}
+      kver=${kver%/vmlinuz}
+      [[ -f $MODULES/$kver/pkgbase ]] && kernels+=("$(<"$MODULES/$kver/pkgbase")")
+    else
+      all=1
+    fi
+  done
+  if ((!all)); then
+    printf '%s\n' "${kernels[@]}"
+  fi
+}
+
+record_initcpio_state() {
+  if command -v omarchy-boot-sync-initcpio >/dev/null 2>&1; then
+    omarchy-boot-sync-initcpio --record || true
+  fi
+}
+
+case ${1:-} in
+--pacman-install)
+  mapfile -t kernels < <(pacman_kernels)
+  rebuild_systemd_boot "${kernels[@]}"
+  if ((${#kernels[@]} == 0)); then
+    record_initcpio_state
+  fi
+  ;;
+--pacman-remove)
+  # After the transaction: the sync drops the live entries of a kernel that is
+  # no longer installed, and an upgraded kernel keeps its published image until
+  # the install hook replaces it. A snapshot pinned to an image keeps it.
+  omarchy-boot-sync sync
+  ;;
+*)
+  kernels=()
+  while (($#)); do
+    case $1 in
+    --initramfs)
+      [[ ${2:-} == ?*=?* ]] || { echo "--initramfs needs PKGBASE=FILE" >&2; exit 2; }
+      PREBUILT[${2%%=*}]=${2#*=}
+      shift
+      ;;
+    *) kernels+=("$1") ;;
+    esac
+    shift
+  done
+  status=0
+  for backend in $(omarchy-boot-backend --managed); do
+    case $backend in
+    limine) rebuild_limine "${kernels[@]}" || status=1 ;;
+    systemd-boot) rebuild_systemd_boot "${kernels[@]}" || status=1 ;;
+    esac
+  done
+  if ((status == 0 && ${#kernels[@]} == 0)); then
+    record_initcpio_state
+  fi
+  exit "$status"
+  ;;
+esac
