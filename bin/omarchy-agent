@@ -1,15 +1,20 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
+# omarchy:args=[--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--session <id>|--continue] [--app-id=<app-id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --agent codex | omarchy agent --provider fireworks
 
 inline=false
 pick=false
+check_only=false
 use_local=false
 local_model=""
 agent_override=""
 provider=""
+session=""
+continue_last=false
+account_home_override=""
+account_home_overridden=false
 app_id="org.omarchy.agent"
 launch_args=("$@")
 
@@ -25,6 +30,10 @@ while (($#)); do
       pick=true
       shift
       ;;
+    --check)
+      check_only=true
+      shift
+      ;;
     --local-model)
       use_local=true
       local_model=${2:?--local-model needs a recipe id}
@@ -37,6 +46,19 @@ while (($#)); do
     --provider)
       provider=${2:?--provider needs a provider id}
       shift 2
+      ;;
+    --session)
+      session=${2:?--session needs a value}
+      shift 2
+      ;;
+    --continue)
+      continue_last=true
+      shift
+      ;;
+    --account-home=*)
+      account_home_override=${1#--account-home=}
+      account_home_overridden=true
+      shift
       ;;
     # A launcher of its own (Codex, Claude Code, Grok Build) gives its windows
     # their own class, so the dock keeps them under that launcher.
@@ -55,6 +77,11 @@ while (($#)); do
       ;;
   esac
 done
+
+if [[ -n $session && $continue_last == "true" ]]; then
+  echo "Use either --session or --continue, not both." >&2
+  exit 2
+fi
 
 # Agents refuse to remember trust for $HOME, so launches from the keybinding or
 # menu start in the work directory instead of re-asking on every session.
@@ -112,7 +139,7 @@ fi
 
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
-if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
+if [[ $check_only != "true" ]] && omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   # An agent you still have a sign-in for can be missing its CLI: removed, or
   # signed in to on another machine and copied over. Launching it installs the
   # CLI first and then opens as asked, in this terminal or a floating one.
@@ -131,13 +158,26 @@ fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
+resume_supported=false
 case "$agent" in
 opencode)
+  resume_supported=true
   command=(opencode --auto)
+  if [[ -n $session ]]; then
+    command+=(--session "$session")
+  elif [[ $continue_last == "true" ]]; then
+    command+=(--continue)
+  fi
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
   ;;
 agy)
+  resume_supported=true
   command=(agy --dangerously-skip-permissions)
+  if [[ -n $session ]]; then
+    command+=(--conversation "$session")
+  elif [[ $continue_last == "true" ]]; then
+    command+=(--continue)
+  fi
   [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
   ;;
 copilot)
@@ -153,7 +193,13 @@ crush)
   fi
   ;;
 claude)
+  resume_supported=true
   command=(claude --permission-mode auto)
+  if [[ -n $session ]]; then
+    command+=(--resume "$session")
+  elif [[ $continue_last == "true" ]]; then
+    command+=(--continue)
+  fi
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 grok)
@@ -170,7 +216,14 @@ openclaw)
   [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
   ;;
 codex)
-  command=(codex --approve-for-me)
+  resume_supported=true
+  if [[ -n $session ]]; then
+    command=(codex --approve-for-me resume "$session")
+  elif [[ $continue_last == "true" ]]; then
+    command=(codex --approve-for-me resume --last)
+  else
+    command=(codex --approve-for-me)
+  fi
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 cursor-agent)
@@ -205,7 +258,13 @@ ori)
   [[ -n ${prompt:-} ]] && command+=(--interactive --prompt "$prompt")
   ;;
 pi)
+  resume_supported=true
   command=(pi)
+  if [[ -n $session ]]; then
+    command+=(--session "$session")
+  elif [[ $continue_last == "true" ]]; then
+    command+=(--continue)
+  fi
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
 kimi)
@@ -242,7 +301,13 @@ freebuff)
 kilo)
   # Kilo is built on OpenCode and shares its flags. Bind the prompt so one
   # starting with a dash stays literal.
+  resume_supported=true
   command=(kilo --auto)
+  if [[ -n $session ]]; then
+    command+=(--session "$session")
+  elif [[ $continue_last == "true" ]]; then
+    command+=(--continue)
+  fi
   [[ -n ${prompt:-} ]] && command+=("--prompt=$prompt")
   ;;
 devin)
@@ -265,6 +330,15 @@ amp)
   exit 1
   ;;
 esac
+
+if [[ -n $session || $continue_last == "true" ]] && [[ $resume_supported != "true" ]]; then
+  echo "$agent does not support --session or --continue; omit it to open a new session with --prompt." >&2
+  exit 2
+fi
+
+if [[ $check_only == "true" ]]; then
+  exit 0
+fi
 
 # A model that is set up but not running, as one opened from its launcher may
 # be, is started first, in the terminal the agent will have: loading takes a
@@ -358,15 +432,23 @@ grok) home_env="GROK_HOME" ;;
 esac
 if [[ -n $home_env ]]; then
   account_pin="OMARCHY_AGENT_${agent^^}_HOME"
-  if [[ -v $account_pin && ${!home_env:-} == "${!account_pin}" ]]; then
-    unset "$home_env"
-  fi
-  unset "$account_pin"
-  if [[ -z ${!home_env:-} ]]; then
-    home=$(omarchy-agent-account-home "$agent")
-    account_env=(env -u "$home_env" "$account_pin=$home")
-    [[ -n $home ]] && account_env+=("$home_env=$home")
+  if [[ $account_home_overridden == "true" ]]; then
+    account_env=(env -u "$home_env" "$account_pin=$account_home_override")
+    [[ -n $account_home_override ]] && account_env+=("$home_env=$account_home_override")
     command=("${account_env[@]}" "${command[@]}")
+  else
+    if [[ -v $account_pin && ${!home_env:-} == "${!account_pin}" ]]; then
+      unset "$home_env"
+    fi
+    unset "$account_pin"
+    if [[ -z ${!home_env:-} ]]; then
+      home=$(omarchy-agent-account-home "$agent")
+      account_env=(env -u "$home_env" "$account_pin=$home")
+      [[ -n $home ]] && account_env+=("$home_env=$home")
+      command=("${account_env[@]}" "${command[@]}")
+    elif [[ $inline != "true" ]]; then
+      command=(env "$home_env=${!home_env}" "${command[@]}")
+    fi
   fi
 fi
 
