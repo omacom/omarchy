@@ -23,8 +23,6 @@ Panel {
   // A clone reads the scale from its narrow audioConfig and cannot change it.
   readonly property bool volumeScaleWritable: !!bar?.shell?.shellConfig
   readonly property string volumeScale: AudioVolume.scale(bar?.shell?.shellConfig || { audio: bar?.shell?.audioConfig })
-  readonly property real shownOutputVolume: outputSlider.dragging
-    ? AudioVolume.volume(outputSlider.liveValue, volumeScale) : outputVolume
 
   function toggleVolumeScale() {
     if (!volumeScaleWritable) return
@@ -768,6 +766,9 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias scrollArea: scrollArea
+      // The slider lives in this component, so the shown volume is read here.
+      readonly property real shownOutputVolume: outputSlider.dragging
+        ? AudioVolume.volume(outputSlider.liveValue, root.volumeScale) : root.outputVolume
       implicitHeight: panelColumn.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
@@ -874,7 +875,7 @@ Panel {
               Text {
                 id: heroLabel
                 textFormat: Text.PlainText
-                text: root.outputVolumeName(root.shownOutputVolume, root.outputMuted).toUpperCase()
+                text: root.outputVolumeName(keyCatcher.shownOutputVolume, root.outputMuted).toUpperCase()
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -911,7 +912,7 @@ Panel {
               // The readout switches between percent and decibels.
               Button {
                 id: outputPercent
-                text: AudioVolume.readout(root.shownOutputVolume, root.volumeScale)
+                text: AudioVolume.readout(keyCatcher.shownOutputVolume, root.volumeScale)
                 tooltipText: !root.volumeScaleWritable ? ""
                   : root.volumeScale === "decibel" ? Commons.I18n.t("audio.scale.toPercent") : Commons.I18n.t("audio.scale.toDecibels")
                 foreground: Qt.darker(root.bar.foreground, 1.4)
