@@ -13,8 +13,16 @@ browser_class=""
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$default_browser"
   [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-  browser_class=$(sed -n 's/^StartupWMClass=//p' "$entry" | head -1)
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    if [[ -z $browser_exec && $line == Exec=* ]]; then
+      browser_exec=${line#Exec=}
+      browser_exec=${browser_exec%% *}
+    elif [[ -z $browser_class && $line == StartupWMClass=* ]]; then
+      browser_class=${line#StartupWMClass=}
+    fi
+    [[ -n $browser_exec && -n $browser_class ]] && break
+  done <"$entry"
   break
 done
 
@@ -29,8 +37,16 @@ fi
 # Only a private launch needs the browser's flag, and probing a Firefox-family
 # browser's --help starts the whole binary, so ordinary launches skip it and
 # leave their arguments as they are.
+has_private=false
+for argument in "$@"; do
+  if [[ $argument == "--private" ]]; then
+    has_private=true
+    break
+  fi
+done
+
 private_flag="--private"
-if [[ " $* " == *" --private "* ]]; then
+if [[ $has_private == "true" ]]; then
   if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
     private_flag="--private-window"
   elif [[ $browser_exec =~ edge ]]; then
@@ -40,10 +56,19 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+launch_args=()
+for argument in "$@"; do
+  if [[ $argument == "--private" ]]; then
+    launch_args+=("$private_flag")
+  else
+    launch_args+=("$argument")
+  fi
+done
+
+if ! omarchy-cmd-browser-handoff "$browser_exec" "${launch_args[@]}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+    uwsm-app -- "$browser_exec" "${launch_args[@]}"
 fi
 
 url=""

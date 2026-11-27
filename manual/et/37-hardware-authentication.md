@@ -1,19 +1,19 @@
-# Riistvara autentimine
+# Riistvaraline autentimine
 
 ### Sõrmejälje autentimine
 
-Paljudel sülearvutitel on autentimiseks sõrmejäljesensor. Saad seda Omarchyga kasutada, kui käivitad Omarchy menüüs (`Super + Space`) valiku _Setup > Security > Fingerprint_.
+Paljudel sülearvutitel on autentimiseks sõrmejäljesensor. Saad seda Omarchyga kasutada, käivitades Omarchy menüüs (`Super + Space`) valiku _Seadistus > Turvalisus > Sõrmejälg_.
 
-See installib sõrmejälje paketi, salvestab su jälje, kontrollib selle üle ja ongi kõik valmis, et saaksid sõrmejälge kasutada lukustuskuvalt avamiseks (mille saad esile kutsuda klahvidega `Super + Ctrl + L`), sudo režiimi sisenemiseks ja süsteemi päringute autoriseerimiseks.
+See avab täisekraanil sõrmejälje, mis täitub sensorit puudutades. Taustal installib Omarchy sõrmejälje paketi, kogub sinu jälje, kontrollib selle üle ja oledki valmis kasutama oma sõrmejälge lukustuskuvalt avamiseks (mille saad käivitada klahvikombinatsiooniga `Super + Ctrl + L`), `sudo` režiimi sisenemiseks ja süsteemiviipade autoriseerimiseks.
 
-Kui lukustuskuva on ekraani välja lülitanud, puhkab sensor energia säästmiseks, seega ärata ekraan enne selle puudutamist mis tahes klahvi või puuteplaadiga.
+Kui lukustuskuva on ekraani välja lülitanud, puhkab sensor energia säästmiseks, nii et ärata ekraan enne selle puudutamist mis tahes klahvi või puuteplaadiga.
 
-Kui su sülearvuti kaas on suletud, jäetakse sõrmejälje päring automaatselt vahele, nii et jõuad otse parooli päringu juurde, selle asemel et oodata sensori taga, milleni sa ei ulatu. Kui pead muul juhul töötama välise klaviatuuriga, millel sensorit ei ole, vajuta lihtsalt `CTRL + C`, kui sult küsitakse `sudo` ajal sõrmejälge.
+Kui su sülearvuti kaas on suletud, jäetakse sõrmejäljeviip automaatselt vahele, nii et jõuad otse parooliviiba juurde, selle asemel et oodata sensori järgi, milleni sa ei ulatu. Kui sul on muidu vaja töötada välise klaviatuuriga, millel sensorit pole, vajuta lihtsalt `CTRL + C`, kui sinult küsitakse `sudo` ajal sõrmejälge.
 
-Sõrmejälje autentimise saad eemaldada Omarchy menüüs valiku _Remove > Security > Fingerprint_ alt.
+Sõrmejälje autentimise saad eemaldada Omarchy menüüs valiku _Eemalda > Turvalisus > Sõrmejälg_ alt.
 
 ### Fido2 autentimine
 
-Kui kasutad Fido2 seadet, saad selle seadistada `sudo` autentimiseks Omarchy menüüs (`Super + Space`) valiku _Setup > Security > Fido2_ abil. See katab siiski `sudo` ja süsteemi autoriseerimise päringud, mitte arvuti avamist.
+Kui kasutad Fido2 seadet, saad selle seadistada `sudo` autentimiseks Omarchy menüüs (`Super + Space`) valiku _Seadistus > Turvalisus > Fido2_ abil. See hõlmab küll `sudo` ja süsteemi autoriseerimisviipasid, kuid mitte arvuti avamist.
 
-Saad fido2 autentimise eemaldada Omarchy menüüs valiku _Remove > Security > Fido2_ alt.
+Fido2 autentimise saad eemaldada Omarchy menüüs valiku _Eemalda > Turvalisus > Fido2_ alt.
