@@ -339,6 +339,7 @@ Panel {
   }
 
   Component.onDestruction: {
+    scanStop.stop()
     if (scannerDevice) scannerDevice.scannerEnabled = false
   }
 
@@ -346,6 +347,7 @@ Panel {
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
+      scanStop.stop()
       refresh(true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
@@ -370,7 +372,9 @@ Panel {
       routerPingLatency = -1
       internetPingLatency = -1
       internetPingPacketLoss = 0
-      setScannerEnabled(false)
+      // Defer scannerEnabled = false past the close animation: Quickshell's
+      // NetworkManager property write blocks the UI thread for ~80-100ms.
+      if (scannerDevice) scanStop.restart()
     }
   }
 
@@ -1114,6 +1118,15 @@ Panel {
         root.setScannerEnabled(true)
         scanDone.start()
       }
+    }
+  }
+
+  Timer {
+    id: scanStop
+    interval: Math.max(16, Style.duration(200))
+    repeat: false
+    onTriggered: {
+      if (!root.opened) root.setScannerEnabled(false)
     }
   }
 
