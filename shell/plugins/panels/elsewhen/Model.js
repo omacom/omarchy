@@ -977,7 +977,7 @@ function pickGeocode(text, zone, label, tabText) {
 //
 // Deliberately NOT in the table: cross-place links that tzdata merges solely
 // because two places share a clock (e.g. Iceland -> Africa/Abidjan,
-// Atlantic/Reykjavik, Atlantic/Faeroe, Atlantic/Faroe, Arctic/Longyearbyen,
+// Atlantic/Reykjavik, Arctic/Longyearbyen,
 // Europe/Uzhgorod, Europe/Zaporozhye, Indian/Christmas, Indian/Cocos,
 // Indian/Maldives, Indian/Mahe, Indian/Mauritius, Indian/Reunion, Indian/Comoro,
 // Indian/Chagos, Australia/Currie, America/Montreal, America/Cambridge_Bay,
@@ -1031,6 +1031,7 @@ var LEGACY_ZONE_PLACES = {
   "America/Mendoza": "America/Argentina/Mendoza",
   "America/Godthab": "America/Nuuk",
   "America/Santa_Isabel": "America/Tijuana",
+  "Atlantic/Faeroe": "Atlantic/Faroe",
   "Pacific/Enderbury": "Pacific/Kanton",
   "Kwajalein": "Pacific/Kwajalein",
   "Cuba": "America/Havana",
