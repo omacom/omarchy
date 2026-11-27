@@ -95,6 +95,14 @@ HOME="$test_home" omarchy-toggle-fullscreen-desktop on
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/hyprctl"
 pass "fullscreen reloads Hyprland before the bar moves"
 
+# A missing gaps flag still fails the toggle, though the bar moves after it.
+rm -f "$bar_flag" "$gaps_flag"
+if HOME="$test_home" OMARCHY_PATH="$TMPDIR/no-omarchy" omarchy-toggle-fullscreen-desktop on 2>/dev/null; then
+  fail "fullscreen on fails when the gaps flag is missing"
+fi
+[[ -f $bar_flag && ! -f $gaps_flag ]] || fail "fullscreen on still hides the bar when the gaps flag is missing"
+pass "fullscreen on fails when the gaps flag is missing"
+
 # The flag records animations being off, so on and off are the other way round.
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-notification-send"
 chmod +x "$stub_bin/omarchy-notification-send"
