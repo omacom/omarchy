@@ -7,11 +7,11 @@ import qs.Commons as Commons
 import qs.Ui
 import "DockModel.js" as DockModel
 
-// One screen's dock. It stays mapped and only hides its contents, so switching
-// to a floating workspace does not wait on a fresh layer surface. While hidden the
-// mask is empty and clicks fall through to the windows below.
+// One screen's dock. Mapped only while this screen is on a floating workspace
+// so tiled workspaces do not hold a live layer surface and dmabuf swapchain.
 PanelWindow {
   id: window
+  visible: window.shown
   // Right-to-left languages read this window mirrored.
   Binding { target: window.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
   Binding { target: window.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
@@ -284,11 +284,6 @@ PanelWindow {
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
       : Math.round((window.height - height) / 2)
-    // Switching between tiled and floating workspaces shows and hides the dock
-    // at once, with nothing to watch in between. Hidden by opacity rather than
-    // visibility, so the icons keep their textures and are drawn on the first
-    // frame back instead of being uploaded again.
-    opacity: window.shown ? 1 : 0
 
     HoverHandler {
       id: bodyHover
@@ -377,6 +372,10 @@ PanelWindow {
 
       Grid {
         readonly property int square: Math.round(window.iconSize * 0.22)
+        // A theme change fades it with the bar's palette.
+        property color tint: Commons.Color.bar.text
+
+        Behavior on tint { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
 
         anchors.centerIn: parent
         columns: 3
@@ -389,7 +388,7 @@ PanelWindow {
             width: parent.square
             height: parent.square
             radius: Math.max(1, Math.round(parent.square * 0.2))
-            color: Commons.Color.bar.text
+            color: parent.tint
           }
         }
       }
@@ -487,17 +486,12 @@ PanelWindow {
     }
 
     // Apps are drawn in full, running or not, and one that is starting pulses.
-    Image {
+    AppIcon {
       x: window.iconInset
       y: window.iconInset
       width: window.iconSize
       height: window.iconSize
-      sourceSize: Qt.size(window.iconSize * 2, window.iconSize * 2)
       source: window.dock && appSlot.modelData ? window.dock.iconFor(appSlot.modelData) : ""
-      fillMode: Image.PreserveAspectFit
-      asynchronous: true
-      smooth: true
-      mipmap: true
       opacity: appSlot.launching ? appSlot.pulse : 1
       transform: Translate {
         x: window.vertical ? 0 : appSlot.displayedShift
@@ -518,6 +512,61 @@ PanelWindow {
 
       NumberAnimation { target: appSlot; property: "pulse"; from: 1; to: window.pulseOpacity; duration: Style.duration(500); easing.type: Easing.InOutSine }
       NumberAnimation { target: appSlot; property: "pulse"; to: 1; duration: Style.duration(500); easing.type: Easing.InOutSine }
+    }
+  }
+
+  // A theme switch redraws Omarchy's app icons. The icon on screen stays until
+  // its successor has loaded, rather than blanking while it loads, and the new
+  // one fades in over it like the bar's palette.
+  component AppIcon: Item {
+    id: appIcon
+
+    property url source
+
+    function reveal() {
+      if (current.status !== Image.Loading && previous.source.toString() !== "") fadeIn.restart()
+    }
+
+    onSourceChanged: {
+      fadeIn.stop()
+      // Set while the current image still holds it, so it comes from the
+      // cache. One still loading leaves the icon on screen where it is.
+      if (current.status === Image.Ready) previous.source = current.source
+      current.opacity = previous.source.toString() !== "" ? 0 : 1
+      current.source = appIcon.source
+      appIcon.reveal()
+    }
+    Component.onCompleted: current.source = appIcon.source
+
+    Image {
+      id: previous
+      anchors.fill: parent
+      sourceSize: current.sourceSize
+      fillMode: Image.PreserveAspectFit
+      asynchronous: true
+      smooth: true
+      mipmap: true
+    }
+
+    Image {
+      id: current
+      anchors.fill: parent
+      sourceSize: Qt.size(window.iconSize * 2, window.iconSize * 2)
+      fillMode: Image.PreserveAspectFit
+      asynchronous: true
+      smooth: true
+      mipmap: true
+      onStatusChanged: appIcon.reveal()
+    }
+
+    NumberAnimation {
+      id: fadeIn
+      target: current
+      property: "opacity"
+      to: 1
+      duration: Style.duration(250)
+      easing.type: Easing.OutCubic
+      onFinished: previous.source = ""
     }
   }
 

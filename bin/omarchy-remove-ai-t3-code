@@ -5,6 +5,8 @@
 
 set -e
 
+echo "Removing T3 Code..."
+
 # Installs from before the AppImage came from these packages.
 omarchy-pkg-drop t3code-bin t3code-nightly-bin
 

@@ -1,27 +1,37 @@
 # Tizim snapshotlari
 
-Biz har bir Omarchy yangilanishida snapshotlarni avtomatik ravishda yaratamiz, lekin o'zingiznikini yaratmoqchi bo'lsangiz, `omarchy-snapshot create` dan foydalanishingiz mumkin.
+Biz har bir Omarchy yangilanishida avtomatik ravishda snapshotlar yaratamiz, lekin o'zingiznikini yaratmoqchi bo'lsangiz, `omarchy-snapshot create` dan foydalanishingiz mumkin.
 
-Snapshotni yuklash va tiklash uchun uni Limine boot loaderidan tanlaysiz. (Agar hozir to'g'ridan-to'g'ri Omarchy shifrini ochish ekraniga yuklanayotgan bo'lsangiz, avval BIOS orqali Limine ni yuklash varianti sifatida tanlashingiz kerak bo'ladi).
+Snapshotni qanday yuklash va tiklashingiz mashinangiz qaysi boot loader bilan ishga tushishiga bog'liq. Yangi UEFI o'rnatmalari systemd-boot dan foydalanadi; eski o'rnatmalar va BIOS mashinalari Limine dan foydalanadi. `omarchy-boot-backend` sizda qaysi biri borligini aytadi.
 
-O'sha ekrandan sana va versiyaga qarab yuklamoqchi bo'lgan snapshotingizni tanlang. Snapshot olingan paytdagi Omarchy versiyasini pastki chap burchakda ko'rish mumkin.
+## systemd-boot bilan
+
+Omarchy menyusida _Tizim > Snapshotlar_ ni tanlang va yuklamoqchi bo'lgan snapshotni tanlang. Mashina bir marta uning ichiga qayta ishga tushadi. Yoki yuklash menyusini ko'rish uchun mashina ishga tushayotganda Space tugmasini bosib turing, u yerda har bir snapshot Omarchy versiyasi va sanasi bilan eng yangisi birinchi bo'lib ro'yxatga olingan.
+
+Snapshot ustida vaqtinchalik qatlam bilan yuklanadi, shuning uchun undan odatdagidek foydalanishingiz mumkin, lekin qilgan har qanday o'zgarishingiz keyingi qayta yuklashda yo'qoladi. Uni saqlab qolish uchun uni tizimingizga aylantiring: tizimga kirganingizda chiqadigan bildirishnomani bosing, _Tizim > Snapshotlar > Ushbu snapshotni tiklash_ ni tanlang yoki `omarchy-snapshot restore` ni ishga tushiring. Tiklash mashina qayta ishga tushayotganda sodir bo'ladi. Avvalgi holatidagi tizim yuklash menyusida _Tiklashdan oldin_ sifatida qoladi va `omarchy-snapshot restore backup` uni qaytarib qo'yadi.
+
+Terminaldan:
+
+- `omarchy-snapshot list` yuklashingiz mumkin bo'lgan snapshotlarni ro'yxatga oladi;
+- `omarchy-snapshot boot 12` bir marta 12-snapshot ichiga qayta ishga tushiradi;
+- `omarchy-snapshot restore 12` keyingi qayta ishga tushirishda 12-snapshotni tizimga aylantiradi va `omarchy-snapshot restore --cancel` o'sha qayta ishga tushirishdan oldin fikringizni o'zgartiradi.
+
+## Limine bilan
+
+Snapshotni yuklash va tiklash uchun uni Limine boot loader dan tanlaysiz. Yuklash menyusi sukut bo'yicha yashirin qoladi, shuning uchun uni chiqarish uchun Limine ishga tushishi bilanoq istalgan tugmani bosing.
+
+O'sha ekrandan sana va versiyaga qarab yuklamoqchi bo'lgan snapshotni tanlang. Snapshot paytidagi Omarchy versiyasini pastki chap burchakda ko'rish mumkin.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Ichkariga kirganingizda, yuklanadigan snapshotda ekanligingiz haqida xabar beradigan bildirishnoma chiqadi va uni bossangiz, tiklash jarayoni boshlanadi. Muqobil ravishda, `omarchy-snapshot restore` dan foydalanishingiz mumkin.
+Ichkariga kirganingizda, yuklanadigan snapshot ichida ekaningizni bildiradigan bildirishnoma chiqadi va uni bossangiz, tiklash jarayonini boshlaydi. Muqobil ravishda `omarchy-snapshot restore` dan foydalanishingiz mumkin.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Bu sizning root fayl tizimingizni tiklaydi, lekin `/home` ni emas. Shunday qilib, u buzilgan tizim yangilanishini orqaga qaytarish uchun ishlaydi, lekin yo'qolgan shaxsiy fayllarni tiklash uchun emas.
+## Tiklash nimalarni qamrab oladi
 
-Bu shuningdek, `~/.config` katalogingiz o'z holicha qolishini anglatadi. Shunday qilib, agar konfiguratsiya fayllarini yangi formatda saqlaydigan kutubxona yoki ilovaning oldingi versiyasiga qaytayotgan bo'lsangiz, buni qo'lda hal qilishingizga to'g'ri keladi.
+Tiklash ildiz fayl tizimingizni qaytaradi, lekin `/home` ingizni emas. Shuning uchun u buzilgan tizim yangilanishini orqaga qaytarish uchun ishlaydi, lekin yo'qolgan shaxsiy fayllarni tiklash uchun emas.
 
-Xuddi shu narsa qaysi migratsiyalar allaqachon ishga tushganligi haqidagi Omarchy ning o'z yozuviga ham tegishli: u sizning home katalogingizda joylashgan, shuning uchun tiklashdan keyin ham saqlanib qoladi. Snapshot olingandan keyin ishga tushgan migratsiyalar bajarilgan deb belgilangan holda qoladi, garchi ular root fayl tizimiga kiritgan o'zgarishlar orqaga qaytarilgan bo'lsa ham, va keyingi `omarchy update` ularni qayta ishga tushirmaydi. Shunday qilib, agar tiklashdan keyin yana yangilasangiz va oldingi yangilanish o'rnatgan biror narsa hali ham bo'lmasa, ehtimoliy sabab shudir.
+Bu shuningdek `~/.config` katalogingiz o'z holicha qolishini anglatadi. Shuning uchun konfiguratsiya fayllarini yangi formatda saqlaydigan kutubxona yoki ilovaning eski versiyasiga qaytayotgan bo'lsangiz, buni qo'lda hal qilishingizga to'g'ri keladi.
 
-_Eslatma: Bu xususiyat faqat Limine boot loaderidan foydalanadigan o'rnatishlarda mavjud bo'lib, u Omarchy 2.0 dan beri standart hisoblanadi. Agar siz GRUB yoki systemd-boot da bo'lsangiz, u mavjud emas._
-
-### Yuklash menyusini o'tkazib yuborish
-
-Agar yuklash menyusiga hech qachon tegmasangiz va mashina to'g'ridan-to'g'ri shifrni ochish ekraniga o'tishini istasangiz, Omarchy menyusida _Setup > Direct Boot_ ni ishga tushiring. Bu to'g'ridan-to'g'ri Omarchy ga ishora qiluvchi EFI yozuvini qo'shadi, shuning uchun firmware Limine da to'xtamasdan uni yuklaydi.
-
-Muqobil zarari yuqorida tilga olinganidir: to'g'ridan-to'g'ri yuklash yoqilgan holda, snapshotga o'tish avval BIOS yuklash menyusidan Limine ni tanlashni anglatadi. Yozuvni olib tashlash va Limine orqali yuklashga qaytish uchun _Setup > Direct Boot_ ni yana ishga tushiring. Ba'zi firmwarelar maxsus EFI yozuvlarini yaxshi qabul qilmaydi, shuning uchun o'rnatish American Megatrends va Apple firmwarelarida ishlashdan bosh tortadi.
+Xuddi shu narsa Omarchy ning qaysi migratsiyalar allaqachon bajarilgani haqidagi o'z yozuviga ham tegishli: u uy katalogingizda yashaydi, shuning uchun tiklashdan omon qoladi. Snapshot olinganidan keyin bajarilgan migratsiyalar, ildiz fayl tizimiga kiritgan o'zgarishlari orqaga qaytarilgan bo'lsa ham, bajarilgan deb belgilanganicha qoladi va keyingi `omarchy update` ularni yana bajarmaydi. Shuning uchun tiklashdan keyin yana yangilasangiz va oldingi yangilanish o'rnatgan narsa hali ham yo'q bo'lsa, sababi katta ehtimol bilan shu.

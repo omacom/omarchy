@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing Heroic Games Launcher..."
 omarchy-pkg-drop heroic-games-launcher-bin
 
 rm -rf \
