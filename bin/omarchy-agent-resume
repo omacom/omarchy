@@ -339,7 +339,7 @@ cmd_run() {
   if [[ -n $dir ]]; then
     if [[ ! -d $dir ]]; then
       echo "Saved working directory no longer exists: $dir" >&2
-      omarchy-notification-send -u critical "Agent resume skipped" "Saved directory does not exist: $dir" >/dev/null 2>&1 || true
+      omarchy-notification-send -u critical "$(omarchy-i18n agents.resumeDirMissing)" "$(omarchy-i18n agents.resumeDirMissingBody "$dir")" >/dev/null 2>&1 || true
       return 1
     fi
     cd -- "$dir"
