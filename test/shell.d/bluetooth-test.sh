@@ -231,3 +231,328 @@ rm -f "$POWERED_FILE.11:22:33:44:55:66"
 grep -qx "rfkill block bluetooth" "$multi_log" ||
   fail "bluetooth counts a secondary controller as on" "$(cat "$multi_log")"
 pass "bluetooth counts a secondary controller as on"
+
+# CLI tests for `omarchy-bluetooth` (`omarchy bluetooth ...`).
+cli_tmp=$(mktemp -d)
+trap 'rm -rf "$device_tmp" "$cli_tmp"' EXIT
+
+mkdir -p "$cli_tmp/bin" "$cli_tmp/state"
+BT_STATE_DIR="$cli_tmp/state"
+printf 'yes\n' >"$BT_STATE_DIR/powered"
+printf 'yes\n' >"$BT_STATE_DIR/airpods_connected"
+printf 'no\n' >"$BT_STATE_DIR/mouse_connected"
+printf 'no\n' >"$BT_STATE_DIR/speaker_paired"
+printf 'no\n' >"$BT_STATE_DIR/speaker_connected"
+printf 'no\n' >"$BT_STATE_DIR/speaker_trusted"
+printf 'yes\n' >"$BT_STATE_DIR/mouse_present"
+: >"$BT_STATE_DIR/bt.log"
+
+cat >"$cli_tmp/bin/bluetoothctl" <<'PY'
+#!/usr/bin/python3
+import os
+import sys
+
+state = os.environ["TEST_STATE_DIR"]
+args = sys.argv[1:]
+
+with open(os.path.join(state, "bt.log"), "a", encoding="utf-8") as log:
+    log.write("bluetoothctl " + " ".join(args) + "\n")
+
+def read_s(name, default=""):
+    try:
+        return open(os.path.join(state, name), encoding="utf-8").read().strip()
+    except OSError:
+        return default
+
+def write_s(name, value):
+    with open(os.path.join(state, name), "w", encoding="utf-8") as fh:
+        fh.write(value + "\n")
+
+cmd = []
+i = 0
+while i < len(args):
+    if args[i] == "--timeout":
+        i += 2
+    else:
+        cmd.append(args[i])
+        i += 1
+
+if cmd == ["list"]:
+    if os.environ.get("TEST_NO_CTRL") != "1":
+        print("Controller 50:2E:66:58:2A:60 dhh-bc [default]")
+    raise SystemExit(0)
+
+if cmd[:1] == ["show"]:
+    powered = read_s("powered", "yes")
+    print("Controller 50:2E:66:58:2A:60 (public)")
+    print("\tName: dhh-bc")
+    print("\tAlias: dhh-bc")
+    print(f"\tPowered: {powered}")
+    print("\tDiscoverable: no")
+    print("\tPairable: yes")
+    print("\tDiscovering: no")
+    raise SystemExit(0)
+
+if cmd[:1] == ["power"] and len(cmd) >= 2:
+    write_s("powered", "yes" if cmd[1] == "on" else "no")
+    raise SystemExit(0)
+
+if cmd[:1] == ["devices"]:
+    filt = cmd[1] if len(cmd) >= 2 else ""
+    if not filt or (filt == "Connected" and read_s("airpods_connected", "yes") == "yes") or filt in ("Paired", "Trusted"):
+        print("Device AA:BB:CC:DD:EE:01 AirPods Pro")
+    if read_s("mouse_present", "yes") == "yes":
+        if not filt or (filt == "Connected" and read_s("mouse_connected", "no") == "yes") or filt in ("Paired", "Trusted"):
+            print("Device AA:BB:CC:DD:EE:02 MX Master 3S")
+    if (
+        not filt
+        or (filt == "Connected" and read_s("speaker_connected", "no") == "yes")
+        or (filt == "Paired" and read_s("speaker_paired", "no") == "yes")
+        or (filt == "Trusted" and read_s("speaker_trusted", "no") == "yes")
+    ):
+        print("Device AA:BB:CC:DD:EE:03 JBL Go 3")
+    if not filt:
+        print("Device AA:BB:CC:DD:EE:04 AA-BB-CC-DD-EE-04")
+    raise SystemExit(0)
+
+if cmd[:1] == ["info"] and len(cmd) >= 2:
+    mac = cmd[1].upper()
+    if mac == "AA:BB:CC:DD:EE:01":
+        print("Device AA:BB:CC:DD:EE:01 (public)")
+        print("\tName: AirPods Pro")
+        print("\tAlias: AirPods Pro")
+        print("\tIcon: audio-headset")
+        print("\tPaired: yes")
+        print("\tBonded: yes")
+        print("\tTrusted: yes")
+        print("\tBlocked: no")
+        print(f"\tConnected: {read_s('airpods_connected', 'yes')}")
+        print("\tRSSI: 0xffffffc6 (-58)")
+        print("\tBattery Percentage: 0x55 (85)")
+        print("\tUUID: Audio Sink (0000110b-0000-1000-8000-00805f9b34fb)")
+        print("\tUUID: Handsfree (0000111e-0000-1000-8000-00805f9b34fb)")
+        raise SystemExit(0)
+    if mac == "AA:BB:CC:DD:EE:02" and read_s("mouse_present", "yes") == "yes":
+        print("Device AA:BB:CC:DD:EE:02 (random)")
+        print("\tName: MX Master 3S")
+        print("\tAlias: MX Master 3S")
+        print("\tIcon: input-mouse")
+        print("\tPaired: yes")
+        print("\tTrusted: yes")
+        print(f"\tConnected: {read_s('mouse_connected', 'no')}")
+        raise SystemExit(0)
+    if mac == "AA:BB:CC:DD:EE:03":
+        print("Device AA:BB:CC:DD:EE:03 (public)")
+        print("\tName: JBL Go 3")
+        print("\tAlias: JBL Go 3")
+        print("\tIcon: audio-card")
+        print(f"\tPaired: {read_s('speaker_paired', 'no')}")
+        print(f"\tTrusted: {read_s('speaker_trusted', 'no')}")
+        print(f"\tConnected: {read_s('speaker_connected', 'no')}")
+        raise SystemExit(0)
+    if mac == "AA:BB:CC:DD:EE:04":
+        print("Device AA:BB:CC:DD:EE:04 (random)")
+        print("\tAlias: AA-BB-CC-DD-EE-04")
+        print("\tPaired: no")
+        print("\tTrusted: no")
+        print("\tConnected: no")
+        raise SystemExit(0)
+    print(f"Device {mac} not available")
+    raise SystemExit(1)
+
+if cmd[:2] == ["scan", "on"]:
+    if os.environ.get("TEST_FAIL_SCAN") == "1":
+        print("Failed to start discovery: org.bluez.Error.NotReady")
+        raise SystemExit(1)
+    print("Discovery started")
+    raise SystemExit(0)
+
+if cmd[:1] == ["pair"] and len(cmd) >= 2:
+    if cmd[1].upper() == "AA:BB:CC:DD:EE:03":
+        write_s("speaker_paired", "yes")
+    raise SystemExit(0)
+
+if cmd[:1] == ["trust"] and len(cmd) >= 2:
+    if os.environ.get("TEST_FAIL_TRUST") == "1":
+        print("Failed to set trust: org.bluez.Error.Failed")
+        raise SystemExit(1)
+    if cmd[1].upper() == "AA:BB:CC:DD:EE:03":
+        write_s("speaker_trusted", "yes")
+    raise SystemExit(0)
+
+if cmd[:1] == ["untrust"] and len(cmd) >= 2:
+    if cmd[1].upper() == "AA:BB:CC:DD:EE:03":
+        write_s("speaker_trusted", "no")
+    raise SystemExit(0)
+
+if cmd[:1] == ["connect"] and len(cmd) >= 2:
+    if os.environ.get("TEST_TIMEOUT_CONNECT") == "1":
+        raise SystemExit(0)
+    if os.environ.get("TEST_FAIL_CONNECT") == "1":
+        print("Failed to connect: org.bluez.Error.Failed br-connection-page-timeout")
+        raise SystemExit(1)
+    mac = cmd[1].upper()
+    if mac == "AA:BB:CC:DD:EE:01":
+        write_s("airpods_connected", "yes")
+    elif mac == "AA:BB:CC:DD:EE:02":
+        write_s("mouse_connected", "yes")
+    elif mac == "AA:BB:CC:DD:EE:03":
+        write_s("speaker_connected", "yes")
+    raise SystemExit(0)
+
+if cmd[:1] == ["disconnect"] and len(cmd) >= 2:
+    mac = cmd[1].upper()
+    if mac == "AA:BB:CC:DD:EE:01":
+        write_s("airpods_connected", "no")
+    elif mac == "AA:BB:CC:DD:EE:02":
+        write_s("mouse_connected", "no")
+    elif mac == "AA:BB:CC:DD:EE:03":
+        write_s("speaker_connected", "no")
+    raise SystemExit(0)
+
+if cmd[:1] == ["remove"] and len(cmd) >= 2:
+    if cmd[1].upper() == "AA:BB:CC:DD:EE:02":
+        write_s("mouse_present", "no")
+    raise SystemExit(0)
+
+raise SystemExit(0)
+PY
+
+cat >"$cli_tmp/bin/rfkill" <<'SH'
+#!/bin/bash
+printf 'rfkill %s\n' "$*" >>"$TEST_STATE_DIR/bt.log"
+[[ $1 == "block" ]] && printf 'no\n' >"$TEST_STATE_DIR/powered"
+[[ $1 == "unblock" ]] && printf 'yes\n' >"$TEST_STATE_DIR/powered"
+exit 0
+SH
+
+chmod +x "$cli_tmp/bin/bluetoothctl" "$cli_tmp/bin/rfkill"
+
+bt_cli() {
+  PATH="$cli_tmp/bin:$ROOT/bin:$PATH" TEST_STATE_DIR="$BT_STATE_DIR" \
+    OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 "$ROOT/bin/omarchy-bluetooth" "$@"
+}
+
+out=$(bt_cli status --json)
+python3 - "$out" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["available"] is True and d["powered"] is True and d["power"] == "on", d
+assert d["controller"]["address"] == "50:2E:66:58:2A:60", d
+assert len(d["connected"]) == 1, d
+c = d["connected"][0]
+assert c["label"] == "AirPods Pro" and c["battery"] == 85 and c["rssi"] == -58, c
+PY
+pass "bluetooth CLI status --json reports controller, power, and connected device battery/RSSI"
+
+out=$(bt_cli list --json)
+python3 - "$out" <<'PY'
+import json, sys
+devs = json.loads(sys.argv[1])
+assert [d["label"] for d in devs] == ["AirPods Pro", "MX Master 3S", "JBL Go 3"], devs
+PY
+out=$(bt_cli list --all --json)
+python3 - "$out" <<'PY'
+import json, sys
+devs = json.loads(sys.argv[1])
+assert len(devs) == 4 and any(d["address"] == "AA:BB:CC:DD:EE:04" for d in devs), devs
+PY
+out=$(bt_cli list --connected --json)
+python3 - "$out" <<'PY'
+import json, sys
+assert [d["label"] for d in json.loads(sys.argv[1])] == ["AirPods Pro"]
+PY
+out=$(bt_cli list --paired --json)
+python3 - "$out" <<'PY'
+import json, sys
+assert [d["label"] for d in json.loads(sys.argv[1])] == ["AirPods Pro", "MX Master 3S"]
+PY
+pass "bluetooth CLI list sorts devices, hides unnamed BLE beacons by default, and filters"
+
+out=$(bt_cli info "airpods pro" --json)
+python3 - "$out" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["address"] == "AA:BB:CC:DD:EE:01" and d["profiles"] == ["Audio Sink", "Handsfree"], d
+PY
+out=$(bt_cli info "aa-bb-cc-dd-ee-01" --json)
+python3 - "$out" <<'PY'
+import json, sys
+assert json.loads(sys.argv[1])["label"] == "AirPods Pro"
+PY
+pass "bluetooth CLI info resolves devices by name or hyphen/colon MAC address"
+
+for blank in "" "   "; do
+  status=0
+  bt_cli forget "$blank" >/dev/null 2>&1 || status=$?
+  (( status == 2 )) || fail "blank device name should exit 2" "got $status"
+done
+pass "bluetooth CLI rejects blank device names before matching"
+
+status=0
+TEST_FAIL_TRUST=1 bt_cli pair "JBL Go 3" >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "pair should fail when trust fails" "got $status"
+pass "bluetooth CLI pair surfaces trust failures"
+
+: >"$BT_STATE_DIR/bt.log"
+out=$(bt_cli pair "JBL Go 3" --json)
+python3 - "$out" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["paired"] is True and d["trusted"] is True and d["connected"] is True, d
+PY
+grep -q "bluetoothctl trust AA:BB:CC:DD:EE:03" "$BT_STATE_DIR/bt.log" || fail "pair trusts device"
+grep -q "bluetoothctl --timeout 20 connect AA:BB:CC:DD:EE:03" "$BT_STATE_DIR/bt.log" || fail "pair connects device"
+pass "bluetooth CLI pair pairs, trusts, and connects a device resolved by name"
+
+out=$(bt_cli untrust "JBL Go 3" --json)
+python3 - "$out" <<'PY'
+import json, sys
+assert json.loads(sys.argv[1])["trusted"] is False
+PY
+out=$(bt_cli disconnect "AirPods Pro" --json)
+python3 - "$out" <<'PY'
+import json, sys
+assert json.loads(sys.argv[1])["connected"] is False
+PY
+out=$(bt_cli forget "MX Master 3S" --json)
+python3 - "$out" <<'PY'
+import json, sys
+assert json.loads(sys.argv[1])["forgotten"]["address"] == "AA:BB:CC:DD:EE:02"
+PY
+pass "bluetooth CLI untrust, disconnect, and forget work by device name"
+
+status=0
+TEST_FAIL_CONNECT=1 bt_cli connect "AirPods Pro" >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "failed bluetooth connect should exit 1" "got $status"
+status=0
+TEST_TIMEOUT_CONNECT=1 bt_cli connect "AirPods Pro" >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "bluetooth connect must fail when bluetoothctl --timeout exits 0 without connecting" "got $status"
+status=0
+TEST_NO_CTRL=1 bt_cli scan --timeout 1 >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "bluetooth scan without an adapter should fail clearly" "got $status"
+pass "bluetooth CLI connect reports failures, silent timeouts, and missing adapters"
+
+status=0
+TEST_FAIL_SCAN=1 bt_cli scan --timeout 1 >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "failed bluetooth scan should exit 1" "got $status"
+pass "bluetooth CLI scan reports discovery failures"
+
+: >"$BT_STATE_DIR/bt.log"
+out=$(bt_cli off --json)
+python3 - "$out" <<'PY'
+import json, sys
+assert json.loads(sys.argv[1])["powered"] is False
+PY
+grep -qx "rfkill block bluetooth" "$BT_STATE_DIR/bt.log" || fail "bluetooth off uses rfkill via omarchy-bluetooth-power"
+
+: >"$BT_STATE_DIR/bt.log"
+out=$(bt_cli scan --timeout 1 --json)
+grep -qx "rfkill unblock bluetooth" "$BT_STATE_DIR/bt.log" || fail "bluetooth scan powers adapter on via rfkill unblock"
+grep -q "bluetoothctl --timeout 1 scan on" "$BT_STATE_DIR/bt.log" || fail "bluetooth scan passes --timeout to bluetoothctl"
+pass "bluetooth CLI off/on/toggle uses rfkill persistence and scan auto-powers adapter on"
+
+status=0
+bt_cli scan --timeout 0 >/dev/null 2>&1 || status=$?
+(( status == 2 )) || fail "invalid --timeout should exit 2" "got $status"
+pass "bluetooth CLI scan rejects out-of-range --timeout with exit 2"

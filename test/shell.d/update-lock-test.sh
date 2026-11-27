@@ -191,10 +191,12 @@ SH
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
   pass "terminal updates use sudo instead of Polkit for sleep inhibition"
 
+  # A loaded CI VM can take seconds to spawn the helper's processes, so these
+  # waits end on the event, with a long bound only for a run that hangs.
   wait_for_process_exit() {
     local process_pid="$1"
 
-    for _ in {1..100}; do
+    for _ in {1..500}; do
       kill -0 "$process_pid" 2>/dev/null || return 0
       [[ $(awk '{ print $3 }' "/proc/$process_pid/stat" 2>/dev/null || true) == "Z" ]] && return 0
       sleep 0.02
@@ -202,9 +204,26 @@ SH
     return 1
   }
 
+  # Report reaching the launch window, or the helper dying before it does.
+  wait_for_delayed_launch() {
+    local helper_pid_file="$1"
+    local driver_pid="$2"
+
+    for _ in {1..500}; do
+      [[ -s $delayed_marker && -s $helper_pid_file ]] && return 0
+      kill -0 "$driver_pid" 2>/dev/null || break
+      sleep 0.02
+    done
+    [[ -s $delayed_marker && -s $helper_pid_file ]]
+  }
+
+  # The held child waits while the hold file exists, and the test removes it
+  # only once the signalled helper has exited, so its rollback always runs
+  # before the child could publish. Removing test_tmp releases it too.
   delayed_marker="$test_tmp/delayed-inhibitor"
+  delayed_hold="$test_tmp/delayed-hold"
   delayed_helper_pid_file="$test_tmp/delayed-helper-pid"
-  write_stub systemd-inhibit 'echo "$$" >"$DELAYED_MARKER"; sleep 0.4; while [[ $1 == --* ]]; do shift; done; exec "$@"'
+  write_stub systemd-inhibit 'echo "$$" >"$DELAYED_MARKER"; for _ in {1..1500}; do [[ -e $DELAYED_HOLD ]] || break; sleep 0.02; done; while [[ $1 == --* ]]; do shift; done; exec "$@"'
 
   # Keep the start helper's stdin attached to the private PTY so it takes the
   # sudo -b branch, then signal only that helper before the held child publishes.
@@ -219,16 +238,27 @@ wait "$helper_pid"
 exit $?
 SH
   chmod +x "$delayed_terminal_driver"
-  DELAYED_MARKER="$delayed_marker" DELAYED_HELPER_PID_FILE="$delayed_helper_pid_file" \
+  release_and_fail() {
+    rm -f "$delayed_hold"
+    fail "$@"
+  }
+  : >"$delayed_hold"
+  DELAYED_MARKER="$delayed_marker" DELAYED_HOLD="$delayed_hold" DELAYED_HELPER_PID_FILE="$delayed_helper_pid_file" \
     run_with_lock_env script -qefc "$delayed_terminal_driver" /dev/null >"$test_tmp/delayed-terminal.out" 2>&1 &
   delayed_terminal_driver_pid=$!
-  for _ in {1..100}; do
-    [[ -s $delayed_marker && -s $delayed_helper_pid_file ]] && break
-    sleep 0.02
-  done
-  [[ -s $delayed_marker && -s $delayed_helper_pid_file ]] || fail "terminal cancellation reaches the delayed launch window"
-  kill -TERM "$(<"$delayed_helper_pid_file")"
+  wait_for_delayed_launch "$delayed_helper_pid_file" "$delayed_terminal_driver_pid" ||
+    release_and_fail "terminal cancellation reaches the delayed launch window" "$(<"$test_tmp/delayed-terminal.out")"
+  delayed_terminal_helper_pid=$(<"$delayed_helper_pid_file")
+  kill -TERM "$delayed_terminal_helper_pid" ||
+    release_and_fail "terminal cancellation signals the helper while it waits" "$(<"$test_tmp/delayed-terminal.out")"
+  # The held child keeps the PTY open, so release it before script drains.
+  wait_for_process_exit "$delayed_terminal_helper_pid" ||
+    release_and_fail "terminal cancellation stops the helper" "$(<"$test_tmp/delayed-terminal.out")"
+  rm -f "$delayed_hold"
   wait "$delayed_terminal_driver_pid" || true
+  # Its own readiness timeout rolls back too, which would pass unsignalled.
+  ! grep -q "did not become ready" "$test_tmp/delayed-terminal.out" ||
+    fail "terminal cancellation lands before the helper's readiness timeout" "$(<"$test_tmp/delayed-terminal.out")"
   delayed_inhibitor_pid=$(<"$delayed_marker")
   wait_for_process_exit "$delayed_inhibitor_pid" || fail "terminal cancellation leaves no delayed inhibitor"
   [[ ! -e $runtime_dir/$stay_awake_dir_name ]] || fail "terminal cancellation leaves no launch state"
@@ -236,6 +266,7 @@ SH
 
   # With redirected stdin the same helper takes the graphical pkexec branch.
   : >"$delayed_marker"
+  : >"$delayed_hold"
   delayed_graphical_helper_pid_file="$test_tmp/delayed-graphical-helper-pid"
   delayed_graphical_driver="$test_tmp/delayed-graphical-stay-awake"
   cat >"$delayed_graphical_driver" <<'SH'
@@ -244,17 +275,19 @@ echo "$$" >"$DELAYED_HELPER_PID_FILE"
 exec omarchy-update-stay-awake start </dev/null
 SH
   chmod +x "$delayed_graphical_driver"
-  DELAYED_MARKER="$delayed_marker" DELAYED_HELPER_PID_FILE="$delayed_graphical_helper_pid_file" \
+  DELAYED_MARKER="$delayed_marker" DELAYED_HOLD="$delayed_hold" DELAYED_HELPER_PID_FILE="$delayed_graphical_helper_pid_file" \
     run_with_lock_env "$delayed_graphical_driver" >"$test_tmp/delayed-graphical.out" 2>&1 &
   delayed_graphical_driver_pid=$!
-  for _ in {1..100}; do
-    [[ -s $delayed_marker && -s $delayed_graphical_helper_pid_file ]] && break
-    sleep 0.02
-  done
-  [[ -s $delayed_marker && -s $delayed_graphical_helper_pid_file ]] || fail "graphical cancellation reaches the delayed launch window"
+  wait_for_delayed_launch "$delayed_graphical_helper_pid_file" "$delayed_graphical_driver_pid" ||
+    release_and_fail "graphical cancellation reaches the delayed launch window" "$(<"$test_tmp/delayed-graphical.out")"
   delayed_graphical_helper_pid=$(<"$delayed_graphical_helper_pid_file")
-  kill -TERM "$delayed_graphical_helper_pid"
+  kill -TERM "$delayed_graphical_helper_pid" ||
+    release_and_fail "graphical cancellation signals the helper while it waits" "$(<"$test_tmp/delayed-graphical.out")"
+  # The driver execs the helper, so its exit means the rollback has finished.
   wait "$delayed_graphical_driver_pid" || true
+  rm -f "$delayed_hold"
+  ! grep -q "did not become ready" "$test_tmp/delayed-graphical.out" ||
+    fail "graphical cancellation lands before the helper's readiness timeout" "$(<"$test_tmp/delayed-graphical.out")"
   delayed_inhibitor_pid=$(<"$delayed_marker")
   wait_for_process_exit "$delayed_inhibitor_pid" || fail "graphical cancellation leaves no delayed inhibitor"
   [[ ! -e $runtime_dir/$stay_awake_dir_name ]] || fail "graphical cancellation leaves no launch state"

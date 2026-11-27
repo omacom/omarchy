@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 
 // Drags widgets along the real bar through its own pointer handlers, and
 // checks where they land and that each arrives as the very instance that was
@@ -24,6 +25,9 @@ ShellRoot {
   // The slot the pointer is holding.
   property var held: null
   property string counts: ""
+  property int thinner: 0
+  // Every settle state the bar's surface passes through, in order.
+  property var settles: []
   property var steps: []
   property int step: 0
 
@@ -192,6 +196,7 @@ ShellRoot {
       [function() {
         var a = root.bar.moduleSlots.filter(function(slot) { return slot && slot.moduleName === "test.a" })[0]
         root.surface = a ? root.bar.slotWindow(a) : null
+        root.check(root.surface && root.surface.implicitHeight === root.surface.thickness, "the bar's surface is only as tall as its strip: " + (root.surface ? root.surface.implicitHeight + " against " + root.surface.thickness : "no surface"))
         var twins = root.slotsOf("test.twin")
         root.check(twins.length === 2, "the bar shows both twins")
         if (twins.length !== 2) return
@@ -203,7 +208,10 @@ ShellRoot {
         root.lift(twins[0])
       }, 180],
       [function() { root.pointAt(root.slotOf("test.a", "left"), 0.8) }, 180],
-      [function() { root.letGo(root.slotOf("test.a", "left"), 0.8) }, 400],
+      [function() {
+        root.check(root.surface.implicitHeight === root.surface.thickness, "a drag leaves the surface the size of its strip: " + root.surface.implicitHeight)
+        root.letGo(root.slotOf("test.a", "left"), 0.8)
+      }, 400],
       [function() {
         root.check(JSON.stringify(root.ids("left")) === JSON.stringify(["test.a", "test.twin"]), "the first twin lands after test.a: " + JSON.stringify(root.ids("left")))
         root.check(JSON.stringify(root.ids("right")) === JSON.stringify(["test.b", "test.twin", "test.c"]), "the right section keeps the other twin: " + JSON.stringify(root.ids("right")))
@@ -254,7 +262,70 @@ ShellRoot {
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
-      }, 100]
+
+        // Moving to a side edge resizes the surface, so the strip turns clear
+        // until the surface has its new size.
+        host.mutateShellConfig(function(config) { config.bar.position = "left" })
+        root.check(root.surface.resizeDue && root.surface.surfaceEdge === "top", "a strip moving to a side edge clears before its surface moves: " + root.surface.resizeDue + " " + root.surface.surfaceEdge)
+      }, 1200],
+      [function() {
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left", "the surface settles on the left edge: " + root.surface.settle + " " + root.surface.surfaceEdge)
+        root.check(root.settles.join(",") === "clearing,revealing,", "moving to a side edge clears, then reveals: " + root.settles.join(","))
+        root.settles = []
+        root.check(root.surface.implicitWidth === root.surface.thickness && root.surface.width === root.surface.thickness, "a side bar's surface is only as wide as its strip: " + root.surface.width + " against " + root.surface.thickness)
+
+        // A thicker bar on the same edge resizes the surface too, so it
+        // settles the same way, holding its old thickness while it clears.
+        root.thinner = root.surface.surfaceThickness
+        Style.barOverrides = { "size-vertical": 44 }
+        root.check(root.surface.thickness > root.thinner, "the theme thickens the side bar: " + root.surface.thickness)
+        root.check(root.surface.resizeDue && root.surface.surfaceThickness === root.thinner && root.surface.surfaceEdge === "left", "a thicker strip clears before its surface grows, on the same edge: " + root.surface.resizeDue + " " + root.surface.surfaceThickness + " " + root.surface.surfaceEdge)
+      }, 1200],
+      [function() {
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "left" && root.surface.surfaceThickness === root.surface.thickness && root.surface.width === root.surface.thickness, "the surface settles at the new thickness: " + root.surface.settle + " " + root.surface.width + " against " + root.surface.thickness)
+        root.check(root.settles.join(",") === "clearing,revealing,", "a thicker strip clears, then reveals: " + root.settles.join(","))
+
+        // Hiding mid-settle finishes it at once, at the current edge.
+        host.mutateShellConfig(function(config) { config.bar.position = "top" })
+        root.surface.follow()
+        root.check(root.surface.settle === "clearing", "a strip moving back to the top settles: " + root.surface.settle)
+        root.bar.barHidden = true
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "hiding mid-settle finishes it at the current edge: " + root.surface.settle + " " + root.surface.surfaceEdge + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
+        root.bar.barHidden = false
+      }, 400],
+      [function() {
+        // With its frames stopped, as on an output gone to sleep, a settle
+        // still finishes, on its watchdog.
+        root.settles = []
+        Style.barOverrides = { "size-horizontal": 40 }
+        root.surface.follow()
+        root.check(root.surface.settle === "clearing", "a thicker top strip settles: " + root.surface.settle)
+        root.surface.visible = false
+      }, 900],
+      [function() {
+        root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "a settle whose frames stop finishes at the current thickness: " + root.surface.settle + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
+        root.check(root.settles.join(",") === "clearing,", "with no frames it never reveals, the watchdog finishes it: " + root.settles.join(","))
+        root.surface.visible = true
+      }, 300],
+      [function() {
+        // A floating bar hangs off its edge, so the surface reaches from the
+        // screen edge to the strip's inner face.
+        Style.barOverrides = {}
+        host.mutateShellConfig(function(config) { config.bar.floating = true })
+      }, 1200],
+      [function() {
+        var reach = root.surface.thickness + root.bar.barMargins.top
+        root.check(root.bar.barMargins.top > 0, "a floating top bar sits off the screen edge: " + root.bar.barMargins.top)
+        root.check(root.surface.settle === "" && root.surface.implicitHeight === reach && root.surface.height === reach, "a floating bar's surface reaches its strip: " + root.surface.height + " against " + reach)
+        root.check(root.surface.exclusiveZone === root.surface.thickness, "a bar floating in the gap reserves what a flush bar reserves: " + root.surface.exclusiveZone + " against " + root.surface.thickness)
+        root.check(root.surface.mask !== null, "only a floating bar's strip takes input, not its clear margin")
+        Style.barOverrides = { "margin": 14 }
+      }, 1200],
+      [function() {
+        var reach = root.surface.thickness + root.bar.barMargins.top
+        root.check(root.bar.barMargins.top >= 14 && root.surface.height === reach, "a theme margin deepens the surface: " + root.surface.height + " against " + reach)
+        root.check(root.surface.exclusiveZone === reach, "a theme margin is reserved with the bar: " + root.surface.exclusiveZone + " against " + reach)
+      }, 300]
     ]
     stepper.start()
   }
@@ -277,6 +348,11 @@ ShellRoot {
       interval = current[1]
       restart()
     }
+  }
+
+  Connections {
+    target: root.surface
+    function onSettleChanged() { root.settles.push(root.surface.settle) }
   }
 
   Timer {
