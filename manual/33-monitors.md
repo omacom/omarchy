@@ -35,6 +35,8 @@ When you connect an external screen to your laptop, the display is automatically
 
 When you're extending, closing the lid on the laptop will automatically turn off the internal screen. Opening the lid will turn it back on. You can also control this manually using _Trigger > Hardware_ in the Omarchy menu or `Super + Ctrl + Delete`.
 
+While the laptop is plugged in, closing the lid never puts it to sleep, so a docked laptop stays awake even if the external screen briefly disconnects. With no external screen attached, closing the lid on power just locks it. On battery, closing the lid suspends as usual.
+
 ### Arranging multiple screens
 
 Hyprland works great with multiple screens. The monitor panel in the top bar draws them where they sit: drag one against the side of another to move it there, and the arrangement is saved with each monitor's other settings. For anything the panel doesn't cover, read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). In Omarchy, these go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for keeping a monitor off, modes the panel doesn't offer, 10-bit color, and variable refresh rate.

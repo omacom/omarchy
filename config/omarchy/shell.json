@@ -45,10 +45,10 @@
           "id": "omarchy.tray"
         },
         {
-          "id": "omarchy.keyboard-layout"
+          "id": "omarchy.camera"
         },
         {
-          "id": "omarchy.local-models"
+          "id": "omarchy.keyboard-layout"
         },
         {
           "id": "omarchy.agents"
@@ -57,10 +57,13 @@
           "id": "omarchy.bluetooth"
         },
         {
-          "id": "omarchy.network"
+          "id": "omarchy.mv7plus"
         },
         {
           "id": "omarchy.audio"
+        },
+        {
+          "id": "omarchy.network"
         },
         {
           "id": "omarchy.monitor"

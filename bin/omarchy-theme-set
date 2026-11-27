@@ -257,16 +257,16 @@ set_theme_background() {
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") &
+    (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") </dev/null >/dev/null 2>&1 9>&- &
   elif [[ -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$new_background_snapshot") &
+    (sleep 3; rm -f "$new_background_snapshot") </dev/null >/dev/null 2>&1 9>&- &
   else
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     if [[ -f $OLD_BACKGROUND_SNAPSHOT ]]; then
-      (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") &
+      (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") </dev/null >/dev/null 2>&1 9>&- &
     fi
   fi
 
@@ -419,15 +419,14 @@ mkdir -p "$NEXT_THEME_PATH"
 
 # Copy official theme first, then overlay the user's theme on top
 cp -r "$OMARCHY_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
-# The intros and loops ship from omarchy-themes-intros and omarchy-themes-loops
-# into the installed tree, never the git checkout, so a dev-linked
-# $OMARCHY_PATH takes them from there.
-for videos in intros loops; do
-  packaged_videos="$OMARCHY_PACKAGED_THEMES_PATH/$THEME_NAME/backgrounds/$videos"
-  if [[ -d $packaged_videos && -d $NEXT_THEME_PATH/backgrounds && ! -d $NEXT_THEME_PATH/backgrounds/$videos ]]; then
-    cp -r "$packaged_videos" "$NEXT_THEME_PATH/backgrounds/"
-  fi
-done
+# The stills, intros and loops ship from omarchy-themes-backgrounds,
+# omarchy-themes-intros and omarchy-themes-loops into the installed tree, never
+# the git checkout, so a dev-linked $OMARCHY_PATH takes them from there.
+packaged_backgrounds="$OMARCHY_PACKAGED_THEMES_PATH/$THEME_NAME/backgrounds"
+if [[ -d $packaged_backgrounds ]]; then
+  mkdir -p "$NEXT_THEME_PATH/backgrounds"
+  cp -r --update=none "$packaged_backgrounds/." "$NEXT_THEME_PATH/backgrounds/"
+fi
 
 if theme_came_from_a_repo "$USER_THEMES_PATH/$THEME_NAME"; then
   stage_installed_theme "$USER_THEMES_PATH/$THEME_NAME"
@@ -439,6 +438,14 @@ fi
 # Generate colors.toml from alacritty.toml if theme is missing colors.toml
 if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]; then
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
+fi
+
+# A theme with no backgrounds, its own or the user's, gets one drawn from its colors.
+if [[ -z $(find -L "$NEXT_THEME_PATH/backgrounds" "$HOME/.config/omarchy/backgrounds/$THEME_NAME" -maxdepth 1 -type f \
+  \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
+     -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
+  -print -quit 2>/dev/null) ]]; then
+  omarchy-theme-bg-generate "$NEXT_THEME_PATH" || true
 fi
 
 CHOSEN_THEME_BACKGROUND=""

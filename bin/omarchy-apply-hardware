@@ -85,5 +85,14 @@ if omarchy_image_manifest_present; then
   omarchy_image_read_manifest
   omarchy_image_defer_hardware
 else
+  OMARCHY_PKG_QUEUE_FILE=$(mktemp)
+  OMARCHY_SERVICE_QUEUE_FILE=$(mktemp)
+  export OMARCHY_PKG_QUEUE_FILE OMARCHY_SERVICE_QUEUE_FILE
+  trap 'rm -f "$OMARCHY_PKG_QUEUE_FILE" "$OMARCHY_SERVICE_QUEUE_FILE"' EXIT
+
   source "$OMARCHY_INSTALL/hardware/all.sh"
+
+  if [[ -s $OMARCHY_PKG_QUEUE_FILE || -s $OMARCHY_SERVICE_QUEUE_FILE ]]; then
+    run_logged "$OMARCHY_INSTALL/helpers/flush-packages.sh"
+  fi
 fi
