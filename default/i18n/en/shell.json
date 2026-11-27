@@ -77,6 +77,8 @@
   "agents.signInExpired": "Sign-in expired",
   "agents.signInRequired": "Sign-in required",
   "agents.signInUnfinished": "The sign-in didn't finish.",
+  "agents.downloadingMeter": "Downloading",
+  "agents.verifyingMeter": "Verifying",
   "agents.installingMeter": "Installing",
   "agents.downloadRate": "%1 MB/s",
   "agents.loginBrowser": "Log in through your browser",
