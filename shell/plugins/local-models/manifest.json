@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.local-models",
+  "name": "Local Models",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Follows the models running on hardware you own and sets up the coding models the agents panel adds.",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Models.qml"
+  }
+}

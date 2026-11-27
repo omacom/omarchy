@@ -19,6 +19,8 @@ _omarchy_complete() {
   local candidates=()
   local file basename rest next
 
+  local had_nullglob=0
+  shopt -q nullglob && had_nullglob=1
   shopt -s nullglob
   for file in "$bin_dir/$prefix"-*; do
     [[ -f $file && -x $file ]] || continue
@@ -30,7 +32,7 @@ _omarchy_complete() {
       candidates+=("$next")
     fi
   done
-  shopt -u nullglob
+  (( had_nullglob )) || shopt -u nullglob
 
   if (( COMP_CWORD == 1 )); then
     candidates+=("commands")

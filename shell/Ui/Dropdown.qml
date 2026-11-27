@@ -240,7 +240,10 @@ Item {
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
               onPositionChanged: optionList.currentIndex = parent.index
-              onClicked: optionList.selectCurrent()
+              onClicked: {
+                optionList.currentIndex = parent.index
+                optionList.selectCurrent()
+              }
             }
           }
         }

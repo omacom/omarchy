@@ -48,7 +48,7 @@ else
   # A provider nobody has signed in to has nothing to list.
   for (( i = 0; i < $(jq length <<<"$accounts"); i++ )); do
     jq -e ".[$i].accounts | any(.signedIn)" <<<"$accounts" >/dev/null || continue
-    jq -r ".[$i] | \"\(.name) — \(.switch) switching at \(.threshold)%\"" <<<"$accounts"
+    jq -r ".[$i] | \"\(.name) — notifies at \(.threshold)%\"" <<<"$accounts"
     jq -r ".[$i].accounts[] |
       \"\(if .active then \"*\" else \" \" end)\t\(.id)\t\(.label)\t\(.plan)\t\(.email)\t\" +
       ([.limits[]? | select(.percent != null) | \"\(.label): \((.percent * 100) | round)%\"] | join(\", \"))" <<<"$accounts" |

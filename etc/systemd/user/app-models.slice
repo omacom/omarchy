@@ -1,0 +1,10 @@
+# Dedicated sub-slice of app.slice for local AI model containers.
+# Keeping models under app.slice preserves systemd-oomd coverage, while
+# CPUWeight=20 lets interactive browsers, terminals, and editors in app.slice
+# (CPUWeight=100) stay responsive when local models run at full blast.
+[Unit]
+Description=Omarchy Local AI Models Slice
+Before=slices.target
+
+[Slice]
+CPUWeight=20

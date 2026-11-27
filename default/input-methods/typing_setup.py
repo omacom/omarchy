@@ -14,26 +14,36 @@ def localized(command, *args):
   return subprocess.run(command.split() + list(args), text=True, capture_output=True, check=True).stdout.strip()
 
 
+def xkb_choice(layout, variant):
+  # The first layout and variant of an XKB pair, as "layout" or "layout:variant".
+  layout, variant = layout.split(",")[0], variant.split(",")[0]
+  return layout + (":" + variant if variant and variant != "-" else "")
+
+
 def keyboard_catalog():
-  # Read the same choices as the ISO and first-boot form, then convert console
-  # keymaps through systemd's mapping, just as localectl does during install.
-  choices = setup.run(["bash", "-c", 'source "$1"; printf "%s\\n" "$OMARCHY_KEYBOARD_LAYOUTS"',
-                       "bash", str(setup.ROOT / "install/provisioning/setup-form.sh")])
+  # Read the same choices as the ISO and first-boot form. Each row comes with the
+  # XKB layout that the form gives a console keymap that systemd's table lacks,
+  # which the ISO and first-boot setup write to /etc/vconsole.conf.
+  rows = setup.run(["bash", "-c", '''source "$1"
+while IFS= read -r choice; do
+  IFS="|" read -r _ keymap _ <<<"$choice"
+  printf "%s\\t" "$choice"
+  omarchy_keymap_xkb_extra "$keymap" || echo
+done <<<"$OMARCHY_KEYBOARD_LAYOUTS"''', "bash", str(setup.ROOT / "install/provisioning/setup-form.sh")])
+  # Convert every other keymap through systemd's mapping, as localectl does
+  # during install.
   mappings = {}
   for line in Path("/usr/share/systemd/kbd-model-map").read_text().splitlines():
     fields = line.split()
     if not fields or fields[0].startswith("#"):
       continue
-    layout = fields[1].split(",")[0]
-    variant = fields[3].split(",")[0]
-    mappings.setdefault(fields[0], layout + (":" + variant if variant != "-" else ""))
-  # The console names systemd's table lacks convert as keyboard_xkb_settings in
-  # omarchy-provision-owner does, so a choice types what it did at install.
-  mappings.update({"bg-cp1251": "bg:phonetic", "colemak": "us:colemak", "cz": "cz:qwerty",
-                   "kyrgyz": "kg", "de_CH-latin1": "ch", "no-latin1": "no"})
+    mappings.setdefault(fields[0], xkb_choice(fields[1], fields[3]))
   catalog = {}
-  for choice in choices.splitlines():
+  for row in rows.splitlines():
+    choice, _, extra = row.partition("\t")
     label, keymap, *input_settings = choice.split("|")
+    if extra:
+      mappings[keymap] = xkb_choice(*extra.split()[:2])
     layout = input_settings[1] if len(input_settings) > 1 else mappings.get(keymap, keymap)
     # Composition engines belong in Input Methods, not as duplicate US layouts.
     catalog.setdefault(layout, label)

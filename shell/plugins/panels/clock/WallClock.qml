@@ -18,6 +18,14 @@ Timer {
     restart()
   }
 
+  // A timer started before suspend keeps counting down that old interval, so
+  // after a wake (or a stepped system clock) the label stays stale until the
+  // next tick. Re-read now and arm the next tick from here.
+  function resync() {
+    date = new Date()
+    arm()
+  }
+
   onStepChanged: arm()
   onTriggered: {
     date = new Date()
