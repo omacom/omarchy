@@ -363,11 +363,11 @@ function wifiStateKey(networks) {
   return keys.sort().join("\u001e")
 }
 
-// `held` is the list on screen, passed while a passphrase is being typed: its
-// rows keep their place and their last signal reading, so a scan doesn't
-// reshuffle the list (or rebuild it over a signal wobble) under the prompt.
-// New networks slot in by signal after them; connected and known still lead,
-// so the section headers stay right.
+// `held` is the list on screen, passed whenever the panel is open: its rows
+// keep their place and their last signal reading, so a scan doesn't reshuffle
+// the list (or rebuild it over a signal wobble) under the user. New networks
+// slot in by signal after them; connected and known still lead, so the
+// section headers stay right.
 function sortWifiRows(rows, held) {
   var nets = Array.isArray(rows) ? rows.slice() : []
   // No prototype, so an SSID like "hasOwnProperty" is just a key.

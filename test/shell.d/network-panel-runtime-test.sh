@@ -47,7 +47,8 @@ source = source.replace('  id: root', `  id: root
   property alias testPoll: connectivityPoll
   property alias testLimitedSettle: limitedSettle
   property alias testApPoll: activeApSignalPoll
-  property alias testBarButton: button`)
+  property alias testBarButton: button
+  function testNetworkListContentY() { return panel.loadedContent ? panel.loadedContent.networkList.contentY : -1 }`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
@@ -115,3 +116,11 @@ grep -qx "connect --interface test-wifi -- Cafe" "$stage/wifi.log" ||
 grep -q "Home" "$stage/wifi.log" &&
   fail "network panel does not spawn omarchy-network-wifi for an already-connected SSID" "$(cat "$stage/wifi.log")"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+stage_panel row-order-freeze
+run_panel "network row order freeze"
+pass "the Wi-Fi list keeps its row order while open, instead of reshuffling on every scan's signal noise"
+
+stage_panel scroll-reanchor
+run_panel "network list scroll reanchor"
+pass "the Wi-Fi list stays scrolled to where it was when a scan rebuilds the list out from under it"
