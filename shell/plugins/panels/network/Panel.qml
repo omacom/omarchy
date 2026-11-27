@@ -334,19 +334,33 @@ Panel {
 
     scannerDevice = nextDevice
 
-    if (scannerDevice)
+    if (scannerDevice && scannerDevice.scannerEnabled !== enabled)
       scannerDevice.scannerEnabled = enabled
   }
 
+  function otherPanelOpen() {
+    if (!bar || typeof bar.moduleWidgets !== "function") return false
+    var peers = bar.moduleWidgets(moduleName)
+    for (var i = 0; i < peers.length; i++)
+      if (peers[i] && peers[i] !== root && peers[i].opened === true) return true
+    return false
+  }
+
+  function releaseScanner() {
+    if (!scannerDevice) return
+    if (otherPanelOpen()) scannerDevice = null
+    else setScannerEnabled(false)
+  }
+
   Component.onDestruction: {
-    if (scannerDevice) scannerDevice.scannerEnabled = false
+    if (scannerDevice && !otherPanelOpen()) scannerDevice.scannerEnabled = false
   }
 
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
-      refresh(true)
+      refresh(!(wifiDevice && wifiDevice.scannerEnabled))
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -370,7 +384,11 @@ Panel {
       routerPingLatency = -1
       internetPingLatency = -1
       internetPingPacketLoss = 0
-      setScannerEnabled(false)
+      // Quickshell's WifiDevice.scannerEnabled write is synchronous on D-Bus
+      // (~80-100ms), so wait for KeyboardPanel's close fade to finish
+      // (panel.onVisibleChanged) before releasing it; release now only if the
+      // panel is already hidden.
+      if (!panel.visible) releaseScanner()
     }
   }
 
@@ -1296,6 +1314,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    onVisibleChanged: if (!visible && !root.opened) root.releaseScanner()
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
@@ -1490,7 +1509,7 @@ Panel {
         Column {
           id: heroLabels
           anchors.left: heroIcon.right
-          anchors.leftMargin: Style.space(14)
+          anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
           anchors.right: parent.right
           anchors.rightMargin: heroActions.width > 0 ? heroActions.width + Style.space(12) : 0
           anchors.verticalCenter: parent.verticalCenter
@@ -1821,7 +1840,7 @@ Panel {
         id: networkList
         visible: root.wifiStationAvailable
         width: parent.width
-        height: Math.min(contentHeight, Style.space(240))
+        height: Math.min(contentHeight, Style.space(252))
         spacing: Style.space(4)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -1854,6 +1873,9 @@ Panel {
             id: delegateColumn
             width: parent.width
             spacing: Style.space(4)
+            // A header that follows rows needs air above it, or it reads as
+            // a caption for the row it sits under.
+            topPadding: index > 0 && sectionTitle !== "" ? Style.space(8) : 0
 
             PanelSectionHeader {
               visible: sectionTitle !== ""

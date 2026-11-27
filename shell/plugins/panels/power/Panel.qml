@@ -18,6 +18,9 @@ Panel {
   property var profiles: []
   property string activeProfile: ""
   property int profileIndex: 0
+  property string activeChargeLimit: ""
+  property string focusRow: "profile"
+  property string chargeLimitError: ""
   property bool cursorActive: false
   readonly property var batteryService: bar && bar.shell && typeof bar.shell.firstPartyServiceFor === "function"
     ? bar.shell.firstPartyServiceFor("omarchy.battery") : null
@@ -30,6 +33,15 @@ Panel {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
   }
+  readonly property bool chargeLimitSupported: root.batteryInfo.limit_supported === "1"
+  readonly property bool chargeLimitEnabled: root.activeChargeLimit === "on" || root.activeChargeLimit === "once"
+  readonly property real chargeLimitFraction: Model.chargeLimitFraction(root.batteryInfo)
+  readonly property string chargeLimitHeaderText: Model.chargeLimitHeader(root.batteryInfo, Commons.I18n.t, Commons.I18n.formatNumber)
+  readonly property bool showTopUpButton: root.chargeLimitSupported && root.chargeLimitEnabled
+  readonly property bool toppingUpOnce: root.chargeLimitSupported && root.activeChargeLimit === "once"
+  readonly property string sleepShort: Model.formatSleepShort(root.batteryInfo, Commons.I18n.formatNumber)
+  readonly property string sleepTooltip: Model.formatSleepTooltip(root.batteryInfo, Commons.I18n.formatNumber)
+  readonly property bool sleepLowS0ix: Model.isLowS0ix(root.batteryInfo)
 
   function upowerStates() {
     return {
@@ -40,23 +52,41 @@ Panel {
     }
   }
 
-  function selectProfileByDelta(delta) {
-    profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+  function moveCursor(dx, dy) {
+    var next = Model.moveFocus(
+      focusRow,
+      profileIndex,
+      dx,
+      dy,
+      chargeLimitSupported,
+      showTopUpButton,
+      profiles.length
+    )
+    focusRow = next.focusRow
+    profileIndex = next.profileIndex
   }
 
-  function activateSelectedProfile() {
+  function activateCursor() {
+    if (focusRow === "limit" && chargeLimitSupported) {
+      toggleChargeLimit()
+      return
+    }
+    if (focusRow === "topup" && showTopUpButton) {
+      toggleTopUpOnce()
+      return
+    }
     if (profileIndex < 0 || profileIndex >= profiles.length) return
     setProfile(profiles[profileIndex])
   }
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh)
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh, root.activeChargeLimit)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh, root.activeChargeLimit)
   }
 
   function profileIcon(name) {
@@ -87,7 +117,7 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh)
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh, root.activeChargeLimit)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -149,6 +179,8 @@ Panel {
   }
 
   readonly property string heroStatusText: {
+    if (chargeThresholdActive && batteryInfo.threshold)
+      return Commons.I18n.t("power.holdingAt").arg(root.reading(batteryInfo.threshold))
     if (fullyCharged) return Commons.I18n.t("power.fullyCharged")
     if (rotatingPhrases) return activePhrases[phraseIndex % activePhrases.length]
     return modeLabel()
@@ -177,10 +209,22 @@ Panel {
     }
   }
 
+  property bool batteryRefreshPending: false
+
+  function refreshBatteryInfo() {
+    if (!batteryPresent) return
+    if (batteryProc.running) {
+      batteryRefreshPending = true
+      return
+    }
+    batteryRefreshPending = false
+    batteryProc.running = true
+  }
+
   function refresh() {
     if (!batteryPresent) return
 
-    if (!batteryProc.running) batteryProc.running = true
+    refreshBatteryInfo()
     if (profiles.length === 0 && !profilesProc.running) profilesProc.running = true
   }
 
@@ -190,6 +234,14 @@ Panel {
     // around AC plug/unplug events. Avoids the section collapsing mid-transition.
     if (Object.keys(next).length === 0) return
     batteryInfo = next
+    if (!limitProc.running && next.limit_state) {
+      activeChargeLimit = next.limit_state
+    }
+    if (next.limit_supported !== "1" && focusRow !== "profile") {
+      focusRow = "profile"
+    } else if (focusRow === "topup" && !chargeLimitEnabled) {
+      focusRow = "limit"
+    }
   }
 
   function updateProfiles(raw) {
@@ -216,6 +268,23 @@ Panel {
     if (idx >= 0) profileIndex = idx
     actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
     actionProc.running = true
+  }
+
+  function setChargeLimit(mode) {
+    if (!mode || limitProc.running || !chargeLimitSupported) return
+    chargeLimitError = ""
+    activeChargeLimit = mode
+    if (mode === "off" && focusRow === "topup") focusRow = "limit"
+    limitProc.command = ["omarchy-battery-limit", mode]
+    limitProc.running = true
+  }
+
+  function toggleChargeLimit() {
+    setChargeLimit(chargeLimitEnabled ? "off" : "on")
+  }
+
+  function toggleTopUpOnce() {
+    setChargeLimit(toppingUpOnce ? "on" : "once")
   }
 
   function togglePercentage() {
@@ -246,9 +315,11 @@ Panel {
 
       if (batteryService && batteryService.activePowerProfile)
         syncActiveProfile(batteryService.activePowerProfile)
+      chargeLimitError = ""
       refresh()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
+      focusRow = "profile"
       cursorActive = false
     }
   }
@@ -269,12 +340,19 @@ Panel {
     function onActivePowerProfileChanged() {
       if (root.batteryService) root.syncActiveProfile(root.batteryService.activePowerProfile)
     }
+    function onChargeLimitSignalsChanged() {
+      if (root.opened) root.refresh()
+      else root.refreshBatteryInfo()
+    }
   }
 
   Process {
     id: batteryProc
     command: ["omarchy-battery-status", "--shell"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateBatteryInfo(text) }
+    onExited: {
+      if (root.batteryRefreshPending) Qt.callLater(root.refreshBatteryInfo)
+    }
   }
 
   Process {
@@ -297,6 +375,18 @@ Panel {
         if (root.batteryService) root.batteryService.refreshPowerProfile()
         else if (!profilesProc.running) profilesProc.running = true
       }
+    }
+  }
+
+  Process {
+    id: limitProc
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.chargeLimitError = Commons.I18n.t("power.chargeLimitFailed")
+      } else {
+        root.chargeLimitError = ""
+      }
+      root.refreshBatteryInfo()
     }
   }
 
@@ -377,10 +467,9 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
+        root.moveCursor(dx, dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -412,7 +501,7 @@ Panel {
           Column {
             id: heroLabels
             anchors.left: heroIcon.right
-            anchors.leftMargin: Style.space(14)
+            anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
             anchors.right: heroPercent.left
             anchors.rightMargin: Style.space(10)
             anchors.verticalCenter: parent.verticalCenter
@@ -459,14 +548,17 @@ Panel {
           }
         }
 
-        // ---------- Battery progress bar ----------
+        // ---------- Battery progress bar (+ optional charge limit tick) ----------
         Item {
           width: parent.width
-          implicitHeight: Style.space(8)
+          implicitHeight: Style.space(12)
 
           Rectangle {
             id: barTrack
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            height: Style.space(8)
             radius: height / 2
             color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
           }
@@ -492,37 +584,268 @@ Panel {
               NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
             }
           }
+
+          // Mark the charge limit stop directly on the bar when actively enforcing it.
+          Rectangle {
+            visible: opacity > 0
+            width: Math.max(2, Style.space(2))
+            height: barTrack.height + Style.space(4)
+            radius: 1
+            x: Math.round(barTrack.width * (LayoutMirroring.enabled ? 1 - root.chargeLimitFraction : root.chargeLimitFraction)) - width / 2
+            anchors.verticalCenter: barTrack.verticalCenter
+            color: root.bar.foreground
+            opacity: root.chargeLimitFraction > 0 && root.activeChargeLimit === "on" ? 0.65 : 0
+
+            Behavior on opacity { NumberAnimation { duration: Style.duration(160) } }
+          }
         }
 
-        // ---------- Stats ----------
+        // ---------- Stats (balanced 3×3 + optional shallow-sleep warning) ----------
         // Visibility is intentionally only gated by "we've ever loaded data" so
         // the section never collapses mid-transition. fullyCharged is *not* part
         // of the condition: UPower briefly reports FullyCharged on plug-in when
         // the battery sits above the charge-control start threshold, and we
         // refuse to flicker the whole panel for that ~1s window.
-        Row {
+        Column {
           visible: root.batteryInfo.percentage !== undefined
           width: parent.width
-          spacing: Style.space(20)
+          spacing: Style.space(8)
 
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
-            InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
+          Row {
+            width: parent.width
+            spacing: Style.space(20)
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              spacing: Style.spacing.labelGap
+              InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
+              InfoPair {
+                visible: !!root.batteryInfo.health
+                label: Commons.I18n.t("power.batteryHealth")
+                value: root.reading(root.batteryInfo.health)
+              }
+              InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
+            }
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              spacing: Style.spacing.labelGap
+              InfoPair {
+                label: root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull"))
+                value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+              }
+              InfoPair {
+                label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
+                value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
+              }
+              Item {
+                visible: root.sleepShort !== ""
+                width: parent.width
+                implicitHeight: sleepPair.implicitHeight
+
+                InfoPair {
+                  id: sleepPair
+                  label: Commons.I18n.t("power.lastSleep")
+                  value: root.sleepShort
+                  valueColor: root.sleepLowS0ix ? Commons.Color.warning : root.bar.foreground
+                }
+
+                MouseArea {
+                  id: sleepMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                }
+
+                PanelToolTip {
+                  visible: root.sleepTooltip !== "" && sleepMouse.containsMouse
+                  text: root.sleepTooltip
+                  fontFamily: root.bar.fontFamily
+                }
+              }
+            }
           }
 
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull"))
-              value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+          Row {
+            visible: root.sleepLowS0ix
+            width: parent.width
+            spacing: Style.space(6)
+
+            Text {
+              id: s0ixWarnIcon
+              text: "󰀦"
+              textFormat: Text.PlainText
+              color: Commons.Color.warning
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              anchors.verticalCenter: parent.verticalCenter
             }
-            InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
-              value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
+
+            Text {
+              text: Commons.I18n.t("power.shallowSleep").arg(root.reading(root.batteryInfo.sleep_s0ix))
+              textFormat: Text.PlainText
+              color: Commons.Color.warning
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+              width: parent.width - s0ixWarnIcon.implicitWidth - parent.spacing
+              anchors.verticalCenter: parent.verticalCenter
             }
+          }
+        }
+
+        // ---------- Charge limit toggle (+ contextual one-time top-up) ----------
+        PanelSeparator {
+          visible: root.chargeLimitSupported
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.chargeLimitSupported
+          width: parent.width
+          spacing: Style.space(10)
+
+          Item {
+            width: parent.width
+            implicitHeight: Math.max(limitHeader.implicitHeight, limitSwitch.implicitHeight)
+
+            PanelSectionHeader {
+              id: limitHeader
+              text: root.chargeLimitHeaderText
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              anchors.left: parent.left
+              anchors.right: limitSwitch.left
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            // Sized off the header label and centered on its glyphs (same as
+            // the Wi-Fi band Automatic switch) so it reads as part of the header.
+            ToggleSwitch {
+              id: limitSwitch
+              checked: root.chargeLimitEnabled
+              busy: limitProc.running
+              trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
+              cursorPad: Style.space(3)
+              hasCursor: root.cursorActive && root.focusRow === "limit"
+              foreground: root.bar.foreground
+              anchors.right: parent.right
+              anchors.verticalCenter: limitHeader.verticalCenter
+              anchors.verticalCenterOffset: Math.round(limitHeader.topPadding / 2)
+              onHovered: function(h) {
+                if (h) {
+                  root.cursorActive = true
+                  root.focusRow = "limit"
+                }
+              }
+              onToggled: root.toggleChargeLimit()
+            }
+          }
+
+          // Collapsing container matching the Wi-Fi band pills so toggling the
+          // charge limit smoothly slides the section below instead of snapping.
+          // Mirrors the header switch row above so idle vs armed reads clearly
+          // as toggleable state with zero alignment shift.
+          Item {
+            id: topUpClip
+            width: parent.width
+            // Clip only while collapsing/expanding so topUpSwitch's outer cursor
+            // ring isn't trimmed along the right/vertical edges at rest.
+            clip: height < topUpRow.implicitHeight
+            visible: height > 0
+            height: root.showTopUpButton ? topUpRow.implicitHeight : 0
+            opacity: root.showTopUpButton ? 1 : 0
+
+            Behavior on height {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+            }
+            Behavior on opacity {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+
+            Item {
+              id: topUpRow
+              width: parent.width
+              implicitHeight: Math.max(topUpLabelRow.implicitHeight, topUpSwitch.implicitHeight)
+              readonly property color tone: root.toppingUpOnce
+                ? Style.selectedStateColor(root.bar.foreground, Commons.Color.accent)
+                : Qt.darker(root.bar.foreground, 1.25)
+
+              Row {
+                id: topUpLabelRow
+                anchors.left: parent.left
+                anchors.right: topUpSwitch.left
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(6)
+
+                Text {
+                  id: topUpIcon
+                  text: "󰂄"
+                  textFormat: Text.PlainText
+                  color: topUpRow.tone
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Math.round(Style.font.bodySmall * 1.2)
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+                }
+
+                Text {
+                  text: !root.toppingUpOnce
+                    ? Commons.I18n.t("power.topUpOnce")
+                    : (root.discharging ? Commons.I18n.t("power.toppingUpNext") : Commons.I18n.t("power.toppingUpOnce"))
+                  textFormat: Text.PlainText
+                  color: topUpRow.tone
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: root.toppingUpOnce
+                  elide: Text.ElideRight
+                  width: parent.width - topUpIcon.implicitWidth - parent.spacing
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+                }
+              }
+
+              ToggleSwitch {
+                id: topUpSwitch
+                checked: root.toppingUpOnce
+                busy: limitProc.running
+                interactive: false
+                cursorRing: true
+                trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
+                cursorPad: Style.space(3)
+                hasCursor: root.cursorActive && root.focusRow === "topup"
+                foreground: root.bar.foreground
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onContainsMouseChanged: {
+                  if (containsMouse) {
+                    root.cursorActive = true
+                    root.focusRow = "topup"
+                  }
+                }
+                onClicked: root.toggleTopUpOnce()
+              }
+            }
+          }
+
+          Text {
+            visible: root.chargeLimitError !== ""
+            text: root.chargeLimitError
+            textFormat: Text.PlainText
+            color: Commons.Color.urgent
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+            width: parent.width
           }
         }
 
@@ -566,11 +889,12 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.focusRow === "profile" && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.focusRow = "profile"
                     root.profileIndex = index
                   }
                 }
@@ -585,13 +909,14 @@ Panel {
   component InfoPair: Row {
     property string label: ""
     property string value: ""
+    property color valueColor: root.bar.foreground
 
     width: parent.width
     spacing: Style.space(8)
 
     InfoLabel { text: label }
     Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth - parent.spacing * 2); height: 1 }
-    InfoValue { text: value }
+    InfoValue { text: value; color: valueColor }
   }
 
   component InfoLabel: Text {

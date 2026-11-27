@@ -465,4 +465,69 @@ const pairedView = evalPanelView({
 })
 assertEqual(pairedView.blankSlate, false, 'an added paired tailnet model leaves the blank-slate picker')
 assertDeepEqual(pairedView.sections, [pairedLine], 'an added paired tailnet model shows in providerSections')
+
+// Rewriting a usage file with only a fresh updatedAt timestamp must not
+// reassign Agent.record or trigger a panel rebuild; a real field change still
+// updates it, and malformed JSON clears it.
+const agentSource = fs.readFileSync(root + '/shell/plugins/agents/Agent.qml', 'utf8')
+const agentClearSrc = agentSource.match(/function clear\(\) \{[\s\S]*?\n  \}/)[0]
+const agentParseSrc = agentSource.match(/function parse\(content\) \{[\s\S]*?\n  \}/)[0]
+let recordWrites = 0
+let storedRecord = null
+const agentRoot = {
+  path: '/tmp/claude.json',
+  parsedText: '',
+  get record() { return storedRecord },
+  set record(v) { recordWrites++; storedRecord = v }
+}
+agentRoot.clear = new Function('root', agentClearSrc + '\nreturn clear')(agentRoot)
+const agentParse = new Function('root', 'console', agentParseSrc + '\nreturn parse')(agentRoot, { warn() {} })
+
+const baseRecord = { id: 'claude', name: 'Claude', todayPrompts: 3, updatedAt: '2026-11-27T11:00:00+00:00' }
+agentParse(JSON.stringify(baseRecord))
+assertEqual(recordWrites, 1, 'initial record parse populates Agent.record')
+assertEqual(agentRoot.record.todayPrompts, 3, 'initial record parse reads fields')
+
+const firstRef = agentRoot.record
+agentParse(JSON.stringify({ ...baseRecord, updatedAt: '2026-11-27T11:05:00+00:00' }))
+assertEqual(recordWrites, 1, 'updatedAt-only rewrite skips reassigning Agent.record')
+assertEqual(agentRoot.record, firstRef, 'updatedAt-only rewrite preserves record reference')
+
+agentParse(JSON.stringify({ ...baseRecord, todayPrompts: 4, updatedAt: '2026-11-27T11:05:00+00:00' }))
+assertEqual(recordWrites, 2, 'real usage change updates Agent.record')
+assertEqual(agentRoot.record.todayPrompts, 4, 'real usage change reflects new field value')
+
+agentParse('{bad json')
+assertEqual(agentRoot.record, null, 'malformed JSON clears Agent.record')
+assertEqual(agentRoot.parsedText, '', 'malformed JSON clears parsedText cache')
+
+// Even when every usage file only bumps updatedAt (so recordChanged never fires
+// and dataRevision does not bump), finishing an update run must still schedule
+// sync (to pull remote snapshots) and re-arm any advised limits retry.
+const mainSourceForUpdate = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const finishUpdateSrc = mainSourceForUpdate.match(/function finishUpdate\(\) \{[\s\S]*?\n  \}/)[0]
+const calls = []
+const deferred = []
+const updateState = {
+  pendingUpdateKind: '',
+  rescanAgents() { calls.push('rescan') },
+  reloadRecords() { calls.push('reload') },
+  scheduleLimitsRetry() { calls.push('retry') },
+  scheduleSync() { calls.push('sync') },
+  runUpdate(kind) { calls.push('run:' + kind) },
+  Qt: { callLater(fn) { deferred.push(fn) } }
+}
+const finishUpdate = new Function('with (this) { ' + finishUpdateSrc + '\nreturn finishUpdate }').call(updateState)
+finishUpdate()
+assertDeepEqual(calls, ['rescan', 'reload'], 'finishUpdate rescans and reloads records before deferred hooks')
+assertEqual(deferred.length, 1, 'finishUpdate defers retry and sync scheduling until reloads land')
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'retry', 'sync'], 'updatedAt-only update still schedules sync and re-arms limits retry')
+
+calls.length = 0
+updateState.pendingUpdateKind = 'force'
+finishUpdate()
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'run:force', 'retry', 'sync'], 'finishUpdate dispatches queued pendingUpdateKind')
+assertEqual(updateState.pendingUpdateKind, '', 'finishUpdate clears pendingUpdateKind')
 JS

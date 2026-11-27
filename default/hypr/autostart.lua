@@ -12,9 +12,7 @@ hl.on("hyprland.start", function()
   -- Defer background daemons that aren't needed for the first frame so
   -- omarchy-shell brings up the desktop without competing for CPU and I/O.
   -- Encrypted drives ask for their password in the shell (omarchy-drive-unlock).
-  hl.exec_cmd(
-    "sleep 2 && " .. o.launch("udiskie --automount --no-notify --no-tray --password-prompt 'omarchy-drive-unlock {device_file}'")
-  )
+  hl.exec_cmd("sleep 2 && " .. o.launch("omarchy-drive-automount"))
 
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")

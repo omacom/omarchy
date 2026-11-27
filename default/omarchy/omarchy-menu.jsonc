@@ -51,10 +51,6 @@
   "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-shell shell summon omarchy.menu '{\"mode\":\"keybindings\"}'"},
   "learn.omarchy": {"icon":"","label":"Omarchy","action":"omarchy-launch-manual"},
   "learn.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-webapp 'https://wiki.hypr.land/'"},
-  "learn.arch": {"icon":"󰣇","label":"Arch","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
-  "learn.neovim": {"icon":"","label":"Neovim","action":"omarchy-launch-webapp 'https://www.lazyvim.org/keymaps'"},
-  "learn.bash": {"icon":"󱆃","label":"Bash","action":"omarchy-launch-webapp 'https://devhints.io/bash'"},
-  "learn.tmux-keybindings": {"icon":"","label":"Tmux","action":"omarchy-menu-tmux-keybindings"},
   "learn.herdr-keybindings": {"icon":"","label":"Herdr","action":"omarchy-menu-herdr-keybindings"},
   "learn.community": {"icon":"󰙯","label":"Community","when":"omarchy-region-global","action":"omarchy-launch-discord-community"},
 
@@ -229,6 +225,7 @@
   "setup.security.ssh-agent": {"icon":"󰣀","label":"SSH Agent","when":"! systemctl --user -q is-enabled gcr-ssh-agent.socket","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-ssh-agent"},
   "setup.security.sudoless-docker": {"icon":"󰡨","label":"Sudoless Docker","when":"omarchy-sudo-docker --configured","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sudoless-docker"},
   "setup.security.passwordless-sudo": {"icon":"󰟵","label":"Passwordless Sudo","action":"omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless"},
+  "setup.security.passwordless-login": {"icon":"","label":"Passwordless Login","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-passwordless-login"},
   "setup.config.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-editor \"$HOME/.config/hypr/hyprland.lua\""},
   "setup.config.hyprsunset": {"icon":"","label":"Hyprsunset","action":"omarchy-launch-editor ~/.config/hypr/hyprsunset.conf && omarchy-restart-hyprsunset"},
   "setup.config.xcompose": {"icon":"󰞅","label":"XCompose","action":"omarchy-launch-editor ~/.XCompose && omarchy-restart-xcompose"},

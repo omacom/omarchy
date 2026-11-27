@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -1451,5 +1439,8 @@
   },
   "system.snapshots.restore": {
     "label": "Restaura aquesta instantània"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Inici de sessió sense contrasenya"
   }
 }

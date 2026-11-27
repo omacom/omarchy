@@ -807,7 +807,7 @@ Panel {
           Column {
             id: heroLabels
             anchors.left: heroIcon.right
-            anchors.leftMargin: Style.space(14)
+            anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
             anchors.right: parent.right
             anchors.rightMargin: powerSwitch.visible ? powerSwitch.width + Style.space(12) : 0
             anchors.verticalCenter: parent.verticalCenter
@@ -849,12 +849,13 @@ Panel {
           id: connectedList
           visible: root.connectedDevices.length > 0
           width: parent.width
-          spacing: Style.space(10)
+          spacing: Style.space(4)
 
           PanelSectionHeader {
             text: Commons.I18n.t("bluetooth.connected")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
+            bottomPadding: Style.space(6)
           }
 
           Repeater {
@@ -884,7 +885,7 @@ Panel {
           id: deviceListView
           width: parent.width
           height: Math.min(contentHeight, Style.space(400))
-          spacing: Style.space(10)
+          spacing: Style.space(4)
           clip: true
           boundsBehavior: Flickable.StopAtBounds
           interactive: contentHeight > height
@@ -915,6 +916,8 @@ Panel {
               id: delegateColumn
               width: parent.width
               spacing: Style.space(10)
+              // Rows sit close; a section break keeps the wider gap.
+              topPadding: index > 0 && sectionTitle !== "" ? Style.space(6) : 0
 
               PanelSeparator {
                 visible: index > 0 && sectionTitle !== ""

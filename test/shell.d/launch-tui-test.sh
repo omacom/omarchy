@@ -10,25 +10,24 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-# The terminal stands in for the whole launch chain and records what the
-# command in the window would see.
-mkdir -p "$test_tmp/bin"
-for command in setsid uwsm-app; do
-  printf '#!/bin/bash\n[[ $1 == "--" ]] && shift\nexec "$@"\n' >"$test_tmp/bin/$command"
-done
-cat >"$test_tmp/bin/xdg-terminal-exec" <<STUB
+# The terminal launcher stands in for the rest of the launch chain and records
+# the environment and arguments omarchy-launch-tui hands off.
+mkdir -p "$test_tmp/bin" "$test_tmp/omarchy/bin"
+cat >"$test_tmp/omarchy/bin/omarchy-launch-terminal" <<STUB
 #!/bin/bash
 printf 'NO_COLOR=%s PAGER=%s GIT_PAGER=%s args=%s\\n' "\${NO_COLOR-unset}" "\${PAGER-unset}" "\${GIT_PAGER-unset}" "\$*" >"$test_tmp/window"
 STUB
-chmod +x "$test_tmp/bin"/*
+chmod +x "$test_tmp/omarchy/bin/omarchy-launch-terminal"
 
 launch() {
   rm -f "$test_tmp/window"
-  env -u NO_COLOR -u PAGER -u GIT_PAGER "$@" PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force
+  env -u NO_COLOR -u PAGER -u GIT_PAGER "$@" \
+    OMARCHY_PATH="$test_tmp/omarchy" \
+    bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force
   cat "$test_tmp/window"
 }
 
-[[ $(launch NO_COLOR=1 PAGER=cat GIT_PAGER=cat) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args=--app-id=org.omarchy.test -e btop --utf-force" ]] ||
+[[ $(launch NO_COLOR=1 PAGER=cat GIT_PAGER=cat) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args=--dir=$PWD --app-id=org.omarchy.test -e btop --utf-force" ]] ||
   fail "a window opened from an agent's command gets its colors and pager back" "$(cat "$test_tmp/window")"
 pass "a window opened from an agent's command gets its colors and pager back"
 

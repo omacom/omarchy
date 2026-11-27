@@ -144,6 +144,10 @@ if [[ $1 == "--noheadings" ]]; then
   fi
   exit 0
 fi
+if [[ $* == *"list bluetooth"* ]]; then
+  [[ -n ${RFKILL_LIST:-} ]] && printf '%s\n' "$RFKILL_LIST"
+  exit 0
+fi
 # Lifting the block is normally all it takes: AutoEnable is left at its default,
 # so bluetoothd powers the adapter up on its own. RFKILL_INERT stands in for the
 # adapter that was powered down without a block, where it does not.
@@ -275,6 +279,21 @@ pass "bluetooth reports a machine with no rfkill switch as not blocked"
 LC_ALL= blocked_state $'unblocked\nblocked' ||
   fail "bluetooth reads the rfkill block in a localized session"
 pass "bluetooth reads the rfkill block in a localized session"
+
+# On laptops with a platform ACPI switch (e.g. ThinkPad's tpacpi_bluetooth_sw),
+# off must block only the hci* switches so the platform switch does not cut USB
+# power and detach the adapter from BlueZ.
+platform_off_log=$(RFKILL_LIST=$'0 tpacpi_bluetooth_sw\n5 hci0\n6 hci1' bluetooth_power yes off)
+grep -qx "rfkill block 5 6" "$platform_off_log" ||
+  fail "bluetooth blocks only hci* rfkill switches when present" "$(cat "$platform_off_log")"
+grep -qx "rfkill block bluetooth" "$platform_off_log" &&
+  fail "bluetooth does not block platform ACPI rfkill switches" "$(cat "$platform_off_log")"
+pass "bluetooth blocks only hci* rfkill switches and leaves platform switches alone"
+
+platform_on_log=$(RFKILL_LIST=$'0 tpacpi_bluetooth_sw\n5 hci0' bluetooth_power no on)
+grep -qx "rfkill unblock bluetooth" "$platform_on_log" ||
+  fail "bluetooth still unblocks all bluetooth rfkill switches on power-on" "$(cat "$platform_on_log")"
+pass "bluetooth unblocks all bluetooth rfkill switches on power-on"
 
 # CLI tests for `omarchy-bluetooth` (`omarchy bluetooth ...`).
 cli_tmp=$(mktemp -d)
