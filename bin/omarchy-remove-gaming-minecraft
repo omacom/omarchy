@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing Minecraft..."
 omarchy-pkg-drop minecraft-launcher
 
 rm -rf \

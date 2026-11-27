@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing Dropbox..."
 dropbox-cli stop 2>/dev/null || true
 omarchy-plugin-disable omarchy.dropbox || true
 omarchy-pkg-drop dropbox dropbox-cli python-gpgme nautilus-dropbox

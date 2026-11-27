@@ -64,6 +64,8 @@ BarWidget {
   curl -s https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/glyphnames.json \
     | jq -r 'to_entries[] | select(.key | test("^md-.*timer")) | "\(.key) \(.value.char)"'
   ```
+
+  Copy the character it prints into the QML as it is. The `md-` glyphs lie past U+FFFF, so an escape needs braces, `"\u{F051F}"`: `"f"` is the glyph U+F051 followed by the letter f.
 - A card that opens on click, for details that don't fit the bar, is a `PopupCard` in the widget, the way the media widget shows the playing track. It grows from the widget and fades, closes when the user clicks anywhere else (by calling the widget's `close()`), and mirrors for right-to-left languages. In the counter above, left click opens it and right click resets:
 
   ```qml
@@ -112,11 +114,12 @@ BarWidget {
 
   This needs `import qs.Commons as Commons` beside `import qs.Commons`. A keyboard-driven panel that a hotkey summons is more: `$OMARCHY_PATH/shell/plugins/panels/clock/` is the reference for that, for settings from `shell.json`, and for IPC.
 
-Then check it, look at it, and put it on the bar. `omarchy agent look plugin <dir>` renders the widget in a bar strip with the current theme, without touching the running bar, and lists the QML errors it logged; open the image it prints and fix what looks wrong. Saving any file under the plugin folder reloads it on the bar:
+Then check it, look at it, and put it on the bar. `omarchy agent look plugin <dir>` renders the widget on a strip of bar with the current theme, without touching the running bar, and lists the QML errors it logged; open the image it prints and fix what looks wrong. It shows the widget as it starts; `--set` gives its properties values first, to look at each state it can be in (running, alerting, empty) without editing the plugin. Saving any file under the plugin folder reloads it on the bar:
 
 ```bash
 omarchy plugin validate ~/.config/omarchy/plugins/alice.counter
 omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter
+omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter --set count=1234
 omarchy bar put alice.counter --section right
 ```
 

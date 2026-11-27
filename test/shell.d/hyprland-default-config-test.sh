@@ -175,18 +175,14 @@ pass "default binding variable disables all Omarchy bindings"
 
 dictation_home="$tmpdir/dictation-home"
 missing_bin="$tmpdir/missing-bin"
-mkdir -p "$dictation_home" "$missing_bin"
+mkdir -p "$dictation_home/.config/omarchy/defaults" "$missing_bin"
 ln -s "$(command -v lua)" "$missing_bin/lua"
 ln -s "$(command -v lspci)" "$missing_bin/lspci"
 ln -s "$(command -v sort)" "$missing_bin/sort"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
   fail "unconfigured dictation leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "unconfigured dictation leaves application shortcuts available"; fi
-cat > "$missing_bin/omarchy-default-dictation" <<'SH'
-#!/bin/bash
-echo future-backend
-SH
-chmod +x "$missing_bin/omarchy-default-dictation"
+printf 'future-backend\n' > "$dictation_home/.config/omarchy/defaults/dictation"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
   fail "a selected backend that is not installed leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a selected backend that is not installed leaves application shortcuts available"; fi
