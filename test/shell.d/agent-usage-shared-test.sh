@@ -23,6 +23,7 @@ import os
 import sqlite3
 import sys
 import time
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1327,6 +1328,28 @@ check(
 )
 for name in ("CURSOR_API_KEY", "CURSOR_AUTH_PATH"):
   os.environ.pop(name)
+
+saved_cli = cli.read_text()
+cli.write_text(json.dumps({"storedIn": "os-secret-store"}))
+keyring_token = jwt({"sub": "keyring", "exp": later})
+
+def keyring_lookup(args, **kwargs):
+  check(
+    "secret-tool is asked for the Cursor CLI keyring item",
+    list(args) == ["secret-tool", "lookup", "service", "cursor-credentials", "account", "cursor-user"],
+  )
+  return json.dumps({"accessToken": keyring_token, "refreshToken": "ignored"})
+
+with patch.object(collectors.subprocess, "check_output", side_effect=keyring_lookup):
+  check("a keyring sign-in named by auth.json stands before the editor's", collectors.account_key(collectors.cursor_token()) == "keyring")
+with patch.object(collectors.subprocess, "check_output", return_value=json.dumps({"accessToken": jwt({"sub": "keyring", "exp": time.time() - 5})})):
+  check("a lapsed keyring sign-in gives way to the editor's", collectors.account_key(collectors.cursor_token()) == "ide")
+with patch.object(collectors.subprocess, "check_output", side_effect=collectors.subprocess.TimeoutExpired("secret-tool", 3)):
+  check("a keyring that doesn't answer gives way to the editor's", collectors.account_key(collectors.cursor_token()) == "ide")
+cli.write_text(json.dumps({"storedIn": "os-secret-store", "accessToken": jwt({"sub": "cli", "exp": later})}))
+with patch.object(collectors.subprocess, "check_output") as asked:
+  check("an accessToken in auth.json is used and the keyring is not asked", collectors.account_key(collectors.cursor_token()) == "cli" and asked.call_count == 0)
+cli.write_text(saved_cli)
 
 deep_header = work / "deep-header.jsonl"
 deep_header.write_text("[" * 200_000 + "\n")

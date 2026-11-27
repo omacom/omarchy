@@ -3815,6 +3815,36 @@ def cursor_account_name(token: str, state_db: Path | None = None) -> str:
   return ""
 
 
+def _cursor_keyring_token(auth: dict[str, Any]) -> str:
+  """The CLI access token kept in the OS secret store.
+
+  `cursor-agent login` writes auth.json with `storedIn: os-secret-store` and
+  no accessToken, and puts the JSON credential in the keyring. Only that
+  marker is consulted, so a machine with no such login never prompts the
+  secret service.
+  """
+  if str(auth.get("storedIn") or "") != "os-secret-store":
+    return ""
+  if str(auth.get("accessToken") or "").strip():
+    return ""
+  try:
+    raw = subprocess.check_output(
+      ["secret-tool", "lookup", "service", "cursor-credentials", "account", "cursor-user"],
+      text=True,
+      stderr=subprocess.DEVNULL,
+      timeout=3,
+    )
+  except (subprocess.SubprocessError, OSError):
+    return ""
+  try:
+    data = json.loads(raw) if raw.strip() else None
+  except (ValueError, RecursionError):
+    return ""
+  if not isinstance(data, dict):
+    return ""
+  return str(data.get("accessToken") or "").strip()
+
+
 def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) -> str:
   """The token the user exported, the credential the Cursor CLI stores, or
   the editor's sign-in, in that order.
@@ -3823,6 +3853,10 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
   trades it for an access token and keeps that beside the key in its auth
   file, so the stored token stands for the key only while it was traded for
   this one. The key itself never goes out as a bearer.
+
+  When auth.json says `storedIn` is `os-secret-store` and carries no
+  accessToken, the CLI token is the keyring item it wrote (service
+  `cursor-credentials`, account `cursor-user`).
 
   A sign-in that has lapsed gives way to the next one that hasn't: someone
   who ran the CLI once and now lives in the editor would otherwise wait on a
@@ -3838,7 +3872,7 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
     # With no token traded for this key, any other sign-in is someone else's
     # account than the one the CLI runs as.
     return traded if str(auth.get("apiKey") or "").strip() == key else ""
-  cli = traded
+  cli = traded or _cursor_keyring_token(auth)
   if cli and not token_lapsed(cli):
     return cli
   ide = _cursor_ide_token(state_db or cursor_state_db())
