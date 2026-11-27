@@ -19,10 +19,15 @@ if ! diff -I '^Window\.SetBackground' "$OMARCHY_PATH/default/plymouth/omarchy.sc
   exit 75
 fi
 
-# A failed rebuild leaves the old script in the boot image, so the migration
-# stays pending; omarchy-boot-rebuild reports one as a non-zero exit on both
-# boot backends.
-if ! sudo omarchy-boot-rebuild; then
+# Use the Plymouth setter's fallback for boot loaders Omarchy does not manage.
+if [[ $(omarchy-boot-backend) == "none" ]]; then
+  rebuild=(mkinitcpio -P)
+else
+  rebuild=(omarchy-boot-rebuild)
+fi
+
+# A failed rebuild leaves the migration pending on either path.
+if ! sudo "${rebuild[@]}"; then
   echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
   exit 1
 fi
