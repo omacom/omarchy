@@ -59,22 +59,6 @@ assert_path_present "$default_path" "$tmpdir/unrelated/bin" "env-bootstrap prese
 [[ :$default_path: == *":$tmpdir/unrelated/bin:$home/.local/share/mise/shims:/usr/bin:"* ]] ||
   fail "env-bootstrap puts mise shims just ahead of system binaries" "actual PATH: $default_path"
 pass "env-bootstrap puts mise shims just ahead of system binaries, behind what the parent put first"
-custom_shims=$(HOME="$home" MISE_SHIMS_DIR="$tmpdir/custom-shims" PATH=/usr/bin bash -c '. "$1"; printf "%s" "$PATH"' sh "$bootstrap")
-[[ :$custom_shims: == *":$tmpdir/custom-shims:/usr/bin:"* && :$custom_shims: != *":$home/.local/share/mise/shims:"* ]] ||
-  fail "env-bootstrap honours MISE_SHIMS_DIR as the uwsm session does" "actual PATH: $custom_shims"
-pass "env-bootstrap honours MISE_SHIMS_DIR as the uwsm session does"
-bash_bin=$(command -v bash)
-no_system=$(HOME="$home" PATH="$tmpdir/unrelated/bin" "$bash_bin" -c '. "$1"; . "$1"; printf "%s" "$PATH"' sh "$bootstrap")
-[[ $no_system == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/unrelated/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] ||
-  fail "without a system directory the shims stay ahead of ~/.local/bin when sourced again" "actual PATH: $no_system"
-pass "without a system directory the shims stay ahead of ~/.local/bin when sourced again"
-slashed=$(HOME="$home" PATH="$tmpdir/unrelated/bin:/usr/bin/" "$bash_bin" -c '. "$1"; printf "%s" "$PATH"' sh "$bootstrap")
-[[ :$slashed: == *":$home/.local/share/mise/shims:/usr/bin/:"* ]] || fail "a system directory with a trailing slash still comes after the shims" "actual PATH: $slashed"
-for spelling in /usr/bin/. /usr/bin/./ /usr/bin//; do
-  dotted=$(HOME="$home" PATH="$tmpdir/unrelated/bin:$spelling" "$bash_bin" -c '. "$1"; printf "%s" "$PATH"' sh "$bootstrap")
-  [[ :$dotted: == *":$home/.local/share/mise/shims:$spelling:"* ]] || fail "a system directory spelled $spelling still comes after the shims" "actual PATH: $dotted"
-done
-pass "a system directory with a trailing slash or /. still comes after the shims"
 assert_path_present "$default_path" "$home/.local/bin" "env-bootstrap appends ~/.local/bin"
 assert_path_first "$default_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap puts the account dispatchers ahead of inherited tool binaries"
 

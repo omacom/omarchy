@@ -32,40 +32,24 @@ fi
 # ahead of the system directories, as in the uwsm session, so a version pinned
 # with mise wins in login shells too while anything a parent put first stays first.
 omarchy_wrapper_dir="$HOME/.local/share/omarchy/agent-accounts/bin"
-omarchy_mise_data_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}"
-omarchy_old_wrapper_dir="$omarchy_mise_data_dir/command-wrappers/bin"
-omarchy_shims_dir="${MISE_SHIMS_DIR:-$omarchy_mise_data_dir/shims}"
+omarchy_old_wrapper_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin"
+omarchy_shims_dir="$HOME/.local/share/mise/shims"
 omarchy_wrapper_path=$omarchy_wrapper_dir
 omarchy_shims_placed=0
-# Without a system directory the shims go ahead of ~/.local/bin, so sourcing
-# this again leaves them where they are.
-case ":${PATH:-}:" in
-  *:/usr/local/sbin[:/]* | *:/usr/local/bin[:/]* | *:/usr/sbin[:/]* | *:/usr/bin[:/]* | *:/sbin[:/]* | *:/bin[:/]*) omarchy_shims_anchor=system ;;
-  *) omarchy_shims_anchor=local ;;
-esac
 if [ -n "${PATH:-}" ]; then
   omarchy_remaining_path=$PATH
   while :; do
     omarchy_path_entry=${omarchy_remaining_path%%:*}
     case "$omarchy_path_entry" in
       "$omarchy_wrapper_dir" | "$omarchy_old_wrapper_dir" | "$omarchy_shims_dir") ;;
-      *)
-        omarchy_path_dir=$omarchy_path_entry
-        while :; do
-          case "$omarchy_path_dir" in
-            ?*/.) omarchy_path_dir=${omarchy_path_dir%/.} ;;
-            ?*/) omarchy_path_dir=${omarchy_path_dir%/} ;;
-            *) break ;;
-          esac
-        done
-        case "$omarchy_shims_placed:$omarchy_shims_anchor:${omarchy_path_dir%/}" in
-          0:system:/usr/local/sbin | 0:system:/usr/local/bin | 0:system:/usr/sbin | 0:system:/usr/bin | 0:system:/sbin | 0:system:/bin | "0:local:$HOME/.local/bin")
-            omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_shims_dir"
-            omarchy_shims_placed=1
-            ;;
-        esac
+      /usr/local/sbin | /usr/local/bin | /usr/sbin | /usr/bin | /sbin | /bin)
+        if [ "$omarchy_shims_placed" = 0 ]; then
+          omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_shims_dir"
+          omarchy_shims_placed=1
+        fi
         omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_path_entry"
         ;;
+      *) omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_path_entry" ;;
     esac
     case "$omarchy_remaining_path" in
       *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
@@ -77,7 +61,7 @@ if [ "$omarchy_shims_placed" = 0 ]; then
   omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_shims_dir"
 fi
 PATH=$omarchy_wrapper_path
-unset omarchy_wrapper_dir omarchy_mise_data_dir omarchy_old_wrapper_dir omarchy_shims_dir omarchy_wrapper_path omarchy_shims_placed omarchy_shims_anchor omarchy_remaining_path omarchy_path_entry omarchy_path_dir
+unset omarchy_wrapper_dir omarchy_old_wrapper_dir omarchy_shims_dir omarchy_wrapper_path omarchy_shims_placed omarchy_remaining_path omarchy_path_entry
 
 # ~/.local/bin is appended, so system binaries keep precedence over it. Keep
 # this order in sync with the PAM PATH line from install/config/ssh-command-path.sh,
