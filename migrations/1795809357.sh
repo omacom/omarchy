@@ -5,7 +5,12 @@ echo "Enable Panel Self Refresh on the Microsoft Surface Pro 11 OLED"
 # image once per machine.
 rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1795809357}"
 
-if ! omarchy-hw-aarch64-qualcomm || ! omarchy-hw-match-device-tree microsoft,denali-oled; then
+soc_id=/sys/devices/soc0/soc_id
+
+# The SoC check keeps out an LCD (X Plus, SoC 615) install still running the
+# OLED tree before the reboot that moves it to its own.
+if ! omarchy-hw-aarch64-qualcomm || ! omarchy-hw-match-device-tree microsoft,denali-oled ||
+  [[ ! -r $soc_id || $(<"$soc_id") == "615" ]]; then
   exit 0
 fi
 
