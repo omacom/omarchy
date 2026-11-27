@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-update
 test_tmp="$boundary_tmp"
+sed -i "s#/tmp/omarchy-update\.log#$test_tmp/update.log#" "$SUDO_TEST_ROOT/bin/omarchy-update"
 stub_bin="$SUDO_TEST_ROOT/bin"
 
 # Every step omarchy-update runs, recorded in order with the unattended flag it
@@ -51,6 +52,9 @@ if [[ ${0##*/} == "omarchy-update-orphan-pkgs" ]]; then
 fi
 if [[ ${0##*/} == "omarchy-shell" ]]; then
   printf '%s\n' "$*" >"$STEP_LOG.shell-args"
+fi
+if [[ ${0##*/} == "omarchy-update-analyze-logs" ]]; then
+  printf '%s\n' "$*" >"$STEP_LOG.analyze-args"
 fi
 [[ ${FAILING_STEP:-} != "${0##*/}" ]] || exit 1
 STUB
@@ -111,6 +115,17 @@ pass "an unattended update approves orphan removal"
 [[ $(cat "$test_tmp/steps.shell-args") == "-q omarchy.system-update clear" ]] ||
   fail "a finished update clears the shell update indicator" "$(cat "$test_tmp/steps.shell-args")"
 pass "a finished update clears the shell update indicator without rechecking"
+
+# A channel switch logs its own package transactions first; the log check reads
+# only what came after them.
+printf 'channel switch output\n' >"$test_tmp/update.log"
+run_update -y || fail "an update after a channel switch reports a failure"
+[[ $(cat "$test_tmp/steps.analyze-args") == "$(stat -c %s "$test_tmp/update.log")" ]] ||
+  fail "the log check starts where the update's own output does" "$(cat "$test_tmp/steps.analyze-args")"
+rm "$test_tmp/update.log"
+run_update -y || fail "an update without a log reports a failure"
+[[ $(cat "$test_tmp/steps.analyze-args") == "0" ]] || fail "without a log the check reads from the start"
+pass "the update hands the log check the offset its own output starts at"
 
 grep -q '^omarchy-update-system-pkgs unattended=1$' "$test_tmp/steps" ||
   fail "-y does not mark the update unattended"
