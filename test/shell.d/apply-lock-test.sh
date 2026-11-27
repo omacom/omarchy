@@ -214,6 +214,13 @@ grep -Fx '0' "$trusted_uid" >/dev/null || fail "the trusted fprintd-list probe r
 grep -Fx "$target_user" "$trusted_args" >/dev/null || fail "the trusted fprintd-list probe receives the target user"
 [[ -s $password_pam && -s $fingerprint_pam ]] ||
   fail "the isolated root lock-helper run writes both scratch PAM fixtures"
+awk '
+  /pam_faillock\.so authsucc/ { saw_authsucc = NR }
+  /^-auth[[:space:]]+optional[[:space:]]+pam_aurora_touchid\.so$/ { saw_rearm = NR }
+  /^account[[:space:]]/ && !saw_account { saw_account = NR }
+  END { exit !(saw_authsucc && saw_rearm && saw_account && saw_authsucc < saw_rearm && saw_rearm < saw_account) }
+' "$password_pam" ||
+  fail "the password lock stack invokes optional pam_aurora_touchid.so after authsucc"
 [[ -x $test_tmp/system-sleep/fprintd-resume ]] ||
   fail "the lock helper installs the resume hook beside the fingerprint PAM file"
 [[ -f $test_tmp/fprintd.service.d/10-stop-timeout.conf ]] ||

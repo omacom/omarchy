@@ -37,6 +37,7 @@ auth       [default=die]               pam_faillock.so authfail deny=10 unlock_t
 auth       optional                    pam_permit.so
 auth       required                    pam_env.so
 auth       required                    pam_faillock.so authsucc
+-auth      optional                    pam_aurora_touchid.so
 account    include                     system-local-login
 EOF
 
