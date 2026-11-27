@@ -7,7 +7,17 @@ Rectangle {
   height: 480
   color: "#1a1b26"
 
-  property string currentUser: userModel.lastUser
+  // SDDM only remembers a user after a successful login. With no
+  // /var/lib/sddm/state.conf (an install that skipped first-boot provisioning,
+  // or a deleted state file) lastUser is empty and every login is rejected,
+  // because this theme has no username field. Fall back to the first user.
+  property string currentUser: {
+    if (userModel.lastUser)
+      return userModel.lastUser
+    if (userModel.rowCount() > 0)
+      return (userModel.data(userModel.index(0, 0), Qt.UserRole + 1) || "").toString()
+    return ""
+  }
   property bool loginFailed: false
   property int sessionIndex: {
     for (var i = 0; i < sessionModel.rowCount(); i++) {
