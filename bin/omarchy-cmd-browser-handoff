@@ -22,12 +22,12 @@ case $(type -P "$1") in
 esac
 shift
 
-# The running browser already has the process flags Omarchy ships in the flags
+# The running browser already has the process-wide startup flags from the flags
 # file. Any other flag there may be meant for each launch, and a data directory
 # from the environment is another browser, so leave those to the launcher.
 if [[ -n ${CHROME_USER_DATA_DIR:-}${CHROME_CONFIG_HOME:-} ]] ||
   cat "/etc/$flags" "$config/$flags" 2>/dev/null | sed 's/#.*//' | tr -s '[:space:]' '\n' |
-    grep -vE '^(--(ozone-platform|ozone-platform-hint|password-store|enable-features|load-extension)=.*|--no-default-browser-check|--no-first-run)?$' | grep -q .; then
+    grep -vE '^(--(ozone-platform|ozone-platform-hint|password-store|enable-features|disable-features|load-extension|use-gl|use-angle|wayland-text-input-version)=.*|--no-default-browser-check|--no-first-run|--enable-gpu-rasterization|--enable-zero-copy|--enable-wayland-ime|--ignore-gpu-blocklist|--enable-vulkan)?$' | grep -q .; then
   exit 1
 fi
 
