@@ -361,6 +361,34 @@ grep -qxF -- "-q omarchy.indicators refresh" "$LOG_DIR/refresh.log" ||
   fail "disabling refreshes the bar indicator" "$(<"$LOG_DIR/refresh.log")"
 pass "enable and disable push bar indicator refreshes"
 
+# 10. Missing or replaced keyfile refuses to finish disabling while its LUKS
+# slot is still enabled, keeps state intact, and completes once the slot is
+# manually killed.
+reset_fixture
+run_cmd always >/dev/null
+rm -f "$FAKE_ROOT/crypto_keyfile.bin"
+missing_err=$(run_cmd --disable 2>&1) && fail "disable fails when keyfile is missing and slot is still enabled" || true
+[[ $missing_err == *"sudo cryptsetup luksKillSlot /dev/nvme0n1p2 1"* ]] ||
+  fail "missing-keyfile error prints manual luksKillSlot recovery command" "$missing_err"
+run_cmd --active || fail "state stays active when enrolled slot could not be revoked"
+[[ -f $FAKE_ROOT/var/lib/omarchy/passwordless-login ]] || fail "state file is preserved until slot is revoked"
+
+# Same if keyfile was replaced with unrelated bytes while slot 1 is still active.
+printf 'wrong-keyfile-bytes' >"$FAKE_ROOT/crypto_keyfile.bin"
+mismatch_err=$(run_cmd --disable 2>&1) && fail "disable fails when keyfile does not match still-enabled slot" || true
+[[ $mismatch_err == *"sudo cryptsetup luksKillSlot /dev/nvme0n1p2 1"* ]] ||
+  fail "mismatched-keyfile error prints manual luksKillSlot recovery command" "$mismatch_err"
+run_cmd --active || fail "state stays active when mismatched keyfile left slot enabled"
+
+# Once the user kills slot 1 manually, --disable finishes cleanup cleanly.
+rm -f "$SLOTS_DIR/1" "$FAKE_ROOT/crypto_keyfile.bin"
+run_cmd --disable >/dev/null
+if run_cmd --active; then
+  fail "disable succeeds after manual slot revocation"
+fi
+[[ ! -e $FAKE_ROOT/var/lib/omarchy/passwordless-login ]] || fail "state file is cleared once slot is confirmed gone"
+pass "missing or replaced keyfile refuses to clear state until the enrolled LUKS slot is revoked"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const indicator = fs.readFileSync(path.join(root, 'shell/plugins/bar/indicators/PasswordlessLogin.qml'), 'utf8')
