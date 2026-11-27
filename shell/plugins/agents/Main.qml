@@ -156,19 +156,28 @@ Item {
   Process {
     id: updateProcess
     running: false
-    onExited: {
-      root.rescanAgents()
-      root.reloadRecords()
-      if (root.pendingUpdateKind !== "") {
-        var kind = root.pendingUpdateKind
-        root.pendingUpdateKind = ""
-        root.runUpdate(kind)
-      }
-    }
+    onExited: root.finishUpdate()
 
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: if (text.trim() !== "") console.warn("agents", text.trim())
+    }
+  }
+
+  function finishUpdate() {
+    rescanAgents()
+    reloadRecords()
+    // An update whose records only bumped updatedAt won't emit recordChanged;
+    // still pull remote sync snapshots and re-arm any advised limits retry once
+    // the reloaded files land, without bumping dataRevision.
+    Qt.callLater(function() {
+      scheduleLimitsRetry()
+      scheduleSync()
+    })
+    if (pendingUpdateKind !== "") {
+      var kind = pendingUpdateKind
+      pendingUpdateKind = ""
+      runUpdate(kind)
     }
   }
 
@@ -256,11 +265,58 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines))
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines.filter(localModelAdded)))
 
-  // A line for each coding model you can open, here or on a paired machine,
-  // built by the panel from the local models service.
+  // A line for each coding model set up here or running on a paired
+  // machine, built by the panel from the local models service.
   property var localModelLines: []
+
+  // Every coding model set up on this machine gets a line, whether it was set
+  // up from the add screen or from the CLI. Paired machines' models are kept
+  // here (by host/recipe) so unlinking one takes it off the panel while it
+  // keeps running there; the default local target always keeps a line too.
+  property var addedLocalModels: []
+
+  function localModelAdded(line) {
+    if (line.localModel.host === "") return true
+    var target = line.localModel.target
+    return addedLocalModels.indexOf(target) >= 0 || (defaultAgent === "local" && target === localDefaultTarget)
+  }
+
+  function addLocalModel(target) {
+    if (addedLocalModels.indexOf(target) >= 0) return
+    saveLocalModels(addedLocalModels.concat([target]))
+  }
+
+  // A model taken off the panel, or removed from this machine, is offered
+  // on the add screen again.
+  function removeLocalModels(targets) {
+    var kept = addedLocalModels.filter(function(target) { return targets.indexOf(target) < 0 })
+    if (kept.length !== addedLocalModels.length) saveLocalModels(kept)
+  }
+
+  function saveLocalModels(targets) {
+    addedLocalModels = targets
+    addedLocalModelsFile.setText(JSON.stringify(targets) + "\n")
+  }
+
+  // Set by the panel, which knows what is running.
+  property string localDefaultTarget: ""
+
+  FileView {
+    id: addedLocalModelsFile
+    path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/omarchy/agents/local-models.json"
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.addedLocalModels = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onLoadFailed: root.addedLocalModels = []
+    onFileChanged: reload()
+  }
 
   // The local model a default of "local" opens, as `omarchy default agent
   // local <model>` pins it. Empty when none is: it opens the one started last.
@@ -295,6 +351,7 @@ Item {
           lineId: p.providerId + "/" + (a.email || a.id),
           account: a,
           accounts: [],
+          accountName: String(a.email || ""),
           limits: a.limits || [],
           limitsStale: a.stale === true,
           limitsFetchedAt: Number(a.fetchedAt || 0),
@@ -448,6 +505,7 @@ Item {
       limitsStale: record.limitsStale === true,
       limitsFetchedAt: numberValue(record.limitsFetchedAt),
       tierLabel: String(record.tierLabel || ""),
+      accountName: String(record.accountName || ""),
       // Every subscription account's own limits, once there's more than one.
       accounts: Array.isArray(record.accounts) ? record.accounts : [],
       accountSwitch: record.accountSwitch || ({ threshold: 95 }),

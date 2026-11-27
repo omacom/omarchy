@@ -5,7 +5,8 @@
 # omarchy:subcommand=list [--json] — List recipes and which fit this machine
 # omarchy:subcommand=status [--json] — Show the models that are set up, and whether a better one is recommended
 # omarchy:subcommand=start [recipe] — Start a model that's set up, the last one started by default
-# omarchy:subcommand=stop [recipe] — Stop a model, or every running one
+# omarchy:subcommand=stop [--unless-used] [recipe...] — Stop models, or every running one; --unless-used leaves those in use
+# omarchy:subcommand=hold <recipe...> — Hold models as in use until standard input closes
 # omarchy:subcommand=update [recipe] — Update a model to the catalog's runtime, weights and settings
 # omarchy:subcommand=remove <recipe> — Remove a model's weights, manifests and unused image
 # omarchy:subcommand=share [--off] [recipe] — Share a model with the other machines on your tailnet
@@ -17,7 +18,7 @@
 # omarchy:examples=omarchy models use best text | omarchy models use best image | omarchy models use qwen3.8-27b-gufo | omarchy models stop | omarchy-models use --help
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
-# local models panel knows which models fit. Podman, which runs them, is a base
+# agents panel knows which models fit. Podman, which runs them, is a base
 # package too, and an NVIDIA machine gets nvidia-container-toolkit with its
 # driver; a machine installed without them gets what's missing when a model is
 # first set up. An NVIDIA GPU reaches the containers through the CDI spec the
@@ -31,9 +32,9 @@ if [[ ${1:-} == "use" ]]; then
   fi
 
   if [[ " $* " == *" --detach "* ]]; then
-    # The local models panel starts a setup in the background, with no terminal to
+    # The agents panel starts a setup in the background, with no terminal to
     # ask for a password in, so polkit asks for it instead. The panel shows
-    # the setup's line while this runs and reads the reason from the Error
+    # the setup's row while this runs and reads the reason from the Error
     # line; pkexec's 126 is the password dialog dismissed, passed on as is.
     if omarchy-pkg-missing "${packages[@]}"; then
       echo "Installing ${packages[*]}"
@@ -65,8 +66,8 @@ if [[ ${1:-} == "share" && -n ${2:-} && ${2:-} != -* && " $* " != *" --off "* ]]
 fi
 
 # A model set up here gets a launcher of its own, and loses it when removed.
-# A setup handed to the background isn't done yet: the local models panel adds its
-# launcher once it is.
+# A setup handed to the background isn't done yet: the shell adds its launcher
+# once it is.
 if [[ ${1:-} == "use" || ${1:-} == "remove" ]]; then
   "${run[@]}"
   status=$?
