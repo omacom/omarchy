@@ -20,6 +20,7 @@ plymouth_theme_assets=(
   preview-unlock.png
   progress_bar.png
   progress_box.png
+  shutdown.png
 )
 plymouth_default_assets=("${plymouth_theme_assets[@]}" logos/oma.png)
 sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png)
