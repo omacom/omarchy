@@ -12,7 +12,10 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   readonly property int batteryThreshold: 10
+  readonly property int lowBatteryWarningRecoveryThreshold: 20
+  property bool notifiedLowBattery: false
   property string pendingPowerSource: ""
+  property bool warningDismissRearmRequested: false
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
   // shell started, so a one-off read on startup, on a power source change and
@@ -25,7 +28,7 @@ Item {
   PersistentProperties {
     id: persisted
     reloadableId: "omarchy-battery"
-    property bool notifiedLowBattery: false
+    property bool lowBatteryWarningVisible: false
   }
 
   function batteryPercentage() {
@@ -37,9 +40,14 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
-    persisted.notifiedLowBattery = state.notifiedLowBattery
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, notifiedLowBattery)
+    notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
+    var shouldDismissWarning = BatteryModel.shouldDismissLowBatteryWarning(UPower.displayDevice, UPowerDeviceState.Discharging, persisted.lowBatteryWarningVisible, lowBatteryWarningRecoveryThreshold)
+    if (shouldDismissWarning && !warningDismissProcess.running) {
+      warningDismissRearmRequested = warningDismissRearmRequested || BatteryModel.shouldRearmLowBatteryWarning(UPower.displayDevice, UPowerDeviceState.Discharging)
+      warningDismissProcess.running = true
+    }
   }
 
   function sendLowBatteryWarning(level) {
@@ -48,6 +56,7 @@ Item {
       "omarchy-battery-low",
       String(level)
     ]
+    persisted.lowBatteryWarningVisible = true
     warningProcess.running = true
   }
 
@@ -83,6 +92,21 @@ Item {
   }
 
   Process { id: warningProcess }
+
+  Process {
+    id: warningDismissProcess
+    command: ["omarchy-battery-low-dismiss"]
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 0) {
+        persisted.lowBatteryWarningVisible = false
+        if (root.warningDismissRearmRequested) {
+          root.notifiedLowBattery = false
+          root.warningDismissRearmRequested = false
+          Qt.callLater(root.checkBattery)
+        }
+      }
+    }
+  }
 
   Process {
     id: powerProfileProcess
