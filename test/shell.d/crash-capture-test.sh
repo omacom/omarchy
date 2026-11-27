@@ -86,11 +86,24 @@ reset_entries() {
 
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
+# _EXE and _SYSTEMD_UNIT are the fields journald stamps from the sender; these
+# are the values a real crash carries.
 crash_entry() {
   local comm="$1" exe="$2"
 
+  sender_entry /usr/lib/systemd/systemd-coredump \
+    "systemd-coredump@2-8193-69949_72347-0.service" "$comm" "$exe"
+}
+
+# The same entry written by some other sender: the payload says core dump, the
+# fields journald fills in say who actually wrote it.
+sender_entry() {
+  local sender_exe="$1" sender_unit="$2" comm="$3" exe="$4"
+
   jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
-    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
+    --arg sender_exe "$sender_exe" --arg sender_unit "$sender_unit" \
+    '{_UID: $uid, _EXE: $sender_exe, _SYSTEMD_UNIT: $sender_unit,
+      COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
       COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
 }
 
@@ -180,6 +193,36 @@ run_watch
 announced nautilus ||
   fail "a muted crash stops the watcher reading the journal, losing every crash after it"
 pass "a muted crash does not stop the watcher reading the next one"
+
+# Any process can write a journal entry, MESSAGE_ID and COREDUMP_* fields
+# included; a Flatpak app gets the journal socket by default. Only what journald
+# stamps says who wrote it. A forged entry would put up a critical toast that
+# bypasses Do Not Disturb, and one click hands its text to an agent running with
+# approvals off.
+reset_entries
+sender_entry /app/bin/game "user@$UID.service" Hyprland /usr/bin/Hyprland
+run_watch
+! announced Hyprland ||
+  fail "a core dump forged by an ordinary process is announced as a real crash, offering its text to an agent"
+pass "a core dump forged by another process is not announced"
+
+# The right binary in the wrong place: systemd-coredump run by the user rather
+# than by the system's own crash handler.
+reset_entries
+sender_entry /usr/lib/systemd/systemd-coredump "user@$UID.service" Hyprland /usr/bin/Hyprland
+run_watch
+! announced Hyprland ||
+  fail "systemd-coredump run from the user's own session is trusted like the system crash handler"
+pass "systemd-coredump outside the system crash handler is not trusted"
+
+# A forged entry must not derail the real crashes around it.
+reset_entries
+sender_entry /app/bin/game "user@$UID.service" Hyprland /usr/bin/Hyprland
+crash_entry nautilus /usr/bin/nautilus
+run_watch
+announced nautilus ||
+  fail "a forged entry stops the watcher announcing the real crash after it"
+pass "a forged entry does not hide the real crash after it"
 
 # A process can set its own comm to anything prctl takes, slashes included, and
 # a crash with no recorded executable falls back to it. A name that climbed out
