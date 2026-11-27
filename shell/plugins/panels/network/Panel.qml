@@ -334,21 +334,31 @@ Panel {
 
     scannerDevice = nextDevice
 
-    if (scannerDevice)
+    if (scannerDevice && scannerDevice.scannerEnabled !== enabled)
       scannerDevice.scannerEnabled = enabled
+  }
+
+  function otherPanelOpen() {
+    if (!bar || typeof bar.moduleWidgets !== "function") return false
+    var peers = bar.moduleWidgets(moduleName)
+    for (var i = 0; i < peers.length; i++)
+      if (peers[i] && peers[i] !== root && peers[i].opened === true) return true
+    return false
   }
 
   Component.onDestruction: {
     scanStop.stop()
-    if (scannerDevice) scannerDevice.scannerEnabled = false
+    if (scannerDevice && !otherPanelOpen()) scannerDevice.scannerEnabled = false
+    scannerDevice = null
   }
 
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
+      var alreadyScanning = !!(wifiDevice && wifiDevice.scannerEnabled === true)
       scanStop.stop()
-      refresh(true)
+      refresh(!alreadyScanning)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -1126,7 +1136,9 @@ Panel {
     interval: Math.max(16, Style.duration(200))
     repeat: false
     onTriggered: {
-      if (!root.opened) root.setScannerEnabled(false)
+      if (root.opened) return
+      if (root.otherPanelOpen()) root.scannerDevice = null
+      else root.setScannerEnabled(false)
     }
   }
 
