@@ -144,7 +144,7 @@
   "default.browserSet": "Браузер по умолчанию: %1",
   "default.chromeOffer": "Перейти на Google Chrome?",
   "default.chromeOfferBody": "Он быстрее и теперь используется в Omarchy по умолчанию, но вы выйдете из аккаунтов на всех сайтах.",
-  "default.chromeOfferDismiss": "Не надо",
+  "default.chromeOfferDismiss": "Не переключаться",
   "default.chromeOfferSwitch": "Перейти на Chrome",
   "default.editorSet": "Редактор по умолчанию: %1",
   "default.terminalSet": "Терминал по умолчанию: %1",

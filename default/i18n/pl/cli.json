@@ -144,7 +144,7 @@
   "default.browserSet": "%1 jest teraz domyślną przeglądarką",
   "default.chromeOffer": "Przełączyć na Google Chrome?",
   "default.chromeOfferBody": "Jest szybszy i jest nową domyślną przeglądarką Omarchy, ale wyloguje cię ze wszystkich witryn.",
-  "default.chromeOfferDismiss": "Nieważne",
+  "default.chromeOfferDismiss": "Nie przełączaj",
   "default.chromeOfferSwitch": "Przełącz na Chrome",
   "default.editorSet": "%1 jest teraz domyślnym edytorem",
   "default.terminalSet": "%1 jest teraz domyślnym terminalem",

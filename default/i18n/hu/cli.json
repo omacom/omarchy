@@ -142,7 +142,7 @@
   "default.browserSet": "%1 most az alapértelmezett böngésző",
   "default.chromeOffer": "Váltás Google Chrome-ra?",
   "default.chromeOfferBody": "Gyorsabb és az új alapértelmezett az Omarchyban, de minden webhelyről kijelentkezik.",
-  "default.chromeOfferDismiss": "Mégsem",
+  "default.chromeOfferDismiss": "Nem váltok",
   "default.chromeOfferSwitch": "Váltás Chrome-ra",
   "default.editorSet": "%1 most az alapértelmezett szerkesztő",
   "default.terminalSet": "%1 most az alapértelmezett terminál",

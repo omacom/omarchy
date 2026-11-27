@@ -144,7 +144,7 @@
   "default.browserSet": "%1 тепер типовий браузер",
   "default.chromeOffer": "Перейти на Google Chrome?",
   "default.chromeOfferBody": "Він швидший і тепер є новим типовим браузером Omarchy, але ви вийдете з усіх сайтів.",
-  "default.chromeOfferDismiss": "Не треба",
+  "default.chromeOfferDismiss": "Не переходити",
   "default.chromeOfferSwitch": "Перейти на Chrome",
   "default.editorSet": "%1 тепер типовий редактор",
   "default.terminalSet": "%1 тепер типовий термінал",

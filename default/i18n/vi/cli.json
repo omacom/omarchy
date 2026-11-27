@@ -141,7 +141,7 @@
   "default.browserSet": "%1 giờ là trình duyệt mặc định",
   "default.chromeOffer": "Chuyển sang Google Chrome?",
   "default.chromeOfferBody": "Nhanh hơn và là mặc định mới của Omarchy, nhưng bạn sẽ bị đăng xuất khỏi mọi trang web.",
-  "default.chromeOfferDismiss": "Thôi bỏ qua",
+  "default.chromeOfferDismiss": "Không chuyển",
   "default.chromeOfferSwitch": "Chuyển sang Chrome",
   "default.editorSet": "%1 giờ là trình soạn thảo mặc định",
   "default.terminalSet": "%1 giờ là terminal mặc định",

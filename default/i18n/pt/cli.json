@@ -143,7 +143,7 @@
   "default.browserSet": "%1 é agora o navegador predefinido",
   "default.chromeOffer": "Mudar para o Google Chrome?",
   "default.chromeOfferBody": "É mais rápido e o novo predefinido do Omarchy, mas fica com a sessão terminada em todos os sites.",
-  "default.chromeOfferDismiss": "Deixar estar",
+  "default.chromeOfferDismiss": "Não mudar",
   "default.chromeOfferSwitch": "Mudar para o Chrome",
   "default.editorSet": "%1 é agora o editor predefinido",
   "default.terminalSet": "%1 é agora o terminal predefinido",

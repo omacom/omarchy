@@ -143,7 +143,7 @@
   "default.browserSet": "%1 tagad ir noklusējuma pārlūks",
   "default.chromeOffer": "Pārslēgties uz Google Chrome?",
   "default.chromeOfferBody": "Tas ir ātrāks un ir jaunais Omarchy noklusējums, bet tiksiet atteikts no visām vietnēm.",
-  "default.chromeOfferDismiss": "Nekas",
+  "default.chromeOfferDismiss": "Nepārslēgties",
   "default.chromeOfferSwitch": "Pārslēgties uz Chrome",
   "default.editorSet": "%1 tagad ir noklusējuma redaktors",
   "default.terminalSet": "%1 tagad ir noklusējuma terminālis",

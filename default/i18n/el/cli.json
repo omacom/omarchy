@@ -142,7 +142,7 @@
   "default.browserSet": "Το %1 είναι πλέον ο προεπιλεγμένος περιηγητής",
   "default.chromeOffer": "Αλλαγή σε Google Chrome;",
   "default.chromeOfferBody": "Είναι πιο γρήγορο και η νέα προεπιλογή του Omarchy, αλλά θα αποσυνδεθείς από όλους τους ιστότοπους.",
-  "default.chromeOfferDismiss": "Άστο",
+  "default.chromeOfferDismiss": "Μην αλλάξεις",
   "default.chromeOfferSwitch": "Αλλαγή σε Chrome",
   "default.editorSet": "Το %1 είναι πλέον ο προεπιλεγμένος επεξεργαστής",
   "default.terminalSet": "Το %1 είναι πλέον το προεπιλεγμένο τερματικό",
