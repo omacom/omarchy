@@ -82,6 +82,14 @@ finish() {
   exit 0
 }
 
+# A relative path is relative to here, and a command run from the wrong
+# directory would otherwise be blamed on the app.
+if ! type -P -- "$1" >/dev/null; then
+  echo "No program $1 here in $PWD: build it first, or cd to the app's directory (each shell command starts in the same place)." >&2
+  rm -f "$log"
+  exit 2
+fi
+
 # Only a program carrying the template's hook draws itself offscreen: the
 # built binary, not a script that starts it. Run this way, any other would
 # open a focused window on the user's desktop.

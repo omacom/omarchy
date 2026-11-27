@@ -19,10 +19,16 @@
 # focus after every crash, after the shell is already back, so a key typed at
 # that moment lands on "Open report page". The relaunch below covers what the
 # handler did, and systemd-coredump with omarchy-crash-watch reports the crash.
+#
+# Quickshell links libjemalloc.so.2, whose default 4*ncpu arenas, 10s decay,
+# and THP-backed 4 MiB extents hold ~110 MiB of fragmented/idle heap on a
+# 16 GiB laptop. Constraining arenas, decay, and THP keeps idle RSS tight;
+# Util.execDetached/execArgv scrub MALLOC_CONF so launched apps don't inherit it.
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
   OMARCHY_STARTUP_BACKGROUND="$startup_background" \
+    MALLOC_CONF="narenas:2,dirty_decay_ms:1000,muzzy_decay_ms:0,thp:never" \
     QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 QS_DISABLE_CRASH_HANDLER=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
