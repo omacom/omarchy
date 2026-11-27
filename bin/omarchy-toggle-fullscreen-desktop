@@ -23,9 +23,6 @@ case $ACTION in
     ;;
 esac
 
-# Reload Hyprland for the gaps before the bar moves. Showing the bar first
-# resizes every tiled window for its reserved space, and a reload landing while
-# that resize is still settling leaves some clients (foot, for one) drawing at
-# a stale smaller size, with the wallpaper showing inside their borders.
+# Reload for the gaps before the bar moves; reloading mid-resize leaves foot drawn at a stale size.
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
 omarchy-toggle-bar "$ACTION"
