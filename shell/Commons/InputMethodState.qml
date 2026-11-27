@@ -34,6 +34,10 @@ Singleton {
     }
   }
 
+  function refreshProfilePath() {
+    if (!resolveProfile.running) resolveProfile.running = true
+  }
+
   function cycle(back) {
     var cmd = back ? "cycle back\n" : "cycle\n"
     if (watcher.running) {
@@ -48,6 +52,25 @@ Singleton {
     root.watcherForced = true
     forcedIdleTimer.restart()
     return true
+  }
+
+  // Follow org.fcitx.Fcitx5 starting or restarting (e.g. after login startup
+  // ordering, a service drop-in changing FCITX_CONFIG_HOME, or relinked
+  // dotfiles) without keeping Python resident (~240 KiB PSS vs 19 MiB).
+  Process {
+    id: ownerWatch
+    command: [
+      "setpriv", "--pdeathsig", "TERM",
+      "dbus-monitor", "--session",
+      "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.fcitx.Fcitx5'"
+    ]
+    running: !root.shouldRunWatcher
+    stdout: SplitParser {
+      onRead: data => {
+        if (String(data).indexOf("member=NameOwnerChanged") !== -1)
+          root.refreshProfilePath()
+      }
+    }
   }
 
   // Locate Fcitx's actual profile path from the bus owner's environment (so a
@@ -92,8 +115,12 @@ Singleton {
       onStreamFinished: {
         var resolved = String(text || "").trim()
         root.profileResolved = true
-        if (resolved) root.resolvedProfilePath = resolved
-        else root.profileNeedsWatcher = true
+        if (resolved) {
+          if (root.resolvedProfilePath === resolved) profileFile.reload()
+          else root.resolvedProfilePath = resolved
+        } else {
+          root.profileNeedsWatcher = true
+        }
       }
     }
     onExited: function(code) {
@@ -161,6 +188,7 @@ Singleton {
   Component.onDestruction: {
     restart.stop()
     forcedIdleTimer.stop()
+    ownerWatch.running = false
     root.watcherForced = false
     root.profileNeedsWatcher = false
   }
