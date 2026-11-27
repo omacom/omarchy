@@ -79,6 +79,21 @@ browser_policy_setup_parents_for() {
   done
 }
 
+browser_policy_low_memory() {
+  local total_kib image_root=""
+  # 9 GiB catches 8 GiB machines (MemTotal ~7.3-7.9 GiB) while leaving 12 GiB
+  # and larger machines user-controlled.
+  local low_memory_kib=9437184
+
+  # Image builds run on the build host, not the target machine; omarchy-provision-owner
+  # re-runs browser_policy_setup_dir on the target machine's first boot.
+  (( EUID != 0 )) && image_root=${OMARCHY_IMAGE_ROOT:-}
+  [[ ! -e $image_root/var/lib/omarchy/image/target ]] || return 1
+
+  total_kib=$(awk '$1 == "MemTotal:" { print $2; exit }' "${OMARCHY_MEMINFO:-/proc/meminfo}" 2>/dev/null)
+  [[ $total_kib =~ ^[0-9]+$ ]] && (( total_kib > 0 && total_kib <= low_memory_kib ))
+}
+
 # Links reach the browser through omarchy-browser.desktop, so the browser never
 # sees itself as the default. Hide its check and its button to become one, which
 # would rewrite mimeapps.list behind Omarchy's back.
@@ -92,6 +107,16 @@ browser_policy_install_defaults() {
   # extensions from the CRXs Omarchy ships instead.
   if [[ $policy_dir == "/etc/opt/chrome/policies/managed" ]]; then
     as_root install -m 644 -o root -g root -T "$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json" "$policy_dir/omarchy-extensions.json"
+  fi
+
+  # On <=8 GiB machines, enforce Memory Saver in Balanced mode for Chrome,
+  # Chromium, and Brave (Edge ignores these keys). Upstream Chromium marks
+  # HighEfficiencyModeEnabled and MemorySaverModeSavings mandatory-only, so
+  # policies/recommended/ ignores them; per-site exceptions stay editable.
+  if browser_policy_low_memory; then
+    as_root install -m 644 -o root -g root -T "$OMARCHY_PATH/default/chromium/policies/omarchy-low-memory.json" "$policy_dir/omarchy-low-memory.json"
+  else
+    as_root rm -f "$policy_dir/omarchy-low-memory.json"
   fi
 }
 
