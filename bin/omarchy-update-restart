@@ -37,10 +37,13 @@ if [[ $mode != "--services-only" ]]; then
     confirm_reboot "$(omarchy-i18n update.rebootRequired)"
   fi
 
+  # A replaced Omarchy plugin counts too: Hyprland keeps the old build loaded,
+  # and the reload guard holds config reloads until the session restarts.
   hyprland_updated=false
   while IFS= read -r hyprland_pid; do
     [[ -n $hyprland_pid ]] || continue
-    if [[ $(readlink "/proc/$hyprland_pid/exe" 2>/dev/null) == *"(deleted)"* ]]; then
+    if [[ $(readlink "/proc/$hyprland_pid/exe" 2>/dev/null) == *"(deleted)"* ]] ||
+      grep -qE ' /usr/lib/omarchy-hyprland-[^/ ]+/[^ ]+\.so \(deleted\)$' "/proc/$hyprland_pid/maps" 2>/dev/null; then
       hyprland_updated=true
       break
     fi
