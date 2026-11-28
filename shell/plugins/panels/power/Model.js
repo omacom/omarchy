@@ -49,16 +49,47 @@ function batteryFraction(device) {
   return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
 }
 
+// limits: the kernel's charge_control_{start,end}_threshold as { start, end },
+// or one { fraction, start, end } per laptop battery. A charge can only be held
+// inside a limit the battery actually has: end below 99 and the level at or
+// above start. Outside that band a stalled rate (UPower reports 0 W for ~10 s
+// after plug-in), a pending-charge step or a long time-to-full estimate is not
+// a hold, and the bar must keep showing charging.
+function limitInBand(limits, fraction) {
+  var end = Number(limits && limits.end)
+  if (!(end >= 1) || end >= 99) return false
+  // Without a start threshold (or with start 0) the battery charges until it
+  // reaches end, so it can only be held at end.
+  var start = Number(limits && limits.start)
+  var low = start > 0 && start < end ? start : end - 1
+  return fraction * 100 >= low - 0.5
+}
+
+// With several batteries the combined device is held only when none of them
+// can still charge: each one is inside its own limit or already full.
+function chargeLimitsInBand(limits, fraction) {
+  if (!Array.isArray(limits)) return limitInBand(limits, fraction)
+
+  var held = false
+  for (var i = 0; i < limits.length; i++) {
+    var f = Number(limits[i] && limits[i].fraction)
+    if (limitInBand(limits[i], f)) held = true
+    else if (!(f >= 0.99)) return false
+  }
+  return held
+}
+
 // rateFresh is false while the charge rate still dates from before external
 // power arrived. A battery that reports its rate every half minute reads
 // "charging at 0 W" until then, which is not a threshold holding it.
-function chargeThresholdActive(device, onBattery, states, rateFresh, limitState) {
+function chargeThresholdActive(device, onBattery, states, rateFresh, limitState, limits) {
   var d = device || {}
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
 
   var fraction = batteryFraction(d)
   if (d.state === s.Discharging) return false
+  if (!chargeLimitsInBand(limits, fraction)) return false
   if (d.state === s.PendingCharge) return true
   if (d.state === s.FullyCharged && fraction < 0.99) return true
   if (d.state !== s.Charging || fraction >= 0.99) return false
@@ -68,14 +99,14 @@ function chargeThresholdActive(device, onBattery, states, rateFresh, limitState)
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states, rateFresh, limitState) {
+function batteryIcon(device, onBattery, states, rateFresh, limitState, limits) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh, limitState)
+  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh, limitState, limits)
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
@@ -83,13 +114,13 @@ function batteryIcon(device, onBattery, states, rateFresh, limitState) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr, rateFresh, limitState) {
+function modeLabel(device, onBattery, states, tr, rateFresh, limitState, limits) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states, rateFresh, limitState)) return t("power.threshold", "Threshold")
+  if (chargeThresholdActive(d, onBattery, states, rateFresh, limitState, limits)) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
@@ -189,6 +220,7 @@ if (typeof module !== "undefined") {
     parseProfiles: parseProfiles,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
+    chargeLimitsInBand: chargeLimitsInBand,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
