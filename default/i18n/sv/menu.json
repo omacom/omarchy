@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Dölj dock automatiskt"
-  },
-  "appearance.dock.always-on": {
-    "label": "Alltid synlig dock"
-  },
   "appearance.dock.position": {
     "label": "Dockplacering"
   },

@@ -42,12 +42,28 @@ asks_passphrase() {
 # screen, a console login or an emergency shell, with the copy of `stop` the
 # real root has: the initramfs's own is gone by then.
 run_latehook() {
-  local run=/run/omarchy-splash session target
+  local run=/run/omarchy-splash session target i
 
   # A volume asks_passphrase finds asks on the console while the real root
   # boots, which the splash would cover.
   session=$(cat "$run/session.pid" 2>/dev/null)
   if [ -z "$session" ] || ! kill -0 "$session" 2>/dev/null || asks_passphrase /sysroot/etc/crypttab; then
+    /usr/lib/omarchy-splash/stop
+    return 0
+  fi
+
+  # switch_root deletes the initramfs and moves /dev and /sys away, so a splash
+  # that has not finished starting cannot finish afterwards. Wait for one that
+  # has already picked a display; one still waiting for a native GPU (or that
+  # died before coming up) is taken down instead of stalling the boot.
+  if [ ! -e "$run/ready" ] && [ -e "$run/starting" ]; then
+    i=0
+    while [ ! -e "$run/ready" ] && kill -0 "$session" 2>/dev/null && [ "$i" -lt 50 ]; do
+      sleep 0.1
+      i=$((i + 1))
+    done
+  fi
+  if [ ! -e "$run/ready" ] || ! kill -0 "$session" 2>/dev/null; then
     /usr/lib/omarchy-splash/stop
     return 0
   fi

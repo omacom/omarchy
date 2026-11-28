@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dokk"
   },
-  "appearance.dock.autohide": {
-    "label": "Automatikus dokk"
-  },
-  "appearance.dock.always-on": {
-    "label": "Állandó dokk"
-  },
   "appearance.dock.position": {
     "label": "Dokk helye"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock csempézett módban"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock csak lebegő módban"
   }
 }

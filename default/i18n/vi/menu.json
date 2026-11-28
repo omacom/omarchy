@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Tự ẩn Dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock luôn hiện"
-  },
   "appearance.dock.position": {
     "label": "Vị trí Dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock khi xếp lát"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock chỉ khi nổi"
   }
 }

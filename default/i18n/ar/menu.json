@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "إخفاء Dock تلقائيًا"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock دائم الظهور"
-  },
   "appearance.dock.position": {
     "label": "موضع Dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock في وضع التبليط"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock في الوضع العائم فقط"
   }
 }

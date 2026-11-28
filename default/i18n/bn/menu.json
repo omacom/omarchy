@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "ডক"
   },
-  "appearance.dock.autohide": {
-    "label": "ডক স্বয়ংক্রিয় লুকান"
-  },
-  "appearance.dock.always-on": {
-    "label": "ডক সবসময় চালু"
-  },
   "appearance.dock.position": {
     "label": "ডকের অবস্থান"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "টাইলিংয়ে Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "শুধু ভাসমানে Dock"
   }
 }

@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Dock auto-verbergen"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock altijd zichtbaar"
-  },
   "appearance.dock.position": {
     "label": "Dockpositie"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock bij tegelen"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock alleen bij zwevend"
   }
 }

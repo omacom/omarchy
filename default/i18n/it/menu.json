@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Nascondi dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock sempre visibile"
-  },
   "appearance.dock.position": {
     "label": "Posizione dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock in modalità affiancata"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock solo in modalità fluttuante"
   }
 }

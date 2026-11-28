@@ -2,13 +2,13 @@
 # The keyboard the unlock prompt and the login screen type a password with, as
 # vconsole.conf lines: the XKB layouts of vconsole.conf ($1), US among them,
 # the one the prompt starts in first, and its other settings but for layout
-# shortcuts (grp:, grp_led:), as a click on the prompt's keyboard switches
-# instead (ui/Splash.qml). The omarchy-splash hook builds it into the image,
+# shortcuts (grp:, grp_led:), as Splash.qml's keyboard button and Shift+Tab
+# switch instead. The omarchy-splash hook builds it into the image,
 # and default/splash/greeter reads it for the login screen.
 #
 # A first layout that types no Latin letters starts in US, as at every other
-# prompt (#6229), with its own a click away; any other starts in its own, with
-# US a click away.
+# prompt (#6229), with its own a click or Shift+Tab away; any other starts in
+# its own, with US a click or Shift+Tab away.
 
 set -euo pipefail
 

@@ -250,7 +250,6 @@
   "diskSpeedtest.failed": "Diskhastighetstestet misslyckades",
   "diskSpeedtest.read": "LÄS",
   "diskSpeedtest.write": "SKRIV",
-  "dock.autoHide": "Dölj automatiskt",
   "dock.keepInDock": "Behåll i Dock",
   "dock.newWindow": "Nytt fönster",
   "dock.noAppsMatch": "Inga appar matchar “%1”",

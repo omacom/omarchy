@@ -25,7 +25,7 @@ ShellRoot {
   property string pending: ""
 
   // The layouts default/splash/greeter exported, which Hyprland switches
-  // between at a click (Splash.qml).
+  // between on a click or Shift+Tab (Splash.qml).
   readonly property Layouts layouts: Layouts {
     layout: Quickshell.env("OMARCHY_SPLASH_XKBLAYOUT") ?? ""
     variant: Quickshell.env("OMARCHY_SPLASH_XKBVARIANT") ?? ""
