@@ -15,6 +15,7 @@ Item {
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
+  property int failureCount: 0
   property bool inputEnabled: true
   property bool loadBackground: true
   property string passwordText: ""
@@ -79,6 +80,7 @@ Item {
   }
 
   onPasswordTextChanged: syncPasswordText()
+  onFailureCountChanged: if (failureCount > 0) shakeAnimation.restart()
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
@@ -148,6 +150,16 @@ Item {
       borderSpec: root.inputBorderSpec
       radius: Style.cornerRadius
       clip: true
+
+      // A short side-to-side shake confirms each failed attempt.
+      SequentialAnimation {
+        id: shakeAnimation
+        NumberAnimation { target: inputField; property: "anchors.horizontalCenterOffset"; to: -14; duration: Style.duration(25); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+        NumberAnimation { target: inputField; property: "anchors.horizontalCenterOffset"; to: 12; duration: Style.duration(45); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+        NumberAnimation { target: inputField; property: "anchors.horizontalCenterOffset"; to: -8; duration: Style.duration(40); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+        NumberAnimation { target: inputField; property: "anchors.horizontalCenterOffset"; to: 5; duration: Style.duration(30); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+        NumberAnimation { target: inputField; property: "anchors.horizontalCenterOffset"; to: 0; duration: Style.duration(25); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+      }
 
       TextInput {
         id: passwordInput
@@ -235,7 +247,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
-        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : Commons.Color.lock.placeholder
+        color: root.fingerprintUnavailable || root.errorState ? Commons.Color.lock.textError : Commons.Color.lock.placeholder
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
