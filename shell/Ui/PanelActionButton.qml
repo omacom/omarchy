@@ -47,8 +47,17 @@ BorderSurface {
   // panel's buttons are.
   property bool outlined: false
 
+  // What assistive technology announces. The icon means nothing read aloud,
+  // so a button without a tooltip must set this.
+  property string accessibleName: tooltipText
+
   signal clicked()
   signal hovered(bool isHovered)
+
+  Accessible.role: Accessible.Button
+  Accessible.name: accessibleName
+  Accessible.focusable: focusable
+  Accessible.onPressAction: if (root.enabled) root.clicked()
 
   activeFocusOnTab: focusable
   Keys.onReturnPressed: if (focusable) root.clicked()

@@ -436,6 +436,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: root.batteryPresent ? I18n.t("accessibility.battery").arg(I18n.formatNumber(root.batteryFraction * 100, 0)) : I18n.t("accessibility.power")
     anchors.fill: parent
     bar: root.bar
     text: root.batteryIcon()
@@ -451,6 +452,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.power")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -722,6 +724,7 @@ Panel {
             // the Wi-Fi band Automatic switch) so it reads as part of the header.
             ToggleSwitch {
               id: limitSwitch
+              accessibleName: root.chargeLimitHeaderText
               checked: root.chargeLimitEnabled
               busy: limitProc.running
               trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
@@ -809,6 +812,7 @@ Panel {
 
               ToggleSwitch {
                 id: topUpSwitch
+                accessibleName: !root.toppingUpOnce ? Commons.I18n.t("power.topUpOnce") : (root.discharging ? Commons.I18n.t("power.toppingUpNext") : Commons.I18n.t("power.toppingUpOnce"))
                 checked: root.toppingUpOnce
                 busy: limitProc.running
                 interactive: false
@@ -887,6 +891,7 @@ Panel {
                 horizontalPadding: Style.spacing.controlPaddingX
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
+                selectable: true
                 active: root.activeProfile === modelData
                 hasCursor: root.cursorActive && root.focusRow === "profile" && root.profileIndex === index
                 onClicked: root.setProfile(modelData)

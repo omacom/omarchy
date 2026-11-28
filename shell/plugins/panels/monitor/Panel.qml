@@ -830,6 +830,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("monitor.display")
     anchors.fill: parent
     bar: root.bar
     text: Quickshell.screens.length > 1 ? "󰍺" : "󰍹"
@@ -846,6 +847,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("monitor.display")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -1061,6 +1063,7 @@ Panel {
 
               PanelSlider {
                 id: brightnessSlider
+                accessibleName: I18n.t("accessibility.brightness")
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -1132,6 +1135,7 @@ Panel {
 
               PanelSlider {
                 id: textSizeSlider
+                accessibleName: I18n.t("accessibility.textSize")
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -1474,6 +1478,7 @@ Panel {
     verticalPadding: Style.spacing.controlPaddingY
     bordered: true
 
+    selectable: true
     active: root.current !== null && root.current.scaleIndex === scaleIndex
     hasCursor: root.cursorActive && root.focusSection === "scale" && root.selectedIndex === scaleIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pill)
@@ -1494,6 +1499,7 @@ Panel {
     horizontalPadding: Style.spacing.sm
     verticalPadding: Style.spacing.controlPaddingY
     bordered: true
+    selectable: true
 
     active: root.current !== null && root.current.current === resolution
     hasCursor: root.cursorActive && root.focusSection === "resolution" && root.selectedIndex === resolutionIndex
@@ -1516,6 +1522,7 @@ Panel {
     horizontalPadding: Style.spacing.sm
     verticalPadding: Style.spacing.controlPaddingY
     bordered: true
+    selectable: true
 
     active: root.current !== null && Math.round(root.current.refreshRate) === Number(option.label)
     hasCursor: root.cursorActive && root.focusSection === "refresh" && root.selectedIndex === refreshIndex
@@ -1716,6 +1723,7 @@ Panel {
           }
         }
       }
+
     }
   }
 }

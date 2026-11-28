@@ -2140,6 +2140,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("agents.title")
     anchors.fill: parent
     bar: root.bar
     text: "󱚣"
@@ -2153,6 +2154,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("agents.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -2799,6 +2801,7 @@ Panel {
         width: parent.width
         rightPadding: addNameSubmit.width + addNameSubmit.inset * 2
         placeholderText: Commons.I18n.t("agents.placeholderWork")
+        accessibleName: Commons.I18n.t("agents.accountName")
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -2950,6 +2953,7 @@ Panel {
             rightPadding: pasteSubmit.width + pasteSubmit.inset * 2
             placeholderText: root.addKeyEntry ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
             password: true
+            accessibleName: root.addKeyEntry ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.placeholderCode")
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -3214,6 +3218,7 @@ Panel {
       TextField {
         id: nameField
         visible: section.editingName
+        accessibleName: Commons.I18n.t("agents.accountName")
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.right: sectionActions.left
@@ -3314,6 +3319,7 @@ Panel {
           visible: !!entry && section.engaged
           iconText: "󰍹"
           tooltipText: entry ? Commons.I18n.t("agents.openDesktopApp").arg(entry.name) : ""
+          accessibleName: Commons.I18n.t("agents.openDesktopApp").arg(entry ? entry.name : "")
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerDesktop", section.providerIndex)
@@ -3466,6 +3472,7 @@ Panel {
           tooltipText: section.local && section.local.host !== ""
             ? Commons.I18n.t("agents.unlink")
             : Commons.I18n.t("common.delete")
+          accessibleName: section.local && section.local.host ? Commons.I18n.t("agents.unlink") : Commons.I18n.t("common.delete")
           foreground: root.foreground
           fontFamily: root.fontFamily
           onClicked: root.deleteTarget = section.provider

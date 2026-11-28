@@ -126,6 +126,7 @@ BarWidget {
 
     PanelSlider {
       id: slider
+      accessibleName: rowRoot.label
       width: parent.width
       bar: root.bar
       minimum: rowRoot.minimum

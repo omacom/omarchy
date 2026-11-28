@@ -461,6 +461,7 @@ Panel {
 
     // The row owns the click and the cursor, so the switch is presentation only.
     ToggleSwitch {
+      accessibleName: switchRow.label
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
       checked: switchRow.checked
@@ -567,6 +568,7 @@ Panel {
 
     PanelSlider {
       id: rowSlider
+      accessibleName: sliderRow.label
       bar: root.bar
       anchors.left: parent.left
       anchors.right: rowValue.left
@@ -652,6 +654,7 @@ Panel {
 
       PanelSlider {
         id: blockSlider
+        accessibleName: block.label
         width: parent.width
         bar: root.bar
         onReleased: function(v) { block.committed(v) }
@@ -742,6 +745,7 @@ Panel {
             trailingControl: Component {
               ToggleSwitch {
                 id: liveSwitch
+                accessibleName: root.micMuted ? Commons.I18n.t("mv7plus.unmute") : Commons.I18n.t("mv7plus.mute")
                 checked: !root.micMuted
                 hasCursor: root.cursorActive && root.cursorRow === "mute"
                 foreground: root.foreground

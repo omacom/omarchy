@@ -177,6 +177,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("dropbox.title")
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -200,6 +201,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("dropbox.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -276,6 +278,7 @@ Panel {
               trailingControl: Component {
                 ToggleSwitch {
                   id: powerSwitch
+                  accessibleName: I18n.t("dropbox.title")
                   visible: dropbox.installed
                   checked: dropbox.active
                   busy: dropbox.busy
@@ -445,10 +448,16 @@ Panel {
   component LoginButton: CursorSurface {
     id: loginButton
 
+    accessibleName: dropbox.installed ? I18n.t("dropbox.login") : ""
+    Accessible.onPressAction: loginButton.activate()
     hasCursor: root.cursorActive && root.focusSection === "login"
     foreground: root.foreground
 
     implicitHeight: loginRow.implicitHeight + Style.spacing.rowPaddingX
+
+    function activate() {
+      if (dropbox.installed && !dropbox.busy) dropbox.login()
+    }
 
     MouseArea {
       anchors.fill: parent
@@ -459,7 +468,7 @@ Panel {
         root.cursorActive = true
         root.focusSection = "login"
       }
-      onClicked: dropbox.login()
+      onClicked: loginButton.activate()
     }
 
     RowLayout {
@@ -505,6 +514,7 @@ Panel {
       }
 
       PanelActionButton {
+        accessibleName: I18n.t("accessibility.logInToDropbox")
         iconText: "󰌋"
         foreground: root.foreground
         fontFamily: root.fontFamily
@@ -521,17 +531,23 @@ Panel {
     property int rowIndex: 0
     readonly property string fileName: file ? String(file.name || Commons.I18n.t("dropbox.untitled")) : Commons.I18n.t("dropbox.untitled")
 
+    accessibleName: file ? fileName : ""
+    Accessible.onPressAction: fileRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "files" && root.fileIndex === rowIndex
     foreground: root.foreground
 
     implicitHeight: fileContent.implicitHeight + Style.spacing.rowPaddingX
+
+    function activate() {
+      if (file) dropbox.openFile(file)
+    }
 
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: root.setFileCursor(fileRow.rowIndex)
-      onClicked: dropbox.openFile(fileRow.file)
+      onClicked: fileRow.activate()
     }
 
     RowLayout {

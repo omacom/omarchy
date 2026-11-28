@@ -105,6 +105,7 @@ Column {
     width: parent.width
     trailingPadding: closeButton.width + Style.space(8)
     placeholderText: search.placeholderText
+    accessibleName: search.placeholderText
     foreground: search.foreground
     Keys.onEscapePressed: search.stop()
     Keys.onReturnPressed: search.pickSelected()

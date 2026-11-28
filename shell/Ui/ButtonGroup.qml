@@ -110,6 +110,7 @@ Row {
       text: root.optionLabel(modelData)
       iconText: root.optionIcon(modelData)
       tooltipText: root.optionTooltip(modelData)
+      selectable: true
       selected: root.optionValue(modelData) === root.value
       // Chip lights up when either the external panel cursor lands here
       // or the group has Tab focus and h/l has walked to this index.
