@@ -656,9 +656,9 @@ Panel {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     text: Commons.I18n.formatNumber(modelData.week)
-                    color: Qt.darker(root.contentForeground, 1.9)
+                    color: Qt.darker(root.contentForeground, 1.5)
                     font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
+                    font.pixelSize: Style.font.body
                   }
 
                   Item {
