@@ -39,11 +39,24 @@ IFS=: read -r -a dirs <<<"$PATH"
 for dir in "${dirs[@]}"; do
   [[ $dir == "$dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
 done
-if ! agent_binary=$(PATH=$cli_path type -P "$provider"); then
+# Check mise shims before restoring dispatch: an inactive tool can fall back
+# to our dispatcher instead of the package further along PATH.
+mise_binary=$(PATH=$cli_path type -P mise) || true
+agent_binary="" first_shim=""
+while IFS= read -r candidate; do
+  if [[ $candidate -ef $mise_binary ]]; then
+    first_shim=${first_shim:-$candidate}
+    PATH=$cli_path MISE_OFFLINE=1 mise which "$provider" >/dev/null 2>&1 || continue
+  fi
+  agent_binary=$candidate
+  break
+done < <(PATH=$cli_path type -aP "$provider")
+if [[ -z $agent_binary && -z $first_shim ]]; then
   rm -f "$dispatchers/$provider"
   echo "$provider: command not found" >&2
   exit 127
 fi
+agent_binary=${agent_binary:-$first_shim}
 
 # The agent's own subprocesses dispatch too, so another provider they start
 # runs as its selected account.
