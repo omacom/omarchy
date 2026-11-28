@@ -69,7 +69,7 @@ Images are decoded in the shell process like every other image it draws. A sende
 
 ## Silencing
 
-Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle. A true fullscreen window (`fullscreen` mode bit 2, not maximized) on the target display also silences incoming notifications automatically without altering `doNotDisturb`, keeping gameplay uninterrupted and preserving direct scanout.
+Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle. A true fullscreen window (`fullscreen` mode bit 2, not maximized) on the target display also silences incoming notifications on that display, without changing `doNotDisturb`, keeping gameplay uninterrupted and preserving direct scanout.
 
 Three kinds of notification get through Do Not Disturb and fullscreen silencing:
 

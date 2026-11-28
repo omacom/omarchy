@@ -410,10 +410,8 @@ function newCapacityScope() {
     hyprRevision: 0,
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     get targetDisplayName() {
-      if (this._targetDisplayName !== undefined) return this._targetDisplayName
       return this.displayNames.indexOf(this.deckDisplayName) >= 0 ? this.deckDisplayName : this.focusedDisplayName
     },
-    set targetDisplayName(v) { this._targetDisplayName = v },
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
     Security: S, Delivery, Store, Markup: M,
@@ -532,6 +530,89 @@ const summaries = rows => Array.from(rows, row => row.summary)
   s.admit(s.fakeNotification(8, 'On desk monitor', 1))
   assert.deepEqual(summaries(s.toasts.rows), ['On desk monitor'])
   assert.equal(s.deckDisplayName, 'desk')
+}
+
+{ // A special workspace covers the base workspace: a non-fullscreen scratchpad
+  // over a fullscreen game does not silence, while a fullscreen window inside
+  // the visible special workspace does.
+  const s = newCapacityScope()
+  const game = { lastIpcObject: { fullscreen: 2, class: 'steam_app_31' } }
+  const scratchpad = { workspace: { name: 'special:scratchpad' }, lastIpcObject: { fullscreen: 0 } }
+  const otherSpecial = { workspace: { name: 'special:other' }, lastIpcObject: { fullscreen: 2 } }
+  s.displayNames = ['game', 'desk']
+  s.focusedDisplayName = 'game'
+  s.Hyprland.toplevels = { values: [scratchpad, otherSpecial] }
+  s.Quickshell.screens = [
+    { name: 'game', monitor: {
+      activeWorkspace: { hasFullscreen: true, toplevels: { values: [game] } },
+      lastIpcObject: { specialWorkspace: { id: -99, name: 'special:scratchpad' } },
+    } },
+    { name: 'desk', monitor: {
+      activeWorkspace: { hasFullscreen: false, toplevels: { values: [] } },
+      lastIpcObject: { specialWorkspace: { id: -99, name: 'special:scratchpad' } },
+    } },
+  ]
+
+  assert.equal(s.fullscreenOn('game'), false, 'non-fullscreen special workspace over fullscreen base does not silence')
+  s.admit(s.fakeNotification(1, 'Over scratchpad', 1))
+  assert.deepEqual(summaries(s.toasts.rows), ['Over scratchpad'])
+
+  // Maximized in the special workspace still does not silence.
+  s.clearAll('dismissed', true)
+  s.drainCallLater()
+  scratchpad.lastIpcObject.fullscreen = 1
+  assert.equal(s.fullscreenOn('desk'), false)
+
+  // True fullscreen inside the visible special workspace silences even over a non-fullscreen base.
+  scratchpad.lastIpcObject.fullscreen = 2
+  s.focusedDisplayName = 'desk'
+  assert.equal(s.fullscreenOn('desk'), true)
+  const muted = s.fakeNotification(2, 'Inside fullscreen special', 1)
+  muted.appName = 'Slack'
+  s.admit(muted)
+  assert.equal(s.toasts.count, 0)
+  assert.deepEqual(
+    Array.from(s.historyEntries, e => e.summary + ':' + e.closed_reason),
+    ['Inside fullscreen special:fullscreen', 'Over scratchpad:dismissed'],
+  )
+}
+
+{ // Silenced replacements with the same key deduplicate history instead of
+  // stacking duplicates and evicting older items.
+  const s = newCapacityScope()
+  const game = { lastIpcObject: { fullscreen: 2, class: 'steam_app_31' } }
+  s.displayNames = ['game']
+  s.focusedDisplayName = 'game'
+  s.Quickshell.screens = [
+    { name: 'game', monitor: { activeWorkspace: { hasFullscreen: false, toplevels: { values: [game] } } } },
+  ]
+  const progress = s.fakeNotification(1, 'Downloading 10%', 1)
+  progress.appName = 'Browser'
+  s.admit(progress)
+  const key = s.keyForOriginal(1)
+
+  // Fullscreen starts; a muted replacement records under the same key, and closing
+  // the card later replaces that key in history rather than adding a second row.
+  s.Quickshell.screens[0].monitor.activeWorkspace.hasFullscreen = true
+  progress.replace({ summary: 'Downloading 50%' })
+  s.drainCallLater()
+  assert.equal(s.historyEntries.length, 1)
+  assert.equal(s.historyEntries[0].key, key)
+  assert.equal(s.historyEntries[0].summary, 'Downloading 50%')
+  s.finishClose(key, 'expired')
+  assert.equal(s.historyEntries.length, 1, 'same key is not duplicated in history')
+  assert.equal(s.historyEntries[0].key, key)
+
+  // Repeated updates for one key never evict unrelated history entries.
+  const now = 1e6
+  let history = []
+  for (let i = 0; i < 99; i++) history = Store.addHistory(history, { key: 'msg-' + i, summary: 'Msg ' + i, closed_ts: now - 200 + i, closed_reason: 'fullscreen' }, now)
+  for (let pct = 1; pct <= 150; pct++) history = Store.addHistory(history, { key: 'progress', summary: 'Progress ' + pct + '%', closed_ts: now - 10 + pct / 1000, closed_reason: 'fullscreen' }, now)
+  assert.equal(history.length, 100)
+  assert.equal(history[0].key, 'progress')
+  assert.equal(history[0].summary, 'Progress 150%')
+  assert.equal(history.filter(e => e.key === 'progress').length, 1)
+  assert.equal(history[99].key, 'msg-0', 'earlier real history items are not evicted')
 }
 
 { // Rapid single dismissals must skip rows that are leaving but not yet removed.
@@ -689,7 +770,7 @@ const summaries = rows => Array.from(rows, row => row.summary)
   const other = s.fakeNotification(9, 'Other app')
   other.appName = 'Other'
   s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
-  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
+  Object.assign(s, { Layout, gap: 6, marginsFor: () => ({ top: 10, right: 10 }),
     Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
   runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
   for (const row of s.toasts.rows) s.heights[row.key] = 100

@@ -218,8 +218,13 @@ function retain(entries, now) {
   return out
 }
 
+// A newer row for the same key replaces any earlier history entry rather than
+// stacking duplicates and evicting older messages.
 function addHistory(entries, entry, now) {
-  return retain([entry].concat(entries), now)
+  var rest = entry && entry.key
+    ? entries.filter(function(item) { return item.key !== entry.key })
+    : entries
+  return retain([entry].concat(rest), now)
 }
 
 // A newer row for the same key replaces the old one in place; the oldest go
