@@ -14,6 +14,7 @@ BarIndicator {
   useActiveColor: true
   activeColor: Commons.Color.urgent
   revealWhenInactive: false
+  pressable: false
 
   Connections {
     target: root.indicatorHost

@@ -99,7 +99,10 @@ Item {
       if (data.count <= 8) {
         compare(list.contentY, 0, "short lists have no scroll offset")
         // The real hover handler changes currentIndex; neither end may shift the list.
+        // PointerMoveGate absorbs the first hover sample after opening as the baseline,
+        // so follow up with a small real move across the row.
         mouseMove(list, 20, list.height - data.rowHeight / 2)
+        mouseMove(list, 24, list.height - data.rowHeight / 2)
         tryCompare(list, "currentIndex", data.count - 1)
         wait(50)
         compare(list.contentY, 0, "hovering the last row does not scroll")
@@ -207,6 +210,91 @@ Item {
       mouseRelease(beta)
       compare(emitted, ["beta"])
       compare(picker.value, "beta")
+    }
+
+    function findListView(item) {
+      if (!item) return null
+      if (item.model !== undefined && item.currentIndex !== undefined && item.contentY !== undefined) return item
+      var children = item.children || []
+      for (var i = 0; i < children.length; i++) {
+        var found = findListView(children[i])
+        if (found) return found
+      }
+      return null
+    }
+
+    function test_stationary_pointer_during_keyboard_and_wheel_data() {
+      return [
+        {tag: "dropdown", searchable: false},
+        {tag: "searchable", searchable: true}
+      ]
+    }
+
+    function test_stationary_pointer_during_keyboard_and_wheel(data) {
+      mouseMove(scene, 0, 0)
+      var options = []
+      for (var i = 0; i < 12; i++) options.push("Option " + (i + 1))
+      var picker = createTemporaryObject(data.searchable ? searchableDropdownComponent : dropdownComponent, scene, {
+        value: options[0],
+        options: options
+      })
+      verify(picker !== null)
+
+      picker.open()
+      tryCompare(picker, "popupOpen", true)
+      var popup = findPopup(picker)
+      verify(popup !== null)
+      var list = findListView(popup.contentItem)
+      verify(list !== null)
+      tryCompare(list, "count", options.length)
+
+      if (data.searchable) {
+        tryVerify(function() {
+          var item = scene.Window.window.activeFocusItem
+          return item && item.hasOwnProperty("placeholderText")
+        })
+        keyClick(Qt.Key_Down)
+      }
+      tryCompare(list, "activeFocus", true)
+      tryCompare(list, "currentIndex", 0)
+
+      // Prime PointerMoveGate and park the pointer on row 1 (keep it over the list).
+      var row1 = null
+      tryVerify(function() {
+        row1 = list.itemAtIndex(1)
+        return row1 !== null && row1.height > 0 && list.height >= row1.y + row1.height
+      })
+      for (var p = row1; p; p = p.parent) {
+        if (isPolishScheduled(p)) verify(waitForPolish(p))
+      }
+      var hoverY = row1.y - list.contentY + row1.height / 2
+      mouseMove(list, 20, hoverY)
+      mouseMove(list, 26, hoverY)
+      tryCompare(list, "currentIndex", 1)
+
+      // Walk down with the keyboard while the pointer stays stationary over the list.
+      // Rows scrolling under the stationary pointer must not steal currentIndex back.
+      for (var idx = 2; idx < options.length; idx++) {
+        keyClick(Qt.Key_Down)
+        tryCompare(list, "currentIndex", idx)
+      }
+      tryVerify(function() { return list.contentY > 0 }, 2000, "keyboard walk scrolled the list")
+      wait(50)
+      compare(list.currentIndex, options.length - 1, "stationary pointer did not steal keyboard selection")
+
+      // Wheel scroll up while the pointer remains stationary over the list.
+      var beforeY = list.contentY
+      mouseWheel(list, 26, hoverY, 0, 120)
+      tryVerify(function() { return list.contentY < beforeY }, 2000, "wheel scrolled the list up")
+      wait(50)
+      compare(list.currentIndex, options.length - 1, "stationary pointer did not steal selection during wheel scroll")
+
+      // Moving the pointer deliberately restores hover selection.
+      var targetIndex = list.indexAt(36, list.contentY + hoverY)
+      verify(targetIndex >= 0 && targetIndex !== options.length - 1)
+      mouseMove(list, 30, hoverY)
+      mouseMove(list, 36, hoverY)
+      tryCompare(list, "currentIndex", targetIndex)
     }
   }
 }
