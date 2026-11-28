@@ -40,13 +40,14 @@ function isEphemeral(row) {
   return app === "notify-send" || app === "omarchy-action"
 }
 
-// "silenced", or "" when the row shows. A verification code always passes: it
-// was asked for a moment ago and expires in minutes.
-function quietReason(row, doNotDisturb) {
-  if (!doNotDisturb) return ""
+// "silenced" (Do Not Disturb), "fullscreen" (active fullscreen window on the
+// target display), or "" when the row shows. A verification code always passes:
+// it was asked for a moment ago and expires in minutes.
+function quietReason(row, doNotDisturb, fullscreen) {
+  if (!doNotDisturb && !fullscreen) return ""
   if (bypassesQuiet(row)) return ""
   if (String((row && row.code) || "")) return ""
-  return "silenced"
+  return doNotDisturb ? "silenced" : "fullscreen"
 }
 
 // A summary that opens with its own glyph ("󰂚  Silenced": one code point, two

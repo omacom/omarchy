@@ -79,7 +79,9 @@ Item {
   //
   // Hyprland refuses direct scanout while any overlay-layer surface exists on
   // a monitor, so an idle canvas makes fullscreen games composite each frame.
-  // It steps aside under a fullscreen window until a card arrives.
+  // It steps aside under a fullscreen window unless a quiet-bypassing card
+  // arrives, and handleNotification() silences ordinary notifications while
+  // the target display is fullscreen.
   // Bumped after Hyprland's window snapshot refreshes, so fullscreenOn() re-evaluates.
   property int hyprRevision: 0
 
@@ -627,8 +629,9 @@ Item {
       try { previous.tracked = false } catch (e) {}
     }
 
-    // Quiet still records it (unless ephemeral), straight to history.
-    var muted = Delivery.quietReason(row, doNotDisturb)
+    // Quiet (manual Do Not Disturb or a fullscreen window on the target display)
+    // still records it (unless ephemeral), straight to history.
+    var muted = Delivery.quietReason(row, doNotDisturb, fullscreenOn(targetDisplayName))
     if (muted) {
       if (!Delivery.isEphemeral(row)) storeRecord(row, muted)
       release(key)

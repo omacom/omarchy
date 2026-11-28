@@ -271,15 +271,22 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
 
 // ------------------------------------------------------------------ delivery
 {
-  for (const [row, dnd, expected] of [
-    [{ app: 'Slack', urgency: 1 }, false, ''],
-    [{ app: 'Slack', urgency: 1 }, true, 'silenced'],
-    [{ app: 'Slack', urgency: 2 }, true, 'silenced'],      // a branded critical does not punch through
-    [{ app: 'notify-send', urgency: 2 }, true, ''],
-    [{ app: 'notify-send', urgency: 1 }, true, 'silenced'],
-    [{ app: 'omarchy-action', urgency: 0 }, true, ''],
-    [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
-  ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  for (const [row, dnd, fullscreen, expected] of [
+    [{ app: 'Slack', urgency: 1 }, false, false, ''],
+    [{ app: 'Slack', urgency: 1 }, true, false, 'silenced'],
+    [{ app: 'Slack', urgency: 2 }, true, false, 'silenced'],      // a branded critical does not punch through
+    [{ app: 'notify-send', urgency: 2 }, true, false, ''],
+    [{ app: 'notify-send', urgency: 1 }, true, false, 'silenced'],
+    [{ app: 'omarchy-action', urgency: 0 }, true, false, ''],
+    [{ app: 'Google', urgency: 1, code: '482913' }, true, false, ''],
+    [{ app: 'Slack', urgency: 1 }, false, true, 'fullscreen'],
+    [{ app: 'Slack', urgency: 2 }, false, true, 'fullscreen'],
+    [{ app: 'notify-send', urgency: 1 }, false, true, 'fullscreen'],
+    [{ app: 'notify-send', urgency: 2 }, false, true, ''],
+    [{ app: 'omarchy-action', urgency: 0 }, false, true, ''],
+    [{ app: 'Google', urgency: 1, code: '482913' }, false, true, ''],
+    [{ app: 'Slack', urgency: 1 }, true, true, 'silenced'],
+  ]) assert.equal(Delivery.quietReason(row, dnd, fullscreen), expected, JSON.stringify([row, dnd, fullscreen]))
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
                                [{ id: 'join', text: 'Join call' }])
@@ -389,7 +396,7 @@ function newCapacityScope() {
     get(i) { return this.rows[i] },
     insert(i, row) { this.rows.splice(i, 0, { ...row }) },
     setProperty(i, role, value) { this.rows[i][role] = value },
-    remove(i) { this.rows.splice(i, 1) } }
+    remove(i) { this.rows.splice(i, 1); if (this.rows.length === 0) s.deckDisplayName = '' } }
   const later = []
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
@@ -402,6 +409,11 @@ function newCapacityScope() {
     deckDisplayName: '',
     hyprRevision: 0,
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
+    get targetDisplayName() {
+      if (this._targetDisplayName !== undefined) return this._targetDisplayName
+      return this.displayNames.indexOf(this.deckDisplayName) >= 0 ? this.deckDisplayName : this.focusedDisplayName
+    },
+    set targetDisplayName(v) { this._targetDisplayName = v },
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
     Security: S, Delivery, Store, Markup: M,
@@ -466,6 +478,60 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(s.fullscreenOn('game'), false)
   game.lastIpcObject.fullscreen = 2
   assert.equal(s.fullscreenOn('game'), true)
+}
+
+{ // A real fullscreen window on the target display silences ordinary notifications
+  // into history without flipping manual Do Not Disturb, while bypassing rows still show.
+  const s = newCapacityScope()
+  const game = { lastIpcObject: { fullscreen: 2, class: 'steam_app_31' } }
+  s.displayNames = ['game', 'desk']
+  s.focusedDisplayName = 'game'
+  s.Quickshell.screens = [
+    { name: 'game', monitor: { activeWorkspace: { hasFullscreen: true, toplevels: { values: [game] } } } },
+    { name: 'desk', monitor: { activeWorkspace: { hasFullscreen: false, toplevels: { values: [] } } } },
+  ]
+
+  const chat = s.fakeNotification(1, 'Chat ping', 1)
+  chat.appName = 'Slack'
+  const brandedCritical = s.fakeNotification(2, 'Chat urgent', 2)
+  brandedCritical.appName = 'Slack'
+  const ephemeral = s.fakeNotification(3, 'Minor CLI', 1)
+  ephemeral.appName = 'notify-send'
+  s.admit(chat, brandedCritical, ephemeral)
+  assert.equal(s.toasts.count, 0)
+  assert.equal(s.doNotDisturb, false, 'fullscreen silencing never overwrites manual DND')
+  assert.deepEqual(
+    Array.from(s.historyEntries, e => e.summary + ':' + e.closed_reason),
+    ['Chat urgent:fullscreen', 'Chat ping:fullscreen'],
+    'non-ephemeral notifications are recorded in history under fullscreen',
+  )
+
+  // Omarchy actions, bare notify-send critical alerts, and verification codes still show.
+  const action = s.fakeNotification(4, 'Screenshot saved', 0)
+  action.appName = 'omarchy-action'
+  const alert = s.fakeNotification(5, 'Disk full', 2)
+  alert.appName = 'notify-send'
+  const otp = s.fakeNotification(6, 'Sign in', 1)
+  otp.appName = 'Google'
+  otp.body = 'Your verification code is 482913'
+  s.admit(action, alert, otp)
+  assert.deepEqual(summaries(s.toasts.rows), ['Sign in', 'Disk full', 'Screenshot saved'])
+
+  // Clear the deck, then check a merely maximised window does not silence.
+  s.clearAll('dismissed', true)
+  s.drainCallLater()
+  game.lastIpcObject.fullscreen = 1
+  s.admit(s.fakeNotification(7, 'Maximised shows', 1))
+  assert.deepEqual(summaries(s.toasts.rows), ['Maximised shows'])
+
+  // With the game fullscreen again, focusing the non-fullscreen monitor delivers there.
+  s.clearAll('dismissed', true)
+  s.drainCallLater()
+  game.lastIpcObject.fullscreen = 2
+  s.focusedDisplayName = 'desk'
+  s.admit(s.fakeNotification(8, 'On desk monitor', 1))
+  assert.deepEqual(summaries(s.toasts.rows), ['On desk monitor'])
+  assert.equal(s.deckDisplayName, 'desk')
 }
 
 { // Rapid single dismissals must skip rows that are leaving but not yet removed.
