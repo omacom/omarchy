@@ -166,12 +166,27 @@ PanelWindow {
     window.menuSlot = slot
   }
 
-  // The layout picked here is the default every workspace uses, as under
-  // Appearance > Workspace Layout. A workspace with windows on it keeps the
-  // layout it has, so picking one never rearranges work in progress.
+  // The layout picked here becomes the default every workspace uses, as under
+  // Appearance > Workspace Layout, and the workspace the dock is on switches to
+  // it too. Other workspaces with windows on them keep the layout they have.
+  //
+  // The default is saved first: it pins every busy workspace to its layout,
+  // this one included, and an empty one takes the new default on its own. Then
+  // the layout toggle, which cycles the focused workspace through dwindle,
+  // scrolling, and floating, steps this one forward or back to the one picked,
+  // reading where it stands only once the default is in. A choice on another
+  // screen's dock focuses that screen first.
   function setLayout(mode) {
-    if (!window.dock || mode === window.dock.defaultMode) return
-    Util.execDetached("omarchy-hyprland-workspace-layout-default " + mode)
+    if (!window.dock || ["dwindle", "scrolling", "floating"].indexOf(mode) < 0) return
+    var steps = []
+    if (window.monitor && !window.monitor.focused)
+      steps.push("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null")
+    if (mode !== window.dock.defaultMode) steps.push("omarchy-hyprland-workspace-layout-default " + mode)
+    steps.push("case \"$(omarchy-hyprland-workspace-layout-current)>" + mode + "\" in"
+      + " dwindle\\>scrolling|scrolling\\>floating|floating\\>dwindle) omarchy-hyprland-workspace-layout-toggle ;;"
+      + " dwindle\\>floating|scrolling\\>dwindle|floating\\>scrolling) omarchy-hyprland-workspace-layout-toggle back ;;"
+      + " esac")
+    Util.execDetached(steps.join(" && "))
   }
 
   function settleShifts() {
