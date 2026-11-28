@@ -101,37 +101,57 @@ upower_threshold_supported=$(awk '/charge-threshold-supported:/ { print tolower(
 sysfs_threshold_end=$(read_sysfs_number "$battery_path/charge_control_end_threshold" || true)
 sysfs_threshold_start=$(read_sysfs_number "$battery_path/charge_control_start_threshold" || true)
 
-# Sysfs charge_control_end_threshold is the kernel's ground truth: UPower 1.91+
-# prints hwdb defaults (e.g. 75/80%) in `upower -i` even when ChargeThresholdEnabled
-# is false and sysfs is at 100%. Only fall back to UPower's thresholds when no
-# sysfs file exists (e.g. firmware-only conservation mode or test stubs).
+# The kernel's thresholds are the limit the battery actually stops at, so they
+# win. UPower's can be the udev hwdb's generic 75-80% default rather than the
+# limit in force, and stand in only when sysfs has none and UPower says the
+# limit is on. Read them from the battery UPower resolved rather than a BAT*
+# glob, which misses every battery with another name.
 threshold_start=""
 threshold_end=""
-if [[ -n $sysfs_threshold_end ]]; then
-  if (( sysfs_threshold_end > 0 && sysfs_threshold_end < 100 )); then
-    threshold_end=$sysfs_threshold_end
-    if [[ -n $sysfs_threshold_start ]] && (( sysfs_threshold_start > 0 && sysfs_threshold_start < threshold_end )); then
-      threshold_start=$sysfs_threshold_start
+own_limit=false
+if [[ -r $battery_path/charge_control_end_threshold ]]; then
+  own_limit=true
+  threshold_end=$sysfs_threshold_end
+  threshold_start=$sysfs_threshold_start
+  # Where the driver offers a Custom charge type (Dell), the thresholds are the
+  # Custom mode's settings and hold no limit while another mode is active.
+  if [[ -r $battery_path/charge_types ]]; then
+    { charge_types=$(<"$battery_path/charge_types"); } 2>/dev/null || charge_types=""
+    if [[ $charge_types == *Custom* && $charge_types != *"[Custom]"* ]]; then
+      threshold_start=""
+      threshold_end=""
     fi
   fi
-elif [[ $upower_threshold_enabled != "no" ]]; then
-  if [[ -n $upower_threshold_end ]] && (( upower_threshold_end > 0 && upower_threshold_end < 100 )); then
-    threshold_end=$upower_threshold_end
-    threshold_start=$upower_threshold_start
-  fi
+elif [[ $upower_threshold_enabled == "yes" ]]; then
+  own_limit=true
+  threshold_end=$upower_threshold_end
+  threshold_start=$upower_threshold_start
 fi
 
+# An end threshold of 100 (or 0 on some firmware) means no limit is set, and a
+# start of 0 means charging resumes at any level, so there is no start to show.
+clear_unset_limit() {
+  if [[ -n $threshold_end ]] && (( threshold_end <= 0 || threshold_end >= 100 )); then
+    threshold_start=""
+    threshold_end=""
+  fi
+  if [[ -z $threshold_end || -z $threshold_start ]] || (( threshold_start <= 0 || threshold_start >= threshold_end )); then
+    threshold_start=""
+  fi
+}
+
+clear_unset_limit
 # The time to full counts to this battery's own limit, never another one's.
 charge_limit=${threshold_end:-100}
-if [[ -z $sysfs_threshold_end && $upower_threshold_enabled != "no" ]]; then
-  if [[ -z $threshold_end ]]; then
-    fallback_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
-    if [[ $fallback_end =~ ^[0-9]+$ ]] && (( fallback_end > 0 && fallback_end < 100 )); then
-      threshold_end=$fallback_end
-    fi
-  fi
-  if [[ -z $threshold_start && -n $threshold_end ]]; then
-    threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+# Only a battery that says nothing of its own limit borrows a BAT* one; a
+# battery known to have none keeps none.
+if [[ $own_limit == "false" ]]; then
+  fallback_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
+  if [[ $fallback_end =~ ^[0-9]+$ ]]; then
+    threshold_end=$fallback_end
+    fallback_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+    [[ $fallback_start =~ ^[0-9]+$ ]] && threshold_start=$fallback_start
+    clear_unset_limit
   fi
 fi
 
