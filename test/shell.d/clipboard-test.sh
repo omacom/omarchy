@@ -536,6 +536,34 @@ pass "clipboard file paste helper copy-only copies file content"
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
 
+# A failed copy must not paste the previous clipboard contents.
+for helper in file text; do
+  if [[ $helper == "file" ]]; then
+    args=(image/png "$TMPDIR/image.png")
+  else
+    args=(--history-index 1)
+  fi
+  if WL_COPY_OUT=/dev/full WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+    "$ROOT/bin/omarchy-clipboard-paste-$helper" "${args[@]}" 2>/dev/null; then
+    fail "clipboard $helper paste reports a failed copy"
+  fi
+  [[ ! -e $TMPDIR/wtype ]] || fail "clipboard $helper paste skips the keystroke when copying fails"
+done
+pass "clipboard history never sends a paste keystroke after a failed copy"
+
+(
+  export PATH="$TMPDIR/bin:$PATH" WL_COPY_OUT=/dev/full WTYPE_OUT="$TMPDIR/typed"
+  printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"$WTYPE_OUT.dispatch"\n' >"$TMPDIR/bin/hyprctl"
+  chmod +x "$TMPDIR/bin/hyprctl"
+  if "$ROOT/bin/omarchy-clipboard-paste-text" --universal "new text" 2>/dev/null; then
+    fail "universal paste reports a failed copy"
+  fi
+  [[ ! -e $WTYPE_OUT.dispatch && ! -e $WTYPE_OUT ]] || fail "a failed copy sends no universal paste"
+  "$ROOT/bin/omarchy-clipboard-paste-text" "new text" 2>/dev/null || fail "direct typing does not require a clipboard"
+  [[ ! -e $WTYPE_OUT.dispatch && $(<"$WTYPE_OUT") == "-- new text" ]] || fail "direct typing sends the requested text"
+)
+pass "raw text needs a successful copy for universal paste but not for direct typing"
+
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 

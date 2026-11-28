@@ -23,7 +23,7 @@ fi
 
 [[ -r $path ]] || exit 1
 
-wl-copy --type "$mime" < "$path"
+wl-copy --type "$mime" < "$path" || exit
 
 if [[ $copy_only == "true" ]]; then
   exit

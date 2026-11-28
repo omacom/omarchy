@@ -53,14 +53,19 @@ copy_history_entry() {
 }
 
 if [[ -n $history_index ]]; then
-  copy_history_entry
+  copy_history_entry || exit
   if [[ $copy_only != "true" ]]; then
     use_shift_insert=true
   fi
 else
   text=${1:-}
   [[ -n $text ]] || exit
-  printf '%s' "$text" | wl-copy
+  if ! printf '%s' "$text" | wl-copy; then
+    # Only direct typing can proceed without the clipboard.
+    if [[ $copy_only == "true" || $use_shift_insert == "true" || $use_universal == "true" ]]; then
+      exit 1
+    fi
+  fi
 fi
 
 if [[ $copy_only == "true" ]]; then
