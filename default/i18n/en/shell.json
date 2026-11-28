@@ -203,6 +203,8 @@
   "audio.level.whisper": "Whisper",
   "audio.mute": "Mute",
   "audio.output": "OUTPUT",
+  "audio.route.followDefault": "Follow default output",
+  "audio.route.outputUnavailable": "Output unavailable",
   "audio.sources": "SOURCES",
   "audio.stream": "Stream",
   "audio.title": "Audio",
