@@ -31,7 +31,7 @@ chmod +x "$TMP_BIN/omarchy-theme-set-browser-policy"
 # skip everything.
 policy_tmp="$TMPDIR/policies"
 mkdir -p "$policy_tmp"
-printf '{"BrowserThemeColor": "#1c2027", "BrowserColorScheme": "device"}\n' > "$policy_tmp/color.json"
+printf '{"BrowserThemeColor": "#1c2027"}\n' > "$policy_tmp/color.json"
 
 # A test cannot make a root-owned file, so stat reports the owner the writer
 # leaves behind, or a user-owned one.
@@ -130,3 +130,39 @@ refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 [[ $refreshed == "brave brave-origin chromium google-chrome " ]] ||
   fail "setter refreshes exactly the running browsers (got: $refreshed)"
 pass "setter refreshes exactly the running browsers"
+
+# The theme's dark/light mode lands in each browser profile's appearance
+# preference, which is what an installed web app (sharing the profile) reads
+# its prefers-color-scheme from. Other preferences survive untouched.
+theme_state="$TMPDIR/.local/state/omarchy/current/theme"
+mkdir -p "$theme_state" \
+  "$TMPDIR/.config/chromium/Default" \
+  "$TMPDIR/.config/BraveSoftware/Brave-Browser/Profile 1"
+printf 'mode = "dark"\n' >"$theme_state/colors.toml"
+printf '{"browser":{"theme":{"color_scheme":0,"color_scheme2":0}},"homepage":"https://example.com"}\n' \
+  >"$TMPDIR/.config/chromium/Default/Preferences"
+printf '{"browser":{"theme":{"color_scheme":1,"color_scheme2":1}}}\n' \
+  >"$TMPDIR/.config/BraveSoftware/Brave-Browser/Profile 1/Preferences"
+
+run_scheme_setter() {
+  HOME="$TMPDIR" PATH="$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+    OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" \
+    bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+}
+
+run_scheme_setter
+[[ $(jq -r '.browser.theme.color_scheme' "$TMPDIR/.config/chromium/Default/Preferences") == "2" ]] &&
+  [[ $(jq -r '.browser.theme.color_scheme2' "$TMPDIR/.config/chromium/Default/Preferences") == "2" ]] &&
+  [[ $(jq -r '.browser.theme.color_scheme' "$TMPDIR/.config/BraveSoftware/Brave-Browser/Profile 1/Preferences") == "2" ]] ||
+  fail "a dark theme sets the dark appearance preference in browser profiles"
+[[ $(jq -r '.homepage' "$TMPDIR/.config/chromium/Default/Preferences") == "https://example.com" ]] ||
+  fail "the appearance sync leaves other preferences alone"
+pass "a dark theme sets the dark appearance preference in browser profiles"
+
+# A light theme flips the same profiles back.
+printf 'mode = "light"\n' >"$theme_state/colors.toml"
+run_scheme_setter
+[[ $(jq -r '.browser.theme.color_scheme' "$TMPDIR/.config/chromium/Default/Preferences") == "1" ]] &&
+  [[ $(jq -r '.browser.theme.color_scheme' "$TMPDIR/.config/BraveSoftware/Brave-Browser/Profile 1/Preferences") == "1" ]] ||
+  fail "a light theme sets the light appearance preference in browser profiles"
+pass "a light theme sets the light appearance preference in browser profiles"
