@@ -82,3 +82,66 @@ signalled=$(sh -c '. "$1"; pidof() { echo 1 2 3; }; kill() { echo "$2"; }; signa
 [[ $signalled == "1 2 " ]] ||
   fail "stop signals the splash's processes in the initramfs and the real root, and no unit's" "signalled: $signalled"
 pass "stop signals the splash's processes in the initramfs and the real root, and no unit's"
+
+# The late hook waits for a splash that has already picked a display to finish
+# starting before switch_root deletes the initramfs under it, and takes down a
+# splash that is still waiting for a GPU or died before coming up.
+late_root=$test_tmp/late
+late_hook=$test_tmp/late-hook.sh
+sed -e "s|/run/omarchy-splash|$late_root/run/omarchy-splash|g" \
+    -e "s|/run/systemd/system|$late_root/run/systemd/system|g" \
+    -e "s|/sysroot/etc/crypttab|$late_root/sysroot/etc/crypttab|g" \
+    -e "s|/usr/lib/omarchy-splash/stop|$late_root/stop|g" \
+    -e "s|/etc/systemd/system/omarchy-splash-hold.service|$late_root/etc/omarchy-splash-hold.service|g" \
+    "$ROOT/etc/initcpio/hooks/omarchy-splash" >"$late_hook"
+grep -qF "$late_root/run/omarchy-splash" "$late_hook" || fail "late hook reads its state from the fixture"
+
+reset_late() {
+  rm -rf "$late_root"
+  mkdir -p "$late_root/run/omarchy-splash" "$late_root/sysroot/etc" "$late_root/etc"
+  cat >"$late_root/stop" <<SH
+#!/bin/sh
+touch "$late_root/stopped"
+SH
+  chmod +x "$late_root/stop"
+}
+
+# Case 1: splash already picked a display and writes ready shortly after.
+reset_late
+sleep 10 &
+bg_pid=$!
+echo "$bg_pid" >"$late_root/run/omarchy-splash/session.pid"
+touch "$late_root/run/omarchy-splash/starting"
+(sleep 0.2 && touch "$late_root/run/omarchy-splash/ready") &
+ready_writer=$!
+sh -c '. "$1" && run_latehook' sh "$late_hook"
+wait "$ready_writer" 2>/dev/null || true
+kill "$bg_pid" 2>/dev/null || true
+wait "$bg_pid" 2>/dev/null || true
+[[ ! -e "$late_root/stopped" && -L "$late_root/run/systemd/system/graphical.target.wants/omarchy-splash-hold.service" ]] ||
+  fail "late hook waits for a starting splash to become ready and schedules hold"
+pass "late hook waits for a starting splash to become ready and schedules hold"
+
+# Case 2: splash is still waiting for a native GPU (no starting marker).
+reset_late
+sleep 10 &
+bg_pid=$!
+echo "$bg_pid" >"$late_root/run/omarchy-splash/session.pid"
+sh -c '. "$1" && run_latehook' sh "$late_hook"
+kill "$bg_pid" 2>/dev/null || true
+wait "$bg_pid" 2>/dev/null || true
+[[ -e "$late_root/stopped" && ! -e "$late_root/run/systemd/system/graphical.target.wants/omarchy-splash-hold.service" ]] ||
+  fail "late hook stops a splash still waiting for a GPU instead of stalling boot"
+pass "late hook stops a splash still waiting for a GPU instead of stalling boot"
+
+# Case 3: splash picked a display, then died before writing ready.
+reset_late
+(sleep 0.15) &
+bg_pid=$!
+echo "$bg_pid" >"$late_root/run/omarchy-splash/session.pid"
+touch "$late_root/run/omarchy-splash/starting"
+sh -c '. "$1" && run_latehook' sh "$late_hook"
+wait "$bg_pid" 2>/dev/null || true
+[[ -e "$late_root/stopped" && ! -e "$late_root/run/systemd/system/graphical.target.wants/omarchy-splash-hold.service" ]] ||
+  fail "late hook stops cleanly when a starting splash exits before ready"
+pass "late hook stops cleanly when a starting splash exits before ready"
