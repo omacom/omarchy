@@ -137,6 +137,8 @@ omarchy-update
   ├─ run the post-update hook, then update mise tools (a failed tool update
   │  warns and the update continues)
   ├─ update AUR packages
+  │    └─ after a successful update, omarchy-update-aur-prune trims yay's build
+  │       directory to two builds per package, since --cleanafter keeps them all
   ├─ omarchy-update-boot, then stop the keepalive
   │    └─ the platform's boot package proves the boot files boot the updated system
   ├─ omarchy-update-stay-awake stop
@@ -299,6 +301,7 @@ scripts.
 | `omarchy-update-user-notify` | Hidden compatibility wrapper for `omarchy-migrate-notify`. | **Temporary.** Keep only for old callers. |
 | `omarchy-update-available` | Update checker for the shell widget. The update itself clears the widget instead of rechecking. | **Keep.** Could eventually be renamed `omarchy-update-check`, but current name matches widget semantics. |
 | `omarchy-update-aur-pkgs` | Updates AUR packages with `yay -Sua` if foreign packages exist and AUR is reachable. | **Question.** Omarchy is package-backed now, but users may still install AUR packages. Keep for now. |
+| `omarchy-update-aur-prune` | Runs after a successful AUR update and trims each package clone in yay's build directory (read from `yay -Pg`, so a configured `buildDir` or `AURDEST` counts) to two versions with `paccache -rk2`. yay's `--cleanafter` excludes `*.pkg.*`, so without it every AUR build stays forever. Skips symlinks, directories the user can't write, and root, and runs `paccache` under `setpriv --no-new-privs` so it can never escalate through the update's sudo authorization. | **Keep internal/hidden.** |
 | `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
 | `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal unless passed `-y`, as the update pipeline does; standalone noninteractive mode only reports. | **Keep for now.** Automates cleanup during updates and supports standalone review. |
 | `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |

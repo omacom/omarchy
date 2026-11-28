@@ -496,6 +496,7 @@
   "update.mise": "Update mise tools",
   "update.aur": "Update AUR packages",
   "update.aurUnavailable": "AUR is unavailable (so skipping updates)",
+  "update.aurPruneFailed": "Could not prune the AUR build directory.",
   "update.bootNotVerified": "The boot files were not verified. This machine predates its platform's boot package; updates verify them once it is installed.",
   "snapshot.noConfigs": "No Snapper configs found, so no snapshot was created.",
   "snapshot.configure": "Configure Snapper with: %1",
