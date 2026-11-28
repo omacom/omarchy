@@ -291,7 +291,7 @@ Item {
               WheelScroll {
                 flickable: resultList
                 stepHeight: root.popupRowHeight
-                pointerGate: pointerGate
+                gate: pointerGate
               }
 
               Keys.priority: Keys.BeforeItem

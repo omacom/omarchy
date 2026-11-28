@@ -209,7 +209,7 @@ Item {
           WheelScroll {
             flickable: optionList
             stepHeight: root.popupRowHeight
-            pointerGate: pointerGate
+            gate: pointerGate
           }
 
           function indexOfValue(v) {

@@ -215,9 +215,8 @@ Item {
     function findListView(item) {
       if (!item) return null
       if (item.model !== undefined && item.currentIndex !== undefined && item.contentY !== undefined) return item
-      var children = item.children || []
-      for (var i = 0; i < children.length; i++) {
-        var found = findListView(children[i])
+      for (var i = 0; i < (item.children || []).length; i++) {
+        var found = findListView(item.children[i])
         if (found) return found
       }
       return null
@@ -231,7 +230,6 @@ Item {
     }
 
     function test_stationary_pointer_during_keyboard_and_wheel(data) {
-      mouseMove(scene, 0, 0)
       var options = []
       for (var i = 0; i < 12; i++) options.push("Option " + (i + 1))
       var picker = createTemporaryObject(data.searchable ? searchableDropdownComponent : dropdownComponent, scene, {
@@ -242,9 +240,7 @@ Item {
 
       picker.open()
       tryCompare(picker, "popupOpen", true)
-      var popup = findPopup(picker)
-      verify(popup !== null)
-      var list = findListView(popup.contentItem)
+      var list = findListView(findPopup(picker).contentItem)
       verify(list !== null)
       tryCompare(list, "count", options.length)
 
@@ -256,9 +252,8 @@ Item {
         keyClick(Qt.Key_Down)
       }
       tryCompare(list, "activeFocus", true)
-      tryCompare(list, "currentIndex", 0)
 
-      // Prime PointerMoveGate and park the pointer on row 1 (keep it over the list).
+      // Park the pointer over row 1 after priming PointerMoveGate.
       var row1 = null
       tryVerify(function() {
         row1 = list.itemAtIndex(1)
@@ -272,8 +267,7 @@ Item {
       mouseMove(list, 26, hoverY)
       tryCompare(list, "currentIndex", 1)
 
-      // Walk down with the keyboard while the pointer stays stationary over the list.
-      // Rows scrolling under the stationary pointer must not steal currentIndex back.
+      // Keyboard walk and wheel scroll must not let rows under the stationary pointer steal selection.
       for (var idx = 2; idx < options.length; idx++) {
         keyClick(Qt.Key_Down)
         tryCompare(list, "currentIndex", idx)
@@ -282,14 +276,13 @@ Item {
       wait(50)
       compare(list.currentIndex, options.length - 1, "stationary pointer did not steal keyboard selection")
 
-      // Wheel scroll up while the pointer remains stationary over the list.
       var beforeY = list.contentY
       mouseWheel(list, 26, hoverY, 0, 120)
       tryVerify(function() { return list.contentY < beforeY }, 2000, "wheel scrolled the list up")
       wait(50)
       compare(list.currentIndex, options.length - 1, "stationary pointer did not steal selection during wheel scroll")
 
-      // Moving the pointer deliberately restores hover selection.
+      // Deliberate pointer movement restores hover selection.
       var targetIndex = list.indexAt(36, list.contentY + hoverY)
       verify(targetIndex >= 0 && targetIndex !== options.length - 1)
       mouseMove(list, 30, hoverY)

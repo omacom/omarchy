@@ -577,7 +577,7 @@ Item {
               WheelScroll {
                 flickable: resultList
                 stepHeight: root.popupRowHeight
-                pointerGate: pointerGate
+                gate: pointerGate
               }
 
               Keys.priority: Keys.BeforeItem
@@ -686,7 +686,7 @@ Item {
                   }
                   onClicked: {
                     resultList.currentIndex = resultRow.index
-                    root.toggleValue(modelData.value)
+                    root.toggleValue(resultRow.modelData.value)
                   }
                 }
               }

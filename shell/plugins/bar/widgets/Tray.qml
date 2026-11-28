@@ -547,7 +547,7 @@ BarWidget {
 
         WheelScroll {
           flickable: manageFlick
-          stepHeight: Style.space(28)
+          stepHeight: 28 + manageListColumn.spacing
         }
 
         Column {
