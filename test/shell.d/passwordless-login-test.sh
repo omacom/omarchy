@@ -545,7 +545,20 @@ fi
 if grep -q '^\[initial_session\]$' "$FAKE_ROOT/etc/greetd/config.toml"; then
   fail "unencrypted rollback removes [initial_session] after state write failure"
 fi
-pass "unencrypted user fallback and enable rollback work cleanly"
+
+# Switching an active Always grant to a timed grant preserves Always if the
+# expiry service cannot be installed.
+reset_unencrypted_fixture
+TEST_UNENCRYPTED=1 run_cmd always >/dev/null
+printf 'not-a-dir' >"$FAKE_ROOT/etc/systemd/system/graphical.target.wants"
+if TEST_UNENCRYPTED=1 run_cmd 1 >/dev/null 2>&1; then
+  fail "switching Always to 1 fails when expiry symlink directory cannot be created"
+fi
+grep -qxF 'MODE=always' "$FAKE_ROOT/var/lib/omarchy/passwordless-login" ||
+  fail "failed expiry install preserves previous Always state"
+[[ ! -e $FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service ]] ||
+  fail "failed expiry install leaves no partial unit"
+pass "unencrypted user fallback, enable rollback, and duration-switch failure preservation work cleanly"
 
 # 16. Legacy LUKS state file without TYPE= remains active and disables cleanly
 reset_fixture
