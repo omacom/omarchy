@@ -249,6 +249,19 @@ ShellRoot {
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
+
+      // Panels lit under the lock with no input to it stayed on until unlock.
+      service.lockRequested = true
+      blankTimer.stop()
+      service.relock()
+      check(blankTimer.running, "a lock request on a locked session blanks the displays again")
+      blankTimer.stop()
+      service.authenticatingPassword = true
+      blankTimer.stop()
+      service.relock()
+      check(!blankTimer.running, "a repeated lock request leaves a password check lit")
+      service.authenticatingPassword = false
+      blankTimer.stop()
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()

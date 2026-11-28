@@ -234,6 +234,15 @@ Item {
     return true
   }
 
+  // A lock on a locked session still means "turn off the display": panels woken
+  // without input to the lock surface otherwise stayed lit until unlock. A
+  // password check in flight keeps them up, as it does for the countdown.
+  // omarchy-system-sleep-lock asks for the lock before every suspend.
+  function relock() {
+    noteSleepRequested()
+    if (lockRequested && !authenticatingPassword) armBlankTimer()
+  }
+
   function finishUnlock() {
     if (!root.currentlyLocked()) return
 
@@ -958,8 +967,7 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
-      // omarchy-system-sleep-lock asks for the lock before every suspend.
-      if (root.currentlyLocked()) root.noteSleepRequested()
+      if (root.currentlyLocked()) root.relock()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
       return "ok"
     }
