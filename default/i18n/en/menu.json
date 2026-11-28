@@ -270,6 +270,18 @@
   "appearance.dock.position.right": {
     "label": "Right Dock"
   },
+  "appearance.dock.visibility": {
+    "label": "Dock Visibility"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Always On"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "First App Hides"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Always Hidden"
+  },
   "appearance.workspace-layout": {
     "label": "Workspace Layout",
     "title": "Default Workspace Layout"
