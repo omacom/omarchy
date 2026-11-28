@@ -63,6 +63,9 @@ PROBE_MIN_INTERVAL_SECONDS = 15
 # The scan cache's envelope. A file of another version, or another shape, is
 # a miss: rescanned and rewritten, never a crash or a garbage record.
 SCAN_CACHE_VERSION = 2
+# Persistent, per-session OpenCode scan index. Bump when its saved row shape
+# or change-detection contract changes.
+OPENCODE_SESSION_CACHE_VERSION = 3
 # How many days, today last, a record's spend covers.
 SPEND_DAYS = 30
 STATS_KEYS = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
@@ -1258,6 +1261,262 @@ def _opencode_row(session_id: Any, entry: Any, row_type: str, created: Any, acce
 
 
 def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageRow], bool]:
+  """Incrementally read OpenCode sessions, with a full-scan fallback.
+
+  OpenCode's session/event sequence and legacy session timestamps identify
+  sessions whose projected messages changed. The cache stores only accepted usage rows for each
+  session; changed sessions are passed through the same reader as a cold
+  scan, so prompt attribution, forks and both message generations retain
+  their normal rules. Databases without a usable session version keep using
+  the uncached reader.
+  """
+  providers = list(providers)
+  # A forced collector run keeps the command's established contract: read its
+  # source directly, ignoring every persistent scan index.
+  if "--force" in sys.argv:
+    return _scan_opencode_db(providers, accept)
+  db = opencode_db()
+  if not db.is_file():
+    return [], True
+  try:
+    query = {
+      "providers": providers,
+      "accept": _opencode_accept_identity(accept),
+    }
+    query_key = hashlib.sha256(json.dumps(query, sort_keys=True).encode()).hexdigest()[:20]
+    db_identity = db.resolve()
+    info = db_identity.stat()
+    cache = cache_root() / f"opencode-sessions-{hashlib.sha256(str(db_identity).encode()).hexdigest()[:16]}-{query_key}.json"
+    lock = cache.with_suffix(".lock")
+  except Exception:
+    return _scan_opencode_db(providers, accept)
+
+  with exclusive_lock(lock):
+    source_fingerprint = _opencode_source_fingerprint(db_identity)
+    cached = read_json(cache)
+    if (
+      cached.get("schemaVersion") == OPENCODE_SESSION_CACHE_VERSION
+      and cached.get("database") == [info.st_dev, info.st_ino]
+      and cached.get("zone") == _opencode_zone()
+      and cached.get("query") == query
+      and cached.get("sourceFingerprint") == source_fingerprint
+      and isinstance(cached.get("sessions"), dict)
+    ):
+      result = _opencode_rows_from_cache(cached["sessions"])
+      if result is not None:
+        return result, True
+
+    try:
+      conn = sqlite3.connect(db_identity.as_uri() + "?mode=ro", uri=True, timeout=2)
+      conn.execute("PRAGMA query_only = ON")
+    except sqlite3.Error:
+      return [], False
+    try:
+      tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+      versions, schema = _opencode_session_versions(conn, tables)
+    except sqlite3.Error:
+      versions, schema = {}, None
+    finally:
+      conn.close()
+
+    if not versions or any(
+      not isinstance(value, dict)
+      or not isinstance(value.get("sessions"), dict)
+      or any(
+        not isinstance(session, list)
+        or len(session) < 2
+        or session[1] is None
+        or (all(marker is None for marker in session[0]) if isinstance(session[0], list) else session[0] is None)
+        for session in value["sessions"].values()
+      )
+      for value in versions.values()
+    ):
+      return _scan_opencode_db(providers, accept)
+
+    valid = (
+      cached.get("schemaVersion") == OPENCODE_SESSION_CACHE_VERSION
+      and cached.get("database") == [info.st_dev, info.st_ino]
+      and cached.get("schema") == schema
+      and cached.get("zone") == _opencode_zone()
+      and cached.get("query") == query
+      and isinstance(cached.get("sessions"), dict)
+    )
+    previous = cached["sessions"] if valid else {}
+    if valid and any(
+      not isinstance(value, dict)
+      or not isinstance(value.get("rows"), list)
+      or any(not isinstance(row, dict) or not isinstance(row.get("row"), dict) for row in value["rows"])
+      for value in previous.values()
+    ):
+      valid = False
+      previous = {}
+    complete = True
+    if not valid:
+      # The first pass is unfiltered so legacy or orphaned message sessions
+      # cannot disappear merely because they have no session marker row.
+      rows, complete, indexed_rows = _scan_opencode_db(providers, accept, include_ids=True)
+      per_session: dict[str, list[dict[str, Any]]] = {session_id: [] for session_id in versions}
+      for session_id, row in indexed_rows:
+        per_session.setdefault(session_id, []).append(row)
+      if any(session_id not in versions for session_id, _ in indexed_rows):
+        return rows, complete
+      current = {
+        session_id: {"version": version, "rows": per_session.get(session_id, [])}
+        for session_id, version in versions.items()
+      }
+    else:
+      changed = {
+        session_id for session_id, version in versions.items()
+        if not isinstance(previous.get(session_id), dict) or previous[session_id].get("version") != version
+      }
+      current = {
+        session_id: previous[session_id]
+        for session_id in versions
+        if session_id not in changed and isinstance(previous.get(session_id), dict)
+      }
+      if changed:
+        rows, complete, indexed_rows = _scan_opencode_db(providers, accept, changed, include_ids=True)
+        per_session = {session_id: [] for session_id in changed}
+        for session_id, row in indexed_rows:
+          per_session.setdefault(session_id, []).append(row)
+        for session_id in changed:
+          current[session_id] = {"version": versions[session_id], "rows": per_session.get(session_id, [])}
+      else:
+        rows = []
+
+    if complete:
+      if source_fingerprint == _opencode_source_fingerprint(db_identity):
+        try:
+          write_json(cache, {
+            "schemaVersion": OPENCODE_SESSION_CACHE_VERSION,
+            "database": [info.st_dev, info.st_ino],
+            "schema": schema,
+            "zone": _opencode_zone(),
+            "query": query,
+            "sourceFingerprint": source_fingerprint,
+            "sessions": current,
+          })
+        except Exception as exc:
+          warn(f"could not write OpenCode session index ({exc})")
+      else:
+        complete = False
+
+    result = _opencode_rows_from_cache(current)
+    return (result or []), complete
+
+
+def _opencode_accept_identity(accept: Accept) -> str:
+  """Stable identity for stateless provider predicates; dynamic classifiers
+  deliberately opt out of the persistent per-session cache."""
+  code = getattr(accept, "__code__", None)
+  if code is None:
+    raise ValueError("accept predicate has no stable code")
+  for name in code.co_names:
+    if name not in accept.__globals__:
+      continue
+    value = accept.__globals__[name]
+    if not isinstance(value, (str, int, float, bool, tuple, frozenset)):
+      raise ValueError("accept predicate depends on mutable state")
+  closure = tuple(cell.cell_contents for cell in (accept.__closure__ or ()))
+  if any(not isinstance(value, (str, int, float, bool, tuple, frozenset, type(None))) for value in closure):
+    raise ValueError("accept predicate depends on mutable closure state")
+  defaults = accept.__defaults__ or ()
+  if any(not isinstance(value, (str, int, float, bool, tuple, frozenset, type(None))) for value in defaults):
+    raise ValueError("accept predicate depends on mutable default state")
+  return hashlib.sha256(code.co_code + repr((code.co_consts, code.co_names, defaults, closure)).encode()).hexdigest()
+
+
+def _opencode_zone() -> list[Any]:
+  return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
+
+
+def _opencode_source_fingerprint(db: Path) -> list[Any]:
+  """The main database and WAL generation, cheap enough to check on cache hits."""
+  fingerprint = []
+  for path in (db, Path(str(db) + "-wal")):
+    try:
+      info = path.stat()
+      fingerprint.append([info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns])
+    except OSError:
+      fingerprint.append(None)
+  return fingerprint
+
+
+def _opencode_rows_from_cache(sessions: dict[str, Any]) -> list[UsageRow] | None:
+  indexed: list[dict[str, Any]] = []
+  for session in sessions.values():
+    if not isinstance(session, dict) or not isinstance(session.get("rows"), list):
+      return None
+    indexed.extend(session["rows"])
+  if any(not isinstance(entry, dict) or not isinstance(entry.get("row"), dict) for entry in indexed):
+    return None
+  indexed.sort(key=lambda entry: (entry.get("table") != "session_message", entry.get("id", "")))
+  seen: set[str] = set()
+  result: list[UsageRow] = []
+  for entry in indexed:
+    message_id = str(entry.get("id", ""))
+    if message_id in seen:
+      continue
+    seen.add(message_id)
+    try:
+      row_data = entry["row"]
+      if entry.get("todayIfUntimed"):
+        row_data = {**row_data, "day": today()}
+      result.append(UsageRow(**row_data))
+    except (KeyError, TypeError):
+      return None
+  return result
+
+
+def _opencode_session_versions(conn: sqlite3.Connection, tables: set[str]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+  """Read per-session markers, never message rows or JSON bodies."""
+  event_seq: dict[str, int] = {}
+  if "event_sequence" in tables and {"aggregate_id", "seq"} <= _table_columns(conn, "event_sequence"):
+    event_seq = {str(aggregate): int(seq) for aggregate, seq in conn.execute("SELECT aggregate_id, seq FROM event_sequence")}
+  session_versions: dict[str, dict[str, Any]] = {}
+  schema: dict[str, Any] = {}
+  for table in ("session", "session_v2"):
+    if table not in tables:
+      continue
+    columns = _table_columns(conn, table)
+    schema[table] = sorted(columns)
+    if not {"id", "time_created"} <= columns:
+      continue
+    updated = "time_updated" if "time_updated" in columns else "NULL"
+    parent = "parent_id" if "parent_id" in columns else "NULL"
+    fork = "fork_session_id" if "fork_session_id" in columns else "NULL"
+    for session_id, created, touched, parent_id, fork_id in conn.execute(
+      f"SELECT id, time_created, {updated}, {parent}, {fork} FROM {table}"
+    ):
+      key = str(session_id)
+      marker = [event_seq.get(key), touched] if table == "session_v2" else touched
+      session_versions.setdefault(key, {})[table] = [marker, created, str(parent_id or ""), str(fork_id or "")]
+  for table in ("message", "session_message"):
+    if table not in tables:
+      continue
+    columns = _table_columns(conn, table)
+    schema[table] = sorted(columns)
+    if "session_id" not in columns:
+      continue
+    foreign_keys = [list(row[2:5]) for row in conn.execute(f'PRAGMA foreign_key_list("{table}")')]
+    schema[f"{table}_session_fks"] = foreign_keys
+    if not any(local == "session_id" and target == "id" and target_table in ("session", "session_v2") for target_table, local, target in foreign_keys):
+      # Session-filtered scans are safe only when the database schema ties
+      # every message row to a session row carrying a usable change marker.
+      return {}, schema
+  versions = {
+    key: {"sessions": value}
+    for key, value in session_versions.items()
+  }
+  return versions, schema or None
+
+
+def _scan_opencode_db(
+  providers: Iterable[str],
+  accept: Accept,
+  sessions: set[str] | None = None,
+  include_ids: bool = False,
+) -> Any:
   """Every opencode reply `accept` takes, from both message stores, and
   whether the scan ran to completion.
 
@@ -1274,13 +1533,15 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
   """
   db = opencode_db()
   if not db.is_file():
-    return [], True
+    return ([], True, []) if include_ids else ([], True)
   try:
     conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
   except sqlite3.Error:
-    return [], False
+    return ([], False, []) if include_ids else ([], False)
   patterns = [f'%"providerID"%:%"{provider}%' for provider in providers]
   rows: list[UsageRow] = []
+  indexed_rows: list[tuple[str, dict[str, Any]]] = []
+  source_table = ""
   # The typed prompt each row answers, and where it falls among the steps
   # answering the same one; the first step books the prompt.
   turns: list[tuple[Any, tuple]] = []
@@ -1291,7 +1552,8 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
   # provider took it, by (session, parentID).
   firsts: dict[tuple[str, str], str] = {}
 
-  def take(message_id: Any, session_id: Any, raw: Any, row_type: str, created: Any, since: Any = None, turn: Any = "", empty: bool = False, typed: str | None = None) -> None:
+  def take(message_id: Any, session_id: Any, raw: Any, row_type: str, created: Any, since: Any = None, turn: Any = "", empty: bool = False, typed: str | None = None, typed_today_if_untimed: bool = False) -> None:
+    nonlocal source_table
     # `turn` is the prompt the row answers, None for none, or "" to read it
     # from the row; `empty` keeps a row that spent nothing, for that prompt,
     # dated `typed`, the day it was typed (None when that can't be trusted).
@@ -1309,11 +1571,15 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
     if row is None or str(message_id) in seen:
       return
     seen.add(str(message_id))
+    today_if_untimed = False
     if empty and not (row.input_tokens or row.output_tokens or row.cache_read or row.cache_write):
       # A failed reply is only its prompt, which counts on its own day.
       if typed is None:
         return
       row = row._replace(day=typed)
+      today_if_untimed = typed_today_if_untimed
+    else:
+      today_if_untimed = obj(obj(entry).get("time")).get("created") is None and created is None
     if turn == "":
       # The original store's steps name the user message they answer; a
       # compaction's summary answers the marker opencode adds, no prompt.
@@ -1331,6 +1597,8 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
       turn = None
     rows.append(row)
     turns.append((turn, (spent_at, str(message_id))))
+    if include_ids:
+      indexed_rows.append((str(session_id), {"id": str(message_id), "table": source_table, "todayIfUntimed": today_if_untimed, "row": row._asdict()}))
 
   def answered() -> list[UsageRow]:
     first: dict[Any, int] = {}
@@ -1339,7 +1607,18 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
         first[turn] = index
     return [row._replace(prompts=int(first.get(turn) == index)) for index, (row, (turn, _)) in enumerate(zip(rows, turns))]
 
+  def finish(complete: bool) -> Any:
+    final_rows = answered()
+    if include_ids:
+      for (_, entry), row in zip(indexed_rows, final_rows):
+        entry["row"] = row._asdict()
+      return final_rows, complete, indexed_rows
+    return final_rows, complete
+
   try:
+    if sessions is not None:
+      conn.execute("CREATE TEMP TABLE wanted_opencode_sessions (id TEXT PRIMARY KEY)")
+      conn.executemany("INSERT INTO wanted_opencode_sessions VALUES (?)", ((session_id,) for session_id in sessions))
     conn.execute("PRAGMA query_only = ON")
     tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     if "session" in tables and {"id", "parent_id"} <= _table_columns(conn, "session"):
@@ -1352,7 +1631,7 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
       # itself. A session without any keeps a prompt per reply.
       asked: set[str] = set()
       # Each reply booking a prompt, and the day its first user row was typed.
-      replies: dict[str, str | None] = {}
+      replies: dict[str, tuple[str | None, bool]] = {}
       order = "seq" if "seq" in columns else "time_created" if "time_created" in columns else ""
       if order:
         for session_id, reply_id, created_at, typed_at in conn.execute(
@@ -1360,12 +1639,17 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
           f" AND (a.{order} > u.{order} OR (a.{order} = u.{order} AND a.id > u.id)) ORDER BY a.{order}, a.id LIMIT 1),"
           " CASE WHEN json_valid(u.data) THEN json_extract(u.data, '$.time.created') END,"
           f" {'u.time_created' if 'time_created' in columns else 'NULL'}"
-          f" FROM session_message u WHERE u.type = 'user' ORDER BY u.{order}, u.id"
+          f" FROM session_message u WHERE u.type = 'user'"
+          + (" AND u.session_id IN (SELECT id FROM wanted_opencode_sessions)" if sessions is not None else "")
+          + f" ORDER BY u.{order}, u.id"
         ):
           asked.add(str(session_id))
           if reply_id is not None and str(reply_id) not in replies:
             # The user row's own time, else the row's, as _opencode_row reads it.
-            replies[str(reply_id)] = local_day(typed_at if created_at is None else created_at)
+            replies[str(reply_id)] = (
+              local_day(typed_at if created_at is None else created_at),
+              typed_at is None and created_at is None,
+            )
       created = "m.time_created" if "time_created" in columns else "NULL"
       source = "session_message m"
       fork_filter = ""
@@ -1375,16 +1659,19 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
         source += " LEFT JOIN session_v2 s ON s.id = m.session_id"
         fork_filter = " AND (s.fork_session_id IS NULL OR m.time_created >= s.time_created)"
       gate = " OR ".join("m.data LIKE ?" for _ in patterns)
+      session_filter = " AND m.session_id IN (SELECT id FROM wanted_opencode_sessions)" if sessions is not None else ""
+      source_table = "session_message"
       for message_id, session_id, row_type, time_created, raw in conn.execute(
         f"SELECT m.id, m.session_id, m.type, {created}, m.data FROM {source}"
-        f" WHERE m.type IN ('assistant', 'compaction') AND ({gate})" + fork_filter,
+        f" WHERE m.type IN ('assistant', 'compaction') AND ({gate})" + fork_filter + session_filter,
         patterns,
       ):
         if row_type == "compaction" or (str(session_id) in asked and str(message_id) not in replies):
           turn = None
         else:
           turn = ("message", str(message_id))
-        take(message_id, session_id, raw, str(row_type or ""), time_created, turn=turn, empty=turn is not None and str(session_id) in asked, typed=replies.get(str(message_id)))
+        typed, typed_today_if_untimed = replies.get(str(message_id), (None, False))
+        take(message_id, session_id, raw, str(row_type or ""), time_created, turn=turn, empty=turn is not None and str(session_id) in asked, typed=typed, typed_today_if_untimed=typed_today_if_untimed)
     columns = _table_columns(conn, "message") if "message" in tables else set()
     if {"session_id", "data"} <= columns and patterns:
       row_id = "m.id" if "id" in columns else "m.rowid"
@@ -1397,16 +1684,18 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
         source += " LEFT JOIN session s ON s.id = m.session_id"
         session_created = "s.time_created"
       gate = " OR ".join("m.data LIKE ?" for _ in patterns)
+      session_filter = " AND m.session_id IN (SELECT id FROM wanted_opencode_sessions)" if sessions is not None else ""
+      source_table = "message"
       # This collector's own steps and prompts, read before the first steps
       # they need, which are looked up for their sessions alone.
       own_steps = list(conn.execute(
         f"SELECT {row_id}, m.session_id, m.data, {session_created} FROM {source}"
-        f" WHERE m.data LIKE '%\"role\"%:%\"assistant\"%' AND ({gate})",
+        f" WHERE m.data LIKE '%\"role\"%:%\"assistant\"%' AND ({gate})" + session_filter,
         patterns,
       ))
       own_prompts = list(conn.execute(
         f"SELECT {row_id}, m.session_id, m.data, {session_created} FROM {source}"
-        f" WHERE m.data LIKE '%\"role\"%:%\"user\"%' AND ({gate})",
+        f" WHERE m.data LIKE '%\"role\"%:%\"user\"%' AND ({gate})" + session_filter,
         patterns,
       ))
       # The first step that spent tokens on each user message across every
@@ -1497,13 +1786,16 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
           seen.add(step_id)
           rows.append(row)
           turns.append((("asked", session_id, str(message_id)), (0, str(message_id))))
+          if include_ids:
+            today_if_untimed = obj(obj(entry).get("time")).get("created") is None
+            indexed_rows.append((session_id, {"id": str(message_id), "table": source_table, "todayIfUntimed": today_if_untimed, "row": row._asdict()}))
   except sqlite3.Error:
     # Transient lock, schema migration, corruption: the numbers stop here,
     # incomplete.
-    return answered(), False
+    return finish(False)
   finally:
     conn.close()
-  return answered(), True
+  return finish(True)
 
 
 # --------------------------------------------------- who bills an endpoint

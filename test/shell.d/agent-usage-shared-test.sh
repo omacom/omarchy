@@ -1146,6 +1146,166 @@ check(
   json.dumps([row._asdict() for row in rows]),
 )
 
+# The per-session index uses V2 event_sequence and V1 session timestamps as
+# change markers. Changed sessions go through the same reader as a cold scan.
+indexed_db = work / "indexed-opencode.db"
+conn = sqlite3.connect(indexed_db)
+conn.execute("PRAGMA foreign_keys = ON")
+conn.execute("CREATE TABLE session (id text PRIMARY KEY, parent_id text, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL REFERENCES session(id) ON DELETE CASCADE, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE TABLE session_v2 (id text PRIMARY KEY, parent_id text, fork_session_id text, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE event_sequence (aggregate_id text PRIMARY KEY, seq integer NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL REFERENCES session_v2(id) ON DELETE CASCADE, type text NOT NULL, seq integer NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("INSERT INTO session VALUES ('ses_v1_index', NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO message VALUES ('msg_v1_index', 'ses_v1_index', ?, ?, ?)", (now_ms, now_ms, v1("demo", {"input": 31})))
+conn.execute("INSERT INTO session_v2 VALUES ('ses_v2_index', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO session_v2 VALUES ('ses_v2_fork', NULL, 'ses_v2_index', ?, ?)", (now_ms + 100, now_ms + 100))
+conn.execute("INSERT INTO event_sequence VALUES ('ses_v2_index', 2)")
+conn.execute("INSERT INTO event_sequence VALUES ('ses_v2_fork', 1)")
+conn.executemany("INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)", [
+  ("msg_u_index", "ses_v2_index", "user", 1, now_ms, now_ms, json.dumps({"role": "user", "time": {"created": now_ms}})),
+  ("msg_a_index", "ses_v2_index", "assistant", 2, now_ms + 1, now_ms + 1, v2("demo", {"input": 41})),
+  ("msg_fork_copy", "ses_v2_fork", "assistant", 1, now_ms, now_ms, v2("demo", {"input": 9})),
+])
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(indexed_db)
+indexed_accept = lambda provider, model, entry: provider == "demo"  # noqa: E731
+def opencode_signature(rows):
+  return sorted(json.dumps(row._asdict(), sort_keys=True) for row in rows)
+
+untracked_db = work / "untracked-opencode.db"
+conn = sqlite3.connect(untracked_db)
+conn.execute("CREATE TABLE session_v2 (id text PRIMARY KEY, parent_id text, fork_session_id text, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE event_sequence (aggregate_id text PRIMARY KEY, seq integer NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL REFERENCES session_v2(id), type text NOT NULL, seq integer NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("INSERT INTO session_v2 VALUES ('ses_tracked', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO event_sequence VALUES ('ses_tracked', 1)")
+conn.execute("INSERT INTO session_message VALUES ('msg_untracked', 'ses_without_marker', 'assistant', 1, ?, ?, ?)", (now_ms, now_ms, v2("demo", {"input": 7})))
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(untracked_db)
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+check("OpenCode rows with no matching session marker stay visible on the cold scan", complete and [(row.session, row.input_tokens) for row in rows] == [("opencode:ses_without_marker", 7)])
+os.environ["OPENCODE_DB"] = str(indexed_db)
+
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+initial_indexed = sorted((row.session, row.input_tokens, row.prompts) for row in rows)
+check(
+  "an indexed OpenCode cold scan reads both stores and assigns prompts",
+  complete and initial_indexed == [("opencode:ses_v1_index", 31, 1), ("opencode:ses_v2_index", 41, 1)]
+  and opencode_signature(rows) == opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0]),
+  json.dumps([row._asdict() for row in rows]),
+)
+parsed_rows = 0
+real_opencode_row = collectors._opencode_row
+version_reads = 0
+real_opencode_session_versions = collectors._opencode_session_versions
+def count_opencode_rows(*args, **kwargs):
+  global parsed_rows
+  parsed_rows += 1
+  return real_opencode_row(*args, **kwargs)
+def count_opencode_session_versions(*args, **kwargs):
+  global version_reads
+  version_reads += 1
+  return real_opencode_session_versions(*args, **kwargs)
+collectors._opencode_row = count_opencode_rows
+collectors._opencode_session_versions = count_opencode_session_versions
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+check("an unchanged OpenCode refresh avoids both the database sweep and JSON parsing", complete and parsed_rows == 0 and version_reads == 0 and sorted((row.session, row.input_tokens, row.prompts) for row in rows) == initial_indexed)
+collectors._opencode_session_versions = real_opencode_session_versions
+old_argv = sys.argv
+sys.argv = ["omarchy-agent-usage-test", "--force"]
+parsed_rows = 0
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+sys.argv = old_argv
+check("--force bypasses the OpenCode index", complete and parsed_rows > 0 and opencode_signature(rows) == opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0]))
+
+conn = sqlite3.connect(indexed_db)
+conn.execute("UPDATE message SET data = ?, time_updated = time_updated + 1 WHERE id = 'msg_v1_index'", (v1("demo", {"input": 32}),))
+conn.execute("UPDATE session SET time_updated = time_updated + 1 WHERE id = 'ses_v1_index'")
+conn.execute("UPDATE session_message SET data = ?, time_updated = time_updated + 1 WHERE id = 'msg_a_index'", (v2("demo", {"input": 42}),))
+conn.execute("UPDATE event_sequence SET seq = seq + 1 WHERE aggregate_id = 'ses_v2_index'")
+conn.commit()
+conn.close()
+parsed_rows = 0
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+check("changed OpenCode sessions are reparsed with prompt attribution intact", complete and parsed_rows > 0 and sorted((row.session, row.input_tokens, row.prompts) for row in rows) == [("opencode:ses_v1_index", 32, 1), ("opencode:ses_v2_index", 42, 1)] and opencode_signature(rows) == opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0]))
+
+conn = sqlite3.connect(indexed_db)
+conn.execute("UPDATE session_v2 SET time_created = ? WHERE id = 'ses_v2_fork'", (now_ms - 1,))
+conn.execute("UPDATE event_sequence SET seq = seq + 1 WHERE aggregate_id = 'ses_v2_fork'")
+conn.commit()
+conn.close()
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+check("changed OpenCode fork boundaries reread copied history consistently", complete and sorted((row.session, row.input_tokens, row.prompts) for row in rows) == [("opencode:ses_v1_index", 32, 1), ("opencode:ses_v2_fork", 9, 1), ("opencode:ses_v2_index", 42, 1)] and opencode_signature(rows) == opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0]))
+
+conn = sqlite3.connect(indexed_db)
+conn.execute("CREATE TABLE unrelated_index_probe (id integer)")
+conn.commit()
+conn.close()
+expected_after_unrelated_change = opencode_signature(collectors._scan_opencode_db(["demo"], indexed_accept)[0])
+version_reads = 0
+parsed_rows = 0
+collectors._opencode_session_versions = count_opencode_session_versions
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+rows, complete_again = collectors.scan_opencode(["demo"], indexed_accept)
+collectors._opencode_session_versions = real_opencode_session_versions
+check("OpenCode source changes with no session changes advance the fingerprint", complete and complete_again and version_reads == 1 and parsed_rows == 0 and opencode_signature(rows) == expected_after_unrelated_change)
+
+# Rows without either JSON or database timestamps mean "today" to the live
+# reader; cached results must follow the day as it advances.
+untimed_db = work / "untimed-opencode.db"
+conn = sqlite3.connect(untimed_db)
+conn.execute("PRAGMA foreign_keys = ON")
+conn.execute("CREATE TABLE session_v2 (id text PRIMARY KEY, parent_id text, fork_session_id text, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE event_sequence (aggregate_id text PRIMARY KEY, seq integer NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL REFERENCES session_v2(id), type text NOT NULL, seq integer NOT NULL, time_created integer, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("INSERT INTO session_v2 VALUES ('ses_untimed', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO session_v2 VALUES ('ses_untimed_prompt', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO session_v2 VALUES ('ses_failed_yesterday', NULL, NULL, ?, ?)", (now_ms, now_ms))
+conn.execute("INSERT INTO event_sequence VALUES ('ses_untimed', 1)")
+conn.execute("INSERT INTO event_sequence VALUES ('ses_untimed_prompt', 2)")
+conn.execute("INSERT INTO event_sequence VALUES ('ses_failed_yesterday', 2)")
+conn.execute("INSERT INTO session_message VALUES ('msg_untimed', 'ses_untimed', 'assistant', 1, NULL, ?, ?)", (now_ms, json.dumps({"model": {"providerID": "demo", "id": "v2-model"}, "tokens": {"input": 5}})))
+conn.executemany("INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)", [
+  ("msg_untimed_user", "ses_untimed_prompt", "user", 1, None, now_ms, json.dumps({"role": "user"})),
+  ("msg_untimed_reply", "ses_untimed_prompt", "assistant", 2, now_ms, now_ms, json.dumps({"model": {"providerID": "demo", "id": "v2-model"}, "tokens": {}})),
+  ("msg_yesterday_user", "ses_failed_yesterday", "user", 1, yesterday_ms, yesterday_ms, json.dumps({"role": "user", "time": {"created": yesterday_ms}})),
+  ("msg_yesterday_reply", "ses_failed_yesterday", "assistant", 2, None, now_ms, json.dumps({"model": {"providerID": "demo", "id": "v2-model"}, "tokens": {}})),
+])
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(untimed_db)
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+old_today = collectors.today
+collectors.today = lambda: "2030-01-01"
+rows, next_day_complete = collectors.scan_opencode(["demo"], indexed_accept)
+collectors.today = old_today
+check("cached OpenCode rows with no timestamp roll over to the current day", complete and next_day_complete and sorted((row.day, row.input_tokens, row.prompts) for row in rows) == [(collectors.local_day(yesterday_ms), 0, 1), ("2030-01-01", 0, 1), ("2030-01-01", 5, 1)], json.dumps([row._asdict() for row in rows]))
+os.environ["OPENCODE_DB"] = str(indexed_db)
+
+conn = sqlite3.connect(indexed_db)
+conn.execute("PRAGMA foreign_keys = ON")
+conn.execute("DELETE FROM session_message WHERE id = 'msg_a_index'")
+conn.execute("UPDATE event_sequence SET seq = seq + 1 WHERE aggregate_id = 'ses_v2_index'")
+conn.commit()
+conn.close()
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+check("deleted OpenCode messages disappear when their session event advances", complete and sorted((row.session, row.input_tokens, row.prompts) for row in rows) == [("opencode:ses_v1_index", 32, 1), ("opencode:ses_v2_fork", 9, 1)])
+
+conn = sqlite3.connect(indexed_db)
+conn.execute("PRAGMA foreign_keys = ON")
+conn.execute("DELETE FROM session WHERE id = 'ses_v1_index'")
+conn.execute("DELETE FROM session_v2 WHERE id = 'ses_v2_index'")
+conn.execute("DELETE FROM session_v2 WHERE id = 'ses_v2_fork'")
+conn.commit()
+conn.close()
+rows, complete = collectors.scan_opencode(["demo"], indexed_accept)
+check("deleted OpenCode sessions leave the incremental usage index", complete and rows == [])
+collectors._opencode_row = real_opencode_row
+os.environ.pop("OPENCODE_DB")
+
 # ------------------------------------------------------------- endpoints
 
 # A base URL's host says who bills what it serves: a provider's own host or
