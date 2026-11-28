@@ -335,6 +335,26 @@ local function update_input()
   hl.config({ input = { follow_mouse = active and 0 or input.follow_mouse } })
 end
 
+-- Overlapping windows are told apart by which is on top, so a window given
+-- focus on a floating workspace comes to the front, as it does on macOS or
+-- Windows. Hyprland raises a floating window for a click or an app asking for
+-- focus, but focus from a keybinding or a script -- SUPER + arrows, an app's
+-- launch-or-focus hotkey, a notification, the window left after one is
+-- minimized -- leaves it where it was, under whatever was over it. A maximized
+-- or fullscreen window is left to the rules it has of its own, and a pinned one
+-- is above the rest already.
+local function raise_focused(window)
+  if not window or not window.floating or window.pinned or (window.fullscreen or 0) ~= 0 then
+    return
+  end
+
+  if not window.workspace or not floating_workspace(window.workspace.id) then
+    return
+  end
+
+  hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = window }))
+end
+
 -- Windows arrive by opening and by being carried in, and a window rule only ever
 -- fires for the first. One carried back out gives up the floating the mode gave
 -- it rather than staying floating somewhere that tiles.
@@ -368,6 +388,8 @@ local function watch()
       arrange({ window })
     end, { type = "oneshot", timeout = 1 })
   end)
+
+  hl.on("window.active", raise_focused)
 
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)
