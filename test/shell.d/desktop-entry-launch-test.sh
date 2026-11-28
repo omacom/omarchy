@@ -34,6 +34,11 @@ cat >"$mock_bin/setsid" <<'SH'
 printf 'launch:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
+cat >"$mock_bin/sudo" <<'SH'
+#!/bin/bash
+printf 'sudo:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
+SH
+
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >"$OMARCHY_TEST_PRESENTATION"
@@ -76,6 +81,12 @@ assert_detached_installer_launch omarchy-install-editor-vscode code
 assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam
+
+# Without this, Steam starts in a session that cannot open /dev/uinput until uinput loads or the machine reboots.
+expected_steam_log=$'pkg:steam\nsudo:modprobe uinput\nsudo:udevadm trigger --settle --sysname-match=uinput\nlaunch:uwsm-app -- gtk-launch steam'
+[[ $(<"$OMARCHY_TEST_LOG") == "$expected_steam_log" ]] ||
+  fail "Steam installer loads uinput and applies Steam's rule before launching Steam" "$(<"$OMARCHY_TEST_LOG")"
+pass "Steam installer loads uinput and applies Steam's rule before launching Steam"
 
 bash "$ROOT/bin/omarchy-install-and-launch" "Example App" "alpha beta" "Disk Usage"
 presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
