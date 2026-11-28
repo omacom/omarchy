@@ -607,6 +607,8 @@ Item {
     id: jumpSearch
     anchors.left: parent.left
     anchors.right: parent.right
+    anchors.leftMargin: Style.spacing.hairline
+    anchors.rightMargin: Style.spacing.hairline
     anchors.bottom: parent.bottom
     opacity: root.chromeOpacity
     options: root.jumpOptions
@@ -633,6 +635,8 @@ Item {
     visible: jumpSearch.active
     anchors.left: parent.left
     anchors.right: parent.right
+    anchors.leftMargin: Style.spacing.hairline
+    anchors.rightMargin: Style.spacing.hairline
     anchors.bottom: jumpSearch.top
     anchors.bottomMargin: Style.space(4)
     height: Math.min(results.implicitHeight + Style.space(8),
