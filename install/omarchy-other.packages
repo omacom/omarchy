@@ -53,6 +53,9 @@ asusctl
 # Dell XPS
 dell-xps-touchpad-haptics
 
+# Pre-T2 MacBook audio (Cirrus CS8409 bridge)
+snd-hda-macbookpro-dkms-git
+
 # Framework 16
 qmk-hid
 
