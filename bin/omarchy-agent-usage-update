@@ -68,12 +68,37 @@ fi
 # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
 export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 
+# A limits-only refresh runs on every panel open, so it leaves out agents whose
+# last record the panel hides as unused: starting every collector at once
+# takes seconds of CPU from the frames the panel is drawing. Full and forced
+# refreshes still run them all, so an agent put to use shows up on the next
+# one. Only a record written in the last hour counts, so the limits-only runs
+# that replace full ones while an account nears its limit still look again
+# hourly. The test mirrors providerHasData() in shell/plugins/agents/Main.qml.
+declare -A idle
+recent=()
+if [[ " ${flags[*]} " == *" --limits-only "* && " ${flags[*]} " != *" --force "* ]] && (( ${#only[@]} == 0 )); then
+  mapfile -d '' recent < <(find "$USAGE_DIR" -maxdepth 1 -name '*.json' -mmin -60 -print0)
+fi
+if (( ${#recent[@]} > 0 )); then
+  while read -r agent; do
+    [[ -n $agent ]] && idle[$agent]=1
+  done < <(jq -r 'select(
+      (.totalPrompts // 0) > 0 or (.totalSessions // 0) > 0 or (.activeDays // 0) > 0
+      or (.todayPrompts // 0) > 0 or (.todaySessions // 0) > 0
+      or (.limits | length > 0) or (.accounts | length > 0)
+      or (.balance | . != null and . != false) or (.spend | . != null and . != false)
+      or (.ready == true and (.tierLabel // "") != "") | not) | .id // empty' \
+    "${recent[@]}" 2>/dev/null)
+fi
+
 pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
+  [[ -n ${idle[$agent]} ]] && continue
   collect "$collector" "$agent" &
   pids+=($!)
 done
