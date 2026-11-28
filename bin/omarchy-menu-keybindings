@@ -150,7 +150,7 @@ build_lua_bind_cache() {
     # A config the stub cannot satisfy must not leave a runaway lua behind after
     # the menu closes, so the scan is time-boxed. -E keeps LUA_INIT and LUA_PATH
     # from the environment out of the scan, which loads the user's config.
-    timeout 10 lua -E - <<'LUA'
+    OMARCHY_KEYBINDINGS_LUA_FILES="${keybindings_lua_files:-}" timeout 10 lua -E - <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -369,6 +369,54 @@ hl = setmetatable({
 local config = os.getenv("HOME") .. "/.config/hypr/hyprland.lua"
 local file = io.open(config, "r")
 
+-- Every file the config loads, for the cache key: a __lua bind's command is
+-- only known from its source, so an edit to any of them has to refresh it.
+local loaded, seen = {}, {}
+local function note(path)
+  if type(path) == "string" and not seen[path] then
+    seen[path] = true
+    loaded[#loaded + 1] = path
+  end
+end
+local real_require, real_dofile, real_loadfile = require, dofile, loadfile
+local real_searchpath = package.searchpath
+-- A module is noted with every place package.path looks before the one that
+-- has it, so a file added earlier on the path, overriding it, changes the key.
+local function note_searchpath(name, path, sep, rep)
+  local separator = sep or "."
+  local base = tostring(name)
+  if separator ~= "" then
+    base = base:gsub(separator:gsub("(%W)", "%%%1"), function() return rep or "/" end)
+  end
+  for template in string.gmatch(path, "[^;]+") do
+    local candidate = template:gsub("%?", function() return base end)
+    note(candidate)
+    local found = io.open(candidate, "r")
+    if found then
+      found:close()
+      break
+    end
+  end
+end
+package.searchpath = function(name, path, sep, rep)
+  note_searchpath(name, path, sep, rep)
+  return real_searchpath(name, path, sep, rep)
+end
+require = function(name, ...)
+  if not package.loaded[name] then
+    note_searchpath(name, package.path)
+  end
+  return real_require(name, ...)
+end
+dofile = function(path, ...)
+  note(path)
+  return real_dofile(path, ...)
+end
+loadfile = function(path, ...)
+  note(path)
+  return real_loadfile(path, ...)
+end
+
 if file then
   file:close()
   -- Stops a runaway loop in the config long before the timeout above, which
@@ -380,6 +428,17 @@ if file then
   debug.sethook()
   if not ok and os.getenv("DEBUG") == "1" then
     io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
+  end
+end
+
+local list = os.getenv("OMARCHY_KEYBINDINGS_LUA_FILES") or ""
+if list ~= "" then
+  local out = io.open(list, "w")
+  if out then
+    for _, path in ipairs(loaded) do
+      out:write(path, "\n")
+    end
+    out:close()
   end
 end
 LUA
@@ -706,7 +765,22 @@ output_binding_records_uncached() {
   [[ -n $dynamic ]]
 }
 
-keybindings_cache_key() {
+# The path, size and mtime of each Lua file the last scan loaded or looked
+# for; one that is missing says so, and appears once it is created.
+lua_files_state() {
+  [[ -n ${keybindings_lua_files:-} && -s $keybindings_lua_files ]] || return 0
+  local -a lua_files
+  mapfile -t lua_files <"$keybindings_lua_files"
+  find -L "${lua_files[@]}" -maxdepth 0 -printf '%p %s %T@\n' 2>&1
+}
+
+lua_files_newest() {
+  awk 'NF >= 3 && $NF + 0 > newest { newest = $NF } END { print newest }' <<<"$1"
+}
+
+# Everything the key hashes except the Lua files state, which is only known
+# once a scan has finished.
+keybindings_inputs_hash() {
   local lang hash _ batch f
   lang=$(omarchy-language 2>/dev/null) || lang=""
 
@@ -716,7 +790,7 @@ keybindings_cache_key() {
 
   read -r hash _ < <(
     {
-      printf 'v23\n'
+      printf 'v24\n'
       printf '%s\n' "$lang"
       [[ -n $lang ]] && cat "$OMARCHY_PATH/default/i18n/$lang/keybindings.json" 2>/dev/null
       cat "$key_names_file" 2>/dev/null
@@ -730,28 +804,66 @@ keybindings_cache_key() {
         printf 'lua:%s\n' "$f"
         cat "$f"
       done
-      if [[ -n $batch ]]; then
-        printf '%s\n' "$batch"
-      else
-        leading_keyboard
-        hyprctl devices 2>/dev/null | grep -F 'active keymap:'
-        hyprctl binds 2>/dev/null
-      fi
+      # Lua dispatcher addresses and callback ids change on reload; the menu
+      # takes their commands from the source files tracked here instead.
+      {
+        if [[ -n $batch ]]; then
+          printf '%s\n' "$batch"
+        else
+          leading_keyboard
+          hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+          hyprctl binds 2>/dev/null
+        fi
+      } | awk '
+        /^\tdispatcher: / {
+          lua = ($2 == "__lua" || $2 ~ /^HL\.Dispatcher\(/ || $0 ~ /^\tdispatcher: function: 0x/)
+          if ($2 == "function:") $0 = "\tdispatcher: function"
+        }
+        !(lua && /^\targ: /)
+      '
     } | sha256sum
   )
   printf '%s\n' "$hash"
 }
 
+keybindings_cache_key() {
+  local hash _
+  read -r hash _ < <(printf '%s\n%s\n' "${1-$(keybindings_inputs_hash)}" "${2-$(lua_files_state)}" | sha256sum)
+  printf '%s\n' "$hash"
+}
+
+# The build rewrites the list of Lua files it loaded, which the key reads, so
+# the records are filed under the inputs read before the build and the Lua
+# files state read after it. Inputs that changed during the build mean the
+# records may belong to an older state, so they are shown but not kept.
 refresh_keybindings_cache() {
   local cache_dir="$1"
-  local cache_file="$2"
-  local cache_name="$3"
-  local tmp_file
+  local cache_file cache_name tmp_file
 
+  local started newest lua_state inputs
+  started=$(date +%s.%N)
+  inputs=$(keybindings_inputs_hash)
   tmp_file=$(mktemp "$cache_dir/keybindings.XXXXXX") || return 1
+  # The scan writes the list of Lua files it loaded only once it finishes.
+  rm -f "$keybindings_lua_files"
 
   if output_binding_records_uncached >"$tmp_file"; then
+    # A Lua file edited while the scan ran may be newer than what the records
+    # say about it, and a scan the timeout stopped left no list for the key to
+    # track, so either way those records are shown once but not kept.
+    lua_state=$(lua_files_state)
+    newest=$(lua_files_newest "$lua_state")
+    if [[ $(keybindings_inputs_hash) != "$inputs" ]] ||
+      { omarchy-cmd-present lua && [[ ! -e $keybindings_lua_files ]]; } ||
+      awk -v newest="$newest" -v started="$started" 'BEGIN { exit !(newest != "" && newest + 0 >= started + 0) }'; then
+      cat "$tmp_file"
+      rm -f "$tmp_file"
+      return 0
+    fi
+    cache_name="keybindings-$(keybindings_cache_key "$inputs" "$lua_state").records"
+    cache_file="$cache_dir/$cache_name"
     mv "$tmp_file" "$cache_file"
+    cat "$cache_file"
     find "$cache_dir" -maxdepth 1 -type f -name 'keybindings-*.records' ! -name "$cache_name" -delete 2>/dev/null || true
   else
     rm -f "$tmp_file"
@@ -763,14 +875,14 @@ output_binding_records() {
   local cache_dir cache_file cache_name
 
   cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
+  keybindings_lua_files="$cache_dir/keybindings-lua-files"
   cache_name="keybindings-$(keybindings_cache_key).records"
   cache_file="$cache_dir/$cache_name"
 
   if [[ -s $cache_file ]]; then
     cat "$cache_file"
-  elif mkdir -p "$cache_dir" 2>/dev/null && refresh_keybindings_cache "$cache_dir" "$cache_file" "$cache_name"; then
-    cat "$cache_file"
-  else
+  elif ! { mkdir -p "$cache_dir" 2>/dev/null && refresh_keybindings_cache "$cache_dir"; }; then
+    keybindings_lua_files=""
     output_binding_records_uncached
   fi
 }

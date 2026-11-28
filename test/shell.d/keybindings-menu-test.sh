@@ -628,3 +628,138 @@ output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub colle
 [[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
 grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
 pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"
+
+# Hyprland renumbers a __lua bind's arg on every reload, so a reload alone must
+# not throw the cache away. An edit to the Lua config does, since the scan of
+# that source is where a __lua bind's command comes from. A rebuilt cache
+# replaces the old file, so its name is what tells the two apart.
+reload_cache="$tmpdir/cache-reload"
+for dispatcher in "__lua" "HL.Dispatcher(exec_cmd)" "function: 0x"; do
+  cached=()
+  for callback in 66 64; do
+    reported=$dispatcher
+    [[ $dispatcher == "function: 0x" ]] && reported+=$callback
+    stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + RETURN" "Terminal" | sed -e "s/^\tdispatcher: .*/\tdispatcher: $reported/" -e "s/^\targ: \$/\targ: $callback/")
+BINDS
+    keybindings "$menu" "$reload_cache" >/dev/null
+    cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+  done
+  [[ ${cached[0]} == "${cached[1]}" ]] || fail "a reload of $dispatcher binds keeps the keybindings cache" "${cached[*]}"
+done
+cached=()
+for dispatcher in exec_cmd global; do
+  stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + RETURN" "Terminal" | sed "s/^\tdispatcher: .*/\tdispatcher: HL.Dispatcher($dispatcher)/")
+BINDS
+  keybindings "$menu" "$reload_cache" >/dev/null
+  cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+done
+[[ ${cached[0]} != "${cached[1]}" ]] || fail "a changed named Lua dispatcher refreshes the keybindings cache"
+printf -- '-- edited\n' >>"$home/.config/hypr/hyprland.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+[[ ${cached[2]} != "${cached[1]}" ]] || fail "an edit to the Lua config refreshes the keybindings cache"
+
+# Binds can live in any module the config requires, not only under ~/.config/hypr.
+mkdir -p "$home/.config/elsewhere"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("first-thing"), { description = "My own thing" })\n' >"$home/.config/elsewhere/my_binds.lua"
+printf 'package.path = "%s/.config/override/?.lua;%s/.config/elsewhere/?.lua;" .. package.path\nrequire("my_binds")\n' "$home" "$home" >>"$home/.config/hypr/hyprland.lua"
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + X" "My own thing")
+BINDS
+keybindings "$menu" "$reload_cache" >/dev/null
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tfirst-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "a bind from a required module is in the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("second-thing"), { description = "My own thing" })\n' >"$home/.config/elsewhere/my_binds.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tsecond-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "an edit to a required module refreshes the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+# A module added earlier on package.path overrides the one the scan found.
+mkdir -p "$home/.config/override"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("third-thing"), { description = "My own thing" })\n' >"$home/.config/override/my_binds.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tthird-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "a module added earlier on package.path refreshes the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+pass "a reload that renumbers __lua binds keeps the keybindings cache, an edit to any Lua file the config loads refreshes it"
+
+# A Lua file edited while the scan runs may be newer than the records built
+# from it, so those records are shown but not cached under the edited state.
+real_lua=$(command -v lua)
+printf '#!/bin/bash\n"%s" "$@"\nstatus=$?\nprintf -- "-- edited mid-scan\\n" >>"%s"\nexit $status\n' "$real_lua" "$home/.config/override/my_binds.lua" >"$stub_bin/lua"
+chmod +x "$stub_bin/lua"
+rm -rf "$tmpdir/cache-race"
+output=$(keybindings "$menu" "$tmpdir/cache-race")
+rm -f "$stub_bin/lua"
+grep -q 'SUPER + X  *→ My own thing' <<<"$output" || fail "a scan raced by an edit still shows the menu" "$output"
+if compgen -G "$tmpdir/cache-race/omarchy/keybindings-*.records" >/dev/null; then
+  fail "a scan raced by an edit is not cached" "$(ls "$tmpdir/cache-race/omarchy")"
+fi
+pass "a scan raced by an edit shows the menu without caching it"
+
+# A scan the timeout stops never lists the Lua files it loaded, so its records
+# are shown but not cached under a key that ignores those files.
+printf '#!/bin/bash\nexit 124\n' >"$stub_bin/lua"
+chmod +x "$stub_bin/lua"
+rm -rf "$tmpdir/cache-timeout"
+output=$(keybindings "$menu" "$tmpdir/cache-timeout")
+rm -f "$stub_bin/lua"
+grep -q 'SUPER + X  *→ My own thing' <<<"$output" || fail "a scan stopped by its timeout still shows the menu" "$output"
+if compgen -G "$tmpdir/cache-timeout/omarchy/keybindings-*.records" >/dev/null; then
+  fail "a scan stopped by its timeout is not cached" "$(ls "$tmpdir/cache-timeout/omarchy")"
+fi
+pass "a scan stopped by its timeout shows the menu without caching it"
+
+# An edit after the race check must not file old records under the new source.
+{
+  echo '#!/bin/bash'
+  cat <<HOOK
+if [[ \$1 == "binds" ]]; then
+  count=0
+  [[ -f "$tmpdir/late-edit-count" ]] && read -r count <"$tmpdir/late-edit-count"
+  (( count += 1 ))
+  echo "\$count" >"$tmpdir/late-edit-count"
+  if (( count == 3 )); then
+    sed -i 's/third-thing/fourth-thing/' "$home/.config/override/my_binds.lua"
+  fi
+fi
+HOOK
+  tail -n +2 "$stub_bin/hyprctl"
+} >"$stub_bin/hyprctl-late"
+chmod +x "$stub_bin/hyprctl-late"
+mv "$stub_bin/hyprctl-late" "$stub_bin/hyprctl"
+keybindings "$menu" "$tmpdir/cache-late-edit" >/dev/null
+keybindings "$menu" "$tmpdir/cache-late-edit" >/dev/null
+grep -qP '→ My own thing\texec\tfourth-thing$' "$tmpdir/cache-late-edit"/omarchy/keybindings-*.records ||
+  fail "an edit during cache key generation refreshes the next menu" "$(cat "$tmpdir/cache-late-edit"/omarchy/keybindings-*.records)"
+pass "an edit during cache key generation refreshes the next menu"
+
+printf 'local extra = require("default.hypr.require_optional").module("extra")\nhl.bind("SUPER + X", hl.dsp.exec_cmd(extra or "optional-default"), { description = "My own thing" })\n' >>"$home/.config/hypr/hyprland.lua"
+keybindings "$menu" "$tmpdir/cache-optional" >/dev/null
+grep -qP '→ My own thing\texec\toptional-default$' "$tmpdir/cache-optional"/omarchy/keybindings-*.records ||
+  fail "an absent optional module uses the fallback command"
+printf 'return "optional-new"\n' >"$home/.config/extra.lua"
+keybindings "$menu" "$tmpdir/cache-optional" >/dev/null
+grep -qP '→ My own thing\texec\toptional-new$' "$tmpdir/cache-optional"/omarchy/keybindings-*.records ||
+  fail "creating an optional module refreshes the cached command" "$(cat "$tmpdir/cache-optional"/omarchy/keybindings-*.records)"
+pass "creating an optional module refreshes the cached command"
+
+# A layout change while the records are built leaves records of the old layout,
+# which must not be filed under the new layout's key and served from then on.
+real_xkbcli=$(command -v xkbcli)
+printf '#!/bin/bash\n"%s" "$@"\nstatus=$?\necho '"'"'{"str": "de"}'"'"' >"%s/option-kb_layout"\nexit $status\n' "$real_xkbcli" "$stub_bin" >"$stub_bin/xkbcli"
+chmod +x "$stub_bin/xkbcli"
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:49" "Toggle Quake console")
+BINDS
+echo '{"str": "dk"}' >"$stub_bin/option-kb_layout"
+rm -rf "$tmpdir/cache-layout-race"
+rendered=$(keybindings "" "$tmpdir/cache-layout-race")
+rm -f "$stub_bin/xkbcli"
+grep -qF 'SUPER + ½ ' <<<"$rendered" || fail "a scan raced by a layout change still shows the menu" "$rendered"
+rendered=$(keybindings "" "$tmpdir/cache-layout-race")
+rm -f "$stub_bin/option-kb_layout"
+grep -qF 'SUPER + ^ ' <<<"$rendered" ||
+  fail "a layout change during the build does not reuse the records of the old layout" "$rendered"
+pass "a layout change during the build does not reuse the records of the old layout"
