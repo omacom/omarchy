@@ -465,6 +465,7 @@ var GUARD_READERS = [
   "omarchy-dns",
   "omarchy-dock autohide",
   "omarchy-dock position",
+  "omarchy-saved-workspaces status",
   "omarchy-hyprland-corners",
   "omarchy-hyprland-window-transparency",
   "omarchy-hyprland-workspace-layout-default",

@@ -1444,5 +1444,8 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "appearance.top-bar.scenes": {
+    "label": "Scenes"
   }
 }

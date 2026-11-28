@@ -1,0 +1,5 @@
+#!/bin/bash
+# omarchy:summary=Save and reopen scenes of apps and their arrangement
+# omarchy:hidden=true
+# omarchy:args=status | enable | disable | toggle | save <name> | update|restore|delete <id> | rename <id> <name>
+exec python3 "$OMARCHY_PATH/shell/plugins/saved-workspaces/backend.py" "$@"

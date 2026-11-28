@@ -1,0 +1,741 @@
+#!/bin/bash
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
+python3 - "$ROOT" <<'PY'
+import copy, importlib.util, json, os, stat, sys, tempfile, struct
+from pathlib import Path
+from unittest.mock import patch
+spec = importlib.util.spec_from_file_location('saved_workspaces', Path(sys.argv[1]) / 'shell/plugins/saved-workspaces/backend.py')
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+def check(value, description):
+  assert value, description
+  print('ok - ' + description)
+
+# Gaps belong to the leaves; split positions are the midpoints between them.
+windows = [
+  {'key': 'left', 'at': [12, 36], 'size': [901, 912]},
+  {'key': 'top', 'at': [927, 36], 'size': [597, 312]},
+  {'key': 'bottom', 'at': [927, 362], 'size': [597, 586]},
+]
+tree = m.split_tree(windows, [0, 24, 1536, 936])
+check(tree['axis'] == 0 and tree['first'] == {'leaf': 'left'}, 'saved tiling preserves a full-height left pane')
+check(abs(tree['ratio'] * 1536 / 2 - 920) < .01, 'unequal tiling splits retain their exact boundary')
+right = tree['second']
+check(right['axis'] == 1 and right['first'] == {'leaf': 'top'} and right['second'] == {'leaf': 'bottom'}, 'nested horizontal panes preserve their order')
+check(abs(24 + right['ratio'] * 936 / 2 - 355) < .01, 'nested tiling retains its unequal vertical boundary')
+try:
+  m.split_tree([{'key': 'a', 'at': [0, 0], 'size': [100, 100]}, {'key': 'b', 'at': [10, 10], 'size': [100, 100]}], [0, 0, 200, 200])
+except m.WorkspaceError:
+  print('ok - overlapping grouped tiles fail clearly instead of saving an incorrect layout')
+else:
+  raise AssertionError('overlapping tiles accepted')
+
+# Session replay retains current navigations, tab order and each window's own tabs.
+def record(kind, payload):
+  return struct.pack('<H',len(payload)+1)+bytes([kind])+payload
+def pair(kind,a,b):
+  return record(kind,struct.pack('<ii',a,b))
+def navigation(tab,index,url,title):
+  u=url.encode();t=title.encode('utf-16-le')
+  payload=struct.pack('<iii',tab,index,len(u))+u+b'\0'*((-len(u))%4)+struct.pack('<i',len(t)//2)+t
+  return record(6,struct.pack('<i',len(payload))+payload)
+raw=b'SNSS'+struct.pack('<I',3)+pair(0,1,10)+pair(0,1,11)+pair(0,2,20)+pair(2,10,1)+pair(2,11,0)+pair(8,1,1)+navigation(10,0,'https://example.org/old','Old')+navigation(10,1,'https://example.org/current','Current')+pair(7,10,1)+navigation(11,0,'https://example.org/first','First')+navigation(20,0,'https://example.org/other','Other')
+records=m.chromium_sessions(raw)
+check(records[0]['urls']==['https://example.org/first','https://example.org/current'] and records[0]['title']=='Current', 'browser tabs keep their order and current navigation')
+check(records[1]['urls']==['https://example.org/other'], 'browser windows retain separate tab sets')
+closed=m.chromium_sessions(raw+record(16,struct.pack('<i',11))+record(17,struct.pack('<i',2)))
+check(len(closed)==1 and closed[0]['urls']==['https://example.org/current'], 'closed tabs and windows are excluded from saved browser state')
+check(m.chromium_sessions(b'invalid')==[] and m.chromium_sessions(raw+b'\xff')==records, 'truncated or invalid session records are handled safely')
+args=m.state_command({'appState':{'kind':'browser','urls':['https://example.org/first','https://example.org/current']}},['chromium','--new-window','about:blank'])
+check(args==['chromium','--new-window','https://example.org/first','https://example.org/current'], 'opening browser state replaces launch URLs with saved tabs')
+uri='spotify:playlist:'+'a'*22
+check(m.state_command({'appState':{'kind':'spotify','uri':uri}},['spotify'])==['spotify',uri], 'Spotify reopens the saved playlist link')
+
+# Chromium's launch wrapper collapses /proc/cmdline into a single display title.
+argv = m.recover_argv(b'/usr/lib/chromium/chromium --class=SavedBrowser --user-data-dir=/tmp/browser-demo --new-window about:blank\0', '/usr/lib/chromium/chromium')
+check('--class=SavedBrowser' in argv and '--user-data-dir=/tmp/browser-demo' in argv and argv[-1] == 'about:blank', 'browser process titles retain their window class and profile when reopened')
+check(m.recover_argv(b'/usr/bin/alacritty\0--title\0A title with spaces\0', '/usr/bin/alacritty')[-1] == 'A title with spaces', 'normal argument vectors preserve spaces inside an argument')
+
+original_run = m.run
+for response, expected in [({'bool': True}, True), ({'bool': False}, False), ({'int': 1}, True), ({'int': 0}, False)]:
+  m.run = lambda *args, response=response: json.dumps(response)
+  check(m.boolean_option('dwindle:preserve_split') is expected, 'tiling options accept compositor boolean and integer formats: ' + str(response))
+m.run = original_run
+
+clients = [{'workspace': {'id': 3}}, {'workspace': {'id': 4}}, {'workspace': {'id': 6}}]
+check(m.restore_destination(2, clients) == 2, 'an empty current workspace is used directly')
+check(m.restore_destination(3, clients) == 5, 'occupied workspaces are skipped to the next empty workspace')
+check(m.restore_destination(3, clients + [{'workspace': {'id': -99}, 'tags': ['omarchy-minimized-from-5']}]) == 7, 'minimized apps reserve their original workspace')
+check(m.restore_destination(3, [{'workspace': {'id': 3}, 'mapped': False}]) == 3, 'unmapped windows do not occupy a workspace')
+
+check(m.restore_destination(10, [{'workspace': {'id': 10}}]) == 1, 'the last workspace wraps within the same monitor block')
+check(m.restore_destination(20, [{'workspace': {'id': 20}}]) == 11, 'the second monitor wraps inside its own block')
+try:
+  m.restore_destination(10, [{'workspace': {'id': i}} for i in range(1, 11)])
+except m.WorkspaceError:
+  print('ok - a full monitor block never steals another monitor workspace')
+else:
+  raise AssertionError('a full block crossed a monitor boundary')
+
+# A class match alone never authorizes moving an unrelated window.
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+unrelated = {'address': '0xother', 'class': 'Terminal', 'workspace': {'id': 2}, 'tags': []}
+launched = {'address': '0xours', 'class': 'Terminal', 'workspace': {'id': 8}, 'tags': ['omarchy-scene-proof*']}
+with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='proof')), patch.object(m, 'query', side_effect=[[], [unrelated], [unrelated, launched]]), patch.object(m, 'execute') as launch, patch.object(m, 'dispatch') as dispatch, patch.object(m.socket, 'socket', return_value=MagicMock()):
+  check(m.launch_window({'argv': ['/bin/true'], 'class': 'Terminal'}, set(), 8)['address'] == '0xours', 'only the per-launch tagged window is claimed, even if another app window appears first')
+  dispatch.assert_called_once_with('window.tag', {'window': 'address:0xours', 'tag': '-omarchy-scene-proof'})
+
+browser_other = {'address': '0xother', 'class': 'chromium', 'title': 'Unrelated browser', 'tags': []}
+browser_ours = {'address': '0xours', 'class': 'chromium', 'title': 'Focused work', 'tags': []}
+with patch.object(m, 'query', side_effect=[[], [browser_other], [browser_other, browser_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):
+  check(m.launch_window({'argv': ['chromium', '--new-window', 'about:blank'], 'class': 'chromium', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'single-instance browsers match the launch-specific window name instead of their shared process/class')
+  check('--window-name=Focused work' in launch.call_args.args[0], 'the named browser window is explicitly requested by this launch')
+
+# Chromium's Wayland application ID can differ when forwarding to an existing
+# browser launched through its desktop entry; both identify the same browser.
+for old_class, new_class in [('chromium', 'chromium-browser'), ('chromium-browser', 'chromium')]:
+  wrong_browser = {**browser_ours, 'address': '0xwrong', 'class': 'brave'}
+  renamed_browser = {**browser_ours, 'class': new_class}
+  with patch.object(m, 'query', side_effect=[[], [wrong_browser], [wrong_browser, renamed_browser]]), patch.object(m, 'execute'), patch.object(m.socket, 'socket', return_value=MagicMock()):
+    check(m.launch_window({'argv': ['chromium', '--new-window', 'about:blank'], 'class': old_class, 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'forwarded Chromium restores tolerate its desktop-entry app ID without claiming a different browser: ' + old_class)
+
+name = b'Focused work'
+user_title = struct.pack('<ii', 1, len(name)) + name + b'\0' * ((-len(name)) % 4)
+named = m.chromium_sessions(raw + record(31, struct.pack('<i', len(user_title)) + user_title))
+check(named[0]['title'] == 'Focused work' and named[0]['urls'] == records[0]['urls'], 'named browser windows retain their own current tabs when a scene is updated')
+
+for ending in [' - Chromium', ' - Google Chrome', ' - Brave']:
+  title = 'Focused work' + ending
+  cache = {'/unused/Default/Sessions': [{'title': title, 'urls': ['https://example.org/exact']}, {'title': 'Focused work', 'urls': ['https://example.org/other']}]}
+  exact = {'address': '0xexact', 'title': title, 'class': 'chromium', 'pid': 42}
+  other = {**exact, 'address': '0xother', 'title': 'Focused work'}
+  state = m.capture_app_state(exact, {'argv': ['chromium', '--user-data-dir=/unused']}, cache, [exact, other])
+  check(state['urls'] == ['https://example.org/exact'], 'an exact saved window name wins over a browser-suffix fallback: ' + ending)
+
+# Forwarded Omarchy web apps share Chromium's normal browser process.
+with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DATA_HOME': directory, 'XDG_DATA_DIRS': directory + '/system'}):
+  applications = Path(directory) / 'applications'
+  applications.mkdir()
+  app_class = 'chrome-example.org__-Profile_1'
+  (applications / 'Example.desktop').write_text('[Desktop Entry]\nType=Application\nStartupWMClass=' + app_class + '\nExec=omarchy-launch-webapp https://example.org/work\n')
+  web_window = {'class': app_class, 'title': 'Example app', 'pid': 42}
+  process = {'argv': ['chromium', '--user-data-dir=/unused', '--new-window', 'https://ordinary.example/']}
+  cache = {'/unused/Default/Sessions': [{'title': 'Other browser', 'urls': ['https://ordinary.example/']}, {'title': 'Second browser', 'urls': ['https://second.example/']}]}
+  check(m.capture_app_state(web_window, process, cache) is None, 'a shared-process web app does not require ordinary browser tab records')
+  web_argv = m.command_for(web_window, process)
+  check(web_argv == ['chromium', '--user-data-dir=/unused', '--profile-directory=Profile 1', '--app=https://example.org/work'], 'web apps retain their own launcher URL and profile instead of the shared browser command')
+  before = [{'address': '0xexisting', 'class': app_class, 'tags': []}]
+  unrelated = {'address': '0xordinary', 'class': 'chromium', 'tags': []}
+  opened = {'address': '0xapp', 'class': app_class, 'tags': []}
+  with patch.object(m, 'query', side_effect=[before, before + [unrelated, opened]]), patch.object(m, 'execute'), patch.object(m.socket, 'socket', return_value=MagicMock()):
+    check(m.launch_window({'argv': web_argv, 'class': app_class}, {'0xexisting'}, 8)['address'] == '0xapp', 'forwarded web-app restores select only a new window of the exact app/profile, leaving existing browser windows alone')
+
+# Desktop-entry escaping and launcher options survive web-app recovery.
+with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DATA_HOME': directory, 'XDG_DATA_DIRS': directory + '/system'}):
+  applications = Path(directory) / 'applications';applications.mkdir()
+  path = applications / 'Escaped.desktop'
+  window = {'class': 'chrome-example.org__-Default', 'title': 'Example', 'pid': 42}
+  process = {'argv': ['chromium', '--user-data-dir=/unused']}
+  url = 'https://example.org/?q=hello%20world&price=$5&label=`literal`'
+  path.write_text('[Desktop Entry]\nStartupWMClass=' + window['class'] + '\nExec=omarchy-launch-webapp "https://example.org/?q=hello%%20world&price=\\\\$5&label=\\\\`literal\\\\`" --ignore-certificate-errors "--proxy-server=http://localhost:8080"\n')
+  command = m.command_for(window, process)
+  check('--app=' + url in command, 'desktop Exec percent and quoted dollar/backtick escapes decode exactly once without changing the URL')
+  check('--ignore-certificate-errors' in command and '--proxy-server=http://localhost:8080' in command, 'web-app helper launchers preserve their additional browser options')
+  path.write_text('[Desktop Entry]\nStartupWMClass=' + window['class'] + '\nExec=chromium --app="https://example.org/hello%%20world" --ignore-certificate-errors --profile-directory="Profile 2" %U\n')
+  command = m.command_for(window, process)
+  check('--app=https://example.org/hello%20world' in command and '--ignore-certificate-errors' in command and '--profile-directory=Profile 2' in command and '%U' not in command, 'direct browser launchers retain flags and explicit profiles while dropping empty file/URL field codes')
+  check(m.desktop_exec({'Exec': r'chromium "--app=file:///tmp/a\\\\b"'}, path) == ['chromium', '--app=file:///tmp/a\\b'], 'desktop string and argument escape layers preserve a literal backslash')
+
+# A web app can also be the first window, so the process itself has --app.
+for flags in [['--app=https://x.com/'], ['--app', 'https://x.com/'], ['--app-id=installed-x']]:
+  process = {'argv': ['chromium', '--user-data-dir=/unused', *flags]}
+  window = {'address': '0xbrowser', 'class': 'chromium', 'title': 'Browser work - Chromium', 'pid': 42}
+  cache = {'/unused/Default/Sessions': [{'title': 'Browser work', 'urls': ['https://omarchy.org/']}]}
+  with patch.object(m, 'query', return_value=[window]):
+    state = m.capture_app_state(window, process, cache)
+  command = m.state_command({'class': 'chromium', 'appState': state}, m.command_for(window, process))
+  check(state['urls'] == ['https://omarchy.org/'] and command[-1] == 'https://omarchy.org/' and '--user-data-dir=/unused' in command and '--profile-directory=Default' in command and not any(a.startswith('--app') for a in command), 'ordinary browser tabs are restored independently when a web app started their shared process: ' + str(flags))
+  check(m.chromium_window_argv({'class': 'chrome-x.com__-Default'}, process['argv']) == process['argv'], 'web-app launch flags remain intact for the actual web-app window')
+with patch.object(m, 'query', return_value=[window, {'pid': 42, 'class': 'chrome-x.com__-Default'}]):
+  state = m.capture_app_state(window, process, {'/unused/Default/Sessions': [{'title': '', 'urls': ['https://omarchy.org/']}]})
+  check(state['urls'] == ['https://omarchy.org/'], 'a sole ordinary browser session can be captured while a same-process web app is open and its page title has not been written yet')
+custom_window = {**window, 'class': 'SavedBrowser'}
+with patch.object(m, 'query', return_value=[custom_window, {'pid': 42, 'class': 'chrome-x.com__-Default'}]):
+  state = m.capture_app_state(custom_window, process, {'/unused/Default/Sessions': [{'title': '', 'urls': ['https://omarchy.org/']}]})
+  check(state['urls'] == ['https://omarchy.org/'], 'custom ordinary browser classes remain eligible for the sole-session fallback alongside a web app')
+check(m.state_command({'class': 'chromium'}, ['chromium', '--app=https://x.com/', '--new-window']) == ['chromium', '--new-window'], 'existing scene browser commands cannot reopen as a web app')
+
+# Chromium profiles share a process but keep distinct session directories.
+with tempfile.TemporaryDirectory() as directory:
+  for name in ['Default', 'Profile 1']:
+    (Path(directory) / name / 'Sessions').mkdir(parents=True)
+  process = {'argv': ['chromium', '--user-data-dir=' + directory]}
+  first = {'address': '0xpersonal', 'class': 'chromium', 'title': 'Personal - Chromium', 'pid': 42}
+  second = {'address': '0xwork', 'class': 'chromium', 'title': 'Work - Chromium', 'pid': 42}
+  cache = {directory + '/Default/Sessions': [{'title': 'Personal', 'urls': ['https://personal.example/']}], directory + '/Profile 1/Sessions': [{'title': 'Work', 'urls': ['https://work.example/']}]}
+  with patch.object(m, 'query', return_value=[first, second]):
+    personal = m.capture_app_state(first, process, cache)
+    work = m.capture_app_state(second, process, cache)
+  check(personal['profile'] == 'Default' and work['profile'] == 'Profile 1' and work['urls'] == ['https://work.example/'], 'normal browser windows from different profiles save independently while sharing a process')
+  stale = {**first, 'title': second['title']}
+  for target in (stale, second):
+    try:
+      m.capture_app_state(target, process, cache, [stale, second])
+    except m.WorkspaceError:
+      print('ok - two live windows cannot borrow the same persisted tabs, even when only one is being saved')
+    else:
+      raise AssertionError('two live windows were matched to the same session record')
+  unmatched = {**first, 'title': 'New navigation - Chromium'}
+  try:
+    m.capture_app_state(second, process, cache, [unmatched, second])
+  except m.WorkspaceError:
+    print('ok - an unmatched window prevents a partial browser assignment')
+  else:
+    raise AssertionError('incomplete browser assignment accepted')
+  argv = m.state_command({'class': 'chromium', 'appState': work}, ['chromium', '--profile-directory=Default', '--user-data-dir=/old', '--new-window'])
+  check('--profile-directory=Profile 1' in argv and '--user-data-dir=' + directory in argv and argv[-1] == 'https://work.example/', 'restoring a browser window uses its own profile and data directory instead of the first process profile')
+  with patch.object(m, 'query', return_value=[first, second, {**second, 'address': 'private'}]):
+    try:
+      m.capture_app_state(second, process, cache)
+    except m.WorkspaceError:
+      print('ok - collecting multiple browser profiles does not weaken private-window exclusion')
+    else:
+      raise AssertionError('private window bypassed multi-profile check')
+
+  # An inactive profile retains its last session on disk; it is not a live window.
+  (Path(directory) / 'Local State').write_text(json.dumps({'profile': {'last_active_profiles': ['Default']}}))
+  with patch.object(m, 'query', return_value=[first]):
+    current = m.capture_app_state(first, process, cache)
+  check(current['profile'] == 'Default', 'inactive profiles with retained sessions do not block saving current browser windows')
+flattened = ['chromium', '--window-name=My', 'scene', 'name', '--profile-directory=Profile', '1', '--user-data-dir=/unused', '--new-window', 'https://old.example/']
+command = m.state_command({'class': 'chromium', 'appState': {'kind': 'browser', 'urls': ['https://current.example/'], 'profile': 'Profile 1', 'userDataDir': '/unused'}}, flattened)
+check(command[-1] == 'https://current.example/' and 'scene' not in command and 'name' not in command and '1' not in command and '--profile-directory=Profile 1' in command, 'flattened browser window names and profile fragments never reopen as extra search tabs')
+
+# Private sessions must never reuse the normal session's matching page title.
+for flag in ['--incognito', '--guest']:
+  try:
+    m.capture_app_state({'class': 'chromium', 'title': 'Normal page', 'pid': 42}, {'argv': ['chromium', flag]}, {'ignored': []})
+  except m.WorkspaceError:
+    print('ok - ' + flag + ' is rejected before accepting matching ordinary tabs')
+  else:
+    raise AssertionError('private process accepted')
+private_window = {'class': 'chromium', 'title': 'Same page - Chromium', 'pid': 42}
+with patch.object(m, 'query', return_value=[private_window, {**private_window, 'address': 'normal'}]):
+  try:
+    m.capture_app_state(private_window, {'argv': ['chromium', '--user-data-dir=/unused']}, {'/unused/Default/Sessions': [{'title': 'Same page', 'urls': ['https://normal.example/']}]})
+  except m.WorkspaceError:
+    print('ok - forwarded private windows with normal process flags cannot borrow the normal window session')
+  else:
+    raise AssertionError('forwarded private window accepted')
+
+# Browser windows exceeding MAX_BROWSER_TABS are rejected instead of silently truncating tabs.
+limit_window = {'address': '0xlimit', 'class': 'chromium', 'title': 'Limit - Chromium', 'pid': 42}
+limit_process = {'argv': ['chromium', '--user-data-dir=/unused']}
+exact_urls = [f'https://example.org/{i}' for i in range(m.MAX_BROWSER_TABS)]
+exact_state = m.capture_app_state(limit_window, limit_process, {'/unused/Default/Sessions': [{'title': 'Limit', 'urls': exact_urls}]}, [limit_window])
+check(exact_state['urls'] == exact_urls, 'Chromium windows at the exact tab limit save every tab')
+over_urls = exact_urls + ['https://example.org/extra']
+try:
+  m.capture_app_state(limit_window, limit_process, {'/unused/Default/Sessions': [{'title': 'Limit', 'urls': over_urls}]}, [limit_window])
+except m.WorkspaceError as error:
+  check(str(m.MAX_BROWSER_TABS) in str(error), 'Chromium windows over the tab limit fail with a clear limit message instead of dropping tabs')
+else:
+  raise AssertionError('oversized Chromium tab list was silently truncated')
+
+with tempfile.TemporaryDirectory() as directory:
+  ff_process = {'argv': ['firefox', '--profile', directory]}
+  ff_over = {'address': '0xffover', 'class': 'firefox', 'title': 'Many Tabs — Mozilla Firefox', 'pid': 52}
+  ff_small = {'address': '0xffsmall', 'class': 'firefox', 'title': 'Small Tab — Mozilla Firefox', 'pid': 52}
+  ff_data = {'windows': [
+    {'selected': 1, 'tabs': [{'index': 1, 'entries': [{'url': u, 'title': 'Many Tabs' if i == 0 else f'Tab {i}'}]} for i, u in enumerate(over_urls)]},
+    {'selected': 1, 'tabs': [{'index': 1, 'entries': [{'url': 'https://example.org/small', 'title': 'Small Tab'}]}]}
+  ]}
+  ff_cache = {'firefox:' + directory: m.firefox_session_windows(ff_data)}
+  with patch.object(m, 'query', return_value=[ff_over, ff_small]):
+    small_state = m.capture_firefox_state(ff_small, ff_process, ff_cache)
+    check(small_state['urls'] == ['https://example.org/small'], 'a Firefox window over the tab limit elsewhere does not block saving another window')
+    try:
+      m.capture_firefox_state(ff_over, ff_process, ff_cache)
+    except m.WorkspaceError as error:
+      check(str(m.MAX_BROWSER_TABS) in str(error), 'Firefox windows over the tab limit fail with a clear limit message')
+    else:
+      raise AssertionError('oversized Firefox tab list accepted')
+
+for executable, flag in [('alacritty', '--working-directory'), ('ghostty', '--working-directory'), ('kitty', '--directory'), ('foot', '--working-directory')]:
+  for old in [[flag + '=/old'], [flag, '/old']]:
+    command = m.command_for({'class': executable}, {'argv': [executable, *old, '-e', 'program', flag + '=/program-data'], 'cwd': '/current'})
+    check(command == [executable, *([flag + '=/current'] if len(old) == 1 else [flag, '/current']), '-e', 'program', flag + '=/program-data'], 'terminal directory flags use the captured cwd without changing executed program arguments: ' + executable + str(old))
+check(m.state_command({'class': 'Alacritty', 'cwd': '/current'}, ['alacritty', '--working-directory=/old']) == ['alacritty', '--working-directory=/current'], 'existing terminal scenes also prefer their captured cwd during restore')
+check(m.terminal_directory_argv(['kitty', '--title', 'Work', '-d', '/old', 'program', '--directory=/program-data'], '/current') == ['kitty', '--title', 'Work', '-d', '/current', 'program', '--directory=/program-data'], 'implicit terminal commands retain their own directory arguments')
+
+# Firefox session snapshots preserve the current navigation, order and active tab.
+firefox_data = {'windows': [
+  {'selected': 2, 'tabs': [
+    {'index': 2, 'entries': [{'url': 'https://example.org/old', 'title': 'Old'}, {'url': 'https://example.org/current', 'title': 'Current'}]},
+    {'index': 1, 'entries': [{'url': 'https://example.org/second', 'title': 'Second'}]}
+  ]},
+  {'selected': 1, 'tabs': [{'entries': [{'url': 'about:blank', 'title': 'New Tab'}]}]},
+  {'isPrivate': True, 'tabs': [{'entries': [{'url': 'https://private.example/', 'title': 'Private'}]}]}
+]}
+firefox_records = m.firefox_session_windows(firefox_data)
+check(len(firefox_records) == 2 and firefox_records[0]['urls'] == ['https://example.org/current', 'https://example.org/second'] and firefox_records[0]['active'] == 1, 'Firefox captures current tab navigations in order with the selected tab, excluding private windows')
+check(m.firefox_session_windows({'windows': [{'tabs': [{'entries': [{'url': 'javascript:bad'}]}]}]}) == [], 'Firefox session URLs cannot become executable launch arguments')
+
+with tempfile.TemporaryDirectory() as directory:
+  profile = Path(directory)
+  import ctypes
+  contents = json.dumps(firefox_data).encode()
+  library = ctypes.CDLL('liblz4.so.1')
+  library.LZ4_compressBound.argtypes = [ctypes.c_int]
+  library.LZ4_compress_default.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+  compressed = ctypes.create_string_buffer(library.LZ4_compressBound(len(contents)))
+  length = library.LZ4_compress_default(contents, compressed, len(contents), len(compressed))
+  path = profile / 'recovery.jsonlz4'
+  path.write_bytes(b'mozLz40\0' + struct.pack('<I', len(contents)) + compressed.raw[:length])
+  check(m.read_firefox_session(path) == firefox_data, 'Firefox session compression decodes using the real bounded LZ4 reader')
+  path.write_bytes(b'mozLz40\0' + struct.pack('<I', 0xffffffff) + b'bad')
+  try:
+    m.read_firefox_session(path)
+  except ValueError:
+    print('ok - oversized Firefox sessions are rejected before allocating their declared size')
+  else:
+    raise AssertionError('oversized Firefox session accepted')
+  window = {'address': '0xfirst', 'pid': 42, 'title': 'Second — Mozilla Firefox', 'class': 'firefox'}
+  info = {'argv': ['firefox', '--new-window', 'https://example.org/original']}
+  cache = {'firefox:' + directory: firefox_records}
+  with patch.object(m, 'firefox_profile', return_value=profile), patch.object(m, 'query') as live_windows:
+    blank_window = {**window, 'address': '0xblank', 'title': 'New Tab — Mozilla Firefox'}
+    live_windows.return_value = [window, blank_window]
+    state = m.capture_app_state(window, info, cache)
+    check(state['urls'] == firefox_records[0]['urls'] and state['active'] == 1 and state['profile'] == directory, 'Firefox matches the requested window instead of its process launch URLs')
+    current_window = {**window, 'title': 'Current — Mozilla Firefox'}
+    live_windows.return_value = [current_window, blank_window]
+    current = m.capture_app_state(current_window, info, cache)
+    check(current['active'] == 0, 'the live Firefox title supplies the current selected tab when the session file selection is stale')
+    blank = {'urls': ['about:blank'], 'titles': ['about:blank'], 'active': 0, 'title': 'about:blank'}
+    live_windows.return_value = [{**window, 'title': 'Mozilla Firefox'}]
+    blank_state = m.capture_app_state({**window, 'title': 'Mozilla Firefox'}, info, {'firefox:' + directory: [blank]})
+    check(blank_state['urls'] == ['about:blank'] and blank_state['active'] == 0, 'untitled blank Firefox tabs match the live browser-only title')
+    argv = m.state_command({'appState': state}, ['firefox', '-P', 'Old', '--new-window', 'https://example.org/stale'])
+    check(argv == ['firefox', '--profile', directory, '--new-window', *state['urls']], 'Firefox restores the captured profile and current tabs, replacing stale profile selectors and launch URLs')
+    with patch.object(m, 'dispatch') as shortcut, patch.object(m.time, 'sleep'):
+      m.select_firefox_tab({'address': '0xnew'}, state)
+      check(next(call.args for call in shortcut.call_args_list if call.args[0] == 'send_key_state') == ('send_key_state', {'mods': 'ALT', 'key': '2', 'window': 'address:0xnew', 'state': 'down'}), 'active-tab selection targets only the identified new Firefox window')
+    duplicate = copy.deepcopy(firefox_records[0]);duplicate['urls'][0] = 'https://different.example/'
+    live_windows.return_value = [window, {**window, 'address': '0xsecond'}]
+    try:
+      m.capture_app_state(window, info, {'firefox:' + directory: [firefox_records[0], duplicate]})
+    except m.WorkspaceError:
+      print('ok - ambiguous Firefox windows never capture another window\'s different tabs')
+    else:
+      raise AssertionError('ambiguous Firefox windows accepted')
+    # The requested window navigated to a title from an inactive tab elsewhere.
+    # The other live window still owns that record; borrowing it must fail.
+    stale = {'urls': ['https://old.example/'], 'titles': ['Old page'], 'active': 0, 'title': 'Old page'}
+    other = {'urls': ['https://active.example/', 'https://new.example/'], 'titles': ['Other active', 'New page'], 'active': 0, 'title': 'Other active'}
+    navigated = {**window, 'title': 'New page — Mozilla Firefox'}
+    live_windows.return_value = [navigated, {**window, 'address': '0xother', 'title': 'Other active — Mozilla Firefox'}]
+    try:
+      m.capture_app_state(navigated, info, {'firefox:' + directory: [stale, other]})
+    except m.WorkspaceError:
+      print('ok - a stale navigation cannot borrow an inactive tab from another Firefox window')
+    else:
+      raise AssertionError('borrowed another Firefox window after a stale navigation')
+    written = {'urls': ['https://new.example/'], 'titles': ['New page'], 'active': 0, 'title': 'New page'}
+    captured = m.capture_app_state(navigated, info, {'firefox:' + directory: [written, other]})
+    check(captured['urls'] == written['urls'], 'whole-profile matching identifies the right Firefox window once its own navigation is written')
+    try:
+      m.capture_app_state({**window, 'title': 'Second — Mozilla Firefox (Private Browsing)'}, info, cache)
+    except m.WorkspaceError:
+      print('ok - private Firefox windows are rejected even when the visible page also exists in a normal window')
+    else:
+      raise AssertionError('private Firefox window accepted')
+check(m.firefox_tab_keys(10, 12) == [('ALT', '9'), ('CTRL', 'Prior')], 'Firefox active tabs beyond shortcut eight use a bounded path from the nearest end')
+
+firefox_other = {'address': '0xother', 'class': 'firefox', 'title': 'Focused work — Mozilla Firefox', 'tags': []}
+firefox_ours = {'address': '0xours', 'class': 'firefox', 'title': 'Focused work' + chr(0x2063) + chr(0xFE0A) + chr(0xFE0B) + ' — Mozilla Firefox', 'tags': []}
+with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='ab')), patch.object(m, 'query', side_effect=[[], [firefox_other], [firefox_other, firefox_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):
+  check(m.launch_window({'argv': ['firefox', '--new-window', 'about:blank'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'forwarded Firefox requests reject an unrelated window with the same visible title and claim only their per-launch identity')
+  check('file://' in launch.call_args.args[0] and '--new-window' in launch.call_args.args[0], 'forwarded Firefox requests explicitly open their own launch page')
+
+# Firefox retains launch URIs and never grows extra blank tabs on repeated saves.
+firefox_argv = ['firefox', '--profile', '/tmp/scene-profile', '--new-window', 'https://example.org/one', 'file:///tmp/document.pdf']
+options, urls = m.firefox_launch_parts(firefox_argv)
+check(options == ['firefox', '--profile', '/tmp/scene-profile'] and urls == ['https://example.org/one', 'file:///tmp/document.pdf'], 'Firefox launch parsing preserves profile options and both website/document URIs')
+for _ in range(3):
+  firefox_argv = m.command_for({'class': 'firefox'}, {'argv': firefox_argv})
+check(firefox_argv.count('--new-window') == 1 and firefox_argv[-2:] == urls, 'repeated Firefox saves preserve their launch URLs without accumulating blank tabs')
+
+# Observe the actual launch page and command, including safe script quoting.
+import shlex, urllib.parse, re
+observed = {}
+first_url = 'https://example.org/</script>?a=<&b=>'
+def observe_firefox_launch(code):
+  command, _ = json.JSONDecoder().raw_decode(code[len('hl.exec_cmd('):])
+  args = shlex.split(command)
+  executable = args.index('firefox')
+  observed['args'] = args[executable:]
+  uri = next(arg for arg in observed['args'] if arg.startswith('file://'))
+  page = Path(urllib.parse.unquote(urllib.parse.urlsplit(uri).path))
+  observed['page'] = page
+  contents = page.read_text()
+  observed['target'] = json.loads(re.search(r'location.replace\((.*?)\),2000', contents).group(1))
+  check(contents.count('</script>') == 1, 'saved Firefox URLs cannot inject markup into the temporary launch page')
+with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='ab')), patch.object(m, 'query', side_effect=[[], [firefox_ours]]), patch.object(m, 'execute', side_effect=observe_firefox_launch), patch.object(m.socket, 'socket', return_value=MagicMock()):
+  m.launch_window({'argv': ['firefox', '--new-window', first_url, 'https://example.org/two'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)
+check(observed['target'] == first_url and observed['args'][-1] == 'https://example.org/two' and '--new-window' not in observed['args'], 'one forwarded Firefox window retains all launch URLs in order, with its marker standing in for the first URL')
+check(not observed['page'].exists(), 'the private launch page is removed after its window is identified')
+
+# A newly launched Firefox process exposes its original arguments for later saves.
+with tempfile.TemporaryDirectory() as directory:
+  base = Path(directory)
+  executable = base / 'firefox'; executable.write_text('')
+  proc = base / 'proc' / '42'; proc.mkdir(parents=True)
+  (proc / 'exe').symlink_to(executable)
+  (proc / 'cwd').symlink_to(base)
+  (proc / 'cmdline').write_bytes(str(executable).encode() + b'\0--new-window\0file:///tmp/omarchy-scene-ephemeral.html\0')
+  original = [str(executable), '--new-window', 'https://example.org/original']
+  (proc / 'environ').write_bytes(b'OMARCHY_SCENE_ORIGINAL_ARGV=' + json.dumps(original).encode() + b'\0')
+  (proc / 'stat').write_text('42 (firefox) ' + ' '.join(['0'] * 19 + ['birth']))
+  real_path = Path
+  with patch.object(m, 'Path', side_effect=lambda path: base / 'proc' if str(path) == '/proc' else real_path(path)):
+    check(m.process_info(42)['argv'] == original, 'later scene updates retain Firefox launch context instead of a deleted temporary page')
+
+# A missing app must launch only after the current workspace has its saved mode.
+events = []
+class LaunchObserved(Exception):
+  pass
+def observe_launch(*args):
+  check(events == [(9, 'dwindle', 'right')], 'a saved arrangement launches fresh windows even with its original open, after applying tiling')
+  raise LaunchObserved()
+responses = {'activeworkspace': {'id': 9, 'monitorID': 0}, 'monitors': [{'id': 0, 'name': 'screen'}], 'clients': [{'address': '0xold', 'pid': 42, 'workspace': {'id': 2}}]}
+with patch.object(m, 'dispatch'), patch.object(m, 'query', side_effect=lambda request: responses[request]), patch.object(m, 'layout_metadata', return_value={}), patch.object(m, 'set_mode', side_effect=lambda *args: events.append(args)), patch.object(m, 'launch_window', side_effect=observe_launch):
+  try:
+    m.restore({'mode': 'dwindle', 'direction': 'right', 'windows': [{'address': '0xold', 'pid': 42}]}, {})
+  except LaunchObserved:
+    pass
+  else:
+    raise AssertionError('missing app launch was not reached')
+
+snapshot = {'workspace': 2, 'mode': 'floating', 'windows': [], 'area': [0, 24, 1920, 1056]}
+data = {'version': 1, 'items': [], 'active': {}}
+p = m.put_profile(data, snapshot, 'Writing')
+identity, created = p['id'], p['created']
+try:
+  m.put_profile(data, snapshot, ' writing ')
+except m.WorkspaceError:
+  print('ok - saving a duplicate name never silently replaces a workspace')
+else:
+  raise AssertionError('duplicate name accepted')
+updated = m.put_profile(data, {**snapshot, 'mode': 'scrolling'}, identifier=identity)
+check(updated['id'] == identity and updated['created'] == created and len(data['items']) == 1 and updated['mode'] == 'scrolling', 'update replaces the snapshot while preserving its name and identity')
+check(data['active'] == {'id': identity, 'workspace': 2}, 'the updated save keeps its workspace association')
+m.record_opened(data, identity, 4, ['0xcopy1'])
+m.record_opened(data, identity, 5, ['0xcopy2'])
+check(data['opened']['4']['windows'] == ['0xcopy1'] and data['opened']['5']['windows'] == ['0xcopy2'], 'active copies retain separate workspace associations')
+
+original_profile = copy.deepcopy(updated)
+m.rename_profile(data, identity, 'Focused work')
+check(updated['name'] == 'Focused work' and updated['id'] == identity and updated['windows'] == original_profile['windows'] and updated['mode'] == original_profile['mode'], 'rename preserves the saved apps, layout and identity')
+m.put_profile(data, snapshot, 'Another setup')
+try:
+  m.rename_profile(data, identity, ' another SETUP ')
+except m.WorkspaceError:
+  print('ok - rename rejects duplicate names without replacing another save')
+else:
+  raise AssertionError('duplicate rename accepted')
+check(updated['name'] == 'Focused work', 'a rejected rename keeps the previous name')
+
+with tempfile.TemporaryDirectory() as directory:
+  old_config, old_state = m.CONFIG, m.STATE
+  m.CONFIG = Path(directory) / 'shell.json'
+  m.STATE = Path(directory) / 'saved-workspaces'
+  m.atomic_json(m.CONFIG, {'bar': {'layout': {'centerBegin': [{'id': 'omarchy.clock'}]}}})
+  with patch.object(m.subprocess, 'run'):
+    m.configure(True)
+    m.configure(True)
+    config = json.loads(m.CONFIG.read_text())
+    check(m.enabled() and [w['id'] for w in config['bar']['layout']['centerBegin']] == ['omarchy.clock', m.WIDGET], 'enabling the bar control twice preserves existing widgets without duplicating it')
+    m.atomic_json(m.STATE / 'workspaces.json', data)
+    m.configure(False)
+    check(not m.enabled() and json.loads(m.CONFIG.read_text())['bar']['layout']['centerBegin'] == [{'id': 'omarchy.clock'}] and json.loads((m.STATE / 'workspaces.json').read_text()) == data, 'turning the feature off hides its button and preserves saved layouts')
+  with patch.object(m.subprocess, 'run'):
+    current = json.loads(m.CONFIG.read_text())
+    current['bar']['layout']['right'] = [{'id': m.WIDGET}]
+    current['savedWorkspaces'] = {'enabled': False}
+    m.atomic_json(m.CONFIG, current)
+    check(m.enabled(), 'placing the widget through other controls determines the enabled state')
+    m.CONFIG.unlink()
+    defaults = json.loads((Path(sys.argv[1]) / 'config/omarchy/shell.json').read_text())
+    m.configure(True)
+    fresh = json.loads(m.CONFIG.read_text())
+    check(fresh['bar']['layout']['left'] == defaults['bar']['layout']['left'] and fresh['bar']['layout']['center'] == defaults['bar']['layout']['center'], 'first enable preserves the default menu, workspaces and clock')
+  from subprocess import CompletedProcess
+  effective = {'version': 1, 'bar': {'layout': {'center': [{'id': 'omarchy.clock'}]}}}
+  with patch.object(m.subprocess, 'run', side_effect=[CompletedProcess([], 0, json.dumps(effective), ''), CompletedProcess([], 0, 'ok', '')]) as rpc:
+    m.configure(True)
+    check(rpc.call_args.args[0][3] == 'putBarWidget', 'a running shell owns configuration changes through its existing placement API')
+  m.CONFIG, m.STATE = old_config, old_state
+
+with tempfile.TemporaryDirectory() as directory:
+  path = Path(directory) / 'workspaces.json'
+  m.atomic_json(path, data)
+  loaded = json.loads(path.read_text())
+  check(loaded == data and stat.S_IMODE(path.stat().st_mode) == 0o600, 'saved launch commands and workspace data are stored privately and atomically')
+  m.atomic_json(path, {'version': 1, 'items': [], 'active': {}})
+  check(json.loads(path.read_text())['items'] == [] and len(list(Path(directory).iterdir())) == 1, 'updating saved data leaves no partial files behind')
+
+# Exercise save/update through the locked command paths. Multibyte URLs
+# exceed the byte limit while remaining below it by character count.
+with tempfile.TemporaryDirectory() as directory, patch.object(m, 'STATE', Path(directory)):
+  from contextlib import redirect_stdout
+  from io import StringIO
+
+  with redirect_stdout(StringIO()), patch.object(m, 'capture', return_value=snapshot):
+    m.main(['save', 'Kept scene'])
+  path = m.STATE / 'workspaces.json'
+  original = path.read_bytes()
+  kept = m.database()['items'][0]
+  large = {**snapshot, 'windows': [{'address': '0xabc', 'appState': {
+    'urls': ['https://example.org/' + 'é' * (8 * 1024 * 1024 // 2)]
+  }}]}
+  for args in (['save', 'Too large'], ['update', kept['id']]):
+    with patch.object(m, 'capture', return_value=large):
+      try:
+        m.main(args)
+      except m.WorkspaceError as error:
+        check('too large' in str(error), args[0] + ' rejects an oversized UTF-8 database')
+      else:
+        raise AssertionError('oversized ' + args[0] + ' accepted')
+    check(path.read_bytes() == original and m.database()['items'] == [kept]
+          and not list(m.STATE.glob('.saved-workspaces-*')),
+          'rejected ' + args[0] + ' leaves the prior database readable and untouched')
+  with redirect_stdout(StringIO()):
+    m.main(['list'])
+    m.main(['delete', kept['id']])
+  check(not m.database()['items'], 'the preserved scene can still be deleted after a rejected write')
+PY
+
+qml_test_runner=""
+for candidate in /usr/lib/qt6/bin/qmltestrunner /usr/lib/qt6/qmltestrunner; do
+  if [[ -x $candidate ]]; then
+    qml_test_runner=$candidate
+    break
+  fi
+done
+if [[ -z $qml_test_runner ]]; then
+  skip "Qt6 qmltestrunner not found; skipping Scenes reply tests"
+  exit 0
+fi
+
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+  "$qml_test_runner" -input "$SHELL_TEST_DIR/saved-workspaces" -o -,txt
+
+TEST_TMP=$(mktemp -d)
+trap 'rm -rf "$TEST_TMP"' EXIT
+ROOT="$ROOT" TEST_TMP="$TEST_TMP" python3 - <<'PY'
+from pathlib import Path
+import os, re
+
+root = Path(os.environ['ROOT'])
+dest = Path(os.environ['TEST_TMP'])
+widget = (root / 'shell/plugins/saved-workspaces/Widget.qml').read_text()
+
+def extract_method(source, indent, name):
+  pattern = rf'{indent}function {name}\([^)]*\) \{{[\s\S]*?\n{indent}\}}'
+  match = re.search(pattern, source)
+  assert match, f'missing {name} in Widget.qml'
+  return match.group()
+
+begin_save = extract_method(widget, '  ', 'beginSave')
+begin_rename = extract_method(widget, '  ', 'beginRename')
+reveal_region = extract_method(widget, '      ', 'revealRegion')
+reveal_selection = extract_method(widget, '      ', 'revealSelection')
+reveal_editor = extract_method(widget, '      ', 'revealEditor')
+reveal_feedback = extract_method(widget, '      ', 'revealFeedback')
+clamp_content_y = extract_method(widget, '        ', 'clampContentY')
+
+qml = f'''import QtQuick
+import QtTest
+
+Item {{
+  id: root
+  width: 280
+  height: 430
+  property var entries: []
+  property bool busy: false
+  property bool editingName: false
+  property string renameId: ""
+  property string feedback: ""
+  property QtObject panel: QtObject {{
+    property Item loadedContent: catcher
+  }}
+{begin_save}
+{begin_rename}
+
+  Item {{
+    id: catcher
+    property alias nameEditor: nameEditor
+    anchors.fill: parent
+{reveal_region}
+{reveal_selection}
+{reveal_editor}
+{reveal_feedback}
+
+    Flickable {{
+      id: scroll
+      anchors.fill: parent
+      clip: true
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      boundsBehavior: Flickable.StopAtBounds
+      interactive: contentHeight > height
+{clamp_content_y}
+      onContentHeightChanged: clampContentY()
+      onHeightChanged: clampContentY()
+
+      Column {{
+        id: column
+        width: scroll.width
+        spacing: 8
+
+        Item {{ width: parent.width; height: 28 }}
+
+        Column {{
+          id: listColumn
+          width: parent.width
+          spacing: 2
+          Repeater {{
+            id: savedRows
+            model: root.entries
+            delegate: Item {{
+              width: listColumn.width
+              height: 34
+            }}
+          }}
+        }}
+
+        Rectangle {{
+          visible: root.editingName
+          width: parent.width
+          height: 1
+        }}
+
+        Column {{
+          id: editorSection
+          visible: root.editingName
+          width: parent.width
+          spacing: 6
+          TextInput {{
+            id: nameEditor
+            width: parent.width
+            height: 28
+          }}
+          Row {{
+            id: editorActions
+            spacing: 6
+            Item {{ width: 64; height: 28 }}
+            Item {{ width: 64; height: 28 }}
+          }}
+        }}
+
+        Text {{
+          id: feedbackLabel
+          visible: root.busy || root.feedback !== ""
+          width: parent.width
+          text: root.feedback
+          textFormat: Text.PlainText
+        }}
+      }}
+    }}
+  }}
+
+  TestCase {{
+    name: "ScenesEditorScroll"
+    when: windowShown
+
+    function init() {{
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      catcher.forceActiveFocus()
+    }}
+
+    function makeEntries(count) {{
+      var list = []
+      for (var i = 1; i <= count; i++) list.push({{ id: "scene-" + i, name: "Scene " + i }})
+      return list
+    }}
+
+    function test_save_and_rename_scroll_editor_into_view_when_list_fills_dropdown() {{
+      root.entries = makeEntries(16)
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      tryVerify(function() {{ return scroll.contentHeight > scroll.height }})
+
+      root.beginSave()
+      tryVerify(function() {{ return nameEditor.activeFocus }})
+      verify(root.editingName)
+      compare(nameEditor.text, "")
+      verify(scroll.contentY > 0)
+      verify(editorSection.y >= scroll.contentY)
+      verify(editorSection.y + editorSection.height <= scroll.contentY + scroll.height + 0.001)
+
+      // Scrolling back to the top while editing and starting Rename must reveal it again.
+      scroll.contentY = 0
+      root.beginRename(root.entries[0])
+      tryVerify(function() {{ return nameEditor.text === "Scene 1" && scroll.contentY > 0 }})
+      verify(root.editingName)
+      compare(nameEditor.selectedText, "Scene 1")
+      verify(nameEditor.activeFocus)
+      verify(editorSection.y >= scroll.contentY)
+      verify(editorSection.y + editorSection.height <= scroll.contentY + scroll.height + 0.001)
+
+      // Validation error feedback below the editor also reveals cleanly.
+      root.feedback = "Scene name already exists"
+      catcher.revealFeedback()
+      verify(feedbackLabel.y + feedbackLabel.height <= scroll.contentY + scroll.height + 0.001)
+
+      // Closing the editor clamps scroll.contentY to the shorter list height.
+      root.feedback = ""
+      root.editingName = false
+      tryVerify(function() {{ return scroll.contentY <= Math.max(0, scroll.contentHeight - scroll.height) + 0.001 }})
+    }}
+
+    function test_save_immediately_after_entries_load_still_scrolls_editor_into_view() {{
+      root.entries = []
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      tryVerify(function() {{ return scroll.contentHeight < scroll.height }})
+
+      root.entries = makeEntries(16)
+      root.beginSave()
+      tryVerify(function() {{ return nameEditor.activeFocus }})
+      verify(scroll.contentY > 0)
+      verify(editorSection.y >= scroll.contentY)
+      verify(editorSection.y + editorSection.height <= scroll.contentY + scroll.height + 0.001)
+    }}
+
+    function test_short_list_keeps_scroll_at_top() {{
+      root.entries = makeEntries(2)
+      root.editingName = false
+      root.feedback = ""
+      scroll.contentY = 0
+      tryVerify(function() {{ return scroll.contentHeight < scroll.height }})
+      root.beginSave()
+      tryVerify(function() {{ return nameEditor.activeFocus }})
+      compare(scroll.contentY, 0)
+      verify(editorSection.y + editorSection.height <= scroll.height)
+    }}
+  }}
+}}
+'''
+(dest / 'tst_editor_scroll.qml').write_text(qml)
+PY
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+  "$qml_test_runner" -input "$TEST_TMP/tst_editor_scroll.qml" -o -,txt
+pass "save and rename scroll the scene editor into view when saved scenes fill the dropdown"
