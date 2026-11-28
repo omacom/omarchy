@@ -1147,7 +1147,7 @@ Item {
   function copySecret(text) {
     var value = String(text || "")
     if (!value || value.length > 64) return
-    runClip(["wl-copy", "--sensitive", "--", value])
+    runClip(["bash", "-c", "printf %s " + Util.shellQuote(value) + " | wl-copy --sensitive"])
     secretHeld = value
     secretLife.restart()
   }
