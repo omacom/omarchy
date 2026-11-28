@@ -11,6 +11,28 @@ export OMARCHY_PATH="$ROOT"
 
 run_node_test <<'JS'
 const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/bar/widgets/Workspaces.qml', 'utf8')
+const body = source.match(/readonly property var monitor: \{([\s\S]*?)\n  \}/)[1]
+const resolve = new Function('root', 'Hyprland', 'Quickshell', body)
+const primary = { name: 'DP-1' }
+const secondary = { name: 'DP-2' }
+const stale = { name: 'FALLBACK' }
+function monitorFor(screen, monitors, screens) {
+  return resolve({ QsWindow: { window: { screen } } }, {
+    monitors: { values: monitors },
+    monitorFor: screen => monitors.find(monitor => monitor.name === screen.name) || null,
+    focusedMonitor: primary
+  }, { screens })
+}
+assertEqual(monitorFor(stale, [primary], [primary]), primary, 'a stale screen on the only output uses the focused monitor')
+assertEqual(monitorFor(secondary, [primary], [primary, secondary]), null, 'a second screen waits while its Hyprland monitor is unreported')
+assertEqual(monitorFor(secondary, [primary, secondary], [primary, secondary]), secondary, 'a reported second monitor keeps its own bar')
+assertEqual(monitorFor(stale, [primary, secondary], [primary, secondary]), null, 'a stale screen with multiple monitors does not adopt another bar')
+assertEqual(monitorFor(primary, [], [primary]), null, 'an empty monitor model supplies no fallback')
+JS
+
+run_node_test <<'JS'
+const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 
 // A widget's slot can be on the bar without being drawn (hidden by the
