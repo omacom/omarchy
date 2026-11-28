@@ -453,6 +453,7 @@
   "update.cannotStop": "You cannot stop the update once you start!",
   "update.connectPower": "Make sure you're connected to power or have a full battery",
   "update.continue": "Continue with update?",
+  "update.downloadRetry": "A package download failed. Retrying (%1 of 3)...",
   "update.hyprlandReboot": "Hyprland has been updated. Reboot?",
   "update.kernelReboot": "Linux kernel has been updated. Reboot?",
   "update.ready": "Ready to update?",
