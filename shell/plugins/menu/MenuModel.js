@@ -269,7 +269,36 @@ function isDescendantOf(items, id, ancestorId) {
   return false
 }
 
-function childCount(items, itemOrder, id) {
+function buildSearchIndex(items, itemOrder) {
+  var children = ({})
+  var nameText = ({})
+  var labelLower = ({})
+  var descLower = ({})
+  var order = Array.isArray(itemOrder) ? itemOrder : []
+
+  for (var i = 0; i < order.length; i++) {
+    var entry = item(items, order[i])
+    if (!entry) continue
+    if (entry.parent) {
+      if (!children[entry.parent]) children[entry.parent] = [entry]
+      else children[entry.parent].push(entry)
+    }
+    nameText[entry.id] = nameSearchText(entry)
+    labelLower[entry.id] = String(entry.label || "").toLowerCase()
+    descLower[entry.id] = String(entry.description || "").toLowerCase()
+  }
+
+  return {
+    children: children,
+    nameText: nameText,
+    labelLower: labelLower,
+    descLower: descLower
+  }
+}
+
+function childCount(items, itemOrder, id, searchIndex) {
+  if (searchIndex && searchIndex.children)
+    return searchIndex.children[id] ? searchIndex.children[id].length : 0
   var count = 0
   var order = Array.isArray(itemOrder) ? itemOrder : []
   for (var i = 0; i < order.length; i++) {
@@ -307,23 +336,50 @@ function altVariantIds(items, itemOrder) {
   return ids
 }
 
-function isVisible(items, itemOrder, whenResults, entry, depth) {
+function isVisible(items, itemOrder, whenResults, entry, depth, searchIndex, memo) {
   if (!entry) return false
-  if (entry.when && whenResults && whenResults[entry.id] === false) return false
-  if (entry.kind !== "menu" && entry.kind !== "link") return true
-  if (entry.provider) return true
+  if (memo && memo[entry.id] !== undefined) return memo[entry.id]
+  if (entry.when && whenResults && whenResults[entry.id] === false) {
+    if (memo) memo[entry.id] = false
+    return false
+  }
+  if (entry.kind !== "menu" && entry.kind !== "link") {
+    if (memo) memo[entry.id] = true
+    return true
+  }
+  if (entry.provider) {
+    if (memo) memo[entry.id] = true
+    return true
+  }
 
   var guard = depth || 0
   if (guard >= 32) return false
 
   var target = entry.kind === "link" ? entry.target : entry.id
-  var order = Array.isArray(itemOrder) ? itemOrder : []
-  for (var i = 0; i < order.length; i++) {
-    var child = item(items, order[i])
-    if (child && child.parent === target && isVisible(items, itemOrder, whenResults, child, guard + 1)) return true
+  var visible = false
+  if (searchIndex && searchIndex.children) {
+    var children = searchIndex.children[target]
+    if (children) {
+      for (var c = 0; c < children.length; c++) {
+        if (isVisible(items, itemOrder, whenResults, children[c], guard + 1, searchIndex, memo)) {
+          visible = true
+          break
+        }
+      }
+    }
+  } else {
+    var order = Array.isArray(itemOrder) ? itemOrder : []
+    for (var i = 0; i < order.length; i++) {
+      var child = item(items, order[i])
+      if (child && child.parent === target && isVisible(items, itemOrder, whenResults, child, guard + 1, searchIndex, memo)) {
+        visible = true
+        break
+      }
+    }
   }
 
-  return false
+  if (memo) memo[entry.id] = visible
+  return visible
 }
 
 // A `disabled:` row stays listed but goes dim and unselectable. The
@@ -375,12 +431,16 @@ function descriptionTextMatches(query, text) {
   return true
 }
 
-function matchesQuery(entry, query, visible) {
+function matchesQuery(entry, query, visible, searchIndex) {
   if (!entry || entry.id === "root") return false
   if (!visible) return false
 
-  var nameText = nameSearchText(entry)
-  var descriptionText = String(entry.description || "").toLowerCase()
+  var nameText = (searchIndex && searchIndex.nameText && searchIndex.nameText[entry.id] !== undefined)
+    ? searchIndex.nameText[entry.id]
+    : nameSearchText(entry)
+  var descriptionText = (searchIndex && searchIndex.descLower && searchIndex.descLower[entry.id] !== undefined)
+    ? searchIndex.descLower[entry.id]
+    : String(entry.description || "").toLowerCase()
   var terms = String(query || "").toLowerCase().trim().split(/\s+/)
 
   for (var i = 0; i < terms.length; i++) {
@@ -393,11 +453,17 @@ function matchesQuery(entry, query, visible) {
   return true
 }
 
-function searchScore(items, entry, query) {
+function searchScore(items, entry, query, searchIndex) {
   var needle = String(query || "").toLowerCase().trim()
-  var label = entry.label.toLowerCase()
-  var nameText = nameSearchText(entry)
-  var descriptionText = String(entry.description || "").toLowerCase()
+  var label = (searchIndex && searchIndex.labelLower && searchIndex.labelLower[entry.id] !== undefined)
+    ? searchIndex.labelLower[entry.id]
+    : entry.label.toLowerCase()
+  var nameText = (searchIndex && searchIndex.nameText && searchIndex.nameText[entry.id] !== undefined)
+    ? searchIndex.nameText[entry.id]
+    : nameSearchText(entry)
+  var descriptionText = (searchIndex && searchIndex.descLower && searchIndex.descLower[entry.id] !== undefined)
+    ? searchIndex.descLower[entry.id]
+    : String(entry.description || "").toLowerCase()
   var score = 80
 
   if (label === needle) score = entry.parent === "root" ? 2 : 0
@@ -419,7 +485,7 @@ function searchScore(items, entry, query) {
   return score * 10000000 + depthFor(items, entry.id) * 100000 + (opensMenu ? 0 : 50000) + entry.order
 }
 
-function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
+function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section, searchIndex) {
   var target = entry.kind === "link" ? entry.target : entry.id
   return {
     itemId: entry.id,
@@ -433,7 +499,7 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
     target: target,
     detail: detail || "",
     path: pathFor(items, entry.id),
-    childCount: (entry.kind === "menu" || entry.kind === "link") ? childCount(items, itemOrder, target) : 0,
+    childCount: (entry.kind === "menu" || entry.kind === "link") ? childCount(items, itemOrder, target, searchIndex) : 0,
     action: entry.action || "",
     provider: entry.provider || "",
     score: score || 0,
@@ -762,6 +828,7 @@ if (typeof module !== "undefined") {
     pathFor: pathFor,
     parentPathFor: parentPathFor,
     isDescendantOf: isDescendantOf,
+    buildSearchIndex: buildSearchIndex,
     childCount: childCount,
     isVisible: isVisible,
     altVariant: altVariant,
