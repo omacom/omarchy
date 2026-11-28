@@ -22,7 +22,17 @@ PanelWindow {
 
   readonly property string position: dock ? dock.position : "bottom"
   readonly property bool vertical: dock ? dock.vertical : false
-  readonly property var monitor: Hyprland.monitorFor(screen)
+  // Look up by name on Hyprland.monitors.values rather than Hyprland.monitorFor(screen):
+  // monitorFor is a non-reactive method that returns null if a reconnected Wayland
+  // output appears before Hyprland's monitoradded IPC event, leaving shown false.
+  readonly property var monitor: {
+    var monitors = Hyprland.monitors.values
+    if (!screen || !screen.name) return null
+    for (var i = 0; i < monitors.length; i++) {
+      if (monitors[i].name === screen.name) return monitors[i]
+    }
+    return null
+  }
   readonly property var workspace: monitor ? monitor.activeWorkspace : null
   readonly property int workspaceId: workspace ? workspace.id : -1
   // The most fullscreen window on the workspace, as Hyprland counts it: 1 is

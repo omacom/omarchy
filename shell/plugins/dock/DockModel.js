@@ -232,6 +232,22 @@ function pickClickWindow(mode, windows, workspaceId) {
   return picked < 0 ? -1 : candidates[picked]
 }
 
+// Placeholder screens Qt creates when no outputs exist (empty name, zero size)
+// and Hyprland's headless FALLBACK output are not real monitors. Skipping them
+// keeps the dock from mapping onto a transient screen during output churn.
+function isRealScreen(screen) {
+  return !!(screen && screen.name && screen.name !== "FALLBACK" && screen.width > 0 && screen.height > 0)
+}
+
+function realScreens(screens) {
+  var list = screens || []
+  var result = []
+  for (var i = 0; i < list.length; i++) {
+    if (isRealScreen(list[i])) result.push(list[i])
+  }
+  return result
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
@@ -250,6 +266,8 @@ if (typeof module !== "undefined") {
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
     pickWindow: pickWindow,
-    pickClickWindow: pickClickWindow
+    pickClickWindow: pickClickWindow,
+    isRealScreen: isRealScreen,
+    realScreens: realScreens
   }
 }

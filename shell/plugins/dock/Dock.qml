@@ -376,6 +376,18 @@ Item {
     onExited: Qt.callLater(root.readNextMode)
   }
 
+  // Hyprland.monitors and activeWorkspace can stay stale after single-monitor
+  // FALLBACK churn; a single deferred refresh once the event burst settles
+  // ensures they are current.
+  Timer {
+    id: monitorSyncTimer
+    interval: 250
+    onTriggered: {
+      Hyprland.refreshMonitors()
+      Hyprland.refreshWorkspaces()
+    }
+  }
+
   Connections {
     target: Hyprland
     function onRawEvent(event) {
@@ -386,6 +398,8 @@ Item {
       else if (name === "fullscreen") {
         Hyprland.refreshWorkspaces()
         Hyprland.refreshToplevels()
+      } else if (name === "monitoradded" || name === "monitorremoved") {
+        monitorSyncTimer.restart()
       }
     }
   }
@@ -427,9 +441,18 @@ Item {
     for (var i = 0; i < windows.length; i++) windows[i].endExternalDrag()
   }
 
+  property string realScreenKey: ""
+  readonly property var realScreens: DockModel.realScreens(Quickshell.screens)
+  onRealScreensChanged: {
+    var key = realScreens.map(function(s) { return s.name }).join(",")
+    if (key === realScreenKey) return
+    realScreenKey = key
+    if (realScreens.length > 0) monitorSyncTimer.restart()
+  }
+
   Variants {
     id: docks
-    model: Quickshell.screens
+    model: root.realScreens
 
     delegate: Component {
       DockWindow {

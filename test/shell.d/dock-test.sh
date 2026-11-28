@@ -130,6 +130,21 @@ assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspa
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
+const hdmi = { name: 'HDMI-A-1', width: 2560, height: 1440 }
+const headless = { name: 'HEADLESS-1', width: 1920, height: 1080 }
+assert(!dock.isRealScreen(null), 'dock skips null screen entries')
+assert(!dock.isRealScreen({ name: '', width: 0, height: 0 }), 'dock skips Qt placeholder screens')
+assert(!dock.isRealScreen({ name: 'FALLBACK', width: 1920, height: 1080 }), 'dock skips Hyprland FALLBACK screens')
+assert(!dock.isRealScreen({ name: 'HDMI-A-1', width: 0, height: 1440 }), 'dock waits until a screen reports a non-zero size')
+assert(dock.isRealScreen(hdmi), 'dock accepts a real monitor')
+assert(dock.isRealScreen(headless), 'dock accepts a user-created HEADLESS output')
+assertDeepEqual(
+  dock.realScreens([null, { name: '', width: 0, height: 0 }, { name: 'FALLBACK', width: 1920, height: 1080 }, hdmi, headless]),
+  [hdmi, headless],
+  'dock keeps only real screens when filtering Quickshell.screens'
+)
+assertDeepEqual(dock.realScreens(null), [], 'dock handles missing screen lists')
+
 const fs = require('fs')
 const vm = require('vm')
 const dockQml = fs.readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
