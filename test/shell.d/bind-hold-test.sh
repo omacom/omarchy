@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command lua
 
-HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua <<'LUA'
+HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "hold bindings pair each release with its press"
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local binds, ran = {}, {}
@@ -69,3 +69,28 @@ assert(ran_since(binds[4].dispatcher) == "stop-fn", "functions are called")
 assert(ran_since(binds[2].dispatcher) == "", "each hold binding tracks its own press")
 LUA
 pass "hold bindings pair each release with its press"
+
+# Hyprland runs the config in a fresh Lua state on every reload, so a press from
+# before the reload is forgotten. Each lua run below stands in for one config load.
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+mkdir -p "$scratch/home" "$scratch/runtime/hypr/test-instance"
+hold_load() {
+  HOME="$scratch/home" OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$scratch/runtime" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
+    PRESS="${1:-}" lua - <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local binds = {}
+hl = setmetatable({
+  bind = function(keys, dispatcher, opts) table.insert(binds, dispatcher) end,
+  exec_cmd = function(command) print(command) end,
+}, { __index = function() return function() return {} end end })
+require("default.hypr.helpers")
+o.bind_hold("ALT + Alt_R", "Start", "start-cmd", "Stop", "stop-cmd")
+if os.getenv("PRESS") == "press" then binds[1]() end
+LUA
+}
+
+[[ $(hold_load press) == "start-cmd" ]] || fail "a hold starts on its press"
+[[ $(hold_load) == "stop-cmd" ]] || fail "a reload during a hold ends it, since the new config never saw the press"
+[[ -z $(hold_load) ]] || fail "a hold cut off by a reload ends only once"
+pass "a reload during a hold ends the hold"

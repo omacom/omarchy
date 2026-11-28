@@ -1,60 +1,24 @@
 #!/bin/bash
 
 # omarchy:summary=Set up fingerprint authentication for sudo, polkit, and lock screen
+# omarchy:args=[--terminal]
 # omarchy:requires-sudo=true
 
 set -e
 
-
-setup_pam_config() {
-  # A clamshell gate runs before pam_fprintd in every stack: when the lid is
-  # shut the reader is unreachable, so it skips fingerprint (success=1) and PAM
-  # drops straight to the password prompt instead of blocking on the reader
-  # until it times out. Lid open → fingerprint, then password as the fallback.
-  #
-  # pam_exec needs a literal absolute path (no env expansion). Point at the
-  # fixed /usr/bin path the omarchy package always provides, so the gate keeps
-  # working across package installs and dev-link — the latter overlays
-  # $OMARCHY_PATH trees but leaves /usr/bin untouched.
-  local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed"
-
-  # Configure sudo
-  if ! grep -q pam_fprintd.so /etc/pam.d/sudo; then
-    echo "Configuring sudo for fingerprint authentication..."
-    sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
+# On the desktop the setup is the full-screen fingerprint panel, which does
+# all of this in the background behind one authorization prompt. --terminal,
+# or a session whose shell doesn't answer (SSH, a console), runs it right here.
+# The menu and the first-run invitation start this with no terminal, so with
+# the panel unavailable (its plugin disabled, say) it opens one for itself.
+if [[ ${1:-} != "--terminal" ]]; then
+  if [[ $(omarchy-shell shell summon omarchy.fingerprint 2>/dev/null) == "ok" ]]; then
+    exit 0
+  elif [[ ! -t 0 ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation "omarchy-setup-security-fingerprint --terminal"
   fi
-  if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/sudo; then
-    echo "Adding clamshell gate to sudo..."
-    # Insert immediately before pam_fprintd so success=1 skips exactly it.
-    sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/sudo
-  fi
+fi
 
-  # Configure polkit
-  if [[ -f /etc/pam.d/polkit-1 ]]; then
-    if ! grep -q 'pam_fprintd.so' /etc/pam.d/polkit-1; then
-      echo "Configuring polkit for fingerprint authentication..."
-      sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/polkit-1
-    fi
-    if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/polkit-1; then
-      echo "Adding clamshell gate to polkit..."
-      sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/polkit-1
-    fi
-  else
-    echo "Creating polkit configuration with fingerprint authentication..."
-    # omarchy:heredoc-expands paths=none -- $fprintd_gate is the literal PAM
-    # line defined above, shared with the two sed insertions so the gate cannot
-    # drift between files. The only path in it is the fixed /usr/bin one.
-    sudo tee /etc/pam.d/polkit-1 >/dev/null <<EOF
-$fprintd_gate
-auth      sufficient pam_fprintd.so
-auth      include system-auth
-
-account   include system-auth
-password  include system-auth
-session   include system-auth
-EOF
-  fi
-}
 
 # A property of fprintd's default reader, such as its name or scan-type ("press"
 # for a sensor that takes separate touches, "swipe" for one that reads a moving
@@ -150,29 +114,66 @@ fi
 # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
 # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
 # one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+packages=(libfprint-git fprintd usbutils)
+
+# --ask 4 accepts any replacement, not just the stock-libfprint one it was
+# written for. Readers libfprint cannot drive at all run on a TOD stack instead
+# — a libfprint fork plus a vendor blob — and that fork provides libfprint too,
+# so this would remove the only driver they have without asking. Check who owns
+# the library: the TOD packages are named differently per vendor.
+libfprint_owner=$(pacman -Qqo /usr/lib/libfprint-2.so.2 2>/dev/null || true)
+if [[ -n $libfprint_owner && $libfprint_owner != "libfprint" && $libfprint_owner != "libfprint-git" ]]; then
+  echo -e "\e[33mlibfprint is provided by $libfprint_owner; keeping it and skipping libfprint-git.\e[0m"
+  packages=(fprintd usbutils)
+fi
+
+if omarchy-pkg-missing "${packages[@]}"; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
+  sudo pacman -S --needed --noconfirm --ask 4 -- "${packages[@]}"
 fi
 
 # Enroll first fingerprint
 # Authenticate sudo first, and say so: with fingerprint sudo already set up it
 # asks for a touch of its own, which must not pass for the first sample.
-if ! sudo -n true 2>/dev/null; then
-  echo -e "\nFirst, confirm it's you. Setup needs administrator rights to enroll."
-  if ! sudo -v; then
-    echo -e "\e[31mSetup needs administrator rights to enroll a fingerprint.\e[0m"
+authenticate() {
+  if ! sudo -n true 2>/dev/null; then
+    echo -e "\n$1 Setup needs administrator rights to enroll."
+    if ! sudo -v; then
+      echo -e "\e[31mSetup needs administrator rights to enroll a fingerprint.\e[0m"
+      exit 1
+    fi
+  fi
+}
+authenticate "First, confirm it's you."
+
+# A reader its platform keeps off until the owner agrees (a Mac's Touch ID)
+# is explained and turned on here, before fprintd is asked about it. Every
+# other platform has no such hook, so this is a no-op there. Resolving as the
+# user first runs nothing as root where there is nothing to run. Setup on a
+# platform that can't be told goes on as on one without a hook: a reader its
+# platform keeps off stays off, so fprintd doesn't find it, and any other
+# reader still enrolls.
+if ! enable_hook=$(omarchy-lifecycle-dispatch --resolve enable-fingerprint); then
+  echo -e "\e[33mThe fingerprint sensor's platform support couldn't be checked, so a reader the platform keeps off stays off.\e[0m"
+  enable_hook=
+fi
+if [[ -n $enable_hook ]]; then
+  if ! sudo omarchy-lifecycle-dispatch enable-fingerprint; then
+    echo -e "\e[31mThe fingerprint sensor was not turned on, so nothing was enrolled.\e[0m"
     exit 1
   fi
+  # The owner may have read past sudo's timeout before answering.
+  authenticate "Confirm it's you again."
 fi
 
 echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
 # A press sensor needs a touch for each sample; a swipe sensor a moving finger.
-# When fprintd can't say which, the prompts name neither.
+# When fprintd can't say which, the prompts name neither. Each line stays short,
+# since the setup terminal wraps a long one mid-word.
 case $(fingerprint_reader scan-type) in
   press)
     start="Touch the sensor." again="Keep lifting your finger and touching the sensor."
-    echo -e "Touch the sensor, lift your finger and touch it again, and keep going until it says Enrolled. A step can take a few touches.\n"
+    echo -e "Touch the sensor, lift your finger and touch it again.\nKeep going until it says Enrolled. A step can take a few touches.\n"
     ;;
   swipe)
     start="Swipe your finger across the sensor." again="Swipe it again."
@@ -180,7 +181,7 @@ case $(fingerprint_reader scan-type) in
     ;;
   *)
     start="Touch or swipe the sensor." again="Touch or swipe it again."
-    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled. A step can take a few tries.\n"
+    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled.\nA step can take a few tries.\n"
     ;;
 esac
 
@@ -210,7 +211,7 @@ if (( enroll_status == 0 )); then
     # sensor outside the elanmoc table gets this far and then fails to enroll.
     # Editing the stacks up front would leave those machines pointing at
     # pam_fprintd with nothing to match.
-    setup_pam_config
+    omarchy-apply-fingerprint-pam
     "$OMARCHY_PATH/bin/omarchy-apply-lock"
     if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
       echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2

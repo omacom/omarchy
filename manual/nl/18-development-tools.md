@@ -2,34 +2,38 @@
 
 ## Alternatieve editors
 
-Omarchy wordt standaard geleverd met [Neovim](https://neovim.io/), maar als je iets gangbaarders en vertrouwders wilt, open je het Omarchy-menu (`Super + Space`) en bekijk je de opties onder _Installeren > Editor_. Daar staan VSCode, Cursor, Zed, Sublime Text, Helix, Vim en Emacs vermeld. Als je niet vindt wat je zoekt, kijk dan bij _Installeren > Pakket_ en controleer of het niet in een Arch-pakket zit (en zo niet, probeer dan _Installeren > AUR_ om de AUR te controleren).
+Omarchy wordt op nieuwe installaties geleverd met Plain als standaardeditor en [Neovim](https://neovim.io/) vooraf geïnstalleerd, maar als je liever iets gangbaarders en vertrouwders hebt, kun je het Omarchy Menu (`Super + Space`) openen en de opties bekijken onder _Install > Editor_. Daar vind je VSCode, Cursor, Zed, Sublime Text, Helix, Vim en Emacs. Als je niet vindt wat je zoekt, kijk dan bij _Install > Package_ of het niet in een Arch-pakket zit (en zo niet, probeer dan _Install > AUR_ om de AUR te controleren).
 
 De originele `vi`-editor is ook direct beschikbaar. Voer `vi filename` uit om een bestand in de terminal te bewerken.
 
-Thema-afstemming wordt aangeboden voor `VSCode`, `Cursor`, `VSCodium` en `Helix`.
+Voor `VSCode`, `Cursor`, `VSCodium` en `Helix` wordt thema-afstemming aangeboden.
 
-Je kunt de systeemwijde standaardeditor instellen onder `Instellen > Standaardwaarden > Editor`.
+Je kunt de systeemwijde standaardeditor instellen onder `Setup > Defaults > Editor`.
 
 ## Omgeving
 
-Omarchy ondersteunt het opzetten van een hele reeks ontwikkelomgevingen via de sectie _Installeren > Ontwikkeling_ van het Omarchy-menu (`Super + Space`). Je vindt daar natuurlijk _Ruby on Rails_, maar ook alle drie de grote runtimes voor JavaScript (Node.js, Bun, Deno), evenals populaire PHP-frameworks zoals Laravel en Symfony. Oh, en er zijn ook Go, Rust, Python, Java, Elixir (met Phoenix), .NET, OCaml, Zig, Clojure en Scala. Het is een zeer brede selectie!
+Via het onderdeel _Install > Development_ van het Omarchy Menu (`Super + Space`) kun je met Omarchy een hele reeks ontwikkelomgevingen instellen. Je vindt er uiteraard _Ruby on Rails_, maar ook alle drie de grote runtimes voor JavaScript (Node.js, Bun, Deno), evenals populaire PHP-frameworks zoals Laravel en Symfony. Oh, en er zijn ook Go, Rust, Python, Java, Elixir (met Phoenix), .NET, OCaml, Zig, Clojure en Scala. Het is een zeer brede selectie!
 
-De meeste van deze omgevingen worden beheerd door [Mise](https://mise.jdx.dev/). Het is een tool waarmee je meerdere versies van een programmeertaal op dezelfde machine kunt installeren en uitvoeren. Het is als rbenv of rvm voor Ruby of virtualenv voor Python, maar het werkt voor een heleboel verschillende omgevingen.
+Het merendeel van deze omgevingen wordt beheerd door [Mise](https://mise.jdx.dev/). Het is een tool waarmee je meerdere versies van een programmeertaal op dezelfde machine kunt installeren en uitvoeren. Het lijkt op rbenv of rvm voor Ruby of virtualenv voor Python, maar het werkt voor een heleboel verschillende omgevingen.
 
-Om bijvoorbeeld Ruby te installeren, voer je `mise use -g ruby` uit, waarmee Ruby zowel wordt geïnstalleerd als als globale standaard wordt ingesteld. Of, als je project een .ruby-version-bestand heeft, kun je gewoon `mise i` uitvoeren in de root van dat project.
+Om bijvoorbeeld Ruby te installeren, voer je `mise use -g ruby` uit, waarmee Ruby zowel wordt geïnstalleerd als als globale standaard wordt ingesteld. Of, als je project een .ruby-version-bestand heeft, kun je gewoon `mise i` uitvoeren in de hoofdmap van dat project.
+
+## Vooraf geïnstalleerde CLI-tools
+
+`uv`, Node.js en `playwright-cli` (waarmee agents een browser kunnen aansturen, met de geïnstalleerde Chrome) worden als pakketten geïnstalleerd, en `omarchy update` houdt ze samen met de rest van het systeem actueel. [Hunk](https://github.com/modem-dev/hunk) en de GitHub-, Basecamp-, Cloudflare- en HEY-CLI's zijn één keuze verwijderd onder _Install > CLI_, en [codeeragents](17-ai.md) onder _Install > AI > CLI_.
+
+mise beheert alleen de runtimes die je instelt via _Install > Development_; Omarchy installeert er zelf niets mee. Voer `omarchy update` uit om ze samen met de rest van Omarchy bij te werken; de alias `mup` werkt alleen door mise beheerde tools bij. Om nog een tool aan je eigen configuratie toe te voegen, gebruik je `mise use -g <tool>`.
 
 ## Docker
 
-[Docker](https://www.docker.com/) behoeft nauwelijks introductie. Hiermee kun je geïsoleerde containers uitvoeren, en Omarchy installeert alles wat nodig is om het goed te laten draaien, inclusief Docker zelf en [Docker Compose](https://docs.docker.com/compose/).
+[Docker](https://www.docker.com/) behoeft nauwelijks introductie. Daarmee kun je geïsoleerde containers draaien, en Omarchy installeert alles wat nodig is om het goed te laten werken, inclusief Docker zelf en [Docker Compose](https://docs.docker.com/compose/).
 
-Standaard zit je gebruiker *niet* in de `docker`-groep. Die groep is in feite root zonder wachtwoord — alles daarin kan `docker run -v /:/host` uitvoeren en de machine overnemen — dus een enkel malafide script of een malafide afhankelijkheid die als jou draait, zou anders één commando verwijderd zijn van root. Dus op de commandoregel voer je Docker uit met `sudo` (`sudo docker ps`, `sudo docker compose up`), en de grafische tools die met de daemon praten — de Windows-VM — vragen om autorisatie wanneer ze dat nodig hebben. Als je het gemak van een groeploze opstelling terug wilt en de afweging begrijpt, schakel het dan in via **Instellen > Beveiliging > Docker zonder sudo** (of voer `omarchy-setup-security-sudoless-docker` uit), waarmee je na een waarschuwing aan de `docker`-groep wordt toegevoegd; dan werken gewone `docker` en de `d`-alias weer zonder `sudo`.
+Standaard zit je gebruiker *niet* in de `docker`-groep. Die groep is in feite root zonder wachtwoord — alles daarin kan `docker run -v /:/host` uitvoeren en de machine overnemen — dus anders zou één enkel malafide script of één dependency die als jou draait, maar één commando verwijderd zijn van root. Op de commandoregel draai je Docker dus met `sudo` (`sudo docker ps`, `sudo docker compose up`), en de grafische tools die met de daemon praten — de Windows VM — vragen om autorisatie wanneer ze die nodig hebben. Als je het gemak van een opstelling zonder groep terug wilt en de afweging begrijpt, schakel dat dan in via **Setup > Security > Sudoless Docker** (of voer `omarchy-setup-security-sudoless-docker` uit), waarmee je na een waarschuwing aan de `docker`-groep wordt toegevoegd; daarna werken gewone `docker` en de alias `d` weer zonder `sudo`.
 
-Je kunt de gangbare databases voor lokale ontwikkeling in Docker opzetten via _Installeren > Ontwikkeling > Docker DB_ in het Omarchy-menu.
+Je kunt de gangbare databases voor lokale ontwikkeling in Docker instellen via _Install > Development > Docker DB_ in het Omarchy-menu.
 
 ## GitHub CLI
 
-[De GitHub CLI](https://cli.github.com/) laat je authenticeren met je GitHub-account en er private repositories mee klonen. Het is aangesloten als een van de lui-ladende mise-stubs, dus de eerste keer dat je `gh` uitvoert, installeert het zichzelf. Voer `gh auth login` uit om te authenticeren. Daarna kun je private repositories uitchecken met `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) is `gh`, om vanuit de terminal met repositories, issues en pull requests te werken. _Setup > Git_ installeert het wanneer je ervoor kiest om je daar bij GitHub aan te melden, of installeer het afzonderlijk via _Install > CLI > GitHub_. Vervolgens kloont `gh repo clone org/repo` een repository; voer `gh --help` uit om de commando's te verkennen.
 
-Je kunt met dit commando ook een heleboel andere GitHub-bewerkingen uitvoeren. Voer gewoon `gh` uit om alles te zien wat mogelijk is.
-
-Er is ook een lui-installerende stub voor `ghui` om je pull requests in een TUI te beheren. En [lazygit](https://github.com/jesseduffield/lazygit) is vooraf geïnstalleerd, als je git zelf ook vanuit een TUI wilt aansturen.
+[Lazygit](https://github.com/jesseduffield/lazygit) is vooraf geïnstalleerd om met Git zelf te werken.

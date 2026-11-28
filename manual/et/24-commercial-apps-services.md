@@ -1,41 +1,47 @@
-# Ärirakendused/-teenused
+# Kommertsrakendused ja -teenused
 
-Omarchy keskendub peamiselt tasuta avatud lähtekoodiga tarkvara pakkumisele, kuid see pole selles religioosne. Mõnikord on parim lahendus äripakkumine ja see on täiesti korras. Siin on mõned valikud, mille jaoks me pakume lihtsat paigaldust.
+Omarchy keskendub enamasti tasuta avatud lähtekoodiga tarkvara pakkumisele, kuid ei ole selles osas religioosne. Mõnikord on parim lahendus kommertspakkumine ja see on täiesti korras. Siin on mõned võimalused, mille jaoks pakume lihtsat paigaldust.
 
 ## 1Password
 
-Paroolide hoidmine paroolihalduris on parim tava. Kahekordselt nii, kui töötad meeskonnaga. Ja [1password](https://1password.com/) on suurepärane lahendus, millega kaasneb ka käsurea tööriist võtmeotsingute integreerimiseks skriptidesse.
+Paroolide hoidmine paroolihalduris on parim tava. Topelt veel siis, kui töötad meeskonnaga. Ja [1password](https://1password.com/) on suurepärane lahendus, millel on kaasas ka käsurea tööriist võtmete otsingute integreerimiseks skriptidesse.
 
-1Passwordi käivitad kombinatsiooniga `Super + Shift + /`. Kui see pole veel paigaldatud, käivitab see kiirklahv kõigepealt paigalduse (võid kasutada ka Omarchy menüü jaotist _Paigalda > Service > 1Password_). Paigaldaja seadistab ka 1Passwordi laienduse Chromiumile.
+1Passwordi käivitad klahvikombinatsiooniga `Super + Shift + /`. Kui see pole veel paigaldatud, käivitab see kiirklahv esmalt paigalduse (võid kasutada ka Omarchy menüüst _Install > Service > 1Password_). Paigaldaja toob kaasa ka 1Passwordi käsurea tööriista ja seadistab 1Passwordi laienduse Chrome'i ja Chromiumi jaoks; selle laadimiseks taaskäivita brauser.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) on avatud lähtekoodiga alternatiiv paroolihaldurite valdkonnas, tasuta paketiga, mis katab enamiku isiklikust kasutusest. Paigalda see Omarchy menüü jaotise _Paigalda > Service > Bitwarden_ abil, mis toob kaasa ka Bitwardeni käsurea tööriista.
+[Bitwarden](https://bitwarden.com/) on avatud lähtekoodiga alternatiiv paroolihaldurite seas, mille tasuta pakett katab enamiku isikliku kasutuse vajadustest. Paigalda see Omarchy menüüst _Install > Service > Bitwarden_, mis toob kaasa ka Bitwardeni käsurea tööriista.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) on maailma populaarseim muusika voogedastusteenus. Ja Linuxi rakendus pakub kõike, mida ootaksid, sealhulgas võrguühenduseta mängimist.
-
-Spotify käivitad kombinatsiooniga `Super + Shift + M`. Nagu 1Passwordi puhul, käivitab kiirklahv kõigepealt paigalduse, kui Spotify pole veel paigaldatud (või kasuta Omarchy menüü jaotist _Paigalda > Service > Spotify_).
+[Spotify](https://spotify.com/) on maailma populaarseim muusika voogedastusteenus. Omarchy tarnib selle veebirakendusena, mis annab sulle täieliku pleieri, meediaklahvid ja Spotify Connecti, kuid mitte võrguühenduseta allalaadimisi. Käivita see klahvikombinatsiooniga `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) on koht, kus paljud meeskonnad vestlevad, nii ettevõtte sees kui ka väliste kaastöötajatega. Paigalda see Omarchy menüü jaotise _Paigalda > Service > Slack_ abil ja see avaneb kohe, kui on valmis.
+[Slack](https://slack.com/) on koht, kus paljud meeskonnad vestlevad, nii ettevõtte sees kui ka väliste koostööpartneritega. Paigalda see Omarchy menüüst _Install > Service > Slack_ ja see avaneb kohe, kui on valmis.
+
+## Notion
+
+[Notion](https://www.notion.com/) on tööruum märkmete, dokumentide ja projektide jaoks. Paigalda selle töölauarakendus Omarchy menüüst _Install > Service > Notion_.
+
+## WeChat
+
+[WeChat](https://www.wechat.com/) on sõnumirakendus, millel töötab suurem osa Hiinast, vestlemiseks, kõnedeks ja ühenduse pidamiseks kõigiga, kes seal elavad. Paigalda Tencenti ametlik Linuxi klient Omarchy menüüst _Install > Service > WeChat_ ja see avaneb kohe, kui on valmis. See on saadaval ainult x86 arvutites.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) on suurepärane viis failide sünkroonimiseks masinate vahel, säilitades samal ajal varukoopia pilves. Selle seadistamiseks vali Omarchy menüüst _Paigalda > Service > Dropbox_. Kui see töötab, hõlju riba paremas ülanurgas salve kohal ja tee seadistuse lõpetamiseks Dropboxi ikoonil paremklõps.
+[Dropbox](https://www.dropbox.com/) on suurepärane viis failide sünkroonimiseks masinate vahel, säilitades samal ajal pilves varukoopia. Selle seadistamiseks vali Omarchy menüüst _Install > Service > Dropbox_. See lisab ribale Dropboxi ikooni: klõpsa seda sisselogimiseks, seejärel kasuta sama paneeli oma salvestusruumi kontrollimiseks ja hiljuti sünkroonitud failide avamiseks.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) on mesh VPN, mis teeb turvalise juurdepääsu kõigile sinu arvutitele ja serveritele interneti kaudu ülilihtsaks. Selle seadistamiseks vali Omarchy menüüst _Paigalda > Service > Tailscale_.
+[Tailscale](https://tailscale.com/) on mesh VPN, mis muudab turvalise juurdepääsu kõigile oma arvutitele ja serveritele interneti kaudu üliilihtsaks. Selle seadistamiseks vali Omarchy menüüst _Install > Service > Tailscale_.
 
-See saab paneeli ribal, veebirakenduse administraatorikonsooli jaoks ja Taildropi failide saatmiseks sinu masinate vahel — vaata [võrk](35-networking.md).
+See saab ribale paneeli, halduskonsooli jaoks veebirakenduse ja Taildropi failide saatmiseks oma masinate vahel — vaata [võrgundus](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) on 37signalsi tarkvarasari, mille ostad üks kord ja käitad oma serveris, näiteks Campfire vestlussüsteem. Vali selle paigaldamiseks Omarchy menüüst _Paigalda > Service > ONCE_, mis lubab selle taustateenuse ja viib su ONCE terminaliliidesesse, et sealt edasi minna.
+[ONCE](https://once.com/) on 37signals'i tarkvarasari, mille ostad üks kord ja mida käitad oma serveris, nagu Campfire'i vestlussüsteem. Vali selle paigaldamiseks Omarchy menüüst _Install > Service > ONCE_, mis lubab selle taustateenuse ja viib su ONCE terminaliliidesesse, et sealt edasi minna.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) on standardne VPN-teenus, mis võimaldab sul oma liiklust väljuda enamikust maailma piirkondadest. Selle seadistamiseks vali Omarchy menüüst _Paigalda > Service > NordVPN_. Pärast taaskäivitust, mida see küsib, käivita autentimiseks `nordvpn login`.
+[NordVPN](https://nordvpn.com/) on tavaline VPN-teenus, mis laseb sul suunata oma liikluse välja enamikust maailma piirkondadest. Selle seadistamiseks vali Omarchy menüüst _Install > Service > NordVPN_. Pärast selle nõutavat taaskäivitust käivita autentimiseks `nordvpn login`.

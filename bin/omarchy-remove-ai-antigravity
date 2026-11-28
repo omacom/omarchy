@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Antigravity desktop app along with its configuration and caches.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+# The app rewrites its config directory for as long as it runs, so a removal
+# that leaves it running deletes the directory and watches it come straight back.
+pkill -x antigravity || true
+
+echo "Removing Antigravity Desktop..."
+omarchy-pkg-drop antigravity
+
+# Not ~/.gemini/antigravity, ~/.gemini/antigravity-cli, or ~/.gemini/config:
+# those hold Antigravity CLI (agy) state, shared skills, and user data that
+# outlive the desktop app. The desktop app pins its Electron state to
+# ~/.config/Antigravity, and its updater caches beside it.
+rm -rf \
+  "$HOME/.config/Antigravity" \
+  "$HOME/.cache/antigravity-updater"
+
+echo ""
+echo "Antigravity has been removed."

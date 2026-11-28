@@ -1,19 +1,21 @@
-# System-Sleep
+# Ruhezustand des Systems
 
-Omarchy aktiviert Standby und Ruhezustand standardmäßig, aber wenn du auf deinem Rechner Probleme damit hast, kannst du sie ausschalten.
+Omarchy aktiviert den Bereitschaftsmodus standardmäßig und den Ruhezustand, sobald er eingerichtet ist, aber wenn du auf deiner Maschine Probleme mit einem von beiden hast, kannst du sie deaktivieren.
+
+Auf NVIDIA GB10-Maschinen wie dem DGX Spark und dem ASUS Ascent GX10 sind Bereitschaftsmodus und Ruhezustand deaktiviert, genau wie in NVIDIAs DGX OS, weil noch nicht nachgewiesen wurde, dass der Ruhezustand auf dieser Hardware funktioniert. Der Schalter für den Bereitschaftsmodus und die Einrichtung des Ruhezustands gelten dort nicht. Um den Ruhezustand wieder einzuschalten, entferne `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` mit `sudo rm`; Bereitschaft erscheint dann wieder im Menü, und der Ruhezustand kann wie auf anderen Maschinen eingerichtet werden. Das Ausführen von `sudo omarchy apply hardware --install-user "$USER"` stellt die Datei wieder her.
 
 ### Energieprofile
 
-Auf einem Laptop merkt sich Omarchy dein Energieprofil getrennt für Netzbetrieb und Akkubetrieb und wechselt beim Ein- und Ausstecken zwischen beiden. Von Anfang an bedeutet das Leistung am Netz und Ausgewogen im Akkubetrieb.
+Auf einem Laptop merkt sich Omarchy dein Energieprofil getrennt für den Netzbetrieb und den Akkubetrieb und wechselt zwischen den beiden, wenn du das Netzteil einsteckst und absteckst. Standardmäßig bedeutet das Leistung im Netzbetrieb und Ausgewogen im Akkubetrieb.
 
-Was dein Rechner anbietet, siehst du mit `omarchy powerprofiles list`, und mit `omarchy powerprofiles set autodetect power-saver` setzt du das Profil für den Zustand, in dem du gerade bist. Um den anderen Zustand zu setzen, ohne etwas auszustecken, nenn ihn direkt: `omarchy powerprofiles set battery power-saver`. Was du wählst, bekommst du beim nächsten Mal in diesem Zustand wieder.
+Mit `omarchy powerprofiles list` kannst du sehen, was deine Maschine anbietet, und mit `omarchy powerprofiles set autodetect power-saver` das gewünschte Profil für den Zustand festlegen, in dem du dich gerade befindest. Um den anderen Zustand festzulegen, ohne irgendetwas abzustecken, gib ihn direkt an: `omarchy powerprofiles set battery power-saver`. Was auch immer du auswählst, bekommst du beim nächsten Mal in diesem Zustand wieder.
 
-### Standby umschalten
+### Bereitschaftsmodus ein-/ausschalten
 
-Standby schaltest du um, indem du `omarchy toggle suspend` im Terminal ausführst. Das zeigt die Option unter _System_ (oder `Super + Esc`) nur an oder versteckt sie, und dann kannst du sehen, ob sie auf deinem System zuverlässig funktioniert. Falls nicht, versteckst du sie mit demselben Befehl wieder.
+Du schaltest den Bereitschaftsmodus um, indem du `omarchy toggle suspend` im Terminal ausführst. Dadurch wird die Option unter _System_ (oder `Super + Esc`) nur ein- bzw. ausgeblendet, und dann kannst du sehen, ob sie auf deinem System zuverlässig funktioniert. Wenn nicht, kannst du sie mit demselben Befehl wieder ausblenden.
 
-### Ruhezustand umschalten
+### Ruhezustand ein-/ausschalten
 
-Den Ruhezustand richtest du ein, indem du `omarchy hibernation setup` im Terminal ausführst. Der Ruhezustand erstellt auf deiner Bootplatte ein /swap-Subvolume in der Größe deines physischen RAM, also stelle sicher, dass du reichlich Platz übrig hast. Auf einem Rechner mit 32GB brauchst du für dieses Volume immer mehr als 32GB frei. Der Ruhezustand erfordert außerdem den Standard-Bootloader Limine.
+Du richtest den Ruhezustand ein, indem du `omarchy hibernation setup` im Terminal ausführst (auf Apple Silicon Macs ist er nicht verfügbar). Der Ruhezustand erstellt ein /swap-Subvolume auf deinem Boot-Laufwerk in der Größe deines physischen RAM, stelle also sicher, dass du reichlich Platz übrig hast. Auf einer Maschine mit 32GB brauchst du für dieses Volume immer 32GB+ freien Speicher. Der Ruhezustand erfordert außerdem den Standard-Bootloader Limine.
 
-Wenn er eingerichtet ist, siehst du die Option für den Ruhezustand unter _System_ (oder `Super + Esc`), und dann kannst du sehen, ob sie auf deinem System zuverlässig funktioniert. Falls nicht, entfernst du sie wieder mit `omarchy hibernation remove`.
+Nach der Einrichtung siehst du die Option für den Ruhezustand unter _System_ (oder `Super + Esc`), und dann kannst du sehen, ob sie auf deinem System zuverlässig funktioniert. Wenn nicht, kannst du sie durch Ausführen von `omarchy hibernation remove` wieder entfernen.

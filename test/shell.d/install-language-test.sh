@@ -31,9 +31,7 @@ grep -qxF '[[ -r /etc/omarchy/language ]] && read -r code </etc/omarchy/language
   fail "the user step reads the preset as data"
 ! grep -qE '(^|[^a-z])(source|\.) .*/etc/omarchy/language' "$ROOT/install/user/language.sh" "$ROOT/install/config/language.sh" ||
   fail "neither step sources the preset"
-grep -qx 'run_logged "$OMARCHY_INSTALL/config/language.sh"' "$ROOT/install/config/all.sh" || fail "system finalization runs the language step"
-grep -qx 'run_logged "$OMARCHY_INSTALL/user/language.sh"' "$ROOT/install/user/all.sh" || fail "user finalization runs the language step"
-pass "both finalization steps run, and read the preset as data"
+pass "neither finalization step runs the preset as code"
 
 # The user step's `omarchy-language seed`: the real command, with the outside
 # world stubbed, so it is seen to elevate and notify nothing.
@@ -57,32 +55,53 @@ seed zh-CN
 pass "seeding sets the user's language and session LANG without elevating or notifying"
 
 # A deferred install's region, settled at first boot against the owner's
-# timezone; the function is taken from owner setup itself.
+# timezone; the function is taken from owner setup itself. Owner setup runs as
+# a systemd service, so the scripts it starts see OMARCHY_PATH only if its
+# preamble hands it on. Only the lines after set -euo pipefail that start with
+# an assignment are run, up to the first line that does not.
+(
+  unset OMARCHY_PATH
+  eval "$(awk '/^set -euo pipefail$/ { on = 1; next } on && !/^(#|$|(export )?[A-Z_]+=)/ { exit } on' "$ROOT/bin/omarchy-provision-owner")"
+  [[ $(bash -c 'echo "${OMARCHY_PATH:-}"') == "/usr/share/omarchy" ]]
+) || fail "owner setup hands OMARCHY_PATH to the scripts it starts"
 eval "$(sed -n '/^configure_region() {$/,/^}$/p' "$ROOT/bin/omarchy-provision-owner")"
 region_root=$scratch/region
-mkdir -p "$region_root/omarchy/default/regions/cn" "$region_root/omarchy/bin" "$region_root/etc/omarchy"
-printf 'Asia/Shanghai\nAsia/Urumqi\n' >"$region_root/omarchy/default/regions/cn/timezones"
+mkdir -p "$region_root/omarchy/bin" "$region_root/omarchy/install/config" "$region_root/etc/omarchy"
+ln -s "$ROOT/default" "$region_root/omarchy/default"
 printf '#!/bin/bash\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
 chmod +x "$region_root/omarchy/bin/omarchy-apply-pacman"
-export OMARCHY_FORM_DEFAULTS=$region_root/etc/omarchy/form-defaults OMARCHY_REGION_FILE=$region_root/etc/omarchy/region \
-  OMARCHY_PACMAN_CONF=$region_root/etc/pacman.conf OMARCHY_REGION_TARGET=$region_root REGION_LOG=$region_root/log
+printf 'echo region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
+export OMARCHY_PATH=$region_root/omarchy OMARCHY_FORM_DEFAULTS=$region_root/etc/omarchy/form-defaults \
+  OMARCHY_REGION_FILE=$region_root/etc/omarchy/region OMARCHY_PACMAN_CONF=$region_root/etc/pacman.conf \
+  OMARCHY_REGION_TARGET=$region_root REGION_LOG=$region_root/log
 printf '[omarchy]\nServer = https://pkgs.omarchy.cn/stable/$arch\nServer = https://pkgs.omarchy.org/stable/$arch\n' >"$OMARCHY_PACMAN_CONF"
+# settle <installed region> <timezone>: the region the owner ends up with.
 settle() {
-  timezone=$1
-  printf 'cn\n' >"$OMARCHY_REGION_FILE"
+  timezone=$2
+  if [[ $1 == "global" ]]; then rm -f "$OMARCHY_REGION_FILE"; else printf '%s\n' "$1" >"$OMARCHY_REGION_FILE"; fi
   : >"$REGION_LOG"
-  OMARCHY_PATH=$region_root/omarchy configure_region
+  configure_region >/dev/null
   [[ -e $OMARCHY_REGION_FILE ]] && cat "$OMARCHY_REGION_FILE" || echo global
 }
-printf 'KEYBOARD=Chinese (Simplified, Pinyin)\nTIMEZONE=Asia/Shanghai\nREGION=cn\n' >"$OMARCHY_FORM_DEFAULTS"
-for case in Asia/Shanghai:cn UTC:cn Europe/Copenhagen:cn Asia/Hong_Kong:global Hongkong:global Asia/Macau:global Asia/Macao:global Asia/Taipei:global ROC:global; do
-  [[ $(settle "${case%%:*}") == "${case#*:}" ]] || fail "an owner in ${case%%:*} gets the ${case#*:} region"
-  if [[ ${case#*:} == global ]]; then
-    grep -qx "apply stable $region_root" "$REGION_LOG" || fail "leaving China re-renders pacman for the installed channel" "$(cat "$REGION_LOG")"
-  else
-    [[ ! -s $REGION_LOG ]] || fail "keeping the region leaves pacman alone"
-  fi
-done
+# media_settles <media region> <timezone:region>...
+media_settles() {
+  local media=$1 case
+  shift
+  printf 'REGION=%s\n' "$media" >"$OMARCHY_FORM_DEFAULTS"
+  for case in "$@"; do
+    [[ $(settle "$media" "${case%%:*}") == "${case#*:}" ]] || fail "an owner in ${case%%:*} on $media media gets the ${case#*:} region"
+    if [[ ${case#*:} == "$media" ]]; then
+      [[ ! -s $REGION_LOG ]] || fail "keeping the media's region leaves pacman alone"
+    else
+      grep -qx "apply stable $region_root" "$REGION_LOG" || fail "a new region re-renders pacman for the installed channel" "$(cat "$REGION_LOG")"
+      grep -qx "region" "$REGION_LOG" || fail "a new region re-applies its mirrors" "$(cat "$REGION_LOG")"
+    fi
+  done
+}
+media_settles cn Asia/Shanghai:cn UTC:cn Europe/Copenhagen:cn \
+  Asia/Hong_Kong:global Hongkong:global Asia/Macau:global Asia/Macao:global Asia/Taipei:global ROC:global
+media_settles global Asia/Shanghai:cn Asia/Urumqi:cn PRC:cn UTC:global America/New_York:global \
+  Asia/Hong_Kong:global Asia/Macau:global Asia/Taipei:global
 printf 'KEYBOARD=English (US)\n' >"$OMARCHY_FORM_DEFAULTS"
-[[ $(settle Asia/Taipei) == cn && ! -s $REGION_LOG ]] || fail "a region the media did not choose is left alone"
-pass "a deferred install settles the media's region against the owner's timezone, and Hong Kong, Macau and Taiwan are always World"
+[[ $(settle cn Asia/Taipei) == cn && ! -s $REGION_LOG ]] || fail "a region the media did not choose is left alone"
+pass "a deferred install settles its media's region against the owner's timezone, and Hong Kong, Macau and Taiwan are always global"

@@ -32,6 +32,7 @@
     "diffRemovedWord": "{{ mix background red 32% }}",
     "userMessageBackground": "{{ mix background foreground 6% }}",
     "userMessageBackgroundHover": "{{ mix background foreground 10% }}",
+    "composerSidebarBackground": "{{ mix background foreground 5% }}",
     "bashMessageBackgroundColor": "{{ mix background foreground 6% }}",
     "memoryBackgroundColor": "{{ mix background foreground 6% }}",
     "selectionBg": "{{ selection_background }}",

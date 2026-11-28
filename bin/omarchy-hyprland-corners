@@ -37,5 +37,7 @@ for mode in sharp rounded; do
   [[ $mode == "$1" ]] || rm -f "$TOGGLES_DIR/corners-$mode.lua" || exit 1
 done
 
-hyprctl reload >/dev/null || exit 1
+omarchy-restart-hyprctl
+# T3 Code reads the new rounding from Hyprland, so it follows after the reload.
+omarchy-theme-set-t3code || true
 omarchy-notification-send -g 󰘇 "$LABEL"

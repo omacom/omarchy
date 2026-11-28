@@ -40,6 +40,16 @@ BarWidget {
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
+  // The timer stops during suspend, so after a wake the label kept the time
+  // from before it for up to a minute. Resyncing re-reads the time and arms
+  // its next tick from now, and onDateChanged below puts the result on the
+  // label. Unlike refresh() this leaves a month the user is browsing in the
+  // calendar where it is.
+  function resync() {
+    clock.resync()
+    if (panelLoader.item && panelLoader.item.resync) panelLoader.item.resync()
+  }
+
   function cycleFormat() {
     var current = String(configuredFormat)
     var next = Model.nextClockFormat(formatRing, current)
@@ -121,9 +131,9 @@ BarWidget {
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
-  SystemClock {
+  WallClock {
     id: clock
-    precision: root.showsSeconds ? SystemClock.Seconds : SystemClock.Minutes
+    step: root.showsSeconds ? 1000 : 60000
     onDateChanged: root.displayDate = date
   }
 
@@ -142,6 +152,7 @@ BarWidget {
     target: "omarchy.clock"
 
     function refresh(): void { root.broadcast("refresh") }
+    function resync(): void { root.broadcast("resync") }
     function cycleFormat(): void { root.cycleFormat() }
     function toggleWeekStart(): void { root.toggleWeekStart() }
     function open(): void { root.open() }
@@ -162,6 +173,9 @@ BarWidget {
     horizontalMargin: 8.75
     verticalPadding: 8.75
     tooltipText: I18n.t("clock.toggleFormat")
+    // The clock is text to read, not an icon to press, so a click never
+    // shrinks it; the format it cycles to, or the panel it opens, is feedback.
+    pressFeedbackButtons: Qt.NoButton
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()

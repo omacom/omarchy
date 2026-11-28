@@ -296,10 +296,6 @@ cleanup || fail "omarchy-theme-set-browser-policy's EXIT trap succeeds with a st
 unset -f cleanup
 pass "omarchy-theme-set-browser-policy's EXIT trap never leaks a failure status"
 
-grep -F 'omarchy-theme-set-browser || true' "$ROOT/migrations/1787515927.sh" >/dev/null ||
-  fail "the policy-directory migration hardens Firefox even when the theme refresh fails"
-pass "the policy-directory migration does not abort on a failed theme refresh"
-
 policy_files=(
   "$ROOT/bin/omarchy-install-browser"
   "$ROOT/bin/omarchy-provision-owner"
@@ -309,27 +305,15 @@ policy_files=(
   "$ROOT/install/config/theme-system.sh"
   "$ROOT/install/config/browser-policy.sh"
   "$ROOT/install/helpers/browser-policy.sh"
-  "$ROOT/migrations/1787515927.sh"
 )
 if grep -nE 'chmod a\+rwx\b|chmod a\+rw\b|chmod a\+w\b|chmod o\+w|chmod ugo\+w|chmod 2775\b|chmod 2777\b|chmod 0777\b|chmod 777\b|install -d -m 0?[27]?777|omarchy-browser-policy' "${policy_files[@]}" >/dev/null; then
   fail "browser policy setup is not world-writable and does not use omarchy-browser-policy"
 fi
 pass "browser policy setup is not world-writable"
 
-mapfile -t migrations < <(rg -l 'Stop world-writable Chromium and Firefox policy directories' "$ROOT/migrations")
-(( ${#migrations[@]} == 1 )) || fail "exactly one migration locks existing policy directories" "${migrations[*]}"
-grep -F 'browser_policy_setup_dir' "${migrations[0]}" >/dev/null ||
-  fail "the policy-directory migration repairs managed directories"
-if grep -F 'browser_policy_grant_user' "${migrations[0]}" >/dev/null; then
-  fail "the policy-directory migration does not grant a browser-policy group"
-fi
-grep -F 'BROWSER_POLICY_FIREFOX_DIRS' "${migrations[0]}" >/dev/null ||
-  fail "the policy-directory migration covers Firefox and Zen"
-grep -F 'browser_policy_firefox_policy_file_ok' "${migrations[0]}" >/dev/null ||
-  fail "the policy-directory migration keeps a trusted Firefox policies.json"
 grep -F '/opt/zen-browser/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
   fail "the shared helper names the Zen distribution directory"
-pass "a migration locks existing policy directories"
+pass "the shared helper names the Zen distribution directory"
 
 fx_merge=$test_tmp/fx-merge
 mkdir -p "$fx_merge"
@@ -345,3 +329,50 @@ printf 'not json\n' >"$fx_merge/policies.json"
 browser_policy_firefox_skip_default_check "$fx_merge"
 [[ $(<"$fx_merge/policies.json") == "not json" ]] || fail "an unreadable Firefox policies.json is left alone"
 pass "Firefox's default browser check is merged into existing policies"
+
+printf '{"policies": {"DontCheckDefaultBrowser": true}}\n' >"$fx_merge/policies.json"
+browser_policy_firefox_disable_app_update "$fx_merge"
+[[ $(jq -c '.policies' "$fx_merge/policies.json") == '{"DontCheckDefaultBrowser":true,"DisableAppUpdate":true}' ]] ||
+  fail "Firefox's updater is turned off beside the existing policies" "$(cat "$fx_merge/policies.json")"
+as_root() { return 1; }
+browser_policy_firefox_disable_app_update "$fx_merge" || fail "a policy already on is not written again"
+printf '{}\n' >"$fx_merge/policies.json"
+if browser_policy_firefox_disable_app_update "$fx_merge"; then
+  fail "a policy write that fails is reported"
+fi
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_firefox_disable_app_update "$fx_merge"
+[[ $(jq -c . "$fx_merge/policies.json") == '{"policies":{"DisableAppUpdate":true}}' ]] ||
+  fail "Firefox's updater is turned off in a file with no policies yet" "$(cat "$fx_merge/policies.json")"
+pass "Firefox's updater is turned off in existing policies"
+
+low_mem_dir=$test_tmp/low-mem-policy
+low_mem_info=$test_tmp/meminfo
+fake_image_root=$test_tmp/image-root
+mkdir -p "$low_mem_dir" "$fake_image_root/var/lib/omarchy/image"
+as_root() { unprivileged_as_root "$@"; }
+
+printf 'MemTotal:        8000000 kB\n' >"$low_mem_info"
+OMARCHY_MEMINFO="$low_mem_info" browser_policy_install_defaults "$low_mem_dir"
+[[ -f $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "8 GiB machines install the low-memory browser policy"
+pass "8 GiB machines install the low-memory browser policy"
+
+printf 'MemTotal:       12000000 kB\n' >"$low_mem_info"
+OMARCHY_MEMINFO="$low_mem_info" browser_policy_install_defaults "$low_mem_dir"
+[[ ! -e $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "12 GiB and larger machines omit and clean up the low-memory browser policy"
+pass "12 GiB and larger machines omit the low-memory browser policy"
+
+printf 'MemTotal:        8000000 kB\n' >"$low_mem_info"
+: >"$fake_image_root/var/lib/omarchy/image/target"
+OMARCHY_MEMINFO="$low_mem_info" OMARCHY_IMAGE_ROOT="$fake_image_root" browser_policy_install_defaults "$low_mem_dir"
+[[ ! -e $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "image builds do not bake the build host's RAM into browser policies"
+pass "image builds defer low-memory browser policy to target first boot"
+
+printf 'corrupt\n' >"$low_mem_info"
+OMARCHY_MEMINFO="$low_mem_info" browser_policy_install_defaults "$low_mem_dir"
+[[ ! -e $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "unreadable MemTotal does not install the low-memory browser policy"
+pass "unreadable MemTotal skips the low-memory browser policy"

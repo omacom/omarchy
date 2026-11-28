@@ -1,24 +1,27 @@
-# Vienotā starpliktuve un vēsture
+# Apvienotā starpliktuve un vēsture
 
-Parasti Linux tev ir nepieciešams `Ctrl + Shift + C/V`, lai kopētu un ielīmētu terminālī, un `Ctrl + C/V`, lai to darītu visur citur. Pie tā ir grūti pierast ikvienam, kurš nav dzimis un audzis ar Linux! Tāpat ir ar pāreju no super uz ctrl, ja nāc no Mac.
+Parasti Linux vidē terminālī kopēšanai un ielīmēšanai nepieciešams `Ctrl + Shift + C/V`, bet visur citur — `Ctrl + C/V`. Ikvienam, kurš nav dzimis un audzis ar Linux, pie tā ir grūti pierast! Tāpat arī pārslēgšanās no super uz ctrl, ja nākat no Mac.
 
-Omarchy risina abas problēmas ar vienotām starpliktuves karstajām taustiņu kombinācijām, kas darbojas (gandrīz) visur. Tās ir:
+Omarchy risina abas problēmas ar apvienotajiem starpliktuves karstajiem taustiņiem, kas darbojas (gandrīz) visur. Tie ir:
 
-| Karstā taustiņa kombinācija | Komanda |
+| Karstais taustiņš | Komanda |
 | ------- | ----------- |
+| Super + A | Atlasīt visu |
 | Super + C | Kopēt |
 | Super + X | Izgriezt |
 | Super + V | Ielīmēt |
 | Super + Ctrl + V | Starpliktuves vēsture |
 
-_Ņem vērā, ka lielākā daļa aģentu ietvaru izmantos `Ctrl + V` attēlu ielīmēšanai, bet `Super + V` teksta ielīmēšanai._
+_Piezīme: lielākā daļa aģentu ietvaru attēlu ielīmēšanai izmantos `Ctrl + V`, bet teksta ielīmēšanai — `Super + V`._
+
+Izmantojiet `Super + A`, pēc tam `Super + C`, lai kopētu visu fokusētajā teksta laukā vai citā lietotnē, kas atbalsta `Ctrl + A`. Terminālī `Ctrl + A` pārvieto uz komandrindas sākumu, nevis atlasa tās tekstu.
 
 ### Starpliktuves vēsture
 
-Starpliktuves vēsturi nodrošina Omarchy čaula, un tā darbojas gan tekstam, gan attēliem. Tu to palaid ar `Super + Ctrl + V`, atlasi savu ierakstu ar return, un pēc tam tas tiks ievietots starpliktuvē, gatavs ielīmēšanai ar `Super + V`.
+Starpliktuves vēsturi nodrošina Omarchy čaula, un tā darbojas gan tekstam, gan attēliem. To aktivizējat ar `Super + Ctrl + V` un izvēlaties ierakstu ar return, kas to ielīmē tieši lietotnē, kurā bijāt. Izmantojiet `Shift + Return`, lai to tikai kopētu starpliktuvē, `Alt + Return`, lai to atvērtu, `Delete`, lai to noņemtu no vēstures, un `Shift + Delete`, lai notīrītu visu vēsturi.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Tu vari arī meklēt vēsturē, vienkārši sākot rakstīt:
+Vēsturē varat arī meklēt, vienkārši sākot rakstīt:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

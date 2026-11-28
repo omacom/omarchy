@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Game Vibes
+Comment=Little games to play, and to keep making with an agent
+Exec=omarchy-games-vibes-launch
+Icon=omarchy-game-vibes
+Categories=Game;
+Terminal=false
+StartupNotify=true

@@ -1,15 +1,19 @@
-# Taustat
+# Taustakuvat
 
-Jokaiseen teemaan kuuluu oma taustakokoelmansa, ja voit lisätä omia lisätiedostojasi kansioon `~/.config/omarchy/backgrounds/[theme]`. Jos haluat lisätä lisätä taustakuvan esimerkiksi nord-teemaan, laitat tiedoston vain kansioon `~/.config/omarchy/backgrounds/nord`.
+Jokaisen teeman mukana tulee oma joukkonsa taustakuvia, ja voit lisätä omiasi hakemistoon `~/.config/omarchy/backgrounds/[theme]`. Jos haluat lisätä ylimääräisen taustakuvan esimerkiksi nord-teemaan, laitat tiedoston vain hakemistoon `~/.config/omarchy/backgrounds/nord`.
 
-Helpoiten teet sen valitsemalla Omarchy-valikosta _Asenna > Tyyli > Tausta_. Se avaa kansion, jossa kyseisen teeman taustoja säilytetään. Paina `Super + Shift + F` käynnistääksesi toisen tiedostonhallinnan, etsi taustasi ja kopioi se sinne.  Nyt se on mukana taustoissa, joista voit valita näppäimillä `Super + Ctrl + Space`.
+Helpoiten teet tämän valitsemalla Omarchy-valikosta _Asenna > Tyyli > Taustakuva_. Se avaa kansion, jossa kyseisen teeman taustakuvat säilytetään. Käynnistä toinen tiedostonhallinta painamalla `Super + Shift + F`, etsi taustakuvasi ja kopioi se sinne. Nyt se on mukana taustakuvissa, joiden välillä voit valita näppäimillä `Super + Ctrl + W`.
 
-Taustat voivat olla videoita yhtä hyvin kuin still-kuvia. Pudota `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- tai `avi`-tiedosto samaan kansioon, niin se ilmestyy kuvien rinnalle. Videoita toistaa OWE-taustakuvamoottori. Se purkaa videon kerran kaikille näytöille ja toistaa sen äänen oletusäänilähdön kautta, ja se pysäyttää toiston aina, kun mikään ei voi nähdä sitä. Lukitusruutu piirtää saman purun mykistettynä OWE:n kautta. Videotausta kuluttaa silti paljon enemmän virtaa kuin still-tausta.
+Teema, jolla ei ole omia taustakuvia, saa yhden, joka piirretään sen väreistä: Omarchy-logo teeman korostusvärillä sen taustavärin päällä. Lisää omasi korvataksesi sen.
 
-Teemoihin voi sisältyä lyhyt intro still-taustalle. Tiedostolle `backgrounds/road.webp` vastaava video sijaitsee polussa `backgrounds/intros/road.mp4`. Se toistuu automaattisesti käynnistyksen yhteydessä ja vaihdettaessa teemaan, jossa kyseinen tausta on valittuna, ja palaa sitten still-kuvaan. Introvideot pysyvät poissa taustavalitsimesta eivätkä koskaan silmukoidu.
+Taustakuvat voivat olla myös videoita, eivät vain still-kuvia. Pudota `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- tai `avi`-tiedosto samaan kansioon, niin se ilmestyy kuvien rinnalle. Videot toistaa OWE-taustakuvamoottori. Se purkaa videon kerran kaikille näytöille, toistaa sen äänen oletusäänilähdön kautta ja pysäyttää toiston aina, kun mikään ei voi nähdä sitä. Videotaustakuva kuluttaa silti paljon enemmän virtaa kuin still-taustakuva.
 
-_Käynnistä > Ulkoasu > Animaatiot_ -valinnan poistaminen käytöstä poistaa käytöstä myös taustaintrot. Omarchy tekee näin oletuksena virtuaalikoneessa. Komento `omarchy theme bg intro toggle` voi kytkeä introt erikseen. Teeman päivittäminen tai toisen taustan valitseminen samassa teemassa ei toista introa.
+Teemoihin voi sisältyä lyhyt intro still-taustakuvalle. Tiedoston `backgrounds/road.webp` tapauksessa vastaava video sijaitsee polussa `backgrounds/intros/road.mp4`. Se toistuu automaattisesti käynnistyksen yhteydessä, vaihdettaessa teemaan, jossa kyseinen taustakuva on valittuna, ja valittaessa kyseinen taustakuva, ja palaa sitten still-kuvaan. Introvideot eivät näy taustakuvan valitsimessa eivätkä koskaan toistu silmukassa.
 
-Löydät valtavan kokoelman hienosti kuratoituja taustoja osoitteesta https://github.com/dharmx/walls.
+Valinta _Ulkoasu > Animaatiot pois_ poistaa käytöstä myös taustakuvien introt. Omarchy tekee näin oletuksena virtuaalikoneessa. Komennolla `omarchy theme bg intro toggle` voit kytkeä introt erikseen. Teeman päivittäminen ei toista introa.
 
-Videotaustat säilyttävät välimuistissa olevan still-kuvan lukitusruudulla, kun toisto on keskeytetty tai ei käytettävissä. Animoidut GIFit toistuvat työpöydällä ja näyttävät still-ruudun lukitusruudulla.
+Still-kuvalla voi olla myös silmukka, rauhallinen versio samasta kuvasta, joka liikkuu jatkuvasti, polussa `backgrounds/loops/road.mp4`. Se toistuu still-kuvan tilalla, sen intron jälkeen, jos sillä sellainen on, ja pysähtyy, kun animaatiot poistetaan käytöstä. Akkuvirralla näytetään sen sijaan still-kuva, ja silmukka palaa, kun kytket laitteen takaisin verkkovirtaan. Silmukat eivät näy taustakuvan valitsimessa.
+
+Löydät valtavan kokoelman hienoja, kuratoituja taustakuvia kokoelmasta [dharmx/walls](https://github.com/dharmx/walls).
+
+Lukitusnäyttö näyttää videotaustakuvasta still-kehyksen samalla tavalla kuin se näyttää animoidusta GIF-kuvasta still-kehyksen.

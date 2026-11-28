@@ -61,8 +61,14 @@ Item {
   // already above its floor, so nothing about the normal switch changes.
   property int trackHeight: Math.max(22, Math.round(Style.spacing.controlHeight * 0.55))
   property int trackWidth: Math.round(trackHeight * 1.9)
-  property int knobSize: Math.max(6, Math.round(trackHeight * 0.72))
-  property int knobInset: Math.max(1, Math.round((trackHeight - knobSize) / 2))
+  // Derive knobSize from trackHeight - 2 * knobInset so top/bottom/left/right
+  // gaps are always exact integers and the knob never touches the track border
+  // at compact header sizes (e.g. 12–14px trackHeight).
+  property int knobInset: Math.max(
+    Math.ceil(Math.max(track.borderTop, 1)) + 1,
+    Math.round((trackHeight - Math.round(trackHeight * 0.72)) / 2)
+  )
+  property int knobSize: Math.max(4, trackHeight - knobInset * 2)
 
   readonly property int _pad: cursorRing ? cursorPad : 0
 
@@ -95,7 +101,7 @@ Item {
       height: root.knobSize
       radius: root.rounded ? height / 2 : 0
       x: root.checked !== root.mirrored ? track.width - width - root.knobInset : root.knobInset
-      anchors.verticalCenter: parent.verticalCenter
+      y: root.knobInset
       color: root.checked ? Style.selectedStateColor(root.foreground, root.accent) : Qt.darker(root.foreground, 1.25)
 
       Behavior on x { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }

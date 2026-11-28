@@ -1,12 +1,12 @@
 # Θέματα
 
-Το Omarchy έρχεται με εικοσιδύο όμορφα θέματα. Μπορείς να επιλέξεις ανάμεσα τους μέσω _Στυλ > Θέμα_ στο μενού Omarchy (`Super + Space`) ή να πηδήξεις κατευθείαν στον επιλογέα θέματος χρησιμοποιώντας το `Super + Ctrl + Shift + Space`.
+Το Omarchy έρχεται με είκοσι τρία πανέμορφα θέματα. Μπορείτε να επιλέξετε ανάμεσά τους μέσω του _Εμφάνιση > Θέμα_ στο Omarchy Menu (`Super + Space`) ή να μεταβείτε απευθείας στον επιλογέα θέματος χρησιμοποιώντας το `Super + Ctrl + T`.
 
-Κάθε θέμα διαμορφώνει το desktop, το τερματικό, το neovim, την οθόνη δραστηριότητας (btop), τον Chromium, και ολόκληρο το shell του Omarchy: πάνω γραμμή, μενού, ειδοποιήσεις, OSD και την οθόνη κλειδώματος. (Για το Obsidian, πρέπει να επιλέξεις χειροκίνητα το θέμα Omarchy μέσω _Appearance > Themes_ μέσα στην εφαρμογή).
+Κάθε θέμα διαμορφώνει το στυλ της επιφάνειας εργασίας, του τερματικού, του neovim, της οθόνης δραστηριότητας (btop), του προγράμματος περιήγησής σας (Chrome, Chromium, Edge ή Brave) και ολόκληρου του κελύφους του Omarchy: της πάνω γραμμής, του μενού, των ειδοποιήσεων, του OSD και της οθόνης κλειδώματος. (Για το Obsidian, πρέπει να επιλέξετε χειροκίνητα το θέμα Omarchy μέσω του _Εμφάνιση > Θέματα_ μέσα στην εφαρμογή).
 
-Τα θέματα έχουν ένα σύνολο εικόνων φόντου από τις οποίες μπορείς να διαλέξεις χρησιμοποιώντας το `Super + Ctrl + Space`.
+Τα θέματα έχουν ένα σύνολο εικόνων φόντου, ανάμεσα στις οποίες μπορείτε να επιλέξετε χρησιμοποιώντας το `Super + Ctrl + W`.
 
-Μπορείς να βρεις ακόμα περισσότερα θέματα στη [σελίδα επιπλέον θεμάτων](https://omarchy.org/themes/) ή ακόμα και να [φτιάξεις το δικό σου θέμα](43-making-your-own-theme.md).
+Μπορείτε να βρείτε ακόμη περισσότερα θέματα στη [σελίδα με τα επιπλέον θέματα](https://omarchy.org/themes/) ή ακόμη και να [δημιουργήσετε το δικό σας θέμα](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Εικονίδια εφαρμογών
+
+Τα εικονίδια στον εκκινητή εφαρμογών και στο dock σχεδιάζονται με τα χρώματα του θέματός σας, οπότε αλλάζουν μαζί με αυτό. Προέρχονται από ένα σύνολο εικονιδίων, το οποίο επιλέγετε ξεχωριστά από το θέμα στο _Εμφάνιση > Εικονίδια_, από προεπισκοπήσεις κάθε συνόλου, με τον ίδιο τρόπο που επιλέγετε ένα θέμα:
+
+- Το _Papercraft_ είναι το προεπιλεγμένο: όλα όσα είναι εγκατεστημένα, σχεδιασμένα με ένα στυλ. Οι εφαρμογές που είναι γνωστές από το λογότυπό τους, όπως το Chrome, το HEY ή το YouTube, διατηρούν το σχήμα του και παίρνουν τα χρώματα του θέματος.
+- Το _Arcade_ σχεδιάζει τις ίδιες εφαρμογές ως pixel art 8-bit, όπως θα έκανε μια παλιά κονσόλα παιχνιδιών.
+- Το _Original_ δείχνει κάθε εφαρμογή με το εικονίδιο που της έδωσε ο δημιουργός της.
+
+Μπορείτε να εγκαταστήσετε ένα σύνολο εικονιδίων που έχει δημιουργήσει κάποιος άλλος με το _Εγκατάσταση > Στυλ > Εικονίδια_ (ή το `omarchy icons install <git url>`) και να το αφαιρέσετε ξανά από το _Αφαίρεση > Εικονίδια_. Το _Ενημέρωση > Επιπλέον Εικονίδια_ ανακτά την τελευταία έκδοση των συνόλων που έχετε εγκαταστήσει.
+
+Για να δημιουργήσετε το δικό σας, βάλτε τα εικονίδιά σας στο `~/.config/omarchy/icons/<name>/`, ένα αρχείο ανά εφαρμογή, ονομασμένο σύμφωνα με τη γραμμή `Icon=` του αρχείου `.desktop` της εφαρμογής. Ένα αρχείο που τελειώνει σε `.svg` εμφανίζεται ως έχει. Ένα αρχείο που τελειώνει σε `.svg.tpl` σχεδιάζεται με τα χρώματα του θέματος: γράψτε `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` ή `{{ icon_shadow }}` όπου μπαίνει ένα χρώμα. Το προεπιλεγμένο σύνολο στο `/usr/share/omarchy/icons/papercraft/` είναι ένα καλό μέρος για να ξεκινήσετε. Προσθέστε ένα `preview.png` για να εμφανίζεται το σύνολό σας στον επιλογέα· χωρίς αυτό, το Omarchy σχεδιάζει μια προεπισκόπηση από τα εικονίδιά σας. Για να αλλάξετε ένα μόνο εικονίδιο του προεπιλεγμένου συνόλου, βάλτε τη δική σας έκδοση στο `~/.config/omarchy/icons/papercraft/`.
+
 ### Ξεκλειδώματα
 
-Τα θέματα μπορούν επίσης να έχουν έναν προσαρμοσμένο σχεδιασμό ξεκλειδώματος, που χρησιμοποιείται για τη διεργασία αποκρυπτογράφησης κατά την εκκίνηση. Μπορείς να επιλέξεις έναν από αυτούς στο _Στυλ > Ξεκλείδωμα_. Μοιάζουν έτσι:
+Τα θέματα μπορούν επίσης να έχουν προσαρμοσμένο σχέδιο ξεκλειδώματος, το οποίο χρησιμοποιείται για τη διαδικασία αποκρυπτογράφησης κατά την εκκίνηση. Μπορείτε να επιλέξετε ένα από αυτά στο _Εμφάνιση > Ξεκλείδωμα_. Μοιάζουν έτσι:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,11 +114,20 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -105,9 +138,6 @@ _Miasma_
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
 
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
-
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
 
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

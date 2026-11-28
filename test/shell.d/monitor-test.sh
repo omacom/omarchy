@@ -54,8 +54,94 @@ assertDeepEqual(
   'monitor keeps presets until display dimensions are known'
 )
 
-assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
-assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
+// A 6K panel also advertises a tiled half-width mode and legacy sizes.
+const sixK = ['6016x3384@60.00Hz', '3840x2160@60.00Hz', '6016x3384@59.94Hz', '5120x2880@60.00Hz',
+  '2560x2880@60.00Hz', '2560x1440@60.00Hz', '1920x1080@60.00Hz', '1280x720@60.00Hz', '1024x768@60.00Hz']
+assertDeepEqual(
+  monitor.resolutionOptions(sixK, 6016, 3384),
+  ['1920x1080', '2560x1440', '3840x2160', '5120x2880', '6016x3384'],
+  'monitor offers the native resolution and its same-shape modes, capped'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(sixK, 1024, 768),
+  ['1024x768', '1920x1080', '2560x1440', '3840x2160', '5120x2880', '6016x3384'],
+  'monitor keeps an odd current resolution in the list'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(['3840x2160@60.00Hz', '2560x1440@60.00Hz', '1920x1080@60.00Hz', '1600x900@60.00Hz', '1280x720@60.00Hz'], 3840, 2160),
+  ['1920x1080', '2560x1440', '3840x2160'],
+  'monitor offers nothing below 1080p'
+)
+assertDeepEqual(monitor.resolutionOptions(undefined, 0, 0), [], 'monitor offers no resolutions without modes')
+assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
+assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')
+assertEqual(monitor.resolutionLabel('5120x2160'), '5K2K', 'monitor names ultrawide 5K2K rather than 4K')
+assertEqual(monitor.resolutionLabel('2560x1440'), '1440p', 'monitor names smaller modes by height')
+
+// A gaming monitor advertises several rates at its resolution, and others at
+// smaller ones and below 60Hz.
+const gaming = ['2560x1440@143.98Hz', '2560x1440@120.00Hz', '2560x1440@59.95Hz', '2560x1440@60.00Hz',
+  '2560x1440@50.00Hz', '1920x1080@240.00Hz']
+assertDeepEqual(
+  monitor.refreshOptions(gaming, 2560, 1440),
+  [{ label: '60', rate: '60' }, { label: '120', rate: '120' }, { label: '144', rate: '143.98' }],
+  'monitor offers its resolution\'s rates from 60Hz up, one per whole rate, keeping the exact one'
+)
+assertDeepEqual(
+  monitor.refreshOptions(['3840x2160@60.00Hz', '3840x2160@59.94Hz', '3840x2160@30.00Hz'], 3840, 2160),
+  [],
+  'monitor offers no rates when none is faster than 60Hz'
+)
+
+assertEqual(monitor.displayTitle({ name: 'eDP-1', make: 'LG Display', model: '0x0804' }), 'Built-in Display', 'monitor names the built-in panel by what it is')
+assertEqual(monitor.displayTitle({ name: 'DP-1', make: 'Apple Computer Inc', model: 'ProDisplayXDR' }), 'ProDisplayXDR', 'monitor names an external display by its model')
+assertEqual(monitor.displayTitle({ name: 'HDMI-A-1', make: 'Dell Inc.', model: '0x40F3' }), 'Dell Inc.', 'monitor falls back to the make when the model is a code')
+
+assertDeepEqual(
+  monitor.logicalRect({ name: 'DP-1', x: 1280, y: 0, width: 6016, height: 3384, scale: 2, transform: 1 }),
+  { name: 'DP-1', x: 1280, y: 0, w: 1692, h: 3008 },
+  'monitor lays out a rotated display by its scaled, turned size'
+)
+
+// A laptop at 1280x800 with a 6K at 3008x1692 to its right, tops aligned.
+const desk = [{ name: 'eDP-1', x: 0, y: 0, w: 1280, h: 800 }, { name: 'DP-1', x: 1280, y: 0, w: 3008, h: 1692 }]
+assertDeepEqual(
+  monitor.dropDisplay(desk, 'eDP-1', 1000, 1650, 40),
+  [{ name: 'eDP-1', x: 0, y: 1692, w: 1280, h: 800 }, { name: 'DP-1', x: 280, y: 0, w: 3008, h: 1692 }],
+  'monitor drops a display against the nearest side and starts the layout at 0x0'
+)
+assertDeepEqual(
+  monitor.dropDisplay(desk, 'eDP-1', 2120, 1700, 40).find((r) => r.name === 'eDP-1'),
+  { name: 'eDP-1', x: 864, y: 1692, w: 1280, h: 800 },
+  'monitor snaps a dropped display to the center of the one it lands against'
+)
+assertDeepEqual(
+  monitor.placeDisplay(desk, 'eDP-1', 'right'),
+  [{ name: 'eDP-1', x: 3008, y: 446, w: 1280, h: 800 }, { name: 'DP-1', x: 0, y: 0, w: 3008, h: 1692 }],
+  'monitor moves a display to the right of the rest, centered'
+)
+assert(monitor.sameLayout(monitor.normalizeLayout(desk), desk), 'monitor sees an unmoved layout as the same')
+
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1200, physicalWidth: 300, physicalHeight: 190, refreshRate: 119.94 }),
+  '1920×1200 · 120 Hz · 161 ppi',
+  'monitor describes a display by resolution, rounded refresh rate, and pixel density'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1080, physicalWidth: 0, physicalHeight: 0, refreshRate: 60 }),
+  '1920×1080 · 60 Hz',
+  'monitor leaves out the density of a display that reports no size'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1080, physicalWidth: 600, physicalHeight: 150, refreshRate: 60 }),
+  '1920×1080 · 60 Hz',
+  'monitor leaves out the density of a display whose size disagrees with its shape'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 3840, height: 2160, physicalWidth: 16000, physicalHeight: 9000, refreshRate: 60 }),
+  '3840×2160 · 60 Hz',
+  'monitor leaves out the density of a display that reports an implausible size'
+)
 
 assertDeepEqual(
   monitor.parseDisplays(JSON.stringify([
@@ -75,4 +161,87 @@ assertDeepEqual(
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
+
+// Rapid text-size steps must queue the latest value while textScaleProc is
+// running instead of dropping it and leaving textSizePreviewIndex stuck, and
+// mouse slider release must keep the preview stop until Style catches up.
+const fs = require('fs')
+const vm = require('vm')
+const panelSource = fs.readFileSync(path.join(root, 'shell/plugins/panels/monitor/Panel.qml'), 'utf8')
+const extractFn = (name, required = true) => {
+  const m = panelSource.match(new RegExp(`^( *)function ${name}\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\1\\}`, 'm'))
+  if (!m) {
+    if (required) throw new Error('missing function ' + name)
+    return ''
+  }
+  return m[0]
+}
+const sliderBlock = panelSource.match(/PanelSlider\s*\{\s*id:\s*textSizeSlider[\s\S]*?\n\s*\}/)[0]
+const sliderReleaseMatch = sliderBlock.match(/onReleased:\s*(function\([^)]*\)\s*\{[\s\S]*?\})/)
+assert(sliderReleaseMatch, 'textSizeSlider defines an onReleased handler')
+const procBlock = panelSource.match(/Process\s*\{\s*id:\s*textScaleProc[\s\S]*?\n  \}/)[0]
+const runningMatch = procBlock.match(/onRunningChanged:\s*\{([\s\S]*?)\n    \}/)
+const exitedMatch = procBlock.match(/onExited:\s*function\(exitCode\)\s*\{([\s\S]*?)\n    \}/)
+
+const commands = []
+const proc = {
+  _running: false,
+  command: [],
+  get running() { return this._running },
+  set running(v) {
+    this._running = v
+    if (v) commands.push(this.command.slice())
+  },
+}
+const scope = {
+  textSizeStops: [11, 12, 14, 16, 18],
+  textSizePreviewIndex: -1,
+  pendingTextSize: -1,
+  reflows: 0,
+  Style: { font: { baseSize: 12 } },
+  textScaleProc: proc,
+  markReflowing: () => { scope.reflows += 1 },
+}
+scope.root = scope
+vm.createContext(scope)
+vm.runInContext([
+  extractFn('nearestTextStop'),
+  extractFn('currentTextIndex'),
+  extractFn('setTextSize'),
+  extractFn('applyTextSizeStop', false),
+  extractFn('adjustTextSize'),
+  `var onSliderReleased = ${sliderReleaseMatch[1]}`,
+  `function onProcRunningChanged(running) { ${runningMatch ? runningMatch[1] : ''} }`,
+  `function onProcExited(exitCode) { ${exitedMatch ? exitedMatch[1] : ''} }`,
+].filter(Boolean).join('\n'), scope)
+
+scope.adjustTextSize(1)
+assertEqual(scope.textSizePreviewIndex, 2, 'first step previews 14px stop')
+assertDeepEqual(commands, [['omarchy-display-text-size', '14']], 'first step launches CLI')
+// Second step while first CLI run is still in flight must be queued, not dropped.
+scope.adjustTextSize(1)
+assertEqual(scope.textSizePreviewIndex, 3, 'second rapid step advances preview to 16px stop')
+assertDeepEqual(commands, [['omarchy-display-text-size', '14']], 'second rapid step waits for active process')
+proc.running = false
+scope.onProcExited(0)
+scope.onProcRunningChanged(false)
+assertDeepEqual(commands, [
+  ['omarchy-display-text-size', '14'],
+  ['omarchy-display-text-size', '16'],
+], 'queued text size runs once the first command finishes')
+scope.Style.font.baseSize = 16
+proc.running = false
+scope.onProcExited(0)
+scope.onProcRunningChanged(false)
+assertEqual(scope.textSizePreviewIndex, -1, 'preview clears once Style matches the applied stop')
+
+// Releasing the mouse slider previews the target stop, guards reflow, and clears on failure.
+const reflowsBefore = scope.reflows
+scope.onSliderReleased(4)
+assertEqual(scope.textSizePreviewIndex, 4, 'slider release previews target stop')
+assertEqual(scope.reflows, reflowsBefore + 1, 'slider release arms reflow hover guard')
+proc.running = false
+scope.onProcExited(1)
+scope.onProcRunningChanged(false)
+assertEqual(scope.textSizePreviewIndex, -1, 'failed text size update clears preview')
 JS

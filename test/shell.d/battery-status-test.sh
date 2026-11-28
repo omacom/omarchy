@@ -65,6 +65,8 @@ grep -Fx $'size\t56Wh' <<<"$shell_output" >/dev/null || fail "battery status rep
 grep -Fx $'time\t2h 37m' <<<"$shell_output" >/dev/null || fail "battery status works the time left out from the draw it shows"
 grep -Fx $'cycles\t212' <<<"$shell_output" >/dev/null || fail "battery status reports native-path cycle count"
 grep -Fx $'threshold\t75-80%' <<<"$shell_output" >/dev/null || fail "battery status reports native-path charge thresholds"
+line_output=$(OMARCHY_TEST_NATIVE_PATH=macsmc-battery OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $line_output == *$' '"10.8W"$' / '"56Wh" ]] || fail "a draw signed negative still shows in the status line" "$line_output"
 
 # The BAT* name the script used to key on is one of many; CMB0 is another.
 mkdir -p "$tmp_dir/power/CMB0"
@@ -74,6 +76,15 @@ generic_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_d
 grep -Fx $'rate\t7.3W' <<<"$generic_output" >/dev/null || fail "battery status accepts arbitrary UPower battery paths"
 grep -Fx $'time\t3h 53m' <<<"$generic_output" >/dev/null || fail "battery status time left follows the live draw"
 pass "battery status supports Apple Silicon and arbitrary native battery paths"
+
+# Firmware that doesn't know the present rate leaves current_now in place but
+# gives nothing on read; UPower's rate, from the falling charge, stands.
+rm "$tmp_dir/power/CMB0/power_now"
+: >"$tmp_dir/power/CMB0/current_now"
+printf '12900000\n' >"$tmp_dir/power/CMB0/voltage_now"
+unknown_rate_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t7.3W' <<<"$unknown_rate_output" >/dev/null || fail "an unreadable current_now leaves UPower's rate in place" "$unknown_rate_output"
+pass "battery status keeps UPower's rate when the battery has no live reading"
 
 # An 80% hold threshold doesn't trip while the battery is still below it.
 hold_dir=$(mktemp -d)
@@ -158,8 +169,200 @@ danish_time=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PAT
 grep -Fx $'time\t1 t 30 min' <<<"$danish_time" >/dev/null || fail "battery status durations follow the Omarchy language" "$danish_time"
 pass "battery status reads in the Omarchy language"
 
-if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
-  fail "battery status owns capacity and remaining calculations" "$matches"
+# A full battery says so, with no time to count and no 0W draw.
+cat >"$hold_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
 fi
 
-pass "battery status owns capacity and remaining calculations"
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                fully-charged
+  energy:               53.2 Wh
+  energy-full:          53.2 Wh
+  energy-rate:          0 W
+  percentage:           100%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+printf '0\n' >"$hold_dir/power/BAT0/power_now"
+full_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $full_output == "Battery 100%  ·  Fully charged  ·  53Wh" ]] || fail "a full battery shows no time or draw" "$full_output"
+
+# A load bigger than the adapter drains a battery still reading 100%.
+sed -i 's/state:                fully-charged/state:                discharging/' "$hold_dir/bin/upower"
+printf '10000000\n' >"$hold_dir/power/BAT0/power_now"
+draining_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $draining_output == "Battery 100%  ·  5h 19m left  ·  "*"10W"*"53Wh" ]] || fail "a battery draining on AC at 100% is not fully charged" "$draining_output"
+sed -i 's/state:                discharging/state:                fully-charged/' "$hold_dir/bin/upower"
+
+# A battery with no time estimate and no capacity reading leaves both out.
+sed -i 's/state:                fully-charged/state:                discharging/; s/percentage:           100%/percentage:           60%/; /energy/d' "$hold_dir/bin/upower"
+printf '0\n' >"$hold_dir/power/ac/online"
+printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
+sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
+pass "battery status leaves out readings it doesn't have"
+
+# UPower 1.91+ prints hwdb 75/80% thresholds even when disabled (sysfs is 100%).
+# Battery health and charge limit state must reflect reality, not hwdb defaults.
+hwdb_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$hwdb_dir"' EXIT
+mkdir -p "$hwdb_dir/bin" "$hwdb_dir/power/BAT1" "$hwdb_dir/power/ACAD" "$hwdb_dir/sleep-run" "$hwdb_dir/sleep-state" "$hwdb_dir/bat-state"
+printf 'Mains\n' >"$hwdb_dir/power/ACAD/type"
+printf '0\n' >"$hwdb_dir/power/ACAD/online"
+printf 'Battery\n' >"$hwdb_dir/power/BAT1/type"
+printf '1\n' >"$hwdb_dir/power/BAT1/present"
+printf '100\n' >"$hwdb_dir/power/BAT1/charge_control_end_threshold"
+printf '0\n' >"$hwdb_dir/power/BAT1/charge_control_start_threshold"
+printf '300000\n' >"$hwdb_dir/power/BAT1/current_now"
+printf '17000000\n' >"$hwdb_dir/power/BAT1/voltage_now"
+cat >"$hwdb_dir/bin/upower" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT1"
+  exit 0
+fi
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT1
+  power supply:         yes
+  state:                discharging
+  energy:               55.0 Wh
+  energy-full:          63.5 Wh
+  energy-full-design:   72.6 Wh
+  energy-rate:          5.1 W
+  percentage:           87%
+  charge-start-threshold:        75%
+  charge-end-threshold:          80%
+  charge-threshold-supported:    yes
+INFO
+  exit 0
+fi
+exit 1
+STUB
+chmod +x "$hwdb_dir/bin/upower"
+
+hwdb_out=$(OMARCHY_POWER_SUPPLY_PATH="$hwdb_dir/power" OMARCHY_SLEEP_RUN_DIR="$hwdb_dir/sleep-run" OMARCHY_BATTERY_STATE_DIR="$hwdb_dir/bat-state" PATH="$hwdb_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'health\t87%' <<<"$hwdb_out" >/dev/null || fail "battery status computes health from full/design energy" "$hwdb_out"
+grep -Fx $'limit_supported\t1' <<<"$hwdb_out" >/dev/null || fail "battery status reports charge limit support" "$hwdb_out"
+grep -Fx $'limit_state\toff' <<<"$hwdb_out" >/dev/null || fail "sysfs 100% overrides UPower hwdb default threshold" "$hwdb_out"
+grep -Fx $'limit_end\t80' <<<"$hwdb_out" >/dev/null || fail "battery status keeps UPower target limit for the 80% button" "$hwdb_out"
+! grep -q '^threshold'$'\t' <<<"$hwdb_out" || fail "disabled hwdb threshold is not emitted as active" "$hwdb_out"
+
+# Top-up-once marker reports limit_state=once when limit is off.
+printf '1795760000\n' >"$hwdb_dir/bat-state/top-up-once"
+once_out=$(OMARCHY_POWER_SUPPLY_PATH="$hwdb_dir/power" OMARCHY_SLEEP_RUN_DIR="$hwdb_dir/sleep-run" OMARCHY_BATTERY_STATE_DIR="$hwdb_dir/bat-state" PATH="$hwdb_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'limit_state\tonce' <<<"$once_out" >/dev/null || fail "top-up-once marker sets limit_state=once" "$once_out"
+pass "battery status reports health, accurate limit state, and top-up-once"
+
+# Sleep drain hook: charge-based battery (voltage_min_design), S0ix wrap guard,
+# and battery-status --shell exposure.
+mkdir -p "$hwdb_dir/suspend_stats" "$hwdb_dir/cpuidle"
+printf '[s2idle]\n' >"$hwdb_dir/mem_sleep"
+printf '1000.00 0.00\n' >"$hwdb_dir/uptime"
+printf '4000000\n' >"$hwdb_dir/power/BAT1/charge_now"
+printf '4640000\n' >"$hwdb_dir/power/BAT1/charge_full"
+printf '15640000\n' >"$hwdb_dir/power/BAT1/voltage_min_design"
+printf '10000000\n' >"$hwdb_dir/cpuidle/low_power_idle_system_residency_us"
+
+sleep_env=(
+  OMARCHY_POWER_SUPPLY_PATH="$hwdb_dir/power"
+  OMARCHY_SLEEP_RUN_DIR="$hwdb_dir/sleep-run"
+  OMARCHY_SLEEP_STATE_DIR="$hwdb_dir/sleep-state"
+  OMARCHY_SUSPEND_STATS_PATH="$hwdb_dir/suspend_stats"
+  OMARCHY_CPUIDLE_PATH="$hwdb_dir/cpuidle"
+  OMARCHY_MEM_SLEEP_PATH="$hwdb_dir/mem_sleep"
+  OMARCHY_UPTIME_PATH="$hwdb_dir/uptime"
+  OMARCHY_PMC_DEBUG_PATH="$hwdb_dir/no-pmc"
+  OMARCHY_AMD_PMC_DEBUG_PATH="$hwdb_dir/no-amd"
+)
+
+env "${sleep_env[@]}" "$ROOT/default/systemd/system-sleep/omarchy-sleep-stats" pre suspend
+
+# Simulate 2-hour battery sleep with ~2% drain and 95% S0ix residency.
+printf '8200.00 0.00\n' >"$hwdb_dir/uptime"
+printf '3907200\n' >"$hwdb_dir/power/BAT1/charge_now"
+printf '6840000000\n' >"$hwdb_dir/suspend_stats/last_hw_sleep"
+printf '10000000\n' >"$hwdb_dir/cpuidle/low_power_idle_system_residency_us"
+env "${sleep_env[@]}" "$ROOT/default/systemd/system-sleep/omarchy-sleep-stats" post suspend
+
+sleep_out=$(OMARCHY_POWER_SUPPLY_PATH="$hwdb_dir/power" OMARCHY_SLEEP_RUN_DIR="$hwdb_dir/sleep-run" OMARCHY_BATTERY_STATE_DIR="$hwdb_dir/bat-state" PATH="$hwdb_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'sleep_duration\t2h' <<<"$sleep_out" >/dev/null || fail "battery status formats last sleep duration" "$sleep_out"
+grep -Fx $'sleep_drain_pct_hr\t1.0%/h' <<<"$sleep_out" >/dev/null || fail "battery status reports sleep drain rate in %/h" "$sleep_out"
+grep -Fx $'sleep_drain_w\t0.7W' <<<"$sleep_out" >/dev/null || fail "battery status reports sleep drain in watts" "$sleep_out"
+grep -Fx $'sleep_s0ix\t95%' <<<"$sleep_out" >/dev/null || fail "battery status reports S0ix residency" "$sleep_out"
+grep -Fx $'sleep_mode\ts2idle' <<<"$sleep_out" >/dev/null || fail "battery status reports sleep mode" "$sleep_out"
+
+# Wrapped PMC counter (>105% of wall time) is rejected instead of emitting >100% S0ix.
+printf '8200.00 0.00\n' >"$hwdb_dir/uptime"
+env "${sleep_env[@]}" "$ROOT/default/systemd/system-sleep/omarchy-sleep-stats" pre suspend
+printf '11800.00 0.00\n' >"$hwdb_dir/uptime"
+printf '3850000\n' >"$hwdb_dir/power/BAT1/charge_now"
+printf '523986009990\n' >"$hwdb_dir/suspend_stats/last_hw_sleep"
+printf '999999999999\n' >"$hwdb_dir/cpuidle/low_power_idle_system_residency_us"
+env "${sleep_env[@]}" "$ROOT/default/systemd/system-sleep/omarchy-sleep-stats" post suspend
+
+wrap_out=$(OMARCHY_POWER_SUPPLY_PATH="$hwdb_dir/power" OMARCHY_SLEEP_RUN_DIR="$hwdb_dir/sleep-run" OMARCHY_BATTERY_STATE_DIR="$hwdb_dir/bat-state" PATH="$hwdb_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+! grep -q '^sleep_s0ix'$'\t' <<<"$wrap_out" || fail "wrapped S0ix counter is suppressed" "$wrap_out"
+
+# AC-plugged sleep suppresses sleep drain fields in battery-status --shell.
+printf '1\n' >"$hwdb_dir/power/ACAD/online"
+printf '11800.00 0.00\n' >"$hwdb_dir/uptime"
+env "${sleep_env[@]}" "$ROOT/default/systemd/system-sleep/omarchy-sleep-stats" pre suspend
+printf '15400.00 0.00\n' >"$hwdb_dir/uptime"
+printf '4640000\n' >"$hwdb_dir/power/BAT1/charge_now"
+env "${sleep_env[@]}" "$ROOT/default/systemd/system-sleep/omarchy-sleep-stats" post suspend
+
+ac_sleep_out=$(OMARCHY_POWER_SUPPLY_PATH="$hwdb_dir/power" OMARCHY_SLEEP_RUN_DIR="$hwdb_dir/sleep-run" OMARCHY_BATTERY_STATE_DIR="$hwdb_dir/bat-state" PATH="$hwdb_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+! grep -q '^sleep_duration'$'\t' <<<"$ac_sleep_out" || fail "AC-plugged sleep is not reported as battery drain" "$ac_sleep_out"
+pass "omarchy-sleep-stats tracks battery drain, clamps wrapped S0ix, and ignores AC sleep"
+
+# omarchy-battery-limit CLI transitions (on/off/once/toggle/status) via stubbed busctl.
+printf 'false\n' >"$hwdb_dir/upower-enabled"
+cat >"$hwdb_dir/bin/busctl" <<STUB
+#!/bin/bash
+if [[ \$* == *"tree --list org.freedesktop.UPower"* ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT1"
+  exit 0
+fi
+if [[ \$1 == "get-property" ]]; then
+  case "\$5" in
+    PowerSupply|ChargeThresholdSupported) echo "b true" ;;
+    ChargeThresholdEnabled) echo "b \$(cat "$hwdb_dir/upower-enabled")" ;;
+    ChargeThresholdSettingsSupported) echo "u 3" ;;
+    ChargeEndThreshold) echo "u 80" ;;
+    ChargeStartThreshold) echo "u 75" ;;
+    NativePath) echo 's "BAT1"' ;;
+  esac
+  exit 0
+fi
+if [[ \$1 == "call" && \$5 == "EnableChargeThreshold" ]]; then
+  printf '%s\n' "\$7" >"$hwdb_dir/upower-enabled"
+  exit 0
+fi
+exit 1
+STUB
+chmod +x "$hwdb_dir/bin/busctl"
+
+limit_env=(OMARCHY_POWER_SUPPLY_PATH="$hwdb_dir/power" OMARCHY_BATTERY_STATE_DIR="$hwdb_dir/limit-state" PATH="$hwdb_dir/bin:$PATH")
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "off" ]] || fail "battery-limit reports initial off state"
+env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" on
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "on" ]] || fail "battery-limit enables charge limit"
+env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" once
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "once" ]] || fail "battery-limit sets one-time top-up state"
+env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" toggle
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "off" ]] || fail "battery-limit toggle turns limit off from one-time top-up"
+env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" toggle
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "on" ]] || fail "battery-limit toggle turns limit on from off"
+env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" off
+[[ $(env "${limit_env[@]}" "$ROOT/bin/omarchy-battery-limit" status) == "off" ]] || fail "battery-limit disables charge limit"
+pass "omarchy-battery-limit handles status, on, off, once, and toggle"

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Chess</title>
+  <desc>A chess king seen from the front: a body in the main color on a wide foot, with a collar and cross in the highlight, each piece with a hard shadow, on a transparent background.</desc>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="{{ icon_main }}"/>
+      <stop offset="1" stop-color="{{ icon_main_end }}"/>
+    </linearGradient>
+  </defs>
+  <!-- The foot and its ring; one hard shadow per piece, as Hype's slides. -->
+  <rect x="104" y="420" width="304" height="52" rx="22" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
+  <rect x="104" y="420" width="304" height="52" rx="22" fill="url(#body)"/>
+  <rect x="196" y="441" width="120" height="12" rx="6" fill="{{ icon_shadow }}" opacity=".35"/>
+  <rect x="134" y="384" width="244" height="40" rx="20" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
+  <rect x="134" y="384" width="244" height="40" rx="20" fill="url(#body)"/>
+  <!-- The body, widening toward the foot. -->
+  <path d="M200 252H312L344 392H168Z" fill="url(#body)"/>
+  <!-- The crown, flaring upward. -->
+  <path d="M176 140H336Q358 140 352 162L334 236H178L160 162Q154 140 176 140Z" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
+  <path d="M176 140H336Q358 140 352 162L334 236H178L160 162Q154 140 176 140Z" fill="url(#body)"/>
+  <!-- Collar and cross, in the accent, standing out as Omacut's trim handles do. -->
+  <rect x="150" y="224" width="212" height="40" rx="20" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
+  <rect x="150" y="224" width="212" height="40" rx="20" fill="{{ icon_mark }}"/>
+  <path d="M240 60Q240 48 252 48H260Q272 48 272 60V76H296Q308 76 308 88V96Q308 108 296 108H272V140H240V108H216Q204 108 204 96V88Q204 76 216 76H240Z" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
+  <path d="M240 60Q240 48 252 48H260Q272 48 272 60V76H296Q308 76 308 88V96Q308 108 296 108H272V140H240V108H216Q204 108 204 96V88Q204 76 216 76H240Z" fill="{{ icon_mark }}"/>
+</svg>

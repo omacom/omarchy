@@ -1,19 +1,19 @@
-# Auðkenning með vélbúnaði
+# Vélbúnaðarauðkenning
 
-### Fingrafarsauðkenning
+### Fingrafaraauðkenning
 
-Margar fartölvur eru með fingrafarsskynjara til auðkenningar. Þú getur notað hann í Omarchy með því að keyra _Setup > Security > Fingerprint_ í Omarchy-valmyndinni (`Super + Space`).
+Margar fartölvur eru með fingrafaraskynjara til auðkenningar. Þú getur notað þetta með Omarchy með því að keyra _Setup > Security > Fingerprint_ í Omarchy-valmyndinni (`Super + Space`).
 
-Það setur upp fingrafarspakkann, skráir fingrafarið þitt, staðfestir það og þá ertu tilbúinn að nota fingrafarið til að aflæsa lásaskjánum (sem þú getur kallað fram með `Super + Ctrl + L`), fara í sudo-stillingu og staðfesta kerfiskvaðningar.
+Það opnar fingrafar á öllum skjánum sem fyllist út þegar þú snertir skynjarann. Á bak við tjöldin mun Omarchy setja upp fingrafarapakkan, skrá fingrafarið þitt, staðfesta það, og þá er allt klárt til að nota fingrafarið þitt til að aflæsa af lásskjánum (sem þú getur opnað með `Super + Ctrl + L`), fara í sudo-ham og heimila beiðnir frá kerfinu.
 
-Þegar lásaskjárinn er búinn að slökkva á skjánum hvílir skynjarinn til að spara orku, svo vaktu skjáinn með einhverjum lykli eða snertiplattanum áður en þú snertir hann.
+Þegar lásskjárinn hefur slökkt á skjánum hvílir skynjarinn sér til að spara orku, svo vek þú skjáinn með hvaða lykli sem er eða snertiborðinu áður en þú snertir hann.
 
-Þegar lok fartölvunnar er lokað er fingrafarskvaðningin sjálfkrafa sleppt, svo þú ferð beint í lykilorðskvaðninguna í stað þess að bíða eftir skynjara sem þú nærð ekki til. Ef þú þarft annars að vinna á ytra lyklaborði sem er ekki með skynjara skaltu bara ýta á `CTRL + C` þegar þú ert beðinn um fingrafarið í `sudo`.
+Þegar lok fartölvunnar er lokað er sjálfkrafa sleppt yfir fingrafarabeiðnina, svo þú ferð beint í lykilorðabeiðnina í stað þess að bíða eftir skynjara sem þú nærð ekki til. Ef þú þarft annars að vinna á ytra lyklaborði sem er ekki með skynjara skaltu bara ýta á `CTRL + C`, þegar beðið er um fingrafarið þitt í `sudo`.
 
-Þú getur fjarlægt fingrafarsauðkenninguna undir _Remove > Security > Fingerprint_ í Omarchy-valmyndinni.
+Þú getur fjarlægt fingrafaraauðkenninguna undir _Remove > Security > Fingerprint_ í Omarchy-valmyndinni.
 
 ### Fido2-auðkenning
 
-Ef þú notar Fido2-tæki getur þú sett það upp fyrir `sudo`-auðkenningu með því að nota _Setup > Security > Fido2_ í Omarchy-valmyndinni (`Super + Space`). Það nær þó yfir `sudo` og kerfisheimildarkvaðningar, ekki aflæsingu tölvunnar.
+Ef þú notar Fido2-tæki getur þú sett það upp fyrir `sudo`-auðkenningu með því að nota _Setup > Security > Fido2_ í Omarchy-valmyndinni (`Super + Space`). Það nær þó yfir `sudo` og beiðnir um heimild frá kerfinu, ekki að aflæsa tölvunni þinni.
 
 Þú getur fjarlægt fido2-auðkenninguna undir _Remove > Security > Fido2_ í Omarchy-valmyndinni.

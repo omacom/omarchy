@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing Lutris..."
 omarchy-pkg-drop lutris wine-staging wine-mono wine-gecko winetricks python-protobuf umu-launcher
 
 rm -rf \

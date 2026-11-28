@@ -1,5 +1,7 @@
 #!/bin/bash
 
-# omarchy:summary=Launch or attach to the persistent herdr session in a terminal
+# omarchy:summary=Focus the herdr terminal, or launch one attached to the persistent session
 
-exec omarchy-launch-terminal herdr
+# Its own app id, so the dock matches the window to the Herdr launcher, and a
+# second launch focuses that window instead of attaching another terminal.
+exec omarchy-launch-or-focus org.omarchy.herdr "omarchy-launch-terminal --app-id=org.omarchy.herdr herdr"

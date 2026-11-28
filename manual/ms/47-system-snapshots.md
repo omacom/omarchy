@@ -1,25 +1,37 @@
-# Syot sistem
+# Syot kilat sistem
 
-Kami mencipta syot secara automatik pada setiap kemas kini Omarchy, tetapi sekiranya anda mahu mencipta sendiri, anda boleh menggunakan `omarchy-snapshot create`.
+Kami mencipta syot kilat secara automatik pada setiap kemas kini Omarchy, tetapi jika anda mahu mencipta sendiri, anda boleh menggunakan `omarchy-snapshot create`.
 
-Untuk membut dan memulihkan syot, anda memilihnya dari pemuat but Limine. (Jika anda kini membut terus ke skrin penyahsulitan Omarchy, anda perlu memilih Limine sebagai pilihan but melalui BIOS dahulu).
+Cara anda but dan memulihkan syot kilat bergantung pada pemuat but yang digunakan mesin anda semasa bermula. Pemasangan UEFI baharu menggunakan systemd-boot; pemasangan lama dan mesin BIOS menggunakan Limine. `omarchy-boot-backend` memberitahu anda yang mana satu anda gunakan.
 
-Dari skrin itu, pilih syot yang anda mahu but berdasarkan tarikh dan versi. Versi Omarchy pada masa syot diambil boleh dilihat di sudut kiri bawah.
+## Dengan systemd-boot
+
+Pilih _System > Snapshots_ dalam menu Omarchy dan pilih syot kilat yang anda mahu but masuk. Mesin akan dimulakan semula ke dalamnya sekali. Atau tahan Space semasa mesin bermula untuk melihat menu but, di mana setiap syot kilat disenaraikan dengan yang terbaharu dahulu bersama versi Omarchy dan tarikhnya.
+
+Syot kilat dibut dengan lapisan sementara di atasnya, jadi anda boleh menggunakannya seperti biasa, tetapi apa-apa yang anda ubah akan hilang pada but semula seterusnya. Untuk mengekalkannya, jadikannya sistem anda: klik pemberitahuan yang muncul apabila anda log masuk, pilih _System > Snapshots > Restore This Snapshot_, atau jalankan `omarchy-snapshot restore`. Pemulihan berlaku semasa mesin dimulakan semula. Sistem seperti sebelum ini kekal dalam menu but sebagai _Before restore_, dan `omarchy-snapshot restore backup` memulihkannya kembali.
+
+Dari terminal:
+
+- `omarchy-snapshot list` menyenaraikan syot kilat yang anda boleh but;
+- `omarchy-snapshot boot 12` memulakan semula ke dalam syot kilat 12 sekali;
+- `omarchy-snapshot restore 12` menjadikan syot kilat 12 sebagai sistem pada permulaan semula seterusnya, dan `omarchy-snapshot restore --cancel` membatalkan keputusan itu sebelum permulaan semula tersebut.
+
+## Dengan Limine
+
+Untuk but dan memulihkan syot kilat, anda memilihnya daripada pemuat but Limine. Menu but kekal tersembunyi secara lalai, jadi tekan sebarang kekunci sebaik sahaja Limine bermula untuk memaparkannya.
+
+Dari skrin itu, pilih syot kilat yang anda mahu but masuk berdasarkan tarikh dan versi. Versi Omarchy pada masa syot kilat itu boleh dilihat di sudut kiri bawah.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Apabila anda tiba di dalam, pemberitahuan akan muncul memberitahu anda bahawa anda berada dalam syot boleh but dan jika anda mengkliknya, akan memulakan proses pemulihan. Sebagai alternatif, anda boleh menggunakan `omarchy-snapshot restore`.
+Apabila anda tiba di dalamnya, satu pemberitahuan akan muncul memberitahu anda bahawa anda berada dalam syot kilat yang boleh dibut dan jika anda mengkliknya, proses pemulihan akan bermula. Sebagai alternatif, anda boleh menggunakan `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Ini akan memulihkan sistem fail akar anda, tetapi bukan `/home` anda. Jadi ia berfungsi untuk mengembalikan kemas kini sistem yang rosak, tetapi bukan untuk memulihkan fail peribadi yang hilang.
+## Apa yang diliputi oleh pemulihan
 
-Ini juga bermakna direktori `~/.config` anda dikekalkan seperti sedia ada. Jadi jika anda kembali kepada versi perpustakaan atau aplikasi terdahulu yang menyimpan fail konfigurasi dalam format baharu, anda perlu menyelesaikannya secara manual.
+Pemulihan mengembalikan sistem fail root anda, tetapi bukan `/home` anda. Jadi ia berkesan untuk membatalkan kemas kini sistem yang rosak, tetapi bukan untuk memulihkan fail peribadi yang hilang.
 
-_Nota: Ciri ini hanya tersedia pada pemasangan yang menggunakan pemuat but Limine, yang telah menjadi lalai sejak Omarchy 2.0. Ia tidak tersedia jika anda menggunakan GRUB atau systemd-boot._
+Ini juga bermakna direktori `~/.config` anda kekal seperti sedia ada. Jadi jika anda kembali kepada versi terdahulu pustaka atau aplikasi yang menyimpan fail konfigurasi dalam format baharu, anda perlu menyelesaikannya secara manual.
 
-### Melangkau menu but
-
-Jika anda tidak pernah menyentuh menu but dan hanya mahu mesin terus ke skrin penyahsulitan, jalankan _Persediaan > But Langsung_ dalam menu Omarchy. Itu menambah entri EFI yang menunjuk terus kepada Omarchy, jadi perisian tegar membutnya tanpa berhenti di Limine.
-
-Kekurangannya ialah yang disebut di atas: dengan but langsung dihidupkan, untuk ke syot bermakna memilih Limine dari menu but BIOS anda dahulu. Jalankan _Persediaan > But Langsung_ semula untuk membuang entri dan kembali membut melalui Limine. Sesetengah perisian tegar tidak menyukai entri EFI tersuai, jadi persediaan menolak untuk berjalan pada perisian tegar American Megatrends dan Apple.
+Perkara yang sama terpakai pada rekod Omarchy sendiri tentang migrasi mana yang telah dijalankan: ia berada dalam direktori rumah anda, jadi ia kekal selepas pemulihan. Migrasi yang dijalankan selepas syot kilat diambil kekal ditanda sebagai selesai, walaupun perubahan yang dibuatnya pada sistem fail root telah dibatalkan, dan `omarchy update` seterusnya tidak akan menjalankannya lagi. Jadi jika anda mengemas kini semula selepas pemulihan dan sesuatu yang telah disediakan oleh kemas kini terdahulu masih tiada, itulah kemungkinan sebabnya.

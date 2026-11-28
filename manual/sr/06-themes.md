@@ -1,12 +1,12 @@
 # Теме
 
-Omarchy долази с двадесет две лепе теме. Можете бирати између њих преко _Стил > Тема_ у Omarchy менију (`Super + Space`) или директно скочити на бирач тема помоћу `Super + Ctrl + Shift + Space`.
+Omarchy долази са двадесет три лепе теме. Можете да бирате између њих преко _Изглед > Тема_ у Omarchy менију (`Super + Space`) или да директно скочите на бирач тема користећи `Super + Ctrl + T`.
 
-Свака тема стилује радну површину, терминал, neovim, екран активности (btop), Chromium и целу Omarchy шкољку: горњу траку, мени, обавештења, OSD и екран за закључавање. (За Obsidian, морате ручно изабрати Omarchy тему преко _Appearance > Themes_ унутар апликације).
+Свака тема стилизује радну површину, терминал, neovim, екран активности (btop), ваш прегледач (Chrome, Chromium, Edge или Brave) и целу Omarchy љуску: горњу траку, мени, обавештења, OSD и екран за закључавање. (За Obsidian морате ручно да изаберете Omarchy тему преко _Изглед > Теме_ унутар апликације).
 
-Теме имају скуп позадинских слика између којих можете бирати помоћу `Super + Ctrl + Space`.
+Теме имају скуп слика за позадину између којих можете да бирате користећи `Super + Ctrl + W`.
 
-Још више тема можете пронаћи на [страници додатних тема](https://omarchy.org/themes/) или чак [направити сопствену тему](43-making-your-own-theme.md).
+Још више тема можете да пронађете на [страници са додатним темама](https://omarchy.org/themes/) или чак да [направите сопствену тему](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Иконе апликација
+
+Иконе у покретачу апликација и на доку нацртане су у бојама ваше теме, па се мењају заједно са њом. Долазе из скупа икона, који бирате одвојено од теме под _Изглед > Иконе_, из прегледа сваког скупа, на исти начин на који бирате тему:
+
+- _Papercraft_ је подразумевани: све што долази инсталирано, нацртано у једном стилу. Апликације познате по свом логотипу, као што су Chrome, HEY или YouTube, задржавају свој облик и примају боје теме.
+- _Arcade_ црта исте апликације као 8-битну пиксел уметност, као што би то радила стара играћа конзола.
+- _Original_ приказује сваку апликацију са иконом коју јој је дао њен творац.
+
+Скуп икона који је неко други направио можете да инсталирате преко _Инсталирај > Стил > Иконе_ (или `omarchy icons install <git url>`), и да га поново уклоните под _Уклони > Иконе_. _Ажурирај > Додатне иконе_ преузима најновију верзију скупова које сте инсталирали.
+
+Да бисте направили сопствени, ставите своје иконе у `~/.config/omarchy/icons/<name>/`, по један фајл по апликацији, назван према линији `Icon=` у `.desktop` фајлу апликације. Фајл који се завршава на `.svg` приказује се онакав какав јесте. Фајл који се завршава на `.svg.tpl` црта се у бојама теме: напишите `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` или `{{ icon_shadow }}` где иде боја. Подразумевани скуп у `/usr/share/omarchy/icons/papercraft/` добро је место одакле да кренете. Додајте `preview.png` да бисте приказали свој скуп у бирачу; без њега, Omarchy црта преглед од ваших икона. Да бисте променили једну икону подразумеваног скупа, ставите своју верзију у `~/.config/omarchy/icons/papercraft/`.
+
 ### Откључавања
 
-Теме могу имати и прилагођен дизајн откључавања, који се користи за процес дешифровања при покретању. Можете изабрати један под _Стил > Откључај_. Изгледају овако:
+Теме могу да имају и прилагођен дизајн откључавања, који се користи за процес дешифровања при покретању система. Један од њих можете да изаберете под _Изглед > Откључавање_. Изгледају овако:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,11 +114,20 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -105,9 +138,6 @@ _Miasma_
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
 
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
-
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
 
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

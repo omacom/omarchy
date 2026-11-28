@@ -26,11 +26,11 @@
   "update": {
     "label": "Sasisha"
   },
-  "about": {
-    "label": "Kuhusu"
-  },
   "system": {
     "label": "Mfumo"
+  },
+  "system.about": {
+    "label": "Kuhusu"
   },
   "system.screensaver": {
     "label": "Kiokozi cha skrini"
@@ -61,18 +61,6 @@
   },
   "learn.hyprland": {
     "label": "Hyprland"
-  },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
   },
   "learn.herdr-keybindings": {
     "label": "Herdr"
@@ -357,26 +345,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Jaribio la kasi ya diski"
   },
-  "setup.monitors": {
-    "label": "Skrini"
-  },
-  "setup.keybindings": {
-    "label": "Mikato ya vitufe"
-  },
   "setup.input": {
     "label": "Ingizo"
   },
-  "setup.typing": {
-    "label": "Kuandika"
-  },
-  "setup.typing.keyboard": {
-    "label": "Miundo ya kibodi"
-  },
-  "setup.typing.input": {
-    "label": "Mbinu za ingizo"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Lugha"
+  },
+  "setup.region.timezone": {
+    "label": "Eneo la saa"
   },
   "setup.network": {
     "label": "Mtandao"
@@ -401,55 +377,6 @@
   },
   "setup.default": {
     "label": "Chaguomsingi"
-  },
-  "setup.default.agent": {
-    "label": "Ajenti",
-    "title": "Ajenti chaguomsingi"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Kivinjari",
@@ -581,11 +508,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Anza moja kwa moja"
-  },
-  "setup.reset": {
-    "label": "Weka upya kompyuta"
+  "remove.factory-reset": {
+    "label": "Rejesha Kiwandani"
   },
   "install.package": {
     "label": "Kifurushi"
@@ -680,9 +604,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +624,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Akaunti ya Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -739,33 +657,6 @@
   },
   "install.terminal.kitty": {
     "label": "Kitty"
-  },
-  "install.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "install.ai.claude": {
-    "label": "Claude Desktop"
-  },
-  "install.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "install.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
-  "install.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "install.ai.ollama": {
-    "label": "Ollama"
-  },
-  "install.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "install.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "install.ai.t3-code": {
-    "label": "T3 Code"
   },
   "install.gaming.steam": {
     "label": "Steam"
@@ -920,9 +811,6 @@
   "remove.security.sudoless-docker": {
     "label": "Docker bila sudo"
   },
-  "remove.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -953,35 +841,11 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
-  "remove.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "remove.ai.claude": {
-    "label": "Claude Desktop"
-  },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
   },
   "remove.dictation.voxtype": {
     "label": "Voxtype"
-  },
-  "remove.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "remove.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "remove.ai.ollama": {
-    "label": "Ollama"
-  },
-  "remove.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "remove.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "remove.ai.t3-code": {
-    "label": "T3 Code"
   },
   "remove.gaming.steam": {
     "label": "Steam"
@@ -1103,9 +967,6 @@
   "update.password": {
     "label": "Nenosiri"
   },
-  "update.timezone": {
-    "label": "Eneo la saa"
-  },
   "update.time": {
     "label": "Muda"
   },
@@ -1154,13 +1015,434 @@
   "update.hardware.trackpad": {
     "label": "Kiguso"
   },
-  "update.password.drive": {
-    "label": "Usimbaji wa kiendeshaji"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Onyesha % ya betri"
   },
-  "update.password.user": {
-    "label": "Mtumiaji"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ficha % ya betri"
   },
-  "system.reboot-boot-menu": {
-    "label": "Washa upya kwa menyu ya kuwasha"
+  "appearance.windows": {
+    "label": "Madirisha"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Washa nafasi za madirisha"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Zima nafasi za madirisha"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Washa uwiano wa dirisha 1"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Zima uwiano wa dirisha 1"
+  },
+  "appearance.branding": {
+    "label": "Chapa"
+  },
+  "appearance.animations-on": {
+    "label": "Washa uhuishaji"
+  },
+  "appearance.animations-off": {
+    "label": "Zima uhuishaji"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Baki macho"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Ruhusu usingizi"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Washa arifa"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Nyamazisha arifa"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Washa mwanga wa usiku"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Zima mwanga wa usiku"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Washa kiokoa skrini"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Zima kiokoa skrini"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Washa kunasa mivurugiko"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Zima Kunasa Hitilafu"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Washa Skrini ya Laptop"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Zima Skrini ya Laptop"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Washa Kuakisi Skrini"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Zima Kuakisi Skrini"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Badili hadi dGPU",
+    "description": "Washa GPU maalum ya mseto"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Badili hadi iGPU",
+    "description": "Tumia GPU iliyounganishwa tu"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Washa Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Zima Touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Washa Skrini ya Mguso"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Zima Skrini ya Mguso"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kiini"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Kibodi"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Mikato ya Kibodi"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Maingizo ya Kibodi"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Mbinu za Uingizaji"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Kawaida"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoni"
+  },
+  "install.style.icons": {
+    "label": "Ikoni"
+  },
+  "remove.icons": {
+    "label": "Ikoni"
+  },
+  "update.icons": {
+    "label": "Ikoni za ziada"
+  },
+  "system.firmware": {
+    "label": "Washa upya hadi BIOS",
+    "description": "Washa upya hadi mipangilio ya firmware ya UEFI"
+  },
+  "setup.region": {
+    "label": "Eneo"
+  },
+  "setup.region.formats": {
+    "label": "Miundo",
+    "description": "Jinsi tarehe, nyakati, nambari na vipimo vinavyoandikwa"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Mchezo wa Game Vibes"
+  },
+  "update.games": {
+    "label": "Michezo ya Game Vibes"
+  },
+  "setup.network.hostname": {
+    "label": "Jina la mwenyeji"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "Eneo-kazi"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "Ondoa"
+  },
+  "remove.ai.desktop": {
+    "label": "Eneo-kazi",
+    "title": "Ondoa"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "Ondoa"
+  },
+  "remove.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "remove.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "Snapshoti"
+  },
+  "system.snapshots.restore": {
+    "label": "Rejesha Snapshot Hii"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Kuingia Bila Nenosiri"
   }
 }

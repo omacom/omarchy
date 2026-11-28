@@ -1,30 +1,30 @@
 # Webapps
 
-Je kunt je eigen webapps toevoegen via _Installeren > Webapp_ in het Omarchy-menu (`Super + Space`). Het vraagt je om de appnaam, app-URL en de pictogram-URL, als het deze niet via favicon kan ophalen. Je kunt geweldige PNG-pictogrammen voor veel populaire webapps vinden op [Dashboard Icons](https://dashboardicons.com).
+Je kunt je eigen webapps toevoegen via _Install > Web App_ in het Omarchy-menu (`Super + Space`). Het vraagt je om de naam van de app, de URL van de app en de URL van het pictogram, als het die niet via de favicon kan ophalen. Op [Dashboard Icons](https://dashboardicons.com) vind je geweldige PNG-pictogrammen voor veel populaire webapps.
 
-Ze zijn daarna toegankelijk via de app-launcher (`Super + Space`), en gebruiken het prachtige frameloze webapp-venster.
+Ze zijn daarna toegankelijk via de app launcher (`Super + Space`) en gebruiken het prachtige frameloze webapp-venster.
 
-Als je een webapp wilt verwijderen, ga je gewoon naar _Verwijderen > Webapp_ in het Omarchy-menu.
+Als je een webapp wilt verwijderen, ga je gewoon naar _Remove > Web App_ in het Omarchy-menu.
 
-Het is het beste als je inlogt op al je accounts met een gewone browser voordat je de webapp-snelkoppelingen gebruikt. Het dunne wrapper-frame werkt niet goed met 1password, dus het is gewoon gemakkelijker om eerst direct ingelogd te zijn.
+Je kunt het beste eerst met een gewone browser inloggen op al je accounts voordat je de snelkoppelingen voor webapps gebruikt. Het dunne wrapper-frame werkt niet goed met 1password, dus het is gewoon makkelijker om eerst direct ingelogd te zijn.
 
-Alle toetsenbordsneltoetsen voor deze webapps kunnen worden gewijzigd in `~/.config/hypr/bindings.lua`.
+Alle sneltoetsen voor deze webapps kun je wijzigen in `~/.config/hypr/bindings.lua`.
 
-Wanneer je in een webapp bent, kun je de huidige URL naar het klembord kopiëren met `Shift + Alt + L`.
+Als je in een webapp zit, kun je de huidige URL naar het klembord kopiëren met `Shift + Alt + L`.
 
-Standaard wordt Omarchy al geleverd met een assortiment standaardapps:
+Standaard levert Omarchy al een assortiment standaardapps mee:
 
 ## HEY
 
-[HEY](https://www.hey.com/) is een e-mail- en kalenderdienst die dient als een geweldig alternatief voor mensen die Gmail, Outlook of Apple Mail beu zijn. Het is gemaakt door [37signals](https://37signals.com/) waar Omarchy is ontstaan.
+[HEY](https://www.hey.com/) is een e-mail- en agendaservice die een geweldig alternatief is voor mensen die Gmail, Outlook of Apple Mail zat zijn. Het is gemaakt door [37signals](https://37signals.com/), waar Omarchy is ontstaan.
 
 Je kunt HEY Email starten met `Super + Shift + E`, direct naar het opstellen van een nieuwe e-mail springen met `Super + Shift + Alt + E`, en HEY Calendar starten met `Super + Shift + C`.
 
 ## Basecamp
 
-[Basecamp](https://basecamp.com/) is een projectmanagementdienst die kleine teams helpt sneller te werken en meer vooruitgang te boeken. In plaats van een mengelmoes van Trello, Slack, Asana, Notion of wat dan ook aan elkaar te plakken, kun je het allemaal op één plek hebben met Basecamp. Het is gemaakt door [37signals](https://37signals.com/) waar Omarchy is ontstaan.
+[Basecamp](https://basecamp.com/) is een projectmanagementservice die kleine teams helpt sneller te werken en meer vooruitgang te boeken. In plaats van een allegaartje van Trello, Slack, Asana, Notion of wat dan ook aan elkaar te plakken, heb je met Basecamp alles op één plek. Het is gemaakt door [37signals](https://37signals.com/), waar Omarchy is ontstaan.
 
-Je kunt Basecamp starten met de applicatie-launcher (`Super + Space`)
+Je kunt Basecamp starten via de app launcher (`Super + Space`)
 
 ## ChatGPT
 
@@ -42,13 +42,13 @@ Je kunt Grok starten met `Super + Shift + Alt + A`.
 
 [WhatsApp](https://www.whatsapp.com/) is een van de populairste berichtendiensten ter wereld, en de webversie is een geweldige optie voor Linux.
 
-Je kunt WhatsApp starten met `Super + Shift + Alt + G`.
+Je kunt WhatsApp starten met `Super + Shift + Alt + G`. Het opent met Omarchy's WhatsApp Slim-extensie, waardoor het je thema volgt en de chatlijst inklapt als het venster smal is.
 
 ## Google-apps
 
-Google Messages, Google Photos, Google Maps en Google Contacts zijn allemaal ook inbegrepen als webapps.
+Google Messages, Google Photos, Google Maps en Google Contacts zijn ook inbegrepen als webapps.
 
-Je kunt Google Messages starten met `Super + Shift + Ctrl + G`, Google Photos met `Super + Shift + P`, en Google Maps met `Super + Shift + S`. Google Contacts is beschikbaar via de app-launcher (`Super + Space`).
+Je kunt Google Messages starten met `Super + Shift + Ctrl + G`, Google Photos met `Super + Shift + P` en Google Maps met `Super + Shift + S`. Google Contacts is beschikbaar via de app launcher (`Super + Space`).
 
 ## X
 
@@ -62,30 +62,36 @@ Je kunt X starten met `Super + Shift + X` en direct naar het schrijven van een n
 
 Je kunt YouTube starten met `Super + Shift + Y`.
 
+## Netflix
+
+[Netflix](https://www.netflix.com/) is bij nieuwe installaties inbegrepen als webapp.
+
+Je start Netflix via de app launcher (`Super + Space`).
+
 ## Zoom
 
-[Zoom](https://zoom.us/) is het populairste videochatsysteem in de VS. Geweldige verbindingen over de hele wereld. En vergaderingen van 40 minuten kunnen worden gehouden zonder betalend account. Omarchy verpakt de webclient van Zoom, en zoom-vergaderlinks openen er direct in.
+[Zoom](https://zoom.us/) is het populairste videochatsysteem dat in de US wordt gebruikt. Geweldige verbindingen over de hele wereld. En vergaderingen van 40 minuten kunnen zonder betaald account worden gehouden. Omarchy wikkelt de webclient van Zoom in, en Zoom-vergaderlinks openen er direct in.
 
-Je start Zoom met de applicatie-launcher (`Super + Space`).
+Je start Zoom via de app launcher (`Super + Space`).
 
 ## Discord
 
-[Discord](https://discord.com/) is waar de meeste gaming- en opensource-community's rondhangen, inclusief [die van Omarchy zelf](https://discord.gg/tXFUdasqhY).
+[Discord](https://discord.com/) is waar de meeste gaming- en open source-community's rondhangen, waaronder [die van Omarchy zelf](https://discord.gg/tXFUdasqhY).
 
-Je start Discord met de applicatie-launcher (`Super + Space`).
+Je start Discord via de app launcher (`Super + Space`).
 
 ## Microsoft-apps
 
-Selecteer _Installeren > Dienst > Microsoft_ om Outlook, Word, Excel, PowerPoint, Teams en OneDrive toe te voegen als webapps. Elke app heeft zijn eigen launcher en opent direct, met gebruik van de commerciële Microsoft 365-URL's en je bestaande browserprofiel. Ze openen in dezelfde browser-appvensters als Omarchy's andere webapps; ze installeren niet de afzonderlijke Teams for Linux-client.
+Selecteer _Install > Service > Microsoft_ om Outlook, Word, Excel, PowerPoint, Teams en OneDrive als webapps toe te voegen. Elke app heeft zijn eigen launcher en opent direct, met de commerciële Microsoft 365-URL's en je bestaande browserprofiel. Ze openen in dezelfde browser-appvensters als de andere webapps van Omarchy; ze installeren niet de aparte Teams for Linux-client.
 
-Verwijder de bundel met _Verwijderen > Dienst > Microsoft_, of verwijder individuele apps met _Verwijderen > Webapp_. Je kunt ook alleen de apps installeren die je wilt via _Installeren > Webapp_.
+Verwijder de bundel met _Remove > Services > Microsoft_, of verwijder afzonderlijke apps met _Remove > Web App_. Je kunt ook alleen de apps installeren die je wilt via _Install > Web App_.
 
-Voor een overheids- of soevereine cloud bewerk je de URL op de `Exec=`-regel in de relevante launcher onder `~/.local/share/applications/`, zoals `Microsoft Teams.desktop`, met de URL die door je organisatie is verstrekt. Schrijf elke letterlijke `%` in die regel als `%%`. Wijzigingen zijn van toepassing bij de volgende start. Het opnieuw uitvoeren van het bundel-installatieprogramma vervangt zijn launchers door de standaard-URL's.
+Voor een overheids- of soevereine cloud bewerk je de URL op de `Exec=`-regel in de relevante launcher onder `~/.local/share/applications/`, zoals `Microsoft Teams.desktop`, met de URL die je organisatie heeft verstrekt. Schrijf een letterlijke `%` in die regel als `%%`. Wijzigingen zijn van toepassing bij de volgende start. Als je het bundelinstallatieprogramma opnieuw uitvoert, worden de launchers ervan vervangen door de standaard-URL's.
 
-Om werkinloggegevens gescheiden te houden, voeg je een browserdatamap toe aan de `Exec=`-regel van elke launcher:
+Om inloggegevens voor werk gescheiden te houden, voeg je een browsergegevensmap toe aan de `Exec=`-regel van elke launcher:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Vervang de voorbeeldmap door een absoluut pad naar keuze en gebruik hetzelfde pad voor alle zes launchers om werkinloggegevens tussen hen te delen. De webapps gebruiken Omarchy's geselecteerde ondersteunde browser, en vallen terug op Chromium wanneer de standaardbrowser niet wordt ondersteund.
+Vervang de voorbeeldmap door een absoluut pad naar keuze en gebruik hetzelfde pad voor alle zes launchers om inloggegevens voor werk tussen hen te delen. De webapps gebruiken de door Omarchy geselecteerde ondersteunde browser en vallen terug op Chrome als de standaardbrowser niet wordt ondersteund.

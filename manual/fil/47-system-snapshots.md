@@ -1,25 +1,37 @@
-# Mga snapshot ng sistema
+# Mga snapshot ng system
 
-Awtomatiko kaming gumagawa ng mga snapshot sa bawat update ng Omarchy, pero kung gusto mong gumawa ng sarili mo, maaari mong gamitin ang `omarchy-snapshot create`.
+Awtomatiko kaming gumagawa ng mga snapshot sa bawat update ng Omarchy, ngunit kung gusto mong gumawa ng sarili mo, maaari mong gamitin ang `omarchy-snapshot create`.
 
-Para i-boot at ibalik ang isang snapshot, pipiliin mo ito mula sa boot loader na Limine. (Kung kasalukuyan kang dumidiretso sa screen ng pag-decrypt ng Omarchy, kakailanganin mong piliin ang Limine bilang opsyon sa pag-boot sa pamamagitan ng BIOS muna).
+Nakadepende sa boot loader na sinisimulan ng makina mo kung paano ka magbo-boot at magre-restore ng snapshot. Gumagamit ng systemd-boot ang mga bagong UEFI install; gumagamit ng Limine ang mga mas lumang install at mga makinang BIOS. Sasabihin sa iyo ng `omarchy-boot-backend` kung alin ang mayroon ka.
 
-Mula sa screen na iyon, piliin ang snapshot na gusto mong i-boot batay sa petsa at bersyon. Ang bersyon ng Omarchy sa oras ng snapshot ay makikita sa kaliwang sulok sa ibaba.
+## Sa systemd-boot
+
+Piliin ang _System > Snapshots_ sa menu ng Omarchy at piliin ang snapshot na gusto mong i-boot. Magre-restart ang makina papasok dito nang isang beses. O kaya, pindutin nang matagal ang Space habang nagsisimula ang makina upang makita ang boot menu, kung saan nakalista ang bawat snapshot, pinakabago muna, kasama ang bersyon ng Omarchy at petsa nito.
+
+Nagbo-boot ang isang snapshot na may pansamantalang layer sa ibabaw, kaya magagamit mo ito nang normal, ngunit mawawala ang anumang babaguhin mo sa susunod na reboot. Upang mapanatili ito, gawin itong system mo: i-click ang notification na lalabas kapag nag-log in ka, piliin ang _System > Snapshots > Restore This Snapshot_, o patakbuhin ang `omarchy-snapshot restore`. Mangyayari ang restore habang nagre-restart ang makina. Mananatili sa boot menu ang system kung ano ito dati bilang _Before restore_, at ibabalik ito ng `omarchy-snapshot restore backup`.
+
+Mula sa terminal:
+
+- `omarchy-snapshot list` ang naglilista ng mga snapshot na maaari mong i-boot;
+- `omarchy-snapshot boot 12` ang magre-restart papasok sa snapshot 12 nang isang beses;
+- `omarchy-snapshot restore 12` ang gagawing system ang snapshot 12 sa susunod na restart, at `omarchy-snapshot restore --cancel` ang magpapabago sa isip mo bago ang restart na iyon.
+
+## Sa Limine
+
+Upang mag-boot at mag-restore ng snapshot, pipiliin mo ito mula sa Limine boot loader. Nananatiling nakatago ang boot menu bilang default, kaya pindutin ang anumang key sa sandaling magsimula ang Limine upang ilabas ito.
+
+Mula sa screen na iyon, piliin ang snapshot na gusto mong i-boot batay sa petsa at bersyon. Makikita sa kaliwang sulok sa ibaba ang bersyon ng Omarchy noong panahon ng snapshot.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Kapag nakapasok ka na sa loob, lalabas ang isang notipikasyon na nagpapaalam sa iyo na nasa isang bootable na snapshot ka at kung i-click mo ito, sisimulan nito ang proseso ng pagbabalik. Bilang alternatibo, maaari mong gamitin ang `omarchy-snapshot restore`.
+Pagdating mo sa loob, may lalabas na notification na nagsasabi sa iyo na nasa isang bootable na snapshot ka at, kung i-click mo ito, sisimulan nito ang proseso ng restoration. Bilang alternatibo, maaari mong gamitin ang `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Ibabalik nito ang root filesystem mo, pero hindi ang `/home` mo. Kaya gumagana ito para sa pagbabalik ng isang sirang update ng sistema, pero hindi para sa pagbawi ng nawawalang personal na file.
+## Ano ang saklaw ng isang restore
 
-Ibig sabihin din nito na ang direktoryo mong `~/.config` ay pinapanatili kung ano ito. Kaya kung nagro-rollback ka sa mas naunang bersyon ng isang library o aplikasyon na nag-iimbak ng mga file ng konpigurasyon sa bagong format, kakailanganin mong ayusin iyon nang mano-mano.
+Ibabalik ng isang restore ang root filesystem mo, ngunit hindi ang `/home` mo. Kaya gumagana ito para bawiin ang isang sirang update ng system, ngunit hindi para mabawi ang mga nawalang personal na file.
 
-_Tandaan: Ang tampok na ito ay available lang sa mga pag-install na gumagamit ng boot loader na Limine, na siyang default mula pa noong Omarchy 2.0. Hindi ito available kung nasa GRUB o systemd-boot ka._
+Ibig sabihin din nito na mananatiling gaya ng dati ang `~/.config` directory mo. Kaya kung babalik ka sa mas lumang bersyon ng isang library o application na nag-iimbak ng mga configuration file sa bagong format, kakailanganin mong ayusin iyon nang manu-mano.
 
-### Paglaktaw sa menu ng boot
-
-Kung hindi mo kailanman ginagalaw ang menu ng boot at gusto mo lang dumiretso ang makina sa screen ng pag-decrypt, patakbuhin ang _Pag-setup > Direktang Boot_ sa menu ng Omarchy. Nagdadagdag iyon ng isang entry ng EFI na direktang nakaturo sa Omarchy, kaya ibo-boot ito ng firmware nang hindi humihinto sa Limine.
-
-Ang kapalit ay ang nabanggit sa itaas: kapag naka-on ang direktang boot, ang pagpunta sa isang snapshot ay nangangahulugang pipiliin mo muna ang Limine mula sa menu ng boot ng BIOS mo. Patakbuhin ulit ang _Pag-setup > Direktang Boot_ para alisin ang entry at bumalik sa pag-boot sa pamamagitan ng Limine. Ang ilang firmware ay hindi mahilig sa mga custom na entry ng EFI, kaya tumatanggi ang setup na tumakbo sa firmware ng American Megatrends at Apple.
+Ganoon din ang sariling talaan ng Omarchy kung aling mga migration ang naipatupad na: nasa home directory mo ito, kaya mananatili ito pagkatapos ng restore. Mananatiling nakamarka bilang tapos na ang mga migration na tumakbo pagkatapos kunin ang snapshot, kahit na naibalik na ang mga pagbabagong ginawa nila sa root filesystem, at hindi na sila muling patatakbuhin ng susunod na `omarchy update`. Kaya kung mag-a-update ka ulit pagkatapos ng isang restore at may kulang pa ring isang bagay na itinakda ng isang naunang update, iyon ang malamang na dahilan.

@@ -1,108 +1,118 @@
-# GUI
+# Grafinės sąsajos
 
 ## Files
 
-Files (Nautilus) yra grafinė failų tvarkytuvė. `Super + Shift + F` ją atverčia, o `Super + Shift + Alt + F` atverčia ją kataloge, kuriame šiuo metu yra tavo terminalas, o tai sutaupo daug spustelėjimų. `Ctrl + L` leidžia įvesti kelią, o paspaudus `Space` ant bet kurio failo gauni greitą peržiūrą nieko neatverdamas.
+Files (Folio) yra grafinė failų tvarkyklė. `Super + Shift + F` ją atidaro, o `Super + Shift + Alt + F` atidaro ją kataloge, kuriame šiuo metu yra jūsų terminalas, ir tai sutaupo daug spustelėjimų. `Ctrl + L` leidžia įvesti kelią, o paspaudus `Space` ant bet kurio failo, jis peržiūrimas visu dydžiu jo neatidarant.
 
-Įjunk USB raktą ar SD kortelę ir jis automatiškai primontuojamas, tad tiesiog pasirodo šoninėje juostoje. Jei reikia ko nors sudėtingesnio — formatuoti diską, patikrinti SMART sveikatą, sukurti skaidinius — paleisk _Disks_ iš programų paleidimo priemonės (`Super + Space`).
+Prijunkite USB atmintinę ar SD kortelę ir ji automatiškai prijungiama, todėl tiesiog atsiranda šoninėje juostoje. Jei reikia ko nors sudėtingesnio — formatuoti diską, patikrinti SMART būklę, kurti skaidinius — paleiskite _Disks_ iš programų paleidyklės (`Super + Space`).
 
-Dukart spustelėjus laikomasi protingų numatytųjų: vaizdai atidaromi imv, vaizdo įrašai mpv, PDF Document Viewer, o paprastas tekstas Neovim.
+Šifruotas diskas jį prijungus paprašo slaptažodžio. Kad diskas atsirakintų pats, pridėkite prie jo raktinį failą komanda `sudo cryptsetup luksAddKey /dev/sdX1 <keyfile>` ir įdėkite tą raktinį failą į `~/.config/omarchy/drive-keys/<UUID>`, pavadintą pagal UUID, kurį šifruotam skaidiniui išspausdina `lsblk -dno UUID /dev/sdX1`, ir prieinamą tik jums (`chmod 600`). Jei to raktinio failo trūksta arba jis atmetamas, jūsų kaip įprasta paprašoma slaptažodžio.
+
+Dukart spustelėjus taikomos protingos numatytosios parinktys: paveikslėliai, vaizdo įrašai ir muzika atidaromi programoje Omaview, PDF — programoje Document Viewer, Markdown — programoje Omawrite, o paprastas tekstas — jūsų redaktoriuje, Plain, nebent skiltyje _Setup > Defaults > Editor_ pasirinksite kitą.
 
 ## Disktree
 
-Kai diskas užsipildo ir neturi supratimo, kas jį valgo, paleisk [Disktree](https://github.com/tobi/disktree) iš programų paleidimo priemonės (`Super + Space`). Jis rodo grafinį tavo namų katalogo treemap. Didesni blokai užima daugiau vietos; vaikščiok katalogais klaviatūra ar pele, pažymėk, kas turi išeiti, ir peržiūrėk savo pasirinkimus prieš ką nors pašalindamas. Paleisk `disktree --disk`, kad nuskaitytum visą diską.
+Kai diskas prisipildo ir neturite supratimo, kas jį ryja, paleiskite [Disktree](https://github.com/tobi/disktree) iš programų paleidyklės (`Super + Space`). Ji rodo grafinį jūsų namų katalogo medžio žemėlapį. Didesni blokai užima daugiau vietos; klaviatūra ar pele eikite į katalogus, pažymėkite, ką reikia pašalinti, ir prieš ką nors šalindami peržiūrėkite savo pasirinkimus. Paleiskite `disktree --disk`, kad nuskaitytumėte visą diską.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) yra nemokama ir labai plečiama užrašų programa, saugojimui naudojanti paprastus Markdown failus.
+[Obsidian](https://obsidian.md/) yra nemokama ir labai išplečiama užrašų programa, saugojimui naudojanti paprastus Markdown failus.
 
-Obsidian yra nemokama visiems tikslams, įskaitant asmeninį, komercinį ir nepelno naudojimą.
+Obsidian yra nemokama visiems tikslams, įskaitant asmeninį, komercinį ir ne pelno naudojimą.
 
-Obsidian taip pat siūlo [komercinį priedą sinchronizavimui](https://obsidian.md/sync) su mobiliosiomis programėlėmis iOS ir Android. (https://obsidian.md/pricing).
+Obsidian taip pat siūlo [komercinį sinchronizavimo priedą](https://obsidian.md/sync) su mobiliosiomis programėlėmis, skirtomis iOS ir Android. (https://obsidian.md/pricing).
 
-Obsidian paleidi su `Super + Shift + O`. Kad naudotum temų sinchronizavimą, nuostatose turi pasirinkti temą `Omarchy`.
+Obsidian paleidžiate su `Super + Shift + O`. Kad galėtumėte naudoti temų sinchronizavimą, nustatymuose turite pasirinkti `Omarchy` temą.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) yra pačios Omarchy nepaprastai paprasta Markdown rašymo programa. Be vaultų, be įskiepių, tiesiog tu ir žodžiai.
+[Omawrite](https://github.com/omacom-io/omawrite) yra pačios Omarchy itin paprasta Markdown rašymo programa. Jokių saugyklų, jokių papildinių, tik jūs ir žodžiai.
 
-Omawrite paleidi su `Super + Shift + W`.
+Omawrite paleidžiate su `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) yra paprastas vaizdų redagavimo įrankis, puikiai tinkantis apkarpymui, dydžio keitimui ir kitiems paprastiems veiksmams. Tik nesitikėk Photoshop alternatyvos. Bet jis vis dar turi Magic Wand ir sluoksnius!
+[Pinta](https://www.pinta-project.com/) yra paprastas paveikslėlių redagavimo įrankis, puikiai tinkantis apkarpyti, keisti dydį ir atlikti kitus pagrindinius veiksmus. Tik nesitikėkite Photoshop alternatyvos. Bet ji vis tiek turi Magic Wand ir sluoksnius!
 
-Pinta paleidi per programų paleidimo priemonę (`Super + Space`).
+Pinta paleidžiate per programų paleidyklę (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) yra temų programa, galinti išgauti spalvas iš fono paveikslėlio ir paversti jas pilna, darniu tema. Tai lengviausias būdas [sukurti savo temą](43-making-your-own-theme.md).
+[Aether](https://github.com/bjarneo/aether) yra temų kūrimo programa, galinti išgauti spalvas iš fono paveikslėlio ir paversti jas visaverte, darnia tema. Tai lengviausias būdas [susikurti savo temą](43-making-your-own-theme.md).
 
-Aether paleidi per programų paleidimo priemonę (`Super + Space`).
+Aether paleidžiate per programų paleidyklę (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) leidžia siųsti failus į kitus įrenginius tame pačiame tinkle, kuriuose veikia programa, kaip Apple AirDrop. Tačiau jis yra daugiaplatformis, tad gali siųsti failus į ir iš Windows, macOS, Android, iOS ir, žinoma, Linux.
+[LocalSend](https://localsend.org/) leidžia siųsti failus į kitus įrenginius tame pačiame tinkle, kuriuose veikia ši programa, panašiai kaip Apple AirDrop. Vis dėlto ji veikia įvairiose platformose, todėl galite siųsti failus į Windows, macOS, Android, iOS ir, žinoma, Linux bei iš jų.
 
-Share meniu gali atverti su `Super + Ctrl + S` arba Omarchy meniu skiltyje _Veiksmai > Dalytis_. Jis siūlo keturias parinktis:
+Bendrinimo meniu galite atidaryti su `Super + Ctrl + S` arba skiltyje _Trigger > Share_ Omarchy meniu. Jame yra keturios parinktys:
 
-- **Iškarpinė** siunčia viską, ką nukopijavai, kaip tekstinį failą. Puikiai tinka norint nusiųsti nuorodą ar fragmentą į savo telefoną nesiunčiant sau el. laiško.
-- **Failas** atverčia failų rinkiklį, kuriame gali pasirinkti kelis vienu metu.
-- **Aplankas** siunčia visą katalogą.
-- **Gauti** atverčia patį LocalSend, kad kitas įrenginys galėtų ką nors atsiųsti tau.
+- **Clipboard** siunčia viską, ką nukopijavote, kaip tekstinį failą. Puiku, kai reikia nuorodą ar fragmentą nusiųsti į telefoną nesiunčiant sau el. laiško.
+- **File** atidaro failų parinkiklį, kuriame galite pasirinkti kelis iš karto.
+- **Folder** siunčia visą katalogą.
+- **Receive** atidaro pačią LocalSend, kad kitas įrenginys galėtų ką nors nusiųsti jums.
 
-Tas pats veikia iš terminalo su `omarchy share clipboard`, `omarchy share file [path]` ir `omarchy share folder [path]`. Praleisk kelią ir gausi rinkiklį.
+Tą patį galima padaryti terminale komandomis `omarchy share clipboard`, `omarchy share file [path]` ir `omarchy share folder [path]`. Nenurodykite kelio ir gausite parinkiklį.
 
-Taip pat gali siųsti tiesiai iš failų tvarkytuvės: dešiniuoju pelės klavišu spustelėk bet kurį pasirinkimą Nautilus ir pasirink _Send via LocalSend_.
+Siųsti galite ir tiesiai iš failų tvarkyklės: dešiniuoju pelės mygtuku spustelėkite bet kurį pasirinkimą programoje Files ir bendrinkite jį su LocalSend.
 
-Omarchy ugniesiena pagal nutylėjimą uždarta, išskyrus LocalSend portą, tad tai veikia iš karto šviežiai įdiegus. Žr. [sauga](48-security.md).
+Omarchy užkarda pagal numatytuosius nustatymus yra uždara, išskyrus LocalSend prievadą, todėl tai veikia iš karto šviežiai įdiegtoje sistemoje. Žr. [saugumas](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) yra pilnas biuro paketas su teksto procesoriumi, skaičiuokle, pristatymais, piešimo programa ir daugiau. Jis suderinamas su Microsoft Office failais, tad tai puikus būdas atverti tuos Word dokumentus.
+[LibreOffice](https://www.libreoffice.org/) yra visavertis biuro programų rinkinys su tekstų rengykle, skaičiuokle, pristatymų programa, braižymo programa ir dar daugiau. Jis suderinamas su Microsoft Office failais, todėl tai puikus būdas atidaryti tuos Word dokumentus.
 
-LibreOffice paleidi per programų paleidimo priemonę (`Super + Space`).
+LibreOffice paleidžiate per programų paleidyklę (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) yra pačios Omarchy nepaprastai paprasta pristatymų programa. Tavo rinkinys yra vienas Markdown failas su paveikslėliais ir vaizdo įrašais šalia jo: rašyk kiekvieną skaidrę po gyva peržiūra, vilk skaidres į eilę, tada pristatyk per visą ekraną arba eksportuok į PDF ir PowerPoint. Ji netgi perima tavo Omarchy temą.
+[Hype](https://github.com/omacom/hype) yra pačios Omarchy itin paprasta pristatymų programa. Jūsų prezentacija yra vienas Markdown failas, o šalia jo — paveikslėliai ir vaizdo įrašai: kiekvieną skaidrę rašykite po tiesiogine peržiūra, vilkite skaidres į norimą tvarką, tada pristatykite visame ekrane arba eksportuokite į PDF ir PowerPoint. Ji net perima jūsų Omarchy temą.
 
-Hype paleidi per programų paleidimo priemonę (`Super + Space`). Paspausk `?` jo viduje, kad pamatytum visus sparčiuosius klavišus.
+Hype paleidžiate per programų paleidyklę (`Super + Space`). Paspauskite `?` joje, kad pamatytumėte visus sparčiuosius klavišus.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) yra pačios Omarchy nepaprastai paprastas būdas pasirašyti PDF ir juos užpildyti. Padėk savo išsaugotą parašą, tekstą ir šiandienos datą bet kurioje puslapio vietoje, tada išsaugok pasirašytą kopiją šalia originalo. Žr. [PDF pildymas](27-filling-out-pdfs.md), kaip tai padaryti.
+[Signed](https://github.com/omacom/signed) yra pačios Omarchy itin paprastas būdas pasirašyti PDF ir juos užpildyti. Įdėkite išsaugotą parašą, tekstą ir šiandienos datą bet kurioje puslapio vietoje, tada išsaugokite pasirašytą kopiją šalia originalo. Kaip tai padaryti, žr. [PDF pildymas](27-filling-out-pdfs.md).
 
-Signed paleidi per programų paleidimo priemonę (`Super + Space`) arba atverk su ja PDF iš failų tvarkytuvės.
+Signed paleidžiate per programų paleidyklę (`Super + Space`) arba atidarote su ja PDF iš failų tvarkyklės.
+
+## Game Vibes
+
+Game Vibes, programų paleidyklėje (`Super + Space`), yra vieta, kur gyvena mažieji Omarchy žaidimai: Checkmate — 3D šachmatų žaidimas prieš draugą arba įtaisytąjį varžovą; Cards — Klondike pasjansas; Death Wish — pikselio tikslumo platforminis žaidimas su dešimčia kambarių, pilnų spyglių ir pjūklų; ir Neon Swarm — arkadinė šaudyklė. Kiekvienas yra vienas tinklalapis, kuris seka jūsų temą. Pasirinkite vieną rodyklėmis ir `Enter`, o į sąrašą grįžkite su `Esc` iš žaidimo pavadinimo ekrano arba `Q`, kai jis pristabdytas. Jis atidaromas visame ekrane: `Super + F` paverčia jį langu, o `Super + W` jį uždaro.
+
+Žaidimai, kuriuos sukuriate su agentu, taip pat atsiranda čia: agentų skydelyje pasirinkite _Make something cool → Game_ ir aprašykite žaidimą arba įvardykite žaidimą, kuris jau yra Game Vibes, kad galėtumėte toliau su juo dirbti. Agentas nukopijuoja jį į `~/Games/vibes`, kur jis yra jūsų ir galite jį keisti, ir baigęs jį atidaro. Tą kopiją galite pasidaryti patys komanda `omarchy games vibes copy <game>`. Žaidimas, kuriuo pasidalija kas nors kitas, įdiegiamas kaip tema: pasirinkite _Install > Gaming > Game Vibes_ ir įklijuokite jo git adresą arba paleiskite `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ vėl jį pašalina, o _Update > Game Vibes Games_ atsisiunčia naujas versijas. Žaidimai įkelia three.js iš interneto, todėl jiems paleisti reikia ryšio.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) yra pačios Omarchy nepaprastai paprastas skaičiuotuvas, atsidarantis plūduriuojančiame lange.
+[Omacalc](https://github.com/omacom-io/omacalc) yra pačios Omarchy itin paprastas skaičiuotuvas, atidaromas slankiajame lange.
 
-Omacalc paleidi su `Super + Ctrl + Q` (arba skaičiuotuvo klavišu, jei tavo klaviatūra jį turi).
+Omacalc paleidžiate su `Super + Shift + Q` (arba skaičiuotuvo klavišu, jei jūsų klaviatūra tokį turi).
 
 ## Signal
 
-[Signal](https://signal.org/) yra E2E užšifruotų susirašinėjimų pradininkas ir puikus bendravimo pasirinkimas visiems, kurie mieliau neina per vieną iš didžiųjų technologijų konglomeratų.
+[Signal](https://signal.org/) yra E2E šifruoto susirašinėjimo pradininkas ir puikus bendravimo pasirinkimas visiems, kurie verčiau nesinaudotų vienu iš didžiųjų technologijų konglomeratų.
 
-Signal paleidi su `Super + Shift + G`. Jis nėra bazinio diegimo dalis, tad pirmą kartą tai paspaudus Omarchy pasiūlys jį įdiegti tau (jis taip pat yra Omarchy meniu skiltyje _Įdiegti > Service_).
+Signal paleidžiate su `Super + Shift + G`. Jis nėra bazinio diegimo dalis, todėl pirmą kartą paspaudus šį derinį Omarchy pasiūlys jį įdiegti už jus (jis taip pat yra skiltyje _Install > Service_ Omarchy meniu).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) yra paprastas, greitas medijos grotuvas, kuris gros beveik bet ką iš bet kurio šaltinio. Puikiai tinka vaizdo įrašams žiūrėti.
+[Omaview](https://github.com/omacom/omaview) yra pačios Omarchy itin paprasta paveikslėlių peržiūros programa ir medijos leistuvas: vienas langas jūsų nuotraukoms, vaizdo įrašams ir muzikai. Atidarykite nuotrauką ir rodyklių klavišai pereis per likusius jos aplanko failus, `N` ir `P` tai daro su bet kuo, o `Ctrl + M` rodo visą aplanką kaip tinklelį. Ji taip pat rodo HEIC, AVIF ir JPEG XL nuotraukas ir tęsia nuo tos vietos, kurioje baigėte ką nors ilgo.
 
-mpv paleidi per programų paleidimo priemonę (`Super + Space`) arba tiesiog dukart spustelėk vaizdo įrašą failų tvarkytuvėje.
+Paspauskite `F`, kad įjungtumėte viso ekrano režimą, `E`, kad redaguotumėte paveikslėlį programoje Omasnap arba apkarpytumėte vaizdo įrašą programoje Omacut, `Ctrl + P`, kad atsispausdintumėte paveikslėlį, ir `Delete`, kad perkeltumėte failą į šiukšlinę (`Ctrl + Z` jį sugrąžina). Paspauskite `?` joje, kad pamatytumėte visus sparčiuosius klavišus.
+
+Omaview paleidžiate kaip _Media Viewer_ per programų paleidyklę (`Super + Space`) arba tiesiog dukart spustelėkite paveikslėlį, vaizdo įrašą ar dainą failų tvarkyklėje.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) yra pačios Omarchy nepaprastai paprastas vaizdo įrašų apkarpytojas. Kai tereikia nupjauti klipo pradžią ir pabaigą, jis pranoksta pilno vaizdo redaktoriaus paleidimą.
+[Omacut](https://github.com/omacom-io/omacut) yra pačios Omarchy itin paprastas vaizdo įrašų apkarpymo įrankis. Kai tereikia nupjauti klipo pradžią ir pabaigą, jis geriau nei paleidinėti visą vaizdo įrašų redaktorių.
 
-Omacut paleidi per programų paleidimo priemonę (`Super + Space`).
+Omacut paleidžiate per programų paleidyklę (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) yra pačios Omarchy nepaprastai paprastas vaizdo kameros įrašytuvas. Kartą pasirink kamerą ir mikrofoną, tada paspausk `Space`, kad įrašytum, ir dar kartą, kad pristabdytum ir tęstum tą patį kadrą. Jis visada įrašo tavo kameros didžiausia raiška, su gyvu mikrofono matuokliu, kad prieš pradedant galėtum patikrinti lygius.
+[Monologue](https://github.com/omacom/monologue) yra pačios Omarchy itin paprastas internetinės kameros įrašymo įrankis. Kartą pasirinkite kamerą ir mikrofoną, tada paspauskite `Space`, kad įrašytumėte, ir dar kartą, kad pristabdytumėte ir tęstumėte tą patį įrašą. Jis visada įrašo didžiausia jūsų kameros raiška, su tiesioginiu mikrofono lygio matuokliu, kad prieš pradėdami galėtumėte patikrinti lygius.
 
-Sustabdyk kadrą ir jis iškart atsidarys įtaisytame redaktoriuje. Dukart spustelėk klipą, kad jį padaly-tum, vilk rankenėles, kad apkarpytum kiekvieną dalį, ir pašalink dalis, kurių nenori. Tada išsaugok jį kaip MP4. Tavo originalus įrašas saugomas, kol jį išmesi, tad visada gali sugrįžti ir sukarpyti jį kitaip.
+Sustabdykite įrašą ir jis iškart atsidarys įtaisytajame redaktoriuje. Dukart spustelėkite klipą, kad jį padalytumėte, vilkite rankenėles, kad apkarpytumėte kiekvieną dalį, ir pašalinkite dalis, kurių nenorite. Tada išsaugokite jį kaip MP4. Jūsų originalus įrašas išsaugomas, kol jo neatsisakysite, todėl visada galite sugrįžti ir permontuoti jį kitaip.
 
-Monologue paleidi per programų paleidimo priemonę (`Super + Space`).
+Monologue paleidžiate per programų paleidyklę (`Super + Space`).

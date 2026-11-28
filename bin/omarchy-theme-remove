@@ -2,7 +2,7 @@
 
 # omarchy:summary=Remove a user-installed theme
 # omarchy:args=[theme-name]
-# omarchy:examples=omarchy theme remove "Tokyo Night"
+# omarchy:examples=omarchy theme remove "My Theme"
 
 if [[ -z $1 ]]; then
   mapfile -t extra_themes < <(find ~/.config/omarchy/themes -mindepth 1 -maxdepth 1 -type d ! -xtype l -printf '%f\n')
@@ -19,6 +19,11 @@ else
 fi
 
 THEMES_DIR="$HOME/.config/omarchy/themes"
+
+# The name omarchy-theme-list shows (My Theme) finds its folder (my-theme) when no folder has that exact name.
+if [[ ! -d $THEMES_DIR/$THEME_NAME && ! -d $OMARCHY_PATH/themes/$THEME_NAME ]]; then
+  THEME_NAME=$(echo "$THEME_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+fi
 THEME_PATH="$THEMES_DIR/$THEME_NAME"
 
 # Ensure a theme was set, and that the name cannot climb out of THEMES_DIR
@@ -29,7 +34,11 @@ fi
 
 # Check if theme exists before attempting removal
 if [[ ! -d $THEME_PATH ]]; then
-  echo "Error: Theme '$THEME_NAME' not found."
+  if [[ -d $OMARCHY_PATH/themes/$THEME_NAME ]]; then
+    echo "Error: Theme '$THEME_NAME' comes with Omarchy and cannot be removed."
+  else
+    echo "Error: Theme '$THEME_NAME' not found."
+  fi
   exit 1
 fi
 

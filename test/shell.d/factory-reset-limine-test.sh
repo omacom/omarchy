@@ -292,6 +292,47 @@ if run_reset_function verify_limine_hashes "$root" /boot 2>/dev/null; then
 fi
 pass "hash verification covers exactly this installation's rebuilt entry"
 
+# Where UKIs are off the entry loads a kernel and initramfs, each with its own
+# hash. Snapshot copies under limine_history are not rebuilt, so not checked.
+# $1 names the case; then the lines of this installation's entry, where
+# HASH:<file> stands for that file's hash.
+kernel=/$NEW_ID/linux-aarch64/vmlinuz-linux-aarch64
+initramfs=/$NEW_ID/linux-aarch64/initramfs-linux-aarch64.img
+direct_boot() {
+  local line file
+  root="$test_tmp/direct-$1"
+  shift
+  make_root "$root"
+  mkdir -p "$root/boot/$NEW_ID/linux-aarch64" "$root/boot/$NEW_ID/limine_history"
+  printf 'kernel\n' >"$root/boot$kernel"
+  printf 'initramfs\n' >"$root/boot$initramfs"
+  printf 'old\n' >"$root/boot/$NEW_ID/limine_history/vmlinuz-linux-aarch64_1"
+  printf '/+Omarchy\ncomment: machine-id=%s order-priority=50\n  //linux\n' "$NEW_ID" >"$root/boot/limine.conf"
+  for line in "$@"; do
+    while [[ $line =~ HASH:([^[:space:]]+) ]]; do
+      file=${BASH_REMATCH[1]}
+      line=${line/HASH:$file/$(b2sum "$root/boot$file" | cut -d' ' -f1)}
+    done
+    printf '%s\n' "$line" >>"$root/boot/limine.conf"
+  done
+}
+verify_direct() { run_reset_function verify_limine_hashes "$root" /boot 2>&1; }
+
+direct_boot matching "    protocol: linux" "    module_path: boot():$initramfs#HASH:$initramfs" "    path: boot():$kernel#HASH:$kernel"
+verify_direct >/dev/null || fail "a matching kernel and initramfs pass"
+
+direct_boot stale-initramfs "    module_path: boot():$initramfs#0123abcd" "    path: boot():$kernel#HASH:$kernel"
+output=$(verify_direct) && fail "a stale initramfs hash is refused"
+[[ $output == *"hash for $initramfs does not match"* ]] || fail "a stale initramfs hash names the file" "$output"
+
+direct_boot missing-kernel "    module_path: boot():$initramfs#HASH:$initramfs" "    path: boot():/$NEW_ID/linux-aarch64/vmlinuz-gone#0123abcd"
+output=$(verify_direct) && fail "a missing kernel is refused"
+[[ $output == *"points at missing /$NEW_ID/linux-aarch64/vmlinuz-gone"* ]] || fail "a missing kernel names the file" "$output"
+
+direct_boot history "    path: boot():$kernel#HASH:$kernel" "    path: boot():/$NEW_ID/limine_history/vmlinuz-linux-aarch64_1#0123abcd"
+verify_direct >/dev/null || fail "snapshot copies under limine_history are left alone"
+pass "hash verification checks the kernel and initramfs and leaves snapshot copies alone"
+
 # ------------------------------------------------ first-boot provisioning
 
 if ! unshare --user --map-root-user --mount true 2>/dev/null; then
@@ -301,11 +342,11 @@ fi
 
 # Only the boot entry functions: the script's top level draws its UI.
 awk '
-  /^(esp_path|limine_entries_stale|reset_limine_config)\(\) \{/ { copying = 1 }
+  /^(esp_path|boot_backend|limine_entries_stale|reset_limine_config)\(\) \{/ { copying = 1 }
   copying { print }
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-provision-owner" >"$test_tmp/provision-functions"
-[[ $(grep -c '^[a-z_]*() {' "$test_tmp/provision-functions") == 3 ]] ||
+[[ $(grep -c '^[a-z_]*() {' "$test_tmp/provision-functions") == 4 ]] ||
   fail "the first-boot boot entry functions can be loaded"
 
 # omarchy-provision-owner reads /etc/machine-id directly, so give it this
@@ -321,6 +362,7 @@ run_provision_function() {
     mount --bind "$test_tmp/machine-id" /etc/machine-id
     source "$test_tmp/provision-functions"
     esp_path() { echo "$root/boot"; }
+    boot_backend() { echo "${BOOT_BACKEND:-limine}"; }
     log_step() { :; }
     OMARCHY_PATH="$root/usr/share/omarchy"
     "$@"
@@ -368,3 +410,33 @@ printf 'default_entry: 2\n' >"$root/boot/limine.conf"
 [[ $(staleness "$root") == stale ]] ||
   fail "first boot repairs a machine left without an entry of its own"
 pass "a machine without an entry of its own still gets one at first boot"
+
+[[ $(BOOT_BACKEND=systemd-boot staleness "$root") == fresh ]] ||
+  fail "a machine on systemd-boot leaves a shared limine.conf to its installation"
+pass "first boot on systemd-boot doesn't rebuild another installation's Limine entries"
+
+# The image builder clears its machine-id but leaves the bootable Omarchy UKI
+# entry. Kept as is, limine-update reuses it by name without this machine's
+# identity; dropped, the rebuilt entry can land after another system's.
+root="$test_tmp/image-first-boot"
+make_root "$root"
+{
+  printf 'default_entry: 2\n'
+  omarchy_entry "$OLD_ID" | sed '/^comment: machine-id=/d'
+  foreign_entry
+  windows_entry
+} >"$root/boot/limine.conf"
+[[ $(staleness "$root") == stale ]] ||
+  fail "a fresh image's markerless entry needs a machine-specific rebuild"
+run_provision_function "$root" reset_limine_config ||
+  fail "first boot resets the image's markerless entry"
+conf="$root/boot/limine.conf"
+[[ $(grep -c '^/+Omarchy$' "$conf") == 1 ]] && [[ $(grep -m1 '^/' "$conf") == "/+Omarchy" ]] &&
+  entry_for "$conf" "$NEW_ID" | grep -q '^/+Omarchy$' ||
+  fail "the image entry is keyed to this machine and stays first, where default_entry points"
+! grep -q 'stalehash' "$conf" || fail "the image entry's kernels are left for limine-update to rebuild"
+[[ $(awk '/^\/Windows$/,/bootmgfw/' "$conf") == "$windows_before" ]] ||
+  fail "the Windows entry survives the image's first boot"
+entry_for "$conf" "$FOREIGN_ID" | grep -q 'foreignhash' ||
+  fail "another installation's entry survives the image's first boot"
+pass "first boot keys only the markerless image entry to this machine, in place"

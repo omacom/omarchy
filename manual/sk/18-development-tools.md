@@ -1,35 +1,39 @@
-# Vývojové nástroje
+# Vývojárske nástroje
 
 ## Alternatívne editory
 
-Omarchy sa predvolene dodáva s editorom [Neovim](https://neovim.io/), ale ak by si chcel niečo bežnejšie a známejšie, môžeš spustiť menu Omarchy (`Super + Space`) a pozrieť si možnosti v časti _Inštalovať > Editor_. Nájdeš tam VSCode, Cursor, Zed, Sublime Text, Helix, Vim a Emacs. Ak tam nenájdeš, čo hľadáš, pozri sa do _Inštalovať > Balíček_ a zisti, či to nie je v niektorom balíčku Archu (a ak nie, skús _Inštalovať > AUR_ a skontroluj AUR).
+Omarchy sa na nových inštaláciách dodáva s editorom Plain ako predvoleným editorom a s predinštalovaným editorom [Neovim](https://neovim.io/), ale ak by ste chceli niečo trochu mainstreamovejšie a známejšie, môžete spustiť Omarchy Menu (`Super + Space`) a pozrieť si možnosti v časti _Install > Editor_. Nájdete tam VSCode, Cursor, Zed, Sublime Text, Helix, Vim a Emacs. Ak nenájdete to, čo hľadáte, pozrite si _Install > Package_ a skontrolujte, či to nie je v niektorom Arch balíčku (a ak nie, skúste _Install > AUR_ a skontrolujte AUR).
 
-Hneď po inštalácii je k dispozícii aj pôvodný editor `vi`. Ak chceš upraviť súbor v termináli, spusti `vi filename`.
+Pôvodný editor `vi` je tiež k dispozícii hneď po inštalácii. Súbor v termináli upravíte spustením `vi filename`.
 
-Zosúladenie témy sa ponúka pre `VSCode`, `Cursor`, `VSCodium` a `Helix`.
+Zladenie s témou sa ponúka pre `VSCode`, `Cursor`, `VSCodium` a `Helix`.
 
-Predvolený editor pre celý systém môžeš nastaviť v časti `Nastavenie > Predvolené > Editor`.
+Predvolený editor pre celý systém môžete nastaviť v časti `Setup > Defaults > Editor`.
 
-## Prostredie
+## Prostredia
 
-Omarchy podporuje nastavenie celého radu vývojových prostredí prostredníctvom časti _Inštalovať > Vývoj_ v menu Omarchy (`Super + Space`). Samozrejme tam nájdeš _Ruby on Rails_, ale aj všetky tri hlavné runtime prostredia pre JavaScript (Node.js, Bun, Deno), ako aj populárne PHP frameworky ako Laravel a Symfony. A áno, nechýbajú ani Go, Rust, Python, Java, Elixir (s Phoenixom), .NET, OCaml, Zig, Clojure a Scala. Výber je naozaj široký!
+Omarchy podporuje nastavenie celej škály vývojových prostredí prostredníctvom časti _Install > Development_ v Omarchy Menu (`Super + Space`). Samozrejme tam nájdete _Ruby on Rails_, ale aj všetky tri hlavné runtime prostredia pre JavaScript (Node.js, Bun, Deno), ako aj populárne PHP frameworky ako Laravel a Symfony. No a je tam aj Go, Rust, Python, Java, Elixir (s Phoenix), .NET, OCaml, Zig, Clojure a Scala. Je to naozaj široký výber!
 
-Väčšinu týchto prostredí spravuje [Mise](https://mise.jdx.dev/). Je to nástroj, ktorý ti umožňuje nainštalovať a spúšťať viacero verzií programovacieho jazyka na tom istom počítači. Je to niečo ako rbenv alebo rvm pre Ruby či virtualenv pre Python, ale funguje pre celú kopu rôznych prostredí.
+Väčšinu týchto prostredí spravuje [Mise](https://mise.jdx.dev/). Je to nástroj, ktorý vám umožňuje nainštalovať a spúšťať viacero verzií programovacieho jazyka na tom istom počítači. Je to ako rbenv alebo rvm pre Ruby alebo virtualenv pre Python, ale funguje pre množstvo rôznych prostredí.
 
-Ak chceš nainštalovať napríklad Ruby, spustíš `mise use -g ruby`, čím sa Ruby nainštaluje a zároveň nastaví ako globálna predvolená verzia. Alebo, ak má tvoj projekt súbor .ruby-version, stačí v koreňovom adresári projektu spustiť `mise i`.
+Ak chcete nainštalovať napríklad Ruby, spustíte `mise use -g ruby`, čím sa Ruby zároveň nainštaluje aj nastaví ako globálna predvolená verzia. Alebo, ak má váš projekt súbor .ruby-version, môžete jednoducho spustiť `mise i` v koreňovom adresári daného projektu.
+
+## Predinštalované CLI nástroje
+
+`uv`, Node.js a `playwright-cli` (aby agenti mohli ovládať prehliadač pomocou nainštalovaného Chrome) prichádzajú nainštalované ako balíčky a `omarchy update` ich udržiava aktuálne spolu so zvyškom systému. [Hunk](https://github.com/modem-dev/hunk) a CLI pre GitHub, Basecamp, Cloudflare a HEY sú na dosah jedného výberu v časti _Install > CLI_ a [kódovací agenti](17-ai.md) v časti _Install > AI > CLI_.
+
+mise spravuje iba runtime prostredia, ktoré si nastavíte v časti _Install > Development_; Omarchy cez neho sám od seba nič neinštaluje. Spustením `omarchy update` ich aktualizujete spolu so zvyškom Omarchy; alias `mup` aktualizuje iba nástroje spravované cez mise. Ak chcete do svojej vlastnej konfigurácie pridať ďalší nástroj, použite `mise use -g <tool>`.
 
 ## Docker
 
-[Docker](https://www.docker.com/) takmer netreba predstavovať. Umožňuje spúšťať izolované kontajnery a Omarchy nainštaluje všetko potrebné na jeho dobré fungovanie vrátane samotného Dockeru a [Docker Compose](https://docs.docker.com/compose/).
+[Docker](https://www.docker.com/) takmer nepotrebuje žiadne predstavovanie. Umožňuje vám spúšťať izolované kontajnery a Omarchy nainštaluje všetko potrebné na to, aby dobre fungoval, vrátane samotného Docker a [Docker Compose](https://docs.docker.com/compose/).
 
-Tvoj používateľ predvolene *nie je* v skupine `docker`. Táto skupina je v podstate root bez hesla — čokoľvek v nej môže spustiť `docker run -v /:/host` a prevziať kontrolu nad počítačom — takže jediný nekontrolovaný skript alebo závislosť spustená pod tvojím používateľom by inak bola len jeden príkaz od práv roota. V príkazovom riadku preto Docker spúšťaš so `sudo` (`sudo docker ps`, `sudo docker compose up`) a grafické nástroje, ktoré komunikujú s démonom — virtuálny stroj s Windowsom — si v prípade potreby vyžiadajú autorizáciu. Ak chceš späť pohodlie nastavenia bez skupiny a rozumieš kompromisu, zapni ho v časti **Nastavenie > Bezpečnosť > Docker bez sudo** (alebo spusti `omarchy-setup-security-sudoless-docker`), čo ťa po upozornení pridá do skupiny `docker`; potom obyčajný príkaz `docker` aj alias `d` opäť fungujú bez `sudo`.
+Váš používateľ predvolene *nie* je členom skupiny `docker`. Táto skupina je v podstate root bez hesla — čokoľvek v nej môže spustiť `docker run -v /:/host` a prevziať kontrolu nad počítačom — takže jediný škodlivý skript alebo závislosť spustená pod vaším používateľom by inak bola len jeden príkaz od root. Preto na príkazovom riadku spúšťate Docker pomocou `sudo` (`sudo docker ps`, `sudo docker compose up`) a grafické nástroje, ktoré komunikujú s démonom — Windows VM — si v prípade potreby vyžiadajú autorizáciu. Ak chcete späť pohodlie nastavenia bez skupiny a rozumiete kompromisu, povoľte ho v časti **Setup > Security > Sudoless Docker** (alebo spustite `omarchy-setup-security-sudoless-docker`), čím sa po varovaní pridáte do skupiny `docker`; potom obyčajné `docker` a alias `d` opäť fungujú bez `sudo`.
 
-Bežné databázy pre lokálny vývoj v Dockeri môžeš nastaviť pomocou _Inštalovať > Vývoj > Docker DB_ v menu Omarchy.
+Bežné databázy pre lokálny vývoj v Docker si môžete nastaviť pomocou _Install > Development > Docker DB_ v menu Omarchy.
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) ti umožňuje prihlásiť sa do svojho účtu GitHub a klonovať pomocou neho súkromné repozitáre. Je zapojený ako jeden z lenivo načítaných stubov nástroja mise, takže pri prvom spustení `gh` sa sám nainštaluje. Na prihlásenie spusti `gh auth login`. Potom môžeš klonovať súkromné repozitáre pomocou `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) je `gh`, nástroj na prácu s repozitármi, issues a pull requestmi z terminálu. _Setup > Git_ ho nainštaluje, keď sa tam rozhodnete prihlásiť do GitHub, alebo si ho nainštalujte samostatne v časti _Install > CLI > GitHub_. Potom príkaz `gh repo clone org/repo` naklonuje repozitár; spustite `gh --help` a preskúmajte jeho príkazy.
 
-Pomocou tohto príkazu môžeš vykonávať aj množstvo ďalších operácií na GitHube. Stačí spustiť `gh` a uvidíš všetko, čo je možné.
-
-K dispozícii je aj lenivo inštalovaný stub `ghui` na správu pull requestov v TUI. A predinštalovaný je aj [lazygit](https://github.com/jesseduffield/lazygit), ak chceš ovládať samotný git tiež z TUI.
+[Lazygit](https://github.com/jesseduffield/lazygit) je predinštalovaný na prácu so samotným Git.

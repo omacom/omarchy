@@ -1,16 +1,16 @@
-# Typowe dostosowania
+# Popularne modyfikacje
 
-To zbiór typowych dostosowań konfiguracji Omarchy. Wiedz, że aktualizacje systemu mogą czasem wymagać przywrócenia niektórych konfiguracji do ich pierwotnego stanu. Jeśli tak się stanie, twoje zmiany nie przepadną, tylko trafią do pliku `.bak` w tym samym katalogu.
+To zbiór popularnych dostosowań konfiguracji Omarchy. Pamiętaj, że aktualizacje systemu mogą czasami wymagać przywrócenia niektórych konfiguracji do ich pierwotnego stanu. Jeśli tak się stanie, Twoje zmiany nie przepadną, ale zostaną umieszczone w pliku `.bak.<timestamp>` obok oryginału.
 
-Jeśli coś zepsujesz, możesz przywrócić poszczególne konfiguracje do ich pierwotnego stanu przez _Aktualizuj > Konfiguracja_ w menu Omarchy. Jeśli _naprawdę_ zepsujesz wszystko, możesz zresetować wszystkie konfiguracje poleceniem `omarchy-reinstall`.
+Jeśli coś zepsujesz, możesz przywrócić poszczególne konfiguracje do ich pierwotnej wersji za pomocą _Aktualizacja > Konfiguracja_ w menu Omarchy. Jeśli *naprawdę* wszystko zepsujesz, możesz zresetować wszystkie konfiguracje za pomocą `omarchy reinstall configs` lub ponownie zainstalować każdy domyślny pakiet i konfigurację za pomocą `omarchy reinstall`.
 
-### Pokazywanie wszystkich ikon zasobnika przez cały czas
+### Pokazuj wszystkie ikony zasobnika przez cały czas
 
-Domyślnie ikony zasobnika, takie jak Dropbox, 1password albo Steam, są ukryte za strzałką rozwijania zasobnika, która odsłania je, gdy na nią najedziesz. Jeśli chcesz mieć je odsłonięte przez cały czas, kliknij strzałkę rozwijania prawym przyciskiem myszy, aby otworzyć menedżera ikon zasobnika, a potem przypnij ikony, które chcesz zachować widoczne (możesz też ukryć te, których nigdy nie chcesz widzieć).
+Domyślnie ikony zasobnika, takie jak Dropbox, 1password czy Steam, są ukryte za strzałką rozwijania zasobnika, która ujawnia je po najechaniu na nią. Jeśli chcesz, aby były odsłonięte przez cały czas, kliknij strzałkę rozwijania prawym przyciskiem myszy, aby otworzyć menedżera ikon zasobnika, a następnie przypnij ikony, które chcesz zachować jako widoczne (możesz też ukryć te, których nigdy nie chcesz widzieć).
 
-### Zaokrąglone narożniki okien
+### Zaokrąglone rogi okien
 
-Domyślny wygląd Omarchy opiera się na prostych narożnikach, ale jeśli chcesz go trochę zmiękczyć, możesz zmienić `~/.config/hypr/looknfeel.lua` tak, aby zaokrąglenie nie było już zakomentowane:
+Domyślny wygląd Omarchy opiera się na prostokątnych rogach, ale jeśli chcesz to trochę złagodzić, wybierz _Wygląd > Okna > Rogi okien > Zaokrąglone rogi_ w menu Omarchy lub uruchom `omarchy hyprland corners rounded`. _Rogi motywu_ przywraca to, czego używa motyw. Aby wybrać własny promień, pozostań przy opcji _Rogi motywu_ (`omarchy hyprland corners theme`), ponieważ opcje Zaokrąglone i Ostre wczytują się po Twojej konfiguracji i ją nadpisują, i odkomentuj zaokrąglenie w `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({
@@ -23,7 +23,7 @@ hl.config({
 
 ### Usuwanie odstępów między oknami
 
-Na ekranach laptopów niektórzy wolą nie marnować żadnych pikseli na odstępy między oknami (ani nawet na pasek menu, który możesz wyłączyć skrótem `Super + Shift + Space`). Wszystkie odstępy i obramowania możesz wyłączyć skrótem `Super + Shift + Backspace` albo usunąć je na stałe, usuwając komentarze w tej sekcji pliku `~/.config/hypr/looknfeel.lua`:
+Na ekranach laptopów niektórzy wolą nie marnować żadnych pikseli na odstępy między oknami (ani nawet na pasek górny, który możesz wyłączyć za pomocą `Super + Shift + Space`). Możesz wyłączyć wszystkie odstępy i obramowania za pomocą `Super + Shift + Backspace` lub usunąć je na stałe, usuwając komentarze w tej sekcji pliku `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

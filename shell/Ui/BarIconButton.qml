@@ -38,6 +38,9 @@ WidgetButton {
     // Exact coordinates preserve the center of odd-width slots.
     x: (root.width - width) / 2
     y: (root.height - height) / 2
+    // The icon draws here rather than in WidgetButton's own label, so it takes
+    // the press scale here too.
+    scale: root.pressScale
     width: root.canvasSize + (label.visible ? label.implicitWidth + Style.space(4) : 0)
     height: root.canvasSize
 

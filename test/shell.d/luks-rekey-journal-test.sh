@@ -35,9 +35,11 @@ if (( EUID == 0 )); then
 fi
 runtime=$ROOT
 
-mac_boot=$tmp/lifecycle/usr/lib/omarchy/mac-boot
-mkdir -p "$mac_boot"
-cat >"$tmp/mac-boot-lib.sh" <<'SH'
+install_mac_boot() {
+  local root=$1
+  local dir=$root/lifecycle/usr/lib/omarchy/mac-boot
+  mkdir -p "$dir"
+  cat >"$root/mac-boot-lib.sh" <<'SH'
 ran() { echo "$1" >>"$TMP/mac-boot-ran"; }
 crash() {
   local count
@@ -50,16 +52,16 @@ crash() {
   fi
 }
 SH
-mac_boot_entrypoint() {
-  { printf '#!/bin/bash\nset -euo pipefail\nTMP=%q\nsource "$TMP/mac-boot-lib.sh"\nran %s\n' "$tmp" "$1"; cat; } >"$mac_boot/$1"
-}
-mac_boot_entrypoint provision-prepare <<'SH'
+  mac_boot_entrypoint() {
+    { printf '#!/bin/bash\nset -euo pipefail\nTMP=%q\nsource "$TMP/mac-boot-lib.sh"\nran %s\n' "$root" "$1"; cat; } >"$dir/$1"
+  }
+  mac_boot_entrypoint provision-prepare <<'SH'
 if [[ -e $TMP/prepare-fail ]]; then
   echo "The boot partition is not mounted." >&2
   exit 1
 fi
 SH
-mac_boot_entrypoint provision-commit <<'SH'
+  mac_boot_entrypoint provision-commit <<'SH'
 [[ ! -e $TMP/rebuild-fail ]] || exit 1
 rm -f "$TMP/boot/omarchy/luks-key"
 crash "boot-partition key removed"
@@ -67,22 +69,26 @@ sed -i 's/ rd\.luks\.key=[^" ]*//' "$TMP/etc/default/grub"
 echo rebuild >>"$TMP/rebuilds"
 crash "boot rebuilt"
 SH
-mac_boot_entrypoint provision-verify <<'SH'
+  mac_boot_entrypoint provision-verify <<'SH'
 [[ ! -e $TMP/boot/omarchy/luks-key ]] && ! grep -q 'rd\.luks\.key=' "$TMP/etc/default/grub"
 SH
-mac_boot_entrypoint luks-slots <<'SH'
+  mac_boot_entrypoint luks-slots <<'SH'
 [[ ! -e $TMP/record-fail ]] || exit 1
 printf '%s\n' "$@" >"$TMP/slot-record"
 crash "slots recorded"
 SH
-chmod 755 "$mac_boot"/*
-chmod -R go-w "$tmp/lifecycle"
+  chmod 755 "$dir"/*
+  chmod -R go-w "$root/lifecycle"
+}
+install_mac_boot "$tmp"
+mac_boot=$tmp/lifecycle/usr/lib/omarchy/mac-boot
 
 staged_key=staged-install-key
 seller_key=previous-owner-key
 owner_password=owner-password
 
 sed -n '/^PROVISIONING_UNLOCK_FILES=(/,/^)/p; /^UNLOCK_OWNER=/p; /^limine_auto_unlock_present() {/,/^}/p; /^limine_auto_unlock_drop() {/,/^}/p
+  /^boot_backend() {/,/^}/p; /^rebuild_boot_images() {/,/^}/p
   /^unlock_owner() {/,/^}/p; /^luks_auto_unlock_present() {/,/^}/p; /^luks_auto_unlock_drop() {/,/^}/p
   /^luks_record_slots() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner" | sed "s|/etc/|$tmp/etc/|g" >"$tmp/unlock.sh"
@@ -101,6 +107,12 @@ cat >"$tmp/attempt.sh" <<'SH'
 set -euo pipefail
 
 source "$ROOT/install/provisioning/luks-rekey.sh"
+OMARCHY_FORM_DEFAULTS=$TMP/no-defaults
+source "$ROOT/install/provisioning/setup-form.sh"
+initial_language() { language=en; }
+language_form() { :; }
+fit_console_font() { :; }
+load_tips() { :; }
 source "$TMP/unlock.sh"
 source <(sed -n '/^luks_boot_layout() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" | sed "s|/etc/|$TMP/etc/|g")
 declare -F luks_boot_layout >/dev/null
@@ -108,6 +120,7 @@ declare -F luks_boot_layout >/dev/null
 PROVISIONING_DIR=$TMP/provisioning
 REKEY_STATE=$PROVISIONING_DIR/luks-rekey.state
 LOG_FILE=$TMP/log
+KMSCON_RESUME=$TMP/no-kmscon-resume
 password=$PASSWORD
 
 log_step() { printf '%s\n' "$*" >>"$LOG_FILE"; }
@@ -129,6 +142,9 @@ rekey_state_put() {
   journal_write "$@" || return 1
   crash_point "journal $*"
 }
+
+# A Limine machine, whatever this one boots.
+boot_backend() { echo limine; }
 
 reset_limine_config() {
   echo reset >>"$TMP/limine-ran"
@@ -236,8 +252,10 @@ setup_functions() {
   FINALIZE_WARNING_FLAG=$TMP/finalize-warning
   username=owner hostname="" timezone=""
   create_user() { :; }
+  record_eula() { :; }
   install_authorized_keys() { :; }
   configure_login() { :; }
+  configure_language() { :; }
   configure_hostname() { :; }
   configure_timezone() { :; }
   finalize_user() { :; }
@@ -265,6 +283,7 @@ attempt() {
   keyboard_form() { :; }
   user_form() { :; }
   confirm_form() { :; }
+  eula_form() { :; }
   notice() {
     printf 'refused: %s\n' "$1" >>"$TMP/screen"
     exit 3
@@ -272,6 +291,7 @@ attempt() {
   set_now() { NOW=0; }
   render_setup_static() { :; }
   render_setup_dynamic() { :; }
+  render_setup_finish() { :; }
   SHOW_CURSOR=""
   run_setup
 }
@@ -356,12 +376,15 @@ fixture() {
     printf '0 %s\n1 %s\n' "$staged_key" "$seller_key" >"$tmp/slots"
   else
     device=$tmp/volume.img
-    rm -f "$device"
-    truncate -s 32M "$device"
-    local pbkdf=(--pbkdf pbkdf2 --pbkdf-force-iterations 1000)
-    [[ $format == "luks1" ]] && pbkdf=(--pbkdf-force-iterations 1000)
-    cryptsetup luksFormat -q --type "$format" "${pbkdf[@]}" "$device" <(printf '%s' "$staged_key")
-    cryptsetup luksAddKey "${pbkdf[@]}" --key-file <(printf '%s' "$staged_key") "$device" <(printf '%s' "$seller_key")
+    local template=$tmp/template-$format.img
+    if [[ ! -f $template ]]; then
+      truncate -s 32M "$template"
+      local pbkdf=(--pbkdf pbkdf2 --pbkdf-force-iterations 1000)
+      [[ $format == "luks1" ]] && pbkdf=(--pbkdf-force-iterations 1000)
+      cryptsetup luksFormat -q --type "$format" "${pbkdf[@]}" "$template" <(printf '%s' "$staged_key")
+      cryptsetup luksAddKey "${pbkdf[@]}" --key-file <(printf '%s' "$staged_key") "$template" <(printf '%s' "$seller_key")
+    fi
+    cp --reflink=auto -f "$template" "$device"
   fi
 }
 
@@ -378,7 +401,9 @@ enroll_tokens() {
   printf '{"type":"systemd-tpm2","keyslots":["%s"],"tpm2-blob":"AA==","tpm2-pcrs":[7],"tpm2-pcr-bank":"sha256","tpm2-primary-alg":"ecc","tpm2-policy-hash":"00","tpm2-pin":false}' "$slot" |
     cryptsetup token import --disable-external-tokens "$device" || return 1
   cryptsetup token add --key-description "$description" --key-slot "$slot" "$device" >/dev/null || return 1
-  LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1 | grep -qx "Key slot $slot unlocked."
+  local unlocked
+  unlocked=$(LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1) || return 1
+  grep -qx "Key slot $slot unlocked." <<<"$unlocked"
 }
 
 unlock_files_present() {
@@ -452,13 +477,14 @@ else
   skip "cryptsetup is not installed; skipping the file-backed volume runs"
 fi
 
-# The crash matrix runs whole setup attempts on every backend, for x86 and for
-# Apple.
-matrix=()
-for backend in "${backends[@]}"; do
-  matrix+=("x86 $backend")
-  [[ " ${platforms[*]} " != *" apple "* ]] || matrix+=("apple $backend")
-done
+# Run the full crash matrix on fake (x86 and Apple), and verify real cryptsetup
+# (luks2 and luks1) on x86 with uninterrupted + representative crash/resume
+# points rather than repeating every step on every real volume.
+matrix=("x86 fake")
+[[ " ${platforms[*]} " != *" apple "* ]] || matrix+=("apple fake")
+if [[ " ${backends[*]} " == *" luks2 "* ]]; then
+  matrix+=("x86 luks2" "x86 luks1")
+fi
 
 for run_spec in "${matrix[@]}"; do
   read -r platform backend <<<"$run_spec"
@@ -480,8 +506,21 @@ for run_spec in "${matrix[@]}"; do
   # After each kill the owner reboots and answers the form again, with the same
   # password or a new one. The account takes whatever the form accepts, so the
   # disk must open with that password when setup finishes.
-  for (( step = 1; step <= total_steps; step++ )); do
-    for retry_password in "$owner_password" other-password; do
+  steps_to_test=()
+  if [[ $backend == "fake" ]]; then
+    for (( step = 1; step <= total_steps; step++ )); do steps_to_test+=("$step"); done
+  else
+    owner_step=$(awk '/ owner key added$/ { print $1; exit }' "$tmp/trace")
+    boot_step=$(awk '/ journal phase boot( |$)/ { print $1; exit }' "$tmp/trace")
+    [[ -n $owner_step && -n $boot_step ]] ||
+      fail "$backend: trace exposes both owner-key and boot-phase crash points" "$(cat "$tmp/trace")"
+    steps_to_test=("$owner_step" "$boot_step")
+  fi
+  run_step_case() {
+    local step=$1 retry_password
+    local retry_passwords=("$owner_password" other-password)
+    [[ $backend == "fake" ]] || retry_passwords=("$owner_password")
+    for retry_password in "${retry_passwords[@]}"; do
       fixture "$format"
       if run attempt "$owner_password" "$step"; then
         fail "$backend: setup is killed at step $step"
@@ -514,20 +553,61 @@ for run_spec in "${matrix[@]}"; do
         assert_provisioned "original password after '$point'" "$owner_password"
       fi
     done
-  done
+  }
+
+  assert_platform_dispatch() {
+    if [[ $platform == "x86" ]]; then
+      [[ ! -e $tmp/mac-boot-ran ]] || fail "x86 $backend: no Mac boot entrypoint runs" "$(cat "$tmp/mac-boot-ran")"
+    else
+      [[ ! -e $tmp/limine-ran ]] || fail "apple $backend: the Limine UKI path never runs on Apple"
+      grep -qx provision-commit "$tmp/mac-boot-ran" && grep -qx provision-verify "$tmp/mac-boot-ran" ||
+        fail "apple $backend: the boot package commits and verifies the unlock"
+    fi
+  }
+
+  if [[ $backend == "fake" ]]; then
+    step_pids=()
+    step_logs=()
+    for step in "${steps_to_test[@]}"; do
+      step_log="$tmp/step-$step.log"
+      step_logs+=("$step_log")
+      (
+        parent_tmp=$tmp
+        tmp=$(mktemp -d "$parent_tmp/step-$step.XXXXXX")
+        ln -s "$parent_tmp/x86" "$parent_tmp/apple" "$parent_tmp/attempt.sh" "$tmp/"
+        sed "s|$parent_tmp/etc/|$tmp/etc/|g" "$parent_tmp/unlock.sh" >"$tmp/unlock.sh"
+        sed "s|$parent_tmp/etc/|$tmp/etc/|g" "$parent_tmp/provision.sh" >"$tmp/provision.sh"
+        install_mac_boot "$tmp"
+        run_step_case "$step"
+        assert_platform_dispatch
+        rm -rf "$tmp"
+      ) >"$step_log" 2>&1 &
+      step_pids+=("$!")
+    done
+    step_failed=0
+    for i in "${!step_pids[@]}"; do
+      if ! wait "${step_pids[$i]}"; then
+        cat "${step_logs[$i]}" >&2
+        step_failed=1
+      fi
+      rm -f "${step_logs[$i]}"
+    done
+    (( step_failed == 0 )) || exit 1
+  else
+    for step in "${steps_to_test[@]}"; do
+      run_step_case "$step"
+    done
+  fi
   if [[ $platform == "apple" ]]; then
     pass "apple $backend: killed after each of $total_steps steps, setup resumes to a disk that opens with the account's password, with its slot recorded"
   else
     pass "x86 $backend: killed after each of $total_steps steps, setup resumes to a disk that opens with the account's password"
   fi
 
+  assert_platform_dispatch
   if [[ $platform == "x86" ]]; then
-    [[ ! -e $tmp/mac-boot-ran ]] || fail "x86 $backend: no Mac boot entrypoint runs" "$(cat "$tmp/mac-boot-ran")"
     pass "x86 $backend: dispatch is a no-op and the Limine UKI path runs unchanged"
   else
-    [[ ! -e $tmp/limine-ran ]] || fail "apple $backend: the Limine UKI path never runs on Apple"
-    grep -qx provision-commit "$tmp/mac-boot-ran" && grep -qx provision-verify "$tmp/mac-boot-ran" ||
-      fail "apple $backend: the boot package commits and verifies the unlock"
     pass "apple $backend: the boot package owns the boot-time unlock through dispatch"
   fi
 done

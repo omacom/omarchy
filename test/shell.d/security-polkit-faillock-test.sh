@@ -4,15 +4,15 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# The fingerprint and FIDO2 setup commands each create /etc/pam.d/polkit-1 from
-# scratch when the file does not already exist -- which is the normal case on
+# The fingerprint setup's PAM step and the FIDO2 setup command each create
+# /etc/pam.d/polkit-1 from scratch when the file does not already exist -- which is the normal case on
 # Arch, where the polkit package ships its PAM stack in /usr/lib/pam.d/polkit-1
 # and /etc/pam.d/polkit-1 is absent. A hand-rolled stack that lists pam_unix
 # directly instead of `include system-auth` silently drops pam_faillock, so
 # polkit prompts would have no brute-force lockout and their failures would not
 # count toward the shared tally. Assert the created stack defers to system-auth.
 
-for setup in omarchy-setup-security-fingerprint omarchy-setup-security-fido2; do
+for setup in omarchy-apply-fingerprint-pam omarchy-setup-security-fido2; do
   script="$ROOT/bin/$setup"
 
   # Pull the here-doc body the setup writes to /etc/pam.d/polkit-1.

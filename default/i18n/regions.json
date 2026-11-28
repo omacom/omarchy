@@ -1,0 +1,26 @@
+{
+  "en-US": {
+    "name": "English (United States)",
+    "locale": "en_US.UTF-8"
+  },
+  "en-GB": {
+    "name": "English (United Kingdom)",
+    "locale": "en_GB.UTF-8"
+  },
+  "en-DK": {
+    "name": "English (Denmark)",
+    "locale": "en_DK.UTF-8"
+  },
+  "en-IE": {
+    "name": "English (Ireland)",
+    "locale": "en_IE.UTF-8"
+  },
+  "en-AU": {
+    "name": "English (Australia)",
+    "locale": "en_AU.UTF-8"
+  },
+  "en-CA": {
+    "name": "English (Canada)",
+    "locale": "en_CA.UTF-8"
+  }
+}

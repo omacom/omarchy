@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Netflix
+Exec=omarchy-launch-webapp https://www.netflix.com/
+StartupWMClass=chrome-www.netflix.com__-Default
+Terminal=false
+Type=Application
+Icon=netflix
+StartupNotify=true

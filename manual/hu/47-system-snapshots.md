@@ -1,25 +1,37 @@
 # Rendszer-pillanatképek
 
-Minden Omarchy-frissítéskor automatikusan létrehozunk pillanatképeket, de ha sajátot szeretnél létrehozni, használhatod az `omarchy-snapshot create` parancsot.
+Automatikusan készítünk pillanatképeket minden Omarchy-frissítésnél, de ha sajátot szeretnél készíteni, használhatod az `omarchy-snapshot create` parancsot.
 
-Egy pillanatkép indításához és visszaállításához a Limine rendszerbetöltőből választod ki. (Ha jelenleg egyenesen az Omarchy dekódolási képernyőjére indulsz, először a BIOS-ból kell a Limine-t rendszerindítási lehetőségként kiválasztanod).
+Hogy hogyan bootolsz be egy pillanatképbe és hogyan állítod vissza, az attól függ, milyen boot loaderrel indul a géped. Az új UEFI telepítések systemd-bootot használnak; a régebbi telepítések és a BIOS-os gépek Limine-t. Az `omarchy-boot-backend` megmondja, neked melyik van.
 
-Arról a képernyőről válaszd ki azt a pillanatképet, amelybe be szeretnél indulni, a dátum és a verzió alapján. Az Omarchy verziója a pillanatkép időpontjában a bal alsó sarokban látható.
+## systemd-boot esetén
+
+Válaszd a _System > Snapshots_ pontot az Omarchy menüben, és válaszd ki a pillanatképet, amelyikbe bootolni szeretnél. A gép egyszer újraindul bele. Vagy tartsd lenyomva a Space billentyűt a gép indulása közben, hogy lásd a boot menüt, ahol minden pillanatkép a legújabbtól kezdve szerepel, az Omarchy verziójával és dátumával együtt.
+
+Egy pillanatkép ideiglenes réteggel a tetején indul, így normálisan használhatod, de minden változtatásod elvész a következő újraindításkor. Ha meg akarod tartani, tedd a rendszereddé: kattints a bejelentkezéskor megjelenő értesítésre, válaszd a _System > Snapshots > Restore This Snapshot_ pontot, vagy futtasd az `omarchy-snapshot restore` parancsot. A visszaállítás a gép újraindulása közben történik. A korábbi állapotú rendszer _Before restore_ néven a boot menüben marad, és az `omarchy-snapshot restore backup` állítja vissza.
+
+Terminálból:
+
+- az `omarchy-snapshot list` felsorolja a bootolható pillanatképeket;
+- az `omarchy-snapshot boot 12` egyszer újraindít a 12-es pillanatképbe;
+- az `omarchy-snapshot restore 12` a következő újraindításkor a 12-es pillanatképet teszi a rendszerré, az `omarchy-snapshot restore --cancel` pedig meggondolhatod magad az újraindítás előtt.
+
+## Limine esetén
+
+Pillanatkép bootolásához és visszaállításához azt a Limine boot loaderből kell kiválasztanod. A boot menü alapértelmezetten rejtve marad, ezért nyomj meg egy billentyűt, amint a Limine elindul, hogy előhozd.
+
+Ezen a képernyőn a dátum és a verzió alapján válaszd ki a pillanatképet, amelyikbe bootolni szeretnél. A pillanatkép készítésekor használt Omarchy verziója a bal alsó sarokban látható.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Amikor beérsz, egy értesítés ugrik fel, jelezve, hogy egy indítható pillanatképben vagy, és ha rákattintasz, elindítja a visszaállítási folyamatot. Alternatívaként használhatod az `omarchy-snapshot restore` parancsot.
+Amikor beérkezel, felugrik egy értesítés, amely jelzi, hogy bootolható pillanatképben vagy, és ha rákattintasz, elindítja a visszaállítási folyamatot. Alternatívaként használhatod az `omarchy-snapshot restore` parancsot.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Ez visszaállítja a gyökér fájlrendszered, de a `/home` mappádat nem. Így működik egy tört rendszerfrissítés visszavonásához, de elveszett személyes fájlok visszaállításához nem.
+## Mire terjed ki a visszaállítás
 
-Ez azt is jelenti, hogy a `~/.config` könyvtárad változatlanul megmarad. Így ha egy olyan könyvtár vagy alkalmazás korábbi verziójára állsz vissza, amely új formátumban tárol konfigurációs fájlokat, azt kézzel kell rendezned.
+A visszaállítás a gyökér fájlrendszert hozza vissza, de a `/home` könyvtárat nem. Így jól működik egy elromlott rendszerfrissítés visszavonására, de elveszett személyes fájlok helyreállítására nem.
 
-_Megjegyzés: Ez a funkció csak a Limine rendszerbetöltőt használó telepítéseken érhető el, amely az Omarchy 2.0 óta az alapértelmezett. Nem érhető el, ha GRUB-on vagy systemd-booton vagy._
+Ez azt is jelenti, hogy a `~/.config` könyvtárad változatlan marad. Ha tehát egy könyvtár vagy alkalmazás korábbi verziójára állsz vissza, amely új formátumban tárolja a konfigurációs fájlokat, azt kézzel kell rendbe tenned.
 
-### A rendszerindítási menü átugrása
-
-Ha soha nem nyúlsz a rendszerindítási menühöz, és csak azt akarod, hogy a gép egyenesen a dekódolási képernyőre menjen, futtasd az Omarchy menü _Beállítás > Közvetlen indítás_ pontját. Ez egy EFI-bejegyzést ad hozzá, amely közvetlenül az Omarchyra mutat, így a firmware anélkül indítja, hogy megállna a Limine-nál.
-
-A kompromisszum az a fejezet elején említett: bekapcsolt közvetlen indítással egy pillanatképhez jutáshoz először a BIOS rendszerindítási menüjéből kell a Limine-t kiválasztani. Futtasd újra a _Beállítás > Közvetlen indítás_ pontot a bejegyzés eltávolításához és a Limine-on keresztüli indításra való visszatéréshez. Egyes firmware-ek nem viselik jól az egyéni EFI-bejegyzéseket, így a beállítás nem fut le American Megatrends és Apple firmware-en.
+Ugyanez vonatkozik az Omarchy saját nyilvántartására arról, mely migrációk futottak már le: az a home könyvtáradban él, így túléli a visszaállítást. A pillanatkép készítése után lefutott migrációk továbbra is késznek jelölve maradnak, hiába vonták vissza a gyökér fájlrendszeren végzett módosításaikat, és a következő `omarchy update` nem futtatja őket újra. Ha tehát egy visszaállítás után újra frissítesz, és valami, amit egy korábbi frissítés állított be, továbbra is hiányzik, valószínűleg ez az oka.

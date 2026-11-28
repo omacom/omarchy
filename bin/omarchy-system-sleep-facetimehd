@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# omarchy:summary=Unload the FaceTime HD camera driver for hibernation, refusing to hibernate while the camera is in use
+# omarchy:args=<pre|post>
+# omarchy:group=system
+# omarchy:hidden=true
+
+# facetimehd deadlocks the kernel's hibernation freeze, so the hibernating sleep units run this before they start and
+# after they stop. The driver cannot be unloaded while an app has the camera open, and failing here is what cancels the
+# sleep: systemd ignores a failing system-sleep hook.
+
+set -uo pipefail
+
+module=${OMARCHY_FACETIMEHD_MODULE:-/sys/module/facetimehd}
+proc=${OMARCHY_FACETIMEHD_PROC:-/proc}
+pci=${OMARCHY_FACETIMEHD_PCI:-/sys/bus/pci/devices}
+# post runs within the sleep unit's stop timeout, so it waits briefly and leaves anything longer to the fetcher.
+probe_wait=${OMARCHY_FACETIMEHD_PROBE_WAIT:-2}
+lock_wait=${OMARCHY_FACETIMEHD_LOCK_WAIT:-10}
+
+# Shared with facetimehd-firmware-fetcher, which loads the driver once it has the firmware. Under the lock, it never
+# loads the driver while a hibernating sleep is in progress, and leaves its activation pending for post to resume.
+run=${OMARCHY_FACETIMEHD_RUN:-/run/lock}
+lock=$run/facetimehd.lock
+sleeping=$run/facetimehd.sleeping
+unloaded=$run/facetimehd.unloaded
+activate=$run/facetimehd-firmware-fetcher.activate
+
+camera_users() {
+  local fd pid
+  for fd in "$proc"/[0-9]*/fd/*; do
+    [[ $(readlink "$fd" 2>/dev/null) == /dev/video* ]] || continue
+    pid=${fd#"$proc"/}
+    cat "$proc/${pid%%/*}/comm" 2>/dev/null
+  done | sort -u | paste -sd, - | sed 's/,/, /g'
+}
+
+# The module loading proves nothing about the camera, since the kernel keeps a module whose device failed to probe: it
+# works once the 1570's PCI function is bound to facetimehd and has registered a video device.
+camera_ready() {
+  local device found=
+  for device in "$pci"/*; do
+    [[ $(<"$device/vendor") == 0x14e4 && $(<"$device/device") == 0x1570 ]] || continue
+    [[ $(readlink "$device/driver") == */facetimehd ]] && compgen -G "$device/video4linux/video*" >/dev/null || return 1
+    found=1
+  done 2>/dev/null
+  [[ -n $found ]]
+}
+
+restore_driver() {
+  local _
+  modprobe facetimehd || return 1
+  for _ in $(seq "$probe_wait"); do
+    camera_ready && return 0
+    sleep 1
+  done
+  camera_ready
+}
+
+# The menu's systemctl hibernate shows nothing when the sleep fails, so each person at a seat is told why.
+notify_seats() {
+  local uid user
+  while read -r uid user; do
+    runuser -u "$user" -- env XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+      omarchy-notification-send -u critical "$1" "$2" >/dev/null 2>&1 || true
+  done < <(loginctl list-sessions --no-legend 2>/dev/null | awk '$4 ~ /^seat/ { print $2, $3 }' | sort -u)
+}
+
+case ${1:-} in
+  pre)
+    exec 8>>"$lock"
+    # A fetch is loading the driver; hibernating now could catch it loaded.
+    flock -w 60 8 || { echo "Not hibernating: the camera driver is being loaded" >&2; exit 1; }
+    rm -f "$unloaded"
+    touch "$sleeping"
+    [[ -d $module ]] || exit 0
+    if modprobe -r facetimehd; then
+      touch "$unloaded"
+    else
+      rm -f "$sleeping"
+      users=$(camera_users)
+      echo "Not hibernating: the FaceTime HD camera is in use${users:+ by $users}, and its driver hangs hibernation" >&2
+      notify_seats "Hibernation cancelled" "Close ${users:-the app using the camera}, then try again. The camera's driver hangs hibernation while it is in use."
+      exit 1
+    fi
+    ;;
+  post)
+    exec 8>>"$lock"
+    if flock -w "$lock_wait" 8; then
+      # Only a driver pre unloaded comes back, so one unloaded on purpose stays out. A camera that does not come back
+      # becomes the fetcher's pending activation, which it retries until the camera works.
+      if [[ -e $unloaded ]] && ! restore_driver; then
+        echo "The FaceTime HD camera did not come back after the sleep; facetimehd-firmware-fetcher retries it" >&2
+        touch "$activate"
+      fi
+      rm -f "$unloaded" "$sleeping"
+      flock -u 8
+    else
+      # The fetcher is loading the driver; the markers are left for the next sleep to reset and the fetcher to see stale.
+      echo "The camera driver is busy; facetimehd-firmware-fetcher brings the camera back" >&2
+      [[ ! -e $unloaded ]] || touch "$activate"
+    fi
+    # An activation the fetcher held back during the sleep, or the load above, resumes now rather than at the next boot.
+    if [[ -e $activate ]]; then
+      systemctl start --no-block facetimehd-firmware-fetcher.service 2>/dev/null ||
+        echo "facetimehd-firmware-fetcher is not installed; the camera driver loads at the next boot" >&2
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-system-sleep-facetimehd <pre|post>" >&2
+    exit 1
+    ;;
+esac

@@ -3,6 +3,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import QtQml.Models
 import qs.Commons
@@ -59,17 +60,6 @@ Item {
   // The look the blur behind the bar was last synced for. A background set by
   // editing shell.json skips the CLI, so the bar syncs Hyprland's blur itself.
   property string glassSyncedLook: ""
-  // One bar surface exists per monitor and each reports into this count, so a
-  // pointer crossing from one monitor's bar to another's stays counted however
-  // the enter and leave interleave. A single shared bool would be left false by
-  // whichever event landed last.
-  property int barHoverCount: 0
-  // True while the pointer is over any bar, widgets included.
-  readonly property bool barHovered: barHoverCount > 0
-  // The indicator peek, open while the pointer is on any bar. Plugins read it
-  // by this name through their bar API.
-  property bool centerSectionRevealHeld: false
-  property bool centerHoverRevealSuppressed: false
   property int barConfigSerial: 0
   property string position: "top"
   // Resolves through fontconfig at paint time (Style.font.family defaults
@@ -88,9 +78,11 @@ Item {
   readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
   property color urgent: Commons.Color.bar.active
 
-  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
-  Behavior on background { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
-  Behavior on urgent { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
+  // A theme change cross-fades the bar's colors. Cycling the background
+  // between opaque, glassy and clear jumps, text color included.
+  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
+  Behavior on background { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
+  Behavior on urgent { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
   property var tooltipTarget: null
   property var pendingTooltipTarget: null
   property string tooltipText: ""
@@ -98,6 +90,35 @@ Item {
   property bool tooltipShown: false
   property int tooltipRequest: 0
   property var activePopout: null
+  // Where the open panel's card stands, and in which section of the bar, so
+  // a panel taking over in the same section can start its card from there.
+  property var popoutCard: null
+
+  // The section a panel's widget sits in, the center's pieces counted as one,
+  // as keyboard switching between panels counts them.
+  function popoutSectionOf(owner) {
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (slot && slot.activeItem === owner) return BarModel.navigationRegions(slot.region).join(" ")
+    }
+    return ""
+  }
+
+  // Reported by the open panel. Only a screen name and four numbers are kept,
+  // whoever reports them; the section comes from the bar's own layout.
+  function notePopoutCard(card) {
+    popoutCard = card ? { screen: String(card.screen || ""), section: popoutSectionOf(activePopout),
+                          x: Number(card.x) || 0, y: Number(card.y) || 0,
+                          width: Number(card.width) || 0, height: Number(card.height) || 0 } : null
+  }
+
+  // The last card, copied, for a panel taking over in the same section: one
+  // switching across the bar opens fresh instead of flying the card over it.
+  function popoutCardFor(owner) {
+    var card = popoutCard
+    if (!card || !card.section || card.section !== popoutSectionOf(owner)) return null
+    return { screen: card.screen, x: card.x, y: card.y, width: card.width, height: card.height }
+  }
   // A widget is being dragged that could go into the tray section, so the
   // tray's drawer opens to show where.
   readonly property bool traySectionDragActive: !!barDragSource && !barDragSource.hostsTraySection
@@ -155,6 +176,21 @@ Item {
   property real barDragScreenY: 0
   property real barDragOffsetX: 0
   property real barDragOffsetY: 0
+  // True once the drag has pulled far enough off the bar that letting go
+  // removes the widget instead of moving it. Its room closes meanwhile, as
+  // though it were gone already (fadeDragRoom).
+  property bool barDragRemoveArmed: false
+  // Pulling a widget this far past the bar arms its removal. Generous enough
+  // that overshooting a drop keeps reading as a move.
+  readonly property real barDragRemoveDistance: Style.spaceReal(48)
+  // A widget let go of past that, until its entry is written out of the
+  // layout once its poof has played: { key, region, id }.
+  property var barRemoval: null
+  // The poof a removed widget vanishes in, while it plays: { screen, x, y,
+  // width, height, image, seed }, the ghost as it was let go (its center,
+  // size and picture) and a seed that lays each poof out a little
+  // differently.
+  property var barPoof: null
   property bool barMoveActive: false
   property string barMoveCandidate: ""
   property var barMoveWindow: null
@@ -193,8 +229,6 @@ Item {
     api.barSize = Qt.binding(function() { return root.barSize })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
-    api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
-    api._centerHoverRevealSuppressed = Qt.binding(function() { return root.centerHoverRevealSuppressed })
     api.traySectionDragActive = Qt.binding(function() { return root.traySectionDragActive })
     api.traySectionPopoutOpen = Qt.binding(function() { return root.traySectionPopoutOpen })
     root.syncPluginBarApiObjects(api)
@@ -331,15 +365,14 @@ Item {
       _requestPopout: function(owner) { root.requestPluginPopout(key, owner) },
       _releasePopout: function(owner) { root.releasePluginPopout(key, owner) },
       _switchPanelFrom: function(owner, direction) { return root.switchPanelFrom(owner, direction) },
+      _notePopoutCard: function(card) { root.notePopoutCard(card) },
+      _popoutCardFor: function(owner) { return root.popoutCardFor(owner) },
       _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
       _moduleWidgets: function(requestedId) {
         return String(requestedId || "") === String(moduleName || "")
           ? root.moduleWidgets(moduleName) : []
       },
-      _run: function(command) { root.run(command) },
-      _setCenterHoverRevealSuppressed: function(value) {
-        root.centerHoverRevealSuppressed = !!value
-      }
+      _run: function(command) { root.run(command) }
     })
     if (!api) return null
     root.bindPluginBarApi(api)
@@ -510,10 +543,16 @@ Item {
     return targetWindow(slot.activeItem) || targetWindow(slot)
   }
 
+  function sameScreen(left, right) {
+    if (!left || !right) return false
+    if (left === right) return true
+    return !!left.name && !!right.name && left.name === right.name
+  }
+
   function sameWindow(left, right) {
     if (!left || !right) return false
     if (left === right) return true
-    return !!left.screen && !!right.screen && !!left.screen.name && !!right.screen.name && left.screen.name === right.screen.name
+    return sameScreen(left.screen, right.screen)
   }
 
   function targetTooltipHovered(target) {
@@ -522,6 +561,7 @@ Item {
 
   function clearTooltip() {
     tooltipTimer.stop()
+    if (tooltipShown) tooltipWarmTimer.restart()
     pendingTooltipTarget = null
     pendingTooltipText = ""
     tooltipTarget = null
@@ -538,6 +578,7 @@ Item {
     barDragRoom = null
     barDragExtent = 0
     barDragKeys = ""
+    barDragRemoveArmed = false
     barDragRegrab.stop()
     barSettle = null
     barSettleAnimation.stop()
@@ -950,31 +991,6 @@ Item {
 
   Component.onCompleted: applyBarConfig()
 
-  // The indicator peek opens as the pointer comes onto the bar and holds until
-  // it leaves. Revealing the indicators widens their section, which can slide a
-  // widget under a stationary pointer, so nothing narrower than the whole bar
-  // can hold it without opening and closing it in a loop.
-  function setBarHovered(hovered) {
-    barHoverCount = Math.max(0, barHoverCount + (hovered ? 1 : -1))
-    if (barHoverCount > 0) {
-      centerSectionRevealTimer.stop()
-      centerSectionRevealHeld = true
-    } else {
-      centerSectionRevealTimer.restart()
-    }
-  }
-
-  function setCenterHoverRevealSuppressed(value) {
-    centerHoverRevealSuppressed = !!value
-  }
-
-  Timer {
-    id: centerSectionRevealTimer
-    interval: 120
-    // A pointer that dips off the bar and straight back leaves the peek open.
-    onTriggered: if (!root.barHovered) root.centerSectionRevealHeld = false
-  }
-
   function run(command) {
     if (!command) return
 
@@ -989,12 +1005,8 @@ Item {
 
   function moduleDropAtScene(scenePoint, sourceSlot) {
     var sourceWindow = root.slotWindow(sourceSlot) || root.barDragWindow
-    if (sourceWindow && sourceWindow.contentItem) {
-      var barPoint = sourceWindow.contentItem.mapFromItem(null, scenePoint.x, scenePoint.y)
-      if (barPoint.x < 0 || barPoint.x > sourceWindow.contentItem.width ||
-          barPoint.y < 0 || barPoint.y > sourceWindow.contentItem.height)
-        return null
-    }
+    // A drop lands only over the bar strip.
+    if (moduleRemoveDistance(windowScreenPoint(scenePoint, sourceWindow)) > 0) return null
 
     // The tray cannot go into its own drawer.
     var intoTraySection = !sourceSlot || !sourceSlot.hostsTraySection
@@ -1050,7 +1062,7 @@ Item {
       var section = { x: origin.x, y: origin.y, width: shown.width, height: shown.height }
       var corner = area.mapToItem(null, 0, 0)
       var tray = { x: corner.x, y: corner.y, width: area.width, height: area.height }
-      var reach = vertical ? window.contentItem.width : window.contentItem.height
+      var reach = thicknessFor(window.screen)
       return BarModel.sectionDropZone(section, reach, vertical, tray)
     } catch (e) {
       return null
@@ -1061,6 +1073,9 @@ Item {
   // length the section's layout gives it, which is whole pixels. Its panel
   // closes: placed when it opened, it wouldn't follow the widget anywhere.
   function beginBarDrag(sourceSlot, pressX, pressY) {
+    // A widget still poofing away is written out first, so the drag starts
+    // from the layout as it will be.
+    commitBarRemoval()
     var item = sourceSlot.activeItem
     if (item && item.opened === true && typeof item.close === "function") item.close()
     barDragWindow = targetWindow(sourceSlot.activeItem) || targetWindow(sourceSlot)
@@ -1074,7 +1089,7 @@ Item {
   }
 
   // A dragged widget that changes size, as a clock ticking over or the
-  // indicator peek does, takes its room and its ghost with it. The ghost's
+  // indicators revealing do, takes its room and its ghost with it. The ghost's
   // copy of it is taken again once the size settles, rather than on every
   // frame of a widget animating its size.
   function resizeBarDrag() {
@@ -1140,12 +1155,13 @@ Item {
 
   // A frame of the room moving, at an even pace: a place hands over the
   // whole room in 120ms.
+  // Armed for removal, there is no target: every place gives its room up.
   function fadeDragRoom(seconds) {
     var duration = Style.duration(120)
     var step = duration > 0 ? seconds * 1000 / duration : 1
-    var target = dragShareKey(barDragRoom)
+    var target = barDragRemoveArmed ? "" : dragShareKey(barDragRoom)
     barDragShares = BarModel.fadeShares(barDragShares, target, step)
-    if (barDragShares[target] >= 1) roomFader.stop()
+    if (target ? barDragShares[target] >= 1 : Object.keys(barDragShares).length === 0) roomFader.stop()
   }
 
   FrameAnimation {
@@ -1268,20 +1284,112 @@ Item {
   function landBarDrag(move) {
     clearBarDrag()
     if (!move || JSON.stringify(layoutWidgets.sections) !== move.keys) return
-    if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return
     var expected = JSON.parse(move.keys)
     var into = expected[move.to.region]
     var before = move.to.index >= 0 ? into[move.to.index] : null
     expected[move.from.region].splice(move.from.index, 1)
     into.splice(before ? into.indexOf(before) : into.length, 0, move.key)
+    writeLayout(expected, function(config) {
+      BarModel.moveEntry(config, move, function(entry) { return Util.normalizeLayoutEntry(entry) })
+    })
+  }
+
+  // Writes a layout edit to shell.json. Widgets keep their instances through
+  // the write as long as the sections come out as `expected`.
+  function writeLayout(expected, edit) {
+    if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return
     widgetMemo.expected = expected
     try {
-      root.shell.mutateShellConfig(function(config) {
-        BarModel.moveEntry(config, move, function(entry) { return Util.normalizeLayoutEntry(entry) })
-      })
+      root.shell.mutateShellConfig(edit)
     } finally {
       widgetMemo.expected = null
     }
+  }
+
+  // How far past the bar the drag point sits, in screen coordinates: past
+  // the strip its screen's bar surface draws, thickness deep along its edge.
+  function moduleRemoveDistance(screenPoint) {
+    var screen = barDragScreen
+    if (!screen) return 0
+    var thickness = thicknessFor(screen)
+    var x = screenPoint.x
+    var y = screenPoint.y
+    if (vertical) {
+      if (position === "right") x -= Math.max(0, screen.width - thickness)
+      return BarModel.dragDistanceOutside({ x: x, y: y }, thickness, screen.height)
+    }
+    if (position === "bottom") y -= Math.max(0, screen.height - thickness)
+    return BarModel.dragDistanceOutside({ x: x, y: y }, screen.width, thickness)
+  }
+
+  // Arming closes the dragged widget's room, and disarming opens it again
+  // where a drop would land, as a move of the room does (moveDragRoom).
+  function setBarDragRemoveArmed(armed) {
+    if (barDragRemoveArmed === armed) return
+    barDragRemoveArmed = armed
+    fadeDragRoom(0)
+    roomFader.start()
+  }
+
+  // Lets go of a widget pulled off the bar. It vanishes in a poof where it
+  // was let go, its slot closing at once (ModuleSlot.removalPending), and
+  // its entry leaves the layout once the poof has played.
+  function removeBarDrag(sourceSlot) {
+    barRemoval = { key: sourceSlot.widgetKey, region: sourceSlot.region, id: entryId(sourceSlot.entry) }
+    // Up before the drag clears, so the ghost's surface never unmaps
+    // between the ghost and the poof.
+    playPoof()
+    clearBarDrag()
+    if (!barPoof) commitBarRemoval()
+  }
+
+  // Writes a removed widget out of the layout. Every other widget keeps its
+  // instance through the write (BarModel.layoutWidgets), as with a move.
+  function commitBarRemoval() {
+    var removal = barRemoval
+    barRemoval = null
+    if (!removal) return
+    var expected = JSON.parse(JSON.stringify(layoutWidgets.sections))
+    var list = expected[removal.region] || []
+    var index = list.indexOf(removal.key)
+    if (index < 0) return
+    list.splice(index, 1)
+    writeLayout(expected, function(config) {
+      BarModel.removeEntry(config, { region: removal.region, index: index, id: removal.id }, function(entry) { return Util.normalizeLayoutEntry(entry) })
+    })
+  }
+
+  // Bursts out of the ghost where it was let go, so it runs before
+  // clearBarDrag wipes the drag. With motion reduced there is nothing to play.
+  function playPoof() {
+    if (Style.duration(620) === 0) return
+    barPoof = {
+      screen: barDragScreen,
+      x: barDragScreenX - barDragOffsetX + barDragGhostWidth / 2,
+      y: barDragScreenY - barDragOffsetY + barDragGhostHeight / 2,
+      width: barDragGhostWidth,
+      height: barDragGhostHeight,
+      image: barDragImageUrl,
+      seed: Math.random()
+    }
+    poofTimer.restart()
+  }
+
+  // Outlives the poof's animation a little so its last frames aren't cut
+  // off by the ghost's surface unmapping, and only then writes the removal:
+  // persisting shell.json stalls the render loop for long enough to swallow
+  // a poof still playing.
+  Timer {
+    id: poofTimer
+    interval: Style.duration(620)
+    onTriggered: {
+      root.barPoof = null
+      root.commitBarRemoval()
+    }
+  }
+
+  function isPendingRemoval(key) {
+    return !!barRemoval && barRemoval.key === key
   }
 
   function moduleTargetClickable(target) {
@@ -1397,8 +1505,10 @@ Item {
     }
   }
 
+  // FileView also fires for any change in its path's parent directory, so watch
+  // a path inside current/: every plugin writes to ~/.local/state/omarchy.
   FileView {
-    path: root.stateHome + "/omarchy/current"
+    path: root.stateHome + "/omarchy/current/theme"
     watchChanges: true
     printErrors: false
     onFileChanged: root.scheduleTransparentForegroundRefresh()
@@ -1410,6 +1520,10 @@ Item {
   }
 
   function showTooltip(target, text) {
+    // The delay only guards the first tooltip against a passing pointer. Once
+    // one is up, or was a moment ago, the next icon's shows at once, so
+    // sliding along the bar reads each label without waiting on every one.
+    var warm = tooltipShown || tooltipWarmTimer.running
     clearTooltip()
 
     if (!targetTooltipHovered(target) || !text) {
@@ -1432,7 +1546,8 @@ Item {
       tooltipText = pendingTooltipText
       pendingTooltipTarget = null
       pendingTooltipText = ""
-      tooltipTimer.restart()
+      if (warm) tooltipShown = true
+      else tooltipTimer.restart()
     })
   }
 
@@ -1450,6 +1565,14 @@ Item {
       if (root.targetTooltipHovered(root.tooltipTarget)) root.tooltipShown = true
       else root.clearTooltip()
     }
+  }
+
+  // How long after a tooltip hides the next one still skips the delay. Long
+  // enough to cross the gap between two icons, short enough that coming back
+  // to the bar later waits again.
+  Timer {
+    id: tooltipWarmTimer
+    interval: 400
   }
 
   Timer {
@@ -1487,6 +1610,21 @@ Item {
     // killing it here can swallow the result entirely.
     function syncHidden(): void {
       barHiddenProbe.running = true
+    }
+  }
+
+  // Refresh the snapshots that decide whether fullscreen covers each bar,
+  // including focus-only scrolling changes and special-workspace toggles.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      var name = event ? String(event.name) : ""
+      if (name === "fullscreen" || name === "activewindowv2" || name === "moveworkspacev2") {
+        Hyprland.refreshToplevels()
+        Hyprland.refreshWorkspaces()
+      } else if (name === "activespecial") {
+        Hyprland.refreshMonitors()
+      }
     }
   }
 
@@ -1541,28 +1679,31 @@ Item {
     // before it maps (see BarModel.cutoutPending), so it maps at its floor
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
-    visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    visible: cutoutWaitOver || !cutoutPending
+    // An explicit zone instead of Auto, so it moves with the surface's
+    // thickness in the same commit (settle below).
+    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
+    exclusiveZone: surfaceThickness
 
-    ScreenMoveRemap {
-      id: remapGuard
-      window: barWindow
-    }
+    // sameWindow, not identity: the drag records the QsWindow interface of
+    // the slot's window, which is not this PanelWindow object itself.
+    readonly property bool dragActive: (root.barDragSource !== null && root.sameWindow(root.barDragWindow, barWindow)) ||
+      (root.barMoveActive && root.sameWindow(root.barMoveWindow, barWindow))
 
-    // Parked by its full thickness, which a notch floor may make more than
-    // barSize, so no strip of it stays on screen.
+    // Parked by its whole thickness, so none of it stays on screen however
+    // thick a notch floor makes it.
     margins {
-      top: root.barHidden && root.position === "top" ? -barWindow.thickness : 0
-      bottom: root.barHidden && root.position === "bottom" ? -barWindow.thickness : 0
-      left: root.barHidden && root.position === "left" ? -barWindow.thickness : 0
-      right: root.barHidden && root.position === "right" ? -barWindow.thickness : 0
+      top: root.barHidden && barWindow.surfaceEdge === "top" ? -barWindow.surfaceThickness : 0
+      bottom: root.barHidden && barWindow.surfaceEdge === "bottom" ? -barWindow.surfaceThickness : 0
+      left: root.barHidden && barWindow.surfaceEdge === "left" ? -barWindow.surfaceThickness : 0
+      right: root.barHidden && barWindow.surfaceEdge === "right" ? -barWindow.surfaceThickness : 0
     }
 
     anchors {
-      top: root.position === "top" || root.vertical
-      bottom: root.position === "bottom" || root.vertical
-      left: root.position === "left" || !root.vertical
-      right: root.position === "right" || !root.vertical
+      top: barWindow.surfaceEdge === "top" || barWindow.surfaceVertical
+      bottom: barWindow.surfaceEdge === "bottom" || barWindow.surfaceVertical
+      left: barWindow.surfaceEdge === "left" || !barWindow.surfaceVertical
+      right: barWindow.surfaceEdge === "right" || !barWindow.surfaceVertical
     }
 
     readonly property var panelMode: root.panelModeFor(screen)
@@ -1572,7 +1713,6 @@ Item {
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false
     onCutoutPendingChanged: if (!cutoutPending) cutoutWaitOver = true
-    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
 
     Timer {
       interval: 2000
@@ -1583,25 +1723,180 @@ Item {
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
 
-    implicitWidth: root.vertical ? thickness : 0
-    implicitHeight: root.vertical ? 0 : thickness
-    color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+    // The surface is the strip and nothing more: a drag that strays off it
+    // keeps the pointer because the compositor holds a pressed surface's
+    // pointer focus until release. Omarchy's Hyprland carries that for an
+    // empty workspace (held-pointer-without-keyboard-focus.patch); stock
+    // Hyprland drops it there unless something holds keyboard focus.
+    //
+    // A resize, moving to a side edge or changing thickness, commits the new
+    // size with the last buffer still attached, and Hyprland draws that
+    // buffer across the new size until a frame at it lands: the strip laid
+    // out for its new size, stretched or squeezed into the box. So a resize
+    // settles: the strip turns clear, the surface resizes behind a clear
+    // buffer, and the strip comes back once a frame at the new size is up.
+    // Until its first frame is up the surface follows the bar directly, so a
+    // bar that waits for its notch floor maps at it.
+    property string surfaceEdge: root.position
+    property int surfaceThickness: thickness
+    readonly property bool surfaceVertical: surfaceEdge === "left" || surfaceEdge === "right"
+    implicitWidth: surfaceVertical ? surfaceThickness : 0
+    implicitHeight: surfaceVertical ? 0 : surfaceThickness
+
+    property bool presented: false
+    // clearing: waiting on a clear frame before resizing. revealing: waiting
+    // on a frame at the new size before showing the strip again.
+    property string settle: ""
+    property int settleFrames: 0
+    // A binding, so the strip is clear in the next frame whatever order the
+    // position and thickness handlers run in.
+    readonly property bool resizeDue: presented && (root.vertical !== surfaceVertical || thickness !== surfaceThickness)
+
+    function holdSurface() {
+      surfaceEdge = root.position
+      surfaceThickness = thickness
+    }
+
+    function finishSettle() {
+      settleWatchdog.stop()
+      holdSurface()
+      settle = ""
+    }
+
+    function requestFrame() {
+      var window = barStrip.Window.window
+      if (window) window.update()
+    }
+
+    // Runs once every binding on the position and thickness has caught up.
+    // Mid-settle, the resize takes whatever is current when it lands. Moving
+    // between opposite edges keeps the size, and with nothing on screen to
+    // stretch, a resize needs no settle either.
+    function follow() {
+      if (!presented || settle !== "") return
+      if (resizeDue && visible && !root.barHidden && !underFullscreen && surfaceThickness > 0 && thickness > 0) {
+        settle = "clearing"
+        settleFrames = 0
+        settleWatchdog.restart()
+        requestFrame()
+      } else {
+        holdSurface()
+      }
+    }
+
+    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
+    onThicknessChanged: followLater.restart()
+    Connections {
+      target: root
+      function onPositionChanged() { followLater.restart() }
+      function onBarHiddenChanged() { if (root.barHidden && barWindow.settle !== "") barWindow.finishSettle() }
+    }
+
+    Timer {
+      id: followLater
+      interval: 0
+      onTriggered: barWindow.follow()
+    }
+
+    // Frames stop for a surface Hyprland isn't showing, such as one on an
+    // output that went to sleep mid-settle.
+    Timer {
+      id: settleWatchdog
+      interval: 500
+      onTriggered: if (barWindow.settle !== "") barWindow.finishSettle()
+    }
+
+    Connections {
+      target: !barWindow.presented && barWindow.visible ? barStrip.Window.window : null
+      function onFrameSwapped() {
+        barWindow.holdSurface()
+        barWindow.presented = true
+      }
+    }
+
+    // Counts this window's own presented frames, asking for the next each
+    // time. Two after the strip turns clear, the clear one is up even with
+    // an opaque frame already in flight.
+    Connections {
+      target: barWindow.settle !== "" ? barStrip.Window.window : null
+      function onFrameSwapped() {
+        barWindow.settleFrames++
+        if (barWindow.settle === "clearing") {
+          if (barWindow.settleFrames >= 2) {
+            barWindow.holdSurface()
+            barWindow.settle = "revealing"
+            barWindow.settleFrames = 0
+          }
+        } else if (barWindow.resizeDue) {
+          barWindow.settle = "clearing"
+          barWindow.settleFrames = 0
+          settleWatchdog.restart()
+        } else {
+          var span = barWindow.surfaceVertical ? barWindow.width : barWindow.height
+          if (span === barWindow.surfaceThickness && barWindow.settleFrames >= 1) {
+            barWindow.finishSettle()
+            return
+          }
+        }
+        barWindow.requestFrame()
+      }
+    }
+
+    color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
-    Loader {
-      anchors.fill: parent
-      sourceComponent: root.vertical ? verticalBar : horizontalBar
+    // Only drop input while fullscreen covers the screen. A special workspace
+    // exposes the bar above the normal workspace beneath it.
+    readonly property bool underFullscreen: {
+      var monitor = Hyprland.monitorFor(screen)
+      var workspace = monitor ? monitor.activeWorkspace : null
+      var ipc = monitor ? monitor.lastIpcObject : null
+      var special = ipc ? ipc.specialWorkspace : null
+      return !!workspace && !!ipc && BarModel.fullscreenOn(Hyprland.toplevels.values,
+        workspace.id, workspace.hasFullscreen, special ? special.name : null,
+        { x: ipc.x, y: ipc.y, width: screen.width, height: screen.height })
+    }
 
-      // A child of the loader, not a sibling of the sections: an ancestor stays
-      // hovered while the pointer is over a widget, where a sibling would lose
-      // hover to the section the pointer entered.
-      HoverHandler {
-        onHoveredChanged: root.setBarHovered(hovered)
-        // Unplugging a monitor destroys its bar without a leave event, which
-        // would strand this surface's tally and hold the peek open for good.
-        Component.onDestruction: if (hovered) root.setBarHovered(false)
+    Connections {
+      target: barWindow.screen
+      function onGeometryChanged() {
+        Hyprland.refreshMonitors()
+        Hyprland.refreshToplevels()
+      }
+    }
+
+    // Under a fullscreen window the strip takes no input: Hyprland 0.56
+    // passes the pointer through a faded top layer only while it holds the
+    // layer below fullscreen, and it lifts every layer on the monitor back
+    // above whenever a window on any other workspace leaves fullscreen, or
+    // the layer remaps. The invisible strip would then take the clicks meant
+    // for the top of the fullscreen window.
+    mask: underFullscreen && !dragActive ? noInputRegion : null
+
+    Region {
+      id: noInputRegion
+    }
+
+    // The bar itself, along its screen edge.
+    Item {
+      id: barStrip
+      opacity: barWindow.settle === "" && !barWindow.resizeDue ? 1 : 0
+
+      x: root.position === "right" ? parent.width - barWindow.thickness : 0
+      y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
+      width: root.vertical ? barWindow.thickness : parent.width
+      height: root.vertical ? parent.height : barWindow.thickness
+
+      Rectangle {
+        anchors.fill: parent
+        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+      }
+
+      Loader {
+        anchors.fill: parent
+        sourceComponent: root.vertical ? verticalBar : horizontalBar
       }
     }
 
@@ -1612,6 +1907,17 @@ Item {
       color: "transparent"
       implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
       implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
+
+      // Each show maps a fresh surface at a whole-number scale before Qt receives
+      // the output's fractional one. Keep the bubble transparent until it matches the bar.
+      readonly property bool scaleReady: visible && Math.round(devicePixelRatio * 120) === Math.round(barWindow.devicePixelRatio * 120)
+      property bool revealed: false
+
+      // Only hiding resets it: at a whole-number scale the ratio dips to 1 after the first frame.
+      onVisibleChanged: if (!visible) revealed = false
+      onScaleReadyChanged: if (scaleReady) Qt.callLater(function() {
+        if (tooltipWindow.scaleReady) tooltipWindow.revealed = true
+      })
 
       anchor {
         id: tooltipAnchor
@@ -1649,6 +1955,7 @@ Item {
 
       BorderSurface {
         id: tooltipBubble
+        opacity: tooltipWindow.revealed ? 1 : 0
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
         color: Commons.Color.tooltip.background
@@ -1758,12 +2065,11 @@ Item {
     id: ghostWindow
 
     required property var ghostScreen
-    readonly property bool screenMatches: root.barDragScreen === ghostScreen ||
-      (root.barDragScreen && ghostScreen && root.barDragScreen.name && ghostScreen.name && root.barDragScreen.name === ghostScreen.name)
-    readonly property bool active: root.barDragSource && root.barDragScreen && screenMatches
+    readonly property bool active: !!root.barDragSource && root.sameScreen(root.barDragScreen, ghostScreen)
     readonly property var sourceItem: root.barDragSource ? root.barDragSource.activeItem : null
+    readonly property bool poofShown: !!root.barPoof && root.sameScreen(root.barPoof.screen, ghostScreen)
 
-    visible: active && sourceItem !== null
+    visible: (active && sourceItem !== null) || poofShown
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "omarchy-bar-drag-ghost"
@@ -1784,11 +2090,18 @@ Item {
     // The widget at its size in the bar, outlined like the room it leaves
     // and the room it would land in (DragSpacer).
     Item {
-      visible: ghostWindow.visible
+      visible: ghostWindow.active && ghostWindow.sourceItem !== null
       x: Math.round(root.barDragScreenX - root.barDragOffsetX)
       y: Math.round(root.barDragScreenY - root.barDragOffsetY)
       width: root.barDragGhostWidth
       height: root.barDragGhostHeight
+      // Pulled past the removal threshold, the ghost shrinks and dims: let
+      // go now and the widget poofs away instead of moving.
+      scale: root.barDragRemoveArmed ? 0.82 : 1
+      opacity: root.barDragRemoveArmed ? 0.55 : 1
+
+      Behavior on scale { NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
+      Behavior on opacity { NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
 
       RoomOutline { opacity: root.transparent ? 0.45 : 0.94 }
 
@@ -1800,15 +2113,157 @@ Item {
         opacity: 0.84
       }
     }
+
+    // The puff of smoke a widget pulled off the bar vanishes in. Its ghost
+    // pops, swelling as it fades, while a cloud billows out of the space it
+    // filled and thins away, throwing off a few specks. The cloud takes the
+    // widget's own footprint, so a wide widget leaves a wide cloud, and is
+    // laid out afresh for each poof so no two look alike.
+    Item {
+      id: poof
+
+      // 0 to 1 through the poof. Each part runs on its own stretch of it.
+      property real progress: 1
+      // The poof playing here, kept through its last frames.
+      property var spec: ({ x: 0, y: 0, width: 0, height: 0, image: "", seed: 0 })
+
+      readonly property real spanX: Math.max(Style.spaceReal(16), poof.spec.width / 2)
+      readonly property real spanY: Math.max(Style.spaceReal(16), poof.spec.height / 2)
+      readonly property real puffSize: Util.clamp(Math.min(poof.spec.width, poof.spec.height) * 1.1, Style.spaceReal(16), Style.spaceReal(34))
+      // Room around the puffs at their furthest, so the blur isn't clipped.
+      readonly property real margin: puffSize * 1.4 + Style.spaceReal(16)
+
+      // A steady pseudo-random 0 to 1 for part n of this poof.
+      function noise(n) {
+        var v = Math.sin(n * 12.9898 + poof.spec.seed * 78.233) * 43758.5453
+        return v - Math.floor(v)
+      }
+      // How far along a part starting `from` and ending `to` is.
+      function phase(from, to) {
+        return Util.clamp((progress - from) / (to - from), 0, 1)
+      }
+      function outCubic(t) { return 1 - Math.pow(1 - t, 3) }
+      function outBack(t) { return 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2) }
+
+      visible: ghostWindow.poofShown
+      x: Math.round(poof.spec.x)
+      y: Math.round(poof.spec.y)
+
+      Connections {
+        target: root
+        function onBarPoofChanged() {
+          if (!root.barPoof || !root.sameScreen(root.barPoof.screen, ghostWindow.ghostScreen)) return
+          poof.spec = root.barPoof
+          poofAnimation.restart()
+        }
+      }
+
+      NumberAnimation {
+        id: poofAnimation
+        target: poof
+        property: "progress"
+        from: 0
+        to: 1
+        duration: Style.duration(560)
+      }
+
+      // The ghost, picking up as the drag left it.
+      Image {
+        readonly property real t: poof.outCubic(poof.phase(0, 0.3))
+
+        width: poof.spec.width
+        height: poof.spec.height
+        x: -width / 2
+        y: -height / 2
+        source: poof.spec.image
+        fillMode: Image.Stretch
+        smooth: true
+        scale: 0.82 + 0.45 * t
+        opacity: 0.84 * 0.55 * (1 - t)
+      }
+
+      // Overlapping puffs blurred into one soft cloud, ringed faintly in the
+      // bar's background so it reads over light windows and dark alike.
+      Item {
+        id: cloud
+
+        width: (poof.spanX + poof.margin) * 2
+        height: (poof.spanY + poof.margin) * 2
+        x: -width / 2
+        y: -height / 2
+        // Built with the ghost's surface rather than at the release, which
+        // would cost the poof its first frames while the effect sets up.
+        // Until the poof plays the cloud holds nothing to draw.
+        layer.enabled: ghostWindow.visible
+        layer.effect: MultiEffect {
+          blurEnabled: true
+          blur: 0.6
+          blurMax: 20
+          shadowEnabled: true
+          shadowColor: root.background
+          shadowBlur: 0.9
+          shadowOpacity: 0.7
+          shadowHorizontalOffset: 0
+          shadowVerticalOffset: 0
+        }
+
+        Repeater {
+          model: 14
+
+          Rectangle {
+            required property int index
+            // The first sits in the middle; the rest ring it unevenly.
+            readonly property real angle: Math.PI * 2 * (index + poof.noise(index) * 0.7) / 13
+            readonly property real reach: index === 0 ? 0 : 0.3 + 0.7 * poof.noise(index + 20)
+            readonly property real begin: index === 0 ? 0 : 0.1 * poof.noise(index + 40)
+            readonly property real end: 0.82 + 0.18 * poof.noise(index + 60)
+            readonly property real t: poof.phase(begin, end)
+            // Billows out fast, overshooting a touch, then drifts, rises and
+            // swells as it thins, the way smoke spreads.
+            readonly property real grow: poof.outBack(Math.min(1, t / 0.4))
+            readonly property real size: poof.puffSize * (index === 0 ? 1.25 : 0.6 + 0.55 * poof.noise(index + 80)) * (0.3 + 0.8 * grow + 0.4 * t)
+            readonly property real drift: 0.55 + 0.55 * poof.outCubic(t)
+
+            width: size
+            height: size
+            radius: size / 2
+            x: cloud.width / 2 + Math.cos(angle) * poof.spanX * reach * drift - size / 2
+            y: cloud.height / 2 + Math.sin(angle) * poof.spanY * reach * drift - Style.spaceReal(10) * poof.outCubic(t) - size / 2
+            color: root.barForeground
+            // In at once, holding while it billows, thinning away after.
+            opacity: Math.min(1, t / 0.08) * (1 - Math.pow(Math.max(0, t - 0.3) / 0.7, 1.4)) * 0.9
+          }
+        }
+      }
+
+      Repeater {
+        model: 7
+
+        Rectangle {
+          required property int index
+          readonly property real angle: Math.PI * 2 * (index + 0.5 + poof.noise(index + 100) * 0.6) / 7
+          readonly property real reach: 1.15 + 0.6 * poof.noise(index + 120)
+          readonly property real t: poof.phase(0.04, 0.7 + 0.2 * poof.noise(index + 140))
+          readonly property real fly: poof.outCubic(t)
+          readonly property real size: Style.spaceReal(2) + Style.spaceReal(1.5) * poof.noise(index + 160)
+
+          width: size
+          height: size
+          radius: size / 2
+          x: Math.cos(angle) * (poof.spanX + poof.puffSize * 0.6) * reach * fly - size / 2
+          y: Math.sin(angle) * (poof.spanY + poof.puffSize * 0.6) * reach * fly - size / 2
+          color: root.barForeground
+          opacity: (t > 0 ? 1 : 0) * (1 - t) * 0.9
+        }
+      }
+    }
   }
 
   component BarMoveGhostPanel: PanelWindow {
     id: moveGhostWindow
 
     required property var ghostScreen
-    readonly property bool screenMatches: root.barMoveScreen === ghostScreen ||
-      (root.barMoveScreen && ghostScreen && root.barMoveScreen.name && ghostScreen.name && root.barMoveScreen.name === ghostScreen.name)
-    visible: root.barMoveActive && screenMatches
+    visible: root.barMoveActive && root.sameScreen(root.barMoveScreen, ghostScreen)
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "omarchy-bar-move-ghost"
@@ -2294,6 +2749,8 @@ Item {
     readonly property bool dragSource: !!owner && owner.dragSource
     // The edge it grows from, as the slot that last held it says.
     property string fixedEdge: "center"
+    // Whether that slot is in the tray's drawer.
+    property bool inTraySection: false
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
     readonly property string customType: root.customModuleType(entry)
@@ -2341,6 +2798,7 @@ Item {
         return
       }
       fixedEdge = owner.fixedEdge
+      inTraySection = owner.region === "tray"
       placed = true
     }
     // One no slot takes up again by the time the update is over, as one in
@@ -2399,6 +2857,7 @@ Item {
     onActiveItemChanged: Qt.callLater(injectProps)
     onModuleSettingsChanged: injectProps()
     onFixedEdgeChanged: injectProps()
+    onInTraySectionChanged: injectProps()
 
     function injectProps() {
       var target = activeItem
@@ -2406,6 +2865,7 @@ Item {
       // Ahead of bar: a widget can start laying itself out the moment it has
       // a bar, as the indicators do by reporting which are already active.
       if ("fixedEdge" in target) target.fixedEdge = fixedEdge
+      if ("inTraySection" in target) target.inTraySection = inTraySection
       if ("bar" in target) target.bar = firstParty
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
@@ -2437,6 +2897,10 @@ Item {
     readonly property var activeItem: host ? host.activeItem : null
     readonly property bool hovered: moduleHover.hovered
     readonly property bool dragSource: root.barDragSource === slot
+    // A widget let go of past the removal threshold leaves the bar the
+    // moment its poof starts, though its entry stays in the layout until
+    // the poof has played.
+    readonly property bool removalPending: root.isPendingRemoval(widgetKey)
     readonly property bool panelOpen: root.activePopout === slot.activeItem
     // Modules bigger than the mark they want (a text label in a padded slot,
     // a multi-line stack on a vertical bar) can say how long the open-panel
@@ -2469,6 +2933,8 @@ Item {
     // Its drawer section is outlined while a widget that could go in it is
     // dragged on this bar, as the center box is.
     readonly property bool traySectionShown: hostsTraySection && root.traySectionDragActive && root.sameWindow(root.barDragWindow, window)
+    // A drop now would land in its drawer section, so the whole tray lights up.
+    readonly property bool trayDropInto: traySectionShown && root.barDragRegion === "tray"
     // The part of the section the drawer shows, in the slot's widget area,
     // or null while the drawer hides all of it (the tray's sectionShown).
     readonly property var traySectionGeometry: {
@@ -2497,7 +2963,7 @@ Item {
     readonly property real widgetHeight: host ? host.widgetHeight : 0
     // Its length along the bar. The dragged widget keeps its place's share
     // of the room: all of it until the room moves away.
-    readonly property real alongLength: dragSource
+    readonly property real alongLength: removalPending ? 0 : dragSource
       ? (root.barDragLengths[root.barDragHome] || 0)
       : (root.vertical ? widgetHeight : widgetWidth)
 
@@ -2538,9 +3004,21 @@ Item {
 
       width: root.vertical ? slot.widgetWidth : slot.alongLength
       height: root.vertical ? slot.alongLength : slot.widgetHeight
-      clip: slot.dragSource
+      clip: slot.dragSource || slot.removalPending
 
       RoomOutline { visible: slot.dragSource }
+
+      // The whole tray, lit while a drop would land in its drawer section and
+      // dark again the moment the pointer takes the widget out, so in and out
+      // of the tray read at a glance. Under the icons, so they stay crisp.
+      DropOutline {
+        visible: slot.trayDropInto
+        length: root.vertical ? parent.height : parent.width
+        dropInto: true
+        color: Util.alpha(Commons.Color.accent, 0.15)
+        x: root.vertical ? Math.round((parent.width - across) / 2) : 0
+        y: root.vertical ? 0 : Math.round((parent.height - across) / 2)
+      }
 
       // Folding away under a drag, the slot keeps the widget centred, like
       // the copy in the room it opens (DragSpacer).
@@ -2554,13 +3032,13 @@ Item {
       // The tray section's outline, as the center box's: around what it
       // holds, the room for the dragged widget included, or a line where it
       // holds nothing. Drawn over the tray rather than in its drawer, whose
-      // clip would hide an empty section's line.
+      // clip would hide an empty section's line. Faint until a drop would
+      // land in it; then the whole tray's highlight takes over.
       DropOutline {
         readonly property var section: slot.traySectionGeometry || { x: 0, y: 0, width: 0, height: 0 }
 
-        visible: slot.traySectionShown && !!slot.traySectionGeometry
+        visible: slot.traySectionShown && !slot.trayDropInto && !!slot.traySectionGeometry
         length: root.vertical ? section.height : section.width
-        dropInto: root.barDragRegion === "tray"
         x: root.vertical ? Math.round((parent.width - across) / 2) : section.x
         y: root.vertical ? section.y : Math.round((parent.height - across) / 2)
         z: 40
@@ -2618,6 +3096,9 @@ Item {
 
       property bool dragging: false
       property bool suppressClick: false
+      // This area sits over the slot's widget and takes its press, so the
+      // widget never sees itself held; it's told, for its press feedback.
+      property var heldTarget: null
       property real pressedX: 0
       property real pressedY: 0
       readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
@@ -2647,8 +3128,15 @@ Item {
         suppressClick = false
         pressedX = mouse.x
         pressedY = mouse.y
+        hold(root.moduleClickTargetAt(slot, mouse.x, mouse.y), mouse.button)
         root.finishBarSettle()
         root.clearBarDrag()
+      }
+
+      function hold(target, button) {
+        if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
+        heldTarget = target && "heldButtons" in target ? target : null
+        if (heldTarget) heldTarget.heldButtons = button
       }
 
       onPositionChanged: function(mouse) {
@@ -2658,6 +3146,7 @@ Item {
         if (distance >= dragThreshold) {
           if (!dragging) root.beginBarDrag(slot, pressedX, pressedY)
           dragging = true
+          hold(null)
           root.hideTooltip(slot.activeItem)
         }
 
@@ -2674,17 +3163,20 @@ Item {
           var drop = root.moduleDropAtScene(scenePoint, slot)
           root.barDragTarget = drop
           root.moveDragRoom(drop)
+          root.setBarDragRemoveArmed(!drop && root.moduleRemoveDistance(screenPoint) >= root.barDragRemoveDistance)
         }
       }
 
       onReleased: function(mouse) {
         var wasDragging = dragging
+        hold(null)
 
         dragging = false
 
         if (wasDragging) {
           suppressClick = true
-          if (root.barDragSource === slot) root.settleBarDrag(slot)
+          if (root.barDragSource === slot && root.barDragRemoveArmed) root.removeBarDrag(slot)
+          else if (root.barDragSource === slot) root.settleBarDrag(slot)
           mouse.accepted = true
         } else {
           root.clearBarDrag()
@@ -2695,6 +3187,7 @@ Item {
       onCanceled: {
         dragging = false
         suppressClick = false
+        hold(null)
         root.clearBarDrag()
       }
 

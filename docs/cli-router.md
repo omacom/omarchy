@@ -76,9 +76,7 @@ none were given, the router shows help instead of executing — `omarchy theme
 set` prints usage rather than running an interactive setter. A bare group name
 with child commands shows the group help.
 
-Dispatch is `exec`: the router process is replaced, the binary sees only the
-leftover arguments, and the exit code is the binary's own. The router itself
-exits 127 for unknown routes or missing binaries.
+Dispatch is `exec`: the router process is replaced, the binary sees only the leftover arguments, and the exit code is the binary's own. The router itself exits 127 for unknown routes or missing binaries, and 1 for a bare command missing its required arguments, after showing its help. A bare group showing its help, and an explicit `--help`, exit 0.
 
 When nothing resolves, the router tries a prefix listing — `omarchy hw asus`
 prints every command whose usage starts with that prefix — and otherwise

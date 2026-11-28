@@ -4,6 +4,9 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
+# Reload this session's Hyprland, as a desktop does, even when run over ssh.
+export HYPRLAND_INSTANCE_SIGNATURE=test
+
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 

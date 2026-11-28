@@ -1,24 +1,27 @@
 # Ujednolicony schowek i historia
 
-Zwykle na Linuksie potrzebujesz `Ctrl + Shift + C/V` do kopiowania i wklejania w terminalu oraz `Ctrl + C/V` w pozostałych miejscach. To trudne do przyzwyczajenia dla każdego, kto nie urodził się i nie wychował na Linuksie! Podobnie jest z przesiadką z Super na Ctrl, gdy przychodzisz z Maca.
+Zazwyczaj w systemie Linux potrzebujesz `Ctrl + Shift + C/V`, aby kopiować i wklejać w terminalu, oraz `Ctrl + C/V`, aby robić to wszędzie indziej. Trudno się do tego przyzwyczaić każdemu, kto nie urodził się i nie wychował na Linuksie! Podobnie jest z przejściem z super na ctrl, jeśli przechodzisz z Maca.
 
-Omarchy rozwiązuje oba problemy ujednoliconymi skrótami schowka, które działają (niemal) wszędzie. Są to:
+Omarchy rozwiązuje oba te problemy za pomocą ujednoliconych skrótów klawiszowych schowka, które działają (prawie) wszędzie. Są to:
 
-| Skrót | Polecenie |
+| Hotkey | Command |
 | ------- | ----------- |
-| Super + C | Kopiowanie |
-| Super + X | Wycinanie |
-| Super + V | Wklejanie |
+| Super + A | Zaznacz wszystko |
+| Super + C | Kopiuj |
+| Super + X | Wytnij |
+| Super + V | Wklej |
 | Super + Ctrl + V | Historia schowka |
 
-_Zwróć uwagę, że większość osprzętów agentów będzie używać `Ctrl + V` do wklejania obrazów, a `Super + V` do wklejania tekstu._
+_Pamiętaj, że większość harnessów agentów używa `Ctrl + V` do wklejania obrazów, ale `Super + V` do wklejania tekstu._
+
+Użyj `Super + A`, a następnie `Super + C`, aby skopiować wszystko w aktywnym polu tekstowym lub innej aplikacji obsługującej `Ctrl + A`. W terminalu `Ctrl + A` przenosi na początek wiersza poleceń zamiast zaznaczać jego tekst.
 
 ### Historia schowka
 
-Historie schowka dostarcza powłoka Omarchy i działa ona zarówno dla tekstu, jak i obrazów. Wywołujesz ją przez `Super + Ctrl + V`, wybierasz swój wpis klawiszem Return, a potem trafi on do schowka gotowy do wklejenia przez `Super + V`.
+Historię schowka zapewnia powłoka Omarchy i działa ona zarówno dla tekstu, jak i obrazów. Wywołujesz ją za pomocą `Super + Ctrl + V` i wybierasz wpis klawiszem return, co wkleja go bezpośrednio do aplikacji, w której byłeś. Użyj `Shift + Return`, aby tylko skopiować go do schowka, `Alt + Return`, aby go otworzyć, `Delete`, aby usunąć go z historii, oraz `Shift + Delete`, aby wyczyścić całą historię.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Możesz też przeszukać historię, po prostu zaczynając pisać:
+Możesz też przeszukiwać historię, po prostu zaczynając pisać:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Amap
+Exec=omarchy-launch-webapp https://www.amap.com/
+StartupWMClass=chrome-www.amap.com__-Default
+Terminal=false
+Type=Application
+Icon=amap
+StartupNotify=true

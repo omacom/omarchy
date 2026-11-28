@@ -131,3 +131,46 @@ expected_error="Enterprise Wi-Fi cannot be shared with a password QR code"
 [[ $enterprise_error == "$expected_error" ]] || fail "network QR helper rejects enterprise networks" "expected: $expected_error\nactual: $enterprise_error"
 [[ ! -e $QR_PAYLOAD_FILE ]] || fail "network QR helper rejects enterprise networks" "qrencode unexpectedly ran"
 pass "network QR helper rejects enterprise networks"
+
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+
+const wifiqrQml = fs.readFileSync(path.join(root, 'shell/plugins/panels/wifiqr/Panel.qml'), 'utf8')
+const fns = [
+  wifiqrQml.match(/function safeIface\(value\) \{[\s\S]*?\n  \}/)[0],
+  wifiqrQml.match(/function close\(\) \{[\s\S]*?\n  \}/)[0],
+  wifiqrQml.match(/function generate\(requestedIface\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+
+const ctx = {
+  opened: true,
+  pendingShow: false,
+  expectedStop: false,
+  pwExpectedStop: false,
+  qrSize: 3,
+  qrRows: ['101', '010', '101'],
+  error: '',
+  loading: false,
+  iface: 'wlan0',
+  ssid: 'Cafe',
+  secured: true,
+  password: 'old-secret',
+  passwordVisible: true,
+  passwordError: '',
+  I18n: { t: k => k },
+  qrProc: { running: false, command: [] },
+  pwProc: { running: true, command: [] }
+}
+ctx.root = ctx
+vm.runInNewContext(fns, ctx)
+
+ctx.close()
+assert(ctx.pwExpectedStop === true && !ctx.pwProc.running, 'wifiqr close marks an in-flight password fetch as expectedStop')
+assertEqual(ctx.password, '', 'wifiqr close clears the password from memory')
+
+ctx.generate('--bad-flag')
+assert(!ctx.qrProc.running && ctx.error === 'wifiqr.generateFailed', 'wifiqr rejects dash-prefixed interface names')
+ctx.generate('wlan0')
+assertDeepEqual(ctx.qrProc.command, ['omarchy-network-qr', '--meta', 'wlan0'], 'wifiqr runs generator for valid interface names')
+JS

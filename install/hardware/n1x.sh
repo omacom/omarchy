@@ -22,25 +22,14 @@ cat > /etc/mkinitcpio.conf.d/omarchy-n1x-input.conf <<'CONF'
 MODULES+=(i2c_mt65xx i2c_hid_acpi)
 CONF
 
-# Console and rescue boot contract.
+# Console boot contract.
 #
 # The firmware publishes an ACPI SPCR serial console at 0x16a00000; without
 # acpi=nospcr the kernel adopts it and the LUKS prompt and any initramfs
 # emergency shell go to a UART nobody is watching. The ISO installer gives
 # every aarch64 install console=tty0 acpi=nospcr (00-omarchy-console.conf). The
-# normal entry otherwise boots as quietly as on x86, so Plymouth stays up from
-# the LUKS prompt to the login screen; the rescue entry below is the verbose
-# one. BOOT_ORDER is a plain assignment where the last file read wins, hence
-# the zz- drop-in.
-mkdir -p /etc/limine-entry-tool.d
-
-# The firmware advertises PSCI system suspend, so the kernel defaults to "deep"
-# sleep, but the call returns at once and the laptop wakes straight back up.
-# Suspend to idle instead, as Windows does on this hardware.
-cat > /etc/limine-entry-tool.d/00-omarchy-n1x-sleep.conf <<'CONF'
-# N1x: the firmware's deep sleep returns at once; suspend to idle instead.
-KERNEL_CMDLINE[default]+=" mem_sleep_default=s2idle"
-CONF
+# entry otherwise boots as quietly as on x86, so Plymouth stays up from the
+# LUKS prompt to the login screen.
 
 # cppc_cpufreq leaves CPPC autonomous selection off, so the CPUs follow the
 # kernel governor and the energy performance preference that
@@ -60,71 +49,20 @@ ACTION=="add", SUBSYSTEM=="module", KERNEL=="cppc_cpufreq", RUN+="/usr/bin/sh -c
 ACTION=="online", SUBSYSTEM=="cpu", TEST=="cpufreq/auto_select", ATTR{cpufreq/auto_select}="0", ATTR{cpufreq/scaling_max_freq}="$attr{cpufreq/cpuinfo_max_freq}", ATTR{cpufreq/scaling_min_freq}="$attr{cpufreq/cpuinfo_min_freq}", ATTR{cpufreq/auto_select}="1"
 RULES
 
-# USB4: linux-omarchy drives the USB4 host routers (patches 1070-1081),
-# which power_wrap would otherwise release once xHCI is up; the SSPM cannot
-# power them again after that. The tunnel root ports are left unconfigured by
-# the firmware, so reserve bus numbers and windows for docks behind them. A
-# dock or adapter is approved through Omarchy's Thunderbolt authorization
-# prompt, like any other accessory.
+# USB4: linux-omarchy drives the USB4 host routers, keeps them powered and
+# keeps a tunnel root port awake while a dock's PCIe tunnel runs through it.
+# The firmware leaves those root ports unconfigured, so reserve bus numbers and
+# windows for docks behind them. A dock or adapter is approved through
+# Omarchy's Thunderbolt authorization prompt, like any other accessory.
 #
-# The ASUS ProArt P14's settings are validated with a CalDigit TS4 on all three
+# The ASUS ProArt P14's sizes are validated with a CalDigit TS4 on all three
 # ports. Other N1x laptops (the Dell XPS 16) set aside fewer bus numbers, as
-# tested there with a TS4, and do not get the root-port rule below until it is
-# tested on them.
-#
-# The tunnel root ports (10de:22cf) cannot signal a hotplug from D3hot or
-# D3cold, so once one has runtime-suspended, a PCIe tunnel that comes up behind
-# it is never enumerated: the dock is authorized but its Ethernet never
-# appears, until something happens to read the port's config space. Keep the
-# three of them in D0.
+# tested there with a TS4.
 if omarchy-hw-match "H7407BA"; then
-  cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
-# N1x: keep the USB4 host routers powered and leave room for docks behind them;
-# see install/hardware/n1x.sh.
-KERNEL_CMDLINE[default]+=" power_wrap_drv.usb4_release=0 pci=hpbussize=0x80,hpmmiosize=32M,hpmmioprefsize=32G"
-CONF
-  cat > /etc/udev/rules.d/71-omarchy-n1x-usb4-root-ports.rules <<'RULES'
-# N1x: the USB4 tunnel root ports cannot wake for a hotplug, so keep them out of
-# runtime suspend; see install/hardware/n1x.sh.
-ACTION=="add|bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{device}=="0x22cf", ATTR{power/control}="on"
-RULES
+  omarchy-boot-cmdline set 00-omarchy-n1x-usb4 pci=hpbussize=0x80,hpmmiosize=32M,hpmmioprefsize=32G
 else
-  cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
-# N1x: keep USB4 powered for the Thunderbolt connection manager, and leave bus
-# numbers for docks. See install/hardware/n1x.sh.
-KERNEL_CMDLINE[default]+=" power_wrap_drv.usb4_release=0 pci=hpbussize=0x20"
-CONF
+  omarchy-boot-cmdline set 00-omarchy-n1x-usb4 pci=hpbussize=0x20
 fi
-
-# Rescue entry: limine-mkinitcpio-hook builds a fallback UKI for the kernel
-# (every module, no autodetect) and keeps it in step with kernel updates. It
-# boots with NVIDIA blacklisted, the multi-user target and a verbose console on
-# the panel. Limine passes an entry's cmdline as EFI load options and
-# systemd-stub prefers those over the UKI's embedded cmdline, so the fallback
-# entry gets its whole cmdline, root= included, from KERNEL_CMDLINE[fallback].
-# BOOT_ORDER is a plain assignment where the last file read wins, hence the
-# zz- drop-in; the snapshot entries leave the fallback out to save ESP space.
-root_cmdline=$(cat /etc/kernel/cmdline 2>/dev/null || true)
-if [[ -z $root_cmdline || $root_cmdline != *root=* ]]; then
-  echo "Error: /etc/kernel/cmdline has no root= (Limine defaults not written yet)" >&2
-  return 1
-fi
-rescue_cmdline="$root_cmdline initramfs_async=0 console=tty0 acpi=nospcr plymouth.enable=0 nomodeset module_blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nvidia_peermem,nouveau modprobe.blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nvidia_peermem,nouveau nvidia_drm.modeset=0 systemd.unit=multi-user.target fbcon=map:0 loglevel=7 ignore_loglevel systemd.show_status=1 systemd.log_target=console vt.global_cursor_default=1"
-printf '%s\n' \
-  '# N1x: a text-console rescue entry sits right below the normal one; see install/hardware/n1x.sh.' \
-  'MKINITCPIO_FALLBACK=linux-omarchy' \
-  "KERNEL_CMDLINE[fallback]=\"$rescue_cmdline\"" \
-  'EXCLUDE_SNAPSHOT_ENTRIES="Windows*, windows*, *fallback"' \
-  'BOOT_ORDER="linux-omarchy, linux-omarchy-fallback, *, Snapshots"' \
-  > /etc/limine-entry-tool.d/zz-omarchy-n1x-boot-order.conf
-
-mapfile -t n1x_pkgbase_files < <(grep -lFx linux-omarchy /usr/lib/modules/*/pkgbase 2>/dev/null || true)
-if (( ${#n1x_pkgbase_files[@]} != 1 )); then
-  echo "Error: expected one installed linux-omarchy module tree, found ${#n1x_pkgbase_files[@]}" >&2
-  return 1
-fi
-n1x_kernel_version=${n1x_pkgbase_files[0]#/usr/lib/modules/}
-n1x_kernel_version=${n1x_kernel_version%/pkgbase}
 
 # GPU policy, decided by the system firmware version.
 #
@@ -143,38 +81,43 @@ n1x_kernel_version=${n1x_kernel_version%/pkgbase}
 # eDP-1 at 1920x1200@120 with nothing else configured.
 bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
-cat > /etc/modprobe.d/omarchy-n1x-nvidiafb.conf <<'CONF'
-# The legacy nvidiafb driver also claims this GPU and must never load.
-blacklist nvidiafb
-install nvidiafb /bin/false
-CONF
-n1x_gpu_driver=unloaded
 if [[ ! $bios_version =~ ^0\. ]]; then
-  omarchy-pkg-add nvidia-open-dkms nvidia-utils libva-nvidia-driver
-  # Early KMS lists the NVIDIA modules in the initramfs, so a DKMS build that
-  # failed for this kernel would fail every UKI build. Fall back to the
-  # firmware framebuffer instead: a software-rendered desktop beats no boot.
-  if modinfo -k "$n1x_kernel_version" nvidia nvidia_modeset nvidia_uvm nvidia_drm &>/dev/null; then
-    n1x_gpu_driver=nvidia
-  else
-    echo "WARNING: no NVIDIA DKMS modules for $n1x_kernel_version; keeping the NVIDIA stack unloaded" >&2
-  fi
-else
-  echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
-fi
-if [[ $n1x_gpu_driver == nvidia ]]; then
   echo "N1x firmware $bios_version: GPU drives the panel"
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver nvidia-container-toolkit
   cat > /etc/modprobe.d/nvidia.conf <<'CONF'
 options nvidia_drm modeset=1 fbdev=1
 CONF
   cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'CONF'
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 CONF
-  printf '%s\n' \
-    '# N1x on firmware >= 1.0: the GPU owns the panel; drop the firmware' \
-    '# framebuffer so Hyprland sees one DRM device.' \
-    'KERNEL_CMDLINE[default]+=" initcall_blacklist=simpledrm_platform_driver_init"' \
-    > /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf
+  cat > /etc/mkinitcpio.conf.d/omarchy-n1x-nvidia-firmware.conf <<'CONF'
+# N1x: the Blackwell GPU boots its GSP from the ga10x firmware. The nvidia
+# module also lists Turing's (tu10x), which only Turing GPUs load: leave it out
+# of the initramfs, about 32 MB. mkinitcpio sources this file again after the
+# hooks run, so add_firmware is wrapped only once. It returns the status of the
+# firmware it did add, which add_module reads to warn about missing firmware.
+if declare -F add_firmware >/dev/null && ! declare -F _omarchy_n1x_add_firmware >/dev/null; then
+  eval "_omarchy_n1x_$(declare -f add_firmware)"
+  add_firmware() {
+    local fw
+    local -a kept=()
+    local -i status=0
+    for fw; do
+      case $fw in
+        nvidia/*/gsp_tu10x.bin | nvidia/*/ucodes_tu10x.bin) ;;
+        *) kept+=("$fw") ;;
+      esac
+    done
+    if ((${#kept[@]})); then
+      _omarchy_n1x_add_firmware "${kept[@]}" || status=$?
+    fi
+    return "$status"
+  }
+fi
+CONF
+  # N1x on firmware >= 1.0: the GPU owns the panel; drop the firmware
+  # framebuffer so Hyprland sees one DRM device.
+  omarchy-boot-cmdline set 00-omarchy-n1x-gpu initcall_blacklist=simpledrm_platform_driver_init
 
   # The panel stays at its dim power-on backlight until the NVIDIA backlight
   # is first written: its DPCD brightness registers read zero and nvidia_0
@@ -220,8 +163,10 @@ HOOKS=("${_omarchy_n1x_hooks[@]}")
 unset _omarchy_n1x_hooks _omarchy_n1x_hook
 CONF
 else
-  rm -f /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf \
-    /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf
+  echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
+  omarchy-boot-cmdline unset 00-omarchy-n1x-gpu
+  rm -f /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf \
+    /etc/mkinitcpio.conf.d/omarchy-n1x-nvidia-firmware.conf
   cat > /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf <<'CONF'
 # N1x: the NVIDIA stack cannot drive this panel here; see install/hardware/n1x.sh.
 blacklist nvidia
@@ -235,6 +180,6 @@ install nvidia_uvm /bin/false
 CONF
 fi
 
-# omarchy-n1x-probe collects hardware and boot evidence on demand, from the
-# rescue entry or a running system, and uses lspci.
-omarchy-pkg-add pciutils
+# omarchy-n1x-probe collects hardware and boot evidence on demand and uses
+# lspci.
+OMARCHY_PKG_DEFER=1 omarchy-pkg-add pciutils

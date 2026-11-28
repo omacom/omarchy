@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchyä ohjataan yleensä pikanäppäinten ja Omarchy-valikon kautta (`Super + Space`). Mutta voit ohjata sitä myös `omarchy` CLI:n kautta. Tämä on erityisen hyödyllistä, kun sinulla on tekoälyagentti työstämässä kanssasi mukautuksia tai määrityksiä.
+Omarchya ohjataan yleensä pikanäppäimillä ja Omarchy-valikolla (`Super + Space`). Mutta sitä voi ohjata myös `omarchy` CLI:n kautta. Tämä on erityisen kätevää, kun annat tekoälyagentin työskennellä kanssasi räätälöinnin tai määrityksen parissa.
 
-CLI:llä on pääsy kaikkiin sisäisiin työkaluihin, joita käytetään sekä valikon kautta että muuten. Näet kaiken saatavilla olevan ajamalla pääätteessä komennon `omarchy`.
+CLI:llä on pääsy kaikkiin sisäisiin työkaluihin, joita käytetään sekä valikon kautta että muuten. Näet kaiken tarjolla olevan suorittamalla `omarchy` terminaalissa.
 
 Se näyttää suunnilleen tältä:
 
@@ -22,10 +22,11 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -38,25 +39,26 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Ja voit sukeltaa syvemmälle jokaiseen ryhmään:
+Diagnostiikkaa varten suorita suoraan `omarchy-debug --no-sudo --print`. Se tulostaa diagnostiikan ja kirjoittaa tiedostoon `/tmp/omarchy-debug.log` kysymättä sudoa, myös pakettien asennuksissa, joissa `omarchy debug` voi epäonnistua viestillä "Unknown Omarchy command".
+
+Ja jokaiseen ryhmään voi sukeltaa syvemmälle:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Jokainen komento hyväksyy myös valitsimen `--help`, kysyitpä kokonaisen ryhmän (`omarchy capture --help`) tai yhden komennon (`omarchy capture screenshot --help`) ohjetta.
+Jokainen komento ottaa myös `--help`-valitsimen, kysyitpä sitä koko ryhmältä (`omarchy capture --help`) tai yksittäiseltä komennolta (`omarchy capture screenshot --help`).
 
-### Valikon avaaminen pääätteestä
+### Valikon avaaminen terminaalista
 
-Myös Omarchy-valikko on skriptattavissa, mikä on kätevää omia pikanäppäimiäsi varten. `omarchy menu` avaa sen juuresta, ja voit hypätä suoraan mihin tahansa puun kohtaan nimeämällä sen: `omarchy menu summon style.theme` menee suoraan teeman valitsimeen, `omarchy menu toggle system` avaa järjestelmävalikon ja sulkee sen uudelleen, jos se on jo avoinna, ja `omarchy menu close` sulkee sen kokonaan.
+Omarchy-valikko on myös skriptattavissa, mikä on kätevää omia näppäinsidoksiasi varten. `omarchy menu` avaa sen juuresta, ja voit hypätä suoraan mihin tahansa puun kohtaan nimeämällä sen: `omarchy menu summon appearance.theme` siirtyy suoraan teemanvalitsimeen, `omarchy menu toggle system` avaa järjestelmävalikon ja sulkee sen uudelleen, jos se on jo auki, ja `omarchy menu close` sulkee sen pois näkyvistä.

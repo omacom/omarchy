@@ -1,0 +1,696 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Mistral Vibe usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Mistral Vibe usage into one display-ready JSON record.
+
+Local stats come from the sessions Vibe saves under ~/.vibe/logs/session/
+(VIBE_HOME moves it, and config.toml's session_logging.save_dir moves the
+sessions): the Unified Harness store current Vibe keeps under unified/, and
+the per-session meta.json files older releases wrote, plus pi/omp and opencode
+sessions that ran on the `mistral` provider. Vibe also drives other providers
+(a local llama.cpp server out of the box), so a Vibe session only counts when
+the model it ran on is served by Mistral; one on a server you run is the
+local collector's, which reads it through harness_rows(). The plan comes from the whoami
+answer Vibe caches in whoami_cache.json. Mistral publishes no usage limits
+to read, so the record carries no meters. The agents panel only ever reads
+the JSON this prints.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+import tomllib
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import urlparse
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  Stats,
+  UsageRow,
+  base_record,
+  cached_scan,
+  claude_code_owner,
+  emit,
+  obj,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  scan_cache_paths,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  token_count,
+  warn,
+  write_json,
+)
+
+AGENT_ID = "vibe"
+AGENT_NAME = "Mistral Vibe"
+
+# The provider id pi, omp, and opencode give Mistral's own API. A model reached
+# through a gateway (OpenRouter, a proxy) is billed there and counted there.
+PROVIDER = "mistral"
+
+# The alias an unpinned Vibe config resolves to when it is configured, as
+# Vibe's own resolve_default_model_alias does.
+DEFAULT_MODEL_ALIAS = "mistral-medium-3.5"
+
+# Version 1 kept only the sessions Mistral served, so it named no owner,
+# version 2 gave a mistral-backend provider to Mistral wherever its api_base
+# pointed, and version 3 gave a Unified Harness session whose alias config.toml
+# dropped to the default model.
+INDEX_VERSION = 4
+
+# Times read from Vibe's meta.json are untrusted. Anything past these bounds
+# is a corrupt or crafted field, not usage.
+MIN_EPOCH_SECONDS = 946_684_800  # 2000-01-01
+MAX_MODEL_NAME_LEN = 120
+
+
+def epoch_seconds(value):
+  """Seconds since the epoch for an ISO string or a seconds/milliseconds
+  number, or None when the value can't be a real moment of use."""
+  if value is None or isinstance(value, bool):
+    return None
+  if isinstance(value, (int, float)):
+    seconds = float(value)
+  elif isinstance(value, str) and value.strip():
+    text = value.strip()
+    try:
+      seconds = float(text)
+    except ValueError:
+      try:
+        parsed = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+        # A zoneless time at the edge of the calendar (year 1 or 9999) can't
+        # be placed in a zone off UTC.
+        if parsed.tzinfo is None:
+          parsed = parsed.astimezone()
+        seconds = parsed.timestamp()
+      except (OverflowError, OSError, ValueError):
+        return None
+  else:
+    return None
+  if seconds != seconds:
+    return None
+  if seconds > 10_000_000_000:
+    seconds /= 1000
+  # A day of slack past now covers a clock a little behind the writer's.
+  if seconds < MIN_EPOCH_SECONDS or seconds > time.time() + 86_400:
+    return None
+  return seconds
+
+
+def start_day(seconds):
+  return datetime.fromtimestamp(seconds).strftime("%Y-%m-%d")
+
+
+def model_label(raw):
+  """A model id fit for the record: its last path segment, without a
+  thinking-level suffix, or None when it is too long to be a real id."""
+  value = str(raw or "").rstrip("/").split("/")[-1].split(":")[0]
+  if len(value) > MAX_MODEL_NAME_LEN:
+    return None
+  return value or "mistral"
+
+
+# ------------------------------------------------------------------ Vibe
+
+
+def vibe_home():
+  configured = os.environ.get("VIBE_HOME", "").strip()
+  if configured:
+    return Path(configured).expanduser().resolve()
+  return Path.home() / ".vibe"
+
+
+def vibe_config():
+  """Vibe's own config.toml, or {} when there is none to read."""
+  try:
+    with (vibe_home() / "config.toml").open("rb") as handle:
+      return tomllib.load(handle)
+  except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError):
+    return {}
+
+
+def session_logging():
+  """Where Vibe saves sessions and the prefix it names them with, honoring
+  [session_logging] in Vibe's own config.toml as Vibe does."""
+  home = vibe_home()
+  save_dir = home / "logs" / "session"
+  prefix = "session"
+  section = obj(vibe_config().get("session_logging"))
+  configured_dir = section.get("save_dir")
+  if isinstance(configured_dir, str) and configured_dir.strip():
+    path = Path(configured_dir.strip()).expanduser()
+    # Vibe resolves a relative save_dir against wherever it was started, which
+    # this collector can't know; such a config keeps the default location.
+    if path.is_absolute():
+      save_dir = path
+  configured_prefix = section.get("session_prefix")
+  if isinstance(configured_prefix, str) and configured_prefix.strip() and "/" not in configured_prefix:
+    prefix = configured_prefix.strip()
+  return save_dir, prefix
+
+
+def resolve_model(config):
+  """The model entry a session ran on, resolved the way Vibe resolves it: the
+  pinned alias, else the experiment-routed one, else the default alias, else
+  the first configured model."""
+  models = config.get("models")
+  # Current Vibe dumps the models keyed by alias; older releases as a list.
+  if isinstance(models, dict):
+    entries = list(models.values())
+  elif isinstance(models, list):
+    entries = models
+  else:
+    return None
+  by_alias = {}
+  for entry in entries:
+    if isinstance(entry, dict):
+      alias = str(entry.get("alias") or entry.get("name") or "")
+      if alias and alias not in by_alias:
+        by_alias[alias] = entry
+  for alias in (config.get("active_model"), config.get("routed_default_model"), DEFAULT_MODEL_ALIAS):
+    if isinstance(alias, str) and alias in by_alias:
+      return by_alias[alias]
+  return next(iter(by_alias.values()), None)
+
+
+# Vibe's built-in providers, which a config that lists none still has.
+DEFAULT_API_BASES = {PROVIDER: "https://api.mistral.ai/v1", "llamacpp": "http://127.0.0.1:8080/v1"}
+
+
+def provider_owner(name, providers, model):
+  """The collector that bills `model` on the named provider: this one for
+  Mistral's own API, else whoever runs its api_base, read the way every
+  collector reads Claude Code's (claude_code_owner): local for a server you
+  run, unless the model is a Claude or an Ollama cloud one it only forwards,
+  and None for one nothing here can place.
+
+  Vibe's `mistral` backend sends to the provider's api_base too, so the
+  api_base decides for it as for a generic one: a mistral.ai host is Mistral's
+  API, and so is a mistral-backend provider that names none. A provider the
+  config doesn't describe is one of Vibe's built-in ones, or no one's.
+  """
+  api_base = DEFAULT_API_BASES.get(name, "")
+  for provider in providers if isinstance(providers, list) else []:
+    if not isinstance(provider, dict) or str(provider.get("name") or "") != name:
+      continue
+    api_base = str(provider.get("api_base") or "").strip()
+    if not api_base and str(provider.get("backend") or "").lower() == "mistral":
+      return AGENT_ID
+    break
+  host = (urlparse(api_base).hostname or "").lower()
+  if host == "mistral.ai" or host.endswith(".mistral.ai"):
+    return AGENT_ID
+  return claude_code_owner(model, api_base) if api_base else None
+
+
+def session_model(meta):
+  """The model label a session ran on and the collector that bills it, or
+  None when it names no model."""
+  config = obj(meta.get("config"))
+  model = resolve_model(config)
+  if not isinstance(model, dict):
+    return None
+  label = model_label(model.get("alias") or model.get("name"))
+  if label is None:
+    return None
+  return label, provider_owner(str(model.get("provider") or ""), config.get("providers"), str(model.get("name") or ""))
+
+
+def count_prompts(messages_path):
+  """The prompts typed into a session: user messages Vibe did not inject
+  itself, such as reminders and compaction summaries."""
+  prompts = 0
+  with messages_path.open("rb") as handle:
+    for raw in handle:
+      if b'"user"' not in raw:
+        continue
+      try:
+        message = json.loads(raw)
+      except ValueError:
+        continue
+      if not isinstance(message, dict) or message.get("role") != "user":
+        continue
+      if message.get("injected") is True or message.get("context_boundary"):
+        continue
+      prompts += 1
+  return prompts
+
+
+def file_signature(path):
+  try:
+    stat = path.stat()
+  except FileNotFoundError:
+    return None
+  return [stat.st_size, stat.st_mtime_ns]
+
+
+def parse_meta(meta_path, count_session_prompts):
+  """One session's index row: [startSeconds, model, input, output, cacheRead,
+  prompts, owner], or None when it names no model or used nothing.
+
+  Vibe keeps running totals per session, so the whole session is booked on
+  the day it started.
+  """
+  meta = json.loads(meta_path.read_text(encoding="utf-8"))
+  if not isinstance(meta, dict):
+    return None
+  routed = session_model(meta)
+  started = epoch_seconds(meta.get("start_time"))
+  if routed is None or started is None:
+    return None
+  model, owner = routed
+  stats = obj(meta.get("stats"))
+  prompt_tokens = token_count(stats.get("session_prompt_tokens"))
+  # Mistral reports cached prompt tokens inside prompt_tokens, as OpenAI does.
+  cached = min(token_count(stats.get("session_cached_tokens")), prompt_tokens)
+  completion = token_count(stats.get("session_completion_tokens"))
+  prompts = 0
+  messages = meta_path.parent / "messages.jsonl"
+  if count_session_prompts and messages.is_file():
+    prompts = count_prompts(messages)
+  if prompt_tokens + completion <= 0 and prompts <= 0:
+    return None
+  return [started, model, prompt_tokens - cached, completion, cached, prompts, owner]
+
+
+# ------------------------------------------------------- Unified Harness
+
+# Current Vibe runs every session on the Unified Harness, which keeps it in
+# <save_dir>/unified/<session id>/: CURRENT names the generation in force,
+# whose projection-state.json holds the session's public state as of that
+# generation, and the journal it names records every change since. The
+# session's running token totals live in that state; its meta.json only
+# names the model the session ran on.
+UNIFIED_DIR = "unified"
+DEFAULT_MODEL = {"alias": DEFAULT_MODEL_ALIAS, "name": "mistral-vibe-cli-latest", "provider": "mistral"}
+STORE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+JOURNAL_PATH = re.compile(r"^journal/[0-9]{16}\.jsonl$")
+CHUNK_DIGEST = re.compile(r"^[0-9a-f]{64}$")
+
+
+def store_json(path):
+  return json.loads(path.read_text(encoding="utf-8"))
+
+
+def store_name(value):
+  """A generation, file or session name from the store, or None when it
+  would leave the directory it names something in."""
+  if isinstance(value, str) and STORE_NAME.match(value) and value not in (".", ".."):
+    return value
+  return None
+
+
+def dict_entries(value):
+  return [entry for entry in value if isinstance(entry, dict)] if isinstance(value, list) else []
+
+
+def generation_document(generation_dir, described, default):
+  name = store_name(obj(described).get("path") or default)
+  if name is None:
+    raise ValueError(f"manifest names no {default}")
+  return obj(store_json(generation_dir / name))
+
+
+def unified_state(session_dir):
+  """The session's public state and the Harness's own metadata for it, with
+  its journal folded in, as (envelope, history entries, metadata)."""
+  current = obj(store_json(session_dir / "CURRENT"))
+  generation = store_name(current.get("generation"))
+  if generation is None:
+    raise ValueError("CURRENT names no generation")
+  generation_dir = session_dir / "generations" / generation
+  manifest = obj(store_json(generation_dir / "manifest.json"))
+  metadata = obj(generation_document(generation_dir, manifest.get("runtime_state"), "runtime-state.json").get("session_metadata"))
+  described = obj(manifest.get("projection_state"))
+  envelope = obj(generation_document(generation_dir, described, "projection-state.json").get("snapshot"))
+  entries = dict_entries(obj(envelope.get("history")).get("entries"))
+  # A long history is kept apart, in the store's chunk pool.
+  chunks = described.get("chunks")
+  if isinstance(chunks, list):
+    entries = []
+    for digest in chunks:
+      if not isinstance(digest, str) or not CHUNK_DIGEST.match(digest):
+        raise ValueError("manifest names a bad chunk")
+      entries.extend(dict_entries(store_json(session_dir / "chunks" / f"{digest}.json")))
+
+  journal = obj(manifest.get("recovery_journal_segment")).get("path")
+  if isinstance(journal, str) and JOURNAL_PATH.match(journal) and (session_dir / journal).is_file():
+    for raw in (session_dir / journal).read_bytes().splitlines(keepends=True):
+      # A record still being appended has no newline yet.
+      if not raw.endswith(b"\n"):
+        break
+      try:
+        record = obj(json.loads(raw))
+      except ValueError:
+        continue
+      payload = obj(record.get("payload"))
+      kind = record.get("type")
+      if kind == "projection_advanced" and isinstance(payload.get("snapshot"), dict):
+        envelope = payload["snapshot"]
+        entries = dict_entries(obj(envelope.get("history")).get("entries"))
+      elif kind in ("projection_delta", "session_relocated") and isinstance(payload.get("delta"), list):
+        for op in payload["delta"]:
+          entries, envelope = apply_projection_op(obj(op), entries, envelope)
+        if kind == "session_relocated" and isinstance(payload.get("metadata"), dict):
+          metadata = payload["metadata"]
+  return envelope, entries, metadata
+
+
+def apply_projection_op(op, entries, envelope):
+  """One step of a projection delta, applied as the Harness replays it."""
+  kind = op.get("op")
+  if kind == "append_entry" and isinstance(op.get("entry"), dict):
+    entries = [*entries, op["entry"]]
+  elif kind == "replace_entry" and isinstance(op.get("entry"), dict):
+    index = next((i for i, entry in enumerate(entries) if entry.get("id") == op.get("id")), None)
+    if index is not None:
+      entries = [*entries[:index], op["entry"], *entries[index + 1:]]
+  elif kind == "remove_entry":
+    entries = [entry for entry in entries if entry.get("id") != op.get("id")]
+  elif kind == "set_history_entries":
+    entries = dict_entries(op.get("entries"))
+  elif kind == "set_envelope" and isinstance(op.get("state"), dict):
+    envelope = op["state"]
+  return entries, envelope
+
+
+def unified_model(alias, config):
+  """The model label a Unified Harness session ran on and who bills it, as
+  session_model() reads them. The session names only the model's alias, so
+  the model and its provider come from config.toml, over Vibe's built-in
+  default. An alias the config no longer names keeps its label and goes
+  to no one, rather than to whichever model Vibe would fall back to."""
+  models = config.get("models")
+  if isinstance(models, dict):
+    models = list(models.values())
+  models = [*(models if isinstance(models, list) else []), DEFAULT_MODEL]
+  if isinstance(alias, str) and alias:
+    known = {str(entry.get("alias") or entry.get("name") or "") for entry in models if isinstance(entry, dict)}
+    if alias not in known:
+      label = model_label(alias)
+      return None if label is None else (label, None)
+  return session_model({"config": {"active_model": alias, "models": models, "providers": config.get("providers")}})
+
+
+def parse_unified(session_dir, config):
+  """One Unified Harness session's index row: [startSeconds, model, input,
+  output, cacheRead, prompts, session, owner], or None when it names no
+  model or used nothing.
+
+  A subagent is a session of its own in the store. It counts toward the
+  session that spawned it, and its prompts are that session's instructions
+  rather than anything typed. A fork is a session of its own, starting
+  from no usage, and the history it copied is not its prompts.
+  """
+  meta_path = session_dir / "meta.json"
+  meta = obj(store_json(meta_path)) if meta_path.is_file() else {}
+  envelope, entries, metadata = unified_state(session_dir)
+  # meta.json names the model Vibe resolved for the session; without one, the
+  # session's own pin, else the configured model, is the one it ran on.
+  alias = obj(meta.get("config")).get("active_model") or metadata.get("active_model") or config.get("active_model")
+  routed = unified_model(alias, config)
+  if routed is None:
+    return None
+  model, billed = routed
+  session = obj(envelope.get("session"))
+  started = epoch_seconds(meta.get("start_time")) or epoch_seconds(session.get("createdAt"))
+  if started is None:
+    return None
+  usage = obj(session.get("tokenUsage"))
+  # Cached prompt tokens are part of inputTokens, as the Harness checks.
+  input_tokens = token_count(usage.get("inputTokens"))
+  cached = min(token_count(usage.get("cachedInputTokens")), input_tokens)
+  output_tokens = token_count(usage.get("outputTokens"))
+  owner = session_dir.name
+  prompts = 0
+  if metadata.get("subagent_spawn_key"):
+    owner = store_name(metadata.get("root_session_id")) or store_name(session.get("rootSessionId")) or owner
+  else:
+    # The Harness leaves the turns Vibe injects out of the history, and marks
+    # what a fork copied as its own.
+    prompts = sum(1 for entry in entries if entry.get("type") == "message" and entry.get("role") == "user"
+                  and entry.get("source") in ("turn_start", "turn_steer"))
+  if input_tokens + output_tokens <= 0 and prompts <= 0:
+    return None
+  owner = session_dir.parent / owner
+  return [started, model, input_tokens - cached, output_tokens, cached, prompts, str(owner), billed]
+
+
+def unified_signature(session_dir, config_path):
+  journal_dir = session_dir / "journal"
+  journals = sorted(journal_dir.glob("*.jsonl")) if journal_dir.is_dir() else []
+  return [
+    file_signature(session_dir / "CURRENT"),
+    file_signature(session_dir / "meta.json"),
+    [[path.name, file_signature(path)] for path in journals],
+    file_signature(config_path),
+  ]
+
+
+def load_index(path):
+  data = read_json(path)
+  if data.get("version") == INDEX_VERSION and isinstance(data.get("files"), dict):
+    return data["files"]
+  return {}
+
+
+def harness_sources():
+  return scan_sources()
+
+
+def harness_match():
+  """What harness_rows() decided owners under, for cached_scan(match=...):
+  the models and providers in config.toml, which say where a Unified Harness
+  session went, so a scan made before a route changed never stands in for
+  one after it, in this collector or in local."""
+  config = vibe_config()
+  routes = json.dumps([config.get(key) for key in ("active_model", "models", "providers")], sort_keys=True, default=str)
+  return {"vibeRoutes": hashlib.sha256(routes.encode("utf-8", "surrogatepass")).hexdigest()[:16]}
+
+
+def harness_rows(owner, index_file=False):
+  """Vibe sessions that `owner` bills, from the Unified Harness store and the
+  session folders older releases wrote, and whether every session was read,
+  so a partial scan is never cached. With no index file named, the one
+  beside this collector's scan cache keeps the parsed sessions.
+
+  A session's subagents keep their own meta.json under its agents/ directory
+  with their own totals; they count toward the session that spawned them, and
+  their prompts are the parent's instructions rather than anything typed.
+  """
+  if index_file is False:
+    try:
+      index_file = index_path(scan_sources())
+    except Exception as exc:
+      warn(f"session index unavailable ({exc})")
+      index_file = None
+  save_dir, prefix = session_logging()
+  previous = load_index(index_file) if index_file else {}
+  current = {}
+  complete = True
+  rows = []
+  try:
+    session_dirs = sorted(path for path in save_dir.glob(f"{prefix}_*") if path.is_dir())
+  except OSError:
+    return rows, False
+
+  for session_dir in session_dirs:
+    metas = [session_dir / "meta.json"]
+    agents = session_dir / "agents"
+    if agents.is_dir():
+      metas.extend(sorted(agents.rglob("meta.json")))
+    for meta_path in metas:
+      key = str(meta_path)
+      top_level = meta_path.parent == session_dir
+      try:
+        signature = [file_signature(meta_path), file_signature(meta_path.parent / "messages.jsonl") if top_level else None]
+        if signature[0] is None:
+          continue
+        held = previous.get(key)
+        if isinstance(held, dict) and held.get("sig") == signature:
+          entry = held
+        else:
+          entry = {"sig": signature, "row": parse_meta(meta_path, top_level)}
+      except (OSError, ValueError, UnicodeDecodeError) as exc:
+        # Mid-write or unreadable: skip it this run, uncached.
+        warn(f"skipping {meta_path}: {type(exc).__name__}")
+        complete = False
+        continue
+      current[key] = entry
+      row = entry.get("row")
+      if row is None:
+        continue
+      try:
+        started, model, input_tokens, output_tokens, cache_read, prompts, billed = row
+        day = start_day(float(started))
+        counts = [int(input_tokens), int(output_tokens), int(cache_read), int(prompts)]
+      except (TypeError, ValueError, OverflowError, OSError):
+        continue
+      if billed == owner:
+        rows.append(UsageRow(day, str(session_dir), "", str(model), counts[0], counts[1], counts[2], 0, prompts=counts[3]))
+
+  config = vibe_config()
+  config_path = vibe_home() / "config.toml"
+  unified = save_dir / UNIFIED_DIR
+  try:
+    unified_dirs = sorted(path for path in unified.iterdir() if path.is_dir()) if unified.is_dir() else []
+  except OSError:
+    unified_dirs = []
+    complete = False
+  for session_dir in unified_dirs:
+    key = str(session_dir / "CURRENT")
+    try:
+      signature = unified_signature(session_dir, config_path)
+      # A session the Harness hasn't published yet has nothing to count.
+      if signature[0] is None:
+        continue
+      held = previous.get(key)
+      if isinstance(held, dict) and held.get("sig") == signature:
+        entry = held
+      else:
+        entry = {"sig": signature, "row": parse_unified(session_dir, config)}
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+      # Mid-write or unreadable: skip it this run, uncached.
+      warn(f"skipping {session_dir}: {type(exc).__name__}")
+      complete = False
+      continue
+    current[key] = entry
+    row = entry.get("row")
+    if row is None:
+      continue
+    try:
+      started, model, input_tokens, output_tokens, cache_read, prompts, session, billed = row
+      day = start_day(float(started))
+      counts = [int(input_tokens), int(output_tokens), int(cache_read), int(prompts)]
+    except (TypeError, ValueError, OverflowError, OSError):
+      continue
+    if billed == owner:
+      rows.append(UsageRow(day, str(session), "", str(model), counts[0], counts[1], counts[2], 0, prompts=counts[3]))
+
+  if index_file and current != previous:
+    try:
+      write_json(index_file, {"version": INDEX_VERSION, "files": current})
+    except Exception as exc:
+      warn(f"could not write session index ({exc})")
+  return rows, complete
+
+
+def tier_label():
+  """The plan from the newest whoami answer Vibe cached, named as Vibe's own
+  resolve_user_plan names it. A plan Vibe has no name for stays unnamed."""
+  entries = read_json(vibe_home() / "whoami_cache.json")
+  newest = None
+  for entry in entries.values():
+    entry = obj(entry)
+    stored = entry.get("stored_at_timestamp")
+    payload = obj(entry.get("payload"))
+    if isinstance(stored, bool) or not isinstance(stored, (int, float)) or not payload:
+      continue
+    if newest is None or stored > newest[0]:
+      newest = (stored, payload)
+  if newest is None:
+    return ""
+  kind = str(newest[1].get("plan_type") or "").strip().lower()
+  name = str(newest[1].get("plan_name") or "").strip().upper()
+  if kind == "chat":
+    return {"FREE": "Free", "INDIVIDUAL": "Pro", "EDU": "Student", "TEAM": "Team"}.get(name, "")
+  if kind == "mistral_code":
+    return {"F": "Free Codestral", "E": "Code Enterprise"}.get(name, "")
+  if kind == "api" and name:
+    return "Free API" if "FREE" in name else "PAYG API"
+  return ""
+
+
+# ---------------------------------------------------- pi, omp, and opencode
+
+
+# pi, omp, and opencode name the provider alike. Exact match: opencode
+# provider ids are free-form, and a custom gateway named like Mistral is not
+# Mistral's API.
+def billed_here(provider, model, entry):
+  return provider == PROVIDER
+
+
+def add_harness_rows(stats):
+  """Add pi/omp and opencode messages on the mistral provider. Returns
+  whether every source was read in full."""
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"mistral"', billed_here)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([PROVIDER + '"'], billed_here)
+  for row in pi_rows + db_rows:
+    model = model_label(row.model)
+    if model is not None:
+      stats.add_row(row, model)
+  return pi_complete and db_complete
+
+
+# ---------------------------------------------------------------- cache
+
+
+def scan_sources():
+  # Every data path the scan reads, so another home or Vibe directory never
+  # reuses this one's numbers.
+  save_dir, prefix = session_logging()
+  return [Path.home(), save_dir, prefix, opencode_db(), *pi_session_roots()]
+
+
+def index_path(sources):
+  # The per-session index lives beside the scan cache, under the same key.
+  cache_file, _ = scan_cache_paths(AGENT_ID, sources)
+  return cache_file.with_name(cache_file.name.replace(f"{AGENT_ID}-scan-", f"{AGENT_ID}-index-", 1))
+
+
+def run_scans(index_file):
+  stats = Stats()
+  rows, complete = harness_rows(AGENT_ID, index_file)
+  for row in rows:
+    stats.add_row(row, row.model)
+  complete = add_harness_rows(stats) and complete
+  return stats.snapshot(), complete
+
+
+def cached_local_stats(max_age):
+  sources = scan_sources()
+  try:
+    index_file = index_path(sources)
+  except Exception as exc:
+    warn(f"session index unavailable ({exc})")
+    index_file = None
+  return cached_scan(AGENT_ID, sources, max_age, lambda: run_scans(index_file), match=harness_match())
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Mistral Vibe usage record as JSON")
+  # --force rescans everything. --limits-only only promises fresh limits, and
+  # Mistral offers none, so it reuses a scan far longer than a normal run.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  stats = cached_local_stats(scan_max_age(args.force, args.limits_only))
+  tier = tier_label()
+
+  # Mistral publishes no usage limits, so there is nothing to wait for or
+  # fail at: the status stays empty and local stats show alone. A machine
+  # with neither Mistral usage nor a cached plan prints a record the panel
+  # skips.
+  in_use = stats["totalSessions"] > 0
+  record = base_record(AGENT_ID, AGENT_NAME, ready=in_use or bool(tier), hasLocalStats=in_use, tierLabel=tier)
+  record.update(stats)
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

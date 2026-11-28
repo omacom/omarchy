@@ -17,9 +17,14 @@ Item {
   property bool cursorActive: false
   property bool clearConfirmOpen: false
   property var history: []
+  property bool historyReady: false
+  property bool historyLoaded: false
+  property var pendingEntries: []
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
+  readonly property string imageDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/clipboard-images"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  property string sweepScript: root.omarchyPath + "/shell/plugins/clipboard/sweep.sh"
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -68,12 +73,58 @@ Item {
     return ClipboardHistory.entryKey(entry)
   }
 
+  function pruneRemovedImages(previousHistory, nextHistory) {
+    var removed = ClipboardHistory.removedImageEntries(previousHistory, nextHistory, root.imageDir)
+    if (removed.length === 0) return
+
+    var args = []
+    for (var i = 0; i < removed.length; i++)
+      args.push(removed[i].path, removed[i].inode)
+
+    // Serialize with capture.sh on the same lock and check the recorded inode
+    // so a delayed prune can never unlink a freshly re-captured copy of the
+    // same image hash.
+    Quickshell.execDetached([
+      "bash", "-c",
+      "dir=$1; shift\n" +
+      "[[ -d $dir ]] || exit 0\n" +
+      "(\n" +
+      "  flock 9 || exit 0\n" +
+      "  while (( $# >= 2 )); do\n" +
+      "    path=$1; expected_inode=$2; shift 2\n" +
+      "    [[ -f $path && ! -L $path ]] || continue\n" +
+      "    if [[ -n $expected_inode && $(stat -c '%i' -- \"$path\" 2>/dev/null) == \"$expected_inode\" ]]; then\n" +
+      "      rm -f -- \"$path\"\n" +
+      "    fi\n" +
+      "  done\n" +
+      ") 9>\"$dir/.lock\"\n",
+      "omarchy-clipboard-prune",
+      root.imageDir
+    ].concat(args))
+  }
+
   function loadHistory(raw) {
-    root.history = ClipboardHistory.parseHistory(raw)
+    if (root.historyLoaded) return
+    root.historyLoaded = true
+
+    var loaded = ClipboardHistory.parseHistory(raw)
+    var pending = root.pendingEntries
+    root.pendingEntries = []
+
+    var next = loaded
+    for (var i = 0; i < pending.length; i++)
+      next = ClipboardHistory.addEntry(next, pending[i], root.historyLimit)
+
+    root.history = next
+    if (pending.length > 0) {
+      root.pruneRemovedImages(loaded, next)
+      root.saveHistory()
+    }
     if (root.opened) root.rebuildDisplay()
   }
 
   function saveHistory() {
+    if (!root.historyLoaded) return
     historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
   }
 
@@ -81,7 +132,15 @@ Item {
     var normalized = ClipboardHistory.normalizeEntry(entry)
     if (!normalized) return
 
-    root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
+    if (!root.historyLoaded) {
+      root.pendingEntries = root.pendingEntries.concat([normalized])
+      return
+    }
+
+    var previous = root.history
+    var next = ClipboardHistory.addEntry(previous, normalized, root.historyLimit)
+    root.history = next
+    root.pruneRemovedImages(previous, next)
     root.saveHistory()
     if (root.opened) root.rebuildDisplay()
   }
@@ -103,7 +162,9 @@ Item {
   }
 
   function confirmClearHistory() {
+    var previous = root.history
     root.history = ClipboardHistory.clearHistory()
+    root.pruneRemovedImages(previous, root.history)
     root.saveHistory()
     root.selectedIndex = 0
     root.cursorActive = false
@@ -117,7 +178,9 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
-    root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
+    var previous = root.history
+    root.history = ClipboardHistory.removeEntryAt(previous, row.historyIndex)
+    root.pruneRemovedImages(previous, root.history)
     root.saveHistory()
 
     if (displayModel.count <= 1) {
@@ -255,24 +318,36 @@ Item {
     referenceItem: card
   }
 
+  // Sole writer: atomicWrites preserves the 0600 mode prepared by initProc,
+  // and omitting watchChanges avoids re-reading and re-parsing history on our
+  // own writes or unrelated changes under ~/.local/state/omarchy.
   FileView {
     id: historyFile
-    path: root.historyPath
-    watchChanges: true
+    path: root.historyReady ? root.historyPath : ""
     atomicWrites: true
     printErrors: false
-    onLoaded: root.loadHistory(text())
-    onLoadFailed: root.loadHistory("[]")
-    onFileChanged: reload()
+    onLoaded: if (root.historyReady) root.loadHistory(text())
+    onLoadFailed: if (root.historyReady) root.loadHistory("[]")
   }
 
-  // Reap watchers left behind by a previous shell instance, then start our
-  // own. The pdeathsig on the watchers makes the kernel kill them whenever
-  // the shell exits, however it exits, so no further lifecycle management.
+  // Prepare the private history file at 0600, reap watchers left behind by a
+  // previous shell instance, then load history and start our own watchers.
+  // The pdeathsig on the watchers makes the kernel kill them whenever the
+  // shell exits, however it exits, so no further lifecycle management.
   Process {
     id: initProc
-    command: ["pkill", "-f", "wl-paste .*--watch .*/shell/plugins/clipboard/capture\\.sh"]
+    command: ["bash", "-c",
+      "umask 077\n" +
+      "file=$1; dir=$2; sweep=$3\n" +
+      "mkdir -p -- \"$(dirname -- \"$file\")\" || true\n" +
+      "if [[ -L $file ]]; then rm -f -- \"$file\"; fi\n" +
+      "had_history=0\n" +
+      "if [[ -f $file ]]; then chmod 600 -- \"$file\"; had_history=1; elif [[ ! -e $file ]]; then printf '[]\\n' >\"$file\"; fi\n" +
+      "pkill -f 'wl-paste .*--watch .*/shell/plugins/clipboard/capture\\.sh' || true\n" +
+      "if (( had_history )) && [[ -d $dir ]]; then \"$sweep\" \"$file\" \"$dir\" || true; fi\n",
+      "omarchy-clipboard-init", root.historyPath, root.imageDir, root.sweepScript]
     onExited: {
+      root.historyReady = true
       currentProc.running = true
       textWatchProc.running = true
       imageWatchProc.running = true
@@ -542,6 +617,7 @@ Item {
               property var activeRow: displayModel.count > 0 && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
 
               Rectangle {
+                visible: displayModel.count > 0
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
@@ -583,6 +659,7 @@ Item {
 
           Column {
             anchors.centerIn: parent
+            width: parent.width - 2 * root.contentMargin
             spacing: Style.space(8)
             visible: displayModel.count === 0
 
@@ -593,7 +670,7 @@ Item {
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
               horizontalAlignment: Text.AlignHCenter
-              width: parent.width
+              anchors.horizontalCenter: parent.horizontalCenter
             }
 
             Text {
@@ -605,6 +682,7 @@ Item {
               font.pixelSize: Style.font.title
               horizontalAlignment: Text.AlignHCenter
               width: parent.width
+              elide: Text.ElideRight
             }
           }
         }

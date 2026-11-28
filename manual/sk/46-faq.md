@@ -1,8 +1,8 @@
-# Časté otázky
+# FAQ
 
-### Ako prepínam medzi rozloženiami klávesnice?
+### Ako prepínať medzi rozloženiami klávesnice?
 
-Upravte svoj súbor `~/.config/hypr/input.lua` a pridajte toto, ak chcete prepínať medzi rozloženiami skratkou `Left Alt + Right Alt`:
+Upravte súbor `~/.config/hypr/input.lua` a pridajte toto na prepínanie medzi rozloženiami pomocou `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Lišta automaticky ukáže vaše aktuálne rozloženie klávesnice, keď budete mať nakonfigurovaných viacero rozložení (a môžete na ňu kliknúť a prepnúť tiež).
+Panel automaticky zobrazí vaše aktuálne rozloženie klávesnice, keď budete mať nakonfigurovaných viac rozložení (a kliknutím naň môžete prepínať aj vy).
 
-### Ako zmením formát hodín na 12-hodinový?
+### Ako zmeniť formát hodín na 12-hodinový?
 
-Pravým tlačidlom myši kliknite na hodiny v lište, ak chcete prechádzať bežnými formátmi vrátane 12-hodinových. Formát môžete nastaviť aj priamo:
+Kliknite pravým tlačidlom na hodiny v paneli a cyklicky prepínajte medzi bežnými formátmi vrátane 12-hodinových. Formát môžete nastaviť aj priamo:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Tým sa zobrazí Sunday 10:55 AM.
+Zobrazí sa nedeľa 10:55 AM.
 
-### Ako zmením svoje časové pásmo?
+### Ako zmeniť časové pásmo?
 
-Spustite _Aktualizovať > Timezone_ v ponuke Omarchy a vyberte zo zoznamu. Ak je časové pásmo správne, ale hodiny samotné sa posunuli, _Aktualizovať > Time_ za vás reštartuje synchronizáciu času.
+Spustite _Nastavenie > Región > Časové pásmo_ v ponuke Omarchy a vyberte zo zoznamu. Ak je časové pásmo správne, ale samotné hodiny sa posunuli, _Aktualizácia > Čas_ za vás reštartuje synchronizáciu času.
 
-### Ako zmením svoje DNS, zdieľam svoju Wi-Fi alebo skontrolujem rýchlosť pripojenia?
+### Ako zmeniť DNS, zdieľať Wi-Fi alebo skontrolovať rýchlosť pripojenia?
 
-To všetko nájdete v časti [siete](35-networking.md).
+To všetko nájdete v časti [sieťové nastavenia](35-networking.md).
 
-### Ako skontrolujem, ako rýchly je môj disk?
+### Ako skontrolovať, aký rýchly je môj disk?
 
-_Akcie > Test rýchlosti > Test rýchlosti disku_ meria aktuálnu rýchlosť čítania a zápisu na vašom disku, alebo `omarchy disk speedtest` z terminálu.
+_Spúšťač > Test rýchlosti > Test rýchlosti disku_ meria aktuálnu rýchlosť čítania a zápisu na vašom disku, alebo `omarchy disk speedtest` z terminálu.
 
-### Prečo sa nemôžem prihlásiť do svojho účtu Google v prehliadači Chromium?
+### Ako pridať tlačiareň?
 
-Bežná open source zostava Chromium sa nedodáva s prihlasovacími údajmi OAuth, ktoré Google vyžaduje na prihlásenie do účtu. Spustite _Inštalovať > Service > Chromium Account_ v ponuke Omarchy, ak ich chcete pridať, reštartujte prehliadač a prihlásenie prejde.
+Tlač je nastavená a funguje hneď po vybalení a každú tlačiareň si pridáte sami z _Nastavenia tlače_ v spúšťači aplikácií (`Super + Alt + Space`).
 
-### Ako pridám tlačiareň?
+Vyberte _Pridať_ a chvíľu počkajte, kým sa vyhľadá: tlačiareň pripojená cez USB a väčšina sieťových tlačiarní sa nájde za vás. Ak vaša v zozname nie je, vyberte _Sieťová tlačiareň > Internet Printing Protocol (ipp)_ a zadajte jej adresu — displej samotnej tlačiarne alebo jej webová stránka vám povie, aká to je, zvyčajne niečo ako `192.168.1.50` s frontom `ipp/print`. _Ďalej_ potom ponúkne ovládač, pričom moderná tlačiareň funguje najlepšie na bezovládačovom profile _IPP Everywhere_ a staršia chce vlastný ovládač pre daný model.
 
-Tlač je nastavená a funguje hneď po vybalení a každú tlačiareň si pridáte sami z časti _Print Settings_ v spúšťači aplikácií (`Super + Space`).
+Kliknite pravým tlačidlom na tlačiareň a vyberte _Nastaviť ako predvolenú_, aby ste určili, po ktorej vaše aplikácie siahnu ako prvej, a _Vlastnosti_ na nastavenie veľkosti papiera, obojstrannej tlače a kvality.
 
-Vyberte _Add_ a dajte mu chvíľu na hľadanie: tlačiareň zapojená cez USB a väčšina sieťových tlačiarní sa nájde za vás. Ak vaša nie je v zozname, vyberte _Network Printer > Internet Printing Protocol (ipp)_ a zadajte jej adresu — vlastný displej tlačiarne alebo jej webová stránka vám povedia, aká je, zvyčajne niečo ako `192.168.1.50` s frontom `ipp/print`. _Forward_ potom ponúkne ovládač, pričom moderná tlačiareň funguje najlepšie na bezovládačovom profile _IPP Everywhere_ a staršia chce vlastný ovládač daného modelu.
+Automatické vyhľadávanie, pri ktorom sa tlačiarne v sieti objavia bez pridávania, je dočasne vypnuté, kým sa prepracúva, a preto je prvý krok vyššie na vás, nie automatický. Tlač do súboru PDF funguje aj úplne bez akejkoľvek tlačiarne.
 
-Pravým tlačidlom myši kliknite na tlačiareň a vyberte _Set as Default_, ak chcete určiť, po ktorej budú vaše aplikácie siahať ako po prvej, a _Properties_, ak chcete nastaviť veľkosť papiera, obojstrannú tlač a kvalitu.
+### Ako zmeniť, kam sa ukladajú snímky obrazovky alebo nahrávky obrazovky?
 
-Automatické objavovanie, pri ktorom sa tlačiarne v sieti objavia bez pridávania, je dočasne vypnuté, kým sa prepracúva, a preto je prvý krok vyššie na vás, nie automatický. Tlač do súboru PDF funguje úplne bez akejkoľvek tlačiarne.
-
-### Ako zmením, kam sa ukladajú snímky obrazovky alebo nahrávky obrazovky?
-
-Uložené snímky obrazovky predvolene idú do `~/Pictures/Screenshots`. Ak chcete použiť iný adresár, pridajte toto do súboru v `~/.config/uwsm/env.d/` (napríklad `~/.config/uwsm/env.d/capture`):
+Uložené snímky obrazovky idú predvolene do `~/Pictures/Screenshots`. Ak chcete použiť iný adresár, pridajte toto do súboru v `~/.config/uwsm/env.d/` (napríklad `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Rovnako môžete urobiť pre nahrávky obrazovky pomocou `OMARCHY_SCREENRECORD_DIR`.
+To isté môžete urobiť pre nahrávky obrazovky pomocou `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap si adresár snímok obrazovky vytvorí automaticky. Adresár nahrávok obrazovky si vytvorte sami a potom reštartujte Omarchy, aby sa ktorákoľvek zmena prostredia prejavila.
+Omasnap vytvorí svoj adresár pre snímky obrazovky automaticky. Adresár pre nahrávky obrazovky si vytvorte sami a potom reštartujte Omarchy, aby sa ktorákoľvek zmena prostredia prejavila.
 
-### Ako dosiahnem, aby fungovali reproduktory + webkamera na mojom Apple Studio Display?
+### Ako rozbehnúť reproduktory + webkameru na mojom Apple Studio Display?
 
-Človek by si myslel, že by to všetko malo fungovať len zapojením USB C, ale bohužiaľ to tak nie je. Riešenie, ktoré som našiel, aby to spoľahlivo fungovalo, je použiť [kábel WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Potom reproduktory a webkamera fungujú ako hodinky.
+Človek by čakal, že všetko bude fungovať len po zapojení USB C, ale bohužiaľ to tak nie je. Riešenie, ktoré som našiel a vďaka ktorému to funguje spoľahlivo, je použiť [kábel WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Potom reproduktory a webkamera fungujú ako po masle.
 
-Pamätajte, že jas displejov Apple (Studio aj XDR) máte v Omarchy vstavane ovládateľný pomocou bežných tlačidiel jasu na klávesnici.
+Pamätajte, že v Omarchy máte zabudované ovládanie jasu pre Apple displeje (Studio aj XDR) pomocou bežných klávesov na ovládanie jasu na klávesnici.
 
-### Ako sa zbavím všetkého dodatočného softvéru?
+### Ako sa zbaviť všetkého softvéru navyše?
 
-Ak nechcete programy ako Obsidian alebo LibreOffice ani žiadne iné predinštalované veci, môžete ich veľmi ľahko odstrániť.
+Ak nechcete programy ako Obsidian alebo LibreOffice alebo čokoľvek iné z predinštalovaných vecí, môžete ich veľmi jednoducho odstrániť.
 
-Spustite _Odstrániť > Package_, ak chcete vidieť každý nainštalovaný balík. Potom môžete klávesom tab vybrať každý balík, ktorý chcete odstrániť, a klávesom Enter začať odstraňovať všetko, čo ste vybrali.
+Spustite _Odstrániť > Balíček_, aby ste videli každý nainštalovaný balíček. Potom môžete klávesom tab vybrať ľubovoľný balíček, ktorý chcete odstrániť, a klávesom return začať odstraňovať všetko, čo ste vybrali.
 
-A z ponuky Omarchy môžete použiť _Odstrániť > Web App_ na odstránenie ľubovoľných predinštalovaných webových aplikácií, ktoré nechcete.
+A z ponuky Omarchy môžete použiť _Odstrániť > Webová aplikácia_ na odstránenie ktorejkoľvek z predinštalovaných webových aplikácií, ktoré nechcete.
 
-Alebo spustite _Odstrániť > Preinstalls_, ak chcete na jeden raz vymiesť všetky predinštalované doplnky — webové aplikácie, TUI a voliteľné aplikácie. Klávesové skratky, ktoré ich spúšťali, s nimi odídu tiež, takže vám zostane čistý stôl väzieb, ktoré môžete zaplniť vlastnými v `~/.config/hypr/bindings.lua`.
+Alebo spustite _Odstrániť > Predinštalované_ a jedným ťahom vymetiete všetky predinštalované doplnky — webové aplikácie, TUI a voliteľné aplikácie. Klávesové skratky, ktoré ich spúšťali, zmiznú spolu s nimi, takže vám zostane čistý štít skratiek, ktorý si zaplníte vlastnými v `~/.config/hypr/bindings.lua`.
 
 ---
 
-Pre chyby a pokazené časti pozrite časť [Riešenie problémov](45-troubleshooting.md).
+Pre chyby a pokazené veci pozrite [časť Riešenie problémov](45-troubleshooting.md).

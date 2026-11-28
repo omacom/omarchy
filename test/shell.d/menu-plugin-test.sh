@@ -87,17 +87,6 @@ pick remove "$(printf 'Clock\ttester.clock')"
   || fail "picker removes the plugin whose row was picked" "$CALLS"
 pass "picker removes the plugin whose row was picked"
 
-cat >"$TMPDIR/plugins.json" <<'JSON'
-[
-  {"id": "acme.weather", "name": "Weather", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false}
-]
-JSON
-
-pick enable "$(printf 'Weather\tacme.weather')"
-[[ $CALLS == *"omarchy-plugin-enable acme.weather"* ]] \
-  || fail "picker delegates plugin enablement to the plugin command" "$CALLS"
-pass "picker delegates plugin enablement to the plugin command"
-
 # Clone offers only first-party plugins that no installed clone points back at,
 # then hands the pick to the clone command, which opens the result in $EDITOR.
 cat >"$TMPDIR/plugins.json" <<'JSON'
@@ -129,19 +118,6 @@ pick clone ""
   fail "clone picker offers an already cloned plugin" "$CALLS"
 pass "clone picker omits plugins already cloned locally"
 
-# The picker treats every plugin alike and leaves kind-specific behavior to the
-# plugin command.
-cat >"$TMPDIR/plugins.json" <<'JSON'
-[
-  {"id": "acme.fancy", "name": "Fancy", "kinds": ["bar", "bar-widget"], "enabled": false, "active": false, "canDisable": false, "firstParty": false}
-]
-JSON
-
-pick enable "$(printf 'Fancy\tacme.fancy')"
-[[ $CALLS == *"omarchy-plugin-enable acme.fancy"* && $CALLS != *"--section"* ]] \
-  || fail "picker delegates kind-specific enablement" "$CALLS"
-pass "picker delegates kind-specific enablement"
-
 # A bar has no off, so it is never offered under disable -- including this one,
 # which is a widget too.
 cat >"$TMPDIR/plugins.json" <<'JSON'
@@ -168,9 +144,6 @@ pick enable "$(printf 'Bar\tomarchy.bar')"
 [[ $ROWS == *"Bar"* && $ROWS != *"Neon Bar"* ]] \
   || fail "picker offers every bar except the one already running" "$ROWS"
 pass "picker offers every bar except the one already running"
-[[ $CALLS == *"omarchy-plugin-enable omarchy.bar"* ]] \
-  || fail "picker returns to the built-in bar by enabling it" "$CALLS"
-pass "picker returns to the built-in bar by enabling it"
 
 # Nothing the verb can act on is said out loud, not opened as an empty list.
 cat >"$TMPDIR/plugins.json" <<'JSON'

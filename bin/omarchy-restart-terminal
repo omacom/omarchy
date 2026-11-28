@@ -6,10 +6,9 @@ if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
   touch ~/.config/alacritty/alacritty.toml
 fi
 
-if pgrep -x kitty >/dev/null; then
-  killall -SIGUSR1 kitty >/dev/null
-fi
+# pkill exits 1 when a terminal is not running: nothing to reload, not a failure.
+pkill -SIGUSR1 -x kitty
+(( $? <= 1 )) || exit $?
 
-if pgrep -x ghostty >/dev/null; then
-  killall -SIGUSR2 ghostty
-fi
+pkill -SIGUSR2 -x ghostty
+(( $? <= 1 ))

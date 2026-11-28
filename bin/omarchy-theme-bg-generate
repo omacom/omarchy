@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Draw a theme background from its colors and the Omarchy mark
+# omarchy:args=<theme-dir>
+# omarchy:hidden=true
+
+# A theme with no backgrounds of its own, because omarchy-themes-backgrounds
+# isn't installed or the theme ships none, still gets one: the Omarchy mark in
+# the theme's accent, centered on its background color, as backgrounds/omarchy.png.
+
+theme=${1:?Usage: omarchy-theme-bg-generate <theme-dir>}
+
+background=$(omarchy-theme-color --file "$theme/colors.toml" background 2>/dev/null)
+accent=$(omarchy-theme-color --file "$theme/colors.toml" accent 2>/dev/null)
+if [[ -z $background || -z $accent ]]; then
+  echo "omarchy-theme-bg-generate: $theme/colors.toml names no background and accent" >&2
+  exit 1
+fi
+
+mkdir -p "$theme/backgrounds"
+magick -size 3840x2160 "xc:$background" \
+  -font omarchy -pointsize 432 -fill "$accent" -gravity center -annotate +0+0 $'' \
+  "$theme/backgrounds/omarchy.png"

@@ -26,9 +26,9 @@
 local paths = require("default.hypr.paths")
 
 local SLOTS = 10
-local STATE_DIR = paths.state_home .. "/omarchy"
-local STATE_FILE = STATE_DIR .. "/monitor-workspaces"
-local MERGED_FILE = STATE_DIR .. "/monitor-workspaces-merged"
+local STATE_DIR = paths.state_home .. "/omarchy/monitors"
+local STATE_FILE = STATE_DIR .. "/workspaces"
+local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
 
 local M = { slots = SLOTS }
 
@@ -216,6 +216,12 @@ local function identities_of(monitors)
   return identities
 end
 
+-- Each connected monitor's identity, keyed by connector, for settings that
+-- belong to the physical monitor rather than the port (see monitor-settings).
+function M.identities()
+  return identities_of(connected())
+end
+
 local function free_block()
   local taken = {}
   for _, block in pairs(blocks) do
@@ -352,15 +358,17 @@ end
 -- over there.
 local function reclaim(monitor, id)
   local workspace = hl.get_workspace(id)
-  if not workspace or not workspace.monitor or workspace.monitor.name == monitor.name then
+  if not workspace or (workspace.monitor and workspace.monitor.name == monitor.name) then
     return
   end
 
   local away = workspace.monitor
   hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = monitor.name }))
 
-  local monitors = connected()
-  settle(away, monitors, assign(monitors))
+  if away then
+    local monitors = connected()
+    settle(away, monitors, assign(monitors))
+  end
 end
 
 -- Renumber a workspace into a block, keeping its slot when that one is free and
@@ -692,8 +700,14 @@ hl.on("monitor.added", function(monitor)
   M.reconcile(monitor and monitor.name)
 end)
 
+-- Hyprland reports the removal from inside the monitor's teardown, where moving
+-- workspaces or focus onto a monitor that was mirroring it crashes Hyprland, so
+-- reconcile once the teardown has returned.
 hl.on("monitor.removed", function(monitor)
-  M.reconcile(nil, monitor and monitor.name)
+  local name = monitor and monitor.name
+  hl.timer(function()
+    M.reconcile(nil, name)
+  end, { type = "oneshot", timeout = 1 })
 end)
 
 o.workspaces = M

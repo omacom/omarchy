@@ -4,9 +4,14 @@
 # omarchy:requires-sudo=true
 
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
+RESUME_REBUILD_PENDING="/var/lib/omarchy/hibernation-resume-rebuild"
+SWAP_SUBVOLUME="/swap"
+SWAP_FILE="$SWAP_SUBVOLUME/swapfile"
 
-# Check if hibernation is configured
-if [[ ! -f $MKINITCPIO_CONF ]] || ! grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
+# Check if hibernation is configured (including partial setup or stale resume parameters)
+if ! grep -qs "^HOOKS+=(resume)$" "$MKINITCPIO_CONF" &&
+  [[ -z $(omarchy-boot-cmdline get resume) && ! -f $RESUME_REBUILD_PENDING && ! -f $SWAP_FILE ]] &&
+  ! grep -Fq "$SWAP_FILE" /etc/fstab 2>/dev/null; then
   echo "Hibernation is not set up"
   exit 0
 fi
@@ -14,9 +19,6 @@ fi
 if ! gum confirm "Remove hibernation setup?"; then
   exit 0
 fi
-
-SWAP_SUBVOLUME="/swap"
-SWAP_FILE="$SWAP_SUBVOLUME/swapfile"
 
 # Disable swap if active
 if swapon --show | grep -q "$SWAP_FILE"; then
@@ -44,11 +46,29 @@ if grep -Fq "$SWAP_FILE" /etc/fstab; then
   sudo sed -i '/^# Btrfs swapfile for system hibernation$/d' /etc/fstab
 fi
 
-# Remove mkinitcpio resume hook
-echo "Removing resume hook"
-sudo rm "$MKINITCPIO_CONF"
+# Remove mkinitcpio resume hook and the kernel parameters setup added
+rebuild_initramfs=false
+if [[ -f $MKINITCPIO_CONF ]]; then
+  echo "Removing resume hook"
+  sudo rm -f "$MKINITCPIO_CONF" || exit 1
+  rebuild_initramfs=true
+fi
 
-echo "Regenerating initramfs..."
-sudo limine-mkinitcpio
+if [[ -n $(omarchy-boot-cmdline get resume) || -f $RESUME_REBUILD_PENDING ]]; then
+  echo "Removing resume kernel parameters"
+  sudo omarchy-boot-cmdline unset resume || exit 1
+  sudo rm -f "$RESUME_REBUILD_PENDING" || exit 1
+  rebuild_initramfs=true
+fi
+
+if [[ -n $(omarchy-boot-cmdline get rtc-alarm) ]]; then
+  sudo omarchy-boot-cmdline unset rtc-alarm || exit 1
+  rebuild_initramfs=true
+fi
+
+if $rebuild_initramfs; then
+  echo "Regenerating initramfs..."
+  sudo omarchy-boot-rebuild
+fi
 
 echo "Hibernation removed"

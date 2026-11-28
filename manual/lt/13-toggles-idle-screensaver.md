@@ -1,50 +1,54 @@
 # Perjungikliai, tuščioji eiga ir ekrano užsklanda
 
-Daugelis to, ką keičiate kiekvieną dieną, nėra tikra nuostata. Tai režimas, kurį įjungiate valandai ir vėl išjungiate: naktinė šviesa, kai dirbate vėlai, netrukdyti, kai pristatote, nemiegoti, kai ką nors žiūrite. Omarchy juos vadina perjungikliais ir jie visi veikia vienodai — spartusis klavišas, meniu įrašas ir komanda, visi smogiantys į tą patį jungiklį.
+Daug kas, ką keiti kasdien, iš tikrųjų nėra nustatymas. Tai režimas, kurį įjungi valandai ir vėl išjungi: naktinė šviesa, kai dirbi vėlai, netrukdymo režimas, kai pristatai, budėjimo režimas, kai ką nors žiūri. Omarchy juos vadina perjungikliais, ir jie visi veikia vienodai — spartusis klavišas, meniu įrašas ir komanda, visi kreipiasi į tą patį jungiklį.
 
-### Perjungimo meniu
+### Perjungiklių meniu
 
-`Super + Ctrl + O` atidaro _Veiksmai > Perjungti_ tiesiogiai, arba galite ten nueiti iš Omarchy meniu (`Super + Space`). Viskas tame sąraše yra jungiklis, kurį galite perjungti negalvodami, kur gyvena būsena. Jungikliai, kaip darbalaukis atrodo, yra šalia, po _Veiksmai > Išvaizda_.
+`Super + Ctrl + O` tiesiogiai atveria _Trigger > Toggle_, arba gali ten nueiti iš Omarchy meniu (`Super + Space`). Viskas tame sąraše yra jungiklis, kurį gali perjungti negalvodamas, kur saugoma būsena. Jungikliai, kaip atrodo darbalaukis, yra šalia, skiltyje _Appearance_.
 
-Iš terminalo tie patys jungikliai yra `omarchy toggle <thing>`. Paleiskite `omarchy toggle` atskirai, kad pamatytumėte visą grupę.
+Iš terminalo tie patys jungikliai yra `omarchy toggle <thing>`. Paleisk `omarchy toggle` patį savaime, kad pamatytum visą grupę.
 
 | Perjungiklis | Spartusis klavišas | Komanda |
 | ------ | ------ | ------- |
-| Naktinė šviesa | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Nutildyti pranešimus | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
-| Nemiegoti (be užrakinimo tuščiojoje eigoje) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Naktinė šviesa | — | `omarchy toggle nightlight` |
+| Nutildyti pranešimus | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Likti budriam (be užrakinimo dėl tuščiosios eigos) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Strigčių fiksavimas | — | `omarchy toggle crash-capture` |
 | Ekrano užsklanda | — | `omarchy toggle screensaver` |
-| [Herdr](https://herdr.dev) temos sinchronizacija | — | `omarchy toggle theme sync` |
+| [Herdr](https://herdr.dev) temos sinchronizavimas | — | `omarchy toggle theme sync` |
 | Meniu juosta | `Super + Shift + Space` | `omarchy toggle bar` |
-| Jutiklinis kilimėlis | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Lietimui jautrus ekranas | — | `omarchy toggle touchscreen` |
-| Pristabdyti | — | `omarchy toggle suspend` |
-| Hybrid GPU | — | `omarchy toggle hybrid gpu` |
+| Viso ekrano darbalaukis (be juostos, be tarpų) | `Super + Ctrl + Alt + F` | `omarchy toggle fullscreen desktop` |
+| Animacijos, suliejimas ir šešėliai | — | `omarchy toggle animations` |
+| Jutiklinė aikštelė | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Jutiklinis ekranas | — | `omarchy device touchscreen` |
+| Sustabdymas | — | `omarchy toggle suspend` |
+| Hibridinis GPU | — | `omarchy device gpu hybrid` |
 
-Jutiklinio kilimėlio, lietimui jautraus ekrano ir Hybrid GPU jungikliai gyvena po _Veiksmai > Aparatinė įranga_ (`Super + Ctrl + H`), o ne po Perjungti, nes jie pasirodo tik kai iš tikrųjų turite tą aparatinę įrangą. Jutiklinio kilimėlio ir lietimui jautraus ekrano jungikliai išlieka po Hyprland perkrovimo — išjungto įrenginio pavadinimas išsaugomas mažame būsenos faile, kurį Hyprland paleidžiant perskaito, kad vėl jį išjungtų.
+Jutiklinės aikštelės, jutiklinio ekrano ir hibridinio GPU jungikliai yra skiltyje _Trigger > Hardware_ (`Super + Ctrl + H`), o ne skiltyje Toggle, nes jie rodomi tik tada, kai iš tikrųjų turi tą aparatinę įrangą. Jutiklinės aikštelės ir jutiklinio ekrano jungikliai išlieka po Hyprland perkrovimo — išjungto įrenginio pavadinimas įrašomas į mažą būsenos failą, kurį Hyprland perskaito paleidžiant, kad vėl jį išjungtų.
 
-_Veiksmai > Išvaizda_ laiko meniu juostą ir animacijas, plius keletą dalykų, kurie nėra `omarchy toggle` komandos, bet elgiasi vienodai: akumuliatoriaus procentai juostoje, numatytasis darbo srities išdėstymas, langų tarpai (`Super + Shift + Backspace`) ir 1 lango kvadratinis kraštinių santykis (`Super + Ctrl + Backspace`).
+_Appearance_ saugo meniu juostą ir animacijas, taip pat kelis dalykus, kurie nėra `omarchy toggle` komandos, bet elgiasi taip pat: akumuliatoriaus procentus juostoje, numatytąjį darbo sričių išdėstymą ir skiltyje _Windows_ — langų tarpus (`Super + Shift + Backspace`) bei 1 lango kvadratinį kraštinių santykį (`Super + Ctrl + Backspace`).
 
-Daugelis jų yra tik žymos failas po `~/.local/state/omarchy/toggles/`. Jei norite scenarijuje nuo jo šakotis, `omarchy-toggle-enabled` jums duoda išėjimo kodą, užuot vertęs jus ieškoti:
+Kai Hyprland neturi GPU, su kuriuo galėtų piešti, ir vietoj to atvaizduoja naudodamas CPU (llvmpipe), kaip Mac kompiuteriuose, kurių GPU dar nepalaikomas, daugumoje virtualių mašinų arba kai nepavyksta įkelti grafikos tvarkyklės, Omarchy tai sesijai išjungia animacijas, suliejimą ir šešėlius ir vieną kartą apie tai praneša pranešimu. _Appearance > Animations On_ juos sugrąžina, ir Omarchy tai prisimena ir vėlesnėms sesijoms.
+
+Dauguma jų tėra žymos failas kataloge `~/.local/state/omarchy/toggles/`. Jei scenarijuje nori pagal jį šakotis, `omarchy-toggle-enabled` pateikia išėjimo kodą, užuot vertęs tavęs jo ieškoti:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Žymos pavadintos pagal išjungtą būseną — `screensaver-off`, `suspend-off`, `bar-off` — todėl jų buvimas reiškia, kad funkcija yra išjungta.
+Žymos pavadintos pagal išjungtą būseną — `screensaver-off`, `suspend-off`, `bar-off` — todėl jų buvimas reiškia, kad funkcija išjungta.
 
 ### Indikatoriai juostoje
 
-Kai režimas įjungtas, viršutinės juostos viduryje šalia laikrodžio gaunate mažą glifą. Tai indikatorių valdiklis ir jame yra diktavimas, ekrano įrašas, laukiantys priminimai, naktinė šviesa, netrukdyti ir nemiegoti.
+Kai režimas įjungtas, viršutinės juostos viduryje šalia laikrodžio gauni mažą glifą. Tai indikatorių valdiklis, ir jame yra ekrano įrašymas, laukiantys priminimai, naktinė šviesa, netrukdymo režimas ir budėjimo režimas, taip pat įspėjimai, kol įjungtas sudo be slaptažodžio arba kas nors prisijungęs prie nuotolinės sesijos.
 
-Neaktyvūs indikatoriai yra paslėpti. Užveskite ant srities aplink juos ir jie blankiai pasirodo, todėl galite spustelėti vieną, kad jį įjungtumėte, nežinodami jo sparčiojo klavišo. Spustelėjus aktyvų, jis vėl išjungiamas. Jei mieliau norėtumėte juos visus matyti visą laiką, nustatykite `alwaysShow` į `true` ant `omarchy.indicators` įrašo `~/.config/omarchy/shell.json` — kaip konfigūruojami juostos valdikliai, žr. [viršutinę juostą](05-the-top-bar.md).
+Neaktyvūs indikatoriai paslėpti. Užvesk pelę bet kur ant juostos ir jie blankiai pasirodys, kad galėtum spustelėti vieną ir jį įjungti nežinodamas jo sparčiojo klavišo. Spustelėjus aktyvų, jis vėl išjungiamas. Jei verčiau norėtum juos visus matyti visą laiką, nustatyk `alwaysShow` į `true` įraše `omarchy.indicators` faile `~/.config/omarchy/shell.json` — žr. [viršutinę juostą](05-the-top-bar.md), kaip konfigūruojami juostos valdikliai.
 
 ### Naktinė šviesa
 
-`Super + Ctrl + N` pašildo ekraną iki 4000K, o paspaudus dar kartą grąžina jį į 6500K. Jį valdo hyprsunset, kurį perjungiklis jums paleidžia, jei jis dar neveikia.
+Naktinė šviesa pašildo ekraną iki 4000K, o perjungus ją dar kartą, grąžinama 6500K. Perjunk ją iš perjungiklių meniu (`Super + Ctrl + O`) arba su `omarchy toggle nightlight`. Ją valdo hyprsunset, kurį perjungiklis paleidžia už tave, jei jis dar neveikia.
 
-Pagal numatytuosius nustatymus hyprsunset visai nieko nedaro jūsų ekranui. `~/.config/hypr/hyprsunset.conf` pateikiamas su tapatybės profiliu būtent tam, kad ekranas liktų nepaliestas, kol nepaprašysite šilumos. Jei mieliau norėtumėte, kad jis persijungtų pagal laikrodį, pakeiskite tai laiko profiliu:
+Pagal numatytuosius nustatymus hyprsunset tavo ekranui nedaro nieko. `~/.config/hypr/hyprsunset.conf` pateikiamas su tapatybės profiliu būtent tam, kad ekranas liktų nepaliestas, kol nepaprašysi šilumos. Jei verčiau norėtum, kad jis persijungtų pagal laikrodį, pakeisk jį laiko profiliu:
 
 ```
 profile {
@@ -53,19 +57,19 @@ profile {
 }
 ```
 
-Tada paleiskite hyprsunset prisijungus pridėdami `o.launch_on_start("hyprsunset")` į `~/.config/hypr/autostart.lua`. Perjungiklio naudojama 4000K/6500K pora yra fiksuota, todėl konfigūracijos failas yra ta vieta, kur einate, jei norite kitokios temperatūros.
+Tada paleisk hyprsunset prisijungus, pridėdamas `o.launch_on_start("hyprsunset")` į `~/.config/hypr/autostart.lua`. Perjungiklio naudojama 4000K/6500K pora yra fiksuota, todėl konfigūracijos failas yra ta vieta, kur eiti, jei nori kitokios temperatūros.
 
 ### Netrukdyti
 
-`Super + Ctrl + ,` nutildo pranešimus. Kol jis įjungtas, jokie skrebučiai nepasirodo, o perbraukto varpelio indikatorius yra juostoje, kad primintų, kodėl darbalaukis nutilo.
+`Super + Ctrl + Alt + ,` nutildo pranešimus. Kol jis įjungtas, neiššoka jokie pranešimai, o perbraukto varpelio indikatorius juostoje primena, kodėl darbalaukis nutylo.
 
-Tačiau niekas neprarandama. Nutildytas pranešimas įrašomas tiesiai į jūsų pranešimų istoriją, o tai yra būtent tas įrašas, kurio norite, kai grįžtate ir galvojate, ką praleidote. Atidarykite ją su `Super + Shift + Alt + ,`. Likusią pranešimų istorijos dalį žr. [pastabose](10-notices.md).
+Vis dėlto niekas neprarandama. Nutildyti pranešimai sulaikomi: paskutinius kelis vėl parodyk ekrane su `Super + Shift + Alt + ,`. Žr. [pranešimus](10-notices.md) dėl likusios dalies.
 
-Dviejų rūšių pranešimai vis tiek praeina: pačios Omarchy patvirtinimo skrebučiai dėl to, ką ką tik padarėte („Tema pakeista“, „Ekrano nuotrauka išsaugota“), ir kritiniai perspėjimai, siunčiami iš komandinės eilutės. Pokalbių programos, kurios viską pažymi kritiniu, kad prisiverstų prieš jus, neatitinka reikalavimų.
+Triejų rūšių pranešimai vis tiek prasiskverbia: patys Omarchy patvirtinimo pranešimai apie tai, ką ką tik padarei ("Theme changed", "Screenshot saved"), kritiniai įspėjimai, siunčiami iš komandinės eilutės, ir patvirtinimo kodai. Pokalbių programėlės, kurios viską žymi kaip kritinius, kad priverstų save iškilti prieš tave, netinka.
 
 ### Tuščioji eiga
 
-Omarchy apvalkalas valdo tuščiosios eigos elgseną, o laikai yra aukščiausio lygio `idle` blokas `~/.config/omarchy/shell.json`:
+Omarchy apvalkalas valdo tuščiosios eigos elgseną, o trukmės yra aukščiausio lygio `idle` blokas faile `~/.config/omarchy/shell.json`:
 
 ```json
 {
@@ -77,26 +81,26 @@ Omarchy apvalkalas valdo tuščiosios eigos elgseną, o laikai yra aukščiausio
 }
 ```
 
-Abu skaičiai yra sekundės, skaičiuojamos nuo momento, kai nuėjote į tuščiąją eigą — ne vienas nuo kito. Taigi su numatytaisiais nustatymais ekrano užsklanda pasirodo po dviejų su puse minučių, o užrakinimo ekranas perima po penkių minučių, nesvarbu, ar ekrano užsklanda veikė. Išsaugokite failą ir apvalkalas iš karto pritaikys naujus laikus.
+Abu skaičiai yra sekundės, skaičiuojamos nuo momento, kai tapai neaktyvus — ne vienas nuo kito. Taigi su numatytosiomis reikšmėmis ekrano užsklanda pasirodo po dviejų su puse minutės, o užrakinimo ekranas perima po penkių minučių, nepriklausomai nuo to, ar ekrano užsklanda veikė. Įrašyk failą ir apvalkalas iš karto perims naujas trukmes.
 
-Jei ekrano užsklandą atmesite prieš užrakinimo terminą, tai skaičiuojama kaip veikla ir laukiantis užraktas atšaukiamas. Jūs neužrakinami už tai, kad pažvelgėte į savo kompiuterį.
+Jei atmesi ekrano užsklandą prieš užrakinimo terminą, tai laikoma aktyvumu ir laukiantis užrakinimas atšaukiamas. Nebūsi užrakintas už tai, kad žvilgtelėjai į savo kompiuterį.
 
-Norėdami visiškai sustabdyti užrakinimą tuščiojoje eigoje, `Super + Ctrl + I` — arba `omarchy toggle idle` — įjungia nemiegoti, o juostoje pasirodo kavos puodelio indikatorius. Tai tas, kurį reikia paspausti prieš ilgą pristatymą arba rinkinį, kurį norite stebėti. Paspauskite jį dar kartą, kad grįžtumėte į normalią būseną. `omarchy toggle idle status` atspausdina dabartinę būseną kaip JSON, jei jums jos reikia iš scenarijaus.
+Norėdamas visiškai sustabdyti užrakinimą dėl tuščiosios eigos, `Super + Ctrl + I` — arba `omarchy toggle idle` — įjungia budėjimo režimą, ir juostoje pasirodo kavos puodelio indikatorius. Tai tas, kurį reikia paspausti prieš ilgą pristatymą ar kompiliavimą, kurį nori stebėti. Paspausk jį dar kartą, kad grįžtum į įprastą režimą. `omarchy toggle idle status` atspausdina dabartinę būseną kaip JSON, jei jos reikia iš scenarijaus.
 
-Tai apie užrakinimą ir ekrano užsklandą, ne apie maitinimą. Pristabdymas ir užmigdymas turi savo sąranką [sistemos miege](36-system-sleep.md).
+Tai susiję su užrakinimu ir ekrano užsklanda, o ne su maitinimu. Sustabdymas ir užmigdymas turi savo sąranką skyriuje [sistemos miegas](36-system-sleep.md).
 
 ### Ekrano užsklanda
 
-Omarchy ekrano užsklanda yra ASCII menas, leidžiamas per atsitiktinius teksto efektus, po vieną egzempliorių kiekvienam monitoriui. Bet kuris klavišas arba pelės judesys ją užbaigia.
+Omarchy ekrano užsklanda yra ASCII menas, leidžiamas per atsitiktinius teksto efektus, po vieną egzempliorių kiekvienam monitoriui. Bet koks klavišas ar pelės judesys iš jos išeina.
 
-Galite ją paleisti pagal pareikalavimą iš _Sistema > Ekrano užsklanda_ (`Super + Esc`), kuri priverčia ją pasirodyti, net jei išjungėte tuščiosios eigos ekrano užsklandą. Pagal numatytuosius nustatymus su ja nėra susietas joks spartusis klavišas.
+Gali ją paleisti pagal poreikį iš _System > Screensaver_ (`Super + Esc`), kas priverstinai ją parodo, net jei išjungei tuščiosios eigos ekrano užsklandą. Pagal numatytuosius nustatymus jai nepriskirtas joks spartusis klavišas.
 
-`omarchy toggle screensaver` išjungia tuščiosios eigos, jei mieliau norėtumėte eiti tiesiai iš darbo į užrakintą. Jam reikia terminalo, kurį jis žino, kaip konfigūruoti — Alacritty, Foot, Ghostty arba Kitty — ir jis jums tai pasakys, jei jūsų numatytasis terminalas yra kažkas kita.
+`omarchy toggle screensaver` išjungia tuščiosios eigos užsklandą, jei verčiau norėtum eiti tiesiai nuo darbo prie užrakinto ekrano. Bet koks klavišas, spustelėjimas, slinkimas ar pelės judesys ją uždaro.
 
-Logotipą, kurį ji piešia, galite keisti po _Stilius > Ekrano užsklanda_. Įkelkite png arba svg ir Omarchy pavers jį ASCII. Žr. [prekės ženklą](41-branding.md).
+Jos piešiamą logotipą gali keisti skiltyje _Appearance > Branding > Screensaver_. Įkelk png arba svg ir Omarchy jį pavers į ASCII. Žr. [prekės ženklą](41-branding.md).
 
 ### Užrakinimo ekranas
 
-`Super + Ctrl + L` užrakina kompiuterį. Tai paleidžia užrakinimo ekraną iš Omarchy apvalkalo, užtušuoja ekraną, atstato jūsų klaviatūros išdėstymą į pirmąjį, kad nerašytumėte slaptažodžio neteisinga abėcėle, ir — jei jis veikia — išeidamas užrakina 1Password.
+`Super + Ctrl + L` užrakina kompiuterį. Tai paleidžia užrakinimo ekraną iš Omarchy apvalkalo, užtamsina ekraną, atstato klaviatūros išdėstymą į pirmąjį, kad nerašytum slaptažodžio netinkama abėcėle, ir — jei turi ją paleistą — pakeliui užrakina 1Password.
 
-Užrakinimo ekranas priima slaptažodį ir taip pat priims piršto antspaudą, kai jį nustatysite. Tai ir kiti autentifikavimo būdai aptarti [aparatinės įrangos autentifikavime](37-hardware-authentication.md).
+Užrakinimo ekranas priima slaptažodį, ir priims ir piršto atspaudą, kai jį būsi nustatęs. Tai ir kiti autentifikavimo būdai aptariami skyriuje [aparatinės įrangos autentifikavimas](37-hardware-authentication.md).

@@ -1,29 +1,29 @@
-# Omarchy 在……上運行
+# Omarchy 在...
 
-### Apple M1/M2 晶片
+### Apple Silicon Mac
 
-[Asahi Alarm](https://asahi-alarm.org/) 是建立在 [Asahi Linux](https://asahilinux.org/) 之上的 Arch 版本，適用於 Apple M1/M2 電腦。你花一些力氣就能讓 Omarchy 在它上面運行。請參閱[使用者主導的指南](https://github.com/omarchy-mac/omarchy-mac)。
+適用於 Apple Silicon 的 Omarchy 可在 M1、M2 與 M3 Mac 上執行，並安裝在 macOS 旁邊。請參閱 Mac 支援章節中的 [適用於 Apple Silicon 的 Omarchy](44-mac-support.md#omarchy-for-apple-silicon)。
 
-### Apple 虛擬機器
+### 在 Mac 上試用 Omarchy
 
-你也可以在 Parallels VM 中安裝 Omarchy。過程相當繁瑣，但有一份[使用者主導的指南](https://github.com/omacom/omarchy/discussions/452)可以參考。
+[試用 Omarchy](https://github.com/omacom/try-omarchy) 可在任何搭載 macOS 15 或更新版本的 Apple Silicon Mac 上，在虛擬機器中執行 Omarchy，不需要分割磁碟，也不需要在 macOS 旁邊安裝任何東西。
 
 ### VirtualBox
 
-VirtualBox 是一個很受歡迎的 VM 執行程式。[你也可以在其中運行 Omarchy](https://github.com/omacom/omarchy/discussions/176)。但效能可能不會很好。
+VirtualBox 是一款熱門的 VM 執行工具。[你也可以在裡面執行 Omarchy](https://github.com/omacom/omarchy/discussions/176)。但效能大概不會太好。
 
 ### Windows 11 上的 VMware Workstation
 
-另一個適用於 Windows 的受歡迎 VM 執行程式。[Omarchy 也已在其中成功設定](https://github.com/omacom/omarchy/discussions/572)。
+另一款熱門的 Windows VM 執行工具。[也有人已經在裡面把 Omarchy 架設起來了](https://github.com/omacom/omarchy/discussions/572)。
 
 ### Steam Deck
 
-Steam Deck 運行的是 Arch，這表示你可以在你的 Steam Deck 上運行 Omarchy。Altynbek Orumbayev 有一份[完整的設定腳本和操作方法說明](https://github.com/aorumbayev/deckarchy)。夠酷了吧！
+Steam Deck 執行的是 Arch，也就是說，你可以在你的 Steam Deck 上執行 Omarchy。Altynbek Orumbayev 提供了 [完整的架設指令稿與如何操作的說明](https://github.com/aorumbayev/deckarchy)。這超酷的吧！
 
 ### NixOS
 
-Omarchy 其實就是 Arch + Hyprland，但 Henry Sipp 已把[這套配置的精髓移植到了 NixOS](https://github.com/henrysipp/omarchy-nix) 上。所以如果你已經中了 Nix 的毒，這是一個很好的起點。它可能無法一直跟上最新的 Omarchy 變更，但無論如何都很酷！
+Omarchy 其實就是 Arch + Hyprland，但 Henry Sipp 已經 [將這套設定的精華移植到 NixOS](https://github.com/henrysipp/omarchy-nix)。所以如果你已經被 Nix 洗腦了，這裡是個很好的起點。它不一定會一直跟上 Omarchy 的最新變更，但不管怎樣都還是滿酷的！
 
-### 其他平台！
+### 其他東西！
 
-如果你想在非預設的配置上運行 Omarchy，你應該加入[我們社群 Discord](https://discord.gg/tXFUdasqhY) 的 #omarchy-on-other 頻道。
+如果你正試著讓 Omarchy 在非預設的設定上執行，就應該加入 [我們的社群 Discord](https://discord.gg/tXFUdasqhY) 上的 #omarchy-on-other 頻道。

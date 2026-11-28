@@ -1,45 +1,41 @@
-# Oma teema tegemine
+# Oma teema loomine
 
-Sa saad lisada oma teemasid kausta `~/.config/omarchy/themes`. Kopeeri lihtsalt üks olemasolevatest aluseks (vaata kausta `/usr/share/omarchy/themes`) ja kohanda siis oma rõõmuks. Kuni sinu teema on seal kaustas, kaasatakse see teemavaliku menüüsse.
+Oma teemasid saad lisada kausta `~/.config/omarchy/themes`. Kopeeri lihtsalt aluseks üks olemasolevatest (vaata kausta `/usr/share/omarchy/themes`) ja kohanda seda siis oma rõõmuks. Seni, kuni sinu teema on selles kaustas, lisatakse see teemavaliku menüüsse.
 
-Põhifail, mida pead kohandama, on `colors.toml`. See määratleb värvikomplekti, mida seejärel kasutatakse seadistuste genereerimiseks terminalile (Foot/Alacritty/Ghostty/Kitty), btopile, Chromiumile, Hyprlandile, Neovimile, Helixile, VSCode'ile, Obsidianile ja kogu Omarchy kestale (menüüriba, menüü, teavitused, OSD ja lukuekraan).
+Peamine fail, mida pead kohandama, on `colors.toml`. See määrab värvikomplekti, mille põhjal luuakse seejärel konfiguratsioonid järgmisele: terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, Qt rakendused, klaviatuuri taustvalgustus, sisestusmeetod, ekraanijagamise valija, rakenduste ikoonid, mitu AI tööriista (Claude, Pi, Hermes, T3 Code, Herdr) ja kogu Omarchy kest (ülemine riba, menüü, teavitused, OSD ja lukustusekraan).
 
-Sa saad uue teema loomiseks kasutada ka kaasasolevat Aether rakendust, kasutades armsat graafilist liidest, et värvidega mängida ja taustu otsida. Käivita see lihtsalt rakenduste ruudustikult klahvikombinatsiooniga `Super + Alt + Space`.
+Uue teema loomiseks saad kasutada ka kaasas olevat rakendust Aether, millel on armas GUI liides värvidega mängimiseks ja taustade otsimiseks. Käivita see lihtsalt rakenduste ruudustikust klahvidega `Super + Alt + Space`.
 
-### Mida paigaldatud teema võib sisaldada
+### Mida installitud teema võib sisaldada
 
-Teema, mille kirjutad ise kausta `~/.config/omarchy/themes`, võib sisaldada mida iganes — see on sinu masin ja sinu fail ning Omarchy rakendab seda kõike.
+Teema, mille kirjutad ise kausta `~/.config/omarchy/themes`, võib sisaldada mida iganes soovid — see on sinu masin ja sinu fail ning Omarchy rakendab selle kõik.
 
-Teema, mille paigaldad kellegi teise repositooriumist käsuga `omarchy theme install`, säilitab kõik, mis on värv, ja kaotab need vähesed failid, mis sinu masinal koodi käivitaksid: iga `.lua` faili, terminali seadistused (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) ja faili `vscode.json`. Teema `hyprland.lua` on Lua, mida sinu komposiitor sisselogimisel käivitab, terminali seadistus nimetab programmi, mida sinu terminal käivitab, ja `vscode.json` nimetab paigaldatava VSCode laienduse. Kellegi teema paigaldamine peaks muutma seda, milline sinu töölaud välja näeb, mitte kunagi seda, mida see käivitab.
+Teema, mille installid kellegi teise repositooriumist käsuga `omarchy theme install`, säilitab kõik, mis on värv, ja kaotab need üksikud failid, mis käivitaksid sinu masinas koodi: kõik `.lua` failid, terminali konfiguratsioonid (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) ja `vscode.json`. Teema `hyprland.lua` on Lua, mida sinu komposiitor käivitab sisselogimisel, terminali konfiguratsioon nimetab programmi, mille sinu terminal käivitab, ja `vscode.json` nimetab installitava VSCode laienduse. Kellegi teema installimine peaks muutma seda, kuidas sinu töölaud välja näeb, mitte kunagi seda, mida see käivitab.
 
-Kõik muu töötab edasi täpselt nii, nagu teema autor kirjutas — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, taustad ja eelvaated säilivad kõik. Ainult see, mis maha kukkus, genereeritakse sinu masinal uuesti failist `colors.toml`.
+Kõik muu töötab endiselt täpselt nii, nagu teema autor selle kirjutas — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, taustad ja eelvaated säilivad kõik. Ainult see, mis välja jäeti, luuakse sinu masinas uuesti faili `colors.toml` põhjal.
 
-Omarchy eristab neid kahte selle järgi, kas teemal on sees oma git repositoorium, mille `omarchy theme install` kloonimisel sinna jätab. Nii jääb teema, mille ise kirjutasid, sinu omaks ja teema, mille internetist tõmbasid, jääb värvideks.
+Omarchy eristab neid kahte selle järgi, kas teemal on selle sees oma git repositoorium, mille `omarchy theme install` kloonimisel maha jätab. Nii jääb sinu kirjutatud teema sinu omaks ja internetist tõmmatud teema jääb värvideks.
 
 ### Hele režiim
 
-Kui teed heleda režiimi teemat, sea oma faili `colors.toml` algusesse `mode = "light"`. Siis seotakse see automaatselt kõigi rakenduste heleda režiimiga. (Vana viis tühja faili nimega `light.mode` teema juure jätmisega töötab samuti edasi.)
+Kui teed heleda režiimi teemat, määra faili `colors.toml` ülaosas `mode = "light"`. Seejärel seotakse see automaatselt kõigi rakenduste heleda režiimiga. (Vana viis, kus teema juurkausta jäeti tühi fail nimega `light.mode`, töötab samuti edasi.)
 
-### Ikoonide värvid
+### Lukustuse avamise pilt
 
-Kui tahad failihalduri ikoone oma teemaga värvi poolest sobitada, lisa fail nimega `icons.theme` koos kasutada soovitud ikoonikomplekti nimega. Vaikimisi on valikud: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
+Teemad, millega on kaasas pildid `unlock.png` ja `preview-unlock.png`, loetletakse jaotuses _Välimus > Lukustuse avamine_. Sinu `unlock.png` peaks eelistatavalt olema läbipaistev png. Ja eelvaatepildi saad luua käsuga `omarchy plymouth preview`.
 
-### Ava pilt
+### Nende rakenduste teemastamine, mida Omarchy ei kata
 
-Teemad, millega tulevad kaasa pildid `unlock.png` ja `preview-unlock.png`, loetletakse jaotises _Stiil > Ava lukk_. Sinu `unlock.png` peaks eelistatult olema läbipaistev png. Ja eelvaate pildi saad luua käsuga `omarchy plymouth preview`.
+Kui kasutad rakendust, mida selles loendis ei ole, saad Omarchy seda malliga ise teemastama õpetada. Pane kausta `~/.config/omarchy/themed/` fail, mille nimi on selle konfiguratsiooni järgi, mida see loob, koos laiendiga `.tpl`, ja kirjuta konfiguratsioon, kasutades kohahoidjatena `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` kuni `{{ color15 }}` ja ülejäänud paletti. Iga kord, kui teemat vahetad, luuakse fail selle teema värvidega uuesti.
 
-### Selliste rakenduste teemastamine, mida Omarchy ei kata
-
-Kui kasutad rakendust, mida selles loendis pole, saad Omarchyle õpetada seda ise malliga teemastama. Pane kausta `~/.config/omarchy/themed/` fail, mille nimi on selle genereeritava seadistusfaili järgi koos laiendiga `.tpl`, ja kirjuta seadistus kohatäidetega `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` kuni `{{ color15 }}` ja ülejäänud palett. Iga kord, kui teemat vahetad, genereeritakse fail selle teema värvidega uuesti.
-
-Samas kaustas on täielikult kommenteeritud `alacritty.toml.tpl.sample`, millest kopeerida — see loetleb iga muutuja, mida saad kasutada, pluss modifikaatorid `_strip` ja `_rgb` rakenduste jaoks, mis tahavad oma värve ilma `#`-ta või kümnend-RGB kujul. Sinu mallid on Omarchy enda omadest ülimuslikud, nii et saad seda kasutada ka selleks, et muuta, kuidas sisseehitatud rakendust teemastatakse.
+Selles kaustas on täielikult kommenteeritud `alacritty.toml.tpl.sample`, millest kopeerida — seal on loetletud kõik muutujad, mida saad kasutada, ning lisaks modifikaatorid `_strip` ja `_rgb` rakendustele, mis soovivad oma värve ilma `#`-märgita või kümnendkujul RGB-na. Sinu mallid on Omarchy enda omadest tähtsamad, nii et saad seda kasutada ka selle ülekirjutamiseks, kuidas sisseehitatud rakendust teemastatakse.
 
 ### Oma teema levitamine
 
-Kui tahad oma teemat levitada, et teised saaksid seda kasutada, pead selle panema avalikku git serverisse, nagu GitHub. Siis saavad inimesed selle paigaldada Omarchy menüüs jaotise _Paigalda > Stiil > Teema_ kaudu seda URL-i kasutades. Soovitatav on järgida nimetamistava `omarchy-[themename]-theme`, sest pärast paigaldamist näidatakse teemat teemavaliku menüüs õigesti lihtsalt nimega `[themename]`.
+Kui soovid oma teemat levitada, et teised saaksid seda kasutada, pead selle panema avalikku git serverisse, näiteks GitHub. Seejärel saavad inimesed selle selle URL-i abil installida Omarchy menüü jaotuse _Installi > Stiil > Teema_ kaudu. Soovitatav on järgida nimetamistava `omarchy-[themename]-theme`, sest pärast installimist kuvatakse teema teemavaliku menüüs õigesti lihtsalt kujul `[themename]`.
 
-See allesjääv `[themename]` saab teema kaustanimeks, nii et see peab olema selline, mida Omarchy saab turvaliselt edasi anda: see peab algama tähe, numbri või allkriipsuga ja ülejäänud osa võib sisaldada tähti, numbreid, `.`, `_`, `+` ja `-`. Suurtähed teisendatakse sinu eest väiketähtedeks, aga kõik muu — tühik, jutumärk, mitte-inglise märk — lükatakse paigaldamisel tagasi, selle asemel et kaustanimeks muuta. Nii et `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` ja `omarchy-c++-theme` paigaldatakse kõik hästi.
+See järelejäänud `[themename]` saab teema kataloogi nimeks, nii et see peab olema nimi, mida Omarchy saab turvaliselt ringi anda: see peab algama tähe, numbri või alakriipsuga ning ülejäänud osa võib sisaldada tähti, numbreid, `.`, `_`, `+` ja `-`. Suurtähed muudetakse sinu eest väiketähtedeks, kuid kõigest muust — tühikust, jutumärgist, mitteinglise tähemärgist — keeldutakse installimisel, selle asemel et see katalooginimeks muuta. Nii installivad `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` ja `omarchy-c++-theme` kõik probleemideta.
 
-Pea meeles, et kui see on repositooriumist paigaldatud, kukub iga koos sellega tulev `.lua`, terminali seadistus või `vscode.json` maha, nii et ära ehita teemat nende ümber.
+Pea meeles, et kui see on repositooriumist installitud, jäetakse kõik selle kaasa pandud `.lua`, terminali konfiguratsioon või `vscode.json` välja, nii et ära ehita teemat nende ümber.
 
-Sa saad lasta oma teema lisada [lisateemade lehele](https://omarchy.org/themes/) saates pull requesti [omarchy-site repositooriumisse](https://github.com/omacom-io/omarchy-site).
+Saad lasta oma teema lisada [lisateemade lehele](https://omarchy.org/themes/), saates pull requesti [omarchy-site repositooriumile](https://github.com/omacom-io/omarchy-site).

@@ -1,24 +1,27 @@
 # Jednotná schránka a historie
 
-Obvykle na Linuxu potřebujete `Ctrl + Shift + C/V` pro kopírování a vkládání v terminálu a `Ctrl + C/V` všude jinde. Na to je těžké si zvyknout pro každého, kdo se na Linuxu nenarodil a nebyl na něm vychován! Stejně tak na přechod ze super na ctrl, pokud přicházíte z Macu.
+Na Linuxu obvykle potřebujete `Ctrl + Shift + C/V` na kopírování a vkládání v terminálu a `Ctrl + C/V` na totéž všude jinde. Na to si těžko zvyká každý, kdo se na Linuxu nenarodil a nevyrostl! Stejně tak přechod ze super na ctrl, pokud přicházíte z Macu.
 
-Omarchy řeší oba problémy jednotnými klávesovými zkratkami schránky, které fungují (téměř) všude. Jsou to:
+Omarchy řeší oba problémy jednotnými klávesovými zkratkami pro schránku, které fungují (téměř) všude. Jsou to:
 
-| Klávesová zkratka | Příkaz |
+| Hotkey | Command |
 | ------- | ----------- |
+| Super + A | Vybrat vše |
 | Super + C | Kopírovat |
 | Super + X | Vyjmout |
 | Super + V | Vložit |
 | Super + Ctrl + V | Historie schránky |
 
-_Upozorňujeme, že většina harnessů agentů bude používat `Ctrl + V` pro vkládání obrázků, ale `Super + V` pro vkládání textu._
+_Všimněte si, že většina harnessů pro agenty použije `Ctrl + V` na vkládání obrázků, ale `Super + V` na vkládání textu._
+
+Pomocí `Super + A` a následně `Super + C` zkopírujete vše v aktivním textovém poli nebo jiné aplikaci, která podporuje `Ctrl + A`. V terminálu `Ctrl + A` místo výběru textu přesune na začátek příkazového řádku.
 
 ### Historie schránky
 
-Historii schránky poskytuje shell Omarchy a funguje pro text i obrázky. Spustíte ji pomocí `Super + Ctrl + V`, vyberete položku klávesou return a ta se umístí do schránky připravená k vložení pomocí `Super + V`.
+Historii schránky zajišťuje shell Omarchy a funguje pro text i obrázky. Spustíte ji pomocí `Super + Ctrl + V` a svou položku vyberete klávesou return, čímž ji vložíte přímo do aplikace, ve které jste byli. Pomocí `Shift + Return` ji pouze zkopírujete do schránky, pomocí `Alt + Return` ji otevřete, pomocí `Delete` ji odstraníte z historie a pomocí `Shift + Delete` vymažete celou historii.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-V historii můžete také vyhledávat pouhým začátkem psaní:
+Historii můžete také prohledávat prostě tím, že začnete psát:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

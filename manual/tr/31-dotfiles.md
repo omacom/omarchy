@@ -1,81 +1,85 @@
 # Dotfiles
 
-Omarchy, öncelikle `~/.config` içinde yaşayan sözde dotfiles aracılığıyla yapılandırılır. Bunlar sizin değişiklikleriniz için sizin dosyalarınız olarak kabul edilir. `/usr/share/omarchy` içinde yaşayan dosyalar Omarchy'nin kendisine aittir ve bunlarla uğraşmamalısınız. `/usr/share/omarchy` içinde herhangi bir şeyi değiştirmeniz gerekiyorsa, bunun yerine değeri `~/.config` içinde geçersiz kılmalısınız.
+Omarchy öncelikle `~/.config` içinde yaşayan sözde dotfiles aracılığıyla yapılandırılır. Bunlar sizin dosyalarınız, sizin değişiklikleriniz için varlar. `/usr/share/omarchy` içinde yaşayan dosyalar Omarchy'nin kendisine aittir ve onlarla uğraşmamanız gerekir. `/usr/share/omarchy` içinde herhangi bir şeyi değiştirmeniz gerekirse, bunun yerine değeri `~/.config` içinde ezmelisiniz.
 
-Temel yapılandırmalar, Omarchy menüsünden (`Super + Space`) doğrudan düzenlenebilir; örneğin _Ayarlar > Monitors_, _Ayarlar > Keybindings_, _Ayarlar > Input_ ve _Ayarlar > Config > [file]_. Bunu bu şekilde yaptığınızda, yapılandırma düzenlemelerinden sonra yeniden başlatılması gereken tüm işlemler, editörden çıktıktan sonra otomatik olarak yeniden başlatılacaktır (varsayılan olarak Neovim — `:wq`, hatırlayın! — ancak bunu _Ayarlar > Defaults > Editor_ aracılığıyla değiştirebilirsiniz).
+Temel yapılandırmalar doğrudan Omarchy menüsünden (`Super + Space`) düzenlenebilir; örneğin _Setup > Keyboard > Keybindings_, _Setup > Input_ ve _Setup > Config > [file]_. Bunu bu şekilde yaptığınızda, yapılandırma düzenlemelerinin ardından yeniden başlatılması gereken işlemler, siz düzenleyiciden çıktıktan sonra otomatik olarak yeniden başlatılır (varsayılan olarak Neovim — `:wq`, unutmayın! — ama bunu _Setup > Defaults > Editor_ üzerinden değiştirebilirsiniz).
 
-İşte `~/.config` içindeki temel dosyaların ve neyi kontrol ettiklerinin bir listesi:
+İşte `~/.config` içindeki temel dosyaların ve neyi kontrol ettiklerinin listesi:
 
-| Dosya | Amaç |
+| Dosya                  | Amaç              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | Ana Hyprland yapılandırması. Omarchy varsayılanlarını artı aşağıdaki geçersiz kılma dosyalarınızı yükler. [Hyprland yapılandırmaları hakkında daha fazla bilgi edinin](https://wiki.hypr.land/Configuring/).  |
-| `~/.config/hypr/bindings.lua` | Kendi tuş atamalarınız ve varsayılanların geçersiz kılmaları. |
-| `~/.config/hypr/monitors.lua` | Monitörlerinizi, çözünürlüğü ve konumu kontrol eder. |
-| `~/.config/hypr/input.lua` | Klavye düzeninizi, fare ve dokunmatik yüzey ayarlarınızı kontrol eder. |
+| `~/.config/hypr/hyprland.lua` | Ana Hyprland yapılandırması. Omarchy varsayılanlarını artı aşağıdaki ezme dosyalarınızı yükler. [Hyprland yapılandırmaları hakkında daha fazla bilgi edinin](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | Kendi tuş atamalarınız ve varsayılanlara yönelik ezmeleriniz. |
+| `~/.config/hypr/monitors.lua` | Döndürme, ek modlar ya da bir monitörü kapalı tutma gibi, monitör panelinin kapsamadığı monitör ayarları. |
+| `~/.config/hypr/input.lua` | Klavye düzeninizi, farenizi ve dokunmatik yüzey ayarlarınızı kontrol eder. |
 | `~/.config/hypr/looknfeel.lua` | Boşlukları, kenarlıkları, animasyonları ve görünümün geri kalanını kontrol eder. |
-| `~/.config/hypr/autostart.lua` | Oturumla başlatılan ek işlemleri kontrol eder. |
+| `~/.config/hypr/autostart.lua` | Oturumla birlikte başlatılan ek işlemleri kontrol eder. |
 | `~/.config/omarchy/shell.json` | Omarchy kabuğunu kontrol eder: çubuk konumu, düzen ve widget'lar, artı ekran koruyucu, kilit ve boşta kalma süreleri. |
 | `~/.config/foot/foot.ini` | Terminalinizi kontrol eder (foot varsayılandır). |
-| `~/.XCompose` | Hızlı erişim emojinizi ve ad/e-posta otomatik tamamlamanızı tanımlar. Değişiklik yaptıktan sonra `omarchy-restart-xcompose` komutunu çalıştırdığınızdan emin olun. |
+| `~/.XCompose` | Hızlı erişim emojilerinizi ve ad/e-posta otomatik tamamlamanızı tanımlar. Değişiklik yaptıktan sonra `omarchy-restart-xcompose` çalıştırmayı unutmayın. |
 
-Kendi kurulumunuzu ince ayarlamak için çok fazla değişiklik yaparsanız, tüm bu dotfiles'ı yedeklemek iyi bir fikirdir. [Stow bunu yapmanın harika bir yoludur](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+Kendi kurulumunuzu ince ayarlarla epey değiştirirseniz, tüm bu dotfiles dosyalarını yedeklemek iyi bir fikirdir. [Stow bunu yapmanın harika bir yoludur](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
-### Kendi uygulamalarınızı oturumla başlatmak
+### Kendi uygulamalarınızı oturumla başlatma
 
-Her giriş yaptığınızda bir şeyin çalışmasını isterseniz — bir eşitleme arka plan süreci, bir sohbet uygulaması, kendi betiğiniz — onu `~/.config/hypr/autostart.lua` içine koyun:
+Her oturum açışınızda bir şeyin çalışmasını istiyorsanız — bir senkronizasyon arka plan programı, bir sohbet uygulaması, kendi betiğiniz — onu `~/.config/hypr/autostart.lua` içine koyun:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-Bu, komutu oturumun bir parçası olarak başlatır, böylece yeniden çıkış yaptığınızda düzgün şekilde temizlenir.
+Bu, komutu oturumun bir parçası olarak başlatır, böylece tekrar oturumu kapattığınızda düzgünce temizlenir.
 
-### Sistem olaylarında betik çalıştırmak
+### Sistem olaylarında betik çalıştırma
 
-Omarchy bir avuç anda kancalar tetikler ve kendi betiklerinizi bunlara asabilirsiniz. Bunlar `~/.config/omarchy/hooks/<event>.d/` içinde yaşar, olay başına bir dizin, ve oradaki çalıştırılabilir her dosya olay gerçekleştiğinde çalışır:
+Omarchy birkaç anda kancalar (hook) tetikler ve siz de kendi betiklerinizi bunlara bağlayabilirsiniz. Bunlar `~/.config/omarchy/hooks/<event>.d/` içinde yaşar; her olay için bir dizin vardır ve orada `.sample` ile bitmeyen her dosya, olay gerçekleştiğinde bash ile çalışır:
 
 | Olay | Ne zaman çalışır |
 | ----- | ------------ |
 | `post-boot` | Masaüstü başladıktan hemen sonra |
-| `post-update` | `omarchy update` komutunun sonuna doğru, paketler, taşımalar ve hizmet yeniden başlatmalarından sonra, mise araçları güncellenmeden önce |
-| `pre-refresh-pacman` | `omarchy refresh pacman` paket yapılandırmasını yeniden eşitledikten sonra, paketleri güncellemeden önce; bir kanal değişikliği, aynı yenileme adımı sırasında bunu çalıştırır |
-| `theme-set` | Bir tema değişikliğinden sonra (`$1` içinde tema adı) |
-| `font-set` | Bir yazı tipi değişikliğinden sonra (`$1` içinde yazı tipi adı) |
-| `battery-low` | Pil azaldığında (`$1` içinde yüzde) |
+| `post-update` | `omarchy update` işleminin sonuna doğru, paketler, geçişler ve hizmet yeniden başlatmalarından sonra, mise araçları güncellenmeden önce |
+| `pre-refresh-pacman` | `omarchy refresh pacman` paket yapılandırmasını yeniden senkronize ettikten sonra, paketleri güncellemeden önce; bir kanal değişimi bunu aynı yenileme adımında çalıştırır |
+| `theme-set` | Bir tema değişikliğinden sonra (tema adı `$1` içinde) |
+| `font-set` | Bir yazı tipi değişikliğinden sonra (yazı tipi adı `$1` içinde) |
+| `battery-low` | Pil azaldığında (yüzde `$1` içinde) |
 
-`pre-refresh-pacman` kancası, paket işleminden önce çalıştığı için özel depoların veya `IgnorePkg` satırlarının ait olduğu yerdir. Güncellemeyle ilgili her iki kanca da Omarchy, önbelleğe alınmış sudo yetkilendirmesini temizledikten sonra sizin kullanıcınız olarak çalışır; bu yüzden `sudo` kullanan bir kancanın kendi yetkilendirmesine ihtiyacı vardır ve parolanızı isteyebilir.
+`pre-refresh-pacman` kancası, paket işleminden önce çalıştığı için özel depoların ya da `IgnorePkg` satırlarının ait olduğu yerdir. Her ikisi de sizin kullanıcınız olarak çalışır. `post-update`, `omarchy update` işleminin sudo yetkisi hâlâ taze iken çalışır, bu yüzden `sudo` kullanan bir kanca sizden tekrar parolanızı istemez; `pre-refresh-pacman`, `omarchy refresh pacman` sudo'yu kendisi kullandıktan hemen sonra çalışır.
 
-Bu dizinlerin her biri zaten bir kancanın şeklini gösteren bir `.sample` dosyası içerir — onu işe koymak için adından `.sample` ekini çıkarın. Başka yerde yazdığınız bir betiği kurmak için `omarchy hook install post-boot ~/my-hook` komutunu kullanın; bu onu kopyalar ve çalıştırılabilir yapar.
+Bu dizinlerin her birinde zaten bir kancanın şeklini gösteren bir `.sample` dosyası bulunur — işe koymak için adından `.sample` kısmını kaldırın. Başka bir yerde yazdığınız bir betiği kurmak için `omarchy hook install post-boot ~/my-hook` kullanın; bu, onu içeri kopyalar ve çalıştırılabilir yapar.
 
-### Kendi menü girişlerinizi eklemek
+### Kendi menü girdilerinizi ekleme
 
-Omarchy menüsü (`Super + Space`), `~/.config/omarchy/extensions/omarchy-menu.jsonc` dosyasını düzenleyerek kendi satırlarınızla genişletilebilir. Girişler noktalı bir kimlik ile anahtarlanır ve kimlik onları ağaca yerleştirir; bu yüzden `personal` kök menüde, `personal.notes` ise onun içinde görünür:
+Omarchy menüsü (`Super + Space`), `~/.config/omarchy/extensions/omarchy-menu.jsonc` dosyasını düzenleyerek kendi satırlarınızla genişletilebilir. Girdiler noktalı bir kimlikle (id) anahtarlanır ve onları ağaca yerleştiren şey bu kimliktir; yani `personal` kök menüde, `personal.notes` ise onun içinde görünür:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Mevcut bir kimliği yeniden kullanırsanız, yeni bir tane eklemek yerine o satırı geçersiz kılarsınız. Dosya, kullanılabilir tüm alanlar yorum olarak belgelenmiş olarak gelir.
+Mevcut bir kimliği tekrar kullanırsanız, yeni bir satır eklemek yerine o satırı ezersiniz. Dosya, kullanılabilir tüm alanlar yorum olarak belgelenmiş hâlde gelir.
 
-### Kendi kabuk dışa aktarımlarınızı, işlevlerinizi ve takma adlarınızı eklemek
+### Kendi kabuk dışa aktarımlarınızı, işlevlerinizi ve takma adlarınızı ekleme
 
-Omarchy, bir sürü ergonomik takma ad ve yararlı işlevle birlikte gelir, ancak kendinizinkini eklemek istemeniz çok yaygındır. Takma adları, işlevleri ve dışa aktarımları `~/.bashrc` içine eklemelisiniz. Bu dosyanın üzerine güncellemelerde yazılmayacaktır. Omarchy varsayılanlarından herhangi birini değiştirmek isterseniz, bunları buraya da güvenle ekleyebilirsiniz.
+Omarchy bir sürü ergonomik takma ad ve faydalı işlevle gelir, ama kendi eklemelerinizi istemeniz çok yaygındır. Hem takma adları, hem işlevleri, hem de dışa aktarımları `~/.bashrc` içine eklemelisiniz. Bu dosya güncellemelerde ezilmez. Omarchy varsayılanlarından herhangi birini değiştirmek isterseniz, bunları da güvenle buraya ekleyebilirsiniz.
 
-### İç Omarchy dosyalarını değiştirmek
+### Masaüstü için ortam değişkenleri ayarlama
 
-Bakın, bu sizin bilgisayarınız. Onunla istediğinizi yapabilirsiniz, ancak `/usr/share/omarchy` içindeki dosyalara doğrudan değişiklik yapmamanızı tavsiye ederim. Bunlar Omarchy pacman paketine aittir, bu yüzden değişiklikleriniz bir sonraki güncellemede basitçe üzerine yazılacaktır. Bunun yerine sevmediğiniz varsayılan değerleri `~/.config/*` klasöründe geçersiz kılmanız daha iyidir.
+Masaüstü oturumu dışa aktarımları `~/.config/uwsm/env.d/` içine aittir. Bu dosyalar masaüstünüz başlamadan önce çalışır, bu yüzden bir kabuk hatası sizi giriş ekranına geri gönderebilir. Bunları düzenlerken çalışır durumda bir terminali açık tutun. Bir ezmeyi devre dışı bırakmak için onu `env.d` dışına taşıyın. Bir değişiklik girişi engellerse bkz. [giriş kurtarma](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen).
 
-Varsayılan tuş atamaları gibi hemen her şeyi bu şekilde değiştirebilirsiniz. Örneğin [Obsidian](https://obsidian.md/) yerine [Joplin](https://joplinapp.org/) koymak için `~/.config/hypr/bindings.lua` dosyasını düzenleyin (`omarchy-pkg-add joplin-bin` ile kurun):
+### Dahili Omarchy dosyalarını değiştirme
+
+Bakın, bu sizin bilgisayarınız. Onunla istediğiniz her şeyi yapabilirsiniz, ama `/usr/share/omarchy` içindeki dosyalarda doğrudan değişiklik yapmamanızı tavsiye ederim. Bunlar Omarchy pacman paketine aittir, bu yüzden değişiklikleriniz bir sonraki güncellemede kolayca ezilir. Onun yerine, beğenmediğiniz varsayılan değerleri `~/.config/*` klasöründe ezmeniz çok daha iyi olur.
+
+Neredeyse her şeyi bu şekilde değiştirebilirsiniz, örneğin varsayılan tuş atamalarını. Diyelim ki [Obsidian](https://obsidian.md/) yerine [Joplin](https://joplinapp.org/) kullanmak için (`omarchy-pkg-add joplin-bin` ile kurun) `~/.config/hypr/bindings.lua` dosyasını düzenleyin:
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-`o.rebind`, yerine geçenini eklemeden önce mevcut atamayı kaldırır. Başlatma yardımcıları ve atama seçenekleri dahil `o.bind` ile aynı argümanları alır. Bir atama eklemek için `o.bind`, yerine bir şey koymadan birini kaldırmak için `hl.unbind` kullanın.
+`o.rebind`, yerine yenisini eklemeden önce mevcut atamayı kaldırır. Başlatma yardımcıları ve atama seçenekleri de dahil olmak üzere `o.bind` ile aynı argümanları alır. Bir atama eklemek için `o.bind`, yerine yenisini koymadan bir atamayı kaldırmak için `hl.unbind` kullanın.
 
-İç Omarchy dosyaları üzerinde uğraşmakta ısrar ederseniz, _Güncelle > Channel > Dev_ aracılığıyla dev kanalına geçin. Bu, Omarchy'yi `~/omarchy` içindeki kaynak kodun bir git kopyasına bağlar; bunu gönlünüzce değiştirmekte özgürsünüz. Size ne yapacağınızı söyleyecek kimse yok burada!
+Dahili Omarchy dosyaları üzerinde hackleme konusunda ısrarcıysanız, _Update > Channel > Dev_ üzerinden dev kanalına geçin. Bu, Omarchy'yi `~/omarchy` içindeki kaynak kodun bir git kopyasına bağlar; bunu gönlünüzce değiştirmekte özgürsünüz. Burada size ne yapacağınızı söyleyecek kimse yok!
 
-### Herhangi bir değişikliği sıfırlamak
+### Yaptığınız değişiklikleri sıfırlama
 
-Yapılandırmaları karmakarışık ederseniz, bunları her zaman Omarchy menüsündeki _Güncelle > Config_ aracılığıyla varsayılanlara döndürebilirsiniz. Veya her şeyi sıfırlamak için `omarchy reinstall configs` komutunu çalıştırarak.
+Yapılandırmaları berbat ederseniz, Omarchy menüsünde _Update > Config_ üzerinden bunları her zaman varsayılanlara döndürebilirsiniz. Ya da her şeyi sıfırlamak için `omarchy reinstall configs` çalıştırabilirsiniz.

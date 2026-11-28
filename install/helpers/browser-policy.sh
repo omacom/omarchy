@@ -79,6 +79,21 @@ browser_policy_setup_parents_for() {
   done
 }
 
+browser_policy_low_memory() {
+  local total_kib image_root=""
+  # 9 GiB catches 8 GiB machines (MemTotal ~7.3-7.9 GiB) while leaving 12 GiB
+  # and larger machines user-controlled.
+  local low_memory_kib=9437184
+
+  # Image builds run on the build host, not the target machine; omarchy-provision-owner
+  # re-runs browser_policy_setup_dir on the target machine's first boot.
+  (( EUID != 0 )) && image_root=${OMARCHY_IMAGE_ROOT:-}
+  [[ ! -e $image_root/var/lib/omarchy/image/target ]] || return 1
+
+  total_kib=$(awk '$1 == "MemTotal:" { print $2; exit }' "${OMARCHY_MEMINFO:-/proc/meminfo}" 2>/dev/null)
+  [[ $total_kib =~ ^[0-9]+$ ]] && (( total_kib > 0 && total_kib <= low_memory_kib ))
+}
+
 # Links reach the browser through omarchy-browser.desktop, so the browser never
 # sees itself as the default. Hide its check and its button to become one, which
 # would rewrite mimeapps.list behind Omarchy's back.
@@ -87,6 +102,22 @@ browser_policy_install_defaults() {
   local policies=${2:-$OMARCHY_PATH/default/chromium/policies/omarchy.json}
 
   as_root install -m 644 -o root -g root -T "$policies" "$policy_dir/omarchy.json"
+
+  # Google Chrome ignores --load-extension, so its policy installs the bundled
+  # extensions from the CRXs Omarchy ships instead.
+  if [[ $policy_dir == "/etc/opt/chrome/policies/managed" ]]; then
+    as_root install -m 644 -o root -g root -T "$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json" "$policy_dir/omarchy-extensions.json"
+  fi
+
+  # On <=8 GiB machines, enforce Memory Saver in Balanced mode for Chrome,
+  # Chromium, and Brave (Edge ignores these keys). Upstream Chromium marks
+  # HighEfficiencyModeEnabled and MemorySaverModeSavings mandatory-only, so
+  # policies/recommended/ ignores them; per-site exceptions stay editable.
+  if browser_policy_low_memory; then
+    as_root install -m 644 -o root -g root -T "$OMARCHY_PATH/default/chromium/policies/omarchy-low-memory.json" "$policy_dir/omarchy-low-memory.json"
+  else
+    as_root rm -f "$policy_dir/omarchy-low-memory.json"
+  fi
 }
 
 browser_policy_setup_dir() {
@@ -169,20 +200,32 @@ browser_policy_install_firefox_policies() {
   as_root install -m 644 -o root -g root -T "$policies" "$distribution_dir/policies.json"
 }
 
-# Add Omarchy's default-browser setting to an existing policies.json, keeping
-# whatever else an administrator put there.
-browser_policy_firefox_skip_default_check() {
+# Turn one boolean policy on in an existing policies.json, keeping whatever
+# else an administrator put there.
+browser_policy_firefox_enable() {
   local file=$1/policies.json
+  local policy=$2
   local tmp
+  local status=0
 
   browser_policy_firefox_policy_file_ok "$file" || return 0
-  [[ $(jq '.policies.DontCheckDefaultBrowser' "$file" 2>/dev/null) == "true" ]] && return 0
+  [[ $(jq --arg policy "$policy" '.policies[$policy]' "$file" 2>/dev/null) == "true" ]] && return 0
 
   tmp=$(mktemp) || return 1
-  if jq '.policies.DontCheckDefaultBrowser = true' "$file" >"$tmp" 2>/dev/null; then
-    as_root install -m 644 -o root -g root -T "$tmp" "$file"
+  if jq --arg policy "$policy" '.policies[$policy] = true' "$file" >"$tmp" 2>/dev/null; then
+    as_root install -m 644 -o root -g root -T "$tmp" "$file" || status=1
   fi
   rm -f "$tmp"
+  return $status
+}
+
+browser_policy_firefox_skip_default_check() {
+  browser_policy_firefox_enable "$1" DontCheckDefaultBrowser
+}
+
+# pacman updates Firefox and Zen; a vendor build's own updater can only nag.
+browser_policy_firefox_disable_app_update() {
+  browser_policy_firefox_enable "$1" DisableAppUpdate
 }
 
 browser_policy_setup_firefox_distribution() {

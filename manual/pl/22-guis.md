@@ -1,108 +1,118 @@
-# GUI
+# Aplikacje graficzne
 
 ## Pliki
 
-Files (Nautilus) jest graficznym menedżerem plików. `Super + Shift + F` otwiera go, a `Super + Shift + Alt + F` otwiera go w katalogu, w którym znajduje się twój terminal, co oszczędza dużo klikania. `Ctrl + L` pozwala wpisać ścieżkę, a naciśnięcie `Space` na dowolnym pliku daje szybki podgląd bez otwierania czegokolwiek.
+Files (Folio) to graficzny menedżer plików. `Super + Shift + F` go otwiera, a `Super + Shift + Alt + F` otwiera go w katalogu, w którym znajduje się Twój terminal, co oszczędza sporo klikania. `Ctrl + L` pozwala wpisać ścieżkę, a naciśnięcie `Space` na dowolnym pliku pokazuje jego podgląd w pełnym rozmiarze bez otwierania go.
 
-Podłącz pendrive USB lub kartę SD, a zostanie zamontowana automatycznie, więc po prostu pojawi się na pasku bocznym. Do wszystkiego bardziej złożonego — formatowania dysku, sprawdzania stanu SMART, tworzenia partycji — uruchom _Disks_ z launchera aplikacji (`Super + Space`).
+Podłącz pamięć USB lub kartę SD, a zostanie zamontowana automatycznie, więc po prostu pojawi się na pasku bocznym. Do bardziej zaawansowanych zadań — formatowania dysku, sprawdzania stanu SMART, tworzenia partycji — uruchom _Disks_ z programu uruchamiającego aplikacje (`Super + Space`).
 
-Dwukrotne kliknięcie stosuje rozsądne ustawienia domyślne: obrazy otwierają się w imv, wideo w mpv, PDF-y w Document Viewer, a zwykły tekst w Neovim.
+Zaszyfrowany dysk poprosi o hasło po podłączeniu. Aby odblokowywał się sam, dodaj do niego plik klucza poleceniem `sudo cryptsetup luksAddKey /dev/sdX1 <keyfile>` i umieść ten plik klucza w `~/.config/omarchy/drive-keys/<UUID>`, nazywając go identyfikatorem UUID, który `lsblk -dno UUID /dev/sdX1` wypisuje dla zaszyfrowanej partycji, i z dostępem wyłącznie dla Ciebie (`chmod 600`). Jeśli tego pliku klucza brakuje lub zostanie odrzucony, system poprosi Cię o hasło jak zwykle.
+
+Dwukrotne kliknięcie kieruje się rozsądnymi ustawieniami domyślnymi: zdjęcia, filmy i muzyka otwierają się w Omaview, pliki PDF w Document Viewer, Markdown w Omawrite, a zwykły tekst w Twoim edytorze, Plain, chyba że wybierzesz inny w _Setup > Defaults > Editor_.
 
 ## Disktree
 
-Gdy dysk się zapełni i nie masz pojęcia, co go zjada, uruchom [Disktree](https://github.com/tobi/disktree) z launchera aplikacji (`Super + Space`). Pokazuje graficzną mapę drzewa twojego katalogu domowego. Większe bloki zajmują więcej miejsca; wchodź do katalogów za pomocą klawiatury lub myszy, zaznacz, co ma zniknąć, i przejrzyj swoje wybory przed usunięciem czegokolwiek. Uruchom `disktree --disk`, aby przeskanować cały dysk.
+Kiedy dysk się zapełni i nie masz pojęcia, co go zjada, uruchom [Disktree](https://github.com/tobi/disktree) z programu uruchamiającego aplikacje (`Super + Space`). Pokazuje graficzną mapę drzewa Twojego katalogu domowego. Większe bloki zajmują więcej miejsca; wchodź do katalogów za pomocą klawiatury lub myszy, zaznaczaj, co ma zostać usunięte, i przeglądaj wybrane elementy przed usunięciem czegokolwiek. Uruchom `disktree --disk`, aby przeskanować cały dysk.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) jest darmową i wysoce rozszerzalną aplikacją do robienia notatek, która używa prostych plików Markdown do przechowywania.
+[Obsidian](https://obsidian.md/) to darmowa i wysoce rozszerzalna aplikacja do robienia notatek, która do przechowywania używa prostych plików Markdown.
 
-Obsidian jest darmowy do wszystkich celów, w tym użytku osobistego, komercyjnego i non-profit.
+Obsidian jest darmowy do wszystkich celów, w tym do użytku osobistego, komercyjnego i non-profit.
 
-Obsidian oferuje również [komercyjny dodatek do synchronizacji](https://obsidian.md/sync) z aplikacjami mobilnymi na iOS i Android. (https://obsidian.md/pricing).
+Obsidian oferuje też [komercyjny dodatek do synchronizacji](https://obsidian.md/sync) z aplikacjami mobilnymi na iOS i Android. (https://obsidian.md/pricing).
 
-Uruchamiasz Obsidian za pomocą `Super + Shift + O`. Aby używać synchronizacji motywu, musisz wybrać motyw `Omarchy` w ustawieniach.
+Obsidian uruchamiasz skrótem `Super + Shift + O`. Aby korzystać z synchronizacji motywu, musisz wybrać motyw `Omarchy` w ustawieniach.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) jest własną, banalnie prostą aplikacją Omarchy do pisania w Markdown. Żadnych vaultów, żadnych wtyczek, tylko ty i słowa.
+[Omawrite](https://github.com/omacom-io/omawrite) to własna, szalenie prosta aplikacja Omarchy do pisania w Markdown. Żadnych skarbców, żadnych wtyczek, tylko Ty i słowa.
 
-Uruchamiasz Omawrite za pomocą `Super + Shift + W`.
+Omawrite uruchamiasz skrótem `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) jest podstawowym narzędziem do edycji obrazów, które świetnie nadaje się do przycinania, zmiany rozmiaru i innych podstawowych manipulacji. Po prostu nie oczekuj alternatywy dla Photoshopa. Ale wciąż ma Magic Wand i warstwy!
+[Pinta](https://www.pinta-project.com/) to podstawowe narzędzie do edycji obrazów, świetne do przycinania, zmiany rozmiaru i innych podstawowych operacji. Tylko nie oczekuj alternatywy dla Photoshopa. Ale i tak ma Magic Wand i warstwy!
 
-Uruchamiasz Pintę za pośrednictwem launchera aplikacji (`Super + Space`).
+Pintę uruchamiasz przez program uruchamiający aplikacje (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) jest aplikacją do motywów, która potrafi wyodrębniać kolory z obrazu tła i zamieniać je w kompletny, spójny motyw. To najłatwiejszy sposób, aby [stworzyć własny motyw](43-making-your-own-theme.md).
+[Aether](https://github.com/bjarneo/aether) to aplikacja do tworzenia motywów, która potrafi wyodrębnić kolory z obrazu tła i zamienić je w kompletny, spójny motyw. To najłatwiejszy sposób, aby [stworzyć własny motyw](43-making-your-own-theme.md).
 
-Uruchamiasz Aether za pośrednictwem launchera aplikacji (`Super + Space`).
+Aether uruchamiasz przez program uruchamiający aplikacje (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) pozwala wysyłać pliki do innych urządzeń w tej samej sieci, na których działa aplikacja, jak AirDrop firmy Apple. Jest jednak wieloplatformowy, więc możesz wysyłać pliki do i z Windows, macOS, Android, iOS i oczywiście Linuksa.
+[LocalSend](https://localsend.org/) pozwala wysyłać pliki do innych urządzeń w tej samej sieci, na których działa ta aplikacja, podobnie jak AirDrop firmy Apple. Jest jednak wieloplatformowy, więc możesz wysyłać pliki do i z Windows, macOS, Android, iOS i oczywiście Linux.
 
-Możesz otworzyć menu Udostępnij za pomocą `Super + Ctrl + S` lub w menu Omarchy w _Akcje > Udostępnij_. Daje ci cztery opcje:
+Menu udostępniania możesz otworzyć skrótem `Super + Ctrl + S` lub w menu Omarchy, w _Trigger > Share_. Daje Ci cztery opcje:
 
-- **Schowek** wysyła to, co skopiowałeś, jako plik tekstowy. Świetne, aby przenieść link lub fragment na telefon bez wysyłania sobie e-maila.
-- **Plik** otwiera selektor plików, w którym możesz wybrać kilka naraz.
+- **Clipboard** wysyła wszystko, co skopiowałeś, jako plik tekstowy. Świetne, aby przenieść link lub fragment tekstu na telefon bez wysyłania sobie e-maila.
+- **File** otwiera selektor plików, w którym możesz wybrać kilka plików naraz.
 - **Folder** wysyła cały katalog.
-- **Odbierz** otwiera właściwy LocalSend, aby inne urządzenie mogło wysłać coś do ciebie.
+- **Receive** otwiera właściwy LocalSend, aby inne urządzenie mogło wysłać coś do Ciebie.
 
-To samo działa z terminala za pomocą `omarchy share clipboard`, `omarchy share file [path]` i `omarchy share folder [path]`. Pomiń ścieżkę, a otrzymasz selektor.
+To samo działa z terminala poleceniami `omarchy share clipboard`, `omarchy share file [path]` i `omarchy share folder [path]`. Pomiń ścieżkę, a pojawi się selektor.
 
-Możesz również wysyłać bezpośrednio z menedżera plików: kliknij prawym przyciskiem myszy dowolny wybór w Nautilus i wybierz _Send via LocalSend_.
+Możesz też wysyłać bezpośrednio z menedżera plików: kliknij prawym przyciskiem myszy dowolny wybór w Files i udostępnij go przez LocalSend.
 
-Zapora sieciowa Omarchy jest domyślnie zamknięta z wyjątkiem portu LocalSend, więc działa to od razu na świeżej instalacji. Zobacz [bezpieczeństwo](48-security.md).
+Zapora sieciowa Omarchy jest domyślnie zamknięta, z wyjątkiem portu LocalSend, więc na świeżej instalacji działa to od razu po wyjęciu z pudełka. Zobacz [bezpieczeństwo](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) jest kompletnym pakietem biurowym z procesorem tekstu, arkuszem kalkulacyjnym, prezentacjami, aplikacją do rysowania i nie tylko. Jest kompatybilny z plikami z Microsoft Office, więc jest to świetny sposób, aby móc otwierać te dokumenty Word.
+[LibreOffice](https://www.libreoffice.org/) to kompletny pakiet biurowy z edytorem tekstu, arkuszem kalkulacyjnym, prezentacjami, aplikacją do rysowania i nie tylko. Jest zgodny z plikami z Microsoft Office, więc to świetny sposób, aby móc otwierać te dokumenty Worda.
 
-Uruchamiasz LibreOffice za pośrednictwem launchera aplikacji (`Super + Space`).
+LibreOffice uruchamiasz przez program uruchamiający aplikacje (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) jest własną, banalnie prostą aplikacją Omarchy do prezentacji. Twoja prezentacja to pojedynczy plik Markdown z obrazami i wideo obok niego: pisz każdy slajd poniżej podglądu na żywo, przeciągaj slajdy w kolejności, a następnie prezentuj na pełnym ekranie lub eksportuj do PDF i PowerPoint. Przejmuje nawet twój motyw Omarchy.
+[Hype](https://github.com/omacom/hype) to własna, szalenie prosta aplikacja Omarchy do prezentacji. Twoja prezentacja to pojedynczy plik Markdown z obrazami i filmami obok niego: piszesz każdy slajd pod podglądem na żywo, przeciągasz slajdy, aby ustawić ich kolejność, a potem prezentujesz na pełnym ekranie lub eksportujesz do PDF i PowerPoint. Przejmuje nawet Twój motyw Omarchy.
 
-Uruchamiasz Hype za pośrednictwem launchera aplikacji (`Super + Space`). Naciśnij `?` wewnątrz, aby zobaczyć każdy skrót.
+Hype uruchamiasz przez program uruchamiający aplikacje (`Super + Space`). Naciśnij `?` w aplikacji, aby zobaczyć wszystkie skróty.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) jest własnym, banalnie prostym sposobem Omarchy na podpisywanie PDF-ów i ich wypełnianie. Umieść swój zapisany podpis, tekst i dzisiejszą datę w dowolnym miejscu na stronie, a następnie zapisz podpisaną kopię obok oryginału. Zobacz [Wypełnianie PDF-ów](27-filling-out-pdfs.md), aby dowiedzieć się jak.
+[Signed](https://github.com/omacom/signed) to własny, szalenie prosty sposób Omarchy na podpisywanie plików PDF i wypełnianie ich. Umieść zapisany podpis, tekst i dzisiejszą datę w dowolnym miejscu strony, a potem zapisz podpisaną kopię obok oryginału. Zobacz [Wypełnianie plików PDF](27-filling-out-pdfs.md), aby dowiedzieć się jak.
 
-Uruchamiasz Signed za pośrednictwem launchera aplikacji (`Super + Space`) lub otwierasz za jego pomocą PDF z menedżera plików.
+Signed uruchamiasz przez program uruchamiający aplikacje (`Super + Space`) albo otwierasz w nim plik PDF z menedżera plików.
+
+## Game Vibes
+
+Game Vibes, w programie uruchamiającym aplikacje (`Super + Space`), to miejsce, w którym mieszkają małe gry Omarchy: Checkmate, trójwymiarowa gra w szachy przeciwko znajomemu lub wbudowanemu przeciwnikowi; Cards, pasjans Klondike; Death Wish, precyzyjna co do piksela platformówka składająca się z dziesięciu pokoi pełnych kolców i pił; oraz Neon Swarm, zręcznościowa strzelanka. Każda z nich to pojedyncza strona internetowa, która podąża za Twoim motywem. Wybierz jedną strzałkami i klawiszem `Enter`, a wróć do listy klawiszem `Esc` z ekranu tytułowego gry lub klawiszem `Q`, gdy gra jest wstrzymana. Otwiera się na pełnym ekranie: `Super + F` zamienia ją w okno, a `Super + W` ją zamyka.
+
+Gry, które tworzysz z agentem, też się tu pojawiają: wybierz _Make something cool → Game_ w panelu agentów i opisz grę albo wskaż grę już znajdującą się w Game Vibes, aby kontynuować pracę nad nią. Agent kopiuje ją do `~/Games/vibes`, gdzie należy do Ciebie i możesz ją zmieniać, i otwiera ją, gdy skończy. Możesz samodzielnie wykonać tę kopię poleceniem `omarchy games vibes copy <game>`. Gra udostępniona przez kogoś innego instaluje się jak motyw: wybierz _Install > Gaming > Game Vibes_ i wklej jej adres git albo uruchom `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ usuwa grę, a _Update > Game Vibes Games_ pobiera nowe wersje. Gry wczytują three.js z sieci, więc do uruchomienia potrzebują połączenia.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) jest własnym, banalnie prostym kalkulatorem Omarchy, który otwiera się w pływającym oknie.
+[Omacalc](https://github.com/omacom-io/omacalc) to własny, szalenie prosty kalkulator Omarchy, który otwiera się w pływającym oknie.
 
-Uruchamiasz Omacalc za pomocą `Super + Ctrl + Q` (lub klawisza kalkulatora, jeśli twoja klawiatura go ma).
+Omacalc uruchamiasz skrótem `Super + Shift + Q` (lub klawiszem kalkulatora, jeśli Twoja klawiatura taki ma).
 
 ## Signal
 
-[Signal](https://signal.org/) jest pionierem szyfrowanych wiadomości E2E i świetną opcją komunikacji dla każdego, kto wolałby nie przechodzić przez jeden z dużych konglomeratów technologicznych.
+[Signal](https://signal.org/) to pionier szyfrowanej komunikacji E2E i świetna opcja komunikacyjna dla każdego, kto wolałby nie korzystać z jednego z wielkich konglomeratów technologicznych.
 
-Uruchamiasz Signal za pomocą `Super + Shift + G`. Nie jest częścią podstawowej instalacji, więc za pierwszym razem, gdy naciśniesz to, Omarchy zaproponuje zainstalowanie go dla ciebie (jest również w _Instaluj > Service_ w menu Omarchy).
+Signal uruchamiasz skrótem `Super + Shift + G`. Nie jest częścią instalacji podstawowej, więc za pierwszym razem, gdy naciśniesz ten skrót, Omarchy zaproponuje zainstalowanie go dla Ciebie (jest też dostępny w menu Omarchy, w _Install > Service_).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) jest prostym, szybkim odtwarzaczem multimediów, który odtworzy prawie wszystko z dowolnego źródła. Świetny do oglądania wideo.
+[Omaview](https://github.com/omacom/omaview) to własna, szalenie prosta przeglądarka zdjęć i odtwarzacz multimediów Omarchy: jedno okno dla Twoich zdjęć, filmów i muzyki. Otwórz zdjęcie, a klawisze strzałek przewijają pozostałe zdjęcia z jego folderu, `N` i `P` robią to samo dla wszystkiego, a `Ctrl + M` pokazuje cały folder jako siatkę. Wyświetla też zdjęcia HEIC, AVIF i JPEG XL oraz wznawia odtwarzanie wszystkiego, co długie, w miejscu, w którym je przerwałeś.
 
-Uruchamiasz mpv za pośrednictwem launchera aplikacji (`Super + Space`) lub po prostu dwukrotnie klikasz wideo w menedżerze plików.
+Naciśnij `F`, aby włączyć pełny ekran, `E`, aby edytować zdjęcie w Omasnap lub przyciąć film w Omacut, `Ctrl + P`, aby wydrukować zdjęcie, i `Delete`, aby przenieść plik do kosza (`Ctrl + Z` go przywraca). Naciśnij `?` w aplikacji, aby zobaczyć wszystkie skróty.
+
+Omaview uruchamiasz jako _Media Viewer_ przez program uruchamiający aplikacje (`Super + Space`) albo po prostu klikasz dwukrotnie zdjęcie, film lub utwór w menedżerze plików.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) jest własnym, banalnie prostym trymerem wideo Omarchy. Gdy wszystko, czego potrzebujesz, to odciąć początek i koniec klipu, bije na głowę uruchamianie pełnego edytora wideo.
+[Omacut](https://github.com/omacom-io/omacut) to własny, szalenie prosty przycinacz filmów Omarchy. Kiedy potrzebujesz tylko odciąć początek i koniec klipu, przebija odpalanie pełnego edytora wideo.
 
-Uruchamiasz Omacut za pośrednictwem launchera aplikacji (`Super + Space`).
+Omacut uruchamiasz przez program uruchamiający aplikacje (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) jest własnym, banalnie prostym rejestratorem kamery internetowej Omarchy. Wybierz kamerę i mikrofon raz, a następnie naciśnij `Space`, aby nagrywać, i ponownie, aby wstrzymać i wznowić to samo ujęcie. Zawsze nagrywa w najwyższej rozdzielczości twojej kamery, z miernikiem mikrofonu na żywo, abyś mógł sprawdzić poziomy przed rozpoczęciem.
+[Monologue](https://github.com/omacom/monologue) to własny, szalenie prosty rejestrator kamery internetowej Omarchy. Wybierz kamerę i mikrofon raz, a potem naciśnij `Space`, aby nagrywać, i ponownie, aby wstrzymać i wznowić to samo nagranie. Zawsze nagrywa w najwyższej rozdzielczości Twojej kamery, z miernikiem poziomu mikrofonu na żywo, abyś mógł sprawdzić poziomy przed rozpoczęciem.
 
-Zatrzymaj ujęcie, a otworzy się od razu we wbudowanym edytorze. Dwukrotnie kliknij klip, aby go podzielić, przeciągnij uchwyty, aby przyciąć każdy fragment, i usuń części, których nie chcesz. Następnie zapisz go jako MP4. Twoje oryginalne nagranie jest zachowywane, dopóki go nie odrzucisz, więc zawsze możesz wrócić i przyciąć je inaczej.
+Zatrzymaj nagranie, a otworzy się od razu we wbudowanym edytorze. Kliknij dwukrotnie klip, aby go podzielić, przeciągnij uchwyty, aby przyciąć każdy fragment, i usuń części, których nie chcesz. Następnie zapisz go jako MP4. Oryginalne nagranie jest przechowywane, dopóki go nie odrzucisz, więc zawsze możesz wrócić i przyciąć je inaczej.
 
-Uruchamiasz Monologue za pośrednictwem launchera aplikacji (`Super + Space`).
+Monologue uruchamiasz przez program uruchamiający aplikacje (`Super + Space`).

@@ -47,8 +47,8 @@ Item {
   }
 
   ShellIpc {
-    enabled: root.manageIpc && root.ipcTarget !== ""
-    target: root.ipcTarget
+    // A panel that answers its target itself leaves this one without one.
+    target: root.manageIpc ? root.ipcTarget : ""
 
     function open(): void { root.open() }
     function close(): void { root.close() }

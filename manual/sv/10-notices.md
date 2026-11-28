@@ -1,8 +1,20 @@
 # Notiser
 
-Du kan snabbt komma åt datum och tid, batteristatus och aktuellt väder med snabbtangentnotiserna.
+Aviseringar visas i det övre högra hörnet på den fokuserade skärmen. Du kan också snabbt komma åt datum och tid, batteristatus och aktuellt väder med aviseringarna via snabbtangenter.
 
-### Datum & tid
+## Aviseringar
+
+Aviseringar från samma app eller webbplats staplas i en kortlek, så att en pratglad Slack-kanal inte knuffar bort ditt byggfel från skärmen. Håll pekaren över en kortlek för att sprida ut den; inget nytt glider in under pekaren medan du läser. Klicka på ett kort för att hoppa till var det kom ifrån, högerklicka, mittenklicka eller tryck på ✕ för att stänga det.
+
+Korten erbjuder det de innehåller: _Kopiera kod_ för verifieringskoder (hålls utanför [urklippshistoriken](08-unified-clipboard-history.md) och rensas efter en minut), plus de knappar som appen tillhandahåller. Länkar i en aviserings text öppnas när du klickar på dem.
+
+`Super + ,` stänger den nyaste aviseringen, eller öppnar det den pekar på när den erbjuder det, `Super + Alt + ,` stänger bara den senaste, `Super + Shift + ,` stänger alla och `Super + Shift + Alt + ,` öppnar historiken. För att använda dem utan musen trycker du på `Super + Ctrl + ,`. Den nyaste aviseringen markeras och dess knappar numreras: tryck på en siffra för att använda en, `Enter` för att klicka på aviseringen, `↑` och `↓` för att flytta mellan aviseringar, `Delete` för att stänga en och `Esc` för att lämna tillbaka tangentbordet. Den släpper också taget av sig själv efter några sekunders inaktivitet.
+
+Att tysta aviseringar håller dem tillbaka, förutom Omarchys egna bekräftelser, nödlarm och verifieringskoder, som du bad om för en stund sedan. Ta fram de senaste få på skärmen igen, oavsett om de har hållits tillbaka eller inte, med `Super + Shift + Alt + ,`. Historiken sparas i ett dygn.
+
+## Aviseringar via snabbtangenter
+
+### Datum och tid
 
 `Super + Ctrl + Alt + T`
 
@@ -14,7 +26,7 @@ Du kan snabbt komma åt datum och tid, batteristatus och aktuellt väder med sna
 
  ![notice-weather](images/notice-weather.webp)
 
-Platsen detekteras från din IP-adress, vilket vanligtvis är tillräckligt nära, men inte alltid. Du kan fästa den med `omarchy weather location --set Malibu`, eller vara exakt genom att lägga till koordinater: `omarchy weather location --set Malibu 34.0259,-118.7798`. Kör `omarchy weather location` på egen hand för att se var den tror att du är, och `--clear` för att gå tillbaka till automatisk detektering.
+Platsen identifieras från din IP-adress, vilket vanligtvis är tillräckligt nära, men inte alltid. Du kan precisera den med `omarchy weather location --set Malibu`, eller vara exakt genom att lägga till koordinater: `omarchy weather location --set Malibu 34.0259,-118.7798`. Kör `omarchy weather location` på egen hand för att se var den tror att du är, och `--clear` för att gå tillbaka till automatisk identifiering.
 
 ### Batteri
 

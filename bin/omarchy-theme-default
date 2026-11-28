@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Print the theme a new user starts on
+# omarchy:hidden=true
+
+# A theme made for this computer (one whose `hardware` file matches it) comes
+# before the region's choice (docs/regions.md).
+
+shopt -s nullglob
+
+default_theme=""
+for hardware in "$OMARCHY_PATH"/themes/*/hardware; do
+  theme=${hardware%/hardware}
+  theme=${theme##*/}
+  if [[ -z $default_theme ]] && omarchy-theme-available "$theme"; then
+    default_theme=$theme
+  fi
+done
+
+if [[ -z $default_theme ]]; then
+  default_theme=$(<"$OMARCHY_PATH/default/regions/$(omarchy-region)/theme")
+fi
+
+echo "$default_theme"

@@ -443,17 +443,22 @@ local function theme_colors()
   }
 end
 
--- Titlebars come from omarchy-hyprland-titlebars, loaded only while something
--- floats. Hyprland keeps a plugin loaded after the config stops asking for it,
--- but resets its options, and the plugin draws nothing until enabled here.
+-- Titlebars come from omarchy-hyprland-titlebars, loaded once something floats.
 -- The plugin reloads the config once it is in, which is the pass that finds its
--- options here.
-local function titlebars()
+-- options here. Its options reset on every load, so it draws nothing until enabled.
+local function titlebars_installed()
   local file = io.open(TITLEBARS, "r")
   if not file then
-    return
+    return false
   end
   file:close()
+  return true
+end
+
+local function titlebars()
+  if not titlebars_installed() then
+    return
+  end
 
   hl.plugin.load(TITLEBARS)
 
@@ -489,6 +494,9 @@ local function titlebars()
     },
   })
 
+  -- A titlebar over an app's own frame would be a second header.
+  hl.window_rule({ match = { class = o.self_framed_apps }, ["hyprbars:no_bar"] = true })
+
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
     { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },
@@ -503,6 +511,18 @@ local function titlebars()
       action = button.action,
     })
   end
+end
+
+-- Hyprland unloads a plugin the config stops asking for, and bringing this one
+-- back costs a cascade of reloads, so once in it stays asked for all session.
+local function titlebars_loaded()
+  for _, plugin in ipairs(hl.get_loaded_plugins and hl.get_loaded_plugins() or {}) do
+    if plugin.name == "hyprbars" then
+      return true
+    end
+  end
+
+  return false
 end
 
 -- Runs once every saved mode has loaded. A reload is a fresh start on this side
@@ -525,6 +545,8 @@ function M.apply()
 
   if anything_floats() then
     set_up_floating()
+  elseif titlebars_loaded() and titlebars_installed() then
+    hl.plugin.load(TITLEBARS)
   end
 end
 
@@ -546,7 +568,13 @@ set_up_floating = function()
     o.window({ tag = WORKSPACE_TAG }, { no_shadow = false })
   end
 
-  o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+  -- Glassy windows are see-through everywhere, floating workspaces included.
+  local glassy = io.open(paths.state_home .. "/omarchy/toggles/hypr/window-glassy.lua", "r")
+  if glassy then
+    glassy:close()
+  else
+    o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+  end
 
   titlebars()
 end

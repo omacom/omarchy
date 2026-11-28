@@ -1,0 +1,154 @@
+#!/bin/bash
+
+# omarchy:summary=Install Omarchy's bundled extensions in a Chromium-based browser, or check they are current
+# omarchy:args=[--check] <chromium|chrome|brave|brave-origin|edge>
+# omarchy:examples=omarchy install browser extensions chromium | omarchy install browser extensions --check chrome
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# Every browser reaches the bundled extensions through copies taken when it was
+# set up: Chromium, Brave and Edge load them from the --load-extension line in
+# their flags file, Google Chrome (which ignores that flag) force-installs the
+# signed CRXs through its managed policy, and each profile registers native
+# hosts that must admit the extensions' ids. A new extension or new ids leave
+# those copies behind. Only Chrome's policy needs root.
+
+set -euo pipefail
+
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+check=false
+if [[ ${1:-} == "--check" ]]; then
+  check=true
+  shift
+fi
+
+flags=""
+case ${1:-} in
+chrome) profile=google-chrome ;;
+chromium) profile=chromium; flags=chromium-flags.conf ;;
+brave) profile=BraveSoftware/Brave-Browser; flags=brave-flags.conf ;;
+brave-origin) profile=BraveSoftware/Brave-Origin; flags=brave-origin-flags.conf ;;
+edge) profile=microsoft-edge; flags=microsoft-edge-stable-flags.conf ;;
+*)
+  echo "Usage: omarchy-install-browser-extensions [--check] <chromium|chrome|brave|brave-origin|edge>" >&2
+  exit 1
+  ;;
+esac
+
+browser=$1
+chrome_policy_dir=/etc/opt/chrome/policies/managed
+host_dir=$HOME/.config/$profile/NativeMessagingHosts
+flags_file=$HOME/.config/$flags
+shipped_extensions=$(sed -n 's/^--load-extension=//p' "$OMARCHY_PATH/config/chromium-flags.conf")
+
+chrome_policy_current() {
+  browser_policy_dir_hardened "$chrome_policy_dir" &&
+    browser_policy_parents_hardened "$chrome_policy_dir" &&
+    cmp -s "$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json" "$chrome_policy_dir/omarchy-extensions.json"
+}
+
+hosts_current() {
+  local template
+
+  for template in "$OMARCHY_PATH"/default/chromium/native-messaging-hosts/*.json; do
+    jq -e --slurpfile want "$template" '.allowed_origins | contains($want[0].allowed_origins)' \
+      "$host_dir/${template##*/}" >/dev/null 2>&1 || return 1
+  done
+}
+
+# The --load-extension value Chromium honors: the last such switch outside a
+# comment, which may share its line with other switches. A comment starts at a
+# # that begins a line or follows whitespace, as omarchy-install-video-decode
+# reads the same files.
+loaded_flag_extensions() {
+  awk '{ sub(/(^|[[:space:]])#.*$/, ""); for (i = 1; i <= NF; i++) if ($i ~ /^--load-extension=/) last = substr($i, 18) } END { print last }' "$flags_file"
+}
+
+# The extensions the flags file loads but doesn't list yet, one per line.
+missing_flag_extensions() {
+  local loaded extension
+
+  loaded=$(loaded_flag_extensions | tr ',' '\n')
+  while read -r extension; do
+    grep -Fxq -- "$extension" <<<"$loaded" || printf '%s\n' "$extension"
+  done < <(tr ',' '\n' <<<"$shipped_extensions")
+}
+
+flags_current() {
+  [[ -z $flags ]] || [[ -f $flags_file && -z $(missing_flag_extensions) ]]
+}
+
+# Add only the missing extensions, keeping the user's own flags and extensions.
+repair_flags() {
+  local missing repaired
+
+  if [[ ! -f $flags_file ]]; then
+    mkdir -p "$(dirname "$flags_file")"
+    cp "$OMARCHY_PATH/config/chromium-flags.conf" "$flags_file"
+    return
+  fi
+
+  missing=$(missing_flag_extensions | paste -sd,)
+  [[ -n $missing ]] || return 0
+
+  # Extend the last active --load-extension switch in place, leaving comments
+  # and any other switches on its line alone. A comment only ever ends a line,
+  # so offsets into the uncommented part hold for the whole line. Writing
+  # through the redirect keeps a symlinked flags file a symlink.
+  if repaired=$(awk -v missing="$missing" '
+    function active(line) {
+      sub(/(^|[[:space:]])#.*$/, "", line)
+      return line
+    }
+    FNR == NR {
+      if (active($0) ~ /(^|[[:space:]])--load-extension=/) target = FNR
+      next
+    }
+    FNR == target {
+      line = active($0)
+      rest = line
+      offset = 0
+      while (match(rest, /(^|[[:space:]])--load-extension=[^[:space:]]*/)) {
+        offset += RSTART + RLENGTH - 1
+        rest = substr(line, offset + 1)
+      }
+      $0 = substr($0, 1, offset) "," missing substr($0, offset + 1)
+    }
+    { print }
+    END { exit !target }
+  ' "$flags_file" "$flags_file"); then
+    printf '%s\n' "$repaired" >"$flags_file"
+  else
+    [[ -z $(tail -c1 "$flags_file") ]] || echo >>"$flags_file"
+    echo "--load-extension=$missing" >>"$flags_file"
+  fi
+}
+
+if [[ $check == "true" ]]; then
+  if [[ $browser == "chrome" ]]; then
+    chrome_policy_current && hosts_current
+  else
+    flags_current && hosts_current
+  fi
+else
+  omarchy-install-chromium-copy-url
+  omarchy-install-chromium-ytdlp
+
+  if [[ $browser == "chrome" ]]; then
+    if ! chrome_policy_current; then
+      browser_policy_setup_dir "$chrome_policy_dir"
+      omarchy-theme-set-browser
+
+      # The theme command only refreshes Chrome when the color changed, so ask a
+      # running Chrome to load the new extension policy either way.
+      if pgrep -x chrome >/dev/null; then
+        chrome_command=google-chrome-stable
+        omarchy-cmd-present "$chrome_command" || chrome_command=google-chrome
+        "$chrome_command" --refresh-platform-policy --no-startup-window &>/dev/null || true
+      fi
+    fi
+  else
+    repair_flags
+  fi
+fi

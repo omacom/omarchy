@@ -1,55 +1,55 @@
 # Prekės ženklas
 
-Omarchy leidžia nustatyti savo įmonės logotipą ar asmeninį paveikslėlį ir įkrovos atrakinimui, ir ekrano užsklandai, ir apie ekranui.
+Omarchy leidžia nustatyti įmonės logotipą arba asmeninį paveikslėlį tiek įkrovos atrakinimui, tiek ekrano užsklandai, tiek ekranui „Apie“.
 
 ### Įkrovos atrakinimas
 
-Gali naudoti `omarchy plymouth preview`, kad pamatytum, kaip atrodytų tavo pasirinktinis logotipas ir spalvos. Jis priima fono spalvą, teksto spalvą, logotipo png ir peržiūros paveikslėlio kelią:
+Galite naudoti `omarchy plymouth preview`, kad pamatytumėte, kaip atrodytų jūsų pasirinktinis logotipas ir spalvos. Jis priima fono spalvą, teksto spalvą, logotipo png ir peržiūros paveikslėlio kelią:
 
 ```
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-Tada pritaikyk sąranką su `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` — tai SDDM prisijungimo ekranui taip pat duos tas pačias spalvas ir logotipą. Jei nori grąžinti, gali naudoti `omarchy plymouth reset`.
+Tuomet pritaikykite sąranką su `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, kuri taip pat suteiks SDDM prisijungimo ekranui tas pačias spalvas ir logotipą. Jei norite grąžinti ankstesnę būseną, galite naudoti `omarchy plymouth reset`.
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
 ### Ekrano užsklanda
 
-Ekrano užsklandai naudojamą logotipą gali keisti po _Stilius > Ekrano užsklanda_. Tai ASCII logotipas, todėl tekstą gali redaguoti tiesiogiai, bet gali jam duoti ir png arba svg paveikslėlį, ir mes jį paversime į ASCII. Atrodo visai šauniai.
+Ekrano užsklandai naudojamą logotipą galite pakeisti skiltyje _Išvaizda > Prekės ženklas > Ekrano užsklanda_. Tai ASCII logotipas, todėl galite tiesiogiai redaguoti tekstą, bet taip pat galite pateikti jam png arba svg paveikslėlį, ir mes jį konvertuosime į ASCII. Atrodo gana šauniai.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
 Tame meniu yra trys įrašai:
 
-- **Redaguoti tekstą** atidaro `~/.config/omarchy/branding/screensaver.txt` tavo redaktoriuje. Įrašyk ar įklijuok ką nori — ASCII meną, savo vardą, nepadorų žodį. Išsaugok ir išeik, ir ekrano užsklanda iškart įsijungs, kad galėtum pamatyti.
-- **Nustatyti iš paveikslėlio** atidaro failų parinkiklį png arba svg, paverčia jį į ASCII ir parodo rezultatą. Logotipai su aiškiu siluetu veikia daug geriau nei nuotraukos.
+- **Redaguoti tekstą** atidaro `~/.config/omarchy/branding/screensaver.txt` jūsų redaktoriuje. Įveskite arba įklijuokite ką tik norite — ASCII piešinį, savo vardą, nepadorų žodį. Išsaugokite ir uždarykite, ir ekrano užsklanda iš karto įsijungs, kad galėtumėte ją pamatyti.
+- **Nustatyti iš paveikslėlio** atidaro failų parinkiklį png arba svg failui, konvertuoja jį į ASCII ir parodo jums rezultatą. Logotipai su aiškiu siluetu veikia kur kas geriau nei nuotraukos.
 - **Atkurti numatytąjį** grąžina Omarchy logotipą.
 
-### Apie ekranas
+### Ekranas „Apie“
 
-Tos pačios trys parinktys yra po _Stilius > Apie_ ekranui _Apie_, kurį gauni iš Omarchy meniu, ir jos veikia identiškai — failas yra `~/.config/omarchy/branding/about.txt`, o langas Apie iššoka po kiekvieno pakeitimo. Apie menas konvertuojamas į mažesnį dydį nei ekrano užsklandos, nes jis turi tilpti lange, užuot užpildęs ekraną.
+Tie patys trys variantai yra skiltyje _Išvaizda > Prekės ženklas > Apie_ ir skirti ekranui _Apie_, kurį gaunate iš Omarchy meniu, ir jie veikia identiškai — failas yra `~/.config/omarchy/branding/about.txt`, o langas „Apie“ iššoka po kiekvieno pakeitimo. Piešinys ekranui „Apie“ konvertuojamas į mažesnį dydį nei ekrano užsklandos, nes jis turi tilpti į langą, o ne užpildyti jūsų ekraną.
 
-Kol langas atvertas, žalias blyksnis kas kelias sekundes palinksta per meną ir tada vėl jį palieka ramų. Tavo menas jį taip pat gauna, kol kiekvienas jo simbolis yra vieno stulpelio pločio — viskas, ką pagamina _Nustatyti iš paveikslėlio_, toks yra. Menas, sukurtas iš emoji arba dvigubo pločio simbolių, vietoj to lieka ramus, ir taip pat ekranas, jei laikai savą fastfetch konfigūraciją: ramus logotipas tais atvejais yra animacija, kuri nesimaišo po kojomis, o ne gedimas, nes blyksnis, slenkantis per juos, likusią eilutės dalį numestų ne į tą vietą.
+Kol langas atidarytas, ryškios baltos šviesos juosta kas kelias sekundes nuslysta per piešinį ir tuomet vėl palieka jį ramų. Jūsų pačių piešinys ją taip pat gauna, jei kiekvienas jo simbolis yra vieno stulpelio pločio — toks yra viskas, ką sukuria _Nustatyti iš paveikslėlio_. Piešinys, sukurtas iš emoji arba dvigubo pločio simbolių, vietoj to lieka ramus, ir taip pat elgiasi ekranas, jei turite savo fastfetch konfigūraciją: nejudantis logotipas tais atvejais yra animacija, kuri pasitraukia iš kelio, o ne sugenda, nes nuslinkus blyksniui per juos likusi eilutės dalis atsidurtų netinkamoje vietoje.
 
  ![branding-about](images/branding-about.webp)
 
-### Paveikslėlių konvertavimas pačiam
+### Paveikslėlių konvertavimas savarankiškai
 
-Abi _Nustatyti iš paveikslėlio_ parinktys tiesiog kviečia `omarchy transcode ascii`, kurį gali paleisti tiesiogiai, jei nori valdyti konvertavimą:
+Abu _Nustatyti iš paveikslėlio_ variantai tiesiog iškviečia `omarchy transcode ascii`, kurį galite paleisti tiesiogiai, jei norite valdyti konvertavimą:
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-Jis priima `--width` ir `--height` terminalo stulpeliais ir eilutėmis, `--mode` — `braille` (numatytąjį ir daug smulkesnį) arba `block`, `--threshold` procentą, sprendžiantį, kurie pikseliai skaičiuojasi kaip logotipo dalis, ir `--invert` tam atvejui, kai tavo logotipas šviesus tamsiame fone. Jei konvertavimas išeina gumbuotas, slenkstis paprastai yra ta rankenėlė, kurią verta pasukti.
+Jis priima `--width` ir `--height` terminalo stulpeliais ir eilutėmis, `--mode` — arba `braille` (numatytąjį ir daug smulkesnį), arba `block`, `--threshold` procentais, skirtą nuspręsti, kurie pikseliai laikomi logotipo dalimi, ir `--invert`, skirtą atvejui, kai jūsų logotipas yra šviesus tamsiame fone. Jei konvertuotas rezultatas atrodo kaip dėmė, slenkstis paprastai yra tas reguliatorius, kurį reikia pasukti.
 
 ### Žodžiai vietoj logotipo
 
-`omarchy ascii` piešia tekstą Delta Corps Priest 1 — FIGlet šriftu, kuriuo nupieštas pats Omarchy žodinis ženklas, todėl ekrano užsklanda gali ką nors sakyti, užuot rodžiusi paveikslėlį:
+`omarchy ascii` piešia tekstą šriftu Delta Corps Priest 1 — FIGlet šriftu, kuriuo nupieštas pats Omarchy žodinis ženklas, — todėl ekrano užsklanda gali ką nors pasakyti, o ne rodyti paveikslėlį:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Jis priima tekstą kaip argumentus arba skaito jį iš vamzdžio, kai argumentų neduodama. Šriftas turi tik raides ir tarpus — jis buvo nupieštas be skaitmenų ir skyrybos — todėl visa kita išmetama ir įvardijama stderr, užuot tyliai praryta.
+Jis priima tekstą kaip argumentus arba skaito jį iš srauto, kai argumentų nepateikiama. Šriftas turi tik raides ir tarpus — jis buvo nupieštas be skaitmenų ir skyrybos ženklų, — todėl visa kita yra atmetama ir įvardijama stderr, o ne tyliai praryjama.

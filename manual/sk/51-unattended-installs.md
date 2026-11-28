@@ -1,36 +1,36 @@
-# Bezobslužné inštalácie
+# Inštalácie bez obsluhy
 
-ISO Omarchy sa dokáže nainštalovať samo bez nikoho pri klávesnici. Ak inštalačný program nájde druhý disk s označením `cidata`, ktorý nesie jeho konfiguračné súbory, skopíruje ich odtiaľ, úplne preskočí sprievodcu nastavením a sám sa reštartuje do hotového systému. Žiadna špeciálna zostava ISO, žiadna ďalšia položka v ponuke zavádzania — bez pripojeného takého disku sa nič nemení a dostanete bežného sprievodcu.
+ISO Omarchy sa dokáže nainštalovať samo, bez nikoho pri klávesnici. Ak inštalátor nájde druhú jednotku s označením `cidata`, ktorá nesie jeho konfiguračné súbory, skopíruje ich z nej, úplne preskočí sprievodcu nastavením a sám sa reštartuje do hotového systému. Žiadna špeciálna zostava ISO, žiadna extra položka v bootovacom menu — ak taká jednotka nie je pripojená, nič sa nemení a dostanete bežného sprievodcu.
 
-Vďaka tomu je Omarchy skvelý ako základný obraz pre jednorazové vývojové prostredia: vytvorte virtuálny stroj v Proxmoxe alebo pomocou Packeru, zaveďte ho, odíďte a pripojte sa cez SSH. `cidata` je označenie `NoCloud` z cloud-init, takže všetky bežné virtualizačné nástroje už vedia, ako taký disk pripojiť.
+Vďaka tomu je Omarchy skvelé ako základný obraz pre jednorazové vývojové prostredia: vytvorte VM v Proxmox alebo pomocou Packer, spustite ju, odíďte preč, pripojte sa cez SSH. `cidata` je označenie cloud-init `NoCloud`, takže všetky bežné virtualizačné nástroje už vedia, ako takú jednotku pripojiť.
 
 ## Konfiguračné súbory
 
-Súbory sú presne tým, čo zapisuje vlastný sprievodca inštalačného programu, takže najjednoduchší spôsob, ako získať počiatočnú sadu, je spustiť jednu interaktívnu inštaláciu (povedzme vo virtuálnom stroji) a skopírovať to, čo zapísal do `/root`:
+Súbory sú presne tie, ktoré zapisuje vlastný sprievodca inštalátora, takže najjednoduchší spôsob, ako získať počiatočnú sadu, je spustiť jednu interaktívnu inštaláciu (povedzme vo VM) a skopírovať to, čo zapísal do `/root`:
 
 | Súbor | Povinné | Účel |
 |------|----------|---------|
 | `user_configuration.json` | Áno | Disk, názov hostiteľa, časové pásmo, klávesnica |
-| `user_credentials.json` | Áno | Používateľské meno a haš hesla |
-| `user_full_name.txt` | Nie | Celé meno pre Git |
-| `user_email_address.txt` | Nie | E-mail pre Git |
-| `user_encrypt_installation.txt` | Nie | `true`, keď konfigurácia nesie blok `disk_encryption` |
+| `user_credentials.json` | Áno | Používateľské meno a hash hesla a prístupová fráza LUKS pre šifrovanú inštaláciu |
+| `user_encrypt_installation.txt` | Nie | `true`, keď konfigurácia obsahuje blok `disk_encryption` |
 | `authorized_keys` | Nie | Verejné kľúče SSH, jeden na riadok |
-| `tailscale_authkey` | Nie | Autorizačný kľúč Tailscale na pripojenie do vášho tailnetu pri prvom zavedení |
+| `tailscale_authkey` | Nie | Autentizačný kľúč Tailscale na pripojenie k vášmu tailnetu pri prvom spustení |
 
-Haš hesla pre `user_credentials.json` vygenerujte príkazom `openssl passwd -6 "yourpassword"`.
+Hash hesla pre `user_credentials.json` vygenerujte pomocou `openssl passwd -6 "yourpassword"`.
 
-Namiesto `user_credentials.json` môžete tiež vložiť prázdny súbor s názvom `defer-provisioning`. Tým sa spustí tá istá [inštalácia typu pripraviť pre iného vlastníka](02-getting-started.md), ktorú môžete vyvolať interaktívne: stroj sa nainštaluje bez osobných údajov a ktokoľvek ho zavedie ako prvý, si vyberie klávesnicu a vytvorí si svojho používateľa. To je režim pre zobrazovacie zariadenia, kde by disk nemal niesť vôbec žiadne prihlasovacie údaje.
+Meno a e-mail pre commity v gite nie sú súčasťou inštalácie. Nastavte ich, keď je počítač spustený, napríklad cez SSH, pomocou `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+Namiesto `user_credentials.json` môžete vložiť aj prázdny súbor s názvom `defer-provisioning`. Tým sa spustí rovnaká [inštalácia s prípravou pre iného vlastníka](02-getting-started.md), akú môžete spustiť interaktívne: počítač sa nainštaluje bez osobných údajov a ten, kto ho spustí ako prvý, si vyberie klávesnicu a vytvorí svojho používateľa. To je režim pre pracoviská na prípravu obrazov diskov, kde jednotka nemá niesť vôbec ničíe prihlasovacie údaje.
 
 ## Prístup cez SSH
 
-Keď je prítomný `authorized_keys`, inštalácia nastaví kľúče ako používateľský `~/.ssh/authorized_keys`, povolí `sshd` a otvorí preň firewall. (Bežná inštalácia Omarchy dodáva openssh s vypnutou službou a zatvoreným portom, takže bezobslužný stroj by inak bol nedostupný.) Inštalácia len pridá vaše kľúče — neuvoľňuje žiadne ďalšie autentifikačné nastavenia démona SSH.
+Keď je prítomný súbor `authorized_keys`, inštalácia nastaví kľúče ako používateľov súbor `~/.ssh/authorized_keys`, povolí `sshd` a otvorí preň firewall. (Bežná inštalácia Omarchy dodáva openssh s vypnutou službou a zatvoreným portom, takže počítač bez obsluhy by bol inak nedostupný.) Inštalácia iba pridá vaše kľúče — neuvoľňuje žiadne ďalšie nastavenia autentifikácie démona SSH.
 
-Keď je prítomný `tailscale_authkey`, stroj sa namiesto toho pri prvom zavedení pripojí do vášho tailnetu: Tailscale sa nainštaluje z balíkov priložených k ISO, firewall povolí rozhranie tailnet a úloha na pozadí spustí pripojenie, akonáhle má stroj skutočne sieť, pričom sa opakuje, kým sa nepodarí. Použite opakovane použiteľný, vopred autorizovaný kľúč, aby jeden obraz disku mohol slúžiť mnohým strojom.
+Keď je prítomný súbor `tailscale_authkey`, počítač sa namiesto toho pri prvom spustení pripojí k vášmu tailnetu: Tailscale sa nainštaluje z balíčkov priložených k ISO, firewall povolí rozhranie tailnetu a úloha na pozadí spustí pripojenie hneď, ako bude mať počítač skutočne sieť, a opakuje pokusy, kým sa nepodarí. Použite opakovane použiteľný, vopred autorizovaný kľúč, aby jeden obraz jednotky mohol slúžiť mnohým počítačom.
 
-## Vytvorenie disku cidata
+## Vytvorenie jednotky cidata
 
-Funguje každý súborový systém so správnym označením. Jednoduchý spôsob je malé ISO:
+Funguje akýkoľvek súborový systém so správnym označením. Malé ISO je jednoduchá cesta:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Potom ho pripojte k virtuálnemu stroju vedľa ISO Omarchy. Tu je úplný príklad pre Proxmox:
+Potom ju pripojte k VM popri ISO Omarchy. Tu je úplný príklad pre Proxmox:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Poradie zavádzania uvádza disk zámerne ako prvý: prázdny disk pri prvom zavedení prepadne na ISO a nainštalovaný systém sa potom vždy zavádza z disku.
+Poradie bootovania uvádza disk na prvom mieste zámerne: prázdny disk pri prvom spustení prepadne na ISO a nainštalovaný systém sa odvtedy bootuje z disku.
 
-## Dve výhrady
+## Dve upozornenia
 
-Zašifrované bezobslužné inštalácie nie sú úplne bezobslužné — niekto stále musí pri prvom zavedení napísať prístupovú frázu LUKS. A blok `disk_encryption` v `user_configuration.json` nesie túto prístupovú frázu v otvorenom texte, takže s diskom cidata vytvoreným zo zašifrovanej inštalácie zaobchádzajte ako s tajomstvom, ktorým je.
+Šifrované inštalácie bez obsluhy nie sú úplne bez obsluhy — niekto stále musí pri prvom spustení zadať prístupovú frázu LUKS. A táto prístupová fráza patrí na najvyššiu úroveň súboru `user_credentials.json` ako `encryption_password` — archinstall ju číta odtiaľ, nie z bloku `disk_encryption` v súbore `user_configuration.json` — takže s jednotkou cidata vytvorenou zo šifrovanej inštalácie zaobchádzajte ako s tajomstvom, ktorým aj je.

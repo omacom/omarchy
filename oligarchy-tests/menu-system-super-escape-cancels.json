@@ -1,0 +1,15 @@
+{
+  "name": "menu-system-super-escape-cancels",
+  "kind": "resume",
+  "context": "From the desktop please do the following:\n\n- This is the same menu the `lock-screen` definition uses for its Lock row; Super+Escape is `<M-ESC>`.\n- On an edge build: the System menu also has Reboot to Boot Menu just above Shutdown; never select it.",
+  "steps": [
+    "Press Super+Escape. The System menu opens. Hibernate is listed. Do not select Suspend or Hibernate.",
+    "Press Escape. The menu closes. The desktop stays.",
+    "Press Super+Escape. The System menu opens.",
+    "Press Down until Shutdown is highlighted. Shutdown is highlighted. Do not press Enter.",
+    "Press Escape. The menu closes. Nothing powers off.",
+    "Press Super+Escape. The System menu opens.",
+    "Press Backspace. The root menu opens. The menu stays open."
+  ],
+  "proof": "* On success\n** The final screen shows the root \"Go…\" card with its ten rows (Apps, Learn, Trigger, Style, Setup, Install, Remove, Update, About, System), still open after Backspace\n** Supporting: the \"System…\" card with seven rows (Screensaver, Lock, Suspend, Hibernate, Logout, Reboot, Shutdown); Shutdown highlighted; the unchanged desktop after each Escape\n* If unsuccessful\n** A menu that stayed open, or a lock, black or login screen showing an action fired; whether the bar vanished"
+}

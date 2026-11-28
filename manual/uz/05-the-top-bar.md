@@ -1,117 +1,122 @@
 # Yuqori panel
 
-Ekraningiz tepasidagi chiziq — Omarchy paneli. Bu mahkamlangan holat paneli emas, menyu, bildirishnomalar, OSD oynalari va qulf ekranni ham chizadigan yagona uzoq ishlaydigan Quickshell jarayoni — Omarchy shellining bir qismi. Shuning uchun u boshqa hamma narsa bilan mukammal mavzulashadi va panel yangi ilova ochmasdan bir zumda ochiladi.
+Ekraningizning yuqori qismidagi chiziq — Omarchy panelidir. Bu shunchaki yopishtirilgan holat paneli emas, balki Omarchy qobig‘ining bir qismi — menyuni, bildirishnomalarni, OSD qalqib chiquvchi oynalarini va qulflash ekranini ham chizadigan yagona, uzoq ishlaydigan Quickshell jarayoni. Shuning uchun u qolgan hamma narsa bilan mukammal uyg‘unlashadi va panel yangi ilovani ishga tushirmasdan, darhol ochiladi.
 
-Bu shuningdek har doim ekranda boʻladigan ish stolining yagona qismi, shuning uchun oʻsha kichik gliflarning hammasi nima qilishini bilishga arziydi.
+Bu, shuningdek, doimo ekranda bo‘ladigan yagona ish stoli qismi, shuning uchun o‘sha kichkina belgilarning barchasi nima qilishini bilib qo‘yish arziydi.
 
-## Standartda unda nimalar bor
+## Standart holatda unda nimalar bor
 
-Panel uchta boʻlimga ega. Chapda Omarchy logotipi (menyu ishga tushirgichi) va ish maydoni koʻrsatkichlari oʻtiradi. Markazda holat koʻrsatkichlari, soat, Elsewhen (dunyo soati), ob-havo va Omarchy yangilanish belgisi. Oʻngda: klaviatura tartibi (bittadan koʻproq sozlangan boʻlsa), tizim laganda, agentlar, bluetooth, tarmoq, ovoz, displey va quvvat.
+Panel uchta bo‘limdan iborat. Chap tomonda Omarchy logotipi (menyu ishga tushirgichi) va ish joyi ko‘rsatkichlari joylashgan. Markazda holat ko‘rsatkichlari, soat, Elsewhen (dunyo soati), ob-havo va Omarchy yangilanish belgisi bor. O‘ng tomonda: tizim treyi, klaviatura tartibi (birdan ortiq tartib yoki kiritish usuli sozlangan bo‘lsa), agentlar, bluetooth, tarmoq, audio, displey va quvvat.
 
-Ulardan bir nechtasi faqat aytadigan narsasi boʻlganda paydo boʻladi. Klaviatura tartibi faqat bittadan koʻproq tartib sozlagan boʻlsangiz paydo boʻladi. Yangilanish belgisi faqat Omarchy yangilanishi kutayotgan boʻlsa paydo boʻladi. Va agentlar ikonkasi Omarchy mashinada AI kodlash ishlatilishini birinchi topganda paydo boʻladi ([AI](17-ai.md) ga qarang).
+Ulardan bir nechtasi faqat aytadigan gapi bo‘lganda paydo bo‘ladi. Klaviatura tartibi faqat birdan ortiq tartib yoki kiritish usulini sozlagan bo‘lsangiz paydo bo‘ladi. Yangilanish belgisi faqat Omarchy yangilanishi kutib turganda paydo bo‘ladi.
 
 ## Atrofni bosish
 
-Deyarli har bir vidjet chap, oʻng va oʻrta bosishda nimadir qiladi va bir nechtasi aylantirishga javob beradi. Bu odamlar oʻtkazib yuboradigan qismi — oʻng va oʻrta tugmalar yaxshi narsalarning koʻpi yashirinadigan joydir.
+Deyarli har bir vidjet chap, o‘ng va o‘rta bosishda nimadir qiladi, bir nechtasi esa aylantirishga ham javob beradi. Odamlar aynan shu qismni o‘tkazib yuboradi — ko‘plab yaxshi narsalar o‘ng va o‘rta tugmalar ortida yashiringan.
 
-| Vidjet | Chap | Oʻng | Oʻrta / aylantirish |
+| Vidjet | Chap | O‘ng | O‘rta / aylantirish |
 | --- | --- | --- | --- |
 | Menyu | Omarchy menyusi | Yangi terminal | — |
-| Ish maydonlari | Oʻsha ish maydoniga fokus | — | Aylantirish: keyingi/oldingi ish maydoni |
-| Soat | Kalendar oynasi | Yorliq formatini aylantirish | Oʻrta: vaqt zonasi tanlogichi |
-| Ob-havo | Prognoz oynasi | Toʻliq ob-havo bildirishnoma sifatida | Oʻrta: yangilash |
-| Ovoz | Ovoz paneli | Ovozsiz | Oʻrta: panel · aylantirish: hajm |
-| Mikrofon | Mikrofonni ovozsiz qilish | — | Oʻrta: ovoz paneli · aylantirish: kiritish hajmi |
+| Ish joylari | Ushbu monitorda o‘sha ish joyiga o‘tish | — | Aylantirish: keyingi/oldingi ish joyi |
+| Soat | Taqvim qalqib chiquvchi oynasi | Yorliq formatini almashtirish | O‘rta: vaqt mintaqasini tanlash |
+| Dunyo soati | Dunyo soati paneli | Yangilash | O‘rta: yangilash |
+| Ob-havo | Prognoz qalqib chiquvchi oynasi | To‘liq ob-havo bildirishnoma sifatida | O‘rta: yangilash |
+| Audio | Audio paneli | Ovozni o‘chirish | O‘rta: panel · aylantirish: ovoz balandligi |
+| Mikrofon | Mikrofonni o‘chirish | — | O‘rta: audio paneli · aylantirish: kiritish ovoz balandligi |
 | Tarmoq | Tarmoq paneli | — | — |
-| Bluetooth | Bluetooth paneli | Radioni almashtirish | — |
+| Bluetooth | Bluetooth paneli | Radioni yoqish/o‘chirish | — |
 | Displey | Displey paneli | — | Aylantirish: yorqinlik |
-| Quvvat | Quvvat paneli | Batareya foizini almashtirish | — |
-| Media | Oʻynatish/pauza | Albom muqovasi oynasi | Oʻrta: keyingi · aylantirish: oldingi/keyingi |
-| Agentlar | Agentlar paneli | Agentingizni ishga tushirish | Oʻrta: keyingi obuna |
-| Laganda | Tortmani ochish uchun ustiga olib borish | Boshqarish uchun shevronni oʻng bosish | — |
-| Omarchy yangilanish | Yangilanishni ishga tushirish | — | — |
+| Quvvat | Quvvat paneli | Batareya foizini yoqish/o‘chirish | — |
+| Media | Ijro/pauza | Muqova rasmi qalqib chiquvchi oynasi | O‘rta: keyingi · aylantirish: oldingi/keyingi |
+| Agentlar | Agentlar paneli | Agentingizni ishga tushirish | O‘rta: foydalanishni yangilash |
+| Trey | Tortmani ochish uchun ustiga olib boring | Boshqarish uchun shevron ustida o‘ng tugma | — |
+| Omarchy yangilanishi | Yangilanishni ishga tushirish | — | — |
 
-Oʻsha jadvaldagi hamma narsa qutidan chiqiboq panelingizda emas. Media vidjeti (aylanadigan trek va artist bilan MPRIS hozir oʻynalmoqda) va mikrofon vidjeti ikkalasi ham ichki, lekin standartda oʻchiq — xohlasangiz, quyida tasvirlanganidek, ularni qoʻshing.
+Jadvaldagi hamma narsa ham panelingizda dastlabki holatda bo‘lavermaydi. Media vidjeti (MPRIS hozir ijro etilayotgani, aylantiriladigan trek va ijrochi bilan) va mikrofon vidjeti — ikkalasi ham o‘rnatilgan, lekin standart holatda o‘chirilgan — xohlasangiz, quyida tasvirlanganidek ularni qo‘shing.
 
 ## Panellar
 
-Panel ikonkasanini bosish panelni ochadi, u asbob uchi emas, slayderlar, roʻyxatlar va klaviatura navigatsiyasiga ega toʻgʻri oynadir. Har birida hotkey ham bor, shuning uchun siz hech qachon 16 pikselli glifga nishan olishingizga toʻgʻri kelmaydi:
+Panel belgisini bosish panelni ochadi, bu maslahat oynasi emas, balki slayderlar, ro‘yxatlar va klaviatura navigatsiyasiga ega to‘laqonli qalqib chiquvchi oyna. Har birida tezkor tugma ham bor, shuning uchun hech qachon 16 pikselli belgini mo‘ljallab o‘tirish shart emas:
 
-| Hotkey | Panel |
+| Tezkor tugma | Panel |
 | --- | --- |
-| `Super + Ctrl + A` | Ovoz |
-| `Super + Ctrl + W` | Tarmoq |
+| `Super + Ctrl + A` | Audio |
+| `Super + Ctrl + N` | Tarmoq |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Displey |
 | `Super + Ctrl + P` | Quvvat |
-| `Super + Ctrl + Alt + D` | Kalendar |
+| `Super + Ctrl + Alt + D` | Taqvim |
 | `Super + Ctrl + Alt + E` | Dunyo soati |
-| `Super + Ctrl + 1-9` | Oʻng boʻlimdagi n-chi panelni almashtirish |
+| `Super + Ctrl + X` | Agentlar |
+| `Super + Ctrl + 1-9` | O‘ng bo‘limdagi n-panelni yoqish/o‘chirish |
 
-Panellar oʻqib beradigan narsa emas. Ular siz haqiqatan ishni bajaradigan joydir:
+Panellar shunchaki ma’lumot ko‘rsatadigan joy emas. Ular ishni haqiqatan bajaradigan joy:
 
-- **Ovoz**da asosiy hajm slayderi, chiqish qurilmasi tanlogichi va ilova boʻyicha mikser bor, shuning uchun boshqa hamma narsaga tegmasdan oʻsha bitta brauzer tabini pasaytirishingiz mumkin.
-- **Tarmoq** Wi-Fi ni skanerlaydi, signal kuchini koʻrsatadi, ulanadi va DNS provayderni tanlash imkonini beradi.
-- **Bluetooth** qurilmalaringizni ulanish/uzish va batareya darajasi bilan roʻyxatlaydi.
-- **Quvvat** batareya statistikasini koʻrsatadi, quvvat rejimlarini almashtiradi (batareya va AC uchun alohida tanlovni eslab qoladi) va tizim maʼlumotlarini chop etadi.
-- **Displey** yorqinlik slayderi, matn oʻlchami, monitor masshtablash oldindan sozlamalari va — bittadan koʻproq ekraningiz boʻlganda — monitor boʻyicha boshqaruvlarni tashiydi. Chuqurroq hikoya uchun [monitorlar](33-monitors.md) ga qarang.
-- **Soat** oy qadamlari va ISO hafta raqamlari bilan oy panjarasini ochadi.
+- **Audio** da asosiy ovoz balandligi slayderi, chiqish qurilmasini tanlash va har bir ilova uchun mikser bor, shuning uchun qolgan hamma narsaga tegmasdan o‘sha bitta brauzer yorlig‘ining ovozini pasaytirishingiz mumkin.
+- **Tarmoq** Wi-Fi ni qidiradi, signal kuchini ko‘rsatadi, ulanadi va DNS provayderini tanlash imkonini beradi.
+- **Bluetooth** qurilmalaringizni ulanish/uzish va batareya darajalari bilan ro‘yxatlaydi.
+- **Quvvat** batareya statistikasini ko‘rsatadi, quvvat profillarini almashtiradi (batareya va AC uchun alohida tanlovni eslab qoladi) va tizim haqida ba’zi ma’lumotlarni chiqaradi.
+- **Displey** yorqinlik slayderi, matn o‘lchami, monitor masshtablash oldindan sozlamalari va — birdan ortiq ekraningiz bo‘lsa — har bir monitor uchun boshqaruvlarni olib keladi. Chuqurroq hikoya uchun [monitorlar](33-monitors.md) ga qarang.
+- **Soat** ISO hafta raqamlari va oy bo‘ylab qadam tashlash bilan oy panjarasini ochadi.
+- **Dunyo soati** har bir shahar uchun bitta qator saqlaydi, uning ob-havosi va kuni qanday o‘tayotgani bilan. Qidiruv vaqt mintaqalarini ham, shaharchalarni ham topadi, shuning uchun Fort Lauderdale — Fort Lauderdale, New York emas. Agar tepadagi qator noto‘g‘ri shaharni nomlasa, uni bosing va qayerda ekaningizni ayting; boshqa vaqt mintaqasidagi joyni tanlang va tizim soati ham o‘sha yerga ko‘chadi, bu sayohatda qo‘l keladi. Shahar ustiga olib boring va u yerda kim yashashini aytish uchun odam tugmasini bosing — oddiy ismlar, yoki yuzlarini ham olib kelish uchun `@` GitHub taxalluslari.
 
-Har bir panel sichqoncha bilan birga klaviaturani ham oladi: oʻqlar harakatlanadi, Return faollashtiradi, Tab qoʻshni panelga qadam tashlaydi va Escape yopadi.
+Har bir panel sichqonchani ham, klaviaturani ham qabul qiladi: strelkalar harakatlanadi, Return faollashtiradi, Tab qo‘shni panelga o‘tadi va Escape yopadi.
 
-`Super + Ctrl + 1-9` oʻng boʻlimda panellarni chapdan oʻngga sanaydi, lagandani oʻtkazib yuboradi, chunki uning oʻz paneli yoʻq. Demak raqam siz koʻrsatadigan ikonkaga mos keladi.
+`Super + Ctrl + 1-9` o‘ng bo‘limdagi panellarni chapdan o‘ngga sanaydi, treyni o‘tkazib yuboradi, chunki uning o‘z paneli yo‘q. Shunday qilib raqam siz ko‘rsatadigan belgiga mos keladi.
 
 ### Tailscale va Dropbox
 
-Yana ikkita vidjet panelda faqat mos xizmatni **Oʻrnatish → Xizmat** dan oʻrnatganingizdan keyin paydo boʻladi va ikkalasi ham bilishga arziydi, chunki ular holat xabar qilishdan koʻproq qiladi.
+Yana ikkita vidjet panelda faqat mos xizmatni **O‘rnatish → Xizmat** dan o‘rnatganingizdan keyingina paydo bo‘ladi va ikkalasini ham bilib qo‘yish arziydi, chunki ular shunchaki holatni xabar qilishdan ko‘proq ish qiladi.
 
-**Tailscale** paneli tailnetni ulaydi va uzadi, hisoblar orasida almashadi va chiqish tugunini tanlaydi (oʻz mashinalaringiz va Mullvad mintaqalari ikkalasi ham oʻsha roʻyxatda paydo boʻladi). U mashinalaringizni ham koʻrib chiqadi — va bittasi tanlangan holda, `s` unga Taildrop orqali fayllar yuboradi, bu faylni telefoningizga yoki boshqa noutbukga koʻchirishning eng tezkor yoʻlidir. `c` mashinaning IP sini, `n` uning nomini va `d` uning toʻliq DNS nomini nusxalaydi. Agar bosishni afzal koʻrsangiz, har bir mashina qatorida yuborish tugmasi ham bor. Terminaldan xuddi shuni `omarchy tailscale send <machine> [file...]` qiladi.
+**Tailscale** paneli tailnet ga ulanadi va uziladi, hisoblar o‘rtasida almashadi va chiqish tugunini tanlaydi (o‘zingizning mashinalaringiz ham, Mullvad mintaqalari ham o‘sha ro‘yxatda chiqadi). U mashinalaringizni ham ko‘rib chiqadi — va biri tanlangan bo‘lsa, `s` unga Taildrop orqali fayllar yuboradi, bu faylni telefoningizga yoki boshqa noutbukka ko‘chirishning eng tezkor usuli. `c` mashinaning IP manzilini, `n` uning nomini va `d` uning to‘liq DNS nomini nusxalaydi. Har bir mashina qatorida yuborish tugmasi ham bor, agar bosishni afzal ko‘rsangiz. Terminaldan xuddi shu narsa `omarchy tailscale send <machine> [file...]` dir.
 
-**Dropbox** paneli kirishni boshqaradi, qancha xotira ishlatganingizni koʻrsatadi va yaqinda sinxronlangan fayllarni roʻyxatlaydi.
+**Dropbox** paneli kirishni boshqaradi, qancha xotiradan foydalanganingizni ko‘rsatadi va yaqinda sinxronlangan fayllarni ro‘yxatlaydi.
 
-Har ikkala xizmatni olib tashlash uning vidjetini paneldan olib tashlaydi.
+Ikkala xizmatdan birini olib tashlash uning vidjetini ham paneldan olib tashlaydi.
 
-## Koʻrsatkichlar
+## Ko‘rsatkichlar
 
-Markazdagi kichik klaster — koʻrsatkichlar vidjeti. Bular siz yoqqan rejimlar uchun holat gliflari: bezovta qilmang, tungi yorugʻlik, navbatga qoʻyilgan [eslatma](09-reminders.md), faol ekran yozuvi, uygʻoq qolish va [diktovka](11-text-extraction-dictation.md). Ular rejim faol boʻlganda yonadi va aks holda yoʻldan chetda qoladi — faol boʻlmaganlarni koʻrib chiqish uchun soatning chap tomoniga (vertikal panelda uning ustiga) olib boring. Koʻrsatkichni bosish oʻsha rejimni almashtiradi. Yana bittasi faqat holat: masofaviy sessiya birov gliff orqali ushbu mashinaga ulangan paytda qizil yonadi.
+Markazdagi kichkina to‘plam — ko‘rsatkichlar vidjeti. Bular siz yoqqan rejimlar uchun holat belgilaridir: bezovta qilmang, tungi yorug‘lik, navbatga qo‘yilgan [eslatma](09-reminders.md), faol ekran yozuvi va uyg‘oq turish, shuningdek parolsiz sudo yoqilgan yoki kimdir masofaviy sessiyaga ulangan paytdagi ogohlantirishlar. Ular rejim faol bo‘lganda yonadi va aks holda chetda turadi — faol bo‘lmaganlari o‘tiradigan joy yoniga olib boring va ularni ko‘zdan kechiring. Ko‘rsatkichni bosish o‘sha rejimni yoqadi/o‘chiradi. Yana biri faqat holat uchun: masofaviy sessiya kimdir ushbu mashinaga gliff orqali ulangan paytda qizil yonadi.
 
-Agar ularning har doim koʻrinishini afzal koʻrsangiz, vidjetda `alwaysShow` ni `true` ga oʻrnating. Va agar ularning faqat baʼzilariga qiziqsangiz, xohlaganlaringizni `items` da roʻyxatlang: `["Dnd", "Reminder", "NightLight"]`. Sizda bittadan koʻproq koʻrsatkichlar vidjeti boʻlishi mumkin, shuning uchun turli boʻlimlar turli qism toʻplamlarni koʻrsatishi mumkin.
+Agar ularning doimo ko‘rinib turishini istasangiz, vidjetda `alwaysShow` ni `true` ga sozlang. Va agar faqat ba’zilari sizga qiziq bo‘lsa, xohlaganlaringizni `items` da ro‘yxatlang: `["Dnd", "Reminder", "NightLight"]`. Birdan ortiq ko‘rsatkichlar vidjetiga ega bo‘lishingiz mumkin, shuning uchun turli bo‘limlar turli to‘plamlarni ko‘rsatishi mumkin.
 
 ## Panelni qayta tartibga solish
 
-Panel oʻzini sozlaydi. Narsalarni koʻchirish uchun konfiguratsiya faylini ochishingiz shart emas.
+Panel o‘zini o‘zi sozlaydi. Narsalarni ko‘chirish uchun konfiguratsiya faylini ochishingiz shart emas.
 
-Markaz atrofidagi panelning boʻsh joyini ushlang va uni boshqa ekran chetiga sudrab boring va panel u yerga koʻchadi — chap, oʻng, yuqori yoki past hammasi ishlaydi va har bir vidjet moslashadi (vertikal panellar ixcham faqat ikonka shakllariga qaytadi). Bosib ushlab turish xuddi shu sudrashni boshlaydi. Panel fonini shaffofdan shishasimondan shaffofmasga aylantirish uchun oʻsha boʻsh joyni ikki marta chap bosing. Va istalgan vidjetni qayta tartibga solish yoki boshqa boʻlimga tashlash uchun sudrab boring.
+Markaz atrofidagi panelning bo‘sh joyini ushlab, uni boshqa ekran chetiga sudrab boring, shunda panel o‘sha yerga ko‘chadi — chap, o‘ng, yuqori yoki pastki — hammasi ishlaydi va har bir vidjet moslashadi (vertikal panellar ixcham, faqat belgilardan iborat shakllarga o‘tadi). Bosib ushlab turish ham xuddi shu sudrashni boshlaydi. O‘sha bo‘sh joyni ikki marta chap tugma bilan bosing va panel fonini shaffofdan shishasimonga, undan xiraga aylantiring. Va istalgan vidjetni qayta tartiblash yoki boshqa bo‘limga tashlash uchun sudrab boring; boshqa vidjetlar u tushadigan joyda o‘rin bo‘shatish uchun ajraladi.
 
-Qoʻl ostingizda boʻlishini, lekin har doim koʻzga tashlanishini xohlamagan vidjet lagandaning tortmasida turishi mumkin: uni lagandaga sudrab boring, tortma uni qabul qilish uchun ochiladi. U u yerda ilova ikonkalaridan keyin joylashadi, tortma qachon ochilsa paydo boʻladi va paneli ochiq boʻlganda tortmani ochiq ushlab turadi. Uni joyiga qaytarish uchun yana panelga sudrab olib chiqing.
+Panelning o‘rtasi — quti: undagi hamma narsa bitta guruh sifatida markazda turadi, uning ikki tomonidagi vidjetlar esa uning chetlariga osilib turadi. Vidjetni sudrayotganingizda quti kontur sifatida ko‘rinadi, bo‘sh bo‘lsa esa panel bo‘ylab chiziq sifatida, va siz uning ichiga yoki yoniga tashlashingiz mumkin. Tashlash qutiga tushadigan bo‘lsa, quti vidjetni qabul qilish uchun kattalashadi.
 
-Agar menyudan tanlashni afzal koʻrsangiz, **Ishga tushirish → Koʻrinish → Menyu paneli** da joylashuv bor va **Panel foni** panel qanday chizilishini tanlaydi: **Shaffofmas panel**, **Shishasimon panel** (orqasidagi narsa xeralangan holda koʻrinadigan) yoki **Shaffof panel**.
+Doim qo‘l ostida, lekin doim ko‘rinib turishini istamaydigan vidjet treyning tortmasiga kirishi mumkin: uni trey ustiga sudrab boring, shunda tortma uni qabul qilish uchun ochiladi. U u yerda ilova belgilaridan keyin o‘tiradi, tortma chiqqanda har safar paydo bo‘ladi va paneli ochiq turganda tortmasini ochiq saqlaydi. Uni panelga qaytarish uchun yana panelga sudrab chiqaring.
 
-Bir xil narsalarning buyruqlari bor, bu [dotfiles](31-dotfiles.md) sozlamasi uchun siz xohlagan narsadir:
+Agar menyudan tanlashni afzal ko‘rsangiz, **Ko‘rinish → Menyu paneli** da joylashuv bor va **Panel foni** panel qanday chizilishini tanlaydi: **Xira panel**, **Shishasimon panel** (shaffof, orqasidagi narsa xiralashtirilgan) yoki **Shaffof panel**.
+
+Xuddi shu narsalarning buyruqlari ham bor, bu [dotfiles](31-dotfiles.md) sozlamasi uchun aynan kerakli narsa:
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Vidjetni butunlay qoʻshish yoki olib tashlash uchun plagin buyruqlaridan foydalaning. `omarchy plugin list` shell biladigan har bir vidjetni uning id si bilan chop etadi va keyin:
+Vidjetni butunlay qo‘shish yoki olib tashlash uchun plagin buyruqlaridan foydalaning. `omarchy plugin list` qobiq biladigan har bir vidjetni uning id si bilan chiqaradi, so‘ngra:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
 ## Panelni yashirish
 
-`Super + Shift + Space` shellni oʻldirmasdan panelni oʻchiradi va yoqadi — panellar va hotkeylar ishlashda davom etadi, siz shunchaki piksellarni qaytarib olasiz. Bu menyuda **Ishga tushirish → Koʻrinish → Menyu paneli → Panelni yashirish** ostida ham bor.
+`Super + Shift + Space` panelni qobiqni o‘ldirmasdan o‘chiradi va qayta yoqadi — panellar va tezkor tugmalar ishlashda davom etadi, siz shunchaki piksellarni qaytarib olasiz. U menyuda **Ko‘rinish → Menyu paneli → Panelni yashirish** ostida ham bor.
 
 ## Konfiguratsiya fayli
 
-Bularning hammasi `bar` tugmasi ostida `~/.config/omarchy/shell.json` da saqlanadi. Mana qisqartirilgan versiya:
+Hammasi `~/.config/omarchy/shell.json` da, `bar` kaliti ostida saqlanadi. Mana qisqartirilgan versiya:
 
 ```json
 {
@@ -119,20 +124,21 @@ Bularning hammasi `bar` tugmasi ostida `~/.config/omarchy/shell.json` da saqlana
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Har bir vidjet uchta tartib massivlaridan birida bitta yozuvdir va uning sozlamalari oʻsha yozuvda ichki oʻtiradi — alohida sozlamalar fayli va `config` sub-obyekti yoʻq. Soatning `format`, `formatAlt` (oʻng bosish nimaga aylantiradi) va `verticalFormat` hammasi toʻgʻridan-toʻgʻri `{ "id": "omarchy.clock" }` da yashaydi.
+Har bir vidjet beshta tartib massivlaridan biridagi bitta yozuv va uning sozlamalari aynan o‘sha yozuvda ichki joylashgan — alohida sozlamalar fayli ham, `config` kichik obyekti ham yo‘q. Soatning `format` i, `formatAlt` i (o‘ng tugma nimaga aylantirishi) va `verticalFormat` i — hammasi aynan `{ "id": "omarchy.clock" }` da joylashgan.
 
-`centerAnchor` ekranning aniq markaziga mahkamlanadigan bitta markaz vidjetini nomlaydi, boshqalar uni yonlaydi. Shunday qilib ob-havo va yangilanish belgisi kelib-ketib turganda ham soat aynan markazda qoladi. Uni boʻsh satrga oʻrnatsangiz, markaz roʻyxati oʻrniga guruh sifatida shunchaki markazlashtiriladi.
+`center` — panel o‘rtasidagi quti: undagi hamma narsa ekranda bitta guruh sifatida markazlashtiriladi. `centerBegin` va `centerEnd` qutining ikki tomoniga osilib turadi, soat ob-havo va yangilanish belgisi kelib-ketib turganda ham aynan markazda qolishi shunday ta’minlanadi. `center` ga birdan ortiq vidjet qo‘ying va ular birga markazlashtiriladi; uni bo‘sh qoldiring va `centerBegin` bilan `centerEnd` panel o‘rtasida uchrashadi.
 
-Ichki qabul qilishga arziydigan bitta qoida: **oʻz `shell.json` ingiz boʻlgandan keyin, u kanonikdir**. Hech narsani moslaganingizcha, shell Omarchyning standart faylini oʻqiydi. Vidjetni sudragan, `omarchy bar` ni ishga tushirgan yoki faylni oʻzingiz tahrirlagan paytingizda, siz uning egasisiz — chuqur birlashma yoʻq, shuning uchun kelajakdagi Omarchy relizlardagi yangi standart vidjetlar panelingizda avtomatik paydo boʻlmaydi. `omarchy bar defaults` toza taxta xohlaganingizda joʻnatilgan tartibni qaytaradi.
+Ichiga singdirib olishga arziydigan bitta qoida: **o‘zingizning `shell.json` ingiz bo‘lgach, u kanonikdir**. Hech narsani moslashtirmaguningizcha qobiq Omarchy ning standart faylini o‘qiydi. Vidjetni sudragan, `omarchy bar` ni ishga tushirgan yoki faylni o‘zingiz tahrirlagan zahotingiz, u sizniki bo‘ladi — chuqur birlashtirish yo‘q, shuning uchun kelajakdagi Omarchy nashrlaridagi yangi standart vidjetlar panelingizda avtomatik paydo bo‘lmaydi. `omarchy bar defaults` qachon xohlasangiz toza sahifa uchun yetkazilgan tartibni qaytaradi.
 
-Xuddi shu fayl yuqori darajada, `bar` tugmasidan tashqarida boʻsh vaqtlaringizni ham saqlaydi: `idle.screensaver` va `idle.lock`, ikkalasi ham boʻsh qolganingizdan beri soniyalarda. Demak standart ekran saqlagich 150 soniyada va qulf 300 soniyada ishga tushadi.
+Xuddi shu fayl `bar` kalitidan tashqarida, yuqori darajada bo‘sh turish vaqtlaringizni ham saqlaydi: `idle.screensaver` va `idle.lock`, ikkalasi ham bo‘sh turganingizdan beri soniyalarda. Shunday qilib standart ekran saqlagichi 150 soniyada ishga tushadi va qulflash 300 soniyada.

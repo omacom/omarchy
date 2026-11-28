@@ -1,12 +1,12 @@
 # Preglednici
 
-Omarchy dolazi s [Chromiumom](https://www.chromium.org/) kao zadanim preglednikom. To je obična verzija otvorenog koda, tematizirana da odgovara ostatku tvog sustava, i to je ono što `Super + Shift + Return` otvara i unutar čega radi svaka [web-aplikacija](25-web-apps.md).
+Omarchy dolazi s [Google Chrome](https://www.google.com/chrome/) kao zadanim preglednikom. Tematski je usklađen s ostatkom vašeg sustava i upravo se on otvara preko `Super + Shift + Return` (ili `Super + Shift + B`), uz `Super + Shift + Alt + B` za privatni prozor, a u njemu se izvode i sve [web aplikacije](25-web-apps.md). Otvara se izravno u prozor preglednika: nema zaslona dobrodošlice ni upita za prijavu, statistika upotrebe i izvješća o rušenju ne šalju se Googleu, a upiti za privatnost oglasa isključeni su. I dalje se možete prijaviti u svoj Google račun putem gumba profila kad god želite sinkronizaciju.
 
-Ako Chromium nije po tvom ukusu, nisi zaglavio s njim. Pod _Instaliraj > Browser_ u izborniku Omarchy pronaći ćeš Chrome, Edge, Brave, Brave Origin, Firefox i [Zen](https://zen-browser.app/). Odaberi jedan i Omarchy ga instalira, postavlja mu direktorij pravila i primjenjuje tvoju trenutnu temu na njega.
+Ako vam Chrome nije po ukusu, niste zapeli s njim. Pod _Instaliraj > Preglednik_ u izborniku Omarchy pronaći ćete [Chromium](https://www.chromium.org/) (običnu verziju otvorenog koda od koje je Chrome napravljen), Edge, Brave, Brave Origin, Firefox i [Zen](https://zen-browser.app/) (Edge samo na x86 računalima). Odaberite jedan i Omarchy će ga instalirati, postaviti njegov direktorij pravila i primijeniti vašu trenutnu temu na njega.
 
 ## Postavljanje jednog kao zadanog
 
-Instalacija preglednika ga ne promiče. Nakon što je na računalu, idi na _Postavke > Defaults > Browser_ i odaberi ga — izbornik navodi samo preglednike koje zapravo imaš instalirane i označava trenutni zadani kvačicom.
+Instaliranje preglednika ne čini ga zadanim. Za promjenu idite na _Postavljanje > Zadane postavke > Preglednik_ i odaberite jedan. Trenutni zadani preglednik označen je kvačicom, a odabir preglednika koji još nemate prvo će ga instalirati.
 
 Iz terminala to je:
 
@@ -14,26 +14,28 @@ Iz terminala to je:
 omarchy default browser firefox
 ```
 
-Pokreni ga bez argumenta i reći će ti trenutni zadani. Ovo postavlja XDG handler, pa nije samo Omarchyjev prečaci ti koji slijede — sve što otvori poveznicu, od aplikacije za chat do naredbe u terminalu, ide u preglednik koji si odabrao.
+Pokrenite ga bez argumenta i reći će vam koji je trenutni zadani preglednik. Time se postavlja XDG rukovatelj, pa ne prate samo tipkovnički prečaci Omarchyja — sve što otvara poveznicu, od aplikacije za razgovor do naredbe u terminalu, ide u preglednik koji ste odabrali.
 
 ## Kopiranje URL-a i preuzimanje videa
 
-Preglednici iz obitelji Chromium (sam Chromium, Chrome, Edge i Brave) dolaze s dva Omarchy proširenja koja dosežu iz preglednika u ostatak tvog sustava.
+Preglednici iz obitelji Chromium (sam Chromium, Chrome, Edge, Brave i Brave Origin) dolaze s tri proširenja Omarchyja: dva koja posežu izvan preglednika u ostatak vašeg sustava i jednim koje sređuje WhatsApp.
 
-**Copy URL** stavlja adresu trenutne kartice u tvoj međuspremnik sa `Alt + Shift + L`. To je brže od klikanja u adresnu traku i kopiranja, a budući da ide kroz međuspremnik sustava, a ne preglednikov, dobivaš Omarchy obavijest koja to potvrđuje i URL je odmah dostupan u [povijesti međuspremnika](08-unified-clipboard-history.md) i svakoj drugoj aplikaciji. Tu je i gumb na alatnoj traci, ako radije klikaš.
+**Copy URL** stavlja adresu trenutne kartice u vaš međuspremnik pomoću `Alt + Shift + L`. To je brže od klikanja u adresnu traku i kopiranja, a budući da ide kroz međuspremnik sustava, a ne preglednikov, dobivate obavijest Omarchyja koja to potvrđuje i URL je odmah dostupan u [povijesti međuspremnika](08-unified-clipboard-history.md) i svakoj drugoj aplikaciji. Postoji i gumb na alatnoj traci, ako radije klikate.
 
-**Download Video** preuzima video koji se reproducira na stranici koju gledaš sa `Alt + Shift + D`. Predaje URL [yt-dlp](https://github.com/yt-dlp/yt-dlp), pa radi na mnogo više od YouTubea, a preuzimanje završava u `~/Videos`. Napredak se prikazuje u istom zaslonskom prikazu koji koriste glasnoća i svjetlina, ažurirajući se na mjestu umjesto da slaže obavijesti. Postavi `OMARCHY_YTDLP_DIR` ako želiš da datoteke idu drugamo — pogledaj [ČPP](46-faq.md) za mjesto gdje staviti varijable okruženja.
+**Download Video** preuzima video koji se reproducira na stranici koju gledate pomoću `Alt + Shift + D`. URL predaje [yt-dlp](https://github.com/yt-dlp/yt-dlp), pa radi na mnogo više od samog YouTubea, a preuzimanje završava u `~/Videos`. Napredak se prikazuje u istom prikazu na zaslonu koji koriste glasnoća i svjetlina, ažurirajući se na mjestu umjesto da gomila obavijesti. Postavite `OMARCHY_YTDLP_DIR` ako biste radije da datoteke idu negdje drugdje — pogledajte [FAQ](46-faq.md) za to gdje staviti varijable okruženja.
 
-Oba proširenja komuniciraju s Omarchyjem kroz mali native messaging host, koji se instalira za tebe zajedno s preglednikom. To je dio koji omogućuje da video s web-stranice završi u tvom matičnom direktoriju, a URL u tvom upravitelju međuspremnika, što normalno proširenje ne može učiniti samo.
+Oba proširenja komuniciraju s Omarchyjem putem malog izvornog hosta za razmjenu poruka, koji se instalira za vas zajedno s preglednikom. To je dio koji omogućuje da video s web stranice završi u vašem početnom direktoriju, a URL u vašem upravitelju međuspremnika, što obično proširenje samo ne može napraviti.
 
-Ovo je samo za obitelj Chromium. Firefox i Zen ih ne dobivaju.
+**WhatsApp Slim** čini da WhatsApp Web slijedi temu vašeg sustava i sažima njegov popis razgovora kada je prozor uzak.
+
+Ovo vrijedi samo za obitelj Chromium. Firefox i Zen ih ne dobivaju.
 
 ## Firefox i Zen
 
-Firefox i Zen druga su obitelj, pa dobivaju drugačiji tretman: Omarchy instalira datoteku pravila za razumne zadane postavke i prebacuje ih u nativni Wayland način rada, što želiš za frakcijsko skaliranje i glatko pomicanje dodirnom plohom.
+Firefox i Zen pripadaju drugoj obitelji, pa dobivaju drugačiji tretman: Omarchy instalira datoteku pravila za razumne zadane postavke i prebacuje ih u izvorni način rada Wayland, što želite za frakcijsko skaliranje i glatko pomicanje trackpadom.
 
-Ne dobivaju gore navedena Chromium proširenja i Omarchy ih ne tematizira, pa su ti dijelovi iskustva na tebi da ih postaviš.
+Ne dobivaju gore navedena proširenja za Chromium i Omarchy ih ne tematizira, pa su ti dijelovi iskustva na vama da ih sami postavite.
 
-## Ponovno uklanjanje
+## Ponovno uklanjanje jednog
 
-Sve što si ovdje instalirao možeš ukloniti pod _Ukloni > Browser_. Chromium nije na tom popisu — dio je osnovnog sustava.
+Bilo koji od ovih preglednika, uključujući Chrome, može se ponovno ukloniti pod _Ukloni > Preglednik_. Poveznice tada idu u Chrome ili Chromium ako je onaj drugi još uvijek instaliran.

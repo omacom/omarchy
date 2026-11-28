@@ -2,34 +2,38 @@
 
 ## Alternatywne edytory
 
-Omarchy domyślnie dostarcza [Neovim](https://neovim.io/), ale jeśli wolisz coś bardziej mainstreamowego i znajomego, możesz uruchomić menu Omarchy (`Super + Space`) i zobaczyć opcje w _Instaluj > Editor_. Mamy tam wymienione VSCode, Cursor, Zed, Sublime Text, Helix, Vim i Emacs. Jeśli nie znajdziesz tego, czego szukasz, zajrzyj do _Instaluj > Package_ i sprawdź, czy nie ma tego w pakiecie Arch (a jeśli nie, spróbuj _Instaluj > AUR_, aby sprawdzić AUR).
+Omarchy w nowych instalacjach ma Plain jako domyślny edytor i preinstalowany [Neovim](https://neovim.io/), ale jeśli chcesz czegoś trochę bardziej mainstreamowego i znajomego, możesz uruchomić Omarchy Menu (`Super + Space`) i zobaczyć opcje w _Install > Editor_. Mamy tam wymienione VSCode, Cursor, Zed, Sublime Text, Helix, Vim i Emacs. Jeśli nie znajdziesz tego, czego szukasz, sprawdź _Install > Package_ i zobacz, czy nie ma tego w pakiecie Arch (a jeśli nie, spróbuj _Install > AUR_, aby sprawdzić AUR).
 
-Oryginalny edytor `vi` jest również dostępny od razu. Uruchom `vi filename`, aby edytować plik w terminalu.
+Oryginalny edytor `vi` jest również dostępny od razu po instalacji. Uruchom `vi filename`, aby edytować plik w terminalu.
 
-Dopasowywanie motywu jest oferowane dla `VSCode`, `Cursor`, `VSCodium` i `Helix`.
+Dopasowanie motywu jest oferowane dla `VSCode`, `Cursor`, `VSCodium` i `Helix`.
 
-Możesz ustawić domyślny edytor całego systemu w `Ustawienia > Defaults > Editor`.
+Ogólnosystemowy domyślny edytor możesz ustawić w `Setup > Defaults > Editor`.
 
 ## Środowisko
 
-Omarchy obsługuje konfigurowanie całej gamy środowisk programistycznych poprzez sekcję _Instaluj > Development_ w menu Omarchy (`Super + Space`). Znajdziesz tam oczywiście _Ruby on Rails_, ale także wszystkie trzy główne środowiska uruchomieniowe JavaScript (Node.js, Bun, Deno), a także popularne frameworki PHP, takie jak Laravel i Symfony. Och, jest też Go, Rust, Python, Java, Elixir (z Phoenix), .NET, OCaml, Zig, Clojure i Scala. To bardzo szeroki wybór!
+Omarchy umożliwia konfigurację całej gamy środowisk programistycznych przez sekcję _Install > Development_ w Omarchy Menu (`Super + Space`). Znajdziesz tam oczywiście _Ruby on Rails_, ale też wszystkie trzy główne środowiska uruchomieniowe dla JavaScript (Node.js, Bun, Deno), a także popularne frameworki PHP, takie jak Laravel i Symfony. Aha, jest też Go, Rust, Python, Java, Elixir (z Phoenix), .NET, OCaml, Zig, Clojure i Scala. To bardzo szeroki wybór!
 
-Większość tych środowisk jest zarządzana przez [Mise](https://mise.jdx.dev/). To narzędzie, które pozwala instalować i uruchamiać wiele wersji języka programowania na tym samym komputerze. To jak rbenv lub rvm dla Ruby albo virtualenv dla Pythona, ale działa dla wielu różnych środowisk.
+Większością tych środowisk zarządza [Mise](https://mise.jdx.dev/). To narzędzie, które pozwala instalować i uruchamiać wiele wersji języka programowania na tej samej maszynie. Działa jak rbenv lub rvm dla Ruby albo virtualenv dla Pythona, ale obsługuje mnóstwo różnych środowisk.
 
-Aby zainstalować na przykład Ruby, uruchomisz `mise use -g ruby`, co zarówno zainstaluje Ruby, jak i ustawi go jako globalny domyślny. Lub, jeśli twój projekt ma plik .ruby-version, możesz po prostu uruchomić `mise i` w katalogu głównym tego projektu.
+Aby zainstalować na przykład Ruby, uruchomisz `mise use -g ruby`, co zarówno zainstaluje Ruby, jak i ustawi go jako globalną wersję domyślną. Albo, jeśli twój projekt ma plik .ruby-version, możesz po prostu uruchomić `mise i` w katalogu głównym tego projektu.
+
+## Preinstalowane narzędzia CLI
+
+`uv`, Node.js i `playwright-cli` (aby agenty mogły sterować przeglądarką, korzystając z zainstalowanego Chrome) są zainstalowane jako pakiety, a `omarchy update` utrzymuje je w aktualnym stanie wraz z resztą systemu. [Hunk](https://github.com/modem-dev/hunk) oraz narzędzia CLI dla GitHub, Basecamp, Cloudflare i HEY są na wyciągnięcie ręki w _Install > CLI_, a [agenty kodujące](17-ai.md) znajdziesz w _Install > AI > CLI_.
+
+Mise zarządza wyłącznie środowiskami uruchomieniowymi, które skonfigurujesz z poziomu _Install > Development_; Omarchy samodzielnie nic przez niego nie instaluje. Uruchom `omarchy update`, aby zaktualizować je wraz z resztą Omarchy; alias `mup` aktualizuje tylko narzędzia zarządzane przez mise. Aby dodać kolejne narzędzie do własnej konfiguracji, użyj `mise use -g <tool>`.
 
 ## Docker
 
-[Docker](https://www.docker.com/) nie potrzebuje praktycznie żadnego wstępu. Pozwala uruchamiać izolowane kontenery, a Omarchy instaluje wszystko, co potrzebne, aby działał dobrze, w tym samego Dockera i [Docker Compose](https://docs.docker.com/compose/).
+[Docker](https://www.docker.com/) właściwie nie potrzebuje żadnego wstępu. Pozwala uruchamiać odizolowane kontenery, a Omarchy instaluje wszystko, co potrzebne, aby działał dobrze, w tym samego Dockera i [Docker Compose](https://docs.docker.com/compose/).
 
-Domyślnie twój użytkownik *nie* należy do grupy `docker`. Ta grupa jest w praktyce rootem bez hasła — wszystko, co do niej należy, może wykonać `docker run -v /:/host` i przejąć komputer — więc jeden nieuczciwy skrypt lub zależność działająca jako ty byłaby w przeciwnym razie o jedno polecenie od roota. Dlatego w wierszu poleceń uruchamiasz Dockera z `sudo` (`sudo docker ps`, `sudo docker compose up`), a narzędzia graficzne komunikujące się z demonem — maszyna wirtualna Windows — proszą o autoryzację, gdy jej potrzebują. Jeśli chcesz odzyskać wygodę konfiguracji bez grupy i rozumiesz kompromis, włącz ją w **Ustawienia > Security > Sudoless Docker** (lub uruchom `omarchy-setup-security-sudoless-docker`), co doda cię do grupy `docker` po ostrzeżeniu; wtedy zwykłe `docker` i alias `d` znów będą działać bez `sudo`.
+Domyślnie twój użytkownik *nie* należy do grupy `docker`. Ta grupa to w praktyce root bez hasła — wszystko, co do niej należy, może wykonać `docker run -v /:/host` i przejąć maszynę — więc jeden nieuczciwy skrypt albo zależność uruchomiona jako ty byłaby inaczej tylko o jedno polecenie od roota. Dlatego w wierszu poleceń uruchamiasz Dockera z `sudo` (`sudo docker ps`, `sudo docker compose up`), a narzędzia graficzne komunikujące się z daemonem — VM z Windows — proszą o autoryzację, gdy jej potrzebują. Jeśli chcesz odzyskać wygodę korzystania bez `sudo` i rozumiesz kompromis, włącz ją w **Setup > Security > Sudoless Docker** (lub uruchom `omarchy-setup-security-sudoless-docker`), co po ostrzeżeniu doda cię do grupy `docker`; wtedy zwykłe `docker` i alias `d` znów działają bez `sudo`.
 
-Możesz skonfigurować typowe bazy danych do lokalnego programowania w Dockerze, używając _Instaluj > Development > Docker DB_ w menu Omarchy.
+Popularne bazy danych do lokalnego programowania w Dockerze możesz skonfigurować, korzystając z _Install > Development > Docker DB_ w menu Omarchy.
 
 ## GitHub CLI
 
-[GitHub CLI](https://cli.github.com/) pozwala uwierzytelnić się na koncie GitHub i klonować za jego pomocą prywatne repozytoria. Jest podłączony jako jeden z leniwie ładowanych stubów mise, więc za pierwszym razem, gdy uruchomisz `gh`, zainstaluje się sam. Aby się uwierzytelnić, uruchom `gh auth login`. Następnie możesz pobierać prywatne repozytoria za pomocą `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) to `gh`, do pracy z repozytoriami, zgłoszeniami i pull requestami z poziomu terminala. _Setup > Git_ instaluje go, gdy zdecydujesz się tam zalogować do GitHuba, albo zainstaluj go osobno z _Install > CLI > GitHub_. Następnie `gh repo clone org/repo` klonuje repozytorium; uruchom `gh --help`, aby poznać jego polecenia.
 
-Możesz również wykonywać wiele innych operacji GitHub za pomocą tego polecenia. Po prostu uruchom `gh`, aby zobaczyć wszystko, co jest możliwe.
-
-Istnieje również leniwie instalujący się stub dla `ghui` do zarządzania pull requestami w TUI. A [lazygit](https://github.com/jesseduffield/lazygit) jest preinstalowany, jeśli chcesz również obsługiwać samego gita z TUI.
+[Lazygit](https://github.com/jesseduffield/lazygit) jest preinstalowany do pracy z samym Gitem.

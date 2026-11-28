@@ -1,37 +1,43 @@
 # Posodobitve
 
-Omarchy in vaši paketi se posodabljajo prek _Posodobi > Omarchy_ v meniju Omarchy (`Super + Space`).
+Omarchy in tvoje pakete posodabljaš prek _Posodobitev > Omarchy_ v meniju Omarchy (`Super + Space`).
 
-Sam Omarchy je nameščen kot običajen paket pacman iz [repozitorija paketov Omarchy](https://github.com/omacom-io/omarchy-pkgs), tako da posodobitev namesti [najnovejšo izdajo Omarchy](https://github.com/omacom/omarchy/releases), izvede vse čakajoče migracije, da vaš sistem uskladi z najnovejšim, in posodobi vse sistemske pakete iz [ogledala Omarchy Arch Mirror](https://github.com/omacom-io/omarchy-mirror) in [AUR](https://aur.archlinux.org/) (če ste namestili kakšne pakete AUR).
+Sam Omarchy je nameščen kot običajni paketi pacman iz [repozitorija paketov Omarchy](https://github.com/omacom-io/omarchy-pkgs), zato posodobitev namesti [najnovejšo izdajo Omarchy](https://github.com/omacom/omarchy/releases), zažene vse čakajoče migracije, da tvoj sistem uskladi z najnovejšo različico, in posodobi vse sistemske pakete iz [zrcala Omarchy Arch](https://github.com/omacom-io/omarchy-mirror) in [AUR](https://aur.archlinux.org/) (če si namestil kakšne pakete AUR).
 
-Ko so izdelane nove izdaje, se desno od vaše ure prikaže ikona krožne puščice. Kliknite jo in postopek posodobitve se bo začel.
+Ko izidejo nove izdaje, se bo desno od tvoje ure prikazala ikona krožne puščice. Klikni jo in postopek posodobitve se bo začel.
 
 ![update-available](images/update-available.webp)
 
-### Štiri kanali
+### Štirje kanali
 
-Omarchy se posodablja po štirih kanalih: stable, RC, edge in dev. Nove namestitve se začnejo na kanalu stable, ki sledi [uradnim izdajam](https://github.com/omacom/omarchy/releases/), ter [stabilnemu ogledalu Omarchy Arch](https://github.com/omacom-io/omarchy-mirror), ki teče en mesec za najnovejšim, tako da lahko ujamemo morebitne nove nezdružljivosti, ki zahtevajo spremembe konfiguracije, preden ljudem povzročijo težave.
+Omarchy se posodablja po štirih kanalih: stable, RC, edge in dev. Nove namestitve se začnejo na kanalu stable, ki sledi [uradnim izdajam](https://github.com/omacom/omarchy/releases/) ter [stabilnemu zrcalu Omarchy Arch](https://github.com/omacom-io/omarchy-mirror), ki za najnovejšo različico zaostaja en mesec, da lahko ujamemo morebitne nove nezdružljivosti, ki zahtevajo spremembe konfiguracije, preden ljudem povzročijo težave.
 
-Če pa želite pomagati prepoznati te morebitne težave, lahko tečete na kanalu edge. To bo vaše pakete Omarchy ohranjalo na najnovejših razvojnih zgradbah in vam omogoča posodobitev na najnovejše pakete Arch takoj, ko so na voljo. To počnite le, če imate izkušnje z Linuxom in veste, kako obnoviti sistem, ki ima težave.
+Če pa želiš pomagati odkriti te morebitne težave, lahko uporabljaš kanal edge. Tako bodo tvoji paketi Omarchy sledili najnovejšim razvojnim gradnjam, pakete Arch pa boš lahko posodobil na najnovejše takoj, ko bodo na voljo. To naredi le, če imaš izkušnje z Linuxom in znaš obnoviti sistem, ki ima težave.
 
-Pred vsako novo veliko izdajo bomo opravili končno preverjanje prek kanala RC. Če želite pomagati pri končnem poliranju, pridite v #omarchy-release-candidates na Discordu.
+Pred vsako novo večjo izdajo bomo končno preverjanje opravili na kanalu RC. Če želiš pomagati pri zadnjem poliranju, se pridi družiti v #omarchy-release-candidates na Discordu.
 
-Nazadnje je tu kanal dev, ki Omarchy neposredno poveže s kopijo izvorne kode git v `~/omarchy` v kombinaciji s paketi edge. Ta kanal uporabite le, če ste izkušen uporabnik Linuxa, delate neposredno na Omarchyju in ste pripravljeni prenašati okvare.
+Na koncu je tu še kanal dev, ki Omarchy poveže neposredno z git izvodom izvorne kode v `~/omarchy`, v kombinaciji s paketi edge. Ta kanal uporabljaj le, če si izkušen uporabnik Linuxa, delaš neposredno na Omarchyju in si pripravljen sprejeti, da se lahko stvari pokvarijo.
 
-Med kanali lahko preklapljate z _Posodobi > Kanal_ iz menija Omarchy (ali `omarchy-channel-set` v terminalu).
+Med kanali lahko preklapljaš prek _Posodobitev > Kanal_ v meniju Omarchy (ali z `omarchy channel set <stable|rc|edge|dev>` v terminalu, s `omarchy channel current` pa preveriš, kje si).
+
+### Preklapljanje med jedri
+
+Omarchy zažene svoje jedro `linux-omarchy`, zraven pa imaš lahko nameščena tudi druga, kot je privzeto jedro Arch `linux` ali poskusna gradnja, ki jo preizkušaš. Ko jih je več kot eno, jih _Posodobitev > Jedro_ v meniju Omarchy prikaže s kljukico ob tistem, ki se zažene privzeto. Izberi drugo, enkrat vnesi svoje geslo in po naslednjem ponovnem zagonu se bo zagnalo to. Druga jedra ostanejo v zagonskem meniju, zato lahko eno še vedno izbereš ročno, če ti novo privzeto povzroča težave. V terminalu z `omarchy kernel` vidiš trenutno privzeto jedro, z `omarchy kernel list` tista, ki so nameščena, z `omarchy kernel set <kernel>` pa preklopiš.
 
 ### Posodobitve vdelane programske opreme
 
-Vaši paketi niso edina stvar, ki zastara. Številni prenosniki in zunanje naprave dobavljajo vdelano programsko opremo BIOS, SSD in priklopnih postaj prek Linux Vendor Firmware Service in _Posodobi > Vdelana programska oprema_ v meniju Omarchy bo prinesla in namestila, kar koli čaka vašo strojno opremo. Ob prvem zagonu namesti `fwupd`. Veliko vdelane programske opreme je mogoče zapisati le med ponovnim zagonom, zato se ne čudite, če vas vpraša po njem.
+Tvoji paketi niso edino, kar zastara. Številni prenosniki in periferne naprave ponujajo vdelano programsko opremo za BIOS, SSD in priklopne postaje prek Linux Vendor Firmware Service, _Posodobitev > Vdelana programska oprema_ v meniju Omarchy pa bo prenesla in namestila vse, kar za tvojo strojno opremo čaka. Ob prvem zagonu namesti `fwupd`. Veliko vdelane programske opreme je mogoče zapisati le med ponovnim zagonom, zato ne bodi presenečen, če ga bo zahtevala.
 
-### Opozorilo o neposrednih posodobitvah pacman/yay
+Ko moraš spremeniti nastavitev v samem BIOS-u, drži `Alt` v sistemskem meniju (`Super + Escape`) in _Ponovni zagon_ se bo spremenil v _Ponovni zagon v BIOS_, ki se znova zažene naravnost v nastavitve vdelane programske opreme, ne da bi moral ob zagonu ujeti pravo tipko. Iz terminala je to `omarchy system firmware`.
 
-Če Arch že poznate, bi vas lahko zamikalo, da bi sami preprosto zagnali `pacman -Syu` ali `yay -Syu`, vendar boste, če to storite, zamudili posnetek, migracije in posodobitve konfiguracije, ki jih Omarchy izvaja skupaj z novimi paketi. Zato bo Omarchy dejansko ustavil neposredno nadgradnjo sistema in vas usmeril na `omarchy update`. (Če res veste, kaj počnete, vam bo varovalo povedalo, kako ga zaobiti za eno samo transakcijo.)
+### Opozorilo o neposrednih posodobitvah s pacman/yay
 
-### Vračanje slabih posodobitev
+Če Arch že poznaš, te bo morda zamikalo, da bi sam zagnal kar `pacman -Syu` ali `yay -Syu`, a če to narediš, boš izpustil posnetek stanja, migracije in posodobitve konfiguracije, ki jih Omarchy zažene skupaj z novimi paketi. Zato bo Omarchy neposredno nadgradnjo sistema dejansko ustavil in te namesto tega napotil na `omarchy update`. (Če res veš, kaj počneš, ti bo varovalo povedalo, kako ga obideš za eno samo transakcijo.)
 
-Če boste imeli kadar koli težavo po posodobitvi, lahko sistem vrnete na posnetek, zajet pred posodobitvijo. Samo znova zaženite in v zagonskem meniju izberite posnetek iz časa pred začetkom posodobitve.
+### Povrnitev po slabih posodobitvah
+
+Če imaš po posodobitvi kdaj težave, lahko sistem povrneš na posnetek stanja, narejen pred posodobitvijo. Preprosto znova zaženi računalnik in v zagonskem meniju izberi posnetek stanja iz časa, preden si začel posodobitev.
 
 ![bootloader](images/bootloader.webp)
 
-Če so vaše konfiguracijske datoteke nekako poškodovane, lahko izvedete tudi ponovno namestitev Omarchy z `omarchy reinstall` v terminalu. To bo ponovno namestilo vse privzete pakete Omarchy, vas postavilo na stable in znižalo vse pakete, ki so prenevi, ter ponastavilo vse konfiguracijske datoteke. Upoštevajte, da bodo vse vaše spremembe uporabniških konfiguracij privzetih vrednosti Omarchy pri tem prepisane!
+Če so se tvoje konfiguracijske datoteke nekako poškodovale, lahko z `omarchy reinstall` v terminalu izvedeš tudi ponovno namestitev Omarchyja. To bo znova namestilo vse privzete pakete Omarchy, te postavilo na stable (edge na Apple Silicon), znižalo različico vseh paketov, ki so prenovi, in ponastavilo vse konfiguracijske datoteke. Upoštevaj, da bodo pri tem prepisane vse tvoje uporabniške spremembe konfiguracije privzetih nastavitev Omarchyja!

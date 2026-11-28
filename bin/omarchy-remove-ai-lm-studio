@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing LM Studio..."
 omarchy-pkg-drop lmstudio-bin
 
 # LM Studio's home is relocatable and the pointer is the only record of where
