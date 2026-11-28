@@ -27,13 +27,24 @@ while (( $# > 0 )); do
 done
 
 LOG_FILE=$(mktemp /tmp/omarchy-debug.XXXXXX.log)
-trap 'rm -f "$LOG_FILE"' EXIT
+UEVENT_FILE=$(mktemp /tmp/omarchy-debug-uevents.XXXXXX)
+trap 'rm -f "$LOG_FILE" "$UEVENT_FILE"' EXIT
 
 if [[ $NO_SUDO = "true" ]]; then
   DMESG_OUTPUT="(skipped - --no-sudo flag used)"
 else
   DMESG_OUTPUT="$(sudo dmesg)"
 fi
+
+if omarchy-cmd-present udevadm && omarchy-cmd-present timeout; then
+  timeout 2 udevadm monitor --kernel --subsystem-match=power_supply > "$UEVENT_FILE" 2>/dev/null
+  UEVENT_COUNT=$(grep -c '^KERNEL\[' "$UEVENT_FILE")
+  BATTERY_UEVENTS="Battery uevents in 2s: $UEVENT_COUNT (normal 0 to a few, hundreds means a uevent loop)"
+else
+  BATTERY_UEVENTS="Battery uevents: not measured"
+fi
+
+rm -f "$UEVENT_FILE"
 
 cat > "$LOG_FILE" <<EOF
 Date: $(date)
@@ -51,6 +62,9 @@ SLEEP & BATTERY
 Sleep mode: $(cat /sys/power/mem_sleep 2>/dev/null || echo "unknown")
 $(omarchy-battery-status --shell 2>/dev/null || true)
 $(if [[ -r /var/lib/omarchy/sleep-history.tsv ]]; then echo "Recent sleeps (ts mode dur_s ac delta_pct delta_wh pct_hr w s0ix):"; tail -n 10 /var/lib/omarchy/sleep-history.tsv; fi)
+$BATTERY_UEVENTS
+Charge-limit udev rules:
+$(grep -rn 'ATTR{charge_control' /etc/udev/rules.d /usr/lib/udev/rules.d 2>/dev/null || echo "none")
 
 =========================================
 DMESG
