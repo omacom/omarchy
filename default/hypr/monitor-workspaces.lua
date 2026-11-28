@@ -352,6 +352,31 @@ local function settle(monitor, monitors, by_connector)
   end
 end
 
+-- The monitor showing an empty workspace with this number, the placeholder
+-- Hyprland parks a monitor on when it arrives or its workspace moves away.
+local function parked_on(number)
+  local workspace = hl.get_workspace(number)
+  local monitor = regular(workspace) and (workspace.windows or 0) == 0 and workspace.monitor
+    and hl.get_monitor(workspace.monitor.name)
+  local view = monitor and monitor.active_workspace
+
+  if view and view.id == number then
+    return monitor
+  end
+
+  return nil
+end
+
+-- Move a monitor off its placeholder, which Hyprland then lets go: onto the
+-- workspace coming home when this is its monitor, onto one of its own otherwise.
+local function vacate(holder, id, monitor, monitors, by_connector)
+  if holder.name == monitor.name then
+    hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
+  else
+    settle(holder, monitors, by_connector)
+  end
+end
+
 -- Bring a workspace of this monitor's block back from wherever an unplug left
 -- it. Moving it explicitly, rather than focusing it on the current monitor,
 -- keeps Hyprland from swapping the two monitors' workspaces when it is visible
@@ -611,6 +636,12 @@ function M.reconcile(added, gone)
         if regular(workspace) then
           if not workspace.monitor or workspace.monitor.name ~= monitor.name then
             hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = monitor.name }))
+          end
+
+          -- The number it left may be the placeholder a monitor was parked on.
+          local holder = block_of_id(origin.id) == by_connector[monitor.name] and parked_on(origin.id)
+          if holder then
+            vacate(holder, id, monitor, monitors, by_connector)
           end
 
           if block_of_id(origin.id) == by_connector[monitor.name] and not hl.get_workspace(origin.id) then

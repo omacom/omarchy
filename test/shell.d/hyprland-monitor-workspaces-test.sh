@@ -433,6 +433,60 @@ check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the laptop is back on its o
 ' || fail "an unplugged monitor's workspaces come back with it, whatever the connector"
 pass "an unplugged monitor's workspaces come back with it, whatever the connector"
 
+run_lua hotplug_first_block '
+plug("DP-1", 0, "LG", 1)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 2)
+window("0xc", 3)
+plug("eDP-1", 1, "Panel", 11)
+world.handlers["monitor.added"]({ name = "eDP-1" })
+check(m.workspace_id(hl.get_monitor("DP-1"), 1) == 1, "the first monitor seen owns 1-10")
+world.active_window = "0xa"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xa"].workspace == 12, "the workspaces joined the laptop'"'"'s block, not " .. world.windows["0xa"].workspace)
+
+-- Back again, Hyprland parks it on the lowest free number: the 1 its first workspace left.
+plug("DP-1", 2, "LG", 1)
+world.handlers["monitor.added"]({ name = "DP-1" })
+check(world.windows["0xa"].workspace == 1 and world.windows["0xb"].workspace == 2 and world.windows["0xc"].workspace == 3,
+  "the workspaces go home under their old numbers, not " .. world.windows["0xa"].workspace .. ", " .. world.windows["0xb"].workspace .. ", " .. world.windows["0xc"].workspace)
+check(on(1) == "DP-1" and on(4) == nil, "nothing is left on a shifted number")
+' || fail "a returning monitor parked on its own first number gets its workspaces back unshifted"
+pass "a returning monitor parked on its own first number gets its workspaces back unshifted"
+
+run_lua hotplug_first_block_shown '
+plug("DP-1", 0, "LG", 1)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 2)
+hl.dispatch(hl.dsp.focus({ workspace = "2" }))
+plug("eDP-1", 1, "Panel", 11)
+world.handlers["monitor.added"]({ name = "eDP-1" })
+world.active_window = "0xb"
+
+-- Hyprland shows the unplugged monitor'"'"'s workspace on the one left.
+unplug("DP-1")
+monitor_named("eDP-1").active = 2
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+
+-- Taking it home leaves the laptop on the lowest free number: the 2 it is going back to.
+plug("DP-1", 2, "LG", 1)
+world.handlers["monitor.added"]({ name = "DP-1" })
+check(world.windows["0xa"].workspace == 1 and world.windows["0xb"].workspace == 2,
+  "the workspaces go home under their old numbers, not " .. world.windows["0xa"].workspace .. ", " .. world.windows["0xb"].workspace)
+check(shows("eDP-1") >= 11 and shows("eDP-1") <= 20, "the laptop is back on its own, not " .. shows("eDP-1"))
+' || fail "a monitor left on the number a workspace is going back to gives it up"
+pass "a monitor left on the number a workspace is going back to gives it up"
+
 run_lua removed-deferred '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
