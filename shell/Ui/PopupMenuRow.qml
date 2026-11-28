@@ -14,6 +14,8 @@ Rectangle {
   property bool checked: false
   property bool highlighted: false
   property bool submenu: false
+  // The side the submenu opens on, for its mark to point there.
+  property bool submenuBefore: Commons.I18n.rightToLeft
   readonly property bool hovered: rowMouse.containsMouse
   signal triggered()
 
@@ -39,7 +41,7 @@ Rectangle {
     anchors.right: parent.right
     anchors.rightMargin: Style.spacing.controlPaddingX
     textFormat: Text.PlainText
-    text: row.submenu ? (Commons.I18n.rightToLeft ? "‹" : "›") : "✓"
+    text: row.submenu ? (row.submenuBefore ? "‹" : "›") : "✓"
     color: row.submenu ? Commons.Color.popups.text : Commons.Color.accent
     font.family: Style.font.family
     font.pixelSize: Style.font.body

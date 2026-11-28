@@ -50,53 +50,34 @@ cmd_position() {
   echo "Dock position set to $position"
 }
 
-current_autohide() {
-  jq -r 'if .dock.autohide == true then "on" else "off" end' "$(source_file)"
+# An on/off dock setting: prints it when given no value, and takes on, off, or
+# toggle. A shell.json without the key has the default.
+flag() {
+  jq -r --arg key "$1" --argjson default "$2" \
+    '.dock[$key] as $value | if (if $value == null then $default else $value end) == true then "on" else "off" end' "$(source_file)"
 }
 
-cmd_autohide() {
+cmd_flag() {
+  local name="$1" key="$2" default="$3" label="$4"
+  shift 4
+
   if (( $# == 0 )); then
-    current_autohide
+    flag "$key" "$default"
     return
   fi
 
   local value="$1"
-  (( $# == 1 )) || fail "autohide takes a single value"
+  (( $# == 1 )) || fail "$name takes a single value"
   if [[ $value == "toggle" ]]; then
-    if [[ $(current_autohide) == "on" ]]; then
+    if [[ $(flag "$key" "$default") == "on" ]]; then
       value=off
     else
       value=on
     fi
   fi
-  [[ $value =~ ^(on|off)$ ]] || fail "autohide must be on, off, or toggle"
-  commit "$NORMALIZE | .dock.autohide = (\$value == \"on\")" --arg value "$value"
-  echo "Dock auto-hide turned $value"
-}
-
-# On unless turned off, so a shell.json without the key has the tiled dock.
-current_tiling() {
-  jq -r 'if .dock.tiling == false then "off" else "on" end' "$(source_file)"
-}
-
-cmd_tiling() {
-  if (( $# == 0 )); then
-    current_tiling
-    return
-  fi
-
-  local value="$1"
-  (( $# == 1 )) || fail "tiling takes a single value"
-  if [[ $value == "toggle" ]]; then
-    if [[ $(current_tiling) == "on" ]]; then
-      value=off
-    else
-      value=on
-    fi
-  fi
-  [[ $value =~ ^(on|off)$ ]] || fail "tiling must be on, off, or toggle"
-  commit "$NORMALIZE | .dock.tiling = (\$value == \"on\")" --arg value "$value"
-  echo "Dock on tiled workspaces turned $value"
+  [[ $value =~ ^(on|off)$ ]] || fail "$name must be on, off, or toggle"
+  commit "$NORMALIZE | .dock[\$key] = (\$value == \"on\")" --arg key "$key" --arg value "$value"
+  echo "$label turned $value"
 }
 
 cmd_pinned() {
@@ -142,8 +123,8 @@ command="${1:-}"
 
 case "$command" in
   position) cmd_position "$@" ;;
-  autohide) cmd_autohide "$@" ;;
-  tiling) cmd_tiling "$@" ;;
+  autohide) cmd_flag autohide autohide false "Dock auto-hide" "$@" ;;
+  tiling) cmd_flag tiling tiling true "Dock on tiled workspaces" "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

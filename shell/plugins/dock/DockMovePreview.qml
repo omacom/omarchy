@@ -6,7 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 
 // Where the dock would land while it is dragged by its apps button: an
-// outline of it on the nearest edge, moving between edges as the pointer
+// outline of it on the nearest edge, jumping between edges as the pointer
 // does. The dock itself does not move until the drop, so without this the
 // drag shows nothing until it is over. Mapped only for the drag, covering the
 // screen and letting every click through.
@@ -58,11 +58,5 @@ PanelWindow {
     color: Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.18)
     border.color: Commons.Color.accent
     border.width: Style.normalBorderWidth
-
-    // The outline glides to the edge the pointer has come nearest.
-    Behavior on x { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
-    Behavior on y { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
-    Behavior on width { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
-    Behavior on height { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
   }
 }

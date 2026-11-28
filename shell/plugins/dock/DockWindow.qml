@@ -109,9 +109,23 @@ PanelWindow {
     holdTimer.restart()
   }
 
-  // Not for the position a starting dock finds itself in, only a move.
-  property bool placed: false
-  onPositionChanged: if (placed) holdOpenBriefly()
+  // A move asked for here: by the drag or the Position menu. The saved
+  // position lands a moment later, so the dock is held open from the request
+  // and again from its arrival. A position that arrives unasked, as the saved
+  // one does at startup, holds nothing open.
+  property bool moveRequested: false
+
+  function moveTo(edge) {
+    window.moveRequested = true
+    window.holdOpenBriefly()
+    Util.execDetached("omarchy-dock position " + edge)
+  }
+
+  onPositionChanged: {
+    if (!window.moveRequested) return
+    window.moveRequested = false
+    window.holdOpenBriefly()
+  }
 
   Timer {
     id: holdTimer
@@ -138,7 +152,8 @@ PanelWindow {
     window.dock.moveEdge = ""
     window.dock.moveScreen = null
   }
-  readonly property string barEdge: dock && dock.shell && dock.shell.bar ? String(dock.shell.bar.position || "top") : ""
+  // The bar's edge, which the dock keeps off. A hidden bar holds none.
+  readonly property string barEdge: dock && dock.shell && dock.shell.bar && !dock.shell.bar.barHidden ? String(dock.shell.bar.position || "top") : ""
 
   // Where this window sits on its screen, which a point from the app grid's
   // fullscreen surface is given in: against its edge, clear of the space
@@ -194,6 +209,9 @@ PanelWindow {
   // submenu beside it, on hover as a menu bar's do, or on a click.
   property bool settingsMenu: false
   property string openSubmenu: ""
+  // Whether the submenu opens on the near side of the menu, for the rows'
+  // marks to point that way.
+  readonly property bool submenuBefore: submenu.x < menu.x
   property string pendingSubmenu: ""
 
   // The first submenu opens as the pointer arrives. With one open, the way to
@@ -223,12 +241,10 @@ PanelWindow {
   onShownChanged: {
     if (shown) return
     closeMenu()
+    endMove()
     window.revealed = false
   }
-  Component.onCompleted: {
-    if (dock) dock.readMode(workspaceId)
-    placed = true
-  }
+  Component.onCompleted: if (dock) dock.readMode(workspaceId)
 
   function openMenu(item, slot) {
     window.settingsMenu = false
@@ -245,25 +261,16 @@ PanelWindow {
 
   // The layout picked here goes to the workspace the dock is on and becomes
   // the default every workspace uses, as under Appearance > Workspace Layout.
-  // Other workspaces with windows on them keep the layout they have.
-  //
-  // The layout toggle cycles the focused workspace through dwindle, scrolling,
-  // and floating, so the one picked is a step forward or back from where this
-  // workspace stands, and a choice on another screen's dock focuses that
-  // screen first. The default is saved after, and only when it changes: saving
-  // it reloads Hyprland.
+  // Other workspaces with windows on them keep the layout they have. The
+  // layout commands act on the focused workspace, so a choice on another
+  // screen's dock focuses that screen first. The default is saved only when
+  // it changes: saving it reloads Hyprland.
   function setLayout(mode) {
-    var order = ["dwindle", "scrolling", "floating"]
-    var to = order.indexOf(mode)
-    if (!window.dock || to < 0) return
-    var from = order.indexOf(window.dock.modes[window.workspaceId] || "dwindle")
-    var steps = []
+    var command = "omarchy-hyprland-workspace-layout-toggle " + mode
+      + "; if [[ $(omarchy-hyprland-workspace-layout-default) != \"" + mode + "\" ]]; then omarchy-hyprland-workspace-layout-default " + mode + "; fi"
     if (window.monitor && !window.monitor.focused)
-      steps.push("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null")
-    if (from >= 0 && from !== to)
-      steps.push("omarchy-hyprland-workspace-layout-toggle" + ((to - from + 3) % 3 === 1 ? "" : " back"))
-    steps.push("if [[ $(omarchy-hyprland-workspace-layout-default) != " + mode + " ]]; then omarchy-hyprland-workspace-layout-default " + mode + "; fi")
-    Util.execDetached(steps.join("; "))
+      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null && { " + command + "; }"
+    Util.execDetached(command)
   }
 
   function settleShifts() {
@@ -313,7 +320,7 @@ PanelWindow {
 
   function submenuY(row, popup) {
     if (!row) return 0
-    var top = row.mapToItem(window.contentItem, 0, 0).y - popup.padding
+    var top = menu.y + menuColumn.y + row.y - popup.contentTopInset
     var low = window.position === "top" ? body.y + body.height + window.gap : window.gap
     var high = window.position === "bottom" ? body.y - window.gap - popup.height : window.height - popup.height - window.gap
     return Math.max(low, Math.min(high, top))
@@ -436,6 +443,7 @@ PanelWindow {
     // as bands, and strips painted side by side as stripes.
     onPaint: {
       var ctx = getContext("2d")
+      if (!ctx || width <= 0 || height <= 0) return
       ctx.reset()
       var rgb = "rgba(" + Math.round(mist.tint.r * 255) + "," + Math.round(mist.tint.g * 255) + "," + Math.round(mist.tint.b * 255) + ","
       function ease(t) {
@@ -576,9 +584,11 @@ PanelWindow {
       return Qt.point(at.x + point.x, at.y + point.y)
     }
 
+    // Only the left button drags; another pressed meanwhile is no part of it.
     mouse.onPressed: function(event) {
+      if (event.button !== Qt.LeftButton) return
       appsSlot.dragged = false
-      if (event.button === Qt.LeftButton) appsSlot.pressPoint = Qt.point(event.x, event.y)
+      appsSlot.pressPoint = Qt.point(event.x, event.y)
     }
 
     // Past a short way from where it was pressed, the press is a move of the
@@ -595,22 +605,19 @@ PanelWindow {
       window.trackMove(appsSlot.screenPoint(event))
     }
 
-    // The saved position lands a moment after the drop, so a dock on its way
-    // to another edge is held open here and again when it arrives.
     mouse.onReleased: function(event) {
-      if (!window.movingDock) return
+      if (!window.movingDock || event.button !== Qt.LeftButton) return
       window.trackMove(appsSlot.screenPoint(event))
       var edge = window.dock ? window.dock.moveEdge : ""
       window.endMove()
-      if (edge && edge !== window.position) {
-        window.holdOpenBriefly()
-        Util.execDetached("omarchy-dock position " + edge)
-      } else if (window.autohide) {
-        hideTimer.restart()
-      }
+      if (edge && edge !== window.position) window.moveTo(edge)
+      else if (window.autohide) hideTimer.restart()
     }
 
-    mouse.onCanceled: window.endMove()
+    mouse.onCanceled: {
+      window.endMove()
+      if (window.autohide) hideTimer.restart()
+    }
 
     Behavior on displayedShift {
       enabled: window.animateShifts
@@ -877,6 +884,7 @@ PanelWindow {
         visible: window.settingsMenu
         text: Commons.I18n.t("dock.position")
         submenu: true
+        submenuBefore: window.submenuBefore
         highlighted: window.openSubmenu === "position"
         onHoveredChanged: if (hovered) window.hoverSubmenu("position")
         onTriggered: window.openSubmenu = "position"
@@ -887,6 +895,7 @@ PanelWindow {
         visible: window.settingsMenu
         text: Commons.I18n.t("dock.layout")
         submenu: true
+        submenuBefore: window.submenuBefore
         highlighted: window.openSubmenu === "layout"
         onHoveredChanged: if (hovered) window.hoverSubmenu("layout")
         onTriggered: window.openSubmenu = "layout"
@@ -968,7 +977,7 @@ PanelWindow {
           text: modelData[1]
           checked: window.position === modelData[0]
           onTriggered: {
-            Util.execDetached("omarchy-dock position " + modelData[0])
+            if (modelData[0] !== window.position) window.moveTo(modelData[0])
             window.closeMenu()
           }
         }
