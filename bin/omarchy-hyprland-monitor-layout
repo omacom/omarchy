@@ -22,7 +22,8 @@ resized_transform=""
 
 # A monitor whose mode or scale changed keeps its corner, and every monitor to
 # its right or below it shifts by however much it grew or shrank, so the
-# monitors that touched it still do. Otherwise a smaller monitor leaves a gap
+# monitors that touched it still do. A stacked neighbour follows the right edge
+# too when its other neighbours can follow. Otherwise a smaller monitor leaves a gap
 # beside it, and a larger one overlaps its neighbour. Shifting sideways and
 # down at once can push two neighbours onto each other, so while any overlap
 # remains, a shifted monitor goes back where it was whenever that spot is free,
@@ -68,11 +69,20 @@ if [[ ${1:-} == "--resized" ]]; then
     | if $m == null then empty else
       logical($ow; $oh; $os; $m.transform // 0) as $old
       | logical($nw; $nh; $ns; $m.transform // 0) as $new
+      | ($m.x + $old[0]) as $right
+      | ($m.y + $old[1]) as $bottom
+      | . as $monitors
       | [.[] | select((.mirrorOf // "none") == "none")
+        | . as $monitor
         | (if .name == $name then $new else logical(.width; .height; .scale; .transform // 0) end) as $size
+        | (.x != $m.x and .x + $size[0] == $right and (.y == $bottom or .y + $size[1] == $m.y)
+           and all($monitors[] | select((.mirrorOf // "none") == "none" and .name != $name and .name != $monitor.name and .x < $right);
+             logical(.width; .height; .scale; .transform // 0) as $other
+             | (((.x + $other[0] == $monitor.x or $monitor.x + $size[0] == .x) and .y < $monitor.y + $size[1] and $monitor.y < .y + $other[1])
+                 or ((.y + $other[1] == $monitor.y or $monitor.y + $size[1] == .y) and .x < $monitor.x + $size[0] and $monitor.x < .x + $other[0])) | not)) as $right_aligned
         | {name, ox: .x, oy: .y, w: $size[0], h: $size[1],
-           x: (if .name != $name and .x >= $m.x + $old[0] then .x + $new[0] - $old[0] else .x end),
-           y: (if .name != $name and .y >= $m.y + $old[1] then .y + $new[1] - $old[1] else .y end)}]
+           x: (if .name != $name and (.x >= $right or $right_aligned) then .x + $new[0] - $old[0] else .x end),
+           y: (if .name != $name and .y >= $bottom then .y + $new[1] - $old[1] else .y end)}]
       | unpile
       | (map(.x = .ox | .y = .oy)) as $old
       | if piled and ($old | piled | not) then $old else . end
