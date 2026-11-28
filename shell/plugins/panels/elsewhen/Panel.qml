@@ -392,9 +392,10 @@ Panel {
     if (!scroller) return
     if (!item) { scroller.scrollToTop(); return }
     var top = item.mapToItem(scrollContent, 0, 0).y
+    var bottom = top + item.height + (item === citySearch ? scrollContent.bottomPadding : 0)
     if (top < scroller.contentY) scroller.scrollTo(top)
-    else if (top + item.height > scroller.contentY + scroller.height)
-      scroller.scrollTo(Math.min(scroller.maxScroll, top + item.height - scroller.height))
+    else if (bottom > scroller.contentY + scroller.height)
+      scroller.scrollTo(Math.min(scroller.maxScroll, bottom - scroller.height))
   }
 
   // Surrogate pairs rather than literal glyphs, which re-encoding can break.
@@ -1013,7 +1014,7 @@ Panel {
       property alias citySearch: citySearch
       property alias hereSearch: hereSearch
       property alias globeLoader: globeLoader
-      implicitHeight: scrollContent.implicitHeight
+      implicitHeight: Math.ceil(scrollContent.implicitHeight)
       anchors.fill: parent
       blocked: root.adding || root.choosingHere || root.peopleEditIndex >= 0
       // Escape unwinds one layer: search (its own field), a shifted time, globe, then panel.
@@ -1110,6 +1111,7 @@ Panel {
         Column {
           id: scrollContent
           width: scroller.width - Style.space(12)
+          bottomPadding: Style.spacing.hairline
           spacing: Style.spacing.panelGap
 
           HeroTitle {
@@ -1176,9 +1178,11 @@ Panel {
             // Clipped, so knocked rows fall out of the panel.
             Item {
               anchors.fill: parent
-              // Let circular actions straddle the rows' top-right corners.
+              // Let circular actions straddle the rows' top-right corners, and keep
+              // the add-city border inside the clip at fractional scales.
               anchors.topMargin: -Style.space(12)
               anchors.rightMargin: -Style.space(12)
+              anchors.bottomMargin: -Style.spacing.hairline
               clip: true
 
               Column {
