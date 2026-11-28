@@ -69,6 +69,25 @@ expect("the record's own limits describe the active account", [record["tierLabel
 expect("each account keeps its own limits cache, keyed by subscription",
        [(cache_root() / name).is_file() for name in ("claude-limits.json", "claude-limits-u-work.json")], [True, True])
 
+# The displayed plan follows the profile while the raw tiers keep their old names.
+for name, expected in [("Ultra", "Ultra"), ("Ultra\tPlan", "Ultra Plan"), ("Ultra" + " " * 40 + "Plan", "Ultra Plan"),
+                       (None, "Max 20x"), ("", "Max 20x"), (12, "Max 20x"), ("a" * 33, "Max 20x"), ("Ultra\x1b", "Max 20x")]:
+  write_json(home() / ".claude.json", {"oauthAccount": {"planDisplayName": name}})
+  expect("Claude uses a valid profile plan or falls back", claude()["accounts"][0]["plan"], expected)
+write_json(home() / ".claude.json", {"oauthAccount": {"planDisplayName": "Ultra"}})
+write_json(accounts / "claude" / "work" / ".claude.json", {"oauthAccount": {"planDisplayName": "Max"}})
+expect("the active Max 5x account uses its profile name", claude()["tierLabel"], "Max")
+login = json.loads((home() / ".claude" / ".credentials.json").read_text())
+login["claudeAiOauth"]["subscriptionType"] = "pro"
+write_json(home() / ".claude" / ".credentials.json", login)
+expect("a Pro login upgraded to Ultra since uses its profile name", claude()["accounts"][0]["plan"], "Ultra")
+login["claudeAiOauth"]["subscriptionType"] = "team"
+write_json(home() / ".claude" / ".credentials.json", login)
+expect("a Team subscription ignores the Max display name", claude()["accounts"][0]["plan"], "Team 20x")
+credentials(home() / ".claude", "token-main", ms_in(3600), "default_claude_max_20x")
+(home() / ".claude.json").unlink()
+(accounts / "claude" / "work" / ".claude.json").unlink()
+
 # A switch moves logins holding the registry lock, so a collection waits for
 # it rather than reading where a login was and then what is there now.
 import fcntl, threading
@@ -120,6 +139,9 @@ registry("claude", [{"id": "main", "label": "Main", "home": "", "primary": True,
 record = claude(ANY)
 expect("a single account record is unchanged, and limits checked just now aren't stale",
        ["accounts" in record, record["limits"][0]["percent"], record["limitsStale"], record["limitsFetchedAt"] > 0], [False, 0.3, False, True], record)
+write_json(home() / ".claude.json", {"oauthAccount": {"planDisplayName": "Ultra"}})
+expect("a single Claude account uses its profile plan name", claude(ANY)["tierLabel"], "Ultra")
+(home() / ".claude.json").unlink()
 
 # A failed probe falls back on hour-old numbers, and the record says so.
 hour_ago = ms_in(-3600)
