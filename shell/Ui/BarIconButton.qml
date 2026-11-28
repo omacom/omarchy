@@ -30,7 +30,12 @@ WidgetButton {
   labelVisible: false
   hasVisualContent: text !== "" || iconComponent !== null || labelText !== ""
   fontSize: Style.bar.iconFont
-  fixedWidth: vertical ? -1 : slotSize
+  // Equal-width slots leave larger gaps around narrow glyphs (e.g. the
+  // battery). Preserve the normal icon's side bearings for each glyph.
+  // Labels and custom components keep their explicitly allocated slots.
+  fixedWidth: vertical ? -1 : (iconComponent === null && labelText === "" && text !== "" && slotSize === Style.bar.iconSlot
+    ? Math.max(opticalSize, glyphPaintedWidth + slotSize - visualIconSize)
+    : slotSize)
   fixedHeight: vertical ? slotSize : -1
 
   Item {
