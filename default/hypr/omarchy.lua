@@ -5,7 +5,10 @@ local require_optional = require("default.hypr.require_optional")
 
 -- Use Omarchy defaults, but don't edit these directly.
 require("default.hypr.autostart")
--- Before any monitor rule, so every one of them passes through it.
+-- Before any monitor rule, so every one of them passes through: a port-named
+-- rule starts from the rule in force for its monitor, and on Apple Silicon
+-- every rule maps into its display's gamut.
+require("default.hypr.monitor-inherit")
 require("default.hypr.wide-gamut")
 require("default.hypr.monitors")
 require("default.hypr.monitor-workspaces")
