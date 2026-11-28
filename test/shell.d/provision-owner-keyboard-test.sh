@@ -929,6 +929,14 @@ assert run(build([0xFFFD, *range(0x20, 0x7F), 0x0149, 0x20A7, *spare[:3]]), work
 PYTHON
 pass "the console font draws a logo's dots in glyphs the screen has no other use for"
 
+for flag in -h --help; do
+  output=$("$ROOT/bin/omarchy-provision-owner" "$flag" 2>&1) ||
+    fail "omarchy-provision-owner $flag exits 0" "$output"
+  [[ $output == "Usage: omarchy-provision-owner" ]] ||
+    fail "omarchy-provision-owner $flag prints usage" "$output"
+done
+pass "omarchy-provision-owner prints usage for -h and --help without root"
+
 source "$ROOT/install/provisioning/console-font.sh"
 status=0
 omarchy_console_font /dev/pts/3 || status=$?

@@ -24,6 +24,11 @@ PROVISIONING_DIR=/var/lib/omarchy/provisioning
 export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 LOG_FILE=/var/log/omarchy-provision-owner.log
 
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy-provision-owner"
+  exit 0
+fi
+
 if (( EUID != 0 )); then
   echo "Error: omarchy-provision-owner must run as root" >&2
   exit 1
