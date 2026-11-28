@@ -366,6 +366,25 @@ grep -qP '→ Second action\texec\tsecond-cmd$' <<<"$batch_second" ||
   fail "batched hyprctl cache invalidates when reported binds change" "$batch_second"
 pass "batched hyprctl IPC path tracks binding changes"
 
+# A Caps Lock remapped to Hyper (caps:hyper) binds on Mod3, which Hyprland
+# reports as modmask 32 + the rest; the Lua source has to file the bind under
+# that same mask, or picking it from the menu runs nothing.
+printf 'o.bind("SUPER + MOD3 + T", "Hyper terminal", "omarchy-launch-terminal")\n' >>"$home/.config/hypr/bindings.lua"
+printf 'o.bind("WIN + T", "Win terminal", "omarchy-launch-terminal")\n' >>"$home/.config/hypr/bindings.lua"
+stub_hyprctl <<BINDS
+$(lua_bind 96 "SUPER + MOD3 + T" "Hyper terminal")
+$(lua_bind 64 "WIN + T" "Win terminal")
+BINDS
+
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+grep -qP '→ Hyper terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "picking a bind on Mod3 from the menu runs it" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "picking a bind on Mod3 from the menu runs it"
+grep -qP '→ Win terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "picking a bind using the Win alias from the menu runs it" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "picking a bind using the Win alias from the menu runs it"
+
 # Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
 # or function: 0x..., with a display-only number as its arg, so picking a row
 # has to run what the Lua source says, never that name and number.

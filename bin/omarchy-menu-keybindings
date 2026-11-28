@@ -151,7 +151,12 @@ build_lua_bind_cache() {
     # the menu closes, so the scan is time-boxed. -E keeps LUA_INIT and LUA_PATH
     # from the environment out of the scan, which loads the user's config.
     timeout 10 lua -E - <<'LUA'
-local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
+-- Every modifier name Hyprland's bind parser accepts, so a bind on Mod2, Mod3
+-- or Mod5 is cached under the modmask Hyprland reports for it.
+local modifiers = {
+  SHIFT = 1, CAPS = 2, CTRL = 4, CONTROL = 4, ALT = 8, MOD1 = 8, MOD2 = 16, MOD3 = 32,
+  SUPER = 64, WIN = 64, MOD4 = 64, LOGO = 64, META = 64, MOD5 = 128,
+}
 
 local function split_keys(keys)
   local modmask = 0
@@ -716,7 +721,7 @@ keybindings_cache_key() {
 
   read -r hash _ < <(
     {
-      printf 'v23\n'
+      printf 'v24\n'
       printf '%s\n' "$lang"
       [[ -n $lang ]] && cat "$OMARCHY_PATH/default/i18n/$lang/keybindings.json" 2>/dev/null
       cat "$key_names_file" 2>/dev/null
