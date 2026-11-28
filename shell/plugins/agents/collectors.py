@@ -553,6 +553,46 @@ class Stats:
     }
 
 
+def cache_zone() -> list[Any]:
+  """The timezone a cache of local days was written in: they are only true there."""
+  return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
+
+
+def merge_stats(base: dict[str, Any], extra: dict[str, Any], trust: Callable[[Any], int] = number) -> dict[str, Any]:
+  # `trust` reads each figure: number() distrusts anything odd; a caller whose
+  # figures are already validated passes one that keeps them exact.
+  merged = dict(base)
+  for key in ("todayPrompts", "todaySessions", "todayTotalTokens", "totalPrompts", "totalSessions"):
+    merged[key] = trust(base.get(key)) + trust(extra.get(key))
+
+  combined = dict(base.get("todayTokensByModel") or {})
+  for model, count in (extra.get("todayTokensByModel") or {}).items():
+    combined[model] = trust(combined.get(model)) + trust(count)
+  merged["todayTokensByModel"] = combined
+
+  usage = {model: dict(bucket) for model, bucket in (base.get("modelUsage") or {}).items()}
+  for model, bucket in (extra.get("modelUsage") or {}).items():
+    target = usage.setdefault(model, empty_bucket())
+    for field, count in (bucket or {}).items():
+      target[field] = trust(target.get(field)) + trust(count)
+  merged["modelUsage"] = usage
+
+  by_date: dict[str, int] = {}
+  for source in (base.get("recentDays") or [], extra.get("recentDays") or []):
+    for day in source:
+      date = str((day or {}).get("date") or "")
+      if date:
+        by_date[date] = by_date.get(date, 0) + trust((day or {}).get("messageCount"))
+  merged["recentDays"] = [{"date": date, "messageCount": by_date[date]} for date in sorted(by_date)]
+
+  # Sources overlap in time, so union dates rather than summing counts. A
+  # fallback that only knows a count still bounds the answer from below.
+  dates = set(base.get("activeDates") or []) | set(extra.get("activeDates") or [])
+  merged["activeDates"] = sorted(dates)
+  merged["activeDays"] = max(len(dates), trust(base.get("activeDays")), trust(extra.get("activeDays")))
+  return merged
+
+
 # -------------------------------------------------------------- scan cache
 
 
@@ -1728,15 +1768,9 @@ def claude_code_index_path(projects: Path) -> Path:
   return cache_root() / f"claude-index-{digest}.json"
 
 
-# Records hold local days, so an index is only true in the timezone that
-# wrote it; after a change every transcript is read again.
-def _claude_code_index_zone() -> list[Any]:
-  return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
-
-
 def _claude_code_load_index(index_file: Path) -> dict[str, Any]:
   data = read_json(index_file)
-  if data.get("version") == CLAUDE_CODE_INDEX_VERSION and data.get("zone") == _claude_code_index_zone() and isinstance(data.get("files"), dict):
+  if data.get("version") == CLAUDE_CODE_INDEX_VERSION and data.get("zone") == cache_zone() and isinstance(data.get("files"), dict):
     return data["files"]
   return {}
 
@@ -2165,7 +2199,7 @@ def claude_code_usage(
       current, order, complete = _claude_code_read_transcripts(files, previous)
       if current != previous:
         try:
-          write_json(index_file, {"version": CLAUDE_CODE_INDEX_VERSION, "zone": _claude_code_index_zone(), "files": current}, sort_keys=True)
+          write_json(index_file, {"version": CLAUDE_CODE_INDEX_VERSION, "zone": cache_zone(), "files": current}, sort_keys=True)
         except Exception as exc:
           warn(f"could not write the Claude scan index {index_file} ({exc})")
       return current, order, complete
@@ -2367,12 +2401,6 @@ _CODEX_USAGE_FIELDS = ("input_tokens", "cached_input_tokens", "cache_write_input
 
 def codex_home() -> Path:
   return Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
-
-
-# Records hold local days, so they are only true in the timezone that wrote
-# them.
-def _codex_cache_zone() -> list[Any]:
-  return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
 
 
 def _codex_record_valid(value: Any) -> bool:
@@ -2796,7 +2824,7 @@ def codex_rollouts(cache_file: Path | None, reuse: bool = True, native: bool = F
       payload = read_json(shared)
     except OSError:
       payload = {}
-    if payload.get("schemaVersion") != CODEX_ROLLOUT_SCHEMA or payload.get("zone") != _codex_cache_zone():
+    if payload.get("schemaVersion") != CODEX_ROLLOUT_SCHEMA or payload.get("zone") != cache_zone():
       return {}
     stamp = payload.get("forcedAt")
     stamp = stamp if type(stamp) in (int, float) else None
@@ -2831,7 +2859,7 @@ def codex_rollouts(cache_file: Path | None, reuse: bool = True, native: bool = F
     if shared is not None and kept != cached:
       try:
         stamp = forced_at[0] if reuse else time.time()
-        write_json(shared, {"schemaVersion": CODEX_ROLLOUT_SCHEMA, "zone": _codex_cache_zone(), "forcedAt": stamp, "files": kept})
+        write_json(shared, {"schemaVersion": CODEX_ROLLOUT_SCHEMA, "zone": cache_zone(), "forcedAt": stamp, "files": kept})
       except OSError as exc:
         warn(f"could not write file cache ({exc})")
     return records, complete

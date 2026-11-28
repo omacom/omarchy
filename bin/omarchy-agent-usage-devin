@@ -25,7 +25,7 @@ import os
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 # The shared collector plumbing ships with the agents panel.
@@ -35,10 +35,13 @@ from collectors import (  # noqa: E402
   Stats,
   base_record,
   cache_root,
+  cache_zone,
   cached_scan,
   data_home,
   emit,
+  empty_bucket,
   local_day,
+  merge_stats,
   number,
   obj,
   open_limits,
@@ -48,6 +51,7 @@ from collectors import (  # noqa: E402
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
+  today,
   token_count,
   warn,
   write_json,
@@ -193,6 +197,8 @@ def scan_devin_database(path, stats):
   prefix = "devin:" + path.name + ":"
   try:
     conn.execute("PRAGMA query_only = ON")
+    # One read transaction: every table is read as of the same commit.
+    conn.execute("BEGIN")
     tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     known = False
     if "message_nodes" in tables and {"session_id", "created_at", "chat_message"} <= table_columns(conn, "message_nodes"):
@@ -232,20 +238,89 @@ def scan_sources():
   return [Path.home(), data_dir(), data_home(), *pi_session_roots(), opencode_db()]
 
 
+# The session database is the multi-gigabyte part of the scan. Its totals are
+# kept apart from the pi and opencode rows, read on every scan, and reused while
+# its files are unchanged, across the 900-second refresh.
+NATIVE_REUSE_SECONDS = 86400
+
+
+def native_fingerprint(paths):
+  """Identity, size, and write and change times of each database and its WAL,
+  both where SQLite finds them (beside the file a symlink points to): a commit
+  in the WAL moves the WAL, a checkpoint or a replaced file the database, a
+  restored write time the change time. A missing or empty WAL (a read-only open
+  leaves one) is None; a file that can't be read makes it all None, never trusted."""
+  found = []
+  for path in paths:
+    real = path.resolve()
+    for file in (real, real.with_name(real.name + "-wal")):
+      try:
+        info = file.stat()
+      except FileNotFoundError:
+        info = None
+      except OSError:
+        return None
+      found.append([info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns] if info and (info.st_size or file is real) else None)
+  return found
+
+
+def valid_snapshot(snapshot, day):
+  """Whether a cached snapshot is what Stats.snapshot() writes for `day`: anything else is rebuilt."""
+  whole = lambda value: type(value) is int and value >= 0
+  try:
+    return (
+      all(whole(snapshot[key]) for key in ("todayPrompts", "todaySessions", "todayTotalTokens", "totalPrompts", "totalSessions"))
+      and all(whole(count) for count in snapshot["todayTokensByModel"].values())
+      and all(set(bucket) == set(empty_bucket()) and all(map(whole, bucket.values())) for bucket in snapshot["modelUsage"].values())
+      and [entry["date"] for entry in snapshot["recentDays"]] == Stats(day).recent_dates
+      and all(whole(entry["messageCount"]) for entry in snapshot["recentDays"])
+      and type(snapshot["activeDates"]) is list
+      and all(type(when) is str and date.fromisoformat(when).isoformat() == when for when in snapshot["activeDates"])
+      and whole(snapshot["activeDays"])
+      and snapshot["activeDays"] == len(set(snapshot["activeDates"])) == len(snapshot["activeDates"])
+    )
+  except (KeyError, TypeError, AttributeError, ValueError):
+    return False
+
+
+# The session databases' stats for `day`; one that couldn't be read is added to
+# `unreadable`. Only a read of unchanging files on one day is kept across refreshes.
+def native_snapshot(unreadable, force, day):
+  paths = session_databases()
+  if not paths:
+    return Stats(day).snapshot()
+  before = native_fingerprint(paths)
+
+  def scan():
+    stats = Stats(day)
+    readable = True
+    for path in paths:
+      if not scan_devin_database(path, stats):
+        readable = False
+        unreadable.append(path)
+    return stats.snapshot(), readable and before is not None and native_fingerprint(paths) == before and today() == day
+
+  match = {"fingerprint": before, "zone": cache_zone(), "day": day}
+  for max_age in (0 if force else NATIVE_REUSE_SECONDS, 0):
+    snapshot = cached_scan("devin-native", paths, max_age, scan, match=match)
+    if valid_snapshot(snapshot, day):
+      return snapshot
+  return snapshot
+
+
 # The local stats and whether every source was read; a session database that
 # couldn't be read is added to `unreadable`.
-def run_local_scans(unreadable):
-  stats = Stats()
+def run_local_scans(unreadable, force):
+  # One day for every part, so a scan that crosses midnight isn't mixed.
+  day = today()
   pi_rows, complete = scan_pi_sessions(r'"provider"\s*:\s*"devin"', billed_here)
-  for path in session_databases():
-    if not scan_devin_database(path, stats):
-      complete = False
-      unreadable.append(path)
+  native = native_snapshot(unreadable, force, day)
   # The closing quote makes the database's prefilter match the whole id.
   db_rows, db_complete = scan_opencode([PROVIDER + '"'], billed_here)
+  stats = Stats(day)
   for row in pi_rows + db_rows:
     stats.add_row(row, model_name(row.model))
-  return stats.snapshot(), complete and db_complete
+  return merge_stats(native, stats.snapshot(), lambda value: value or 0), complete and db_complete and not unreadable and today() == day
 
 
 # ------------------------------------------------------------------ quota
@@ -488,7 +563,7 @@ def main():
 
   # A scan served from the cache read every database.
   unreadable = []
-  stats = cached_scan(AGENT_ID, scan_sources(), scan_max_age(args.force, args.limits_only), lambda: run_local_scans(unreadable))
+  stats = cached_scan(AGENT_ID, scan_sources(), scan_max_age(args.force, args.limits_only), lambda: run_local_scans(unreadable, args.force))
   emit(build_record(stats, unreadable), sort_keys=True)
   return 0
 
