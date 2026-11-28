@@ -5,12 +5,10 @@
 set -euo pipefail
 
 active=$(hyprctl activewindow -j)
-fullscreen_client=$(jq -r '.fullscreenClient // 0' <<<"$active")
+fullscreen=$(jq -r '.fullscreen // 0' <<<"$active")
 
-if [[ $fullscreen_client == "2" ]]; then
-  hyprctl dispatch 'hl.dsp.window.fullscreen_state({ internal = 0, client = 0 })' >/dev/null 2>&1 || \
-    hyprctl dispatch fullscreenstate 0 0 >/dev/null
+if [[ $fullscreen == "2" ]]; then
+  hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "unset" })'
 else
-  hyprctl dispatch 'hl.dsp.window.fullscreen_state({ internal = 0, client = 2 })' >/dev/null 2>&1 || \
-    hyprctl dispatch fullscreenstate 0 2 >/dev/null
+  hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "set" })'
 fi
