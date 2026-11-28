@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Launch Files (the old name, kept for personal bindings)
-# omarchy:hidden=true
-
-exec omarchy-launch-files "$@"
