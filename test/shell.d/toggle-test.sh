@@ -85,6 +85,16 @@ HOME="$test_home" omarchy-toggle-fullscreen-desktop on
 [[ -f $bar_flag && -f $gaps_flag ]] || fail "fullscreen on enters full screen"
 pass "fullscreen on enters full screen"
 
+borders_flag="$test_home/.local/state/omarchy/toggles/hypr/window-no-borders.lua"
+
+HOME="$test_home" omarchy-hyprland-window-borders-toggle
+[[ -f $borders_flag ]] || fail "window borders toggle places the window-no-borders flag"
+pass "window borders toggle places the window-no-borders flag"
+
+HOME="$test_home" omarchy-hyprland-window-borders-toggle
+[[ ! -f $borders_flag ]] || fail "window borders toggle removes the window-no-borders flag"
+pass "window borders toggle removes the window-no-borders flag"
+
 # The flag records animations being off, so on and off are the other way round.
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-notification-send"
 chmod +x "$stub_bin/omarchy-notification-send"

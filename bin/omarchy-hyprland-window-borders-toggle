@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Toggles window borders globally between no borders and the default.
+# omarchy:aliases=omarchy hyprland window border toggle
+
+omarchy-hyprland-toggle window-no-borders
