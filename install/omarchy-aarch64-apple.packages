@@ -13,6 +13,11 @@ omarchy-mac-boot
 # Picks the startup volume (macOS or Omarchy) from Linux.
 asahi-bless
 
+# The Neural Engine's userspace (omacom/omarchy-pkgs): omarchy-ane-check and
+# the tools that bring up the chips whose driver is on by default. The driver
+# is in the kernel or comes from omarchy-ane-dkms.
+omarchy-ane
+
 # Hardware video decode.
 avd-fw
 libva-v4l2_request-avd
