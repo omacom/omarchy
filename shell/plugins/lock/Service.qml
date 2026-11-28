@@ -53,13 +53,6 @@ Item {
   property string backgroundPath: ""
   property string videoPosterPath: ""
   property int backgroundVersion: 0
-  // Monotonic cache-bust counter and per-path file signatures/versions so a
-  // new path stays at version 0 (matching the desktop cache) while any
-  // in-place overwrite (even after switching away and back) gets a fresh key.
-  property int nextBackgroundVersion: 0
-  property var seenBackgroundSignatures: ({})
-  property var seenBackgroundVersions: ({})
-  property bool backgroundOverwrittenInPlace: false
   // The wallpaper file's mtime and size. The lock caches its wallpaper by
   // version, so a file overwritten in place must bump the version too.
   property string backgroundSignature: ""
@@ -643,15 +636,23 @@ Item {
     ? Util.fileUrl(lockWallpaperPath) + "?lockv=" + backgroundVersion
     : ""
 
+  Connections {
+    target: root.backgroundService
+    function onDisplayedBackgroundChanged() {
+      root.refreshBackground()
+    }
+  }
+
   function desktopStillEntry(screen) {
-    if (!screen || videoBackground || backgroundOverwrittenInPlace || !backgroundPath) return null
+    if (!screen || videoBackground || !backgroundPath) return null
     if (!backgroundService || typeof backgroundService.stillCacheEntry !== "function") return null
     return backgroundService.stillCacheEntry(screen, backgroundPath, backgroundSignature)
   }
 
   function desktopStillPending(screen) {
-    if (!screen || lockRequested || videoBackground || backgroundOverwrittenInPlace || !backgroundPath) return false
+    if (!screen || lockRequested || videoBackground || !backgroundPath) return false
     if (!backgroundService || typeof backgroundService.stillPending !== "function") return false
+    if (readlinkProc.running) return true
     return backgroundService.stillPending(screen, backgroundPath, backgroundSignature)
   }
 
@@ -759,28 +760,15 @@ Item {
         var lines = String(text || "").split("\n")
         var next = String(lines[0] || "").trim()
         var signature = String(lines[1] || "").trim()
-        var prevSig = root.seenBackgroundSignatures[next]
-        var nextVer = root.seenBackgroundVersions[next] || 0
-        var overwritten = false
-        if (prevSig === undefined) {
-          root.seenBackgroundSignatures[next] = signature
-          root.seenBackgroundVersions[next] = 0
-        } else if (prevSig !== signature) {
-          root.nextBackgroundVersion += 1
-          nextVer = root.nextBackgroundVersion
-          root.seenBackgroundSignatures[next] = signature
-          root.seenBackgroundVersions[next] = nextVer
-          overwritten = true
-        } else if (nextVer > 0) {
-          overwritten = true
-        }
         if (next !== root.backgroundPath) {
           root.videoPosterPath = ""
           root.backgroundPath = next
+          root.backgroundSignature = signature
+          root.backgroundVersion += 1
+        } else if (signature !== root.backgroundSignature) {
+          root.backgroundSignature = signature
+          root.backgroundVersion += 1
         }
-        root.backgroundSignature = signature
-        root.backgroundVersion = nextVer
-        root.backgroundOverwrittenInPlace = overwritten
         root.refreshPoster()
       }
     }

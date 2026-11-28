@@ -113,10 +113,6 @@ function runReadlink(entries) {
     videoPosterPath: 'old-poster.jpg',
     backgroundSignature: '',
     backgroundVersion: 0,
-    nextBackgroundVersion: 0,
-    seenBackgroundSignatures: {},
-    seenBackgroundVersions: {},
-    backgroundOverwrittenInPlace: false,
     posterRefreshes: 0,
     refreshPoster() { this.posterRefreshes += 1 }
   }
@@ -125,31 +121,26 @@ function runReadlink(entries) {
   const history = []
   for (const text of entries) {
     ctx.onFinished(text)
-    history.push({
-      path: ctx.backgroundPath,
-      version: ctx.backgroundVersion,
-      overwritten: ctx.backgroundOverwrittenInPlace
-    })
+    history.push({ path: ctx.backgroundPath, version: ctx.backgroundVersion })
   }
   return history
 }
 
-// Sequence: A -> overwrite A -> B -> return to A (same second, different ns/inode) -> overwrite A again.
+// Sequence: A -> overwrite A -> B -> return to A (even with identical preserved mtime/size) -> overwrite A.
+// Every path switch or overwrite advances lock backgroundVersion monotonically so unshared ?lockv= keys
+// never reuse stale pixmaps, while shared desktop requests use desktop's reloadVersion (?v=).
 const seq = runReadlink([
   '/wall/a.webp\n2026-11-28 10:00:00.100000000 +0000:256:1001\n',
   '/wall/a.webp\n2026-11-28 10:00:00.200000000 +0000:256:1001\n',
   '/wall/b.webp\n2026-11-28 10:00:00.300000000 +0000:512:1002\n',
-  '/wall/a.webp\n2026-11-28 10:00:00.400000000 +0000:256:1003\n',
+  '/wall/a.webp\n2026-11-28 10:00:00.100000000 +0000:256:1001\n',
   '/wall/a.webp\n2026-11-28 10:00:00.500000000 +0000:256:1004\n'
 ])
-assertEqual(seq[0].version, 0, 'initial load of A keeps version 0 to share desktop cache')
-assertEqual(seq[0].overwritten, false, 'initial load of A is not marked overwritten')
-assertEqual(seq[1].version, 1, 'in-place overwrite of A bumps to version 1')
-assertEqual(seq[1].overwritten, true, 'in-place overwrite marks backgroundOverwrittenInPlace')
-assertEqual(seq[2].version, 0, 'first load of new path B uses version 0')
-assertEqual(seq[2].overwritten, false, 'new path B clears overwritten flag')
-assertEqual(seq[3].version, 2, 'returning to A after same-second overwrite gets unique version 2')
-assertEqual(seq[4].version, 3, 'subsequent overwrite of A gets unique version 3')
+assertEqual(seq[0].version, 1, 'initial load of A sets monotonic lock backgroundVersion 1')
+assertEqual(seq[1].version, 2, 'in-place overwrite of A bumps lock backgroundVersion to 2')
+assertEqual(seq[2].version, 3, 'switching to B advances lock backgroundVersion to 3')
+assertEqual(seq[3].version, 4, 'returning to A advances lock backgroundVersion to 4 even if mtime/size matched')
+assertEqual(seq[4].version, 5, 'subsequent overwrite of A advances lock backgroundVersion to 5')
 
 // Wire the REAL Background helpers into lock/Service helpers.
 const dp1 = { name: 'DP-1' }
@@ -177,7 +168,7 @@ require('vm').runInNewContext(`${panelForScreenFn[0]}\n${stillCacheEntryFn[0]}\n
 
 const lockCtx = {
   videoBackground: false,
-  backgroundOverwrittenInPlace: false,
+  readlinkProc: { running: false },
   lockRequested: false,
   backgroundPath: '/wall/a.webp',
   backgroundSignature: 'sig-a-1',
@@ -194,14 +185,14 @@ assertEqual(reqDp1.versionPrefix, 'v', 'shared request uses desktop ?v= query pr
 assertEqual(reqDp1.width, 3840, 'shared request matches desktop physical width')
 assertEqual(reqDp1.height, 2160, 'shared request matches desktop physical height')
 
-// In-place overwrite uses disjoint ?lockv= prefix so version 1 never collides with desktop ?v=1.
-lockCtx.backgroundOverwrittenInPlace = true
+// In-place overwrite (signature mismatch) uses disjoint ?lockv= prefix so version 1 never collides with desktop ?v=1.
+lockCtx.backgroundSignature = 'sig-a-overwritten'
 lockCtx.backgroundVersion = 1
 const reqOver = lockCtx.lockWallpaperRequest(dp1, 1920, 1080)
 assertEqual(reqOver.shared, false, 'in-place overwrite falls back to cache-busted lock version')
 assertEqual(reqOver.version, 1, 'in-place overwrite uses monotonic lock backgroundVersion')
 assertEqual(reqOver.versionPrefix, 'lockv', 'in-place overwrite uses disjoint ?lockv= prefix')
-lockCtx.backgroundOverwrittenInPlace = false
+lockCtx.backgroundSignature = 'sig-a-1'
 lockCtx.backgroundVersion = 0
 
 // Animated switch (displayedBackground still shows outgoing wallpaper): preload stays active.
@@ -302,5 +293,18 @@ probeCtx.nativeSizes = {} // pruned after switching away to B
 probeCtx.sizeProbeOut.text = '1920 1080\nsig-2\n'
 probeCtx.runExited(0)
 assertEqual(probeCtx.reloadVersion, 1, 're-probing overwritten A after switch-away bumps desktop reloadVersion')
+
+// Transient /background-transitions/ snapshots must not grow seenPathSignatures.
+probeCtx.path = '/home/user/.cache/omarchy/background-transitions/next-1234'
+probeCtx.sizeProbeOut.text = '1920 1080\nsig-tmp\n'
+probeCtx.runExited(0)
+assertEqual(probeCtx.seenPathSignatures[probeCtx.path], undefined, 'transient transition snapshot is not retained in seenPathSignatures')
+
+// While readlinkProc is refreshing after desktop switched A -> B, unlocked preload defers instead of decoding outgoing A.
+bgCtx.displayedBackground = '/wall/c.webp'
+lockCtx.backgroundPath = '/wall/b.webp'
+lockCtx.readlinkProc.running = true
+assertEqual(lockCtx.desktopStillPending(dp1), true, 'readlinkProc refresh after desktop switch defers outgoing still preload')
+lockCtx.readlinkProc.running = false
 
 JS

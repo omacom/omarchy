@@ -334,7 +334,7 @@ Item {
       var known = Object.assign({}, root.nativeSizes)
       // An unreadable header records 0x0, which decodes at screen size.
       var probedSig = exitCode === 0 ? signature : ""
-      if (probedSig) {
+      if (probedSig && path.indexOf("/background-transitions/") === -1) {
         var prevSig = root.seenPathSignatures[path]
         if (prevSig !== undefined && prevSig !== probedSig) root.reloadVersion += 1
         root.seenPathSignatures[path] = probedSig
