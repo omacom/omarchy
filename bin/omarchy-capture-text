@@ -18,7 +18,16 @@ SELECTION=$(slurp 2>/dev/null)
 
 [[ -z $SELECTION ]] && exit 0
 
-TEXT=$(grim -g "$SELECTION" - | tesseract stdin stdout --oem 1 --psm 6 -l "${OMARCHY_OCR_LANGS:-eng}" --dpi 300 -c preserve_interword_spaces=1 2>/dev/null) || exit 1
+# OMARCHY_OCR_LANGS still wins, for a one-off. Otherwise the languages chosen
+# in the menu (or written by omarchy-capture-ocr-languages) are what Tesseract
+# is asked for. The default stays English.
+if [[ -n ${OMARCHY_OCR_LANGS:-} ]]; then
+  ocr_langs=$OMARCHY_OCR_LANGS
+else
+  ocr_langs=$(omarchy-capture-ocr-languages)
+fi
+
+TEXT=$(grim -g "$SELECTION" - | tesseract stdin stdout --oem 1 --psm 6 -l "$ocr_langs" --dpi 300 -c preserve_interword_spaces=1 2>/dev/null) || exit 1
 
 [[ -z $TEXT ]] && exit 1
 
