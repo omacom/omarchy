@@ -24,7 +24,7 @@ writer = None
 def reply(tokens, rowid=None):
   message = {"content": "a transcript", "metadata": {"generation_model": "devin-m", "metrics": {"input_tokens": tokens}}}
   writer.execute("INSERT OR REPLACE INTO message_nodes (rowid, session_id, created_at, chat_message) VALUES (?, 's1', ?, ?)",
-                 (rowid, int(time.time()), json.dumps(message)))
+                 (rowid, int(fixture_now().timestamp()), json.dumps(message)))
   writer.commit()
 
 
@@ -40,7 +40,7 @@ def plant():
   writer.executescript("PRAGMA journal_mode = wal; PRAGMA wal_autocheckpoint = 0;")
   writer.executescript("CREATE TABLE message_nodes (session_id text, created_at integer, chat_message text);"
                        "CREATE TABLE prompt_history (session_id text, timestamp integer);")
-  writer.execute("INSERT INTO prompt_history VALUES ('s1', ?)", (int(time.time()),))
+  writer.execute("INSERT INTO prompt_history VALUES ('s1', ?)", (int(fixture_now().timestamp()),))
   reply(100)
   reply(20, rowid=2)
 
@@ -99,7 +99,7 @@ expect("a total past number()'s ceiling is kept exact", devin()[2]["totalPrompts
 
 # A read that raced a write sees one commit and serves its run; the refresh around it is kept as ever.
 prompts = devin("--force")[2]["totalPrompts"]
-during_read.append(lambda: (writer.execute("INSERT INTO prompt_history VALUES ('s1', ?)", (int(time.time()),)), reply(1000)))
+during_read.append(lambda: (writer.execute("INSERT INTO prompt_history VALUES ('s1', ?)", (int(fixture_now().timestamp()),)), reply(1000)))
 raced = devin("--force", wait=None)
 expect("a read that raced a write sees one commit", (raced[0], raced[2]["totalPrompts"]), (132, prompts))
 expect("a limits-only refresh reuses it", devin("--limits-only", wait=0)[:2], (132, 0))
