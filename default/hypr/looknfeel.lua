@@ -99,6 +99,7 @@ hl.config({
 
   scrolling = {
     column_width = 0.49,
+    fullscreen_on_one_column = true,
   },
 
   master = {
