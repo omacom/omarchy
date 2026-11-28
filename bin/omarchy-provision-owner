@@ -417,7 +417,11 @@ render_setup_finish() {
 # the logo (vertically centered like the boot logo) running a looping ColorShift,
 # the Omarchy tagline, and a hint. Return skips ahead into setup at any time.
 greeter_screen() {
-  local anim="" drawn_sig cur_sig resized=0
+  local anim="" drawn_sig cur_sig resized=0 interrupted=0 int_trap
+  # Ctrl+C goes to the console's whole foreground group, so it also kills a $(...)
+  # in flight: the ones the greeter draws and waits with fall back, not end setup.
+  int_trap=$(trap -p INT)
+  trap 'interrupted=1' INT
 
   # Paint the whole splash for the console's *current* geometry. Kept in a
   # nested function so the wait loop below can repaint it verbatim if the VT
@@ -430,8 +434,8 @@ greeter_screen() {
     local rows cols top content_h logo_row tagline_row hint_row
     local tagline hint tpad hpad pad line i
 
-    cols=$(term_cols)
-    rows=$(stty size 2>/dev/null </dev/tty | awk '{print $1}')
+    cols=$(term_cols) || cols=${COLUMNS:-80}
+    rows=$(stty size 2>/dev/null </dev/tty | awk '{print $1}') || rows=""
     [[ $rows =~ ^[0-9]+$ ]] || rows=${LINES:-24}
 
     tagline=${OMARCHY_OEM_TAGLINE:-"Beautiful, Fun & Agentic Linux by DHH"}
@@ -460,7 +464,7 @@ greeter_screen() {
 
     # Draw each logo row at an explicit column so nothing can wrap it even if a
     # measurement is off by one; left_padding centers it for the current width.
-    pad="$(left_padding "$BRAND_LOGO_WIDTH")"
+    pad="$(left_padding "$BRAND_LOGO_WIDTH")" || pad=""
     i=0
     while IFS= read -r line; do
       printf '%s%d;1H%s%b%s%b' "$CSI" "$((logo_row + i))" "$pad" "$BRAND_LOGO_SGR" "$line" "$RESET"
@@ -544,17 +548,31 @@ greeter_screen() {
   trap 'resized=1' WINCH
 
   _greeter_draw
-  drawn_sig=$(console_signature 2>/dev/null || true)
+  drawn_sig=$(console_signature 2>/dev/null) || drawn_sig=""
 
   # Wait for Return, but keep watching the geometry. On any resize (SIGWINCH or
   # a changed signature) tear the animation down, settle, re-fit the font, and
   # repaint — so a resize arriving five seconds in looks the same as one that
   # never happened.
   while true; do
+    if ((interrupted)); then
+      interrupted=0
+      _greeter_kill_anim
+      stty sane </dev/tty 2>/dev/null || true
+      printf '%s%s%s' "$RESET" "$CLEAR" "$SHOW_CURSOR"
+      fit_console_font
+      trap : INT
+      confirm_reboot && exec systemctl reboot
+      trap 'interrupted=1' INT
+      brand_console_font
+      _greeter_draw
+      drawn_sig=$(console_signature 2>/dev/null) || drawn_sig=""
+      continue
+    fi
     if IFS= read -r -t 0.2 _ </dev/tty; then
       break
     fi
-    cur_sig=$(console_signature 2>/dev/null || true)
+    cur_sig=$(console_signature 2>/dev/null) || cur_sig=""
     if (( resized )) || [[ -n $cur_sig && $cur_sig != "$drawn_sig" ]]; then
       _greeter_kill_anim
       stty sane </dev/tty 2>/dev/null || true
@@ -566,13 +584,15 @@ greeter_screen() {
       brand_console_font
       wait_console_stable 30 5 || true
       _greeter_draw
-      drawn_sig=$(console_signature 2>/dev/null || true)
+      drawn_sig=$(console_signature 2>/dev/null) || drawn_sig=""
       # Clear last so the font-fitting's own SIGWINCHes don't re-trigger a redraw.
       resized=0
     fi
   done
 
   trap - WINCH
+  trap - INT
+  eval "$int_trap"
   _greeter_kill_anim
   # ttfx leaves the tty in raw/no-echo mode when killed; restore it or the gum
   # prompts in the keyboard step that follows silently die. Then clear the

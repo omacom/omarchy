@@ -929,6 +929,105 @@ assert run(build([0xFFFD, *range(0x20, 0x7F), 0x0149, 0x20A7, *spare[:3]]), work
 PYTHON
 pass "the console font draws a logo's dots in glyphs the screen has no other use for"
 
+# Ctrl+C while the greeter waits must stop the animation, restore the terminal,
+# offer a reboot, and continue setup when declined instead of dying on SIGINT.
+greeter=$tmp/greeter
+mkdir -p "$greeter/bin"
+mkfifo "$greeter/tty"
+sed -n '/^greeter_screen() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" |
+  sed "s|/dev/tty|$greeter/tty|g" >"$greeter/greeter.sh"
+grep -q '^greeter_screen() {' "$greeter/greeter.sh" ||
+  fail "omarchy-provision-owner defines greeter_screen"
+
+cat >"$greeter/bin/ttfx" <<'SH'
+#!/bin/bash
+printf '%s\n' "$$" >>"$GREETER_DIR/ttfx-pids"
+exec sleep 30
+SH
+cat >"$greeter/bin/stty" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "size" ]]; then
+  echo "40 120"
+else
+  printf 'stty %s\n' "$*" >>"$GREETER_DIR/events"
+fi
+SH
+cat >"$greeter/bin/systemctl" <<'SH'
+#!/bin/bash
+printf 'systemctl %s\n' "$*" >>"$GREETER_DIR/events"
+SH
+chmod +x "$greeter/bin/"*
+
+# Not under ||, which would switch off the set -e the greeter runs under.
+set +e
+(
+  set -euo pipefail
+  PATH="$greeter/bin:$PATH"
+  export GREETER_DIR="$greeter"
+  CSI=$'\033[' RESET="${CSI}0m" DIM="${CSI}2m" HIDE_CURSOR="${CSI}?25l" SHOW_CURSOR="${CSI}?25h" CLEAR="${CSI}2J${CSI}H"
+  BRAND_LOGO_PATH="$oem/omarchy-logo.txt" BRAND_LOGO_WIDTH=7 BRAND_LOGO_HEIGHT=1 BRAND_LOGO_SGR="" BRAND_LOGO_COLOR=2 BRAND_SHIMMER=(2)
+  term_cols() { echo 120; }
+  left_padding() { printf ''; }
+  wait_console_stable() { return 0; }
+  # The console sends Ctrl+C to everything on it, so the greeter's own $(...)
+  # dies with it: delivered once the animation is up, from inside the one running.
+  console_signature() {
+    if [[ -s $greeter/ttfx-pids && ! -e $greeter/interrupted ]]; then
+      : >"$greeter/interrupted"
+      kill -INT "$target" "$BASHPID"
+    fi
+    echo "40 120||"
+  }
+  fit_console_font() { echo "fit_console_font" >>"$greeter/events"; }
+  brand_console_font() { echo "brand_console_font" >>"$greeter/events"; }
+  confirm_reboot() {
+    local first_pid
+    first_pid=$(head -n1 "$greeter/ttfx-pids")
+    ! kill -0 "$first_pid" 2>/dev/null || echo "anim-still-running" >>"$greeter/events"
+    printf 'confirm_reboot trap=%s\n' "$(trap -p INT)" >>"$greeter/events"
+    return 1
+  }
+  source "$greeter/greeter.sh"
+  exec 8<>"$greeter/tty"
+  target=$BASHPID
+  (
+    for _ in {1..100}; do
+      [[ -f $greeter/ttfx-pids ]] && (( $(wc -l <"$greeter/ttfx-pids") >= 2 )) && break
+      sleep 0.02
+    done
+    printf '\n' >&8
+  ) >/dev/null 2>&1 &
+  driver=$!
+  greeter_screen >"$greeter/out"
+  printf 'after_trap=%s\n' "$(trap -p INT)" >>"$greeter/events"
+  wait "$driver" 2>/dev/null || true
+  exec 8>&-
+)
+greeter_status=$?
+set -e
+
+if [[ -f $greeter/ttfx-pids ]]; then
+  while IFS= read -r pid; do
+    [[ -n $pid ]] && kill "$pid" 2>/dev/null || true
+  done <"$greeter/ttfx-pids"
+fi
+
+(( greeter_status == 0 )) ||
+  fail "Ctrl+C on the greeter does not abort setup when reboot is declined" "status $greeter_status"
+! grep -qx "anim-still-running" "$greeter/events" ||
+  fail "Ctrl+C stops the greeter animation before offering a reboot"
+grep -qx "confirm_reboot trap=trap -- ':' SIGINT" "$greeter/events" ||
+  fail "Ctrl+C on the greeter offers a reboot with SIGINT ignored during the prompt" "$(cat "$greeter/events")"
+! grep -q "^systemctl " "$greeter/events" ||
+  fail "declining the reboot offer does not reboot the machine" "$(cat "$greeter/events")"
+(( $(grep -cx "stty sane" "$greeter/events") >= 2 )) ||
+  fail "Ctrl+C and continuing both restore the terminal with stty sane" "$(cat "$greeter/events")"
+grep -qF $'\033[?25h' "$greeter/out" ||
+  fail "Ctrl+C restores the cursor before the reboot prompt"
+grep -qx "after_trap=" "$greeter/events" ||
+  fail "greeter_screen restores the caller's INT trap when leaving" "$(cat "$greeter/events")"
+pass "Ctrl+C on the greeter stops the animation, restores the terminal, offers a reboot, and continues when declined"
+
 source "$ROOT/install/provisioning/console-font.sh"
 status=0
 omarchy_console_font /dev/pts/3 || status=$?
