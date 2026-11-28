@@ -118,13 +118,16 @@ EOF
   script -qec "bash '$dir/driver' $*" /dev/null | tr -d '\r' >"$dir/out"
 }
 
-disarm=$(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h')
+disarm=$(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?25h')
+leave_alt_screen=$(printf '\e[?1049l')
 
 # Launch all independent pty cases in parallel so the 2s thresholds overlap.
 run_case_dir "$fake_dir/c1" "0 255" host & worker_pids+=("$!")
 run_case_dir "$fake_dir/c2" $'2 255\n0 0' host & worker_pids+=("$!")
 run_case_dir "$fake_dir/c3" $'2 255\n0 255\n0 0' host & worker_pids+=("$!")
 run_case_dir "$fake_dir/c4" $'2 255\n0 0' host uptime & worker_pids+=("$!")
+run_case_dir "$fake_dir/c6" $'2 255\n2 0' host & worker_pids+=("$!")
+run_case_dir "$fake_dir/c7" $'2 255\n2 255\n0 0' host & worker_pids+=("$!")
 (
   mkdir -p "$fake_dir/c5"
   sed "s|$fake_dir|$fake_dir/c5|g" "$fake_dir/ssh" >"$fake_dir/c5/ssh"
@@ -178,6 +181,10 @@ out=$(cat "$fake_dir/c1/out")
 [[ $out == *"$disarm"* ]] || fail "stray terminal modes are reset after ssh exits" "$out"
 pass "stray terminal modes are reset after ssh exits"
 
+[[ $out != *"$leave_alt_screen"* ]] ||
+  fail "a session that never established leaves the alternate screen alone" "$out"
+pass "a session that never established leaves the alternate screen alone"
+
 [[ $out == *"rc=255"* ]] && (( $(cat "$fake_dir/c1/count") == 1 )) ||
   fail "fast connection failure does not reconnect" "$out"
 pass "fast connection failure does not reconnect"
@@ -186,6 +193,20 @@ out=$(cat "$fake_dir/c2/out")
 [[ $out == *"Connection lost"* ]] && [[ $out == *"rc=0"* ]] && (( $(cat "$fake_dir/c2/count") == 2 )) ||
   fail "dropped session reconnects" "$out"
 pass "dropped session reconnects"
+
+[[ $out == *"$disarm$leave_alt_screen"* ]] ||
+  fail "a dropped session leaves the alternate screen" "$out"
+pass "a dropped session leaves the alternate screen"
+
+out=$(cat "$fake_dir/c6/out")
+[[ ${out#*Connection lost} != *"$leave_alt_screen"* ]] ||
+  fail "a reconnected session that exits cleanly leaves the alternate screen alone" "$out"
+pass "a reconnected session that exits cleanly leaves the alternate screen alone"
+
+out=$(cat "$fake_dir/c7/out")
+[[ ${out#*Connection lost} == *"$disarm$leave_alt_screen"* ]] ||
+  fail "a reconnected session that drops again leaves the alternate screen" "$out"
+pass "a reconnected session that drops again leaves the alternate screen"
 
 out=$(cat "$fake_dir/c3/out")
 [[ $out == *"rc=0"* ]] && (( $(cat "$fake_dir/c3/count") == 3 )) ||
