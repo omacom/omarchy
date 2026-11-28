@@ -1444,5 +1444,11 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "appearance.dock.instances": {
+    "label": "Show Instances"
+  },
+  "appearance.dock.reset": {
+    "label": "Restore Defaults"
   }
 }
