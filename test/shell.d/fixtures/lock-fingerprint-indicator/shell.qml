@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 
 ShellRoot {
   id: root
@@ -117,6 +118,39 @@ ShellRoot {
             view.fingerprintUnavailable = false
             root.assertTrue(!notice.visible, "notice clears when the reader recovers")
             root.assertTrue(indicator.text === workingGlyph, "icon restores when the reader recovers")
+
+            var waitingColor = String(indicator.color)
+            root.assertTrue(!view.fingerprintScanning, "a waiting reader is not scanning")
+            root.assertTrue(waitingColor === String(Commons.Color.lock.placeholder), "a waiting reader uses the placeholder color, got " + waitingColor)
+
+            view.fingerprintTouching = true
+            root.assertTrue(view.fingerprintScanning, "a touch while the reader works is a scan")
+            root.assertTrue(String(indicator.color) === String(Commons.Color.accent), "a touch uses the theme accent, got " + indicator.color)
+            root.assertTrue(String(indicator.color) !== waitingColor, "a touch changes the icon color")
+
+            view.fingerprintTouching = false
+            root.assertTrue(!view.fingerprintScanning, "lifting the finger ends the scan")
+            root.assertTrue(String(indicator.color) === waitingColor, "lifting the finger restores the waiting color")
+
+            view.fingerprintMismatch = true
+            root.assertTrue(view.fingerprintRejected, "a rejected match is shown after the finger lifts")
+            root.assertTrue(String(indicator.color) === String(Commons.Color.urgent), "a rejected match uses the urgent color, got " + indicator.color)
+            root.assertTrue(String(indicator.color) !== waitingColor, "a rejected match changes the icon color")
+            view.fingerprintTouching = true
+            root.assertTrue(view.fingerprintScanning && !view.fingerprintRejected, "a new touch replaces the rejection")
+            root.assertTrue(String(indicator.color) === String(Commons.Color.accent), "a new touch uses the accent again")
+            view.fingerprintTouching = false
+            root.assertTrue(String(indicator.color) === String(Commons.Color.urgent), "lifting after a rejection keeps the urgent color")
+            view.fingerprintMismatch = false
+            root.assertTrue(String(indicator.color) === waitingColor, "clearing the rejection restores the waiting color")
+
+            view.fingerprintUnavailable = true
+            view.fingerprintTouching = true
+            root.assertTrue(!view.fingerprintScanning, "an unavailable reader does not show a scan")
+            root.assertTrue(String(indicator.color) === String(Commons.Color.lock.textError), "an unavailable reader keeps the error color while touched")
+
+            view.fingerprintConfigured = false
+            root.assertTrue(!view.fingerprintScanning, "a touch without a configured reader is not a scan")
           }
         }
 
