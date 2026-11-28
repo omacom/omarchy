@@ -223,6 +223,6 @@ pass "every external monitor is probed without the directive"
 
 : >"$call_log"
 BACKLIGHT_CURRENT=1 run_brightness --no-osd --monitor eDP-1 1%-
-grep -F 'brightnessctl -d mock_backlight -m set 1%' "$call_log" >/dev/null || \
+grep -Fx 'brightnessctl -d mock_backlight -m set 1%' "$call_log" >/dev/null || \
   fail "precise brightness down clamps at 1% on internal backlight" "$(<"$call_log")"
 pass "precise brightness down clamps at 1% on internal backlight"
