@@ -50,14 +50,7 @@ Resolution is longest-prefix: the router tries the full argument list as a
 route, then drops trailing words until something matches. Whatever it drops is
 passed to the binary as arguments. This runs in two passes.
 
-The fast path joins argument prefixes with hyphens and checks for an
-executable file: `omarchy theme set foo` probes `omarchy-theme-set-foo`, then
-`omarchy-theme-set`, which exists — resolved without reading a single metadata
-header. This exists because plain dispatch is the hot path: parsing the
-headers of several hundred binaries on every invocation is measurable
-latency (`omarchy dev benchmark cli` tracks it), and a filename probe is a few
-stat calls. Metadata loads lazily, only for the resolved command when help is
-needed.
+The fast path joins argument prefixes with hyphens and checks for an executable file: `omarchy theme set foo` probes `omarchy-theme-set-foo`, then `omarchy-theme-set`, which exists. Filename resolution reads no metadata headers. Before executing the resolved command, dispatch reads that command's header to check required arguments and detect mistyped subcommands under group parents. Normal dispatch avoids parsing the headers of several hundred binaries, which adds measurable latency (`omarchy dev benchmark cli` tracks it); filename probes use a few stat calls.
 
 When no filename matches — metadata-moved routes like `omarchy share`, and aliases like `omarchy screenshot` — the router first loads only the commands that could own a route under the first word: those whose filename starts with it, and those whose header names it as their group or in an alias. If that resolves a route that runs its command, it dispatches from there, about as fast as a filename route. Help output, a route that needs arguments it wasn't given, and anything still unresolved fall back to loading all metadata and resolving against the full route table, with the same longest-prefix rule, since help lists related commands from the whole table.
 
@@ -75,6 +68,8 @@ Bare invocations are also guarded. If a command declares required arguments
 none were given, the router shows help instead of executing — `omarchy theme
 set` prints usage rather than running an interactive setter. A bare group name
 with child commands shows the group help.
+
+A group parent whose `args` metadata lists only flag tokens, or nothing, refuses a leftover bare word as a mistyped subcommand and exits 127, so `omarchy update firmwre` reports an unknown command instead of starting an update; a flag with a separate value placeholder such as `[--agent <id>]` counts as an operand and turns the check off, and a `--` before the first bare word passes the words after it through to the command.
 
 Dispatch is `exec`: the router process is replaced, the binary sees only the leftover arguments, and the exit code is the binary's own. The router itself exits 127 for unknown routes or missing binaries, and 1 for a bare command missing its required arguments, after showing its help. A bare group showing its help, and an explicit `--help`, exit 0.
 

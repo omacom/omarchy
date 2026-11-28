@@ -20,6 +20,15 @@ Supported metadata keys:
 
 Only use `omarchy:examples` where there are args that need explaining.
 
+`omarchy:args` also decides how the dispatcher reads a word after the command. A
+group parent (a command with `omarchy-<name>-*` children) that documents only
+flags, or no arguments at all, refuses a bare word as a mistyped subcommand:
+`omarchy update firmwre` reports the unknown command instead of starting a full
+update with the typo ignored. A parent that legitimately takes an operand
+documents it (`# omarchy:args=<name>`), and its leftovers are passed through.
+
+A flag with a separate value placeholder, such as `[--agent <id>]`, counts as an operand and disables this check; a value in the same token, such as `[--webcam-device=<device>]`, does not.
+
 Prefer explicit metadata for user-facing commands. Keep routes consistent with
 the filename unless there is a deliberate alias or compatibility route.
 
