@@ -4,11 +4,65 @@
 # tracking, focus reporting, the alternate screen) that only it can disarm. If
 # the connection dies instead of exiting cleanly, those modes stay armed on the
 # local terminal, and every mouse move floods the prompt with escape junk.
+# Reloading bashrc must not reset an active Ghostty helper after its startup
+# marker and SSH features have been consumed.
+if [[ ${_omarchy_ghostty_ssh_active-} != 1 ]]; then
+  _ssh_connect() {
+    command ssh "$@"
+  }
+fi
+
+# Ghostty's automatic Bash integration sources bashrc before defining its own
+# ssh function. __ghostty_bash_flags remains set while bashrc runs, after the
+# injection variable has been consumed. Take over supported SSH features here
+# so both integrations use one connection path and Ghostty does not replace
+# the reconnect wrapper. Ghostty 1.3 has the same injection markers but no
+# +ssh action, so only take over versions that provide it.
+if [[ -n ${BASH_VERSION-} && -n ${__ghostty_bash_flags-} &&
+  -n ${GHOSTTY_BIN_DIR-} && -x ${GHOSTTY_BIN_DIR}/ghostty &&
+  ${TERM_PROGRAM-} == "ghostty" && ${TERM_PROGRAM_VERSION-} =~ ^([0-9]+)\.([0-9]+) ]] &&
+  (( BASH_REMATCH[1] > 1 || (BASH_REMATCH[1] == 1 && BASH_REMATCH[2] >= 4) )); then
+  _omarchy_ghostty_ssh=0
+  _omarchy_ghostty_supported=1
+  _omarchy_ghostty_remaining_features=
+  IFS=, read -ra _omarchy_ghostty_features <<< "${GHOSTTY_SHELL_FEATURES-}"
+  for _omarchy_ghostty_feature in "${_omarchy_ghostty_features[@]}"; do
+    case $_omarchy_ghostty_feature in
+      ssh-env | ssh-terminfo)
+        _omarchy_ghostty_ssh=1
+        ;;
+      ssh-*)
+        # Leave newer SSH features for Ghostty instead of discarding them.
+        _omarchy_ghostty_supported=0
+        break
+        ;;
+      *)
+        _omarchy_ghostty_remaining_features+="${_omarchy_ghostty_remaining_features:+,}$_omarchy_ghostty_feature"
+        ;;
+    esac
+  done
+
+  if (( _omarchy_ghostty_ssh && _omarchy_ghostty_supported )); then
+    _omarchy_ghostty_ssh_active=1
+    _omarchy_ghostty_ssh_flags=()
+    [[ $GHOSTTY_SHELL_FEATURES == *ssh-env* ]] || _omarchy_ghostty_ssh_flags+=(--forward-env=false)
+    [[ $GHOSTTY_SHELL_FEATURES == *ssh-terminfo* ]] || _omarchy_ghostty_ssh_flags+=(--terminfo=false)
+
+    _ssh_connect() {
+      command "$GHOSTTY_BIN_DIR/ghostty" +ssh "${_omarchy_ghostty_ssh_flags[@]}" -- "$@"
+    }
+    GHOSTTY_SHELL_FEATURES=$_omarchy_ghostty_remaining_features
+  fi
+
+  unset _omarchy_ghostty_ssh _omarchy_ghostty_supported \
+    _omarchy_ghostty_remaining_features _omarchy_ghostty_features _omarchy_ghostty_feature
+fi
+
 ssh() {
   local rc started
 
   started=$SECONDS
-  command ssh "$@"
+  _ssh_connect "$@"
   rc=$?
 
   [[ -t 1 ]] || return $rc
@@ -31,7 +85,7 @@ ssh() {
     while true; do
       echo "Connection lost. Reconnecting (Ctrl-C to stop)..."
       sleep 2
-      command ssh "$@"
+      _ssh_connect "$@"
       rc=$?
       _ssh_disarm
       (( rc != 255 )) && exit $rc

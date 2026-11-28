@@ -140,6 +140,77 @@ EOF
   script -qec "bash '$fake_dir/c5/driver' host </dev/null" /dev/null | tr -d '\r' >"$fake_dir/c5/out"
 ) & worker_pids+=("$!")
 
+# Ghostty sources bashrc before defining its own ssh function. Omarchy must
+# delegate to ghostty +ssh without losing the outer cleanup and reconnect,
+# including when the user reloads their Bash settings in the same shell.
+(
+  dir="$fake_dir/c6"
+  mkdir -p "$dir"
+  sed "s|$fake_dir|$dir|g" "$fake_dir/ssh" >"$dir/ssh"
+  chmod +x "$dir/ssh"
+  : >"$dir/ghostty-log"
+  cat >"$dir/ghostty" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >>"$dir/ghostty-log"
+shift
+while [[ \$1 == --forward-env=* || \$1 == --terminfo=* ]]; do shift; done
+shift
+exec "$dir/ssh" "\$@"
+EOF
+  chmod +x "$dir/ghostty"
+  cat >"$dir/driver" <<EOF
+PATH="$dir:\$PATH"
+GHOSTTY_BIN_DIR="$dir"
+GHOSTTY_SHELL_FEATURES=no-cursor,ssh-env
+TERM_PROGRAM=ghostty
+TERM_PROGRAM_VERSION=1.4.0
+GHOSTTY_BASH_INJECT=--noprofile
+__ghostty_bash_flags=\$GHOSTTY_BASH_INJECT
+unset GHOSTTY_BASH_INJECT
+source <(sed 's/< 30/< 2/' "$fns")
+sleep() { :; }
+if [[ \$GHOSTTY_SHELL_FEATURES == *ssh-* ]]; then
+  function ssh() {
+    "\$GHOSTTY_BIN_DIR/ghostty" +ssh --terminfo=false -- "\$@"
+  }
+fi
+unset __ghostty_bash_flags
+ssh host
+echo "rc=\$?"
+source <(sed 's/< 30/< 2/' "$fns")
+ssh host
+echo "reload-rc=\$?"
+EOF
+  printf '%s\n' $'2 255\n0 0\n0 0' >"$dir/plan"
+  script -qec "bash '$dir/driver'" /dev/null | tr -d '\r' >"$dir/out"
+) & worker_pids+=("$!")
+
+# Ghostty 1.3 has the same injection markers but no +ssh action. It must keep
+# its original wrapper rather than having the SSH features silently removed.
+dir="$fake_dir/c7"
+mkdir -p "$dir"
+: >"$dir/calls"
+cat >"$dir/ssh" <<EOF
+#!/bin/bash
+printf 'ssh\n' >>"$dir/calls"
+EOF
+cat >"$dir/ghostty" <<EOF
+#!/bin/bash
+printf 'ghostty\n' >>"$dir/calls"
+EOF
+chmod +x "$dir/ssh" "$dir/ghostty"
+(
+  PATH="$dir:$PATH"
+  GHOSTTY_BIN_DIR="$dir"
+  GHOSTTY_SHELL_FEATURES=no-cursor,ssh-env
+  TERM_PROGRAM=ghostty
+  TERM_PROGRAM_VERSION=1.3.1
+  __ghostty_bash_flags=--noprofile
+  source "$fns"
+  ssh host
+  printf 'features=%s\n' "$GHOSTTY_SHELL_FEATURES"
+) >"$dir/out"
+
 # Ctrl-C must stop the loop, not just the in-flight attempt. Only a real
 # interactive shell reproduces the job-control process groups this depends on,
 # so type the command, wait until the first retry attempt starts, then send ^C
@@ -201,6 +272,18 @@ out=$(cat "$fake_dir/c5/out")
 [[ $out == *"rc=255"* ]] && (( $(cat "$fake_dir/c5/count") == 1 )) ||
   fail "redirected stdin does not reconnect" "$out"
 pass "redirected stdin does not reconnect"
+
+out=$(cat "$fake_dir/c6/out")
+expected_ghostty_log=$'+ssh --terminfo=false -- host\n+ssh --terminfo=false -- host\n+ssh --terminfo=false -- host'
+[[ $out == *"$disarm"* && $out == *"rc=0"* && $out == *"reload-rc=0"* ]] &&
+  (( $(cat "$fake_dir/c6/count") == 3 )) &&
+  [[ $(cat "$fake_dir/c6/ghostty-log") == "$expected_ghostty_log" ]] ||
+  fail "Ghostty ssh-env preserves cleanup and reconnects through +ssh after reload" "$out"
+pass "Ghostty ssh-env preserves cleanup and reconnects through +ssh after reload"
+
+[[ $(cat "$fake_dir/c7/calls") == ssh && $(cat "$fake_dir/c7/out") == "features=no-cursor,ssh-env" ]] ||
+  fail "Ghostty versions without +ssh keep their original SSH integration"
+pass "Ghostty versions without +ssh keep their original SSH integration"
 
 [[ $out_ctrlc == *"Connection lost"* ]] && [[ $out_ctrlc == *"DONE rc=130"* ]] && (( $(cat "$fake_dir/count") < 10 )) ||
   fail "Ctrl-C during a retry attempt stops the reconnect loop" "$out_ctrlc"
