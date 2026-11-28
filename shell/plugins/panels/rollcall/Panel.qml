@@ -45,6 +45,10 @@ Item {
   property string lastLog: ""
   property bool stopping: false
   property var outcomes: ({})
+  // Answers are saved one at a time, and the report waits for them.
+  property var saveQueue: []
+  property bool copyWaiting: false
+  property bool restartWaiting: false
 
   readonly property string stateDir: (Quickshell.env("XDG_RUNTIME_DIR") || "") + "/omarchy-rollcall"
   readonly property var steps: tests.filter(function(t) { return t.applicable })
@@ -153,8 +157,33 @@ Item {
   function record(id, value, text) {
     var args = ["omarchy-rollcall-test", id, "--record", value]
     if (text !== "") args.push("--detail", text)
-    Quickshell.execDetached(args)
+    save(args)
     settle(id, value, text !== "" ? text : (value === "skip" ? "" : lastLog))
+  }
+
+  function save(args) {
+    saveQueue = saveQueue.concat([args])
+    pumpSaves()
+  }
+
+  function pumpSaves() {
+    if (saveProc.running) return
+    if (saveQueue.length > 0) {
+      saveProc.command = saveQueue[0]
+      saveQueue = saveQueue.slice(1)
+      saveProc.running = true
+    } else if (restartWaiting) {
+      restartWaiting = false
+      open("{}")
+    } else if (copyWaiting) {
+      copyWaiting = false
+      if (!reportProc.running) reportProc.running = true
+    }
+  }
+
+  function startOver() {
+    restartWaiting = true
+    save(["omarchy-rollcall-test", "--reset"])
   }
 
   function answer(value) {
@@ -163,7 +192,8 @@ Item {
   }
 
   function copyReport() {
-    if (!reportProc.running) reportProc.running = true
+    copyWaiting = true
+    pumpSaves()
   }
 
   function onTestLine(line) {
@@ -232,6 +262,11 @@ Item {
         root.settle(id, value, root.lastLog)
       }
     }
+  }
+
+  Process {
+    id: saveProc
+    onExited: Qt.callLater(root.pumpSaves)
   }
 
   Process {
@@ -325,7 +360,7 @@ Item {
             width: parent.width * (root.steps.length > 0 ? (root.stepIndex + (root.phase === "done" ? 1 : 0)) / root.steps.length : 0)
             height: parent.height
             color: Commons.Color.accent
-            Behavior on width { NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
           }
         }
 
@@ -517,7 +552,7 @@ Item {
             visible: root.view === "summary"
             bordered: true
             text: Commons.I18n.t("rollcall.startOver")
-            onClicked: { Quickshell.execDetached(["omarchy-rollcall-test", "--reset"]); root.open("{}") }
+            onClicked: root.startOver()
           }
           Item { Layout.fillWidth: true }
 

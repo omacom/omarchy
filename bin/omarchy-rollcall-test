@@ -313,13 +313,6 @@ ask() {
   exit $ASKED
 }
 
-need_tools() {
-  local tool
-  for tool in "$@"; do
-    command -v "$tool" >/dev/null 2>&1 || finish skip "$tool is not installed"
-  done
-}
-
 # --- Audio ---
 
 pa() {
@@ -335,7 +328,6 @@ pipewire_reachable() {
 }
 
 need_pipewire() {
-  need_tools pactl
   pipewire_reachable || finish skip "PipeWire is not reachable from this session"
 }
 
@@ -405,8 +397,9 @@ play() {
   bg_run timeout 15s pw-play --target "$1" "$2" </dev/null >/dev/null 2>&1
 }
 
+# Made in the main shell before a test runs: callers take it through command
+# substitution, where a directory made on first use would never be removed.
 scratch() {
-  [[ -n ${scratch_dir:-} ]] || scratch_dir=$(mktemp -d)
   printf '%s' "$scratch_dir"
 }
 
@@ -461,7 +454,6 @@ jack_state() {
 test_speakers() {
   local sink physical route driver level tones detail
   need_pipewire
-  need_tools pw-play ffmpeg
 
   sink=$(default_sink)
   physical=$(physical_sink)
@@ -509,7 +501,6 @@ loudness() {
 test_microphone() {
   local source route muted driver recording measured peak rms loudest
   need_pipewire
-  need_tools pw-record pw-play ffmpeg
 
   source=$(default_source)
   [[ -n $source && $source != *.monitor ]] || finish skip "no microphone is selected for recording"
@@ -574,7 +565,6 @@ jack_empty() {
 test_headphones() {
   local seconds sink tones driver detail
   need_pipewire
-  need_tools pw-play ffmpeg
 
   case $(jack_state) in
     unknown) finish fail "the headphone jack does not report whether anything is plugged in" ;;
@@ -683,7 +673,6 @@ infrared() {
 
 test_camera() {
   local found candidate driver="" node device="" frame log size range shown detail
-  need_tools ffmpeg ffprobe
 
   if ! found=$(camera_nodes | grep .); then
     if image_processor && libcamera_camera; then
@@ -938,6 +927,41 @@ radio_states() {
   done | awk '{ soft[$1] = soft[$1] || $2; hard[$1] = hard[$1] || $3 } END { for (t in soft) print t, soft[t], hard[t] }' | sort
 }
 
+settled_radios() {
+  local now previous="" deadline=$((SECONDS + $(limit 10)))
+  now=$(radio_states)
+  while [[ $now != "$previous" ]] && (( SECONDS < deadline )); do
+    previous=$now
+    # A real second, whatever the pause: this is about the hardware settling.
+    bg_run sleep 1
+    now=$(radio_states)
+  done
+  printf '%s' "$now"
+}
+
+# Radio types that are on: present, and blocked by nothing. A card whose
+# power the key cuts may vanish rather than show as blocked.
+on_count() {
+  awk '$2 == 0 && $3 == 0' <<<"$1" | grep -c .
+}
+
+first_press_turned_off() {
+  (( $(on_count "$after") < $(on_count "$initial_radios") ))
+}
+
+# The second press undoes the first: radios the first press turned off come
+# back, or, from airplane mode, radios the first press turned on go off. A
+# radio still arriving from the first press goes the same way and does not count.
+radios_reversed() {
+  local now
+  now=$(radio_states)
+  if first_press_turned_off; then
+    (( $(on_count "$now") > $(on_count "$after") ))
+  else
+    (( $(on_count "$now") < $(on_count "$after") ))
+  fi
+}
+
 radios_changed() {
   [[ $(radio_states) != "$mark" ]]
 }
@@ -977,10 +1001,10 @@ test_wireless_key() {
   mark=$initial_radios
   prompt wireless-key.press "Press the airplane-mode or wireless key."
   wait_until "$seconds" radios_changed || finish fail "no radio changed within $seconds s of asking for the wireless key"
-  # Radios can come and go as a switch above them turns off, so let them settle.
-  pause 1
-  after=$(radio_states)
-  if [[ $(awk '$2 == 1 || $3 == 1' <<<"$after" | wc -l) -gt $(awk '$2 == 1 || $3 == 1' <<<"$initial_radios" | wc -l) ]]; then
+  # Radios come and go as a switch above them turns off and on, so take the
+  # state once it has held still for a second.
+  after=$(settled_radios)
+  if first_press_turned_off; then
     direction="off and on again"
   else
     direction="on and off again"
@@ -988,6 +1012,10 @@ test_wireless_key() {
   progress 0.5
 
   prompt wireless-key.again "Press the airplane-mode or wireless key again."
+  # The second press has to change something too: starting in airplane mode,
+  # the first press alone already leaves every radio that was on still on.
+  mark=$after
+  wait_until "$seconds" radios_reversed || finish fail "no radio changed back within $seconds s of the second press"
   wait_until "$seconds" radios_back || finish fail "the radios did not return to how they were within $seconds s of the second press"
   progress 1
 
@@ -1018,7 +1046,6 @@ player_status_is() {
 
 test_media_keys() {
   local seconds app
-  need_tools busctl
   player=""
   if ! player_playing; then
     seconds=$(limit 60)
@@ -1150,7 +1177,6 @@ connector_kind() {
 
 test_external_display() {
   local seconds mode kind stranded drm_before drm_after
-  need_tools hyprctl
   monitors_json | jq -e 'length > 0' >/dev/null 2>&1 || finish skip "Hyprland is not reachable from this session"
 
   if laptop && ! no_external_connected; then
@@ -1358,7 +1384,6 @@ bluetooth_sink() {
 
 test_bluetooth_device() {
   local seconds icon codec tone
-  need_tools bluetoothctl
   compgen -G "$sys/class/bluetooth/hci*" >/dev/null || finish skip "no Bluetooth controller"
   [[ -n $(rfkill_block bluetooth) ]] && finish skip "Bluetooth is turned off"
   systemctl is-active --quiet bluetooth.service 2>/dev/null || finish fail "bluetooth.service is not running"
@@ -1373,8 +1398,7 @@ test_bluetooth_device() {
   progress 0.4
 
   # An audio device's sink follows its connection by a moment.
-  if command -v pactl >/dev/null && pipewire_reachable && wait_until "$(limit "$([[ $icon == audio* ]] && echo 10 || echo 3)")" bluetooth_sink; then
-    need_tools pw-play ffmpeg
+  if pipewire_reachable && wait_until "$(limit "$([[ $icon == audio* ]] && echo 10 || echo 3)")" bluetooth_sink; then
     codec=$(pa_list sinks | jq -r --arg name "$bt_sink" 'first(.[] | select(.name == $name)) | .properties["api.bluez5.codec"] // empty' 2>/dev/null)
     tone="$(scratch)/tone.wav"
     make_tone "$tone" both 2 || finish fail "the test tone could not be made"
@@ -1384,6 +1408,12 @@ test_bluetooth_device() {
     progress 1
     ask bluetooth-device.question "Did you hear the tone on the Bluetooth device, clear and without dropouts?" \
       "$icon connected and took a tone${codec:+ over ${codec^^}}"
+  fi
+  # Headphones or a speaker that connect but never offer PipeWire an output
+  # play nothing; a microphone has no output to offer.
+  if [[ $icon == audio* && $icon != "audio-input-microphone" ]]; then
+    pipewire_reachable || finish skip "$icon connected; PipeWire is not reachable from this session to play through it"
+    finish fail "$icon connected, but no audio output for it appeared"
   fi
   progress 1
   finish pass "$icon connected"
@@ -1462,8 +1492,7 @@ automated_checks() {
 }
 
 test_suspend() {
-  local before after regressed seconds status message ids count
-  need_tools systemctl
+  local before after regressed seconds status message ids count passed
   [[ -r $sys/power/state ]] && grep -qwE 'mem|freeze' "$sys/power/state" || finish skip "the kernel offers no suspend"
 
   before=$(automated_checks)
@@ -1492,18 +1521,29 @@ test_suspend() {
   # Wi-Fi and Bluetooth take a few seconds to come back after a wake.
   pause 5
   after=$(automated_checks)
-  ids=$(jq -rn --argjson before "${before:-[]}" --argjson after "${after:-[]}" \
-    '[$before[] | select(.result == "pass") | .id] as $passed | [$after[] | select(.result == "fail" and (.id | IN($passed[]))) | .id] | join(" ")')
+  [[ -n $after && $after != "[]" ]] || finish fail "slept and woke ($sleep_detail), but the automated checks could not be run afterwards"
+  # Every check that passed before must pass again: one that now skips (its
+  # service gone) or is missing is lost too, except where a skip is only where
+  # the person is, offline or with the clock not yet resynchronised.
+  passed=$(jq -r '[.[] | select(.result == "pass") | .id] | join(" ")' <<<"${before:-[]}")
+  lost() {
+    jq -r --arg ids "$1" '($ids | split(" ") | map(select(. != ""))) as $named
+      | [. as $all | $named[] | . as $id
+        | select(($all | map(select(.id == $id and (.result == "pass" or (.result == "skip"
+            and (.detail | test("^(offline|behind a login page|connected, without internet access|not synchronised while offline|not synchronised yet)")))))) | length) == 0)]
+      | join(" ")' <<<"$2"
+  }
+  ids=$(lost "$passed" "$after")
   for _ in 1 2 3 4 5 6; do
     [[ -n $ids ]] || break
     pause 5
     # shellcheck disable=SC2086 # check names are single words
     after=$(automated_checks $ids)
-    ids=$(jq -r --arg ids "$ids" '($ids | split(" ")) as $named | [.[] | select(.result == "fail" and (.id | IN($named[]))) | .id] | join(" ")' <<<"${after:-[]}")
+    ids=$(lost "$ids" "${after:-[]}")
   done
   if [[ -n $ids ]]; then
-    regressed=$(jq -r --arg ids "$ids" '($ids | split(" ")) as $named | [.[] | select(.result == "fail" and (.id | IN($named[]))) | "\(.id) (\(.detail))"] | join(", ")' <<<"$after")
-    finish fail "slept and woke ($sleep_detail), but these checks passed before and fail now: $regressed"
+    regressed=$(jq -r --arg ids "$ids" '($ids | split(" ")) as $named | [$named[] as $id | (first(.[] | select(.id == $id)) // {id: $id, result: "missing", detail: "not reported"}) | "\(.id) (\(.result): \(.detail))"] | join(", ")' <<<"${after:-[]}")
+    finish fail "slept and woke ($sleep_detail), but these checks passed before and do not now: $regressed"
   fi
   finish pass "slept and woke ($sleep_detail); every check that passed before still passes"
 }
@@ -1549,7 +1589,7 @@ test_lid() {
 test_fingerprint() {
   local enrolled fingers output result
   OMARCHY_USB_DEVICES_PATH=$sys/bus/usb/devices omarchy-hw-fingerprint || finish skip "no fingerprint reader"
-  command -v fprintd-verify >/dev/null && command -v fprintd-list >/dev/null || finish skip "fprintd is not installed; set up fingerprint login first"
+  omarchy-cmd-present fprintd-verify fprintd-list || finish skip "fprintd is not installed; set up fingerprint login first"
 
   enrolled=$(timeout 15s fprintd-list "$(id -un)" 2>&1)
   if [[ $enrolled == *"No devices available"* ]]; then
@@ -1587,7 +1627,7 @@ pipewire_state=""
 pipewire_ok() {
   if [[ -z $pipewire_state ]]; then
     pipewire_state=no
-    command -v pactl >/dev/null && pipewire_reachable && pipewire_state=yes
+    pipewire_reachable && pipewire_state=yes
   fi
   [[ $pipewire_state == "yes" ]] || { reason="PipeWire is not reachable from this session"; return 1; }
 }
@@ -1777,6 +1817,7 @@ else
   [[ -t 0 && -t 1 && $no_ask == "false" ]] && terminal=true
   trap stopped TERM INT HUP
   trap 'restore; remove_scratch' EXIT
+  scratch_dir=$(mktemp -d)
 
   rm -f "$store/$test_id.pending.json"
   if [[ ${KIND[$test_id]} == "panel" ]]; then

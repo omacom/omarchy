@@ -670,7 +670,7 @@
   "rollcall.gesture.click": "Click",
   "rollcall.gesture.rightClick": "Two-finger click",
   "rollcall.gesture.scrollVertical": "Scroll up and down",
-  "rollcall.gesture.scrollHorizontal": "Scroll sideways",
+  "rollcall.gesture.scrollHorizontal": "Scroll left and right",
   "rollcall.gesture.drag": "Drag the dot into the ring",
   "rollcall.gesturesDead": "Some gestures don't work",
   "rollcall.touchscreenHint": "Tap each circle with a finger, then pinch the box with two fingers.",

@@ -665,9 +665,57 @@ renamed_person() {
 radios 0
 person=renamed_person run wireless-key
 expect "a radio that comes back under a new name counts as back" "0 the key turned the radios off and on again (bluetooth,wlan)" "$status $(detail)"
+# Starting in airplane mode, the first press alone turns every radio on; the
+# second press still has to be seen.
+rm -rf "$fake/sys/class/rfkill/rfkill2"
+radio 0 wlan phy0
+radios 1
+airplane_once() {
+  [[ $1 == "wireless-key.press" ]] && radios 0
+  return 0
+}
+person=airplane_once run wireless-key
+expect "from airplane mode, a second press that never comes fails" "1 no radio changed back within 1 s of the second press" "$status $(detail)"
+airplane_twice() {
+  case $1 in
+    wireless-key.press) radios 0 ;;
+    wireless-key.again) radios 1 ;;
+  esac
+}
+# Bluetooth comes back a moment after Wi-Fi; it must not stand in for the
+# second press.
+late_bluetooth() {
+  case $1 in
+    wireless-key.press)
+      printf '0\n' >"$fake/sys/class/rfkill/rfkill0/soft"
+      (sleep 1.5; printf '0\n' >"$fake/sys/class/rfkill/rfkill1/soft"; : >"$fake/stub/late-done") >/dev/null 2>&1 &
+      ;;
+  esac
+  return 0
+}
+radios 1
+rm -f "$fake/stub/late-done"
+OMARCHY_ROLLCALL_TIMEOUT=3 person=late_bluetooth run wireless-key
+expect "a radio that comes up late after the first press is not the second press" "1 no radio changed back within 3 s of the second press" "$status $(detail)"
+for _ in $(seq 1 50); do [[ -e $fake/stub/late-done ]] && break; sleep 0.1; done
+radios 1
+person=airplane_twice run wireless-key
+expect "from airplane mode, both presses seen pass" "0 the key turned the radios on and off again (bluetooth,wlan)" "$status $(detail)"
+
+# A card whose power the key cuts vanishes instead of showing as blocked.
+vanishing_person() {
+  case $1 in
+    wireless-key.press) rm -r "$fake/sys/class/rfkill/rfkill0" ;;
+    wireless-key.again) radio 0 wlan phy0 ;;
+  esac
+}
+radios 0
+person=vanishing_person run wireless-key
+expect "a radio that vanishes when the key cuts it and comes back passes" "0 the key turned the radios off and on again (bluetooth,wlan)" "$status $(detail)"
+
 # Bluetooth was off: the key brings every radio back on, and the test turns
 # Bluetooth off again.
-rm -r "$fake/sys/class/rfkill/rfkill2"
+rm -rf "$fake/sys/class/rfkill/rfkill2"
 radio 0 wlan phy0
 radios 0
 printf '1\n' >"$fake/sys/class/rfkill/rfkill1/soft"
@@ -801,6 +849,15 @@ echo input-mouse >"$fake/stub/bt/icon"
 desktop_audio
 person=nobody run bluetooth-device
 expect "a connected device that is not audio passes on being connected" "0 input-mouse connected" "$status $(detail)"
+echo audio-headset >"$fake/stub/bt/icon"
+person=nobody run bluetooth-device
+expect "a connected headset with no audio output fails" "1 audio-headset connected, but no audio output for it appeared" "$status $(detail)"
+echo audio-card >"$fake/stub/bt/icon"
+person=nobody run bluetooth-device
+expect "a connected speaker with no audio output fails" "1 audio-card connected, but no audio output for it appeared" "$status $(detail)"
+echo audio-input-microphone >"$fake/stub/bt/icon"
+person=nobody run bluetooth-device
+expect "a connected microphone has no output to offer and passes on being connected" "0 audio-input-microphone connected" "$status $(detail)"
 radio 1 bluetooth hci0
 printf '1\n' >"$fake/sys/class/rfkill/rfkill1/soft"
 run bluetooth-device
@@ -817,7 +874,29 @@ rm "$fake/stub/rollcall-count"
 echo '{"checks": [{"id": "wifi", "result": "fail", "detail": "NetworkManager reports the adapter unavailable (iwlwifi)"}, {"id": "bluetooth", "result": "fail", "detail": "x"}]}' >"$fake/stub/rollcall-after.json"
 run suspend
 expect "a check that passed before and fails after waking is named" \
-  "1 slept and woke (deep), but these checks passed before and fail now: wifi (NetworkManager reports the adapter unavailable (iwlwifi))" "$status $(detail)"
+  "1 slept and woke (deep), but these checks passed before and do not now: wifi (fail: NetworkManager reports the adapter unavailable (iwlwifi))" "$status $(detail)"
+rm "$fake/stub/rollcall-count"
+echo '{"checks": [{"id": "wifi", "result": "skip", "detail": "NetworkManager is not running"}, {"id": "bluetooth", "result": "skip", "detail": "turned off"}]}' >"$fake/stub/rollcall-after.json"
+run suspend
+expect "a check that passed before and only skips after waking is lost too" \
+  "1 slept and woke (deep), but these checks passed before and do not now: wifi (skip: NetworkManager is not running)" "$status $(detail)"
+rm "$fake/stub/rollcall-count"
+echo '{"checks": [{"id": "wifi", "result": "pass", "detail": "connected (iwlwifi)"}, {"id": "network", "result": "pass", "detail": "online (wifi)"}, {"id": "time", "result": "pass", "detail": "synchronised"}]}' >"$fake/stub/rollcall-before.json"
+echo '{"checks": [{"id": "wifi", "result": "pass", "detail": "on, not connected (iwlwifi)"}, {"id": "network", "result": "skip", "detail": "offline"}, {"id": "time", "result": "skip", "detail": "not synchronised while offline"}]}' >"$fake/stub/rollcall-after.json"
+run suspend
+expect "being offline after waking is where the person is, not a lost check" "0 slept and woke (deep); every check that passed before still passes" "$status $(detail)"
+rm "$fake/stub/rollcall-count"
+echo '{"checks": [{"id": "wifi", "result": "pass", "detail": "on, not connected (iwlwifi)"}, {"id": "network", "result": "skip", "detail": "NetworkManager is not running"}, {"id": "time", "result": "skip", "detail": "timedated did not answer"}]}' >"$fake/stub/rollcall-after.json"
+run suspend
+expect "a network or clock whose service died on waking is lost" \
+  "1 slept and woke (deep), but these checks passed before and do not now: network (skip: NetworkManager is not running), time (skip: timedated did not answer)" "$status $(detail)"
+echo '{"checks": [{"id": "wifi", "result": "pass", "detail": "connected (iwlwifi)"}, {"id": "bluetooth", "result": "skip", "detail": "turned off"}]}' >"$fake/stub/rollcall-before.json"
+rm "$fake/stub/rollcall-count"
+echo '{"checks": []}' >"$fake/stub/rollcall-after.json"
+run suspend
+expect "a report that cannot be run after waking fails" "1 slept and woke (deep), but the automated checks could not be run afterwards" "$status $(detail)"
+rm "$fake/stub/rollcall-count"
+echo '{"checks": [{"id": "wifi", "result": "fail", "detail": "NetworkManager reports the adapter unavailable (iwlwifi)"}, {"id": "bluetooth", "result": "fail", "detail": "x"}]}' >"$fake/stub/rollcall-after.json"
 SUSPEND_FAILS=1 run suspend
 expect "a failed suspend names the step" "1 suspend failed at suspend_noirq" "$status $(detail)"
 SUSPEND_FAILS=1 SUSPEND_DEV=usb3-0000:00:14.0 run suspend

@@ -15,15 +15,15 @@ ColumnLayout {
 
   property var got: ({})
   property real travelled: 0
-  property real scrolledY: 0
-  property real scrolledX: 0
+  // Each direction on its own, so a pad that scrolls only one way cannot pass.
+  property var scrolled: ({ up: 0, down: 0, left: 0, right: 0 })
   property point last: Qt.point(-1, -1)
   property bool wheelOnly: false
 
   readonly property var gestures: ["move", "click", "rightClick", "scrollVertical", "scrollHorizontal", "drag"]
   readonly property int doneCount: gestures.filter(function(g) { return root.got[g] === true }).length
 
-  onActiveChanged: if (active) { got = ({}); travelled = 0; scrolledX = 0; scrolledY = 0; last = Qt.point(-1, -1); wheelOnly = false }
+  onActiveChanged: if (active) { got = ({}); travelled = 0; scrolled = ({ up: 0, down: 0, left: 0, right: 0 }); last = Qt.point(-1, -1); wheelOnly = false }
 
   function mark(name) {
     if (got[name] === true) return
@@ -100,10 +100,12 @@ ColumnLayout {
       onWheel: function(wheel) {
         if (wheel.pixelDelta.x === 0 && wheel.pixelDelta.y === 0) { root.wheelOnly = true; return }
         root.wheelOnly = false
-        root.scrolledY += Math.abs(wheel.pixelDelta.y)
-        root.scrolledX += Math.abs(wheel.pixelDelta.x)
-        if (root.scrolledY > 150) root.mark("scrollVertical")
-        if (root.scrolledX > 150) root.mark("scrollHorizontal")
+        var s = Object.assign({}, root.scrolled)
+        if (wheel.pixelDelta.y > 0) s.up += wheel.pixelDelta.y; else s.down -= wheel.pixelDelta.y
+        if (wheel.pixelDelta.x > 0) s.left += wheel.pixelDelta.x; else s.right -= wheel.pixelDelta.x
+        root.scrolled = s
+        if (s.up > 75 && s.down > 75) root.mark("scrollVertical")
+        if (s.left > 75 && s.right > 75) root.mark("scrollHorizontal")
       }
     }
   }
