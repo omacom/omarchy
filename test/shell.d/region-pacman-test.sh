@@ -148,6 +148,8 @@ zoneinfo = Path("/usr/share/zoneinfo")
 owners = {}
 for profile in sorted((Path(os.environ["ROOT"]) / "default/regions").iterdir()):
     lines = (profile / "timezones").read_text().splitlines()
+    # First-boot setup matches whole lines, so a padded entry would never match.
+    assert all(line == line.strip() for line in lines), f"{profile.name} pads a timezone"
     zones = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
     assert zones, f"{profile.name} maps no timezones"
     for zone in zones:
@@ -174,22 +176,22 @@ else:
 PY
 pass "region profiles map each timezone to at most one region"
 
-# Hong Kong, Macau and Taiwan never resolve to any region, under any of
-# tzdata's names, so no profile can ever group them with another country.
+# Hong Kong, Macau and Taiwan are global under every one of tzdata's names, so
+# no other profile can list them and even a market's media installs them global.
 python3 - <<'PY'
 import os
 from pathlib import Path
 
-listed = set()
-for profile in (Path(os.environ["ROOT"]) / "default/regions").iterdir():
-    listed |= {line.strip() for line in (profile / "timezones").read_text().splitlines() if line.strip() and not line.startswith("#")}
-never = {"Asia/Hong_Kong", "Hongkong", "Asia/Macau", "Asia/Macao", "Asia/Taipei", "ROC"}
+lines = (Path(os.environ["ROOT"]) / "default/regions/global/timezones").read_text().splitlines()
+listed = {line.strip() for line in lines if line.strip() and not line.startswith("#")}
+zones = {"Asia/Hong_Kong", "Asia/Macau", "Asia/Taipei"}
+expected = set(zones)
 tzdata = Path("/usr/share/zoneinfo/tzdata.zi")
 if tzdata.is_file():
     for line in tzdata.read_text().splitlines():
         fields = line.split()
-        if len(fields) == 3 and fields[0] == "L" and (fields[1] in never or fields[2] in never):
-            never |= {fields[1], fields[2]}
-assert not listed & never, sorted(listed & never)
+        if len(fields) == 3 and fields[0] == "L" and fields[1] in zones:
+            expected.add(fields[2])
+assert expected <= listed, sorted(expected - listed)
 PY
-pass "Hong Kong, Macau and Taiwan belong to no region"
+pass "Hong Kong, Macau and Taiwan are global under every timezone name"

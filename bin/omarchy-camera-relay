@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# omarchy:summary=Run the userland v4l2-relayd webcam relay with Omarchy camera tuning
+# omarchy:hidden=true
+
+set -euo pipefail
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+env_file="${OMARCHY_CAMERA_RELAY_ENV:-$config_home/omarchy/camera-relay.env}"
+user_ipa_dir="$config_home/omarchy/camera/ipa"
+sys_v4l_dir="${OMARCHY_V4L_VIRTUAL_PATH:-/sys/devices/virtual/video4linux}"
+dev_dir="${OMARCHY_DEV_PATH:-/dev}"
+dma_heap="${OMARCHY_DMA_HEAP_PATH:-$dev_dir/dma_heap/system}"
+
+if [[ ! -r $env_file ]]; then
+  echo "omarchy-camera-relay: missing $env_file" >&2
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "$env_file"
+
+card_label="${CARD_LABEL:-Front Camera}"
+
+find_loopback_node() {
+  local name
+  name="$(grep -Flx "$card_label" "$sys_v4l_dir"/*/name 2>/dev/null | head -n1 || true)"
+  [[ -n $name ]] || return 1
+  basename "$(dirname "$name")"
+}
+
+if [[ ${1:-} == "--wait-ready" ]]; then
+  # Keep the bound short (~3 s) because this unit is ordered Before=wireplumber.service
+  # and must not stall audio startup at login if the relay fails to open.
+  for ((i = 0; i < 15; i++)); do
+    if node="$(find_loopback_node)"; then
+      if v4l2-ctl -d "$dev_dir/$node" --info 2>/dev/null | grep -q "Video Capture"; then
+        exit 0
+      fi
+    fi
+    sleep 0.2
+  done
+  echo "omarchy-camera-relay: $card_label never switched to Video Capture" >&2
+  exit 1
+fi
+
+if [[ -n ${CAMERA_DT_NODE:-} && ! -e $CAMERA_DT_NODE ]]; then
+  echo "omarchy-camera-relay: camera device-tree node $CAMERA_DT_NODE is absent" >&2
+  exit 0
+fi
+
+# Wait up to 5 s for both the loopback node and logind's uaccess grants on the
+# loopback device and system DMA heap (needed when starting early at login).
+node=""
+for ((i = 0; i < 25; i++)); do
+  if node="$(find_loopback_node)" &&
+    [[ -w $dev_dir/$node && -r $dma_heap && -w $dma_heap ]]; then
+    break
+  fi
+  node=""
+  sleep 0.2
+done
+
+if [[ -z $node ]]; then
+  echo "omarchy-camera-relay: loopback '$card_label' or $dma_heap is not writable" >&2
+  exit 1
+fi
+
+ipa_paths=()
+[[ -d $user_ipa_dir ]] && ipa_paths+=("$user_ipa_dir")
+[[ -n ${SHIPPED_IPA_DIR:-} && -d $SHIPPED_IPA_DIR ]] && ipa_paths+=("$SHIPPED_IPA_DIR")
+if ((${#ipa_paths[@]})); then
+  printf -v LIBCAMERA_IPA_CONFIG_PATH '%s:' "${ipa_paths[@]}"
+  export LIBCAMERA_IPA_CONFIG_PATH="${LIBCAMERA_IPA_CONFIG_PATH%:}"
+fi
+
+if [[ -n ${OMARCHY_V4L2_RELAYD_BIN:-} ]]; then
+  src_opts=("camera-name=${CAMERA_NAME}")
+  [[ -n ${GAMMA:-} ]] && src_opts+=("gamma=${GAMMA}")
+  [[ -n ${CONTRAST:-} ]] && src_opts+=("contrast=${CONTRAST}")
+  [[ -n ${SATURATION:-} ]] && src_opts+=("saturation=${SATURATION}")
+
+  videosrc="libcamerasrc ${src_opts[*]} ! video/x-raw,width=${WIDTH},height=${HEIGHT} ! videoconvert n-threads=4"
+  output="appsrc name=appsrc caps=video/x-raw,format=${FORMAT},width=${WIDTH},height=${HEIGHT},framerate=${FRAMERATE} ! videoconvert ! v4l2sink name=v4l2sink device=${dev_dir}/${node}"
+
+  exec "$OMARCHY_V4L2_RELAYD_BIN" -i "$videosrc" -o "$output"
+fi
+
+script_dir="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+export OMARCHY_CAMERA_DEVICE="${dev_dir}/${node}"
+export CAMERA_NAME WIDTH HEIGHT FORMAT FRAMERATE BASE_GAMMA GAMMA CONTRAST SATURATION BRIGHTNESS WARMTH TINT
+exec "${OMARCHY_CAMERA_RELAY_DAEMON:-$script_dir/omarchy-camera-relay-daemon}"

@@ -99,6 +99,14 @@ load
 [[ $(send --print-id=1 "Body") != "42" ]] || fail "--print-id=… does not print the id"
 pass "notification wrapper supports --transient"
 
+# --sticky keeps a toast up until it's clicked or closed, a flag like --transient.
+: >"$args_file"
+send --sticky "Codex is ready" "Make something cool" >/dev/null
+load
+[[ $(hint_value omarchy-sticky) == "true" ]] || fail "notification wrapper sets the sticky hint from --sticky" "$(hint_value omarchy-sticky)"
+[[ ${args[11]} == "Codex is ready" ]] || fail "--sticky takes no value" "${args[11]}"
+pass "notification wrapper supports --sticky"
+
 # Options may follow the headline and description (Taildrop appends -u critical
 # and -g after the two positionals); they still land on the call, and urgency
 # stays a single hint rather than doubling.

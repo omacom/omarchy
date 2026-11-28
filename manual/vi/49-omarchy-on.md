@@ -1,16 +1,16 @@
 # Omarchy trên...
 
-### Chip Apple M1/M2
+### Máy Mac Apple Silicon
 
-[Asahi Alarm](https://asahi-alarm.org/) là một phiên bản của Arch cho các máy tính Apple M1/M2 được xây dựng trên [Asahi Linux](https://asahilinux.org/). Bạn có thể cho Omarchy chạy trên đó với một chút nỗ lực. Xem [hướng dẫn do người dùng thực hiện](https://github.com/omarchy-mac/omarchy-mac).
+Omarchy cho Apple Silicon chạy trên các máy Mac M1, M2 và M3 và cài đặt song song với macOS. Xem [Omarchy cho Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) trong chương hỗ trợ Mac.
 
-### Máy ảo Apple
+### Try Omarchy trên máy Mac
 
-Bạn cũng có thể cài đặt Omarchy bên trong một VM Parallels. Một quá trình khá rườm rà, nhưng cũng có [một hướng dẫn do người dùng thực hiện](https://github.com/omacom/omarchy/discussions/452) cho việc đó.
+[Try Omarchy](https://github.com/omacom/try-omarchy) chạy Omarchy trong một máy ảo trên bất kỳ máy Mac Apple Silicon nào dùng macOS 15 trở lên, mà không cần phân vùng hay cài đặt gì bên cạnh macOS.
 
 ### VirtualBox
 
-VirtualBox là một trình chạy VM phổ biến. [Bạn cũng có thể chạy Omarchy bên trong đó](https://github.com/omacom/omarchy/discussions/176). Nhưng hiệu năng có lẽ sẽ không tuyệt vời.
+VirtualBox là một trình chạy VM phổ biến. [Bạn cũng có thể chạy Omarchy bên trong đó](https://github.com/omacom/omarchy/discussions/176). Nhưng hiệu năng có lẽ sẽ không tốt lắm.
 
 ### VMware Workstation trên Windows 11
 
@@ -18,12 +18,12 @@ Một trình chạy VM phổ biến khác cho Windows. [Omarchy cũng đã đư�
 
 ### Steam Deck
 
-Steam Deck chạy trên Arch, điều đó có nghĩa là bạn có thể chạy Omarchy trên Steam Deck của mình. Altynbek Orumbayev có [một script thiết lập đầy đủ và giải thích cách thực hiện](https://github.com/aorumbayev/deckarchy). Thật ngầu làm sao!
+Steam Deck chạy trên Arch, nghĩa là bạn có thể chạy Omarchy trên Steam Deck của mình. Altynbek Orumbayev có [một script thiết lập đầy đủ và phần giải thích cách thực hiện](https://github.com/aorumbayev/deckarchy). Nghe có ngầu không cơ chứ!
 
 ### NixOS
 
-Omarchy thực sự là Arch + Hyprland, nhưng Henry Sipp đã [chuyển tinh túy của thiết lập sang NixOS](https://github.com/henrysipp/omarchy-nix). Vậy nên nếu bạn đã bị nix-pill, đây là một điểm khởi đầu tốt. Nó có thể hoặc không thể theo kịp các thay đổi mới nhất của Omarchy, nhưng dù sao nó cũng khá ngầu!
+Omarchy thực ra là Arch + Hyprland, nhưng Henry Sipp đã [chuyển phần tinh túy của bản thiết lập này sang NixOS](https://github.com/henrysipp/omarchy-nix). Vậy nên nếu bạn đã bị nix-pilled, đây là một điểm khởi đầu tốt. Nó có thể theo kịp hoặc không theo kịp những thay đổi mới nhất của Omarchy, nhưng dù sao thì nó cũng khá ngầu!
 
-### Thứ gì đó khác!
+### Thứ gì khác!
 
-Nếu bạn đang cố gắng cho Omarchy chạy trên một cấu hình không phải mặc định, bạn nên tham gia kênh #omarchy-on-other trên [Discord cộng đồng](https://discord.gg/tXFUdasqhY) của chúng tôi.
+Nếu bạn đang cố chạy Omarchy trên một cấu hình không phải mặc định, bạn nên tham gia kênh #omarchy-on-other trên [Discord cộng đồng của chúng tôi](https://discord.gg/tXFUdasqhY).

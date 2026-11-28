@@ -430,6 +430,28 @@ assert(
   'provider merge leaves rows belonging to another provider alone'
 )
 
+assertDeepEqual(
+  menu.parseKeybindingsRecords(
+    'SUPER + K                           → Keybindings\tlua\thl.dsp.global("omarchy:menu.learn.keybindings")\n'
+    + 'SUPER + RETURN                      → Terminal\texec\tprintf "a\tb"\n'
+    + 'SUPER + Z                           → Zoom in\t\t\n'
+    + '\n'
+  ),
+  {
+    entries: [
+      { label: 'SUPER + K                           → Keybindings', dispatcher: 'lua', arg: 'hl.dsp.global("omarchy:menu.learn.keybindings")' },
+      { label: 'SUPER + RETURN                      → Terminal', dispatcher: 'exec', arg: 'printf "a\tb"' },
+      { label: 'SUPER + Z                           → Zoom in', dispatcher: '', arg: '' }
+    ],
+    options: [
+      'SUPER + K                           → Keybindings',
+      'SUPER + RETURN                      → Terminal',
+      'SUPER + Z                           → Zoom in'
+    ]
+  },
+  'keybindings record parser keeps tabs inside command arguments and skips blank lines'
+)
+
 // Every glyph the menu draws in the Omarchy font is one the font carries. The
 // ranges come from the font itself, so a new glyph needs no edit here.
 const fontRanges = require('child_process')
@@ -443,3 +465,77 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# Verify omarchy-menu-select and omarchy-menu-input serialize payloads faithfully
+# (including UTF-8, tabs, dash-prefixed options, multi-select, and dimensions).
+select_tmp=$(mktemp -d)
+trap 'rm -rf "$select_tmp"' EXIT
+mkdir -p "$select_tmp/bin"
+
+cat >"$select_tmp/bin/omarchy-shell" <<'SH'
+#!/bin/bash
+payload="$4"
+printf '%s\n' "$payload" >"$PAYLOAD_OUT"
+sel_file=$(jq -r '.selectionFile' <<<"$payload")
+done_file=$(jq -r '.doneFile' <<<"$payload")
+printf '%s\n' "$FAKE_ANSWER" >"$sel_file"
+: >"$done_file"
+SH
+chmod +x "$select_tmp/bin/omarchy-shell"
+
+select_answer=$(PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/select.json" FAKE_ANSWER="-dash" \
+  "$ROOT/bin/omarchy-menu-select" "Pick (æøå)" "-dash" $'✓\tSecond\tsub' -- \
+  --multiple --selected "-dash" --selected $'Second\tsub' \
+  --on-change '["apply","--set"]' --change-key "k1" --width 640 --maxheight 480)
+[[ $select_answer == "-dash" ]] || fail "omarchy-menu-select returns the selected value" "$select_answer"
+jq -e '
+  .mode == "select"
+  and .prompt == "Pick (æøå)"
+  and .options == ["-dash", "✓\tSecond\tsub"]
+  and .multiple == true
+  and .selected == ["-dash", "Second\tsub"]
+  and .onChange == ["apply", "--set"]
+  and .changeKey == "k1"
+  and .width == 640
+  and .maxHeight == 480
+' "$select_tmp/select.json" >/dev/null || fail "omarchy-menu-select builds the expected JSON payload" "$(cat "$select_tmp/select.json")"
+pass "omarchy-menu-select builds the expected JSON payload"
+
+# Empty selected list and omitted dimensions stay clean (empty array, no null width/maxHeight).
+PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/select-min.json" FAKE_ANSWER="One" \
+  "$ROOT/bin/omarchy-menu-select" "Simple" "One" >/dev/null
+jq -e '
+  .mode == "select"
+  and .multiple == false
+  and .selected == []
+  and (has("width") | not)
+  and (has("maxHeight") | not)
+' "$select_tmp/select-min.json" >/dev/null || fail "omarchy-menu-select omits unset dimensions and keeps selected empty" "$(cat "$select_tmp/select-min.json")"
+pass "omarchy-menu-select omits unset dimensions and keeps selected empty"
+
+input_answer=$(PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/input.json" FAKE_ANSWER="15" \
+  "$ROOT/bin/omarchy-menu-input" "Reminder (æøå)" --width 400)
+[[ $input_answer == "15" ]] || fail "omarchy-menu-input returns the entered value" "$input_answer"
+jq -e '
+  .mode == "input"
+  and .prompt == "Reminder (æøå)"
+  and .width == 400
+' "$select_tmp/input.json" >/dev/null || fail "omarchy-menu-input builds the expected JSON payload" "$(cat "$select_tmp/input.json")"
+pass "omarchy-menu-input builds the expected JSON payload"
+
+# The Snapshots provider lists systemd-boot's entries. On Limine its menu is
+# hidden, and a search must not run omarchy-snapshot list there: it asks sudo
+# for snapper's table, with no terminal to ask in.
+snapshots_script=$(node -e '
+  const src = require("fs").readFileSync(process.argv[1], "utf8")
+  process.stdout.write(JSON.parse(src.match(/"snapshots": \{\s*script: ("(?:[^"\\]|\\.)*")/)[1]))
+' "$ROOT/shell/plugins/menu/Menu.qml")
+mkdir -p "$select_tmp/snapshots"
+printf '#!/bin/bash\necho "$BOOT_BACKEND"\n' >"$select_tmp/snapshots/omarchy-boot-backend"
+printf '#!/bin/bash\necho "omarchy-snapshot $*" >>"$CALLS"\nprintf "12\\tSnapshot 12 (update)\\n"\n' >"$select_tmp/snapshots/omarchy-snapshot"
+chmod +x "$select_tmp/snapshots/"*
+rows=$(BOOT_BACKEND=limine CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/snapshots:$PATH" bash -c "$snapshots_script")
+[[ -z $rows && ! -e $select_tmp/snapshot-calls ]] || fail "on Limine the Snapshots provider runs nothing" "$rows"
+rows=$(BOOT_BACKEND=systemd-boot CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/snapshots:$PATH" bash -c "$snapshots_script")
+[[ $rows == $'Snapshot 12 (update)\t12\t' ]] || fail "on systemd-boot the Snapshots provider lists the entries" "$rows"
+pass "the Snapshots provider lists systemd-boot's entries and asks nothing of Limine"

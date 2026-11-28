@@ -50,7 +50,9 @@ local function create(id, monitor)
 end
 
 local function activate(workspace)
-  monitor_named(workspace.monitor).active = workspace.id
+  local monitor = monitor_named(workspace.monitor)
+  assert(monitor, "Workspace has no monitor")
+  monitor.active = workspace.id
 end
 
 local function windows_on(id)
@@ -373,6 +375,27 @@ check(shows("DP-1") == 13 and on(13) == "DP-1", "Super + 3 brings the workspace 
 check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the laptop falls back to one of its own, not " .. shows("eDP-1"))
 ' || fail "a workspace an unplug left elsewhere comes home on its key"
 pass "a workspace an unplug left elsewhere comes home on its key"
+
+run_lua reclaim_monitorless '
+plug("DP-1", 0, "Dell", 1)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 2)
+world.workspaces[#world.workspaces].monitor = nil
+
+hl.dispatch(m.focus(2))
+check(shows("DP-1") == 2 and on(2) == "DP-1", "Super + 2 brings a monitorless workspace home")
+check(world.windows["0xa"].workspace == 2, "the orphaned window keeps its workspace")
+
+window("0xb", 3)
+world.workspaces[#world.workspaces].monitor = nil
+world.active_window = "0xa"
+hl.dispatch(m.move_window(3))
+check(shows("DP-1") == 3 and on(3) == "DP-1", "moving a window reclaims a monitorless destination")
+check(world.windows["0xa"].workspace == 3 and world.windows["0xb"].workspace == 3, "both windows stay reachable")
+' || fail "workspace actions reclaim a workspace left without a monitor"
+pass "workspace actions reclaim a workspace left without a monitor"
 
 # --- Monitors coming and going -------------------------------------------------
 

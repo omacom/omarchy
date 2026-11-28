@@ -20,5 +20,9 @@ if [[ ! $country =~ ^[A-Z]{2}$ && -n $timezone && -f $zone_tab ]]; then
 fi
 
 if [[ $country =~ ^[A-Z]{2}$ ]]; then
-  echo "WIRELESS_REGDOM=\"$country\"" | sudo tee -a "$regdom_file" >/dev/null
+  if (( EUID == 0 )); then
+    printf 'WIRELESS_REGDOM="%s"\n' "$country" >>"$regdom_file"
+  else
+    printf 'WIRELESS_REGDOM="%s"\n' "$country" | sudo tee -a "$regdom_file" >/dev/null
+  fi
 fi

@@ -63,6 +63,28 @@ power_on() {
   return 1
 }
 
+# Block the BlueZ controller rfkill switches (hci*) rather than the whole
+# `bluetooth` class. Laptops with a platform ACPI switch (e.g. ThinkPad's
+# tpacpi_bluetooth_sw) cut power to the internal USB port when that switch is
+# blocked, unplugging hci0 from BlueZ so the bar icon vanishes and re-enabling
+# requires a full USB re-enumeration and firmware reload. Blocking hci* still
+# persists across reboots via systemd-rfkill while keeping the adapter visible
+# in Powered: no state.
+power_off() {
+  local -a ids=()
+  local id device
+
+  while read -r id device; do
+    [[ $id =~ ^[0-9]+$ && $device == hci* ]] && ids+=("$id")
+  done < <(LC_ALL=C rfkill --raw --noheadings --output ID,DEVICE list bluetooth 2>/dev/null)
+
+  if (( ${#ids[@]} > 0 )); then
+    rfkill block "${ids[@]}"
+  else
+    rfkill block bluetooth
+  fi
+}
+
 case "${1:-}" in
   on)
     power_on
@@ -70,11 +92,11 @@ case "${1:-}" in
   off)
     # No bluetoothctl power off to go with this: the block already drops the
     # adapter to Powered: no, and it is the half that survives the reboot.
-    rfkill block bluetooth
+    power_off
     ;;
   toggle)
     if powered; then
-      rfkill block bluetooth
+      power_off
     else
       power_on
     fi

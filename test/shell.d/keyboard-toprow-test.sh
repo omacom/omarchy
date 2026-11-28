@@ -25,6 +25,13 @@ cat >"$stub_bin/sudo" <<'SH'
 "$@"
 SH
 
+# The real omarchy-boot-rebuild on a Limine machine, so a kernel
+# limine-mkinitcpio skips while exiting 0 still counts as a failed rebuild.
+cat >"$stub_bin/omarchy-boot-backend" <<'SH'
+#!/bin/bash
+echo limine
+SH
+
 cat >"$stub_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 echo rebuild >>"$TEST_LOG"
@@ -35,7 +42,7 @@ chmod +x "$stub_bin"/*
 
 toprow() {
   OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$sys_module" \
-    OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
+    OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$ROOT/bin:$PATH" TEST_LOG="$calls" \
     bash "$ROOT/bin/omarchy-device-keyboard-toprow" "$@"
 }
 

@@ -61,7 +61,11 @@ Item {
   onInteractiveChanged: if (!interactive) hideOwnTooltip()
   onConcealedChanged: if (concealed) hideOwnTooltip()
   Component.onCompleted: syncClickRegistration()
-  Component.onDestruction: if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(root)
+  Component.onDestruction: {
+    if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
+      root.revealHost.setIndicatorItemHovered(false, root)
+    if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(root)
+  }
 
   readonly property bool vertical: bar ? bar.vertical : false
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
@@ -178,14 +182,14 @@ Item {
         root.bar.showTooltip(root, root.tooltipText)
       }
       if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
-        root.revealHost.setIndicatorItemHovered(true)
+        root.revealHost.setIndicatorItemHovered(true, root)
     }
     onExited: {
       if (root.bar) {
         root.bar.hideTooltip(root)
       }
       if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
-        root.revealHost.setIndicatorItemHovered(false)
+        root.revealHost.setIndicatorItemHovered(false, root)
     }
     onClicked: function(mouse) { if (root.pressable) root.triggerPress(mouse.button) }
     onWheel: function(wheel) { root.wheelMoved(wheel.angleDelta.y) }

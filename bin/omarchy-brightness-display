@@ -24,9 +24,20 @@ while (( $# > 0 )); do
   esac
 done
 
+# Parse percentage from `brightnessctl -m` output ("dev,class,cur,pct%,max").
+parse_brightnessctl_percent() {
+  local line="${1%%$'\n'*}" pct
+  IFS=, read -r _ _ _ pct _ <<<"$line"
+  pct=${pct%\%}
+  [[ $pct =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$pct"
+}
+
 # Get the brightness of the passed display
 backlight_brightness() {
-  brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
+  local out
+  out=$(brightnessctl -d "$1" -m 2>/dev/null) || return 1
+  parse_brightnessctl_percent "$out"
 }
 
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
@@ -36,7 +47,7 @@ monitor_is_internal() {
 }
 
 use_apple_display() {
-  omarchy-hyprland-monitor-focused-apple "$monitor"
+  ! monitor_is_internal && omarchy-hyprland-monitor-focused-apple "$monitor"
 }
 
 use_ddc_display() {
@@ -141,9 +152,13 @@ else
     step="$target%"
   fi
 
-  # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
+  # Set brightness of the display device and parse the new percentage directly
+  # from `-m` output rather than calling brightnessctl a second time.
+  set_out=$(brightnessctl -d "$device" -m set "$step" 2>/dev/null)
 
   # Show the new brightness in OSD
-  (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+  if (( !no_osd )); then
+    new_percent=$(parse_brightnessctl_percent "$set_out") || new_percent=$(backlight_brightness "$device")
+    omarchy-osd -i brightness -p "$new_percent"
+  fi
 fi

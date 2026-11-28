@@ -21,6 +21,16 @@ Item {
   property bool powerProfileReadPending: false
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
+  property int chargeLimitSignals: 0
+  property bool lastOnBattery: UPower.onBattery
+
+  readonly property string topUpOncePath: {
+    var stateHome = Quickshell.env("XDG_STATE_HOME")
+    if (!stateHome) stateHome = Quickshell.env("HOME") + "/.local/state"
+    return stateHome + "/omarchy/battery/top-up-once"
+  }
+  readonly property bool topUpOnce: topUpOnceFile.text.trim().length > 0
+  onTopUpOnceChanged: if (topUpOnce) checkTopUpOnceRearm()
 
   PersistentProperties {
     id: persisted
@@ -28,16 +38,21 @@ Item {
     property bool notifiedLowBattery: false
   }
 
+  WatchedFile {
+    id: topUpOnceFile
+    path: root.topUpOncePath
+  }
+
   function batteryPercentage() {
     return BatteryModel.batteryPercentage(UPower.displayDevice)
   }
 
   function isDischarging() {
-    return BatteryModel.isDischarging(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging)
+    return BatteryModel.isDischarging(UPower.displayDevice, UPowerDeviceState.Discharging)
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
   }
@@ -74,6 +89,24 @@ Item {
     powerProfileReadProcess.running = true
   }
 
+  function refreshChargeLimit() {
+    topUpOnceFile.reread()
+    chargeLimitSignals++
+    checkTopUpOnceRearm()
+  }
+
+  function rearmChargeLimit() {
+    if (chargeLimitProcess.running) return
+    chargeLimitProcess.command = ["omarchy-battery-limit", "on"]
+    chargeLimitProcess.running = true
+  }
+
+  function checkTopUpOnceRearm() {
+    if (!topUpOnce) return
+    if (BatteryModel.shouldRearmChargeLimit(topUpOnce, UPower.displayDevice, UPower.onBattery, UPower.onBattery, UPowerDeviceState.FullyCharged))
+      rearmChargeLimit()
+  }
+
   function profileName(profile) {
     switch (profile) {
       case PowerProfile.PowerSaver: return "power-saver"
@@ -83,6 +116,21 @@ Item {
   }
 
   Process { id: warningProcess }
+
+  Process {
+    id: chargeLimitProcess
+    onExited: root.refreshChargeLimit()
+  }
+
+  // Wait briefly on unplug before re-arming a one-time top-up so USB-C PD
+  // power-role renegotiation glitches don't cancel a charge early.
+  Timer {
+    id: topUpRearmDebounce
+    interval: 2000
+    onTriggered: {
+      if (root.topUpOnce && UPower.onBattery) root.rearmChargeLimit()
+    }
+  }
 
   Process {
     id: powerProfileProcess
@@ -122,6 +170,7 @@ Item {
     target: "battery"
 
     function refreshPowerProfile(): void { root.refreshPowerProfile() }
+    function refreshChargeLimit(): void { root.refreshChargeLimit() }
   }
 
   Timer {
@@ -135,11 +184,29 @@ Item {
   Connections {
     target: UPower
     function onOnBatteryChanged() {
+      var wasOnBattery = root.lastOnBattery
+      root.lastOnBattery = UPower.onBattery
       root.checkBattery()
       root.applyPowerProfile()
       root.refreshPowerProfile()
+      if (root.topUpOnce) {
+        if (!wasOnBattery && UPower.onBattery) topUpRearmDebounce.restart()
+        else if (!UPower.onBattery) {
+          topUpRearmDebounce.stop()
+          root.checkTopUpOnceRearm()
+        }
+      }
     }
   }
 
-  Component.onCompleted: root.refreshPowerProfile()
+  Connections {
+    target: UPower.displayDevice
+    function onStateChanged() { root.checkTopUpOnceRearm() }
+    function onPercentageChanged() { root.checkTopUpOnceRearm() }
+  }
+
+  Component.onCompleted: {
+    root.refreshPowerProfile()
+    root.checkTopUpOnceRearm()
+  }
 }

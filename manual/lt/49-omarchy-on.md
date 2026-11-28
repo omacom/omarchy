@@ -1,29 +1,29 @@
-# Omarchy ant...
+# „Omarchy“ su...
 
-### Apple M1/M2 lustų
+### „Apple Silicon“ „Mac“ kompiuteriai
 
-[Asahi Alarm](https://asahi-alarm.org/) yra Arch versija Apple M1/M2 kompiuteriams, pastatyta ant [Asahi Linux](https://asahilinux.org/). Su pastangomis gali ant jos paleisti Omarchy. Žr. [vartotojų parengtą vadovą](https://github.com/omarchy-mac/omarchy-mac).
+„Apple Silicon“ skirta „Omarchy“ veikia M1, M2 ir M3 „Mac“ kompiuteriuose ir įdiegiama šalia macOS. Žr. [„Omarchy“, skirta „Apple Silicon“](44-mac-support.md#omarchy-for-apple-silicon) „Mac“ palaikymo skyriuje.
 
-### Apple virtualios mašinos
+### Išbandykite „Omarchy“ „Mac“ kompiuteryje
 
-Omarchy taip pat gali įdiegti Parallels VM viduje. Gana gremėzdiškas procesas, bet ir tam yra [vartotojų parengtas vadovas](https://github.com/omacom/omarchy/discussions/452).
+[Išbandykite „Omarchy“](https://github.com/omacom/try-omarchy) paleidžia „Omarchy“ virtualioje mašinoje bet kuriame „Apple Silicon“ „Mac“ kompiuteryje su macOS 15 arba naujesne versija, nieko nereikia skaidyti ar diegti šalia macOS.
 
 ### VirtualBox
 
-VirtualBox yra populiarus VM paleidiklis. [Omarchy rasi paleisti ir jame](https://github.com/omacom/omarchy/discussions/176). Bet našumas tikriausiai nebus didelis.
+VirtualBox yra populiari VM paleidimo programa. [„Omarchy“ galite paleisti ir joje](https://github.com/omacom/omarchy/discussions/176). Tačiau našumas tikriausiai nebus puikus.
 
-### VMware Workstation ant Windows 11
+### „VMware Workstation“ sistemoje Windows 11
 
-Kitas populiarus VM paleidiklis Windows. [Omarchy buvo nustatyta ir jo viduje](https://github.com/omacom/omarchy/discussions/572).
+Kita populiari VM paleidimo programa, skirta Windows. [„Omarchy“ taip pat buvo įdiegta ir joje](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-Steam Deck veikia ant Arch, o tai reiškia, kad Omarchy gali paleisti savo Steam Deck. Altynbek Orumbayev turi [pilną sąrankos scenarijų ir paaiškinimą, kaip tai padaryti](https://github.com/aorumbayev/deckarchy). Na, ar šaunu!
+„Steam Deck“ veikia su Arch, o tai reiškia, kad „Omarchy“ galite paleisti ir savo „Steam Deck“. Altynbek Orumbayev parengė [išsamų diegimo scenarijų ir paaiškinimą, kaip tai padaryti](https://github.com/aorumbayev/deckarchy). Kaip šaunu!
 
 ### NixOS
 
-Omarchy iš esmės yra Arch + Hyprland, bet Henry Sipp [perkėlė sąrankos esmę į NixOS](https://github.com/henrysipp/omarchy-nix). Todėl jei tave pagavo nix karštinė, štai gera pradžia. Jis gali arba negali išlikti atnaujintas su naujausiais Omarchy pakeitimais, bet šiaip ar taip gana šaunus!
+„Omarchy“ iš esmės yra Arch + Hyprland, tačiau Henry Sipp [perkėlė pagrindinę šios sąrankos esmę į NixOS](https://github.com/henrysipp/omarchy-nix). Taigi, jei jau esate „nix-pilled“, tai gera pradžia. Ji gali likti atnaujinta pagal naujausius „Omarchy“ pakeitimus arba ne, bet vis tiek gana šaunu!
 
-### Kažko kito!
+### Kažkas kita!
 
-Jei bandai Omarchy paleisti konfigūracijoje, kuri nėra numatytoji, turėtum prisijungti prie #omarchy-on-other kanalo [mūsų bendruomenės Discord](https://discord.gg/tXFUdasqhY).
+Jei bandote paleisti „Omarchy“ su konfigūracija, kuri nėra numatytoji, prisijunkite prie #omarchy-on-other kanalo [mūsų bendruomenės Discord](https://discord.gg/tXFUdasqhY).

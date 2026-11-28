@@ -53,16 +53,17 @@ guard_scripts() {
 }
 
 # The menu runs the batch from its own checkout, so the guards call this
-# checkout's commands. Prints the fastest of three runs, in milliseconds. A run
+# checkout's commands. Prints the fastest of up to three runs, in milliseconds,
+# stopping early as soon as a run is already within budget $2 (if given). A run
 # that never returns is cut off at 10s and counts as taking all of it, so a
 # stuck guard is named among the slowest instead of hanging the test.
 fastest_ms() {
-  local best="" start end elapsed status
+  local script="$1" budget="${2:-}" best="" start end elapsed status
 
   for _ in 1 2 3; do
     start=$EPOCHREALTIME
     status=0
-    OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" timeout --kill-after=1s 10s bash -c "$1" >"$output" 2>/dev/null || status=$?
+    OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" timeout --kill-after=1s 10s bash -c "$script" >"$output" 2>/dev/null || status=$?
     end=$EPOCHREALTIME
     elapsed=$(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
     if (( status == 124 || status == 137 )); then
@@ -74,6 +75,9 @@ fastest_ms() {
     fi
     if [[ -z $best ]] || (( elapsed < best )); then
       best=$elapsed
+    fi
+    if [[ -n $budget ]] && (( best <= budget )); then
+      break
     fi
   done
   echo "$best"
@@ -92,7 +96,7 @@ done < <(guard_scripts)
 [[ -n ${scripts[menu]:-} ]] || fail "the shipped menu has guards to evaluate"
 (( ${#ids[@]} > 0 )) || fail "the shipped menu has guarded rows"
 
-batch_ms=$(fastest_ms "${scripts[menu]}")
+batch_ms=$(fastest_ms "${scripts[menu]}" "$BATCH_BUDGET_MS")
 [[ $batch_ms != error* ]] || fail "the shipped menu's guard batch exits cleanly" "It exited with status ${batch_ms#error }."
 (( $(wc -l <"$output") >= ${#ids[@]} )) || fail "the guard batch answers every guarded row" "$(cat "$output")"
 
@@ -100,7 +104,7 @@ timings=()
 slowest=0
 failed=()
 for id in "${ids[@]}"; do
-  elapsed=$(fastest_ms "${scripts[$id]}")
+  elapsed=$(fastest_ms "${scripts[$id]}" "$GUARD_BUDGET_MS")
   if [[ $elapsed == error* ]]; then
     failed+=("$id (status ${elapsed#error })")
     continue

@@ -2,4 +2,6 @@
 
 # omarchy:summary=Match Dell XPS systems with the Synaptics haptic touchpad.
 
-omarchy-hw-match "XPS" && [[ -e /sys/bus/i2c/devices/i2c-VEN_06CB:00 ]]
+i2c_root=${OMARCHY_I2C_DEVICES_PATH:-/sys/bus/i2c/devices}
+
+omarchy-hw-match "XPS" && [[ -e $i2c_root/i2c-VEN_06CB:00 || -e $i2c_root/i2c-DELL06CB:00 ]]

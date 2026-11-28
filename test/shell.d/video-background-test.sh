@@ -115,6 +115,35 @@ timeout_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$timeout_cache" \
 timeout_marker=$(find "$timeout_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
 [[ -z $timeout_marker ]] || fail "a timed out video is left to retry rather than remembered as failed"
 
+# Uncached still images skip legacy content hashing when cache_dir has no
+# unmatched thumbnails, legacy content-hash thumbnails still resolve when
+# present, and index.tsv lookups preserve backslashes in paths.
+still_backgrounds="$test_tmp/still-backgrounds"
+still_cache="$test_tmp/still-cache"
+mkdir -p "$still_backgrounds" "$still_cache/omarchy/image-selector"
+printf 'plain image bytes\n' >"$still_backgrounds/plain.png"
+printf 'backslash\\image\n' >"$still_backgrounds/back\\slash.png"
+
+legacy_hash=$(md5sum "$still_backgrounds/plain.png" | cut -d ' ' -f 1)
+printf 'legacy thumb\n' >"$still_cache/omarchy/image-selector/$legacy_hash.jpg"
+
+bs_sig=$(stat -Lc '%s:%Y' "$still_backgrounds/back\\slash.png")
+printf '%s\t%s\t%s\n' "$still_backgrounds/back\\slash.png" "$bs_sig" "bsindexed" >"$still_cache/omarchy/image-selector/index.tsv"
+printf 'indexed thumb\n' >"$still_cache/omarchy/image-selector/bsindexed.jpg"
+
+still_rows=$(XDG_CACHE_HOME="$still_cache" "$ROOT/shell/plugins/image-picker/list.sh" "$still_backgrounds")
+grep -Fqx "$still_backgrounds/plain.png"$'\t'"$still_cache/omarchy/image-selector/$legacy_hash.jpg" <<<"$still_rows" ||
+  fail "direct picker resolves legacy content-hash thumbnails when present" "$still_rows"
+grep -Fqx "$still_backgrounds/back\\slash.png"$'\t'"$still_cache/omarchy/image-selector/bsindexed.jpg" <<<"$still_rows" ||
+  fail "direct picker matches index.tsv paths containing backslashes" "$still_rows"
+
+empty_still_cache="$test_tmp/empty-still-cache"
+mkdir -p "$empty_still_cache"
+empty_still_rows=$(XDG_CACHE_HOME="$empty_still_cache" "$ROOT/shell/plugins/image-picker/list.sh" "$still_backgrounds")
+grep -Fqx "$still_backgrounds/plain.png"$'\t'"$still_backgrounds/plain.png" <<<"$empty_still_rows" ||
+  fail "direct picker falls back to original still image when cache is empty" "$empty_still_rows"
+pass "direct picker handles legacy thumbnails, backslash paths, and empty caches"
+
 # Qt Multimedia ships for building apps; the shell itself plays video through OWE.
 if grep -rqs 'import QtMultimedia' "$ROOT/shell"; then
   fail "Qt Multimedia is no longer needed by the shell"

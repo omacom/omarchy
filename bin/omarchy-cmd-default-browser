@@ -3,10 +3,11 @@
 # omarchy:summary=Print the desktop entry ID of the default web browser
 # omarchy:hidden=true
 
-# Read the http handler from the config-dir mimeapps.list files the way xdg-mime
-# does, desktop-specific list first, taking the first listed entry that is
-# installed. xdg-settings reaches the same answer through several shell scripts
-# in ~70ms, which every browser and web app launch would otherwise pay.
+# Read the http handler from mimeapps.list files in XDG MIME Apps spec order
+# (config dirs, then data dirs' applications/, desktop-specific list first),
+# taking the first listed entry that is installed. xdg-settings reaches the
+# same answer through several shell scripts in ~35-70ms, which every browser
+# and web app launch would otherwise pay.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 IFS=: read -ra config_dirs <<<"${XDG_CONFIG_HOME:-$HOME/.config}:${XDG_CONFIG_DIRS:-/etc/xdg}"
 IFS=: read -ra desktops <<<"${XDG_CURRENT_DESKTOP:-}"
@@ -15,11 +16,19 @@ IFS=: read -ra desktops <<<"${XDG_CURRENT_DESKTOP:-}"
 # one found, still resolves: an entry of Omarchy's own can outlive the browser
 # it launched.
 installed() {
-  local data_dir command
+  local data_dir line command
 
   for data_dir in "${data_dirs[@]}"; do
     [[ -r $data_dir/applications/$1 ]] || continue
-    command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$1" | head -1)
+    command=""
+    while IFS= read -r line || [[ -n $line ]]; do
+      line=${line%$'\r'}
+      if [[ $line == Exec=* ]]; then
+        command=${line#Exec=}
+        command=${command%% *}
+        break
+      fi
+    done <"$data_dir/applications/$1"
     [[ -n $command ]] && command -v "$command" >/dev/null
     return
   done
@@ -27,20 +36,40 @@ installed() {
   return 1
 }
 
-for config_dir in "${config_dirs[@]}"; do
+read_default_http() {
+  local file="$1" line section=0
+  REPLY=""
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    if [[ $line =~ ^\[Default\ Applications\][[:blank:]]*$ ]]; then
+      section=1
+    elif [[ $line == "["* ]]; then
+      section=0
+    elif (( section )) && [[ $line == x-scheme-handler/http=* ]]; then
+      REPLY=${line#x-scheme-handler/http=}
+      return 0
+    fi
+  done <"$file"
+
+  return 1
+}
+
+mimeapps_dirs=("${config_dirs[@]}")
+for data_dir in "${data_dirs[@]}"; do
+  mimeapps_dirs+=("$data_dir/applications")
+done
+
+for list_dir in "${mimeapps_dirs[@]}"; do
   for desktop in "${desktops[@]}" ""; do
-    list="$config_dir/${desktop:+${desktop,,}-}mimeapps.list"
+    list="$list_dir/${desktop:+${desktop,,}-}mimeapps.list"
     [[ -f $list ]] || continue
 
-    entries=$(awk '
-      /^\[Default Applications\]/ { section = 1; next }
-      /^\[/ { section = 0 }
-      section && index($0, "x-scheme-handler/http=") == 1 { print substr($0, 23); exit }
-    ' "$list")
+    read_default_http "$list" || continue
 
     # omarchy-browser.desktop only routes links back through
     # omarchy-launch-browser, so the browser is whatever is listed after it.
-    IFS=';' read -ra entries <<<"$entries"
+    IFS=';' read -ra entries <<<"$REPLY"
     for entry in "${entries[@]}"; do
       if [[ -n $entry && $entry != "omarchy-browser.desktop" ]] && installed "$entry"; then
         echo "$entry"
@@ -77,14 +106,17 @@ for data_dir in "${data_dirs[@]}"; do
   cache="$data_dir/applications/mimeinfo.cache"
   [[ -r $cache ]] || continue
 
-  entries=$(sed -n 's|^x-scheme-handler/https=||p' "$cache")
-  IFS=';' read -ra entries <<<"$entries"
-  for entry in "${entries[@]}"; do
-    if [[ -n $entry && $entry != "omarchy-browser.desktop" ]] && installed "$entry"; then
-      echo "$entry"
-      exit 0
-    fi
-  done
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    [[ $line == x-scheme-handler/https=* ]] || continue
+    IFS=';' read -ra entries <<<"${line#x-scheme-handler/https=}"
+    for entry in "${entries[@]}"; do
+      if [[ -n $entry && $entry != "omarchy-browser.desktop" ]] && installed "$entry"; then
+        echo "$entry"
+        exit 0
+      fi
+    done
+  done <"$cache"
 done
 
 exit 1

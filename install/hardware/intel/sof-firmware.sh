@@ -3,5 +3,5 @@
 # Dummy Output sink.
 
 if omarchy-hw-intel-sof; then
-  omarchy-pkg-add sof-firmware
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add sof-firmware
 fi

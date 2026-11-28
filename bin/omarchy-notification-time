@@ -6,8 +6,6 @@
 # LC_TIME, which only catches up with it at the next login. One timestamp feeds
 # every part, so a notification sent at midnight can't mix two days.
 locale=$(omarchy-language locale)
-now=$(date +%s)
-day_time=$(LC_TIME=$locale date -d "@$now" +"%A %H:%M")
-day_month_year=$(LC_TIME=$locale date -d "@$now" +"%d %B %Y")
+IFS=$'\t' read -r day_time day_month_year week < <(LC_TIME=$locale date +"%A %H:%M%t%d %B %Y%t%V")
 
-omarchy-notification-send -g  -u low "$(omarchy-i18n time.now "$day_time" "$day_month_year" "$(date -d "@$now" +%V)")"
+omarchy-notification-send -g  -u low "$(omarchy-i18n time.now "$day_time" "$day_month_year" "$week")"

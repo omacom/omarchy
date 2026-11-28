@@ -31,6 +31,10 @@ udev_capabilities() {
 # whose capabilities follow its producer, is left to the live query below.
 for node in "${nodes[@]}"; do
   [[ -e $node/device && -r $node/dev ]] || continue
+  # The raw capture stages of a Snapdragon's camera subsystem record :capture:
+  # too, but give no picture until libcamera configures the pipeline. The camera
+  # apps can use is the relay's V4L2 node, which the live query below finds.
+  [[ $(readlink "$node/device/driver") == */qcom-camss ]] && continue
   # The picker lists only nodes it can open read-write, so a camera this user
   # cannot open is no answer.
   device="$dev_path/${node##*/}"

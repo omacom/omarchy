@@ -80,6 +80,8 @@ run_first_run_step "set GTK primary paste" \
   bash "$OMARCHY_PATH/install/user/first-run/gtk-primary-paste.sh"
 run_first_run_step "apply speaker tuning" \
   bash "$OMARCHY_PATH/install/user/first-run/audio-tuning.sh"
+run_first_run_step "apply camera tuning" \
+  bash "$OMARCHY_PATH/install/user/first-run/camera-tuning.sh"
 
 omarchy-notification-wait || log_first_run "Timed out waiting for notification service; continuing"
 # Superwhisper places its bar panel through the shell, so it waits for it too.
@@ -89,7 +91,7 @@ run_first_run_step "configure Superwhisper dictation" \
 # order is enough to stack them newest-on-top.
 run_first_run_step "show welcome notification" \
   bash "$OMARCHY_PATH/install/user/first-run/welcome.sh"
-run_first_run_step "schedule Wi-Fi, agent, fingerprint and update notifications" \
+run_first_run_step "schedule Wi-Fi, agent and fingerprint notifications" \
   bash "$OMARCHY_PATH/install/user/first-run/wifi.sh"
 
 if (( first_run_failed == 0 )); then

@@ -12,9 +12,11 @@ export BAT_THEME=ansi
 export MANROFFOPT="-c"
 export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
-# Idempotent — already sourced by /etc/skel/.bashrc; re-source here so SSH and
-# other non-interactive non-login bash sessions still get OMARCHY_PATH.
-[ -r /usr/share/omarchy/default/bash/env-bootstrap ] && . /usr/share/omarchy/default/bash/env-bootstrap
+# Idempotent — already sourced by /etc/skel/.bashrc; re-source here only when
+# this shell hasn't run it yet (e.g. SSH or non-interactive non-login bash).
+if [ -z "${_OMARCHY_ENV_BOOTSTRAPPED:-}" ] && [ -r /usr/share/omarchy/default/bash/env-bootstrap ]; then
+  . /usr/share/omarchy/default/bash/env-bootstrap
+fi
 
 # /etc/profile.d/locale.sh is what puts /etc/locale.conf into the environment,
 # and it only runs for login shells. Bash started by SSH or herdr's remote
@@ -26,6 +28,16 @@ if [ -z "${LANG:-}" ]; then
   export LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY \
     LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT \
     LC_IDENTIFICATION
+fi
+
+# A herdr server started over SSH has no WAYLAND_DISPLAY, so its panes can't
+# read the desktop clipboard once you attach locally. Inherit the live graphical
+# session's Wayland display inside herdr panes without exporting it to plain
+# SSH sessions (where omarchy-launch-editor falls back to vi).
+if [[ ${HERDR_ENV:-} == 1 && -z ${WAYLAND_DISPLAY:-} ]]; then
+  _omarchy_wayland=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p')
+  [[ -n $_omarchy_wayland && -S ${XDG_RUNTIME_DIR:-/run/user/$UID}/$_omarchy_wayland ]] && export WAYLAND_DISPLAY=$_omarchy_wayland
+  unset _omarchy_wayland
 fi
 
 case ":$PATH:" in

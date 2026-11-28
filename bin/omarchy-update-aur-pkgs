@@ -11,11 +11,11 @@ unset GOROOT GOBIN
 
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
-    echo -e "\e[32m\nUpdate AUR packages\e[0m"
+    echo -e "\e[32m\n$(omarchy-i18n update.aur)\e[0m"
     yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
     echo
   else
-    echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
+    echo -e "\e[31m\n$(omarchy-i18n update.aurUnavailable)\e[0m"
     echo
   fi
 fi

@@ -44,7 +44,9 @@ print_failure_logs() {
   fi
 
   sed -n '/^==> test\/cli$/,/^==> test\/shell$/p' "$log" >"$out/cli.log"
-  show_log "test/cli" "$out/cli.log"
+  if [[ -s $out/cli.log ]]; then
+    show_log "test/cli" "$out/cli.log"
+  fi
 
   dir=$(shell_log_dir "$log")
   if [[ -z $dir || ! -d $out/shell-logs/${dir##*/} ]]; then

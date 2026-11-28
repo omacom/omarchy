@@ -5,6 +5,10 @@
 # (omarchy-provision-owner). Sourced by both, so the copies cannot drift the way
 # the keyboard list already did.
 #
+# The form also holds the XKB layout of each keymap in that list that systemd's
+# kbd-model-map lacks. The ISO, first-boot setup and Setup > Keyboard all read
+# it from here, so the desktop types what the console does.
+#
 # Every prompt reports one of three statuses, and both callers read them the
 # same way:
 #
@@ -110,6 +114,42 @@ Tajik|tj_alt-UTF8
 Turkish|trq
 Ukrainian|ua'
 
+# The XKB layout for each keymap in the list above that systemd's kbd-model-map
+# lacks. The values come from the kbd-model-map rows of the nearest keymaps.
+# kbd's cz is QWERTY, and bg-cp1251 is phonetic. A non-Latin layout keeps US as
+# its second layout, so the shared password stays typeable. Prints "layout
+# variant options" with "-" for an empty field, or returns 1 for other keymaps.
+omarchy_keymap_xkb_extra() {
+  local layout variant=- options=- switch=grp:shifts_toggle,grp_led:scroll
+  case $1 in
+    colemak) layout=us variant=colemak ;;
+    bg-cp1251) layout=bg,us variant=phonetic, options=$switch ;;
+    cz) layout=cz,us variant=qwerty, options=$switch ;;
+    de_CH-latin1) layout=ch ;;
+    kyrgyz) layout=kg,us options=$switch ;;
+    no-latin1) layout=no ;;
+    pl) layout=pl ;;
+    ua) layout=ua,us options=$switch ;;
+    *) return 1 ;;
+  esac
+  printf '%s %s %s\n' "$layout" "$variant" "$options"
+}
+
+# Prints the /etc/vconsole.conf XKB lines for a keymap that
+# omarchy_keymap_xkb_extra knows, or returns 1. systemd-firstboot and localectl
+# write XKB lines only for keymaps in kbd-model-map. Hyprland, the SDDM greeter
+# and the initramfs read the layout from these lines. The ISO and first-boot
+# setup add them when they write the keymap of the installed system.
+omarchy_keymap_xkb_settings() {
+  local layout variant options
+  read -r layout variant options < <(omarchy_keymap_xkb_extra "$1") || return 1
+
+  printf 'XKBLAYOUT=%s\nXKBMODEL=pc105\n' "$layout"
+  [[ $variant == "-" ]] || printf 'XKBVARIANT=%s\n' "$variant"
+  [[ $options != "-" ]] || options=""
+  printf 'XKBOPTIONS=terminate:ctrl_alt_bksp%s\n' "${options:+,$options}"
+}
+
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
 OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
 OMARCHY_HOSTNAME_PATTERN='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
@@ -196,16 +236,16 @@ omarchy_form_use_language() {
 # Every Omarchy language, English first and the rest alphabetical by what is
 # shown, with the current one selected.
 omarchy_prompt_language() {
-  local choice status drawn
-  drawn=$(printf '%s\n' $OMARCHY_FORM_CONSOLE_LANGUAGES | jq -R . | jq -sc .)
-  choice=$(jq -r --argjson drawn "$drawn" '
+  local choice status drawn languages
+  drawn=$(jq -Rn --arg s "$OMARCHY_FORM_CONSOLE_LANGUAGES" '$s | split(" ")')
+  languages=$(jq -r --argjson drawn "$drawn" '
       to_entries
       | map({code: .key, label: (if (.key | IN($drawn[])) then .value.name else .value.englishName end)})
       | sort_by(.code != "en", (.label | sub("^Í"; "I") | sub("^Č"; "C") | ascii_downcase))
       | .[] | "\(.label)\t\(.code)"
-    ' "$omarchy_form_i18n/locales.json" |
-    gum choose --height 10 --label-delimiter $'\t' --selected "$(omarchy_form_language_label "${language:-en}")" \
-      --header "$(omarchy_form_text setupForm.languageHeader)") && status=0 || status=$?
+    ' "$omarchy_form_i18n/locales.json")
+  choice=$(gum choose --height 10 --label-delimiter $'\t' --selected "$(omarchy_form_language_label "${language:-en}")" \
+    --header "$(omarchy_form_text setupForm.languageHeader)" <<<"$languages") && status=0 || status=$?
   ((status == 0)) || return $status
   [[ -n $choice ]] || return 1
 
@@ -213,14 +253,20 @@ omarchy_prompt_language() {
 }
 
 omarchy_prompt_keyboard() {
-  local choice status default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
+  local choice status layouts default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
+  layouts=$(cut -d'|' -f1 <<<"$OMARCHY_KEYBOARD_LAYOUTS")
   # gum splits --selected on commas, so "Chinese (Simplified, Pinyin)" needs them escaped.
-  choice=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 |
-    gum choose --height 10 --selected "${default//,/\\,}" --header "$(omarchy_form_text setupForm.keyboardHeader)") && status=0 || status=$?
+  choice=$(gum choose --height 10 --selected "${default//,/\\,}" \
+    --header "$(omarchy_form_text setupForm.keyboardHeader)" <<<"$layouts") && status=0 || status=$?
   ((status == 0)) || return $status
 
-  local selection
-  selection=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | awk -F'|' -v c="$choice" '$1==c{print; exit}')
+  local line selection=""
+  while IFS= read -r line; do
+    if [[ ${line%%|*} == "$choice" ]]; then
+      selection=$line
+      break
+    fi
+  done <<<"$OMARCHY_KEYBOARD_LAYOUTS"
   [[ -n $selection ]] || return 1
   IFS='|' read -r keyboard_label keyboard keyboard_input_method keyboard_xkb_layout <<< "$selection"
   keyboard_input_method=${keyboard_input_method:-none}
@@ -286,21 +332,71 @@ omarchy_prompt_identity() {
   return $status
 }
 
-omarchy_prompt_hostname() {
-  local status
-  while true; do
-    hostname=$(gum input --placeholder "$(omarchy_form_text setupForm.hostnamePlaceholder)" --prompt.foreground="#845DF9" --prompt "$(omarchy_form_text setupForm.hostnamePrompt)") && status=0 || status=$?
-    ((status == 0)) || return $status
+# Lowercase letters and digits, every other run of characters one dash, none at
+# either end: "Dell Inc." is "dell-inc".
+omarchy_hostname_slug() {
+  sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' <<<"${1,,}"
+}
 
-    if [[ -z $hostname ]]; then
-      hostname="$OMARCHY_HOSTNAME_DEFAULT"
-      return 0
-    elif [[ "$hostname" =~ $OMARCHY_HOSTNAME_PATTERN ]]; then
-      return 0
+# The machine's maker and model, "dell xps14", from the firmware's DMI tables,
+# or from the device tree on ARM machines that have none ("Apple MacBook Pro
+# (14-inch, M2 Pro, 2023)"). The model is its first two words run together,
+# which is the name people know: XPS 14 9440, EliteBook 840 G10 Notebook PC,
+# Laptop 13 (AMD Ryzen 7040Series). Virtual machines are "vm", and placeholders
+# from boards nobody filled in are nothing.
+omarchy_hardware_name() {
+  local dmi=${OMARCHY_DMI_DIR:-/sys/class/dmi/id} tree=${OMARCHY_DEVICE_TREE_MODEL:-/proc/device-tree/model}
+  local vendor="" model="" maker first words
+
+  if [[ -r $dmi/sys_vendor ]]; then
+    vendor=$(<"$dmi/sys_vendor")
+    # Lenovo's product_name is a part number (21KC003FUS); the name on the lid
+    # is its product_version.
+    if [[ ${vendor,,} == "lenovo" ]]; then
+      model=$(cat "$dmi/product_version" 2>/dev/null) || model=""
     else
-      notice "$(omarchy_form_text setupForm.hostnameInvalid)" 1
+      model=$(cat "$dmi/product_name" 2>/dev/null) || model=""
     fi
-  done
+  elif [[ -r $tree ]]; then
+    model=$(tr -d '\0' <"$tree")
+    vendor=${model%% *}
+    model=${model#"$vendor"}
+  fi
+
+  case "${vendor,,} ${model,,}" in
+    *qemu* | *virtualbox* | *vmware* | *"virtual machine"* | *kvm* | *parallels* | *bochs* | "xen "*)
+      echo vm
+      return
+      ;;
+  esac
+  case ${vendor,,} in *"to be filled"* | *"system manufacturer"* | *"default string"* | *"not applicable"*) vendor="" ;; esac
+  case ${model,,} in *"to be filled"* | *"system product name"* | *"default string"* | *"not applicable"*) model="" ;; esac
+
+  first=$(omarchy_hostname_slug "${vendor%% *}")
+  case $first in
+    asustek) maker=asus ;;
+    micro-star) maker=msi ;;
+    hewlett-packard) maker=hp ;;
+    *) maker=$first ;;
+  esac
+
+  # Drop what's in parentheses, and the maker's name where the model repeats
+  # it (HP EliteBook, ASUS Zenbook).
+  read -ra words <<<"$(omarchy_hostname_slug "$(sed -E 's/\([^)]*\)//g' <<<"$model")" | tr - ' ')"
+  [[ -n ${words[0]:-} && (${words[0]} == "$maker" || ${words[0]} == "$first") ]] && words=("${words[@]:1}")
+  model="${words[0]:-}${words[1]:-}"
+
+  echo "${maker:0:12} ${model:0:16}"
+}
+
+# The hostname, made from the owner and the machine (dhh-dell-xps14) rather
+# than asked for; Setup > Network > Hostname changes it after install.
+omarchy_generate_hostname() {
+  local hardware
+  hardware=$(omarchy_hardware_name)
+  [[ -n ${hardware// /} ]] || hardware=$OMARCHY_HOSTNAME_DEFAULT
+  hostname=$(omarchy_hostname_slug "${username:0:30} $hardware")
+  [[ $hostname =~ $OMARCHY_HOSTNAME_PATTERN ]] || hostname=$OMARCHY_HOSTNAME_DEFAULT
 }
 
 # A fresh machine often hasn't joined a network yet, so the geo guess fails
@@ -325,7 +421,8 @@ omarchy_prompt_timezone() {
     zones=$(printf '%s\n' "$guess"; grep -vxF -- "$guess" <<<"$zones")
   fi
 
-  timezone=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)" <<<"$zones") && status=0 || status=$?
+  timezone=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)" \
+    --placeholder "$(omarchy_form_text setupForm.timezonePlaceholder)" <<<"$zones") && status=0 || status=$?
   ((status == 0)) || return $status
 
   [[ -n $timezone ]] || timezone="UTC"

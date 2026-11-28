@@ -425,3 +425,29 @@ if CALLS=$calls PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-inpu
   fail "an unknown cycle direction is rejected"
 fi
 pass "Super+Shift+I cycles back through the shell, and other directions are rejected"
+
+ROOT="$ROOT" run_node_test <<'JS'
+const profile = requireFromRoot('shell/Commons/InputMethodProfile.js')
+
+assertDeepEqual(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n'),
+  { needsWatcher: false, methods: ['keyboard-us'] },
+  'single keyboard method in one group skips the Python watcher'
+)
+assert(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n[Groups/0/Items/1]\nName=mozc\n').needsWatcher,
+  'a second input method starts the Python watcher'
+)
+assert(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=mozc\n').needsWatcher,
+  'a lone composition engine starts the Python watcher'
+)
+assert(
+  profile.parseProfile('[Groups/0]\nName=Default\n[Groups/0/Items/0]\nName=keyboard-us\n[Groups/1]\nName=Alt\n').needsWatcher,
+  'a second group starts the Python watcher'
+)
+assert(
+  profile.parseProfile('').needsWatcher,
+  'an empty or unreadable profile falls back to the Python watcher'
+)
+JS

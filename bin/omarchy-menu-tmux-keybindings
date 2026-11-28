@@ -34,7 +34,7 @@ if [[ ! -f $config_file ]]; then
   fi
 fi
 
-output_keybindings() (
+output_keybindings_uncached() (
   set -o pipefail
   socket_dir=$(mktemp -d)
   socket="$socket_dir/tmux"
@@ -120,6 +120,62 @@ $1 == "prefix2" && NF == 2 { prefix2 = $2; next }
 }'
 )
 
+# Skip caching when the config dynamically sources other files, uses tmux
+# preprocessor directives, or runs shell conditionals at load time (including
+# commands chained after an unescaped semicolon), so external edits are never
+# hidden behind a cache.
+config_cacheable() {
+  awk '
+    /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+    /^[[:space:]]*%/ { exit 1 }
+    {
+      line = $0
+      gsub(/\\;/, "\001", line)
+      n = split(line, cmds, ";")
+      for (i = 1; i <= n; i++) {
+        cmd = cmds[i]
+        sub(/^[[:space:]]+/, "", cmd)
+        if (cmd ~ /^(bind|bind-key)[[:space:]]/) continue
+        if (cmd ~ /^(source(-file)?|if(-shell)?|run(-shell)?)[[:space:]]/) exit 1
+      }
+    }
+  ' "$config_file"
+}
+
+output_keybindings() {
+  if ! config_cacheable; then
+    output_keybindings_uncached
+    return
+  fi
+
+  local cache_dir cache_name cache_file hash _ tmp_file
+  cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
+  read -r hash _ < <(
+    {
+      printf 'v1\n'
+      tmux -V 2>/dev/null
+      cat "$config_file"
+    } | sha256sum
+  )
+  cache_name="tmux-keybindings-$hash.records"
+  cache_file="$cache_dir/$cache_name"
+
+  if [[ -s $cache_file ]] && cat "$cache_file" 2>/dev/null; then
+    return 0
+  elif mkdir -p "$cache_dir" 2>/dev/null && tmp_file=$(mktemp "$cache_dir/tmux-keybindings.XXXXXX"); then
+    if output_keybindings_uncached >"$tmp_file" && [[ -s $tmp_file ]]; then
+      cat "$tmp_file"
+      mv -f "$tmp_file" "$cache_file"
+      find "$cache_dir" -maxdepth 1 -type f -name 'tmux-keybindings-*.records' ! -name "$cache_name" -mmin +1 -delete 2>/dev/null || true
+    else
+      rm -f "$tmp_file"
+      return 1
+    fi
+  else
+    output_keybindings_uncached
+  fi
+}
+
 if [[ $print_only == "true" ]]; then
   output_keybindings
   exit 0
@@ -127,7 +183,11 @@ fi
 
 records=$(output_keybindings)
 
-monitor_height=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .height' 2>/dev/null)
+monitor_height=$(hyprctl monitors 2>/dev/null | awk '
+  /^Monitor / { h = "" }
+  /^[[:space:]]+[0-9]+x[0-9]+@/ { split($1, dims, /[x@]/); h = dims[2] }
+  /^[[:space:]]+focused:[[:space:]]*yes/ { print h; exit }
+')
 
 if [[ ! $monitor_height =~ ^[0-9]+$ ]] || ((monitor_height <= 0)); then
   monitor_height=900

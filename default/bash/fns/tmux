@@ -7,7 +7,7 @@ tdl() {
   local current_dir="${PWD}"
   local editor_pane ai_pane ai2_pane
   local ai="$1"
-  local ai2="$2"
+  local ai2="${2:-}"
 
   # Use TMUX_PANE for the pane we're running in (stable even if active window changes)
   editor_pane="$TMUX_PANE"
@@ -34,7 +34,7 @@ tdl() {
   tmux send-keys -t "$editor_pane" "$EDITOR ." C-m
 
   # Select the nvim pane for focus
-  tmux select-pane -t "$opencode_pane"
+  tmux select-pane -t "$editor_pane"
 }
 
 # Create a Tmux Dev Square layout with editor, diff watch, terminal, and opencode

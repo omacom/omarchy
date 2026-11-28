@@ -2,5 +2,10 @@
 
 # omarchy:summary=Print the detected Hyprland touchscreen or tablet device name
 
-device=$(hyprctl devices -j | jq -r '[.touch[]?.name, .tablets[]?.name] | first // empty')
+# iptsd (Surface touchscreens) takes the raw device and creates its own, which
+# is the one that reports touches; the raw one stays silent. So it comes first.
+device=$(hyprctl devices -j | jq -r '
+  [.touch[]?.name] as $touch
+  | [$touch[] | select(startswith("iptsd-virtual-touchscreen"))] as $iptsd
+  | ($iptsd + $touch + [.tablets[]?.name]) | first // empty')
 [[ -n $device ]] && echo "$device"

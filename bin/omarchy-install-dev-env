@@ -20,13 +20,7 @@ install_php() {
 
 install_node() {
   echo -e "Installing Node.js...\n"
-  # Omarchy declares Node as a default tool. A user who removed the preinstalls,
-  # like one without Omarchy's declarations, selects it in their own config.
-  if omarchy-mise-default-tools declares node; then
-    mise install node
-  else
-    mise use --global node
-  fi
+  mise use --global node
 }
 
 case "$1" in
@@ -36,7 +30,9 @@ ruby)
   mise settings add ruby.compile false
   mise settings add idiomatic_version_file_enable_tools ruby
   mise use --global ruby@latest
-  echo "gem: --no-document" >~/.gemrc
+  # Added to, not replaced, so a region's mirror (docs/regions.md) or the
+  # user's own settings stay.
+  grep -qxF "gem: --no-document" ~/.gemrc 2>/dev/null || echo "gem: --no-document" >>~/.gemrc
   mise x ruby -- gem install rails --no-document
   echo -e "\nYou can now run: rails new myproject"
   ;;
@@ -75,14 +71,6 @@ symfony)
 python)
   echo -e "Installing Python...\n"
   mise use --global python@latest
-  echo -e "\nInstalling uv...\n"
-  # Omarchy declares uv as a default tool. A user who removed the preinstalls,
-  # like one without Omarchy's declarations, selects it in their own config.
-  if omarchy-mise-default-tools declares uv; then
-    mise install uv
-  else
-    mise use --global uv
-  fi
   ;;
 elixir)
   echo -e "Installing Elixir...\n"

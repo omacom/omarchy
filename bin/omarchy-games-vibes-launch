@@ -22,6 +22,10 @@ fi
 vibes="$HOME/Games/vibes"
 mkdir -p "$vibes"
 
+# Every game loads three.js from ../three.min.js, so the games made here get
+# the copy the shipped ones sit beside.
+cp "$OMARCHY_PATH/default/games/vibes/three.min.js" "$vibes/three.min.js"
+
 # A game is a folder named like a command, holding an index.html. One made
 # here replaces the shipped game of its name, as a copy to keep working on
 # does. Its title is the page's <title>, and its blurb its description meta.

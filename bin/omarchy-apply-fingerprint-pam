@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Put fingerprint authentication first in the sudo and polkit PAM stacks
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -e
+
+# The fingerprint setup runs this once a print is enrolled and verified: from a
+# terminal as the user, where sudo asks, and from the fingerprint panel's
+# helper, which pkexec has already made root.
+as_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+# A clamshell gate runs before pam_fprintd in every stack: when the lid is
+# shut the reader is unreachable, so it skips fingerprint (success=1) and PAM
+# drops straight to the password prompt instead of blocking on the reader
+# until it times out. Lid open → fingerprint, then password as the fallback.
+#
+# pam_exec needs a literal absolute path (no env expansion). Point at the
+# fixed /usr/bin path the omarchy package always provides, so the gate keeps
+# working across package installs and dev-link — the latter overlays
+# $OMARCHY_PATH trees but leaves /usr/bin untouched.
+fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed"
+
+# Configure sudo
+if ! grep -q pam_fprintd.so /etc/pam.d/sudo; then
+  echo "Configuring sudo for fingerprint authentication..."
+  as_root sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
+fi
+if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/sudo; then
+  echo "Adding clamshell gate to sudo..."
+  # Insert immediately before pam_fprintd so success=1 skips exactly it.
+  as_root sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/sudo
+fi
+
+# Configure polkit
+if [[ -f /etc/pam.d/polkit-1 ]]; then
+  if ! grep -q 'pam_fprintd.so' /etc/pam.d/polkit-1; then
+    echo "Configuring polkit for fingerprint authentication..."
+    as_root sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/polkit-1
+  fi
+  if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/polkit-1; then
+    echo "Adding clamshell gate to polkit..."
+    as_root sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/polkit-1
+  fi
+else
+  echo "Creating polkit configuration with fingerprint authentication..."
+  # omarchy:heredoc-expands paths=none -- $fprintd_gate is the literal PAM
+  # line defined above, shared with the sed insertions so the gate cannot
+  # drift between files. The only path in it is the fixed /usr/bin one.
+  as_root tee /etc/pam.d/polkit-1 >/dev/null <<EOF
+$fprintd_gate
+auth      sufficient pam_fprintd.so
+auth      include system-auth
+
+account   include system-auth
+password  include system-auth
+session   include system-auth
+EOF
+fi
