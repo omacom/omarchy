@@ -383,8 +383,8 @@ Item {
       actionFor: function(value) { return "omarchy-launch-floating-terminal-with-presentation omarchy-snapshot boot " + Util.shellQuote(value) }
     },
     // Rows carry a fourth field (the English name) so searching "danish"
-    // finds the row labeled with its native name; mergeProviderRows turns
-    // it into an alias.
+    // finds the row labeled with its native name; MenuModel.providerRows
+    // turns it into a search term.
     "languages": {
       script: "current=$(omarchy-language 2>/dev/null); omarchy-language list 2>/dev/null | while IFS=$'\\t' read -r name code english; do [[ -z $code ]] && continue; printf '%s\\t%s\\t%s\\t%s\\n' \"$name\" \"$code\" \"$current\" \"$english\"; done",
       icon: "\uf1ab",
@@ -442,6 +442,21 @@ Item {
     if (root.opened) root.rebuildDisplay()
   }
 
+  // A named provider comes from the map above; an extension's own provider
+  // object becomes the same kind of spec, so both run and merge alike.
+  function providerSpec(entry) {
+    if (!entry || !entry.provider) return null
+    if (typeof entry.provider === "string") return root.providers[entry.provider] || null
+
+    var provider = entry.provider
+    return {
+      script: provider.command,
+      icon: provider.icon,
+      volatile: provider.volatile,
+      actionFor: function(value) { return MenuModel.providerAction(provider.action, value) }
+    }
+  }
+
   function startProviderForMenu(id) {
     var entry = root.item(id)
     if (!entry || !entry.provider || root.providersLoaded[id]) return
@@ -450,59 +465,21 @@ Item {
       root.mergeAppRows()
       return
     }
-    var spec = root.providers[entry.provider]
+    var spec = root.providerSpec(entry)
     if (!spec) return
 
     root.providersLoaded[id] = true
     providerProc.menuId = id
-    providerProc.providerKey = entry.provider
+    providerProc.spec = spec
     providerProc.revision = root.providerRevision
     providerProc.collected = ""
     providerProc.command = ["bash", "-lc", spec.script]
     providerProc.running = true
   }
 
-  function mergeProviderRows(rows, menuId, providerKey) {
-    var spec = root.providers[providerKey]
+  function mergeProviderRows(rows, menuId, spec) {
     if (!spec) return
-    var lines = String(rows || "").split("\n")
-    var providerRows = []
-    var takenIds = ({})
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim()
-      if (!line) continue
-      var parts = line.split("\t")
-      var rawLabel = parts[0] || ""
-      var label = spec.labelFor ? spec.labelFor(rawLabel) : rawLabel
-      var value = parts[1] || parts[0] || ""
-      var current = parts[2] || ""
-      if (!label) continue
-      // Distinct values can slugify alike — Fira Code and Fira-Code both give
-      // fira-code — and a repeated id is dropped, which would silently lose a
-      // row from the list. Nudge it until it is the row's own.
-      var rowId = menuId + "." + root.slugify(value)
-      while (takenIds[rowId]) rowId += "-"
-      takenIds[rowId] = true
-
-      providerRows.push({
-        id: rowId,
-        parent: menuId,
-        kind: "action",
-        icon: (value === current) ? "✓" : (spec.icon || ""),
-        label: label,
-        title: "",
-        target: "",
-        description: "",
-        action: spec.actionFor(value),
-        provider: "",
-        aliases: [],
-        searchTerms: (parts[3] ? [parts[3]] : []).concat(label !== rawLabel ? [rawLabel] : []),
-        when: "",
-        checked: "",
-        disabled: "",
-        order: 0
-      })
-    }
+    var providerRows = MenuModel.providerRows(menuId, rows, spec)
     var merged = MenuModel.swapProviderRows(root.items, root.itemOrder, menuId, providerRows)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
@@ -526,9 +503,28 @@ Item {
   // again: it may have been reshaped by the last pick from it. Search doesn't
   // invalidate, or every keystroke would restart the same enumeration.
   function invalidateVolatileProvider(id) {
-    var entry = root.item(id)
-    var spec = entry && entry.provider ? root.providers[entry.provider] : null
+    var spec = root.providerSpec(root.item(id))
     if (spec && spec.volatile) root.providersLoaded[id] = false
+  }
+
+  // Opening the menu invalidates every volatile list, not just the one on
+  // show: a search from the root reaches rows in submenus never entered, and
+  // they may have changed since the last time the menu was open. Their old
+  // rows go too, so nothing stale can be picked before the new ones arrive.
+  function invalidateVolatileProviders() {
+    var stale = []
+    for (var i = 0; i < root.itemOrder.length; i++) {
+      var id = root.itemOrder[i]
+      var spec = root.providerSpec(root.item(id))
+      if (!spec || !spec.volatile) continue
+      root.providersLoaded[id] = false
+      stale.push(id)
+    }
+    if (stale.length === 0) return
+
+    var cleared = MenuModel.clearProviderRows(root.items, root.itemOrder, stale)
+    root.items = cleared.items
+    root.itemOrder = cleared.itemOrder
   }
 
   function loadProviderForMenu(id) {
@@ -1033,8 +1029,8 @@ Item {
     root.disarmPointer()
     root.evaluateGuards()
     opened = true
+    invalidateVolatileProviders()
     rebuildDisplay()
-    invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
     // their icons. Refresh here even when the desktop entry list did not change.
@@ -1173,7 +1169,7 @@ Item {
   Process {
     id: providerProc
     property string menuId: ""
-    property string providerKey: ""
+    property var spec: null
     property string collected: ""
     property int revision: 0
     stdout: SplitParser {
@@ -1181,7 +1177,7 @@ Item {
     }
     onExited: {
       if (providerProc.revision === root.providerRevision) {
-        root.mergeProviderRows(providerProc.collected, providerProc.menuId, providerProc.providerKey)
+        root.mergeProviderRows(providerProc.collected, providerProc.menuId, providerProc.spec)
         if (root.filterText.trim()) root.loadProvidersForSearch()
       }
       root.startNextProvider()

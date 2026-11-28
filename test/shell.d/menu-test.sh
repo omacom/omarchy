@@ -352,6 +352,86 @@ assertDeepEqual(clockRowFormats('verticalFormat'), clockModel.clockFormats(true)
   }
 }
 
+// An extension can declare a provider of its own instead of naming one.
+const extensionProvider = menu.normalizeItem('tabs', {
+  label: 'Tabs',
+  provider: { command: 'list-tabs', action: 'focus-tab {value}', icon: 'T', volatile: true, extra: 1 }
+})
+assertEqual(
+  JSON.stringify(extensionProvider.provider),
+  JSON.stringify({ command: 'list-tabs', action: 'focus-tab {value}', icon: 'T', volatile: true }),
+  'menu keeps an extension provider object'
+)
+assertEqual(extensionProvider.kind, 'menu', 'an extension provider row is a submenu')
+assertEqual(menu.normalizeItem('fonts', { provider: 'fonts' }).provider, 'fonts', 'menu keeps a named provider')
+assertEqual(menu.normalizeItem('a', { provider: { action: 'run {value}' } }).provider, '', 'menu drops a provider without a command')
+assertEqual(menu.normalizeItem('b', { provider: { command: 'ls', action: 'run' } }).provider, '', 'menu drops a provider whose action ignores the value')
+assertEqual(menu.normalizeItem('c', { provider: 7 }).provider, '', 'menu drops a provider that is neither a name nor an object')
+assertEqual(
+  menu.normalizeItem('d', { provider: { command: 'ls', action: 'run {value}', volatile: 'yes' } }).provider.volatile,
+  false,
+  'menu treats only true as volatile'
+)
+const mergedExtension = menu.mergeMenuSources(
+  [menu.normalizeItem('root', {})],
+  menu.parseMenuJsonc('{ "tabs": {"label": "Tabs", "provider": {"command": "list-tabs", "action": "focus-tab {value}"}} }')
+)
+assertEqual(mergedExtension.items.tabs.provider.command, 'list-tabs', 'menu merges an extension provider from the user file')
+assertEqual(
+  typeof menu.displayRow(mergedExtension.items, mergedExtension.itemOrder, {}, {}, mergedExtension.items.tabs).provider,
+  'string',
+  'menu display rows carry a provider string the typed list model accepts'
+)
+
+// Provider output becomes rows whose actions run the chosen value, and nothing
+// else, however the value is spelled.
+const { execFileSync } = require('child_process')
+const tabsSpec = { icon: 'T', actionFor: value => menu.providerAction("printf '%s' {value}", value) }
+const hostileValue = "it's $(touch /tmp/pwned) `id` \\ \"q\""
+const tabRows = menu.providerRows('tabs', [
+  'Inbox\ttab-1\ttab-2\tmail\tWork · mail.example',
+  `Hostile\t${hostileValue}`,
+  '',
+  'Current\ttab-2\ttab-2'
+].join('\n'), tabsSpec)
+assertEqual(tabRows.map(row => row.label).join('|'), 'Inbox|Hostile|Current', 'provider rows skip blank lines')
+assertEqual(tabRows[0].description, 'Work · mail.example', 'provider rows read an optional fifth column as the description')
+assertDeepEqual(tabRows[0].searchTerms, ['mail'], 'provider rows read an optional fourth column as a search-only term')
+assertDeepEqual(tabRows[2].searchTerms, [], 'a provider row without a search term has none')
+assertEqual(tabRows[0].icon, 'T', 'provider rows take the spec icon')
+assertEqual(tabRows[2].icon, '✓', 'the provider row matching current is checked')
+assertEqual(tabRows[1].description, '', 'a provider row without a description has none')
+assertEqual(tabRows[0].parent, 'tabs', 'provider rows belong to the submenu that produced them')
+const translatedRow = menu.providerRows('power', 'balanced\tbalanced', { actionFor: value => value, labelFor: label => label === 'balanced' ? 'Tasapainoinen' : label })[0]
+assertEqual(translatedRow.label, 'Tasapainoinen', 'provider rows take a translated label from the spec')
+assertDeepEqual(translatedRow.searchTerms, ['balanced'], 'a translated provider row stays searchable by its raw label')
+for (const [row, value] of [[tabRows[0], 'tab-1'], [tabRows[1], hostileValue]]) {
+  assertEqual(execFileSync('bash', ['-c', row.action], { encoding: 'utf8' }), value, `provider action passes ${JSON.stringify(value)} through as one literal word`)
+}
+
+// {value} is inserted already quoted, so a template that wraps it in its own
+// quotes turns the quoting inside out and the shell expands the value. This pins
+// that behavior; the docs tell extension authors to use {value} bare.
+const expandingValue = '$(printf pwned)'
+assertEqual(
+  execFileSync('bash', ['-c', menu.providerAction("printf '%s' {value}", expandingValue)], { encoding: 'utf8' }),
+  expandingValue,
+  'a bare {value} keeps a command substitution literal'
+)
+assertEqual(
+  execFileSync('bash', ['-c', menu.providerAction("printf '%s' '{value}'", expandingValue)], { encoding: 'utf8' }),
+  'pwned',
+  "a {value} wrapped in single quotes lets the shell expand the value"
+)
+
+// Opening the menu clears a volatile provider's rows, so a search made before
+// the list runs again cannot pick a row that is gone.
+const withTabs = menu.swapProviderRows(mergedExtension.items, mergedExtension.itemOrder, 'tabs', tabRows)
+const withFonts = menu.swapProviderRows(withTabs.items, withTabs.itemOrder, 'fonts', [{ id: 'fonts.mono', parent: 'fonts', kind: 'action', label: 'Mono' }])
+const cleared = menu.clearProviderRows(withFonts.items, withFonts.itemOrder, ['tabs'])
+assert(!cleared.itemOrder.some(id => id.startsWith('tabs.')), 'clearing a provider drops its rows')
+assert(cleared.itemOrder.includes('tabs') && cleared.itemOrder.includes('fonts.mono'), 'clearing a provider keeps its submenu and other providers\' rows')
+
 // App rows are rebuilt from scratch on every desktop-entry rescan. The merge
 // must be idempotent and must never carry an orphan id forward, or a single
 // lost write turns into an app listed twice (and thrice, and so on).
@@ -428,6 +508,19 @@ assert(
   menu.swapProviderRows(firstProviderMerge.items, firstProviderMerge.itemOrder, 'style.other', providerRowsFor([]))
     .itemOrder.join(',') === 'root,apps,style.font.mono,style.font.serif',
   'provider merge leaves rows belonging to another provider alone'
+)
+// Rows are keyed by id, so a provider handing over two rows with the same id
+// would lose one. Distinct plugin ids can slugify alike, which is why the
+// menu makes each row id its own before merging.
+assertEqual(
+  ['acme.foo', 'acme_foo', 'acme-foo'].map(menu.slugify).join(','),
+  'acme-foo,acme-foo,acme-foo',
+  'menu slugs collide across plugin ids that differ only in separator'
+)
+assertEqual(
+  menu.providerRows('style.font', 'Acme\tacme.foo\nAcme\tacme_foo\nAcme\tacme-foo', { actionFor: value => value }).map(row => row.id).join(','),
+  'style.font.acme-foo,style.font.acme-foo-,style.font.acme-foo--',
+  'menu keeps colliding provider rows apart so none is dropped'
 )
 
 assertDeepEqual(
