@@ -585,10 +585,11 @@ PanelWindow {
     }
 
     // Only the left button drags; another pressed meanwhile is no part of it.
+    // A drag dropped away from the button is followed by no click to clear
+    // its mark, so any press outside a drag starts clean.
     mouse.onPressed: function(event) {
-      if (event.button !== Qt.LeftButton) return
-      appsSlot.dragged = false
-      appsSlot.pressPoint = Qt.point(event.x, event.y)
+      if (!window.movingDock) appsSlot.dragged = false
+      if (event.button === Qt.LeftButton) appsSlot.pressPoint = Qt.point(event.x, event.y)
     }
 
     // Past a short way from where it was pressed, the press is a move of the
