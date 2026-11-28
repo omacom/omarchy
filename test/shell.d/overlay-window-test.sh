@@ -25,6 +25,13 @@ assert(ready(true, true, 1200, 750, screen, { scale: 1.333333 }, 160 / 120),
   'scale comparison tolerates compositor floating point rounding')
 assert(!ready(true, true, 500, 500, screen, monitor, 1.6),
   'initial window geometry never stretches content across the screen')
+const centeredScreen = { name: 'DP-1', width: 2400, height: 1350 }
+assert(ready(true, true, 2400, 1351, centeredScreen, monitor, 1.6),
+  'a fractionally centered output reveals despite one logical pixel of height rounding')
+assert(ready(true, true, 2399, 1350, centeredScreen, monitor, 1.6),
+  'fullscreen geometry tolerates one logical pixel of width rounding too')
+assert(!ready(true, true, 2400, 1348, centeredScreen, monitor, 1.6),
+  'larger geometry differences still wait for fullscreen sizing')
 assert(!ready(true, false, 1200, 750, screen, monitor, 1.6),
   'content waits for a mapped backing window')
 assert(!ready(false, true, 1200, 750, screen, monitor, 1.6),
