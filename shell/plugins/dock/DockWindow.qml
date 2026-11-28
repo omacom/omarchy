@@ -137,8 +137,12 @@ PanelWindow {
   }
   property var menuItem: null
   property Item menuSlot: null
-  // The apps button's menu: where the dock sits and whether it hides.
+  // The apps button's menu: where the dock sits, the workspace's layout, and
+  // whether the dock hides. Position and Layout open their choices in place of
+  // the top level, with a row back to it.
   property bool settingsMenu: false
+  property string settingsPage: ""
+  readonly property string workspaceMode: dock && dock.modes[workspaceId] ? dock.modes[workspaceId] : "dwindle"
 
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
@@ -156,8 +160,23 @@ PanelWindow {
 
   function openSettingsMenu(slot) {
     window.menuItem = null
+    window.settingsPage = ""
     window.settingsMenu = true
     window.menuSlot = slot
+  }
+
+  // The layout commands cycle the focused workspace through dwindle, scrolling,
+  // and floating, so a layout is one step forward or back from any other. A
+  // choice on another screen's dock focuses that screen first.
+  function setLayout(mode) {
+    var order = ["dwindle", "scrolling", "floating"]
+    var from = order.indexOf(window.workspaceMode)
+    var to = order.indexOf(mode)
+    if (from < 0 || to < 0 || from === to) return
+    var command = "omarchy-hyprland-workspace-layout-toggle" + ((to - from + 3) % 3 === 1 ? "" : " back")
+    if (window.monitor && !window.monitor.focused)
+      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null && " + command
+    Util.execDetached(command)
   }
 
   function settleShifts() {
@@ -176,6 +195,7 @@ PanelWindow {
   function closeMenu() {
     window.menuItem = null
     window.settingsMenu = false
+    window.settingsPage = ""
     window.menuSlot = null
     if (window.autohide) hideTimer.restart()
   }
@@ -307,7 +327,7 @@ PanelWindow {
     Grid {
       id: slots
       anchors.centerIn: parent
-      columns: window.vertical ? 1 : appRepeater.count + 2
+      columns: window.vertical ? 1 : appRepeater.count + 1
 
       AppsSlot {}
 
@@ -317,8 +337,6 @@ PanelWindow {
 
         delegate: AppSlot {}
       }
-
-      LayoutSlot {}
     }
   }
 
@@ -340,56 +358,6 @@ PanelWindow {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-    }
-  }
-
-  // The workspace's layout, in the bar's marks: a square tiles, a circle
-  // scrolls, and a triangle floats. A click cycles to the next one, as
-  // Super + L does, and a right-click back, as Super + Alt + L does.
-  component LayoutSlot: Slot {
-    id: layoutSlot
-
-    readonly property string mode: window.dock && window.dock.modes[window.workspaceId] ? window.dock.modes[window.workspaceId] : "dwindle"
-    // Last in the dock, so it steps aside the other way from the apps button.
-    property real displayedShift: window.insertIndex >= 0 ? window.slotSize / 2 : 0
-
-    Behavior on displayedShift {
-      enabled: window.animateShifts
-      NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
-    }
-
-    transform: Translate {
-      x: window.vertical ? 0 : layoutSlot.displayedShift
-      y: window.vertical ? layoutSlot.displayedShift : 0
-    }
-
-    // The layout commands act on the focused workspace, so a click on another
-    // screen's dock focuses that screen first.
-    mouse.onClicked: function(event) {
-      window.closeMenu()
-      var command = "omarchy-hyprland-workspace-layout-toggle" + (event.button === Qt.RightButton ? " back" : "")
-      if (window.monitor && !window.monitor.focused)
-        command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null && " + command
-      Util.execDetached(command)
-    }
-
-    Text {
-      x: window.iconInset
-      y: window.iconInset
-      width: window.iconSize
-      height: window.iconSize
-      horizontalAlignment: Text.AlignHCenter
-      verticalAlignment: Text.AlignVCenter
-      text: layoutSlot.mode === "scrolling" ? "󰝥" : layoutSlot.mode === "floating" ? "󰔶" : "󱓻"
-      font.family: Style.font.family
-      font.pixelSize: Math.round(window.iconSize * 0.8)
-      // A theme change fades it with the bar's palette.
-      color: Commons.Color.bar.text
-      scale: layoutSlot.hovered ? 1.15 : 1
-      transformOrigin: window.popOrigin
-
-      Behavior on color { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
-      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     }
   }
 
@@ -695,6 +663,39 @@ PanelWindow {
       y: menu.contentTopInset
       width: menu.width - menu.contentLeftInset - menu.contentRightInset
 
+      PopupMenuRow {
+        visible: window.settingsMenu && window.settingsPage === ""
+        text: Commons.I18n.t("dock.position")
+        submenu: true
+        onTriggered: window.settingsPage = "position"
+      }
+
+      PopupMenuRow {
+        visible: window.settingsMenu && window.settingsPage === ""
+        text: Commons.I18n.t("dock.layout")
+        submenu: true
+        onTriggered: window.settingsPage = "layout"
+      }
+
+      // A tiled workspace always hides the dock; the setting is the floating
+      // workspaces' one.
+      PopupMenuRow {
+        visible: window.settingsMenu && window.settingsPage === ""
+        text: Commons.I18n.t("dock.autoHide")
+        checked: !!window.dock && window.dock.autohide
+        onTriggered: {
+          Util.execDetached("omarchy-dock autohide " + (window.dock.autohide ? "off" : "on"))
+          window.closeMenu()
+        }
+      }
+
+      PopupMenuRow {
+        visible: window.settingsMenu && window.settingsPage !== ""
+        text: window.settingsPage === "layout" ? Commons.I18n.t("dock.layout") : Commons.I18n.t("dock.position")
+        back: true
+        onTriggered: window.settingsPage = ""
+      }
+
       Repeater {
         model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
 
@@ -702,7 +703,7 @@ PanelWindow {
         delegate: PopupMenuRow {
           required property var modelData
 
-          visible: window.settingsMenu
+          visible: window.settingsMenu && window.settingsPage === "position"
           text: modelData[1]
           checked: window.position === modelData[0]
           onTriggered: {
@@ -712,14 +713,19 @@ PanelWindow {
         }
       }
 
-      // A tiled workspace always hides the dock, so the setting is a floating one.
-      PopupMenuRow {
-        visible: window.settingsMenu && window.floating
-        text: Commons.I18n.t("dock.autoHide")
-        checked: !!window.dock && window.dock.autohide
-        onTriggered: {
-          Util.execDetached("omarchy-dock autohide " + (window.dock.autohide ? "off" : "on"))
-          window.closeMenu()
+      Repeater {
+        model: [["dwindle", Commons.I18n.t("dock.layoutTiling")], ["scrolling", Commons.I18n.t("dock.layoutScrolling")], ["floating", Commons.I18n.t("dock.layoutFloating")]]
+
+        delegate: PopupMenuRow {
+          required property var modelData
+
+          visible: window.settingsMenu && window.settingsPage === "layout"
+          text: modelData[1]
+          checked: window.workspaceMode === modelData[0]
+          onTriggered: {
+            window.setLayout(modelData[0])
+            window.closeMenu()
+          }
         }
       }
 
