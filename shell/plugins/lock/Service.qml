@@ -348,7 +348,19 @@ Item {
     armFingerprintRetry(FingerprintModel.MATCH_RETRY_MS)
   }
 
+  // The panel may only go dark under a lock surface the compositor holds on a
+  // real output. While the lock is still pending there is nothing to wake to,
+  // so a blank left the session locked on a dark panel with only the power
+  // button as a way out (#20487).
+  function canBlank() {
+    return lockRequested && sessionLock.secure && hasRealScreen()
+  }
+
   function runBlank() {
+    if (!canBlank()) {
+      if (lastEvent !== "blank-held: no-lock-surface") logEvent("blank-held: no-lock-surface")
+      return
+    }
     pauseFingerprint()
     if (!blankProcess.running) blankProcess.running = true
   }
@@ -478,6 +490,9 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        // A blank held back while the lock was pending gets a fresh run-up now
+        // that there is a surface to wake to.
+        if (root.lockRequested && !idleBlankTimer.running) root.armBlankTimer()
         root.startFingerprint()
       }
     }
