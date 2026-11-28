@@ -55,7 +55,16 @@ if [[ -z ${profile:-} ]] || ! profile_available "$profile"; then
   fi
 fi
 
-powerprofilesctl set "$profile" || exit
+# power-profiles-daemon toggles /sys/devices/system/cpu/cpufreq/boost, which
+# apple-cpufreq rejects on Apple Silicon. PPD can still exit 0 without changing
+# scaling_max_freq, so always cap frequencies on Apple. The root helper takes the
+# machine-wide lock and records the applied profile for omarchy-powerprofiles-list.
+if omarchy-hw-aarch64-apple 2>/dev/null; then
+  powerprofilesctl set "$profile" 2>/dev/null || true
+  omarchy-powerprofiles-apple-cpufreq-apply "$profile" || exit 1
+else
+  powerprofilesctl set "$profile" || exit 1
+fi
 omarchy-shell -q battery refreshPowerProfile >/dev/null 2>&1 || true
 
 if [[ -n $requested_profile ]]; then
