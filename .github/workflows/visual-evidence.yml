@@ -25,7 +25,7 @@ on:
       - 'default/fonts/**'
       - 'default/gtk/**'
       - 'default/plymouth/**'
-      - 'default/sddm/**'
+      - 'default/splash/**'
       - 'default/limine/**'
       - 'default/i18n/**'
 

@@ -28,9 +28,8 @@ CONF
 # acpi=nospcr the kernel adopts it and the LUKS prompt and any initramfs
 # emergency shell go to a UART nobody is watching. The ISO installer gives
 # every aarch64 install console=tty0 acpi=nospcr (00-omarchy-console.conf). The
-# entry otherwise boots as quietly as on x86, so Plymouth stays up from the
-# LUKS prompt to the login screen.
-mkdir -p /etc/limine-entry-tool.d
+# entry otherwise boots as quietly as on x86, so the boot splash stays up from
+# the LUKS prompt to the login screen.
 
 # cppc_cpufreq leaves CPPC autonomous selection off, so the CPUs follow the
 # kernel governor and the energy performance preference that
@@ -60,17 +59,9 @@ RULES
 # ports. Other N1x laptops (the Dell XPS 16) set aside fewer bus numbers, as
 # tested there with a TS4.
 if omarchy-hw-match "H7407BA"; then
-  cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
-# N1x: leave room for docks behind the USB4 tunnel root ports; see
-# install/hardware/n1x.sh.
-KERNEL_CMDLINE[default]+=" pci=hpbussize=0x80,hpmmiosize=32M,hpmmioprefsize=32G"
-CONF
+  omarchy-boot-cmdline set 00-omarchy-n1x-usb4 pci=hpbussize=0x80,hpmmiosize=32M,hpmmioprefsize=32G
 else
-  cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
-# N1x: leave bus numbers for docks behind the USB4 tunnel root ports; see
-# install/hardware/n1x.sh.
-KERNEL_CMDLINE[default]+=" pci=hpbussize=0x20"
-CONF
+  omarchy-boot-cmdline set 00-omarchy-n1x-usb4 pci=hpbussize=0x20
 fi
 
 # GPU policy, decided by the system firmware version.
@@ -92,7 +83,7 @@ bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
 if [[ ! $bios_version =~ ^0\. ]]; then
   echo "N1x firmware $bios_version: GPU drives the panel"
-  omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver nvidia-container-toolkit
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver nvidia-container-toolkit
   cat > /etc/modprobe.d/nvidia.conf <<'CONF'
 options nvidia_drm modeset=1 fbdev=1
 CONF
@@ -124,17 +115,16 @@ if declare -F add_firmware >/dev/null && ! declare -F _omarchy_n1x_add_firmware 
   }
 fi
 CONF
-  printf '%s\n' \
-    '# N1x on firmware >= 1.0: the GPU owns the panel; drop the firmware' \
-    '# framebuffer so Hyprland sees one DRM device.' \
-    'KERNEL_CMDLINE[default]+=" initcall_blacklist=simpledrm_platform_driver_init"' \
-    > /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf
+  # N1x on firmware >= 1.0: the GPU owns the panel; drop the firmware
+  # framebuffer so Hyprland sees one DRM device.
+  omarchy-boot-cmdline set 00-omarchy-n1x-gpu initcall_blacklist=simpledrm_platform_driver_init
 
   # The panel stays at its dim power-on backlight until the NVIDIA backlight
   # is first written: its DPCD brightness registers read zero and nvidia_0
   # reports 100 regardless. systemd-backlight only writes it once the root
   # filesystem is unlocked, so the LUKS prompt is nearly black. An initramfs
-  # hook right after plymouth writes it first.
+  # hook right after the boot splash's (omarchy-splash, or plymouth) writes it
+  # first.
   mkdir -p /etc/initcpio/install /etc/initcpio/hooks
   cat > /etc/initcpio/install/omarchy-n1x-boot-brightness <<'HOOK'
 #!/bin/bash
@@ -145,7 +135,7 @@ build() {
 
 help() {
     cat <<HELPEOF
-Light the NVIDIA N1x panel for Plymouth's LUKS prompt.
+Light the NVIDIA N1x panel for the LUKS prompt.
 HELPEOF
 }
 HOOK
@@ -154,7 +144,7 @@ HOOK
 
 # The panel stays at its dim power-on backlight until the NVIDIA backlight is
 # first written, which systemd-backlight only does once the root filesystem is
-# unlocked. Write it here so Plymouth's LUKS prompt is readable;
+# unlocked. Write it here so the LUKS prompt is readable;
 # systemd-backlight restores the saved level after unlock.
 run_hook() {
     if [ -w /sys/class/backlight/nvidia_0/brightness ]; then
@@ -163,20 +153,21 @@ run_hook() {
 }
 HOOK
   cat > /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf <<'CONF'
-# N1x: light the panel for Plymouth's LUKS prompt; see install/hardware/n1x.sh.
+# N1x: light the panel for the LUKS prompt; see install/hardware/n1x.sh.
 # Sorts after omarchy_hooks.conf so HOOKS is already set.
 _omarchy_n1x_hooks=()
 for _omarchy_n1x_hook in "${HOOKS[@]}"; do
   _omarchy_n1x_hooks+=("$_omarchy_n1x_hook")
-  [[ $_omarchy_n1x_hook == plymouth ]] && _omarchy_n1x_hooks+=(omarchy-n1x-boot-brightness)
+  [[ $_omarchy_n1x_hook == omarchy-splash || $_omarchy_n1x_hook == plymouth ]] &&
+    _omarchy_n1x_hooks+=(omarchy-n1x-boot-brightness)
 done
 HOOKS=("${_omarchy_n1x_hooks[@]}")
 unset _omarchy_n1x_hooks _omarchy_n1x_hook
 CONF
 else
   echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
-  rm -f /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf \
-    /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf \
+  omarchy-boot-cmdline unset 00-omarchy-n1x-gpu
+  rm -f /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf \
     /etc/mkinitcpio.conf.d/omarchy-n1x-nvidia-firmware.conf
   cat > /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf <<'CONF'
 # N1x: the NVIDIA stack cannot drive this panel here; see install/hardware/n1x.sh.
@@ -193,4 +184,4 @@ fi
 
 # omarchy-n1x-probe collects hardware and boot evidence on demand and uses
 # lspci.
-omarchy-pkg-add pciutils
+OMARCHY_PKG_DEFER=1 omarchy-pkg-add pciutils

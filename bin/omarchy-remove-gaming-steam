@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing Steam..."
 omarchy-lifecycle-dispatch pre-remove steam
 omarchy-pkg-drop steam
 

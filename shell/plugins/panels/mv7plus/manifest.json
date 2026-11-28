@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.mv7plus",
+  "name": "Shure MV7+",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Control Shure MV7+ onboard DSP, gain, tone, reverb, and headphone monitor mix from the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Shure MV7+",
+    "description": "Shure MV7+ microphone DSP panel; appears in the bar whenever the MV7+ is connected.",
+    "category": "Audio",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

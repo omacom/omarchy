@@ -10,6 +10,8 @@ Item {
   property string backgroundPath: ""
   property string videoPosterPath: ""
   property int backgroundVersion: 0
+  property string backgroundVersionPrefix: "v"
+  property size wallpaperDecodeSize: Qt.size(0, 0)
   property bool fingerprintConfigured: false
   property bool fingerprintUnavailable: false
   property bool authenticatingPassword: false
@@ -112,13 +114,16 @@ Item {
       anchors.fill: parent
       path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
       version: root.backgroundVersion
+      versionPrefix: root.backgroundVersionPrefix
       // Decode only once sized, at the lock's own size: an unsized first
       // request decoded the file at its native resolution, then again once
       // sized. That size is what the lock service keeps decoded ahead of the
       // lock, so the first frame has the wallpaper.
       cached: true
       constrainDecode: true
-      decodeSize: Qt.size(width, height)
+      decodeSize: root.wallpaperDecodeSize.width > 0 && root.wallpaperDecodeSize.height > 0
+        ? root.wallpaperDecodeSize
+        : Qt.size(width, height)
     }
 
     MultiEffect {

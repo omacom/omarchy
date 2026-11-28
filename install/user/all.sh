@@ -2,6 +2,7 @@ run_logged "$OMARCHY_INSTALL/user/theme.sh"
 run_logged "$OMARCHY_INSTALL/user/chromium.sh"
 run_logged "$OMARCHY_INSTALL/user/xcompose.sh"
 run_logged "$OMARCHY_INSTALL/user/language.sh"
+run_logged "$OMARCHY_INSTALL/user/region.sh"
 run_logged "$OMARCHY_INSTALL/user/input-method.sh"
 run_logged "$OMARCHY_INSTALL/user/mise-work.sh"
 
@@ -15,6 +16,5 @@ run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
 
 run_logged "$OMARCHY_INSTALL/user/default-keyring.sh"
-run_logged "$OMARCHY_INSTALL/user/mise.sh"
 
 run_logged "$OMARCHY_INSTALL/user/platform-setup.sh"

@@ -1,52 +1,54 @@
-# Vigeuza, Kutotumika na Kihifadhi Skrini
+# Vigeuzi, Kutotumika na Kihifadhiskrini
 
-Mengi ya unayobadilisha kila siku si mpangilio kweli. Ni hali unayowasha kwa saa moja kisha unaizima tena: mwanga wa usiku unapofanya kazi hadi usiku sana, usinisumbue unapowasilisha, baki macho unapotazama kitu. Omarchy huziita hizo vigeuza, na zote hufanya kazi kwa njia moja — kitufe cha mkato, kipengee cha menyu, na amri, vyote vikigusa swichi moja.
+Mengi ya unayobadilisha siku hadi siku si mpangilio hasa. Ni hali unayoiwasha kwa saa moja na kuizima tena: mwangaza wa usiku unapofanya kazi hadi usiku sana, usisumbue unapowasilisha, kaa macho unapotazama kitu. Omarchy huziita vigeuzi, na vyote hufanya kazi kwa njia ile ile — mkato wa kibodi, ingizo la menyu, na amri, vyote vikigusa swichi ile ile.
 
-### Menyu ya kigeuza
+### Menyu ya kugeuza
 
-`Super + Ctrl + O` hufungua _Trigger > Toggle_ moja kwa moja, au unaweza kufika huko kupitia menyu ya Omarchy (`Super + Space`). Kila kitu kwenye orodha hiyo ni swichi unayoweza kuwasha au kuzima bila kufikiria hali yake imehifadhiwa wapi. Swichi za jinsi eneo-kazi linavyoonekana ziko karibu nayo, chini ya _Appearance_.
+`Super + Ctrl + O` hufungua _Kichocheo > Geuza_ moja kwa moja, au unaweza kutembea huko kutoka kwenye menyu ya Omarchy (`Super + Space`). Kila kitu kwenye orodha hiyo ni swichi unayoweza kuigeuza bila kufikiria mahali ambapo hali imehifadhiwa. Swichi za jinsi eneo-kazi linavyoonekana ziko karibu nayo, chini ya _Muonekano_.
 
-Kutoka kwenye terminali, swichi hizo hizo ni `omarchy toggle <thing>`. Endesha `omarchy toggle` peke yake kuona kundi lote.
+Kutoka kwenye terminali, swichi hizo hizo ni `omarchy toggle <thing>`. Endesha `omarchy toggle` peke yake ili kuona kundi lote.
 
-| Kigeuza | Kitufe cha Mkato | Amri |
+| Kigeuzi | Mkato wa Kibodi | Amri |
 | ------ | ------ | ------- |
-| Mwanga wa usiku | — | `omarchy toggle nightlight` |
+| Mwangaza wa usiku | — | `omarchy toggle nightlight` |
 | Nyamazisha arifa | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
-| Baki macho (hakuna kufunga kwa kutotumika) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Kunasa kuanguka | — | `omarchy toggle crash-capture` |
-| Kihifadhi skrini | — | `omarchy toggle screensaver` |
-| Usawazishaji wa mandhari wa [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
+| Kaa macho (hakuna kufunga kwa kutotumika) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Rekodi ya kuanguka | — | `omarchy toggle crash-capture` |
+| Kihifadhiskrini | — | `omarchy toggle screensaver` |
+| Ulinganishaji wa mandhari ya [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Upau wa menyu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Padi ya mguso | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Skrini ya mguso | — | `omarchy toggle touchscreen` |
-| Kusimamisha | — | `omarchy toggle suspend` |
-| GPU mseto | — | `omarchy toggle hybrid gpu` |
+| Eneo-kazi la skrini nzima (hakuna upau, hakuna mapengo) | `Super + Ctrl + Alt + F` | `omarchy toggle fullscreen desktop` |
+| Animasheni, ukungu na vivuli | — | `omarchy toggle animations` |
+| Kiguso | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Skrini ya mguso | — | `omarchy device touchscreen` |
+| Sitisha | — | `omarchy toggle suspend` |
+| GPU mseto | — | `omarchy device gpu hybrid` |
 
-Swichi za padi ya mguso, skrini ya mguso, na GPU mseto huishi chini ya _Trigger > Hardware_ (`Super + Ctrl + H`) badala ya chini ya Toggle, kwani huonekana tu unapokuwa na kifaa hicho kweli. Swichi za padi ya mguso na skrini ya mguso hubaki baada ya Hyprland kupakiwa upya — jina la kifaa kilichozimwa huhifadhiwa kwenye faili ndogo ya hali ambayo Hyprland huisoma wakati wa kuanza ili kukizima tena.
+Swichi za kiguso, skrini ya mguso, na GPU mseto ziko chini ya _Kichocheo > Maunzi_ (`Super + Ctrl + H`) badala ya chini ya Geuza, kwa kuwa huonekana tu unapokuwa kweli na maunzi hayo. Za kiguso na skrini ya mguso hubaki baada ya kupakia upya kwa Hyprland — jina la kifaa kilichozimwa huhifadhiwa kwenye faili ndogo ya hali ambayo Hyprland husoma wakati wa kuanza ili kukizima tena.
 
-_Appearance_ hushikilia upau wa menyu na uhuishaji, pamoja na vitu vichache ambavyo si amri za `omarchy toggle` lakini hufanya kazi vivyo hivyo: asilimia ya betri kwenye upau, mpangilio chaguomsingi wa eneo la kazi, na chini ya _Windows_, mapengo ya madirisha (`Super + Shift + Backspace`) na uwiano wa mraba wa dirisha 1 (`Super + Ctrl + Backspace`).
+_Muonekano_ hushikilia upau wa menyu na animasheni, pamoja na vitu vichache ambavyo si amri za `omarchy toggle` lakini hufanya kazi vivyo hivyo: asilimia ya betri kwenye upau, mpangilio chaguo-msingi wa eneo la kazi, na chini ya _Madirisha_, mapengo ya madirisha (`Super + Shift + Backspace`) na uwiano wa mraba wa dirisha 1 (`Super + Ctrl + Backspace`).
 
-Hyprland inapokosa GPU ya kuchora nayo na badala yake huchora kwa CPU (llvmpipe), kama kwenye Mac ambazo GPU yake bado haijaungwa mkono, kwenye mashine pepe nyingi, au kiendeshi cha michoro kinaposhindwa kupakia, Omarchy huzima uhuishaji, ukungu na vivuli kwa kipindi hicho na hukujulisha mara moja kwa arifa. _Appearance > Animations On_ huvirudisha, na Omarchy hukumbuka hilo kwa vipindi vijavyo pia.
+Wakati Hyprland haina GPU ya kuchora nayo na badala yake huchora kwenye CPU (llvmpipe), kama kwenye Mac ambazo GPU yake haijaungwa mkono bado, kwenye mashine pepe nyingi, au wakati kiendeshi cha michoro kinaposhindwa kupakia, Omarchy huzima animasheni, ukungu na vivuli kwa kipindi hicho na kukuambia mara moja kwa arifa. _Muonekano > Animasheni Imewashwa_ huzirudisha, na Omarchy hukumbuka hilo kwa vipindi vijavyo pia.
 
-Nyingi za hizi ni faili tu ya bendera chini ya `~/.local/state/omarchy/toggles/`. Ukitaka kuamua kulingana na mojawapo kwenye hati, `omarchy-toggle-enabled` hukupa msimbo wa kutoka badala ya kukulazimisha kwenda kuitafuta:
+Nyingi za hizi ni faili tu ya bendera chini ya `~/.local/state/omarchy/toggles/`. Kama unataka kuamua kulingana na mojawapo kwenye hati, `omarchy-toggle-enabled` hukupa msimbo wa kutoka badala ya kukulazimisha kwenda kuitafuta:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Bendera hizo zimepewa majina ya hali ya kuzimwa — `screensaver-off`, `suspend-off`, `bar-off` — kwa hivyo kuwepo kwake kunamaanisha kipengele kimezimwa.
+Bendera zimepewa majina ya hali ya kuzimwa — `screensaver-off`, `suspend-off`, `bar-off` — kwa hiyo kuwepo kwake kunamaanisha kipengele kimezimwa.
 
-### Viashiria kwenye upau
+### Viashirio kwenye upau
 
-Hali inapowashwa, unapata glifu ndogo katikati ya upau wa juu karibu na saa. Hiyo ndiyo wijeti ya viashiria, na hubeba uandikaji kwa sauti, kurekodi skrini, vikumbusho vinavyosubiri, mwanga wa usiku, usinisumbue, na baki macho.
+Wakati hali imewashwa, unapata glifi ndogo katikati ya upau wa juu karibu na saa. Hiyo ndiyo wijeti ya viashirio, na hubeba kurekodi skrini, vikumbusho vinavyosubiri, mwangaza wa usiku, usisumbue, na kukaa macho, pamoja na maonyo wakati sudo isiyo na nenosiri imewashwa au mtu ameunganishwa kwenye kipindi cha mbali.
 
-Viashiria visivyotumika hufichwa. Elekeza kipanya popote kwenye upau na vitaonekana vikiwa vimefifia, ili uweze kubofya kimoja kukiwasha bila kujua kitufe chake cha mkato. Kubofya kilicho hai hukizima tena. Ikiwa ungependa kuviwaona vyote kila wakati, weka `alwaysShow` kuwa `true` kwenye kipengee cha `omarchy.indicators` katika `~/.config/omarchy/shell.json` — tazama [upau wa juu](05-the-top-bar.md) kwa jinsi wijeti za upau zinavyosanidiwa.
+Viashirio visivyotumika vimefichwa. Elea popote kwenye upau na hujitokeza vikiwa vimefifia, ili uweze kubofya kimoja ukiwasha bila kujua mkato wake wa kibodi. Kubofya kilichowashwa hukizima tena. Kama ungependa kuona vyote kila wakati, weka `alwaysShow` kuwa `true` kwenye ingizo la `omarchy.indicators` katika `~/.config/omarchy/shell.json` — angalia [upau wa juu](05-the-top-bar.md) kwa jinsi wijeti za upau zinavyosanidiwa.
 
-### Mwanga wa usiku
+### Mwangaza wa usiku
 
-Mwanga wa usiku huipa skrini joto la 4000K, na kuuwasha tena huirudisha kwenye 6500K. Uwashe kutoka kwenye menyu ya kigeuza (`Super + Ctrl + O`) au kwa `omarchy toggle nightlight`. Unaendeshwa na hyprsunset, ambayo kigeuza huianzisha kwa ajili yako ikiwa bado haiaendeshwi.
+Mwangaza wa usiku huipa skrini joto hadi 4000K, na kuugeuza tena huirudisha hadi 6500K. Uigeuze kutoka kwenye menyu ya kugeuza (`Super + Ctrl + O`) au kwa `omarchy toggle nightlight`. Huendeshwa na hyprsunset, ambayo kigeuzi hukuanzishia kama haijaanza bado.
 
-Kwa chaguomsingi hyprsunset haifanyi chochote kwenye skrini yako kabisa. `~/.config/hypr/hyprsunset.conf` huja na wasifu wa utambulisho hasa ili onyesho libaki bila kuguswa hadi uombe joto. Ikiwa ungependa ibadilike kulingana na saa, badilisha hiyo na wasifu wa wakati:
+Kwa chaguo-msingi hyprsunset haifanyi chochote kwenye skrini yako kabisa. `~/.config/hypr/hyprsunset.conf` huja na wasifu wa utambulisho hasa ili onyesho libaki bila kuguswa hadi uombe joto. Kama ungependa ibadilike kulingana na saa, badilisha hilo na wasifu wa muda:
 
 ```
 profile {
@@ -55,19 +57,19 @@ profile {
 }
 ```
 
-Kisha anzisha hyprsunset wakati wa kuingia kwa kuongeza `o.launch_on_start("hyprsunset")` kwenye `~/.config/hypr/autostart.lua`. Jozi ya 4000K/6500K inayotumiwa na kigeuza ni isiyobadilika, kwa hivyo faili ya usanidi ndipo pa kwenda ukitaka halijoto tofauti.
+Kisha anzisha hyprsunset wakati wa kuingia kwa kuongeza `o.launch_on_start("hyprsunset")` kwenye `~/.config/hypr/autostart.lua`. Jozi ya 4000K/6500K inayotumiwa na kigeuzi imewekwa thabiti, kwa hiyo faili ya usanidi ndipo unapokwenda kama unataka halijoto tofauti.
 
-### Usinisumbue
+### Usisumbue
 
-`Super + Ctrl + Alt + ,` hunyamazisha arifa. Hakuna arifa ibukizi zinazoonekana inapowashwa, na kiashiria cha kengele iliyokatwa hukaa kwenye upau kukukumbusha kwa nini eneo-kazi limekuwa kimya.
+`Super + Ctrl + Alt + ,` hunyamazisha arifa. Hakuna arifa ibukizi zinazojitokeza ikiwa imewashwa, na kiashirio cha kengele iliyokatwa hukaa kwenye upau kukukumbusha kwa nini eneo-kazi limekuwa kimya.
 
-Hata hivyo, hakuna kinachopotea. Arifa zilizonyamazishwa huhifadhiwa nyuma: rudisha chache za mwisho kwenye skrini kwa `Super + Shift + Alt + ,`. Tazama [arifa](10-notices.md) kwa mengineyo.
+Hakuna kinachopotea, hata hivyo. Arifa zilizonyamazishwa hushikiliwa: rudisha chache za mwisho kwenye skrini kwa `Super + Shift + Alt + ,`. Angalia [taarifa](10-notices.md) kwa yaliyosalia.
 
-Aina mbili za ujumbe bado hupita: arifa ibukizi za uthibitisho za Omarchy zenyewe kwa jambo ulilofanya hivi punde ("Theme changed", "Screenshot saved"), na arifa muhimu sana zinazotumwa kutoka kwenye mstari wa amri. Programu za gumzo zinazoweka kila kitu kama muhimu sana ili kujilazimisha mbele yako hazistahili.
+Aina tatu za ujumbe bado hupita: arifa ibukizi za uthibitisho za Omarchy zenyewe kwa kitu ulichokifanya hivi punde ("Theme changed", "Screenshot saved"), arifa muhimu zilizotumwa kutoka kwenye mstari wa amri, na misimbo ya uthibitisho. Programu za mazungumzo zinazoweka kila kitu kama muhimu ili kulazimisha kuja mbele yako hazistahili.
 
 ### Kutotumika
 
-Ganda la Omarchy ndilo humiliki tabia ya kutotumika, na muda wake ni kizuizi cha kiwango cha juu cha `idle` katika `~/.config/omarchy/shell.json`:
+Ganda la Omarchy ndilo linalomiliki tabia ya kutotumika, na muda wake ni kizuizi cha kiwango cha juu cha `idle` katika `~/.config/omarchy/shell.json`:
 
 ```json
 {
@@ -79,26 +81,26 @@ Ganda la Omarchy ndilo humiliki tabia ya kutotumika, na muda wake ni kizuizi cha
 }
 ```
 
-Nambari zote mbili ni sekunde zinazohesabiwa kuanzia wakati ulipoacha kutumika — si kutoka kwa kila moja. Kwa hivyo kwa chaguomsingi, kihifadhi skrini huja baada ya dakika mbili na nusu na skrini ya kufunga huchukua nafasi baada ya dakika tano, iwe kihifadhi skrini kiliendeshwa au la. Hifadhi faili na ganda huchukua muda mpya mara moja.
+Nambari zote mbili ni sekunde zinazohesabiwa kutoka wakati ulipoanza kutotumika — si kutoka kwa kila moja. Kwa hiyo kwa chaguo-msingi, kihifadhiskrini huja baada ya dakika mbili na nusu na skrini ya kufunga huchukua nafasi baada ya dakika tano, iwe kihifadhiskrini kiliendeshwa au la. Hifadhi faili na ganda huchukua muda mpya mara moja.
 
-Ukiondoa kihifadhi skrini kabla ya muda wa mwisho wa kufunga, hilo huhesabika kama shughuli na kufunga kunakosubiri hubatilishwa. Hufungiwi nje kwa kuangalia mashine yako kwa haraka.
+Ukiiondoa kihifadhiskrini kabla ya tarehe ya mwisho ya kufunga, hilo huhesabiwa kama shughuli na kufunga kunakosubiri hubatilishwa. Hufungiwi nje kwa kuangalia tu mashine yako.
 
-Kuacha kufunga kwa kutotumika kabisa, `Super + Ctrl + I` — au `omarchy toggle idle` — huwasha baki macho, na kiashiria cha kikombe cha kahawa huonekana kwenye upau. Hicho ndicho cha kubofya kabla ya wasilisho refu au ujenzi unaotaka kutazama. Kibofye tena kurudi kwa kawaida. `omarchy toggle idle status` huchapisha hali ya sasa kama JSON ukiwa unaihitaji kutoka kwenye hati.
+Ili kuacha kufunga kwa kutotumika kabisa, `Super + Ctrl + I` — au `omarchy toggle idle` — hugeuza kukaa macho kuwaka, na kiashirio cha kikombe cha kahawa huonekana kwenye upau. Hiyo ndiyo ya kubofya kabla ya wasilisho refu au ujenzi unaotaka kuutazama. Ibofye tena kurudi kawaida. `omarchy toggle idle status` huchapisha hali ya sasa kama JSON kama unaihitaji kutoka kwenye hati.
 
-Hii inahusu kufunga na kihifadhi skrini, si nishati. Kusimamisha na kulaza kwa kina vina usanidi wake katika [usingizi wa mfumo](36-system-sleep.md).
+Hii inahusu kufunga na kihifadhiskrini, si nishati. Usitishaji na usingizi mzito vina usanidi wake wenyewe katika [usingizi wa mfumo](36-system-sleep.md).
 
-### Kihifadhi skrini
+### Kihifadhiskrini
 
-Kihifadhi skrini cha Omarchy ni sanaa ya ASCII inayopitia madoido ya maandishi nasibu, nakala moja kwa kila kioo. Kitufe chochote au mwendo wa kipanya huiondoa.
+Kihifadhiskrini cha Omarchy ni sanaa ya ASCII inayopitia athari za maandishi nasibu, nakala moja kwa kila kioo. Kitufe chochote au usogezaji wa kipanya huiondoa.
 
-Unaweza kukianzisha unapokitaka kutoka _System > Screensaver_ (`Super + Esc`), ambayo hukilazimisha kuonekana hata kama umezima kihifadhi skrini cha kutotumika. Hakuna kitufe cha mkato kilichofungwa kwake kwa chaguomsingi.
+Unaweza kuianzisha unapotaka kutoka _Mfumo > Kihifadhiskrini_ (`Super + Esc`), ambayo huilazimisha kujitokeza hata kama umezima kihifadhiskrini cha kutotumika. Hakuna mkato wa kibodi uliofungwa kwake kwa chaguo-msingi.
 
-`omarchy toggle screensaver` ndiyo huzima ile ya kutotumika, ikiwa ungependa kwenda moja kwa moja kutoka kufanya kazi hadi kufungwa. Kitufe chochote, kubofya, kusogeza au mwendo wa kipanya huifunga.
+`omarchy toggle screensaver` ndicho kinachozima ile ya kutotumika, kama ungependa kwenda moja kwa moja kutoka kufanya kazi hadi kufungiwa. Kitufe chochote, kubofya, kusogeza au usogezaji wa kipanya huifunga.
 
-Nembo inayochora ni yako kubadilisha, chini ya _Appearance > Branding > Screensaver_. Pakia png au svg na Omarchy huibadilisha kuwa ASCII. Tazama [chapa](41-branding.md).
+Nembo inayochora ni yako kubadilisha, chini ya _Muonekano > Chapa > Kihifadhiskrini_. Pakia png au svg na Omarchy huibadilisha kuwa ASCII. Angalia [chapa](41-branding.md).
 
 ### Skrini ya kufunga
 
-`Super + Ctrl + L` hufunga mashine. Hiyo huendesha skrini ya kufunga kutoka kwenye ganda la Omarchy, huzima onyesho, huweka upya mpangilio wa kibodi yako kuwa wa kwanza ili usiandike nenosiri lako kwa alfabeti isiyo sahihi, na — ikiwa unaiendesha — hufunga 1Password wakati wa kutoka.
+`Super + Ctrl + L` huifunga mashine. Hiyo huendesha skrini ya kufunga kutoka kwenye ganda la Omarchy, huifanya onyesho kuwa tupu, huweka upya mpangilio wako wa kibodi kuwa wa kwanza ili usiandike nenosiri lako kwa alfabeti isiyo sahihi, na — kama umeiendesha — huifunga 1Password wakati wa kutoka.
 
-Skrini ya kufunga huchukua nenosiri, na pia itachukua alama ya kidole baada ya kuisanidi. Hilo, na njia nyingine za kuthibitisha, zimefafanuliwa katika [uthibitishaji wa vifaa](37-hardware-authentication.md).
+Skrini ya kufunga huchukua nenosiri, na itachukua alama ya kidole pia mara tu unapokuwa umeiweka. Hilo, na njia zingine za kujithibitisha, zimefafanuliwa katika [uthibitishaji wa maunzi](37-hardware-authentication.md).

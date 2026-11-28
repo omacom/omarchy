@@ -8,6 +8,9 @@ Item {
 
   property string path: ""
   property int version: 0
+  // Query parameter name for cache-busting so lock-only overwrites (?lockv=)
+  // never collide with the desktop background cache (?v=).
+  property string versionPrefix: "v"
   // Unversioned images cache by path. A caller whose version changes with every
   // new file, as the lock's does, may cache too: the version is in the URL.
   property bool cached: version === 0
@@ -23,7 +26,7 @@ Item {
   readonly property bool video: Util.isVideoPath(path)
   // Cache-bust images selected in a running lock session, so a theme switch
   // that replaces the file behind an unchanged path shows the new pixels.
-  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
+  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version || versionPrefix !== "v" ? "?" + versionPrefix + "=" + version : "") : ""
 
   Loader {
     id: imageLoader

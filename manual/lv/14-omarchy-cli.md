@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy parasti vada ar karstajiem taustiņiem un Omarchy izvēlni (`Super + Space`). Bet to var vadīt arī ar `omarchy` CLI. Tas ir īpaši noderīgi, kad tev pielāgošanā vai konfigurēšanā palīdz AI aģents.
+Omarchy parasti kontrolē ar karstajiem taustiņiem un Omarchy izvēlni (`Super + Space`). Bet to var kontrolēt arī ar `omarchy` CLI. Tas ir īpaši noderīgi, kad kopā ar tevi pie pielāgošanas vai konfigurēšanas strādā AI aģents.
 
-CLI ir piekļuve visiem iekšējiem rīkiem, ko izmanto gan caur izvēlni, gan citādi. Visu pieejamo vari apskatīt, palaižot terminālī `omarchy`.
+CLI ir piekļuve visiem iekšējiem rīkiem, ko izmanto gan caur izvēlni, gan citādi. Visu pieejamo vari apskatīt, terminālī palaižot `omarchy`.
 
-Tas izskatās apmēram šādi:
+Tas izskatās aptuveni šādi:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,15 +42,15 @@ Groups:
   ...
 ```
 
-Diagnostikai palaid tieši `omarchy-debug --no-sudo --print`. Tas izdrukā diagnostiku un ieraksta `/tmp/omarchy-debug.log` bez sudo pieprasījuma, tostarp pakotņu instalēšanas gadījumos, kur `omarchy debug` var neizdoties ar "Unknown Omarchy command".
+Diagnostikai palaid `omarchy-debug --no-sudo --print` tieši. Tas izdrukā diagnostiku un ieraksta `/tmp/omarchy-debug.log`, neprasot sudo, tostarp pakotņu instalēšanas gadījumos, kur `omarchy debug` var neizdoties ar "Unknown Omarchy command".
 
-Un vari iedziļināties arī katrā grupā:
+Un katrā grupā vari iedziļināties sīkāk:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -60,4 +61,4 @@ Katrai komandai ir arī `--help`, neatkarīgi no tā, vai jautā visai grupai (`
 
 ### Izvēlnes atvēršana no termināļa
 
-Omarchy izvēlne ir arī skriptējama, kas noder taviem paša taustiņu sasaistījumiem. `omarchy menu` to atver saknē, un vari pāriet tieši uz jebkuru vietu kokā, to nosaucot: `omarchy menu summon appearance.theme` aizved tieši uz motīvu izvēli, `omarchy menu toggle system` atver sistēmas izvēlni un aizver to atkal, ja tā jau ir atvērta, un `omarchy menu close` to noliek malā.
+Omarchy izvēlni var arī skriptot, kas noder taviem paša taustiņu saīsinājumiem. `omarchy menu` to atver saknē, un vari pāriet tieši uz jebkuru vietu kokā, to nosaucot: `omarchy menu summon appearance.theme` aizved tieši uz motīvu atlasītāju, `omarchy menu toggle system` atver sistēmas izvēlni un aizver to atkal, ja tā jau ir atvērta, un `omarchy menu close` to aizver.

@@ -1,0 +1,161 @@
+#!/bin/bash
+
+# omarchy:summary=Manage the battery charge limit (80% cap, 100% once, or full)
+# omarchy:subcommand=status [--shell] — Show the current battery charge limit state
+# omarchy:subcommand=on — Enable the hardware battery charge limit
+# omarchy:subcommand=off — Disable the charge limit and allow full charging
+# omarchy:subcommand=once — Charge to 100% once, then re-enable the limit automatically
+# omarchy:subcommand=toggle — Toggle the battery charge limit on or off
+
+set -euo pipefail
+
+state_dir="${OMARCHY_BATTERY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/battery}"
+once_file="$state_dir/top-up-once"
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+
+usage() {
+  echo "Usage: omarchy-battery-limit [status [--shell]|on|off|once|toggle]" >&2
+  exit 2
+}
+
+action="${1:-status}"
+shell_output=false
+if [[ $action == "status" && ${2:-} == "--shell" ]]; then
+  shell_output=true
+elif (( $# > 1 )); then
+  usage
+fi
+
+upower_prop() {
+  local path=$1 prop=$2 raw
+  raw=$(busctl get-property org.freedesktop.UPower "$path" org.freedesktop.UPower.Device "$prop" 2>/dev/null) || return 1
+  # busctl prints e.g. "b true", "u 80", "s \"BAT1\""
+  raw=${raw#* }
+  raw=${raw#\"}
+  raw=${raw%\"}
+  printf '%s\n' "$raw"
+}
+
+# Enumerate all present system batteries that support hardware charge limits.
+mapfile -t battery_paths < <(
+  busctl --no-pager tree --list org.freedesktop.UPower 2>/dev/null | grep '/org/freedesktop/UPower/devices/battery_' || true
+)
+
+supported_batteries=()
+for path in "${battery_paths[@]}"; do
+  [[ -n $path ]] || continue
+  [[ $(upower_prop "$path" PowerSupply || true) == "true" ]] || continue
+  [[ $(upower_prop "$path" ChargeThresholdSupported || true) == "true" ]] || continue
+  supported_batteries+=("$path")
+done
+
+effective_state() {
+  if (( ${#supported_batteries[@]} == 0 )); then
+    printf 'unsupported\n'
+    return 0
+  fi
+
+  local enabled_count=0 path enabled native sysfs_end
+  for path in "${supported_batteries[@]}"; do
+    enabled=$(upower_prop "$path" ChargeThresholdEnabled || echo "false")
+    if [[ $enabled == "true" ]]; then
+      (( enabled_count++ ))
+    else
+      native=$(upower_prop "$path" NativePath || true)
+      if [[ -n $native && -r $power_supply_path/$native/charge_control_end_threshold ]]; then
+        sysfs_end=$(<"$power_supply_path/$native/charge_control_end_threshold")
+        if [[ $sysfs_end =~ ^[0-9]+$ ]] && (( sysfs_end > 0 && sysfs_end < 100 )); then
+          (( enabled_count++ ))
+        fi
+      fi
+    fi
+  done
+
+  if (( enabled_count == ${#supported_batteries[@]} )); then
+    printf 'on\n'
+  elif (( enabled_count > 0 )); then
+    printf 'mixed\n'
+  elif [[ -f $once_file ]]; then
+    printf 'once\n'
+  else
+    printf 'off\n'
+  fi
+}
+
+apply_threshold() {
+  local want=$1 path actual
+  if (( ${#supported_batteries[@]} == 0 )); then
+    echo "Battery charge limit is not supported on this machine." >&2
+    exit 1
+  fi
+
+  for path in "${supported_batteries[@]}"; do
+    busctl call org.freedesktop.UPower "$path" org.freedesktop.UPower.Device EnableChargeThreshold b "$want" >/dev/null
+    actual=$(upower_prop "$path" ChargeThresholdEnabled || echo "")
+    if [[ $actual != "$want" ]]; then
+      echo "UPower did not apply charge threshold ($want) on $path (got: ${actual:-unknown})." >&2
+      exit 1
+    fi
+  done
+}
+
+notify_shell() {
+  omarchy-shell -q battery refreshChargeLimit >/dev/null 2>&1 || true
+}
+
+case "$action" in
+  status)
+    cur=$(effective_state)
+    if [[ $shell_output == "true" ]]; then
+      printf 'state\t%s\n' "$cur"
+      if (( ${#supported_batteries[@]} > 0 )); then
+        first=${supported_batteries[0]}
+        settings_mask=$(upower_prop "$first" ChargeThresholdSettingsSupported || echo "0")
+        end_val=$(upower_prop "$first" ChargeEndThreshold || true)
+        start_val=$(upower_prop "$first" ChargeStartThreshold || true)
+        printf 'supported\t1\n'
+        if (( settings_mask == 4 )); then
+          printf 'mode\tfirmware\n'
+        else
+          printf 'mode\tthreshold\n'
+        fi
+        [[ -n $end_val ]] && printf 'end\t%s\n' "$end_val"
+        [[ -n $start_val ]] && printf 'start\t%s\n' "$start_val"
+      else
+        printf 'supported\t0\n'
+      fi
+    else
+      printf '%s\n' "$cur"
+    fi
+    ;;
+  on)
+    apply_threshold true
+    rm -f "$once_file"
+    notify_shell
+    ;;
+  off)
+    apply_threshold false
+    rm -f "$once_file"
+    notify_shell
+    ;;
+  once)
+    apply_threshold false
+    mkdir -p "$state_dir"
+    printf '%s\n' "$(date +%s)" >"$once_file"
+    notify_shell
+    ;;
+  toggle)
+    cur=$(effective_state)
+    if [[ $cur == "on" || $cur == "once" ]]; then
+      apply_threshold false
+      rm -f "$once_file"
+    else
+      apply_threshold true
+      rm -f "$once_file"
+    fi
+    notify_shell
+    ;;
+  *)
+    usage
+    ;;
+esac

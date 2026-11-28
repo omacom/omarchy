@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Το Omarchy ελέγχεται συνήθως μέσω των πλήκτρων συντόμευσης και του μενού Omarchy (`Super + Space`). Μπορείτε όμως να το ελέγχετε και μέσω του CLI `omarchy`. Αυτό είναι ιδιαίτερα χρήσιμο όταν έχετε έναν agent AI να συνεργάζεται μαζί σας για προσαρμογές ή διαμόρφωση.
+Το Omarchy συνήθως ελέγχεται μέσω των πλήκτρων συντόμευσης και του μενού Omarchy (`Super + Space`). Μπορείς όμως να το ελέγχεις και μέσω του `omarchy` CLI. Αυτό είναι ιδιαίτερα χρήσιμο όταν έχεις έναν AI agent να δουλεύει μαζί σου σε προσαρμογές ή ρυθμίσεις.
 
-Το CLI έχει πρόσβαση σε όλα τα εσωτερικά εργαλεία που χρησιμοποιούνται τόσο μέσω του μενού όσο και με άλλους τρόπους. Μπορείτε να δείτε όλα όσα είναι διαθέσιμα εκτελώντας `omarchy` στο τερματικό.
+Το CLI έχει πρόσβαση σε όλα τα εσωτερικά εργαλεία που χρησιμοποιούνται τόσο μέσω του μενού όσο και με άλλους τρόπους. Μπορείς να δεις όλα όσα είναι διαθέσιμα εκτελώντας `omarchy` στο τερματικό.
 
 Μοιάζει κάπως έτσι:
 
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,23 +42,23 @@ Groups:
   ...
 ```
 
-Για διαγνωστικά, εκτελέστε απευθείας το `omarchy-debug --no-sudo --print`. Εκτυπώνει διαγνωστικά και γράφει στο `/tmp/omarchy-debug.log` χωρίς να ζητήσει sudo, συμπεριλαμβανομένων των εγκαταστάσεων πακέτων όπου το `omarchy debug` μπορεί να αποτύχει με "Unknown Omarchy command".
+Για διαγνωστικά, εκτέλεσε απευθείας το `omarchy-debug --no-sudo --print`. Εκτυπώνει διαγνωστικά και γράφει στο `/tmp/omarchy-debug.log` χωρίς να ζητήσει sudo, ακόμη και σε εγκαταστάσεις πακέτων όπου το `omarchy debug` μπορεί να αποτύχει με "Unknown Omarchy command".
 
-Και μπορείτε να εμβαθύνετε περισσότερο σε κάθε ομάδα:
+Και μπορείς να εμβαθύνεις σε κάθε ομάδα:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Κάθε εντολή δέχεται επίσης το `--help`, είτε ρωτήσετε μια ολόκληρη ομάδα (`omarchy capture --help`) είτε μια μεμονωμένη εντολή (`omarchy capture screenshot --help`).
+Κάθε εντολή δέχεται και το `--help`, είτε ρωτήσεις μια ολόκληρη ομάδα (`omarchy capture --help`) είτε μια μεμονωμένη εντολή (`omarchy capture screenshot --help`).
 
 ### Άνοιγμα του μενού από το τερματικό
 
-Το μενού Omarchy μπορεί επίσης να ελεγχθεί μέσω script, κάτι που είναι βολικό για τις δικές σας συντομεύσεις πληκτρολογίου. Το `omarchy menu` το ανοίγει στη ρίζα, και μπορείτε να μεταβείτε απευθείας σε οποιοδήποτε σημείο του δέντρου ονομάζοντάς το: το `omarchy menu summon appearance.theme` πηγαίνει κατευθείαν στον επιλογέα θέματος, το `omarchy menu toggle system` ανοίγει το μενού συστήματος και το κλείνει ξανά αν είναι ήδη ανοιχτό, και το `omarchy menu close` το εξαφανίζει.
+Το μενού Omarchy μπορεί επίσης να ελεγχθεί μέσω script, κάτι που είναι βολικό για τις δικές σου συντομεύσεις πλήκτρων. Το `omarchy menu` το ανοίγει στη ρίζα, και μπορείς να πας κατευθείαν σε οποιοδήποτε σημείο του δέντρου ονομάζοντάς το: το `omarchy menu summon appearance.theme` πηγαίνει απευθείας στον επιλογέα θέματος, το `omarchy menu toggle system` ανοίγει το μενού συστήματος και το ξανακλείνει αν είναι ήδη ανοιχτό, και το `omarchy menu close` το κλείνει.

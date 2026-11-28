@@ -32,7 +32,7 @@ That starts the command as part of the session, so it's properly cleaned up when
 
 ### Running scripts on system events
 
-Omarchy fires hooks at a handful of moments, and you can hang your own scripts off them. They live in `~/.config/omarchy/hooks/<event>.d/`, one directory per event, and every executable file in there runs when the event happens:
+Omarchy fires hooks at a handful of moments, and you can hang your own scripts off them. They live in `~/.config/omarchy/hooks/<event>.d/`, one directory per event, and every file in there that doesn't end in `.sample` runs with bash when the event happens:
 
 | Event | When it runs |
 | ----- | ------------ |
@@ -43,7 +43,7 @@ Omarchy fires hooks at a handful of moments, and you can hang your own scripts o
 | `font-set` | After a font change (font name in `$1`) |
 | `battery-low` | When the battery gets low (percentage in `$1`) |
 
-The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. Both update-related hooks run as your user after Omarchy clears its cached sudo authorization, so a hook that uses `sudo` needs its own authorization and may ask for your password.
+The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. Both run as your user. `post-update` runs while `omarchy update`'s sudo authorization is still fresh, so a hook that uses `sudo` won't ask for your password again; `pre-refresh-pacman` runs right after `omarchy refresh pacman` has used sudo itself.
 
 Each of those directories already holds a `.sample` file showing the shape of a hook — drop the `.sample` from the name to put it to work. To install a script you've written elsewhere, use `omarchy hook install post-boot ~/my-hook`, which copies it in and makes it executable.
 

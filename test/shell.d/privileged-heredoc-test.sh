@@ -278,8 +278,8 @@ literal_head() {
 
 # The literal value a name is assigned, when that value is knowable. A value
 # read out of a command substitution is not: resolving it would treat the
-# slashes in the command itself as a path, which made $autologin_user (an awk
-# over /etc/sddm.conf.d) look like a path when it holds a username.
+# slashes in the command itself as a path, so a username read with awk from a
+# file under /etc would look like a path.
 literal_value() {
   local name="$1"
 
@@ -784,21 +784,11 @@ scan_file() {
   done
 }
 
-# bin/, install/ and migrations/ are where privileged writes live: bin/ holds
-# the setup and upgrade commands, install/ runs during install, migrations/
-# during update. default/ is scanned too even though the pattern is not
-# reachable there today -- it ships bash functions and completions whose only
-# "<<" uses are herestrings, with no privileged writes at all -- because the
-# scan is cheap and default/ is sourced into every login shell, so a privileged
-# write arriving there later should not arrive unchecked.
+# bin/, install/, migrations/ and default/ are where privileged writes live.
 shell_sources() {
   local file first
 
   while IFS= read -r -d '' file; do
-    # Binary files and sources with no heredoc operator have nothing this check
-    # can classify. Filter them before collect_vars and the line-by-line scan.
-    grep -Iq '<<' "$file" 2>/dev/null || continue
-
     case $file in
       *.sh | *.hook)
         printf '%s\0' "$file"
@@ -810,11 +800,9 @@ shell_sources() {
     if [[ $first =~ ^#!.*[[:space:]/](bash|sh)$ ]]; then
       printf '%s\0' "$file"
     fi
-  done < <(find "$ROOT/bin" "$ROOT/install" "$ROOT/migrations" "$ROOT/default" \
-    -type f -print0 2>/dev/null | sort -z)
+  done < <(grep -IlZr '<<' "$ROOT/bin" "$ROOT/install" "$ROOT/migrations" "$ROOT/default" 2>/dev/null | sort -z)
 }
 
-require_command find
 require_command grep
 
 sources=()

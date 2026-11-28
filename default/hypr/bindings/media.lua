@@ -15,9 +15,9 @@ o.bind("XF86KbdBrightnessDown", "Keyboard brightness down", "omarchy-brightness-
 o.bind("CTRL + XF86MonBrightnessDown", "Keyboard brightness down", "omarchy-brightness-keyboard down", { locked = true, repeating = true })
 o.bind("CTRL + XF86MonBrightnessUp", "Keyboard brightness up", "omarchy-brightness-keyboard up", { locked = true, repeating = true })
 o.bind("XF86KbdLightOnOff", "Keyboard backlight cycle", "omarchy-brightness-keyboard cycle", { locked = true })
-o.bind_toggle("XF86TouchpadToggle", "Toggle touchpad", "touchpad", { locked = true })
-o.bind("XF86TouchpadOn", "Enable touchpad", "omarchy-toggle-touchpad on", { locked = true })
-o.bind("XF86TouchpadOff", "Disable touchpad", "omarchy-toggle-touchpad off", { locked = true })
+o.bind("XF86TouchpadToggle", "Toggle touchpad", "omarchy-device-touchpad", { locked = true })
+o.bind("XF86TouchpadOn", "Enable touchpad", "omarchy-device-touchpad on", { locked = true })
+o.bind("XF86TouchpadOff", "Disable touchpad", "omarchy-device-touchpad off", { locked = true })
 
 -- Precise volume and brightness controls.
 o.bind("ALT + XF86AudioRaiseVolume", "Volume up precise", "omarchy-audio-output-volume +1", { locked = true, repeating = true })

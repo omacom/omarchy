@@ -21,5 +21,38 @@ account_pin="OMARCHY_AGENT_${1^^}_HOME"
 if [[ -v $account_pin ]]; then
   printf '%s' "${!account_pin}"
 elif [[ -f $registry ]]; then
-  exec omarchy-agent-account-state home "$1"
+  # Fast-path reading well-formed registries directly with jq (~1ms) rather than
+  # starting Python (~30ms) on every `claude`, `codex`, or `grok` invocation.
+  # Malformed or partial registries fall back to omarchy-agent-account-state.
+  accounts_root="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts"
+  if resolved=$(jq -r --arg provider "$1" --arg home "$HOME" --arg accounts_root "$accounts_root" '
+    if type != "object" or (.accounts | type) != "array" then error("fallback") else . end
+    | (.accounts | map(select(type == "object" and (.id | type) == "string" and (.id | length) > 0))) as $accs
+    | if ($accs | length) != (.accounts | length) then error("fallback") else . end
+    | ($accs | map(select(.primary == true))[0]) as $primary
+    | if $primary == null then error("fallback") else . end
+    | ((.active // "main") as $aid |
+        ($accs | map(select(.id == $aid))[0] //
+          (if $aid == "primary" then $primary else $accs[0] end))) as $act
+    | if $provider == "claude" then
+        ((.seated // "") as $sid |
+          if ($accs | any(.id == $sid)) then $sid else $primary.id end) as $seated
+        | if $act.id == $seated then ""
+          elif ($act.primary == true) then ($accounts_root + "/claude/.primary")
+          elif (($act.home // "") | length) > 0 then $act.home
+          else ($home + "/.claude")
+          end
+      else
+        if ($act.primary == true) then ""
+        elif (($act.home // "") | length) > 0 then $act.home
+        else ($home + "/." + $provider)
+        end
+      end
+  ' "$registry" 2>/dev/null); then
+    if [[ -n $resolved ]]; then
+      printf '%s\n' "$resolved"
+    fi
+  else
+    exec omarchy-agent-account-state home "$1"
+  fi
 fi

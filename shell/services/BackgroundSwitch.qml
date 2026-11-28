@@ -87,7 +87,7 @@ Item {
   function startLink() {
     linkProc.target = pendingLink
     pendingLink = ""
-    linkProc.command = ["ln", "-nsf", linkProc.target, backgroundLink]
+    linkProc.command = ["ln", "-nsf", "--", linkProc.target, backgroundLink]
     linkProc.running = true
   }
 
@@ -133,7 +133,11 @@ Item {
   }
 
   function own(path) {
-    if (path && path.indexOf(transitionCache + "/") === 0 && ownedCovers.indexOf(path) === -1)
+    var prefix = transitionCache + "/"
+    if (!path || path.indexOf(prefix) !== 0) return
+    var name = path.slice(prefix.length)
+    if (!name || name === "." || name === ".." || name.indexOf("/") !== -1) return
+    if (ownedCovers.indexOf(path) === -1)
       ownedCovers = ownedCovers.concat([path])
   }
 
@@ -171,7 +175,7 @@ Item {
     var kept = []
     for (var path of ownedCovers) {
       if (path === intro.themeBackground) kept.push(path)
-      else Quickshell.execDetached(["rm", "-f", path])
+      else Quickshell.execDetached(["rm", "-f", "--", path])
     }
     ownedCovers = kept
     // The queued selection goes back through omarchy-theme-bg-set, which
@@ -209,6 +213,7 @@ Item {
         reloadLock.write(go ? "reload\n" : "wait\n")
       }
     }
+    onExited: root.settle()
   }
 
   Process {
@@ -218,7 +223,7 @@ Item {
     onExited: function(exitCode) {
       // A theme switch that took the cover meanwhile wins.
       if (forToken !== root.token || root.intro.themeToken !== "") {
-        Quickshell.execDetached(["rm", "-f", file])
+        Quickshell.execDetached(["rm", "-f", "--", file])
       } else if (exitCode === 0) {
         root.own(file)
         root.cover(file)

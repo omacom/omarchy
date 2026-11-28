@@ -1,29 +1,29 @@
 # Omarchy sa...
 
-### Mga chip na Apple M1/M2
+### Apple Silicon Macs
 
-Ang [Asahi Alarm](https://asahi-alarm.org/) ay isang bersyon ng Arch para sa mga computer na Apple M1/M2 na binuo sa ibabaw ng [Asahi Linux](https://asahilinux.org/). Maaari mong paganahin ang Omarchy sa ibabaw niyon nang may kaunting pagsisikap. Tingnan ang [gabay na ginawa ng mga user](https://github.com/omarchy-mac/omarchy-mac).
+Tumatakbo ang Omarchy para sa Apple Silicon sa M1, M2 at M3 Macs at nag-i-install katabi ng macOS. Tingnan ang [Omarchy para sa Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) sa kabanata tungkol sa suporta sa Mac.
 
-### Apple Virtual Machine
+### Subukan ang Omarchy sa isang Mac
 
-Maaari mo ring i-install ang Omarchy sa loob ng isang Parallels VM. Medyo mahirap na proseso iyon, pero may [gabay na ginawa ng mga user](https://github.com/omacom/omarchy/discussions/452) para diyan din.
+Pinapatakbo ng [Subukan ang Omarchy](https://github.com/omacom/try-omarchy) ang Omarchy sa isang virtual machine sa anumang Apple Silicon Mac na may macOS 15 o mas bago, nang walang kailangang i-partition o i-install katabi ng macOS.
 
 ### VirtualBox
 
-Ang VirtualBox ay isang sikat na runner ng VM. [Maaari mo ring patakbuhin ang Omarchy sa loob niyon](https://github.com/omacom/omarchy/discussions/176). Pero marahil ay hindi magiging maganda ang performance.
+Ang VirtualBox ay isang sikat na VM runner. [Maaari mo ring patakbuhin ang Omarchy sa loob niyan](https://github.com/omacom/omarchy/discussions/176). Pero malamang hindi magiging gaano kaganda ang performance.
 
 ### VMware Workstation sa Windows 11
 
-Isa pang sikat na runner ng VM para sa Windows. [Na-setup na rin ang Omarchy sa loob niyon](https://github.com/omacom/omarchy/discussions/572).
+Isa pang sikat na VM runner para sa Windows. [Na-setup na rin ang Omarchy sa loob niyan](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-Ang Steam Deck ay tumatakbo sa Arch, na nangangahulugang maaari mong patakbuhin ang Omarchy sa Steam Deck mo. Si Altynbek Orumbayev ay may [isang buong setup script at paliwanag kung paano ito gawin](https://github.com/aorumbayev/deckarchy). Napakagaling niyon!
+Tumatakbo ang Steam Deck sa Arch, ibig sabihin maaari mong patakbuhin ang Omarchy sa Steam Deck mo. Mayroon si Altynbek Orumbayev na [isang buong setup script at paliwanag kung paano ito gawin](https://github.com/aorumbayev/deckarchy). Ang astig, 'di ba!
 
 ### NixOS
 
-Ang Omarchy ay talagang Arch + Hyprland, pero si Henry Sipp ay [nag-port ng esensya ng setup patungong NixOS](https://github.com/henrysipp/omarchy-nix). Kaya kung nailapit ka na sa nix, narito ang isang magandang panimula. Maaaring manatili o hindi manatili itong napapanahon sa mga pinakabagong pagbabago ng Omarchy, pero napakagaling pa rin nito!
+Ang Omarchy ay talagang Arch + Hyprland, pero [inilipat ni Henry Sipp ang esensya ng setup sa NixOS](https://github.com/henrysipp/omarchy-nix). Kaya kung na-nix-pilled ka na, narito ang isang magandang panimula. Maaaring manatili itong up-to-date sa pinakabagong mga pagbabago sa Omarchy o hindi, pero medyo astig pa rin ito!
 
-### Ibang bagay!
+### Sa iba pa!
 
-Kung sinusubukan mong paganahin ang Omarchy sa isang konpigurasyong hindi ang default, dapat kang sumali sa channel na #omarchy-on-other sa [aming Discord ng komunidad](https://discord.gg/tXFUdasqhY).
+Kung sinusubukan mong patakbuhin ang Omarchy sa isang configuration na hindi ang default, dapat kang sumali sa #omarchy-on-other channel sa [Discord ng aming komunidad](https://discord.gg/tXFUdasqhY).

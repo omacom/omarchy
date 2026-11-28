@@ -263,4 +263,79 @@ assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'i
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+
+const fs = require('fs')
+const vm = require('vm')
+
+// Verify Mullvad region search accepts typing "j" and "k" while Down/Up still move selection.
+const panelQml = fs.readFileSync(path.join(root, 'shell/plugins/panels/tailscale/Panel.qml'), 'utf8')
+const mullvadKeyBody = panelQml.match(/id: mullvadSearch[\s\S]*?Keys\.onPressed: function\(event\) \{([\s\S]*?)\n                  \}/)[1]
+const keyCtx = {
+  moves: [],
+  activated: 0,
+  mullvadPickerOpen: true,
+  Qt: { Key_Down: 1, Key_Up: 2, Key_Return: 3, Key_Enter: 4, Key_Escape: 5 },
+  keyCatcher: { forceActiveFocus() {} },
+  moveMullvadRegionCursor(d) { this.moves.push(d) },
+  activateMullvadRegionCursor() { this.activated += 1 }
+}
+keyCtx.root = keyCtx
+vm.runInNewContext(`function press(event) {${mullvadKeyBody}}`, keyCtx)
+
+for (const ch of ['j', 'k']) {
+  const ev = { key: 0, text: ch, accepted: false }
+  keyCtx.press(ev)
+  assert(!ev.accepted, `mullvad search lets "${ch}" reach the text field`)
+}
+assertDeepEqual(keyCtx.moves, [], 'typing j/k in mullvad search does not move region cursor')
+const downEv = { key: 1, text: '', accepted: false }
+keyCtx.press(downEv)
+assert(downEv.accepted && keyCtx.moves[0] === 1, 'mullvad search still navigates regions with Down arrow')
+
+// Verify closed background polls skip Mullvad exit-node and account list subprocesses,
+// and authorizeTailscaleOperator rejects malformed usernames.
+const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/panels/tailscale/Service.qml'), 'utf8')
+const refreshFn = serviceQml.match(/function refreshStatusAndAccounts\(forceAccounts, fullPeers\) \{[\s\S]*?\n  \}/)[0]
+const authFn = serviceQml.match(/function authorizeTailscaleOperator\(\) \{[\s\S]*?\n  \}/)[0]
+
+function makeServiceCtx(overrides) {
+  const ctx = Object.assign({
+    installed: true,
+    peersWanted: false,
+    accounts: [],
+    _statusOutput: '', _statusError: '', refreshing: false,
+    _statusFullPeers: false, _pendingFullPeers: false,
+    _mullvadExitNodesOutput: '', _mullvadExitNodesError: '',
+    _accountsOutput: '', _accountsError: '', _lastAccountsRefreshMs: 0,
+    _operatorOutput: '', _operatorError: '', actionStatus: '',
+    userName: 'dhh',
+    I18n: { t: k => k },
+    statusProcess: { running: false, command: [] },
+    mullvadExitNodesProcess: { running: false, command: [] },
+    accountsProcess: { running: false, command: [] },
+    operatorProcess: { running: false, command: [] },
+    pollWatchdog: { running: false, start() { this.running = true } }
+  }, overrides)
+  vm.runInNewContext(`${refreshFn}\n${authFn}`, ctx)
+  return ctx
+}
+
+const idleCtx = makeServiceCtx({ peersWanted: false })
+idleCtx.refreshStatusAndAccounts(false, false)
+assert(idleCtx.statusProcess.running && idleCtx.statusProcess.command.includes('--peers=false'), 'idle tailscale poll runs light status')
+assert(!idleCtx.mullvadExitNodesProcess.running, 'idle tailscale poll skips exit-node list while panel is closed')
+assert(!idleCtx.accountsProcess.running, 'idle tailscale poll skips account list while panel is closed')
+
+const openCtx = makeServiceCtx({ peersWanted: true })
+openCtx.refreshStatusAndAccounts(false, false)
+assert(openCtx.statusProcess.running && !openCtx.statusProcess.command.includes('--peers=false'), 'open tailscale panel polls full peers')
+assert(openCtx.mullvadExitNodesProcess.running, 'open tailscale panel fetches Mullvad exit nodes')
+assert(openCtx.accountsProcess.running, 'open tailscale panel fetches account list')
+
+const badUserCtx = makeServiceCtx({ userName: '--evil=1' })
+badUserCtx.authorizeTailscaleOperator()
+assert(!badUserCtx.operatorProcess.running, 'tailscale operator auth rejects malformed username')
+const goodUserCtx = makeServiceCtx({ userName: 'alice_1' })
+goodUserCtx.authorizeTailscaleOperator()
+assertDeepEqual(goodUserCtx.operatorProcess.command, ['pkexec', 'tailscale', 'set', '--operator=alice_1'], 'tailscale operator auth accepts valid username')
 JS

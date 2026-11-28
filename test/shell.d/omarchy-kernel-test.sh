@@ -39,12 +39,21 @@ printf '$tool %s\n' "\$*" >> "\$CALL_LOG"
 SH
 done
 
-# efibootmgr answers both halves, so root sees Direct Boot too.
+# Both halves ask which boot loader runs; systemd-boot's kernel choice belongs
+# to omarchy-boot-sync, which records what it was asked.
 for dir in bin root-bin; do
-  cat > "$scratch/$dir/efibootmgr" <<'SH'
+  cat > "$scratch/$dir/omarchy-boot-backend" <<'SH'
 #!/bin/bash
-printf 'BootCurrent: 0000\nBoot0000* Limine\tHD(1,GPT)/\\EFI\\limine\\limine_x64.efi\n'
-[[ ${DIRECT_BOOT:-0} == "0" ]] || printf 'Boot0001* Omarchy\tHD(1,GPT)/\\EFI\\Linux\\omarchy_linux-omarchy.efi\n'
+if [[ ${1:-} == --managed ]]; then
+  printf '%s\n' ${BOOT_MANAGED:-${BOOT_BACKEND:-limine}}
+else
+  echo "${BOOT_BACKEND:-limine}"
+fi
+SH
+  cat > "$scratch/$dir/omarchy-boot-sync" <<'SH'
+#!/bin/bash
+printf 'omarchy-boot-sync %s\n' "$*" >> "$CALL_LOG"
+[[ $1 != preferred ]] || echo linux-omarchy
 SH
 done
 
@@ -123,6 +132,10 @@ printf '%s\n' 'BOOT_ORDER="linux-omarchy-*, linux, *"' >> "$OMARCHY_KERNEL_LIMIN
 pass "get does not guess when a wildcard decides"
 
 reset_fixture
+[[ $(BOOT_BACKEND=systemd-boot "$command" get) == "linux-omarchy" ]] || fail "on systemd-boot, get reports the kernel omarchy-boot-sync prefers"
+pass "on systemd-boot, get asks omarchy-boot-sync"
+
+reset_fixture
 if "$command" set linux-lts 2> "$scratch/output"; then
   fail "a kernel that is not installed is refused"
 fi
@@ -139,15 +152,6 @@ grep -Fxq 'omarchy-state set reboot-required' "$CALL_LOG" || fail "a switch asks
 [[ $(grep -c '^omarchy-notification-send ' "$CALL_LOG") == "1" ]] || fail "only the finished switch is announced" "$(<"$CALL_LOG")"
 grep -Fxq 'omarchy-notification-send -g  -t 30000 Now using linux-omarchy Reboot to use new default kernel --exec omarchy-system reboot' "$CALL_LOG" || fail "the notification names the kernel and reboots when clicked" "$(<"$CALL_LOG")"
 pass "picked from the menu, set authenticates once with pkexec and asks for a reboot"
-
-reset_fixture
-if DIRECT_BOOT=1 "$command" set linux-omarchy < /dev/null 2> "$scratch/output"; then
-  fail "a switch is refused while Direct Boot bypasses the boot menu"
-fi
-! grep -Eq '^(pkexec|sudo|omarchy-state) ' "$CALL_LOG" || fail "Direct Boot refuses before any prompt or reboot request" "$(<"$CALL_LOG")"
-grep -Fq "Setup > Direct Boot" "$scratch/output" || fail "the refusal says how to turn Direct Boot off"
-grep -q '^omarchy-notification-send .*-u critical' "$CALL_LOG" || fail "picked from the menu, the refusal is a notification"
-pass "Direct Boot systems are told to turn it off instead of getting a switch that does nothing"
 
 reset_fixture
 if ESCALATION_FAIL=1 "$command" set linux-omarchy < /dev/null; then
@@ -230,9 +234,15 @@ cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "a faile
 pass "a failed write keeps the previous boot order instead of deleting it"
 
 reset_fixture
-if DIRECT_BOOT=1 as_root "$command" set linux 2> /dev/null; then
-  fail "root is refused under Direct Boot too"
-fi
-cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "a refused root switch leaves the boot order alone"
-! grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "a refused root switch rebuilds nothing"
-pass "sudo omarchy-kernel set is refused under Direct Boot as well"
+BOOT_BACKEND=systemd-boot as_root "$command" set linux
+[[ $(<"$CALL_LOG") == "omarchy-boot-sync prefer linux" ]] || fail "on systemd-boot, the root half has omarchy-boot-sync prefer the kernel" "$(<"$CALL_LOG")"
+cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "on systemd-boot, Limine's boot order is left alone"
+pass "on systemd-boot, the root half sets the preferred kernel through omarchy-boot-sync"
+
+# During a switch's trial Limine starts the machine and systemd-boot is staged
+# next to it: the kernel choice reaches both.
+reset_fixture
+BOOT_MANAGED="limine systemd-boot" as_root "$command" set linux
+grep -q '^limine-mkinitcpio linux$' "$CALL_LOG" || fail "during a switch, Limine's boot order is updated" "$(<"$CALL_LOG")"
+grep -qx 'omarchy-boot-sync prefer linux' "$CALL_LOG" || fail "during a switch, systemd-boot prefers the kernel too" "$(<"$CALL_LOG")"
+pass "during a switch to systemd-boot, the kernel choice reaches both loaders"

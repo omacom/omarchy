@@ -131,6 +131,19 @@ templates=$(omarchy_pacman_templates "$platform") || exit 1
 [[ -f $templates/pacman-$pacman_channel.conf && -f $templates/mirrorlist-$pacman_channel ]] ||
   fail "Omarchy has no $pacman_channel channel for $platform; nothing changed."
 
+# sudo remembers a password per terminal and script(1) opens a new one, so start
+# the update's log here: the update this hands off to then asks no second time.
+if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
+  # Run under script as omarchy-update runs itself, restoring the caller's SHELL.
+  if [[ ${SHELL@a} == *x* ]]; then
+    printf -v script_command 'export SHELL=%q; ' "$SHELL"
+  else
+    script_command='unset SHELL; '
+  fi
+  script_command+="$(printf '%q ' "$0" "$@"); exit \$?"
+  exec env OMARCHY_UPDATE_LOGGED=1 SHELL=/usr/bin/bash script -qefc "$script_command" "/tmp/omarchy-update.log"
+fi
+
 if [[ $channel == "dev" ]]; then
   confirm_dev || { echo "Cancelled."; exit 0; }
   dev_checkout="$HOME/omarchy"

@@ -33,12 +33,15 @@ stop_launcher() {
     kill -KILL "$LAUNCHER_PID" 2>/dev/null || true
   fi
   LAUNCHER_PID=""
+  # The launcher leaves the startup cover to quit by itself.
+  pkill -f "quickshell -n -p $SCRATCH_ROOT/shell/startup-cover.qml" 2>/dev/null || true
   stop_scratch_shell
 }
 
-# The shell the launcher starts: found by its scratch config path.
+# The shell the launcher starts: found by its scratch config path, which the
+# startup cover's (shell/startup-cover.qml) extends.
 launcher_shell_pid() {
-  pgrep -f "quickshell -n -p $SCRATCH_ROOT/shell" | head -1
+  pgrep -f "quickshell -n -p $SCRATCH_ROOT/shell\$" | head -1
 }
 
 # One cold login: launch, then poll the compositor until the launcher's
@@ -85,6 +88,7 @@ for _ in 1 2 3; do
   if [[ -z $best ]] || (( elapsed < best )); then
     best=$elapsed
   fi
+  (( best <= BUDGET_MS )) && break
 done
 
 (( best <= BUDGET_MS )) || fail "login reaches a drawn bar within ${BUDGET_MS}ms" "Fastest of three cold logins took ${best}ms."

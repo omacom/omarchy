@@ -1,12 +1,12 @@
 # Темы
 
-Omarchy поставляется с двадцатью двумя красивыми темами. Выбрать тему можно через _Внешний вид > Тема_ в меню Omarchy (`Super + Space`) или сразу перейти к выбору темы с помощью `Super + Ctrl + T`.
+В Omarchy входят двадцать три красивые темы. Выбрать одну из них можно через _Внешний вид > Тема_ в меню Omarchy (`Super + Space`) или сразу перейти к выбору темы с помощью `Super + Ctrl + T`.
 
-Каждая тема оформляет рабочий стол, терминал, neovim, экран активности (btop), Chromium и всю оболочку Omarchy: верхнюю панель, меню, уведомления, OSD и экран блокировки. (Для Obsidian тему Omarchy нужно вручную выбрать через _Внешний вид > Темы_ внутри приложения).
+Каждая тема оформляет рабочий стол, терминал, neovim, экран активности (btop), ваш браузер (Chrome, Chromium, Edge или Brave) и всю оболочку Omarchy: верхнюю панель, меню, уведомления, OSD и экран блокировки. (Для Obsidian тему Omarchy нужно вручную выбрать через _Внешний вид > Темы_ внутри приложения).
 
 У тем есть набор фоновых изображений, между которыми можно переключаться с помощью `Super + Ctrl + W`.
 
-Ещё больше тем можно найти на [странице дополнительных тем](https://omarchy.org/themes/) или даже [создать свою собственную тему](43-making-your-own-theme.md).
+Ещё больше тем можно найти на [странице дополнительных тем](https://omarchy.org/themes/) или даже [сделать свою собственную тему](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,75 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
 ### Значки приложений
 
-Значки в средстве запуска приложений и в доке нарисованы в цветах вашей темы, поэтому они меняются вместе с ней. Они берутся из набора значков, который вы выбираете отдельно от темы в разделе _Внешний вид > Значки_, по предпросмотрам каждого набора, точно так же, как выбираете тему:
+Значки в панели запуска приложений и в доке рисуются в цветах вашей темы, поэтому меняются вместе с ней. Они берутся из набора значков, который выбирается отдельно от темы в разделе _Внешний вид > Значки_ по предпросмотру каждого набора — точно так же, как выбирается тема:
 
-- _Papercraft_ используется по умолчанию: всё, что установлено, нарисовано в одном стиле. Приложения, узнаваемые по своему логотипу, такие как Chrome, HEY или YouTube, сохраняют его форму и принимают цвета темы.
-- _Arcade_ рисует те же приложения в виде 8-битной пиксельной графики, как на старой игровой консоли.
+- _Papercraft_ — набор по умолчанию: всё, что установлено, нарисовано в одном стиле. Приложения, узнаваемые по своему логотипу, например Chrome, HEY или YouTube, сохраняют свою форму и принимают цвета темы.
+- _Arcade_ рисует те же приложения в виде 8-битного пиксель-арта, как на старой игровой консоли.
 - _Original_ показывает каждое приложение со значком, который дал ему его создатель.
 
-Вы можете установить набор значков, созданный кем-то другим, через _Установка > Стиль > Значки_ (или `omarchy icons install <git url>`), и снова удалить его через _Удаление > Значки_. _Обновление > Дополнительные значки_ загружает последнюю версию установленных у вас наборов.
+Набор значков, сделанный кем-то другим, можно установить через _Установка > Стиль > Значки_ (или командой `omarchy icons install <git url>`), а удалить — через _Удаление > Значки_. Пункт _Обновление > Дополнительные значки_ загружает последнюю версию установленных у вас наборов.
 
-Чтобы создать свой собственный набор, поместите значки в `~/.config/omarchy/icons/<name>/`, по одному файлу на приложение, названному в соответствии со строкой `Icon=` в `.desktop`-файле приложения. Файл с расширением `.svg` показывается как есть. Файл с расширением `.svg.tpl` рисуется в цветах темы: напишите `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` или `{{ icon_shadow }}` там, где должен быть цвет. Набор по умолчанию в `/usr/share/omarchy/icons/papercraft/` — хорошая отправная точка. Добавьте `preview.png`, чтобы показать ваш набор в окне выбора; без него Omarchy нарисует предпросмотр из ваших значков. Чтобы изменить один значок из набора по умолчанию, поместите свою версию в `~/.config/omarchy/icons/papercraft/`.
+Чтобы сделать собственный набор, поместите значки в `~/.config/omarchy/icons/<name>/` — по одному файлу на приложение, с именем по строке `Icon=` из `.desktop`-файла приложения. Файл с окончанием `.svg` показывается как есть. Файл с окончанием `.svg.tpl` рисуется в цветах темы: укажите `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` или `{{ icon_shadow }}` там, где должен быть цвет. Набор по умолчанию в `/usr/share/omarchy/icons/papercraft/` — хорошая отправная точка. Добавьте `preview.png`, чтобы ваш набор показывался в окне выбора; без него Omarchy составит предпросмотр из ваших значков. Чтобы изменить один значок из набора по умолчанию, поместите свою версию в `~/.config/omarchy/icons/papercraft/`.
 
-### Экраны разблокировки
+### Загрузка и вход
 
-У тем также может быть собственный дизайн разблокировки, который используется в процессе расшифровки при загрузке. Выбрать один из них можно в разделе _Внешний вид > Разблокировка_. Выглядят они так:
-
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
-
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
-
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
-
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
-
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
-
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
-
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
-
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
-
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Экран, который запрашивает пароль от диска при запуске компьютера, и экран входа тоже следуют теме. Каждый раз при смене темы они принимают её цвета фона, текста, акцента и красный цвет, поэтому отдельного оформления разблокировки выбирать не нужно. На компьютерах Mac с Apple Silicon экран пароля от диска сохраняет стандартное оформление Omarchy при любой теме.

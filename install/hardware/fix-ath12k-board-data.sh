@@ -6,8 +6,12 @@
 # removes the copy once linux-firmware lists the card. The upstream fix is an
 # entry for each card in linux-firmware's board-2.bin.
 
-if lspci -nn | grep -qE '\[17cb:(1103|1107|1112)\]'; then
-  omarchy-pkg-add ath12k-board-fallback
+if omarchy-hw-pci 17cb:1103 17cb:1107 17cb:1112; then
+  if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
+    omarchy-pkg-add ath12k-board-fallback
+  else
+    OMARCHY_PKG_DEFER=1 omarchy-pkg-add ath12k-board-fallback
+  fi
 
   # On an image's first boot (omarchy-provision-hardware sets the marker) the
   # driver probed the card before the package gave it board data, and nothing

@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# omarchy:summary=Write the boot splash and login screen colors
+# omarchy:args=<background> <foreground> <accent> <error>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Whenever this runs as root -- invoked directly through the passwordless
+# sudoers rule, or re-execed by require_root below -- pin PATH to trusted system
+# directories, so a dev link's checkout bin/ never supplies a tool to root.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+# The path etc/sudoers.d/omarchy-theme-login names. The privileged half always
+# runs from there, so the rule matches even where $OMARCHY_PATH is a checkout.
+PACKAGED_PATH=/usr/bin/omarchy-theme-set-login-colors
+
+# The login screen's copy, which the greeter user reads, and the boot splash's
+# on the ESP, which systemd-stub hands the initramfs as a credential. Both
+# paths are fixed here: the caller chooses colors, never a path.
+SYSTEM_DIR=/var/lib/omarchy/login
+CREDENTIAL=loader/credentials/omarchy-splash.cred
+
+usage() {
+  echo "Usage: omarchy-theme-set-login-colors <background> <foreground> <accent> <error>" >&2
+}
+
+if (( $# != 4 )); then
+  usage
+  exit 1
+fi
+
+# Six lowercase hex digits each is the whole of what this accepts, so the
+# sudoers rule can spell every argument as a plain glob ("#" opens a comment
+# there).
+for color in "$@"; do
+  if [[ ! $color =~ ^[0-9a-f]{6}$ ]]; then
+    echo "omarchy-theme-set-login-colors: expected six lowercase hex digits, got '$color'" >&2
+    exit 1
+  fi
+done
+
+# True when sudo would run this exact command without stopping for a password:
+# the long listing prints the matched entry's tags, so !authenticate is the
+# grant in etc/sudoers.d/omarchy-theme-login and not the blanket %wheel rule.
+sudo_grants_passwordless() {
+  sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
+}
+
+require_root() {
+  if (( EUID == 0 )); then
+    return
+  elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
+    exec sudo "$PACKAGED_PATH" "$@"
+  else
+    exec pkexec "$PACKAGED_PATH" "$@"
+  fi
+}
+
+require_root "$@"
+
+colors=$(printf 'background=#%s\nforeground=#%s\naccent=#%s\nerror=#%s\n' "$@")
+
+staged=""
+cleanup() {
+  if [[ -n $staged ]]; then
+    rm -f "$staged"
+  fi
+}
+trap cleanup EXIT
+
+# Writes $colors to $1 through a file beside it, so a reader never sees half of
+# it, replacing whatever was there (a symlink included) rather than writing
+# through it.
+publish() {
+  local dest=$1
+  staged=$(mktemp "${dest%/*}/.${dest##*/}.XXXXXXXX") || return 1
+  printf '%s\n' "$colors" >"$staged" || return 1
+  # The ESP's FAT has no modes to set; the login screen's copy needs this one.
+  chmod 0644 "$staged" 2>/dev/null || [[ $dest != "$SYSTEM_DIR"/* ]] || return 1
+  mv -fT -- "$staged" "$dest" || return 1
+  staged=""
+}
+
+failed=0
+
+# The ESP Limine boots from, where the UKIs and so systemd-stub live. A machine
+# whose boot chain has no such ESP (a platform that boots its own way) has no
+# splash credential to write.
+esp=/boot
+if [[ -f /etc/default/limine ]]; then
+  configured=$(sed -n 's/^ESP_PATH=["'\'']\?\([^"'\'']*\).*/\1/p' /etc/default/limine | tail -n 1)
+  esp=${configured:-$esp}
+fi
+if mountpoint -q "$esp"; then
+  if mkdir -p "$esp/${CREDENTIAL%/*}" && publish "$esp/$CREDENTIAL"; then
+    :
+  else
+    echo "omarchy-theme-set-login-colors: cannot write $esp/$CREDENTIAL" >&2
+    failed=1
+  fi
+elif [[ -f /etc/default/limine ]]; then
+  echo "omarchy-theme-set-login-colors: the ESP at $esp is not mounted" >&2
+  failed=1
+fi
+
+# The login screen's copy goes last. omarchy-theme-set-login skips this command
+# while that copy holds the theme's colors, so it says when the boot splash's
+# copy did not take them, and the next theme change writes both again.
+if (( failed )); then
+  colors+=$'\n'"# The boot splash's copy on the ESP did not take these colors."
+fi
+
+install -d -m 0755 -o root -g root "$SYSTEM_DIR"
+publish "$SYSTEM_DIR/colors" || failed=1
+
+exit "$failed"

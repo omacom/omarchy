@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy styres normalt via genvejstasterne og Omarchy-menuen (`Super + Space`). Men du kan også styre det via `omarchy` CLI. Det er særligt nyttigt, når du har en AI-agent til at arbejde sammen med dig om tilpasning eller konfiguration.
+Omarchy styres normalt via genvejstasterne og Omarchy-menuen (`Super + Space`). Men du kan også styre det via `omarchy` CLI'en. Det er især nyttigt, når du har en AI-agent til at arbejde sammen med dig om tilpasning eller konfiguration.
 
-CLI har adgang til alle de interne værktøjer, der bruges både via menuen og på anden vis. Du kan se alt, hvad der er tilgængeligt, ved at køre `omarchy` i terminalen.
+CLI'en har adgang til alle de interne værktøjer, der bruges både via menuen og på anden vis. Du kan se alt, hvad der er tilgængeligt, ved at køre `omarchy` i terminalen.
 
 Det ser nogenlunde sådan her ud:
 
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -43,13 +44,13 @@ Groups:
 
 Til diagnostik skal du køre `omarchy-debug --no-sudo --print` direkte. Den udskriver diagnostik og skriver `/tmp/omarchy-debug.log` uden at bede om sudo, også ved pakkeinstallationer, hvor `omarchy debug` kan fejle med "Unknown Omarchy command".
 
-Og du kan dykke dybere ned i hver eneste gruppe:
+Og du kan dykke dybere ned i hver gruppe:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -60,4 +61,4 @@ Hver kommando tager også `--help`, uanset om du spørger en hel gruppe (`omarch
 
 ### Åbning af menuen fra terminalen
 
-Omarchy-menuen kan også scriptes, hvilket er praktisk til dine egne genvejstaster. `omarchy menu` åbner den ved roden, og du kan springe direkte til ethvert punkt i træet ved at navngive det: `omarchy menu summon appearance.theme` går direkte til temavælgeren, `omarchy menu toggle system` åbner systemmenuen og lukker den igen, hvis den allerede er oppe, og `omarchy menu close` lukker den væk.
+Omarchy-menuen kan også scriptes, hvilket er praktisk til dine egne tastebindinger. `omarchy menu` åbner den ved roden, og du kan springe direkte til ethvert punkt i træet ved at navngive det: `omarchy menu summon appearance.theme` går direkte til temavælgeren, `omarchy menu toggle system` åbner systemmenuen og lukker den igen, hvis den allerede er oppe, og `omarchy menu close` lukker den væk.

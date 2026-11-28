@@ -9,6 +9,9 @@ omarchy-refresh-config chromium-flags.conf
 omarchy-install-chromium-copy-url
 omarchy-install-chromium-ytdlp
 
-# Put the Snapdragon video decoding settings back. Last, so a failure here is
-# the command's result.
-omarchy-install-video-decode
+# Put the Snapdragon camera and video decoding settings back. Last, so a
+# failure of either is the command's result.
+status=0
+omarchy-install-camera || status=$?
+omarchy-install-video-decode || status=$?
+exit "$status"

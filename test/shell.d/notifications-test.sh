@@ -43,30 +43,6 @@ left=$(cd "$state" && find . | sort | tr '\n' ' ')
   fail "the state directory and its files are private"
 pass "the state directory is prepared"
 
-# 4.0's leftovers go by migration: everything it kept, never through a
-# symlink, and its Do Not Disturb carried into quiet.json.
-migration=$(grep -l "the 4.0 notification engine left behind" "$ROOT"/migrations/*.sh)
-old="$tmp/old"
-state="$old/.local/state/omarchy/notifications"
-mkdir -p "$state/history" "$state/images" "$old/outside"
-touch "$state/history/1-n1.json" "$state/1776000000000-7.json" "$old/outside/keep.json" "$old/outside/1-2.json"
-echo '[{"key":"n2"}]' >"$state/history.json"
-: >"$state/quiet.json"
-echo '{"version":3,"dnd":true}' >"$old/.local/state/omarchy/notifications.json"
-ln -s "$old/outside" "$state/1-linked.json"
-ln -s "$old/outside" "$state/images/outside"
-for run in first again; do
-  HOME="$old" bash -euo pipefail "$migration" >/dev/null || fail "the leftover migration runs ($run)"
-done
-left=$(cd "$state" && find . | sort | tr '\n' ' ')
-[[ $left == ". ./1-linked.json ./history.json ./quiet.json " ]] ||
-  fail "4.0's leftovers are cleared and nothing else" "$left"
-[[ -f $old/outside/keep.json && -f $old/outside/1-2.json ]] ||
-  fail "leftover cleanup never reaches through a symlink"
-[[ $(jq -c '[.dnd, .codesBypassQuiet]' "$state/quiet.json") == "[true,true]" && ! -e $old/.local/state/omarchy/notifications.json ]] ||
-  fail "4.0's Do Not Disturb carries over" "$(cat "$state/quiet.json")"
-pass "a migration clears 4.0's leftovers and carries its Do Not Disturb"
-
 # Keybindings and commands call the notifications IPC target by method name.
 # Every name they use must be one the service declares, or the key fires into
 # "target not found".

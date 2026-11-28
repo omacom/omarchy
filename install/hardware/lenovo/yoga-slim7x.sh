@@ -36,12 +36,10 @@ done
 unset firmware directory suffix
 CONF
 
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/yoga-slim7x.conf" <<'CONF'
-KERNEL_CMDLINE[default]+=" initcall_blacklist=simpledrm_platform_driver_init"
-# Keep Plymouth and the keyboard hooks on the laptop console, not the serial port.
-KERNEL_CMDLINE[default]+=" console=tty0"
-CONF
+  # console=tty0 keeps the boot splash and the keyboard hooks on the laptop
+  # console, not the serial port.
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set yoga-slim7x \
+    initcall_blacklist=simpledrm_platform_driver_init console=tty0
 
   # Start the board's DSP remote processors.
   mkdir -p "$systemd_dir"

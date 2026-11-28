@@ -27,12 +27,14 @@ elif pacman -Qq omarchy >/dev/null 2>&1; then
   package=omarchy
 fi
 
-if [[ -n $package ]]; then
+# Until the first omarchy update, any package counts: a machine installed from
+# older media needs one even when Omarchy's own package is current.
+if ! omarchy-done check first-update; then
+  mapfile -t pending < <(checkupdates --nocolor 2>/dev/null || true)
+  updates+=("${pending[@]}")
+elif [[ -n $package ]]; then
   update=$(checkupdates --nocolor 2>/dev/null | awk -v package="$package" '$1 == package { print; exit }' || true)
-fi
-
-if [[ -n ${update:-} ]]; then
-  updates+=("$update")
+  [[ -z $update ]] || updates+=("$update")
 fi
 
 if (( ${#updates[@]} > 0 )); then

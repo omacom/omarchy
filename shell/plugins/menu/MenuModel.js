@@ -409,12 +409,14 @@ function searchScore(items, entry, query) {
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
 
-  if (entry.kind === "menu" || entry.kind === "link") score -= 2
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
   if (entry.kind === "app") score -= 5
 
-  return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
+  // Within a tier, a shallower entry wins ("abou" finds System > About before
+  // Appearance > Branding > About); at equal depth a submenu beats an action.
+  var opensMenu = entry.kind === "menu" || entry.kind === "link"
+  return score * 10000000 + depthFor(items, entry.id) * 100000 + (opensMenu ? 0 : 50000) + entry.order
 }
 
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
@@ -453,6 +455,7 @@ var GUARD_READERS = [
   "omarchy-bar get omarchy.clock format",
   "omarchy-bar get omarchy.clock verticalFormat",
   "omarchy-bar position",
+  "omarchy-boot-backend",
   "omarchy-channel-current",
   "omarchy-default-agent",
   "omarchy-default-browser",
@@ -676,6 +679,32 @@ function toggleDmenuSelection(selected, value) {
     : selected.filter(function(item) { return item !== value })
 }
 
+// Parses tab-separated records from `omarchy-menu-keybindings --records`:
+// "<display>\t<dispatcher>\t<arg>". Keeps any literal tabs inside <arg>.
+function parseKeybindingsRecords(raw) {
+  var lines = String(raw || "").split("\n")
+  var entries = []
+  var options = []
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    if (!line) continue
+    var firstTab = line.indexOf("\t")
+    if (firstTab < 0) {
+      entries.push({ label: line, dispatcher: "", arg: "" })
+      options.push(line)
+      continue
+    }
+    var label = line.slice(0, firstTab)
+    var rest = line.slice(firstTab + 1)
+    var secondTab = rest.indexOf("\t")
+    var dispatcher = secondTab < 0 ? rest : rest.slice(0, secondTab)
+    var arg = secondTab < 0 ? "" : rest.slice(secondTab + 1)
+    entries.push({ label: label, dispatcher: dispatcher, arg: arg })
+    options.push(label)
+  }
+  return { entries: entries, options: options }
+}
+
 // Returns a copy of items with label/title/description replaced from a
 // translation catalog ({id: {label, title, description}}), as shipped in
 // default/i18n/<code>/menu.json. The English label stays searchable by
@@ -749,6 +778,7 @@ if (typeof module !== "undefined") {
     dmenuValue: dmenuValue,
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
+    parseKeybindingsRecords: parseKeybindingsRecords,
     displayRow: displayRow,
     applyTranslations: applyTranslations
   }

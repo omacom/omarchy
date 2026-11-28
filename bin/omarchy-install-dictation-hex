@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Installing Hex dictation..."
 omarchy-pkg-add hex-bin
 # Download the speech model here, with progress, instead of silently on first launch.
 hex model install

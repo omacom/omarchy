@@ -6,5 +6,5 @@
 # only pulled in on machines that have one.
 
 if omarchy-audio-tuning match >/dev/null; then
-  omarchy-pkg-add lsp-plugins-lv2
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add lsp-plugins-lv2
 fi

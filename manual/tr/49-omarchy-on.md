@@ -1,29 +1,29 @@
-# Omarchy üzerinde...
+# Omarchy şunun üzerinde...
 
-### Apple M1/M2 çipleri
+### Apple Silicon Mac'ler
 
-[Asahi Alarm](https://asahi-alarm.org/), [Asahi Linux](https://asahilinux.org/) üzerine kurulmuş, Apple M1/M2 bilgisayarlar için bir Arch sürümüdür. Biraz çabayla Omarchy'yi onun üzerinde çalıştırabilirsiniz. [Kullanıcı odaklı kılavuza](https://github.com/omarchy-mac/omarchy-mac) bakın.
+Apple Silicon için Omarchy, M1, M2 ve M3 Mac'lerde çalışır ve macOS'un yanına kurulur. Mac desteği bölümündeki [Apple Silicon için Omarchy](44-mac-support.md#omarchy-for-apple-silicon) kısmına bakın.
 
-### Apple Sanal Makinesi
+### Bir Mac'te Omarchy'yi Deneyin
 
-Omarchy'yi bir Parallels VM'si içine de kurabilirsiniz. Oldukça zahmetli bir süreçtir, ancak bunun için de [kullanıcı odaklı bir kılavuz](https://github.com/omacom/omarchy/discussions/452) vardır.
+[Omarchy'yi Deneyin](https://github.com/omacom/try-omarchy), macOS 15 veya daha yeni bir sürüme sahip herhangi bir Apple Silicon Mac'te Omarchy'yi bir sanal makinede çalıştırır; bölüm oluşturmanıza ya da macOS'un yanına bir şey kurmanıza gerek kalmaz.
 
 ### VirtualBox
 
-VirtualBox popüler bir VM çalıştırıcısıdır. [Omarchy'yi onun içinde de çalıştırabilirsiniz](https://github.com/omacom/omarchy/discussions/176). Ancak performans muhtemelen harika olmayacaktır.
+VirtualBox popüler bir VM çalıştırıcısıdır. [Omarchy'yi onun içinde de çalıştırabilirsiniz](https://github.com/omacom/omarchy/discussions/176). Ama performans muhtemelen pek iyi olmayacaktır.
 
-### Windows 11'de VMware Workstation
+### Windows 11 üzerinde VMware Workstation
 
-Windows için bir diğer popüler VM çalıştırıcısı. [Omarchy bunun içinde de kurulmuştur](https://github.com/omacom/omarchy/discussions/572).
+Windows için bir başka popüler VM çalıştırıcısı. [Omarchy onun içinde de kuruldu](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-Steam Deck Arch üzerinde çalışır, bu da Omarchy'yi Steam Deck'inizde çalıştırabileceğiniz anlamına gelir. Altynbek Orumbayev'in [nasıl yapılacağına dair eksiksiz bir kurulum betiği ve açıklaması](https://github.com/aorumbayev/deckarchy) vardır. Bu ne kadar havalı bir şey!
+Steam Deck, Arch üzerinde çalışır, bu da Omarchy'yi Steam Deck'inizde çalıştırabileceğiniz anlamına gelir. Altynbek Orumbayev'in [bunu nasıl yapacağınıza dair eksiksiz bir kurulum betiği ve açıklaması](https://github.com/aorumbayev/deckarchy) var. Ne kadar havalı!
 
 ### NixOS
 
-Omarchy gerçekten Arch + Hyprland'dir, ancak Henry Sipp [kurulumun özünü NixOS'a taşımıştır](https://github.com/henrysipp/omarchy-nix). Yani nix'lenmişseniz, işte iyi bir başlangıç noktası. En son Omarchy değişikliklerine ayak uydurabilir ya da uyduramayabilir, ancak yine de oldukça havalı!
+Omarchy aslında Arch + Hyprland'dir, ancak Henry Sipp [kurulumun özünü NixOS'a taşıdı](https://github.com/henrysipp/omarchy-nix). Yani nix hapını yuttuysanız, işte size iyi bir başlangıç noktası. En son Omarchy değişiklikleriyle güncel kalabilir de kalmayabilir de, ama yine de oldukça havalı!
 
 ### Başka bir şey!
 
-Omarchy'yi varsayılan olmayan bir yapılandırmada çalıştırmayı deniyorsanız, [topluluk Discord'umuzdaki](https://discord.gg/tXFUdasqhY) #omarchy-on-other kanalına katılmalısınız.
+Omarchy'yi varsayılan olmayan bir yapılandırmada çalıştırmaya çalışıyorsanız, [topluluk Discord](https://discord.gg/tXFUdasqhY)'umuzdaki #omarchy-on-other kanalına katılmalısınız.

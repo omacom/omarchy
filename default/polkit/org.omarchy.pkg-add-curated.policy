@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  One action per app Omarchy curates: the coding agents, the Install > CLI tools,
+  gh, and the AI desktop apps. omarchy-pkg-add-curated runs itself through pkexec
+  with one package, and pkexec picks the action whose exec.path and exec.argv1
+  match. The active local session installs without a password; anywhere else,
+  such as over SSH, the prompt names the app. These actions are also the list
+  of what the helper installs as root: one not named here, it refuses.
+-->
+<policyconfig>
+  <vendor>Omarchy</vendor>
+  <vendor_url>https://omarchy.org</vendor_url>
+  <action id="org.omarchy.pkg-add-curated.claude_code">
+    <description>Install Claude Code</description>
+    <message>Authorize to install Claude Code</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">claude-code</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.openai_codex">
+    <description>Install Codex</description>
+    <message>Authorize to install Codex</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">openai-codex</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.grok_cli">
+    <description>Install Grok Build</description>
+    <message>Authorize to install Grok Build</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">grok-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.opencode">
+    <description>Install OpenCode</description>
+    <message>Authorize to install OpenCode</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">opencode</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.github_copilot_cli">
+    <description>Install GitHub Copilot</description>
+    <message>Authorize to install GitHub Copilot</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">github-copilot-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.crush_bin">
+    <description>Install Crush</description>
+    <message>Authorize to install Crush</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">crush-bin</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.cursor_cli">
+    <description>Install Cursor CLI</description>
+    <message>Authorize to install Cursor CLI</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">cursor-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.antigravity_cli">
+    <description>Install Antigravity CLI</description>
+    <message>Authorize to install Antigravity CLI</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">antigravity-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.muse_code">
+    <description>Install Muse Code</description>
+    <message>Authorize to install Muse Code</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">muse-code</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.oh_my_pi">
+    <description>Install Oh My Pi</description>
+    <message>Authorize to install Oh My Pi</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">oh-my-pi</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.openrouter_ori">
+    <description>Install Ori</description>
+    <message>Authorize to install Ori</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">openrouter-ori</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.kimi_code">
+    <description>Install Kimi Code</description>
+    <message>Authorize to install Kimi Code</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">kimi-code</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.qwen_code">
+    <description>Install Qwen Code</description>
+    <message>Authorize to install Qwen Code</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">qwen-code</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.deepseek_dsh">
+    <description>Install DeepSeek Harness</description>
+    <message>Authorize to install DeepSeek Harness</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">deepseek-dsh</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.minimax_code">
+    <description>Install MiniMax Code</description>
+    <message>Authorize to install MiniMax Code</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">minimax-code</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.freebuff">
+    <description>Install Freebuff</description>
+    <message>Authorize to install Freebuff</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">freebuff</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.kilocode_cli">
+    <description>Install Kilo</description>
+    <message>Authorize to install Kilo</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">kilocode-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.devin_cli">
+    <description>Install Devin</description>
+    <message>Authorize to install Devin</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">devin-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.amp_cli">
+    <description>Install Amp</description>
+    <message>Authorize to install Amp</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">amp-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.basecamp_cli">
+    <description>Install the Basecamp CLI</description>
+    <message>Authorize to install the Basecamp CLI</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">basecamp-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.cloudflare_cli">
+    <description>Install the Cloudflare CLI</description>
+    <message>Authorize to install the Cloudflare CLI</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">cloudflare-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.hey_cli">
+    <description>Install the HEY CLI</description>
+    <message>Authorize to install the HEY CLI</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">hey-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.hunk">
+    <description>Install Hunk</description>
+    <message>Authorize to install Hunk</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">hunk</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.github_cli">
+    <description>Install the GitHub CLI</description>
+    <message>Authorize to install the GitHub CLI</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">github-cli</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.claude_desktop">
+    <description>Install Claude Desktop</description>
+    <message>Authorize to install Claude Desktop</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">claude-desktop</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.openai_codex_desktop">
+    <description>Install ChatGPT Desktop</description>
+    <message>Authorize to install ChatGPT Desktop</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">openai-codex-desktop</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.opencode_desktop">
+    <description>Install OpenCode Desktop</description>
+    <message>Authorize to install OpenCode Desktop</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">opencode-desktop</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.amp_desktop_bin">
+    <description>Install Amp Desktop</description>
+    <message>Authorize to install Amp Desktop</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">amp-desktop-bin</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.antigravity">
+    <description>Install Antigravity Desktop</description>
+    <message>Authorize to install Antigravity Desktop</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">antigravity</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.grok_bot">
+    <description>Install Grok Bot</description>
+    <message>Authorize to install Grok Bot</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">grok-bot</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.perplexity">
+    <description>Install Perplexity</description>
+    <message>Authorize to install Perplexity</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">perplexity</annotate>
+  </action>
+  <action id="org.omarchy.pkg-add-curated.lmstudio_bin">
+    <description>Install LM Studio</description>
+    <message>Authorize to install LM Studio</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">lmstudio-bin</annotate>
+  </action>
+</policyconfig>

@@ -358,15 +358,17 @@ end
 -- over there.
 local function reclaim(monitor, id)
   local workspace = hl.get_workspace(id)
-  if not workspace or not workspace.monitor or workspace.monitor.name == monitor.name then
+  if not workspace or (workspace.monitor and workspace.monitor.name == monitor.name) then
     return
   end
 
   local away = workspace.monitor
   hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = monitor.name }))
 
-  local monitors = connected()
-  settle(away, monitors, assign(monitors))
+  if away then
+    local monitors = connected()
+    settle(away, monitors, assign(monitors))
+  end
 end
 
 -- Renumber a workspace into a block, keeping its slot when that one is free and

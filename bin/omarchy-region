@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Show the region this machine was installed for: cn, or global without one (docs/regions.md).
+
+region_file=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
+region=""
+[[ -f $region_file ]] && region=$(<"$region_file")
+echo "${region:-global}"

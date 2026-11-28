@@ -35,11 +35,17 @@ Item {
   property string doneFile: ""
   property string filterText: ""
   property var doneFilesToRelease: []
-  // Themes open from rows the shell already holds, so the picker shows without
-  // waiting on omarchy-theme-switcher; each open refreshes them behind it.
+  // Themes and backgrounds open from rows the shell already holds, so the
+  // picker shows without waiting on a directory scan; each open refreshes them
+  // behind it.
   property string themeRows: ""
   property bool themeMode: false
   property bool themeOpenPending: false
+  property string backgroundRows: ""
+  property bool backgroundMode: false
+  property bool backgroundOpenPending: false
+  property string currentBackgroundPath: ""
+  property string initialBackgroundSelection: ""
   property var extraThemeNames: []
   property var stockThemeNames: []
   property bool stockThemesKnown: false
@@ -66,7 +72,17 @@ Item {
   readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
   onPreviewRadiusChanged: updateVisibleItems()
 
-  onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false }
+  property var scrubAnchor: null
+
+  onOpenedChanged: {
+    disarmPointer()
+    if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false }
+  }
+  onDeleteConfirmOpenChanged: disarmPointer()
+
+  PointerMoveGate {
+    id: pointerGate
+  }
 
   PreviewHold {
     id: previewHold
@@ -146,6 +162,11 @@ Item {
     return ImagePickerModel.firstMatchingIndex(imageArray, filterText)
   }
 
+  function disarmPointer() {
+    pointerGate.reset()
+    scrubAnchor = null
+  }
+
   function select(index, immediate) {
     if (imageArray.length === 0) return
     if (index < 0) index = 0
@@ -154,6 +175,23 @@ Item {
     if (index === selectedIndex && immediate !== true) return
 
     selectedIndex = index
+  }
+
+  function selectFromKeyboard(direction) {
+    disarmPointer()
+    selectAdjacent(direction)
+  }
+
+  function handlePointerMove(pos) {
+    if (matchingImageIndices.length === 0 || !pointerGate.moved(scrubBand, pos)) return
+
+    var readingX = carousel.mirrored ? scrubBand.width - pos.x : pos.x
+    var currentPos = matchingImageIndices.indexOf(selectedIndex)
+    if (!scrubAnchor) {
+      scrubAnchor = ImagePickerModel.createScrubAnchor(matchingImageIndices.length, currentPos, readingX, scrubBand.width)
+    }
+
+    select(matchingImageIndices[ImagePickerModel.scrubPosition(matchingImageIndices.length, currentPos, scrubAnchor, readingX)])
   }
 
   function selectAdjacent(direction) {
@@ -171,6 +209,7 @@ Item {
   }
 
   function updateFilter(nextFilterText) {
+    disarmPointer()
     filterText = nextFilterText
 
     if (!itemMatches(selectedIndex)) {
@@ -204,6 +243,16 @@ Item {
       return
     }
 
+    if (backgroundMode) {
+      backgroundMode = false
+      root.opened = false
+      if (path) {
+        root.currentBackgroundPath = path
+        Util.execArgv(["omarchy-theme-bg-set", path])
+      }
+      return
+    }
+
     if (!path || !selectionFile) {
       cancel()
       return
@@ -222,6 +271,7 @@ Item {
 
   function cancel() {
     themeOpenPending = false
+    backgroundOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -235,6 +285,7 @@ Item {
   function closeSelector(nextDoneFile) {
     requestSerial += 1
     themeOpenPending = false
+    backgroundOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -277,6 +328,8 @@ Item {
     requestSerial += 1
     themeMode = false
     themeOpenPending = false
+    backgroundMode = false
+    backgroundOpenPending = false
 
     imageDirs = nextImageDirs
     imageRows = nextImageRows
@@ -288,6 +341,7 @@ Item {
     filterable = nextFilterable === true || nextFilterable === "true"
     filterText = ""
     layoutSettled = false
+    disarmPointer()
 
     if (imageRows && imageRows === loadedImageRows && imageArray.length > 0) {
       root.select(root.selectedImageIndex(), true)
@@ -319,6 +373,7 @@ Item {
   }
 
   property var imageArray: []
+  onImageArrayChanged: disarmPointer()
   readonly property var matchingImageIndices: ImagePickerModel.matchingIndices(imageArray, filterText)
   onMatchingImageIndicesChanged: updateVisibleItems()
   onSelectedIndexChanged: {
@@ -383,6 +438,56 @@ Item {
   function openThemeRows() {
     openSelector("", themeRows, currentThemePreview(), "", "", true, true)
     themeMode = true
+  }
+
+  function openBackgrounds() {
+    if (backgroundRows) {
+      openBackgroundRows()
+    } else {
+      backgroundOpenPending = true
+    }
+    refreshCurrentBackground()
+    refreshBackgroundRows()
+  }
+
+  function openBackgroundRows() {
+    openSelector("", backgroundRows, currentBackgroundPath, "", "", false, false)
+    backgroundMode = true
+    initialBackgroundSelection = currentPath()
+  }
+
+  function refreshBackgroundRows() {
+    if (backgroundRowsProc.running) { backgroundRowsProc.queued = true; return }
+    backgroundRowsProc.running = true
+  }
+
+  function refreshCurrentBackground() {
+    if (currentBackgroundProc.running) { currentBackgroundProc.queued = true; return }
+    currentBackgroundProc.running = true
+  }
+
+  function updateBackgroundRows(rows) {
+    var changed = rows !== backgroundRows
+    backgroundRows = rows
+
+    if (backgroundOpenPending) {
+      backgroundOpenPending = false
+      if (rows) {
+        openBackgroundRows()
+      } else {
+        Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
+      }
+    } else if (changed && backgroundMode && opened) {
+      if (rows) {
+        selectedImage = currentPath() || currentBackgroundPath
+        imageRows = rows
+        loadRows(rows, false)
+      } else {
+        backgroundMode = false
+        root.opened = false
+        Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
+      }
+    }
   }
 
   // A refresh asked mid-refresh (a deletion finishing behind the open-time
@@ -457,7 +562,55 @@ Item {
     id: themeNameFile
     path: root.stateHome + "/omarchy/current/theme.name"
     watchChanges: true
-    onFileChanged: reload()
+    onFileChanged: {
+      reload()
+      root.backgroundRows = ""
+      root.refreshBackgroundRows()
+      root.refreshCurrentBackground()
+    }
+  }
+
+  Process {
+    id: backgroundRowsProc
+    property bool queued: false
+    command: [root.omarchyPath + "/bin/omarchy-theme-bg-switcher", "--print-rows"]
+    stdout: StdioCollector {
+      onStreamFinished: root.updateBackgroundRows(String(text || "").trim())
+    }
+    onExited: {
+      if (queued) {
+        queued = false
+        running = true
+      }
+    }
+  }
+
+  Process {
+    id: currentBackgroundProc
+    property bool queued: false
+    command: ["readlink", "-f", root.stateHome + "/omarchy/current/background"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var resolved = String(text || "").trim()
+        if (!resolved) return
+        root.currentBackgroundPath = resolved
+        // If an external command (e.g. omarchy-theme-bg-next) changed the
+        // wallpaper before this open, move the highlight to the current one as
+        // long as the user hasn't navigated away from the initial selection.
+        if (root.opened && root.backgroundMode && resolved !== root.selectedImage && root.currentPath() === root.initialBackgroundSelection) {
+          root.selectedImage = resolved
+          root.select(root.selectedImageIndex(), true)
+          root.initialBackgroundSelection = root.currentPath()
+        }
+      }
+    }
+    onExited: {
+      if (queued) {
+        queued = false
+        running = true
+      }
+    }
   }
 
   Process {
@@ -515,6 +668,8 @@ Item {
 
   Component.onCompleted: {
     refreshThemeRows()
+    refreshBackgroundRows()
+    refreshCurrentBackground()
     refreshExtraThemes()
     refreshStockThemes()
   }
@@ -577,6 +732,10 @@ Item {
       openThemes()
       return
     }
+    if (args.source === "backgrounds") {
+      openBackgrounds()
+      return
+    }
     var dirs = String(args.imageDirs || imageDirs)
     var rows = String(args.imageRows || "")
     var sel = String(args.selectedImage || selectedImage)
@@ -606,6 +765,7 @@ Item {
     filterable = nextFilterable === true || nextFilterable === "true"
     filterText = ""
     layoutSettled = false
+    disarmPointer()
 
     if (imageRows && imageRows === loadedImageRows && imageArray.length > 0) {
       selectedIndex = selectedImageIndex()
@@ -715,10 +875,10 @@ Item {
               root.updateFilter(Util.editedFilter(event, root.filterText))
               event.accepted = true
             } else if (Util.readingKey(event) === Qt.Key_Left || (event.key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
-              root.selectAdjacent(-1)
+              root.selectFromKeyboard(-1)
               event.accepted = true
             } else if (Util.readingKey(event) === Qt.Key_Right || event.key === Qt.Key_Tab) {
-              root.selectAdjacent(1)
+              root.selectFromKeyboard(1)
               event.accepted = true
             } else if (root.filterable && event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
               root.updateFilter(root.filterText + event.text)
@@ -885,6 +1045,27 @@ Item {
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
         }
+    }
+
+    Item {
+      id: scrubBand
+      anchors.left: parent.left
+      anchors.right: parent.right
+      y: card.y + carousel.y
+      height: carousel.height
+
+      MouseArea {
+        anchors.fill: parent
+        enabled: root.scrubAnchor !== null
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.applySelected()
+      }
+
+      HoverHandler {
+        enabled: root.opened && root.layoutSettled && !root.deleteConfirmOpen && root.imageArray.length > 0
+        onPointChanged: if (hovered) root.handlePointerMove(point.position)
+        onHoveredChanged: if (!hovered) root.scrubAnchor = null
+      }
     }
 
     // Unlike the picker itself, the confirmation keeps the faded backdrop:

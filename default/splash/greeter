@@ -1,0 +1,35 @@
+#!/bin/bash
+# The login screen, as greetd runs it for the greeter user (see
+# omarchy-system-login): Hyprland, running the Quickshell greeter
+# (ui/greeter.qml) for the user named in $1, and exiting with it.
+
+user=${1:-}
+if [[ -z $user ]] || ! getent passwd "$user" >/dev/null; then
+  # None named, as after a factory reset before setup creates one, or one
+  # whose account is gone since: the first person's account.
+  user=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 && $7 !~ /(nologin|false)$/ { print $1; exit }')
+fi
+export OMARCHY_GREETER_USER=$user
+
+# The layouts the password can be typed in, for greeter.lua and the screen's
+# keyboard to switch between (ui/greeter.qml).
+while IFS='=' read -r key value; do
+  case $key in
+    XKBLAYOUT | XKBVARIANT) export "OMARCHY_SPLASH_$key=$value" ;;
+  esac
+done < <(/usr/share/omarchy/default/splash/layouts /etc/vconsole.conf)
+
+# The greeter user has no home of its own to keep caches and state in.
+export XDG_CACHE_HOME=$XDG_RUNTIME_DIR/cache XDG_STATE_HOME=$XDG_RUNTIME_DIR/state XDG_DATA_HOME=$XDG_RUNTIME_DIR/data
+
+# aquamarine keeps whatever a display shows rather than set its mode, which is
+# the boot splash's picture only while omarchy-splash-hold.service says so.
+if [[ -e /run/omarchy-splash-hold/adopt ]]; then
+  export AQ_SPLASH_ADOPT=1
+fi
+
+# Hyprland itself, not start-hyprland: after a crash that restarts it in safe
+# mode, which ignores --config and so has no greeter. greetd starts a new
+# greeter when this one ends, however it ends. Its output goes to the journal,
+# as login-session's does, rather than onto the console greetd started it on.
+exec systemd-cat --identifier=omarchy-greeter Hyprland --config /usr/share/omarchy/default/splash/greeter.lua

@@ -2,26 +2,36 @@
 
 We maken automatisch snapshots bij elke Omarchy-update, maar als je er zelf een wilt maken, kun je `omarchy-snapshot create` gebruiken.
 
-Om een snapshot op te starten en te herstellen, selecteer je deze in de Limine-bootloader. (Als je momenteel rechtstreeks naar het Omarchy-ontsleutelingsscherm opstart, moet je eerst Limine als opstartoptie selecteren via de BIOS).
+Hoe je een snapshot opstart en herstelt, hangt af van de bootloader waarmee je machine start. Nieuwe UEFI-installaties gebruiken systemd-boot; oudere installaties en BIOS-machines gebruiken Limine. `omarchy-boot-backend` laat je zien welke je hebt.
 
-Kies vanaf dat scherm de snapshot waarnaar je wilt opstarten op basis van de datum en versie. De versie van Omarchy op het moment van de snapshot is linksonder in de hoek te zien.
+## Met systemd-boot
+
+Kies _Systeem > Snapshots_ in het Omarchy-menu en kies de snapshot waarin je wilt opstarten. De machine start er eenmalig in opnieuw op. Of houd Space ingedrukt terwijl de machine start om het opstartmenu te zien, waar elke snapshot wordt vermeld, nieuwste eerst, met de Omarchy-versie en datum.
+
+Een snapshot start op met een tijdelijke laag erbovenop, dus je kunt hem normaal gebruiken, maar alles wat je wijzigt is bij de volgende herstart verdwenen. Om hem te behouden, maak je er je systeem van: klik op de melding die verschijnt wanneer je inlogt, kies _Systeem > Snapshots > Deze snapshot herstellen_, of voer `omarchy-snapshot restore` uit. Het herstel vindt plaats terwijl de machine opnieuw opstart. Het systeem zoals het daarvoor was, blijft in het opstartmenu staan als _Voor herstel_, en `omarchy-snapshot restore backup` zet het terug.
+
+Vanuit de terminal:
+
+- `omarchy-snapshot list` vermeldt de snapshots waarin je kunt opstarten;
+- `omarchy-snapshot boot 12` start eenmalig opnieuw op in snapshot 12;
+- `omarchy-snapshot restore 12` maakt snapshot 12 bij de volgende herstart tot het systeem, en met `omarchy-snapshot restore --cancel` bedenk je je vóór die herstart.
+
+## Met Limine
+
+Om een snapshot op te starten en te herstellen, selecteer je hem in de Limine-bootloader. Het opstartmenu blijft standaard verborgen, dus druk op een willekeurige toets zodra Limine start om het tevoorschijn te halen.
+
+Kies vanaf dat scherm de snapshot waarin je wilt opstarten op basis van de datum en versie. De versie van Omarchy op het moment van de snapshot is linksonder in de hoek te zien.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Wanneer je binnen bent, verschijnt er een melding dat je in een opstartbare snapshot zit en als je erop klikt, start het herstelproces. Je kunt ook `omarchy-snapshot restore` gebruiken.
+Wanneer je binnen bent, verschijnt er een melding die je laat weten dat je in een opstartbare snapshot zit en als je erop klikt, start het herstelproces. Je kunt ook `omarchy-snapshot restore` gebruiken.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Dit herstelt je rootbestandssysteem, maar niet je `/home`. Dus het werkt om een kapotte systeemupdate terug te draaien, maar niet om verloren persoonlijke bestanden te herstellen.
+## Wat een herstel dekt
 
-Dit betekent ook dat je `~/.config`-map ongewijzigd blijft. Dus als je teruggaat naar een eerdere versie van een bibliotheek of applicatie die configuratiebestanden in een nieuw formaat opslaat, moet je dat handmatig oplossen.
+Een herstel brengt je rootbestandssysteem terug, maar niet je `/home`. Het werkt dus om een kapotte systeemupdate terug te draaien, maar niet om verloren persoonlijke bestanden te herstellen.
 
-Hetzelfde geldt voor Omarchy's eigen registratie van welke migraties al zijn uitgevoerd: deze staat in je thuismap, dus deze overleeft het herstel. Migraties die zijn uitgevoerd nadat de snapshot is gemaakt, blijven gemarkeerd als voltooid, ook al zijn de wijzigingen die ze in het rootbestandssysteem hebben aangebracht teruggedraaid, en de volgende `omarchy update` voert ze niet opnieuw uit. Dus als je na een herstel opnieuw update en iets wat een eerdere update had ingesteld nog steeds ontbreekt, is dat waarschijnlijk de reden.
+Dit betekent ook dat je map `~/.config` ongewijzigd blijft. Dus als je teruggaat naar een eerdere versie van een bibliotheek of applicatie die configuratiebestanden in een nieuw formaat opslaat, moet je dat handmatig uitzoeken.
 
-_Let op: Deze functie is alleen beschikbaar op installaties die de Limine-bootloader gebruiken, wat sinds Omarchy 2.0 de standaard is. Het is niet beschikbaar als je GRUB of systemd-boot gebruikt._
-
-### Het opstartmenu overslaan
-
-Als je het opstartmenu nooit aanraakt en gewoon wilt dat de machine rechtstreeks naar het ontsleutelingsscherm gaat, voer dan _Setup > Direct Boot_ uit in het Omarchy-menu. Dat voegt een EFI-item toe dat rechtstreeks naar Omarchy wijst, zodat de firmware deze opstart zonder bij Limine te stoppen.
-
-De afweging is degene die bovenaan is genoemd: met direct boot ingeschakeld betekent bij een snapshot komen dat je eerst Limine moet kiezen uit je BIOS-opstartmenu. Voer _Setup > Direct Boot_ opnieuw uit om het item te verwijderen en weer via Limine op te starten. Sommige firmware kan niet goed overweg met aangepaste EFI-items, dus de setup weigert te draaien op American Megatrends- en Apple-firmware.
+Hetzelfde geldt voor Omarchy's eigen registratie van welke migraties al zijn uitgevoerd: die staat in je thuismap, dus die overleeft het herstel. Migraties die zijn uitgevoerd nadat de snapshot was gemaakt, blijven als voltooid gemarkeerd, ook al zijn de wijzigingen die ze aan het rootbestandssysteem hebben aangebracht teruggedraaid, en de volgende `omarchy update` voert ze niet opnieuw uit. Dus als je na een herstel opnieuw bijwerkt en iets dat een eerdere update had ingesteld nog steeds ontbreekt, is dat waarschijnlijk de reden.

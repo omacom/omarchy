@@ -351,4 +351,30 @@ updateCtx.deleteSelectionPath = '/p/alpha.png'
 updateCtx.themeRows = 'new-rows'
 updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
+
+const iconAnchor = picker.createScrubAnchor(3, 1, 720, 1440)
+assertEqual(iconAnchor.leftPitch, 96, 'small collection clamps left scrub pitch to maxPitch')
+assertEqual(iconAnchor.rightPitch, 96, 'small collection clamps right scrub pitch to maxPitch')
+assertEqual(picker.scrubPosition(3, 1, iconAnchor, 780), 2, 'moving slightly right inside the preview frame advances to the next icon')
+assertEqual(picker.scrubPosition(3, 2, iconAnchor, 766), 2, 'small jitter inside boundary hysteresis keeps current icon')
+assertEqual(picker.scrubPosition(3, 2, iconAnchor, 760), 1, 'reversing back across the boundary returns to the previous icon immediately')
+assertEqual(picker.scrubPosition(3, 1, iconAnchor, 660), 0, 'moving slightly left inside the preview frame selects the previous icon')
+
+const themeAnchor = picker.createScrubAnchor(23, 10, 720, 1440)
+let pos = 10
+const visitedRight = new Set([pos])
+for (let x = 720; x <= 1400; x += 4) {
+  pos = picker.scrubPosition(23, pos, themeAnchor, x)
+  visitedRight.add(pos)
+}
+assertEqual(pos, 22, 'sweeping right to the margin reaches the last theme')
+assertEqual(visitedRight.size, 13, 'sweeping right visits every theme from 10 through 22 without skipping')
+const visitedLeft = new Set([pos])
+for (let x = 1400; x >= 40; x -= 4) {
+  pos = picker.scrubPosition(23, pos, themeAnchor, x)
+  visitedLeft.add(pos)
+}
+assertEqual(pos, 0, 'sweeping left to the margin reaches the first theme')
+assertEqual(visitedLeft.size, 23, 'sweeping across the screen visits all 23 themes smoothly in order')
+assertEqual(picker.createScrubAnchor(23, 10, 1320, 1440).rightPitch, 32, 'anchoring near the right edge clamps pitch to minPitch')
 JS

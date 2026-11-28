@@ -40,6 +40,8 @@ resolve_intro() {
 # Preparation is speculative: the selected staged clip is compared again by OWE.
 prepare_theme_intro() {
   local theme="$1" background remembered name source intro
+  # A dev-linked $OMARCHY_PATH has no stills; omarchy-themes-backgrounds installs them here.
+  local packaged_themes=${OMARCHY_PACKAGED_THEMES_PATH:-/usr/share/omarchy/themes}
   local -a names=()
   [[ -n $theme && $theme != .* && $theme != */* ]] || return 0
   [[ ! -f $toggle ]] && ! animations_off || return 0
@@ -58,7 +60,7 @@ prepare_theme_intro() {
       background=${names[0]}
     else
       mapfile -d '' -t names < <(
-        find -L "$OMARCHY_PATH/themes/$theme/backgrounds" "$HOME/.config/omarchy/themes/$theme/backgrounds" -maxdepth 1 -type f \
+        find -L "$OMARCHY_PATH/themes/$theme/backgrounds" "$packaged_themes/$theme/backgrounds" "$HOME/.config/omarchy/themes/$theme/backgrounds" -maxdepth 1 -type f \
           \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.bmp' -o -iname '*.webp' \) -printf '%f\0' 2>/dev/null | sort -zu
       )
       (( ${#names[@]} > 0 )) || return 0
@@ -66,7 +68,7 @@ prepare_theme_intro() {
     fi
   fi
   if [[ -n ${name:-} ]]; then
-    for source in "$HOME/.config/omarchy/themes/$theme" "$OMARCHY_PATH/themes/$theme"; do
+    for source in "$HOME/.config/omarchy/themes/$theme" "$OMARCHY_PATH/themes/$theme" "$packaged_themes/$theme"; do
       if [[ -f $source/backgrounds/$name ]]; then
         background="$source/backgrounds/$name"
         break

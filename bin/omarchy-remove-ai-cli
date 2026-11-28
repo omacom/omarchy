@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Remove a coding agent's CLI
+# omarchy:args=<agent>
+# omarchy:examples=omarchy remove ai cli codex
+# omarchy:requires-sudo=true
+
+# Sign-ins, history and settings in the agent's own folders (~/.claude,
+# ~/.codex, ...) stay, so installing it again picks up where it left off.
+
+set -euo pipefail
+
+agent=${1:-}
+package=$(omarchy-install-ai-cli --package "$agent") || exit 1
+
+echo "Removing $package..."
+omarchy-pkg-drop "$package"
+rm -f "$HOME/.local/share/applications/omarchy-agent-$agent.desktop"
+omarchy-agent-account-dispatch "$agent"
+
+# A default agent that's gone would leave the AI hotkey with nothing to open,
+# so it asks for a new one instead.
+agent_file="$HOME/.config/omarchy/defaults/agent"
+if [[ -f $agent_file ]] && grep -qx "$agent" "$agent_file"; then
+  rm -f "$agent_file"
+fi

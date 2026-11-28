@@ -16,6 +16,7 @@ elif (($# > 0)); then
   exit 1
 fi
 
+[[ $background == "false" ]] && echo "Installing Superwhisper dictation..."
 omarchy-pkg-add superwhisper-bin
 bash /usr/share/superwhisper/setup-user
 # Existing profiles may still use Right Alt, which conflicts with Omarchy.
