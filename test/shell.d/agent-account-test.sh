@@ -352,6 +352,13 @@ agent_path=$(PATH="$dispatchers:$PATH:$dispatchers" OMARCHY_TEST_SHOW_PATH=1 "$d
   fail "an agent's own subprocesses dispatch too" "$agent_path"
 pass "account dispatch follows the active account"
 
+without_mise="$test_tmp/without-mise"
+mkdir "$without_mise"
+ln -s "$mock_bin/claude" "$without_mise/claude"
+[[ $(PATH="$dispatchers:$without_mise:$ROOT/bin" CLAUDE_CONFIG_DIR=/elsewhere "$dispatchers/claude" --version) == "claude home=/elsewhere args=--version" ]] ||
+  fail "an installed CLI starts when mise is off PATH"
+pass "an installed CLI starts when mise is off PATH"
+
 # Inactive Node installs still contribute npm launchers to real mise shims.
 # They must fall through to the package without losing account dispatch.
 (

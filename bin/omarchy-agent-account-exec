@@ -41,7 +41,7 @@ for dir in "${dirs[@]}"; do
 done
 # Check mise shims before restoring dispatch: an inactive tool can fall back
 # to our dispatcher instead of the package further along PATH.
-mise_binary=$(PATH=$cli_path type -P mise)
+mise_binary=$(PATH=$cli_path type -P mise) || true
 agent_binary="" first_shim=""
 while IFS= read -r candidate; do
   if [[ $candidate -ef $mise_binary ]]; then
