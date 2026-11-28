@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# omarchy:summary=Launch an autostart app once the shell's notification and tray services are on the bus
+# omarchy:hidden=true
+
+# Autostart apps fire on hyprland.start, the same event that launches the shell,
+# and the shell needs a few seconds before its plugins claim their bus names.
+# Apps that probe for a name once at process start keep a missing answer for
+# their whole lifetime: Chromium (and every web app) and Electron check for
+# org.freedesktop.Notifications and then draw their own bare popup windows for
+# the rest of the session, and Electron's tray icon checks for
+# org.kde.StatusNotifierWatcher once and never registers if it is not there.
+# Wait for both names, bounded by one shared budget, before the launch.
+#
+# With the shell's notifications plugin turned off, --activate starts a
+# D-Bus-activatable daemon (mako, dunst and swaync all ship a service file for
+# that name) so the wait ends at once. Never with the plugin on: an installed
+# daemon would be activated during the shell's own startup and claim the name
+# first, and every app would then notify outside Omarchy.
+#
+# The tray watcher comes from whichever bar widget is a tray, so a bar layout
+# with no widget whose id ends in ".tray" skips that wait. That suffix covers
+# the stock omarchy.tray and forks of it kept under another id; a tray widget
+# named otherwise only costs a slower login, never a missing app.
+#
+# Past the deadline the app launches anyway: a disabled feature must cost a
+# delay, never a missing app. Leave one journal line per missing service, so
+# the slower login can be traced back to it.
+#
+# Only correct at session start. Keybind launches go through o.launch directly.
+# A daemon that will claim a name itself must not go through here or it waits
+# for itself; autostart it with o.exec_on_start(o.launch(...)).
+
+timeout=${OMARCHY_AUTOSTART_TIMEOUT:-15}
+shell_config="$HOME/.config/omarchy/shell.json"
+
+name_owned() {
+  [[ $(gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.NameHasOwner "$1" 2>/dev/null) == "(true,)" ]]
+}
+
+# Waits for one bus name with whatever is left of the budget. Extra arguments
+# go to gdbus wait. Returns 1 when the name is not there in time. With no
+# budget left it still asks the bus once, so a service that came up during an
+# earlier wait is never reported missing.
+wait_for_name() {
+  local name="$1"
+  shift
+  local remaining=$((timeout - SECONDS))
+  if (( remaining < 1 )); then
+    name_owned "$name"
+  else
+    gdbus wait --session "$@" --timeout "$remaining" "$name" >/dev/null 2>&1
+  fi
+}
+
+report_missing() {
+  logger -t omarchy-autostart "$1 was not available after waiting up to ${timeout}s; launching $2 without it."
+}
+
+notification_args=()
+if jq -e '.disabledPlugins? | arrays | index("omarchy.notifications")' "$shell_config" >/dev/null 2>&1; then
+  notification_args+=(--activate)
+fi
+
+if ! wait_for_name org.freedesktop.Notifications "${notification_args[@]}"; then
+  report_missing org.freedesktop.Notifications "$1"
+fi
+
+# Skip the tray wait only when the layout is readable and lists no tray widget;
+# a missing or unreadable file means the default layout, which has one. A
+# layout entry is either a bare id string or an object with an id, and every
+# string under the layout is collected to cover both.
+if ! jq -e '.bar.layout | objects | [.. | strings] | any(endswith(".tray")) | not' "$shell_config" >/dev/null 2>&1; then
+  if ! wait_for_name org.kde.StatusNotifierWatcher; then
+    report_missing org.kde.StatusNotifierWatcher "$1"
+  fi
+fi
+
+exec uwsm-app -- "$@"
