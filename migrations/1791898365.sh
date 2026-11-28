@@ -43,6 +43,18 @@ if ! sudo grep -Eqi '^[[:space:]]*quiet:' "$limine_conf"; then
   added_quiet=1
 fi
 
+# With ENABLE_ENROLL_LIMINE_CONFIG=yes the Limine binary carries a checksum
+# of this file, and any edit makes the next boot stop on CHECKSUM MISMATCH.
+# limine-enroll-config enrolls the edited menu again. It runs whenever the
+# menu is here, not only when this run changed it, so a retry after a failed
+# enrollment still repairs the checksum; a failure leaves this migration
+# pending. The tool reads the setting from /etc/default/limine alone, and its
+# last assignment wins.
+enroll=$(sed -nE 's/^[[:space:]]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=[[:space:]]*//p' /etc/default/limine 2>/dev/null | tail -n 1) || true
+if omarchy-cmd-present limine-enroll-config && [[ $enroll =~ ^\"?yes\"?$ ]]; then
+  sudo limine-enroll-config
+fi
+
 if [[ -n $set_timeout && -n $added_quiet ]]; then
   echo "The boot menu now waits 1 second and stays quiet until a key is pressed"
 elif [[ -n $set_timeout ]]; then
