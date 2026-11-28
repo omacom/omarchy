@@ -5,7 +5,7 @@
 
 # Runs as the process the inhibitor is held around (see omarchy-toggle-lid-awake).
 # Below the warn levels it only says so; below the stop levels it releases the
-# lid, so a closed laptop suspends rather than hitting a full disk or an empty
+# lid and suspends a closed laptop, rather than hitting a full disk or an empty
 # battery mid-write. Disk is the lower of / and $HOME free space, as a download
 # or VM image may land on either.
 
@@ -47,6 +47,12 @@ discharging_percent() {
 warned=""
 stop() {
   omarchy-notification-send -g 󰒲 "$(omarchy-i18n lidAwake.stopped "$1")"
+  # Releasing the lock is not enough on external power, where logind ignores the
+  # lid. Suspend first: turning the toggle off stops the unit this runs in. An
+  # external display means the closed laptop is still in use.
+  if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors && ! omarchy-sleep-disabled; then
+    systemctl suspend || true
+  fi
   omarchy-toggle-lid-awake off >/dev/null
   exit 0
 }

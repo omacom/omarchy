@@ -29,6 +29,7 @@ done
 STUB
 cat >"$fake_bin/systemctl" <<STUB
 #!/bin/bash
+[[ \$1 == "suspend" ]] && printf 'suspend\n' >>"$log"
 case "\$2" in
   is-active) [[ -f "$test_tmp/active" ]] ;;
   stop) rm -f "$test_tmp/active"; rm -f "$XDG_RUNTIME_DIR/omarchy/lid-awake" ;;
@@ -54,6 +55,11 @@ cat >"$fake_bin/omarchy-toggle-lid-awake" <<STUB
 #!/bin/bash
 printf 'toggle %s\n' "\$*" >>"$log"
 STUB
+# Each hardware question is answered by what its flag file says.
+for check in hw-laptop-closed hw-external-monitors sleep-disabled; do
+  echo no >"$test_tmp/$check"
+  printf '#!/bin/bash\n[[ $(<"%s") == "yes" ]]\n' "$test_tmp/$check" >"$fake_bin/omarchy-$check"
+done
 chmod +x "$fake_bin"/*
 
 state="$XDG_RUNTIME_DIR/omarchy/lid-awake"
@@ -114,6 +120,23 @@ echo 2 >"$test_tmp/free_gb"
 run_guard
 grep -q '^toggle off' "$log" || fail "critical disk releases the lid" "$(<"$log")"
 pass "critical disk turns lid-awake off"
+
+! grep -q '^suspend' "$log" || fail "an open lid is not suspended" "$(<"$log")"
+echo yes >"$test_tmp/hw-laptop-closed"
+run_guard
+[[ $(grep -E '^(suspend|toggle)' "$log") == $'suspend\ntoggle off' ]] ||
+  fail "a closed laptop suspends before the unit is stopped" "$(<"$log")"
+pass "critical disk suspends a closed laptop"
+
+for reason in hw-external-monitors sleep-disabled; do
+  echo yes >"$test_tmp/$reason"
+  run_guard
+  ! grep -q '^suspend' "$log" || fail "$reason keeps the machine awake" "$(<"$log")"
+  grep -q '^toggle off' "$log" || fail "$reason still releases the lid" "$(<"$log")"
+  echo no >"$test_tmp/$reason"
+done
+pass "a docked or sleep-disabled machine is not suspended"
+echo no >"$test_tmp/hw-laptop-closed"
 
 echo 50 >"$test_tmp/free_gb"; battery_file 5 discharging
 run_guard
