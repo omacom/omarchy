@@ -65,6 +65,11 @@ shell_call shell ping >/dev/null
   fail "shell IPC targets the newest live Quickshell instance of this config" "$(<"$calls")"
 pass "shell IPC targets the newest live Quickshell instance of this config"
 
+shell_call shell setBarWidget omarchy.tray hidden '[]' '{}' >/dev/null
+[[ $(<"$calls") == "ipc -n -p $root_dir/shell call -- shell setBarWidget omarchy.tray hidden [[]] {}" ]] ||
+  fail "shell IPC transports empty arrays without dropping an argument" "$(<"$calls")"
+pass "shell IPC transports empty arrays without dropping an argument"
+
 # Display recovery: qs matches instances by display.
 display_run="$test_tmp/display-run"
 mkdir -p "$display_run"
