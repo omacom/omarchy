@@ -229,3 +229,23 @@ HOME="$restart_home" \
 grep -q "update.hyprlandReboot" "$test_tmp/restart-prompts" ||
   fail "omarchy-update-restart offers a reboot when a later Hyprland PID runs a deleted binary" "$(cat "$test_tmp/restart-prompts")"
 pass "omarchy-update-restart checks every Hyprland PID for a deleted executable"
+
+# Hyprland keeps a replaced Omarchy plugin's old build loaded, and the reload
+# guard holds reloads until the session restarts, so that offers a reboot too.
+cat >"$restart_bin/readlink" <<'SH'
+#!/bin/bash
+printf '/usr/bin/Hyprland\n'
+SH
+mkdir -p "$test_tmp/proc/101" "$test_tmp/proc/202"
+printf '%s\n' "7f0000000000-7f0000001000 r-xp 00001000 00:1a 456 /usr/lib/omarchy-hyprland-titlebars/titlebars.so (deleted)" \
+  >"$test_tmp/proc/202/maps"
+: >"$test_tmp/restart-prompts"
+HOME="$restart_home" \
+  OMARCHY_KERNEL_MODULES_PATH="$test_tmp/modules" \
+  OMARCHY_UPDATE_RESTART_PROC_ROOT="$test_tmp/proc" \
+  RESTART_PROMPTS="$test_tmp/restart-prompts" \
+  PATH="$restart_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-restart" --reboot-only >/dev/null
+grep -q "update.hyprlandReboot" "$test_tmp/restart-prompts" ||
+  fail "omarchy-update-restart offers a reboot when Hyprland runs a replaced Omarchy plugin" "$(cat "$test_tmp/restart-prompts")"
+pass "omarchy-update-restart offers a reboot when Hyprland runs a replaced Omarchy plugin"

@@ -4,6 +4,7 @@
 # omarchy:args=[--services-only|--reboot-only]
 
 kernel_modules_path="${OMARCHY_KERNEL_MODULES_PATH:-/usr/lib/modules}"
+proc_root="${OMARCHY_UPDATE_RESTART_PROC_ROOT:-/proc}"
 
 mode="${1:-all}"
 case "$mode" in
@@ -42,8 +43,8 @@ if [[ $mode != "--services-only" ]]; then
   hyprland_updated=false
   while IFS= read -r hyprland_pid; do
     [[ -n $hyprland_pid ]] || continue
-    if [[ $(readlink "/proc/$hyprland_pid/exe" 2>/dev/null) == *"(deleted)"* ]] ||
-      grep -qE ' /usr/lib/omarchy-hyprland-[^/ ]+/[^ ]+\.so \(deleted\)$' "/proc/$hyprland_pid/maps" 2>/dev/null; then
+    if [[ $(readlink "$proc_root/$hyprland_pid/exe" 2>/dev/null) == *"(deleted)"* ]] ||
+      grep -qE ' /usr/lib/omarchy-hyprland-[^/ ]+/[^ ]+\.so \(deleted\)$' "$proc_root/$hyprland_pid/maps" 2>/dev/null; then
       hyprland_updated=true
       break
     fi
