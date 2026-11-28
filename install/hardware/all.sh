@@ -28,6 +28,7 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/fred.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-wifi7-eht.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-ax211-wifi-powersave.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/sof-firmware.sh"
+run_logged "$OMARCHY_INSTALL/hardware/intel/fix-dell-latitude-7490-hibernate.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
 
