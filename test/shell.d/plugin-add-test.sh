@@ -57,6 +57,33 @@ grep -qF "plugin id 'acme.same' is already used by" <<<"$output" ||
   fail "plugin add leaves a target behind after refusing a duplicate id"
 pass "plugin add refuses an installed manifest id regardless of directory name"
 
+# --- Re-adding a plugin installed in its own folder ------------------------
+#
+# The catalog lookup also finds the plugin's own manifest, so the id-collision
+# check used to fire before the target check and the "update it with:
+# omarchy plugin update <id>" hint was never shown. Re-adding the same URL is
+# the path people take to update, so it has to reach the target check and end
+# in the update hint instead.
+
+own_folder="$test_home/.config/omarchy/plugins/acme.own-folder"
+write_plugin "$own_folder" "acme.own-folder" "Own Folder"
+
+own_incoming="$TMPDIR/incoming-own-folder"
+write_plugin "$own_incoming" "acme.own-folder" "Own Folder"
+git -C "$own_incoming" init -q
+git -C "$own_incoming" add .
+git -C "$own_incoming" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
+
+output=$(HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+  omarchy-plugin-add "$own_incoming" --yes 2>&1) &&
+  fail "plugin add accepts re-adding a plugin installed in its own folder" "$output"
+grep -qF "plugin 'acme.own-folder' is already installed; update it with: omarchy plugin update acme.own-folder" \
+  <<<"$output" ||
+  fail "plugin add offers the update hint when the plugin is installed in its own folder" "$output"
+! grep -qF "is already used by" <<<"$output" ||
+  fail "plugin add reports the id collision instead of the update hint" "$output"
+pass "plugin add tells the user to update a plugin installed in its own folder"
+
 # --- URL transport-helper guard -------------------------------------------
 #
 # The guard refuses git transport helpers (`<name>::…`) and option-shaped URLs
