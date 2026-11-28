@@ -108,6 +108,7 @@ omarchy_leaf_platform() {
       hardware/lenovo/thinkpad-t14s-camera.sh | \
       hardware/lenovo/ideapad-slim-5x.sh | \
       hardware/microsoft/surface-pro-11.sh | \
+      hardware/microsoft/surface-pro-12.sh | \
       hardware/microsoft/surface-laptop-7.sh | \
       hardware/microsoft/surface-laptop8.sh | \
       hardware/samsung/galaxy-book4-edge-14.sh | \
