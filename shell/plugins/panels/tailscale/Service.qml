@@ -180,7 +180,7 @@ Item {
 
   function canSendFiles(peer) {
     if (!fileSharing || !running || !peer) return false
-    return Model.isTaildropTarget(peer, selfUserId)
+    return Model.canSendFiles(peer, selfUserId)
   }
 
   function sendFile(peer) {
