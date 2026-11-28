@@ -59,11 +59,21 @@ if grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:' <<< "$fingerprint_status"; then
   as_root install -Dm755 -o root -g root "$resume_hook_src" "$resume_hook_dst"
   as_root install -Dm644 -o root -g root "$stop_timeout_src" "$stop_timeout_dst"
   as_root systemctl daemon-reload
-  as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
+  if ! as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
 #%PAM-1.0
 auth       required                    pam_fprintd.so
 account    include                     system-local-login
 EOF
+  then
+    # The PAM write failed: roll the recovery files back so the contract
+    # above holds — a lock screen is never left with resume recovery and a
+    # stop-timeout drop-in installed but no fingerprint PAM service.
+    as_root rm -f /etc/pam.d/omarchy-lock-fingerprint "$resume_hook_dst"
+    as_root rm -f "$stop_timeout_dst"
+    as_root rmdir --ignore-fail-on-non-empty "$(dirname "$stop_timeout_dst")"
+    as_root systemctl daemon-reload
+    exit 1
+  fi
 elif [[ $fingerprint_status == "no" ]] || grep -qi 'has no fingers enrolled' <<< "$fingerprint_status"; then
   as_root rm -f /etc/pam.d/omarchy-lock-fingerprint "$resume_hook_dst"
   # Only reload when something was there: this branch also runs in the

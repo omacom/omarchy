@@ -75,9 +75,22 @@ mkdir -p "$poison_bin" "$trusted_root_bin"
 
 # The runtime copy pins to this isolated root path. It contains every bare
 # command the exercised helper needs, but deliberately no fprintd-list.
-for helper in grep rm tee install rmdir dirname; do
+for helper in grep rm install rmdir dirname; do
   ln -s "/usr/bin/$helper" "$trusted_root_bin/$helper"
 done
+
+# tee honors TEST_PAM_TEE_FAIL: when it names the write target, the write
+# fails, simulating the PAM-write failure the helper must roll back from.
+cat >"$trusted_root_bin/tee" <<'EOF'
+#!/bin/bash
+if [[ -n ${TEST_PAM_TEE_FAIL:-} ]] && [[ "$1" == "$TEST_PAM_TEE_FAIL" ]]; then
+  /usr/bin/head -c 12 >"$1"
+  echo "tee: $1: Input/output error" >&2
+  exit 1
+fi
+exec /usr/bin/tee "$@"
+EOF
+chmod +x "$trusted_root_bin/tee"
 
 export TEST_ATTACK_ARGS="$attack_args"
 export TEST_ATTACK_MARKER="$attack_marker"
@@ -274,6 +287,23 @@ for source in "$hook_source" "$timeout_source"; do
   mv "$source.saved" "$source"
 done
 pass "failed recovery installation cannot create fingerprint PAM"
+
+# A failed fingerprint PAM write must not leave the recovery files installed:
+# the contract is that the lock screen never ends up with resume recovery and
+# the stop-timeout drop-in configured but no fingerprint PAM service to resume.
+reset_runtime_files
+if PATH="$poison_bin:/usr/bin:/bin" OMARCHY_INSTALL_USER="$target_user" \
+  TEST_PAM_TEE_FAIL="$fingerprint_pam" \
+  "${root_runner[@]}" /bin/bash "$patched_helper" >"$test_tmp/failed-pam-write" 2>&1; then
+  fail "a failed fingerprint PAM write must fail installation"
+fi
+[[ ! -e $test_tmp/system-sleep/fprintd-resume ]] ||
+  fail "a failed fingerprint PAM write leaves the resume hook installed"
+[[ ! -e $test_tmp/fprintd.service.d/10-stop-timeout.conf ]] ||
+  fail "a failed fingerprint PAM write leaves the stop-timeout drop-in installed"
+[[ ! -e $fingerprint_pam ]] ||
+  fail "a failed fingerprint PAM write leaves a partial fingerprint PAM file"
+pass "a failed fingerprint PAM write removes the recovery files"
 
 run_as_root "$patched_helper" "restore enrollment before removing fprintd-list"
 rm -f "$trusted_fprintd"
