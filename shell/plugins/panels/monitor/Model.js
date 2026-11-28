@@ -4,6 +4,130 @@ function clampBrightness(value) {
   return Math.max(1, Math.min(100, Math.round(n)))
 }
 
+// One relative step. A write we already issued steps from the percent it will
+// land on: the hardware still shows the previous level, and reading it again
+// would undo the notch. Otherwise a reading taken now wins over the cached
+// percent, which is only a fallback when that reading failed. `live` and
+// `cached` are -1 when there is no such number. The target is -1 when there
+// is nothing to step from.
+function brightnessStep(writePending, pending, live, cached, delta) {
+  var base = -1
+  if (writePending) {
+    var chosen = Number(pending)
+    if (isFinite(chosen)) base = Math.max(0, Math.min(100, Math.round(chosen)))
+  }
+  if (base < 0 && typeof live === "number" && isFinite(live) && live >= 0)
+    base = Math.max(0, Math.min(100, Math.round(live)))
+  if (base < 0) {
+    var known = Number(cached)
+    if (isFinite(known) && known >= 0) base = Math.max(0, Math.min(100, Math.round(known)))
+  }
+  if (base < 0) return { base: -1, target: -1 }
+  return { base: base, target: clampBrightness(base + delta) }
+}
+
+// The stdout of a brightness read: a single percent, or -1 when it is not.
+function parseBrightnessReading(text) {
+  var line = String(text == null ? "" : text).trim()
+  if (!/^[0-9]+$/.test(line)) return -1
+  var n = parseInt(line, 10)
+  if (!isFinite(n)) return -1
+  return Math.max(0, Math.min(100, n))
+}
+
+// The focused-display line from omarchy-monitor-state. An empty or unexpected
+// line keeps the level already shown for this same display, so a racy read
+// cannot bounce it to zero. A different display does not inherit that level:
+// the command prints a blank line when a display has no brightness control,
+// and it never prints "unavailable". "unavailable" still means no control.
+function focusedBrightness(line, sameDisplay) {
+  var text = String(line == null ? "" : line).trim()
+  if (text === "unavailable") return { available: false, percent: 0, keep: false }
+  if (!/^[0-9]+$/.test(text)) {
+    if (sameDisplay === false) return { available: false, percent: 0, keep: false }
+    return { available: true, percent: 0, keep: true }
+  }
+  return {
+    available: true,
+    percent: Math.max(0, Math.min(100, parseInt(text, 10))),
+    keep: false
+  }
+}
+
+// The focused brightness fields after one state read. A read that started
+// before the latest write finished cannot change the level. If focus moved
+// during that write, the previous display's level is dropped anyway: the
+// next empty reading would otherwise see the same focused name and keep it.
+function focusedStateAfterRead(previousAvailable, previousPercent, previousFocused, nextFocused, line, accept) {
+  var focusChanged = String(nextFocused || "") !== String(previousFocused || "")
+  if (!accept) {
+    if (!focusChanged) return { available: !!previousAvailable, percent: previousPercent }
+    return { available: false, percent: 0 }
+  }
+  var focused = focusedBrightness(line, !focusChanged)
+  if (focused.keep) return { available: !!previousAvailable, percent: previousPercent }
+  return { available: focused.available, percent: focused.available ? focused.percent : 0 }
+}
+
+// How a relative step uses the external brightness read already under way.
+// `running` is that process, and `settled` means its stdout callback has run.
+// `accepted` means the read is still the one a result may apply. A canceled
+// read stays `running` until it exits; the next step waits (`hold`) instead
+// of starting another command on that same process. A second notch for the
+// display already being read is `accumulate`. A notch for some other display
+// during a live read is `drop`.
+function brightnessProbeAction(state) {
+  var running = !!(state && state.running)
+  var settled = !!(state && state.settled)
+  if (!running && settled) return "start"
+  if (state && state.accepted && state.sameMonitor) return "accumulate"
+  if (state && state.accepted) return "drop"
+  if (state && state.holding && state.heldSame) return "accumulate"
+  return "hold"
+}
+
+// Stdout from one read applies only while that read is still the one in
+// flight. `issued` is the token stored on the process when it started.
+// Canceling advances `current` and does not rewrite `issued`.
+function brightnessProbeCurrent(issued, current, accepted) {
+  return !!accepted && issued === current
+}
+
+// The percent a relative step for `monitor` builds on while a write is in
+// flight or queued: the latest target for that display. A write for another
+// display does not name it, so the caller reads the live level instead. The
+// queue wins over the running write when both name the display.
+function pendingBrightnessTarget(writeMonitor, writePercent, queued, monitor) {
+  for (var i = 0; queued && i < queued.length; i++) {
+    var item = queued[i]
+    if (item && item.monitor === monitor) {
+      var queuedPercent = Number(item.percent)
+      if (isFinite(queuedPercent)) return Math.max(0, Math.min(100, Math.round(queuedPercent)))
+    }
+  }
+  if (writeMonitor === monitor) {
+    var writeTarget = Number(writePercent)
+    if (isFinite(writeTarget)) return Math.max(0, Math.min(100, Math.round(writeTarget)))
+  }
+  return -1
+}
+
+// The level a state read leaves on screen. `reported` is null when this
+// display's read failed, which falls back to `confirmed`, the last level a
+// read or a successful write proved, so a transient failure does not bounce
+// it. An optimistic level from a write that never succeeded is not kept
+// instead: it was never the display's real level. A non-numeric confirmed
+// level means there is none.
+function mergeBrightnessLevel(previous, reported, accept, confirmed) {
+  var known = typeof previous === "number" && isFinite(previous) ? previous : null
+  if (!accept) return known
+  if (typeof reported === "number" && isFinite(reported))
+    return Math.max(0, Math.min(100, Math.round(reported)))
+  if (typeof confirmed === "number" && isFinite(confirmed))
+    return Math.max(0, Math.min(100, Math.round(confirmed)))
+  return null
+}
+
 function normalizeScale(scale) {
   var n = parseFloat(String(scale || ""))
   if (!isFinite(n)) return ""
@@ -367,6 +491,14 @@ function parseDisplays(raw) {
 if (typeof module !== "undefined") {
   module.exports = {
     clampBrightness: clampBrightness,
+    brightnessStep: brightnessStep,
+    parseBrightnessReading: parseBrightnessReading,
+    focusedBrightness: focusedBrightness,
+    focusedStateAfterRead: focusedStateAfterRead,
+    brightnessProbeAction: brightnessProbeAction,
+    brightnessProbeCurrent: brightnessProbeCurrent,
+    pendingBrightnessTarget: pendingBrightnessTarget,
+    mergeBrightnessLevel: mergeBrightnessLevel,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,
     matchingScaleIndex: matchingScaleIndex,

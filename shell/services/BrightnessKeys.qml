@@ -24,6 +24,23 @@ Item {
   property int maxBrightness: 0
   readonly property string devicePath: device ? "/sys/class/backlight/" + device : ""
 
+  // The internal panel's percent right now, or -1 when this monitor is not
+  // that panel or the sysfs read failed. The monitor panel's relative steps
+  // use it so they don't apply a notch to a cached percent.
+  function percentForMonitor(monitorName) {
+    if (!/^(eDP|LVDS|DSI)-/.test(String(monitorName || ""))) return -1
+    if (!devicePath) return -1
+    var max = ensureMax()
+    if (!(max > 0)) return -1
+    var level = readNumber(brightnessFile)
+    if (!(level >= 0)) {
+      root.maxBrightness = 0
+      if (!deviceProc.running) deviceProc.running = true
+      return -1
+    }
+    return Math.max(0, Math.min(100, Math.round(100 * level / max)))
+  }
+
   onDeviceChanged: maxBrightness = 0
 
   function ensureMax() {
