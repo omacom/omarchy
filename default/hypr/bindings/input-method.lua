@@ -27,3 +27,8 @@ o.bind("CTRL + SPACE", "Direct input for the terminal prefix", function()
     o.shell_succeeds("timeout 0.3 fcitx5-remote --check -c")
   end
 end, { non_consuming = true })
+
+-- On Mac keyboards the Globe key reaches the compositor as XF86Fn (kernel
+-- KEY_FN), unbound by default. Bind it to the same language switch as
+-- SUPER + I, matching the XF86* hardware-keysym precedent.
+o.bind("XF86Fn", "Switch input language with the Globe key", "omarchy-input-method cycle")
