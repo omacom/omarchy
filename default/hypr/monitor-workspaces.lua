@@ -154,7 +154,9 @@ local function connected(gone)
   local monitors = {}
 
   for _, monitor in ipairs(hl.get_monitors()) do
-    if not monitor.is_mirror and monitor.name ~= gone then
+    -- Hyprland parks workspaces here while the last real output is away.
+    -- It must not own a numbered block or renumber the workspaces it holds.
+    if not monitor.is_mirror and monitor.name ~= gone and monitor.name ~= "FALLBACK" then
       monitors[#monitors + 1] = monitor
     end
   end
