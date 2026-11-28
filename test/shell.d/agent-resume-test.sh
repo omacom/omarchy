@@ -156,7 +156,7 @@ tui_out=$(cat "$tui_log")
   fail "codex --continue passes --last and full prompt after --" "$tui_out"
 pass "codex --continue passes multi-line --prompt-file and off is idempotent"
 
-# Session/continue flags across pi, opencode, kilo, and fresh-session hermes
+# Session/continue flags across pi, opencode, kilo, qodercli, and fresh-session hermes
 rm -f "$tui_log"
 run_resume set --agent pi --session pi-1 --dir "$work_dir" --prompt "Check GPU" >/dev/null
 run_resume run
@@ -176,11 +176,23 @@ run_resume run
   fail "kilo resume passes --session and bound --prompt=" "$(cat "$tui_log")"
 
 rm -f "$tui_log"
+run_resume set --agent qodercli --session qd-1 --dir "$work_dir" --prompt "-leading-dash" >/dev/null
+run_resume run
+[[ $(cat "$tui_log") == *"ARGS=--app-id=org.omarchy.agent qodercli --dangerously-skip-permissions --resume qd-1 --prompt-interactive=-leading-dash "* ]] ||
+  fail "qodercli resume passes --resume and bound --prompt-interactive=" "$(cat "$tui_log")"
+
+rm -f "$tui_log"
+run_resume set --agent qodercli --continue --dir "$work_dir" >/dev/null
+run_resume run
+[[ $(cat "$tui_log") == *"ARGS=--app-id=org.omarchy.agent qodercli --dangerously-skip-permissions --continue "* ]] ||
+  fail "qodercli --continue passes --continue" "$(cat "$tui_log")"
+
+rm -f "$tui_log"
 run_resume set --agent hermes --dir "$work_dir" --prompt "Verify audio" >/dev/null
 run_resume run
 [[ $(cat "$tui_log") == *"ARGS=--app-id=org.omarchy.agent env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui --query=Verify\\ audio "* ]] ||
   fail "hermes opens fresh session through omarchy-agent" "$(cat "$tui_log")"
-pass "pi, opencode, kilo, and hermes launch with exact flags through omarchy-agent"
+pass "pi, opencode, kilo, qodercli, and hermes launch with exact flags through omarchy-agent"
 
 # Validation rejects bad agent/flags and preserves earlier arming if systemctl enable fails
 ! run_resume set --agent cluade --prompt "bad" 2>/dev/null || fail "rejects unknown agent name at set time"

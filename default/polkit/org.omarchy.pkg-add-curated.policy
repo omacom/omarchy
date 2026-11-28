@@ -221,6 +221,17 @@
     <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
     <annotate key="org.freedesktop.policykit.exec.argv1">amp-cli</annotate>
   </action>
+  <action id="org.omarchy.pkg-add-curated.qoder_cli">
+    <description>Install Qoder</description>
+    <message>Authorize to install Qoder</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-pkg-add-curated</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">qoder-cli</annotate>
+  </action>
   <action id="org.omarchy.pkg-add-curated.basecamp_cli">
     <description>Install the Basecamp CLI</description>
     <message>Authorize to install the Basecamp CLI</message>

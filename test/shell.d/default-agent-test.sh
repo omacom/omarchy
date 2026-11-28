@@ -282,6 +282,9 @@ declare -A expected_agents=(
   [devin-cli]="devin"
   [amp]="amp"
   [ampcode]="amp"
+  [qoder]="qodercli"
+  [qodercli]="qodercli"
+  [qoder-cli]="qodercli"
   [cursor]="cursor-agent"
   [cursor-agent]="cursor-agent"
   [muse]="muse"
@@ -568,6 +571,10 @@ assert_launch freebuff freebuff
 assert_launch kilo kilo --auto "--prompt=Review this project"
 assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
 assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
+assert_launch qodercli qodercli --dangerously-skip-permissions "--prompt-interactive=Review this project"
+printf '%s\n' qodercli >"$agent_file"
+omarchy-agent-prompt '-n --help; echo literal'
+assert_launched qodercli "keeps an option-like prompt literal" qodercli --dangerously-skip-permissions "--prompt-interactive=-n --help; echo literal"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
@@ -609,6 +616,7 @@ assert_bypass freebuff freebuff
 assert_bypass kilo kilo --auto
 assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust false
 assert_bypass amp amp --dangerously-allow-all
+assert_bypass qodercli qodercli --dangerously-skip-permissions
 [[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
 pass "agent launcher skips permission prompts for every supported agent"
 

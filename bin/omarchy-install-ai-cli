@@ -38,6 +38,7 @@ freebuff) package=freebuff ;;
 kilo) package=kilocode-cli ;;
 devin) package=devin-cli ;;
 amp) package=amp-cli ;;
+qodercli) package=qoder-cli ;;
 *)
   echo "Usage: omarchy-install-ai-cli [--check|--package] <agent>" >&2
   exit 1
