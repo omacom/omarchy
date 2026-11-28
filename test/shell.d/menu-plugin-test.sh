@@ -54,7 +54,8 @@ pick() {
   : >"$TMPDIR/calls"
   : >"$TMPDIR/rows"
   HOME="$TMPDIR/home" \
-    PATH="$STUB_DIR:$PATH" \
+    OMARCHY_PATH="$ROOT" \
+    PATH="$STUB_DIR:$ROOT/bin:$PATH" \
     FAKE_PLUGINS="$TMPDIR/plugins.json" \
     FAKE_CALLS="$TMPDIR/calls" \
     FAKE_ROWS="$TMPDIR/rows" \
