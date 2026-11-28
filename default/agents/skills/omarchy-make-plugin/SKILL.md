@@ -8,6 +8,8 @@ description: >
 
 The bar, notification daemon, settings panel, and assorted overlays all run inside a single long-running Quickshell process (`omarchy-shell`). A plugin is a folder of QML under `~/.config/omarchy/plugins/<plugin-id>/` that runs inside it. Saving any file under the plugin folder reloads it, and `omarchy-shell shell reloadPlugins` forces a reload if a change somehow fails to apply. The built-in plugins in `$OMARCHY_PATH/shell/plugins/` are the reference for anything bigger than the examples here.
 
+A plugin id is `<owner>.<name>`: the author's username or organization, then a lowercase, hyphenated name (`acme.weather`, or `<username>.clock` for a clone). The `omarchy.` namespace is reserved for built-ins; the shell and `omarchy plugin validate` reject any other plugin that uses it.
+
 ## A Bar Widget
 
 A bar plugin is a folder `~/.config/omarchy/plugins/<username>.<name>/` (its id, e.g. `alice.counter`) with a manifest, the widget, and its strings:
