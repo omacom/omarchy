@@ -25,10 +25,17 @@ for vendor in "${!VULKAN_DRIVERS[@]}"; do
   fi
 done
 
+# Fall back to the installed NVIDIA driver package when supergfxd's Integrated
+# mode has detached the dGPU from PCI. Check nvidia-580xx-utils before
+# nvidia-utils because nvidia-580xx-utils provides nvidia-utils in pacman.
 if omarchy-hw-nvidia-gsp; then
-  PACKAGES+=(lib32-nvidia-utils)
+  PACKAGES+=(lib32-nvidia-utils nvidia-prime)
 elif omarchy-hw-nvidia-without-gsp; then
-  PACKAGES+=(lib32-nvidia-580xx-utils)
+  PACKAGES+=(lib32-nvidia-580xx-utils nvidia-prime)
+elif omarchy-pkg-present nvidia-580xx-utils; then
+  PACKAGES+=(lib32-nvidia-580xx-utils nvidia-prime)
+elif omarchy-pkg-present nvidia-utils; then
+  PACKAGES+=(lib32-nvidia-utils nvidia-prime)
 fi
 
 if (( ${#PACKAGES[@]} > 0 )); then

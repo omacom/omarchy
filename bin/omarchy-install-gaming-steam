@@ -17,6 +17,11 @@ omarchy-install-gaming-gpu-lib32
 omarchy-pkg-add steam
 omarchy-lifecycle-dispatch post-install steam
 
+if grep -Eq '"mode"[[:space:]]*:[[:space:]]*"Integrated"' "${OMARCHY_SUPERGFXD_CONF:-/etc/supergfxd.conf}" 2>/dev/null && omarchy-hw-hybrid-gpu; then
+  echo ""
+  echo "Note: Integrated GPU mode is active. Switch to your dedicated GPU in Trigger > Hardware > Switch to dGPU for better gaming performance."
+fi
+
 echo ""
 echo "Steam will start automatically now. This might take a while..."
 

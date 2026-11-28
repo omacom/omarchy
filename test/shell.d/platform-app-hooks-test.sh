@@ -137,8 +137,20 @@ gpu_bin=$tmp/gpu-bin
 mkdir -p "$gpu_bin"
 printf '#!/bin/bash\necho "00:02.0 VGA compatible controller: %s"\n' '${GPU:-Apple Inc. AGX}' >"$gpu_bin/lspci"
 printf '#!/bin/bash\nexit "${ARCH_X86:-0}"\n' >"$gpu_bin/omarchy-hw-x86"
-printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
-printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
+printf '#!/bin/bash\nexit "${NVIDIA_GSP:-1}"\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
+printf '#!/bin/bash\nexit "${NVIDIA_WITHOUT_GSP:-1}"\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
+cat >"$gpu_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+for pkg in "$@"; do
+  case " ${INSTALLED_PKGS:-} " in
+    *" $pkg "*) ;;
+    *)
+      # nvidia-580xx-utils provides nvidia-utils in pacman, so pacman -Q matches it.
+      [[ $pkg == "nvidia-utils" && " ${INSTALLED_PKGS:-} " == *" nvidia-580xx-utils "* ]] || exit 1
+      ;;
+  esac
+done
+SH
 printf '#!/bin/bash\necho "omarchy-pkg-add $*" >>"%s"\n' "$tmp/calls" >"$gpu_bin/omarchy-pkg-add"
 chmod +x "$gpu_bin"/*
 rm -f "$tmp/calls"
@@ -150,9 +162,93 @@ GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash 
 [[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-vulkan-radeon" ]] || fail "an AMD GPU gets lib32-vulkan-radeon" "$(cat "$tmp/calls")"
 pass "32-bit drivers: a machine with no supported GPU adds nothing without failing"
 
+# An active NVIDIA GPU adds its 32-bit driver and nvidia-prime for prime-run.
+rm -f "$tmp/calls"
+NVIDIA_GSP=0 PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "an active GSP NVIDIA GPU installs its 32-bit driver and nvidia-prime"
+[[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-nvidia-utils nvidia-prime" ]] ||
+  fail "an active GSP NVIDIA GPU gets lib32-nvidia-utils and nvidia-prime" "$(cat "$tmp/calls")"
+rm -f "$tmp/calls"
+NVIDIA_WITHOUT_GSP=0 PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "an active non-GSP NVIDIA GPU installs its 32-bit driver and nvidia-prime"
+[[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-nvidia-580xx-utils nvidia-prime" ]] ||
+  fail "an active non-GSP NVIDIA GPU gets lib32-nvidia-580xx-utils and nvidia-prime" "$(cat "$tmp/calls")"
+pass "32-bit drivers: active NVIDIA GPUs add their matching lib32 driver and nvidia-prime"
+
+# In supergfxd Integrated mode the NVIDIA PCI device is detached, so hardware
+# probes return false. Fall back to the installed userspace driver package,
+# checking nvidia-580xx-utils before nvidia-utils (which 580xx provides).
+rm -f "$tmp/calls"
+GPU="Intel Corporation Raptor Lake-P" INSTALLED_PKGS="nvidia-utils" \
+  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "Integrated mode with nvidia-utils installs lib32-nvidia-utils and nvidia-prime"
+[[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-vulkan-intel lib32-nvidia-utils nvidia-prime" ]] ||
+  fail "Integrated mode with nvidia-utils gets iGPU Vulkan, lib32-nvidia-utils, and nvidia-prime" "$(cat "$tmp/calls")"
+rm -f "$tmp/calls"
+GPU="Intel Corporation Raptor Lake-P" INSTALLED_PKGS="nvidia-580xx-utils" \
+  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "Integrated mode with nvidia-580xx-utils installs lib32-nvidia-580xx-utils and nvidia-prime"
+[[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-vulkan-intel lib32-nvidia-580xx-utils nvidia-prime" ]] ||
+  fail "Integrated mode with nvidia-580xx-utils gets lib32-nvidia-580xx-utils rather than lib32-nvidia-utils" "$(cat "$tmp/calls")"
+pass "32-bit drivers: Integrated mode falls back to installed NVIDIA driver packages"
+
 # Multilib only exists on x86_64; an ARM machine runs the native arm64 Steam.
 rm -f "$tmp/calls"
 ARCH_X86=1 GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
   fail "aarch64 skips the 32-bit drivers without failing"
 [[ ! -e $tmp/calls ]] || fail "aarch64 installs no 32-bit driver" "$(cat "$tmp/calls")"
 pass "32-bit drivers: aarch64 adds none, even with a supported GPU"
+
+# ── Hybrid GPU Integrated-mode hints ─────────────────────────────────────────
+
+hint_bin=$tmp/hint-bin
+mkdir -p "$hint_bin"
+printf '#!/bin/bash\nexit "${HYBRID_GPU:-0}"\n' >"$hint_bin/omarchy-hw-hybrid-gpu"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$tmp/notify" >"$hint_bin/omarchy-notification-send"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$tmp/umu" >"$hint_bin/umu-run"
+printf '#!/bin/bash\nexit 1\n' >"$hint_bin/pgrep"
+printf '#!/bin/bash\necho "[]"\n' >"$hint_bin/hyprctl"
+chmod +x "$hint_bin"/*
+
+printf '{\n  "mode": "Integrated"\n}\n' >"$tmp/supergfxd-integrated.conf"
+printf '{\n  "mode": "Hybrid"\n}\n' >"$tmp/supergfxd-hybrid.conf"
+
+# Steam install prints a hint only when Integrated mode is active on hybrid hardware.
+OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-integrated.conf" PATH="$hint_bin:$stub_bin:$tmp/x86/bin:$ROOT/bin:$PATH" \
+  HOME="$tmp/home" OMARCHY_PATH="$omarchy_path" OMARCHY_PROC_ROOT="$tmp/x86/proc" OMARCHY_LIFECYCLE_ROOT="$lifecycle" \
+  bash "$ROOT/bin/omarchy-install-gaming-steam" >"$tmp/steam-integrated.out" 2>&1 ||
+  fail "Steam installs in Integrated mode" "$(cat "$tmp/steam-integrated.out")"
+grep -Fq "Trigger > Hardware > Switch to dGPU" "$tmp/steam-integrated.out" ||
+  fail "Steam install hints about switching to dGPU in Integrated mode" "$(cat "$tmp/steam-integrated.out")"
+
+OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-hybrid.conf" PATH="$hint_bin:$stub_bin:$tmp/x86/bin:$ROOT/bin:$PATH" \
+  HOME="$tmp/home" OMARCHY_PATH="$omarchy_path" OMARCHY_PROC_ROOT="$tmp/x86/proc" OMARCHY_LIFECYCLE_ROOT="$lifecycle" \
+  bash "$ROOT/bin/omarchy-install-gaming-steam" >"$tmp/steam-hybrid.out" 2>&1 ||
+  fail "Steam installs in Hybrid mode" "$(cat "$tmp/steam-hybrid.out")"
+! grep -Fq "Switch to dGPU" "$tmp/steam-hybrid.out" ||
+  fail "Steam install stays quiet about Integrated mode in Hybrid mode" "$(cat "$tmp/steam-hybrid.out")"
+pass "Steam install hints about Switch to dGPU only in Integrated mode"
+
+# Battle.net launch sends a transient notification in Integrated mode and still launches.
+bnet_home=$tmp/bnet-home
+mkdir -p "$bnet_home/Games/battlenet/drive_c/Program Files (x86)/Battle.net"
+: >"$bnet_home/Games/battlenet/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
+: >"$bnet_home/Games/battlenet/user.reg"
+
+rm -f "$tmp/notify" "$tmp/umu"
+HOME="$bnet_home" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$tmp/no-lang" \
+  OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-integrated.conf" \
+  PATH="$hint_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-launch-battlenet" >"$tmp/bnet.out" 2>&1 ||
+  fail "Battle.net launches in Integrated mode" "$(cat "$tmp/bnet.out")"
+grep -Fq -- "--transient" "$tmp/notify" && grep -Fq "Trigger > Hardware > Switch to dGPU" "$tmp/notify" ||
+  fail "Battle.net launch sends a transient Switch to dGPU hint in Integrated mode" "$(cat "$tmp/notify" 2>/dev/null)"
+[[ -s $tmp/umu ]] || fail "Battle.net still launches after sending the Integrated-mode hint"
+
+rm -f "$tmp/notify" "$tmp/umu"
+HOME="$bnet_home" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$tmp/no-lang" \
+  OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-hybrid.conf" \
+  PATH="$hint_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-launch-battlenet" >"$tmp/bnet.out" 2>&1 ||
+  fail "Battle.net launches in Hybrid mode" "$(cat "$tmp/bnet.out")"
+[[ ! -e $tmp/notify ]] || fail "Battle.net sends no Integrated-mode hint in Hybrid mode" "$(cat "$tmp/notify")"
+[[ -s $tmp/umu ]] || fail "Battle.net launches in Hybrid mode"
+pass "Battle.net launch sends a transient Switch to dGPU hint only in Integrated mode"
