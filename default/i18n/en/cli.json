@@ -15,6 +15,7 @@
   "agents.addedNotSelected": "Added %1, but couldn't switch new sessions to it.",
   "agents.allOver": "All %1 accounts are over %2%",
   "agents.atLimit": "%1 is at %2% of a %3 limit",
+  "agents.bellHeadline": "Your agent needs you",
   "agents.durationDaysHours": "%1d %2h",
   "agents.homeFailed": "Couldn't set up a home for the new account.",
   "agents.installCliFailed": "Installing the %1 CLI didn't finish.",
