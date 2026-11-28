@@ -31,6 +31,8 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/sof-firmware.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/dell/fix-inspiron16-plus-psr.sh"
+
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-display-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-touchpad.sh"
