@@ -6,6 +6,7 @@ import QtQuick
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "Calculator.js" as Calculator
 import "MenuModel.js" as MenuModel
 
 Item {
@@ -637,6 +638,30 @@ Item {
     return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
   }
 
+  // The calculated answer, in the row shape every other row uses: displayModel
+  // is a ListModel and takes its roles from the first row appended to it, so a
+  // row that skipped a key would drop that key for every row behind it.
+  function calculatorRow(result) {
+    return {
+      itemId: "calculator",
+      disabled: false,
+      kind: "action",
+      icon: "󰃬",
+      iconFont: "",
+      appIcon: "",
+      appId: "",
+      label: result,
+      target: "",
+      detail: Commons.I18n.t("menu.calculatorCopy"),
+      path: "",
+      childCount: 0,
+      action: "printf '%s' " + Util.shellQuote(result) + " | wl-copy && omarchy-notification-send -g 󰃬 " + Util.shellQuote(Commons.I18n.t("menu.calculatorCopied")) + " " + Util.shellQuote(result),
+      provider: "",
+      score: 0,
+      section: ""
+    }
+  }
+
   function rowSelectable(index) {
     if (index < 0 || index >= displayModel.count) return false
     return !displayModel.get(index).disabled
@@ -788,6 +813,15 @@ Item {
         for (var d = 0; d < drilldownRows.length; d++) drilldownRows[d].section = "drilldown"
       }
       rows = currentRows.concat(drilldownRows)
+
+      // Ahead of the matches rather than scored among them. The answer to
+      // "1024 mb to gb" is the whole reason that query was typed, and it should
+      // not have to outrank an app whose name happens to contain "gb".
+      // Unshifted back to front so the list keeps the order it was answered in.
+      var calculation = Calculator.evaluate(query)
+      if (calculation) {
+        for (var c = calculation.length - 1; c >= 0; c--) rows.unshift(root.calculatorRow(calculation[c]))
+      }
     } else {
       // A Alt stand-in shows in place of its row, never beside it.
       var altVariants = MenuModel.altVariantIds(root.items, root.itemOrder)
