@@ -618,6 +618,12 @@ Item {
     return windowScreenPoint(scenePoint, barDragWindow)
   }
 
+  // Touchscreens synthesize mouse events for MouseArea; keep those for taps
+  // and ignore them for whole-bar movement and widget reordering/removal.
+  function isTouchMouseEvent(mouse) {
+    return !!mouse && (mouse.source === Qt.MouseEventSynthesizedByQt || mouse.source === Qt.MouseEventSynthesizedBySystem)
+  }
+
   // Split the screen along its diagonals (in normalized space, so widescreens
   // don't bias toward left/right): whichever triangle holds the cursor names
   // the candidate edge.
@@ -2531,6 +2537,7 @@ Item {
 
     property bool dragging: false
     property bool suppressClick: false
+    property bool touchPress: false
     property real pressedX: 0
     property real pressedY: 0
     readonly property real dragThreshold: Style.space(4)
@@ -2550,6 +2557,7 @@ Item {
     onPressed: function(mouse) {
       dragging = false
       suppressClick = false
+      touchPress = root.isTouchMouseEvent(mouse)
       pressedX = mouse.x
       pressedY = mouse.y
     }
@@ -2557,12 +2565,12 @@ Item {
     onPressAndHold: function(mouse) {
       // A widget above us propagates its composed press-and-hold down here without
       // ever handing over the grab, so we'd get no release or cancel to end the move.
-      if (!gestureArea.pressed) return
+      if (!gestureArea.pressed || touchPress || root.isTouchMouseEvent(mouse)) return
       startDrag(mouse.x, mouse.y)
     }
 
     onPositionChanged: function(mouse) {
-      if (!(mouse.buttons & Qt.LeftButton)) return
+      if (touchPress || root.isTouchMouseEvent(mouse) || !(mouse.buttons & Qt.LeftButton)) return
 
       if (!dragging) {
         var distance = Math.abs(mouse.x - pressedX) + Math.abs(mouse.y - pressedY)
@@ -2576,6 +2584,7 @@ Item {
     }
 
     onReleased: function(mouse) {
+      touchPress = false
       if (!dragging) return
       dragging = false
       suppressClick = true
@@ -2586,6 +2595,7 @@ Item {
     onCanceled: {
       dragging = false
       suppressClick = false
+      touchPress = false
       root.clearBarMove()
     }
 
@@ -3115,6 +3125,7 @@ Item {
 
       property bool dragging: false
       property bool suppressClick: false
+      property bool touchPress: false
       // This area sits over the slot's widget and takes its press, so the
       // widget never sees itself held; it's told, for its press feedback.
       property var heldTarget: null
@@ -3145,6 +3156,7 @@ Item {
         }
         dragging = false
         suppressClick = false
+        touchPress = root.isTouchMouseEvent(mouse)
         pressedX = mouse.x
         pressedY = mouse.y
         hold(root.moduleClickTargetAt(slot, mouse.x, mouse.y), mouse.button)
@@ -3159,7 +3171,7 @@ Item {
       }
 
       onPositionChanged: function(mouse) {
-        if (!canReorder || !(mouse.buttons & Qt.LeftButton)) return
+        if (!canReorder || touchPress || root.isTouchMouseEvent(mouse) || !(mouse.buttons & Qt.LeftButton)) return
 
         var distance = Math.abs(mouse.x - pressedX) + Math.abs(mouse.y - pressedY)
         if (distance >= dragThreshold) {
@@ -3188,6 +3200,7 @@ Item {
 
       onReleased: function(mouse) {
         var wasDragging = dragging
+        touchPress = false
         hold(null)
 
         dragging = false
@@ -3206,6 +3219,7 @@ Item {
       onCanceled: {
         dragging = false
         suppressClick = false
+        touchPress = false
         hold(null)
         root.clearBarDrag()
       }

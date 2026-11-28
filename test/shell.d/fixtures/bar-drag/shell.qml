@@ -3,6 +3,7 @@ import QtTest
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Ui
 
 // Drags widgets along the real bar through its own pointer handlers, and
 // checks where they land and that each arrives as the very instance that was
@@ -30,6 +31,7 @@ ShellRoot {
   property var settles: []
   property var steps: []
   property int step: 0
+  property int taps: 0
 
   function check(condition, message) {
     if (!condition) failures = failures.concat([String(message)])
@@ -103,6 +105,23 @@ ShellRoot {
     }
   }
 
+  Component {
+    id: testButton
+
+    WidgetButton {
+      property string moduleName: ""
+      property var settings: ({})
+      property string fixedEdge: "center"
+
+      text: "A"
+      fixedWidth: 30
+      fixedHeight: 20
+      onPressed: root.taps++
+      onModuleNameChanged: if (moduleName) root.bump("made", moduleName)
+      Component.onDestruction: root.bump("gone", moduleName)
+    }
+  }
+
   // A tray as far as the bar sees one: it hosts the tray section, and says
   // which edge the section's widgets grow from.
   Component {
@@ -133,7 +152,7 @@ ShellRoot {
 
     property int revision: 0
     property var widgets: ({
-      "test.a": { component: testWidget },
+      "test.a": { component: testButton },
       "test.b": { component: testWidget },
       "test.c": { component: testWidget },
       "test.clock": { component: testWidget },
@@ -197,6 +216,54 @@ ShellRoot {
         var a = root.bar.moduleSlots.filter(function(slot) { return slot && slot.moduleName === "test.a" })[0]
         root.surface = a ? root.bar.slotWindow(a) : null
         root.check(root.surface && root.surface.implicitHeight === root.surface.thickness, "the bar's surface is only as tall as its strip: " + (root.surface ? root.surface.implicitHeight + " against " + root.surface.thickness : "no surface"))
+
+        // Touch taps still activate widgets without lifting them, and touch
+        // swipes off the bar neither reorder nor remove widgets.
+        var tap = tc.touchEvent(a)
+        tap.press(0, a, 15, 10).commit()
+        tc.wait(30)
+        tap.move(0, a, 21, 14).commit()
+        tc.wait(30)
+        root.check(!root.bar.barDragSource, "drifting touch tap does not lift a widget")
+        tap.release(0, a, 21, 14).commit()
+        tc.wait(40)
+        root.check(root.taps === 1, "drifting touch tap activates its widget once: " + root.taps)
+
+        var swipe = tc.touchEvent(a)
+        swipe.press(0, a, 15, 10).commit()
+        tc.wait(30)
+        swipe.move(0, a, 15, a.height + 100).commit()
+        tc.wait(40)
+        root.check(!root.bar.barDragSource && !root.bar.barDragRemoveArmed, "touch swipe off the bar does not lift or arm widget removal")
+        swipe.release(0, a, 15, a.height + 100).commit()
+        tc.wait(40)
+        root.check(!root.bar.barRemoval && JSON.stringify(root.ids("left")) === JSON.stringify(["test.a"]), "touch swipe off the bar leaves the widget in place: " + JSON.stringify(root.ids("left")))
+
+        // Touch hold or swipe on empty bar space never starts moving the bar,
+        // while a mouse drag still does.
+        var barItem = root.surface.contentItem
+        var emptyX = Math.round(barItem.width * 0.25)
+        var emptyY = Math.round(barItem.height / 2)
+        var rightEdgeX = barItem.width - 10
+        var rightEdgeY = Math.round(root.surface.screen.height / 2)
+        var barTouch = tc.touchEvent(barItem)
+        barTouch.press(0, barItem, emptyX, emptyY).commit()
+        tc.wait(260)
+        root.check(!root.bar.barMoveActive, "touch press-and-hold on empty bar does not start moving the bar")
+        barTouch.move(0, barItem, rightEdgeX, rightEdgeY).commit()
+        tc.wait(40)
+        root.check(!root.bar.barMoveActive, "touch swipe on empty bar does not start moving the bar")
+        barTouch.release(0, barItem, rightEdgeX, rightEdgeY).commit()
+        tc.wait(40)
+        root.check(host.config.bar.position === "top", "touch swipe on empty bar leaves the bar on top: " + host.config.bar.position)
+
+        tc.mousePress(barItem, emptyX, emptyY)
+        tc.mouseMove(barItem, rightEdgeX, rightEdgeY, -1, Qt.LeftButton)
+        root.check(root.bar.barMoveActive && root.bar.barMoveCandidate === "right", "mouse drag on empty bar still previews moving to another edge: " + root.bar.barMoveActive + " " + root.bar.barMoveCandidate)
+        tc.mouseMove(barItem, emptyX, emptyY, -1, Qt.LeftButton)
+        tc.mouseRelease(barItem, emptyX, emptyY)
+        root.check(!root.bar.barMoveActive && host.config.bar.position === "top", "releasing a mouse bar drag back on the current edge cancels cleanly")
+
         var twins = root.slotsOf("test.twin")
         root.check(twins.length === 2, "the bar shows both twins")
         if (twins.length !== 2) return
