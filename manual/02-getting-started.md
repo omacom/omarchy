@@ -44,4 +44,6 @@ To keep the language but write dates, times, numbers, money, units and paper siz
 
 ### Help if you're stuck
 
+If the USB boots to a black screen on a machine with a discrete GPU (common with NVIDIA), see [Troubleshooting: installer USB black screen](45-troubleshooting.md#the-installer-usb-boots-to-a-black-screen-nvidia-and-some-other-gpus).
+
 If you get stuck, you can usually find someone willing to help in the _#omarchy-help_ channel on [the community Discord](https://omarchy.org/discord).
