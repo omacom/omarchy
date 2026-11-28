@@ -16,7 +16,6 @@ Item {
   property bool opened: false
   property string step: "minutes"
   property string minutes: ""
-  property string filterText: ""
   property string fontFamily: Style.font.menuFamily
 
   property color background: Commons.Color.menu.background
@@ -39,9 +38,9 @@ Item {
     root.opened = true
     root.step = "minutes"
     root.minutes = ""
-    root.filterText = ""
+    reminderInput.clear()
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { reminderInput.forceActiveFocus() })
   }
 
   function close() {
@@ -59,12 +58,8 @@ Item {
     else root.open("{}")
   }
 
-  function setFilter(nextFilter) {
-    root.filterText = nextFilter
-  }
-
   function submit() {
-    var selection = root.filterText
+    var selection = reminderInput.text
 
     if (root.step === "minutes") {
       var nextMinutes = ReminderFlowModel.validMinutes(selection)
@@ -81,8 +76,8 @@ Item {
 
       root.minutes = nextMinutes
       root.step = "message"
-      root.filterText = ""
-      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      reminderInput.clear()
+      Qt.callLater(function() { reminderInput.forceActiveFocus() })
       return
     }
 
@@ -121,30 +116,6 @@ Item {
       MouseArea { anchors.fill: parent; onClicked: {} }
 
       Item {
-        id: keyCatcher
-        anchors.fill: parent
-        focus: true
-
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: function(event) {
-          if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
-            else root.dismiss()
-            event.accepted = true
-          } else if (Util.editsFilter(event, root.filterText)) {
-            root.setFilter(Util.editedFilter(event, root.filterText))
-            event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.submit()
-            event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-            root.setFilter(root.filterText + event.text)
-            event.accepted = true
-          }
-        }
-      }
-
-      Item {
         anchors.fill: parent
         anchors.topMargin: card.contentTopInset
         anchors.rightMargin: card.contentRightInset
@@ -152,16 +123,33 @@ Item {
         anchors.leftMargin: card.contentLeftInset
 
         Text {
+          anchors.fill: reminderInput
+          verticalAlignment: Text.AlignVCenter
+          visible: !reminderInput.text && !reminderInput.inputMethodComposing
           textFormat: Text.PlainText
-          anchors.left: parent.left
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          text: root.filterText || root.promptText
+          text: root.promptText
           color: root.foreground
-          opacity: root.filterText ? 1 : 0.58
+          opacity: 0.58
+          font: reminderInput.font
+          elide: Text.ElideRight
+        }
+
+        TextInput {
+          id: reminderInput
+          anchors.fill: parent
+          verticalAlignment: TextInput.AlignVCenter
+          focus: true
+          clip: true
+          color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.heading
-          elide: Text.ElideRight
+
+          onAccepted: root.submit()
+          Keys.onEscapePressed: function(event) {
+            if (reminderInput.text) reminderInput.clear()
+            else root.dismiss()
+            event.accepted = true
+          }
         }
       }
     }
