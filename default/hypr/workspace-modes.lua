@@ -410,6 +410,97 @@ function o.workspace_mode(spec)
   update_input()
 end
 
+-- Colors in this file are "rgb(rrggbb)" strings, the form Hyprland takes.
+local function channels(color)
+  local r, g, b = color:match("^rgb%((%x%x)(%x%x)(%x%x)%)$")
+  if not r then
+    return nil
+  end
+  return tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
+end
+
+-- Relative luminance as WCAG defines it.
+local function luminance(color)
+  local r, g, b = channels(color)
+  if not r then
+    return 0
+  end
+
+  local function linear(c)
+    c = c / 255
+    return c <= 0.03928 and c / 12.92 or ((c + 0.055) / 1.055) ^ 2.4
+  end
+
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+end
+
+local MIN_CONTRAST = 3
+
+local function contrast(color, against)
+  local a, b = luminance(color), luminance(against)
+  if a < b then
+    a, b = b, a
+  end
+  return (a + 0.05) / (b + 0.05)
+end
+
+local function readable(color, against)
+  return contrast(color, against) >= MIN_CONTRAST
+end
+
+-- Mixes a color toward white for a positive amount and toward black for a
+-- negative one.
+local function shift(color, amount)
+  local r, g, b = channels(color)
+  if not r then
+    return color
+  end
+
+  local target, t = amount > 0 and 255 or 0, math.abs(amount)
+  local function mix(c)
+    return math.floor(c + (target - c) * t + 0.5)
+  end
+
+  return string.format("rgb(%02x%02x%02x)", mix(r), mix(g), mix(b))
+end
+
+-- A surface raised from the background that the foreground can still be read on.
+-- The raise goes the way a raised surface usually does -- lighter on a dark
+-- background, darker on a light one -- but a raise toward the foreground costs
+-- contrast, so it backs off toward the background until the text is readable.
+-- If no raise is, it moves away from the foreground instead, by as little as it
+-- takes. Against any foreground, white or black has at least 4.5:1, so that
+-- always ends at MIN_CONTRAST or better, even for a dark foreground on a dark
+-- background, where the usual raise only closes in on the text. Which of the two
+-- is farther depends on the foreground alone: 0.179 is the luminance at which
+-- white and black contrast with it equally.
+local RAISE_STEPS = { 0.09, 0.06, 0.03 }
+local EQUAL_CONTRAST_LUMINANCE = 0.179
+
+local function raised_surface(background, foreground)
+  local raise = luminance(background) < 0.5 and 1 or -1
+
+  for _, amount in ipairs(RAISE_STEPS) do
+    local candidate = shift(background, raise * amount)
+
+    if readable(candidate, foreground) then
+      return candidate
+    end
+  end
+
+  local away = luminance(foreground) < EQUAL_CONTRAST_LUMINANCE and 1 or -1
+
+  for percent = 3, 100 do
+    local candidate = shift(background, away * percent / 100)
+
+    if readable(candidate, foreground) then
+      return candidate
+    end
+  end
+
+  return away > 0 and "rgb(ffffff)" or "rgb(000000)"
+end
+
 local function theme_colors()
   local colors = {}
   -- omarchy-theme-set writes the current theme under ~/.local/state whatever
@@ -420,7 +511,7 @@ local function theme_colors()
     for line in file:lines() do
       local key, value = line:match('^%s*([%w_]+)%s*=%s*"#(%x%x%x%x%x%x)"')
       if key then
-        colors[key] = "rgb(" .. value .. ")"
+        colors[key] = "rgb(" .. value:lower() .. ")"
       end
     end
 
@@ -428,17 +519,26 @@ local function theme_colors()
   end
 
   local background = colors.background or "rgb(1a1b26)"
+  local foreground = colors.foreground or "rgb(c0caf5)"
+
   -- A titlebar in the window's own background color runs into the window, so it
   -- takes the theme's raised surface. Themes that make that the background too
   -- fall back to their selection color.
   local titlebar = colors.lighter_background
-  if not titlebar or titlebar == background then
-    titlebar = colors.selection or background
+  if not titlebar or titlebar == background or not readable(titlebar, foreground) then
+    titlebar = colors.selection
+  end
+
+  -- The title and the buttons are drawn in the foreground color, so a bar too
+  -- close to it hides them. Some themes give selection and foreground the same
+  -- color, or leave out both surfaces. Raise a surface from the background.
+  if not titlebar or not readable(titlebar, foreground) then
+    titlebar = raised_surface(background, foreground)
   end
 
   return {
     background = background,
-    foreground = colors.foreground or "rgb(c0caf5)",
+    foreground = foreground,
     titlebar = titlebar,
   }
 end
