@@ -1,0 +1,22 @@
+# Holds graphical sessions and the display manager open on shutdown until
+# Plymouth has taken over the displays with shutdown.png. Stopping a compositor
+# while it still holds DRM master makes it turn CRTCs off, causing a black flash
+# while Plymouth waits and retrains the panel. Keeping the compositor alive
+# until plymouth-{reboot,poweroff,halt,kexec} finishes lets
+# default/splash/shutdown-handoff switch to a KD_GRAPHICS VT (revoking the
+# compositor's DRM master without disabling the CRTC) and lets Plymouth scan out
+# over the active display before the compositor exits.
+#
+# Deliberately has no ordering dependency on plymouth-*.service: in systemd,
+# any Before=/After= between a stopping unit and a starting unit forces the stop
+# to finish first, which would invert the handoff. Instead, ExecStop waits for
+# any active plymouth-*.service start job to complete.
+[Unit]
+Description=Keep graphical sessions alive until Plymouth takes over on shutdown
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStop=/usr/share/omarchy/default/splash/shutdown-handoff wait
+TimeoutStopSec=5s
+SyslogIdentifier=omarchy-shutdown-splash

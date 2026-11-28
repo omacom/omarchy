@@ -1,0 +1,171 @@
+#!/bin/bash
+# Hands the displays from a running graphical compositor to Plymouth on
+# shutdown without a black flash.
+#
+# Stopping a compositor while it still holds DRM master makes it tear down its
+# CRTCs (blanking the screen and forcing a ~1 s modeset when Plymouth starts).
+# Instead:
+#   - plymouth-{reboot,poweroff,halt,kexec}.service start at the beginning of
+#     shutdown and run this script in ExecStartPre to switch to /dev/tty63 in
+#     KD_GRAPHICS mode and wait until logind has dropped the compositor's DRM
+#     master while the compositor is still alive (keeping the CRTCs lit on the
+#     shutdown cover frame).
+#   - omarchy-shutdown-splash.service runs `shutdown-handoff wait` in ExecStop,
+#     holding graphical sessions and the display manager open until Plymouth
+#     has finished showing the splash and answered `--ping`.
+
+set -uo pipefail
+
+dri=/dev/dri
+drm_sysfs=/sys/class/drm
+handoff_tty=/dev/tty63
+handoff_vt=63
+wait_timeout=4
+wait_interval=0.02
+
+# Returns /dev/dri/cardN paths that have a connected output in sysfs, or all
+# existing /dev/dri/card* nodes if sysfs has no connected entries.
+connected_cards() {
+  local status card name
+  local -A seen=()
+  local found=0
+
+  for status in "$drm_sysfs"/card*-*/status; do
+    [[ -r $status ]] || continue
+    [[ $(<"$status") == "connected" ]] || continue
+    name=${status#"$drm_sysfs"/}
+    name=${name%%-*}
+    card="$dri/$name"
+    if [[ -e $card && -z ${seen[$card]:-} ]]; then
+      seen[$card]=1
+      printf '%s\n' "$card"
+      found=1
+    fi
+  done
+
+  if (( !found )); then
+    for card in "$dri"/card*; do
+      [[ -e $card ]] || continue
+      printf '%s\n' "$card"
+    done
+  fi
+}
+
+# Switches to a KD_GRAPHICS VT so logind revokes the active compositor's DRM
+# master without disabling its CRTCs or letting fbcon paint over the screen.
+# logind watches tty0/active asynchronously rather than holding VT_PROCESS, so
+# VT_WAITACTIVE can return before logind drops DRM master; poll briefly until
+# DRM master can be acquired and released cleanly.
+handoff_displays() {
+  local -a cards=()
+  mapfile -t cards < <(connected_cards)
+
+  python3 -I - "$handoff_tty" "$handoff_vt" "${cards[@]}" <<'EOF'
+import errno
+import fcntl
+import os
+import signal
+import sys
+import time
+
+KDSETMODE = 0x4B3A
+KD_GRAPHICS = 1
+VT_ACTIVATE = 0x5606
+VT_WAITACTIVE = 0x5607
+DRM_IOCTL_SET_MASTER = 0x641E
+DRM_IOCTL_DROP_MASTER = 0x641F
+
+tty_path = sys.argv[1]
+vt_num = int(sys.argv[2])
+cards = sys.argv[3:]
+
+# Never block shutdown if a compositor holds VT_PROCESS or DRM master.
+signal.signal(signal.SIGALRM, lambda *_: sys.exit(0))
+signal.alarm(2)
+
+try:
+    tty_fd = os.open(tty_path, os.O_RDWR | os.O_NOCTTY)
+except OSError:
+    sys.exit(0)
+
+try:
+    try:
+        fcntl.ioctl(tty_fd, KDSETMODE, KD_GRAPHICS)
+    except OSError:
+        pass
+    try:
+        fcntl.ioctl(tty_fd, VT_ACTIVATE, vt_num)
+        fcntl.ioctl(tty_fd, VT_WAITACTIVE, vt_num)
+    except OSError:
+        pass
+finally:
+    os.close(tty_fd)
+
+deadline = time.monotonic() + 1.0
+for card in cards:
+    try:
+        fd = os.open(card, os.O_RDWR | os.O_CLOEXEC)
+    except OSError:
+        continue
+    try:
+        while True:
+            try:
+                fcntl.ioctl(fd, DRM_IOCTL_SET_MASTER)
+                break
+            except OSError as err:
+                if err.errno not in (errno.EBUSY, errno.EINVAL, errno.EACCES, errno.EPERM):
+                    break
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.01)
+    finally:
+        try:
+            fcntl.ioctl(fd, DRM_IOCTL_DROP_MASTER)
+        except OSError:
+            pass
+        os.close(fd)
+EOF
+}
+
+# Waits until any active or queued plymouth shutdown unit finishes starting
+# (including ExecStartPost show-splash and --ping). Returns immediately when no
+# Plymouth shutdown unit is starting (e.g. manual stop, soft-reboot, or
+# plymouth.enable=0). Bounded polling is used because systemctl has no CLI
+# primitive to block on an already-queued start job from another unit's ExecStop.
+wait_for_plymouth() {
+  local -a units=(
+    plymouth-reboot.service
+    plymouth-poweroff.service
+    plymouth-halt.service
+    plymouth-kexec.service
+  )
+  local deadline=$((SECONDS + wait_timeout))
+  local line pending
+
+  while :; do
+    pending=0
+    while IFS= read -r line; do
+      case $line in
+        ActiveState=activating | Job=?*)
+          pending=1
+          break
+          ;;
+      esac
+    done < <(systemctl show -p ActiveState -p Job "${units[@]}" 2>/dev/null || true)
+
+    (( pending == 0 || SECONDS >= deadline )) && return 0
+    sleep "$wait_interval"
+  done
+}
+
+# Sourced by shutdown-handoff-test.sh for the functions above.
+[[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
+
+case ${1:-handoff} in
+  handoff) handoff_displays ;;
+  wait) wait_for_plymouth ;;
+  *)
+    echo "Usage: $0 [handoff|wait]" >&2
+    exit 2
+    ;;
+esac

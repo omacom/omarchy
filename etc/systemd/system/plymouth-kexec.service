@@ -1,0 +1,22 @@
+# Full unit override rather than a drop-in: systemd does not allow clearing
+# After= in a drop-in (systemd.unit(5)). Removing getty@tty1.service and
+# display-manager.service lets Plymouth start at the beginning of shutdown while
+# the compositor is still alive, take DRM master via a KD_GRAPHICS VT switch
+# (default/splash/shutdown-handoff), and scan out shutdown.png before
+# omarchy-shutdown-splash.service releases sessions to exit.
+[Unit]
+Description=Show Plymouth Reboot with kexec Screen
+After=plymouth-start.service
+Before=systemd-kexec.service
+DefaultDependencies=no
+ConditionKernelCommandLine=!plymouth.enable=0
+ConditionVirtualization=!container
+
+[Service]
+TimeoutStartSec=5s
+ExecStartPre=-/usr/share/omarchy/default/splash/shutdown-handoff
+ExecStart=/usr/bin/plymouthd --mode=shutdown --attach-to-session --tty=/dev/tty63
+ExecStartPost=-/usr/bin/plymouth show-splash
+ExecStartPost=-/usr/bin/plymouth --ping
+Type=forking
+RemainAfterExit=yes
