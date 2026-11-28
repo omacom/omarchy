@@ -466,6 +466,69 @@ const missingGlyphs = fontGlyphRows
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
 
+# Search must respect guards on ancestors without hiding a directly opened
+# submenu's own rows or hanging on a cyclic extension.
+run_node_test <<'JS'
+const fs = require('fs')
+const menuModel = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const qml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+
+function extractFunction(name) {
+  const start = qml.indexOf('function ' + name + '(')
+  if (start < 0) return null
+  const end = qml.indexOf('\n  }', start)
+  return qml.slice(start, end + 4)
+}
+
+const matchesQueryText = extractFunction('matchesQuery')
+assert(matchesQueryText, 'menu keeps the search row filter in Menu.qml')
+const isReachableText = extractFunction('isReachable')
+if (!isReachableText) fail('menu search checks every ancestor above a row (no isReachable in Menu.qml)')
+
+const searchItems = {}
+const entry = (id, props) => { searchItems[id] = menuModel.normalizeItem(id, props) }
+entry('root', { label: 'Go' })
+entry('update', { label: 'Update', when: 'has-update' })
+entry('update.kernel', { label: 'Kernel', provider: 'omarchy-kernel list', when: 'multi-kernel' })
+entry('update.kernel.linux-omarchy', { label: 'linux-omarchy', action: 'omarchy-kernel set linux-omarchy' })
+entry('update.mirrors', { label: 'Refresh mirrors', action: 'omarchy-update-mirrors' })
+entry('appearance', { label: 'Appearance' })
+entry('appearance.dock', { label: 'Dock', when: 'floating-layout' })
+entry('appearance.dock.position', { label: 'Dock Position' })
+entry('appearance.dock.position.top', { label: 'Top Dock', action: 'omarchy-dock position top' })
+entry('personal', { label: 'Personal', parent: 'personal', action: 'true' })
+const searchOrder = Object.keys(searchItems)
+
+// Provider rows have no guard of their own; the submenu's guard still hides them.
+function makeMenu(whenResults, activeMenu = 'root') {
+  const scope = {
+    activeMenu,
+    item: id => menuModel.item(searchItems, id),
+    isVisible: e => menuModel.isVisible(searchItems, searchOrder, whenResults, e),
+    isDisabled: e => menuModel.isDisabled({}, e)
+  }
+  scope.isReachable = new Function('root', 'MenuModel', 'return (' + isReachableText + ')')(scope, menuModel)
+  scope.matchesQuery = new Function('root', 'MenuModel', 'return (' + matchesQueryText + ')')(scope, menuModel)
+  return scope
+}
+
+const hiddenKernel = makeMenu({ 'update.kernel': false })
+assert(!hiddenKernel.isReachable(searchItems['update.kernel.linux-omarchy']), 'menu search marks a row under a hidden submenu unreachable')
+assert(!hiddenKernel.matchesQuery(searchItems['update.kernel.linux-omarchy'], 'linux-omarchy'), 'menu search leaves out a provider row whose submenu a when: guard hides')
+assert(hiddenKernel.matchesQuery(searchItems['update.mirrors'], 'mirrors'), 'menu search keeps rows whose ancestors are all visible')
+assert(makeMenu({ 'update.kernel': true }).matchesQuery(searchItems['update.kernel.linux-omarchy'], 'linux-omarchy'), 'menu search lists the provider row once its submenu is visible')
+assert(!makeMenu({ 'appearance.dock': false }).matchesQuery(searchItems['appearance.dock.position.top'], 'dock'), 'root search excludes static descendants two levels below a hidden submenu')
+assert(makeMenu({ 'appearance.dock': false }, 'appearance.dock').matchesQuery(searchItems['appearance.dock.position.top'], 'dock'), 'search in a directly opened hidden submenu keeps its descendants')
+assert(makeMenu({ 'update': false }, 'update.kernel').matchesQuery(searchItems['update.kernel.linux-omarchy'], 'linux-omarchy'), 'search stops before a hidden ancestor above the active menu')
+const cyclic = makeMenu({})
+let lookups = 0
+cyclic.item = id => {
+  if (++lookups > 100) fail('menu search bounds a cyclic parent walk')
+  return menuModel.item(searchItems, id)
+}
+assert(!cyclic.matchesQuery(searchItems.personal, 'personal'), 'menu search excludes a cyclic extension')
+JS
+
 # Verify omarchy-menu-select and omarchy-menu-input serialize payloads faithfully
 # (including UTF-8, tabs, dash-prefixed options, multi-select, and dimensions).
 select_tmp=$(mktemp -d)

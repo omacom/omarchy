@@ -622,11 +622,24 @@ Item {
     return MenuModel.isDisabled(root.disabledResults, entry)
   }
 
+  // Search follows visible parents up to the menu it started in. Directly
+  // opened routes keep their own rows even when an outer guard hides them.
+  function isReachable(entry) {
+    var active = root.item(root.activeMenu) ? root.activeMenu : "root"
+    var current = entry
+    for (var depth = 0; current && depth < 32; depth++) {
+      if (current.id === active) return true
+      if (!root.isVisible(current)) return false
+      current = root.item(current.parent)
+    }
+    return false
+  }
+
   // A disabled row earns its place in the submenu it belongs to, where the
   // list around it is the point. Search is a list of what you can do, so it
   // leaves them out.
   function matchesQuery(entry, query) {
-    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
+    return MenuModel.matchesQuery(entry, query, root.isReachable(entry) && !root.isDisabled(entry))
   }
 
   function searchScore(entry, query) {
