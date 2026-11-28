@@ -1,0 +1,642 @@
+#!/usr/bin/env python3
+"""CLI bridge for Logitech mice powered by Solaar's logitech_receiver library.
+
+Commands:
+  probe
+      Fast sysfs check (<5ms) for any Logitech (046D) HID device.
+  status [--serial SERIAL]
+      Query the connected Logitech mouse over HID++ and print its state.
+  set [--serial SERIAL] <setting> <value> [subvalue]
+      Apply a single setting to the mouse and persist it in Solaar's config.
+  reset-buttons [--serial SERIAL]
+      Restore all reprogrammable mouse buttons to their factory defaults.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import glob
+import io
+import json
+import os
+import sys
+from typing import Any
+
+
+ACTION_LABEL_OVERRIDES = {
+    "unknown:0109": "Actions Ring",
+    "Unknown_1a0": "Actions Ring",
+    "Mouse Middle Button": "Middle Click",
+    "Mouse Back Button": "Back",
+    "Mouse Forward Button": "Forward",
+    "Left Click": "Left Click",
+    "Right Click": "Right Click",
+    "Gesture Button": "Gesture",
+    "Smart Shift": "SmartShift",
+}
+
+KEY_LABEL_OVERRIDES = {
+    "Middle Button": "Middle",
+    "Back Button": "Back",
+    "Forward Button": "Forward",
+    "Mouse Gesture Button": "Thumb Gesture",
+    "Smart Shift": "Mode Shift",
+    "Haptic": "Haptic Button",
+}
+
+
+def friendly_action(name: str) -> str:
+    return ACTION_LABEL_OVERRIDES.get(name, name)
+
+
+def friendly_key(name: str) -> str:
+    return KEY_LABEL_OVERRIDES.get(name, name)
+
+
+def hid_devices_root() -> str:
+    return os.environ.get("OMARCHY_LOGITECH_HID_ROOT", "/sys/bus/hid/devices")
+
+
+def has_logitech_hid() -> bool:
+    """Fast sysfs presence check for any Logitech (046D) HID device."""
+    root = hid_devices_root()
+    for pat in ("*:046D:*", "*:046d:*"):
+        if glob.glob(os.path.join(root, pat)):
+            return True
+    return False
+
+
+def _cache_path() -> str:
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return os.path.join(base, "omarchy", "logitech-mouse.json")
+
+
+def _write_cache(payload: dict[str, Any]) -> None:
+    if os.environ.get("OMARCHY_LOGITECH_NO_CACHE") == "1":
+        return
+    try:
+        path = _cache_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+
+
+def _import_solaar():
+    # Suppress noisy Wayland/GTK warnings emitted by solaar at import time.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        from logitech_receiver import base, device, receiver, settings, settings_templates
+        from solaar import configuration
+    return base, device, receiver, settings, settings_templates, configuration
+
+
+def _iter_online_devices(base, device_mod, receiver_mod):
+    devices = []
+    seen = set()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        for info in base.receivers_and_devices():
+            try:
+                if info.isDevice:
+                    dev = device_mod.create_device(base, info)
+                    if dev and dev.online:
+                        key = dev.serial or dev.unitId or dev.name
+                        if key not in seen:
+                            seen.add(key)
+                            devices.append((dev, "Direct"))
+                else:
+                    rec = receiver_mod.create_receiver(base, info)
+                    if rec:
+                        transport = getattr(rec, "name", "Receiver") or "Receiver"
+                        for dev in rec:
+                            try:
+                                if dev and dev.online:
+                                    key = dev.serial or dev.unitId or f"{rec.path}:{dev.number}"
+                                    if key not in seen:
+                                        seen.add(key)
+                                        devices.append((dev, transport))
+                            except Exception:
+                                continue
+            except Exception:
+                continue
+    return devices
+
+
+def _pick_mouse(devices, serial: str | None = None):
+    if serial and serial != "-":
+        target = serial.strip().lower()
+        for dev, transport in devices:
+            ids = {
+                str(getattr(dev, "serial", "") or "").lower(),
+                str(getattr(dev, "unitId", "") or "").lower(),
+                str(getattr(dev, "name", "") or "").lower(),
+            }
+            if target in ids:
+                return dev, transport
+    for dev, transport in devices:
+        kind = str(getattr(dev, "kind", "") or "").lower()
+        if kind in ("mouse", "trackball", "touchpad"):
+            return dev, transport
+    return None, None
+
+
+def _get_setting(settings_templates, dev, name: str):
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        s = settings_templates.check_feature_setting(dev, name)
+        if s is None and getattr(dev, "descriptor", None) and getattr(dev.descriptor, "settings", None):
+            for sclass in dev.descriptor.settings:
+                if getattr(sclass, "register", None) and sclass.name == name:
+                    try:
+                        s = sclass.build(dev)
+                        break
+                    except Exception:
+                        s = None
+        return s
+
+
+def _read_setting(s):
+    if s is None:
+        return None
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            return s.read(cached=False)
+        except Exception:
+            return None
+
+
+def _battery_dict(dev) -> dict[str, Any]:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            bat = dev.battery()
+        except Exception:
+            bat = None
+    if bat is None:
+        return {"known": False, "level": -1, "status": "unknown", "charging": False}
+    level = getattr(bat, "level", None)
+    status_obj = getattr(bat, "status", None)
+    status_name = str(getattr(status_obj, "name", status_obj) or "unknown").lower()
+    charging = status_name in ("recharging", "charging", "almost_full", "slow_recharge")
+    if status_name == "full":
+        charging = False
+    return {
+        "known": isinstance(level, int) and level >= 0,
+        "level": int(level) if isinstance(level, int) else -1,
+        "status": status_name,
+        "charging": charging,
+    }
+
+
+def _clean_host_label(raw: str) -> str:
+    if ":" in raw:
+        _, rest = raw.split(":", 1)
+        rest = rest.strip()
+        if rest:
+            return rest
+    return raw
+
+
+def cmd_probe() -> dict[str, Any]:
+    return {"present": has_logitech_hid()}
+
+
+def cmd_status(serial: str | None = None) -> dict[str, Any]:
+    if not has_logitech_hid():
+        res = {"solaarInstalled": True, "connected": False}
+        _write_cache(res)
+        return res
+
+    try:
+        base, device_mod, receiver_mod, _settings, settings_templates, configuration = _import_solaar()
+    except ImportError as exc:
+        res = {"solaarInstalled": False, "connected": False, "error": str(exc)}
+        _write_cache(res)
+        return res
+
+    devices = _iter_online_devices(base, device_mod, receiver_mod)
+    dev, transport = _pick_mouse(devices, serial=serial)
+    if dev is None:
+        res = {"solaarInstalled": True, "connected": False}
+        _write_cache(res)
+        return res
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            configuration.attach_to(dev)
+        except Exception:
+            pass
+
+    dev_serial = str(getattr(dev, "serial", "") or getattr(dev, "unitId", "") or "")
+    out: dict[str, Any] = {
+        "solaarInstalled": True,
+        "connected": True,
+        "name": str(getattr(dev, "name", "Logitech Mouse") or "Logitech Mouse"),
+        "codename": str(getattr(dev, "codename", "") or ""),
+        "serial": dev_serial,
+        "wpid": str(getattr(dev, "wpid", "") or ""),
+        "transport": str(transport or "Receiver"),
+        "battery": _battery_dict(dev),
+        "features": {},
+    }
+
+    features: dict[str, Any] = out["features"]
+
+    s_host = _get_setting(settings_templates, dev, "change-host")
+    if s_host is not None and getattr(s_host, "choices", None):
+        cur = _read_setting(s_host)
+        choices = []
+        for idx, ch in enumerate(s_host.choices):
+            raw = str(ch)
+            choices.append({
+                "index": idx + 1,
+                "value": raw,
+                "label": _clean_host_label(raw),
+            })
+        features["hosts"] = {
+            "current": str(cur) if cur is not None else "",
+            "choices": choices,
+        }
+
+    s_dpi = _get_setting(settings_templates, dev, "dpi")
+    if s_dpi is not None and getattr(s_dpi, "choices", None):
+        cur = _read_setting(s_dpi)
+        vals = sorted({int(c) for c in s_dpi.choices})
+        if vals:
+            step = vals[1] - vals[0] if len(vals) > 1 else 50
+            features["dpi"] = {
+                "value": int(cur) if cur is not None else vals[0],
+                "min": vals[0],
+                "max": vals[-1],
+                "step": max(1, step),
+            }
+
+    scroll: dict[str, Any] = {}
+    s_ratchet = _get_setting(settings_templates, dev, "scroll-ratchet")
+    if s_ratchet is not None and getattr(s_ratchet, "choices", None):
+        cur = _read_setting(s_ratchet)
+        scroll["ratchet"] = {
+            "value": str(cur) if cur is not None else "",
+            "choices": [str(c) for c in s_ratchet.choices],
+        }
+
+    s_smart = _get_setting(settings_templates, dev, "smart-shift")
+    if s_smart is not None:
+        cur = _read_setting(s_smart)
+        rng = getattr(s_smart, "range", None)
+        min_v = int(rng[0]) if rng else int(getattr(getattr(s_smart, "_validator", None), "min_value", 1) or 1)
+        max_v = int(rng[1]) if rng else int(getattr(getattr(s_smart, "_validator", None), "max_value", 50) or 50)
+        scroll["smartShift"] = {
+            "value": int(cur) if cur is not None else min_v,
+            "min": min_v,
+            "max": max_v,
+        }
+
+    s_torque = _get_setting(settings_templates, dev, "scroll-ratchet-torque")
+    if s_torque is not None:
+        cur = _read_setting(s_torque)
+        rng = getattr(s_torque, "range", None)
+        min_v = int(rng[0]) if rng else int(getattr(getattr(s_torque, "_validator", None), "min_value", 1) or 1)
+        max_v = int(rng[1]) if rng else int(getattr(getattr(s_torque, "_validator", None), "max_value", 100) or 100)
+        scroll["torque"] = {
+            "value": int(cur) if cur is not None else 50,
+            "min": min_v,
+            "max": max_v,
+        }
+
+    for field, sname in (
+        ("hires", "hires-smooth-resolution"),
+        ("invertVertical", "hires-smooth-invert"),
+        ("invertThumb", "thumb-scroll-invert"),
+    ):
+        s_bool = _get_setting(settings_templates, dev, sname)
+        if s_bool is not None:
+            cur = _read_setting(s_bool)
+            if cur is not None:
+                scroll[field] = bool(cur)
+
+    if scroll:
+        features["scroll"] = scroll
+
+    s_haptic = _get_setting(settings_templates, dev, "haptic-level")
+    if s_haptic is not None:
+        cur = _read_setting(s_haptic)
+        rng = getattr(s_haptic, "range", None)
+        min_v = int(rng[0]) if rng else int(getattr(getattr(s_haptic, "_validator", None), "min_value", 0) or 0)
+        max_v = int(rng[1]) if rng else int(getattr(getattr(s_haptic, "_validator", None), "max_value", 100) or 100)
+        s_play = _get_setting(settings_templates, dev, "haptic-play")
+        features["haptics"] = {
+            "level": int(cur) if cur is not None else 0,
+            "min": min_v,
+            "max": max_v,
+            "canTest": s_play is not None,
+        }
+
+    s_keys = _get_setting(settings_templates, dev, "reprogrammable-keys")
+    if s_keys is not None and getattr(s_keys, "choices", None):
+        cur_map = _read_setting(s_keys) or {}
+        defaults_by_cid: dict[int, int] = {}
+        try:
+            for kinfo in dev.keys:
+                cid = int(kinfo.key)
+                defaults_by_cid[cid] = cid
+        except Exception:
+            pass
+
+        buttons = []
+        for k_obj, allowed in s_keys.choices.items():
+            cid = int(k_obj)
+            key_raw = str(k_obj)
+            cur_val = cur_map.get(cid, cur_map.get(str(cid), cid))
+            cur_int = int(cur_val)
+            allowed_list = list(allowed) if allowed is not None else []
+            default_id = defaults_by_cid.get(cid, int(allowed_list[0]) if allowed_list else cid)
+
+            choice_list = []
+            cur_label = ""
+            for act in allowed_list:
+                aid = int(act)
+                araw = str(act)
+                alabel = friendly_action(araw)
+                choice_list.append({
+                    "value": str(aid),
+                    "raw": araw,
+                    "label": alabel,
+                })
+                if aid == cur_int:
+                    cur_label = alabel
+
+            if not cur_label:
+                cur_label = friendly_action(str(cur_val))
+
+            buttons.append({
+                "keyId": str(cid),
+                "keyRaw": key_raw,
+                "label": friendly_key(key_raw),
+                "value": str(cur_int),
+                "valueLabel": cur_label,
+                "defaultValue": str(default_id),
+                "isDefault": cur_int == default_id,
+                "choices": choice_list,
+            })
+
+        if buttons:
+            features["buttons"] = buttons
+
+    _write_cache(out)
+    return out
+
+
+def _persist_setting(dev, setting) -> None:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            if getattr(dev, "persister", None) and getattr(setting, "persist", False):
+                dev.persister[setting.name] = setting._value
+        except Exception:
+            pass
+
+
+def _parse_bool(raw: str) -> bool:
+    v = raw.strip().lower()
+    if v in ("1", "true", "on", "yes", "t", "y"):
+        return True
+    if v in ("0", "false", "off", "no", "f", "n"):
+        return False
+    raise ValueError(f"invalid boolean: {raw}")
+
+
+def cmd_set(serial: str | None, setting_name: str, value: str, subvalue: str | None = None) -> dict[str, Any]:
+    if not has_logitech_hid():
+        return {"ok": False, "error": "Mouse not connected"}
+
+    try:
+        base, device_mod, receiver_mod, settings_mod, settings_templates, configuration = _import_solaar()
+    except ImportError as exc:
+        return {"ok": False, "error": str(exc)}
+
+    devices = _iter_online_devices(base, device_mod, receiver_mod)
+    dev, _ = _pick_mouse(devices, serial=serial)
+    if dev is None:
+        return {"ok": False, "error": "Mouse not connected"}
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            configuration.attach_to(dev)
+        except Exception:
+            pass
+
+    setting = _get_setting(settings_templates, dev, setting_name)
+    if setting is None:
+        return {"ok": False, "error": f"Unsupported setting: {setting_name}"}
+
+    try:
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            if setting.kind == settings_mod.Kind.TOGGLE:
+                bval = _parse_bool(value)
+                res = setting.write(bval, save=False)
+                if res is None:
+                    return {"ok": False, "error": f"Failed to write {setting_name}"}
+                _persist_setting(dev, setting)
+                return {"ok": True, "setting": setting_name, "value": bval}
+
+            if setting.kind == settings_mod.Kind.RANGE:
+                ival = int(round(float(value)))
+                rng = getattr(setting, "range", None)
+                if rng:
+                    ival = max(int(rng[0]), min(int(rng[1]), ival))
+                res = setting.write(ival, save=False)
+                if res is None:
+                    return {"ok": False, "error": f"Failed to write {setting_name}"}
+                _persist_setting(dev, setting)
+                return {"ok": True, "setting": setting_name, "value": ival}
+
+            if setting.kind == settings_mod.Kind.CHOICE:
+                chosen = None
+                for ch in setting.choices:
+                    if str(ch) == value or str(int(ch)) == value:
+                        chosen = ch
+                        break
+                if chosen is None:
+                    try:
+                        target_i = int(round(float(value)))
+                        chosen = min(setting.choices, key=lambda c: abs(int(c) - target_i))
+                    except Exception:
+                        return {"ok": False, "error": f"Invalid choice '{value}' for {setting_name}"}
+                res = setting.write(chosen, save=False)
+                if res is None and setting_name not in ("change-host", "haptic-play"):
+                    return {"ok": False, "error": f"Failed to write {setting_name}"}
+                _persist_setting(dev, setting)
+                return {"ok": True, "setting": setting_name, "value": str(chosen)}
+
+            if setting.kind == settings_mod.Kind.MAP_CHOICE:
+                if subvalue is None:
+                    return {"ok": False, "error": f"{setting_name} requires key and value"}
+                key_obj = None
+                for k in setting.choices.keys():
+                    if str(int(k)) == value or str(k) == value:
+                        key_obj = k
+                        break
+                if key_obj is None:
+                    return {"ok": False, "error": f"Unknown button key '{value}'"}
+                allowed = list(setting.choices[key_obj])
+                chosen = None
+                for act in allowed:
+                    if str(int(act)) == subvalue or str(act) == subvalue:
+                        chosen = act
+                        break
+                if chosen is None:
+                    return {"ok": False, "error": f"Invalid action '{subvalue}' for button '{key_obj}'"}
+                res = setting.write_key_value(int(key_obj), chosen, save=False)
+                if res is None:
+                    return {"ok": False, "error": f"Failed to remap {key_obj}"}
+                _persist_setting(dev, setting)
+                return {"ok": True, "setting": setting_name, "key": str(int(key_obj)), "value": str(int(chosen))}
+
+            return {"ok": False, "error": f"Unsupported setting kind: {setting.kind}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def cmd_reset_buttons(serial: str | None) -> dict[str, Any]:
+    if not has_logitech_hid():
+        return {"ok": False, "error": "Mouse not connected"}
+
+    try:
+        base, device_mod, receiver_mod, _settings, settings_templates, configuration = _import_solaar()
+    except ImportError as exc:
+        return {"ok": False, "error": str(exc)}
+
+    devices = _iter_online_devices(base, device_mod, receiver_mod)
+    dev, _ = _pick_mouse(devices, serial=serial)
+    if dev is None:
+        return {"ok": False, "error": "Mouse not connected"}
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            configuration.attach_to(dev)
+        except Exception:
+            pass
+        s_keys = _get_setting(settings_templates, dev, "reprogrammable-keys")
+        if s_keys is None or not getattr(s_keys, "choices", None):
+            return {"ok": False, "error": "Button remapping not supported"}
+        for k_obj, allowed in s_keys.choices.items():
+            cid = int(k_obj)
+            allowed_list = list(allowed) if allowed is not None else []
+            default_act = None
+            for act in allowed_list:
+                if int(act) == cid:
+                    default_act = act
+                    break
+            if default_act is None and allowed_list:
+                default_act = allowed_list[0]
+            if default_act is not None:
+                s_keys.write_key_value(cid, default_act, save=False)
+        _persist_setting(dev, s_keys)
+    return {"ok": True}
+
+
+def _print_human_status(data: dict[str, Any]) -> None:
+    if not data.get("solaarInstalled", True):
+        print("Solaar is not installed.")
+        return
+    if not data.get("connected"):
+        print("No Logitech mouse connected.")
+        return
+    bat = data.get("battery") or {}
+    bat_str = f"{bat['level']}% ({bat.get('status', 'unknown')})" if bat.get("known") else "unknown"
+    print(f"{data.get('name', 'Logitech Mouse')} [{data.get('serial', '')}] ({data.get('transport', '')})")
+    print(f"  Battery: {bat_str}")
+    features = data.get("features") or {}
+    if "dpi" in features:
+        print(f"  DPI: {features['dpi']['value']}")
+    if "scroll" in features:
+        sc = features["scroll"]
+        if "ratchet" in sc:
+            print(f"  Scroll mode: {sc['ratchet']['value']}")
+        if "smartShift" in sc:
+            print(f"  SmartShift: {sc['smartShift']['value']}")
+        if "torque" in sc:
+            print(f"  Ratchet torque: {sc['torque']['value']}%")
+    if "haptics" in features:
+        print(f"  Haptics: {features['haptics']['level']}%")
+    if "hosts" in features:
+        print(f"  Host: {features['hosts'].get('current', '')}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="omarchy-mouse-logitech")
+    parser.add_argument("--json", action="store_true", help="Emit JSON output")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("probe", help="Check whether any Logitech HID device is present")
+
+    p_status = sub.add_parser("status", help="Show connected Logitech mouse status")
+    p_status.add_argument("--serial", default=None)
+
+    p_set = sub.add_parser("set", help="Set a Logitech mouse hardware setting")
+    p_set.add_argument("--serial", default=None)
+    p_set.add_argument("setting")
+    p_set.add_argument("value")
+    p_set.add_argument("subvalue", nargs="?", default=None)
+
+    p_reset = sub.add_parser("reset-buttons", help="Reset reprogrammable buttons to defaults")
+    p_reset.add_argument("--serial", default=None)
+
+    return parser
+
+
+def main(argv: list[str]) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv[1:])
+
+    if args.command == "probe":
+        res = cmd_probe()
+        if args.json:
+            print(json.dumps(res))
+        else:
+            print("present" if res["present"] else "absent")
+        return 0 if res["present"] else 1
+
+    if args.command == "status":
+        res = cmd_status(serial=args.serial)
+        if args.json:
+            print(json.dumps(res))
+        else:
+            _print_human_status(res)
+        return 0
+
+    if args.command == "set":
+        res = cmd_set(args.serial, args.setting, args.value, args.subvalue)
+        if args.json:
+            print(json.dumps(res))
+        elif res.get("ok"):
+            print(f"{args.setting}={res.get('value', '')}")
+        else:
+            print(res.get("error", "Failed"), file=sys.stderr)
+        return 0 if res.get("ok") else 1
+
+    if args.command == "reset-buttons":
+        res = cmd_reset_buttons(args.serial)
+        if args.json:
+            print(json.dumps(res))
+        elif res.get("ok"):
+            print("Buttons reset to defaults.")
+        else:
+            print(res.get("error", "Failed"), file=sys.stderr)
+        return 0 if res.get("ok") else 1
+
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
