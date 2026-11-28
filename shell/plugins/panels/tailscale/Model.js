@@ -109,6 +109,18 @@ function renamePlan(accountId, selectedId, nickname) {
   return { command: ["bash", "-c", script] }
 }
 
+// The address to hand `tailscale file cp`. The CLI matches a peer's DNS name
+// only in its exact form, trailing dot included; anything else goes to the
+// system resolver, which cannot answer MagicDNS names when "Use Tailscale
+// DNS" is off. Without a DNS name, the Tailscale IP always matches.
+function taildropAddress(peer) {
+  if (!peer) return ""
+  var dnsName = cleanDnsName(peer.DNSName)
+  if (dnsName !== "") return dnsName + "."
+  var ips = filterIPv4(peer.TailscaleIPs || [])
+  return ips.length > 0 ? ips[0] : ""
+}
+
 // Taildrop is a tailnet feature the admin can turn off, so the button for it
 // only makes sense when this profile actually carries the capability.
 function hasFileSharing(self) {
@@ -352,6 +364,7 @@ if (typeof module !== "undefined") {
     renamePlan: renamePlan,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
+    taildropAddress: taildropAddress,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
     parseExitNodeList: parseExitNodeList,
