@@ -9,7 +9,12 @@ echo "Installing Lutris..."
 # Satisfy umu-launcher's lib32-vulkan-driver dependency before --noconfirm
 # can select an NVIDIA provider on an AMD or Intel system.
 omarchy-install-gaming-gpu-lib32
-omarchy-pkg-add lutris umu-launcher wine-staging wine-mono wine-gecko winetricks python-protobuf
+packages=(lutris umu-launcher wine-staging wine-mono wine-gecko winetricks python-protobuf)
+# Controller udev rules (DualSense, DualShock, Switch Pro, 8BitDo, etc.) live in multilib (x86_64 only).
+if omarchy-hw-x86; then
+  packages+=(steam-devices)
+fi
+omarchy-pkg-add "${packages[@]}"
 
 # Lutris ships with `#!/usr/bin/env python3`, which resolves to mise's Python and
 # fails to import the lutris module. Pin the shebang to the system Python.

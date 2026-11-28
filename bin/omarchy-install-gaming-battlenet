@@ -14,7 +14,12 @@ echo "Installing Battle.net..."
 # Satisfy umu-launcher's lib32-vulkan-driver dependency before --noconfirm
 # can select an NVIDIA provider on an AMD or Intel system.
 omarchy-install-gaming-gpu-lib32
-omarchy-pkg-add umu-launcher
+packages=(umu-launcher)
+# Controller udev rules (DualSense, DualShock, Switch Pro, 8BitDo, etc.) live in multilib (x86_64 only).
+if omarchy-hw-x86; then
+  packages+=(steam-devices)
+fi
+omarchy-pkg-add "${packages[@]}"
 
 # Detect a half-finished prefix from a closed/crashed previous run and offer
 # to wipe it before trying again. Battle.net's installer isn't idempotent.
