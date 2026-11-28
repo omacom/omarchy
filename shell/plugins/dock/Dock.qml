@@ -448,6 +448,7 @@ Item {
         required property var modelData
 
         screen: modelData
+        showOn: modelData
         dock: root
       }
     }

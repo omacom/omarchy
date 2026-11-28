@@ -14,6 +14,9 @@ PanelWindow {
   id: preview
 
   property var dock: null
+  // The screen this preview is for. Its own `screen` settles as the window
+  // maps, so reading that to decide whether to map loops back on itself.
+  property var showOn: null
 
   readonly property string edge: dock ? dock.moveEdge : ""
   readonly property bool vertical: edge === "left" || edge === "right"
@@ -22,7 +25,7 @@ PanelWindow {
   // bottom. The dock keeps clear of it, and so does its outline.
   readonly property var reserved: monitor && monitor.lastIpcObject && monitor.lastIpcObject.reserved ? monitor.lastIpcObject.reserved : [0, 0, 0, 0]
 
-  visible: !!dock && dock.moveScreen === screen && edge !== ""
+  visible: !!dock && dock.moveScreen === showOn && edge !== ""
   color: "transparent"
   WlrLayershell.namespace: "omarchy-dock-preview"
   WlrLayershell.layer: WlrLayer.Overlay
