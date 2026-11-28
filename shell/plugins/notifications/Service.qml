@@ -226,7 +226,10 @@ Item {
     onTriggered: {
       // The keyboard holds the deck open while the pointer passes through.
       if (service.keyboardMode) return
-      service.commit(function() { service.expanded = false; service.openDeck = "" })
+      // Hover lets go with the deck, not before it: an open deck with no card
+      // hovered shows no buttons, so clearing it on leave hid the bar for the
+      // grace period and the closed deck put it back.
+      service.commit(function() { service.expanded = false; service.openDeck = ""; service.hoverKey = "" })
       service.releaseHeld()
     }
   }
@@ -316,10 +319,7 @@ Item {
     keyboardMode = false
     keyboardKey = ""
     // With the pointer over the deck, hover stays where the pointer put it.
-    if (!pointerIn) {
-      hoverKey = ""
-      collapseGrace.restart()
-    }
+    if (!pointerIn) collapseGrace.restart()
   }
 
   // The selected card went away: select the one that took its place, or the
@@ -1584,17 +1584,27 @@ Item {
 
             // The cards cannot see hover under this region, so they are told.
             function hoverAt(x, y) {
-              service.hoverX = x
+              // The region reaches past the deck; placements are the deck's.
+              var pt = hoverArea.mapToItem(deck, x, y)
+              y = pt.y
+              service.hoverX = pt.x
               service.hoverY = y
               var places = service.placements
               var found = ""
+              // In the margin or a gap, the nearest card keeps hover. Leaving
+              // it empty hid that card's buttons, which shrank the card out
+              // from under the pointer, closed the deck, grew it back, and
+              // looped for as long as the pointer sat on the edge.
+              var nearest = "", nearestGap = Infinity
               for (var key in places) {
                 var pl = places[key]
                 if (pl.hidden || pl.leaving) continue
                 var h = pl.height || Style.space(58)
                 if (y >= pl.y && y <= pl.y + h) { found = key; break }
+                var gap = y < pl.y ? pl.y - y : y - (pl.y + h)
+                if (gap < nearestGap) { nearestGap = gap; nearest = key }
               }
-              service.hoverKey = found
+              service.hoverKey = found || nearest
             }
 
             // Cards move under a still pointer after a dismissal: re-hit-test
@@ -1615,7 +1625,10 @@ Item {
                 service.pointerEntered(undefined)
                 hoverAt(mouseX, mouseY)
               } else {
-                service.hoverKey = ""
+                // The card keeps hover until the deck closes; only the
+                // pointer's spot goes, so no button under it stays lit.
+                service.hoverX = -1
+                service.hoverY = -1
                 service.pointerLeft()
               }
             }
@@ -1630,7 +1643,7 @@ Item {
                 if (!place) continue
                 var top = place.y
                 var bottom = top + (service.heights[first.key] || Style.space(58))
-                if (mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
+                if (service.hoverY >= top - Style.space(6) && service.hoverY <= bottom + Style.space(6)) {
                   // Opening another deck would hide the keyboard's card.
                   if (service.keyboardMode && decks[i].key !== service.openDeck) service.stopKeyboard()
                   service.pointerEntered(decks[i].key)
