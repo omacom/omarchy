@@ -1407,16 +1407,20 @@
     "label": "Time"
   },
   "update.channel.stable": {
-    "label": "Stable"
+    "label": "Stable",
+    "description": "Official releases, tested longest"
   },
   "update.channel.rc": {
-    "label": "RC"
+    "label": "RC",
+    "description": "The next release, in final testing"
   },
   "update.channel.edge": {
-    "label": "Edge"
+    "label": "Edge",
+    "description": "Latest builds and Arch packages"
   },
   "update.channel.dev": {
-    "label": "Dev"
+    "label": "Dev",
+    "description": "Your ~/omarchy checkout, may break"
   },
   "update.process.hyprsunset": {
     "label": "Hyprsunset"
