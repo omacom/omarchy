@@ -208,6 +208,7 @@ Item {
     fingerprintSleptWhilePaused = false
     fingerprintRecheckTimer.stop()
     fingerprintRetryTimer.stop()
+    failureMessageTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
     if (passwordPam.active) passwordPam.abort()
@@ -387,6 +388,7 @@ Item {
     enteredPassword = ""
     failedAttempts += 1
     failureMessage = I18n.t("lock.authenticationFailed").arg(I18n.formatNumber(failedAttempts))
+    failureMessageTimer.restart()
     runWake()
   }
 
@@ -648,6 +650,12 @@ Item {
     onTriggered: root.startFingerprint()
   }
 
+  Timer {
+    id: failureMessageTimer
+    interval: 2000
+    repeat: false
+    onTriggered: root.failureMessage = ""
+  }
   // Detect resume both during an active attempt and during backoff.
   Timer {
     id: fingerprintSleepWatch
