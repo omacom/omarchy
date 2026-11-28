@@ -6,10 +6,9 @@
 --
 -- Battle.net also asks to go fullscreen, which fights the float on small or
 -- scaled panels, so the close bind looks like a resize. Ignore that request.
--- suppress_event replaces the global "maximize" one, so maximize stays listed.
 o.window({ class = "^steam_app_battlenet$", title = "^Battle\\.net$" }, {
   float = true,
-  suppress_event = "fullscreen maximize",
+  suppress_event = "fullscreen",
 })
 
 -- Installer: drop decorations and backdrop blur/shadow so the Blizzard chrome
