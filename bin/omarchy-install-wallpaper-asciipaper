@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Install asciipaper, a live animated ASCII wallpaper engine
+# omarchy:requires-sudo=true
+
+set -e
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+echo "Installing asciipaper..."
+# WebKit draws custom HTML wallpapers; the native engine draws the built-in
+# presets at a fraction of the cost, so the build tools are part of the install.
+omarchy-pkg-add webkitgtk-6.0 python-gobject gtk4-layer-shell libadwaita ffmpeg \
+  gcc make pkgconf wayland wayland-protocols libglvnd pango
+
+# asciipaper is not packaged yet, so track its repository directly. The
+# checkout doubles as the data directory: the engine reads its wallpapers from
+# ~/.local/share/asciipaper/wallpapers.
+source_dir="$HOME/.local/share/asciipaper"
+if [[ -d $source_dir/.git ]]; then
+  git -C "$source_dir" pull --ff-only
+else
+  git clone --depth 1 https://github.com/cYoren/asciipaper "$source_dir"
+fi
+
+install -Dm755 "$source_dir/asciipaper" "$HOME/.local/bin/asciipaper"
+
+if make -C "$source_dir/native" >/dev/null 2>&1; then
+  install -Dm755 "$source_dir/native/asciipaper-engine" "$HOME/.local/bin/asciipaper-engine"
+else
+  echo "note: the native engine did not build; the presets will render through WebKit instead."
+fi
+
+install -Dm644 "$source_dir/asciipaper.service" "$HOME/.config/systemd/user/asciipaper.service"
+
+systemctl --user daemon-reload
+systemctl --user enable --now asciipaper.service
+
+echo ""
+echo "asciipaper is running. Change the wallpaper with: asciipaper set fluid"
+echo "See the presets with: asciipaper list"

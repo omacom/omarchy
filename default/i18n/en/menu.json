@@ -686,6 +686,12 @@
   "install.style.background": {
     "label": "Background"
   },
+  "install.style.wallpaper": {
+    "label": "Live Wallpaper"
+  },
+  "install.style.wallpaper.asciipaper": {
+    "label": "ASCII Paper"
+  },
   "install.style.icons": {
     "label": "Icons"
   },
