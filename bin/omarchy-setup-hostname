@@ -26,4 +26,10 @@ while true; do
   name=""
 done
 
+# Chrome records the hostname in its profile lock.
+if [[ ${name,,} != "$(uname -n)" ]] && pgrep -x chrome >/dev/null; then
+  omarchy-i18n setupForm.hostnameCloseChrome >&2
+  exit 1
+fi
+
 sudo hostnamectl set-hostname "$name"
