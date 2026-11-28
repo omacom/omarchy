@@ -18,9 +18,10 @@ while true; do
 
   echo "Still running:"
   echo "$running"
-  # gum draws the prompt on stderr, so it stays attached. Without a terminal to
-  # ask in, gum fails, which reads as a decline.
-  if ! gum confirm --affirmative "Continue" --negative "Skip" "Close your browser windows to give them Omarchy's titlebar, then continue"; then
+  # An unattended update asks nothing, so it skips. gum draws the prompt on
+  # stderr, so it stays attached. Without a terminal to ask in, gum fails,
+  # which reads as a decline.
+  if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" ]] || ! gum confirm --affirmative "Continue" --negative "Skip" "Close your browser windows to give them Omarchy's titlebar, then continue"; then
     echo "Left the running browsers on their own frame."
     echo "To switch one later: Settings > Appearance > Use system title bar and borders."
     status=0
