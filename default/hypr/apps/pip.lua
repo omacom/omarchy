@@ -10,7 +10,7 @@ o.window({ tag = "pip" }, {
 })
 
 -- Google Meet PiP uses the meeting title instead of "Picture-in-Picture".
-o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, {
+o.window({ tag = "chromium-based-browser", title = "^Meet (–|-) [a-zA-Z0-9_-]+$" }, {
   float = true,
   pin = true,
   size = { 600, 338 },
