@@ -1,0 +1,183 @@
+#!/bin/bash
+
+# omarchy:summary=Bring back external monitors that stayed black after the displays woke
+# omarchy:hidden=true
+
+# See omarchy-hyprland-monitor-unlit for how a monitor ends up here. Blanking
+# and waking again repeats the refused modeset, and so does a reload, because
+# Hyprland still holds the mode list from before the monitor slept. Until now
+# only pulling the cable got the picture back.
+#
+# Asking for a small mode the sleeping monitor does offer gets a modeset the
+# kernel accepts. The link trains, the monitor wakes and announces its real
+# modes, and a reload then puts the configured mode back. None of it needs root.
+
+SETTLE=4
+TRIES=3
+RETURN=45
+HOLD=5
+
+# Sizes nearly every monitor offers awake and asleep, largest first. The mode has
+# to be in the kernel's list for the kernel to accept it and in Hyprland's older
+# list for Hyprland to ask for it, so a size only one of them has is passed
+# over. Of the rates Hyprland has at that size, the one nearest 60 Hz is the
+# one a sleeping monitor is most likely to share.
+fallback_mode() {
+  local size mode known
+
+  known=$(hyprctl monitors all -j 2>/dev/null |
+    jq -r --arg name "$2" '.[] | select(.name == $name) | .availableModes[]?' 2>/dev/null)
+
+  for size in 1920x1080 1280x720 1024x768 800x600 640x480; do
+    grep -qx "$size" "$1/modes" 2>/dev/null || continue
+
+    mode=$(awk -F@ -v size="$size" '
+      $1 == size {
+        rate = $2 + 0
+        off = rate > 60 ? rate - 60 : 60 - rate
+        if (best == "" || off < nearest) { best = rate; nearest = off }
+      }
+      END { if (best != "") print size "@" best }' <<<"$known")
+
+    if [[ -n $mode ]]; then
+      printf '%s\n' "$mode"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# A monitor shows it woke in one of two ways: the kernel is driving it, or it
+# has dropped off the bus to come back announcing its real modes. The first can
+# last well under a second before the second, so both count.
+woke() {
+  [[ $(<$1/enabled) == "enabled" || $(<$1/status) != "connected" ]]
+}
+
+# A waking monitor is driven for a moment and then usually drops off the bus to
+# come back announcing its real modes, so one glimpse of it lit proves nothing.
+# Only a picture that is back and holds counts.
+holds() {
+  local waited held
+
+  for (( waited = 0, held = 0; waited < RETURN + HOLD && held < HOLD; waited++ )); do
+    if [[ $(<$1/status) == "connected" && $(<$1/enabled) == "enabled" ]]; then
+      (( held++ ))
+    else
+      held=0
+    fi
+    sleep 1
+  done
+
+  (( held >= HOLD ))
+}
+
+# The small mode is a runtime monitor rule that outlives the attempt, so every
+# attempt ends here, whether or not the monitor woke. Left behind, it would
+# bring the monitor up small the next time it was plugged in.
+restore_config() {
+  # Reloading into half-replaced package config is what the guard prevents.
+  while omarchy-hyprland-reload-guard paused; do
+    sleep 2
+  done
+
+  omarchy-restart-hyprctl
+}
+
+relight() {
+  local connector=$1 name mode asleep_modes awake_modes waited
+
+  name=${connector##*/}
+  name=${name#card*-}
+
+  # The name goes into Lua below, so take nothing but a kernel connector name.
+  [[ $name =~ ^[A-Za-z0-9-]+$ ]] || return 1
+
+  if ! mode=$(fallback_mode "$connector" "$name"); then
+    echo "$name stayed black after wake and offers no mode to wake it with"
+    return 1
+  fi
+
+  # Another monitor's recovery may have outlasted a DPMS blank or config change.
+  omarchy-hyprland-monitor-unlit | grep -qxF -- "$connector" || return 0
+
+  asleep_modes=$(<$connector/modes)
+  echo "$name stayed black after wake, waking its link at $mode"
+  hyprctl eval "hl.monitor({ output = \"$name\", mode = \"$mode\", position = \"auto\", scale = 1 })" >/dev/null 2>&1
+
+  for (( waited = 0; waited < 75; waited++ )); do
+    woke "$connector" && break
+    sleep 0.2
+  done
+
+  if ! woke "$connector"; then
+    echo "$name did not take $mode"
+    restore_config
+    return 1
+  fi
+
+  # Reloading while the monitor still shows its sleeping modes would ask for the
+  # configured one too early and get it refused again. Once it has dropped off
+  # the bus the reload can go ahead, so that it comes back straight into the
+  # configured mode.
+  for (( waited = 0; waited < 10; waited++ )); do
+    [[ $(<$connector/status) != "connected" ]] && break
+    awake_modes=$(<$connector/modes)
+    [[ -n $awake_modes && $awake_modes != "$asleep_modes" ]] && break
+    sleep 1
+  done
+
+  restore_config
+
+  if holds "$connector"; then
+    echo "$name woke, restored its configured mode"
+    return 0
+  fi
+
+  # A monitor that left the bus and stayed away cannot be modeset back, and
+  # only root can ask the kernel to look for it again. It is no longer unlit as
+  # far as omarchy-hyprland-monitor-unlit can tell, so this is the last word on it.
+  if [[ $(<$connector/status) != "connected" ]]; then
+    echo "$name dropped off the bus while waking and did not come back, replug its cable"
+    return 1
+  fi
+
+  echo "$name came back but is still not driven"
+  return 1
+}
+
+# A wake that is still being modeset looks the same for a moment.
+sleep "$SETTLE"
+
+# Tries are counted for each monitor, so one that will not wake neither uses up
+# another's nor keeps it waiting. A monitor these tries could not bring back is
+# left dark with its config restored, and this stays running until it is
+# blanked, unplugged or lit, so the watcher does not start over on it every few
+# seconds for as long as it stays that way.
+declare -A tries=()
+
+while connectors=$(omarchy-hyprland-monitor-unlit); do
+  # A monitor that is no longer unlit starts afresh if it ends up here again.
+  for connector in "${!tries[@]}"; do
+    grep -qxF -- "$connector" <<<"$connectors" || unset "tries[$connector]"
+  done
+
+  tried=0
+  for connector in $connectors; do
+    (( ${tries[$connector]:-0} >= TRIES )) && continue
+
+    tries[$connector]=$(( ${tries[$connector]:-0} + 1 ))
+    relight "$connector"
+    tried=1
+  done
+
+  if (( tried )); then
+    # Give the reload's modeset time to land before judging it.
+    sleep 3
+  else
+    sleep 10
+  fi
+done
+
+exit 0

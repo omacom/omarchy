@@ -5,6 +5,7 @@
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
 MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
+UNLIT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-unlit.lock"
 
 sync_clamshell() {
   (
@@ -87,8 +88,43 @@ sync_poll_state() {
   fi
 }
 
+# A monitor that slept through a blank can refuse the mode Hyprland wakes it
+# with and stay black. The wake fires no Hyprland event and no DRM hotplug, so
+# the only way to notice is to look. The look reads two sysfs files and only
+# asks the compositor while a connected monitor is dark. The relight runs
+# outside this loop so stopping the poll never cuts one off halfway, and the
+# lock keeps it to one at a time.
+poll_unlit() {
+  while true; do
+    sleep 2
+
+    if omarchy-hyprland-monitor-unlit >/dev/null; then
+      (
+        flock -n 9 || exit 0
+        omarchy-hyprland-monitor-relight
+      ) 9>"$UNLIT_LOCK" &
+    fi
+  done
+}
+
+# Only an external monitor can end up unlit, so the poll runs while one is
+# plugged in and never on a laptop used on its own.
+unlit_poll_pid=""
+sync_unlit_poll() {
+  if omarchy-hw-external-monitors; then
+    if [[ -z $unlit_poll_pid ]] || ! kill -0 "$unlit_poll_pid" 2>/dev/null; then
+      poll_unlit &
+      unlit_poll_pid=$!
+    fi
+  elif [[ -n $unlit_poll_pid ]]; then
+    kill "$unlit_poll_pid" 2>/dev/null
+    unlit_poll_pid=""
+  fi
+}
+
 sync_clamshell_after_monitor_change
 sync_poll_state
+sync_unlit_poll
 recover_modeless
 
 # Process substitution (not a pipe) keeps this loop in the main shell, so
@@ -98,11 +134,13 @@ while read -r event; do
     monitoradded\>\>*|monitoraddedv2\>\>*)
       sync_clamshell_after_monitor_change
       sync_poll_state
+      sync_unlit_poll
       recover_modeless
       ;;
     monitorremoved\>\>*|monitorremovedv2\>\>*)
       sync_clamshell_after_monitor_change
       sync_poll_state
+      sync_unlit_poll
       recover_modeless
       ;;
     # A reload while the monitor is unpowered leaves it at 0x0 with no hotplug
