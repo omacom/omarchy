@@ -29,6 +29,7 @@ Item {
   // finish tearing down the D-Bus flow.
   property bool dismissed: false
   property bool submitted: false
+  property bool cancelRevealed: false
   property string currentMessage: ""
   // What a command asked its next prompt to say, as it knows what it's for
   // and pkexec names only the program: one prompt, for that program, within
@@ -66,6 +67,18 @@ Item {
   property var driveQueue: []
 
   readonly property bool dialogVisible: (polkitAgent.isActive && !dismissed) || driveDevice !== ""
+
+  onSubmittedChanged: if (submitted) hideCancel()
+
+  PointerMoveGate {
+    id: pointerGate
+    threshold: 8
+  }
+
+  function hideCancel() {
+    cancelRevealed = false
+    pointerGate.reset()
+  }
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
@@ -128,6 +141,7 @@ Item {
     failed = false
     errorFlash = false
     submitted = false
+    hideCancel()
     passwordInput.text = ""
   }
 
@@ -190,6 +204,7 @@ Item {
     // A new request starts fresh even if the previous flow is still tearing down.
     dismissed = false
     submitted = false
+    hideCancel()
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
@@ -412,6 +427,14 @@ Item {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
 
+    HoverHandler {
+      onPointChanged: {
+        if (hovered && !root.cancelRevealed && pointerGate.moved(panel.contentItem, point.position)) {
+          root.cancelRevealed = true
+        }
+      }
+    }
+
     Rectangle {
       anchors.fill: parent
       color: root.scrim
@@ -419,7 +442,10 @@ Item {
 
     MouseArea {
       anchors.fill: parent
-      onClicked: root.refocus()
+      onClicked: {
+        root.cancelRevealed = true
+        root.refocus()
+      }
     }
 
     BorderSurface {
@@ -512,6 +538,7 @@ Item {
             anchors.fill: parent
             verticalAlignment: TextInput.AlignVCenter
             activeFocusOnPress: true
+            selectByMouse: true
             clip: true
             selectionColor: Util.alpha(root.accent, 0.45)
             selectedTextColor: root.foreground
@@ -524,11 +551,17 @@ Item {
             readOnly: root.submitted || root.errorFlash
             enabled: root.dialogVisible
             onAccepted: root.submitResponse()
+            onTextEdited: root.hideCancel()
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Escape) {
                 root.cancelRequest()
                 event.accepted = true
               }
+            }
+
+            HoverHandler {
+              enabled: !passwordInput.readOnly
+              cursorShape: Qt.IBeamCursor
             }
           }
 
@@ -553,13 +586,6 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             visible: passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.submitted && !root.errorFlash
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
-            enabled: passwordInput.visible
-            onClicked: passwordInput.forceActiveFocus()
           }
         }
       }
@@ -623,6 +649,53 @@ Item {
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideMiddle
         }
+      }
+    }
+
+    Rectangle {
+      id: cancelPill
+      property real shown: root.cancelRevealed ? 1 : 0
+      Behavior on shown {
+        id: cancelShowing
+        enabled: root.dialogVisible
+        NumberAnimation {
+          duration: Style.duration(cancelShowing.targetValue > 0 ? 180 : 120)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
+        }
+      }
+      visible: shown > 0
+      opacity: shown
+      width: Math.ceil(cancelText.implicitWidth) + Style.space(24)
+      height: Math.max(Style.space(28), Math.ceil(cancelText.implicitHeight) + Style.space(10))
+      anchors.horizontalCenter: card.horizontalCenter
+      anchors.top: card.bottom
+      anchors.topMargin: Style.space(10)
+      radius: root.cornerRadius
+      color: cancelMouse.containsMouse ? Qt.tint(root.background, Style.hoverFillFor(root.foreground, root.accent)) : root.background
+      transform: Translate { y: -Style.space(4) * (1 - cancelPill.shown) }
+
+      Behavior on color { ColorAnimation { duration: Style.duration(120); easing.type: Easing.InOutQuad } }
+
+      Text {
+        id: cancelText
+        textFormat: Text.PlainText
+        anchors.centerIn: parent
+        text: I18n.t("common.cancel")
+        color: root.foreground
+        opacity: cancelMouse.containsMouse ? 1.0 : 0.72
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        Behavior on opacity { NumberAnimation { duration: Style.duration(120); easing.type: Easing.InOutQuad } }
+      }
+
+      MouseArea {
+        id: cancelMouse
+        anchors.fill: parent
+        enabled: root.cancelRevealed
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.cancelRequest()
       }
     }
   }
