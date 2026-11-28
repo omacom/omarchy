@@ -8,8 +8,8 @@
 /* Step zero is the snapshot returned by create/reset (already first next_frame).
  * Loops reconstruct that same tuple, so cycle is informational, not replay work. */
 typedef struct {
-        uint64_t step;
-        uint64_t cycle;
+  uint64_t step;
+  uint64_t cycle;
 } ttfx_phase_t;
 
 #define TTFX_HANDOFF_NAME "omarchy-plymouth-handoff.state"
@@ -40,17 +40,17 @@ bool ttfx_raw_publish(int directory, const uint32_t *pixels, uint32_t width,
 #define TTFX_HANDOFF_MAX_BYTES 512U
 #define TTFX_HANDOFF_MAX_STEP UINT64_C(10000)
 typedef struct {
-        const char *effect;
-        uint64_t seed;
-        ttfx_phase_t phase;
-        uint32_t width, height, fps, speed, background, foreground;
-        bool hold_final;
-        /* The splash's logical display size (0 x 0 when unknown), from which
-         * the grid geometry follows (ttfx_geometry_for_view), and whether the
-         * desktop plays the reverse outro instead of Plymouth, in outro_ms. */
-        uint32_t display_width, display_height;
-        bool outro_desktop;
-        unsigned int outro_ms;
+  const char *effect;
+  uint64_t seed;
+  ttfx_phase_t phase;
+  uint32_t width, height, fps, speed, background, foreground;
+  bool hold_final;
+  /* The splash's logical display size (0 x 0 when unknown), from which
+   * the grid geometry follows (ttfx_geometry_for_view), and whether the
+   * desktop plays the reverse outro instead of Plymouth, in outro_ms. */
+  uint32_t display_width, display_height;
+  bool outro_desktop;
+  unsigned int outro_ms;
 } ttfx_handoff_t;
 /* open verifies fixed /run, root ownership and tmpfs. No path/env overrides.
  * publish accepts only that trusted directory fd in production. */
@@ -69,68 +69,68 @@ void ttfx_handoff_close(int directory);
 #define TTFX_FAST_FORWARD_STEPS_PER_TICK 8U
 
 typedef enum {
-        TTFX_PROMPT_NONE,
-        TTFX_PROMPT_PASSWORD,
-        TTFX_PROMPT_QUESTION
+  TTFX_PROMPT_NONE,
+  TTFX_PROMPT_PASSWORD,
+  TTFX_PROMPT_QUESTION
 } ttfx_prompt_mode_t;
 
 typedef enum {
-        TTFX_PLAYBACK_SUBMIT_TO_FINISH,
-        TTFX_PLAYBACK_CONTINUOUS
+  TTFX_PLAYBACK_SUBMIT_TO_FINISH,
+  TTFX_PLAYBACK_CONTINUOUS
 } ttfx_playback_mode_t;
 
 typedef enum {
-        TTFX_PLAYBACK_INPUT,
-        TTFX_PLAYBACK_FAST_FORWARD,
-        TTFX_PLAYBACK_FINAL
+  TTFX_PLAYBACK_INPUT,
+  TTFX_PLAYBACK_FAST_FORWARD,
+  TTFX_PLAYBACK_FINAL
 } ttfx_playback_phase_t;
 
 typedef struct ttfx_message ttfx_message_t;
 
 typedef struct {
-        unsigned int frame;
-        ttfx_prompt_mode_t prompt_mode;
-        int bullets;
-        char *prompt;
-        char *entry_text;
-        char *failure_candidate_prompt;
-        char *message;
-        ttfx_message_t *messages;
-        bool message_visible;
-        bool animation_enabled;
-        bool rendering_failed;
-        bool failure_candidate_ready;
-        bool reaction_active;
-        ttfx_playback_mode_t playback_mode;
-        ttfx_playback_phase_t playback_phase;
-        unsigned int failure_candidate_tick;
-        unsigned int reaction_tick;
+  unsigned int frame;
+  ttfx_prompt_mode_t prompt_mode;
+  int bullets;
+  char *prompt;
+  char *entry_text;
+  char *failure_candidate_prompt;
+  char *message;
+  ttfx_message_t *messages;
+  bool message_visible;
+  bool animation_enabled;
+  bool rendering_failed;
+  bool failure_candidate_ready;
+  bool reaction_active;
+  ttfx_playback_mode_t playback_mode;
+  ttfx_playback_phase_t playback_phase;
+  unsigned int failure_candidate_tick;
+  unsigned int reaction_tick;
 } ttfx_state_t;
 
 typedef struct {
-        bool prompt_visible;
-        bool message_visible;
-        bool prompt_label_available;
-        bool message_label_available;
+  bool prompt_visible;
+  bool message_visible;
+  bool prompt_label_available;
+  bool message_label_available;
 } ttfx_view_state_t;
 
 typedef struct {
-        bool exit_watch_attached;
+  bool exit_watch_attached;
 } ttfx_loop_state_t;
 
 typedef struct {
-        bool required_widgets_ready;
+  bool required_widgets_ready;
 } ttfx_load_state_t;
 
 typedef struct {
-        unsigned int columns;
-        unsigned int rows;
-        unsigned int cell_width;
-        unsigned int cell_height;
-        unsigned int grid_x;
-        unsigned int grid_y;
-        unsigned int grid_width;
-        unsigned int grid_height;
+  unsigned int columns;
+  unsigned int rows;
+  unsigned int cell_width;
+  unsigned int cell_height;
+  unsigned int grid_x;
+  unsigned int grid_y;
+  unsigned int grid_width;
+  unsigned int grid_height;
 } ttfx_geometry_t;
 
 ttfx_state_t ttfx_state_initial(void);
@@ -193,9 +193,9 @@ unsigned int ttfx_geometry_x_edge(const ttfx_geometry_t *geometry, unsigned int 
 #define TTFX_DEVICETREE_FRAMEBUFFER_PREFIX "framebuffer@"
 
 typedef enum {
-        TTFX_FIRMWARE_HOLD_AUTO,
-        TTFX_FIRMWARE_HOLD_ON,
-        TTFX_FIRMWARE_HOLD_OFF
+  TTFX_FIRMWARE_HOLD_AUTO,
+  TTFX_FIRMWARE_HOLD_ON,
+  TTFX_FIRMWARE_HOLD_OFF
 } ttfx_firmware_hold_mode_t;
 
 /* "true", "false" or "auto"; anything else, including NULL, is auto. */

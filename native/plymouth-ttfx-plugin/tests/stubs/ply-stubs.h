@@ -13,40 +13,43 @@ typedef struct _ply_image ply_image_t;
 typedef struct ply_key_file ply_key_file_t;
 typedef struct ply_buffer ply_buffer_t;
 typedef struct ply_renderer ply_renderer_t;
-typedef struct { unsigned int pulls; } ply_trigger_t;
+typedef struct {
+  unsigned int pulls;
+} ply_trigger_t;
 void ply_trigger_pull(ply_trigger_t *, void *);
 typedef int ply_boot_splash_mode_t;
-enum { PLY_BOOT_SPLASH_MODE_BOOT_UP = 0, PLY_BOOT_SPLASH_MODE_SHUTDOWN = 1 };
+enum { PLY_BOOT_SPLASH_MODE_BOOT_UP = 0,
+       PLY_BOOT_SPLASH_MODE_SHUTDOWN = 1 };
 typedef struct _ply_boot_splash_plugin ply_boot_splash_plugin_t;
 
 typedef struct {
-        long x;
-        long y;
-        unsigned long width;
-        unsigned long height;
+  long x;
+  long y;
+  unsigned long width;
+  unsigned long height;
 } ply_rectangle_t;
 
 typedef void (*ply_event_loop_exit_handler_t)(void *, int, ply_event_loop_t *);
 typedef void (*ply_event_loop_timeout_handler_t)(void *, ply_event_loop_t *);
 typedef void (*ply_pixel_display_draw_handler_t)(void *, ply_pixel_buffer_t *, int, int, int, int,
-                                                  ply_pixel_display_t *);
+                                                 ply_pixel_display_t *);
 
 typedef struct {
-        ply_boot_splash_plugin_t *(*create_plugin)(ply_key_file_t *);
-        void (*destroy_plugin)(ply_boot_splash_plugin_t *);
-        void (*add_pixel_display)(ply_boot_splash_plugin_t *, ply_pixel_display_t *);
-        void (*remove_pixel_display)(ply_boot_splash_plugin_t *, ply_pixel_display_t *);
-        bool (*show_splash_screen)(ply_boot_splash_plugin_t *, ply_event_loop_t *, ply_buffer_t *,
-                                   ply_boot_splash_mode_t);
-        void (*update_status)(ply_boot_splash_plugin_t *, const char *);
-        void (*on_boot_progress)(ply_boot_splash_plugin_t *, double, double);
-        void (*hide_splash_screen)(ply_boot_splash_plugin_t *, ply_event_loop_t *);
-        void (*become_idle)(ply_boot_splash_plugin_t *, ply_trigger_t *);
-        void (*display_normal)(ply_boot_splash_plugin_t *);
-        void (*display_password)(ply_boot_splash_plugin_t *, const char *, int);
-        void (*display_question)(ply_boot_splash_plugin_t *, const char *, const char *);
-        void (*display_message)(ply_boot_splash_plugin_t *, const char *);
-        void (*hide_message)(ply_boot_splash_plugin_t *, const char *);
+  ply_boot_splash_plugin_t *(*create_plugin)(ply_key_file_t *);
+  void (*destroy_plugin)(ply_boot_splash_plugin_t *);
+  void (*add_pixel_display)(ply_boot_splash_plugin_t *, ply_pixel_display_t *);
+  void (*remove_pixel_display)(ply_boot_splash_plugin_t *, ply_pixel_display_t *);
+  bool (*show_splash_screen)(ply_boot_splash_plugin_t *, ply_event_loop_t *, ply_buffer_t *,
+                             ply_boot_splash_mode_t);
+  void (*update_status)(ply_boot_splash_plugin_t *, const char *);
+  void (*on_boot_progress)(ply_boot_splash_plugin_t *, double, double);
+  void (*hide_splash_screen)(ply_boot_splash_plugin_t *, ply_event_loop_t *);
+  void (*become_idle)(ply_boot_splash_plugin_t *, ply_trigger_t *);
+  void (*display_normal)(ply_boot_splash_plugin_t *);
+  void (*display_password)(ply_boot_splash_plugin_t *, const char *, int);
+  void (*display_question)(ply_boot_splash_plugin_t *, const char *, const char *);
+  void (*display_message)(ply_boot_splash_plugin_t *, const char *);
+  void (*hide_message)(ply_boot_splash_plugin_t *, const char *);
 } ply_boot_splash_plugin_interface_t;
 
 enum { PLY_LABEL_ALIGN_CENTER = 0 };

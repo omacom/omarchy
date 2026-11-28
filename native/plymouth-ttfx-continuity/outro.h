@@ -22,17 +22,17 @@
 #define CONTINUITY_HANDOFF_MAX_BYTES 1024U
 
 typedef struct {
-        char effect[64];
-        uint64_t seed;
-        uint64_t cycle;
-        uint64_t step;
-        uint32_t background;
-        uint32_t foreground;
-        bool hold_final;
-        uint32_t display_width;
-        uint32_t display_height;
-        bool outro_desktop;
-        unsigned int outro_ms;
+  char effect[64];
+  uint64_t seed;
+  uint64_t cycle;
+  uint64_t step;
+  uint32_t background;
+  uint32_t foreground;
+  bool hold_final;
+  uint32_t display_width;
+  uint32_t display_height;
+  bool outro_desktop;
+  unsigned int outro_ms;
 } continuity_handoff_t;
 
 /* Parses the plugin's handoff text. False for anything it does not fully
@@ -44,20 +44,20 @@ bool continuity_handoff_parse(const char *text, size_t length, continuity_handof
 bool continuity_handoff_read(const char *path, continuity_handoff_t *out);
 
 typedef struct {
-        TtfxEngine *engine;
-        ttfx_geometry_t geometry;   /* logical, as the plugin computed it */
-        uint32_t scale;             /* physical pixels per logical pixel */
-        uint32_t width;             /* physical frame size */
-        uint32_t height;
-        uint32_t background;
-        uint32_t foreground;
-        unsigned int outro_ms;
-        uint32_t calls;
-        uint32_t done;
-        bool started;
-        bool finished;
-        /* Physical rectangle the grid covers: the only pixels a frame changes. */
-        uint32_t rect_x, rect_y, rect_width, rect_height;
+  TtfxEngine *engine;
+  ttfx_geometry_t geometry; /* logical, as the plugin computed it */
+  uint32_t scale; /* physical pixels per logical pixel */
+  uint32_t width; /* physical frame size */
+  uint32_t height;
+  uint32_t background;
+  uint32_t foreground;
+  unsigned int outro_ms;
+  uint32_t calls;
+  uint32_t done;
+  bool started;
+  bool finished;
+  /* Physical rectangle the grid covers: the only pixels a frame changes. */
+  uint32_t rect_x, rect_y, rect_width, rect_height;
 } continuity_outro_t;
 
 /* Rebuilds the playback for `h` at a physical frame size, replaying `extra`
@@ -90,7 +90,7 @@ void continuity_outro_render(const continuity_outro_t *outro, uint32_t *argb, si
  * the desktop. */
 #define CONTINUITY_OUTRO_REVEAL_MS 350U
 uint8_t continuity_outro_background_alpha(uint64_t elapsed_ns, unsigned int outro_ms,
-                                         unsigned int reveal_ms);
+                                          unsigned int reveal_ms);
 void continuity_outro_free(continuity_outro_t *outro);
 
 #endif

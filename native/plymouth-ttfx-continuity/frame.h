@@ -17,24 +17,24 @@
 #define CONTINUITY_FOURCC_XR24 UINT32_C(0x34325258)
 
 typedef struct {
-        const char *file;       /* raw frame path */
-        bool file_overridden;   /* --file given: root ownership not required */
-        uint64_t max_age_ms;    /* reject captures older than this */
-        uint64_t max_ms;        /* stay at most this long */
-        uint64_t fade_ms;       /* fade-out length, 0 = none */
-        uint64_t settle_ms;     /* plain background first, frame after this */
-        const char *pid_file;
-        const char *ready_file;
-        bool alpha_modifier;    /* use wp_alpha_modifier_v1 when offered */
-        const char *handoff;    /* plugin handoff state (desktop outro) */
-        bool outro;             /* play the desktop outro when the handoff asks */
-        bool hide_cursor;       /* take the pointer and show no cursor over the frame */
-        bool help;
+  const char *file; /* raw frame path */
+  bool file_overridden; /* --file given: root ownership not required */
+  uint64_t max_age_ms; /* reject captures older than this */
+  uint64_t max_ms; /* stay at most this long */
+  uint64_t fade_ms; /* fade-out length, 0 = none */
+  uint64_t settle_ms; /* plain background first, frame after this */
+  const char *pid_file;
+  const char *ready_file;
+  bool alpha_modifier; /* use wp_alpha_modifier_v1 when offered */
+  const char *handoff; /* plugin handoff state (desktop outro) */
+  bool outro; /* play the desktop outro when the handoff asks */
+  bool hide_cursor; /* take the pointer and show no cursor over the frame */
+  bool help;
 } continuity_options_t;
 
 typedef enum {
-        CONTINUITY_ARGS_OK = 0,
-        CONTINUITY_ARGS_ERROR
+  CONTINUITY_ARGS_OK = 0,
+  CONTINUITY_ARGS_ERROR
 } continuity_args_result_t;
 
 /* Fills defaults, then applies argv. Accepts "--opt value" and "--opt=value".
@@ -44,28 +44,28 @@ continuity_args_result_t continuity_parse_args(int argc, char **argv,
                                                char *err, size_t err_size);
 
 typedef struct {
-        uint32_t width;
-        uint32_t height;
-        uint32_t stride;
-        uint64_t bytes;
-        uint64_t captured_ns;
+  uint32_t width;
+  uint32_t height;
+  uint32_t stride;
+  uint64_t bytes;
+  uint64_t captured_ns;
 } continuity_header_t;
 
 typedef enum {
-        CONTINUITY_FRAME_OK = 0,
-        CONTINUITY_FRAME_OPEN,          /* missing or unreadable */
-        CONTINUITY_FRAME_SYMLINK,
-        CONTINUITY_FRAME_NOT_REGULAR,
-        CONTINUITY_FRAME_OWNER,         /* not root-owned or writable by others */
-        CONTINUITY_FRAME_SHORT,         /* shorter than the header */
-        CONTINUITY_FRAME_MAGIC,
-        CONTINUITY_FRAME_FORMAT,        /* fourcc or reserved field */
-        CONTINUITY_FRAME_DIMENSIONS,    /* zero or above the plugin's bounds */
-        CONTINUITY_FRAME_STRIDE,
-        CONTINUITY_FRAME_SIZE,          /* header byte count vs file size */
-        CONTINUITY_FRAME_STALE,         /* older than max age */
-        CONTINUITY_FRAME_FUTURE,        /* captured after "now": another boot */
-        CONTINUITY_FRAME_READ
+  CONTINUITY_FRAME_OK = 0,
+  CONTINUITY_FRAME_OPEN, /* missing or unreadable */
+  CONTINUITY_FRAME_SYMLINK,
+  CONTINUITY_FRAME_NOT_REGULAR,
+  CONTINUITY_FRAME_OWNER, /* not root-owned or writable by others */
+  CONTINUITY_FRAME_SHORT, /* shorter than the header */
+  CONTINUITY_FRAME_MAGIC,
+  CONTINUITY_FRAME_FORMAT, /* fourcc or reserved field */
+  CONTINUITY_FRAME_DIMENSIONS, /* zero or above the plugin's bounds */
+  CONTINUITY_FRAME_STRIDE,
+  CONTINUITY_FRAME_SIZE, /* header byte count vs file size */
+  CONTINUITY_FRAME_STALE, /* older than max age */
+  CONTINUITY_FRAME_FUTURE, /* captured after "now": another boot */
+  CONTINUITY_FRAME_READ
 } continuity_frame_result_t;
 
 const char *continuity_frame_result_name(continuity_frame_result_t result);
@@ -88,8 +88,8 @@ continuity_frame_result_t continuity_read_payload(int fd, const continuity_heade
                                                   void *dst);
 
 typedef enum {
-        CONTINUITY_COPY_SENDFILE = 0,   /* in-kernel copy, no user mapping */
-        CONTINUITY_COPY_PREAD           /* fallback: pread into a mapping */
+  CONTINUITY_COPY_SENDFILE = 0, /* in-kernel copy, no user mapping */
+  CONTINUITY_COPY_PREAD /* fallback: pread into a mapping */
 } continuity_copy_method_t;
 
 /* Incremental copy of the payload (header->bytes from offset
@@ -102,12 +102,12 @@ typedef enum {
  * source that turns out shorter than the header claims fails with
  * CONTINUITY_FRAME_READ. */
 typedef struct {
-        int src_fd;
-        int dst_fd;
-        uint64_t total;
-        uint64_t done;
-        continuity_copy_method_t method;
-        uint8_t *map;           /* pread fallback only */
+  int src_fd;
+  int dst_fd;
+  uint64_t total;
+  uint64_t done;
+  continuity_copy_method_t method;
+  uint8_t *map; /* pread fallback only */
 } continuity_copy_t;
 
 continuity_frame_result_t continuity_copy_init(continuity_copy_t *copy, int src_fd,
@@ -118,7 +118,7 @@ continuity_frame_result_t continuity_copy_step(continuity_copy_t *copy, size_t m
 
 static inline bool continuity_copy_complete(const continuity_copy_t *copy)
 {
-        return copy->done >= copy->total;
+  return copy->done >= copy->total;
 }
 
 /* Releases the fallback mapping; safe to call more than once. */
@@ -129,17 +129,17 @@ const char *continuity_copy_method_name(continuity_copy_method_t method);
 /* Per-phase timestamps of one run, CLOCK_BOOTTIME nanoseconds, 0 = not
  * reached. Logged as one compact "timing" line in milliseconds since start. */
 typedef struct {
-        uint64_t start;         /* main() entered */
-        uint64_t file;          /* raw file opened and header validated */
-        uint64_t connect;       /* wl_display_connect returned, registry sent */
-        uint64_t buffer;        /* payload copied into the shm file */
-        uint64_t registry;      /* registry roundtrip done, globals bound */
-        uint64_t outputs;       /* extra output roundtrip (several outputs only) */
-        uint64_t surface;       /* layer surface created, initial commit sent */
-        uint64_t configure;     /* first layer-surface configure received */
-        uint64_t commit;        /* buffer attached and committed */
-        uint64_t frame;         /* first wl_surface.frame callback */
-        uint64_t presented;     /* wp_presentation timestamp of that commit */
+  uint64_t start; /* main() entered */
+  uint64_t file; /* raw file opened and header validated */
+  uint64_t connect; /* wl_display_connect returned, registry sent */
+  uint64_t buffer; /* payload copied into the shm file */
+  uint64_t registry; /* registry roundtrip done, globals bound */
+  uint64_t outputs; /* extra output roundtrip (several outputs only) */
+  uint64_t surface; /* layer surface created, initial commit sent */
+  uint64_t configure; /* first layer-surface configure received */
+  uint64_t commit; /* buffer attached and committed */
+  uint64_t frame; /* first wl_surface.frame callback */
+  uint64_t presented; /* wp_presentation timestamp of that commit */
 } continuity_timing_t;
 
 /* Formats the timing fields ("file=0.12 connect=0.40 ... presented=-") into
@@ -147,11 +147,11 @@ typedef struct {
 bool continuity_format_timing(const continuity_timing_t *timing, char *out, size_t out_size);
 
 typedef struct {
-        int32_t mode_width;     /* current mode, physical pixels */
-        int32_t mode_height;
-        int32_t transform;      /* wl_output transform, 0 = normal */
-        bool has_mode;
-        bool done;
+  int32_t mode_width; /* current mode, physical pixels */
+  int32_t mode_height;
+  int32_t transform; /* wl_output transform, 0 = normal */
+  bool has_mode;
+  bool done;
 } continuity_output_info_t;
 
 /* Index of the first output whose current upright mode equals the frame size,

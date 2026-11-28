@@ -4,15 +4,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CHECK(condition, message)                                               \
-  do {                                                                          \
-    if (!(condition)) {                                                          \
-      fprintf(stderr, "smoke failure: %s (line %d)\n", (message), __LINE__);   \
-      goto cleanup;                                                              \
-    }                                                                            \
+#define CHECK(condition, message)                                            \
+  do {                                                                       \
+    if (!(condition)) {                                                      \
+      fprintf(stderr, "smoke failure: %s (line %d)\n", (message), __LINE__); \
+      goto cleanup;                                                          \
+    }                                                                        \
   } while (0)
 
-static int copy_snapshot(TtfxEngine *engine, TtfxCell **copy, size_t *count) {
+static int copy_snapshot(TtfxEngine *engine, TtfxCell **copy, size_t *count)
+{
   const TtfxCell *cells = NULL;
   uint32_t width = 0;
   uint32_t height = 0;
@@ -30,7 +31,8 @@ static int copy_snapshot(TtfxEngine *engine, TtfxCell **copy, size_t *count) {
   return 1;
 }
 
-int main(void) {
+int main(void)
+{
   static const uint8_t input[] = "Plymouth λ";
   TtfxEngine *engine = NULL;
   TtfxCell *first = NULL;
@@ -84,7 +86,8 @@ int main(void) {
     uint32_t width = 0;
     uint32_t height = 0;
     CHECK(ttfx_engine_cells(engine, &cells, &other_count, &width, &height) ==
-              TTFX_STATUS_OK && other_count == count &&
+                  TTFX_STATUS_OK &&
+              other_count == count &&
               memcmp(loop_frame, cells, count * sizeof(*cells)) == 0,
           "repeated completion preserves the exact terminal snapshot");
   }
@@ -109,7 +112,7 @@ int main(void) {
     uint32_t width = 99;
     uint32_t height = 99;
     CHECK(ttfx_engine_cells(NULL, &cells, &invalid_count, &width, &height) ==
-              TTFX_STATUS_INVALID_ARGUMENT &&
+                  TTFX_STATUS_INVALID_ARGUMENT &&
               cells == NULL && invalid_count == 0 && width == 0 && height == 0,
           "invalid cells call initializes all outputs");
   }
