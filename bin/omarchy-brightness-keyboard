@@ -25,8 +25,8 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
-# The level from before the first "off" since the last "restore", so the lock
-# blanking again after a resume cannot save its own 0 over it.
+# The positive level from before the first "off" since the last "restore", so
+# blanking again cannot save its own 0 over it. Older zero records are discarded.
 saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
 
 if [[ $direction == "off" || $direction == "restore" ]]; then
@@ -36,19 +36,22 @@ if [[ $direction == "off" || $direction == "restore" ]]; then
 fi
 
 if [[ $direction == "off" ]]; then
-  if [[ ! -s $saved ]]; then
+  saved_level=""
+  [[ -f $saved ]] && saved_level="$(<"$saved")"
+  if [[ ! $saved_level =~ ^[1-9][0-9]*$ ]]; then
+    rm -f "$saved"
     level="$(brightnessctl -d "$device" get)"
-    if [[ $level =~ ^[0-9]+$ ]] && ! echo "$level" >"$saved"; then
+    if [[ $level =~ ^[1-9][0-9]*$ ]] && ! echo "$level" >"$saved"; then
       rm -f "$saved"
     fi
   fi
-  # Never blank a level there is no record of to restore.
+  # Never blank a backlight that is already off or whose level could not be saved.
   [[ -s $saved ]] && brightnessctl -d "$device" set 0 >/dev/null
   exit 0
 elif [[ $direction == "restore" ]]; then
   if [[ -f $saved ]]; then
     level="$(<"$saved")"
-    if [[ ! $level =~ ^[0-9]+$ ]] || brightnessctl -d "$device" set "$level" >/dev/null; then
+    if [[ ! $level =~ ^[1-9][0-9]*$ ]] || brightnessctl -d "$device" set "$level" >/dev/null; then
       rm -f "$saved"
     fi
   fi
