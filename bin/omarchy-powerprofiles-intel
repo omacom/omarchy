@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# omarchy:summary=Tune Intel HWP dynamic boost and energy efficiency with the power profile
+# omarchy:args=[monitor|apply|release]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+pstate_dir="${OMARCHY_INTEL_PSTATE_DIR:-/sys/devices/system/cpu/intel_pstate}"
+
+pstate_active() {
+  [[ -r $pstate_dir/status && $(<"$pstate_dir/status") == "active" ]]
+}
+
+write_knob() {
+  local path="$pstate_dir/$1"
+  local value="$2"
+
+  [[ -w $path ]] || return 0
+  if [[ -r $path && $(<"$path") == "$value" ]]; then
+    return 0
+  fi
+
+  printf '%s\n' "$value" >"$path" 2>/dev/null || true
+}
+
+on_battery() {
+  [[ $(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null) == "b true" ]]
+}
+
+apply_knobs() {
+  local boost="$1"
+  local efficiency="$2"
+
+  pstate_active || return 0
+  write_knob hwp_dynamic_boost "$boost"
+  write_knob energy_efficiency "$efficiency"
+}
+
+apply_profile() {
+  local profile boost efficiency
+
+  profile=$(powerprofilesctl get 2>/dev/null) || return 0
+  case $profile in
+    performance)
+      boost=1
+      efficiency=0
+      ;;
+    balanced)
+      boost=1
+      if on_battery; then
+        efficiency=1
+      else
+        efficiency=0
+      fi
+      ;;
+    power-saver)
+      boost=0
+      efficiency=1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  apply_knobs "$boost" "$efficiency"
+}
+
+monitor() {
+  local line listening=0 pending_resume=0
+
+  while IFS= read -r line; do
+    if (( pending_resume )); then
+      pending_resume=0
+      [[ $line == *"boolean false"* ]] && apply_profile
+      continue
+    fi
+
+    if (( !listening )); then
+      listening=1
+      apply_profile
+    elif [[ $line == signal* && $line == *member=PropertiesChanged* ]]; then
+      apply_profile
+    elif [[ $line == signal* && $line == *member=PrepareForSleep* ]]; then
+      pending_resume=1
+    fi
+  done < <(dbus-monitor --system \
+    "type='signal',sender='org.freedesktop.UPower.PowerProfiles',path='/org/freedesktop/UPower/PowerProfiles',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'" \
+    "type='signal',sender='org.freedesktop.UPower',path='/org/freedesktop/UPower',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'" \
+    "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'")
+
+  echo "The D-Bus monitor stopped" >&2
+  return 1
+}
+
+case ${1:-monitor} in
+  monitor) monitor ;;
+  apply) apply_profile ;;
+  release) apply_knobs 0 0 ;;
+  *)
+    echo "Usage: omarchy-powerprofiles-intel [monitor|apply|release]" >&2
+    exit 1
+    ;;
+esac

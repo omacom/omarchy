@@ -1,0 +1,20 @@
+[Unit]
+Description=Omarchy Intel HWP tuning for the power profile
+After=power-profiles-daemon.service upower.service
+ConditionPathExists=/sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
+
+[Service]
+ExecStart=/usr/bin/omarchy-powerprofiles-intel monitor
+ExecStopPost=/usr/bin/omarchy-powerprofiles-intel release
+Restart=on-failure
+RestartSec=2
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadOnlyPaths=/sys
+ReadWritePaths=/sys/devices/system/cpu/intel_pstate
+
+[Install]
+WantedBy=graphical.target

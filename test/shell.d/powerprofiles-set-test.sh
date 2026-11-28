@@ -115,3 +115,103 @@ expected=$'-m 768 -a -p 4242\n-m 1024 -a -p 4242\n-m 0 -a -p 4242'
 [[ $(<"$UCLAMP_LOG") == "$expected" ]] ||
   fail "power profile floor follows the profile once listening, on profile changes and logins" "$(<"$UCLAMP_LOG")"
 pass "power profile floor follows the profile once listening, on profile changes and logins"
+
+mkdir -p "$tmp_dir/pstate"
+export OMARCHY_INTEL_PSTATE_DIR="$tmp_dir/pstate"
+printf 'active\n' >"$tmp_dir/pstate/status"
+printf '0\n' >"$tmp_dir/pstate/hwp_dynamic_boost"
+printf '0\n' >"$tmp_dir/pstate/energy_efficiency"
+
+printf '%s\n' performance >"$POWERPROFILES_QUEUE"
+ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-intel" apply
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "1" && $(<"$tmp_dir/pstate/energy_efficiency") == "0" ]] ||
+  fail "intel pstate enables dynamic boost and disables energy efficiency in performance"
+
+printf '%s\n' balanced >"$POWERPROFILES_QUEUE"
+ON_BATTERY=1 "$ROOT/bin/omarchy-powerprofiles-intel" apply
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "1" && $(<"$tmp_dir/pstate/energy_efficiency") == "1" ]] ||
+  fail "intel pstate keeps dynamic boost and enables energy efficiency for balanced on battery"
+
+printf '%s\n' balanced >"$POWERPROFILES_QUEUE"
+ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-intel" apply
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "1" && $(<"$tmp_dir/pstate/energy_efficiency") == "0" ]] ||
+  fail "intel pstate disables energy efficiency for balanced on AC"
+
+printf '%s\n' power-saver >"$POWERPROFILES_QUEUE"
+ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-intel" apply
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "0" && $(<"$tmp_dir/pstate/energy_efficiency") == "1" ]] ||
+  fail "intel pstate disables dynamic boost and enables energy efficiency in power-saver"
+pass "intel pstate maps each power profile and AC/battery state"
+
+"$ROOT/bin/omarchy-powerprofiles-intel" release
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "0" && $(<"$tmp_dir/pstate/energy_efficiency") == "0" ]] ||
+  fail "intel pstate release restores kernel defaults"
+
+printf '%s\n' unknown >"$POWERPROFILES_QUEUE"
+"$ROOT/bin/omarchy-powerprofiles-intel" apply
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "0" && $(<"$tmp_dir/pstate/energy_efficiency") == "0" ]] ||
+  fail "intel pstate leaves sysfs untouched for an unknown profile"
+
+printf 'passive\n' >"$tmp_dir/pstate/status"
+printf '%s\n' performance >"$POWERPROFILES_QUEUE"
+"$ROOT/bin/omarchy-powerprofiles-intel" apply
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "0" ]] ||
+  fail "intel pstate ignores passive mode"
+
+printf 'active\n' >"$tmp_dir/pstate/status"
+rm "$tmp_dir/pstate/energy_efficiency"
+printf '%s\n' performance >"$POWERPROFILES_QUEUE"
+"$ROOT/bin/omarchy-powerprofiles-intel" apply
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "1" && ! -e $tmp_dir/pstate/energy_efficiency ]] ||
+  fail "intel pstate still updates dynamic boost when energy_efficiency is absent"
+pass "intel pstate handles release, unknown profiles, passive mode, and missing knobs"
+
+printf '0\n' >"$tmp_dir/pstate/hwp_dynamic_boost"
+printf '0\n' >"$tmp_dir/pstate/energy_efficiency"
+cat >"$tmp_dir/bin/powerprofilesctl" <<'EOF'
+#!/bin/bash
+
+if [[ $1 == "get" ]]; then
+  profile=$(head -n 1 "$POWERPROFILES_QUEUE")
+  sed -i 1d "$POWERPROFILES_QUEUE"
+  printf '%s\n' "$profile" >>"$INTEL_CALL_LOG"
+  printf '%s\n' "$profile"
+fi
+EOF
+cat >"$tmp_dir/bin/busctl" <<'EOF'
+#!/bin/bash
+
+state=$(head -n 1 "$BATTERY_QUEUE")
+sed -i 1d "$BATTERY_QUEUE"
+printf 'b %s\n' "$state"
+EOF
+cat >"$tmp_dir/bin/dbus-monitor" <<'EOF'
+#!/bin/bash
+
+echo "signal time=1 sender=org.freedesktop.DBus -> destination=:1.9 path=/org/freedesktop/DBus; interface=org.freedesktop.DBus; member=NameAcquired"
+echo '   string ":1.9"'
+echo "signal time=2 sender=:1.5 -> destination=(null destination) path=/org/freedesktop/UPower/PowerProfiles; interface=org.freedesktop.DBus.Properties; member=PropertiesChanged"
+echo '      string "ActiveProfile"'
+echo "signal time=3 sender=:1.6 -> destination=(null destination) path=/org/freedesktop/UPower; interface=org.freedesktop.DBus.Properties; member=PropertiesChanged"
+echo '      string "OnBattery"'
+echo "signal time=4 sender=:1.7 -> destination=(null destination) path=/org/freedesktop/login1; interface=org.freedesktop.login1.Manager; member=PrepareForSleep"
+echo '   boolean true'
+echo "signal time=5 sender=:1.7 -> destination=(null destination) path=/org/freedesktop/login1; interface=org.freedesktop.login1.Manager; member=PrepareForSleep"
+echo '   boolean false'
+EOF
+chmod +x "$tmp_dir/bin/powerprofilesctl" "$tmp_dir/bin/busctl" "$tmp_dir/bin/dbus-monitor"
+
+export INTEL_CALL_LOG="$tmp_dir/intel-calls"
+export BATTERY_QUEUE="$tmp_dir/battery"
+printf '%s\n' balanced balanced power-saver performance >"$POWERPROFILES_QUEUE"
+printf '%s\n' false true >"$BATTERY_QUEUE"
+
+if "$ROOT/bin/omarchy-powerprofiles-intel" monitor 2>/dev/null; then
+  fail "intel pstate monitor fails when dbus-monitor stops"
+fi
+expected_calls=$'balanced\nbalanced\npower-saver\nperformance'
+[[ $(<"$INTEL_CALL_LOG") == "$expected_calls" && ! -s $POWERPROFILES_QUEUE && ! -s $BATTERY_QUEUE ]] ||
+  fail "intel pstate monitor applies on start, profile/AC changes, and resume only" "$(<"$INTEL_CALL_LOG")"
+[[ $(<"$tmp_dir/pstate/hwp_dynamic_boost") == "1" && $(<"$tmp_dir/pstate/energy_efficiency") == "0" ]] ||
+  fail "intel pstate monitor leaves final knobs matching resumed performance profile"
+pass "intel pstate monitor follows PowerProfiles, UPower, and resume signals"
