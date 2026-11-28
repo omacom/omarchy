@@ -11,6 +11,13 @@ session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's
 CONFIG_DIR="$session_omarchy_path/shell"
 [[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
 
+# A double-click or two setup helpers can request a restart at the same time.
+# The first invocation already satisfies every overlapping request; letting a
+# second one enter the kill loop can terminate the replacement shell while it
+# is still starting. Coalesce concurrent restarts instead.
+exec {restart_lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-restart-shell.lock"
+flock -n "$restart_lock_fd" || exit 0
+
 # Allow running from outside the session (e.g. over ssh) by deriving the
 # Hyprland instance signature from the newest instance runtime dir.
 if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
