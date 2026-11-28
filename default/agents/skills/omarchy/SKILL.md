@@ -320,6 +320,7 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Add a Danish keyboard layout" -> `kb_layout = "us,dk"` in `~/.config/hypr/input.lua` (or `omarchy setup keyboard`)
 - "Set an environment variable for all apps" -> A file in `~/.config/uwsm/env.d/`, applied at next login
 - "Make text bigger everywhere" -> `omarchy display text size <9-20>`
+- "Make only the terminal font bigger" -> `omarchy font size <6-24>`
 - "Set a reminder to pickup jack in 15 minutes" -> `omarchy reminder 15 "Pickup Jack"`
 - "Show my reminders" -> `omarchy reminder show`
 - "Clear all reminders" -> `omarchy reminder clear`

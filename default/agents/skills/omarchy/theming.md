@@ -57,10 +57,11 @@ omarchy theme set catppuccin-custom
 omarchy font list               # Available fonts
 omarchy font current            # Current font
 omarchy font set <name>         # Change the monospace font used everywhere
+omarchy font size [size|reset]  # Terminal font size in pt (6–24, default 9)
 omarchy font cjk [jp|kr|sc|tc|hk|default]  # Glyph forms for Chinese, Japanese, and Korean text
 ```
 
-`omarchy font list` shows installed Nerd Fonts; a new one comes from the menu's Install > Style > Font, or `omarchy install font <display-name> <package> <family>`.
+`omarchy font list` shows installed Nerd Fonts; a new one comes from the menu's Install > Style > Font, or `omarchy install font <display-name> <package> <family>`. `omarchy font size` changes only the terminal; `omarchy display text size` scales the whole desktop.
 
 ## App Icons
 
