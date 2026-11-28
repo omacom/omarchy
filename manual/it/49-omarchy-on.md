@@ -10,11 +10,11 @@ Omarchy per Apple Silicon funziona su Mac M1, M2 e M3 e si installa accanto a ma
 
 ### VirtualBox
 
-VirtualBox è un popolare runner di VM. [Puoi eseguire Omarchy anche al suo interno](https://github.com/omacom/omarchy/discussions/176). Ma probabilmente le prestazioni non saranno granché.
+VirtualBox è un diffuso programma per macchine virtuali. [Puoi eseguire Omarchy anche lì dentro](https://github.com/omacom/omarchy/discussions/176). Ma le prestazioni probabilmente non saranno granché.
 
 ### VMware Workstation su Windows 11
 
-Un altro popolare runner di VM per Windows. [Anche Omarchy è stata installata al suo interno](https://github.com/omacom/omarchy/discussions/572).
+Un altro diffuso programma per macchine virtuali su Windows. [Anche lì dentro qualcuno ha configurato Omarchy](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 

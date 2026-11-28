@@ -14,7 +14,7 @@ Omarchy include una serie di funzioni della shell per semplificare le attività 
 
 ## Layout di sviluppo
 
-Layout di sviluppo a più riquadri istantanei per tmux:
+Layout di sviluppo a più riquadri per tmux, pronti all'istante:
 
 - `tdl [ai]`: crea un Tmux Dev Layout con il tuo editor, un agente AI e un terminale. Usa gli alias degli agenti, come `tdl c` per opencode o `tdl cx` per Claude Code, oppure passa un secondo agente per eseguirli entrambi, come `tdl c cx`.
 - `tds`: crea un Tmux Dev Square con editor, monitoraggio delle differenze (tramite `hunk diff --watch`), terminale e opencode.
@@ -25,7 +25,7 @@ Gli stessi layout sono disponibili per Herdr come `hdl`, `hds`, `hdlm` e `hsl`.
 
 ## Git worktree
 
-- `ga [branch]`: crea un nuovo worktree e un nuovo branch accanto al repository corrente e ci salta dentro.
+- `ga [branch]`: crea un nuovo worktree e un nuovo branch accanto al repository corrente e ti ci porta dentro.
 - `gd`: rimuove il worktree corrente e il suo branch (chiede prima conferma).
 
 ## Monitoraggi Rsync
@@ -36,7 +36,7 @@ Gli stessi layout sono disponibili per Herdr come `hdl`, `hds`, `hdlm` e `hsl`.
 
 ## Inoltro porte SSH
 
-Ideale per fare sviluppo web con i privilegi di contesto sicuro di localhost contro una macchina remota.
+Ideale per fare sviluppo web con i privilegi di contesto sicuro di localhost su una macchina remota.
 
 - `fip`: inoltra una o più porte da un host remoto a localhost via SSH.
 - `dip`: disconnette una o più porte inoltrate.
@@ -46,4 +46,4 @@ Diciamo che avvii un server di sviluppo sulla porta `3000` su una macchina acces
 
 ## Riconnessione SSH
 
-`ssh` stesso è avvolto in una funzione che ripulisce il terminale se una connessione muore mentre un tmux, Herdr o editor remoto lo ha occupato, e poi si riconnette automaticamente quando una sessione interattiva cade (Ctrl-C ferma il ciclo di nuovi tentativi).
+`ssh` stesso è avvolto in una funzione che ripulisce il terminale se una connessione muore mentre lo stava usando un tmux, un Herdr o un editor remoto, e poi si riconnette automaticamente quando una sessione interattiva cade (Ctrl-C ferma il ciclo di nuovi tentativi).
