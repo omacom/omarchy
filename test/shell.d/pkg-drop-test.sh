@@ -263,3 +263,10 @@ PATH="$net_bin:$PATH" TEST_TMP="$test_tmp" TEST_BATCH_FAIL=1 bash -eE "$net_scri
 (( $(grep -c '^disable ' "$test_tmp/net-systemctl") == 8 )) ||
   fail "network.sh falls back to per-unit disable when batch disable fails" "$(cat "$test_tmp/net-systemctl")"
 pass "network.sh batches systemctl disable with per-unit fallback"
+
+printf '#!/bin/bash\nexit 1\n' >"$mock_path/omarchy-pkg-drop"
+chmod +x "$mock_path/omarchy-pkg-drop"
+if PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" "$ROOT/bin/omarchy-remove-service-1password" >/dev/null 2>&1; then
+  fail "failed 1Password package removal returns an error"
+fi
+pass "failed 1Password package removal returns an error"

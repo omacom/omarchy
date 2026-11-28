@@ -5,9 +5,11 @@
 # omarchy:examples=omarchy remove browser firefox | omarchy remove browser brave
 # omarchy:requires-sudo=true
 
+set -e
+
 set_fallback_default_browser() {
   local current_browser
-  current_browser=$(omarchy-cmd-default-browser)
+  current_browser=$(omarchy-cmd-default-browser) || return 0
 
   if [[ $current_browser != $1 ]]; then
     return

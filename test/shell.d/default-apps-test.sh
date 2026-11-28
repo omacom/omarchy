@@ -14,6 +14,7 @@ install_log="$test_tmp/install-log"
 terminal_log="$test_tmp/terminal-log"
 notification_log="$test_tmp/notification-log"
 setup_log="$test_tmp/setup-log"
+pkg_drop_log="$test_tmp/pkg-drop-log"
 browser_file="$test_tmp/browser"
 mkdir -p "$mock_bin" "$test_home/.config" "$installed_dir"
 
@@ -42,6 +43,12 @@ cat >"$mock_bin/sudo" <<'SH'
 #!/bin/bash
 printf 'sudo:%s\n' "$*" >>"$OMARCHY_TEST_SETUP_LOG"
 [[ ${OMARCHY_TEST_SETUP_FAIL:-} != "sudo" ]]
+SH
+
+cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_PKG_DROP_LOG"
+[[ ${OMARCHY_TEST_INSTALL_FAIL:-false} != "true" ]]
 SH
 
 cat >"$mock_bin/xdg-settings" <<'SH'
@@ -162,6 +169,7 @@ export OMARCHY_TEST_INSTALL_LOG="$install_log"
 export OMARCHY_TEST_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_NOTIFICATION_LOG="$notification_log"
 export OMARCHY_TEST_SETUP_LOG="$setup_log"
+export OMARCHY_TEST_PKG_DROP_LOG="$pkg_drop_log"
 export OMARCHY_TEST_BROWSER_FILE="$browser_file"
 
 assert_missing_opens_installer() {
@@ -509,3 +517,25 @@ printf 'custom.desktop\n' >"$test_home/.config/hyprland-xdg-terminals.list"
   fail "default terminal invokes xdg-terminal-exec when a desktop-specific list exists"
 rm -f "$test_home/.config/hyprland-xdg-terminals.list"
 pass "default terminal fast path answers standard configs and falls back cleanly"
+
+# The real lookup exits 1 when no installed default browser is listed.
+printf '#!/bin/bash\nexit 1\n' >"$mock_bin/omarchy-cmd-default-browser"
+chmod +x "$mock_bin/omarchy-cmd-default-browser"
+
+: >"$pkg_drop_log"
+bash "$ROOT/bin/omarchy-remove-browser" firefox >"$test_tmp/remove-browser" 2>&1 ||
+  fail "removing firefox succeeds when no default browser can be found" "$(cat "$test_tmp/remove-browser")"
+[[ $(<"$pkg_drop_log") == "firefox" ]] ||
+  fail "removing firefox drops its package when no default browser can be found" "$(cat "$pkg_drop_log")"
+pass "browser removal goes ahead when no default browser can be found"
+
+for entry in 'chrome google-chrome' 'edge microsoft-edge-stable-bin' 'brave brave-bin' 'brave-origin brave-origin-bin'; do
+  read -r browser package <<<"$entry"
+  : >"$pkg_drop_log"
+  if OMARCHY_TEST_INSTALL_FAIL=true bash "$ROOT/bin/omarchy-remove-browser" "$browser" >"$test_tmp/remove-browser-failure" 2>&1; then
+    fail "removing $browser returns an error when its package removal fails"
+  fi
+  [[ $(<"$pkg_drop_log") == "$package" ]] ||
+    fail "removing $browser hands $package to the package removal" "$(cat "$pkg_drop_log")"
+done
+pass "browser removal reports a failed package removal"

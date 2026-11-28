@@ -4,7 +4,10 @@
 
 mapfile -t themes < <(omarchy-theme-extras)
 
+status=0
 for theme in "${themes[@]}"; do
   echo "Updating: $(basename "$theme")"
-  git -C "$theme" pull
+  git -C "$theme" pull || status=1
 done
+
+exit $status
