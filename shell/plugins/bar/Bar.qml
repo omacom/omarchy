@@ -54,6 +54,12 @@ Item {
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
   property bool transparent: false
+  // The shell has just started. A bar going clear at runtime keeps its
+  // background until its text color is known, but at startup there is no bar
+  // on screen to keep: holding the background there shows a solid bar for the
+  // second the color takes, then drops it. So a starting bar goes clear at
+  // once, in the theme's text color until its own arrives.
+  property bool starting: true
   // A see-through bar that Hyprland blurs behind (the bar-glassy toggle), so
   // its theme background stays faintly. A transparent bar wins over it.
   property bool glassy: false
@@ -1445,6 +1451,7 @@ Item {
       restoreForegroundAnimation()
       return
     }
+    if (starting) transparent = true
     scheduleTransparentForegroundRefresh()
   }
 
@@ -1480,6 +1487,14 @@ Item {
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
+  // The saved config lands a moment after the built-in one, and the text
+  // color a second later; past that, the bar is one the user has seen.
+  Timer {
+    interval: 3000
+    running: true
+    onTriggered: root.starting = false
+  }
+
   Timer {
     id: transparentForegroundTimer
     interval: 120
@@ -1494,6 +1509,7 @@ Item {
         var value = String(line || "").trim()
         if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return
 
+        root.starting = false
         root.foregroundAnimationEnabled = false
         root.transparentForeground = value
         if (root.requestedTransparent) {
