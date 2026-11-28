@@ -12,3 +12,4 @@ singleton Util 1.0 Util.qml
 ShellIpc 1.0 ShellIpc.qml
 Translations 1.0 Translations.qml
 WatchedFile 1.0 WatchedFile.qml
+SettledPwObjectTracker 1.0 SettledPwObjectTracker.qml

@@ -90,7 +90,7 @@ BarIndicator {
     }
   }
 
-  PwObjectTracker { objects: root.captureStreams }
+  SettledPwObjectTracker { objects: root.captureStreams }
 
   PwNodePeakMonitor {
     node: root.recordedMicrophone

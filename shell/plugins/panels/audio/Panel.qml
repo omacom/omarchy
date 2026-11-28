@@ -638,9 +638,9 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  PwObjectTracker { objects: root.candidateSinks }
-  PwObjectTracker { objects: root.candidateSources }
-  PwObjectTracker { objects: root.audioStreams }
+  SettledPwObjectTracker { objects: root.candidateSinks }
+  SettledPwObjectTracker { objects: root.candidateSources }
+  SettledPwObjectTracker { objects: root.audioStreams }
 
   PwNodePeakMonitor {
     id: inputPeakMonitor

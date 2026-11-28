@@ -48,7 +48,7 @@ BarWidget {
     else if (source && source.audio) source.audio.muted = !source.audio.muted
   }
 
-  PwObjectTracker { objects: root.source ? [root.source] : [] }
+  SettledPwObjectTracker { objects: root.source ? [root.source] : [] }
 
   BarIconButton {
     id: button
