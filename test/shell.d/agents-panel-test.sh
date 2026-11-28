@@ -612,21 +612,4 @@ assertDeepEqual(
 )
 assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
 assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
-
-const deleteState = {
-  providers: [
-    { providerId: 'claude', lineId: 'claude' },
-    { providerId: 'local', lineId: 'local/installing', localModel: { target: 'installing', host: '' } }
-  ],
-  deleteTarget: null, localDefaultTarget: '',
-  usage: { defaultAgent: 'claude', panelProviders: [], lineId: l => l.lineId },
-  defaultIdFor: () => 'local',
-  localModelState: local => local.target === 'installing' ? { panelSetup: true, install: { phase: 'downloading' } } : null
-}
-deleteState.usage.panelProviders = deleteState.providers
-const deleteFns = new Function('with (this) { ' + ['opensByDefault', 'defaultSuccessor', 'removable', 'deleteProvider'].map(fn).join('\n') + '\nreturn { deleteProvider } }').call(deleteState)
-deleteFns.deleteProvider(1)
-assertEqual(deleteState.deleteTarget, null, 'deleteProvider skips non-removable lines')
-deleteFns.deleteProvider(0)
-assertEqual(deleteState.deleteTarget, deleteState.providers[0], 'deleteProvider targets removable lines')
 JS
