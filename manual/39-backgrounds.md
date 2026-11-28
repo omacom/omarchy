@@ -8,9 +8,11 @@ A theme with no backgrounds of its own gets one drawn from its colors: the Omarc
 
 Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`, `mkv`, or `avi` file in the same folder and it appears alongside the images. Videos are played by the OWE wallpaper engine. It decodes the video once for all monitors and plays its sound through the default audio output, and it stops playback whenever nothing can see it. A video wallpaper still costs far more power than a still one.
 
-Themes can include a short intro for a still background. For `backgrounds/road.webp`, the matching video lives at `backgrounds/intros/road.mp4`. It plays automatically at boot, when switching to a theme with that background selected, and when choosing that background, then returns to the still. Intro videos stay out of the background picker and never loop.
+Themes can include a short intro for a background. For `backgrounds/road.webp`, the matching video lives at `backgrounds/intros/road.mp4`. It plays automatically at boot, when switching to a theme with that background selected, and when choosing that background, then returns to the still. A video background such as `backgrounds/road.mp4` can have an intro too, which plays when you choose it or switch to its theme and then hands over to the video's first frame. It does not play at boot yet. Intro videos stay out of the background picker and never loop.
 
-Choosing _Appearance > Animations Off_ also turns off background intros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme does not play an intro.
+A background can also have an outro, a short clip in `backgrounds/outros/` with the same name, which plays when you choose a different background. An outro starts on its background and ends on black, and the next background comes in from there. Switching themes does not play outros.
+
+Choosing _Appearance > Animations Off_ also turns off background intros and outros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme does not play an intro.
 
 A still can also have a loop, a quiet version of the same picture that keeps moving, at `backgrounds/loops/road.mp4`. It plays in the still's place, after its intro if it has one, and stops when animations are turned off. On battery, the still shows instead, and the loop comes back once you plug in. Loops stay out of the background picker.
 

@@ -9,6 +9,12 @@ import qs.Commons
 // once the clip is moving, or opens with the ordinary cut onto a still without
 // one. Each step waits on the event that allows it, so the commands that
 // start a change only hand it over.
+//
+// OWE plays a clip only over a still and fades its last frame into the still
+// the link names. An outro is therefore a change to black, with the outro as
+// its clip, followed by the change that was asked for. A video's intro plays
+// over the video's first frame, and the link moves on to the video once the
+// clip has faded into that frame.
 Item {
   id: root
 
@@ -23,6 +29,14 @@ Item {
   property string token: ""
   property string still: ""
   property string clip: ""
+  // The still the link names while the clip plays, when that is not the
+  // change's own background: a video's first frame. "pending" while it is
+  // being extracted.
+  property string holding: ""
+  // The change an outro hands over to once it has ended on black.
+  property string nextPath: ""
+  property string nextClip: ""
+  readonly property string blackStill: Quickshell.env("OMARCHY_PATH") + "/default/omarchy/black.png"
   // Whether OWE already holds the clip decoded, as a theme switch prepares it
   // while its templates render.
   property bool prepared: false
@@ -51,7 +65,8 @@ Item {
   // yet.
   function selected() {
     if (queuedPath) return queuedPath
-    if (token && intro && (snapshotProc.running || token === intro.themeToken)) return still
+    if (nextPath) return nextPath
+    if (token && intro && (holding || snapshotProc.running || token === intro.themeToken)) return still
     return backgroundService ? backgroundService.currentBackground : ""
   }
 
@@ -60,16 +75,25 @@ Item {
     return path && !Util.isVideoPath(path) ? path : ""
   }
 
-  // omarchy-theme-bg-set's selection, with the intro it found for it.
-  function switchTo(path, clipPath) {
+  // omarchy-theme-bg-set's selection, with the intro it found for it and the
+  // outro of the background it leaves.
+  function switchTo(path, clipPath, outroPath) {
     path = String(path || "").trim()
     if (!path || !intro || !backgroundService) return "unavailable"
-    if (busy) {
+    if (nextPath) {
+      // An outro is playing: the latest selection is where it leads.
+      nextPath = path
+      nextClip = clipPath || ""
+    } else if (busy) {
       queuedPath = path
     } else if (path !== backgroundService.currentBackground) {
       // A playing intro hides the shell's background, so even a still
       // without an intro of its own has to come in under the cover.
-      if (clipPath || backgroundService.suspended) {
+      if (outroPath) {
+        begin(blackStill, outroPath)
+        nextPath = path
+        nextClip = clipPath || ""
+      } else if (clipPath || backgroundService.suspended) {
         begin(path, clipPath)
       } else {
         link(path)
@@ -99,6 +123,9 @@ Item {
     prepared = false
     linked = false
     started = false
+    nextPath = ""
+    nextClip = ""
+    hold(path, clipPath)
     if (backgroundService.suspended) {
       // A playing video shows a frame only OWE can capture.
       snapshotProc.forToken = token
@@ -125,11 +152,31 @@ Item {
     still = stillPath
     clip = clipPath
     prepared = preparedFlag === "true"
-    linked = true
     started = false
+    nextPath = ""
+    nextClip = ""
+    hold(stillPath, clipPath)
+    // The theme switch has linked the still itself; a held frame replaces it.
+    linked = !holding
     own(intro.themeBackground)
     advance()
     return "ok"
+  }
+
+  // A video's intro needs its first frame as a still to play over.
+  function hold(path, clipPath) {
+    holding = ""
+    if (!clipPath || !Util.isVideoPath(path)) return
+    holding = "pending"
+    // One for an earlier change starts this one's when it exits.
+    if (handoffProc.running) return
+    handoffProc.forToken = token
+    handoffProc.command = ["omarchy-theme-bg-boot-intro", "--handoff", path]
+    handoffProc.running = true
+  }
+
+  function linkTarget() {
+    return holding || still
   }
 
   function own(path) {
@@ -144,21 +191,29 @@ Item {
   function advance() {
     if (!token || !intro || token !== intro.themeToken) return
     var coverStatus = intro.themeCoverStatus(token)
-    if (coverStatus === "loading") return
+    if (coverStatus === "loading" || holding === "pending") return
     // Moving the link cancels a playing intro and hands the desktop back to
     // the shell, so it waits for the cover.
     if (!linked) {
-      if (pendingLink !== still && !(linkProc.running && linkProc.target === still)) link(still)
+      var target = linkTarget()
+      if (pendingLink !== target && !(linkProc.running && linkProc.target === target)) link(target)
       return
     }
     // An earlier clip ends once the link has moved on from it.
     if (started || playProc.running) return
     started = true
+    var playing = clip && coverStatus !== "error"
+    // Without the clip there is no frame to hand over from, so a video comes
+    // straight in.
+    if (!playing && holding) {
+      holding = ""
+      link(still)
+    }
     // The shell holds the new still before OWE hands the desktop back, so the
     // old one cannot flash between the clip and the still. With the
     // background plugin disabled the cover still has to come down.
-    if (backgroundService) backgroundService.setBackground(still, true)
-    if (clip && coverStatus !== "error") {
+    if (backgroundService) backgroundService.setBackground(linkTarget(), true)
+    if (playing) {
       playProc.forToken = token
       playProc.command = prepared
         ? ["owe", "intro", "--start", "first-frame", "--refresh", clip]
@@ -179,10 +234,20 @@ Item {
     }
     ownedCovers = kept
     // The queued selection goes back through omarchy-theme-bg-set, which
-    // finds its intro under the settings and theme as they are now.
+    // finds its intro under the settings and theme as they are now. It
+    // replaces the change an outro was leading to.
     if (queuedPath) {
+      nextPath = ""
+      nextClip = ""
       Quickshell.execDetached(["omarchy-theme-bg-set", queuedPath])
       queuedPath = ""
+    } else if (nextPath && !playProc.running) {
+      // The outro has ended on black, which the next change starts from.
+      var path = nextPath
+      var clipPath = nextClip
+      nextPath = ""
+      nextClip = ""
+      switchTo(path, clipPath, "")
     }
   }
 
@@ -193,7 +258,11 @@ Item {
     function onCoverPresented() { root.advance() }
     function onThemeTokenChanged() {
       // A theme switch taking the cover brings its own background.
-      if (root.intro.themeToken && root.intro.themeToken !== root.token) root.queuedPath = ""
+      if (root.intro.themeToken && root.intro.themeToken !== root.token) {
+        root.queuedPath = ""
+        root.nextPath = ""
+        root.nextClip = ""
+      }
       Qt.callLater(root.settle)
     }
     function onRevealingChanged() { Qt.callLater(root.settle) }
@@ -234,11 +303,29 @@ Item {
   }
 
   Process {
+    id: handoffProc
+    property string forToken: ""
+    stdout: StdioCollector { id: handoffOut }
+    onExited: function(exitCode) {
+      if (forToken !== root.token) {
+        if (root.holding === "pending") Qt.callLater(root.hold, root.still, root.clip)
+        return
+      }
+      if (root.holding !== "pending") return
+      var path = String(handoffOut.text || "").trim()
+      // Without a frame to play over, the video comes in without its intro.
+      if (exitCode !== 0 || !path) root.clip = ""
+      root.holding = exitCode === 0 ? path : ""
+      root.advance()
+    }
+  }
+
+  Process {
     id: linkProc
     property string target: ""
     onExited: {
       if (root.pendingLink) root.startLink()
-      else if (root.token && target === root.still) root.linked = true
+      else if (root.token && target === root.linkTarget()) root.linked = true
       root.advance()
     }
   }
@@ -249,6 +336,13 @@ Item {
     onExited: {
       // Played or not, the cover then fades to the still beneath it.
       if (root.intro) root.intro.finishTheme(forToken)
+      // The clip has faded into the video's first frame, where the video
+      // itself now starts.
+      if (forToken === root.token && root.holding) {
+        root.holding = ""
+        root.link(root.still)
+        if (root.backgroundService) root.backgroundService.setBackground(root.still, false)
+      }
       root.advance()
       root.settle()
     }

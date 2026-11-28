@@ -130,8 +130,12 @@ remember_current_theme_background() {
   local current_background state_file
 
   state_file=$(theme_background_state_file "$PREVIOUS_THEME_NAME") || return
-  current_background=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
+  # While an outro or a video's intro plays, the link names a stand-in still
+  # (black, or the video's first frame) and the shell knows the real selection.
+  current_background=$(timeout 2 omarchy-shell shell selectedBackground 2>/dev/null || true)
+  [[ -n $current_background ]] || current_background=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
   [[ -f $current_background ]] || return
+  [[ $current_background != "$OMARCHY_PATH/default/omarchy/black.png" && $current_background != */background-transitions/handoffs/* ]] || return
 
   mkdir -p "$THEME_BACKGROUND_STATE_PATH"
   printf '%s\n' "$current_background" >"$state_file"

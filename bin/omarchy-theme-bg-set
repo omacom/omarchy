@@ -22,10 +22,12 @@ exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 flock 9
 
 INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
+OUTRO=$(omarchy-theme-bg-boot-intro --resolve-outro-enabled)
 
-# The shell sequences the change, with the intro or the ordinary transition,
-# and repoints the link itself once nothing on screen can flash.
-if [[ $(omarchy-shell shell switchBackground "$BACKGROUND" "$INTRO" 2>/dev/null) != "ok" ]]; then
+# The shell sequences the change, with the outgoing background's outro, the
+# intro or the ordinary transition, and repoints the link itself once nothing
+# on screen can flash.
+if [[ $(omarchy-shell shell switchBackground "$BACKGROUND" "$INTRO" "$OUTRO" 2>/dev/null) != "ok" ]]; then
   ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
   omarchy-shell -q background set "$BACKGROUND"
 fi

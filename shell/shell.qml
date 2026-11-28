@@ -1919,9 +1919,10 @@ ShellRoot {
       return shell.backgroundSwitch.play(token, stillPath, introPath, prepared)
     }
 
-    // omarchy-theme-bg-set's change, with the intro it found or none.
-    function switchBackground(path: string, introPath: string): string {
-      return shell.backgroundSwitch.switchTo(path, introPath)
+    // omarchy-theme-bg-set's change, with the intro and the outgoing
+    // background's outro it found, or none.
+    function switchBackground(path: string, introPath: string, outroPath: string): string {
+      return shell.backgroundSwitch.switchTo(path, introPath, outroPath)
     }
 
     // What the latest background selection names, ahead of the link while
