@@ -1,0 +1,5 @@
+# The integration code here follows the repository's two-space indentation
+# (AGENTS.md); vendor/ keeps upstream's formatting and is not formatted.
+tab_spaces = 2
+reorder_imports = false
+reorder_modules = false
