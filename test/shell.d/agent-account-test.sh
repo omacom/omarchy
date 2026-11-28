@@ -656,6 +656,11 @@ PATH="$remove_bin:$PATH" omarchy-agent-account-remove minimax </dev/null >/dev/n
 
 grep -qx 'omarchy.agents showAgent fireworks false' "$OMARCHY_TEST_BAR_LOG" ||
   fail "removing Fireworks hides it, so a key read elsewhere doesn't bring it back" "$(cat "$OMARCHY_TEST_BAR_LOG")"
+# Without OpenCode there's no key of its own to log out, so the agent is only
+# hidden. Only the mocks and Omarchy's commands, never an OpenCode the host has.
+PATH="$mock_bin:$ROOT/bin" omarchy-agent-account-remove openrouter </dev/null >"$test_tmp/openrouter-removed" 2>&1 &&
+  grep -qx 'omarchy.agents showAgent openrouter false' "$OMARCHY_TEST_BAR_LOG" ||
+  fail "removing a key's sign-in without OpenCode still hides the agent" "$(cat "$test_tmp/openrouter-removed" "$OMARCHY_TEST_BAR_LOG")"
 
 # Gemini has no logout, so its sign-in is cleared where agy keeps it, and a
 # keyring that won't let it go fails the removal, hiding nothing.

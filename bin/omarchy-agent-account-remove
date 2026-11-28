@@ -50,13 +50,22 @@ fi
 
 # Every OpenCode credential under the integrations the agent's usage is read
 # from, as `omarchy agent account add` saves a key there. The export carries
-# the secrets, which stay in the pipe.
+# the secrets, which stay in the pipe. Without OpenCode installed there's
+# nothing to log out through, so the agent is only hidden, as one whose key is
+# read from the environment, pi, or omp is.
 opencode_logout() {
   local credentials integration id
-  credentials=$(opencode auth export 2>/dev/null | jq -r '.[]? | select(.integrationID == ($ARGS.positional[])) | "\(.integrationID)\t\(.id)"' --args "$@") || return 1
+  omarchy-cmd-present opencode || return 0
+  if ! credentials=$(opencode auth export 2>/dev/null | jq -r '.[]? | select(.integrationID == ($ARGS.positional[])) | "\(.integrationID)\t\(.id)"' --args "$@"); then
+    echo "Couldn't read OpenCode's saved keys." >&2
+    return 1
+  fi
   while IFS=$'\t' read -r integration id; do
     [[ -n $id ]] || continue
-    opencode auth logout "$integration" "$id" >/dev/null 2>&1 || return 1
+    if ! opencode auth logout "$integration" "$id" >/dev/null 2>&1; then
+      echo "Couldn't log out of OpenCode's $integration key." >&2
+      return 1
+    fi
   done <<<"$credentials"
 }
 
