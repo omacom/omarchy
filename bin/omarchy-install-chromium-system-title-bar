@@ -12,7 +12,7 @@ set -euo pipefail
 #
 # A running browser holds its Preferences in memory and writes them back when
 # it exits, which would undo the change. So a browser that is running is
-# skipped: its profile directory is printed, and the exit status is 3, for the
+# skipped: its profile directory is printed and the command fails, for the
 # caller to ask for it to be closed and run this again.
 
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -32,34 +32,21 @@ browser_dirs=(
   "$config_home/microsoft-edge-dev"
 )
 
-# A browser attached to a profile directory holds a SingletonLock in it, which
-# can be a dangling symlink, and a socket beside it.
-browser_running() {
-  [[ -L $1/SingletonLock || -e $1/SingletonLock || -S $1/SingletonSocket ]]
-}
-
-skipped=0
+running=()
 
 for dir in "${browser_dirs[@]}"; do
-  [[ -d $dir ]] || continue
-
-  undecided=()
   for preferences in "$dir"/*/Preferences; do
-    [[ -f $preferences ]] || continue
-    # A file that is not valid JSON is the browser's to sort out.
-    if jq -e '(.browser // {}) | has("custom_chrome_frame") | not' "$preferences" >/dev/null 2>&1; then
-      undecided+=("$preferences")
+    # A profile that chose, a file that is not valid JSON, and the unmatched
+    # glob of a browser that is not installed all fail this and are passed over.
+    jq -e '(.browser // {}) | has("custom_chrome_frame") | not' "$preferences" >/dev/null 2>&1 || continue
+
+    # A browser attached to a profile directory holds a SingletonLock in it,
+    # which can be a dangling symlink, and a socket beside it.
+    if [[ -L $dir/SingletonLock || -e $dir/SingletonLock || -S $dir/SingletonSocket ]]; then
+      running+=("$dir")
+      break
     fi
-  done
-  (( ${#undecided[@]} )) || continue
 
-  if browser_running "$dir"; then
-    printf '%s\n' "$dir"
-    skipped=1
-    continue
-  fi
-
-  for preferences in "${undecided[@]}"; do
     updated=$(mktemp "$preferences.XXXXXX")
     jq -c '.browser.custom_chrome_frame = false' "$preferences" >"$updated"
     chmod --reference="$preferences" "$updated"
@@ -67,6 +54,7 @@ for dir in "${browser_dirs[@]}"; do
   done
 done
 
-if (( skipped )); then
-  exit 3
+if (( ${#running[@]} )); then
+  printf '%s\n' "${running[@]}"
+  exit 1
 fi

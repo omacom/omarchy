@@ -9,13 +9,7 @@ echo "Switch Chromium browsers that never chose a frame to the system title bar"
 # is open can only be switched once it is closed. This is a default, not a
 # repair, so declining is fine: those browsers keep their own frame, the
 # migration is done, and the setting is the browser's own to change later.
-while true; do
-  status=0
-  running=$(omarchy-install-chromium-system-title-bar) || status=$?
-  if (( status != 3 )); then
-    break
-  fi
-
+until running=$(omarchy-install-chromium-system-title-bar); do
   echo "Still running:"
   echo "$running"
   # An unattended update asks nothing, so it skips. gum draws the prompt on
@@ -24,9 +18,6 @@ while true; do
   if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" ]] || ! gum confirm --affirmative "Continue" --negative "Skip" "Close your browser windows to give them Omarchy's titlebar, then continue"; then
     echo "Left the running browsers on their own frame."
     echo "To switch one later: Settings > Appearance > Use system title bar and borders."
-    status=0
     break
   fi
 done
-
-exit "$status"

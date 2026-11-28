@@ -223,7 +223,7 @@ set_title_bar() { env -u XDG_CONFIG_HOME HOME="$title_bar_home" "$ROOT/bin/omarc
 
 status=0
 running=$(set_title_bar) || status=$?
-(( status == 3 )) || fail "a running browser is reported with status 3" "status $status"
+(( status != 0 )) || fail "a running browser makes the command fail"
 [[ $running == "$brave" ]] || fail "the running browser's profile directory is named" "$running"
 jq -e '.browser.custom_chrome_frame == false and .browser.theme.color_scheme == 2' "$chrome/Default/Preferences" >/dev/null ||
   fail "an undecided profile is switched and keeps its other settings" "$(cat "$chrome/Default/Preferences")"
