@@ -1,0 +1,17 @@
+[Unit]
+Description=Omarchy reconnect for Bluetooth mice and keyboards on Macs with UART Bluetooth
+After=bluetooth.service
+Wants=bluetooth.service
+# The loop only exits on a fault, and a mouse that stays gone is worse than a
+# restart, so never stop restarting it
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/bin/omarchy-bluetooth-hid-reconnect
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=bluetooth.target

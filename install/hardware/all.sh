@@ -61,6 +61,7 @@ run_logged "$OMARCHY_INSTALL/hardware/apple/fix-spi-keyboard.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-suspend-nvme.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-t2.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-supplicant.sh"
+run_logged "$OMARCHY_INSTALL/hardware/apple/fix-uart-bluetooth-reconnect.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-facetimehd.sh"
 
 # These write boot settings and build nothing, like n1x.sh: the installer's

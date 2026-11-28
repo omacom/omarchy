@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer is a Mac with Broadcom Bluetooth on a UART.
+
+# Intel Macs from about 2016 to 2019 (the iMac19,1 among them) wire their
+# Broadcom Bluetooth to a UART, where hci_uart_bcm drives it. Linux has no
+# patch firmware for these chips, so they run unpatched; see
+# bin/omarchy-bluetooth-hid-reconnect for what that breaks.
+dmi_vendor=${OMARCHY_HW_DMI_VENDOR:-/sys/class/dmi/id/sys_vendor}
+bluetooth_dir=${OMARCHY_HW_BLUETOOTH_DIR:-/sys/class/bluetooth}
+
+[[ $(cat "$dmi_vendor" 2>/dev/null) == Apple* ]] || exit 1
+
+for driver in "$bluetooth_dir"/hci*/device/driver; do
+  if [[ $(basename "$(readlink -f "$driver")") == "hci_uart_bcm" ]]; then
+    exit 0
+  fi
+done
+
+exit 1

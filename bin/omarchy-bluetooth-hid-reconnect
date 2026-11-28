@@ -1,0 +1,232 @@
+#!/bin/bash
+
+# omarchy:summary=Keep trusted Bluetooth mice and keyboards connected on Macs with unpatched UART Bluetooth
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Keep trusted Bluetooth mice and keyboards connected on Macs whose Broadcom
+# UART Bluetooth controller runs without its patch firmware.
+#
+# On these Macs (for example the iMac19,1 with a BCM4364B0 on hci_uart_bcm)
+# Linux has no patch file for the controller, so it stays in manufacturing
+# mode on its ROM. In that state it returns malformed advertising reports,
+# which the kernel drops, so BlueZ's background auto-connect for bonded LE
+# devices never fires. A targeted connect on its own often hears nothing
+# either: on an iMac19,1, two minutes of connects failed while the mouse was
+# being moved, and the mouse came back within a second once an LE scan ran
+# alongside the connect (seen twice). Links also die silently while BlueZ
+# still reports "Connected: yes".
+#
+# So this trusts the kernel input device, not BlueZ. It sleeps until udev
+# reports an input device removed, an rfkill switch changed, or a Bluetooth
+# device event. Then, for every paired, trusted, unblocked HID device with no
+# input device, it keeps a targeted connect open with an LE scan running next
+# to it, until the device is back. A device is matched by its address (the
+# input device's Uniq), never by name: the kernel names a Logitech mouse
+# differently depending on whether logitech-hidpp has finished probing.
+#
+# To exclude a device, untrust it: bluetoothctl untrust <address>
+#
+# Turning Bluetooth off is respected (omarchy-bluetooth-power holds that state
+# in the rfkill block): while the rfkill switch is blocked or
+# the adapter is powered off, this does nothing and never powers it back on.
+#
+# Never kill a connect attempt early: BlueZ then keeps the attempt
+# "InProgress" and every later connect fails at once until the adapter is
+# power-cycled. Let BlueZ time out on its own (about 40 seconds).
+
+set -u
+
+BLUETOOTHCTL=${OMARCHY_BLUETOOTH_HID_RECONNECT_BLUETOOTHCTL:-bluetoothctl}
+INPUT_DEVICES=${OMARCHY_BLUETOOTH_HID_RECONNECT_INPUT_DEVICES:-/proc/bus/input/devices}
+RFKILL_DIR=${OMARCHY_BLUETOOTH_HID_RECONNECT_RFKILL_DIR:-/sys/class/rfkill}
+STALE_GRACE=${OMARCHY_BLUETOOTH_HID_RECONNECT_STALE_GRACE:-20}  # seconds a link may be up with no input device
+ONESHOT=${OMARCHY_BLUETOOTH_HID_RECONNECT_ONESHOT:-0}  # tests: run one pass, then exit
+CONNECT_TIMEOUT=90
+SCAN_SECONDS=45  # a little longer than BlueZ's own connect timeout
+# Powering the adapter on through BlueZ (not rfkill) and a link BlueZ still
+# calls connected raise no uevent, so a quiet stretch also ends after this long
+SAFETY_WAKE=60
+
+declare -A stale_since=() last_reason=()
+stuck=0
+missing=0
+adapter=0
+
+log() {
+  printf '%s\n' "$*"
+}
+
+btctl() {
+  local seconds=$1
+  shift
+  # bluetoothctl colours some lines even when it writes to a pipe
+  timeout "$seconds" "$BLUETOOTHCTL" "$@" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'
+  return "${PIPESTATUS[0]}"
+}
+
+# 0: ready. 1: turned off by rfkill (unblocking raises an rfkill event).
+# 2: unblocked but not powered, usually just a moment while it powers up.
+adapter_ready() {
+  local dir
+
+  for dir in "$RFKILL_DIR"/rfkill*; do
+    [[ -r $dir/type && $(<"$dir/type") == "bluetooth" ]] || continue
+    if [[ $(<"$dir/soft") != "0" || $(<"$dir/hard") != "0" ]]; then
+      return 1
+    fi
+  done
+
+  if btctl 5 show | grep -q 'Powered: yes'; then
+    return 0
+  else
+    return 2
+  fi
+}
+
+hid_devices() {
+  local mac info
+
+  for mac in $(btctl 5 devices Paired | grep -oE '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}'); do
+    info=$(btctl 5 info "$mac")
+    [[ $info == *"Trusted: yes"* && $info == *"Blocked: no"* ]] || continue
+    # HID over GATT (LE) or classic HID
+    [[ $info == *"00001812-0000-1000-8000-00805f9b34fb"* || $info == *"00001124-0000-1000-8000-00805f9b34fb"* ]] || continue
+    printf '%s\n' "$mac"
+  done
+}
+
+input_present() {
+  grep -qixF "U: Uniq=$1" "$INPUT_DEVICES"
+}
+
+power_cycle() {
+  log "connect attempts stuck InProgress; power-cycling the adapter"
+  btctl 5 power off >/dev/null
+  sleep 3
+  btctl 5 power on >/dev/null || btctl 5 power on >/dev/null
+}
+
+# One reconnect step for a device with no input device
+reconnect() {
+  local mac=$1 info now out reason scan_pid
+
+  info=$(btctl 5 info "$mac")
+  [[ $info == *"Trusted: yes"* && $info == *"Blocked: no"* ]] || return
+
+  if [[ $info == *"Connected: yes"* ]]; then
+    # Usually the input device is still being set up, so wait before calling it stale
+    now=$(date +%s)
+    if (( ${stale_since[$mac]:-0} == 0 )); then
+      stale_since[$mac]=$now
+    fi
+    if (( now - stale_since[$mac] < STALE_GRACE )); then
+      sleep 2
+      return
+    fi
+    log "$mac: connected for ${STALE_GRACE}s with no input device; dropping the stale link"
+    btctl 10 disconnect "$mac" >/dev/null
+    sleep 2
+  fi
+  stale_since[$mac]=0
+
+  # The scan is what lets the controller hear the device; it ends with the
+  # connect attempt (stopping a scan early is safe, unlike a connect)
+  timeout "$SCAN_SECONDS" "$BLUETOOTHCTL" --timeout "$SCAN_SECONDS" scan le >/dev/null 2>&1 &
+  scan_pid=$!
+  out=$(timeout "$CONNECT_TIMEOUT" "$BLUETOOTHCTL" connect "$mac" 2>&1)
+  kill "$scan_pid" 2>/dev/null
+  wait "$scan_pid" 2>/dev/null
+
+  if [[ $out == *"Connection successful"* ]]; then
+    log "$mac: reconnected"
+    stuck=0
+    last_reason[$mac]=""
+    sleep 3
+  elif [[ $out == *"InProgress"* ]]; then
+    stuck=$(( stuck + 1 ))
+    if (( stuck >= 2 )); then
+      power_cycle
+      stuck=0
+    fi
+    sleep 2
+  else
+    stuck=0
+    reason=$(grep -oE 'Failed to connect: [^ ]+|not available' <<<"$out" | head -n 1)
+    reason=${reason:-"no answer"}
+    if [[ $reason != "${last_reason[$mac]:-}" ]]; then
+      log "$mac: still missing ($reason); retrying until it wakes up"
+      last_reason[$mac]=$reason
+    fi
+    sleep 1
+  fi
+}
+
+# Reconnect every missing device once; sets missing=1 when any was missing
+reconnect_missing() {
+  local mac macs=()
+
+  missing=0
+  adapter_ready
+  adapter=$?
+  (( adapter == 0 )) || return
+
+  # Read the list first: bluetoothctl must not see it on stdin
+  mapfile -t macs < <(hid_devices)
+  for mac in "${macs[@]}"; do
+    if input_present "$mac"; then
+      stale_since[$mac]=0
+    else
+      missing=1
+      reconnect "$mac"
+    fi
+  done
+}
+
+start_monitor() {
+  if [[ -v monitor_fd ]]; then
+    exec {monitor_fd}<&-
+  fi
+  exec {monitor_fd}< <(exec udevadm monitor --udev --subsystem-match=input --subsystem-match=rfkill --subsystem-match=bluetooth 2>/dev/null)
+}
+
+# Sleep until an input device goes away, an rfkill switch or Bluetooth device
+# changes, or the given number of seconds is up. Events that queued up while
+# reconnecting only cause one extra, cheap pass.
+wait_for_change() {
+  local line status deadline=$(( SECONDS + $1 ))
+
+  while (( SECONDS < deadline )); do
+    read -r -t $(( deadline - SECONDS )) line <&"$monitor_fd"
+    status=$?
+    if (( status > 128 )); then
+      return
+    elif (( status != 0 )); then
+      # The monitor died; start a new one and look again
+      sleep 1
+      start_monitor
+      return
+    fi
+
+    if [[ $line == *" remove "*"(input)" || $line == *"(rfkill)" || $line == *"(bluetooth)" ]]; then
+      return
+    fi
+  done
+}
+
+log "keeping trusted Bluetooth input devices connected"
+if (( ! ONESHOT )); then
+  start_monitor
+fi
+
+while true; do
+  reconnect_missing
+
+  if (( ONESHOT )); then
+    break
+  elif (( adapter == 2 )); then
+    wait_for_change 5
+  elif (( ! missing )); then
+    wait_for_change "$SAFETY_WAKE"
+  fi
+done
