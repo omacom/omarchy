@@ -6,7 +6,7 @@
 hl.config({
   -- The layouts default/splash/layouts orders for the password (the greeter
   -- exports them), the one it starts in first, and no compose, Caps Lock or
-  -- layout shortcut options: the screen's keyboard (ui/Splash.qml) switches.
+  -- layout shortcut options: Splash.qml's keyboard button and Shift+Tab switch.
   input = {
     kb_layout = os.getenv("OMARCHY_SPLASH_XKBLAYOUT") or "us",
     kb_variant = os.getenv("OMARCHY_SPLASH_XKBVARIANT") or "",
