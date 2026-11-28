@@ -95,15 +95,49 @@ TestCase {
     compare(String(Commons.Color.foreground), "#112233")
     compare(String(Commons.Color.background), "#445566")
     compare(String(Commons.Color.accent), "#778899")
+    compare(String(Commons.Color.splashForeground), "#112233")
+    compare(String(Commons.Color.splashBackground), "#445566")
+    compare(String(Commons.Color.splashAccent), "#778899")
     compare(String(Commons.Color.urgent), "#aa1122")
     compare(String(Commons.Color.warning), "#bbcc33")
     compare(String(Commons.Color.muted), "#223344")
+
+    // Splash overrides take precedence without affecting the desktop palette.
+    Commons.Color.loadColors(
+      'foreground = "#a9b1d6"\n' +
+      'background = "#1a1b26"\n' +
+      'accent = "#7aa2f7"\n' +
+      'splash_foreground = "#c0caf5"\n' +
+      'splash_accent = "#a8cd76"\n'
+    )
+    compare(String(Commons.Color.foreground), "#a9b1d6")
+    compare(String(Commons.Color.background), "#1a1b26")
+    compare(String(Commons.Color.accent), "#7aa2f7")
+    compare(String(Commons.Color.splashForeground), "#c0caf5")
+    compare(String(Commons.Color.splashBackground), "#1a1b26")
+    compare(String(Commons.Color.splashAccent), "#a8cd76")
+
+    // Longer hex values are rejected so startup cover matches omarchy-theme-set-login.
+    Commons.Color.loadColors(
+      'foreground = "#a9b1d6"\n' +
+      'background = "#1a1b26"\n' +
+      'accent = "#7aa2f7"\n' +
+      'splash_accent = "#11223344"\n' +
+      'splash_foreground = "#11223344"\n' +
+      'splash_background = "#11223344"\n'
+    )
+    compare(String(Commons.Color.splashAccent), "#7aa2f7")
+    compare(String(Commons.Color.splashForeground), "#a9b1d6")
+    compare(String(Commons.Color.splashBackground), "#1a1b26")
 
     // Reloading an empty or partial theme must not keep colors from the previous one.
     Commons.Color.loadColors('mode = "light"\n')
     compare(String(Commons.Color.foreground), "#cacccc")
     compare(String(Commons.Color.background), "#101315")
     compare(String(Commons.Color.accent), "#cacccc")
+    compare(String(Commons.Color.splashForeground), "#cacccc")
+    compare(String(Commons.Color.splashBackground), "#101315")
+    compare(String(Commons.Color.splashAccent), "#cacccc")
     compare(String(Commons.Color.urgent), "#a55555")
     compare(String(Commons.Color.warning), "#c4a35a")
     compare(String(Commons.Color.muted), "#cacccc")

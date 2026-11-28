@@ -28,6 +28,9 @@ QtObject {
   property color foreground: _paletteDefaults.foreground
   property color background: _paletteDefaults.background
   property color accent: _paletteDefaults.accent
+  property color splashForeground: _paletteDefaults.foreground
+  property color splashBackground: _paletteDefaults.background
+  property color splashAccent: _paletteDefaults.accent
   property color urgent: _paletteDefaults.urgent
   // A caution short of urgent: the theme's yellow.
   property color warning: _paletteDefaults.warning
@@ -153,10 +156,10 @@ QtObject {
     var nextUrgent = _paletteDefaults.urgent
     var nextWarning = _paletteDefaults.warning
     for (var i = 0; i < lines.length; i++) {
-      var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+      var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*(?:"(#[0-9A-Fa-f]{6})"|'(#[0-9A-Fa-f]{6})'|(#[0-9A-Fa-f]{6}))(?:\s*(?:#.*)?$)/)
       if (!match) continue
       var key = match[1]
-      var value = match[2]
+      var value = match[2] || match[3] || match[4]
       named[key] = value
       if (key === "red" || key === "color1") nextUrgent = value
       else if (key === "yellow" || key === "color3") nextWarning = value
@@ -167,6 +170,9 @@ QtObject {
     foreground = named.foreground || named.color7 || _paletteDefaults.foreground
     background = named.background || named.color0 || _paletteDefaults.background
     accent = named.accent || named.color4 || _paletteDefaults.accent
+    splashForeground = named.splash_foreground || foreground
+    splashBackground = named.splash_background || background
+    splashAccent = named.splash_accent || accent
     urgent = nextUrgent
     warning = nextWarning
     muted = named.muted || named.color8 || foreground
