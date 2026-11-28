@@ -10,7 +10,7 @@ PopupWindow {
   required property Item anchorItem
   required property QtObject bar
   property var owner: null
-  property int margin: Style.gapsOut
+  property int margin: Style.gapsOutAt(bar ? bar.position : "top")
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)

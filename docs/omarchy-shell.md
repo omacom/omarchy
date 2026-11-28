@@ -333,10 +333,7 @@ QML components should prefer semantic tokens where possible:
 | `Style.spacing.panelGap` / `panelPadding` | Panel section spacing and interior padding |
 | `Style.spacing.popupPadding` | Popout interior padding |
 
-Popout placement deliberately follows Hyprland's `general:gaps_out`
-(`Style.gapsOut`) so panels align with tiled windows. Use a theme's
-`hyprland.lua` to change that outer alignment; `[spacing]` controls the
-interior breathing room.
+Popout placement deliberately follows Hyprland's `general:gaps_out` so panels align with tiled windows. `gaps_out` can differ per edge, and whatever sits against an edge takes that edge's value: a bar's panels and popups use `Style.gapsOutAt(<bar edge>)`, and the notification deck uses the top and right edges. `Style.gapsOut` is the top edge, for placement that doesn't belong to one edge. Use a theme's `hyprland.lua` to change that outer alignment; `[spacing]` controls the interior breathing room.
 
 For one-off proportional constants, use `Style.space(px)` to preserve the
 old default at scale `1.0` and `base-size = 12` while still responding to

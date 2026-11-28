@@ -4,6 +4,7 @@ import qs.Commons as Commons
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import "BorderGeometry.js" as Geometry
 
 // Shared structural style tokens for the shell. Color is the palette
 // singleton; Style holds everything else themes can influence — corner
@@ -14,9 +15,13 @@ import Quickshell.Io
 // half of Hyprland's `general:gaps_out` — Hyprland's value works well as
 // a window-to-window gap but feels too cavernous when used as the
 // distance from a panel/notification to the screen edge, so the shell
-// halves it. Themes and user Hyprland config own those values; the
-// shell picks them up by re-running `hyprctl getoption` on startup and
-// after theme IPC applies a theme.
+// halves it. `gaps_out` can differ per edge; `gapsOutAt(edge)` gives the
+// halved gap for one edge, so whatever sits against that edge (a bar's
+// panels, the notification deck) keeps the spacing the user gave the
+// windows there. `gapsOut` is the top edge, for everything placed
+// without regard to a particular edge. Themes and user Hyprland config own
+// those values; the shell picks them up by re-running `hyprctl getoption`
+// on startup and after theme IPC applies a theme.
 //
 // Typography, spacing, and bar size come from theme/shell.toml.
 // `[font] base-size` is the rem root; every `Style.font.<token>` derives
@@ -32,6 +37,8 @@ QtObject {
 
   property int cornerRadius: 0
   property int gapsOut: 5
+  // Hyprland's general:gaps_out per side, unhalved.
+  property var gapsOutEdges: ({ top: 10, right: 10, bottom: 10, left: 10 })
 
   // ---------------------------------------------------------- state tokens
   //
@@ -404,9 +411,12 @@ QtObject {
 
   function applyGapsOutOption(json) {
     var css = String(json.css || "")
-    var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
-    var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
-    if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+    var n = Number(json.int)
+    if (!css && !(isFinite(n) && n >= 0)) return
+    // Hyprland reports gaps_out in CSS order: top, right, bottom, left.
+    var edges = Geometry.parseWidthSpec(css || String(n), 0)
+    gapsOutEdges = edges
+    gapsOut = Math.max(0, Math.round(edges.top / 2))
   }
 
   function applyRoundingJson(raw) {
@@ -423,6 +433,12 @@ QtObject {
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
+  }
+
+  // Half of gaps_out on one screen edge: "top", "right", "bottom" or "left".
+  function gapsOutAt(edge) {
+    var n = Number(gapsOutEdges ? gapsOutEdges[edge] : NaN)
+    return isFinite(n) && n >= 0 ? Math.round(n / 2) : gapsOut
   }
 
   function applyBatchOptionsJson(raw) {

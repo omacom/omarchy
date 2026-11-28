@@ -85,14 +85,18 @@ function barThickness(bar, screenName, defaultBarSize) {
 
 // The deck hangs from the top-right corner, so it clears the bar only on the
 // two edges it touches.
+// gap is one number for both edges, or { top, right } when gaps_out differs.
 function deckMargins(barPosition, thickness, gap) {
   var position = String(barPosition || "top")
-  var edge = Number(gap)
-  if (!isFinite(edge)) edge = 0
+  var both = gap !== null && typeof gap === "object"
+  var top = Number(both ? gap.top : gap)
+  var right = Number(both ? gap.right : gap)
+  if (!isFinite(top)) top = 0
+  if (!isFinite(right)) right = 0
   var bar = Number(thickness)
   if (!isFinite(bar)) bar = 0
   return {
-    top: (position === "top" ? bar : 0) + edge,
-    right: (position === "right" ? bar : 0) + edge
+    top: (position === "top" ? bar : 0) + top,
+    right: (position === "right" ? bar : 0) + right
   }
 }
