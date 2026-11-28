@@ -70,6 +70,10 @@ while (($#)); do
       prompt=${2:?--prompt needs a value}
       shift 2
       ;;
+    --prompt-fd)
+      prompt=$(cat <&"${2:?--prompt-fd needs a descriptor}")
+      shift 2
+      ;;
     *)
       echo "Unexpected argument: $1" >&2
       echo "To pass a prompt: omarchy agent prompt \"$*\"" >&2
