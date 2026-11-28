@@ -518,6 +518,8 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
+            inputMethodHints: root.responseVisible ? Qt.ImhNone
+              : Qt.ImhHiddenText | Qt.ImhSensitiveText | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase | Qt.ImhLatinOnly
             passwordCharacter: "\u2022"
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
