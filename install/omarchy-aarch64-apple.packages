@@ -11,7 +11,7 @@ omarchy-mac
 omarchy-mac-boot
 
 # Picks the startup volume (macOS or Omarchy) from Linux.
-asahi-bless
+aurora-bless
 
 # Hardware video decode.
 avd-fw

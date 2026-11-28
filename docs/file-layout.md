@@ -187,7 +187,7 @@ A platform's runtime package (omarchy-mac on Apple Silicon, say) adds its deskto
 
 See [lifecycle-dispatch.md](lifecycle-dispatch.md#platform-files).
 
-`omarchy-update-keyring` refreshes each installed package `keyrings` names (`#` comments and blank lines skipped, and a line that isn't a `*-keyring` package name skipped with a warning) along with Arch's, before the system upgrade, installing any newer version the repository has, so a key rotation in the platform's own repository never fails that upgrade's signature checks. On Apple Silicon, omarchy-mac names `asahi-alarm-keyring` there.
+`omarchy-update-keyring` refreshes each installed package `keyrings` names (`#` comments and blank lines skipped, and a line that isn't a `*-keyring` package name skipped with a warning) along with Arch's, before the system upgrade, installing any newer version the repository has, so a key rotation in the platform's own repository never fails that upgrade's signature checks. No platform names one today: Apple Silicon's default packages all come from Omarchy and Arch Linux ARM.
 
 #### Display hints (`displays.conf`)
 
