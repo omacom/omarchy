@@ -220,3 +220,69 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# Lock/idle call off/on. Dual-GPU Macs keep gmux PWM on through Hyprland DPMS
+# unless off/on write gmux sysfs; machines without gmux keep the DPMS-only path.
+gmux="$test_tmp/gmux_backlight"
+mkdir -p "$gmux"
+printf '286\n' >"$gmux/actual_brightness"
+printf '286\n' >"$gmux/brightness"
+printf '0\n' >"$gmux/bl_power"
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "monitors -j" ]]; then
+  printf '%s\n' "${HYPR_MONITORS_JSON:-[]}"
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+
+: >"$call_log"
+run_gmux() {
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
+    OMARCHY_GMUX_BACKLIGHT="$gmux" \
+    PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
+}
+
+run_gmux off
+[[ $(<"$gmux/brightness") == "0" ]] || fail "gmux off writes brightness 0" "actual: $(<"$gmux/brightness")"
+[[ $(<"$gmux/bl_power") == "4" ]] || fail "gmux off writes bl_power 4" "actual: $(<"$gmux/bl_power")"
+[[ $(<"$runtime_dir/omarchy-gmux-brightness") == "286" ]] || fail "gmux off saves the previous brightness"
+grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "gmux off still blanks Hyprland DPMS"
+pass "gmux off powers PWM down then blanks DPMS"
+
+printf '0\n' >"$gmux/actual_brightness"
+run_gmux off
+[[ $(<"$runtime_dir/omarchy-gmux-brightness") == "286" ]] || fail "a second blank keeps the first saved gmux level"
+pass "a second blank keeps the first saved gmux level"
+
+: >"$call_log"
+HYPR_MONITORS_JSON='[{"name":"eDP-1","disabled":false,"dpmsStatus":false}]' run_gmux on
+[[ $(<"$gmux/bl_power") == "0" ]] || fail "gmux on writes bl_power 0" "actual: $(<"$gmux/bl_power")"
+[[ $(<"$gmux/brightness") == "286" ]] || fail "gmux on restores brightness" "actual: $(<"$gmux/brightness")"
+[[ ! -e $runtime_dir/omarchy-gmux-brightness ]] || fail "gmux on consumes the saved brightness"
+grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "enable" })' "$call_log" >/dev/null || \
+  fail "gmux on enables Hyprland DPMS when the panel is blank"
+pass "gmux on restores PWM then enables DPMS"
+
+: >"$call_log"
+printf '400\n' >"$gmux/actual_brightness"
+printf '400\n' >"$gmux/brightness"
+printf '0\n' >"$gmux/bl_power"
+run_gmux off
+HYPR_MONITORS_JSON='[{"name":"eDP-1","disabled":false,"dpmsStatus":true}]' run_gmux on
+[[ $(<"$gmux/brightness") == "400" ]] || fail "gmux on restores PWM even when DPMS is already on" "actual: $(<"$gmux/brightness")"
+if grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "enable" })' "$call_log" >/dev/null; then
+  fail "gmux on skips a redundant DPMS enable"
+fi
+pass "gmux on restores PWM without a redundant DPMS enable"
+
+: >"$call_log"
+rm -rf "$gmux"
+run_gmux off
+grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "off without gmux still blanks Hyprland DPMS"
+[[ ! -e $runtime_dir/omarchy-gmux-brightness ]] || fail "off without gmux writes no save file"
+pass "off without gmux is DPMS only"
