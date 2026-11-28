@@ -68,12 +68,25 @@ fi
 # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
 export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 
+# A refresh runs on a timer while something else may hold the CPU, such as a
+# game. Started all at once at normal priority, the collectors took about five
+# cores for a second and a half, a visible hitch. A few at a time at idle CPU
+# and I/O priority, they fill only spare time and finish no later.
+chrt --idle -p 0 $$
+ionice -c 3 -p $$
+max_jobs=4
+
+# wait -n only makes room for the next collector; each one's status is read
+# from its own PID below, which bash keeps after wait -n has reaped it.
 pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
+  while (( $(jobs -rp | wc -l) >= max_jobs )); do
+    wait -n
+  done
   collect "$collector" "$agent" &
   pids+=($!)
 done
