@@ -93,3 +93,31 @@ mapfile -d '' -t uwsm_args <"$test_tmp/uwsm-argv"
 [[ ${#uwsm_args[@]} == 2 && ${uwsm_args[0]} == "--" && ${uwsm_args[1]} == "app;touch $marker" ]] ||
   fail "single-arg launch-or-focus passes the pattern as one argument" "${uwsm_args[*]}"
 pass "single-arg launch-or-focus avoids eval"
+
+# An Omarchy agent window whose title contains the pattern is never focused
+# in place of the app the binding asks for.
+cat >"$test_tmp/bin/hyprctl" <<STUB
+#!/bin/bash
+if [[ \$1 == "clients" ]]; then
+  cat "$test_tmp/clients.json"
+else
+  printf '%s\n' "\$*" >>"$test_tmp/focused"
+fi
+STUB
+printf '#!/bin/bash\ntouch "%s"\n' "$test_tmp/launched" >"$test_tmp/bin/calendar-app"
+chmod +x "$test_tmp/bin/hyprctl" "$test_tmp/bin/calendar-app"
+
+launch_or_focus_calendar() {
+  rm -f "$test_tmp/focused" "$test_tmp/launched"
+  printf '%s\n' "$1" >"$test_tmp/clients.json"
+  PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-launch-or-focus" Calendar -- calendar-app
+}
+
+agent='{"address":"0xagent","class":"org.omarchy.agent","title":"Calendar layout tweak"}'
+launch_or_focus_calendar "[$agent]"
+[[ ! -e $test_tmp/focused && -e $test_tmp/launched ]] ||
+  fail "launch-or-focus launches the app when only an agent title matches" "$(cat "$test_tmp/focused" 2>/dev/null)"
+launch_or_focus_calendar "[$agent,{\"address\":\"0xapp\",\"class\":\"chromium\",\"title\":\"HEY Calendar\"}]"
+[[ $(cat "$test_tmp/focused") == *"address:0xapp"* && ! -e $test_tmp/launched ]] ||
+  fail "launch-or-focus focuses the app, not the agent window" "$(cat "$test_tmp/focused")"
+pass "launch-or-focus never focuses an Omarchy agent window"
