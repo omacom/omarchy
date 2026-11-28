@@ -179,4 +179,33 @@ assert(model.REACH_TIMEOUT_MS < 25000,
   "the reach bound lands before GDBus fails a stuck Claim at 25s and pam_fprintd's 30s verify timeout reports as a non-error message")
 assert(model.REACH_TIMEOUT_MS >= 10000,
   'the reach bound outlasts a slow device open, so a reader that takes seconds to claim is not killed mid-Claim on every attempt')
+
+// The scan: fprintd's finger-present property, as gdbus monitor prints its
+// changes, is what tells the lock the reader has a finger and is matching.
+const present = "/net/reactivated/Fprint/Device/0: org.freedesktop.DBus.Properties.PropertiesChanged ('net.reactivated.Fprint.Device', {'finger-present': <true>}, @as [])"
+// fprintd bundles both properties in one change when the finger it asked for
+// lands: this is the line a Mac's Touch ID produced.
+const landed = "/net/reactivated/Fprint/Device/0: org.freedesktop.DBus.Properties.PropertiesChanged ('net.reactivated.Fprint.Device', {'finger-needed': <false>, 'finger-present': <true>}, @as [])"
+const absent = "/net/reactivated/Fprint/Device/0: org.freedesktop.DBus.Properties.PropertiesChanged ('net.reactivated.Fprint.Device', {'finger-present': <false>}, @as [])"
+const needed = "/net/reactivated/Fprint/Device/0: org.freedesktop.DBus.Properties.PropertiesChanged ('net.reactivated.Fprint.Device', {'finger-needed': <true>}, @as [])"
+const verdict = "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-match', true)"
+const header = 'Monitoring signals from all objects owned by net.reactivated.Fprint'
+const owner = 'The name net.reactivated.Fprint is owned by :1.42'
+
+assertEqual(model.parseFingerPresent(present), true, 'a finger landing on the reader reads as present')
+assertEqual(model.parseFingerPresent(landed), true, 'a finger landing bundled with the reader no longer asking reads as present')
+assertEqual(model.parseFingerPresent(absent), false, 'a finger leaving the reader reads as absent')
+assertEqual(model.parseFingerPresent(needed), null, "the reader asking for a finger is not a finger")
+assertEqual(model.parseFingerPresent(verdict), null, 'the verdict signal carries no finger status')
+assertEqual(model.parseFingerPresent(header), null, "the monitor's own header is not a finger")
+assertEqual(model.parseFingerPresent(owner), null, 'a name owner change is not a finger')
+assertEqual(model.parseFingerPresent(''), null, 'an empty line is not a finger')
+assertEqual(model.parseFingerPresent(undefined), null, 'no line is not a finger')
+
+// A scan the daemon never ends is bounded, and the bound leaves a slow reader
+// time to return its verdict first.
+assert(model.SCAN_TIMEOUT_MS >= 2000, 'the scan bound leaves a slow reader time to match')
+
+// A rejection shows long enough to be seen after the hand lifts.
+assert(model.REJECT_SHOW_MS >= 800, 'a rejection shows long enough to be seen after the hand lifts')
 JS

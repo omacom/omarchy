@@ -12,6 +12,12 @@ Item {
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool fingerprintUnavailable: false
+  // The reader has a finger and is matching it.
+  property bool fingerprintScanning: false
+  // The reader has just rejected a finger.
+  property bool fingerprintRejected: false
+  // Goes up by one with each rejected finger.
+  property int fingerprintRejectCount: 0
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -36,6 +42,9 @@ Item {
     ? Math.min(1, (passwordInput.width - 4) / dotMetrics.advanceWidth)
     : 1
   readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
+  // Either way of unlocking is being checked: the field says so in place of
+  // its prompt, so a touch of the reader reads as taken, like a typed password.
+  readonly property bool checking: authenticatingPassword || fingerprintScanning
   readonly property bool errorState: failureMessage.length > 0
   readonly property var inputBorderSpec: errorState
     ? Border.surfaceSpec("lock", "border-error", Commons.Color.lock.borderError, root.outlineThickness, "border-alpha")
@@ -208,14 +217,15 @@ Item {
       }
 
       Text {
+        objectName: "passwordPlaceholder"
         textFormat: Text.PlainText
         anchors.fill: passwordInput
-        text: root.authenticatingPassword ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+        text: root.checking ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
         visible: passwordInput.text.length === 0
-        color: root.authenticatingPassword ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
+        color: root.checking ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
         font.family: Style.font.family
         font.pixelSize: root.fieldFontSize
-        font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
+        font.italic: !root.checking && root.failureMessage.length > 0
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -235,11 +245,50 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
-        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : Commons.Color.lock.placeholder
+        // Red for a reader the shell can't reach, and for a moment after a
+        // finger it rejected; bright while it matches one.
+        color: root.fingerprintUnavailable || root.fingerprintRejected ? Commons.Color.lock.textError : (root.fingerprintScanning ? Commons.Color.lock.text : Commons.Color.lock.placeholder)
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+
+        // While the reader matches, the icon breathes: the finger was taken
+        // and the verdict is on its way. The icon's brighter color carries that
+        // on its own where animations are off. A rejection's red moment holds
+        // the breath, so the red is seen even when the finger stays on the
+        // reader and is matched again at once; the breath resumes after it.
+        SequentialAnimation {
+          objectName: "fingerprintPulse"
+          running: fingerprintIcon.visible && !root.fingerprintUnavailable && root.fingerprintScanning && !root.fingerprintRejected && !Style.reduceMotion
+          loops: Animation.Infinite
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.3; duration: Style.duration(420); easing.type: Easing.InOutQuad }
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: Style.duration(420); easing.type: Easing.InOutQuad }
+          // A rejection stops the breath and starts the dip from wherever the
+          // breath left the icon; drawing it whole first would flash it.
+          onStopped: if (!root.fingerprintRejected) fingerprintIcon.opacity = 1
+        }
+
+        // A rejected finger dips the icon once, in red: every wrong finger
+        // is seen, not only the lockout. The red alone carries it where
+        // animations are off.
+        SequentialAnimation {
+          id: fingerprintRejectDip
+          objectName: "fingerprintRejectDip"
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.3; duration: Style.duration(120); easing.type: Easing.OutCubic }
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: Style.duration(240); easing.type: Easing.OutCubic }
+          onStopped: fingerprintIcon.opacity = 1
+        }
+
+        Connections {
+          target: root
+          function onFingerprintRejectedChanged() {
+            if (!root.fingerprintRejected && !fingerprintRejectDip.running) fingerprintIcon.opacity = 1
+          }
+          function onFingerprintRejectCountChanged() {
+            if (root.fingerprintRejectCount > 0 && fingerprintIcon.visible && !root.fingerprintUnavailable && !Style.reduceMotion) fingerprintRejectDip.restart()
+          }
+        }
       }
     }
 

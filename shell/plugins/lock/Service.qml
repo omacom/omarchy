@@ -22,6 +22,24 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  // The reader has a finger and is matching it. pam_fprintd says nothing until
+  // the verdict, and a match-on-chip reader (a Mac's Touch ID, behind its
+  // Secure Enclave) takes a moment, so without this the touch looks ignored.
+  property bool fingerprintScanning: false
+  // The reader has just rejected a finger. pam_fprintd retries on its own,
+  // so one wrong finger otherwise goes quietly back to waiting; only the
+  // final lockout showed.
+  property bool fingerprintRejected: false
+  // Counts rejections, so each one is shown even when the next lands while
+  // the last one's red is still up: the flag above doesn't change then.
+  property int fingerprintRejectCount: 0
+  // A finger on the reader, or the moment after a rejection, holds the idle
+  // blank as a password check does: the countdown otherwise ran on through
+  // the match and the retry, and the panel went dark under the finger.
+  readonly property bool fingerprintHoldsDisplay: fingerprintScanning || fingerprintRejected
+  // fprintd is watched for that while the lock can take a touch: locked, a
+  // reader enrolled, and the displays on.
+  readonly property bool fingerprintMonitoring: lockRequested && fingerprintConfigured && !fingerprintPaused
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property int fingerprintUnreachedStreak: 0
@@ -197,6 +215,8 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintScanning = false
+    fingerprintRejected = false
     fingerprintUnreachedStreak = 0
     fingerprintAttemptFastError = false
     fingerprintAttemptPromptedAtMs = 0
@@ -210,6 +230,8 @@ Item {
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
+    fingerprintScanTimer.stop()
+    fingerprintRejectTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -267,6 +289,8 @@ Item {
     if (fingerprintPaused) return
     fingerprintPaused = true
     fingerprintRetryTimer.stop()
+    clearFingerprintScan()
+    clearFingerprintReject()
   }
 
   // The retry keeps whatever backoff was armed, counting the time spent blank,
@@ -418,6 +442,53 @@ Item {
     fingerprintReachTimer.stop()
   }
 
+  // The reader's finger status arrives through fprintd's D-Bus property,
+  // which the monitor process prints a line for. Only a finger during the
+  // lock's own attempt, with the watch on, is a scan: fprintd reports one for
+  // any claimant's operation, and a line already in the pipe when a blank
+  // stopped the watch would otherwise start one under the dark panel.
+  function applyFingerprintMonitorLine(line) {
+    var present = FingerprintModel.parseFingerPresent(line)
+    if (present === null) return
+    if (present && fingerprintAuthenticating && fingerprintMonitoring) {
+      fingerprintScanning = true
+      fingerprintScanTimer.restart()
+    } else if (!present) {
+      clearFingerprintScan()
+    }
+  }
+
+  // pam_fprintd tells the lock a finger didn't take with an error message in
+  // the lock's own conversation: the no-match before it retries or ends the
+  // attempt, and the reader's asks to scan again. Either ends the scan, which
+  // a reader that keeps reporting the finger on it would otherwise leave
+  // pulsing, and shows for a moment: pam_fprintd retries at once, and a
+  // finger left on the reader is matched again within milliseconds, so a
+  // rejection the next scan ended was never seen. Each one counts, so a
+  // rejection while the last one's red is still up shows too. The message's
+  // text is translated, so it isn't read.
+  // The rejection is set before the scan ends, so the display hold and the
+  // pulse's reset never see a moment with neither.
+  function noteFingerprintRejected() {
+    logEvent("fingerprint-rejected")
+    if (lockRequested && !fingerprintPaused) {
+      fingerprintRejected = true
+      fingerprintRejectCount += 1
+      fingerprintRejectTimer.restart()
+    }
+    clearFingerprintScan()
+  }
+
+  function clearFingerprintScan() {
+    fingerprintScanTimer.stop()
+    fingerprintScanning = false
+  }
+
+  function clearFingerprintReject() {
+    fingerprintRejectTimer.stop()
+    fingerprintRejected = false
+  }
+
   // abort() gives no completion signal; settle the attempt here.
   function timeoutFingerprintReach() {
     logEvent("fingerprint-reach-timeout")
@@ -430,6 +501,7 @@ Item {
     if (!fingerprintAuthenticating) return
     fingerprintAuthenticating = false
     fingerprintReachTimer.stop()
+    clearFingerprintScan()
     if (!lockRequested || !fingerprintConfigured) return
 
     // An error can arrive before the sleep watcher notices the wall-clock gap.
@@ -517,6 +589,9 @@ Item {
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
+        fingerprintScanning: root.fingerprintScanning
+        fingerprintRejected: root.fingerprintRejected
+        fingerprintRejectCount: root.fingerprintRejectCount
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -553,6 +628,8 @@ Item {
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
+      fingerprintScanning: false
+      fingerprintRejected: false
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -603,7 +680,8 @@ Item {
     user: root.userName
 
     onPamMessage: {
-      if (!messageIsError) root.noteFingerprintReachedDevice()
+      if (messageIsError) root.noteFingerprintRejected()
+      else root.noteFingerprintReachedDevice()
     }
 
     onCompleted: function(result) {
@@ -696,6 +774,49 @@ Item {
     interval: FingerprintModel.REACH_TIMEOUT_MS
     repeat: false
     onTriggered: root.timeoutFingerprintReach()
+  }
+
+  // The verdict or the finger leaving ends a scan; this bounds one that
+  // neither ended, so the icon can't pulse until the attempt times out.
+  Timer {
+    id: fingerprintScanTimer
+    objectName: "fingerprintScanTimer"
+    interval: FingerprintModel.SCAN_TIMEOUT_MS
+    repeat: false
+    onTriggered: {
+      root.logEvent("fingerprint-scan-timeout")
+      root.clearFingerprintScan()
+    }
+  }
+
+  // A rejected finger shows for a moment, then the icon waits again.
+  Timer {
+    id: fingerprintRejectTimer
+    objectName: "fingerprintRejectTimer"
+    interval: FingerprintModel.REJECT_SHOW_MS
+    repeat: false
+    onTriggered: root.clearFingerprintReject()
+  }
+
+  // Quickshell has no D-Bus client of its own, so gdbus (GLib's, which
+  // Quickshell depends on) watches fprintd's device for the shell, and its
+  // lines are read as they come: gdbus flushes each one. It keeps watching
+  // through fprintd's idle exits and restarts. If gdbus can't run, nothing
+  // restarts it: the lock works as before, without the scan feedback, and
+  // the exit is logged so a trial can see it. The watch reports changes, so
+  // a finger that landed while the displays were off, with the watch
+  // stopped, shows no scan on the wake; its verdict still comes.
+  Process {
+    id: fingerprintMonitorProc
+    objectName: "fingerprintMonitor"
+    command: ["gdbus", "monitor", "--system", "--dest", "net.reactivated.Fprint"]
+    running: root.fingerprintMonitoring
+    stdout: SplitParser {
+      onRead: function(line) { root.applyFingerprintMonitorLine(line) }
+    }
+    onExited: function(exitCode) {
+      if (root.fingerprintMonitoring) root.logEvent("fingerprint-monitor-exited: code=" + exitCode)
+    }
   }
 
   Process {
@@ -799,7 +920,7 @@ Item {
       // Only a password check in flight should hold the display up. The
       // fingerprint PAM stays armed for the whole lock, so gating on
       // `authenticating` here would keep the panel lit until unlock.
-      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
+      if (root.lockRequested && !root.authenticatingPassword && !root.fingerprintHoldsDisplay) root.runBlank()
     }
   }
 
@@ -871,6 +992,16 @@ Item {
     if (!lockRequested) return
     if (authenticatingPassword) idleBlankTimer.stop()
     else armBlankTimer()
+  }
+
+  // The hold ends with a fresh run-up, unless the lock is gone, the displays
+  // are already off, or a password check holds them in its own right. The
+  // run-up is the idle one even inside a resume's longer grace: a finger on
+  // the reader means the panel is lit and someone is at it.
+  onFingerprintHoldsDisplayChanged: {
+    if (!lockRequested) return
+    if (fingerprintHoldsDisplay) idleBlankTimer.stop()
+    else if (!fingerprintPaused && !authenticatingPassword) armBlankTimer()
   }
 
   FileView {

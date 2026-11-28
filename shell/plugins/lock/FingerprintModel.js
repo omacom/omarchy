@@ -15,6 +15,14 @@ var REACH_TIMEOUT_MS = 20000
 var SLEEP_GAP_MS = 2000
 // Ignore transient misses while the asynchronous resume restart lands.
 var RESUME_GRACE_MS = 5000
+// A finger the reader reported but never released ends its scan here. The
+// verdict or the finger leaving ends it first on a working reader; this is
+// for a daemon that forgot to clear the status, so the icon can't pulse on.
+var SCAN_TIMEOUT_MS = 5000
+// A rejected finger shows for this long, then the icon waits again. Long
+// enough to be seen after the hand has lifted, short enough that a wrong
+// finger doesn't linger long after the next verdict.
+var REJECT_SHOW_MS = 1200
 
 function retryDelayMs(streak) {
   if (streak <= 0) return MATCH_RETRY_MS
@@ -67,6 +75,19 @@ function isUnavailable(streak) {
   return streak >= UNAVAILABLE_AFTER
 }
 
+// fprintd publishes the reader's finger status as the device's finger-present
+// property, and `gdbus monitor` prints each change on one line:
+//   /net/reactivated/Fprint/Device/0: org.freedesktop.DBus.Properties.PropertiesChanged
+//     ('net.reactivated.Fprint.Device', {'finger-present': <true>}, @as [])
+// True for a finger landing, false for one leaving, null for any other line.
+function parseFingerPresent(line) {
+  var text = String(line || "")
+  if (text.indexOf("PropertiesChanged") === -1) return null
+  var match = /'finger-present':\s*<(true|false)>/.exec(text)
+  if (!match) return null
+  return match[1] === "true"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     MATCH_RETRY_MS: MATCH_RETRY_MS,
@@ -81,6 +102,9 @@ if (typeof module !== "undefined") {
     REACH_TIMEOUT_MS: REACH_TIMEOUT_MS,
     SLEEP_GAP_MS: SLEEP_GAP_MS,
     RESUME_GRACE_MS: RESUME_GRACE_MS,
+    SCAN_TIMEOUT_MS: SCAN_TIMEOUT_MS,
+    REJECT_SHOW_MS: REJECT_SHOW_MS,
+    parseFingerPresent: parseFingerPresent,
     spannedSleep: spannedSleep,
     classifyProbe: classifyProbe,
     inResumeGrace: inResumeGrace,
