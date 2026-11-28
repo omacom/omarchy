@@ -28,6 +28,7 @@ local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
 local TITLEBAR_TAG = "omarchy-titlebar"
+local TITLEBARS_OFF = "omarchy/toggles/hypr/window-no-titlebars.lua"
 
 local M = {}
 
@@ -451,13 +452,17 @@ end
 -- The plugin draws a bar only on a floating window with its tag, and every
 -- window carries the tag, so tiling a window takes its titlebar away and
 -- floating it brings it back.
-local function titlebars_installed()
-  local file = io.open(TITLEBARS, "r")
+local function file_present(path)
+  local file = io.open(path, "r")
   if not file then
     return false
   end
   file:close()
   return true
+end
+
+local function titlebars_installed()
+  return file_present(TITLEBARS)
 end
 
 local function titlebars()
@@ -466,6 +471,13 @@ local function titlebars()
   end
 
   hl.plugin.load(TITLEBARS)
+
+  -- With titlebars off the plugin is still loaded, so nothing has to bring it
+  -- in later, but it gets none of the options below and its own default leaves
+  -- it drawing nothing. `omarchy hyprland window titlebars` sets the flag.
+  if file_present(paths.state_home .. "/" .. TITLEBARS_OFF) then
+    return
+  end
 
   if not hl.plugin.hyprbars then
     return

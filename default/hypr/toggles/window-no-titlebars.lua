@@ -1,0 +1,7 @@
+-- Keep floating windows bare: no titlebar, and none of its buttons.
+--
+-- A flag rather than config, because workspace-modes.lua loads and configures
+-- the hyprbars plugin that draws the titlebars after these toggle files have
+-- run, so a value set here would be overwritten. This file's presence is what
+-- that code reads to leave the plugin without its options.
+-- `omarchy hyprland window titlebars` sets it.
