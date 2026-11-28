@@ -90,3 +90,14 @@ mkfifo "$test_tmp/events"
 out=$(holder_waits "$test_tmp/events" 1) || fail "the holder lets go at its time limit when no session comes" "still holding after 5 s"
 [[ $out == *"no session took"* ]] || fail "the holder lets go at its time limit when no session comes" "$out"
 pass "the holder lets go at its time limit when no session comes"
+
+# A splash with no display open, gone or never drawn, leaves nothing to hold:
+# the holder says it is ready, as its Type=notify unit needs, and succeeds.
+mkdir -p "$test_tmp/bin"
+printf '#!/bin/bash\nexit 1\n' >"$test_tmp/bin/pidof"
+printf '#!/bin/bash\necho "$*" >>"%s"\n' "$test_tmp/notified" >"$test_tmp/bin/systemd-notify"
+chmod +x "$test_tmp/bin/pidof" "$test_tmp/bin/systemd-notify"
+out=$(PATH=$test_tmp/bin:$PATH bash "$hold") || fail "a splash with no display open leaves nothing to hold" "$out"
+[[ $out == *"nothing to hold"* && $(<"$test_tmp/notified") == "--ready" ]] ||
+  fail "a splash with no display open leaves nothing to hold" "$out"
+pass "a splash with no display open leaves nothing to hold"

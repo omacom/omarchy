@@ -97,10 +97,15 @@ wait_for_session() {
 # Sourced by boot-splash-hold-test.sh for the functions above.
 [[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
 
+# The splash can be gone by now: dismissed with Escape, its display taken from
+# under it, or ended before it finished starting. The login screen then starts
+# on the console.
 mapfile -t nodes < <(splash_devices)
 if (( ${#nodes[@]} == 0 )); then
-  echo "the splash has no display open"
-  exit 1
+  echo "nothing to hold: the splash has no display open"
+  # Type=notify: an exit before READY=1 fails the unit.
+  systemd-notify --ready
+  exit 0
 fi
 
 # A compositor takes a device through logind, which opens it, then reads the
