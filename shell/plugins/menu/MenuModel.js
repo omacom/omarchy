@@ -1,7 +1,70 @@
+// Removes // comments (whole comment lines only, as before) and trailing
+// commas, but copies string literals verbatim: a user action such as
+// "mkdir -p ~/work/{src,docs,}" must keep every comma the user wrote.
 function stripJsonc(raw) {
-  return String(raw || "")
-    .replace(/^\s*\/\/[^\n]*(\n|$)/gm, "")
-    .replace(/,(\s*[}\]])/g, "$1")
+  var text = String(raw || "")
+  var out = ""
+  var i = 0
+  var n = text.length
+  // True until a non-whitespace character lands on the current line, so a
+  // comment still counts only when it starts its own line.
+  var blankLine = true
+  while (i < n) {
+    var ch = text[i]
+    if (ch === '"') {
+      var end = i + 1
+      while (end < n) {
+        if (text[end] === "\\") {
+          end += 2
+          continue
+        }
+        end++
+        if (text[end - 1] === '"') break
+      }
+      out += text.slice(i, end)
+      i = end
+      blankLine = false
+      continue
+    }
+    if (ch === "/" && text[i + 1] === "/" && blankLine) {
+      while (i < n && text[i] !== "\n") i++
+      if (i < n) i++
+      continue
+    }
+    if (ch === ",") {
+      var k = i + 1
+      var blank = false
+      while (k < n) {
+        if (text[k] === "\n") {
+          blank = true
+          k++
+          continue
+        }
+        if (blank && text[k] === "/" && text[k + 1] === "/") {
+          while (k < n && text[k] !== "\n") k++
+          if (k < n) {
+            k++
+            blank = true
+          }
+          continue
+        }
+        if (/\s/.test(text[k])) {
+          k++
+          continue
+        }
+        break
+      }
+      if (k < n && (text[k] === "}" || text[k] === "]")) {
+        i++
+        continue
+      }
+    }
+    out += ch
+    if (ch === "\n") blankLine = true
+    else if (!/\s/.test(ch)) blankLine = false
+    i++
+  }
+  return out
 }
 
 function normalizeAliases(value) {
@@ -751,6 +814,7 @@ if (typeof module !== "undefined") {
     normalizeAliases: normalizeAliases,
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
+    readMenuJsonc: readMenuJsonc,
     keepMenuRows: keepMenuRows,
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
