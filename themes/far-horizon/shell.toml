@@ -1,0 +1,141 @@
+# Far Horizon — storybook indigo, Peach Pop focus, and lilac discovery.
+# Theme visuals only; shell layout, plugins, and font family stay user-owned.
+[bar]
+background = "#27213E"
+background-alpha = 1.0
+text = "#EEF2FA"
+active = "#FFA68F"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#FFA68F"
+active-border-foreground = "#EEF2FA"
+
+[controls]
+normal-color = "foreground"
+normal-fill-alpha = 0.03
+normal-border = "#939FBE"
+normal-border-width = 1
+normal-border-alpha = 0.65
+hover-cursor-color = "foreground"
+hover-cursor-fill-alpha = 0.06
+hover-cursor-border = "#C0B0E6"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 1.0
+focus-color = "foreground"
+focus-fill-alpha = 0.06
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.10
+selected-border = "#FFA68F"
+selected-border-width = 2
+selected-border-alpha = 1.0
+pressed-fill-alpha = 0.12
+selection-fill-alpha = 0.14
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 32
+popup-row-height = 32
+panel-gap = 16
+panel-padding = 18
+popup-padding = 14
+
+[font]
+base-size = 13
+
+[popups]
+background = "#332C4B"
+background-alpha = 1.0
+text = "#EEF2FA"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+
+[tooltip]
+background = "#332C4B"
+background-alpha = 1.0
+text = "#EEF2FA"
+border = "#C0B0E6"
+border-alpha = 1.0
+
+[notifications]
+background = "#332C4B"
+background-alpha = 1.0
+text = "#EEF2FA"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+countdown = "#F2C66D"
+
+[launcher]
+background = "#332C4B"
+background-alpha = 1.0
+text = "#EEF2FA"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+scrim = "#27213E"
+scrim-alpha = 0.40
+selected-background = "#FFA68F"
+selected-background-alpha = 1.0
+selected-text = "#27213E"
+selected-border = "#FFA68F"
+selected-border-alpha = 1.0
+selected-border-width = 0
+
+[menu]
+background = "#332C4B"
+background-alpha = 1.0
+text = "#EEF2FA"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+scrim = "#27213E"
+scrim-alpha = 0.40
+selected-background = "#FFA68F"
+selected-background-alpha = 1.0
+selected-text = "#27213E"
+selected-border = "#FFA68F"
+selected-border-alpha = 1.0
+selected-border-width = 0
+
+[polkit]
+background = "#332C4B"
+background-alpha = 1.0
+text = "#EEF2FA"
+text-error = "#F38491"
+border = "hyprland.active-border"
+border-error = "#F38491"
+border-alpha = 1.0
+scrim = "#27213E"
+scrim-alpha = 0.45
+accent = "#FFA68F"
+
+[lock]
+background = "#332C4B"
+background-alpha = 1.0
+text = "#EEF2FA"
+placeholder = "#BAC5DF"
+text-error = "#F38491"
+border = "#C0B0E6"
+border-active = "hyprland.active-border"
+border-error = "#F38491"
+border-alpha = 1.0
+selection = "#FFA68F"
+selection-alpha = 0.20
+
+[image-picker]
+# Protect captions over bright wallpaper without changing the artwork.
+scrim = "#27213E"
+scrim-alpha = 0.75
+text = "#F8FAFF"
+selected-border = "#FFA68F"
+selected-border-alpha = 1.0
+unselected-border = "#939FBE"
+unselected-border-alpha = 0.75

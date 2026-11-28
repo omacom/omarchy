@@ -1,0 +1,38 @@
+system: "base24"
+name: "Fossil Field Notes"
+slug: "fossil-field-notes"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "light"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- field archive / sandstone layers ---
+  base00: "#F4E6C9" # Field Paper - default background
+  base01: "#E8D5AE" # Sandstone Shelf - lighter background
+  base02: "#D8BD8F" # Sediment Layer - selection background
+  base03: "#7C6D5A" # Pencil Dust - comments / muted text
+  base04: "#59483A" # Archive Ink - dark foreground
+  base05: "#3B2D26" # Fossil Outline - default foreground
+  base06: "#3B2D26" # Field Lettering - light foreground
+  base07: "#211913" # Carbon Trace - brightest foreground
+
+  # --- mineral inks and specimen marks ---
+  base08: "#B54B3E" # Iron Imprint - red / error
+  base09: "#C87532" # Ochre Fragment - orange / warning
+  base0A: "#987000" # Mineral Gold - yellow
+  base0B: "#5F7D43" # Fern Record - green
+  base0C: "#3D7D7B" # Patina Wash - cyan
+  base0D: "#347480" # Slate Label - blue
+  base0E: "#795D83" # Amethyst Note - purple
+  base0F: "#805437" # Clay Bed - brown / special
+
+  # --- base24 extension ---
+  base10: "#EAD6B4" # Canvas Fold - darker background
+  base11: "#EAD6B4" # Strata Recess - darkest background
+  base12: "#9F3F32" # Bright Iron Imprint - bright red
+  base13: "#715400" # Bright Mineral Gold - bright orange / yellow
+  base14: "#4F6E3B" # Bright Fern Record - bright green
+  base15: "#326967" # Bright Patina Wash - bright cyan
+  base16: "#2F6670" # Bright Slate Label - bright blue
+  base17: "#684F72" # Bright Amethyst Note - bright purple

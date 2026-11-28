@@ -1,0 +1,34 @@
+# Dino Dawn — Kids adaptation of NobleDoodle's Primeval Dawn.
+# Deep bark-brown foundations and jade focus; original sunrise gold stays secondary.
+mode = "dark"
+
+accent = "#83cdb1"
+selection = "#345e50"
+# Readable sage copy, deliberately separate from the darker selection fill.
+muted = "#aac5b4"
+
+background = "#28211e"
+dark_background = "#1d1816"
+darker_background = "#14100e"
+lighter_background = "#3b302a"
+
+foreground = "#d9e1d4"
+dark_foreground = "#aac5b4"
+light_foreground = "#b9c7bd"
+bright_foreground = "#f2ecd9"
+
+red = "#ef9386"
+yellow = "#e8bd72"
+orange = "#dfa062"
+green = "#acd77b"
+cyan = "#7dd3cf"
+blue = "#8cbedb"
+magenta = "#cda4d9"
+brown = "#bea78c"
+
+bright_red = "#ffb2a1"
+bright_yellow = "#f2d18e"
+bright_green = "#c9ed9d"
+bright_cyan = "#a4ece0"
+bright_blue = "#b1d9f2"
+bright_magenta = "#e6c1ee"

@@ -1,0 +1,38 @@
+system: "base24"
+name: "Lantern Menagerie"
+slug: "lantern-menagerie"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "dark"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- paper lantern dusk / plum shadows ---
+  base00: "#21172F" # Lantern Dusk - default background
+  base01: "#30213F" # Folded Twilight - lighter background
+  base02: "#453056" # Paper Shadow - selection background
+  base03: "#9B83A5" # Lilac Smoke - comments / muted text
+  base04: "#C8B3C0" # Dusk Lettering - dark foreground
+  base05: "#F7E8C4" # Warm Rice Paper - default foreground
+  base06: "#F7E8C4" # Lantern Lettering - light foreground
+  base07: "#FFF7DF" # Candle Cream - brightest foreground
+
+  # --- animal lanterns and evening leaves ---
+  base08: "#DF6654" # Fox Lantern - red / error
+  base09: "#E37A43" # Copper Fold - orange / warning
+  base0A: "#D89A2B" # Amber Glow - yellow
+  base0B: "#65A66C" # Leaf Lantern - green
+  base0C: "#58AAA5" # Pond Reflection - cyan
+  base0D: "#657BC0" # Evening Blue - blue
+  base0E: "#9B69B6" # Moth Wing - purple
+  base0F: "#9A6650" # Twig Frame - brown / special
+
+  # --- base24 extension ---
+  base10: "#171020" # Unlit Paper - darker background
+  base11: "#171020" # Night Fold - darkest background
+  base12: "#F07C68" # Bright Fox Lantern - bright red
+  base13: "#FFB633" # Bright Amber Glow - bright orange / yellow
+  base14: "#77C47F" # Bright Leaf Lantern - bright green
+  base15: "#68C9C3" # Bright Pond Reflection - bright cyan
+  base16: "#7791E3" # Bright Evening Blue - bright blue
+  base17: "#B77CD7" # Bright Moth Wing - bright purple
