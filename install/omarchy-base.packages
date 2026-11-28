@@ -58,6 +58,7 @@ google-chrome
 grim
 gpu-screen-recorder
 gum
+gvfs-afc
 gvfs-mtp
 gvfs-nfs
 gvfs-smb
@@ -78,6 +79,7 @@ kernel-modules-hook
 kmscon
 lazygit
 less
+libimobiledevice
 libsecret
 libvips
 libyaml
@@ -161,6 +163,7 @@ udisks2
 ufw
 ufw-docker
 unzip
+usbmuxd
 usage
 uv
 uwsm
