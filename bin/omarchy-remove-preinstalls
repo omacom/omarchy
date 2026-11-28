@@ -12,6 +12,9 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   touch ~/.local/state/omarchy/preinstalls-removed
   omarchy-restart-hyprctl
 
+  # The cliamp override outlives the package it launches
+  rm -f ~/.local/share/applications/cliamp.desktop
+
   omarchy-pkg-drop \
     aether \
     cliamp \
