@@ -1,0 +1,241 @@
+#!/bin/bash
+
+# omarchy:group=debug
+# omarchy:name=permissions
+# omarchy:summary=Report files in your home that root owns
+# omarchy:args=[--fix]
+# omarchy:examples=omarchy debug permissions | omarchy debug permissions --fix
+
+# An `omarchy update` run as root writes as root, so everything it touches in
+# the home ends up owned by root and the user cannot write it afterwards. This
+# reports those entries, plus the two files a root-run update leaves outside the
+# home, and with --fix hands the home back in a single chown.
+
+uid=$(id -u)
+gid=$(id -g)
+user=$(id -un)
+fix=false
+limit=10
+
+# With HOME unset the sweep below would silently become `find /`.
+: "${HOME:?HOME is not set}"
+
+# The update lock lives where omarchy-update-lock puts it, and the log where
+# omarchy-update writes it. The log path is overridable so a test can report on
+# a file of its own instead of a real leftover.
+lock_dir=${XDG_RUNTIME_DIR:-/tmp}
+update_lock="$lock_dir/omarchy-update.lock"
+update_log=${OMARCHY_UPDATE_LOG:-/tmp/omarchy-update.log}
+
+findings=()
+leftovers=()
+
+usage() {
+  printf 'Usage: omarchy debug permissions [--fix]\n\n'
+  printf 'Reports entries under %s that another user owns, usually root after\n' "$HOME"
+  printf '`omarchy update` was run as root. Exits 1 when anything is found.\n\n'
+  printf '  --fix   Take ownership of everything reported, in one chown.\n'
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --fix)
+      fix=true
+      shift
+      ;;
+    --help | -h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+# -xdev keeps the sweep on the home's own filesystem, and find does not follow
+# symlinks, so nothing mounted under the home is walked and no link is followed
+# out of it. The trailing slash dereferences the home itself, so a home that is a
+# symlink is swept rather than reported as a single link. NUL-separated output
+# keeps a path containing a newline intact, and the error stream is kept: a
+# root-owned directory the user cannot read is exactly the damage being reported,
+# so a partial sweep has to say so instead of printing a clean home.
+scan_home() {
+  local out err
+
+  findings=()
+  scan_errors=0
+  out=$(mktemp) || return 1
+  err=$(mktemp) || return 1
+
+  find "$HOME"/ -xdev -not -user "$uid" -print0 >"$out" 2>"$err"
+  mapfile -d '' findings <"$out"
+  scan_errors=$(wc -l <"$err")
+
+  rm -f "$out" "$err"
+}
+
+scan_leftovers() {
+  local path
+
+  leftovers=()
+  for path in "$update_lock" "$update_log"; do
+    [[ -e $path || -L $path ]] || continue
+    [[ $(stat -c '%u' -- "$path" 2>/dev/null) == 0 ]] || continue
+    leftovers+=("$path")
+  done
+}
+
+# The first two path components under the home: a root-run update leaves whole
+# trees behind, and one line per tree keeps a large home readable. The home
+# itself, and entries sitting directly in it, group under the home.
+group_of() {
+  local path=$1 rel rest
+
+  if [[ $path == "$HOME" || $path != "$HOME"/* ]]; then
+    printf '%s' "$HOME"
+    return
+  fi
+
+  rel=${path#"$HOME"/}
+  if [[ $rel != */* ]]; then
+    printf '%s' "$HOME"
+    return
+  fi
+
+  rest=${rel#*/}
+  if [[ $rest == */* ]]; then
+    printf '%s/%s' "$HOME/${rel%%/*}" "${rest%%/*}"
+  else
+    printf '%s' "$HOME/${rel%%/*}"
+  fi
+}
+
+print_findings() {
+  local count=${#findings[@]}
+  local path group printed more
+  local -A totals=()
+  local -a groups=()
+
+  if (( count == 0 )); then
+    printf 'No entry in %s is owned by another user.\n' "$HOME"
+    return
+  fi
+
+  if (( count == 1 )); then
+    printf '1 entry in %s is not owned by %s (uid %s):\n\n' "$HOME" "$user" "$uid"
+  else
+    printf '%s entries in %s are not owned by %s (uid %s):\n\n' "$count" "$HOME" "$user" "$uid"
+  fi
+
+  # Totals first, so each group prints its count beside the members listed under
+  # it. Members are not collected into a joined string: a path is matched back to
+  # its group by asking group_of again, which keeps a path containing a newline or
+  # a tab intact.
+  for path in "${findings[@]}"; do
+    group=$(group_of "$path")
+    [[ -n ${totals[$group]:-} ]] || groups+=("$group")
+    totals[$group]=$(( ${totals[$group]:-0} + 1 ))
+  done
+
+  mapfile -t groups < <(printf '%s\n' "${groups[@]}" | sort)
+
+  for group in "${groups[@]}"; do
+    printf '%s (%s)\n' "$group" "${totals[$group]}"
+    printed=0
+    for path in "${findings[@]}"; do
+      [[ $(group_of "$path") == "$group" ]] || continue
+      (( printed < limit )) || continue
+      printf '  %s\n' "$path"
+      printed=$((printed + 1))
+    done
+
+    more=$(( totals[$group] - printed ))
+    (( more > 0 )) && printf '  +%s more\n' "$more"
+    printf '\n'
+  done
+
+  if (( scan_errors > 0 )); then
+    printf 'Note: the sweep could not read %s path(s), so this report is partial.\n\n' "$scan_errors"
+  fi
+}
+
+print_leftovers() {
+  local path
+
+  if (( ${#leftovers[@]} == 0 )); then
+    printf 'No root-owned update leftovers.\n'
+    return
+  fi
+
+  printf 'Update leftovers owned by root:\n'
+  for path in "${leftovers[@]}"; do
+    printf '  %s\n' "$path"
+  done
+  # Removing the lock under a running update would let a second one start.
+  printf '  (only safe to remove while no update is running)\n'
+}
+
+take_ownership() {
+  local failed=0
+
+  if (( ${#findings[@]} > 0 )); then
+    if (( ${#findings[@]} == 1 )); then
+      printf 'Taking ownership of 1 entry as %s:%s...\n' "$uid" "$gid"
+    else
+      printf 'Taking ownership of %s entries as %s:%s...\n' "${#findings[@]}" "$uid" "$gid"
+    fi
+    # Batched: a home swept by a root-run update can hold more paths than a single
+    # argument list carries.
+    printf '%s\0' "${findings[@]}" | xargs -0 -r sudo chown -h "$uid:$gid" -- || failed=1
+  fi
+
+  if (( ${#leftovers[@]} > 0 )); then
+    if (( ${#leftovers[@]} == 1 )); then
+      printf 'Removing 1 root-owned update leftover...\n'
+    else
+      printf 'Removing %s root-owned update leftovers...\n' "${#leftovers[@]}"
+    fi
+    printf '  (only safe to remove while no update is running)\n'
+    sudo rm -f -- "${leftovers[@]}" || failed=1
+  fi
+
+  return $failed
+}
+
+scan_home
+scan_leftovers
+
+if (( ${#findings[@]} == 0 && ${#leftovers[@]} == 0 )); then
+  if [[ $fix == "true" ]]; then
+    printf 'Nothing to fix: no entry in %s is owned by another user, and no root-owned update leftovers are present.\n' "$HOME"
+  else
+    printf 'No entry in %s is owned by another user.\n' "$HOME"
+    printf 'No root-owned update leftovers.\n'
+  fi
+  exit 0
+fi
+
+if [[ $fix == "true" ]]; then
+  take_ownership || printf 'Could not take ownership of everything reported.\n' >&2
+
+  printf '\nAfter the fix:\n\n'
+  scan_home
+  scan_leftovers
+  print_findings
+  print_leftovers
+
+  if (( ${#findings[@]} > 0 || ${#leftovers[@]} > 0 )); then
+    exit 1
+  fi
+
+  exit 0
+fi
+
+print_findings
+print_leftovers
+printf "Run 'omarchy debug permissions --fix' to repair them.\n"
+
+exit 1
