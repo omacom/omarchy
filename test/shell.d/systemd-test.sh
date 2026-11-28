@@ -235,3 +235,51 @@ PATH="$mock_bin:$PATH" OMARCHY_SOUNDWIRE_DEVICES_PATH="$sdw_dir" OMARCHY_SOUNDWI
 sleeps=$(wc -l <"$sleep_log")
 (( sleeps == 3 )) || fail "attached peripheral without a device number times out cleanly" "sleeps=$sleeps"
 pass "attached peripheral without a device number times out cleanly"
+
+first_run_bin="$tmpdir/first-run-bin"
+first_run_calls="$tmpdir/first-run-calls"
+mkdir -p "$first_run_bin"
+
+cat >"$first_run_bin/systemctl" <<'SH'
+#!/bin/bash
+if [[ $2 == "show" ]]; then
+  [[ $3 != ${OMARCHY_TEST_QUERY_FAILURE:-} ]] || exit 1
+  if [[ $3 == ${OMARCHY_TEST_MASKED_UNIT:-} ]]; then
+    echo masked
+  else
+    echo loaded
+  fi
+  exit 0
+fi
+printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
+[[ $2 != "enable" || $4 != ${OMARCHY_TEST_MASKED_UNIT:-} ]]
+SH
+cat >"$first_run_bin/omarchy-hook-install" <<'SH'
+#!/bin/bash
+echo "hook $*" >>"$OMARCHY_TEST_CALLS"
+SH
+printf '#!/bin/bash\nexit 0\n' >"$first_run_bin/omarchy-input-method"
+chmod +x "$first_run_bin/systemctl" "$first_run_bin/omarchy-hook-install" "$first_run_bin/omarchy-input-method"
+
+enable_user_units() {
+  : >"$first_run_calls"
+  PATH="$first_run_bin:$PATH" OMARCHY_TEST_CALLS="$first_run_calls" \
+    bash "$ROOT/install/user/first-run/enable-user-units.sh"
+}
+
+enable_user_units || fail "first-run enables its user units"
+clean_run=$(<"$first_run_calls")
+masked="bt-agent.service"
+grep -Fxq -- "--user enable --no-reload $masked" <<<"$clean_run" ||
+  fail "the mask regression targets a bundled unit"
+remaining=$(grep -Fvx -e "--user enable --no-reload $masked" -e "--user start $masked" <<<"$clean_run")
+OMARCHY_TEST_MASKED_UNIT="$masked" enable_user_units ||
+  fail "first-run succeeds with an explicitly masked unit"
+diff -u <(printf '%s\n' "$remaining") "$first_run_calls" ||
+  fail "first-run preserves the mask and starts the other units"
+if OMARCHY_TEST_QUERY_FAILURE="$masked" enable_user_units; then
+  fail "first-run reports a failed unit state query"
+fi
+diff -u <(printf '%s\n' "$remaining") "$first_run_calls" ||
+  fail "a failed query costs first-run only that unit"
+pass "first-run preserves explicit masks and reports query failures"
