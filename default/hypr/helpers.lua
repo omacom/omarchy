@@ -207,6 +207,37 @@ o.bind_commands = {}
 -- to run instead. The menu dispatches it as `hyprctl dispatch <expression>`.
 o.bind_expressions = {}
 
+-- Maximized scrolling windows need layout focus between columns; ordinary
+-- focus still handles floating windows and crossing to another monitor.
+function o.focus_direction(direction)
+  local function focus()
+    local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+    local current = hl.get_active_window()
+
+    if workspace and workspace.tiled_layout == "scrolling" and current and not current.floating and current.fullscreen == 1 then
+      local current_center = current.at.x + current.size.x / 2
+
+      for _, window in ipairs(hl.get_workspace_windows(workspace)) do
+        if window.address ~= current.address and not window.floating then
+          local center = window.at.x + window.size.x / 2
+          local in_direction = direction == "l" and center < current_center
+            or direction == "r" and center > current_center
+
+          if in_direction then
+            hl.dispatch(hl.dsp.layout("focus " .. direction))
+            return
+          end
+        end
+      end
+    end
+
+    hl.dispatch(hl.dsp.focus({ direction = direction }))
+  end
+
+  o.bind_expressions[focus] = "o.focus_direction(" .. string.format("%q", direction) .. ")"
+  return focus
+end
+
 -- Hand the launcher the focused window's pid, which it would otherwise ask
 -- Hyprland for, to open the new terminal in that terminal's directory.
 function o.launch_terminal()

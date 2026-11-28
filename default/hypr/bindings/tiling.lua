@@ -17,8 +17,8 @@ o.bind("SUPER + L", "Cycle workspace layout", "omarchy-hyprland-workspace-layout
 o.bind("SUPER + ALT + L", "Cycle workspace layout back", "omarchy-hyprland-workspace-layout-toggle back")
 o.bind("XF86Display", "Cycle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 
-o.bind("SUPER + LEFT", "Focus on left window", hl.dsp.focus({ direction = "l" }))
-o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" }))
+o.bind("SUPER + LEFT", "Focus on left window", o.focus_direction("l"))
+o.bind("SUPER + RIGHT", "Focus on right window", o.focus_direction("r"))
 o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
 

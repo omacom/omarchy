@@ -262,3 +262,119 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# Layout focus reaches hidden columns; ordinary focus must still reach other monitors.
+run_focus_binding() {
+  local layout="$1" fullscreen="$2" key="$3" floating="${4:-false}" neighbor="${5:-both}"
+
+  HOME="$tmpdir/focus-home" XDG_CONFIG_HOME="$tmpdir/focus-home/.config" \
+    XDG_STATE_HOME="$tmpdir/focus-home/.local/state" OMARCHY_PATH="$ROOT" \
+    FOCUS_LAYOUT="$layout" FOCUS_FULLSCREEN="$fullscreen" FOCUS_KEY="$key" \
+    FOCUS_FLOATING="$floating" FOCUS_NEIGHBOR="$neighbor" lua - <<'LUA'
+package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local function proxy(path)
+  return setmetatable({ path = path }, {
+    __index = function(self, key)
+      return proxy(self.path .. "." .. key)
+    end,
+    __call = function(self, ...)
+      return { path = self.path, args = { ... } }
+    end,
+  })
+end
+
+local bindings, dispatched = {}, {}
+
+hl = setmetatable({
+  dsp = proxy("hl.dsp"),
+  bind = function(keys, dispatcher)
+    bindings[keys] = dispatcher
+  end,
+  dispatch = function(dispatcher)
+    table.insert(dispatched, dispatcher)
+  end,
+  get_active_workspace = function()
+    return { tiled_layout = os.getenv("FOCUS_LAYOUT") }
+  end,
+  get_active_special_workspace = function()
+    return nil
+  end,
+  get_active_window = function()
+    return { address = "current", fullscreen = tonumber(os.getenv("FOCUS_FULLSCREEN")),
+      floating = os.getenv("FOCUS_FLOATING") == "true", at = { x = 600 }, size = { x = 600 } }
+  end,
+  get_workspace_windows = function()
+    local windows = {}
+    for _, side in ipairs({ { "left", 0 }, { "right", 1200 } }) do
+      if os.getenv("FOCUS_NEIGHBOR") == "both" or os.getenv("FOCUS_NEIGHBOR") == side[1] then
+        table.insert(windows, { address = side[1], floating = false, at = { x = side[2] }, size = { x = 600 } })
+      end
+    end
+    return windows
+  end,
+}, {
+  __index = function()
+    return function()
+      return {}
+    end
+  end,
+})
+
+require("default.hypr.helpers")
+
+o.workspaces = {
+  focus = function() return function() end end,
+  move_window = function() return function() end end,
+  move_to_monitor = function() return function() end end,
+  move_window_to_monitor = function() return function() end end,
+}
+
+require("default.hypr.bindings.tiling")
+
+local binding = bindings["SUPER + " .. os.getenv("FOCUS_KEY")]
+if type(binding) == "function" then
+  binding()
+else
+  hl.dispatch(binding)
+end
+
+local dispatcher = dispatched[#dispatched]
+if dispatcher.path == "hl.dsp.layout" then
+  print("layout\t" .. tostring(dispatcher.args[1]))
+else
+  print("focus\t" .. tostring(dispatcher.args[1].direction))
+end
+LUA
+}
+
+focus_home="$tmpdir/focus-home"
+mkdir -p "$focus_home"
+
+for pair in "LEFT l" "RIGHT r"; do
+  read -r key direction <<<"$pair"
+  result=$(run_focus_binding scrolling 1 "$key")
+  [[ $result == $'layout\tfocus '"$direction" ]] ||
+    fail "a maximized scrolling window navigates with SUPER + $key" "$result"
+done
+pass "SUPER + left/right reach adjacent columns from a maximized scrolling window"
+
+result=$(run_focus_binding scrolling 0 LEFT)
+[[ $result == $'focus\tl' ]] || fail "an unmaximized scrolling window keeps movefocus" "$result"
+
+result=$(run_focus_binding dwindle 1 LEFT)
+[[ $result == $'focus\tl' ]] || fail "other layouts keep movefocus for a maximized window" "$result"
+
+result=$(run_focus_binding scrolling 2 LEFT)
+[[ $result == $'focus\tl' ]] || fail "a fullscreen scrolling window keeps movefocus" "$result"
+pass "SUPER + arrows only reroute for a maximized scrolling window"
+
+result=$(run_focus_binding scrolling 1 LEFT true)
+[[ $result == $'focus\tl' ]] || fail "a maximized floating window keeps ordinary focus" "$result"
+
+for pair in "LEFT l right" "RIGHT r left" "UP u both" "DOWN d both"; do
+  read -r key direction neighbor <<<"$pair"
+  result=$(run_focus_binding scrolling 1 "$key" false "$neighbor")
+  [[ $result == $'focus\t'"$direction" ]] || fail "SUPER + $key can cross monitors without a column in that direction" "$result"
+done
+pass "floating windows and workspace edges preserve ordinary directional focus"
