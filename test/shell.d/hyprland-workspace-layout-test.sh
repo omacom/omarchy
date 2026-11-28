@@ -225,6 +225,7 @@ hl = {
   get_active_workspace = function() return { id = 3 } end,
   get_config = function() end,
   config = function() end,
+  plugin = { load = function() end },
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
