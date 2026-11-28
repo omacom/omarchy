@@ -33,5 +33,5 @@
 -- 10-bit color.
 -- hl.monitor({ output = "DP-2", mode = "preferred", position = "auto", scale = 1, bitdepth = 10 })
 
--- Variable refresh rate (0 = off, 1 = always, 2 = fullscreen only).
+-- Variable refresh rate (Omarchy defaults to 2 = fullscreen only; 0 = off, 1 = always, 3 = fullscreen games/video).
 -- hl.config({ misc = { vrr = 0 } })
