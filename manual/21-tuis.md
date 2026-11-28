@@ -20,6 +20,8 @@ Omarchy calls it Activity Monitor, and you start it from the app launcher or by 
 
 You start it (or reattach to your existing session) from the app launcher or with `Super + Ctrl + Return`. Omarchy ships a Herdr configuration that mirrors its Tmux config, so the prefix key is `Ctrl + Space` here too. You can browse all the keybindings with `Super + Ctrl + K`.
 
+Press `Ctrl + Space` then `Alt + G` inside Herdr to open Lazygit in a floating popup over your current layout. Closing Lazygit with `q` dismisses the popup.
+
 ## Fastfetch
 
 [Fastfetch](https://github.com/fastfetch-cli/fastfetch) shows system information, like kernel version, uptime, theme, CPU, memory, and more. It's a successor to the popular neofetch tool.
