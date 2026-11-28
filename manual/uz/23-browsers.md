@@ -1,12 +1,12 @@
 # Brauzerlar
 
-Omarchy standart brauzer sifatida [Google Chrome](https://www.google.com/chrome/) bilan birga keladi. U tizimingizning qolgan qismiga mos qilib mavzulashtirilgan, va aynan uni `Super + Shift + Return` ochadi hamda har bir [veb-ilova](25-web-apps.md) uning ichida ishlaydi. U to'g'ridan-to'g'ri brauzer oynasiga ochiladi: hech qanday xush kelibsiz ekrani yoki kirish so'rovi yo'q, foydalanish statistikasi va nosozlik hisobotlari Google ga yuborilmaydi, reklama maxfiyligi so'rovlari esa o'chirilgan. Sinxronlashni xohlaganingizda, profil tugmasi orqali Google hisobingizga baribir kira olasiz.
+Omarchy standart brauzer sifatida [Google Chrome](https://www.google.com/chrome/) bilan birga keladi. U tizimingizning qolgan qismiga moslab mavzulashtirilgan va aynan uni `Super + Shift + Return` (yoki `Super + Shift + B`) ochadi, `Super + Shift + Alt + B` esa shaxsiy oyna uchun, shuningdek har bir [veb-ilova](25-web-apps.md) uning ichida ishlaydi. U toʻgʻridan-toʻgʻri brauzer oynasida ochiladi: hech qanday xush kelibsiz ekrani yoki hisobga kirish soʻrovi yoʻq, foydalanish statistikasi va nosozlik hisobotlari Googleʼga yuborilmaydi, reklama maxfiyligi soʻrovlari esa oʻchirilgan. Sinxronlashni xohlaganingizda profil tugmasi orqali Google hisobingizga baribir kirishingiz mumkin.
 
-Agar Chrome sizning didingizga mos kelmasa, unga bog'lanib qolganingiz yo'q. Omarchy menyusidagi _Install > Browser_ ostida [Chromium](https://www.chromium.org/) (Chrome yasalgan oddiy ochiq manbali build), Edge, Brave, Brave Origin, Firefox va [Zen](https://zen-browser.app/) ni topasiz. Birini tanlang, Omarchy uni o'rnatadi, uning policy katalogini sozlaydi va unga joriy mavzuingizni qo'llaydi.
+Agar Chrome sizning didingizga mos kelmasa, unga bogʻlanib qolgansiz yoʻq. Omarchy menyusidagi _Oʻrnatish > Brauzer_ boʻlimida [Chromium](https://www.chromium.org/) (Chrome yaratilgan oddiy ochiq manbali talqin), Edge, Brave, Brave Origin, Firefox, [Zen](https://zen-browser.app/) va [Ladybird](https://ladybird.org/) ni topasiz (Edge faqat x86 mashinalarida). Birini tanlang, Omarchy uni oʻrnatadi, uning siyosat katalogini sozlaydi va unga joriy mavzuingizni qoʻllaydi.
 
 ## Birini standart qilish
 
-Brauzerni o'rnatish uni standartga aylantirmaydi. U mashinada paydo bo'lgach, _Setup > Defaults > Browser_ ga o'ting va uni tanlang — menyu faqat siz haqiqatan o'rnatgan brauzerlarni ro'yxatga oladi va joriy standartni belgi bilan ko'rsatadi.
+Brauzerni oʻrnatish uni standartga aylantirmaydi. Almashtirish uchun _Sozlash > Standartlar > Brauzer_ boʻlimiga oʻting va birini tanlang. Joriy standart katakcha bilan belgilangan, hali sizda yoʻq brauzerni tanlasangiz, u avval oʻrnatiladi.
 
 Terminaldan bu shunday:
 
@@ -14,26 +14,32 @@ Terminaldan bu shunday:
 omarchy default browser firefox
 ```
 
-Uni hech qanday argumentsiz ishga tushiring, u sizga joriy standartni aytadi. Bu XDG handler ni o'rnatadi, shuning uchun faqat Omarchy tezkor tugmalari unga ergashmaydi — havolani ochadigan har qanday narsa, chat ilovasidan tortib terminal buyrug'igacha, siz tanlagan brauzerga boradi.
+Uni argumentsiz ishga tushiring, u sizga joriy standartni aytadi. Bu XDG ishlovchisini oʻrnatadi, shuning uchun faqat Omarchy tezkor tugmalari unga moslashmaydi — havolani ochadigan har qanday narsa, chat ilovasidan terminal buyrugʻigacha, siz tanlagan brauzerga oʻtadi.
 
 ## Copy URL va Download Video
 
-Chromium oilasidagi brauzerlar (Chromium ning o'zi, Chrome, Edge va Brave) brauzerdan tashqariga chiqib, tizimingizning qolgan qismiga yetadigan ikkita Omarchy kengaytmasi bilan birga keladi.
+Chromium oilasidagi brauzerlar (Chromiumʼning oʻzi, Chrome, Edge, Brave va Brave Origin) uchta Omarchy kengaytmasi bilan birga keladi: ikkitasi brauzerdan tashqariga chiqib, tizimingizning qolgan qismiga ulanadi, bittasi esa WhatsAppʼni tartibga soladi.
 
-**Copy URL** joriy varaq manzilini `Alt + Shift + L` bilan almashish buferingizga joylaydi. Bu manzil satriga bosib, nusxa olishdan tezroq, va u brauzernikidan emas, tizim almashish buferi orqali o'tgani uchun, siz uni tasdiqlovchi Omarchy bildirishnomasini olasiz va URL darhol [almashish buferi tarixi](08-unified-clipboard-history.md) da va boshqa har bir ilovada mavjud bo'ladi. Agar bosishni afzal ko'rsangiz, asboblar panelida tugmasi ham bor.
+**Copy URL** joriy varaq manzilini `Alt + Shift + L` bilan buferingizga joylaydi. Bu manzil satrini bosib nusxalashdan tezroq, va u brauzer buferi orqali emas, tizim buferi orqali oʻtgani uchun, siz uni tasdiqlovchi Omarchy bildirishnomasini olasiz va URL darhol [bufer tarixi](08-unified-clipboard-history.md) da va har bir boshqa ilovada mavjud boʻladi. Agar bosishni afzal koʻrsangiz, asboblar paneli tugmasi ham bor.
 
-**Download Video** siz ko'rayotgan sahifada o'ynayotgan videoni `Alt + Shift + D` bilan oladi. U URL ni [yt-dlp](https://github.com/yt-dlp/yt-dlp) ga topshiradi, shuning uchun u YouTube dan ancha ko'proq joyda ishlaydi, va yuklab olingan fayl `~/Videos` ga tushadi. Jarayon ovoz balandligi va yorqinlik ishlatadigan o'sha ekrandagi displeyda ko'rinadi, bildirishnomalarni uyib tashlamasdan, joyida yangilanadi. Agar fayllar boshqa joyga borishini xohlasangiz, `OMARCHY_YTDLP_DIR` ni o'rnating — muhit o'zgaruvchilarini qayerga qo'yish kerakligini [FAQ](46-faq.md) da ko'ring.
+**Download Video** siz koʻrayotgan sahifada ijro etilayotgan videoni `Alt + Shift + D` bilan oladi. U URLʼni [yt-dlp](https://github.com/yt-dlp/yt-dlp) ga topshiradi, shuning uchun u YouTubeʼdan ancha koʻp joyda ishlaydi, va yuklab olish `~/Videos` ga tushadi. Jarayon ovoz balandligi va yorqinligi ishlatadigan oʻsha ekrandagi displeyda koʻrinadi, bildirishnomalarni uyib tashlamasdan, joyida yangilanadi. Agar fayllar boshqa joyga tushishini xohlasangiz, `OMARCHY_YTDLP_DIR` ni oʻrnating — muhit oʻzgaruvchilarini qayerga qoʻyishni [FAQ](46-faq.md) da koʻring.
 
-Ikkala kengaytma ham Omarchy bilan kichik native messaging host orqali gaplashadi, u siz uchun brauzer bilan birga o'rnatiladi. Aynan shu qism veb-sahifadagi videoning uy katalogingizga tushishiga va URL ning almashish buferi menejeringizga tushishiga imkon beradi, oddiy kengaytma buni o'zi qila olmaydi.
+Ikkala kengaytma ham Omarchy bilan kichik mahalliy xabarlar xosti orqali gaplashadi, u siz uchun brauzer bilan birga oʻrnatiladi. Aynan shu qism veb-sahifadagi videoning uy katalogingizga tushishiga va URLʼning bufer boshqaruvchingizga tushishiga imkon beradi, oddiy kengaytma buni oʻzi qila olmaydi.
+
+**WhatsApp Slim** WhatsApp Webʼni tizim mavzuingizga ergashishga majbur qiladi va oyna tor boʻlganda uning chatlar roʻyxatini yigʻadi.
 
 Bular faqat Chromium oilasi uchun. Firefox va Zen ularni olmaydi.
 
 ## Firefox va Zen
 
-Firefox va Zen boshqa oila, shuning uchun ularga boshqacha munosabatda bo'linadi: Omarchy oqilona standartlar uchun policies faylini o'rnatadi va ularni native Wayland rejimiga o'tkazadi, bu sizga kasrli masshtablash va trackpad da silliq aylantirish uchun kerak.
+Firefox va Zen boshqa oila, shuning uchun ularga boshqacha munosabat qilinadi: Omarchy oqilona standartlar uchun siyosatlar faylini oʻrnatadi va ularni mahalliy Wayland rejimiga oʻtkazadi, bu sizga kasrli masshtablash va trekpedda silliq aylantirish uchun kerak.
 
-Ular yuqoridagi Chromium kengaytmalarini olmaydi va Omarchy tomonidan mavzulashtirilmaydi, shuning uchun tajribaning o'sha qismlarini sozlash sizning zimmangizda.
+Ularda yuqoridagi Chromium kengaytmalari berilmaydi, va ular Omarchy tomonidan mavzulashtirilmaydi, shuning uchun tajribaning oʻsha qismlarini oʻzingiz sozlashingiz kerak.
+
+## Ladybird
+
+Ladybird — noldan yozilgan brauzer, Chromium yoki Firefox dvijoki oʻrniga oʻz dvijokiga ega. U hali alfa bosqichida, shuning uchun hali ishlamaydigan saytlarni kuting, va Omarchy uni boricha oʻrnatadi: kengaytmalarsiz, mavzusiz, siyosatlarsiz. Unda shaxsiy oyna ham yoʻq, shuning uchun `Super + Shift + Alt + B` uni yopganingizda oʻchiriladigan vaqtinchalik profil bilan ochadi. [Veb-ilovalar](25-web-apps.md) Chrome yoki Chromiumʼda ishlashda davom etadi.
 
 ## Birini yana olib tashlash
 
-Bu brauzerlarning har biri, Chrome ham shu jumladan, _Remove > Browser_ ostida yana olib tashlanishi mumkin. Keyin, agar ikkinchisi hali o'rnatilgan bo'lsa, havolalar Chrome yoki Chromium ga boradi.
+Bu brauzerlarning har biri, Chrome ham shu jumladan, _Olib tashlash > Brauzer_ boʻlimida yana olib tashlanishi mumkin. Agar ikkinchisi hali oʻrnatilgan boʻlsa, havolalar keyin Chrome yoki Chromiumʼga oʻtadi.

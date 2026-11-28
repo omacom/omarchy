@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Codex
+Comment=Start Codex in a terminal
+Exec=omarchy-agent --agent codex --app-id=org.omarchy.codex
+Icon=omarchy-agent-codex
+StartupWMClass=org.omarchy.codex
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

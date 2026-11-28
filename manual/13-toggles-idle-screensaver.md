@@ -17,10 +17,12 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Touchscreen | — | `omarchy toggle touchscreen` |
+| Full screen desktop (no bar, no gaps) | `Super + Ctrl + Alt + F` | `omarchy toggle fullscreen desktop` |
+| Animations, blur and shadows | — | `omarchy toggle animations` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Touchscreen | — | `omarchy device touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
-| Hybrid GPU | — | `omarchy toggle hybrid gpu` |
+| Hybrid GPU | — | `omarchy device gpu hybrid` |
 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
 
@@ -38,7 +40,7 @@ The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar
 
 ### Indicators in the bar
 
-When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries dictation, screen recording, pending reminders, night light, do not disturb, and stay awake.
+When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries screen recording, pending reminders, night light, do not disturb, and stay awake, plus warnings while passwordless sudo is on or someone is connected to a remote session.
 
 Inactive indicators are hidden. Hover anywhere on the bar and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
 
@@ -63,7 +65,7 @@ Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~
 
 Nothing is lost, though. Silenced notifications are held back: put the last few back on screen with `Super + Shift + Alt + ,`. See [notices](10-notices.md) for the rest.
 
-Two kinds of message still get through: Omarchy's own confirmation toasts for something you just did ("Theme changed", "Screenshot saved"), and critical alerts sent from the command line. Chat apps that mark everything critical to force their way in front of you don't qualify.
+Three kinds of message still get through: Omarchy's own confirmation toasts for something you just did ("Theme changed", "Screenshot saved"), critical alerts sent from the command line, and verification codes. Chat apps that mark everything critical to force their way in front of you don't qualify.
 
 ### Idle
 

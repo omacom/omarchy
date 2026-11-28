@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import json
 import os
 import re
 import sys
 import time
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +63,7 @@ from collectors import (  # noqa: E402
 )
 
 AGENT_ID = "claude"
-AGENT_NAME = "Claude Code"
+AGENT_NAME = "Claude"
 AUTH_HELP = "Run `claude auth login` to restore authoritative usage."
 USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
 # Anthropic rate-limits its usage endpoint readily. A refused re-check of
@@ -685,14 +687,47 @@ def current_account_id(home: Path) -> str:
   return str(account.get("accountUuid") or "") if isinstance(account, dict) else ""
 
 
-def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
-  home = expand_path(account["home"]) if account.get("home") else expand_path("~/.claude")
+def current_account_email(home: Path) -> str:
+  account = read_json(profile_path(home)).get("oauthAccount")
+  return str(account.get("emailAddress") or "") if isinstance(account, dict) else ""
+
+
+# Switching moves logins between homes holding this lock, so where each login
+# is and the login itself are read under it together, never either side of a move.
+@contextmanager
+def accounts_locked():
+  root = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "omarchy" / "agents" / "accounts"
+  if not root.is_dir():
+    yield
+    return
+  with open(root / f".{AGENT_ID}.lock", "a") as handle:
+    fcntl.flock(handle, fcntl.LOCK_SH)
+    try:
+      yield
+    finally:
+      fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def account_login(account: dict[str, Any]) -> dict[str, Any]:
+  # `login` is where the account's login is now: ~/.claude while it's the one
+  # sessions use, its own home while another is.
+  where = account.get("login") or account.get("home")
+  home = expand_path(where) if where else expand_path("~/.claude")
   access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(home)
-  # Keyed by the subscription, not the label: forget "Work" and add a different
-  # "Work", and the new one must never fall back on the old one's allowance.
   # Who the home is signed in as now, not when it was added: a `claude auth
   # login` run in it by hand makes it a different subscription.
-  identity = current_account_id(home)
+  return {
+    "token": (access_token, expires_at_ms, refresh_expires_at_ms),
+    "plan": plan,
+    "identity": current_account_id(home),
+    "email": current_account_email(home),
+  }
+
+
+def account_limits(account: dict[str, Any], login: dict[str, Any], force: bool) -> dict[str, Any]:
+  identity = login["identity"]
+  # Keyed by the subscription, not the label: forget "Work" and add a different
+  # "Work", and the new one must never fall back on the old one's allowance.
   key = re.sub(r"[^A-Za-z0-9_-]", "", identity or str(account.get("accountId") or "")) or account["id"]
   # The primary home is keyed the same way once it says who it's signed in
   # as, so signing it in to another subscription never inherits the last
@@ -701,8 +736,9 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
     cache_name = "claude-limits.json"
   else:
     cache_name = f"claude-limits-{key}.json"
-  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
-  return account_entry(account, limits, plan)
+  limits = collect_limits(*login["token"], force, cache_name)
+  extra = {"email": login["email"]} if login["email"] else {}
+  return account_entry(account, limits, login["plan"], **extra)
 
 
 # -------------------------------------------------------------------- record
@@ -719,13 +755,17 @@ def main() -> int:
   scan_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else args.cache_seconds)
   stats = local_stats(claude_dir, scan_age, use_index=not args.force)
 
-  registered = registered_accounts(AGENT_ID)
-  accounts = [account_limits(account, args.force) for account in registered]
+  # The probes run after the lock is released, so a switch never waits on Anthropic.
+  with accounts_locked():
+    registered = registered_accounts(AGENT_ID)
+    logins = [account_login(account) for account in registered]
+  accounts = [account_limits(account, login, args.force) for account, login in zip(registered, logins)]
   current = next((a for a in accounts if a["active"]), None)
   if current:
     # The top-level fields keep describing the account new sessions use, so
     # the bar icon and anything else reading one set of limits stays right.
     plan = current["plan"]
+    account_name = str(current.get("email") or "")
     limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
     stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
@@ -748,6 +788,7 @@ def main() -> int:
       or number(stats.get("todayPrompts")) > 0
       or len(limits["limits"]) > 0
     )
+    account_name = current_account_email(claude_dir) if in_use else ""
     if not in_use:
       limits = {"limits": [], "usageStatusText": "", "authHelpText": ""}
       stale, fetched_at = False, 0
@@ -766,6 +807,8 @@ def main() -> int:
     limitsStale=stale,
     limitsFetchedAt=fetched_at,
   )
+  if account_name:
+    record["accountName"] = account_name
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
   if accounts:

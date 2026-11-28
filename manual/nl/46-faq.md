@@ -1,8 +1,8 @@
 # FAQ
 
-### Hoe wissel ik tussen toetsenbordindelingen?
+### Hoe schakel ik tussen toetsenbordindelingen?
 
-Bewerk je `~/.config/hypr/input.lua`-bestand en voeg dit toe om tussen indelingen te wisselen met `Left Alt + Right Alt`:
+Bewerk je bestand `~/.config/hypr/input.lua` en voeg dit toe om met `Left Alt + Right Alt` tussen indelingen te schakelen:
 
 ```
 hl.config({
@@ -14,41 +14,41 @@ hl.config({
 })
 ```
 
-De balk toont automatisch je huidige toetsenbordindeling zodra je meerdere indelingen hebt ingesteld (en je kunt er ook op klikken om te wisselen).
+De balk toont automatisch je huidige toetsenbordindeling zodra je meerdere indelingen hebt geconfigureerd (en je kunt er ook op klikken om te schakelen).
 
-### Hoe wijzig ik de kloknotatie naar 12-uurs?
+### Hoe verander ik de klokindeling naar 12-uurs?
 
-Klik met de rechtermuisknop op de klok in de balk om door de gangbare notaties te bladeren, waaronder de 12-uursnotaties. Je kunt de notatie ook direct instellen:
+Klik met rechts op de klok in de balk om door de gangbare indelingen te bladeren, waaronder de 12-uursindelingen. Je kunt de indeling ook direct instellen:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Dit toont zondag 10:55 AM.
+Dit geeft zondag 10:55 AM weer.
 
-### Hoe wijzig ik mijn tijdzone?
+### Hoe verander ik mijn tijdzone?
 
-Voer _Update > Timezone_ uit in het Omarchy-menu en kies uit de lijst. Als de tijdzone klopt maar de klok zelf is verlopen, start _Update > Time_ de tijdsynchronisatie opnieuw voor je.
+Voer _Instellen > Regio > Tijdzone_ uit in het Omarchy-menu en kies uit de lijst. Als de tijdzone klopt maar de klok zelf is verlopen, herstart _Bijwerken > Tijd_ de tijdsynchronisatie voor je.
 
-### Hoe wijzig ik mijn DNS, deel ik mijn Wi-Fi of controleer ik mijn verbindingssnelheid?
+### Hoe verander ik mijn DNS, deel ik mijn Wi-Fi of controleer ik mijn verbindingssnelheid?
 
-Dat vind je allemaal in [netwerken](35-networking.md).
+Die vind je allemaal in [netwerken](35-networking.md).
 
 ### Hoe controleer ik hoe snel mijn schijf is?
 
-_Trigger > Speed Test > Disk Speed Test_ meet live de lees- en schrijfsnelheid op je schijf, of `omarchy disk speedtest` vanuit de terminal.
+_Trigger > Snelheidstest > Schijfsnelheidstest_ meet live de lees- en schrijfsnelheid van je schijf, of `omarchy disk speedtest` vanuit de terminal.
 
 ### Hoe voeg ik een printer toe?
 
-Printen is kant-en-klaar ingesteld en werkt meteen, en elke printer voeg je zelf toe vanuit _Print Settings_ in de app launcher (`Super + Space`).
+Printen is kant-en-klaar ingesteld en actief, en je voegt elke printer zelf toe vanuit _Printinstellingen_ in de app-starter (`Super + Alt + Space`).
 
-Kies _Add_ en geef het even de tijd om te zoeken: een printer die via USB is aangesloten, en de meeste netwerkprinters, worden voor je gevonden. Staat die van jou niet in de lijst, kies dan _Network Printer > Internet Printing Protocol (ipp)_ en voer het adres in — het schermpje van de printer zelf of de webpagina ervan vertelt je wat dat is, meestal iets als `192.168.1.50` met een wachtrij van `ipp/print`. _Forward_ biedt vervolgens een driver aan, waarbij een moderne printer het beste werkt met het driverloze _IPP Everywhere_-profiel en een oudere printer de eigen driver van het model wil.
+Kies _Toevoegen_ en geef het een moment om te zoeken: een printer die via USB is aangesloten, en de meeste netwerkprinters, worden voor je gevonden. Als die van jou niet in de lijst staat, kies dan _Netwerkprinter > Internet Printing Protocol (ipp)_ en voer het adres in — het display van de printer zelf of de webpagina ervan vertelt je wat dat is, meestal iets als `192.168.1.50` met een wachtrij van `ipp/print`. _Volgende_ biedt vervolgens een stuurprogramma aan, waarbij een moderne printer het beste werkt op het stuurprogrammaloze profiel _IPP Everywhere_ en een oudere het eigen stuurprogramma van het model wil.
 
-Klik met de rechtermuisknop op een printer en kies _Set as Default_ om te bepalen welke printer je apps als eerste gebruiken, en _Properties_ om papierformaat, duplex en kwaliteit in te stellen.
+Klik met rechts op een printer en kies _Instellen als standaard_ om te kiezen welke je apps als eerste gebruiken, en _Eigenschappen_ om papierformaat, dubbelzijdig printen en kwaliteit in te stellen.
 
-Automatische detectie, waarbij printers op het netwerk verschijnen zonder dat je ze toevoegt, is tijdelijk uitgeschakeld terwijl eraan wordt gewerkt, en daarom is die eerste stap hierboven handwerk in plaats van automatisch. Naar een PDF-bestand printen werkt zonder enige printer.
+Automatische detectie, waarbij printers op het netwerk verschijnen zonder dat ze zijn toegevoegd, is tijdelijk uitgeschakeld terwijl er opnieuw aan wordt gewerkt, en daarom is de eerste stap hierboven aan jou en niet automatisch. Printen naar een PDF-bestand werkt helemaal zonder printer.
 
-### Hoe wijzig ik waar screenshots of schermopnames worden opgeslagen?
+### Hoe verander ik waar screenshots of schermopnamen worden opgeslagen?
 
 Opgeslagen screenshots gaan standaard naar `~/Pictures/Screenshots`. Om een andere map te gebruiken, voeg je dit toe aan een bestand onder `~/.config/uwsm/env.d/` (zoals `~/.config/uwsm/env.d/capture`):
 
@@ -56,26 +56,26 @@ Opgeslagen screenshots gaan standaard naar `~/Pictures/Screenshots`. Om een ande
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Dat kun je ook doen voor schermopnames met `OMARCHY_SCREENRECORD_DIR`.
+Hetzelfde kun je doen voor schermopnamen met `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap maakt zijn screenshotmap automatisch aan. Maak de map voor schermopnames zelf aan en herstart daarna Omarchy om een van beide omgevingswijzigingen door te voeren.
+Omasnap maakt zijn screenshotmap automatisch. Maak de map voor schermopnamen zelf en herstart daarna Omarchy om een van beide omgevingswijzigingen van kracht te laten worden.
 
 ### Hoe krijg ik de luidsprekers + webcam aan de praat op mijn Apple Studio Display?
 
-Je zou denken dat het allemaal gewoon moet werken als je USB C inplugt, maar helaas is dat niet het geval. De oplossing die ik heb gevonden om het betrouwbaar te laten werken, is [de WJESOG DisplayPort + USB-A => USB-C cable](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Dan werken luidsprekers en webcam als een zonnetje.
+Je zou denken dat alles gewoon zou moeten werken door USB C aan te sluiten, maar helaas is dat niet het geval. De oplossing die ik heb gevonden om het betrouwbaar te laten werken, is [de WJESOG DisplayPort + USB-A => USB-C-kabel](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) gebruiken. Dan werken luidsprekers en webcam als een zonnetje.
 
-Vergeet niet dat je in Omarchy ingebouwde helderheidsbediening hebt voor de Apple Displays (zowel Studio als XDR) met de gewone helderheidstoetsen op het toetsenbord.
+Vergeet niet dat je in Omarchy ingebouwde helderheidsregeling hebt voor de Apple Displays (zowel Studio als XDR) met de gewone helderheidstoetsen op het toetsenbord.
 
-### Hoe kom ik van al die extra software af?
+### Hoe raak ik alle extra software kwijt?
 
-Als je programma's als Obsidian of LibreOffice of andere vooraf geïnstalleerde spullen niet wilt, kun je ze heel eenvoudig verwijderen.
+Als je programma's zoals Obsidian of LibreOffice of een van de andere vooraf geïnstalleerde dingen niet wilt, kun je ze heel eenvoudig verwijderen.
 
-Voer _Remove > Package_ uit om elk geïnstalleerd pakket te zien. Daarna kun je met tab elk pakket selecteren dat je wilt verwijderen, en met return beginnen met het verwijderen van alles wat je hebt geselecteerd.
+Voer _Verwijderen > Pakket_ uit om elk geïnstalleerd pakket te zien. Daarna kun je met tab elk pakket selecteren dat je wilt verwijderen, en met return beginnen met het verwijderen van alles wat je hebt geselecteerd.
 
-En met _Remove > Web App_ in het Omarchy-menu kun je alle vooraf geïnstalleerde webapps verwijderen die je niet wilt.
+En je kunt _Verwijderen > Webapp_ in het Omarchy-menu gebruiken om alle vooraf geïnstalleerde webapps te verwijderen die je niet wilt.
 
-Of voer _Remove > Preinstalls_ uit om alle vooraf geïnstalleerde extra's — webapps, TUIs en optionele applicaties — in één keer op te ruimen. De sneltoetsen waarmee je ze startte, verdwijnen ermee, dus je houdt een schone lei aan toetsbindingen over die je met je eigen bindingen kunt vullen in `~/.config/hypr/bindings.lua`.
+Of voer _Verwijderen > Voorinstallaties_ uit om alle vooraf geïnstalleerde extra's — webapps, TUI's en optionele applicaties — in één keer op te ruimen. De sneltoetsen waarmee ze werden gestart, verdwijnen met ze, dus je houdt een schone lei aan toewijzingen over om te vullen met je eigen toewijzingen in `~/.config/hypr/bindings.lua`.
 
 ---
 
-Voor fouten en dingen die stuk zijn, zie [het gedeelte Probleemoplossing](45-troubleshooting.md).
+Voor fouten en kapotte onderdelen, zie [het gedeelte Problemen oplossen](45-troubleshooting.md).

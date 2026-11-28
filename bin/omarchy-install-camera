@@ -1,13 +1,12 @@
 #!/bin/bash
 
-# omarchy:summary=Let Chromium use the cameras of Snapdragon laptops
+# omarchy:summary=Let Chromium use the cameras of Snapdragon and Intel IPU7 laptops
 
 set -euo pipefail
 
-# Snapdragon cameras run through libcamera, which apps reach through PipeWire,
-# and Chromium keeps its PipeWire camera capture off unless the
-# WebRtcPipeWireCamera feature is on. Other machines keep Chromium's own V4L2
-# capture.
-if omarchy-hw-aarch64-qualcomm; then
+# Snapdragon and Intel IPU7 MIPI cameras reach apps through PipeWire, and
+# Chromium keeps PipeWire camera capture off unless WebRtcPipeWireCamera is on.
+# Other machines keep Chromium's own V4L2 capture.
+if omarchy-hw-aarch64-qualcomm || grep -q "OVTI08F4" /sys/bus/acpi/devices/*/hid 2>/dev/null; then
   omarchy-chromium-add-feature WebRtcPipeWireCamera
 fi

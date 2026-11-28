@@ -1,10 +1,10 @@
 # Yhtenäinen leikepöytä ja historia
 
-Yleensä Linuxissa tarvitset terminaalissa kopioimiseen ja liittämiseen `Ctrl + Shift + C/V` ja kaikkialla muualla `Ctrl + C/V`. Siihen on vaikea tottua kenelle tahansa, joka ei ole syntynyt ja kasvanut Linuxin parissa! Samoin on vaihtamisen laita Superista Ctrliin, jos tulet Macista.
+Tavallisesti Linuxissa tarvitset `Ctrl + Shift + C/V` kopioimiseen ja liittämiseen terminaalissa ja `Ctrl + C/V` samaan kaikkialla muualla. Siihen on vaikea tottua kenenkään, joka ei ole syntynyt ja kasvanut Linuxin parissa! Sama koskee vaihtamista superista ctrliin, jos tulet Macista.
 
-Omarchy ratkaisee molemmat ongelmat yhtenäisillä leikepöydän pikanäppäimillä, jotka toimivat (lähes) kaikkialla. Ne ovat:
+Omarchy ratkaisee molemmat ongelmat yhtenäisillä leikepöydän pikanäppäimillä, jotka toimivat (melkein) kaikkialla. Ne ovat:
 
-| Pikanäppäin | Komento |
+| Hotkey | Command |
 | ------- | ----------- |
 | Super + A | Valitse kaikki |
 | Super + C | Kopioi |
@@ -12,13 +12,13 @@ Omarchy ratkaisee molemmat ongelmat yhtenäisillä leikepöydän pikanäppäimil
 | Super + V | Liitä |
 | Super + Ctrl + V | Leikepöydän historia |
 
-_Huomaa, että useimmat agenttivaljaat käyttävät kuvien liittämiseen `Ctrl + V`, mutta tekstin liittämiseen `Super + V`._
+_Huomaa, että useimmat agenttiharnessit käyttävät `Ctrl + V` kuvien liittämiseen, mutta `Super + V` tekstin liittämiseen._
 
-Käytä `Super + A` ja sitten `Super + C` kopioidaksesi kaiken kohdistettuna olevassa tekstikentässä tai muussa sovelluksessa, joka tukee näppäinyhdistelmää `Ctrl + A`. Terminaalissa `Ctrl + A` siirtyy komentorivin alkuun sen sijaan, että se valitsisi sen tekstin.
+Käytä `Super + A` ja sitten `Super + C` kopioidaksesi kaiken kohdistetussa tekstikentässä tai muussa sovelluksessa, joka tukee `Ctrl + A`. Terminaalissa `Ctrl + A` siirtää komentorivin alkuun sen tekstin valitsemisen sijaan.
 
 ### Leikepöydän historia
 
-Leikepöydän historian tarjoaa Omarchy shell, ja se toimii sekä tekstille että kuville. Käynnistät sen näppäimillä `Super + Ctrl + V`, valitset kohteesi Return-näppäimellä, ja se asetetaan leikepöydälle valmiiksi liitettäväksi näppäimillä `Super + V`.
+Leikepöydän historian tarjoaa Omarchy shell, ja se toimii sekä tekstille että kuville. Käynnistät sen näppäimillä `Super + Ctrl + V` ja valitset merkintäsi returnilla, mikä liittää sen suoraan sovellukseen, jossa olit. Käytä `Shift + Return` vain kopioidaksesi sen leikepöydälle, `Alt + Return` avataksesi sen, `Delete` poistaaksesi sen historiasta ja `Shift + Delete` tyhjentääksesi koko historian.
 
  ![clipboard-history](images/clipboard-history.webp)
 

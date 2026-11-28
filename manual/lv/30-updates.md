@@ -1,41 +1,43 @@
 # Atjauninājumi
 
-Omarchy un jūsu pakotnes tiek uzturētas aktuālas, izmantojot _Update > Omarchy_ Omarchy izvēlnē (`Super + Space`).
+Omarchy un jūsu pakotnes tiek uzturētas aktuālas, izmantojot _Atjaunināšana > Omarchy_ Omarchy izvēlnē (`Super + Space`).
 
-Pats Omarchy ir instalēts kā parastas pacman pakotnes no [Omarchy Package Repository](https://github.com/omacom-io/omarchy-pkgs), tāpēc atjauninājums instalē [jaunāko Omarchy laidienu](https://github.com/omacom/omarchy/releases), palaiž visas neizpildītās migrācijas, lai sinhronizētu jūsu sistēmu ar jaunāko versiju, un atjaunina visas sistēmas pakotnes no [Omarchy Arch Mirror](https://github.com/omacom-io/omarchy-mirror) un [AUR](https://aur.archlinux.org/) (ja esat instalējis kādas AUR pakotnes).
+Omarchy pats ir instalēts kā parastas pacman pakotnes no [Omarchy pakotņu repozitorija](https://github.com/omacom-io/omarchy-pkgs), tāpēc atjauninājums instalē [jaunāko Omarchy laidienu](https://github.com/omacom/omarchy/releases), palaiž visas neizpildītās migrācijas, lai jūsu sistēmu saskaņotu ar jaunāko versiju, un atjaunina visas sistēmas pakotnes no [Omarchy Arch spoguļa](https://github.com/omacom-io/omarchy-mirror) un [AUR](https://aur.archlinux.org/) (ja esat instalējis kādas AUR pakotnes).
 
-Kad tiek izlaisti jauni laidieni, pa labi no jūsu pulksteņa parādīsies apļa bultiņas ikona. Noklikšķiniet uz tās, un atjaunināšanas process sāksies.
+Kad tiek izlaisti jauni laidieni, pulksteņa labajā pusē parādīsies apļa bultiņas ikona. Noklikšķiniet uz tās, un sāksies atjaunināšanas process.
 
 ![update-available](images/update-available.webp)
 
 ### Četri kanāli
 
-Omarchy tiek atjaunināts četros kanālos: stable, RC, edge un dev. Jaunas instalācijas sākas kanālā stable, kas seko [oficiālajiem laidieniem](https://github.com/omacom/omarchy/releases/), kā arī [stabilajam Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror), kas atpaliek no jaunākā par vienu mēnesi, lai mēs varētu pamanīt visas jaunās nesaderības, kurām nepieciešamas konfigurācijas izmaiņas, pirms tās rada problēmas cilvēkiem.
+Omarchy tiek atjaunināts četros kanālos: stable, RC, edge un dev. Jaunas instalācijas sākas stable kanālā, kas seko [oficiālajiem laidieniem](https://github.com/omacom/omarchy/releases/), kā arī [stabilajam Omarchy Arch spogulim](https://github.com/omacom-io/omarchy-mirror), kas atpaliek par vienu mēnesi no jaunākā, lai mēs varētu pamanīt visas jaunās nesaderības, kurām nepieciešamas konfigurācijas izmaiņas, pirms tās sagādā problēmas cilvēkiem.
 
-Bet, ja vēlaties palīdzēt pamanīt šīs iespējamās problēmas, varat izmantot kanālu edge. Tas uzturēs jūsu Omarchy pakotnes atbilstošas jaunākajiem izstrādes būvējumiem un ļaus jums atjaunināt uz jaunākajām Arch pakotnēm, tiklīdz tās kļūst pieejamas. To vajadzētu darīt tikai tad, ja jums ir pieredze ar Linux un zināt, kā atjaunot sistēmu, kurai ir problēmas.
+Bet, ja vēlaties palīdzēt pamanīt šīs iespējamās problēmas, varat darboties edge kanālā. Tas nodrošinās, ka jūsu Omarchy pakotnes seko jaunākajām izstrādes versijām, un ļaus jums atjaunināt uz jaunākajām Arch pakotnēm, tiklīdz tās kļūst pieejamas. Jums to vajadzētu darīt tikai tad, ja jums ir pieredze ar Linux un jūs zināt, kā atjaunot sistēmu, kurai radušās problēmas.
 
-Pirms katra jauna lielā laidiena mēs veiksim galīgo pārbaudi, izmantojot kanālu RC. Ja vēlaties palīdzēt ar galīgo noslīpēšanu, pievienojieties #omarchy-release-candidates kanālā Discord.
+Pirms katra jauna lielā laidiena mēs veiksim galīgo pārbaudi, izmantojot RC kanālu. Ja jūs interesē palīdzēt ar pēdējo pulēšanu, nāciet pievienoties #omarchy-release-candidates kanālam Discord.
 
-Visbeidzot, ir kanāls dev, kas saista Omarchy tieši ar git izrakstītu pirmkodu mapē `~/omarchy`, apvienojumā ar edge pakotnēm. Šo kanālu vajadzētu izmantot tikai tad, ja esat pieredzējis Linux lietotājs, strādājat tieši pie Omarchy un esat gatavs paciest bojājumus.
+Visbeidzot, ir dev kanāls, kas saista Omarchy tieši ar avota koda git izrakstu `~/omarchy`, apvienojumā ar edge pakotnēm. Šo kanālu vajadzētu izmantot tikai tad, ja esat pieredzējis Linux lietotājs, strādājat tieši pie Omarchy un esat gatavs samierināties ar sabojāšanos.
 
-Starp kanāliem varat pārslēgties, izmantojot _Update > Channel_ Omarchy izvēlnē (vai `omarchy-channel-set` terminālī).
+Jūs varat pārslēgties starp kanāliem, izmantojot _Atjaunināšana > Kanāls_ Omarchy izvēlnē (vai `omarchy channel set <stable|rc|edge|dev>` terminālī, ar `omarchy channel current`, lai redzētu, kur atrodaties).
 
 ### Kodolu pārslēgšana
 
-Omarchy palaiž savu `linux-omarchy` kodolu, bet blakus tam varat uzturēt instalētus citus, piemēram, standarta Arch `linux` kodolu vai eksperimentālu būvējumu, ko testējat. Ja ir vairāk nekā viens, _Update > Kernel_ Omarchy izvēlnē tos uzskaita ar atzīmi blakus tam, kas tiek palaists pēc noklusējuma. Izvēlieties citu, vienreiz ievadiet savu paroli, un tas tiks palaists pēc nākamās restartēšanas. Pārējie kodoli paliek sāknēšanas izvēlnē, tāpēc joprojām varat izvēlēties vienu manuāli, ja jaunais noklusējuma kodols rada jums problēmas. Terminālī `omarchy-kernel` parāda pašreizējo noklusējumu, `omarchy-kernel list` — kas ir instalēts, un `omarchy-kernel set <kernel>` — pārslēgšanai.
+Omarchy palaiž savu `linux-omarchy` kodolu, bet jūs varat turēt citus instalētus līdzās tam, piemēram, standarta Arch `linux` kodolu vai eksperimentālu būvējumu, kuru testējat. Kad ir vairāk nekā viens, _Atjaunināšana > Kodols_ Omarchy izvēlnē uzskaita tos ar atzīmi blakus tam, kurš tiek palaists pēc noklusējuma. Izvēlieties citu, vienreiz ievadiet savu paroli, un tas tiks palaists pēc nākamās restartēšanas. Pārējie kodoli paliek palaišanas izvēlnē, tāpēc jūs joprojām varat izvēlēties kādu manuāli, ja jaunais noklusējums sagādā jums problēmas. Terminālī `omarchy kernel` parāda pašreizējo noklusējumu, `omarchy kernel list` parāda to, kas ir instalēts, un `omarchy kernel set <kernel>` pārslēdz.
 
-### Programmaparatūras atjauninājumi
+### Aparātprogrammatūras atjauninājumi
 
-Jūsu pakotnes nav vienīgais, kas noveco. Daudzi klēpjdatori un perifērijas ierīces nodrošina BIOS, SSD un dokstaciju programmaparatūru, izmantojot Linux Vendor Firmware Service, un _Update > Firmware_ Omarchy izvēlnē iegūs un instalēs visu, ko jūsu aparatūra gaida. Pirmajā palaišanas reizē tas instalē `fwupd`. Lielu daļu programmaparatūras var ierakstīt tikai restartēšanas laikā, tāpēc nebrīnieties, ja jums tiks lūgts restartēt.
+Jūsu pakotnes nav vienīgais, kas noveco. Daudzi klēpjdatori un perifērijas ierīces nodrošina BIOS, SSD un dokstaciju aparātprogrammatūru, izmantojot Linux Vendor Firmware Service, un _Atjaunināšana > Aparātprogrammatūra_ Omarchy izvēlnē iegūs un instalēs visu, ko jūsu aparatūra gaida. Pirmajā palaišanas reizē tas instalē `fwupd`. Lielu daļu aparātprogrammatūras var ierakstīt tikai restartēšanas laikā, tāpēc nebrīnieties, ja jums tiks lūgts restartēt.
+
+Kad jums nepieciešams mainīt iestatījumu pašā BIOS, turiet nospiestu `Alt` sistēmas izvēlnē (`Super + Escape`), un _Restartēt_ pārvēršas par _Restartēt uz BIOS_, kas restartē tieši uz aparātprogrammatūras iestatīšanu, bez nepieciešamības noķert pareizo taustiņu palaišanas laikā. Terminālī tas ir `omarchy system firmware`.
 
 ### Brīdinājums par tiešiem pacman/yay atjauninājumiem
 
-Ja jau pazīstat Arch, jums varētu rasties kārdinājums vienkārši pašam palaist `pacman -Syu` vai `yay -Syu`, bet, ja to darīsiet, jūs palaidīsiet garām momentuzņēmumu, migrācijas un konfigurācijas atjauninājumus, ko Omarchy palaiž kopā ar jaunajām pakotnēm. Tāpēc Omarchy faktiski apturēs tiešu sistēmas jaunināšanu un norādīs jums uz `omarchy update`. (Ja patiešām zināt, ko darāt, aizsargs jums pateiks, kā to apiet vienam darījumam.)
+Ja jūs jau pārzināt Arch, jums varētu rasties kārdinājums vienkārši pašam palaist `pacman -Syu` vai `yay -Syu`, bet, ja jūs to darīsiet, jūs palaidīsiet garām momentuzņēmumu, migrācijas un konfigurācijas atjauninājumus, ko Omarchy palaiž kopā ar jaunajām pakotnēm. Tāpēc Omarchy faktiski apturēs tiešu sistēmas jaunināšanu un norādīs jums uz `omarchy update`. (Ja jūs patiešām zināt, ko darāt, aizsargs jums pateiks, kā to apiet vienai transakcijai.)
 
 ### Sliktu atjauninājumu atcelšana
 
-Ja pēc atjaunināšanas jums kādreiz rodas problēma, varat atcelt sistēmu uz momentuzņēmumu, kas uzņemts pirms atjaunināšanas. Vienkārši restartējiet un sāknēšanas ielādes izvēlnē izvēlieties momentuzņēmumu no laika pirms atjaunināšanas sākšanas.
+Ja pēc atjaunināšanas jums kādreiz rodas problēma, jūs varat atcelt sistēmu uz momentuzņēmumu, kas uzņemts pirms atjaunināšanas. Vienkārši restartējiet un palaišanas ielādes izvēlnē izvēlieties momentuzņēmumu no laika pirms atjaunināšanas sākšanas.
 
 ![bootloader](images/bootloader.webp)
 
-Ja jūsu konfigurācijas faili kaut kā ir sabojāti, varat arī veikt Omarchy pārinstalēšanu, izmantojot `omarchy reinstall` terminālī. Tas pārinstalēs visas noklusējuma Omarchy pakotnes, pārslēgs jūs uz stable un pazeminās visas pakotnes, kas ir pārāk jaunas, kā arī atiestatīs visus konfigurācijas failus. Ņemiet vērā, ka visas jūsu lietotāja konfigurācijas izmaiņas Omarchy noklusējumos, to darot, tiks pārrakstītas!
+Ja jūsu konfigurācijas faili kaut kā ir sabojāti, jūs varat arī veikt Omarchy pārinstalēšanu, izmantojot `omarchy reinstall` terminālī. Tas pārinstalēs visas noklusējuma Omarchy pakotnes, novietos jūs stable kanālā (edge Apple Silicon) un pazeminās visas pakotnes, kas ir pārāk jaunas, kā arī atiestatīs visus konfigurācijas failus. Ņemiet vērā, ka, to darot, visas jūsu lietotāja konfigurācijas izmaiņas Omarchy noklusējumos tiks pārrakstītas!

@@ -47,9 +47,11 @@ BarWidget {
   readonly property bool holdOpen: trayMenuOpen || managePopupOpen || barDragging || (!!bar && bar.traySectionPopoutOpen === true)
   // The mark under the bar sits under the icon whose menu is open.
   readonly property Item openPanelIndicatorItem: trayMenuOpen ? activeTrayAnchor : null
-  // Match Waybar's group/tray-expander drawer transition-duration.
-  readonly property int animationDuration: 600
-  property real revealProgress: expanded || holdOpen ? 1 : 0
+  // Expand briskly on hover and collapse slightly faster so the drawer stays crisp.
+  readonly property int expandDuration: 200
+  readonly property int collapseDuration: 135
+  readonly property bool drawerOpen: expanded || holdOpen
+  property real revealProgress: 0
   readonly property real revealExtent: drawerExtent * revealProgress
   // The pinned icons sit against the tray's fixed edge with the chevron past
   // them. Opening, the drawer grows the tray between the two and pushes the
@@ -252,8 +254,27 @@ BarWidget {
   implicitWidth: root.vertical ? root.barSize : trayContent.implicitWidth
   implicitHeight: root.vertical ? trayContent.implicitHeight : root.barSize
 
-  Behavior on revealProgress {
-    NumberAnimation { duration: Style.duration(root.animationDuration); easing.type: Easing.OutCubic }
+  Component.onCompleted: revealProgress = drawerOpen ? 1 : 0
+
+  onDrawerOpenChanged: {
+    revealAnimation.stop()
+    var target = drawerOpen ? 1 : 0
+    var duration = Style.duration(drawerOpen ? expandDuration : collapseDuration)
+    if (duration <= 0) {
+      revealProgress = target
+      return
+    }
+    revealAnimation.to = target
+    revealAnimation.duration = duration
+    revealAnimation.start()
+  }
+
+  NumberAnimation {
+    id: revealAnimation
+    target: root
+    property: "revealProgress"
+    easing.type: Easing.Bezier
+    easing.bezierCurve: Style.easeOut
   }
 
   // The section from `start`, `length` long along the bar, as far as the

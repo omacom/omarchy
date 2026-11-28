@@ -14,6 +14,7 @@ commands and reusable setup leaves:
 - keep root-scoped hardware setup under `install/hardware/` and orchestrate it through `install/hardware/all.sh`.
 - in an image build every `run_logged` leaf in `install/hardware/all.sh` is queued and runs on the machine's first boot instead (`bin/omarchy-provision-hardware`, see `docs/file-layout.md`), possibly offline, using packages already in the image, and before any user exists; keep those leaves idempotent and put nothing but `run_logged` lines in `all.sh`.
 - gate platform-specific setup on a predicate built on `omarchy-hw-platform` (`omarchy-hw-aarch64-apple`), not on `uname -m`; architecture checks (`omarchy-hw-x86`, `omarchy-hw-aarch64`) are only for ABI, binary availability or a repository's `$arch`. Platform names and where platform code lives are in the Platforms section of `AGENTS.md`.
+- when a hardware leaf installs an optional package, add it to `install/omarchy-other.packages` so the ISO offline mirror carries it — or to `install/omarchy-other-aarch64.packages` if the package is built for aarch64 only, so x86_64 ISO builds never try to resolve it.
 - keep every per-user setup leaf under `install/user/` (including `install/user/hardware/` and `install/user/first-run/`) so it is clear what must run for each user.
 - The base install supplies matching kernel headers before hardware setup. DKMS installers should install their driver packages and assume the headers exist.
 - prefer helper commands for package and command checks where available.

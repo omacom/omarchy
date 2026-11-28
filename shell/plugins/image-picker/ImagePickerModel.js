@@ -136,6 +136,46 @@ function visibleWindow(indices, selectedIndex, radius) {
   return items
 }
 
+var SCRUB_EDGE_MARGIN = 40
+var SCRUB_MIN_PITCH = 32
+var SCRUB_MAX_PITCH = 96
+var SCRUB_HYSTERESIS = 6
+
+// Anchor horizontal pointer scrubbing on the first move in the carousel band.
+// Left maps linearly to 0 at the left margin and right to count - 1 at the
+// right margin, with per-item pitch clamped to SCRUB_MIN_PITCH..SCRUB_MAX_PITCH.
+function createScrubAnchor(count, selectedPos, currX, panelWidth) {
+  var anchorPos = Math.max(0, Math.min(Math.max(0, count - 1), selectedPos))
+  var viewLeft = SCRUB_EDGE_MARGIN
+  var viewRight = Math.max(viewLeft, panelWidth - SCRUB_EDGE_MARGIN)
+  var leftCount = anchorPos
+  var rightCount = Math.max(0, count - 1 - anchorPos)
+  return {
+    anchorX: currX,
+    anchorPos: anchorPos,
+    leftPitch: leftCount > 0 ? Math.max(SCRUB_MIN_PITCH, Math.min(SCRUB_MAX_PITCH, Math.max(0, currX - viewLeft) / leftCount)) : SCRUB_MAX_PITCH,
+    rightPitch: rightCount > 0 ? Math.max(SCRUB_MIN_PITCH, Math.min(SCRUB_MAX_PITCH, Math.max(0, viewRight - currX) / rightCount)) : SCRUB_MAX_PITCH
+  }
+}
+
+// Map pointer reading-order X to a position in [0, count - 1] around anchor,
+// with SCRUB_HYSTERESIS px around boundaries so jitter never flaps neighbors.
+function scrubPosition(count, selectedPos, anchor, currX) {
+  if (count <= 0 || selectedPos < 0 || selectedPos >= count || !anchor) return selectedPos
+  function centerOf(pos) {
+    return pos >= anchor.anchorPos
+      ? anchor.anchorX + (pos - anchor.anchorPos) * anchor.rightPitch
+      : anchor.anchorX - (anchor.anchorPos - pos) * anchor.leftPitch
+  }
+  var leftBound = selectedPos > 0 ? (centerOf(selectedPos - 1) + centerOf(selectedPos)) / 2 : -Infinity
+  var rightBound = selectedPos < count - 1 ? (centerOf(selectedPos) + centerOf(selectedPos + 1)) / 2 : Infinity
+  if (currX >= leftBound - SCRUB_HYSTERESIS && currX <= rightBound + SCRUB_HYSTERESIS) return selectedPos
+  var raw = currX >= anchor.anchorX
+    ? anchor.anchorPos + Math.round((currX - anchor.anchorX) / anchor.rightPitch)
+    : anchor.anchorPos - Math.round((anchor.anchorX - currX) / anchor.leftPitch)
+  return Math.max(0, Math.min(count - 1, raw))
+}
+
 // Preserve overlapping delegates as selection moves, including their decoded
 // images. Replacing the entire model on every keypress makes previews flicker.
 function syncWindow(model, items) {
@@ -172,6 +212,8 @@ if (typeof module !== "undefined") {
     nextSelectedIndexForFilter: nextSelectedIndexForFilter,
     matchingIndices: matchingIndices,
     visibleWindow: visibleWindow,
+    createScrubAnchor: createScrubAnchor,
+    scrubPosition: scrubPosition,
     syncWindow: syncWindow
   }
 }

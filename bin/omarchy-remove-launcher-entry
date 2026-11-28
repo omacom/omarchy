@@ -15,6 +15,11 @@ if [[ -z $desktop_id ]]; then
   exit 1
 fi
 
+if [[ $desktop_id == */* || $desktop_id == *$'\n'* || $desktop_id == -* || $desktop_id == "." || $desktop_id == ".." || $desktop_id == ".desktop" ]]; then
+  echo "Invalid launcher entry: $desktop_id" >&2
+  exit 1
+fi
+
 desktop_file_name="$desktop_id"
 if [[ $desktop_file_name != *.desktop ]]; then
   desktop_file_name="$desktop_file_name.desktop"
@@ -37,6 +42,14 @@ if [[ -n ${XDG_DATA_DIRS-} ]]; then
 else
   desktop_dirs+=("/usr/local/share/applications" "/usr/share/applications")
 fi
+
+# Uninstalling a package asks for a password in a terminal. Say so on stdout
+# first, so the launcher knows to get out of the way, and leave the terminal
+# running on its own rather than as a child the shell would take down with it.
+uninstall_in_terminal() {
+  echo "terminal"
+  omarchy-launch-floating-terminal-with-presentation "$1" &>/dev/null &
+}
 
 desktop_file=""
 for dir in "${desktop_dirs[@]}"; do
@@ -65,7 +78,7 @@ is_user_desktop_file() {
 
 desktop_name="${desktop_file##*/}"
 desktop_name="${desktop_name%.desktop}"
-exec_line="$(sed -n 's/^Exec=//p' "$desktop_file" | head -1)"
+exec_line="$(sed -n 's/^Exec=//p' -- "$desktop_file" | head -1)"
 
 if [[ $exec_line =~ omarchy-launch-webapp|omarchy-webapp-handler ]]; then
   OMARCHY_REMOVE_NOTIFY=false omarchy-webapp-remove "$desktop_name"
@@ -77,28 +90,26 @@ if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e
   exit 0
 fi
 
-if [[ $desktop_file_name == "slack.desktop" && $exec_line =~ ^omarchy-launch-slack($|[[:space:]]) ]]; then
-  exec omarchy-launch-floating-terminal-with-presentation omarchy-remove-service-slack
-fi
-
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
-  rm -f "$desktop_file"
-  update-desktop-database "${desktop_file%/*}" &>/dev/null || true
+  rm -f -- "$desktop_file"
+  update-desktop-database -- "${desktop_file%/*}" &>/dev/null || true
   exit 0
 fi
 
-if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
+if package_name="$(pacman -Qqo -- "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
   display_name="${entry_name:-$desktop_name}"
   quoted_package="$(printf '%q' "$package_name")"
   quoted_display="$(printf '%q' "$display_name")"
-  exec omarchy-launch-floating-terminal-with-presentation "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
+  uninstall_in_terminal "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
+  exit 0
 fi
 
-if omarchy-cmd-present flatpak && flatpak info "${desktop_file_name%.desktop}" >/dev/null 2>&1; then
+if omarchy-cmd-present flatpak && flatpak info -- "${desktop_file_name%.desktop}" >/dev/null 2>&1; then
   flatpak_id="${desktop_file_name%.desktop}"
   quoted_flatpak="$(printf '%q' "$flatpak_id")"
-  exec omarchy-launch-floating-terminal-with-presentation "flatpak uninstall $quoted_flatpak"
+  uninstall_in_terminal "flatpak uninstall $quoted_flatpak"
+  exit 0
 fi
 
 echo "Don't know how to uninstall $desktop_file_name" >&2

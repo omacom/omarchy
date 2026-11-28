@@ -1,0 +1,21 @@
+# The splash's own files are among the inputs 91-omarchy-initcpio-rebuild.hook
+# hashes. These are the programs the image copies from other packages: sway,
+# seatd and Quickshell, which the real root's stop also asks over IPC, and the
+# wlroots sway draws with, whose Omarchy build carries the multi-GPU copy. The
+# libraries they load trigger nothing, as Plymouth's didn't: Omarchy rebuilds
+# Quickshell for each Qt update. Upgrades only: the migration that brings the
+# splash in builds the first image.
+[Trigger]
+Operation = Upgrade
+Type = Path
+Target = usr/bin/sway
+Target = usr/bin/seatd
+Target = usr/bin/seatd-launch
+Target = usr/bin/quickshell
+Target = usr/lib/libwlroots-0.20.so*
+
+[Action]
+Description = Rebuilding the boot images for the updated boot splash...
+When = PostTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-update-boot-splash

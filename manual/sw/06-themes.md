@@ -1,12 +1,12 @@
 # Mandhari
 
-Omarchy inakuja na mandhari ishirini na mbili nzuri. Unaweza kuchagua kati yazo kupitia _Muonekano > Mandhari_ katika Menyu ya Omarchy (`Super + Space`) au kwenda moja kwa moja hadi kwenye kichagua mandhari kwa kutumia `Super + Ctrl + T`.
+Omarchy huja na mandhari ishirini na tatu nzuri. Unaweza kuchagua kati yao kupitia _Muonekano > Mandhari_ katika Menyu ya Omarchy (`Super + Space`) au kwenda moja kwa moja kwenye kichaguzi cha mandhari kwa kutumia `Super + Ctrl + T`.
 
-Kila mandhari huweka mtindo kwenye eneo-kazi, terminali, neovim, skrini ya shughuli (btop), Chromium, na ganda zima la Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Muonekano > Mandhari_ ndani ya programu).
+Kila mandhari huweka mtindo kwenye eneo kazi, terminal, neovim, skrini ya shughuli (btop), kivinjari chako (Chrome, Chromium, Edge au Brave), na ganda zima la Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Muonekano > Mandhari_ ndani ya programu).
 
-Mandhari zina seti ya picha za usuli ambazo unaweza kuchagua kati yazo kwa kutumia `Super + Ctrl + W`.
+Mandhari zina seti ya picha za mandharinyuma unazoweza kuchagua kati yake kwa kutumia `Super + Ctrl + W`.
 
-Unaweza kupata mandhari zaidi zaidi kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [kutengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
+Unaweza kupata mandhari zaidi zaidi kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [tengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Miundo ya Kufungua
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Mandhari zinaweza pia kuwa na muundo maalum wa kufungua, ambao hutumika kwa mchakato wa kusimbua wakati wa kuwasha. Unaweza kuchagua mojawapo ya hizi chini ya _Muonekano > Kufungua_. Zinaonekana kama hivi:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Ikoni za programu
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Ikoni zilizo kwenye kizindua programu na doki huchorwa kwa rangi za mandhari yako, kwa hivyo hubadilika pamoja nayo. Hutoka kwenye seti ya ikoni, ambayo unaichagua kando na mandhari chini ya _Muonekano > Ikoni_, kutoka kwenye hakiki za kila seti, kwa njia ileile unavyochagua mandhari:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ ndiyo chaguo-msingi: kila kitu kinachokuja kikiwa kimesakinishwa, kimechorwa kwa mtindo mmoja. Programu zinazojulikana kwa nembo yake, kama Chrome, HEY, au YouTube, huhifadhi umbo lake na kuchukua rangi za mandhari.
+- _Arcade_ huchora programu hizo hizo kama sanaa ya pikseli ya 8-bit, kama konsoli ya zamani ya michezo ingefanya.
+- _Original_ huonyesha kila programu ikiwa na ikoni ambayo mtengenezaji wake aliipa.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Unaweza kusakinisha seti ya ikoni ambayo mtu mwingine ametengeneza kwa _Sakinisha > Mtindo > Ikoni_ (au `omarchy icons install <git url>`), na kuiondoa tena chini ya _Ondoa > Ikoni_. _Sasisha > Ikoni za Ziada_ huleta toleo la hivi karibuni la seti ulizosakinisha.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Kutengeneza yako mwenyewe, weka ikoni zako katika `~/.config/omarchy/icons/<name>/`, faili moja kwa kila programu, iliyopewa jina kufuatia mstari wa `Icon=` wa faili ya `.desktop` ya programu. Faili inayoishia na `.svg` huonyeshwa kama ilivyo. Faili inayoishia na `.svg.tpl` huchorwa kwa rangi za mandhari: andika `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` au `{{ icon_shadow }}` pale rangi inapoenda. Seti ya chaguo-msingi katika `/usr/share/omarchy/icons/papercraft/` ni mahali pazuri pa kuanzia. Ongeza `preview.png` ili kuonyesha seti yako katika kichaguzi; bila moja, Omarchy huchora hakiki kutoka kwenye ikoni zako. Kubadilisha ikoni moja ya seti ya chaguo-msingi, weka toleo lako katika `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Kuwasha na kuingia
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Skrini inayokuomba nenosiri la diski yako wakati kompyuta inaanza, na skrini ya kuingia, pia hufuata mandhari. Kila unapobadilisha mandhari, huchukua mandharinyuma yake, maandishi, rangi ya msisitizo, na nyekundu, kwa hivyo hakuna muundo tofauti wa kufungua wa kuchagua. Kwenye Mac za Apple Silicon, skrini ya nenosiri la diski huhifadhi mwonekano wa chaguo-msingi wa Omarchy vyovyote mandhari ilivyo.

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Show or configure the system DNS provider
-# omarchy:args=[Cloudflare|Google|DHCP|Custom]
+# omarchy:args=[Cloudflare|Google|AliDNS|DHCP|Custom]
 # omarchy:examples=omarchy dns | omarchy dns Cloudflare | omarchy dns Custom
 
 set -euo pipefail
@@ -27,6 +27,9 @@ provider_from_arg() {
     ;;
   Google | google)
     echo "Google"
+    ;;
+  AliDNS | alidns)
+    echo "AliDNS"
     ;;
   DHCP | dhcp)
     echo "DHCP"
@@ -114,6 +117,8 @@ current_dns_provider() {
     echo "Cloudflare"
   elif [[ $dns == *"dns.google"* || $dns == *"8.8.8.8"* || $dns == *"2001:4860:4860::8888"* ]]; then
     echo "Google"
+  elif [[ $dns == *"dns.alidns.com"* || $dns == *"223.5.5.5"* || $dns == *"2400:3200::1"* ]]; then
+    echo "AliDNS"
   else
     echo "Custom"
   fi
@@ -238,7 +243,7 @@ reload_dns_stack() {
 }
 
 usage() {
-  echo "Usage: omarchy-dns [Cloudflare|Google|DHCP|Custom]" >&2
+  echo "Usage: omarchy-dns [Cloudflare|Google|AliDNS|DHCP|Custom]" >&2
 }
 
 if (( $# == 0 )); then
@@ -254,6 +259,11 @@ fi
 if ! provider=$(provider_from_arg "$1"); then
   usage
   exit 1
+fi
+
+if (( EUID != 0 )) && [[ $provider == "Custom" ]]; then
+  echo "Configuring custom DNS servers..."
+  echo ""
 fi
 
 require_root "$provider"
@@ -277,6 +287,19 @@ Google)
 [Resolve]
 DNS=8.8.8.8#dns.google 8.8.4.4#dns.google 2001:4860:4860::8888#dns.google 2001:4860:4860::8844#dns.google
 FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
+DNSOverTLS=opportunistic
+EOF
+  ;;
+
+AliDNS)
+  # Alibaba's resolver, which mainland China reaches where foreign ones are
+  # blocked or slow, with Tencent's DNSPod rather than Quad9 to fall back to.
+  write_networkmanager_dns "223.5.5.5,223.6.6.6,2400:3200::1,2400:3200:baba::1"
+  set_connection_dns "223.5.5.5 223.6.6.6" "2400:3200::1 2400:3200:baba::1"
+  tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
+[Resolve]
+DNS=223.5.5.5#dns.alidns.com 223.6.6.6#dns.alidns.com 2400:3200::1#dns.alidns.com 2400:3200:baba::1#dns.alidns.com
+FallbackDNS=119.29.29.29#dot.pub 1.12.12.12#dot.pub
 DNSOverTLS=opportunistic
 EOF
   ;;

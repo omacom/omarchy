@@ -1,8 +1,8 @@
 # Thèmes
 
-Omarchy est livré avec vingt-deux magnifiques thèmes. Vous pouvez choisir entre eux via _Apparence > Thème_ dans le menu Omarchy (`Super + Space`) ou accéder directement au sélecteur de thèmes avec `Super + Ctrl + T`.
+Omarchy est livré avec vingt-trois magnifiques thèmes. Vous pouvez choisir entre eux via _Apparence > Thème_ dans le menu Omarchy (`Super + Space`) ou accéder directement au sélecteur de thème avec `Super + Ctrl + T`.
 
-Chaque thème habille le bureau, le terminal, neovim, l'écran d'activité (btop), Chromium et l'ensemble du shell Omarchy : la barre supérieure, le menu, les notifications, l'OSD et l'écran de verrouillage. (Pour Obsidian, vous devez sélectionner manuellement le thème Omarchy via _Apparence > Thèmes_ dans l'application).
+Chaque thème stylise le bureau, le terminal, neovim, l'écran d'activité (btop), votre navigateur (Chrome, Chromium, Edge ou Brave), et l'ensemble de l'interface Omarchy : barre supérieure, menu, notifications, OSD et écran de verrouillage. (Pour Obsidian, vous devez sélectionner manuellement le thème Omarchy via _Apparence > Thèmes_ dans l'application).
 
 Les thèmes disposent d'un ensemble d'images d'arrière-plan parmi lesquelles vous pouvez choisir avec `Super + Ctrl + W`.
 
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Déverrouillages
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Les thèmes peuvent aussi avoir un design de déverrouillage personnalisé, utilisé pour le processus de déchiffrement au démarrage. Vous pouvez en sélectionner un sous _Apparence > Déverrouillage_. Voici à quoi ils ressemblent :
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Icônes des applications
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Les icônes du lanceur d'applications et du dock sont dessinées aux couleurs de votre thème, elles changent donc avec lui. Elles proviennent d'un jeu d'icônes, que vous choisissez séparément du thème sous _Apparence > Icônes_, à partir d'aperçus de chaque jeu, de la même façon que vous choisissez un thème :
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ est le jeu par défaut : tout ce qui est installé, dessiné dans un seul style. Les applications connues par leur logo, comme Chrome, HEY ou YouTube, conservent leur forme et adoptent les couleurs du thème.
+- _Arcade_ dessine les mêmes applications en pixel art 8-bit, comme le ferait une vieille console de jeu.
+- _Original_ affiche chaque application avec l'icône que lui a donnée son créateur.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Vous pouvez installer un jeu d'icônes créé par quelqu'un d'autre avec _Installer > Style > Icônes_ (ou `omarchy icons install <git url>`), et le supprimer à nouveau sous _Supprimer > Icônes_. _Mise à jour > Icônes supplémentaires_ récupère la dernière version des jeux que vous avez installés.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Pour créer le vôtre, placez vos icônes dans `~/.config/omarchy/icons/<name>/`, un fichier par application, nommé d'après la ligne `Icon=` du fichier `.desktop` de l'application. Un fichier se terminant par `.svg` est affiché tel quel. Un fichier se terminant par `.svg.tpl` est dessiné aux couleurs du thème : écrivez `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` ou `{{ icon_shadow }}` là où va une couleur. Le jeu par défaut dans `/usr/share/omarchy/icons/papercraft/` est un bon point de départ. Ajoutez un `preview.png` pour afficher votre jeu dans le sélecteur ; sans, Omarchy dessine un aperçu à partir de vos icônes. Pour modifier une seule icône du jeu par défaut, placez votre version dans `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Démarrage et connexion
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+L'écran qui demande le mot de passe de votre disque au démarrage de l'ordinateur, et l'écran de connexion, suivent eux aussi le thème. Chaque fois que vous changez de thème, ils récupèrent son arrière-plan, son texte, sa couleur d'accentuation et ses couleurs rouges, il n'y a donc pas de design de déverrouillage séparé à choisir. Sur les Mac Apple Silicon, l'écran du mot de passe du disque conserve l'apparence par défaut d'Omarchy quel que soit le thème.

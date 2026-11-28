@@ -1,108 +1,118 @@
 # Grafiska program
 
-## Filer
+## Files
 
-Filer (Nautilus) är den grafiska filhanteraren. `Super + Shift + F` öppnar den, och `Super + Shift + Alt + F` öppnar den i den katalog som din terminal står i, vilket sparar en hel del klickande. Med `Ctrl + L` kan du skriva in en sökväg, och om du trycker på `Space` på en fil får du en snabb förhandsvisning utan att öppna något.
+Files (Folio) är den grafiska filhanteraren. `Super + Shift + F` öppnar den, och `Super + Shift + Alt + F` öppnar den i den katalog där din terminal befinner sig, vilket sparar en massa klickande. `Ctrl + L` låter dig skriva en sökväg, och att trycka på `Space` på en fil förhandsvisar den i full storlek utan att öppna den.
 
-Sätt i ett USB-minne eller ett SD-kort så monteras det automatiskt, så det dyker helt enkelt upp i sidofältet. För allt mer avancerat — formatera en enhet, kontrollera SMART-hälsan, skapa partitioner — startar du _Disks_ från programstartaren (`Super + Space`).
+Anslut ett USB-minne eller ett SD-kort så monteras det automatiskt, så det bara dyker upp i sidofältet. För något mer avancerat — formatera en enhet, kontrollera SMART-hälsa, skapa partitioner — starta _Disks_ från programstartaren (`Super + Space`).
 
-Dubbelklick följer vettiga standardval: bilder öppnas i imv, video i mpv, PDF:er i Document Viewer och ren text i Neovim.
+En krypterad enhet ber om sitt lösenord när den ansluts. För att få en att låsas upp av sig själv lägger du till en nyckelfil till den med `sudo cryptsetup luksAddKey /dev/sdX1 <keyfile>` och placerar den nyckelfilen på `~/.config/omarchy/drive-keys/<UUID>`, namngiven efter det UUID som `lsblk -dno UUID /dev/sdX1` skriver ut för den krypterade partitionen, och endast läsbar av dig (`chmod 600`). Om den nyckelfilen saknas eller nekas blir du som vanligt ombedd att ange lösenordet.
+
+Dubbelklick följer vettiga standardval: bilder, videor och musik öppnas i Omaview, PDF:er i Document Viewer, Markdown i Omawrite och vanlig text i din redigerare, Plain om du inte väljer en annan under _Setup > Defaults > Editor_.
 
 ## Disktree
 
-När enheten fylls upp och du inte har en aning om vad som äter upp den startar du [Disktree](https://github.com/tobi/disktree) från programstartaren (`Super + Space`). Den visar en grafisk treemap över din hemkatalog. Större block tar upp mer utrymme; gå in i kataloger med tangentbordet eller musen, markera det som ska bort och granska dina val innan du tar bort något. Kör `disktree --disk` för att skanna hela disken.
+När enheten fylls upp och du inte har en aning om vad som äter upp den startar du [Disktree](https://github.com/tobi/disktree) från programstartaren (`Super + Space`). Den visar en grafisk trädkarta över din hemkatalog. Större block tar mer plats; gå in i kataloger med tangentbordet eller musen, markera det som ska bort och granska dina val innan du tar bort något. Kör `disktree --disk` för att skanna hela disken.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) är ett gratis och mycket utbyggbart anteckningsprogram som använder enkla Markdown-filer för lagring.
+[Obsidian](https://obsidian.md/) är en gratis och mycket utbyggbar anteckningsapp som använder enkla Markdown-filer för lagring.
 
-Obsidian är gratis för alla ändamål, inklusive personlig, kommersiell och ideell användning.
+Obsidian är gratis för alla ändamål, inklusive personligt, kommersiellt och ideellt bruk.
 
 Obsidian erbjuder också ett [kommersiellt tillägg för synkronisering](https://obsidian.md/sync) med mobilappar på iOS och Android. (https://obsidian.md/pricing).
 
-Du startar Obsidian med `Super + Shift + O`. För att använda tem synkronisering måste du välja temat `Omarchy` under inställningarna.
+Du startar Obsidian med `Super + Shift + O`. För att använda temasynkronisering måste du välja temat `Omarchy` i inställningarna.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) är Omarchys eget busenkla skrivprogram för Markdown. Inga valv, inga plugins, bara du och orden.
+[Omawrite](https://github.com/omacom-io/omawrite) är Omarchys egen busenkla app för att skriva Markdown. Inga valv, inga tillägg, bara du och orden.
 
 Du startar Omawrite med `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) är ett enkelt bildredigeringsverktyg som är utmärkt för att beskära, ändra storlek och andra grundläggande ändringar. Förvänta dig bara inget alternativ till Photoshop. Men det har fortfarande en Magic Wand och lager!
+[Pinta](https://www.pinta-project.com/) är ett grundläggande bildredigeringsverktyg som är utmärkt för att beskära, ändra storlek och andra enkla manipulationer. Förvänta dig bara inte ett Photoshop-alternativ. Men den har ändå Magic Wand och lager!
 
 Du startar Pinta via programstartaren (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) är ett temaprogram som kan extrahera färger från en bakgrundsbild och förvandla dem till ett komplett, sammanhängande tema. Det är det enklaste sättet att [skapa ditt eget tema](43-making-your-own-theme.md).
+[Aether](https://github.com/bjarneo/aether) är en temaapp som kan hämta färger från en bakgrundsbild och förvandla dem till ett komplett, sammanhållet tema. Det är det enklaste sättet att [göra ditt eget tema](43-making-your-own-theme.md).
 
 Du startar Aether via programstartaren (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) låter dig skicka filer till andra enheter på samma nätverk som kör appen, ungefär som Apples AirDrop. Det är dock plattformsoberoende, så du kan skicka filer till och från Windows, macOS, Android, iOS och naturligtvis Linux.
+[LocalSend](https://localsend.org/) låter dig skicka filer till andra enheter på samma nätverk som kör appen, som Apples AirDrop. Den fungerar på flera plattformar, så du kan skicka filer till och från Windows, macOS, Android, iOS och så klart Linux.
 
 Du kan öppna Share-menyn med `Super + Ctrl + S` eller under _Trigger > Share_ i Omarchy-menyn. Den ger dig fyra alternativ:
 
-- **Clipboard** skickar det du har kopierat som en textfil. Utmärkt för att få över en länk eller ett kodstycke till telefonen utan att mejla dig själv.
-- **File** öppnar en filväljare där du kan välja flera filer samtidigt.
+- **Clipboard** skickar det du har kopierat som en textfil. Perfekt för att få över en länk eller ett textstycke till telefonen utan att mejla dig själv.
+- **File** öppnar en filväljare där du kan välja flera samtidigt.
 - **Folder** skickar en hel katalog.
-- **Receive** öppnar LocalSend på riktigt så att en annan enhet kan skicka något till dig.
+- **Receive** öppnar själva LocalSend så att en annan enhet kan skicka något till dig.
 
-Samma sak fungerar från terminalen med `omarchy share clipboard`, `omarchy share file [path]` och `omarchy share folder [path]`. Utelämna sökvägen så får du väljaren.
+Samma sak fungerar från terminalen med `omarchy share clipboard`, `omarchy share file [path]` och `omarchy share folder [path]`. Uteslut sökvägen så får du filväljaren.
 
-Du kan också skicka direkt från filhanteraren: högerklicka på ett urval i Nautilus och välj _Send via LocalSend_.
+Du kan också skicka direkt från filhanteraren: högerklicka på valfritt urval i Files och dela det med LocalSend.
 
-Omarchys brandvägg är stängd som standard förutom för LocalSends port, så det här fungerar direkt på en ny installation. Se [säkerhet](48-security.md).
+Omarchys brandvägg är stängd som standard förutom LocalSends port, så detta fungerar direkt på en ny installation. Se [säkerhet](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) är ett komplett kontorspaket med ordbehandlare, kalkylprogram, presentationer, ritprogram och mer. Det är kompatibelt med filer från Microsoft Office, så det här är ett utmärkt sätt att kunna öppna de där Word-dokumenten.
+[LibreOffice](https://www.libreoffice.org/) är ett komplett kontorspaket med ordbehandlare, kalkylprogram, presentationer, ritprogram och mer. Det är kompatibelt med filer från Microsoft Office, så det är ett utmärkt sätt att kunna öppna de där Word-dokumenten.
 
 Du startar LibreOffice via programstartaren (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) är Omarchys eget busenkla presentationsprogram. Ditt bildspel är en enda Markdown-fil med sina bilder och videor bredvid den: skriv varje bild under en liveförhandsvisning, dra bilderna i ordning och presentera sedan i helskärm eller exportera till PDF och PowerPoint. Det plockar till och med upp ditt Omarchy-tema.
+[Hype](https://github.com/omacom/hype) är Omarchys egen busenkla presentationsapp. Din presentation är en enda Markdown-fil med sina bilder och videor bredvid den: skriv varje presentationsbild under en liveförhandsvisning, dra presentationsbilderna i ordning, presentera sedan i helskärm eller exportera till PDF och PowerPoint. Den plockar till och med upp ditt Omarchy-tema.
 
-Du startar Hype via programstartaren (`Super + Space`). Tryck på `?` i programmet för att se varje genväg.
+Du startar Hype via programstartaren (`Super + Space`). Tryck på `?` inuti den för att se alla kortkommandon.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) är Omarchys eget busenkla sätt att signera PDF:er och fylla i dem. Placera din sparade signatur, text och dagens datum var som helst på en sida och spara sedan en signerad kopia bredvid originalet. Se [Fylla i PDF:er](27-filling-out-pdfs.md) för att se hur.
+[Signed](https://github.com/omacom/signed) är Omarchys eget busenkla sätt att signera PDF:er och fylla i dem. Placera din sparade signatur, text och dagens datum var som helst på en sida och spara sedan en signerad kopia bredvid originalet. Se [Fylla i PDF:er](27-filling-out-pdfs.md) för hur du gör det.
 
-Du startar Signed via programstartaren (`Super + Space`), eller öppnar en PDF med det från filhanteraren.
+Du startar Signed via programstartaren (`Super + Space`), eller öppnar en PDF med den från filhanteraren.
+
+## Game Vibes
+
+Game Vibes, i programstartaren (`Super + Space`), är där Omarchys små spel bor: Checkmate, ett 3D-schackspel mot en vän eller den inbyggda motståndaren; Cards, Klondike-patiens; Death Wish, ett pixelnoggrant plattformsspel med tio rum fulla av spikar och sågar; och Neon Swarm, ett arkadskjutspel. Varje spel är en enda webbsida som följer ditt tema. Välj ett med pilarna och `Enter`, och kom tillbaka till listan med `Esc` från ett spels titelsskärm eller `Q` medan det är pausat. Det öppnas i helskärm: `Super + F` gör det till ett fönster och `Super + W` stänger det.
+
+Spelen du gör med en agent dyker också upp här: välj _Make something cool → Game_ i agentpanelen och beskriv ett, eller namnge ett spel som redan finns i Game Vibes för att fortsätta arbeta på det. Agenten kopierar det till `~/Games/vibes`, där det är ditt att ändra, och öppnar det när det är klart. Du kan göra den kopian själv med `omarchy games vibes copy <game>`. Ett spel som någon annan delar installeras som ett tema: välj _Install > Gaming > Game Vibes_ och klistra in dess git-adress, eller kör `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ tar bort ett igen, och _Update > Game Vibes Games_ hämtar nya versioner. Spel laddar three.js från webben, så de behöver en uppkoppling för att starta.
 
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) är Omarchys egen busenkla miniräknare, som öppnas i ett flytande fönster.
 
-Du startar Omacalc med `Super + Shift + Q` (eller miniräknarknappen, om ditt tangentbord har en sådan).
+Du startar Omacalc med `Super + Shift + Q` (eller miniräknarknappen, om ditt tangentbord har en).
 
 ## Signal
 
-[Signal](https://signal.org/) är pionjären inom E2E-krypterade meddelanden och ett utmärkt kommunikationsalternativ för alla som helst slipper gå via någon av de stora teknikkoncernerna.
+[Signal](https://signal.org/) är pionjären för E2E-krypterade meddelanden och ett utmärkt kommunikationsalternativ för alla som helst slipper gå via någon av de stora teknikjättarna.
 
 Du startar Signal med `Super + Shift + G`. Det ingår inte i grundinstallationen, så första gången du trycker på den kombinationen erbjuder Omarchy att installera det åt dig (det finns också under _Install > Service_ i Omarchy-menyn).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) är en enkel, snabb mediaspelare som spelar nästan vad som helst från vilken källa som helst. Utmärkt för att titta på videor.
+[Omaview](https://github.com/omacom/omaview) är Omarchys egen busenkla bildvisare och mediaspelare: ett fönster för dina foton, videor och din musik. Öppna ett foto så stegar piltangenterna genom resten av dess mapp, `N` och `P` gör det för vad som helst, och `Ctrl + M` visar hela mappen som ett rutnät. Den visar också HEIC-, AVIF- och JPEG XL-foton, och fortsätter där du slutade i allt som är långt.
 
-Du startar mpv via programstartaren (`Super + Space`) eller dubbelklickar bara på en video i filhanteraren.
+Tryck på `F` för helskärm, `E` för att redigera en bild i Omasnap eller trimma en video i Omacut, `Ctrl + P` för att skriva ut en bild och `Delete` för att flytta en fil till Papperskorgen (`Ctrl + Z` tar tillbaka den). Tryck på `?` inuti den för att se alla kortkommandon.
+
+Du startar Omaview som _Media Viewer_ via programstartaren (`Super + Space`), eller dubbelklickar bara på en bild, video eller låt i filhanteraren.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) är Omarchys egen busenkla videotrimmare. När allt du behöver är att klippa bort början och slutet av ett klipp slår det att starta en fullfjädrad videoredigerare.
+[Omacut](https://github.com/omacom-io/omacut) är Omarchys egen busenkla videotrimmare. När allt du behöver är att klippa bort början och slutet på ett klipp slår det att starta en fullfjädrad videoredigerare.
 
 Du startar Omacut via programstartaren (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) är Omarchys egen busenkla webbkamerainspelare. Välj din kamera och mikrofon en gång, tryck sedan på `Space` för att spela in och igen för att pausa och återuppta samma tagning. Den spelar alltid in med kamerans högsta upplösning, med en livemikrofonmätare så att du kan kontrollera nivåerna innan du börjar.
+[Monologue](https://github.com/omacom/monologue) är Omarchys egen busenkla webbkamerainspelare. Välj din kamera och mikrofon en gång, tryck sedan på `Space` för att spela in, och igen för att pausa och återuppta samma tagning. Den spelar alltid in i din kameras högsta upplösning, med en livemätare för mikrofonen så att du kan kontrollera dina nivåer innan du börjar.
 
-Stoppa tagningen så öppnas den direkt i en inbyggd redigerare. Dubbelklicka på ett klipp för att dela det, dra i handtagen för att trimma varje del och ta bort de delar du inte vill ha. Spara det sedan som en MP4. Din originalinspelning behålls tills du kastar den, så du kan alltid komma tillbaka och klippa den annorlunda.
+Stoppa tagningen så öppnas den direkt i en inbyggd redigerare. Dubbelklicka på ett klipp för att dela det, dra i handtagen för att trimma varje del och ta bort delarna du inte vill ha. Spara det sedan som en MP4. Din originalinspelning behålls tills du kastar den, så du kan alltid komma tillbaka och klippa om den på ett annat sätt.
 
 Du startar Monologue via programstartaren (`Super + Space`).

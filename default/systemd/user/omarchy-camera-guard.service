@@ -1,0 +1,20 @@
+# Restarts the userland webcam relay when libcamera 0.7.2 leaks its GPU debayer
+# EGL context or deadlocks, so the camera keeps working through a call.
+[Unit]
+Description=Keep the Omarchy userland webcam relay healthy
+ConditionPathExists=%E/omarchy/camera-relay.env
+After=omarchy-camera-relay.service
+Wants=omarchy-camera-relay.service
+StartLimitIntervalSec=0
+
+[Service]
+Slice=session.slice
+# Stands down once libcamera 0.8.0, which fixes both faults, is installed: the
+# unit is then skipped, neither failed nor restarted.
+ExecCondition=@GUARD_BIN@ --needed
+ExecStart=@GUARD_BIN@
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=pipewire.service

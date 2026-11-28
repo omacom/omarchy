@@ -1,12 +1,12 @@
 # Motywy
 
-Omarchy zawiera dwadzieścia dwa piękne motywy. Możesz wybierać spośród nich przez _Wygląd > Motyw_ w Menu Omarchy (`Super + Space`) albo przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
+Omarchy zawiera dwadzieścia trzy piękne motywy. Możesz wybierać spośród nich w menu Omarchy (`Super + Space`), w sekcji _Wygląd > Motyw_, albo przejść bezpośrednio do selektora motywów za pomocą `Super + Ctrl + T`.
 
-Każdy motyw stylizuje pulpit, terminal, Neovim, ekran aktywności (btop), Chromium oraz całą powłokę Omarchy: górny pasek, menu, powiadomienia, OSD i ekran blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy przez _Wygląd > Motywy_ wewnątrz aplikacji).
+Każdy motyw nadaje styl pulpitowi, terminalowi, neovim, ekranowi aktywności (btop), Twojej przeglądarce (Chrome, Chromium, Edge lub Brave) oraz całej powłoce Omarchy: górnemu paskowi, menu, powiadomieniom, OSD i ekranowi blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy w aplikacji, w sekcji _Wygląd > Motywy_).
 
 Motywy mają zestaw obrazów tła, spośród których możesz wybierać za pomocą `Super + Ctrl + W`.
 
-Jeszcze więcej motywów znajdziesz na [stronie z dodatkowymi motywami](https://omarchy.org/themes/), a możesz nawet [stworzyć własny motyw](43-making-your-own-theme.md).
+Możesz znaleźć jeszcze więcej motywów na [stronie z dodatkowymi motywami](https://omarchy.org/themes/) albo nawet [stworzyć własny motyw](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Ekrany odblokowania
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Motywy mogą też mieć własny projekt ekranu odblokowania, który jest używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w _Wygląd > Odblokowanie_. Wyglądają tak:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Ikony aplikacji
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Ikony w programie uruchamiającym aplikacje i w doku są rysowane w kolorach Twojego motywu, więc zmieniają się razem z nim. Pochodzą z zestawu ikon, który wybierasz niezależnie od motywu w sekcji _Wygląd > Ikony_, na podstawie podglądów każdego zestawu, w ten sam sposób, w jaki wybierasz motyw:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ jest domyślny: wszystko, co jest zainstalowane, narysowane w jednym stylu. Aplikacje znane ze swojego logo, takie jak Chrome, HEY czy YouTube, zachowują jego kształt i przybierają kolory motywu.
+- _Arcade_ rysuje te same aplikacje jako 8-bitową grafikę pikselową, tak jak zrobiłaby to stara konsola do gier.
+- _Original_ pokazuje każdą aplikację z ikoną nadaną jej przez jej twórcę.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Zestaw ikon stworzony przez kogoś innego możesz zainstalować w sekcji _Instaluj > Styl > Ikony_ (albo za pomocą `omarchy icons install <git url>`), a usunąć go ponownie w sekcji _Usuń > Ikony_. _Aktualizuj > Dodatkowe ikony_ pobiera najnowszą wersję zainstalowanych przez Ciebie zestawów.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Aby stworzyć własny zestaw, umieść swoje ikony w `~/.config/omarchy/icons/<name>/`, jeden plik na aplikację, nazwany zgodnie z wierszem `Icon=` z pliku `.desktop` aplikacji. Plik kończący się na `.svg` jest wyświetlany tak, jak jest. Plik kończący się na `.svg.tpl` jest rysowany w kolorach motywu: wpisz `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` lub `{{ icon_shadow }}` tam, gdzie ma się znaleźć kolor. Domyślny zestaw w `/usr/share/omarchy/icons/papercraft/` to dobre miejsce, od którego warto zacząć. Dodaj `preview.png`, aby pokazać swój zestaw w selektorze; bez niego Omarchy narysuje podgląd na podstawie Twoich ikon. Aby zmienić pojedynczą ikonę domyślnego zestawu, umieść swoją wersję w `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Uruchamianie i logowanie
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Ekran, który prosi o hasło do dysku podczas uruchamiania komputera, oraz ekran logowania również podążają za motywem. Za każdym razem, gdy zmieniasz motyw, przejmują jego tło, kolor tekstu, kolor akcentu i czerwony kolor, więc nie ma osobnego projektu odblokowywania do wyboru. Na komputerach Mac z Apple Silicon ekran hasła do dysku zachowuje domyślny wygląd Omarchy niezależnie od motywu.

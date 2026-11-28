@@ -42,7 +42,7 @@ You can start Grok using `Super + Shift + Alt + A`.
 
 [WhatsApp](https://www.whatsapp.com/) is one of the most popular messaging services in the world, and the web version is a great option for Linux.
 
-You can start WhatsApp using `Super + Shift + Alt + G`.
+You can start WhatsApp using `Super + Shift + Alt + G`. It opens with Omarchy's WhatsApp Slim extension, which makes it follow your theme and collapses the chat list when the window is narrow.
 
 ## Google apps
 
@@ -62,6 +62,12 @@ You can start X using `Super + Shift + X` and go straight to writing a new post 
 
 You can start YouTube using `Super + Shift + Y`.
 
+## Netflix
+
+[Netflix](https://www.netflix.com/) is included as a web app on new installs.
+
+You start Netflix using the application launcher (`Super + Space`).
+
 ## Zoom
 
 [Zoom](https://zoom.us/) is the most popular video chat system used in the US. Great connections across the world. And 40-minute meetings can be held without a paying account. Omarchy wraps Zoom's web client, and zoom meeting links will open straight into it.
@@ -78,7 +84,7 @@ You start Discord using the application launcher (`Super + Space`).
 
 Select _Install > Service > Microsoft_ to add Outlook, Word, Excel, PowerPoint, Teams, and OneDrive as web apps. Each app has its own launcher and opens directly, using the commercial Microsoft 365 URLs and your existing browser profile. They open in the same browser app windows as Omarchy's other web apps; they do not install the separate Teams for Linux client.
 
-Remove the bundle with _Remove > Service > Microsoft_, or remove individual apps with _Remove > Web App_. You can also install just the apps you want through _Install > Web App_.
+Remove the bundle with _Remove > Services > Microsoft_, or remove individual apps with _Remove > Web App_. You can also install just the apps you want through _Install > Web App_.
 
 For a government or sovereign cloud, edit the URL on the `Exec=` line in the relevant launcher under `~/.local/share/applications/`, such as `Microsoft Teams.desktop`, using the URL supplied by your organization. Write any literal `%` in that line as `%%`. Changes apply on the next launch. Running the bundle installer again replaces its launchers with the default URLs.
 

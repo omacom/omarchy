@@ -1,12 +1,12 @@
-# थीम्स
+# थीम
 
-Omarchy बाईस खूबसूरत थीम्स के साथ आता है। आप Omarchy Menu (`Super + Space`) में _Appearance > Theme_ के ज़रिए इनमें से चुन सकते हैं या `Super + Ctrl + T` का उपयोग करके सीधे थीम सेलेक्टर पर जा सकते हैं।
+Omarchy तेईस खूबसूरत थीम के साथ आता है। आप Omarchy Menu (`Super + Space`) में _Appearance > Theme_ के ज़रिए इनमें से चुन सकते हैं या `Super + Ctrl + T` का उपयोग करके सीधे थीम सेलेक्टर पर जा सकते हैं।
 
-प्रत्येक थीम डेस्कटॉप, टर्मिनल, Neovim, एक्टिविटी स्क्रीन (btop), Chromium, और पूरे Omarchy शेल को स्टाइल करती है: टॉप बार, मेनू, नोटिफ़िकेशन, OSD, और लॉक स्क्रीन। (Obsidian के लिए, आपको ऐप के अंदर _Appearance > Themes_ के ज़रिए मैन्युअल रूप से Omarchy थीम चुननी होगी)।
+प्रत्येक थीम डेस्कटॉप, टर्मिनल, neovim, एक्टिविटी स्क्रीन (btop), आपके ब्राउज़र (Chrome, Chromium, Edge या Brave), और पूरे Omarchy शेल को स्टाइल करती है: टॉप बार, मेनू, नोटिफिकेशन, OSD, और लॉक स्क्रीन। (Obsidian के लिए, आपको ऐप के अंदर _Appearance > Themes_ के ज़रिए मैन्युअल रूप से Omarchy थीम चुननी होगी)।
 
-थीम्स में बैकग्राउंड इमेज का एक सेट होता है, जिनमें से आप `Super + Ctrl + W` का उपयोग करके चुन सकते हैं।
+थीम में बैकग्राउंड इमेज का एक सेट होता है जिन्हें आप `Super + Ctrl + W` का उपयोग करके चुन सकते हैं।
 
-आप [अतिरिक्त थीम्स पेज](https://omarchy.org/themes/) पर और भी थीम्स पा सकते हैं या [अपनी खुद की थीम भी बना सकते हैं](43-making-your-own-theme.md)।
+आप [अतिरिक्त थीम पेज](https://omarchy.org/themes/) पर और भी थीम पा सकते हैं या [अपनी खुद की थीम भी बना सकते हैं](43-making-your-own-theme.md)।
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### अनलॉक
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-थीम्स में एक कस्टम अनलॉक डिज़ाइन भी हो सकता है, जिसका उपयोग बूट डिक्रिप्शन प्रक्रिया के लिए किया जाता है। आप इनमें से किसी एक को _Appearance > Unlock_ के अंतर्गत चुन सकते हैं। वे इस तरह दिखते हैं:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### ऐप आइकन
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+ऐप लॉन्चर और डॉक में आइकन आपकी थीम के रंगों में बनाए जाते हैं, इसलिए वे इसके साथ बदल जाते हैं। वे एक आइकन सेट से आते हैं, जिसे आप थीम से अलग _Appearance > Icons_ के तहत, प्रत्येक सेट के प्रीव्यू से, उसी तरह चुनते हैं जैसे आप थीम चुनते हैं:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ डिफ़ॉल्ट है: जो कुछ भी इंस्टॉल होकर आता है, वह सब एक ही स्टाइल में बनाया गया है। अपने लोगो से पहचाने जाने वाले ऐप, जैसे Chrome, HEY, या YouTube, अपना आकार बनाए रखते हैं और थीम के रंग अपनाते हैं।
+- _Arcade_ उन्हीं ऐप को 8-बिट पिक्सेल आर्ट के रूप में बनाता है, जैसे कोई पुराना गेम कंसोल बनाता।
+- _Original_ हर ऐप को उसके निर्माता द्वारा दिए गए आइकन के साथ दिखाता है।
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+आप _Install > Style > Icons_ (या `omarchy icons install <git url>`) के साथ किसी और के बनाए आइकन सेट को इंस्टॉल कर सकते हैं, और _Remove > Icons_ के तहत उसे फिर से हटा सकते हैं। _Update > Extra Icons_ आपके द्वारा इंस्टॉल किए गए सेट का नवीनतम संस्करण प्राप्त करता है।
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+अपना खुद का बनाने के लिए, अपने आइकन `~/.config/omarchy/icons/<name>/` में रखें, प्रत्येक ऐप के लिए एक फ़ाइल, जिसका नाम ऐप की `.desktop` फ़ाइल की `Icon=` लाइन के नाम पर रखा गया हो। `.svg` पर समाप्त होने वाली फ़ाइल जैसी है वैसी ही दिखाई जाती है। `.svg.tpl` पर समाप्त होने वाली फ़ाइल थीम के रंगों में बनाई जाती है: जहाँ रंग आता हो वहाँ `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` या `{{ icon_shadow }}` लिखें। `/usr/share/omarchy/icons/papercraft/` में डिफ़ॉल्ट सेट शुरुआत करने के लिए एक अच्छी जगह है। अपने सेट को पिकर में दिखाने के लिए एक `preview.png` जोड़ें; इसके बिना, Omarchy आपके आइकन से एक प्रीव्यू बनाता है। डिफ़ॉल्ट सेट के किसी एक आइकन को बदलने के लिए, अपना संस्करण `~/.config/omarchy/icons/papercraft/` में रखें।
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### बूट और लॉगिन
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+कंप्यूटर शुरू होने पर आपकी ड्राइव का पासवर्ड माँगने वाली स्क्रीन, और लॉगिन स्क्रीन, भी थीम का अनुसरण करती हैं। हर बार जब आप थीम बदलते हैं, वे इसकी बैकग्राउंड, टेक्स्ट, एक्सेंट, और लाल रंग अपनाते हैं, इसलिए चुनने के लिए कोई अलग अनलॉक डिज़ाइन नहीं है। Apple Silicon Macs पर, ड्राइव पासवर्ड स्क्रीन थीम चाहे जो भी हो, Omarchy का डिफ़ॉल्ट रूप बनाए रखती है।

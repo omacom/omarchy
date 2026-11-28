@@ -3,12 +3,36 @@
 # omarchy:summary=Launch a TUI or focus an existing terminal window for it
 # omarchy:args=[--app-id=<app-id>] <command> [args...]
 
-if [[ ${1:-} == --app-id=* ]]; then
-  APP_ID="${1#--app-id=}"
-else
-  APP_ID="org.omarchy.$(basename "$1")"
+if (($# == 0)); then
+  echo "Usage: omarchy-launch-or-focus-tui [--app-id=<app-id>] <command> [args...]" >&2
+  exit 1
 fi
 
-LAUNCH_COMMAND="omarchy-launch-tui $@"
+APP_ID=""
+APP_ID_ARGS=()
+if [[ ${1:-} == --app-id=* ]]; then
+  APP_ID="${1#--app-id=}"
+  APP_ID_ARGS=("$1")
+  shift
+fi
 
-exec omarchy-launch-or-focus "$APP_ID" "$LAUNCH_COMMAND"
+if (($# == 0)); then
+  echo "Usage: omarchy-launch-or-focus-tui [--app-id=<app-id>] <command> [args...]" >&2
+  exit 1
+fi
+
+# Preserve legacy single-string command invocations (e.g. from Hyprland
+# helpers.lua or user menu extensions) via the existing eval path so tilde
+# expansion and quoting continue to work, while multi-arg calls bypass eval.
+if (($# == 1)) && [[ $1 == *[[:space:]]* && ! -x $1 ]]; then
+  read -r first _ <<<"$1"
+  if [[ -z $APP_ID ]]; then
+    APP_ID="org.omarchy.$(basename -- "${first:-$1}")"
+  fi
+  exec omarchy-launch-or-focus "$APP_ID" "omarchy-launch-tui ${APP_ID_ARGS[0]:+${APP_ID_ARGS[0]@Q} }$1"
+else
+  if [[ -z $APP_ID ]]; then
+    APP_ID="org.omarchy.$(basename -- "$1")"
+  fi
+  exec omarchy-launch-or-focus "$APP_ID" -- omarchy-launch-tui "${APP_ID_ARGS[@]}" "$@"
+fi

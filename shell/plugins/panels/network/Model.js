@@ -53,12 +53,14 @@ function parseActiveApSignal(raw) {
 // login page. Never execute or automatically open an untrusted Location header.
 var captivePortalUrl = "http://ping.omacom.io/nm-check.txt"
 
-function connectivityState(kind, connectivity, states, checksEnabled) {
+function connectivityState(kind, connectivity, states, checksEnabled, limitedSettled) {
   if (kind === "disconnected") return "none"
   // Ignore stale cached results when the operator has disabled probing.
   if (!checksEnabled) return "unknown"
   if (connectivity === states.Portal) return "portal"
-  if (connectivity === states.Limited) return "limited"
+  // NetworkManager reports Limited for every fresh link until its first probe
+  // answers, so it is only an outage once it has held.
+  if (connectivity === states.Limited) return limitedSettled ? "limited" : "unknown"
   if (connectivity === states.Full) return "full"
   if (connectivity === states.None) return "none"
   return "unknown"
@@ -361,11 +363,33 @@ function wifiStateKey(networks) {
   return keys.sort().join("\u001e")
 }
 
-function sortWifiRows(rows) {
+// `held` is the list on screen, passed while a passphrase is being typed: its
+// rows keep their place and their last signal reading, so a scan doesn't
+// reshuffle the list (or rebuild it over a signal wobble) under the prompt.
+// New networks slot in by signal after them; connected and known still lead,
+// so the section headers stay right.
+function sortWifiRows(rows, held) {
   var nets = Array.isArray(rows) ? rows.slice() : []
+  // No prototype, so an SSID like "hasOwnProperty" is just a key.
+  var place = Object.create(null)
+  var heldList = Array.isArray(held) ? held : []
+  for (var i = 0; i < heldList.length; i++) {
+    if (heldList[i]) place[heldList[i].ssid] = i
+  }
+  nets = nets.map(function(row) {
+    if (!(row.ssid in place)) return row
+    var copy = {}
+    for (var key in row) copy[key] = row[key]
+    copy.signal = heldList[place[row.ssid]].signal
+    return copy
+  })
   nets.sort(function(a, b) {
     if (a.connected !== b.connected) return a.connected ? -1 : 1
     if (a.known !== b.known) return a.known ? -1 : 1
+    var aHeld = a.ssid in place
+    var bHeld = b.ssid in place
+    if (aHeld !== bHeld) return aHeld ? -1 : 1
+    if (aHeld) return place[a.ssid] - place[b.ssid]
     return b.signal - a.signal
   })
   return nets
@@ -396,19 +420,6 @@ function requiresCredentials(security, openSecurity, oweSecurity) {
 function canForgetNetwork(network) {
   return !!(network && network.known && !network.connected)
 }
-
-// The password arrives on stdin and reaches nmcli through the scriptable
-// `connection edit` editor -- argv is world-readable in /proc, so the secret
-// must never be an argument (printf is a bash builtin, so no process spawns
-// with it either).
-var enterpriseConnectScript =
-  "u=$(uuidgen); IFS= read -r pw;" +
-  " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
-  " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
-  " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
-  " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
-  " && nmcli connection up uuid \"$u\"" +
-  " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
 function networkFailureReason(reason, needsCredentials, reasons, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
@@ -465,7 +476,6 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
-    enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase
   }

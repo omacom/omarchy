@@ -1,8 +1,8 @@
 # Теми
 
-Omarchy постачається з двадцятьма двома красивими темами. Вибрати між ними можна через _Оформлення > Тема_ в Omarchy Menu (`Super + Space`) або перейти безпосередньо до вибору теми за допомогою `Super + Ctrl + T`.
+Omarchy постачається з двадцятьма трьома прекрасними темами. Вибирати між ними можна через _Зовнішній вигляд > Тема_ в меню Omarchy (`Super + Space`) або перейти безпосередньо до вибору теми за допомогою `Super + Ctrl + T`.
 
-Кожна тема оформлює робочий стіл, термінал, neovim, екран активності (btop), Chromium і всю оболонку Omarchy: верхню панель, меню, сповіщення, OSD та екран блокування. (Для Obsidian тему Omarchy потрібно вибрати вручну через _Оформлення > Теми_ всередині застосунку).
+Кожна тема оформлює робочий стіл, термінал, neovim, екран активності (btop), ваш браузер (Chrome, Chromium, Edge або Brave) і всю оболонку Omarchy: верхню панель, меню, сповіщення, OSD та екран блокування. (Для Obsidian тему Omarchy потрібно вибрати вручну через _Зовнішній вигляд > Теми_ всередині застосунку).
 
 Теми мають набір фонових зображень, між якими можна вибирати за допомогою `Super + Ctrl + W`.
 
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Розблокування
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Теми також можуть мати власний дизайн розблокування, який використовується під час розшифрування при завантаженні. Вибрати один із них можна в розділі _Оформлення > Розблокування_. Виглядають вони так:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Значки застосунків
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Значки в засобі запуску застосунків і в доку намальовано в кольорах вашої теми, тож вони змінюються разом із нею. Вони походять із набору значків, який ви вибираєте окремо від теми в розділі _Зовнішній вигляд > Значки_ за попередніми переглядами кожного набору, так само, як вибираєте тему:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ — типовий набір: усе, що постачається встановленим, намальовано в одному стилі. Застосунки, впізнавані за логотипом, як-от Chrome, HEY або YouTube, зберігають його форму й набувають кольорів теми.
+- _Arcade_ малює ті самі застосунки як 8-бітний піксель-арт, як це зробила б стара ігрова консоль.
+- _Original_ показує кожен застосунок зі значком, який дав йому його творець.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Встановити набір значків, створений кимось іншим, можна через _Встановлення > Стиль > Значки_ (або `omarchy icons install <git url>`), а видалити його знову — через _Видалення > Значки_. _Оновлення > Додаткові значки_ отримує найновішу версію встановлених вами наборів.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Щоб створити власний набір, покладіть свої значки до `~/.config/omarchy/icons/<name>/`, по одному файлу на застосунок, названому відповідно до рядка `Icon=` у файлі `.desktop` застосунку. Файл, що закінчується на `.svg`, показується як є. Файл, що закінчується на `.svg.tpl`, малюється в кольорах теми: пишіть `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` або `{{ icon_shadow }}` там, де має бути колір. Типовий набір у `/usr/share/omarchy/icons/papercraft/` — хороше місце, з якого варто почати. Додайте `preview.png`, щоб показати свій набір у засобі вибору; без нього Omarchy намалює попередній перегляд із ваших значків. Щоб змінити один значок типового набору, покладіть свою версію до `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Завантаження та вхід
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Екран, який запитує пароль до диска під час запуску комп'ютера, та екран входу також дотримуються теми. Щоразу, коли ви перемикаєте теми, вони переймають її кольори тла, тексту, акценту та червоний, тож окремого оформлення розблокування вибирати не потрібно. На комп'ютерах Mac з Apple Silicon екран пароля до диска зберігає типовий вигляд Omarchy незалежно від теми.

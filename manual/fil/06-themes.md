@@ -1,8 +1,8 @@
 # Mga Tema
 
-May dalawampu't dalawang magagandang tema ang Omarchy. Maaari kang pumili sa mga ito sa pamamagitan ng _Appearance > Theme_ sa Omarchy Menu (`Super + Space`) o dumiretso sa tagapili ng tema gamit ang `Super + Ctrl + T`.
+May dalawampu't tatlong magagandang tema ang Omarchy. Maaari kang pumili sa mga ito sa pamamagitan ng _Hitsura > Tema_ sa Omarchy Menu (`Super + Space`) o dumiretso sa tagapili ng tema gamit ang `Super + Ctrl + T`.
 
-Binibigyan ng estilo ng bawat tema ang desktop, terminal, neovim, activity screen (btop), Chromium, at ang buong Omarchy shell: top bar, menu, mga notification, OSD, at lock screen. (Para sa Obsidian, kailangan mong manu-manong piliin ang tema ng Omarchy sa pamamagitan ng _Appearance > Themes_ sa loob ng app).
+Iniistiluhan ng bawat tema ang desktop, terminal, neovim, activity screen (btop), ang browser mo (Chrome, Chromium, Edge o Brave), at ang buong Omarchy shell: top bar, menu, mga notification, OSD, at ang lock screen. (Para sa Obsidian, kailangan mong manu-manong piliin ang temang Omarchy sa pamamagitan ng _Hitsura > Mga Tema_ sa loob ng app).
 
 May hanay ng mga background image ang mga tema na maaari mong pagpilian gamit ang `Super + Ctrl + W`.
 
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Mga Unlock
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Maaari ding magkaroon ang mga tema ng pasadyang disenyo ng unlock, na ginagamit para sa proseso ng decryption sa boot. Maaari kang pumili ng isa sa mga ito sa ilalim ng _Appearance > Unlock_. Ganito ang hitsura ng mga ito:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Mga icon ng app
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Ang mga icon sa app launcher at dock ay iginuguhit sa mga kulay ng tema mo, kaya nagbabago rin ang mga ito kasama nito. Nagmumula ang mga ito sa isang icon set, na hiwalay mong pinipili mula sa tema sa ilalim ng _Hitsura > Mga Icon_, mula sa mga preview ng bawat set, sa parehong paraan ng pagpili mo ng tema:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ ang default: lahat ng kasamang naka-install, iginuhit sa iisang estilo. Ang mga app na nakikilala sa logo nila, tulad ng Chrome, HEY, o YouTube, ay pinapanatili ang hugis nito at kinukuha ang mga kulay ng tema.
+- Iginuguhit ng _Arcade_ ang parehong mga app bilang 8-bit pixel art, tulad ng gagawin ng isang lumang game console.
+- Ipinapakita ng _Original_ ang bawat app gamit ang icon na ibinigay dito ng gumawa nito.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Maaari kang mag-install ng icon set na ginawa ng iba gamit ang _I-install > Estilo > Mga Icon_ (o `omarchy icons install <git url>`), at alisin itong muli sa ilalim ng _Alisin > Mga Icon_. Kinukuha ng _I-update > Mga Karagdagang Icon_ ang pinakabagong bersyon ng mga set na na-install mo.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Para gumawa ng sarili mo, ilagay ang mga icon mo sa `~/.config/omarchy/icons/<name>/`, isang file bawat app, na pinangalanan ayon sa linyang `Icon=` ng `.desktop` file ng app. Ang file na nagtatapos sa `.svg` ay ipinapakita kung ano ito. Ang file na nagtatapos sa `.svg.tpl` ay iginuguhit sa mga kulay ng tema: isulat ang `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` kung saan ilalagay ang isang kulay. Ang default na set sa `/usr/share/omarchy/icons/papercraft/` ay magandang lugar para magsimula. Magdagdag ng `preview.png` para ipakita ang set mo sa tagapili; kung wala nito, gagawa ang Omarchy ng preview mula sa mga icon mo. Para baguhin ang isang icon lang ng default na set, ilagay ang bersyon mo sa `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Pag-boot at pag-login
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Ang screen na humihingi ng password ng drive mo kapag nagsisimula ang computer, at ang login screen, ay sumusunod din sa tema. Sa bawat pagpapalit mo ng tema, kinukuha nila ang background, teksto, accent, at pulang kulay nito, kaya wala nang hiwalay na disenyo ng pag-unlock na pipiliin. Sa mga Apple Silicon Mac, pinapanatili ng screen ng password ng drive ang default na hitsura ng Omarchy anuman ang tema.

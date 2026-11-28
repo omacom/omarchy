@@ -4,7 +4,7 @@ Omarchy isn't just for _pRoDUcTiVItY_, it's also for having fun, and what's more
 
 Thanks to Valve's incredible work on [the proton compatibility layer](https://en.wikipedia.org/wiki/Proton_(software)), there are now tens of thousands of playable modern games on Linux. Oh, and did you know that the [Steam Deck](https://store.steampowered.com/steamdeck/) actually runs Arch!
 
-All gaming installers live under _Install > Gaming_ in the Omarchy menu (`Super + Space`). If you ever want to undo one, use _Remove > Gaming_.
+All gaming installers live under _Install > Gaming_ in the Omarchy menu (`Super + Space`). If you ever want to undo one, use _Remove > Gaming_. Minecraft, NVIDIA GeForce NOW, Battle.net, Lutris, and Heroic are offered on x86 machines only.
 
 ## Steam
 

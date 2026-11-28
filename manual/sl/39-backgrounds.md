@@ -1,15 +1,19 @@
 # Ozadja
 
-Vsaka tema ima svoj nabor ozadij, svoja dodatna pa lahko dodate v `~/.config/omarchy/backgrounds/[theme]`. Če želite dodati dodatno sliko ozadja, recimo, temi nord, datoteko preprosto položite v `~/.config/omarchy/backgrounds/nord`.
+Vsaka tema je dobavljena s svojim naborom ozadij, dodatna pa lahko dodate tudi sami v `~/.config/omarchy/backgrounds/[theme]`. Če želite dodatno sliko ozadja dodati na primer temi nord, datoteko preprosto položite v `~/.config/omarchy/backgrounds/nord`.
 
-To najlažje storite tako, da v meniju Omarchy odprete _Install > Style > Background_. Odprla se bo mapa, v kateri so shranjena ozadja za to temo. Pritisnite `Super + Shift + F`, da zaženete še en upravitelj datotek, poiščite svoje ozadje in ga prekopirajte tja. Zdaj bo vključeno med ozadja, med katerimi lahko izbirate z `Super + Ctrl + W`.
+To najlažje storite tako, da v meniju Omarchy Menu odprete _Install > Style > Background_. To bo odprlo mapo, v kateri so shranjena ozadja za to temo. Pritisnite `Super + Shift + F`, da zaženete še en upravitelj datotek, poiščite svoje ozadje in ga kopirajte tja. Zdaj bo vključeno med ozadja, med katerimi lahko izbirate s `Super + Ctrl + W`.
 
-Ozadja so lahko tudi videoposnetki, ne le statične slike. V isto mapo odložite datoteko `mp4`, `m4v`, `mov`, `webm`, `mkv` ali `avi` in prikazala se bo poleg slik. Videoposnetke predvaja pogon za ozadja OWE. Videoposnetek dekodira enkrat za vse zaslone, njegov zvok predvaja prek privzetega zvočnega izhoda, predvajanje pa ustavi, kadar ga ni mogoče videti. Video ozadje še vedno porabi precej več energije kot statično.
+Tema brez lastnih ozadij dobi ozadje, narisano iz njenih barv: logotip Omarchy v poudarni barvi teme na njeni barvi ozadja. Dodajte svoje, da ga zamenjate.
 
-Teme lahko vključujejo kratek uvod za statično ozadje. Za `backgrounds/road.webp` je pripadajoči videoposnetek shranjen na `backgrounds/intros/road.mp4`. Predvaja se samodejno ob zagonu, ob preklopu na temo s tem izbranim ozadjem in ob izbiri tega ozadja, nato pa se vrne na statično ozadje. Uvodni videoposnetki se ne prikažejo v izbirniku ozadij in se nikoli ne ponavljajo v zanki.
+Ozadja so lahko tudi videoposnetki, ne le statične slike. V isto mapo položite datoteko `mp4`, `m4v`, `mov`, `webm`, `mkv` ali `avi` in pojavila se bo ob slikah. Videoposnetke predvaja mehanizem za ozadja OWE. Videoposnetek dekodira enkrat za vse monitorje, njegov zvok predvaja prek privzetega zvočnega izhoda in predvajanje ustavi, kadar ga nič ne more videti. Video ozadje še vedno porabi precej več energije kot statično.
 
-Izklop možnosti _Appearance > Animations_ izklopi tudi uvode ozadij. Omarchy to privzeto stori v navideznem stroju. Z ukazom `omarchy theme bg intro toggle` lahko uvode preklapljate ločeno. Osvežitev teme uvoda ne predvaja.
+Teme lahko vsebujejo kratek uvod za statično ozadje. Za `backgrounds/road.webp` je ustrezen videoposnetek na `backgrounds/intros/road.mp4`. Predvaja se samodejno ob zagonu, ob preklopu na temo z izbranim tem ozadjem in ob izbiri tega ozadja, nato pa se vrne na statično sliko. Uvodni videoposnetki se ne pojavijo v izbirniku ozadij in se nikoli ne predvajajo v zanki.
 
-Ogromno zbirko kul skrbno izbranih ozadij najdete v [dharmx/walls](https://github.com/dharmx/walls).
+Izbira _Appearance > Animations Off_ izklopi tudi uvode ozadij. Omarchy to privzeto stori v virtualnem stroju. Z ukazom `omarchy theme bg intro toggle` lahko uvode preklapljate ločeno. Osvežitev teme uvoda ne predvaja.
 
-Zaklenjeni zaslon prikaže statični kader video ozadja, enako kot prikaže statični kader animiranega GIF-a.
+Statična slika ima lahko tudi zanko, tiho različico iste slike, ki se nenehno premika, na `backgrounds/loops/road.mp4`. Predvaja se namesto statične slike, za njenim uvodom, če ga ima, in se ustavi, ko so animacije izklopljene. Na bateriji se namesto nje pokaže statična slika, zanka pa se vrne, ko priključite napajanje. Zanke se ne pojavijo v izbirniku ozadij.
+
+Ogromno zbirko kul kuriranih ozadij najdete v [dharmx/walls](https://github.com/dharmx/walls).
+
+Na zaklenjenem zaslonu se pokaže statični okvir video ozadja, enako kot se pokaže statični okvir animiranega GIF-a.

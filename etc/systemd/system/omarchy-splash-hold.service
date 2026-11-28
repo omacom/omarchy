@@ -1,0 +1,21 @@
+# Keeps the boot splash on its displays from its stop until the login screen or
+# the desktop has them (default/splash/hold). The omarchy-splash late hook
+# starts it from graphical.target on a boot whose splash stays up into the real
+# root; a console login, rescue or emergency shell follows any other boot.
+[Unit]
+Description=Keep the boot splash on screen for the login screen or desktop
+# Started with the stop, so that its time limit counts from there, once logind
+# is up to say when a session has taken the displays.
+After=systemd-user-sessions.service systemd-logind.service
+Before=omarchy-splash-stop.service
+# No compositor follows without a display manager, or once it has stopped.
+BindsTo=display-manager.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+# The stop waits for it.
+TimeoutStartSec=5
+ExecStart=/usr/share/omarchy/default/splash/hold
+RuntimeDirectory=omarchy-splash-hold
+SyslogIdentifier=omarchy-splash-hold

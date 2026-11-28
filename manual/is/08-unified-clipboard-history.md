@@ -1,24 +1,24 @@
-# Sameinað klippiborð og saga
+# Samræmt klemmuspjald og saga
 
-Venjulega á Linux þarftu `Ctrl + Shift + C/V` til að afrita og líma í terminal og `Ctrl + C/V` til að gera það alls staðar annars staðar. Það er erfitt að venjast því fyrir alla sem hafa ekki fæðst og alist upp með Linux! Svo er líka skiptið frá super yfir í ctrl, ef þú ert að koma frá Mac.
+Venjulega á Linux þarftu `Ctrl + Shift + C/V` til að afrita og líma í útstöðinni og `Ctrl + C/V` til að gera það alls staðar annars staðar. Það er erfitt að venjast því fyrir alla sem ekki eru fæddir og uppaldir á Linux! Sama gildir um skiptin frá super yfir í ctrl ef þú ert að koma frá Mac.
 
-Omarchy tekst á við bæði vandamálin með sameinuðum flýtilyklum fyrir klippiborð sem virka (nánast) alls staðar. Þeir eru:
+Omarchy leysir bæði vandamálin með samræmdum flýtilyklum fyrir klemmuspjald sem virka (næstum) alls staðar. Þeir eru:
 
-| Hotkey | Command |
+| Flýtilykill | Skipun |
 | ------- | ----------- |
 | Super + A | Velja allt |
 | Super + C | Afrita |
 | Super + X | Klippa |
 | Super + V | Líma |
-| Super + Ctrl + V | Saga klippiborðs |
+| Super + Ctrl + V | Saga klemmuspjalds |
 
-_Athugaðu að flest agent harnesses munu nota `Ctrl + V` til að líma myndir, en `Super + V` til að líma texta._
+_Athugaðu að flestar umgjarðir umboða nota `Ctrl + V` til að líma myndir, en `Super + V` til að líma texta._
 
-Notaðu `Super + A`, síðan `Super + C` til að afrita allt í textareit í fókus eða öðru forriti sem styður `Ctrl + A`. Í terminal færir `Ctrl + A` þig í byrjun skipanalínunnar í stað þess að velja textann hennar.
+Notaðu `Super + A` og síðan `Super + C` til að afrita allt í virkum textareit eða öðru forriti sem styður `Ctrl + A`. Í útstöð færir `Ctrl + A` þig í upphaf skipanalínunnar í stað þess að velja textann hennar.
 
-### Saga klippiborðs
+### Saga klemmuspjalds
 
-Saga klippiborðs er veitt af Omarchy shell og virkar bæði fyrir texta og myndir. Þú virkjar hana með `Super + Ctrl + V`, velur færsluna þína með return, og þá verður hún sett á klippiborðið tilbúin til að límast inn með `Super + V`.
+Omarchy-skelin sér um sögu klemmuspjaldsins og hún virkar bæði fyrir texta og myndir. Þú kallar hana fram með `Super + Ctrl + V` og velur færsluna þína með Return, sem límir hana beint inn í forritið sem þú varst í. Notaðu `Shift + Return` til að afrita hana aðeins á klemmuspjaldið, `Alt + Return` til að opna hana, `Delete` til að fjarlægja hana úr sögunni og `Shift + Delete` til að hreinsa alla söguna.
 
  ![clipboard-history](images/clipboard-history.webp)
 

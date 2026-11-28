@@ -1,12 +1,12 @@
 # Teemat
 
-Omarchyn mukana tulee kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Ulkoasu > Teema_ (`Super + Space`) tai siirtyä suoraan teemanvalitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
+Omarchyn mukana tulee kaksikymmentäkolme kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Ulkoasu > Teema_ (`Super + Space`) tai siirtyä suoraan teeman valitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
 
-Jokainen teema tyylittää työpöydän, terminaalin, neovimin, aktiivisuusnäytön (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun täytyy valita Omarchy-teema manuaalisesti sovelluksen sisältä kohdasta _Ulkoasu > Teemat_). 
+Jokainen teema tyylittelee työpöydän, terminaalin, neovimin, aktiviteettinäytön (btop), selaimesi (Chrome, Chromium, Edge tai Brave) ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen sisältä kohdasta _Ulkoasu > Teemat_).
 
 Teemoissa on joukko taustakuvia, joista voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
 
-Lisää teemoja löydät [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
+Löydät vielä enemmän teemoja [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Lukituksen avaukset
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Teemoissa voi olla myös mukautettu lukituksen avauksen ulkoasu, jota käytetään käynnistyksen salauksenpurkuprosessissa. Voit valita sellaisen kohdasta _Ulkoasu > Lukituksen avaus_. Ne näyttävät tältä:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Sovelluskuvakkeet
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Sovelluskäynnistimen ja telakan kuvakkeet piirretään teemasi väreillä, joten ne muuttuvat sen mukana. Ne tulevat kuvakejoukosta, jonka valitset erillään teemasta kohdasta _Ulkoasu > Kuvakkeet_, kunkin joukon esikatseluista, samalla tavalla kuin valitset teeman:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ on oletus: kaikki asennettuna tuleva, piirrettynä yhdellä tyylillä. Logostaan tunnetut sovellukset, kuten Chrome, HEY tai YouTube, säilyttävät muotonsa ja saavat teeman värit.
+- _Arcade_ piirtää samat sovellukset 8-bittisenä pikselitaiteena, kuten vanha pelikonsoli tekisi.
+- _Original_ näyttää jokaisen sovelluksen kuvakkeella, jonka sen tekijä on sille antanut.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Voit asentaa jonkun toisen tekemän kuvakejoukon kohdasta _Asenna > Tyyli > Kuvakkeet_ (tai komennolla `omarchy icons install <git url>`), ja poistaa sen uudelleen kohdasta _Poista > Kuvakkeet_. _Päivitä > Lisäkuvakkeet_ hakee asentamiesi joukkojen uusimman version.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Tee oma joukkosi laittamalla kuvakkeesi hakemistoon `~/.config/omarchy/icons/<name>/`, yksi tiedosto sovellusta kohden, nimettyinä sovelluksen `.desktop`-tiedoston `Icon=`-rivin mukaan. `.svg`-päätteinen tiedosto näytetään sellaisenaan. `.svg.tpl`-päätteinen tiedosto piirretään teeman väreillä: kirjoita `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` tai `{{ icon_shadow }}` kohtaan, johon väri kuuluu. Oletusjoukko hakemistossa `/usr/share/omarchy/icons/papercraft/` on hyvä lähtökohta. Lisää `preview.png` näyttääksesi joukkosi valitsimessa; ilman sitä Omarchy piirtää esikatselun kuvakkeistasi. Jos haluat muuttaa oletusjoukon yksittäistä kuvaketta, laita oma versiosi hakemistoon `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Käynnistys ja kirjautuminen
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Näyttö, joka kysyy aseman salasanaa tietokoneen käynnistyessä, ja kirjautumisnäyttö seuraavat myös teemaa. Joka kerta kun vaihdat teemaa, ne saavat sen taustan, tekstin, korostusvärin ja punaiset värit, joten erillistä lukituksen avaamisen ulkoasua ei tarvitse valita. Apple Silicon -Maceilla aseman salasanaa kysyvä näyttö säilyttää Omarchyn oletusulkoasun teemasta riippumatta.

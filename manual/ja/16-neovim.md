@@ -1,42 +1,42 @@
 # Neovim
 
-[Neovim](https://neovim.io/) は、1976 年に Bill Joy によって作成された [vi エディタ](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) の現代的な実装です。挿入モードとコマンドモードが分離されたモーダルエディタで、信じられないほど深いキーコマンドセットの一部だけでも覚えれば、ちょっとしたスーパーパワーになります。でも、かなりな学習曲線でもあります！
+[Neovim](https://neovim.io/) は、Bill Joy がはるか昔の1976年に生み出した [viエディター](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) のモダンな実装だ。挿入モードとコマンドモードが分かれたモーダルエディターで、信じられないほど奥深いキーコマンド群のほんの一部を覚えただけでも、ちょっとしたスーパーパワーになる。でも学習曲線もかなり急だ！
 
-vim スタイルの編集がまったく初めてなら、YouTube の [ThePrimeagen の Vim As Your Editor シリーズ](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) を見ることをお勧めします。それで基本が学べます。より一般的な主流エディタとは違って、vim で基本的な習熟度に到達するには時間がかかることを知っておいてください。でも一度到達すれば、見返りもより大きくなります。
+vim流の編集が完全に初めてなら、YouTubeの [ThePrimeagenのVim As Your Editorシリーズ](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) をチェックすることをおすすめする。基本を教えてくれるはずだ。ただ知っておいてほしいのは、より主流でよくあるエディターとは違って、vimで基本的な操作に習熟するには時間がかかるということだ。でも一度できるようになれば、その見返りも大きい。
 
-さて Neovim は基本的に無限に設定可能です。本当に熱中したいなら、自分の Neovim 設定をゼロから作れます。[Typecraft の Neovim をゼロから設定する素晴らしいコース](https://www.youtube.com/watch?v=zHTeCSVAFNY) があります。そして [ThePrimeagen にもコースがあります](https://www.youtube.com/watch?v=w7i4amO_zaE)。
+さて、Neovimは基本的に無限にカスタマイズできる。本気でやり込みたいなら、自分のNeovim設定をゼロから作ることもできる。[TypecraftによるNeovimをゼロからセットアップする素晴らしいコース](https://www.youtube.com/watch?v=zHTeCSVAFNY) がある。そして [ThePrimeagenにも同じようなコースがある](https://www.youtube.com/watch?v=w7i4amO_zaE)。
 
-しかし Omarchy には完成した Neovim セットアップ、`omarchy-nvim` パッケージが同梱されており、箱から出してすぐに可能な最良のものを見せられるよう愛情を込めて調整されています。設定を 1 行も書く必要はありません！ [LazyVim](https://www.lazyvim.org/)、Neovim プラグインと設定のディストリビューションをベースにしています。素晴らしいです。
+でもOmarchyには、完全なNeovimセットアップ — `omarchy-nvim` パッケージ — が同梱されていて、箱から出してすぐに何ができるのか、その最良の姿を見せられるよう愛情を込めて調整されている。設定を一行も書く必要なしに！ これはNeovimプラグインと設定のディストリビューションである [LazyVim](https://www.lazyvim.org/) の上に構築されている。最高だ。
 
-## LazyVim の基本
+## LazyVimの基本
 
-前述のとおり、この短い入門で vim を教えるつもりはありませんが、LazyVim の基本をいくつかと、移動方法は示せます。
+述べた通り、この短い紹介でvimを教えるつもりはないが、LazyVimの基本をいくつかと、操作方法は示せる。
 
-まず、Neovim にはリーダーキーの概念があります。これは基本的にすべてのコマンドへの入口です。LazyVim はそれを `Space` に設定しています。だからそれを押して 1 秒待つと、このようにインラインで説明される大量のオプションが見えます：
+まず、Neovimにはリーダーキーという考え方がある。これは基本的に、すべてのコマンドへの入口だ。LazyVimではそれが `Space` に設定されている。だからそれを押して1秒待つだけで、こんな風にたくさんの選択肢がインラインで説明付きで表示される：
 
-私がいつも使う基本コマンドをいくつか紹介します：
+私がいつも使っている基本コマンドをいくつか挙げる：
 
-- `Space Space` - 現在のディレクトリ内の任意のファイルをあいまい検索。
-- `Space S G` - プレビュー付きで grep を使ってすべてのファイルを検索。
+- `Space Space` - 現在のディレクトリ内の任意のファイルをあいまい検索する。
+- `Space S G` - プレビュー付きでgrepを使ってすべてのファイルを検索する。
 - `Space E` - ファイルツリーのオン/オフを切り替える。
-- `Ctrl + W W` - ファイルツリーからエディタへ、また戻ってくる。
-- `Shift + H` - 開いたタブ（vim ではバッファと呼びます）間を左へ移動。
-- `Shift + L` - 開いたタブ間を右へ移動。
+- `Ctrl + W W` - ファイルツリーとエディターの間を行ったり来たりする。
+- `Shift + H` - 開いているタブ（vimではバッファと呼ぶ）の間を左へ移動する。
+- `Shift + L` - 開いているタブの間を右へ移動する。
 - `Space B D` - タブを閉じる。
-- `Space B O` - 現在のもの以外のすべてのタブを閉じる。
-- `Space G G` - 現在のディレクトリからフローティングペインで LazyGit を起動。
-- `Space U W` - ソフトラップを切り替える。
+- `Space B O` - 現在のタブ以外のすべてのタブを閉じる。
+- `Space G G` - 現在のディレクトリからフローティングペインでLazyGitを起動する。
+- `Space U W` - ソフト折り返しを切り替える。
 
-ファイルツリー内にいる間（`Space E` で表示し、`Ctrl + W W` でそちらへ飛ぶ）、`a` で新しいファイル、`A` で新しいディレクトリを追加できます。ツリー内にいる間に `?` を押すとすべてのコマンドが見えます。
+ファイルツリーにいるとき（`Space E` で表示し、`Ctrl + W W` でそこへ移動する）、`a` で新しいファイル、`A` で新しいディレクトリを追加できる。ツリーにいる間に `?` を押せば、すべてのコマンドが見られる。
 
-基本的な vim 言語を身につけたい場合は、[三部構成の構文](https://world.hey.com/dhh/wonderful-vi-a1d034d3) と、あのかっこいいコンボ技のやり方について書きました！
+vimの基本言語を身につけたいなら、私が書いた [三部構成の構文](https://world.hey.com/dhh/wonderful-vi-a1d034d3) と、あのすごいコンボ技の決め方について読んでみてほしい！
 
-可能なコマンドはすべて [LazyVim Keymaps ページ](https://www.lazyvim.org/keymaps) で確認できます。
+可能性のあるすべてのコマンドは [LazyVim Keymapsページ](https://www.lazyvim.org/keymaps) で見られる。
 
-## Neovim の起動
+## Neovimの起動
 
-`Super + Shift + N` で Neovim を起動できます（このバインドはデフォルトエディタを起動し、箱から出た状態では Neovim です）が、通常は作業したいディレクトリへ移動し、`n` と入力してターミナルから駆動する方が簡単です。`n` は `nvim` のエイリアスで、デフォルトで現在のディレクトリを開きます。`n myfile.txt` で単一のファイルを開けます。
+`Super + Shift + N` はデフォルトエディターを起動する。新規インストールではそれはPlainだ。代わりにNeovimを起動させたいなら、_Setup > Defaults > Editor_ でNeovimを選ぶこと。でもたいていは、作業したいディレクトリへ移動して `n` と入力して、ターミナルから使うほうが簡単だ。`n` は `nvim` のエイリアスで、デフォルトで現在のディレクトリを開く。`n myfile.txt` で単一のファイルを開ける。
 
-## sudo 編集に Neovim を使う
+## sudo編集にNeovimを使う
 
-スーパーユーザーとしてしか変更できないファイルを編集する必要がある場合は、`sudoedit /etc/sudoers.d/00-sudo-only-file` を実行することで、すべてのプラグインが設定された状態で neovim を使えます。
+スーパーユーザーとしてしか変更できないファイルを編集する必要があるなら、`sudoedit /etc/sudoers.d/00-sudo-only-file` を実行すること。デフォルトエディターが開くので、そこでプラグイン全部入りのNeovimを使いたいなら、_Setup > Defaults > Editor_ でNeovimを設定すること。

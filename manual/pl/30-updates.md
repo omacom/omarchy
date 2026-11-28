@@ -1,41 +1,43 @@
 # Aktualizacje
 
-Omarchy i Twoje pakiety są na bieżąco aktualizowane przez _Aktualizacja > Omarchy_ w menu Omarchy (`Super + Space`).
+Omarchy i Twoje pakiety są aktualizowane przez _Update > Omarchy_ w menu Omarchy (`Super + Space`).
 
-Samo Omarchy jest instalowane jako zwykłe pakiety pacman z [Omarchy Package Repository](https://github.com/omacom-io/omarchy-pkgs), więc aktualizacja instaluje [najnowsze wydanie Omarchy](https://github.com/omacom/omarchy/releases), uruchamia wszelkie oczekujące migracje, aby zsynchronizować Twój system z najnowszą wersją, oraz aktualizuje wszystkie pakiety systemowe z [Omarchy Arch Mirror](https://github.com/omacom-io/omarchy-mirror) i [AUR](https://aur.archlinux.org/) (jeśli masz zainstalowane jakiekolwiek pakiety AUR).
+Omarchy samo jest instalowane jako zwykłe pakiety pacman z [repozytorium pakietów Omarchy](https://github.com/omacom-io/omarchy-pkgs), więc aktualizacja instaluje [najnowsze wydanie Omarchy](https://github.com/omacom/omarchy/releases), uruchamia wszelkie oczekujące migracje, aby zsynchronizować system z najnowszą wersją, i aktualizuje wszystkie pakiety systemowe z [mirror Arch Omarchy](https://github.com/omacom-io/omarchy-mirror) i [AUR](https://aur.archlinux.org/) (jeśli masz zainstalowane jakiekolwiek pakiety z AUR).
 
-Gdy pojawią się nowe wydania, po prawej stronie zegara pojawi się ikona strzałki w okręgu. Kliknij ją, a proces aktualizacji się rozpocznie.
+Kiedy pojawiają się nowe wydania, po prawej stronie zegara pojawi się ikona strzałki w kole. Kliknij ją, a proces aktualizacji się rozpocznie.
 
 ![update-available](images/update-available.webp)
 
 ### Cztery kanały
 
-Omarchy jest aktualizowane w czterech kanałach: stable, RC, edge i dev. Nowe instalacje zaczynają na kanale stable, który śledzi [oficjalne wydania](https://github.com/omacom/omarchy/releases/), a także [stabilne mirror Omarchy Arch](https://github.com/omacom-io/omarchy-mirror), które jest opóźnione o miesiąc względem najnowszego, dzięki czemu możemy wyłapać wszelkie nowe niezgodności wymagające zmian w konfiguracji, zanim sprawią komuś problemy.
+Omarchy jest aktualizowane w czterech kanałach: stable, RC, edge i dev. Nowe instalacje zaczynają na kanale stable, który śledzi [oficjalne wydania](https://github.com/omacom/omarchy/releases/), a także [stabilny mirror Arch Omarchy](https://github.com/omacom-io/omarchy-mirror), który jest opóźniony o miesiąc względem najnowszych wersji, abyśmy mogli wyłapać wszelkie nowe niezgodności wymagające zmian w konfiguracji, zanim spowodują problemy u użytkowników.
 
-Jeśli jednak chcesz pomóc w wykrywaniu tych potencjalnych problemów, możesz korzystać z kanału edge. Dzięki temu Twoje pakiety Omarchy będą śledzić najnowsze buildy deweloperskie, a Ty będziesz mógł aktualizować do najnowszych pakietów Arch, gdy tylko staną się dostępne. Powinieneś to robić tylko wtedy, gdy masz doświadczenie z Linux i wiesz, jak odzyskać system, w którym wystąpiły problemy.
+Ale jeśli chcesz pomóc w wykrywaniu tych potencjalnych problemów, możesz korzystać z kanału edge. Dzięki temu Twoje pakiety Omarchy będą śledzić najnowsze kompilacje deweloperskie i umożliwią aktualizację do najnowszych pakietów Arch, gdy tylko staną się dostępne. Powinieneś to robić tylko, jeśli masz doświadczenie z Linuksem i wiesz, jak odzyskać system, który ma problemy.
 
-Przed każdym nowym większym wydaniem będziemy przeprowadzać finalną walidację przy użyciu kanału RC. Jeśli chcesz pomóc w finalnym dopracowywaniu, wpadnij na #omarchy-release-candidates na Discord.
+Przed każdym nowym ważnym wydaniem będziemy przeprowadzać końcową walidację przy użyciu kanału RC. Jeśli chcesz pomóc w końcowym dopracowaniu, wpadnij na #omarchy-release-candidates na Discordzie.
 
-Na koniec jest kanał dev, który łączy Omarchy bezpośrednio z checkout git kodu źródłowego w `~/omarchy`, w połączeniu z pakietami edge. Powinieneś używać tego kanału tylko wtedy, gdy jesteś doświadczonym użytkownikiem Linux, pracujesz bezpośrednio nad Omarchy i jesteś gotów tolerować awarie.
+Na koniec jest kanał dev, który łączy Omarchy bezpośrednio z kopią kodu źródłowego pobraną przez git w `~/omarchy`, w połączeniu z pakietami edge. Powinieneś używać tego kanału tylko, jeśli jesteś doświadczonym użytkownikiem Linuksa, pracujesz bezpośrednio nad Omarchy i jesteś gotów tolerować awarie.
 
-Możesz przełączać się między kanałami za pomocą _Aktualizacja > Kanał_ w menu Omarchy (lub `omarchy-channel-set` w terminalu).
+Możesz przełączać się między kanałami, używając _Update > Channel_ w menu Omarchy (lub `omarchy channel set <stable|rc|edge|dev>` w terminalu, a `omarchy channel current` sprawdzi, gdzie jesteś).
 
-### Przełączanie kerneli
+### Przełączanie jąder
 
-Omarchy uruchamia własny kernel `linux-omarchy`, ale możesz mieć obok niego zainstalowane inne, takie jak standardowy kernel Arch `linux` lub eksperymentalny build, który testujesz. Gdy jest ich więcej niż jeden, _Aktualizacja > Kernel_ w menu Omarchy wyświetla je z zaznaczeniem obok tego, który uruchamia się domyślnie. Wybierz inny, raz wpisz swoje hasło, a uruchomi się po następnym restarcie. Pozostałe kernele pozostają w menu rozruchowym, więc nadal możesz wybrać jeden ręcznie, jeśli nowy domyślny sprawi Ci problemy. W terminalu `omarchy-kernel` pokazuje bieżący domyślny, `omarchy-kernel list` pokazuje, co jest zainstalowane, a `omarchy-kernel set <kernel>` służy do przełączania.
+Omarchy uruchamia własne jądro `linux-omarchy`, ale możesz mieć obok niego zainstalowane inne, na przykład standardowe jądro Arch `linux` lub eksperymentalną kompilację, którą testujesz. Gdy jest ich więcej niż jedno, _Update > Kernel_ w menu Omarchy wyświetla ich listę z zaznaczeniem obok tego, które uruchamia się domyślnie. Wybierz inne, wprowadź hasło raz, a uruchomi się po następnym ponownym uruchomieniu. Pozostałe jądra pozostają w menu rozruchowym, więc nadal możesz wybrać jedno ręcznie, jeśli nowe domyślne sprawi Ci problemy. W terminalu `omarchy kernel` pokazuje bieżące domyślne, `omarchy kernel list` pokazuje, co jest zainstalowane, a `omarchy kernel set <kernel>` służy do przełączenia.
 
-### Aktualizacje firmware
+### Aktualizacje oprogramowania sprzętowego
 
-Nie tylko Twoje pakiety się starzeją. Wiele laptopów i urządzeń peryferyjnych dostarcza firmware BIOS, SSD i stacji dokujących przez Linux Vendor Firmware Service, a _Aktualizacja > Firmware_ w menu Omarchy pobierze i zainstaluje wszystko, co czeka na Twój sprzęt. Przy pierwszym uruchomieniu instaluje `fwupd`. Sporo firmware można zapisać tylko podczas restartu, więc nie zdziw się, jeśli zostaniesz o niego poproszony.
+Nie tylko pakiety się starzeją. Wiele laptopów i urządzeń peryferyjnych dostarcza oprogramowanie sprzętowe BIOS, SSD i stacji dokujących przez Linux Vendor Firmware Service, a _Update > Firmware_ w menu Omarchy pobierze i zainstaluje wszystko, co czeka na Twój sprzęt. Przy pierwszym uruchomieniu instaluje `fwupd`. Wiele oprogramowania sprzętowego można zapisać tylko podczas ponownego uruchomienia, więc nie zdziw się, jeśli zostaniesz o nie poproszony.
+
+Gdy potrzebujesz zmienić ustawienie w samym BIOS-ie, przytrzymaj `Alt` w menu systemowym (`Super + Escape`), a _Reboot_ zmieni się w _Reboot to BIOS_, co spowoduje ponowne uruchomienie bezpośrednio do konfiguracji oprogramowania sprzętowego, bez konieczności trafiania w odpowiedni klawisz przy rozruchu. Z terminala jest to `omarchy system firmware`.
 
 ### Ostrzeżenie o bezpośrednich aktualizacjach pacman/yay
 
-Jeśli znasz już Arch, może Cię kusić, aby po prostu samemu uruchomić `pacman -Syu` lub `yay -Syu`, ale jeśli to zrobisz, pominiesz snapshot, migracje i aktualizacje konfiguracji, które Omarchy uruchamia razem z nowymi pakietami. Dlatego Omarchy faktycznie zatrzyma bezpośrednią aktualizację systemu i zamiast tego wskaże Ci `omarchy update`. (Jeśli naprawdę wiesz, co robisz, zabezpieczenie powie Ci, jak je ominąć dla jednej transakcji.)
+Jeśli znasz już Arch, możesz mieć pokusę, aby po prostu samodzielnie uruchomić `pacman -Syu` lub `yay -Syu`, ale jeśli to zrobisz, ominie Cię migawka, migracje i aktualizacje konfiguracji, które Omarchy wykonuje razem z nowymi pakietami. Dlatego Omarchy faktycznie przerwie bezpośrednią aktualizację systemu i wskaże Ci zamiast tego `omarchy update`. (Jeśli naprawdę wiesz, co robisz, zabezpieczenie powie Ci, jak je ominąć dla jednej transakcji.)
 
 ### Wycofywanie złych aktualizacji
 
-Jeśli kiedykolwiek będziesz mieć problem po wykonaniu aktualizacji, możesz wycofać system do snapshotu wykonanego przed aktualizacją. Po prostu uruchom ponownie i wybierz w menu ładowania bootloadera snapshot sprzed rozpoczęcia aktualizacji.
+Jeśli kiedykolwiek będziesz mieć problem po wykonaniu aktualizacji, możesz przywrócić system do migawki wykonanej przed aktualizacją. Po prostu uruchom ponownie i wybierz migawkę w menu programu ładującego sprzed rozpoczęcia aktualizacji.
 
 ![bootloader](images/bootloader.webp)
 
-Jeśli w jakiś sposób Twoje pliki konfiguracyjne zostały uszkodzone, możesz także wykonać ponowną instalację Omarchy za pomocą `omarchy reinstall` w terminalu. Spowoduje to ponowną instalację wszystkich domyślnych pakietów Omarchy, przełączenie Cię na stable i obniżenie wersji wszelkich pakietów, które są zbyt nowe, oraz zresetowanie wszystkich plików konfiguracyjnych. Pamiętaj, że wszystkie zmiany konfiguracji użytkownika wprowadzone do domyślnych ustawień Omarchy zostaną przy tym nadpisane!
+Jeśli w jakiś sposób Twoje pliki konfiguracyjne zostały uszkodzone, możesz także wykonać ponowną instalację Omarchy, używając `omarchy reinstall` w terminalu. Spowoduje to ponowne zainstalowanie wszystkich domyślnych pakietów Omarchy, przełączenie Cię na stable (edge na Apple Silicon) i obniżenie wersji wszelkich pakietów, które są zbyt nowe, oraz zresetowanie wszystkich plików konfiguracyjnych. Pamiętaj, że wszystkie Twoje zmiany użytkownika w konfiguracji domyślnej Omarchy zostaną przy tym nadpisane!

@@ -1,10 +1,10 @@
 # Temalar
 
-Omarchy yirmi iki güzel temayla birlikte gelir. Bunlar arasında Omarchy Menüsü'ndeki (`Super + Space`) _Appearance > Theme_ üzerinden seçim yapabilir veya `Super + Ctrl + T` kullanarak doğrudan tema seçiciye atlayabilirsiniz.
+Omarchy yirmi üç güzel temayla birlikte gelir. Bunlar arasında Omarchy Menüsü'ndeki (`Super + Space`) _Görünüm > Tema_ üzerinden seçim yapabilir veya `Super + Ctrl + T` kullanarak doğrudan tema seçiciye atlayabilirsiniz.
 
-Her tema masaüstünü, terminali, neovim'i, etkinlik ekranını (btop), Chromium'u ve tüm Omarchy kabuğunu biçimlendirir: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, uygulama içindeki _Appearance > Themes_ üzerinden Omarchy temasını manuel olarak seçmelisiniz).
+Her tema masaüstünü, terminali, neovim'i, etkinlik ekranını (btop), tarayıcınızı (Chrome, Chromium, Edge veya Brave) ve tüm Omarchy kabuğunu biçimlendirir: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, Omarchy temasını uygulama içindeki _Görünüm > Temalar_ üzerinden elle seçmeniz gerekir).
 
-Temaların, `Super + Ctrl + W` kullanarak aralarında seçim yapabileceğiniz bir dizi arka plan görseli vardır.
+Temaların `Super + Ctrl + W` kullanarak aralarında seçim yapabileceğiniz bir dizi arka plan görseli vardır.
 
 Daha da fazla temayı [ek temalar sayfasında](https://omarchy.org/themes/) bulabilir, hatta [kendi temanızı yapabilirsiniz](43-making-your-own-theme.md).
 
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Kilit Açma Ekranları
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Temaların ayrıca önyükleme şifre çözme işlemi için kullanılan özel bir kilit açma tasarımı da olabilir. Bunlardan birini _Appearance > Unlock_ altında seçebilirsiniz. Şöyle görünürler:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Uygulama simgeleri
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Uygulama başlatıcısındaki ve dock'taki simgeler temanızın renkleriyle çizilir, yani temayla birlikte değişir. Bunlar, temadan ayrı olarak _Görünüm > Simgeler_ altında, bir temayı seçtiğiniz gibi her setin önizlemeleri arasından seçtiğiniz bir simge setinden gelir:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ varsayılandır: yüklü gelen her şey tek bir tarzda çizilir. Chrome, HEY veya YouTube gibi logosuyla bilinen uygulamalar şeklini korur ve temanın renklerini alır.
+- _Arcade_ aynı uygulamaları, eski bir oyun konsolunun yapacağı gibi 8-bit piksel sanatı olarak çizer.
+- _Original_ her uygulamayı, üreticisinin ona verdiği simgeyle gösterir.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Bir başkasının yaptığı bir simge setini _Kur > Tarz > Simgeler_ ile (veya `omarchy icons install <git url>`) kurabilir ve _Kaldır > Simgeler_ altında tekrar kaldırabilirsiniz. _Güncelle > Ekstra Simgeler_, kurduğunuz setlerin en son sürümünü getirir.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Kendi setinizi yapmak için simgelerinizi `~/.config/omarchy/icons/<name>/` içine, uygulama başına bir dosya olacak şekilde, uygulamanın `.desktop` dosyasının `Icon=` satırına göre adlandırarak koyun. `.svg` ile biten bir dosya olduğu gibi gösterilir. `.svg.tpl` ile biten bir dosya temanın renkleriyle çizilir: bir rengin geleceği yere `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` veya `{{ icon_shadow }}` yazın. `/usr/share/omarchy/icons/papercraft/` içindeki varsayılan set, başlamak için iyi bir yerdir. Setinizi seçicide göstermek için bir `preview.png` ekleyin; o olmadan Omarchy, simgelerinizden bir önizleme çizer. Varsayılan setin tek bir simgesini değiştirmek için kendi sürümünüzü `~/.config/omarchy/icons/papercraft/` içine koyun.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Açılış ve giriş
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Bilgisayar başlarken sürücü parolanızı soran ekran ve giriş ekranı da temayı takip eder. Her tema değiştirdiğinizde, temanın arka plan, metin, vurgu ve kırmızı renklerini alırlar, yani ayrıca seçilecek ayrı bir kilit açma tasarımı yoktur. Apple Silicon Mac'lerde sürücü parolası ekranı, tema ne olursa olsun Omarchy'nin varsayılan görünümünü korur.

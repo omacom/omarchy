@@ -1,0 +1,125 @@
+#!/usr/bin/python3
+# Usage: scaffold <name> [<Display Name>] [--no-build]
+#
+# Writes the starter app from templates.md into the current directory: every
+# file under a "## `path`" heading, with <name> and <Name> filled in, the
+# LICENSE the templates ask for, and git init. Then it builds and runs the
+# tests, so the app starts from a project that is known to pass. templates.md
+# stays the one source: this reads it, it carries no copy of its own.
+import datetime
+import os
+import re
+import subprocess
+import sys
+
+here = os.path.dirname(os.path.realpath(__file__))
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+if not args or not re.fullmatch(r"[a-z][a-z0-9-]*", args[0]):
+    sys.exit("usage: scaffold <name> [<Display Name>] [--no-build]  (name: lowercase letters, digits, dashes)")
+name = args[0]
+display = args[1] if len(args) > 1 else name.replace("-", " ").title()
+# The display name is written into a QML string and a .desktop line as it is.
+if re.search(r'["\\\x00-\x1f]', display):
+    sys.exit("scaffold: the display name can't contain quotes, backslashes or line breaks")
+
+existing = [p for p in os.listdir(".") if p not in (".git",)]
+if existing:
+    sys.exit(f"scaffold: the current directory isn't empty ({', '.join(sorted(existing)[:5])}); run it in a new directory")
+
+files = {}
+heading_paths, blocks, in_block, block = [], [], False, []
+
+
+def flush():
+    # The packaging recipe lives in omacom/omarchy-pkgs, not in the app.
+    if heading_paths and not any(p.startswith("pkgbuilds/") for p in heading_paths):
+        for path, content in zip(heading_paths, blocks):
+            files[path] = content
+
+
+for line in open(os.path.join(here, "templates.md"), encoding="utf-8"):
+    if in_block:
+        if line.startswith("```"):
+            blocks.append("".join(block))
+            in_block, block = False, []
+        else:
+            block.append(line)
+    elif line.startswith("```"):
+        in_block = True
+    elif line.startswith("## "):
+        flush()
+        heading_paths, blocks = re.findall(r"`([^`]+)`", line), []
+flush()
+
+
+# The display name also names the test class, which must be a C++ identifier:
+# "Flash Cards" becomes FlashCardsTests.
+identifier = re.sub(r"[^0-9A-Za-z]", "", display.title() if " " in display else display) or "App"
+if identifier[0].isdigit():
+    identifier = "App" + identifier
+
+
+def fill(text):
+    text = text.replace("<Name>Tests", identifier + "Tests")
+    return text.replace("<name>", name).replace("<Name>", display)
+
+
+written = []
+for path, content in files.items():
+    # The second catalog in the templates is the Danish example.
+    path = fill(path.replace("<code>", "da"))
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(fill(content))
+    if path.startswith("bin/"):
+        os.chmod(path, 0o755)
+    written.append(path)
+
+author = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True).stdout.strip() or "The authors"
+with open("LICENSE", "w", encoding="utf-8") as f:
+    f.write(f"""MIT License
+
+Copyright (c) {datetime.date.today().year} {author}
+
+Starter files from the Omarchy app templates (Omacut, Monologue, and the other
+Omarchy apps), Copyright (c) David Heinemeier Hansson, under the same license.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+""")
+written.append("LICENSE")
+
+if not os.path.isdir(".git"):
+    subprocess.run(["git", "init", "-q"], check=False)
+
+print(f"Wrote {len(written)} files for {name} ({display}):")
+for path in sorted(written):
+    print("  " + path)
+
+if "--no-build" not in sys.argv:
+    result = subprocess.run(["bin/test"], capture_output=True, text=True)
+    lines = (result.stdout + result.stderr).strip().splitlines()
+    # The errors first: a build's last lines are often warnings that came after.
+    errors = [line for line in lines if re.search(r"\berror\b|FAIL", line)]
+    tail = "\n".join(errors[:15] or lines[-15:])
+    if result.returncode == 0:
+        print(f"\nbin/test passes. The starter is a counter: replace Backend's count with the app's own state,\n"
+              f"Main.qml's layout with the app's, and the tests with the app's behaviors, keeping bin/test green.")
+    else:
+        print(f"\nbin/test FAILED on the untouched starter; fix this before writing the app:\n{tail}")
+        sys.exit(1)

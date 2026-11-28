@@ -58,6 +58,10 @@ SH
 cat >"$restart_bin/quickshell" <<'SH'
 #!/bin/bash
 
+# The startup cover, which the launcher starts beside a session's first shell:
+# this fake ignores it.
+[[ $* == *"/startup-cover.qml" ]] && exit 0
+
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 
 # Other configs' instances, one "<config dir> <pid>" per line.
@@ -228,7 +232,7 @@ locked_error=$(PATH="$restart_bin:$PATH" \
 [[ ! -s $restart_log ]] || fail "locked restart does not stop or launch Quickshell"
 pass "restart preserves the shell while its lock is active"
 
-# A LOCK session without an active locker — dead shell or a crash-handler
+# A LOCK session without an active locker — dead shell or a launcher
 # relaunch holding no lock — is the failsafe: restart must proceed,
 # re-acquire the session lock, and wait for it to report secure.
 sleep 30 &

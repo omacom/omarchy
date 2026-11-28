@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# omarchy:summary=Draw a preview image of an icon set
+# omarchy:args=<icon-set-dir> <preview.png> [theme-dir]
+# omarchy:hidden=true
+
+# A sheet of every icon in the set, drawn in a theme's colors on its background,
+# at the size of a theme's preview. The picker fills its frame with the image
+# and crops what is left over at the sides, so the icons keep to the middle. The sets Omarchy ships keep theirs as
+# preview.png, drawn in Tokyo Night; the picker draws one in the current theme
+# for a set that came without.
+
+SET_DIR="${1:-}"
+PREVIEW="${2:-}"
+THEME="${3:-$HOME/.local/state/omarchy/current/theme}"
+WIDTH=2560
+HEIGHT=1440
+CONTENT_WIDTH=1960
+CONTENT_HEIGHT=1220
+COLUMNS=9
+ICON=176
+
+if [[ ! -d $SET_DIR || -z $PREVIEW ]]; then
+  echo "Usage: omarchy-icons-preview <icon-set-dir> <preview.png> [theme-dir]" >&2
+  exit 1
+fi
+
+omarchy-cmd-present rsvg-convert || exit 1
+
+shopt -s nullglob
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir "$work/set" "$work/svg" "$work/png"
+
+# As omarchy-theme-set-icons reads a set: its drawings as they are and its
+# templates in the theme's colors, with the symlinks of a set cloned from a git
+# repo left out and those of a set the user wrote kept.
+for icon in "$SET_DIR"/*.svg "$SET_DIR"/*.svg.tpl; do
+  [[ -f $icon ]] || continue
+  [[ -L $icon && -e $SET_DIR/.git ]] && continue
+  cp "$icon" "$work/set/"
+done
+
+for icon in "$work/set"/*.svg; do
+  mv "$icon" "$work/svg/"
+done
+omarchy-theme-set-templates --icons "$THEME" "$work/svg" "$work/set"
+
+icons=()
+for icon in "$work/svg"/*.svg; do
+  name=${icon##*/}
+  if rsvg-convert -w "$ICON" -h "$ICON" "$icon" -o "$work/png/${name%.svg}.png" 2>/dev/null; then
+    icons+=("$work/png/${name%.svg}.png")
+  fi
+done
+
+(( ${#icons[@]} > 0 )) || exit 1
+
+background=$(omarchy-theme-color --file "$THEME/colors.toml" background "#1a1b26")
+
+mkdir -p "$(dirname "$PREVIEW")"
+magick montage "${icons[@]}" -background "$background" -geometry +20+12 -tile "${COLUMNS}x" miff:- |
+  magick - -background "$background" -resize "${CONTENT_WIDTH}x${CONTENT_HEIGHT}>" -gravity center -extent "${WIDTH}x${HEIGHT}" -strip -depth 8 -define png:compression-level=9 "$PREVIEW"

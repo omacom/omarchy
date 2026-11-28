@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Give an installed agent harness a launcher of its own beside Agent
+# omarchy:args=<agent>
+# omarchy:hidden=true
+
+# Installing a harness, or signing in to its subscription, adds a launcher that
+# starts that harness in a terminal of its own, whatever the default agent is.
+# Each one ships in default/applications with its icon in the icon sets.
+# Hermes and OpenClaw are apps that bring launchers of their own, which one for
+# the terminal would only shadow, so they have none here.
+
+agent=${1:?Usage: omarchy-agent-launcher <agent>}
+entry="omarchy-agent-$agent.desktop"
+applications="$HOME/.local/share/applications"
+
+if [[ $agent =~ ^[a-z0-9-]+$ && -f $OMARCHY_PATH/default/applications/$entry ]]; then
+  # A launcher that couldn't be written fails, so the migration adding one
+  # stays pending until it can be.
+  mkdir -p "$applications" || exit 1
+  install -m 644 "$OMARCHY_PATH/default/applications/$entry" "$applications/$entry" || exit 1
+  update-desktop-database "$applications" 2>/dev/null || true
+fi

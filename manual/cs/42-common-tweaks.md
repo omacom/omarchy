@@ -1,16 +1,16 @@
 # Běžné úpravy
 
-Toto je sbírka běžných přizpůsobení nastavení Omarchy. Mějte na paměti, že někdy může být u aktualizací systému nutné obnovit určité konfigurace do původního stavu. Pokud se to stane, vaše změny se neztratí, ale uloží se do souboru `.bak` ve stejném adresáři.
+Toto je sbírka běžných přizpůsobení nastavení Omarchy. Počítejte s tím, že občas může být při aktualizacích systému nutné obnovit některé konfigurace do původního stavu. Pokud k tomu dojde, vaše změny se neztratí, ale vloží se do souboru `.bak.<timestamp>` vedle původního.
 
-Pokud něco pokazíte, můžete obnovit jednotlivé konfigurace do původního nastavení v nabídce Omarchy v části _Aktualizovat > Config_. Pokud to pokazíte _opravdu_ všechno, můžete obnovit všechny konfigurace příkazem `omarchy-reinstall`.
+Pokud něco pokazíte, můžete obnovit jednotlivé konfigurace do původního nastavení přes _Update > Config_ v nabídce Omarchy. Pokud to _opravdu_ pokazíte všechno, můžete resetovat všechny konfigurace pomocí `omarchy reinstall configs`, nebo přeinstalovat všechny výchozí balíčky a konfigurace pomocí `omarchy reinstall`.
 
-### Trvalé zobrazení všech ikon v oblasti oznámení
+### Zobrazovat všechny ikony v systémové liště pořád
 
-Ve výchozím nastavení jsou ikony v oblasti oznámení, například Dropbox, 1password nebo Steam, skryté za šipkou pro rozbalení, která je zobrazí po přejetí ukazatelem myši. Pokud je chcete mít neustále na očích, klikněte pravým tlačítkem na rozbalovací šipku, čímž otevřete správce ikon v oblasti oznámení, a poté připněte ikony, které chcete ponechat viditelné (můžete také skrýt ty, které nikdy nechcete vidět).
+Ve výchozím nastavení jsou ikony v systémové liště, jako Dropbox, 1password nebo Steam, skryté za šipkou pro rozbalení lišty, která je odhalí, když na ni najedete myší. Pokud je chcete mít odhalené pořád, klikněte pravým tlačítkem na šipku pro rozbalení, čímž otevřete správce ikon v systémové liště, a pak připněte ikony, které chcete mít pořád viditelné (můžete také skrýt ty, které nechcete nikdy vidět).
 
 ### Zaoblené rohy oken
 
-Výchozím stylem Omarchy jsou pravoúhlé rohy, ale pokud ho chcete trochu změkčit, můžete upravit soubor `~/.config/hypr/looknfeel.lua` tak, aby parametr rounding už nebyl zakomentovaný:
+Výchozí vzhled Omarchy má ostré rohy, ale pokud ho chcete trochu zjemnit, vyberte _Appearance > Windows > Window Corners > Rounded Corners_ v nabídce Omarchy, nebo spusťte `omarchy hyprland corners rounded`. _Theme Corners_ se vrátí k tomu, co používá dané téma. Chcete-li si zvolit vlastní poloměr, zůstaňte u _Theme Corners_ (`omarchy hyprland corners theme`), protože Rounded a Sharp se načítají až po vaší konfiguraci a přepíšou ji, a odkomentujte zaoblení v `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({
@@ -21,9 +21,9 @@ hl.config({
 })
 ```
 
-### Odebrání mezer mezi okny
+### Odstranění mezer mezi okny
 
-Na displejích notebooků někteří lidé nechtějí plýtvat ani jedním pixelem na mezery mezi okny (nebo dokonce na horní panel, který lze přepnout zkratkou `Super + Shift + Space`). Všechny mezery a ohraničení můžete vypnout zkratkou `Super + Shift + Backspace`, nebo je odstranit natrvalo odstraněním komentářů v této části souboru `~/.config/hypr/looknfeel.lua`:
+Na displejích notebooků někteří lidé raději neplýtvají ani pixelem na mezery mezi okny (nebo dokonce na horní lištu, kterou můžete vypnout pomocí `Super + Shift + Space`). Všechny mezery a okraje můžete vypnout pomocí `Super + Shift + Backspace`, nebo je trvale odstranit odstraněním komentářů v této části souboru `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

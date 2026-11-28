@@ -1,27 +1,37 @@
-# Snapshot hệ thống
+# Các snapshot hệ thống
 
-Chúng tôi tự động tạo snapshot trong mỗi lần cập nhật Omarchy, nhưng nếu bạn muốn tự tạo snapshot của riêng mình, bạn có thể dùng `omarchy-snapshot create`.
+Chúng tôi tự động tạo snapshot mỗi khi Omarchy cập nhật, nhưng nếu bạn muốn tự tạo snapshot của riêng mình, bạn có thể dùng `omarchy-snapshot create`.
 
-Để khởi động và khôi phục một snapshot, bạn chọn nó từ bộ nạp khởi động Limine. (Nếu hiện tại bạn khởi động thẳng vào màn hình giải mã của Omarchy, trước tiên bạn sẽ cần chọn Limine làm tùy chọn khởi động qua BIOS).
+Cách bạn khởi động và khôi phục một snapshot phụ thuộc vào trình khởi động mà máy của bạn bắt đầu bằng. Các bản cài đặt UEFI mới dùng systemd-boot; các bản cài đặt cũ hơn và các máy BIOS dùng Limine. `omarchy-boot-backend` cho bạn biết bạn đang dùng loại nào.
 
-Từ màn hình đó, hãy chọn snapshot bạn muốn khởi động dựa trên ngày và phiên bản. Phiên bản Omarchy tại thời điểm tạo snapshot có thể được xem ở góc dưới cùng bên trái.
+## Với systemd-boot
+
+Chọn _System > Snapshots_ trong menu Omarchy và chọn snapshot bạn muốn khởi động vào. Máy sẽ khởi động lại vào snapshot đó một lần. Hoặc giữ phím Space trong khi máy khởi động để xem menu khởi động, nơi mọi snapshot được liệt kê với snapshot mới nhất ở đầu, kèm theo phiên bản Omarchy và ngày của nó.
+
+Một snapshot khởi động với một lớp tạm thời ở phía trên, vì vậy bạn có thể dùng nó như bình thường, nhưng bất kỳ thứ gì bạn thay đổi đều sẽ biến mất ở lần khởi động lại tiếp theo. Để giữ lại, hãy biến nó thành hệ thống của bạn: nhấp vào thông báo xuất hiện khi bạn đăng nhập, chọn _System > Snapshots > Restore This Snapshot_, hoặc chạy `omarchy-snapshot restore`. Quá trình khôi phục diễn ra trong khi máy khởi động lại. Hệ thống như trước đó vẫn ở trong menu khởi động với tên _Before restore_, và `omarchy-snapshot restore backup` sẽ đưa nó trở lại.
+
+Từ terminal:
+
+- `omarchy-snapshot list` liệt kê các snapshot bạn có thể khởi động;
+- `omarchy-snapshot boot 12` khởi động lại vào snapshot 12 một lần;
+- `omarchy-snapshot restore 12` biến snapshot 12 thành hệ thống ở lần khởi động lại tiếp theo, và `omarchy-snapshot restore --cancel` sẽ thay đổi quyết định đó của bạn trước lần khởi động lại.
+
+## Với Limine
+
+Để khởi động và khôi phục một snapshot, bạn chọn nó từ trình khởi động Limine. Menu khởi động mặc định vẫn ẩn, vì vậy hãy nhấn phím bất kỳ ngay khi Limine khởi động để hiển thị nó.
+
+Từ màn hình đó, hãy chọn snapshot bạn muốn khởi động vào dựa trên ngày và phiên bản. Phiên bản Omarchy tại thời điểm snapshot được tạo có thể được nhìn thấy ở góc dưới bên trái.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Khi bạn vào được bên trong, một thông báo sẽ bật lên cho bạn biết rằng bạn đang ở trong một snapshot có thể khởi động được và nếu bạn nhấp vào đó, quá trình khôi phục sẽ bắt đầu. Ngoài ra, bạn có thể sử dụng `omarchy-snapshot restore`.
+Khi bạn vào bên trong, một thông báo sẽ bật lên cho bạn biết bạn đang ở trong một snapshot có thể khởi động được và nếu bạn nhấp vào nó, quá trình khôi phục sẽ bắt đầu. Ngoài ra, bạn có thể dùng `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Thao tác này sẽ khôi phục hệ thống tệp root của bạn, nhưng không khôi phục `/home` của bạn. Vì vậy nó hiệu quả để hoàn tác một bản cập nhật hệ thống bị lỗi, nhưng không dùng để khôi phục các tệp cá nhân đã mất.
+## Một lần khôi phục bao gồm những gì
 
-Điều này cũng có nghĩa là thư mục `~/.config` của bạn được giữ nguyên như cũ. Vì vậy nếu bạn quay lại phiên bản cũ hơn của một thư viện hoặc ứng dụng lưu trữ các tệp cấu hình theo định dạng mới, bạn sẽ phải tự xử lý việc đó.
+Một lần khôi phục sẽ đưa hệ thống tập tin root của bạn trở lại, nhưng không đưa `/home` của bạn trở lại. Vì vậy, nó hiệu quả để hoàn nguyên một bản cập nhật hệ thống bị hỏng, nhưng không hiệu quả để khôi phục các tập tin cá nhân đã mất.
 
-Điều tương tự cũng áp dụng cho bản ghi của chính Omarchy về những migration nào đã chạy: nó nằm trong thư mục home của bạn, vì vậy nó vẫn còn sau khi khôi phục. Các migration đã chạy sau khi snapshot được tạo vẫn được đánh dấu là đã hoàn thành, mặc dù những thay đổi chúng đã thực hiện đối với hệ thống tệp root đã bị hoàn tác, và lần `omarchy update` tiếp theo sẽ không chạy lại chúng. Vì vậy nếu bạn cập nhật lại sau khi khôi phục và thứ gì đó mà một bản cập nhật trước đó đã thiết lập vẫn còn thiếu, đó có thể là lý do.
+Điều này cũng có nghĩa là thư mục `~/.config` của bạn được giữ nguyên như cũ. Vì vậy, nếu bạn đang quay lui về một phiên bản trước đó của một thư viện hoặc ứng dụng lưu các tập tin cấu hình ở một định dạng mới, bạn sẽ phải tự xử lý việc đó.
 
-_Lưu ý: Tính năng này chỉ khả dụng trên các bản cài đặt sử dụng bộ nạp khởi động Limine, vốn đã là mặc định kể từ Omarchy 2.0. Nó không khả dụng nếu bạn đang dùng GRUB hoặc systemd-boot._
-
-### Bỏ qua menu khởi động
-
-Nếu bạn không bao giờ động vào menu khởi động và chỉ muốn máy đi thẳng tới màn hình giải mã, hãy chạy _Setup > Direct Boot_ trong menu Omarchy. Thao tác đó thêm một mục EFI trỏ trực tiếp tới Omarchy, để firmware khởi động nó mà không dừng lại ở Limine.
-
-Sự đánh đổi là điều đã được đề cập ở đầu: khi bật khởi động trực tiếp, để tới được một snapshot nghĩa là trước tiên phải chọn Limine từ menu khởi động BIOS của bạn. Hãy chạy _Setup > Direct Boot_ một lần nữa để xóa mục đó và quay lại khởi động qua Limine. Một số firmware không ưa các mục EFI tùy chỉnh, vì vậy trình thiết lập từ chối chạy trên firmware American Megatrends và Apple.
+Điều tương tự cũng áp dụng cho bản ghi của chính Omarchy về những migration nào đã chạy: nó nằm trong thư mục home của bạn, vì vậy nó vẫn tồn tại sau lần khôi phục. Các migration đã chạy sau khi snapshot được tạo vẫn được đánh dấu là đã xong, ngay cả khi những thay đổi chúng đã thực hiện đối với hệ thống tập tin root đã bị quay lui, và lần `omarchy update` tiếp theo sẽ không chạy lại chúng. Vì vậy, nếu bạn cập nhật lại sau một lần khôi phục và thứ gì đó mà một bản cập nhật trước đó đã thiết lập vẫn còn thiếu, đó có thể là lý do.

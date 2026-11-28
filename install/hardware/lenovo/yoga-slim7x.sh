@@ -4,6 +4,7 @@ modules_load_dir=${OMARCHY_YOGA_MODULES_LOAD_DIR:-/etc/modules-load.d}
 mkinitcpio_dir=${OMARCHY_YOGA_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 limine_config_dir=${OMARCHY_YOGA_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
 systemd_dir=${OMARCHY_YOGA_SYSTEMD_DIR:-/etc/systemd/system}
+sleep_hook_dir=${OMARCHY_YOGA_SLEEP_HOOK_DIR:-/usr/lib/systemd/system-sleep}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "83ED"; then
   echo "Detected Lenovo Yoga Slim 7x, applying board-specific support..."
@@ -35,12 +36,10 @@ done
 unset firmware directory suffix
 CONF
 
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/yoga-slim7x.conf" <<'CONF'
-KERNEL_CMDLINE[default]+=" initcall_blacklist=simpledrm_platform_driver_init"
-# Keep Plymouth and the keyboard hooks on the laptop console, not the serial port.
-KERNEL_CMDLINE[default]+=" console=tty0"
-CONF
+  # console=tty0 keeps the boot splash and the keyboard hooks on the laptop
+  # console, not the serial port.
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set yoga-slim7x \
+    initcall_blacklist=simpledrm_platform_driver_init console=tty0
 
   # Start the board's DSP remote processors.
   mkdir -p "$systemd_dir"
@@ -58,4 +57,8 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 UNIT
   systemctl enable yoga-slim7x-remoteprocs.service
+
+  # Keep deep suspend with the lid open from waking itself.
+  install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/yoga-slim7x-lid-wake" \
+    "$sleep_hook_dir/yoga-slim7x-lid-wake"
 fi

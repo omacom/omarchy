@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.fingerprint",
+  "name": "Fingerprint",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Full-screen fingerprint setup. Summon with: omarchy-shell shell summon omarchy.fingerprint",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "Panel.qml"
+  }
+}

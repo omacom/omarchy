@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy paprastai valdoma sparčiaisiais klavišais ir Omarchy meniu (`Super + Space`). Tačiau ją taip pat galima valdyti per `omarchy` CLI. Tai ypač naudinga, kai kartu su jumis pritaikymo ar konfigūravimo darbus atlieka AI agentas.
+Omarchy paprastai valdote sparčiaisiais klavišais ir Omarchy meniu (`Super + Space`). Tačiau ją galite valdyti ir per `omarchy` CLI. Tai ypač praverčia, kai kartu su jumis prie tinkinimo ar konfigūravimo dirba AI agentas.
 
-CLI turi prieigą prie visų vidinių įrankių, kurie naudojami tiek per meniu, tiek kitais būdais. Viską, kas prieinama, galite pamatyti terminale paleidę `omarchy`.
+CLI turi prieigą prie visų vidinių įrankių, kurie naudojami ir per meniu, ir kitais būdais. Viską, kas prieinama, galite pamatyti terminale paleidę `omarchy`.
 
-Tai atrodo maždaug taip:
+Atrodo maždaug taip:
 
 ```
 ~ ❯ omarchy
@@ -22,10 +22,11 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -38,17 +39,18 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Ir galite gilintis į kiekvieną grupę:
+Diagnostikai `omarchy-debug --no-sudo --print` paleiskite tiesiogiai. Ji išveda diagnostiką ir įrašo į `/tmp/omarchy-debug.log` neprašydama sudo, taip pat ir diegiant paketus, kai `omarchy debug` gali nepavykti su klaida "Unknown Omarchy command".
+
+Be to, galite gilintis į kiekvieną grupę:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -59,4 +61,4 @@ Kiekviena komanda taip pat priima `--help`, nesvarbu, ar klausiate visos grupės
 
 ### Meniu atidarymas iš terminalo
 
-Omarchy meniu taip pat galima valdyti scenarijais, o tai patogu jūsų pačių klavišų susiejimams. `omarchy menu` atidaro jį nuo šaknies, o jūs galite pereiti tiesiai į bet kurią medžio vietą ją įvardydami: `omarchy menu summon appearance.theme` nukelia tiesiai į temų pasirinkimą, `omarchy menu toggle system` atidaro sistemos meniu ir vėl jį uždaro, jei jis jau atidarytas, o `omarchy menu close` jį paslepia.
+Omarchy meniu taip pat galima valdyti skriptais, o tai patogu jūsų pačių klavišų susiejimams. `omarchy menu` atidaro jį nuo šaknies, o įvardinę galite iš karto pereiti į bet kurią medžio vietą: `omarchy menu summon appearance.theme` nukelia tiesiai į temų pasirinkimą, `omarchy menu toggle system` atidaro sistemos meniu ir vėl jį uždaro, jei jis jau atidarytas, o `omarchy menu close` jį paslepia.

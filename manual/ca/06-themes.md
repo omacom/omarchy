@@ -1,12 +1,12 @@
 # Temes
 
-Omarchy inclou vint-i-dos temes preciosos. Pots triar entre ells a través d'_Aspecte > Tema_ al menú d'Omarchy (`Super + Space`) o anar directament al selector de temes amb `Super + Ctrl + T`.
+Omarchy inclou vint-i-tres temes preciosos. Pots triar entre ells a través d'_Appearance > Theme_ a l'Omarchy Menu (`Super + Space`) o saltar directament al selector de temes fent servir `Super + Ctrl + T`.
 
-Cada tema dona estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), Chromium i tota la interfície d'Omarchy: la barra superior, el menú, les notificacions, l'OSD i la pantalla de bloqueig. (Per a Obsidian, has de seleccionar manualment el tema d'Omarchy a través d'_Aspecte > Temes_ dins de l'aplicació).
+Cada tema aplica l'estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), el teu navegador (Chrome, Chromium, Edge o Brave) i a tota la shell d'Omarchy: la barra superior, el menú, les notificacions, l'OSD i la pantalla de bloqueig. (Per a Obsidian, has de seleccionar manualment el tema d'Omarchy a través d'_Appearance > Themes_ dins de l'aplicació).
 
-Els temes tenen un conjunt d'imatges de fons entre les quals pots triar amb `Super + Ctrl + W`.
+Els temes tenen un conjunt d'imatges de fons entre les quals pots triar fent servir `Super + Ctrl + W`.
 
-Pots trobar encara més temes a [la pàgina de temes addicionals](https://omarchy.org/themes/) o fins i tot [crear el teu propi tema](43-making-your-own-theme.md).
+Pots trobar encara més temes a [la pàgina de temes extra](https://omarchy.org/themes/) o fins i tot [crear el teu propi tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Desbloquejos
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Els temes també poden tenir un disseny de desbloqueig personalitzat, que s'utilitza per al procés de desxifratge d'arrencada. Pots seleccionar-ne un a _Aspecte > Desbloqueig_. Tenen aquest aspecte:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Icones de les aplicacions
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Les icones del llançador d'aplicacions i del dock es dibuixen amb els colors del teu tema, de manera que canvien juntament amb ell. Provenen d'un conjunt d'icones, que tries per separat del tema a _Appearance > Icons_, a partir de vistes prèvies de cada conjunt, de la mateixa manera que tries un tema:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ és el predeterminat: tot el que ve instal·lat, dibuixat amb un sol estil. Les aplicacions conegudes pel seu logotip, com Chrome, HEY o YouTube, conserven la seva forma i adopten els colors del tema.
+- _Arcade_ dibuixa les mateixes aplicacions com a pixel art de 8 bits, com ho faria una consola de jocs antiga.
+- _Original_ mostra cada aplicació amb la icona que li va donar el seu creador.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Pots instal·lar un conjunt d'icones que hagi creat algú altre amb _Install > Style > Icons_ (o `omarchy icons install <git url>`), i eliminar-lo de nou a _Remove > Icons_. _Update > Extra Icons_ obté la versió més recent dels conjunts que tens instal·lats.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Per crear el teu propi conjunt, posa les teves icones a `~/.config/omarchy/icons/<name>/`, un fitxer per aplicació, amb el nom de la línia `Icon=` del fitxer `.desktop` de l'aplicació. Un fitxer que acaba en `.svg` es mostra tal com és. Un fitxer que acaba en `.svg.tpl` es dibuixa amb els colors del tema: escriu `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` on va un color. El conjunt predeterminat a `/usr/share/omarchy/icons/papercraft/` és un bon lloc per començar. Afegeix un `preview.png` per mostrar el teu conjunt al selector; sense un, Omarchy dibuixa una vista prèvia a partir de les teves icones. Per canviar una sola icona del conjunt predeterminat, posa la teva versió a `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Arrencada i inici de sessió
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+La pantalla que demana la contrasenya de la teva unitat quan l'ordinador s'inicia, i la pantalla d'inici de sessió, també segueixen el tema. Cada vegada que canvies de tema, adopten el seu fons, el seu text, el seu color d'accent i els seus colors vermells, de manera que no hi ha cap disseny de desbloqueig separat per triar. Als Mac amb Apple Silicon, la pantalla de contrasenya de la unitat conserva l'aspecte predeterminat d'Omarchy sigui quin sigui el tema.

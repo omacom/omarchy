@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=GitHub Copilot
+Comment=Start GitHub Copilot in a terminal
+Exec=omarchy-agent --agent copilot --app-id=org.omarchy.copilot
+Icon=omarchy-agent-copilot
+StartupWMClass=org.omarchy.copilot
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

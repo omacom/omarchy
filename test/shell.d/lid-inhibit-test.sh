@@ -16,18 +16,17 @@ events_fd=""
 # The watcher forks clamshell retries and a poll; orphaning them would leave
 # them syncing against a deleted test tree.
 stop_watcher() {
-  local child descendants
-
   if [[ -n $watch_pid ]]; then
-    descendants=$(pgrep -P "$watch_pid" 2>/dev/null || true)
-    for child in $descendants; do
-      descendants+=" $(pgrep -P "$child" 2>/dev/null || true)"
-    done
-
-    kill -KILL "$watch_pid" 2>/dev/null || true
+    # The watcher leads its own process group, and everything it forks stays
+    # in it however deep or late, so one kill reaches all of it at once. A
+    # snapshot of its children would miss one forked after it was taken.
+    kill -KILL -- "-$watch_pid" 2>/dev/null || true
     wait "$watch_pid" 2>/dev/null || true
-    for child in $descendants; do
-      kill -KILL "$child" 2>/dev/null || true
+    # A killed process can still finish the write it was in, into a log the
+    # next scenario reuses; let the whole group go before moving on.
+    for _ in {1..100}; do
+      pgrep -g "$watch_pid" -r R,S,D,T,t >/dev/null || break
+      sleep 0.02
     done
     watch_pid=""
   fi
@@ -362,7 +361,7 @@ start_watcher() {
   OMARCHY_TEST_EVENTS="$events" \
   OMARCHY_TEST_SYNC_LOG="$sync_log" \
   OMARCHY_TEST_LID_INHIBIT="$lid_inhibit" \
-    "$ROOT/bin/omarchy-hyprland-monitor-watch" &
+    setsid "$ROOT/bin/omarchy-hyprland-monitor-watch" &
   watch_pid=$!
 
   exec {events_fd}>"$events"

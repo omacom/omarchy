@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Tell the user at login about the boot loader switch, snapshot restores and snapshot boots
+# omarchy:hidden=true
+
+# Runs once per login from omarchy-boot-notify.service. The root side
+# (omarchy-boot-switch confirm, at boot) leaves a notice in the boot store;
+# this shows each notice once per user. Booted into a snapshot, it offers the
+# restore.
+
+set -euo pipefail
+
+STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
+PROC_CMDLINE=${OMARCHY_PROC_CMDLINE:-/proc/cmdline}
+seen_file=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/boot-notice-seen
+
+# Empty, not a failure, where there is no boot store yet (a Limine machine).
+state_get() {
+  [[ -f $STORE/state ]] || return 0
+  sed -n "s/^$1=//p" "$STORE/state" | tail -1
+}
+
+# omarchy-boot-confirm, a system service this user unit can't be ordered
+# after, may still be writing this boot's notice (a restore it commits), or
+# not have started yet: it waits for graphical.target, which a quick login
+# can beat.
+confirm_pending() {
+  [[ $(systemctl show -p ActiveState --value omarchy-boot-confirm.service 2>/dev/null) == "activating" ]] ||
+    [[ -n $(systemctl list-jobs --no-legend omarchy-boot-confirm.service 2>/dev/null) ]]
+}
+
+for _ in $(seq 120); do
+  confirm_pending || break
+  sleep 1
+done
+
+snapshot=$(sed -n 's#.*rootflags=[^ ]*subvol=[^ ,]*/\.snapshots/\([0-9]*\)/snapshot.*#\1#p' "$PROC_CMDLINE")
+notice_id=$(state_get notice_id)
+
+[[ -n $snapshot || (-n $notice_id && $(cat "$seen_file" 2>/dev/null) != "$notice_id") ]] || exit 0
+
+omarchy-notification-wait || true
+
+if [[ -n $snapshot ]]; then
+  omarchy-notification-send -u critical --transient -g "󰁯" "$(omarchy-i18n boot.runningSnapshot.title "$snapshot")" \
+    "$(omarchy-i18n boot.runningSnapshot.body)" \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-snapshot restore "$snapshot"
+fi
+
+if [[ -n $notice_id && $(cat "$seen_file" 2>/dev/null) != "$notice_id" ]]; then
+  arg=$(state_get notice_arg) title="" body=""
+  case $(state_get notice_key) in
+  trialUp) title=$(omarchy-i18n boot.notice.trialUp.title) body=$(omarchy-i18n boot.notice.trialUp.body) ;;
+  trialFailed) title=$(omarchy-i18n boot.notice.trialFailed.title) body=$(omarchy-i18n boot.notice.trialFailed.body) ;;
+  firmwareKeptLimine) title=$(omarchy-i18n boot.notice.firmwareKeptLimine.title) body=$(omarchy-i18n boot.notice.firmwareKeptLimine.body) ;;
+  restored) title=$(omarchy-i18n boot.notice.restored.title "$arg") body=$(omarchy-i18n boot.notice.restored.body) ;;
+  restoreFailed) title=$(omarchy-i18n boot.notice.restoreFailed.title) body=$(omarchy-i18n boot.notice.restoreFailed.body "$arg") ;;
+  finishNoPackage) title=$(omarchy-i18n boot.notice.finishNoPackage.title) body=$(omarchy-i18n boot.notice.finishNoPackage.body) ;;
+  finishInstallFailed) title=$(omarchy-i18n boot.notice.finishInstallFailed.title) body=$(omarchy-i18n boot.notice.finishInstallFailed.body) ;;
+  finishNoRecoveryEntry) title=$(omarchy-i18n boot.notice.finishNoRecoveryEntry.title) body=$(omarchy-i18n boot.notice.finishNoRecoveryEntry.body "$arg") ;;
+  switched) title=$(omarchy-i18n boot.notice.switched.title) body=$(omarchy-i18n boot.notice.switched.body) ;;
+  esac
+  [[ -z $title ]] || omarchy-notification-send -g "󰋊" "$title" "$body"
+  mkdir -p "$(dirname "$seen_file")"
+  echo "$notice_id" >"$seen_file"
+fi

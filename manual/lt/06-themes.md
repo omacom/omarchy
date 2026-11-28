@@ -1,12 +1,12 @@
 # Temos
 
-Omarchy pateikiama su dvidešimt dviem gražiomis temomis. Jas galite pasirinkti per _Išvaizda > Tema_ Omarchy Menu (`Super + Space`) arba tiesiai pereiti prie temų pasirinkimo paspaudę `Super + Ctrl + T`.
+Omarchy pateikiama su dvidešimt trimis gražiomis temomis. Galite rinktis iš jų per _Išvaizda > Tema_ Omarchy meniu (`Super + Space`) arba pereiti tiesiai prie temų pasirinkimo naudodami `Super + Ctrl + T`.
 
-Kiekviena tema stilizuoja darbalaukį, terminalą, neovim, aktyvumo ekraną (btop), Chromium ir visą Omarchy apvalkalą: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Obsidian programoje Omarchy temą turite pasirinkti rankiniu būdu per _Išvaizda > Temos_ pačioje programoje).
+Kiekviena tema suformuoja darbalaukio, terminalo, neovim, aktyvumo ekrano (btop), jūsų naršyklės (Chrome, Chromium, Edge arba Brave) ir visos Omarchy aplinkos stilių: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Obsidian programoje Omarchy temą turite rankiniu būdu pasirinkti programoje per _Išvaizda > Temos_). 
 
-Temos turi foninių paveikslėlių rinkinį, iš kurio galite rinktis paspaudę `Super + Ctrl + W`.
+Temos turi foninių vaizdų rinkinį, iš kurio galite rinktis naudodami `Super + Ctrl + W`.
 
-Dar daugiau temų rasite [papildomų temų puslapyje](https://omarchy.org/themes/) arba netgi galite [susikurti savo temą](43-making-your-own-theme.md).
+Dar daugiau temų galite rasti [papildomų temų puslapyje](https://omarchy.org/themes/) arba net [sukurti savo temą](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Atrakinimo ekranai
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Temos taip pat gali turėti pasirinktinį atrakinimo dizainą, naudojamą įkrovos iššifravimo procese. Vieną iš jų galite pasirinkti per _Išvaizda > Atrakinimas_. Jie atrodo taip:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Programų piktogramos
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Programų paleidimo priemonėje ir doke esančios piktogramos nupieštos jūsų temos spalvomis, todėl jos keičiasi kartu su ja. Jos gaunamos iš piktogramų rinkinio, kurį pasirenkate atskirai nuo temos skiltyje _Išvaizda > Piktogramos_, iš kiekvieno rinkinio peržiūrų, taip pat, kaip renkatės temą:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ yra numatytasis: viskas, kas įdiegta, nupiešta vienu stiliumi. Programos, atpažįstamos iš savo logotipo, pavyzdžiui, Chrome, HEY ar YouTube, išlaiko jo formą ir įgauna temos spalvas.
+- _Arcade_ tas pačias programas piešia kaip 8 bitų pikselių grafiką, kaip būtų dariusi sena žaidimų konsolė.
+- _Original_ kiekvieną programą rodo su piktograma, kurią jai suteikė jos kūrėjas.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Kito sukurta piktogramų rinkinį galite įdiegti per _Įdiegti > Stilius > Piktogramos_ (arba `omarchy icons install <git url>`), o vėl jį pašalinti skiltyje _Pašalinti > Piktogramos_. _Atnaujinti > Papildomos piktogramos_ atsiunčia naujausią jūsų įdiegtų rinkinių versiją.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Norėdami sukurti savąjį, įkelkite savo piktogramas į `~/.config/omarchy/icons/<name>/`, po vieną failą kiekvienai programai, pavadintą pagal programos `.desktop` failo eilutę `Icon=`. Failas, besibaigiantis `.svg`, rodomas toks, koks yra. Failas, besibaigiantis `.svg.tpl`, nupiešiamas temos spalvomis: rašykite `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` arba `{{ icon_shadow }}` ten, kur turi būti spalva. Numatytasis rinkinys `/usr/share/omarchy/icons/papercraft/` yra gera vieta, nuo kurios galima pradėti. Pridėkite `preview.png`, kad jūsų rinkinys būtų rodomas pasirinkimo priemonėje; be jo Omarchy nupieš peržiūrą iš jūsų piktogramų. Norėdami pakeisti vieną numatytojo rinkinio piktogramą, įkelkite savo versiją į `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Paleidimas ir prisijungimas
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Ekranas, kuriame paleidžiant kompiuterį prašoma jūsų disko slaptažodžio, ir prisijungimo ekranas taip pat paklūsta temai. Kaskart perjungus temas, jie perima jos fono, teksto, akcento ir raudoną spalvas, todėl nėra jokio atskiro atrakinimo dizaino, kurį reikėtų rinktis. Apple Silicon Mac kompiuteriuose disko slaptažodžio ekranas išlaiko numatytąją Omarchy išvaizdą, kad ir kokia būtų tema.

@@ -7,6 +7,9 @@ linux-firmware-qcom
 qcom-firmware-extract
 # Builds the UKI with the device trees systemd-stub picks one from.
 systemd-ukify
+# systemd's stub with header room for every device tree's section; Arch Linux
+# ARM's holds about 119 trees.
+systemd-stub-omarchy
 # Adreno GPUs.
 vulkan-freedreno
 # The cameras run through libcamera, and apps reach them through this PipeWire

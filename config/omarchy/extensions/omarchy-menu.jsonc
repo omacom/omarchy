@@ -15,6 +15,7 @@
   //   description Optional subtitle and extra search text.
   //   when        Shell condition; hide row when it fails.
   //   checked     Shell condition; append ✓ when it succeeds.
+  //   alt         Id of another action entry shown and run instead while Alt is held.
   //
   // Examples:
   // "personal": {"icon":"","label":"Personal"},
@@ -26,5 +27,5 @@
   //
   // Example: replace the default About action by reusing the same id. Existing
   // fields are kept unless overridden.
-  // "about": {"icon":"","label":"About","action":"omarchy-launch-or-focus-tui \"zsh -c 'fastfetch; read -k 1'\""},
+  // "system.about": {"icon":"","label":"About","action":"omarchy-launch-or-focus-tui \"zsh -c 'fastfetch; read -k 1'\""},
 }

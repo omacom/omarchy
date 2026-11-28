@@ -1,12 +1,12 @@
 # தீம்கள்
 
-Omarchy இருபத்திரண்டு அழகான தீம்களுடன் வருகிறது. Omarchy Menu (`Super + Space`) இல் உள்ள _தோற்றம் > தீம்_ வழியாக அவற்றுக்கு இடையே நீங்கள் தேர்ந்தெடுக்கலாம் அல்லது `Super + Ctrl + T` ஐப் பயன்படுத்தி நேரடியாக தீம் தேர்வாளருக்குச் செல்லலாம்.
+Omarchy இருபத்து மூன்று அழகான தீம்களுடன் வருகிறது. Omarchy மெனுவில் (`Super + Space`) _தோற்றம் > தீம்_ வழியாக அவற்றில் ஒன்றை நீங்கள் தேர்ந்தெடுக்கலாம் அல்லது `Super + Ctrl + T` ஐப் பயன்படுத்தி நேரடியாக தீம் தேர்வாளருக்குச் செல்லலாம்.
 
-ஒவ்வொரு தீமும் டெஸ்க்டாப், டெர்மினல், neovim, செயல்பாட்டுத் திரை (btop), Chromium மற்றும் முழு Omarchy ஷெல்லையும் பாணிப்படுத்துகிறது: மேல் பட்டி, மெனு, அறிவிப்புகள், OSD மற்றும் பூட்டுத் திரை. (Obsidian க்கு, செயலியின் உள்ளே உள்ள _தோற்றம் > தீம்கள்_ வழியாக Omarchy தீமை நீங்கள் கைமுறையாகத் தேர்ந்தெடுக்க வேண்டும்).
+ஒவ்வொரு தீமும் டெஸ்க்டாப், டெர்மினல், neovim, செயல்பாட்டுத் திரை (btop), உங்கள் உலாவி (Chrome, Chromium, Edge அல்லது Brave), மற்றும் முழு Omarchy ஷெல்: மேல் பட்டி, மெனு, அறிவிப்புகள், OSD, மற்றும் பூட்டுத் திரை ஆகியவற்றை ஸ்டைல் செய்கிறது. (Obsidian-க்கு, பயன்பாட்டிற்குள் _தோற்றம் > தீம்கள்_ வழியாக Omarchy தீமை நீங்கள் கைமுறையாகத் தேர்ந்தெடுக்க வேண்டும்).
 
-தீம்களில் பின்னணிப் படங்களின் தொகுப்பு ஒன்று உள்ளது, அவற்றுக்கு இடையே `Super + Ctrl + W` ஐப் பயன்படுத்தி நீங்கள் தேர்ந்தெடுக்கலாம்.
+தீம்களில் பின்னணிப் படங்களின் தொகுப்பு உள்ளது, அவற்றில் ஒன்றை `Super + Ctrl + W` ஐப் பயன்படுத்தி நீங்கள் தேர்ந்தெடுக்கலாம்.
 
-[கூடுதல் தீம்கள் பக்கத்தில்](https://omarchy.org/themes/) இன்னும் பல தீம்களைக் காணலாம் அல்லது [உங்கள் சொந்த தீமை உருவாக்கவும்](43-making-your-own-theme.md) செய்யலாம்.
+[கூடுதல் தீம்கள் பக்கத்தில்](https://omarchy.org/themes/) இன்னும் பல தீம்களை நீங்கள் காணலாம் அல்லது [உங்கள் சொந்த தீமை உருவாக்கவும்](43-making-your-own-theme.md) முடியும்.
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### திறப்புகள்
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-தீம்களில் துவக்க மறைகுறியாக்க நீக்கச் செயல்முறைக்குப் பயன்படுத்தப்படும் தனிப்பயன் திறப்பு வடிவமைப்பும் இருக்கலாம். _தோற்றம் > திறப்பு_ என்பதன் கீழ் இவற்றில் ஒன்றை நீங்கள் தேர்ந்தெடுக்கலாம். அவை இப்படித் தோன்றும்:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### பயன்பாட்டு ஐகான்கள்
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+பயன்பாட்டு தொடங்கி மற்றும் டாக்கில் உள்ள ஐகான்கள் உங்கள் தீமின் வண்ணங்களில் வரையப்படுகின்றன, எனவே அவையும் அதனுடன் சேர்ந்து மாறுகின்றன. அவை ஒரு ஐகான் தொகுப்பிலிருந்து வருகின்றன, அதை நீங்கள் தீமைத் தேர்ந்தெடுப்பது போலவே ஒவ்வொரு தொகுப்பின் முன்னோட்டங்களிலிருந்து, தீமிலிருந்து தனியாக _தோற்றம் > ஐகான்கள்_ என்பதன் கீழ் தேர்ந்தெடுக்கிறீர்கள்:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ என்பது இயல்புநிலை: நிறுவப்பட்டுள்ள அனைத்தும் ஒரே ஸ்டைலில் வரையப்பட்டவை. Chrome, HEY, அல்லது YouTube போல தங்கள் லோகோவால் அறியப்படும் பயன்பாடுகள் அதன் வடிவத்தைத் தக்கவைத்துக் கொண்டு தீமின் வண்ணங்களை ஏற்றுக்கொள்கின்றன.
+- _Arcade_ அதே பயன்பாடுகளை பழைய கேம் கன்சோல் வரைவது போல 8-bit பிக்சல் கலையாக வரைகிறது.
+- _Original_ ஒவ்வொரு பயன்பாட்டையும் அதன் உருவாக்குநர் அதற்குக் கொடுத்த ஐகானுடன் காட்டுகிறது.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+வேறு யாரோ உருவாக்கிய ஐகான் தொகுப்பை _நிறுவு > ஸ்டைல் > ஐகான்கள்_ மூலம் (அல்லது `omarchy icons install <git url>`) நிறுவலாம், மேலும் _அகற்று > ஐகான்கள்_ என்பதன் கீழ் அதை மீண்டும் அகற்றலாம். _புதுப்பி > கூடுதல் ஐகான்கள்_ நீங்கள் நிறுவியுள்ள தொகுப்புகளின் சமீபத்திய பதிப்பைப் பெற்றுத் தருகிறது.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+உங்கள் சொந்தத்தை உருவாக்க, உங்கள் ஐகான்களை `~/.config/omarchy/icons/<name>/` இல் வைக்கவும், ஒரு பயன்பாட்டிற்கு ஒரு கோப்பு வீதம், பயன்பாட்டின் `.desktop` கோப்பின் `Icon=` வரியின் பெயரைக் கொண்டு பெயரிடவும். `.svg` இல் முடியும் கோப்பு அப்படியே காட்டப்படும். `.svg.tpl` இல் முடியும் கோப்பு தீமின் வண்ணங்களில் வரையப்படும்: ஒரு வண்ணம் செல்ல வேண்டிய இடத்தில் `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` அல்லது `{{ icon_shadow }}` என்று எழுதவும். `/usr/share/omarchy/icons/papercraft/` இல் உள்ள இயல்புநிலைத் தொகுப்பு தொடங்குவதற்கு நல்ல இடமாகும். உங்கள் தொகுப்பை தேர்வாளரில் காட்ட ஒரு `preview.png` ஐச் சேர்க்கவும்; அது இல்லாமல், Omarchy உங்கள் ஐகான்களிலிருந்து ஒரு முன்னோட்டத்தை வரைகிறது. இயல்புநிலைத் தொகுப்பின் ஒரு தனி ஐகானை மாற்ற, உங்கள் பதிப்பை `~/.config/omarchy/icons/papercraft/` இல் வைக்கவும்.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### துவக்கம் மற்றும் உள்நுழைவு
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+கணினி தொடங்கும்போது உங்கள் டிரைவ் கடவுச்சொல்லைக் கேட்கும் திரையும், உள்நுழைவுத் திரையும் தீமையே பின்பற்றுகின்றன. நீங்கள் தீம்களை மாற்றும் ஒவ்வொரு முறையும், அவை அதன் பின்னணி, உரை, அழுத்த வண்ணம் மற்றும் சிவப்பு வண்ணங்களை எடுத்துக்கொள்கின்றன, எனவே தனியாகத் தேர்ந்தெடுக்க வேண்டிய திறப்பு வடிவமைப்பு எதுவும் இல்லை. Apple Silicon Mac-களில், தீம் எதுவாக இருந்தாலும் டிரைவ் கடவுச்சொல் திரை Omarchy-இன் இயல்புநிலை தோற்றத்தையே வைத்திருக்கும்.

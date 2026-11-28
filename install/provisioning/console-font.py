@@ -2,7 +2,11 @@
 """Terminus for the setup console, plus the half blocks the Omarchy logo needs,
 drawn in the slots of ŉ and ₧, which nothing setup prints uses.
 
-Usage: console-font.py <terminus .psf[.gz]> <output .psf>
+Usage: console-font.py <terminus .psf[.gz]> <output .psf> [<art> [<text>...]]
+
+With art, an OEM's logo, the font also draws the braille dot patterns the art
+uses, which Terminus has none of, in the slots of characters that neither the
+art nor the text files shown with it use.
 """
 
 from __future__ import annotations
@@ -129,6 +133,38 @@ def patch(width: int, height: int, glyphs: list[bytes], table: list[list[int]]) 
             table[owner[glyph_of]].append(codepoint)
 
 
+# What setup's own screens draw besides the text they are given.
+CHROME = "─│┌┐└┘├┤┬┴┼╭╮╯╰━┃▀▄█░▒▓√✓↑↓←→•…\ufffd"
+
+
+def braille(width: int, height: int, codepoint: int) -> bytes:
+    """Two columns of four dots, each a quarter of the cell's width across."""
+    row_bytes = (width + 7) // 8
+    dot = width // 4
+    rows = [0] * height
+    # Dots 1-3 and 7 run down the left column, 4-6 and 8 down the right.
+    for bit, (column, row) in enumerate(((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (0, 3), (1, 3))):
+        if (codepoint - 0x2800) >> bit & 1:
+            left = width // 4 - dot // 2 + column * width // 2
+            top = height // 8 - dot // 2 + row * height // 4
+            for y in range(top, top + dot):
+                rows[y] |= ((1 << dot) - 1) << (row_bytes * 8 - left - dot)
+    return b"".join(row.to_bytes(row_bytes, "big") for row in rows)
+
+
+def add_art(width: int, height: int, glyphs: list[bytes], table: list[list[int]], art: str, text: str) -> None:
+    drawn = {codepoint for codepoints in table for codepoint in codepoints}
+    wanted = sorted({ord(char) for char in art if 0x2800 <= ord(char) <= 0x28FF} - drawn)
+    needed = {ord(char) for char in art + text + CHROME} | set(range(0x20, 0x7F))
+    # Glyph 0 is what the console draws for a character the font lacks.
+    spare = [index for index in range(len(table) - 1, 0, -1) if not needed.intersection(table[index])]
+    if len(wanted) > len(spare):
+        raise ValueError(f"the art has {len(wanted)} dot patterns and the font has room for {len(spare)}")
+    for codepoint, index in zip(wanted, spare):
+        glyphs[index] = braille(width, height, codepoint)
+        table[index] = [codepoint]
+
+
 def write_psf2(width: int, height: int, glyphs: list[bytes], table: list[list[int]]) -> bytes:
     glyph_size = (width + 7) // 8 * height
     header = struct.pack("<8I", 0x864AB572, 0, 32, 1, len(glyphs), glyph_size, height, width)
@@ -143,6 +179,9 @@ def main() -> None:
         data = gzip.decompress(data)
     width, height, glyphs, table = read_font(data)
     patch(width, height, glyphs, table)
+    if len(sys.argv) > 3:
+        art, *text = (Path(name).read_text(encoding="utf-8") for name in sys.argv[3:])
+        add_art(width, height, glyphs, table, art, "".join(text))
     output.write_bytes(write_psf2(width, height, glyphs, table))
 
 

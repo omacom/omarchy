@@ -10,6 +10,7 @@ set -euo pipefail
 # leaves it running deletes the directory and watches it come straight back.
 pkill -x claude-desktop || true
 
+echo "Removing Claude Desktop..."
 omarchy-pkg-drop claude-desktop
 
 # Not ~/.claude, ~/.claude.json, or ~/.cache/claude-cli-nodejs: those belong

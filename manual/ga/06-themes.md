@@ -1,12 +1,12 @@
 # Téamaí
 
-Tagann Omarchy le dhá théama is fiche álainne. Is féidir leat roghnú eatarthu trí _Dealramh > Téama_ sa Roghchlár Omarchy (`Super + Space`) nó léim go díreach chuig an roghnóir téamaí le `Super + Ctrl + T`.
+Tagann Omarchy le trí théama áille is fiche. Is féidir leat roghnú eatarthu trí _Appearance > Theme_ sa Roghchlár Omarchy (`Super + Space`) nó dul díreach chuig an roghnóir téamaí le `Super + Ctrl + T`.
 
-Déanann gach téama stíliú ar an deasc, ar an teirminéal, ar neovim, ar an scáileán gníomhaíochta (btop), ar Chromium, agus ar bhlaosc iomlán Omarchy: an barra uachtarach, an roghchlár, na fógraí, an OSD, agus an scáileán glais. (Maidir le Obsidian, ní mór duit téama Omarchy a roghnú de láimh trí _Dealramh > Téamaí_ laistigh den aip).
+Tugann gach téama stíl don deasc, don teirminéal, do neovim, don scáileán gníomhaíochta (btop), do do bhrabhsálaí (Chrome, Chromium, Edge nó Brave), agus don bhlaosc iomlán Omarchy: an barra uachtarach, an roghchlár, na fógraí, an OSD, agus an scáileán glais. (Maidir le Obsidian, caithfidh tú téama Omarchy a roghnú de láimh trí _Appearance > Themes_ taobh istigh den aip).
 
-Tá sraith íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu le `Super + Ctrl + W`.
+Tá tacar íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu le `Super + Ctrl + W`.
 
-Is féidir leat níos mó téamaí fós a aimsiú ar [an leathanach téamaí breise](https://omarchy.org/themes/) nó fiú [do théama féin a dhéanamh](43-making-your-own-theme.md).
+Is féidir leat níos mó téamaí fós a aimsiú ar [leathanach na dtéamaí breise](https://omarchy.org/themes/) nó fiú [do théama féin a dhéanamh](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Díghlasálacha
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Is féidir dearadh díghlasála saincheaptha a bheith ag téamaí freisin, a úsáidtear don phróiseas díchriptithe ag am tosaithe. Is féidir leat ceann acu seo a roghnú faoi _Dealramh > Díghlasáil_. Seo mar a bhreathnaíonn siad:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Deilbhíní aipeanna
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Tarraingítear na deilbhíní sa tosaitheoir aipeanna agus sa duga i ndathanna do théama, mar sin athraíonn siad in éineacht leis. Tagann siad ó thacar deilbhíní, a roghnaíonn tú ar leithligh ón téama faoi _Appearance > Icons_, ó réamhamhairc ar gach tacar, ar an mbealach céanna a roghnaíonn tú téama:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ is é an réamhshocrú é: gach rud a thagann suiteáilte, tarraingthe i stíl amháin. Coinníonn aipeanna a bhfuil aithne orthu óna lógó, cosúil le Chrome, HEY, nó YouTube, a gcruth agus glacann siad dathanna an téama chucu.
+- Tarraingíonn _Arcade_ na haipeanna céanna mar ealaín phicteilín 8-giotán, mar a dhéanfadh seanconsól cluichí.
+- Taispeánann _Original_ gach aip leis an deilbhín a thug a déantóir di.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Is féidir leat tacar deilbhíní atá déanta ag duine eile a shuiteáil le _Install > Style > Icons_ (nó `omarchy icons install <git url>`), agus é a bhaint arís faoi _Remove > Icons_. Faigheann _Update > Extra Icons_ an leagan is déanaí de na tacair atá suiteáilte agat.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Chun do cheann féin a dhéanamh, cuir do dheilbhíní i `~/.config/omarchy/icons/<name>/`, comhad amháin in aghaidh na haipe, ainmnithe i ndiaidh líne `Icon=` i gcomhad `.desktop` na haipe. Taispeántar comhad a chríochnaíonn le `.svg` mar atá sé. Tarraingítear comhad a chríochnaíonn le `.svg.tpl` i ndathanna an téama: scríobh `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` nó `{{ icon_shadow }}` san áit a dtéann dath. Is áit mhaith tosaithe an tacar réamhshocraithe in `/usr/share/omarchy/icons/papercraft/`. Cuir `preview.png` leis chun do thacar a thaispeáint sa roghnóir; gan cheann, tarraingíonn Omarchy réamhamharc ó do dheilbhíní. Chun deilbhín aonair den tacar réamhshocraithe a athrú, cuir do leagan i `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Tosú agus logáil isteach
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Leanann an scáileán a iarrann pasfhocal do thiomántáin nuair a thosaíonn an ríomhaire, agus an scáileán logála isteach, an téama freisin. Gach uair a athraíonn tú téamaí, glacann siad a chúlra, a théacs, a dhath béime, agus a dhathanna dearga chucu, mar sin níl aon dearadh díghlasála ar leith le roghnú. Ar ríomhairí Apple Silicon Mac, coinníonn scáileán pasfhocail an thiomántáin cuma réamhshocraithe Omarchy is cuma cén téama atá ann.

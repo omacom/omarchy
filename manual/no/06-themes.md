@@ -1,8 +1,8 @@
 # Temaer
 
-Omarchy kommer med tjueto vakre temaer. Du kan velge mellom dem via _Utseende > Tema_ i Omarchy-menyen (`Super + Space`) eller hoppe rett til temavelgeren med `Super + Ctrl + T`.
+Omarchy leveres med tjuetre vakre temaer. Du kan velge mellom dem via _Utseende > Tema_ i Omarchy-menyen (`Super + Space`) eller hoppe rett til temavelgeren med `Super + Ctrl + T`.
 
-Hvert tema styler skrivebordet, terminalen, neovim, aktivitetsskjermen (btop), Chromium og hele Omarchy-skallet: topplinjen, menyen, varsler, OSD og låseskjermen. (For Obsidian må du manuelt velge Omarchy-temaet via _Utseende > Temaer_ inne i appen).
+Hvert tema setter stil på skrivebordet, terminalen, neovim, aktivitetsskjermen (btop), nettleseren din (Chrome, Chromium, Edge eller Brave) og hele Omarchy-skallet: topplinjen, menyen, varsler, OSD og låseskjermen. (I Obsidian må du velge Omarchy-temaet manuelt via _Utseende > Temaer_ inne i appen).
 
 Temaer har et sett med bakgrunnsbilder som du kan velge mellom med `Super + Ctrl + W`.
 
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Opplåsinger
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Temaer kan også ha et tilpasset opplåsingsdesign, som brukes til dekrypteringsprosessen ved oppstart. Du kan velge ett av disse under _Utseende > Opplåsing_. De ser slik ut:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Appikoner
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Ikonene i appstarteren og dokken tegnes i fargene til temaet ditt, så de endres sammen med det. De kommer fra et ikonsett, som du velger uavhengig av temaet under _Utseende > Ikoner_, fra forhåndsvisninger av hvert sett, på samme måte som du velger et tema:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ er standarden: alt som følger med installert, tegnet i én stil. Apper som er kjent for logoen sin, som Chrome, HEY eller YouTube, beholder formen sin og får fargene til temaet.
+- _Arcade_ tegner de samme appene som 8-biters pikselkunst, slik en gammel spillkonsoll ville gjort.
+- _Original_ viser hver app med ikonet skaperen ga den.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Du kan installere et ikonsett noen andre har laget med _Installer > Stil > Ikoner_ (eller `omarchy icons install <git url>`), og fjerne det igjen under _Fjern > Ikoner_. _Oppdater > Ekstra ikoner_ henter den nyeste versjonen av settene du har installert.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+For å lage ditt eget legger du ikonene dine i `~/.config/omarchy/icons/<name>/`, én fil per app, oppkalt etter `Icon=`-linjen i appens `.desktop`-fil. En fil som slutter på `.svg`, vises som den er. En fil som slutter på `.svg.tpl`, tegnes i fargene til temaet: skriv `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` eller `{{ icon_shadow }}` der en farge skal være. Standardsettet i `/usr/share/omarchy/icons/papercraft/` er et godt utgangspunkt. Legg til en `preview.png` for å vise settet ditt i velgeren; uten en slik tegner Omarchy en forhåndsvisning fra ikonene dine. For å endre ett enkelt ikon i standardsettet legger du din versjon i `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Oppstart og innlogging
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Skjermen som ber om diskpassordet ditt når datamaskinen starter, og innloggingsskjermen, følger også temaet. Hver gang du bytter tema, får de bakgrunnen, teksten, aksenten og de røde fargene fra det, så det finnes ikke noe eget opplåsingsdesign å velge. På Apple Silicon-Macer beholder skjermen for diskpassord Omarchys standardutseende uansett tema.

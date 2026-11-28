@@ -1,10 +1,10 @@
 # ערכות נושא
 
-Omarchy מגיעה עם עשרים ושתיים ערכות נושא יפהפיות. תוכלו לבחור ביניהן דרך _מראה > ערכת נושא_ בתפריט Omarchy (`Super + Space`) או לקפוץ ישירות לבורר ערכות הנושא באמצעות `Super + Ctrl + T`.
+Omarchy מגיעה עם עשרים ושלוש ערכות נושא יפהפיות. ניתן לבחור ביניהן דרך _מראה > ערכת נושא_ בתפריט של Omarchy (`Super + Space`) או לקפוץ ישירות לבורר ערכות הנושא עם `Super + Ctrl + T`.
 
-כל ערכת נושא מעצבת את שולחן העבודה, הטרמינל, neovim, מסך הפעילות (btop), Chromium, ואת כל מעטפת Omarchy: הסרגל העליון, התפריט, ההתראות, ה-OSD ומסך הנעילה. (ב-Obsidian, עליכם לבחור ידנית את ערכת הנושא של Omarchy דרך _מראה > ערכות נושא_ בתוך האפליקציה).
+כל ערכת נושא מעצבת את שולחן העבודה, המסוף, neovim, מסך הפעילות (btop), הדפדפן שלכם (Chrome, Chromium, Edge או Brave), ואת כל מעטפת Omarchy: השורה העליונה, התפריט, ההתראות, ה‑OSD ומסך הנעילה. (ב‑Obsidian, עליכם לבחור ידנית את ערכת הנושא של Omarchy דרך _מראה > ערכות נושא_ בתוך האפליקציה).
 
-לערכות נושא יש סט של תמונות רקע שתוכלו לבחור ביניהן באמצעות `Super + Ctrl + W`.
+לערכות הנושא יש אוסף של תמונות רקע שתוכלו לבחור ביניהן עם `Super + Ctrl + W`.
 
 תוכלו למצוא עוד ערכות נושא ב[דף ערכות הנושא הנוספות](https://omarchy.org/themes/) או אפילו [ליצור ערכת נושא משלכם](43-making-your-own-theme.md).
 
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### מסכי פתיחה
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-לערכות נושא יכול להיות גם עיצוב פתיחה מותאם אישית, המשמש לתהליך פענוח האתחול. תוכלו לבחור אחד מהם תחת _מראה > פתיחה_. כך הם נראים:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### סמלי אפליקציות
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+הסמלים במפעיל האפליקציות וב‑dock מצוירים בצבעי ערכת הנושא שלכם, כך שהם משתנים יחד איתה. הם מגיעים מערכת סמלים, שאותה בוחרים בנפרד מערכת הנושא תחת _מראה > סמלים_, מתוך תצוגות מקדימות של כל ערכה, באותה דרך שבה בוחרים ערכת נושא:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ היא ברירת המחדל: כל מה שמגיע מותקן, מצויר בסגנון אחד. אפליקציות המוכרות לפי הלוגו שלהן, כמו Chrome, HEY או YouTube, שומרות על הצורה שלהן ומקבלות את צבעי ערכת הנושא.
+- _Arcade_ מציירת את אותן אפליקציות כפיקסל ארט של 8-bit, כמו שקונסולת משחקים ישנה הייתה מציירת.
+- _Original_ מציגה כל אפליקציה עם הסמל שיוצרה נתן לה.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+תוכלו להתקין ערכת סמלים שמישהו אחר יצר עם _התקנה > סגנון > סמלים_ (או `omarchy icons install <git url>`), ולהסיר אותה שוב תחת _הסרה > סמלים_. _עדכון > סמלים נוספים_ מביא את הגרסה העדכנית ביותר של הערכות שהתקנתם.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+כדי ליצור ערכה משלכם, שימו את הסמלים שלכם ב‑`~/.config/omarchy/icons/<name>/`, קובץ אחד לכל אפליקציה, בשם התואם את שורת ה‑`Icon=` של קובץ ה‑`.desktop` של האפליקציה. קובץ המסתיים ב‑`.svg` מוצג כמות שהוא. קובץ המסתיים ב‑`.svg.tpl` מצויר בצבעי ערכת הנושא: כתבו `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` או `{{ icon_shadow }}` במקום שבו צריך להיות צבע. ערכת ברירת המחדל ב‑`/usr/share/omarchy/icons/papercraft/` היא מקום טוב להתחיל ממנו. הוסיפו `preview.png` כדי להציג את הערכה שלכם בבורר; בלעדיו, Omarchy תצייר תצוגה מקדימה מהסמלים שלכם. כדי לשנות סמל בודד של ערכת ברירת המחדל, שימו את הגרסה שלכם ב‑`~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### אתחול והתחברות
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+המסך שמבקש את סיסמת הכונן שלכם כשהמחשב מופעל, ומסך ההתחברות, הולכים גם הם אחרי ערכת הנושא. בכל פעם שאתם מחליפים ערכות נושא, הם מקבלים את הרקע, הטקסט, צבע ההדגשה והצבעים האדומים שלה, כך שאין עיצוב נעילה נפרד שצריך לבחור. במחשבי Apple Silicon Macs, מסך סיסמת הכונן שומר על המראה הדיפולטיבי של Omarchy בכל ערכת נושא.

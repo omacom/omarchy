@@ -17,7 +17,6 @@ Item {
   property bool startupSettled: sessionConsumed
   property bool startupPending: !sessionConsumed
   property bool startupMediaReady: false
-  property real startupOpacity: startupPending ? 1 : 0
   readonly property bool desktopReady: !host || (!host.pluginReloading && (!host.pluginRegistry || !host.pluginRegistry.scanning) && (!("bar" in host) || !!host.bar))
   property bool checked: false
   property string themeToken: ""
@@ -39,7 +38,7 @@ Item {
   // animation started in that frame begins already advanced by its length,
   // about 40% of the fade. The reveal starts two frames later instead.
   property int revealDelayFrames: 0
-  readonly property bool revealing: revealDelayFrames > 0 || themeFade.running || themeCutReveal.running || startupFade.running
+  readonly property bool revealing: revealDelayFrames > 0 || themeFade.running || themeCutReveal.running || startupRevealing
   // The outgoing frame reached, or failed to reach, the screen.
   signal coverPresented()
   readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
@@ -59,14 +58,73 @@ Item {
   }
 
   function revealStartup() {
-    if (!startupPending || startupFade.running || !startupMediaReady || !desktopReady) return
-    if (!startupCovers.instances.length) return
-    for (var panel of startupCovers.instances)
-      if (panel.readyFrames < 2) return
-    startupFade.start()
+    if (!startupPending || startupRevealing || !startupMediaReady || !desktopReady || startupReadyFrames < 2) return
+    startupRevealing = true
+    // A cover not listening yet gets the reveal once it connects (startupCover).
+    if (!startupCover.send("reveal") && (startupCoverSeen || startupCoverTries > startupCoverMaxTries)) endStartup()
+  }
+
+  function endStartup() {
+    startupRevealing = false
+    startupPending = false
   }
 
   onDesktopReadyChanged: revealStartup()
+
+  // startup-cover.qml covers the screen from before this shell has loaded
+  // until the reveal. It fades out when told, quitting once it has, which
+  // ends the startup. Without it, the startup ends at the reveal.
+  property bool startupRevealing: false
+  // Frames drawn since the desktop became ready, so the reveal shows it whole.
+  property int startupReadyFrames: 0
+  property bool startupCoverSeen: false
+  property int startupCoverTries: 0
+  readonly property int startupCoverMaxTries: 20
+
+  FrameAnimation {
+    running: root.startupPending && root.desktopReady && root.startupReadyFrames < 2
+    onTriggered: {
+      root.startupReadyFrames += 1
+      if (root.startupReadyFrames === 2) root.revealStartup()
+    }
+  }
+
+  Socket {
+    id: startupCover
+    path: Quickshell.env("XDG_RUNTIME_DIR") + "/hypr/" + Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") + "/startup-cover.sock"
+
+    function send(line) {
+      if (!connected) return false
+      write(line + "\n")
+      flush()
+      return true
+    }
+
+    onConnectionStateChanged: {
+      if (connected) {
+        root.startupCoverSeen = true
+        if (root.startupRevealing) send("reveal")
+      } else if (root.startupRevealing && root.startupCoverSeen) {
+        root.endStartup()
+      }
+    }
+  }
+
+  // The cover starts with this shell, so it may not be listening yet. Each
+  // try that finds nothing logs a socket warning. The tick after the last try
+  // gives it time to answer; with no cover by then, a reveal has none to tell.
+  Timer {
+    interval: 100
+    repeat: true
+    triggeredOnStart: true
+    running: root.startupPending && !root.startupCoverSeen && root.startupCoverTries <= root.startupCoverMaxTries
+    onTriggered: {
+      root.startupCoverTries += 1
+      if (root.startupCoverTries <= root.startupCoverMaxTries) startupCover.connected = true
+      else if (root.startupRevealing) root.endStartup()
+    }
+  }
+
   onBackgroundReadyChanged: {
     finishStartup()
     if (themeFinishing && backgroundReady) revealTheme()
@@ -78,6 +136,7 @@ Item {
 
   function prepareTheme(fromPath, token, colors, shell) {
     framePoll.stop()
+    frameStatus.consecutiveFailures = 0
     themeFade.stop()
     themeCutReveal.stop()
     revealDelayFrames = 0
@@ -100,6 +159,7 @@ Item {
     if (!themeToken && !cover) return
     themeFinishing = false
     framePoll.stop()
+    frameStatus.consecutiveFailures = 0
     themeFallback.stop()
     // A background change keeps the theme, so it hands over no palette.
     if (themeToken && (themeColors || themeShell)) {
@@ -147,6 +207,7 @@ Item {
   function cancelTheme() {
     themeFinishing = false
     framePoll.stop()
+    frameStatus.consecutiveFailures = 0
     themeFallback.stop()
     themeFade.stop()
     themeCutReveal.stop()
@@ -160,16 +221,6 @@ Item {
     themeShell = ""
   }
 
-  NumberAnimation {
-    id: startupFade
-    target: root
-    property: "startupOpacity"
-    to: 0
-    duration: Style.duration(420)
-    easing.type: Easing.OutCubic
-    onFinished: root.startupPending = false
-  }
-
   // A missing wallpaper or failed plugin must not leave applications hidden.
   Timer {
     interval: 10000
@@ -178,7 +229,7 @@ Item {
       root.cover = false
       if (!root.themeToken) root.themeBackground = ""
       root.startupMediaReady = true
-      startupFade.start()
+      root.endStartup()
     }
   }
 
@@ -229,7 +280,7 @@ Item {
   // Stop once nothing is covered: a still wallpaper never reports video.
   Timer {
     id: framePoll
-    interval: 16
+    interval: 50
     repeat: true
     onTriggered: {
       if (!root.cover && !root.themeToken) stop()
@@ -241,10 +292,20 @@ Item {
     id: frameStatus
     command: ["owe", "render-status"]
     property string token: ""
+    property int consecutiveFailures: 0
     onStarted: token = root.themeToken
     stdout: StdioCollector { id: frameStatusOut }
     onExited: function(exitCode) {
-      if (exitCode !== 0 || token !== root.themeToken || (!token && !root.cover)) return
+      if (token !== root.themeToken || (!token && !root.cover)) return
+      if (exitCode !== 0) {
+        consecutiveFailures += 1
+        if (consecutiveFailures >= 5) {
+          framePoll.stop()
+          root.revealTheme()
+        }
+        return
+      }
+      consecutiveFailures = 0
       try {
         var status = JSON.parse(frameStatusOut.text)
         if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
@@ -282,43 +343,9 @@ Item {
   onBackgroundActiveChanged: {
     if (!backgroundActive && checked) {
       if (cover || themeToken) {
+        frameStatus.consecutiveFailures = 0
         framePoll.start()
         if (!frameStatus.running) frameStatus.running = true
-      }
-    }
-  }
-
-  // Cover the bar as well as the wallpaper on a new login. Shell restarts
-  // retain the current desktop and never map this startup cover.
-  Variants {
-    id: startupCovers
-    model: Quickshell.screens
-
-    PanelWindow {
-      required property var modelData
-      property int readyFrames: 0
-      screen: modelData
-      visible: root.startupPending
-      color: "transparent"
-      mask: Region {}
-      anchors { top: true; bottom: true; left: true; right: true }
-      exclusionMode: ExclusionMode.Ignore
-      WlrLayershell.layer: WlrLayer.Overlay
-      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-      WlrLayershell.namespace: "omarchy-background"
-
-      Rectangle {
-        anchors.fill: parent
-        color: "black"
-        opacity: root.startupOpacity
-      }
-
-      FrameAnimation {
-        running: root.startupPending && root.desktopReady && readyFrames < 2
-        onTriggered: {
-          readyFrames += 1
-          if (readyFrames === 2) root.revealStartup()
-        }
       }
     }
   }

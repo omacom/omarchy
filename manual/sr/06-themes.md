@@ -1,12 +1,12 @@
 # Теме
 
-Omarchy долази са двадесет две прелепе теме. Можете да бирате између њих преко _Изглед > Тема_ у Omarchy менију (`Super + Space`) или да директно скочите на бирач тема помоћу `Super + Ctrl + T`.
+Omarchy долази са двадесет три прелепе теме. Можете бирати између њих преко _Изглед > Тема_ у Omarchy менију (`Super + Space`) или прескочити право до бирача тема користећи `Super + Ctrl + T`.
 
-Свака тема стилизује радну површину, терминал, neovim, екран активности (btop), Chromium и целокупну Omarchy љуску: горњу траку, мени, обавештења, OSD и екран за закључавање. (За Obsidian морате ручно да изаберете Omarchy тему преко _Изглед > Теме_ унутар апликације).
+Свака тема стилизује радну површину, терминал, neovim, екран активности (btop), ваш прегледач (Chrome, Chromium, Edge или Brave) и целокупну Omarchy љуску: горњу траку, мени, обавештења, OSD и екран за закључавање. (За Obsidian морате ручно изабрати Omarchy тему преко _Изглед > Теме_ унутар апликације).
 
-Теме имају скуп позадинских слика између којих можете да бирате помоћу `Super + Ctrl + W`.
+Теме имају скуп позадинских слика између којих можете бирати користећи `Super + Ctrl + W`.
 
-Још више тема можете да пронађете на [страници са додатним темама](https://omarchy.org/themes/) или чак да [направите сопствену тему](43-making-your-own-theme.md).
+Можете пронаћи још више тема на [страници са додатним темама](https://omarchy.org/themes/) или чак [направити сопствену тему](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,63 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Откључавања
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Теме могу да имају и прилагођен дизајн за откључавање, који се користи за процес дешифровања при покретању система. Један од њих можете да изаберете под _Изглед > Откључавање_. Изгледају овако:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
+### Иконе апликација
 
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
+Иконе у покретачу апликација и на доку нацртане су у бојама ваше теме, па се мењају заједно са њом. Оне потичу из скупа икона, који бирате одвојено од теме под _Изглед > Иконе_, на основу прегледа сваког скупа, на исти начин на који бирате тему:
 
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
+- _Papercraft_ је подразумевани: све што долази инсталирано, нацртано у једном стилу. Апликације познате по свом логотипу, као што су Chrome, HEY или YouTube, задржавају његов облик и преузимају боје теме.
+- _Arcade_ црта исте апликације као 8-bit уметност од пиксела, као што би то радила стара играћа конзола.
+- _Original_ приказује сваку апликацију са иконом коју јој је дао њен творац.
 
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
+Скуп икона који је направио неко други можете инсталирати помоћу _Инсталирај > Стил > Иконе_ (или `omarchy icons install <git url>`), а поново га уклонити под _Уклони > Иконе_. _Ажурирај > Додатне иконе_ преузима најновију верзију скупова које сте инсталирали.
 
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
+Да бисте направили сопствени, ставите своје иконе у `~/.config/omarchy/icons/<name>/`, по једну датотеку за сваку апликацију, названу према линији `Icon=` у датотеци `.desktop` те апликације. Датотека која се завршава на `.svg` приказује се таква каква јесте. Датотека која се завршава на `.svg.tpl` црта се у бојама теме: напишите `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` или `{{ icon_shadow }}` тамо где иде боја. Подразумевани скуп у `/usr/share/omarchy/icons/papercraft/` добро је место од којег можете почети. Додајте `preview.png` да бисте свој скуп приказали у бирачу; без њега, Omarchy црта преглед на основу ваших икона. Да бисте променили једну икону подразумеваног скупа, ставите своју верзију у `~/.config/omarchy/icons/papercraft/`.
 
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
+### Покретање система и пријава
 
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Екран који тражи лозинку вашег диска када се рачунар покрене и екран за пријаву такође прате тему. Сваки пут када промените тему, они преузимају њену позадину, текст, акценат и црвене боје, тако да не постоји посебан дизајн откључавања који треба одабрати. На Apple Silicon Mac рачунарима екран за лозинку диска задржава Omarchy подразумевани изглед, каква год да је тема.

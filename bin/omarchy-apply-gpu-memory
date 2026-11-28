@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# omarchy:summary=Let an integrated AMD or Intel GPU map all of RAM but 8 GiB from the next boot
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# The kernel lets a GPU map at most half of RAM (ttm.pages_limit). An AMD APU
+# like Strix Halo, or Intel graphics on the xe driver like the Arc B390, has
+# next to no VRAM of its own, so that is all the GPU can use: a 64 GB machine
+# can't load a 38 GiB local model. Raise the cap to all of RAM but 8 GiB for
+# the desktop, the reserve omarchy-local-ai keeps too. It is a limit, not a
+# reservation: the RAM stays the desktop's while the GPU doesn't hold it. On
+# 16 GB or less the default is already as high, so nothing is set.
+#
+# amdgpu sizes its GTT from the cap when it loads, and xe sizes its own share
+# at all of RAM, leaving the cap as the only limit, so this writes a boot
+# setting and builds nothing; the caller rebuilds the boot image, and the new
+# cap applies from the next boot. The parameter group keeps the name it had
+# when only AMD got it, which omarchy-local-ai reads to tell a raise is waiting.
+
+# Written through omarchy-boot-cmdline as the amd-gpu-memory group; the test
+# seam names Limine's drop-in file.
+drop_in="${OMARCHY_AMD_GPU_MEMORY_CONF:-/etc/limine-entry-tool.d/amd-gpu-memory.conf}"
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
+reserve_kib=$(( 8 * 1024 * 1024 ))
+
+# An AMD display controller, or Intel's integrated graphics, which is always
+# the device at 00:02.0, on xe. The older i915 driver's GPUs are left alone:
+# omarchy-local-ai runs no model on them.
+unified_gpu() {
+  local device vendor
+
+  shopt -s nullglob
+  for device in "$pci_devices_path"/*; do
+    [[ -r $device/class && -r $device/vendor ]] || continue
+    [[ $(< "$device/class") == 0x03* ]] || continue
+    vendor=$(< "$device/vendor")
+    if [[ $vendor == "0x1002" ]]; then
+      return 0
+    elif [[ $vendor == "0x8086" && ${device##*/} == "0000:00:02.0" && $(basename "$(readlink -f "$device/driver")") == "xe" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+unified_gpu || exit 0
+
+total_kib=$(awk '$1 == "MemTotal:" { print $2 }' "$meminfo")
+page_kib=$(( $(getconf PAGESIZE) / 1024 ))
+pages=$(( (total_kib - reserve_kib) / page_kib ))
+
+if (( pages <= total_kib / 2 / page_kib )); then
+  exit 0
+fi
+
+cmdline() {
+  OMARCHY_BOOT_LIMINE_DROPINS=$(dirname "$drop_in") omarchy-boot-cmdline "$1" "$(basename "$drop_in" .conf)" "${@:2}"
+}
+
+if [[ $(cmdline get) == "ttm.pages_limit=$pages" ]]; then
+  echo "The GPU can already map $(( pages * page_kib / 1024 / 1024 )) GiB"
+else
+  cmdline set "ttm.pages_limit=$pages"
+  echo "Letting the GPU map $(( pages * page_kib / 1024 / 1024 )) GiB from the next boot"
+fi

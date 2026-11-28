@@ -21,7 +21,7 @@ ShellRoot {
   // own empty copies.
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
-  property AppLibrary appLibrary: AppLibrary { }
+  property AppLibrary appLibrary: AppLibrary { shell: shell }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
   property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
@@ -296,6 +296,7 @@ ShellRoot {
   }
 
   property var _services: ({})
+  property var _pendingServices: ({})
   property var _pluginShellApis: ({})
   property var _pluginShellApiDescriptors: ({})
   property var _pluginBarEntryShellApis: ({})
@@ -946,19 +947,46 @@ ShellRoot {
     if (!manifest.entryPoints || !manifest.entryPoints.service) return null
     var url = pluginRegistry.entryPointUrl(manifest, "service")
     if (!url) return null
+    if (_pendingServices[key] && _pendingServices[key].url === url) return null
     var authenticationService = shell.isAuthenticationService(manifest, key)
     if (authenticationService && AuthServiceStore.has(key)) return null
 
+    var token = ({ url: url })
+    _pendingServices[key] = token
     var comp = Qt.createComponent(url, Component.PreferSynchronous)
     function finalize() {
-      if (comp.status !== Component.Ready) {
-        console.warn("service plugin load failed for " + key + ": " + comp.errorString())
+      if (comp.status === Component.Loading) return
+      var stale = _pendingServices[key] !== token
+      if (!stale) delete _pendingServices[key]
+      if (stale || comp.status !== Component.Ready) {
+        if (!stale) console.warn("service plugin load failed for " + key + ": " + comp.errorString())
+        comp.destroy()
+        return
+      }
+      var currentManifest = pluginRegistry && pluginRegistry.installedPlugins
+        ? pluginRegistry.installedPlugins[key] : null
+      var stillService = currentManifest
+        && Array.isArray(currentManifest.kinds)
+        && currentManifest.kinds.indexOf("service") !== -1
+        && currentManifest.entryPoints
+        && currentManifest.entryPoints.service
+        && pluginRegistry.entryPointUrl(currentManifest, "service") === url
+      if (!stillService || !pluginRegistry.isEnabled(key) || shell.pluginReloading) {
+        comp.destroy()
+        return
+      }
+      manifest = currentManifest
+      authenticationService = shell.isAuthenticationService(manifest, key)
+      if ((authenticationService && AuthServiceStore.has(key))
+          || (!authenticationService && _services[key])) {
+        comp.destroy()
         return
       }
       // Authentication services and third-party services have no visual
       // parent. Parenting either to serviceHost would let a plugin's object
       // traversal walk between the host and credential-bearing QML.
       var inst = comp.createObject(manifest.__isFirstParty && !authenticationService ? serviceHost : null)
+      comp.destroy()
       if (!inst) {
         console.warn("service plugin createObject returned null for", key)
         return
@@ -1042,6 +1070,20 @@ ShellRoot {
       for (var k in _services) if (k !== existingId) next[k] = _services[k]
       _services = next
     }
+    // Cancel pending async loads for services that are no longer enabled or declared.
+    var pendingIds = Object.keys(_pendingServices)
+    for (var pi = 0; pi < pendingIds.length; pi++) {
+      var pendingId = pendingIds[pi]
+      var pendingManifest = plugins[pendingId]
+      var stillPendingService = pendingManifest
+        && Array.isArray(pendingManifest.kinds)
+        && pendingManifest.kinds.indexOf("service") !== -1
+        && pendingManifest.entryPoints
+        && pendingManifest.entryPoints.service
+        && pluginRegistry.isEnabled(pendingId)
+        && pluginRegistry.entryPointUrl(pendingManifest, "service") === _pendingServices[pendingId].url
+      if (!stillPendingService) delete _pendingServices[pendingId]
+    }
     // Authentication services are retained outside the root object graph, so
     // reconcile their disable/remove lifecycle separately from _services.
     var authenticationIds = AuthServiceStore.ids()
@@ -1069,6 +1111,7 @@ ShellRoot {
   // Destroying omarchy.lock drops the ext-session-lock client while Hyprland
   // still holds the lock, which surfaces the crashed-lockscreen fallback.
   function unloadPluginServices() {
+    _pendingServices = ({})
     var next = ({})
     for (var existingId in _services) {
       if (serviceKeepLoaded(existingId)) {
@@ -1087,11 +1130,19 @@ ShellRoot {
     }
   }
 
+  // One handler, so the order is ours: services before panels and bar
+  // widgets. Services are built synchronously, and a synchronous load waits
+  // for every asynchronous one queued before it. Behind the panels and
+  // widgets, the lock, polkit, notifications and idle all waited for the
+  // whole bar to compile before they could answer.
   Connections {
     target: shell.pluginRegistry
     function onPluginsChanged() {
       shell.syncPluginApis()
-      if (!shell.pluginReloading) shell._syncServices()
+      if (shell.pluginReloading) return
+      shell._syncServices()
+      shell.syncPanelEntries()
+      shell.syncPluginWidgets()
     }
   }
 
@@ -1105,6 +1156,10 @@ ShellRoot {
     function onAppsChanged() {
       for (var id in shell._pluginAppLibraryApis)
         shell._pluginAppLibraryApis[id].appsChanged()
+    }
+    function onRemovalNeedsTerminal() {
+      for (var id in shell._pluginAppLibraryApis)
+        shell._pluginAppLibraryApis[id].removalNeedsTerminal()
     }
   }
 
@@ -1356,6 +1411,12 @@ ShellRoot {
       var row = panelEntryModel.get(j)
       var next = wanted[row.pluginId]
       if (next && next.kind === row.entryKind && next.keepLoaded === row.keepLoaded && next.sourceUrl === row.sourceUrl) {
+        var loader = panelLoaders[row.pluginId]
+        if (loader && loader.item) {
+          if ("shell" in loader.item) loader.item.shell = shell.pluginShellFor(next.manifest)
+          if ("manifest" in loader.item) loader.item.manifest = shell.publicPluginManifest(next.manifest)
+          if ("service" in loader.item) loader.item.service = shell.serviceFor(row.pluginId)
+        }
         delete wanted[row.pluginId]
       } else {
         panelEntryModel.remove(j)
@@ -1386,11 +1447,6 @@ ShellRoot {
       out.push({ id: id, manifest: m, kind: kind, keepLoaded: m.keepLoaded === true })
     }
     return out
-  }
-
-  Connections {
-    target: shell.pluginRegistry
-    function onPluginsChanged() { if (!shell.pluginReloading) shell.syncPanelEntries() }
   }
 
   Instantiator {
@@ -1445,11 +1501,6 @@ ShellRoot {
   // Each enabled plugin with kind "bar-widget" gets a Component created from
   // its manifest entry point and registered under its manifest id. Built-in
   // widgets use the same first-party manifest contract as third-party widgets.
-  Connections {
-    target: shell.pluginRegistry
-    function onPluginsChanged() { if (!shell.pluginReloading) shell.syncPluginWidgets() }
-  }
-
   property var pluginWidgetComponents: ({})
 
   function syncPluginWidgets() {
@@ -1486,6 +1537,19 @@ ShellRoot {
         firstParty: !!manifest.__isFirstParty
       }
 
+      var placed = shell.pluginRegistry.inBar(pluginId)
+      if (!placed) {
+        // Keep metadata in the registry so the bar editor and plugin listings
+        // still see the widget, without compiling its QML tree until placed.
+        if (existing) {
+          if (existing.component && typeof existing.component.destroy === "function")
+            existing.component.destroy()
+          shell.setPluginWidgetComponent(registryKey, null)
+        }
+        shell.barWidgetRegistry.register(registryKey, null, meta)
+        continue
+      }
+
       // A load already in flight for this URL registers itself when it
       // finishes. Starting a second one produces a second Component for the
       // same widget, and swapping a slot's component rebuilds its item —
@@ -1504,22 +1568,40 @@ ShellRoot {
       loadPluginWidget(registryKey, url, meta)
     }
 
-    // Drop registrations for plugins that are no longer present or enabled.
-    var allIds = shell.barWidgetRegistry.availableIds()
-    for (var i = 0; i < allIds.length; i++) {
-      var id = allIds[i]
-      if (!pluginWidgetComponents[id]) continue
-      if (!seen[id]) {
-        shell.barWidgetRegistry.unregister(id)
-        var next = ({})
-        for (var k in pluginWidgetComponents) if (k !== id) next[k] = pluginWidgetComponents[k]
-        pluginWidgetComponents = next
+    // Drop registrations and in-flight loads for plugins that are no longer present or enabled,
+    // including metadata-only registrations for unplaced widgets not tracked in pluginWidgetComponents.
+    var trackedIds = Object.keys(pluginWidgetComponents)
+    var registered = shell.barWidgetRegistry.widgets || ({})
+    for (var rid in registered) {
+      if (registered[rid] && registered[rid].metadata && registered[rid].metadata.source === "plugin"
+          && trackedIds.indexOf(rid) === -1)
+        trackedIds.push(rid)
+    }
+    var nextWidgets = null
+    for (var i = 0; i < trackedIds.length; i++) {
+      var id = trackedIds[i]
+      if (seen[id]) continue
+      if (shell.barWidgetRegistry.has(id)) shell.barWidgetRegistry.unregister(id)
+      if (pluginWidgetComponents[id] !== undefined) {
+        if (!nextWidgets) {
+          nextWidgets = ({})
+          for (var k in pluginWidgetComponents) nextWidgets[k] = pluginWidgetComponents[k]
+        }
+        delete nextWidgets[id]
       }
     }
+    if (nextWidgets) pluginWidgetComponents = nextWidgets
   }
 
   function unloadPluginWidgets() {
-    for (var id in pluginWidgetComponents) shell.barWidgetRegistry.unregister(id)
+    var registered = shell.barWidgetRegistry.widgets || ({})
+    var ids = Object.keys(pluginWidgetComponents)
+    for (var rid in registered) {
+      if (registered[rid] && registered[rid].metadata && registered[rid].metadata.source === "plugin"
+          && ids.indexOf(rid) === -1)
+        ids.push(rid)
+    }
+    for (var i = 0; i < ids.length; i++) shell.barWidgetRegistry.unregister(ids[i])
     pluginWidgetComponents = ({})
   }
 
@@ -1591,10 +1673,13 @@ ShellRoot {
         Qt.callLater(shell.reloadPlugins)
         return
       }
+      var wasReloading = shell.pluginReloading
       shell.pluginReloading = false
-      shell._syncServices()
-      shell.syncPanelEntries()
-      shell.syncPluginWidgets()
+      if (wasReloading) {
+        shell._syncServices()
+        shell.syncPanelEntries()
+        shell.syncPluginWidgets()
+      }
       if (shell.pluginRescanPending) {
         shell.pluginRescanPending = false
         Qt.callLater(shell.rescanPlugins)
@@ -1614,10 +1699,23 @@ ShellRoot {
     // asynchronous and syncPluginWidgets runs several times while the shell
     // starts, so without a marker the later passes cannot tell a load in
     // flight from one that never happened.
-    setPluginWidgetComponent(registryKey, { url: url, component: null })
+    var token = { url: url, component: null }
+    setPluginWidgetComponent(registryKey, token)
 
     var comp = Qt.createComponent(url, Component.Asynchronous)
     function finalize() {
+      if (comp.status === Component.Loading) return
+      var currentManifest = shell.pluginRegistry.installedPlugins[registryKey]
+      var stillWidget = currentManifest
+        && Array.isArray(currentManifest.kinds)
+        && currentManifest.kinds.indexOf("bar-widget") !== -1
+        && shell.pluginRegistry.isEnabled(registryKey)
+        && shell.pluginRegistry.entryPointUrl(currentManifest, "barWidget") === url
+      if (pluginWidgetComponents[registryKey] !== token || !stillWidget || shell.pluginReloading) {
+        if (pluginWidgetComponents[registryKey] === token) shell.setPluginWidgetComponent(registryKey, null)
+        comp.destroy()
+        return
+      }
       if (comp.status === Component.Ready) {
         shell.barWidgetRegistry.register(registryKey, comp, meta)
         shell.setPluginWidgetComponent(registryKey, { url: url, component: comp })
@@ -1626,6 +1724,7 @@ ShellRoot {
         // Drop the claim so a later rescan can retry.
         shell.setPluginWidgetComponent(registryKey, null)
         shell.pluginRegistry.pluginLoadFailed(registryKey, comp.errorString())
+        comp.destroy()
       }
     }
     if (comp.status === Component.Loading) {
@@ -1647,7 +1746,7 @@ ShellRoot {
     var lines = String(raw || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
-      if (match && ["menu", "panel", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
+      if (match && ["menu", "panel", "panelAt", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
         entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
     }
     return entries
@@ -1660,13 +1759,28 @@ ShellRoot {
     if (entry.kind === "menu") {
       shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
     } else if (entry.kind === "ipc") {
-      // "media.next" runs the media service's own IPC handler for next.
-      var dot = entry.target.indexOf(".")
+      // "media.next" runs the media service's own IPC handler for next;
+      // dotted plugin targets like "omarchy.dock.apps" dispatch through
+      // IpcRegistry in-process.
+      var dot = entry.target.lastIndexOf(".")
       var target = entry.target.slice(0, dot)
       var method = entry.target.slice(dot + 1)
       var service = shell.serviceFor(shell.ipcShortcutServices[target] || "")
-      if (!service || !service.runShortcut(method))
-        Util.execArgv(["omarchy-shell", target, method])
+      if (service && service.runShortcut(method)) {
+        if (target === "notifications" && method === "toggleDnd")
+          IpcRegistry.call("omarchy.indicators", "refresh", [])
+        return
+      }
+      if (IpcRegistry.call(target, method, []).ran) return
+      Util.execArgv(["omarchy-shell", target, method])
+    } else if (entry.kind === "panelAt") {
+      var colon = entry.target.indexOf(":")
+      var section = colon >= 0 ? entry.target.slice(0, colon) : "right"
+      var index = colon >= 0 ? entry.target.slice(colon + 1) : entry.target
+      var id = shell.bar && typeof shell.bar.panelWidgetIdAt === "function"
+        ? shell.bar.panelWidgetIdAt(section, index)
+        : ""
+      if (id) shell.toggle(id, "{}")
     } else if (entry.kind === "brightness") {
       if (!shell.brightnessKeys.handle(entry.target))
         Util.execArgv(["omarchy-brightness-display", entry.target === "raise" ? "+5%" : "5%-"])

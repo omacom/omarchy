@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Unlock an encrypted drive with its keyfile, or ask for its password in the shell
+# omarchy:args=<device>
+# omarchy:hidden=true
+
+# Called by omarchy-drive-automount when a locked LUKS partition appears. A
+# keyfile at ~/.config/omarchy/drive-keys/<LUKS UUID> unlocks it silently.
+# Without one, or when it is refused, the shell asks for the password and
+# unlocks the drive itself, so a wrong password shakes the card and is asked
+# again. omarchy-drive-automount then mounts the cleartext device as it appears.
+
+device=${1:?Usage: omarchy-drive-unlock <device>}
+
+unlock_with_keyfile() {
+  local uuid keyfile
+
+  uuid=$(lsblk -dno UUID "$device")
+  uuid=${uuid,,}
+  keyfile="$HOME/.config/omarchy/drive-keys/$uuid"
+
+  # The UUID is whatever the drive's own header says, so it must not be able to name another file.
+  [[ $uuid =~ ^[[:xdigit:]-]+$ && -f $keyfile ]] &&
+    udisksctl unlock --no-user-interaction --block-device "$device" --key-file "$keyfile" >/dev/null 2>&1
+}
+
+ask_for_password() {
+  local disk name size
+
+  disk=$(lsblk -dno PKNAME "$device")
+  name=$(lsblk -dno LABEL "$device")
+  [[ -n $name ]] || name=$(lsblk -dno MODEL "/dev/${disk:-${device#/dev/}}" | sed 's/ *$//')
+  size=$(lsblk -dno SIZE "$device" | tr -d ' ')
+
+  omarchy-shell -q omarchy.polkit unlockDrive "$device" "${name:+$name · }$size"
+}
+
+if ! unlock_with_keyfile; then
+  ask_for_password
+fi
