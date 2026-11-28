@@ -36,8 +36,11 @@ o.bind("SUPER + code:49", "Toggle Quake console", hl.dsp.workspace.toggle_specia
 o.bind("SUPER + M", "Minimize window to the dock", "omarchy-hyprland-window-minimize")
 o.bind("SUPER + SHIFT + code:49", "Move window to Quake console", hl.dsp.window.move({ workspace = "special:qconsole", follow = false }))
 
-o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "m+1" }))
-o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "m-1" }))
+-- m+1 skips empty slots. r+1 visits them, but it walks Hyprland's global ids,
+-- so workspace 10 opens 11 and the next monitor's first slot steps back into
+-- the previous monitor's block. Stay inside this monitor's own ten.
+o.bind("SUPER + TAB", "Next workspace", o.workspaces.cycle(1))
+o.bind("SUPER + SHIFT + TAB", "Previous workspace", o.workspaces.cycle(-1))
 o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = "previous_per_monitor" }))
 
 o.bind("SUPER + SHIFT + ALT + LEFT", "Move workspace to left monitor", o.workspaces.move_to_monitor("l"))
@@ -80,8 +83,8 @@ o.bind("SUPER + CTRL + code:21", "Shrink window left a lot", hl.dsp.window.resiz
 o.bind("SUPER + CTRL + SHIFT + code:20", "Shrink window up a lot", hl.dsp.window.resize({ x = 0, y = -300, relative = true }))
 o.bind("SUPER + CTRL + SHIFT + code:21", "Expand window down a lot", hl.dsp.window.resize({ x = 0, y = 300, relative = true }))
 
-o.bind("SUPER + mouse_down", "Scroll active workspace forward", hl.dsp.focus({ workspace = "m+1" }))
-o.bind("SUPER + mouse_up", "Scroll active workspace backward", hl.dsp.focus({ workspace = "m-1" }))
+o.bind("SUPER + mouse_down", "Scroll active workspace forward", o.workspaces.cycle(1))
+o.bind("SUPER + mouse_up", "Scroll active workspace backward", o.workspaces.cycle(-1))
 
 o.bind("SUPER + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
 o.bind("SUPER + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })

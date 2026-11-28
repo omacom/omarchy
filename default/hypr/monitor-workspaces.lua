@@ -455,6 +455,34 @@ function M.focus(slot, monitor_name)
   end, "o.workspaces.focus(" .. slot .. (monitor_name and ", " .. literal(monitor_name) or "") .. ")")
 end
 
+-- Next or previous of the focused monitor's ten slots, empty ones included.
+-- The slot wraps inside 1-10, so the laptop's tenth workspace comes back to
+-- its first and the next monitor's first comes back to its tenth, instead of
+-- stepping into the neighbouring block the way r+1 and r-1 do.
+function M.cycle(delta)
+  return action(function()
+    local monitor = hl.get_active_monitor()
+    if not monitor then
+      return
+    end
+
+    local workspace = hl.get_active_workspace()
+    local slot
+    if regular(workspace) then
+      slot = (workspace.id - 1) % SLOTS + 1
+      slot = (slot - 1 + delta) % SLOTS + 1
+    elseif delta < 0 then
+      slot = SLOTS
+    else
+      slot = 1
+    end
+
+    local id = M.workspace_id(monitor, slot)
+    reclaim(monitor, id)
+    hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
+  end, "o.workspaces.cycle(" .. delta .. ")")
+end
+
 -- Move the active window to a slot on the focused monitor, following it unless
 -- `follow` is false.
 function M.move_window(slot, follow)

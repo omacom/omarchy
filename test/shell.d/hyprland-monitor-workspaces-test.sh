@@ -358,6 +358,39 @@ check(o.bind_expressions[m.focus(2, "DP-1")] == "o.workspaces.focus(2, \"DP-1\")
 ' || fail "Super + N acts on the focused monitor's own workspaces"
 pass "Super + N acts on the focused monitor's own workspaces"
 
+run_lua cycle '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+-- Workspace 1 is showing and 3 has a window, so m+1 would skip the empty 2.
+window("0xa", 3)
+hl.dispatch(m.cycle(1))
+check(shows("eDP-1") == 2 and on(2) == "eDP-1" and world.windows["0xa"].workspace == 3, "Tab opens the empty slot, not " .. tostring(shows("eDP-1")))
+hl.dispatch(m.cycle(1))
+check(shows("eDP-1") == 3, "Tab continues into the occupied slot")
+
+hl.dispatch(m.focus(10))
+hl.dispatch(m.cycle(1))
+check(shows("eDP-1") == 1 and on(11) == "DP-1", "Tab from the tenth slot wraps to the first, not " .. tostring(shows("eDP-1")))
+hl.dispatch(m.cycle(-1))
+check(shows("eDP-1") == 10 and on(10) == "eDP-1", "Shift+Tab from the first slot wraps to the tenth")
+
+world.focused = "DP-1"
+hl.dispatch(m.focus(1))
+hl.dispatch(m.cycle(-1))
+check(shows("DP-1") == 20 and on(20) == "DP-1" and on(10) == "eDP-1" and shows("eDP-1") == 10, "Shift+Tab on the next monitor stays in its own block, not " .. tostring(shows("DP-1")))
+hl.dispatch(m.focus(10))
+hl.dispatch(m.cycle(1))
+check(shows("DP-1") == 11 and shows("eDP-1") == 10, "Tab from that monitor'"'"'s tenth slot wraps to its first")
+
+check(o.bind_expressions[m.cycle(1)] == "o.workspaces.cycle(1)", "the menu can replay Tab")
+check(o.bind_expressions[m.cycle(-1)] == "o.workspaces.cycle(-1)", "the menu can replay Shift+Tab")
+' || fail "Tab and scroll stay inside the focused monitor's ten slots, including empty ones"
+pass "Tab and scroll stay inside the focused monitor's ten slots, including empty ones"
+
 run_lua reclaim '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
