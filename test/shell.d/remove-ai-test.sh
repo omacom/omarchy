@@ -473,3 +473,34 @@ pass "Antigravity removal quits the running app before deleting its state"
 
 grep -qx 'drop:antigravity' "$TEST_LOG" || fail "Antigravity removal drops the antigravity package"
 pass "Antigravity removal drops the antigravity package"
+
+# Llama.cpp's models live in the Hugging Face cache, shared with every
+# huggingface_hub user. A snapshot entry is a link into the repo's blobs, or the
+# model itself when llama.cpp could not make links; either goes on a yes. A
+# link the user pointed at a model kept outside the cache loses only the link.
+# sudo is stubbed so the system unit's disable never asks for a password.
+cat >"$tmp_dir/bin/sudo" <<'SCRIPT'
+#!/bin/bash
+printf 'sudo:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/sudo"
+
+fresh_home
+unset LLAMA_CACHE HF_HUB_CACHE HUGGINGFACE_HUB_CACHE HF_HOME
+llama_repo=$HOME/.cache/huggingface/hub/models--org--model-GGUF
+mkdir -p "$llama_repo/blobs" "$llama_repo/snapshots/main" "$tmp_dir/own-models"
+echo cached >"$llama_repo/blobs/abc"
+ln -s ../../blobs/abc "$llama_repo/snapshots/main/linked.gguf"
+echo degraded >"$llama_repo/snapshots/main/degraded.gguf"
+echo own >"$tmp_dir/own-models/own.gguf"
+ln -s "$tmp_dir/own-models/own.gguf" "$llama_repo/snapshots/main/own.gguf"
+# The stubbed gum answers yes, and script(1) gives the remover the terminal it
+# asks on.
+script -qec "'$ROOT/bin/omarchy-remove-ai-llama-cpp'" /dev/null >/dev/null 2>&1 ||
+  fail "Llama.cpp removal completes"
+
+[[ ! -e $llama_repo ]] || fail "Llama.cpp removal deletes its cached GGUF models on a yes" "$(find "$llama_repo")"
+pass "Llama.cpp removal deletes its cached GGUF models on a yes"
+
+[[ -f $tmp_dir/own-models/own.gguf ]] || fail "Llama.cpp removal keeps a model linked from outside the cache"
+pass "Llama.cpp removal keeps a model linked from outside the cache"

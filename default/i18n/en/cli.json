@@ -209,6 +209,7 @@
   "layout.workspaceScrollingUnsaved": "Workspace layout set to scrolling but could not be saved",
   "layout.workspaceTiling": "Workspace layout set to tiling",
   "layout.workspaceTilingUnsaved": "Workspace layout set to tiling but could not be saved",
+  "llamaCpp.deleteModels": "Also delete the GGUF models in the Hugging Face cache (%1)?",
   "lock.didNotLock": "Screen did not lock before suspend",
   "lock.unlockedNoLockScreen": "The session was left unlocked (no lock screen is configured).",
   "lock.unlockedTimeout": "The session was left unlocked (the shell did not secure the session within %1ms).",

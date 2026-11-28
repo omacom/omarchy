@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Llama.cpp along with its server, its web app, and the GGUF models it downloaded.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a cache path rooted at /.
+set -euo pipefail
+
+# The user unit is the one the install offers; the system unit ships in the
+# same package and may have been enabled by hand. Both hold a model open.
+systemctl --user disable --now llama-server.service 2>/dev/null || true
+sudo systemctl disable --now llama-server.service 2>/dev/null || true
+
+# The web app launcher and icon omarchy-install-ai-llama-cpp created.
+rm -f "$HOME/.local/share/applications/Llama.cpp.desktop"
+rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/llama-cpp.png"
+gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+
+# The GPU backends are separate packages the installer picks by hardware, so
+# they go with llama-cpp, and omarchy-pkg-drop ignores the ones not present.
+# ggml carries the CPU backend and leaves with them as a dependency, unless
+# another package still needs it.
+omarchy-pkg-drop llama-cpp ggml-cuda ggml-hip ggml-vulkan
+
+# llama.cpp's own cache directory holds nothing another program reads.
+rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/llama.cpp"
+
+# -hf downloads land in the Hugging Face hub cache, resolved in llama.cpp's
+# order (common/hf-cache.cpp). That cache is shared with every huggingface_hub
+# user and a repo can mix formats, so only the GGUF files are llama.cpp's to
+# offer: each snapshot link goes with the blob it points at, and a repo goes
+# whole only once no other file is left in it. They go only on an explicit
+# yes. Without a terminal to ask in, keeping them is the answer, and gum draws
+# its prompt on stderr, so both must be terminals.
+if [[ -n ${LLAMA_CACHE:-} ]]; then
+  hub=$LLAMA_CACHE
+elif [[ -n ${HF_HUB_CACHE:-} ]]; then
+  hub=$HF_HUB_CACHE
+elif [[ -n ${HUGGINGFACE_HUB_CACHE:-} ]]; then
+  hub=$HUGGINGFACE_HUB_CACHE
+elif [[ -n ${HF_HOME:-} ]]; then
+  hub=$HF_HOME/hub
+else
+  hub=${XDG_CACHE_HOME:-$HOME/.cache}/huggingface/hub
+fi
+
+ggufs=()
+blobs=()
+repos=()
+while IFS= read -r -d '' file; do
+  ggufs+=("$file")
+  repo=${file#"$hub"/}
+  repo=$hub/${repo%%/*}
+  # Only a file inside the repo's own cache goes: a link the user pointed at a
+  # model kept elsewhere loses the link, never the model.
+  blob=$(readlink -f -- "$file") && [[ -f $blob && $blob == "$(readlink -f -- "$repo")"/* ]] && blobs+=("$blob")
+  [[ " ${repos[*]-} " == *" $repo "* ]] || repos+=("$repo")
+done < <(find "$hub"/models--*/snapshots -name '*.gguf' -print0 2>/dev/null)
+
+models_removed=false
+if (( ${#ggufs[@]} )) && [[ -t 0 && -t 2 ]]; then
+  # A blob two snapshots share is counted once.
+  size=$(printf '%s\0' "${blobs[@]}" | sort -zu | du -shc --files0-from=- 2>/dev/null | tail -1 | cut -f1 || true)
+  # du glues the unit to the number ("4.8G"); write the number with the
+  # language's decimal separator and digits.
+  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+    size="$number${BASH_REMATCH[3]}"
+  fi
+  if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n llamaCpp.deleteModels "$size")"; then
+    rm -f -- "${ggufs[@]}" "${blobs[@]}"
+    for repo in "${repos[@]}"; do
+      if [[ -z $(find "$repo/snapshots" \( -type f -o -type l \) -print -quit) ]]; then
+        rm -rf -- "$repo" "$hub/.locks/${repo##*/}"
+      else
+        find "$repo/snapshots" -mindepth 1 -depth -type d -empty -delete
+      fi
+    done
+    models_removed=true
+  fi
+fi
+
+# The router records the downloads it has not finished next to the cache, and
+# that record is the only way back to their partial files. An empty one goes.
+record=$hub/unfinished-downloads.json
+if [[ -f $record && $(tr -d "[:space:]" <"$record") == "{\"downloads\":[]}" ]]; then
+  rm -f -- "$record"
+fi
+
+# systemd creates the user service's configuration and cache directories when it
+# starts and never removes them. They go only while empty: the Hugging Face
+# cache is shared with every huggingface_hub user, and a configuration the user
+# wrote stays.
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}
+rmdir "$config/llama/server" "$config/llama" "$hub/.locks" "$cache/huggingface/hub" "$cache/huggingface" 2>/dev/null || true
+
+echo ""
+echo "Llama.cpp has been removed."
+if [[ $models_removed == "true" ]]; then
+  echo "Its GGUF models in $hub are gone too."
+elif (( ${#ggufs[@]} )); then
+  echo "Its GGUF models are still in $hub."
+fi

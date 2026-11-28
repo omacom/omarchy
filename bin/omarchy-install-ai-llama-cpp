@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# omarchy:summary=Install Llama.cpp with the GPU backend for this machine and open its web app
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# The server runs as this user's service and the web app lands in this user's
+# launcher, so neither can come from a root shell.
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# ggml carries the CPU backend itself, so a machine without a GPU needs only
+# llama-cpp. Vulkan covers the GPUs that CUDA and ROCm leave out. A single GPU
+# backend is installed, so one GPU is never seen twice.
+packages=(llama-cpp)
+if omarchy-cmd-present nvidia-smi; then
+  packages+=(ggml-cuda)
+elif omarchy-cmd-present rocminfo; then
+  packages+=(ggml-hip)
+elif omarchy-hw-vulkan; then
+  packages+=(ggml-vulkan)
+fi
+
+echo "Installing Llama.cpp..."
+omarchy-pkg-add "${packages[@]}"
+
+# The package ships llama-server as a user service. Started without a model, it
+# serves the web app on 127.0.0.1:9931, where models are found, downloaded and
+# loaded on demand.
+echo "Starting the Llama.cpp server..."
+systemctl --user enable --now llama-server.service
+
+echo "Installing the Llama.cpp web app..."
+omarchy-webapp-install Llama.cpp "http://127.0.0.1:9931" \
+  "https://cdn.jsdelivr.net/gh/ggml-org/llama.brand/logo/png/app/web/pwa-512x512.png"
+
+# Opening before the server answers would show a connection error.
+ready=false
+for _ in {1..30}; do
+  curl -fs --max-time 1 http://127.0.0.1:9931/health >/dev/null && ready=true && break
+  sleep 1
+done
+
+if [[ $ready != true ]]; then
+  echo "The Llama.cpp server did not start. See: journalctl --user -u llama-server" >&2
+  exit 1
+fi
+
+echo "Opening Llama.cpp..."
+setsid uwsm-app -- gtk-launch Llama.cpp >/dev/null 2>&1 &
+
+echo ""
+echo "Llama.cpp has been installed."
