@@ -55,6 +55,11 @@ o.bind("SUPER + SHIFT + RIGHT", "Swap window to the right", hl.dsp.window.swap({
 o.bind("SUPER + SHIFT + UP", "Swap window up", hl.dsp.window.swap({ direction = "u" }))
 o.bind("SUPER + SHIFT + DOWN", "Swap window down", hl.dsp.window.swap({ direction = "d" }))
 
+o.bind("SUPER + CTRL + ALT + LEFT", "Drop window to the left", hl.dsp.window.move({ direction = "left" }))
+o.bind("SUPER + CTRL + ALT + RIGHT", "Drop window to the right", hl.dsp.window.move({ direction = "right" }))
+o.bind("SUPER + CTRL + ALT + UP", "Drop window up", hl.dsp.window.move({ direction = "up" }))
+o.bind("SUPER + CTRL + ALT + DOWN", "Drop window down", hl.dsp.window.move({ direction = "down" }))
+
 -- Going backwards lowers the window it leaves instead of raising the one it lands on: bring_to_top
 -- moves the active window to the end of the same list cycle_next walks, so a raise here ping-pongs.
 o.bind("ALT + SHIFT + TAB", "Reveal active window on top", hl.dsp.window.alter_zorder({ mode = "bottom" }))
