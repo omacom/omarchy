@@ -1,5 +1,5 @@
 #!/bin/bash
 
-# omarchy:summary=Launch Files in the active terminal's current directory
+# omarchy:summary=Launch the default file manager in the active terminal's current directory
 
-exec setsid uwsm-app -- folio "$(omarchy-cmd-terminal-cwd)"
+exec omarchy-launch-files "$(omarchy-cmd-terminal-cwd)"

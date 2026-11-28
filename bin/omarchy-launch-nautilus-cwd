@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Launch Files in the terminal's directory (the old name, kept for personal bindings)
+# omarchy:summary=Launch the default file manager in the terminal's directory (the old name, kept for personal bindings)
 # omarchy:hidden=true
 
 exec omarchy-launch-files-cwd "$@"
