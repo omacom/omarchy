@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Buong pangalan mo",
   "gitSetup.namePrompt": "Buong pangalan> ",
   "gpu.enableDedicated": "Paganahin ang dedicated GPU at mag-reboot?",
+  "gpu.integratedActive": "Tumatakbo sa integrated GPU",
+  "gpu.switchToDgpuHint": "Lumipat sa dedicated GPU mo sa Trigger > Hardware > Switch to dGPU para sa mas magandang performance sa gaming.",
   "gpu.useIntegrated": "Gamitin lang ang integrated GPU at mag-reboot?",
   "hermes.deleteData": "Tanggalin din ang ~/.hermes at ~/.config/Hermes (%1: mga chat, memory, skill, koneksyon, at token)?",
   "icons.removeExtraTitle": "Alisin ang dagdag na set ng icon",

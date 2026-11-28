@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Toʻliq ismingiz",
   "gitSetup.namePrompt": "Toʻliq ism> ",
   "gpu.enableDedicated": "Diskret GPU yoqilib, qayta yuklansinmi?",
+  "gpu.integratedActive": "Integratsiyalangan GPU ishlatilmoqda",
+  "gpu.switchToDgpuHint": "O‘yin unumdorligini oshirish uchun Trigger > Hardware > Switch to dGPU bo‘limida diskret GPUga o‘ting.",
   "gpu.useIntegrated": "Faqat integratsiyalangan GPU ishlatilib, qayta yuklansinmi?",
   "hermes.deleteData": "~/.hermes va ~/.config/Hermes ham oʻchirilsinmi (%1: chatlar, xotiralar, koʻnikmalar, ulanishlar va tokenlar)?",
   "icons.removeExtraTitle": "Qo‘shimcha ikonkalar to‘plamini olib tashlash",

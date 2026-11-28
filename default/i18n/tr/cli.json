@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Tam adınız",
   "gitSetup.namePrompt": "Tam ad> ",
   "gpu.enableDedicated": "Harici GPU etkinleştirilsin ve yeniden başlatılsın mı?",
+  "gpu.integratedActive": "Tümleşik GPU'da çalışıyor",
+  "gpu.switchToDgpuHint": "Daha iyi oyun performansı için Trigger > Hardware > Switch to dGPU üzerinden harici GPU'nuza geçin.",
   "gpu.useIntegrated": "Yalnızca tümleşik GPU kullanılsın ve yeniden başlatılsın mı?",
   "hermes.deleteData": "~/.hermes ve ~/.config/Hermes de silinsin mi (%1: sohbetler, anılar, beceriler, bağlantılar ve tokenlar)?",
   "icons.removeExtraTitle": "Ek simge setini kaldır",

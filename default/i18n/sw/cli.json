@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Jina lako kamili",
   "gitSetup.namePrompt": "Jina kamili> ",
   "gpu.enableDedicated": "Washa GPU maalum na uanzishe upya?",
+  "gpu.integratedActive": "Inatumia GPU iliyojumuishwa",
+  "gpu.switchToDgpuHint": "Badilisha utumie GPU yako maalum katika Trigger > Hardware > Switch to dGPU kwa utendaji bora wa michezo.",
   "gpu.useIntegrated": "Tumia tu GPU iliyojumuishwa na uanzishe upya?",
   "hermes.deleteData": "Futa pia ~/.hermes na ~/.config/Hermes (%1: mazungumzo, kumbukumbu, ujuzi, miunganisho na tokeni)?",
   "icons.removeExtraTitle": "Ondoa seti ya ziada ya ikoni",

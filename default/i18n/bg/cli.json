@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Пълното ти име",
   "gitSetup.namePrompt": "Пълно име> ",
   "gpu.enableDedicated": "Да се включи дискретният GPU и да се рестартира?",
+  "gpu.integratedActive": "Работи на вградения GPU",
+  "gpu.switchToDgpuHint": "Превключи на дискретния GPU от Trigger > Hardware > Switch to dGPU за по-добра производителност в игрите.",
   "gpu.useIntegrated": "Да се използва само вграденият GPU и да се рестартира?",
   "hermes.deleteData": "Да се изтрият ли и ~/.hermes и ~/.config/Hermes (%1: чатове, спомени, умения, връзки и токени)?",
   "icons.removeExtraTitle": "Премахни допълнителен набор икони",

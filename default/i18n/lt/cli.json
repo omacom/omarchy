@@ -197,6 +197,8 @@
   "gitSetup.namePlaceholder": "Jūsų vardas ir pavardė",
   "gitSetup.namePrompt": "Vardas ir pavardė> ",
   "gpu.enableDedicated": "Įjungti atskirą GPU ir perkrauti?",
+  "gpu.integratedActive": "Veikia su integruota GPU",
+  "gpu.switchToDgpuHint": "Kad žaidimai veiktų geriau, perjunkite į atskirą GPU: Trigger > Hardware > Switch to dGPU.",
   "gpu.useIntegrated": "Naudoti tik integruotą GPU ir paleisti iš naujo?",
   "hermes.deleteData": "Taip pat ištrinti ~/.hermes ir ~/.config/Hermes (%1: pokalbiai, prisiminimai, įgūdžiai, ryšiai ir prieigos raktai)?",
   "icons.removeExtraTitle": "Pašalinti papildomą piktogramų rinkinį",

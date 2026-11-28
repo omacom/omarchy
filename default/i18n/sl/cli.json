@@ -198,6 +198,8 @@
   "gitSetup.namePlaceholder": "Vaše polno ime",
   "gitSetup.namePrompt": "Polno ime> ",
   "gpu.enableDedicated": "Omogočiti namensko GPU in znova zagnati?",
+  "gpu.integratedActive": "Deluje na vgrajeni GPU",
+  "gpu.switchToDgpuHint": "Za boljšo zmogljivost pri igranju preklopite na namensko GPU v Trigger > Hardware > Switch to dGPU.",
   "gpu.useIntegrated": "Uporabljati samo vgrajeno GPU in znova zagnati?",
   "hermes.deleteData": "Izbrisati tudi ~/.hermes in ~/.config/Hermes (%1: klepeti, spomini, veščine, povezave in žetoni)?",
   "icons.removeExtraTitle": "Odstrani dodatni nabor ikon",
