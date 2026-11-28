@@ -18,3 +18,9 @@ o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, {
   border_size = 0,
   move = { "(monitor_w-window_w-40)", "(monitor_h-window_h-40)" },
 })
+
+-- Discord pop-outs (a user tile or a screenshare) map as "Discord Popout" and
+-- are renamed to the user or stream right after, so match the initial title.
+-- Hyprland matches these regexes in full, hence the trailing wildcard. The main
+-- window's initial title is its URL, so it stays tiled.
+o.window({ class = "^chrome-discord\\.com.*$", initial_title = "^Discord Popout.*$" }, { tag = "+pip" })
