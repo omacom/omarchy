@@ -419,3 +419,24 @@ held && [[ -z $(tail -n "+$(( calls + 1 ))" "$call_log") ]] && (( $(count_calls 
 pass "the watcher keeps one inhibitor across hotplugs, retries and its poll"
 
 stop_watcher
+
+# Docked with an ACPI lid, the poll syncs when the lid changes, not on every
+# tick (#20570).
+lid="$test_tmp/lid"
+mkdir -p "$lid/LID0"
+printf 'state:      open\n' >"$lid/LID0/state"
+printf '#!/bin/bash\n\nexit 0\n' >"$fake_bin/omarchy-hw-laptop"
+chmod +x "$fake_bin/omarchy-hw-laptop"
+: >"$sync_log"
+OMARCHY_ACPI_LID_PATH=$lid start_watcher
+
+# Startup syncs once and then retries three times.
+{ await syncs_since 0 3 && await syncs_since 0 4; } || fail "the docked watcher syncs at startup and through its retries" "$(<"$sync_log")"
+synced=$(grep -c '^sync$' "$sync_log")
+sleep 5
+(( $(grep -c '^sync$' "$sync_log") == synced )) || fail "the docked poll runs no sync while the lid stays put" "$(<"$sync_log")"
+printf 'state:      closed\n' >"$lid/LID0/state"
+await syncs_since "$synced" 1 || fail "the docked poll syncs once the lid closes" "$(<"$sync_log")"
+pass "the docked poll syncs when the lid changes, not on every tick"
+
+stop_watcher

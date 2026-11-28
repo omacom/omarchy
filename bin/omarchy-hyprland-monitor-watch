@@ -90,7 +90,7 @@ poll_clamshell_state() {
     now=$EPOCHSECONDS
     read_lid_state
 
-    if [[ -z $lid_state || $lid_state != "$last_lid" ]] || (( now - last_tick > 10 || now - last_sync >= 60 )); then
+    if [[ -z $lid_state || $lid_state != $last_lid ]] || (( now - last_tick > 10 || now - last_sync >= 60 )); then
       sync_clamshell
       last_sync=$now
     fi
