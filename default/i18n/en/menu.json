@@ -1444,5 +1444,30 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "setup.default.filemanager": {
+    "label": "File Manager",
+    "title": "Default File Manager"
+  },
+  "setup.default.filemanager.folio": {
+    "label": "Folio"
+  },
+  "setup.default.filemanager.nautilus": {
+    "label": "Nautilus (Files)"
+  },
+  "setup.default.filemanager.flea": {
+    "label": "Flea"
+  },
+  "setup.default.filemanager.dolphin": {
+    "label": "Dolphin"
+  },
+  "setup.default.filemanager.thunar": {
+    "label": "Thunar"
+  },
+  "setup.default.filemanager.nemo": {
+    "label": "Nemo"
+  },
+  "setup.default.filemanager.pcmanfm": {
+    "label": "PCManFM"
   }
 }

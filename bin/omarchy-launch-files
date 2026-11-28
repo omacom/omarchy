@@ -2,4 +2,4 @@
 
 # omarchy:summary=Launch Files
 
-exec setsid uwsm-app -- folio
+exec omarchy-launch-filemanager "$@"
