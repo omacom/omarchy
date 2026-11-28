@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Remove gaming performance tools (MangoHud, Gamescope, GameMode).
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Removing gaming performance tools..."
+omarchy-pkg-drop mangohud gamescope gamemode lib32-mangohud lib32-gamemode
+
+echo ""
+echo "Gaming performance tools have been removed."

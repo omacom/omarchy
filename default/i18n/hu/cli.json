@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Teljes neved",
   "gitSetup.namePrompt": "Teljes név> ",
   "gpu.enableDedicated": "Engedélyezed a dedikált GPU-t és újraindítasz?",
+  "gpu.integratedActive": "Integrált GPU-n fut",
+  "gpu.switchToDgpuHint": "Jobb játékteljesítményért válts a dedikált GPU-dra a Trigger > Hardware > Switch to dGPU alatt.",
   "gpu.useIntegrated": "Csak az integrált GPU-t használod és újraindítasz?",
   "hermes.deleteData": "A ~/.hermes és a ~/.config/Hermes is törlődjön? (%1: csevegések, emlékek, készségek, kapcsolatok és tokenek)",
   "icons.removeExtraTitle": "Extra ikonkészlet eltávolítása",

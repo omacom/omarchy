@@ -79,7 +79,9 @@ Item {
   //
   // Hyprland refuses direct scanout while any overlay-layer surface exists on
   // a monitor, so an idle canvas makes fullscreen games composite each frame.
-  // It steps aside under a fullscreen window until a card arrives.
+  // It steps aside under a fullscreen window. Ordinary notifications are
+  // silenced there (`quietReason`), so it maps only for cards that get
+  // through quiet.
   // Bumped after Hyprland's window snapshot refreshes, so fullscreenOn() re-evaluates.
   property int hyprRevision: 0
 
@@ -102,7 +104,22 @@ Item {
     for (var s = 0; s < Quickshell.screens.length; s++)
       if (String(Quickshell.screens[s].name) === name) screen = Quickshell.screens[s]
     var monitor = screen ? Hyprland.monitorFor(screen) : null
-    var workspace = monitor ? monitor.activeWorkspace : null
+    if (!monitor) return false
+    // A special workspace covers the active workspace beneath it, so check
+    // only the visible workspace's windows (mirroring BarModel.fullscreenOn).
+    var special = monitor.lastIpcObject ? monitor.lastIpcObject.specialWorkspace : null
+    var specialName = special && special.name ? String(special.name) : ""
+    if (specialName) {
+      var all = Hyprland.toplevels ? Hyprland.toplevels.values : []
+      for (var t = 0; t < all.length; t++) {
+        var toplevel = all[t]
+        if (!toplevel || !toplevel.workspace || toplevel.workspace.name !== specialName) continue
+        var topIpc = toplevel.lastIpcObject || {}
+        if ((Number(topIpc.fullscreen) & 2) !== 0) return true
+      }
+      return false
+    }
+    var workspace = monitor.activeWorkspace
     if (!workspace || !workspace.hasFullscreen) return false
     var windows = workspace.toplevels ? workspace.toplevels.values : []
     for (var i = 0; i < windows.length; i++) {
@@ -120,6 +137,7 @@ Item {
       switch (event.name) {
       case "fullscreen": case "openwindow": case "closewindow": case "movewindowv2":
       case "activewindowv2": case "workspacev2": case "focusedmonv2": case "changefloatingmode":
+      case "activespecial": case "activespecialv2":
         hyprRefresh.restart()
       }
     }
@@ -128,7 +146,7 @@ Item {
   Timer {
     id: hyprRefresh
     interval: 100
-    onTriggered: { Hyprland.refreshToplevels(); hyprSettle.restart() }
+    onTriggered: { Hyprland.refreshMonitors(); Hyprland.refreshWorkspaces(); Hyprland.refreshToplevels(); hyprSettle.restart() }
   }
   Timer {
     id: hyprSettle
@@ -627,10 +645,16 @@ Item {
       try { previous.tracked = false } catch (e) {}
     }
 
-    // Quiet still records it (unless ephemeral), straight to history.
-    var muted = Delivery.quietReason(row, doNotDisturb)
+    // Quiet (manual Do Not Disturb or a fullscreen window on the target display)
+    // still records it (unless ephemeral), straight to history.
+    var muted = Delivery.quietReason(row, doNotDisturb, fullscreenOn(targetDisplayName))
     if (muted) {
-      if (!Delivery.isEphemeral(row)) storeRecord(row, muted)
+      if (!Delivery.isEphemeral(row)) {
+        storeRecord(row, muted)
+        // Drop any earlier live snapshot so closing a superseded visible card
+        // cannot overwrite this newer update in history.
+        storeDrop(key)
+      }
       release(key)
       // A replacement for a card already on screen leaves that card as it was;
       // one still waiting to be shown is gone, and so is its saved row.

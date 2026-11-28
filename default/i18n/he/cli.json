@@ -197,6 +197,8 @@
   "gitSetup.namePlaceholder": "השם המלא שלך",
   "gitSetup.namePrompt": "שם מלא> ",
   "gpu.enableDedicated": "להפעיל GPU ייעודי ולאתחל?",
+  "gpu.integratedActive": "פועל על ה-GPU המובנה",
+  "gpu.switchToDgpuHint": "לעבור ל-GPU הייעודי ב-Trigger > Hardware > Switch to dGPU לביצועי משחקים טובים יותר.",
   "gpu.useIntegrated": "להשתמש רק ב-GPU המובנה ולאתחל?",
   "hermes.deleteData": "למחוק גם את ~/.hermes ואת ~/.config/Hermes (%1: שיחות, זיכרונות, כישורים, חיבורים וטוקנים)?",
   "icons.removeExtraTitle": "הסרת ערכת אייקונים נוספת",

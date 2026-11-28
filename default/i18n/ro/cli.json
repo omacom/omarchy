@@ -197,6 +197,8 @@
   "gitSetup.namePlaceholder": "Numele tău complet",
   "gitSetup.namePrompt": "Nume complet> ",
   "gpu.enableDedicated": "Activezi GPU-ul dedicat și repornești?",
+  "gpu.integratedActive": "Rulează pe GPU-ul integrat",
+  "gpu.switchToDgpuHint": "Comută la GPU-ul dedicat în Trigger > Hardware > Switch to dGPU pentru o performanță mai bună în jocuri.",
   "gpu.useIntegrated": "Utilizați doar GPU-ul integrat și reporniți?",
   "hermes.deleteData": "Ștergeți și ~/.hermes și ~/.config/Hermes (%1: conversații, amintiri, abilități, conexiuni și tokenuri)?",
   "icons.removeExtraTitle": "Elimină setul suplimentar de pictograme",

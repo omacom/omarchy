@@ -195,6 +195,8 @@
   "gitSetup.namePlaceholder": "Nama penuh anda",
   "gitSetup.namePrompt": "Nama penuh> ",
   "gpu.enableDedicated": "Dayakan GPU khusus dan but semula?",
+  "gpu.integratedActive": "Menggunakan GPU bersepadu",
+  "gpu.switchToDgpuHint": "Tukar ke GPU khusus anda melalui Trigger > Hardware > Switch to dGPU untuk prestasi permainan yang lebih baik.",
   "gpu.useIntegrated": "Guna GPU bersepadu sahaja dan but semula?",
   "hermes.deleteData": "Padam juga ~/.hermes dan ~/.config/Hermes (%1: sembang, ingatan, kemahiran, sambungan dan token)?",
   "icons.removeExtraTitle": "Buang set ikon tambahan",

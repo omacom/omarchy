@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Koko nimesi",
   "gitSetup.namePrompt": "Koko nimi> ",
   "gpu.enableDedicated": "Otetaanko erillinen GPU käyttöön ja käynnistetään uudelleen?",
+  "gpu.integratedActive": "Käytössä integroitu GPU",
+  "gpu.switchToDgpuHint": "Vaihda erilliseen GPU:hun kohdassa Trigger > Hardware > Switch to dGPU, niin saat paremman pelisuorituskyvyn.",
   "gpu.useIntegrated": "Käytetäänkö vain integroitua GPU:ta ja käynnistetään uudelleen?",
   "hermes.deleteData": "Poistetaanko myös ~/.hermes ja ~/.config/Hermes (%1: keskustelut, muistit, taidot, yhteydet ja tokenit)?",
   "icons.removeExtraTitle": "Poista ylimääräinen kuvakesarja",

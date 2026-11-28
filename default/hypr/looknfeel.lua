@@ -17,7 +17,8 @@ hl.config({
     resize_on_border = true,
     extend_border_grab_area = 8,
     hover_icon_on_border = true,
-    allow_tearing = false,
+    -- Permit tearing for fullscreen windows that opt in; desktop stays tear-free.
+    allow_tearing = true,
     layout = "dwindle",
   },
 
@@ -132,6 +133,8 @@ hl.config({
     anr_missed_pings = 3,
     on_focus_under_fullscreen = 1,
     initial_workspace_tracking = 0,
+    -- Fullscreen-only VRR so the desktop stays free of refresh-rate flicker.
+    vrr = 2,
     -- Let a fresh shell re-acquire the session lock after the lock client
     -- died, so omarchy-restart-shell can recover the LOCK failsafe.
     allow_session_lock_restore = true,
@@ -149,6 +152,9 @@ hl.config({
     -- Keep HDR displays in SDR when a window goes fullscreen. Auto-switching
     -- left SDR content looking washed out on the Pro Display XDR.
     cm_auto_hdr = 0,
+    -- Scan out all fullscreen windows directly; 2 (auto) misses games that
+    -- don't set Wayland's game content-type hint.
+    direct_scanout = 1,
   },
 
   binds = {

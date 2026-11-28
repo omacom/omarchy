@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Sempre amagat"
+  },
+  "install.gaming.tools": {
+    "label": "Eines de joc",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Eines de joc",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

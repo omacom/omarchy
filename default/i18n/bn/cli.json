@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "আপনার পুরো নাম",
   "gitSetup.namePrompt": "পুরো নাম> ",
   "gpu.enableDedicated": "ডেডিকেটেড GPU চালু করে রিবুট করবেন?",
+  "gpu.integratedActive": "ইন্টিগ্রেটেড GPU-তে চলছে",
+  "gpu.switchToDgpuHint": "আরও ভালো গেমিং পারফরম্যান্স পেতে Trigger > হার্ডওয়্যার > dGPU-তে সুইচ করুন অপশন থেকে আপনার ডেডিকেটেড GPU-তে সুইচ করুন।",
   "gpu.useIntegrated": "শুধু ইন্টিগ্রেটেড GPU ব্যবহার করে রিবুট করবেন?",
   "hermes.deleteData": "~/.hermes এবং ~/.config/Hermes-ও মুছবেন (%1: চ্যাট, মেমরি, স্কিল, সংযোগ ও টোকেন)?",
   "icons.removeExtraTitle": "অতিরিক্ত আইকন সেট সরান",

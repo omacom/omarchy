@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Винаги скрита"
+  },
+  "install.gaming.tools": {
+    "label": "Игрови инструменти",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Игрови инструменти",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

@@ -197,6 +197,8 @@
   "gitSetup.namePlaceholder": "Tavs pilnais vārds",
   "gitSetup.namePrompt": "Pilnais vārds> ",
   "gpu.enableDedicated": "Iespējot diskrēto GPU un restartēt?",
+  "gpu.integratedActive": "Darbojas ar integrēto GPU",
+  "gpu.switchToDgpuHint": "Lai spēlēs būtu labāka veiktspēja, pārslēdzieties uz diskrēto GPU sadaļā Trigger > Hardware > Switch to dGPU.",
   "gpu.useIntegrated": "Izmantot tikai integrēto GPU un restartēt?",
   "hermes.deleteData": "Dzēst arī ~/.hermes un ~/.config/Hermes (%1: tērzēšana, atmiņa, prasmes, savienojumi un tokeni)?",
   "icons.removeExtraTitle": "Noņemt papildu ikonu komplektu",

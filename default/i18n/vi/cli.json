@@ -195,6 +195,8 @@
   "gitSetup.namePlaceholder": "Họ và tên đầy đủ",
   "gitSetup.namePrompt": "Họ tên> ",
   "gpu.enableDedicated": "Bật GPU rời và khởi động lại?",
+  "gpu.integratedActive": "Đang chạy trên GPU tích hợp",
+  "gpu.switchToDgpuHint": "Chuyển sang GPU rời trong Trigger > Hardware > Switch to dGPU để chơi game tốt hơn.",
   "gpu.useIntegrated": "Chỉ dùng GPU tích hợp và khởi động lại?",
   "hermes.deleteData": "Xóa cả ~/.hermes và ~/.config/Hermes (%1: trò chuyện, bộ nhớ, kỹ năng, kết nối và token)?",
   "icons.removeExtraTitle": "Xóa bộ biểu tượng thêm",

@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Laging Nakatago"
+  },
+  "install.gaming.tools": {
+    "label": "Kagamitang Panglaro",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Kagamitang Panglaro",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

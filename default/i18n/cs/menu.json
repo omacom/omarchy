@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Vždy skrytý"
+  },
+  "install.gaming.tools": {
+    "label": "Herní nástroje",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Herní nástroje",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

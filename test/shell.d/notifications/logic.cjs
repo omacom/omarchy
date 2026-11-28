@@ -271,15 +271,22 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
 
 // ------------------------------------------------------------------ delivery
 {
-  for (const [row, dnd, expected] of [
-    [{ app: 'Slack', urgency: 1 }, false, ''],
-    [{ app: 'Slack', urgency: 1 }, true, 'silenced'],
-    [{ app: 'Slack', urgency: 2 }, true, 'silenced'],      // a branded critical does not punch through
-    [{ app: 'notify-send', urgency: 2 }, true, ''],
-    [{ app: 'notify-send', urgency: 1 }, true, 'silenced'],
-    [{ app: 'omarchy-action', urgency: 0 }, true, ''],
-    [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
-  ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  for (const [row, dnd, fullscreen, expected] of [
+    [{ app: 'Slack', urgency: 1 }, false, false, ''],
+    [{ app: 'Slack', urgency: 1 }, true, false, 'silenced'],
+    [{ app: 'Slack', urgency: 2 }, true, false, 'silenced'],      // a branded critical does not punch through
+    [{ app: 'notify-send', urgency: 2 }, true, false, ''],
+    [{ app: 'notify-send', urgency: 1 }, true, false, 'silenced'],
+    [{ app: 'omarchy-action', urgency: 0 }, true, false, ''],
+    [{ app: 'Google', urgency: 1, code: '482913' }, true, false, ''],
+    [{ app: 'Slack', urgency: 1 }, false, true, 'fullscreen'],
+    [{ app: 'Slack', urgency: 2 }, false, true, 'fullscreen'],
+    [{ app: 'notify-send', urgency: 1 }, false, true, 'fullscreen'],
+    [{ app: 'notify-send', urgency: 2 }, false, true, ''],
+    [{ app: 'omarchy-action', urgency: 0 }, false, true, ''],
+    [{ app: 'Google', urgency: 1, code: '482913' }, false, true, ''],
+    [{ app: 'Slack', urgency: 1 }, true, true, 'silenced'],
+  ]) assert.equal(Delivery.quietReason(row, dnd, fullscreen), expected, JSON.stringify([row, dnd, fullscreen]))
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
                                [{ id: 'join', text: 'Join call' }])
@@ -389,7 +396,7 @@ function newCapacityScope() {
     get(i) { return this.rows[i] },
     insert(i, row) { this.rows.splice(i, 0, { ...row }) },
     setProperty(i, role, value) { this.rows[i][role] = value },
-    remove(i) { this.rows.splice(i, 1) } }
+    remove(i) { this.rows.splice(i, 1); if (this.rows.length === 0) s.deckDisplayName = '' } }
   const later = []
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
@@ -402,6 +409,9 @@ function newCapacityScope() {
     deckDisplayName: '',
     hyprRevision: 0,
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
+    get targetDisplayName() {
+      return this.displayNames.indexOf(this.deckDisplayName) >= 0 ? this.deckDisplayName : this.focusedDisplayName
+    },
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
     Security: S, Delivery, Store, Markup: M,
@@ -466,6 +476,147 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(s.fullscreenOn('game'), false)
   game.lastIpcObject.fullscreen = 2
   assert.equal(s.fullscreenOn('game'), true)
+}
+
+{ // A real fullscreen window on the target display silences ordinary notifications
+  // into history without flipping manual Do Not Disturb, while bypassing rows still show.
+  const s = newCapacityScope()
+  const game = { lastIpcObject: { fullscreen: 2, class: 'steam_app_31' } }
+  s.displayNames = ['game', 'desk']
+  s.focusedDisplayName = 'game'
+  s.Quickshell.screens = [
+    { name: 'game', monitor: { activeWorkspace: { hasFullscreen: true, toplevels: { values: [game] } } } },
+    { name: 'desk', monitor: { activeWorkspace: { hasFullscreen: false, toplevels: { values: [] } } } },
+  ]
+
+  const chat = s.fakeNotification(1, 'Chat ping', 1)
+  chat.appName = 'Slack'
+  const brandedCritical = s.fakeNotification(2, 'Chat urgent', 2)
+  brandedCritical.appName = 'Slack'
+  const ephemeral = s.fakeNotification(3, 'Minor CLI', 1)
+  ephemeral.appName = 'notify-send'
+  s.admit(chat, brandedCritical, ephemeral)
+  assert.equal(s.toasts.count, 0)
+  assert.equal(s.doNotDisturb, false, 'fullscreen silencing never overwrites manual DND')
+  assert.deepEqual(
+    Array.from(s.historyEntries, e => e.summary + ':' + e.closed_reason),
+    ['Chat urgent:fullscreen', 'Chat ping:fullscreen'],
+    'non-ephemeral notifications are recorded in history under fullscreen',
+  )
+
+  // Omarchy actions, bare notify-send critical alerts, and verification codes still show.
+  const action = s.fakeNotification(4, 'Screenshot saved', 0)
+  action.appName = 'omarchy-action'
+  const alert = s.fakeNotification(5, 'Disk full', 2)
+  alert.appName = 'notify-send'
+  const otp = s.fakeNotification(6, 'Sign in', 1)
+  otp.appName = 'Google'
+  otp.body = 'Your verification code is 482913'
+  s.admit(action, alert, otp)
+  assert.deepEqual(summaries(s.toasts.rows), ['Sign in', 'Disk full', 'Screenshot saved'])
+
+  // Clear the deck, then check a merely maximised window does not silence.
+  s.clearAll('dismissed', true)
+  s.drainCallLater()
+  game.lastIpcObject.fullscreen = 1
+  s.admit(s.fakeNotification(7, 'Maximised shows', 1))
+  assert.deepEqual(summaries(s.toasts.rows), ['Maximised shows'])
+
+  // With the game fullscreen again, focusing the non-fullscreen monitor delivers there.
+  s.clearAll('dismissed', true)
+  s.drainCallLater()
+  game.lastIpcObject.fullscreen = 2
+  s.focusedDisplayName = 'desk'
+  s.admit(s.fakeNotification(8, 'On desk monitor', 1))
+  assert.deepEqual(summaries(s.toasts.rows), ['On desk monitor'])
+  assert.equal(s.deckDisplayName, 'desk')
+}
+
+{ // A special workspace covers the base workspace: a non-fullscreen scratchpad
+  // over a fullscreen game does not silence, while a fullscreen window inside
+  // the visible special workspace does.
+  const s = newCapacityScope()
+  const game = { lastIpcObject: { fullscreen: 2, class: 'steam_app_31' } }
+  const scratchpad = { workspace: { name: 'special:scratchpad' }, lastIpcObject: { fullscreen: 0 } }
+  const otherSpecial = { workspace: { name: 'special:other' }, lastIpcObject: { fullscreen: 2 } }
+  s.displayNames = ['game', 'desk']
+  s.focusedDisplayName = 'game'
+  s.Hyprland.toplevels = { values: [scratchpad, otherSpecial] }
+  s.Quickshell.screens = [
+    { name: 'game', monitor: {
+      activeWorkspace: { hasFullscreen: true, toplevels: { values: [game] } },
+      lastIpcObject: { specialWorkspace: { id: -99, name: 'special:scratchpad' } },
+    } },
+    { name: 'desk', monitor: {
+      activeWorkspace: { hasFullscreen: false, toplevels: { values: [] } },
+      lastIpcObject: { specialWorkspace: { id: -99, name: 'special:scratchpad' } },
+    } },
+  ]
+
+  assert.equal(s.fullscreenOn('game'), false, 'non-fullscreen special workspace over fullscreen base does not silence')
+  s.admit(s.fakeNotification(1, 'Over scratchpad', 1))
+  assert.deepEqual(summaries(s.toasts.rows), ['Over scratchpad'])
+
+  // Maximized in the special workspace still does not silence.
+  s.clearAll('dismissed', true)
+  s.drainCallLater()
+  scratchpad.lastIpcObject.fullscreen = 1
+  assert.equal(s.fullscreenOn('desk'), false)
+
+  // True fullscreen inside the visible special workspace silences even over a non-fullscreen base.
+  scratchpad.lastIpcObject.fullscreen = 2
+  s.focusedDisplayName = 'desk'
+  assert.equal(s.fullscreenOn('desk'), true)
+  const muted = s.fakeNotification(2, 'Inside fullscreen special', 1)
+  muted.appName = 'Slack'
+  s.admit(muted)
+  assert.equal(s.toasts.count, 0)
+  assert.deepEqual(
+    Array.from(s.historyEntries, e => e.summary + ':' + e.closed_reason),
+    ['Inside fullscreen special:fullscreen', 'Over scratchpad:dismissed'],
+  )
+}
+
+{ // Silenced replacements with the same key deduplicate history instead of
+  // stacking duplicates and evicting older items.
+  const s = newCapacityScope()
+  const game = { lastIpcObject: { fullscreen: 2, class: 'steam_app_31' } }
+  s.displayNames = ['game']
+  s.focusedDisplayName = 'game'
+  s.Quickshell.screens = [
+    { name: 'game', monitor: { activeWorkspace: { hasFullscreen: false, toplevels: { values: [game] } } } },
+  ]
+  const progress = s.fakeNotification(1, 'Downloading 10%', 1)
+  progress.appName = 'Browser'
+  s.admit(progress)
+  const key = s.keyForOriginal(1)
+
+  // Fullscreen starts; a muted replacement records under the same key, and closing
+  // the card later replaces that key in history rather than adding a second row.
+  s.Quickshell.screens[0].monitor.activeWorkspace.hasFullscreen = true
+  progress.replace({ summary: 'Downloading 50%' })
+  s.drainCallLater()
+  assert.equal(s.historyEntries.length, 1)
+  assert.equal(s.historyEntries[0].key, key)
+  assert.equal(s.historyEntries[0].summary, 'Downloading 50%')
+  s.finishClose(key, 'expired')
+  assert.equal(s.historyEntries.length, 1, 'same key is not duplicated in history')
+  assert.equal(s.historyEntries[0].key, key)
+  assert.equal(s.historyEntries[0].summary, 'Downloading 50%', 'closing the old visible card keeps the newer silenced update')
+  assert.equal(s.historyEntries[0].closed_reason, 'fullscreen')
+
+  // Repeated updates for one key never evict unrelated history entries, and a
+  // stale arrival timestamp never overwrites a newer entry for the same key.
+  const now = 1e6
+  let history = []
+  for (let i = 0; i < 99; i++) history = Store.addHistory(history, { key: 'msg-' + i, summary: 'Msg ' + i, ts: now - 200 + i, closed_ts: now - 200 + i, closed_reason: 'fullscreen' }, now)
+  for (let pct = 1; pct <= 150; pct++) history = Store.addHistory(history, { key: 'progress', summary: 'Progress ' + pct + '%', ts: now - 10 + pct / 1000, closed_ts: now - 10 + pct / 1000, closed_reason: 'fullscreen' }, now)
+  history = Store.addHistory(history, { key: 'progress', summary: 'Progress 1%', ts: now - 20, closed_ts: now, closed_reason: 'expired' }, now)
+  assert.equal(history.length, 100)
+  assert.equal(history[0].key, 'progress')
+  assert.equal(history[0].summary, 'Progress 150%')
+  assert.equal(history.filter(e => e.key === 'progress').length, 1)
+  assert.equal(history[99].key, 'msg-0', 'earlier real history items are not evicted')
 }
 
 { // Rapid single dismissals must skip rows that are leaving but not yet removed.
@@ -623,7 +774,7 @@ const summaries = rows => Array.from(rows, row => row.summary)
   const other = s.fakeNotification(9, 'Other app')
   other.appName = 'Other'
   s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
-  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
+  Object.assign(s, { Layout, gap: 6, marginsFor: () => ({ top: 10, right: 10 }),
     Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
   runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
   for (const row of s.toasts.rows) s.heights[row.key] = 100

@@ -218,8 +218,24 @@ function retain(entries, now) {
   return out
 }
 
+// A newer row for the same key replaces any earlier history entry rather than
+// stacking duplicates and evicting older messages, without letting a closing
+// visible card overwrite a newer silenced update recorded under the same key.
 function addHistory(entries, entry, now) {
-  return retain([entry].concat(entries), now)
+  if (!entry || !entry.key) return retain([entry].concat(entries), now)
+  var winner = entry
+  var winnerTs = Number(entry.ts) || 0
+  var rest = []
+  for (var i = 0; i < entries.length; i++) {
+    var item = entries[i]
+    if (item.key === entry.key) {
+      var itemTs = Number(item.ts) || 0
+      if (itemTs > winnerTs) { winner = item; winnerTs = itemTs }
+    } else {
+      rest.push(item)
+    }
+  }
+  return retain([winner].concat(rest), now)
 }
 
 // A newer row for the same key replaces the old one in place; the oldest go

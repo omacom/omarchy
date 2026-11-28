@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Vienmēr slēpts"
+  },
+  "install.gaming.tools": {
+    "label": "Spēļu rīki",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Spēļu rīki",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

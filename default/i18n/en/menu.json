@@ -986,6 +986,10 @@
   "install.gaming.retro-launcher": {
     "label": "RetroArch Game Launcher"
   },
+  "install.gaming.tools": {
+    "label": "Gaming Tools",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
   "install.development.rails": {
     "label": "Ruby on Rails"
   },
@@ -1312,6 +1316,10 @@
   },
   "remove.gaming.vibes": {
     "label": "Game Vibes Game"
+  },
+  "remove.gaming.tools": {
+    "label": "Gaming Tools",
+    "description": "MangoHud, Gamescope, GameMode"
   },
   "remove.development.rails": {
     "label": "Ruby on Rails"

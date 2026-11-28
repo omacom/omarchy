@@ -195,6 +195,8 @@
   "gitSetup.namePlaceholder": "전체 이름",
   "gitSetup.namePrompt": "전체 이름> ",
   "gpu.enableDedicated": "전용 GPU를 활성화하고 재부팅할까요?",
+  "gpu.integratedActive": "내장 GPU로 실행 중",
+  "gpu.switchToDgpuHint": "더 나은 게임 성능을 위해 Trigger > Hardware > Switch to dGPU에서 전용 GPU로 전환하세요.",
   "gpu.useIntegrated": "내장 GPU만 사용하고 재부팅할까요?",
   "hermes.deleteData": "~/.hermes와 ~/.config/Hermes(%1: 채팅, 메모리, 스킬, 연결 및 토큰)도 삭제할까요?",
   "icons.removeExtraTitle": "추가 아이콘 세트 제거",
