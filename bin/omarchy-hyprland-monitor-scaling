@@ -33,6 +33,7 @@ audit_scale_change() {
   local active_monitor="$2"
   local current_scale="$3"
   local new_scale="$4"
+  local preferred_scale="$5"
   local parent_pid="$PPID"
   local grandparent_pid
   local parent_cmd
@@ -44,7 +45,7 @@ audit_scale_change() {
   parent_cmd=$(cmdline_for_pid "$parent_pid")
   grandparent_cmd=$(cmdline_for_pid "$grandparent_pid")
 
-  printf 'at=%s\trequested=%s\tcurrent=%s\tnew=%s\tmonitor=%s\tpid=%s\tppid=%s\tparent=%s\tgppid=%s\tgrandparent=%s\n' \
+  printf 'at=%s\trequested=%s\tcurrent=%s\tnew=%s\tmonitor=%s\tpid=%s\tppid=%s\tparent=%s\tgppid=%s\tgrandparent=%s\tpreferred=%s\n' \
     "$(date --iso-8601=seconds)" \
     "$requested" \
     "$current_scale" \
@@ -54,7 +55,8 @@ audit_scale_change() {
     "$parent_pid" \
     "$parent_cmd" \
     "$grandparent_pid" \
-    "$grandparent_cmd" >>"$SCALE_LOG"
+    "$grandparent_cmd" \
+    "$preferred_scale" >>"$SCALE_LOG"
 }
 
 # Hyprland only accepts scales where the mode divides into whole logical
@@ -108,7 +110,7 @@ set_scale() {
   else
     hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"$mode\", position = \"auto\", scale = $new_scale })" >/dev/null
   fi
-  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
+  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale" "$requested_scale"
 }
 
 scale_from_current() {

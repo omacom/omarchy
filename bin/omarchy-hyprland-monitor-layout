@@ -14,7 +14,17 @@ usage() {
   echo "       omarchy-hyprland-monitor-layout --resized NAME OLD_SIZE OLD_SCALE NEW_SIZE NEW_SCALE [MODE [TRANSFORM]]"
 }
 
-monitors_json=$(hyprctl monitors -j)
+# The Parallels bridge plans against its own snapshot, then applies and verifies
+# the entire resize through IPC. Planning must never save per-window positions.
+plan_only=0
+if [[ ${1:-} == "--plan" ]]; then
+  plan_only=1
+  shift
+  [[ ${1:-} == "--resized" ]] || { usage >&2; exit 1; }
+  monitors_json=$(cat)
+else
+  monitors_json=$(hyprctl monitors -j)
+fi
 resized_name=""
 resized_scale=""
 resized_mode=""
@@ -120,6 +130,11 @@ for arg in "$@"; do
     expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
   fi
 done
+
+if (( plan_only )); then
+  printf '%s\n' "$@" | jq -Rsc 'split("\n")[:-1] | map(capture("^(?<name>[^=]+)=(?<x>-?[0-9]+)x(?<y>-?[0-9]+)$") | .x |= tonumber | .y |= tonumber)'
+  exit
+fi
 
 hyprctl eval "$expr" >/dev/null
 
