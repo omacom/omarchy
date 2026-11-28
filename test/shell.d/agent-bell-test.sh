@@ -32,7 +32,7 @@ chmod +x "$mock_bin"/*
 
 ring() {
   rm -f "$notify_log"
-  PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$1" OMARCHY_TEST_NOTIFY_LOG="$notify_log" \
+  PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_TEST_CLIENTS_JSON="$1" OMARCHY_TEST_NOTIFY_LOG="$notify_log" \
     bash "$ROOT/bin/omarchy-agent-bell"
 }
 
@@ -48,6 +48,15 @@ mapfile -t args <"$notify_log"
 [[ ${args[*]} == *'--exec hyprctl dispatch hl.dsp.focus({ window = "address:0xagent" })'* ]] ||
   fail "clicking the notification focuses the window that rang, not another agent" "${args[*]}"
 pass "an agent window that rings in the background asks for you"
+
+ring "[{\"address\":\"0xcodex\",\"pid\":$$,\"class\":\"org.omarchy.codex\",\"title\":\"codex\"}]"
+[[ -f $notify_log ]] && grep -qF 'address:0xcodex' "$notify_log" ||
+  fail "a harness opened from its own launcher asks for you too"
+pass "a harness opened from its own launcher asks for you too"
+
+ring "[{\"address\":\"0xbtop\",\"pid\":$$,\"class\":\"org.omarchy.btop\",\"title\":\"btop\"}]"
+[[ ! -f $notify_log ]] || fail "another Omarchy TUI's bell sends no notification"
+pass "another Omarchy TUI's bell stays quiet"
 
 ring "[{\"address\":\"0xshell\",\"pid\":$$,\"class\":\"foot\",\"title\":\"bash\"}]"
 [[ ! -f $notify_log ]] || fail "a plain terminal's bell sends no notification"

@@ -12,10 +12,20 @@
 
 window=$(
   hyprctl clients -j 2>/dev/null |
-    jq -c --argjson pid "$PPID" '[.[] | select(.pid == $pid)] | if length == 1 and .[0].class == "org.omarchy.agent" then .[0] else empty end' 2>/dev/null
+    jq -c --argjson pid "$PPID" '[.[] | select(.pid == $pid)] | if length == 1 then .[0] else empty end' 2>/dev/null
 )
+class=$(jq -r '.class // ""' <<<"${window:-null}" 2>/dev/null)
 
-if [[ -n $window ]]; then
+# Agent opens every harness as org.omarchy.agent, and a harness's own launcher
+# opens it as org.omarchy.<agent>, named after its launcher.
+agent_window=false
+if [[ $class == "org.omarchy.agent" ]]; then
+  agent_window=true
+elif [[ $class =~ ^org\.omarchy\.([a-z0-9-]+)$ && -f $OMARCHY_PATH/default/applications/omarchy-agent-${BASH_REMATCH[1]}.desktop ]]; then
+  agent_window=true
+fi
+
+if [[ $agent_window == "true" ]]; then
   address=$(jq -r '.address' <<<"$window")
   title=$(jq -r '.title // ""' <<<"$window")
   omarchy-notification-send -g 󰚩 "$(omarchy-i18n agents.bellHeadline)" "$title" \
