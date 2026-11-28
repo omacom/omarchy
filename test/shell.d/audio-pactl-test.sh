@@ -65,6 +65,18 @@ Sink Input #42
 OUT
     ;;
   "-f json list sinks")
+    # SINKS_HOLD parks this call mid-read until the test releases it.
+    if [[ -n ${SINKS_HOLD:-} ]]; then
+      touch "$SINKS_HOLD.reached"
+      for _ in {1..100}; do
+        [[ -e $SINKS_HOLD.release ]] && break
+        sleep 0.05
+      done
+    fi
+    if [[ -n ${SINKS_JSON:-} ]]; then
+      cat "$SINKS_JSON"
+      exit 0
+    fi
     cat <<'OUT'
 [
   {
@@ -105,6 +117,8 @@ SH
 chmod +x "$work/bin"/*
 
 export MIC_STATE="$work/mic" CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
+export XDG_RUNTIME_DIR="$work/run"
+mkdir -p "$XDG_RUNTIME_DIR"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 calls() {
@@ -120,6 +134,91 @@ grep -qx 'C pactl list sink-inputs' "$CALLS" ||
 grep -q 'pactl move-sink-input 42 alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-set-default moves streams' "$(calls)"
 pass 'audio-output-set-default reads sink-inputs in the C locale'
+
+# --- omarchy-audio-output-set-default keeps the default following hotplug ---
+
+# Speakers behind a DSP sink (850), a headphone jack (1000) and DisplayPort.
+sinks_json() {
+  local headphones=$1 display_priority=$2
+  cat >"$work/sinks.json" <<OUT
+[
+  {"index": 1, "name": "speakers", "ports": [], "properties": {"priority.session": "850"}},
+  {"index": 2, "name": "headphones",
+   "ports": [{"name": "Headphones", "availability": "$headphones"}],
+   "properties": {"priority.session": "1000"}},
+  {"index": 3, "name": "display",
+   "ports": [{"name": "HDMI1", "availability": "available"}],
+   "properties": {"priority.session": "$display_priority"}}
+]
+OUT
+}
+cleared() {
+  grep -qx 'wpctl clear-default 0' "$CALLS"
+}
+export SINKS_JSON="$work/sinks.json"
+
+sinks_json available 500
+: >"$CALLS"
+omarchy-audio-output-set-default 2 headphones
+cleared || fail 'choosing the output WirePlumber would pick forgets the saved choice' "$(calls)"
+grep -q '^wpctl set-default 2$' "$CALLS" || fail 'the chosen output still becomes the default at once' "$(calls)"
+pass 'choosing the output WirePlumber would pick forgets the saved choice'
+
+: >"$CALLS"
+omarchy-audio-output-set-default 1 speakers
+! cleared || fail 'choosing the speakers while headphones are in stays saved' "$(calls)"
+pass 'choosing the speakers while headphones are in stays saved'
+
+sinks_json "not available" 500
+: >"$CALLS"
+omarchy-audio-output-set-default 1 speakers
+cleared || fail 'choosing the speakers with the jack empty forgets the saved choice' "$(calls)"
+pass 'choosing the speakers with the jack empty forgets the saved choice'
+
+sinks_json available 1000
+: >"$CALLS"
+omarchy-audio-output-set-default 2 headphones
+! cleared || fail 'a choice between outputs of equal priority stays saved' "$(calls)"
+pass 'a choice between outputs of equal priority stays saved'
+
+# Picks made while an earlier pick is still working. The headphones call is
+# parked reading the sinks; the display and then the speakers are picked behind
+# it. The speakers are the last pick, so they must end up saved: the headphones
+# call's clear-default may not land after them, and the display call, which a
+# newer pick overtook, does nothing.
+latest_request() {
+  cat "$XDG_RUNTIME_DIR/omarchy-audio-output-default-$UID.latest" 2>/dev/null || true
+}
+wait_for() {
+  local _
+  for _ in {1..100}; do
+    eval "$1" && return 0
+    sleep 0.05
+  done
+  fail "$2" "$(calls)"
+}
+sinks_json available 500
+: >"$CALLS"
+rm -f "$work/hold".*
+SINKS_HOLD="$work/hold" omarchy-audio-output-set-default 2 headphones &
+first=$!
+wait_for '[[ -e $work/hold.reached ]]' 'the first pick reaches the sink listing'
+before=$(latest_request)
+omarchy-audio-output-set-default 3 display &
+second=$!
+wait_for '[[ $(latest_request) != "$before" ]] || grep -qx "wpctl set-default 3" "$CALLS"' 'the second pick queues or runs'
+before=$(latest_request)
+omarchy-audio-output-set-default 1 speakers &
+third=$!
+wait_for '[[ $(latest_request) != "$before" ]] || grep -qx "wpctl set-default 1" "$CALLS"' 'the third pick queues or runs'
+touch "$work/hold.release"
+wait "$first" "$second" "$third"
+[[ $(grep '^wpctl ' "$CALLS" | tail -n 1) == "wpctl set-default 1" ]] ||
+  fail 'the last of several quick picks stays the default' "$(calls)"
+! grep -qx 'wpctl set-default 3' "$CALLS" ||
+  fail 'a pick overtaken by a newer one leaves it alone' "$(calls)"
+pass 'the last of several quick picks stays the default'
+unset SINKS_JSON
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-sink "virtual_sink" >/dev/null 2>&1
