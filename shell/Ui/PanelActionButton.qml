@@ -31,6 +31,11 @@ BorderSurface {
   property string iconText: ""
   // An app's own icon in place of the glyph, when it has one.
   property string iconSource: ""
+  // Labels are translated by their English source string (I18n.tr), so
+  // a plugin's text follows the picked language without code changes. Set
+  // false for user or machine text (a device or host name, an email), or
+  // text the caller already translated, that must show exactly as given.
+  property bool translate: true
   property string tooltipText: ""
   property color foreground: Commons.Color.foreground
   property color hoverColor: foreground
@@ -120,6 +125,7 @@ BorderSurface {
   PanelToolTip {
     visible: root.tooltipText !== "" && mouse.containsMouse
     text: root.tooltipText
+    translate: root.translate
     fontFamily: root.fontFamily
   }
 }

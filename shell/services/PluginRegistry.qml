@@ -607,6 +607,8 @@ QtObject {
   // Output format produced by the rescan script:
   //   ===<kind>::<line-count>::<absolute-source-dir>===
   //   ... exact <line-count> raw manifest.json lines ...
+  //   === I18N::<line-count> ===   (only when the plugin ships i18n.json)
+  //   ... exact <line-count> raw i18n.json lines ...
   //   === EOM ===
   // (repeating for every manifest found)
   function isWithinDir(path, rootDir) {
@@ -634,6 +636,17 @@ QtObject {
       }
       var raw = lines.slice(i + 1, i + 1 + lineCount).join("\n").trim()
       i += lineCount
+      var i18nRaw = null
+      var i18nMatch = (lines[i + 1] || "").match(/^=== I18N::(\d+) ===$/)
+      if (i18nMatch) {
+        var i18nCount = parseInt(i18nMatch[1], 10)
+        if (i + 1 + i18nCount >= lines.length) {
+          console.warn("PluginRegistry: truncated i18n stream at " + source)
+          break
+        }
+        i18nRaw = lines.slice(i + 2, i + 2 + i18nCount).join("\n")
+        i += 1 + i18nCount
+      }
       if (lines[i + 1] === "=== EOM ===") i++
       if (kind === "firstparty" && !isWithinDir(source, registry.firstPartyDir)) {
         console.warn("PluginRegistry: rejecting first-party manifest outside firstPartyDir: " + source)
@@ -647,6 +660,13 @@ QtObject {
         }
         manifest.__sourceDir = source
         manifest.__isFirstParty = (kind === "firstparty")
+        if (i18nRaw !== null) {
+          try {
+            manifest.__i18n = JSON.parse(i18nRaw)
+          } catch (e) {
+            console.warn("PluginRegistry: bad i18n.json at " + source + ": " + e)
+          }
+        }
         var validated = validateManifest(manifest, source + "/manifest.json")
         if (validated) {
           if (kind === "firstparty") firstParty[validated.id] = validated
@@ -789,6 +809,11 @@ QtObject {
       + "  mapfile -t lines < \"$manifest\"; "
       + "  printf '===%s::%d::%s===\\n' \"$kind\" \"${#lines[@]}\" \"$sub\"; "
       + "  if (( ${#lines[@]} > 0 )); then printf '%s\\n' \"${lines[@]}\"; fi; "
+      + "  if [[ -f $sub/i18n.json && -r $sub/i18n.json ]]; then "
+      + "    mapfile -t lines < \"$sub/i18n.json\"; "
+      + "    printf '=== I18N::%d ===\\n' \"${#lines[@]}\"; "
+      + "    if (( ${#lines[@]} > 0 )); then printf '%s\\n' \"${lines[@]}\"; fi; "
+      + "  fi; "
       + "  printf '=== EOM ===\\n'; "
       + "}; "
       + "scan_firstparty() { local dir=\"$1\"; "

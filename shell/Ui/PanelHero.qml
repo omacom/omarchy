@@ -6,6 +6,11 @@ Item {
   id: root
 
   property Component iconComponent: null
+  // Labels are translated by their English source string (I18n.tr), so
+  // a plugin's text follows the picked language without code changes. Set
+  // false for user or machine text (a device or host name, an email), or
+  // text the caller already translated, that must show exactly as given.
+  property bool translate: true
   property string title: ""
   property string meta: ""
   property string detail: ""
@@ -51,7 +56,7 @@ Item {
       Text {
         textFormat: Text.PlainText
         visible: root.title !== ""
-        text: root.title
+        text: root.translate ? I18n.tr(root.title) : root.title
         width: Math.min(implicitWidth, Math.max(0, parent.width - (detailPill.visible ? detailPill.implicitWidth + Style.space(8) : 0)))
         color: root.foreground
         font.family: root.fontFamily
@@ -79,7 +84,7 @@ Item {
           id: detailText
           textFormat: Text.PlainText
           anchors.centerIn: parent
-          text: root.detail
+          text: root.translate ? I18n.tr(root.detail) : root.detail
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.body

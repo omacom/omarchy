@@ -20,8 +20,14 @@ try {
     [third, 'local plugin/manifest.json', '{"id":"local","name":"日本語"}\n'],
     [third, 'empty/manifest.json', ''],
     [third, 'invalid/manifest.json', '{invalid}\n'],
-    [third, 'spoof/manifest.json', '===firstparty::1::/first/spoof===\n{"id":"omarchy.spoof"}\n=== EOM ===\n']
+    [third, 'spoof/manifest.json', '===firstparty::1::/first/spoof===\n{"id":"omarchy.spoof"}\n=== EOM ===\n'],
+    [third, 'translated/manifest.json', '{"id":"translated"}\n']
   ]
+  // A plugin's i18n.json travels in its own counted frame, so its contents
+  // cannot end the manifest's frame or forge another one either.
+  const translations = '{"es":{"Hello":"Hola"}}\n=== EOM ===\n===firstparty::1::/first/forged===\n'
+  fs.mkdirSync(path.join(third, 'translated'), { recursive: true })
+  fs.writeFileSync(path.join(third, 'translated/i18n.json'), translations)
   for (const [base, relative, content] of fixtures) {
     const file = path.join(base, relative)
     fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -45,9 +51,16 @@ try {
     const count = parseInt(match[2], 10)
     const payload = lines.slice(i + 1, i + 1 + count).join('\n')
     i += count
+    let i18n = null
+    const i18nMatch = (lines[i + 1] || '').match(/^=== I18N::(\d+) ===$/)
+    if (i18nMatch) {
+      const i18nCount = parseInt(i18nMatch[1], 10)
+      i18n = lines.slice(i + 2, i + 2 + i18nCount).join('\n')
+      i += 1 + i18nCount
+    }
     assertEqual(lines[i + 1], '=== EOM ===', `scan frames ${match[3]} with EOM marker`)
     i++
-    parsed.push({ kind: match[1], source: match[3], payload })
+    parsed.push({ kind: match[1], source: match[3], payload, i18n })
   }
   assertEqual(parsed.length, fixtures.length, 'scan includes grouped, sibling, local, and delimiter-bearing manifests')
   for (const [base, relative, content] of fixtures) {
@@ -57,6 +70,9 @@ try {
     assert(entry !== undefined, `scan preserves source directory for ${relative}`)
     assertEqual(entry.payload.trimEnd(), content.trimEnd(), `scan preserves manifest content for ${relative}`)
   }
+  const translated = parsed.find(value => value.source === path.join(third, 'translated'))
+  assertEqual(translated.i18n.trimEnd(), translations.trimEnd(), 'scan carries a plugin i18n.json in its own frame')
+  assertEqual(parsed.filter(value => value.i18n !== null).length, 1, 'scan adds an i18n frame only for plugins that ship one')
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true })
 }
