@@ -84,6 +84,7 @@ o.bind("SUPER + mouse_down", "Scroll active workspace forward", hl.dsp.focus({ w
 o.bind("SUPER + mouse_up", "Scroll active workspace backward", hl.dsp.focus({ workspace = "m-1" }))
 
 o.bind("SUPER + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
+require("default.hypr.workspace-modes").observe_drag("SUPER + mouse:272")
 o.bind("SUPER + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })
 
 o.bind("SUPER + G", "Toggle window grouping", hl.dsp.group.toggle())

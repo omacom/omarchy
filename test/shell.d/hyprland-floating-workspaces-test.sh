@@ -227,6 +227,8 @@ local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = fal
 local rules = {}
 local placed = {}
 local active = { id = 1 }
+local active_window
+local bindings = {}
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
 
 local monitor = { width = 2560, height = 1440, scale = 1, transform = 0, reserved = { left = 0, right = 0, top = 30, bottom = 0 } }
@@ -235,6 +237,7 @@ function window(address, workspace, options)
   options = options or {}
   local created = {
     address = address,
+    mapped = true,
     floating = options.floating or false,
     fullscreen = options.fullscreen or 0,
     pinned = false,
@@ -264,6 +267,10 @@ io.open = function(path, mode)
 end
 
 hl = {
+  bind = function(keys, callback, options)
+    table.insert(bindings, { keys = keys, callback = callback, options = options })
+  end,
+  get_active_window = function() return active_window end,
   workspace_rule = function() end,
   window_rule = function(rule) table.insert(rules, rule) end,
   get_workspace_windows = function(selector)
@@ -308,6 +315,9 @@ hl = {
       end
     else
       target.floating = action.action == "on"
+      for _, member in ipairs(target.group and target.group.members or {}) do
+        member.floating = target.floating
+      end
     end
   end,
   dsp = {
@@ -359,6 +369,7 @@ hl = {
 
 function state()
   return {
+    bindings = bindings,
     plugin_loads = plugin_loads,
     titlebar_config = titlebar_config,
     buttons = buttons,
@@ -368,6 +379,10 @@ function state()
     subscriptions = subscriptions,
     active = active,
   }
+end
+
+function focus_window(window)
+  active_window = window
 end
 
 function latest_open_rule(index)
@@ -672,6 +687,63 @@ assert(not moving.floating, "a window carried to a tiled workspace kept floating
   fail "the mode leaves windows on their way to a special workspace alone"
 fi
 pass "the mode leaves windows on their way to a special workspace alone"
+
+# A drag temporarily floats a tiled window before the workspace move, then
+# tiles it on release. Only an arrival belongs to the destination's mode.
+if ! run_lua '
+local moving = window("0x1", 3)
+require("default.hypr.workspace-layouts")
+o.workspace_mode({ workspace = "2", mode = "floating" })
+require("default.hypr.workspace-modes").observe_drag("SUPER + mouse:272")
+local press, release = state().bindings[1].callback, state().bindings[2].callback
+local moved = state().subscriptions["window.move_to_workspace"][1]
+focus_window(moving)
+
+moving.floating = true
+press()
+moving.workspace = { id = 2 }
+moved(moving, moving.workspace)
+moving.floating = false
+release()
+assert(moving.floating and has_tag(moving, "omarchy-mode-floated"), "a tiled arrival stayed tiled after the drop")
+
+moving.workspace = { id = 3 }
+moved(moving, moving.workspace)
+moving.floating = true
+press()
+moving.workspace = { id = 2 }
+moved(moving, moving.workspace)
+release()
+assert(moving.floating and not has_tag(moving, "omarchy-mode-floated"), "an independently floating arrival was claimed")
+moving.floating = false
+release()
+assert(not moving.floating, "an unrelated release undid deliberate tiling")
+
+moving.floating = true
+press()
+moving.floating = false
+release()
+assert(not moving.floating, "a drag inside the same workspace undid deliberate tiling")
+
+local peer = window("0x2", 3, { floating = true })
+moving.workspace, moving.floating = peer.workspace, true
+moving.group = { members = { moving, peer } }
+peer.group = moving.group
+press()
+moving.workspace = { id = 2 }
+peer.workspace = moving.workspace
+moved(moving, moving.workspace)
+moving.floating, peer.floating = false, false
+release()
+assert(has_tag(moving, "omarchy-mode-floated") and has_tag(peer, "omarchy-mode-floated"), "a dropped group left a member unclaimed")
+
+press()
+moving.mapped, moving.workspace = false, nil
+release()
+'; then
+  fail "a drop arranges only arrivals and preserves independent floating and manual tiling"
+fi
+pass "a drop arranges only arrivals and preserves independent floating and manual tiling"
 
 # Titlebars: asked for only when installed, and themed once loaded.
 if ! run_lua '

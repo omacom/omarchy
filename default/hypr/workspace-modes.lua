@@ -317,6 +317,30 @@ local function arrange(windows, workspace)
   float_for_mode(floating)
 end
 
+-- Hyprland floats a tiled window for a drag and tiles it again on release.
+-- Arrange an arrival after that release, without undoing deliberate tiling.
+function M.observe_drag(keys)
+  local dragged, from
+
+  o.bind(keys, nil, function()
+    dragged = hl.get_active_window()
+    from = dragged and dragged.workspace and dragged.workspace.id
+  end, { non_consuming = true })
+  o.bind(keys, nil, function()
+    local window, workspace = dragged, from
+    dragged, from = nil, nil
+
+    if window and workspace then
+      hl.timer(function()
+        local destination = window.workspace and window.workspace.id
+        if window.mapped and destination ~= workspace and floating_workspace(destination) then
+          arrange(window.group and window.group.members or { window })
+        end
+      end, { type = "oneshot", timeout = 1 })
+    end
+  end, { release = true, ignore_mods = true, transparent = true, non_consuming = true })
+end
+
 -- Overlapping windows are placed with the pointer, so a floating workspace
 -- focuses on click rather than on hover. Every other workspace keeps the user's
 -- own setting.

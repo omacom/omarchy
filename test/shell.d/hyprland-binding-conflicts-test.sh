@@ -122,11 +122,12 @@ duplicate_signatures() {
   cut -f1 | sort | uniq -d
 }
 
-# Deliberate stacking: Hyprland runs both dispatchers, so cycling to the next
-# window also raises it. Anything else sharing a chord is a collision.
+# Intentional pairs: cycling also raises the next window; mouse dragging records
+# its source for the release callback. A third binding is a collision.
 allowed_duplicates=(
   "ALT+SHIFT+TAB"
   "ALT+TAB"
+  "SUPER+MOUSE:272"
 )
 
 is_allowed_duplicate() {
@@ -171,10 +172,10 @@ done <<<"$duplicates"
 pass "no two default bindings claim the same chord"
 
 for allowed in "${allowed_duplicates[@]}"; do
-  grep -Fqx "$allowed" <<<"$duplicates" ||
-    fail "every allowed duplicate chord is still stacked on purpose" "$allowed"
+  (( $(awk -F'\t' -v signature="$allowed" '$1 == signature { count++ } END { print count + 0 }' <<<"$bindings") == 2 )) ||
+    fail "every allowed duplicate chord has exactly its intended pair" "$allowed"
 done
-pass "allowed duplicate chords are still stacked on purpose"
+pass "allowed duplicate chords have exactly their intended pair"
 
 # The press and release halves of a push-to-talk key are separate binds, not a
 # collision.
@@ -197,6 +198,12 @@ probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
 grep -Fqx "ALT+SHIFT+SUPER+RIGHT" <<<"$probe" ||
   fail "the conflict check ignores modifier order"
 pass "the conflict check catches collisions across keycodes and modifier order"
+
+probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
+  'o.bind("SUPER + mouse:272", "Conflict probe", "true")')
+(( $(awk -F'\t' '$1 == "SUPER+MOUSE:272" { count++ } END { print count + 0 }' <<<"$probe") != 2 )) ||
+  fail "an extra action on an intentionally stacked chord is still a collision"
+pass "an extra action on an intentionally stacked chord is still a collision"
 
 rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
   'o.rebind("SUPER + SHIFT + F", "Flea", { launch = "flea" })' | \
