@@ -948,9 +948,12 @@ BarWidget {
           trayItemRoot.modelData.activate()
         }
       }
-      // A double-click's second click lands here, not in onClicked.
+      // A double-click's second click lands here, not in onClicked, so a middle
+      // double-click makes its second secondaryActivate here.
       onDoubleClicked: function(mouse) {
-        if (mouse.button === Qt.LeftButton && TrayModel.activatesOnDoubleClick(trayItemRoot.modelData))
+        if (mouse.button === Qt.MiddleButton)
+          trayItemRoot.modelData.secondaryActivate()
+        else if (mouse.button === Qt.LeftButton && TrayModel.activatesOnDoubleClick(trayItemRoot.modelData))
           trayItemRoot.modelData.activate()
       }
       onWheel: function(wheel) {
