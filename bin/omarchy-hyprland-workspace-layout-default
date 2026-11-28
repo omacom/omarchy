@@ -23,7 +23,7 @@ DEFAULT_FILE="$MODES_DIR/default.lua"
 if (( $# == 0 )); then
   MODE=$(sed -n 's/.*default = "\([a-z]*\)".*/\1/p' "$DEFAULT_FILE" 2>/dev/null)
   [[ -n $MODE ]] || MODE=$(hyprctl getoption general.layout -j 2>/dev/null | jq -r '.str // empty')
-  echo "${MODE:-dwindle}"
+  omarchy-hyprland-workspace-layout-cycle --resolve "${MODE:-dwindle}"
   exit 0
 fi
 
@@ -36,6 +36,11 @@ case $1 in
     exit 1
     ;;
 esac
+
+if ! omarchy-hyprland-workspace-layout-cycle --allows "$1"; then
+  omarchy-notification-send "$(omarchy-i18n layout.disabled)"
+  exit 1
+fi
 
 mkdir -p "$MODES_DIR"
 

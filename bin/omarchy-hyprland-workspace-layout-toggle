@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Cycle the current active workspace through the dwindle, scrolling, and floating layouts
+# omarchy:summary=Cycle the current active workspace through the enabled layouts
 # omarchy:args=[back]
 
 # Layout changes replace one notification instead of stacking a new one for
@@ -30,19 +30,27 @@ MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
 
 CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current)
 
+mapfile -t CYCLE < <(omarchy-hyprland-workspace-layout-cycle)
+COUNT=${#CYCLE[@]}
+(( COUNT > 0 )) || exit 1
+
 if [[ $DIRECTION == "back" ]]; then
-  case "$CURRENT_MODE" in
-    dwindle) NEW_MODE=floating ;;
-    floating) NEW_MODE=scrolling ;;
-    *) NEW_MODE=dwindle ;;
-  esac
+  STEP=-1
+  INDEX=$((COUNT - 1))
 else
-  case "$CURRENT_MODE" in
-    dwindle) NEW_MODE=scrolling ;;
-    scrolling) NEW_MODE=floating ;;
-    *) NEW_MODE=dwindle ;;
-  esac
+  STEP=1
+  INDEX=0
 fi
+
+for i in "${!CYCLE[@]}"; do
+  if [[ $CURRENT_MODE == ${CYCLE[i]} ]]; then
+    INDEX=$(((i + STEP + COUNT) % COUNT))
+    break
+  fi
+done
+
+NEW_MODE=${CYCLE[INDEX]}
+[[ $CURRENT_MODE != $NEW_MODE ]] || exit 0
 
 APPLY="o.workspace_mode({ workspace = \"$ACTIVE_WORKSPACE\", mode = \"$NEW_MODE\" })"
 

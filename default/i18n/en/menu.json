@@ -274,6 +274,9 @@
     "label": "Workspace Layout",
     "title": "Default Workspace Layout"
   },
+  "appearance.workspace-layout.cycle": {
+    "label": "Enabled Layouts"
+  },
   "appearance.workspace-layout.dwindle": {
     "label": "Tiling"
   },

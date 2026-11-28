@@ -60,6 +60,8 @@ A floating workspace also shows a dock, with your pinned apps, everything that's
 
 New workspaces, and any you haven't given a layout of their own with `Super + L`, use the default layout. Changing the default resets every workspace without windows to it, while one with windows on it keeps the layout it has. A window minimized to the dock still counts as a window on the workspace it left. Pick it under _Appearance > Workspace Layout_: Tiling, Scrolling, or Floating. `omarchy hyprland workspace layout default scrolling` sets it from a terminal.
 
+Open _Appearance > Workspace Layout > Enabled Layouts_ to choose any combination of Tiling, Scrolling, and Floating. The shortcuts cycle through the enabled layouts. Workspaces whose layout you disable use the enabled default until you enable their layout again. If you disable the current default, Omarchy uses the first enabled layout in that order. From a terminal, use `omarchy hyprland workspace layout cycle scrolling floating` to enable Scrolling and Floating.
+
 ### Grouping windows
 
 Windows can be grouped using `Super + G`. Once you're in a group, every window you start while that's active will belong to the group. You can move between these grouped windows using `Super + Ctrl + Arrow Left/Right` or `Super + Alt + 1/2/3/4` to go directly to grouped windows in order.

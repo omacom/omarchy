@@ -6,6 +6,7 @@
 -- Pass nil as the prefix when the directory itself has been added to package.path.
 -- Pass options.exclude as a set of base names (without ".lua") to skip; a legacy
 -- file that must never be loaded as code stays on disk for a migration to remove.
+-- Pass options.load to handle a file directly. Return true to skip require.
 
 local M = {}
 
@@ -37,7 +38,9 @@ function M.files(dir, module_prefix, options)
           package.loaded[module] = nil
         end
 
-        require(module)
+        if not (options and options.load and options.load(dir .. "/" .. filename, name)) then
+          require(module)
+        end
       end
     end
     handle:close()
