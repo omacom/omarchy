@@ -16,6 +16,9 @@ hl.layer_rule({ match = { namespace = "^(omarchy-menu|omarchy-image-selector|oma
 -- layer only dips the screen toward the empty desktop during the handoff.
 hl.layer_rule({ match = { namespace = "^(omarchy-background|owe-background)$" }, no_anim = true, animation = "none" })
 
+-- The shutdown cover fades itself into the Plymouth logo before poweroff/reboot.
+hl.layer_rule({ match = { namespace = "omarchy-shutdown" }, no_anim = true, animation = "none" })
+
 -- Dev gallery is the main shell workbench; open it maximized like
 -- SUPER+ALT+F so component previews have the whole workspace.
 o.window({ class = "^org.quickshell$", title = "^Omarchy shell – dev gallery$" }, { maximize = true })

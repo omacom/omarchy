@@ -25,6 +25,7 @@ ShellRoot {
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
   property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
+  property ShutdownCover shutdownCover: ShutdownCover { }
 
   property string home: Quickshell.env("HOME")
 
@@ -1944,6 +1945,14 @@ ShellRoot {
 
     function themeIntroCoverStatus(token: string): string {
       return shell.bootIntro.themeCoverStatus(token)
+    }
+
+    function showShutdownCover(): string {
+      return shell.shutdownCover.show()
+    }
+
+    function hideShutdownCover(): void {
+      shell.shutdownCover.hide()
     }
 
     function ping(): string {
