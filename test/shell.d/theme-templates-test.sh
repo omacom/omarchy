@@ -327,6 +327,48 @@ set_icons
 [[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "an icon that needs no colors stays under a theme that can't draw the rest"
 pass "a theme that can't draw app icons brings the packaged ones back"
 
+# Explicitly empty palette keys fall back instead of resolving to empty strings.
+empty_home="$test_tmp/empty-home"
+empty_next="$empty_home/.local/state/omarchy/current/next-theme"
+empty_themed="$empty_home/.config/omarchy/themed"
+mkdir -p "$empty_next" "$empty_themed"
+cat >"$empty_next/colors.toml" <<'EOF'
+background = "#111111"
+foreground = "#eeeeee"
+accent = ""
+blue = "#336699"
+hyprland_active_border = ""
+EOF
+cat >"$empty_themed/empty-fallback.txt.tpl" <<'EOF'
+hypr={{ hypr_gradient hyprland_active_border blue }}
+shell={{ shell_gradient hyprland_active_border blue }}
+start={{ gradient_start hyprland_active_border blue }}
+literal={{ gradient_start hyprland_active_border 0xff112233 }}
+EOF
+HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/empty.err"
+[[ ! -s $test_tmp/empty.err ]] ||
+  fail "empty theme colors render without errors" "$(cat "$test_tmp/empty.err")"
+expected_empty=$(cat <<'EOF'
+hypr="#336699"
+shell=#336699
+start=#336699
+literal=#112233
+EOF
+)
+[[ $(<"$empty_next/empty-fallback.txt") == "$expected_empty" ]] ||
+  fail "empty theme colors use their gradient fallbacks: $(diff <(printf '%s\n' "$expected_empty") "$empty_next/empty-fallback.txt")"
+pass "empty theme colors fall back cleanly in gradient helpers"
+
+# An empty fallback alias keeps the literal name, as a missing fallback does.
+printf 'background = "#111111"\nforeground = "#eeeeee"\n' >"$empty_next/colors.toml"
+printf '{{ gradient_start missing_border accent }}\n' >"$empty_themed/empty-alias.txt.tpl"
+HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/empty-alias.err"
+[[ ! -s $test_tmp/empty-alias.err ]] || fail "an empty fallback alias renders without errors" "$(cat "$test_tmp/empty-alias.err")"
+[[ $(<"$empty_next/empty-alias.txt") == "accent" ]] || fail "an empty fallback alias keeps its literal name"
+pass "an empty fallback alias keeps its literal name"
+
 if timeout 2s "$ROOT/bin/omarchy-theme-color" --file >/dev/null 2>&1; then
   fail "omarchy-theme-color rejects --file without a value"
 else
