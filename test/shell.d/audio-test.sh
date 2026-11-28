@@ -58,6 +58,75 @@ assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spo
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
 
+
+let volumeWrites = audio.newVolumeWriteState()
+
+// Rapid movement before the first external write starts coalesces to one value.
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 20)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 45)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 80)
+volumeWrites = audio.beginVolumeWrite(volumeWrites)
+assertEqual(volumeWrites.activePercent, 80, 'audio volume queue starts only the newest pre-launch value')
+assertEqual(volumeWrites.pendingPercent, -1, 'audio volume queue consumes the pending value when it starts')
+
+// Movement during an active write retains only the newest pending value.
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 35)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 60)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 95)
+assertEqual(volumeWrites.activePercent, 80, 'active audio volume write is not replaced mid-process')
+assertEqual(volumeWrites.pendingPercent, 95, 'audio volume queue keeps only the newest in-flight update')
+
+volumeWrites = audio.finishVolumeWrite(volumeWrites)
+volumeWrites = audio.beginVolumeWrite(volumeWrites)
+assertEqual(volumeWrites.activePercent, 95, 'next audio volume write is the final slider value')
+assertEqual(volumeWrites.pendingPercent, -1, 'final slider value leaves no older pending write')
+
+volumeWrites = audio.finishVolumeWrite(volumeWrites)
+assert(!volumeWrites.running, 'audio volume queue becomes idle after the final write')
+assertEqual(volumeWrites.pendingPercent, -1, 'no stale volume write remains after the final value')
+
+
+// Per-channel pactl fallback must preserve left/right balance (40/80 → not 55/55).
+assert(
+  typeof audio.scaleChannelVolumes === 'function',
+  'audio exposes scaleChannelVolumes for pactl per-channel writes'
+)
+assert(
+  typeof audio.channelPercentsFromVolumes === 'function',
+  'audio exposes channelPercentsFromVolumes for pactl argv'
+)
+
+// 40%/80% at master 0.8, step master to 0.55 → proportional 27.5% / 55%
+const scaled = audio.scaleChannelVolumes([0.40, 0.80], 0.55)
+assertEqual(scaled.length, 2, 'scaleChannelVolumes keeps channel count')
+assert(Math.abs(scaled[0] - 0.275) < 1e-9, 'left channel scales 40%→27.5% when master 0.8→0.55')
+assert(Math.abs(scaled[1] - 0.55) < 1e-9, 'right channel scales 80%→55% when master 0.8→0.55')
+assert(Math.abs(scaled[0] / scaled[1] - 0.40 / 0.80) < 1e-9, '40/80 ratio preserved after scale')
+
+const percents = audio.channelPercentsFromVolumes(scaled)
+assertDeepEqual(percents, [27.5, 55], 'channel percents keep fractions for pactl argv')
+assertDeepEqual(
+  audio.channelPercentsFromVolumes([0.006667, 0.013333]),
+  [0.67, 1.33],
+  'channel percents keep balance at low volume rather than rounding to 1/1'
+)
+assertDeepEqual(
+  audio.channelPercentsFromVolumes([0.6, 1.2]),
+  [60, 120],
+  'channel percents keep balance above 100% rather than capping one channel'
+)
+assertDeepEqual(
+  audio.channelPercentsFromVolumes({ length: 2, 0: 0.4, 1: 0.8 }),
+  [40, 80],
+  'channel percents read the QML sequence audio.volumes, which is not a JS array'
+)
+
+let balanced = audio.newVolumeWriteState()
+balanced = audio.queueVolumeWrite(balanced, 'bluez_output.speaker', percents)
+balanced = audio.beginVolumeWrite(balanced)
+assertDeepEqual(balanced.activePercents, [27.5, 55], 'volume queue carries per-channel percents')
+assertEqual(balanced.activePercent, 27.5, 'activePercent mirrors the first channel for compat')
+
 // A virtual source is untyped in Quickshell (no audio); PulseAudio's source
 // listing is what names it a source.
 const availability = { virtual_mic: true, 'alsa_input.usb': false }
@@ -156,3 +225,26 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
 }
 JS
+
+# The pactl volume fallback runs one write at a time. A value queued while a
+# write runs must still reach the sink once that write exits, or the slider's
+# last position is lost. The stub's write takes 400ms.
+require_quickshell "audio panel volume write test"
+
+qml_fixture_scratch
+cat >"$QML_FIXTURE_TMP/bin/pactl" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "set-sink-volume" ]]; then
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_PACTL_LOG"
+  sleep 0.4
+fi
+SH
+chmod +x "$QML_FIXTURE_TMP/bin/pactl"
+
+OMARCHY_TEST_PACTL_LOG="$QML_FIXTURE_TMP/pactl.log" \
+  run_qml_fixture audio-volume-write "audio panel drains volume writes queued behind a running pactl" Ui Commons
+
+writes=$(cat "$QML_FIXTURE_TMP/pactl.log" 2>/dev/null || true)
+expected=$'set-sink-volume bluez_output.test 20%\nset-sink-volume bluez_output.test 80% 60%'
+[[ $writes == "$expected" ]] || fail "audio panel writes the first value, then only the newest queued one" "writes: $writes"
+pass "audio panel writes the first value, then only the newest queued one"
