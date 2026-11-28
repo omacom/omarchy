@@ -45,5 +45,7 @@ for unit in "${enabled[@]}"; do
   systemctl --user start "$unit" || failed=1
 done
 
+omarchy-keyring-repair --enable --now || failed=1
+
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
 exit "$failed"
