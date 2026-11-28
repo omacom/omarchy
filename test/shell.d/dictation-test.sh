@@ -121,6 +121,9 @@ if omarchy-dictation start 2> "$test_tmp/error"; then
 fi
 [[ ! -e $DICTATION_LOG ]] || fail "recording never configures or installs a backend"
 pass "dictation requires explicit configuration"
+
+python3 "$ROOT/test/shell.d/fixtures/voxtype-recording-options-test.py" "$ROOT"
+pass "Voxtype recording options retain argument boundaries and backend failures"
 omarchy-default-dictation superwhisper
 [[ $(cat "$DICTATION_INSTALL_LOG") == "omarchy-install-dictation-superwhisper" ]] || fail "Defaults launches backend installer"
 [[ ! -e $config ]] || fail "Defaults does not select before setup succeeds"
