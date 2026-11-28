@@ -74,9 +74,11 @@ pause_instance() {
     >/dev/null 2>&1 || true
 }
 
-# A transaction that upgraded Hyprland replaced the binary under the running
-# compositor, which the kernel then reports as deleted. That compositor predates
-# the config the transaction installed and errors on keys added since.
+# A transaction that upgraded Hyprland, or a plugin Omarchy loads into it,
+# replaced that file under the running compositor, which the kernel then reports
+# as deleted. That compositor predates the config the transaction installed and
+# errors on keys added since. A reload doesn't load a plugin again either: one
+# already loaded from the same path stays the old build.
 running_replaced_binary() {
   local runtime_dir="$1"
   local signature="$2"
@@ -84,7 +86,9 @@ running_replaced_binary() {
 
   pid=$(XDG_RUNTIME_DIR="$runtime_dir" "$hyprctl_bin" -j instances 2>/dev/null |
     jq -r --arg signature "$signature" '.[] | select(.instance == $signature) | .pid' 2>/dev/null) || return 1
-  [[ -n $pid && $(readlink "$proc_root/$pid/exe" 2>/dev/null) == *" (deleted)" ]]
+  [[ -n $pid ]] || return 1
+  [[ $(readlink "$proc_root/$pid/exe" 2>/dev/null) == *" (deleted)" ]] ||
+    grep -qE ' /usr/lib/omarchy-hyprland-[^/ ]+/[^ ]+\.so \(deleted\)$' "$proc_root/$pid/maps" 2>/dev/null
 }
 
 resume_instance() {

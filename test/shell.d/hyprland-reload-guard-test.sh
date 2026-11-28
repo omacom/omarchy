@@ -96,6 +96,31 @@ if grep -F -e '--instance test-signature reload' -e 'suppress_errors = false' "$
 fi
 pass "reload guard leaves a compositor whose binary was replaced paused until it restarts"
 
+# A reload keeps a loaded plugin's old build, which errors on the keys the new
+# config gives it. Libraries outside Omarchy's plugins don't take config keys.
+rm "$proc_root/4242/exe"
+ln -s "/usr/bin/Hyprland" "$proc_root/4242/exe"
+printf '%s\n' \
+  "7f0000000000-7f0000001000 r--p 00000000 00:1a 123 /usr/lib/libinput.so.10.13.0 (deleted)" \
+  "7f0000002000-7f0000003000 r-xp 00001000 00:1a 456 /usr/lib/omarchy-hyprland-titlebars/titlebars.so" \
+  >"$proc_root/4242/maps"
+run_guard pause
+: >"$hyprctl_log"
+run_guard resume
+grep -F -- '--instance test-signature reload' "$hyprctl_log" >/dev/null ||
+  fail "reload guard reloads a compositor whose plugins are current" "$(cat "$hyprctl_log")"
+pass "reload guard reloads a compositor whose plugins are current"
+
+sed -i 's|titlebars.so$|titlebars.so (deleted)|' "$proc_root/4242/maps"
+run_guard pause
+: >"$hyprctl_log"
+run_guard resume
+[[ ! -e $state_file ]] || fail "reload guard clears state for a compositor whose plugin was replaced"
+if grep -F -e '--instance test-signature reload' -e 'suppress_errors = false' "$hyprctl_log" >/dev/null; then
+  fail "reload guard reloads a compositor whose plugin was replaced" "$(cat "$hyprctl_log")"
+fi
+pass "reload guard leaves a compositor whose plugin was replaced paused until it restarts"
+
 # The modeless monitor recovery loop reloads on its own schedule, so it needs to
 # ask whether a transaction is in flight.
 rm -rf "$state_dir"
