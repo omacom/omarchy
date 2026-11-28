@@ -146,6 +146,73 @@ Panel {
     return rows
   }
 
+  // Persistent ListModel synced in-place from scrollRows so ListView keeps its
+  // scroll position (contentY) and delegate state across BlueZ discovery updates.
+  ListModel {
+    id: scrollListModel
+    Component.onCompleted: root.syncScrollListModel()
+  }
+
+  onScrollRowsChanged: syncScrollListModel()
+
+  function scrollRowKey(row, fallbackIndex) {
+    var addr = row && row.dev ? (row.dev.address || "") : ""
+    return row.section + ":" + (addr !== "" ? addr : String(fallbackIndex))
+  }
+
+  function flatScrollItem(row, fallbackIndex) {
+    var d = row.dev || ({})
+    return {
+      rowKey: scrollRowKey(row, fallbackIndex),
+      address: d.address || "",
+      name: d.name || "",
+      deviceName: d.deviceName || "",
+      connected: !!d.connected,
+      deviceState: d.state !== undefined ? d.state : -1,
+      batteryAvailable: !!d.batteryAvailable,
+      battery: d.battery !== undefined ? d.battery : 0,
+      pairing: !!d.pairing,
+      section: row.section,
+      indexInSection: row.indexInSection
+    }
+  }
+
+  function syncScrollListModel() {
+    var rows = root.scrollRows || []
+    var desiredKeys = ({})
+    for (var i = 0; i < rows.length; i++)
+      desiredKeys[scrollRowKey(rows[i], i)] = true
+
+    for (var r = scrollListModel.count - 1; r >= 0; r--) {
+      if (!desiredKeys[scrollListModel.get(r).rowKey])
+        scrollListModel.remove(r, 1)
+    }
+
+    for (var targetIdx = 0; targetIdx < rows.length; targetIdx++) {
+      var item = flatScrollItem(rows[targetIdx], targetIdx)
+      var foundIdx = -1
+      for (var j = targetIdx; j < scrollListModel.count; j++) {
+        if (scrollListModel.get(j).rowKey === item.rowKey) {
+          foundIdx = j
+          break
+        }
+      }
+      if (foundIdx === -1) {
+        scrollListModel.insert(targetIdx, item)
+      } else {
+        if (foundIdx !== targetIdx)
+          scrollListModel.move(foundIdx, targetIdx, 1)
+        var cur = scrollListModel.get(targetIdx)
+        if (cur.name !== item.name || cur.deviceName !== item.deviceName
+            || cur.connected !== item.connected || cur.deviceState !== item.deviceState
+            || cur.batteryAvailable !== item.batteryAvailable || cur.battery !== item.battery
+            || cur.pairing !== item.pairing || cur.indexInSection !== item.indexInSection) {
+          scrollListModel.set(targetIdx, item)
+        }
+      }
+    }
+  }
+
   // Connected devices render above the scroll area; same primitives-only
   // projection so those delegates never hold Device QObject wrappers either.
   readonly property var connectedRows: {
@@ -678,8 +745,15 @@ Panel {
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
-        if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dy !== 0) root.moveCursor(dy)
+        if (!root.cursorActive) {
+          root.cursorActive = true
+          if (dy !== 0) Qt.callLater(deviceListView.keepCurrentVisible)
+          return
+        }
+        if (dy !== 0) {
+          root.moveCursor(dy)
+          Qt.callLater(deviceListView.keepCurrentVisible)
+        }
         else if (dx !== 0) root.moveCursorH(dx)
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
@@ -821,21 +895,27 @@ Panel {
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-          model: root.scrollRows
+          model: scrollListModel
           currentIndex: root.scrollRowIndex
-          // Deferred by a turn. Called straight out of the signal the position
-          // does not take — verified with the cursor six rows down and
-          // contentY still 0 — because scrollRows is rebuilt every time
-          // discovery reports, and swapping the model resets the view out from
-          // under the call. Network's list is stable enough not to need this.
-          onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(keepCurrentVisible)
+          // Called explicitly on keyboard navigation (not onCurrentIndexChanged)
+          // so discovery updates that shift reselectFocusedDevice() never pull
+          // the viewport away from a manual scrollbar/wheel position.
           function keepCurrentVisible() {
             if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
           }
 
           delegate: Item {
-            required property var modelData
             required property int index
+            required property string address
+            required property string name
+            required property string deviceName
+            required property bool connected
+            required property int deviceState
+            required property bool batteryAvailable
+            required property real battery
+            required property bool pairing
+            required property string section
+            required property int indexInSection
             readonly property string sectionTitle: root.scrollSectionTitle(index)
 
             width: ListView.view.width
@@ -864,10 +944,19 @@ Panel {
 
               DeviceRow {
                 width: parent.width
-                dev: modelData.dev
-                rowIndex: modelData.indexInSection
-                sectionName: modelData.section
-                isDiscovered: modelData.section === "discovered"
+                dev: ({
+                  address: address,
+                  name: name,
+                  deviceName: deviceName,
+                  connected: connected,
+                  state: deviceState,
+                  batteryAvailable: batteryAvailable,
+                  battery: battery,
+                  pairing: pairing
+                })
+                rowIndex: indexInSection
+                sectionName: section
+                isDiscovered: section === "discovered"
               }
             }
           }
