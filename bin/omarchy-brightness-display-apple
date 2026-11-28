@@ -1,33 +1,156 @@
 #!/bin/bash
 
 # omarchy:summary=Show or adjust Apple Studio Display and Apple XDR Display brightness using asdcontrol.
-# omarchy:args=[--no-osd] [+N%|N%-|N%]
-# omarchy:examples=omarchy brightness display apple | omarchy brightness display apple +5% | omarchy brightness display apple --no-osd 50%
+# omarchy:args=[--no-osd] [--monitor name] [+N%|N%-|N%]
+# omarchy:examples=omarchy brightness display apple | omarchy brightness display apple +5% | omarchy brightness display apple --no-osd 50% | omarchy brightness display apple --monitor DP-2 50%
+
+no_osd=0
+monitor=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --no-osd)
+    no_osd=1
+    shift
+    ;;
+  --monitor)
+    (( $# >= 2 )) || exit 1
+    monitor="$2"
+    shift 2
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
+
+# Only accept connector-style names (DP-2, HDMI-A-1), since the name ends up in
+# a cache filename and a sysfs glob.
+[[ -z $monitor || $monitor =~ ^[A-Za-z0-9-]+$ ]] || exit 1
+
+usbmisc_path="${OMARCHY_USBMISC_PATH:-/sys/class/usbmisc}"
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 
 # Only cache under the user-private runtime dir. With no XDG_RUNTIME_DIR we skip
 # caching (detect every run) rather than fall back to a predictable, world-writable
-# /tmp path another user could pre-create.
+# /tmp path another user could pre-create. Each monitor gets its own cache, so
+# several Apple displays don't share one device.
 device_cache=""
 if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
-  device_cache="$XDG_RUNTIME_DIR/omarchy-brightness-display-apple.device"
-fi
-no_osd=0
-if [[ ${1:-} == "--no-osd" ]]; then
-  no_osd=1
-  shift
+  device_cache="$XDG_RUNTIME_DIR/omarchy-brightness-display-apple${monitor:+.$monitor}.device"
 fi
 
-detect_apple_display_device() {
-  local devices=()
+# Print the USB Container ID (as 32 hex digits) of the hub inside the display that
+# owns the given hiddev node. The display reports the same Container ID in its EDID,
+# which is how a hiddev node is matched to a monitor when more than one is attached.
+usb_container_id() {
+  local path=""
+  local bos=()
+  local i=0
+  local length=0
+
+  path="$(readlink -f "$usbmisc_path/${1##*/}/device")" || return 1
+
+  while [[ $path == /?* ]]; do
+    if [[ -r $path/bos_descriptors ]]; then
+      read -ra bos < <(od -An -v -tx1 "$path/bos_descriptors" | tr '\n' ' ')
+
+      # Walk the device capabilities after the BOS header, looking for the
+      # 20-byte Container ID capability (descriptor type 0x10, capability 0x04).
+      (( ${#bos[@]} > 0 )) && i=$(( 16#${bos[0]} ))
+      while (( i + 2 < ${#bos[@]} )); do
+        length=$(( 16#${bos[i]} ))
+        (( length > 0 )) || break
+
+        if (( length == 20 )) && [[ ${bos[i+1]} == "10" && ${bos[i+2]} == "04" ]]; then
+          printf '%s' "${bos[@]:i+4:16}"
+          return 0
+        fi
+
+        (( i += length ))
+      done
+    fi
+
+    path="${path%/*}"
+  done
+
+  return 1
+}
+
+monitor_edid_hex() {
+  local edid=""
+  local hex=""
+
+  # sysfs reports the edid attribute as zero bytes long, so read it to see
+  # whether the connector has one.
+  for edid in "$drm_path"/card*-"$monitor"/edid; do
+    [[ -r $edid ]] || continue
+    hex="$(od -An -v -tx1 "$edid" | tr -d ' \n')"
+    if [[ -n $hex ]]; then
+      printf '%s\n' "$hex"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+device_matches_monitor() {
+  local container_id=""
+
+  container_id="$(usb_container_id "$1")" || return 1
+  [[ -n $container_id && $monitor_edid == *"$container_id"* ]]
+}
+
+# Succeeds when some hiddev node belongs to the requested monitor. Only reads
+# sysfs, so it costs no asdcontrol call.
+monitor_has_matching_device() {
+  local path=""
+
+  while read -r path; do
+    device_matches_monitor "$path" && return 0
+  done < <(hiddev_nodes)
+
+  return 1
+}
+
+hiddev_nodes() {
   local path=""
 
   for path in /dev/usb/hiddev* /dev/hiddev*; do
-    [[ -e $path ]] && devices+=("$path")
+    [[ -e $path ]] && printf '%s\n' "$path"
   done
+}
 
+# The globs are left unquoted on purpose: [[ ]] pattern-matches an unquoted right
+# side, and quoting them would turn the match into a literal string comparison.
+is_hiddev_node() {
+  [[ ( $1 == /dev/hiddev* || $1 == /dev/usb/hiddev* ) && -c $1 ]]
+}
+
+detect_apple_display_device() {
+  local devices=()
+  local displays=()
+  local path=""
+
+  mapfile -t devices < <(hiddev_nodes)
   (( ${#devices[@]} > 0 )) || return 1
 
-  sudo asdcontrol --detect "${devices[@]}" 2>/dev/null | awk -F: '/^\/dev\/(usb\/)?hiddev/{ print $1; exit }'
+  mapfile -t displays < <(sudo asdcontrol --detect "${devices[@]}" 2>/dev/null | awk -F: '/^\/dev\/(usb\/)?hiddev/{ print $1 }')
+  (( ${#displays[@]} > 0 )) || return 1
+
+  # Pick the display behind the requested monitor, and fall back to the first one
+  # found when there's no monitor or no Container ID to match on.
+  if [[ -n $monitor_edid ]]; then
+    for path in "${displays[@]}"; do
+      if device_matches_monitor "$path"; then
+        printf '%s\n' "$path"
+        return 0
+      fi
+    done
+  fi
+
+  printf '%s\n' "${displays[0]}"
 }
 
 find_apple_display_device() {
@@ -38,12 +161,16 @@ find_apple_display_device() {
     read -r cached <"$device_cache" || true
     # Trust a cached value only if it still names a hiddev character device. A
     # stale or unexpected cache (a regular file, a non-hiddev node) is ignored and
-    # we re-detect instead of handing an arbitrary path to asdcontrol. The globs
-    # are left unquoted on purpose: [[ ]] pattern-matches an unquoted right side,
-    # and quoting them would turn the match into a literal string comparison.
-    if [[ ( $cached == /dev/hiddev* || $cached == /dev/usb/hiddev* ) && -c $cached ]]; then
-      printf '%s\n' "$cached"
-      return 0
+    # we re-detect instead of handing an arbitrary path to asdcontrol.
+    #
+    # A replug can also hand the cached node to another display, so it is dropped
+    # when it doesn't match the requested monitor but another node does. A cached
+    # first-display fallback (nothing matches the monitor) is still reused.
+    if is_hiddev_node "$cached"; then
+      if [[ -z $monitor_edid ]] || device_matches_monitor "$cached" || ! monitor_has_matching_device; then
+        printf '%s\n' "$cached"
+        return 0
+      fi
     fi
   fi
 
@@ -77,6 +204,11 @@ retry_with_fresh_device() {
     exit 1
   fi
 }
+
+monitor_edid=""
+if [[ -n $monitor ]]; then
+  monitor_edid="$(monitor_edid_hex || true)"
+fi
 
 device="$(find_apple_display_device || true)"
 if [[ -z $device ]]; then
