@@ -3,8 +3,16 @@
 # omarchy:summary=Watch Hyprland monitor events and recover monitor toggles when a monitor is removed
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
-LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
-MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
+# Clamshell and modeless recovery serialize on these locks. A fixed name in
+# /tmp is one another local account can create first and point at a file this
+# user can write, so without a runtime dir they live in the private state dir.
+lock_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  mkdir -p "$lock_dir" || exit 1
+  chmod 700 "$lock_dir" || exit 1
+fi
+LOCK="$lock_dir/omarchy-monitor-clamshell.lock"
+MODELESS_LOCK="$lock_dir/omarchy-monitor-modeless.lock"
 
 sync_clamshell() {
   (
