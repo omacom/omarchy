@@ -17,8 +17,12 @@ fi
 was_active=0
 if systemctl is-active --quiet power-profiles-daemon.service; then
   was_active=1
+  # A D-Bus client such as the shell starts the daemon again while it stops,
+  # which cancels the stop job and fails the update. A runtime mask holds it
+  # down until the state file is written.
+  trap 'sudo systemctl -q unmask --runtime power-profiles-daemon.service || true; sudo systemctl start power-profiles-daemon.service || true' EXIT
+  sudo systemctl -q mask --runtime power-profiles-daemon.service
   sudo systemctl stop power-profiles-daemon.service
-  trap 'sudo systemctl start power-profiles-daemon.service || true' EXIT
 fi
 
 if [[ ! -f $state_file ]]; then
@@ -36,6 +40,7 @@ EOF
 fi
 
 if (( was_active )); then
+  sudo systemctl -q unmask --runtime power-profiles-daemon.service
   trap - EXIT
   sudo systemctl start power-profiles-daemon.service
 fi
