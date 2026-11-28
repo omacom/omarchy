@@ -18,6 +18,34 @@ if omarchy-hw-aarch64-qualcomm; then
   PACKAGES+=(vulkan-freedreno)
 fi
 
+# Mali GPUs (panthor/panfrost) are platform or ACPI devices, not PCI devices.
+if omarchy-hw-aarch64; then
+  has_mali=false
+  for drm_driver in "${OMARCHY_DRM_DEVICES:-/sys/class/drm}"/*/device/driver; do
+    [[ -L $drm_driver ]] || continue
+    case $(readlink "$drm_driver") in
+      */panthor | */panfrost)
+        has_mali=true
+        break
+        ;;
+    esac
+  done
+  if [[ $has_mali == "false" ]]; then
+    for acpi_gpu in "${OMARCHY_ACPI_DEVICES:-/sys/bus/acpi/devices}"/CIXH5000:*; do
+      [[ -e $acpi_gpu ]] || continue
+      acpi_status=15
+      [[ -r $acpi_gpu/status ]] && acpi_status=$(<"$acpi_gpu/status")
+      if [[ $acpi_status =~ ^[0-9]+$ ]] && (( (acpi_status & 3) == 3 )); then
+        has_mali=true
+        break
+      fi
+    done
+  fi
+  if [[ $has_mali == "true" ]]; then
+    PACKAGES+=(vulkan-panfrost)
+  fi
+fi
+
 if (( ${#PACKAGES[@]} > 0 )); then
   OMARCHY_PKG_DEFER=1 omarchy-pkg-add "${PACKAGES[@]}"
 fi

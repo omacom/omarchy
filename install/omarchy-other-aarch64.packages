@@ -1,6 +1,9 @@
 # Optional and hardware-specific packages that only exist for aarch64.
 # Read by omarchy-iso on aarch64 builds so x86_64 builds never see them.
 
+# GPU drivers
+vulkan-panfrost
+
 # Surface Pro 11 (Snapdragon) support packages
 iptsd
 microsoft-surface-pro-11-sensors

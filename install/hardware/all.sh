@@ -68,6 +68,7 @@ run_logged "$OMARCHY_INSTALL/hardware/apple/fix-facetimehd.sh"
 # after its last step.
 run_logged "$OMARCHY_INSTALL/hardware/gpu-memory.sh"
 run_logged "$OMARCHY_INSTALL/hardware/raspberrypi/raspberry-pi-4.sh"
+run_logged "$OMARCHY_INSTALL/hardware/radxa/orion.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/dtb-uki.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/kernel-params.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/initramfs.sh"
