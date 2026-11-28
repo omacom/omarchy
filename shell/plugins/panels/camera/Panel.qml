@@ -329,6 +329,7 @@ BarWidget {
     id: envFile
     path: root.envFilePath
     watchChanges: true
+    printErrors: false
     onLoaded: {
       if (String(text() || "").trim() === "") {
         root.tuningInstalled = false
