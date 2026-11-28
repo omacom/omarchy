@@ -10,7 +10,8 @@ if [[ $url != *[[:cntrl:]]* && ${url,,} =~ ^zoom(mtg|us):// ]]; then
   url_no_fragment="${url%%#*}"
   confno=$(printf '%s\n' "$url_no_fragment" | sed -n 's/.*[?&]confno=\([^&]*\).*/\1/p')
 
-  if [[ $confno =~ ^[A-Za-z0-9_-]+$ ]]; then
+  # Spell out ASCII digits: [0-9] also matches other digits in a UTF-8 locale.
+  if [[ $confno =~ ^[0123456789]{1,20}$ ]]; then
     pwd=$(printf '%s\n' "$url_no_fragment" | sed -n 's/.*[?&]pwd=\([^&]*\).*/\1/p')
 
     if [[ -n $pwd ]]; then
