@@ -37,6 +37,7 @@ Item {
     : horizontalAlignment === Image.AlignRight ? Image.AlignLeft
     : horizontalAlignment
   property bool asynchronous: true
+  property bool cache: true
   readonly property alias status: image.status
   readonly property bool sized: width > 0 && height > 0
   // Clipboard captures name the file after the MIME subtype, as in .svg+xml,
@@ -120,6 +121,7 @@ Item {
     horizontalAlignment: root.horizontalAlignment
     verticalAlignment: root.verticalAlignment
     asynchronous: root.asynchronous
+    cache: root.cache
     smooth: root.smooth
   }
 }

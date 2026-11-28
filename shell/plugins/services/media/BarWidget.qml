@@ -18,6 +18,8 @@ BarWidget {
   readonly property string artist: activePlayer ? (activePlayer.trackArtist || "") : ""
 
   property bool popupOpen: false
+  readonly property bool acceptsUnderFullscreen: true
+  readonly property bool scrolling: scrollAnim.running
 
   function close() { popupOpen = false }
   property real maxLabelWidth: 180
@@ -65,10 +67,10 @@ BarWidget {
         property bool needsScroll: implicitWidth > scrollClip.width
 
         // Each frame of the scroll redraws the bar, so it only runs while the
-        // track is playing and the bar is on screen to show it.
+        // track is playing and this bar surface is actually visible on screen.
         NumberAnimation on x {
           id: scrollAnim
-          running: labelText.needsScroll && root.isPlaying && root.visible && !root.bar.barHidden && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
+          running: labelText.needsScroll && root.isPlaying && root.visible && !!root.bar && !root.bar.barHidden && !root.underFullscreen && !root.bar.sessionLocked && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
           // Stopped, the title reads from its start again.
           onRunningChanged: if (!running) labelText.x = 0
           loops: Animation.Infinite
@@ -131,19 +133,24 @@ BarWidget {
           color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
           borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
 
-          // Decode the art at the size it is drawn, not the size the player
-          // serves it at. The popup is built on every monitor at startup.
+          // Decode the art at the size it is drawn, and only while the popup
+          // is visible. The popup is built on every monitor at startup, so
+          // loading art eagerly would fetch, decode, and cache every track
+          // even when the popup is never opened.
           SizedImage {
+            id: albumArt
             anchors.fill: parent
             anchors.margins: Style.space(2)
             crop: true
-            url: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
+            cache: false
+            url: popup.visible && root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
             visible: String(url) !== ""
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.centerIn: parent
-            visible: !root.activePlayer || !root.activePlayer.trackArtUrl
+            visible: albumArt.status !== Image.Ready
             text: "󰝚"
             color: root.bar.foreground
             font.family: root.bar.fontFamily

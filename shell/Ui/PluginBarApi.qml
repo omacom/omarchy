@@ -18,6 +18,8 @@ QtObject {
   property string fontFamily: ""
   property string position: "top"
   property bool vertical: false
+  property bool barHidden: false
+  property bool sessionLocked: false
   property int barSize: 0
   property bool transparent: false
   property bool foregroundAnimationEnabled: true

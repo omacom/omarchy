@@ -11,6 +11,7 @@ Item {
   id: root
 
   property var shell: null
+  property var publishSessionLocked: null
   property string omarchyPath: ""
 
   readonly property string home: Quickshell.env("HOME")
@@ -63,6 +64,13 @@ Item {
   property bool strandedLockResolved: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+  readonly property bool sessionLocked: locked || strandedLock
+  function syncSessionLocked() {
+    if (typeof publishSessionLocked === "function") publishSessionLocked(currentlyLocked() || strandedLock)
+  }
+  onSessionLockedChanged: syncSessionLocked()
+  onLockRequestedChanged: syncSessionLocked()
+  onPublishSessionLockedChanged: syncSessionLocked()
 
   // Decisions read the lock state afresh. A property binding that missed a change
   // notification once reported locked after an unlock, and a lock request before
@@ -244,6 +252,7 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
+    syncSessionLocked()
     logEvent("unlocked")
     runWake()
   }
