@@ -15,6 +15,8 @@ BarWidget {
   property bool expanded: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
+  // A click whose menu has no rows yet; the popup opens when they arrive.
+  property bool trayMenuPending: false
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
@@ -44,7 +46,7 @@ BarWidget {
   // A widget being dragged along the bar opens the drawer, to show where it
   // can go, and so does any panel open from the tray or the tray section.
   readonly property bool barDragging: !!bar && bar.traySectionDragActive === true
-  readonly property bool holdOpen: trayMenuOpen || managePopupOpen || barDragging || (!!bar && bar.traySectionPopoutOpen === true)
+  readonly property bool holdOpen: trayMenuOpen || trayMenuPending || managePopupOpen || barDragging || (!!bar && bar.traySectionPopoutOpen === true)
   // The mark under the bar sits under the icon whose menu is open.
   readonly property Item openPanelIndicatorItem: trayMenuOpen ? activeTrayAnchor : null
   // Expand briskly on hover and collapse slightly faster so the drawer stays crisp.
@@ -141,9 +143,25 @@ BarWidget {
   function close() {
     managePopupOpen = false
     trayMenuOpen = false
+    trayMenuPending = false
+  }
+
+  function syncTrayMenuOpen() {
+    var hasChildren = TrayModel.menuModelHasChildren(trayMenuOpener.children)
+    if (hasChildren && trayMenuPending) {
+      trayMenuPending = false
+      trayMenuOpen = true
+    } else if (!hasChildren && trayMenuOpen) {
+      // Not close(): switching items empties the model too, and the click on
+      // the new item must stay pending.
+      trayMenuOpen = false
+    }
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
+    // A click on any item, even one that opens no menu here, drops one still
+    // pending from another item so it cannot open over this one.
+    trayMenuPending = false
     if (!item) return
 
     // Apps that draw their own context menu (Windows apps under Wine) publish
@@ -167,7 +185,9 @@ BarWidget {
     resetTrayMenu()
     activeTrayItem = item
     activeTrayAnchor = anchorItem
-    trayMenuOpen = true
+    trayMenuPending = true
+    trayMenuPendingTimer.restart()
+    syncTrayMenuOpen()
   }
 
   function trayIconSource(icon) {
@@ -599,6 +619,43 @@ BarWidget {
   QsMenuOpener {
     id: trayMenuOpener
     menu: root.activeTrayItem ? root.activeTrayItem.menu : null
+    onChildrenChanged: Qt.callLater(root.syncTrayMenuOpen)
+  }
+
+  // Rows a loaded menu gains or loses arrive as valuesChanged on the same
+  // model, one per row, so a menu replacing every row passes through empty.
+  // Settle once the update is done rather than closing on the gap.
+  Connections {
+    target: trayMenuOpener.children
+    function onValuesChanged() { Qt.callLater(root.syncTrayMenuOpen) }
+  }
+
+  // An app re-registering its tray item while it starts up takes the open menu's item
+  // with it; close the card rather than leave it empty and holding the focus grab.
+  Connections {
+    target: SystemTray.items
+    function onValuesChanged() {
+      if (SystemTray.items.values.indexOf(root.activeTrayItem) !== -1) return
+      if (root.trayMenuOpen) root.close()
+      else root.trayMenuPending = false
+    }
+  }
+
+  // Give a slow 1.5s D-Bus menu time to load, but limit abandoned clicks.
+  // Without a popup grab, a click on the desktop cannot cancel this request.
+  Timer {
+    id: trayMenuPendingTimer
+    interval: 1800
+    onTriggered: root.trayMenuPending = false
+  }
+
+  // Another bar popup took over before the rows arrived: drop the stale click.
+  Connections {
+    target: root.bar
+    ignoreUnknownSignals: true
+    function onActivePopoutChanged() {
+      if (root.bar.activePopout) root.trayMenuPending = false
+    }
   }
 
   PopupCard {
@@ -930,7 +987,9 @@ BarWidget {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: if (root.bar) root.bar.showTooltip(trayItemRoot, root.trayTooltip(modelData))
-      onExited: if (root.bar) root.bar.hideTooltip(trayItemRoot)
+      onExited: {
+        if (root.bar) root.bar.hideTooltip(trayItemRoot)
+      }
       onPressed: function(mouse) {
         if (mouse.button === Qt.RightButton) {
           trayItemRoot.displayMenu(mouse)
@@ -941,10 +1000,12 @@ BarWidget {
         if (mouse.button === Qt.RightButton) {
           mouse.accepted = true
         } else if (mouse.button === Qt.MiddleButton) {
+          root.trayMenuPending = false
           trayItemRoot.modelData.secondaryActivate()
         } else if (trayItemRoot.modelData.onlyMenu) {
           trayItemRoot.displayMenu(mouse)
         } else {
+          root.trayMenuPending = false
           trayItemRoot.modelData.activate()
         }
       }

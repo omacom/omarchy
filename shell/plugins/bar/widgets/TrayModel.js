@@ -73,6 +73,10 @@ function shownSpan(clipStart, clipLength, start, length) {
   return { start: from, length: to - from }
 }
 
+function menuModelHasChildren(model) {
+  return Boolean(model && model.values && model.values.length > 0)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     shownSpan: shownSpan,
@@ -80,6 +84,7 @@ if (typeof module !== "undefined") {
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
     ownedByOmarchy: ownedByOmarchy,
-    activatesOnDoubleClick: activatesOnDoubleClick
+    activatesOnDoubleClick: activatesOnDoubleClick,
+    menuModelHasChildren: menuModelHasChildren
   }
 }
