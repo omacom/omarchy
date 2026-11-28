@@ -188,12 +188,16 @@ ln -s "$(command -v sort)" "$missing_bin/sort"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
   fail "unconfigured dictation leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "unconfigured dictation leaves application shortcuts available"; fi
+printf 'superwhisper\n' > "$dictation_home/.config/omarchy/defaults/dictation"
+dictation_output=$(PATH="$missing_bin:$ROOT/bin" run_omarchy_bindings "$dictation_home") ||
+  fail "a removed built-in backend leaves application shortcuts available"
+if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a removed built-in backend leaves application shortcuts available"; fi
 printf 'future-backend\n' > "$dictation_home/.config/omarchy/defaults/dictation"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
   fail "a selected backend that is not installed leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a selected backend that is not installed leaves application shortcuts available"; fi
-printf '#!/bin/bash\nexit 0\n' > "$missing_bin/future-backend"
-chmod +x "$missing_bin/future-backend"
+printf '#!/bin/bash\nexit 0\n' > "$missing_bin/omarchy-dictation-future-backend"
+chmod +x "$missing_bin/omarchy-dictation-future-backend"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
 for binding in \
   $'ALT + SPACE\tToggle dictation' \

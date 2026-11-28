@@ -281,7 +281,7 @@ lua - <<'LUA' || fail "dictation shortcuts require a selection without limiting 
 local root = os.getenv("ROOT")
 local cfg = os.getenv("XDG_CONFIG_HOME") .. "/omarchy/defaults/dictation"
 package.path = root .. "/?.lua;" .. package.path
-local selected, installed, bindings = nil, true, {}
+local selected, expected_cmd, installed, bindings = nil, nil, true, {}
 local function set_selected(value)
   selected = value
   if value then
@@ -294,7 +294,7 @@ local function set_selected(value)
 end
 o = {
   cmd_missing = function(command)
-    assert(command == selected)
+    assert(command == expected_cmd, "expected " .. tostring(expected_cmd) .. ", got " .. tostring(command))
     return not installed
   end,
   bind = function(...) table.insert(bindings, {...}) end,
@@ -306,21 +306,31 @@ o = {
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
 set_selected("some-backend")
+expected_cmd = "omarchy-dictation-some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 local function binds(keys, command)
   for _, binding in ipairs(bindings) do
     if binding[1] == keys and binding[3] == command then return true end
   end
 end
-assert(#bindings == 3, "any installed backend receives Alt + Space and Right Alt, and nothing else")
+assert(#bindings == 3, "any installed custom backend adapter receives Alt + Space and Right Alt, and nothing else")
 assert(binds("ALT + SPACE", "omarchy-dictation toggle"), "Alt + Space toggles dictation")
 assert(binds("ALT + Alt_R", "omarchy-dictation start") and binds("ALT + Alt_R", "omarchy-dictation stop"),
   "Right Alt starts dictation on press and stops it on release")
 assert(o.dictation_installed(), "personal dictation keys see the installed backend")
 bindings, installed = {}, false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
-assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
-assert(not o.dictation_installed(), "personal dictation keys release their keys once the backend is gone")
+assert(#bindings == 0, "a selected custom backend without an adapter leaves application keys available")
+assert(not o.dictation_installed(), "personal dictation keys release their keys once the custom adapter is gone")
+bindings, expected_cmd, installed = {}, "superwhisper", true
+set_selected("superwhisper")
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+assert(#bindings == 3, "a built-in backend checks its own program and binds when present")
+assert(o.dictation_installed(), "personal dictation keys see an installed built-in backend")
+bindings, installed = {}, false
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+assert(#bindings == 0, "a removed built-in backend leaves application keys available even though its adapter ships with Omarchy")
+assert(not o.dictation_installed(), "personal dictation keys release their keys once a built-in backend program is removed")
 LUA
 pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
 
