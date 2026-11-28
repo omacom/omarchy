@@ -54,7 +54,9 @@ RULES
   # Apply the rules immediately on a live booted system (first-boot setup,
   # omarchy-apply-hardware, and upgrades) so webcam wakeup is disabled and USB
   # runtime PM is active during the first session too.
-  if [[ -z ${OMARCHY_INSTALL_USER:-} && $udev_rules_dir == "/etc/udev/rules.d" && -d /run/udev ]] && command -v udevadm >/dev/null 2>&1; then
+  if [[ $udev_rules_dir == "/etc/udev/rules.d" && -d /run/udev ]] &&
+    ! systemd-detect-virt --chroot -q 2>/dev/null &&
+    command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload >/dev/null 2>&1 || true
     for dev in /sys/bus/platform/devices/*; do
       [[ -L $dev/driver ]] || continue
