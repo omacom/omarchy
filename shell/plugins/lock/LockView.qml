@@ -17,6 +17,7 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
+  property bool displaysBlank: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
@@ -63,6 +64,15 @@ Item {
   // typing a password; only holding Backspace/Delete to clear stays useful.
   function dropsAutoRepeat(key) {
     return key !== Qt.Key_Backspace && key !== Qt.Key_Delete
+  }
+
+  // A key hit at a dark panel is there to wake it, not to type. Asks for the
+  // wake and says whether the key was that one; the wake clears displaysBlank,
+  // so it is read first.
+  function takeWakeKey() {
+    var wasBlank = displaysBlank
+    wakeRequested()
+    return wasBlank
   }
 
   function syncPasswordText() {
@@ -195,8 +205,12 @@ Item {
         }
 
         Keys.onPressed: function(event) {
-          root.wakeRequested()
+          var wasBlank = root.takeWakeKey()
           if (event.isAutoRepeat && root.dropsAutoRepeat(event.key)) {
+            event.accepted = true
+            return
+          }
+          if (wasBlank) {
             event.accepted = true
             return
           }

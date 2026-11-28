@@ -45,6 +45,9 @@ Item {
   property int fingerprintRetryBackoffMs: 0
   // Outputs the lock last saw, so only a display arriving counts as a wake.
   property int knownScreenCount: 0
+  // Whether the lock has turned the displays off. A key pressed at a dark panel
+  // is there to wake it, so the view keeps that key out of the password field.
+  property bool displaysBlank: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -255,6 +258,7 @@ Item {
   }
 
   function runWake() {
+    displaysBlank = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
@@ -349,8 +353,32 @@ Item {
   }
 
   function runBlank() {
+    displaysBlank = true
+    blankInputSettle.stop()
     pauseFingerprint()
     if (!blankProcess.running) blankProcess.running = true
+  }
+
+  // Clears the blank state once Hyprland reports a display lit again without
+  // the lock's own wake, so a panel relit behind the lock's back (a hotplug, a
+  // resume that kept the outputs on) does not keep eating the first key.
+  function applyDisplayState(text) {
+    // An answer still in flight when a wake stopped the poll is stale.
+    if (!displayStateTimer.running) return
+    var monitors
+    try {
+      monitors = JSON.parse(String(text || ""))
+    } catch (error) {
+      return
+    }
+    if (!Array.isArray(monitors)) return
+    for (var i = 0; i < monitors.length; i++) {
+      var monitor = monitors[i]
+      if (monitor && !monitor.disabled && monitor.dpmsStatus === true) {
+        displaysBlank = false
+        return
+      }
+    }
   }
 
   function submitPassword(value) {
@@ -527,6 +555,7 @@ Item {
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
         onWakeRequested: root.runWake()
+        displaysBlank: root.displaysBlank
       }
 
     }
@@ -682,6 +711,7 @@ Item {
         root.fingerprintSleptWhilePaused = true
         // A panel blanked before the sleep stays dark through the resume, and
         // opening the lid is no input that would light it.
+        root.displaysBlank = false
         if (!wakeProcess.running) wakeProcess.running = true
         root.resumeFingerprint()
         root.armBlankTimer(idleBlankTimer.resumeMs)
@@ -778,6 +808,26 @@ Item {
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
   }
 
+  // Quickshell exposes no DPMS signal, so the display state is asked of
+  // Hyprland only while the lock has the displays off.
+  Process {
+    id: displayStateProcess
+    command: ["hyprctl", "monitors", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyDisplayState(text)
+    }
+  }
+
+  Timer {
+    id: displayStateTimer
+    interval: 3000
+    repeat: true
+    running: root.lockRequested && root.displaysBlank
+    onTriggered: {
+      if (!displayStateProcess.running) displayStateProcess.running = true
+    }
+  }
+
   Timer {
     id: idleBlankTimer
     readonly property int idleMs: 5000
@@ -815,6 +865,29 @@ Item {
     onIsIdleChanged: {
       if (isIdle && root.lockRequested && !root.authenticatingPassword && !idleBlankTimer.running) root.runBlank()
     }
+  }
+
+  // Hyprland lights the panel for any key or pointer motion, and says nothing
+  // when it does. Input that never reaches the lock surface, a bound key like
+  // Volume Up or the pointer, leaves the panel lit without the lock's own wake,
+  // and the first key typed after it would be taken for the wake key. A key at
+  // the lock reaches the view at once and wakes it there; any other input
+  // clears the blank state once it has settled.
+  IdleMonitor {
+    id: blankInputMonitor
+    enabled: root.lockRequested && root.displaysBlank
+    timeout: 1
+    respectInhibitors: false
+    onIsIdleChanged: {
+      if (!isIdle && root.displaysBlank) blankInputSettle.restart()
+    }
+  }
+
+  Timer {
+    id: blankInputSettle
+    interval: 150
+    repeat: false
+    onTriggered: root.displaysBlank = false
   }
 
   Timer {
@@ -855,6 +928,8 @@ Item {
     function onScreensChanged() {
       var screens = root.realScreenCount()
       if (screens > root.knownScreenCount) {
+        // A display that arrives comes up lit.
+        root.displaysBlank = false
         root.resumeFingerprint()
         if (root.lockRequested) root.armBlankTimer()
       }
