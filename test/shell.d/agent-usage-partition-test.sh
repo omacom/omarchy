@@ -1849,6 +1849,15 @@ rollout("zo922", parent, {"originator": "codex-tui", "source": "cli", "thread_so
 rollout("zo923", "01a1284c-6fa4-7c13-8d29-e2d8b5660923",
         {"session_id": parent, "parent_thread_id": parent, "originator": "codex-tui", "source": {"subagent": {"other": "guardian"}}, "thread_source": "guardian_review", "model_provider": "syn"},
         "codex-auto-review-zo923", 3, typed=False)
+# A thread Codex Desktop imported from another agent: external-import-turn-N
+# turns with plain user_message lines and no usage. Its prompts are that
+# agent's, so it adds no prompt and no session to any count below.
+imported = "01a1647f-6fb5-7081-a481-257bbb530924"
+(rollouts / f"rollout-zo924-{imported}.jsonl").write_text("".join(json.dumps(line) + "\n" for line in [
+  {"timestamp": stamp, "type": "session_meta", "payload": {"session_id": imported, "id": imported, **exec_meta}},
+  {"timestamp": stamp, "type": "event_msg", "payload": {"type": "task_started", "turn_id": "external-import-turn-1"}},
+  {"timestamp": stamp, "type": "event_msg", "payload": {"type": "user_message", "message": "from claude"}},
+]))
 PY
 # (openai_base_url, then each tag's owner, then collector=prompts/sessions).
 CODEX_NATIVE_RUNS=(
