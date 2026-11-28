@@ -32,6 +32,12 @@ if omarchy-hw-pci 106b:1801 106b:1802; then
   echo "MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)" > \
     /etc/mkinitcpio.conf.d/apple-t2.conf
 
+  # The Thunderbolt controllers lose power in deep sleep and the kernel then
+  # spends ~18 s of every resume waiting on them, one after another. The sleep
+  # hook takes them out before suspend and re-enumerates them after.
+  install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/t2-thunderbolt" \
+    /usr/lib/systemd/system-sleep/omarchy-t2-thunderbolt
+
   omarchy-boot-cmdline set t2-mac intel_iommu=on iommu=pt pm_async=off mem_sleep_default=deep
 
   # t2fanrd only reads sections for detected fans, so Fan2 is harmless on
