@@ -222,6 +222,8 @@ hl = {
   dispatch = function() end,
   dsp = { window = { float = function(spec) return spec end, tag = function(spec) return spec end } },
   on = function() end,
+  bind = function() end,
+  get_active_window = function() end,
   get_active_workspace = function() return { id = 3 } end,
   get_config = function() end,
   config = function() end,
@@ -356,8 +358,10 @@ hl = {
     subscriptions[event] = subscriptions[event] or {}
     table.insert(subscriptions[event], callback)
   end,
+  bind = function() end,
   -- The move handler waits for the move to land; here it lands at once.
   timer = function(callback) callback() end,
+  get_active_window = function() end,
   get_active_workspace = function() return { id = 3 } end,
   get_config = function(key) return config[key] end,
   config = function(values)
@@ -483,6 +487,332 @@ if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROO
   fail "a saved floating mode floats the workspace without inventing a layout"
 fi
 pass "a saved floating mode floats the workspace without inventing a layout"
+
+# A window drawn over a maximized one has to take the clicks on it. Hyprland
+# draws the maximized window under every floating window it lets over it, but
+# hands a click to the highest in the stacking order, so the two must agree.
+stacking_script="$tmpdir/maximized-stacking.lua"
+
+cat >"$stacking_script" <<'LUA'
+local handlers, binds, timers = {}, {}, {}
+local stack = {}
+local active
+
+local function window(address, options)
+  local created = {
+    address = address,
+    floating = true,
+    pinned = false,
+    fullscreen = options and options.fullscreen or 0,
+    allowed_over_fullscreen = true,
+    tags = options and options.tags or {},
+    class = options and options.class,
+    pid = options and options.pid,
+    workspace = { id = 3 },
+  }
+  table.insert(stack, created)
+  return created
+end
+
+local function index_of(target)
+  for index, candidate in ipairs(stack) do
+    if candidate == target then
+      return index
+    end
+  end
+end
+
+-- Hyprland's own restacking: raising lets a window over a maximized one,
+-- lowering hides it behind.
+local function move(target, top)
+  table.remove(stack, index_of(target))
+  table.insert(stack, top and #stack + 1 or 1, target)
+  target.allowed_over_fullscreen = top
+end
+
+local function by_address(address)
+  for _, candidate in ipairs(stack) do
+    if "address:" .. candidate.address == address then
+      return candidate
+    end
+  end
+end
+
+hl = {
+  workspace_rule = function() end,
+  window_rule = function() end,
+  get_workspace_windows = function(selector)
+    local found = {}
+    for _, candidate in ipairs(stack) do
+      if tostring(candidate.workspace.id) == tostring(selector) then
+        table.insert(found, candidate)
+      end
+    end
+    return found
+  end,
+  get_windows = function(filter)
+    if not filter then
+      return stack
+    end
+    local found = {}
+    for _, candidate in ipairs(stack) do
+      for _, tag in ipairs(candidate.tags) do
+        if tag == filter.tag then
+          table.insert(found, candidate)
+        end
+      end
+    end
+    return found
+  end,
+  get_window = function(selector) return by_address(selector) end,
+  get_active_window = function() return active end,
+  dispatch = function(action)
+    if action.zorder then
+      move(by_address(action.window), action.zorder == "top")
+    end
+  end,
+  dsp = {
+    window = {
+      float = function(spec) return spec end,
+      tag = function(spec) return spec end,
+      alter_zorder = function(spec) return { zorder = spec.mode, window = spec.window } end,
+    },
+  },
+  on = function(event, callback)
+    handlers[event] = handlers[event] or {}
+    table.insert(handlers[event], callback)
+  end,
+  bind = function(keys, callback, options)
+    binds[keys] = { callback = callback, options = options }
+  end,
+  -- Hyprland runs a timer once the event that set it is handled.
+  timer = function(callback) table.insert(timers, callback) end,
+  get_active_workspace = function() return { id = 3 } end,
+  get_config = function() end,
+  config = function() end,
+  plugin = { load = function() end },
+}
+
+local function emit(event, target, reason)
+  for _, callback in ipairs(handlers[event] or {}) do
+    callback(target, reason)
+  end
+end
+
+local function settle()
+  while #timers > 0 do
+    table.remove(timers, 1)()
+  end
+end
+
+local maximized, browser
+
+-- What a click on a spot both windows cover reaches: the highest of the windows
+-- let over the maximized one, the maximized one counting as one of them.
+local function window_under_click()
+  for index = #stack, 1, -1 do
+    local candidate = stack[index]
+    if candidate == maximized or candidate.allowed_over_fullscreen then
+      return candidate
+    end
+  end
+end
+
+-- A click: binds first, then Hyprland focuses and raises the window it picked.
+local function click(target)
+  if binds["mouse:272"] then
+    binds["mouse:272"].callback()
+  end
+  local picked = target or window_under_click()
+  if active ~= picked then
+    active = picked
+    emit("window.active", picked)
+  end
+  move(picked, true)
+  settle()
+  return picked
+end
+
+-- An app asking for focus: Hyprland marks it urgent, raises it, then focuses it.
+local function asks_for_focus(target)
+  emit("window.urgent", target)
+  move(target, true)
+  active = target
+  emit("window.active", target)
+  settle()
+end
+
+-- The maximized window has the focus when the mode starts watching, as it does
+-- after a reload.
+maximized = window("0xA", { fullscreen = 1 })
+active = maximized
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+require("default.hypr.workspace-layouts")
+o.workspace_mode({ workspace = "3", mode = "floating" })
+settle()
+
+local bind = binds["mouse:272"]
+assert(not bind or bind.options.non_consuming, "watching clicks kept them from the window under the pointer")
+
+-- A link opened from it sends for the browser, and the app taking the focus
+-- right back leaves the browser in front, though no focus change was seen
+-- before that one.
+browser = window("0xB", { tags = { "omarchy-mode-floated" } })
+asks_for_focus(browser)
+asks_for_focus(maximized)
+assert(browser.allowed_over_fullscreen, "an app focused since before a reload hid the browser it opened by taking the focus back")
+
+-- The browser brought up over the maximized window takes a click on itself.
+assert(click() == browser, "a click on the window over the maximized one missed it")
+
+-- A click beside it on the maximized window brings that one to the front, so
+-- the browser is no longer drawn over a window that would take its clicks.
+click(maximized)
+assert(not browser.allowed_over_fullscreen, "the browser stayed drawn over the maximized window that was clicked")
+assert(click() == maximized, "a click on the maximized window in front went elsewhere")
+
+-- The browser brought back from the dock, then its maximized neighbour asking for
+-- focus back, as an app does right after opening a link there: the browser stays
+-- in front, and takes a click on itself, its titlebar buttons included.
+asks_for_focus(browser)
+asks_for_focus(maximized)
+assert(browser.allowed_over_fullscreen, "an app asking for focus hid the browser over it")
+assert(click() == browser, "a click on the browser went to the maximized window that asked for focus")
+
+-- With the maximized window focused and the browser over it, a click on the
+-- maximized window still brings it forward, though its focus does not change.
+asks_for_focus(maximized)
+click(maximized)
+assert(not browser.allowed_over_fullscreen, "a click on the focused maximized window left the browser over it")
+
+-- Focus passing through the maximized window on its way to the browser, as it
+-- does when the browser comes back from the dock, leaves the browser in front.
+asks_for_focus(browser)
+active = maximized
+emit("window.active", maximized)
+active = browser
+emit("window.active", browser)
+settle()
+assert(browser.allowed_over_fullscreen, "focus passing through the maximized window hid the browser")
+
+-- However the maximized window got above the browser still drawn over it, a
+-- click on the browser reaches it.
+move(browser, true)
+active = maximized
+move(maximized, true)
+browser.allowed_over_fullscreen = true
+assert(click() == browser, "a click on a window drawn over the maximized one went through it")
+
+-- With two windows drawn over it, one under it in click order and one above,
+-- both go back above it in their own order, so where they overlap a click
+-- still reaches the one drawn on top.
+local editor = window("0xD", { tags = { "omarchy-mode-floated" } })
+move(browser, true)
+move(maximized, true)
+move(editor, true)
+browser.allowed_over_fullscreen = true
+active = maximized
+binds["mouse:272"].callback()
+assert(index_of(maximized) < index_of(browser) and index_of(browser) < index_of(editor),
+  "putting the windows drawn over the maximized one back above it reordered them")
+table.remove(stack, index_of(editor))
+
+-- A window maximized before its workspace turned floating is still tiled, and
+-- a click on the browser drawn over it reaches the browser all the same.
+maximized.floating = false
+move(browser, true)
+move(maximized, true)
+browser.allowed_over_fullscreen = true
+active = maximized
+assert(click() == browser, "a click on a window drawn over a tiled maximized one went through it")
+maximized.floating = true
+
+-- A true fullscreen window clicked keeps the browser over it as it is.
+maximized.fullscreen = 2
+click(maximized)
+assert(browser.allowed_over_fullscreen, "a click on a true fullscreen window restacked the windows over it")
+
+-- The dock bringing forward the maximized window that has the focus already,
+-- which Hyprland reports nothing for, still brings it in front of the browser.
+maximized.fullscreen = 1
+asks_for_focus(browser)
+
+-- A dock request that arrives after the user has picked another window leaves
+-- that window in front.
+o.bring_forward("0xA")
+assert(browser.allowed_over_fullscreen, "a late dock request hid the window the user picked after it")
+
+asks_for_focus(maximized)
+o.bring_forward("0xA")
+assert(not browser.allowed_over_fullscreen, "the dock left the browser over the focused maximized window")
+
+-- The portal's file picker the maximized window's app waits on belongs over
+-- it: a click on the maximized window leaves it there, and a click on the
+-- picker reaches it.
+local picker = window("0xC", { class = "xdg-desktop-portal-gtk", pid = 2 })
+click(picker)
+click(maximized)
+assert(picker.allowed_over_fullscreen, "a click on the maximized window hid the file picker over it")
+assert(index_of(picker) > index_of(maximized), "the file picker drawn over the maximized window was left under it")
+assert(click() == picker, "a click on the file picker over the maximized window went through it")
+table.remove(stack, index_of(picker))
+
+-- So does Omarchy's own file chooser, a process of its own.
+local chooser = window("0x11", { class = "folio-chooser", pid = 4 })
+click(chooser)
+click(maximized)
+assert(chooser.allowed_over_fullscreen, "a click on the maximized window hid the file chooser over it")
+table.remove(stack, index_of(chooser))
+
+-- So does a dialog of its own process.
+maximized.pid = 1
+local dialog = window("0xE", { pid = 1 })
+click(dialog)
+click(maximized)
+assert(dialog.allowed_over_fullscreen, "a click on the maximized window hid its own dialog")
+table.remove(stack, index_of(dialog))
+
+-- Another app floating by a rule of its own, as Steam does, is no dialog: it
+-- waits behind the maximized window brought forward like any other.
+local steam = window("0xF", { class = "steam", pid = 3 })
+click(steam)
+click(maximized)
+assert(not steam.allowed_over_fullscreen, "an app floating on its own account stayed over the maximized window")
+
+-- Nor is another window of the maximized window's own process that the mode
+-- floated, such as a second browser window.
+local sibling = window("0x10", { pid = 1, tags = { "omarchy-mode-floated" } })
+click(sibling)
+click(maximized)
+assert(not sibling.allowed_over_fullscreen, "a second window of the same app stayed over the maximized window")
+
+-- Focus left with the maximized window when another one closes is nobody
+-- bringing it forward: what was over it stays there. 16384 is Hyprland's reason
+-- for a floating window gone.
+click(steam)
+table.insert(maximized.tags, "omarchy-maximized")
+active = maximized
+emit("window.active", maximized, 16384)
+settle()
+assert(steam.allowed_over_fullscreen, "focus falling to the maximized window as another closed hid the window over it")
+
+-- A maximized window another app sends for, as the browser is when a link is
+-- opened from a chat, long after it last had the focus, comes forward as the
+-- user asked.
+click(steam)
+local now = os.time()
+os.time = function() return now + 60 end
+asks_for_focus(maximized)
+assert(not steam.allowed_over_fullscreen, "a maximized window another app sent for stayed behind the window over it")
+LUA
+
+if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \
+  lua "$stacking_script"; then
+  fail "a window drawn over a maximized one takes the clicks on it"
+fi
+pass "a window drawn over a maximized one takes the clicks on it"
 
 # A layout change replaces the last layout notification rather than stacking
 # another under it.

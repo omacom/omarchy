@@ -133,7 +133,8 @@ const dockCtx = {
     focusedMonitor: { activeWorkspace: { id: 2 } },
     dispatch(expr) { dispatches.push(expr) }
   },
-  scheduleNoAnimUnset(addr) { unsets.push(addr) }
+  scheduleNoAnimUnset(addr) { unsets.push(addr) },
+  Util: { shellQuote(text) { return text }, execDetached() {} }
 }
 vm.runInNewContext(bringForwardFn, dockCtx)
 

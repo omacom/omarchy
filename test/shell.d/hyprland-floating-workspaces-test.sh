@@ -264,6 +264,7 @@ io.open = function(path, mode)
 end
 
 hl = {
+  get_active_window = function() end,
   workspace_rule = function() end,
   window_rule = function(rule) table.insert(rules, rule) end,
   get_workspace_windows = function(selector)
@@ -324,6 +325,7 @@ hl = {
     subscriptions[event] = subscriptions[event] or {}
     table.insert(subscriptions[event], callback)
   end,
+  bind = function() end,
   timer = function(callback) callback() end,
   get_loaded_plugins = function()
     return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
