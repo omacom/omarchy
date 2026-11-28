@@ -151,6 +151,19 @@ grep -F -- 'chromium --incognito https://example.test/path/--private-doc' "$laun
   fail "a private launch only replaces exact --private tokens and preserves URLs containing --private" "$(cat "$launch_log")"
 pass "a private launch preserves URLs containing --private"
 
+# Ladybird exits on a flag it doesn't know, so --incognito would open nothing.
+mkdir -p "$test_tmp/opt/ladybird/bin"
+cp "$test_tmp/opt/zen-browser-bin/zen-bin" "$test_tmp/opt/ladybird/bin/Ladybird"
+cat >"$test_home/.local/share/applications/org.ladybird.Ladybird.desktop" <<EOF
+[Desktop Entry]
+Exec=$test_tmp/opt/ladybird/bin/Ladybird %U
+EOF
+rm -f "$launch_log"
+OMARCHY_TEST_DEFAULT_BROWSER=org.ladybird.Ladybird.desktop launch --private
+grep -F -- '/Ladybird --temporary-profile' "$launch_log" >/dev/null ||
+  fail "a private Ladybird launch uses a temporary profile" "$(cat "$launch_log")"
+pass "a private Ladybird launch uses a temporary profile"
+
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
 # from the same ones; a browser outside ~/.local and /usr used to resolve and
 # then launch an empty command.

@@ -2,7 +2,7 @@
 
 Omarchy ships with [Google Chrome](https://www.google.com/chrome/) as the default browser. It's themed to match the rest of your system, and it's what `Super + Shift + Return` (or `Super + Shift + B`) opens, with `Super + Shift + Alt + B` for a private window, and what every [web app](25-web-apps.md) runs inside. It opens straight to a browser window: there's no welcome screen or sign-in prompt, usage statistics and crash reports aren't sent to Google, and the ad privacy prompts are switched off. You can still sign in to your Google account from the profile button whenever you want sync.
 
-If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find [Chromium](https://www.chromium.org/) (the plain open-source build Chrome is made from), Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/) (Edge on x86 machines only). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
+If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find [Chromium](https://www.chromium.org/) (the plain open-source build Chrome is made from), Edge, Brave, Brave Origin, Firefox, [Zen](https://zen-browser.app/), and [Ladybird](https://ladybird.org/) (Edge on x86 machines only). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
 
 ## Making one the default
 
@@ -35,6 +35,10 @@ These are Chromium-family only. Firefox and Zen don't get them.
 Firefox and Zen are a different family, so they get different treatment: Omarchy installs a policies file for sensible defaults and switches them into native Wayland mode, which you want for fractional scaling and smooth trackpad scrolling.
 
 They don't get the Chromium extensions above, and they're not themed by Omarchy, so those parts of the experience are yours to set up.
+
+## Ladybird
+
+Ladybird is a browser written from scratch, with its own engine rather than Chromium's or Firefox's. It's still in alpha, so expect sites that don't work yet, and Omarchy installs it as it comes: no extensions, no theme, no policies. It has no private window either, so `Super + Shift + Alt + B` opens it with a temporary profile that's deleted when you close it. [Web apps](25-web-apps.md) keep running in Chrome or Chromium.
 
 ## Removing one again
 

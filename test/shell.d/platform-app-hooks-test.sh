@@ -61,9 +61,9 @@ run() {
 
 declare -A flags=(
   [chromium]=chromium-flags.conf [chrome]=chrome-flags.conf [edge]=microsoft-edge-stable-flags.conf
-  [brave]=brave-flags.conf [brave-origin]=brave-origin-flags.conf [firefox]="" [zen]=""
+  [brave]=brave-flags.conf [brave-origin]=brave-origin-flags.conf [firefox]="" [zen]="" [ladybird]=""
 )
-for browser in chromium chrome edge brave brave-origin firefox zen; do
+for browser in chromium chrome edge brave brave-origin firefox zen ladybird; do
   run apple "$ROOT/bin/omarchy-install-browser" "$browser" || fail "apple: $browser installs" "$(cat "$tmp/output")"
   [[ $(grep -c '^post-install ' "$tmp/calls") == 1 ]] && grep -qx "post-install $browser" "$tmp/calls" ||
     fail "apple: a $browser install runs post-install $browser once" "$(cat "$tmp/calls")"

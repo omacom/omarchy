@@ -530,6 +530,9 @@
   "setup.default.browser.zen": {
     "label": "Zen"
   },
+  "setup.default.browser.ladybird": {
+    "label": "Ladybird"
+  },
   "setup.default.dictation": {
     "label": "Dictation",
     "title": "Default Dictation"
@@ -751,6 +754,9 @@
   },
   "install.browser.zen": {
     "label": "Zen"
+  },
+  "install.browser.ladybird": {
+    "label": "Ladybird"
   },
   "install.service.1password": {
     "label": "1Password"
@@ -1129,6 +1135,9 @@
   },
   "remove.browser.zen": {
     "label": "Zen"
+  },
+  "remove.browser.ladybird": {
+    "label": "Ladybird"
   },
   "remove.service.1password": {
     "label": "1Password"

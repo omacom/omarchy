@@ -47,7 +47,11 @@ done
 
 private_flag="--private"
 if [[ $has_private == "true" ]]; then
-  if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+  if [[ $browser_exec =~ [Ll]adybird ]]; then
+    # Ladybird has no private window and refuses to start on a flag it doesn't
+    # know. A profile that is deleted when it closes is its nearest equivalent.
+    private_flag="--temporary-profile"
+  elif $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
     private_flag="--private-window"
   elif [[ $browser_exec =~ edge ]]; then
     private_flag="--inprivate"
