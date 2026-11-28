@@ -26,6 +26,10 @@ def machine():
   stub.parent.mkdir(parents=True, exist_ok=True)
   stub.write_text('#!/bin/bash\ncat "$HOME/keyring.json" 2>/dev/null\n')
   stub.chmod(0o755)
+  agy_stub = home() / "bin" / "agy"
+  agy_stub.write_text('#!/bin/bash\n[[ $* == "--version" ]] || exit 2\nread -r unexpected && exit 3\ncat "$HOME/agy-version" 2>/dev/null\n')
+  agy_stub.chmod(0o755)
+  (home() / "agy-version").write_text("agy 9.8.7\n")
   os.environ["PATH"] = f"{stub.parent}:{REAL_PATH}"
   os.environ["AGY_DIR"] = str(home() / "agy")
   write_json(home() / "keyring.json", {
@@ -110,4 +114,52 @@ record, _ = agy({
 expect("404 on retrieveUserQuota degrades cleanly to summary limits",
        [record["tierLabel"], record["limits"], record["usageStatusText"]],
        ["Ultra", [], ""], record)
+
+# Argon is an allowance even if it precedes the plan, or the plan is absent.
+for with_plan in (True, False):
+  machine()
+  groups = [
+    {"displayName": "Gemini 4 Argon", "buckets": [{"window": "weekly", "remainingFraction": 0.8}]},
+    {"displayName": "Claude and GPT models", "buckets": [{"window": "weekly", "remainingFraction": 0.9}]},
+  ]
+  if with_plan:
+    groups.append({"displayName": "Gemini Models", "buckets": [
+      {"window": "5h", "remainingFraction": 0.75}, {"window": "weekly", "remainingFraction": 0.6},
+    ]})
+  record, http = agy({TIER: {}, SUMMARY: {"groups": groups}, QUOTA: {"buckets": [
+    {"modelId": "gemini-pro", "remainingFraction": 0.75},
+  ]}})
+  expected = [("Session", 0.25)] + ([("Weekly", 0.4)] if with_plan else [])
+  expected += [("Gemini 4 Argon Weekly", 0.2), ("Claude/GPT Weekly", 0.1)]
+  expect("Argon never replaces Gemini, including the missing-plan fallback",
+         [(w["title"], round(w["percent"], 2)) for w in record["limits"]], expected, record)
+  expect("only a missing primary group asks for per-model Gemini quota",
+         any(r["url"].endswith(QUOTA) for r in http.requests), not with_plan, http.requests)
+
+# A supported installed release is used; an old, unreadable or missing one has a floor.
+for version in ("agy 9.8.7", "agy 1.0.0", "unknown", None):
+  machine()
+  if version is None:
+    (home() / "bin" / "agy").write_text("#!/bin/bash\nexit 127\n")
+  else:
+    (home() / "agy-version").write_text(version + "\n")
+  record, http = agy({TIER: {}, SUMMARY: {"groups": [{"displayName": "Gemini Models", "buckets": []}]}, QUOTA: 404})
+  release = "9.8.7" if version == "agy 9.8.7" else load_collector("agy").FALLBACK_AGY_VERSION
+  expect("quota requests use an installed release or the compatible minimum",
+         {r["headers"].get("user-agent") for r in http.requests}, {f"antigravity/cli/{release}"}, http.requests)
+
+# Old mislabeled answers cannot stand in while refresh fails or auth is paused.
+from collectors import LimitsCache
+for expired in (False, True):
+  machine()
+  if expired:
+    keyring = json.loads((home() / "keyring.json").read_text())
+    keyring["token"]["expiry"] = iso_in(-3600)
+    write_json(home() / "keyring.json", keyring)
+  LimitsCache("agy", "me@example.com").save([
+    {"label": "Weekly (7-day)", "title": "Weekly", "percent": 0.0, "resetsAt": iso_in(6 * 24 * 3600)},
+  ])
+  with FakeHttp(mode="down"):
+    record = collect("agy", "--force")
+  expect("incompatible cached plan meters are discarded after failure or token expiry", record["limits"], [], record)
 PY
