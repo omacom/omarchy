@@ -37,13 +37,14 @@ Item {
   property string selectedAccountId: ""
   property string selectedAccountLabel: ""
   property string switchingAccountId: ""
+  property string renamingAccountId: ""
   property string settingExitNodeId: ""
   property bool accountsAccessDenied: false
   property string actionStatus: ""
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
-  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
+  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || renameProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
 
   property string _statusOutput: ""
@@ -62,6 +63,8 @@ Item {
   property double _lastAccountsRefreshMs: 0
   property string _switchOutput: ""
   property string _switchError: ""
+  property string _renameOutput: ""
+  property string _renameError: ""
   property string _exitNodeOutput: ""
   property string _exitNodeError: ""
   property string _operatorOutput: ""
@@ -71,6 +74,7 @@ Item {
   // reassigned unconditionally, so only publish an array whose content
   // actually changed.
   property string _peersSig: "[]"
+  property string _accountsSig: "[]"
   property string _tailnetExitNodesSig: "[]"
   property string _exitNodesSig: "[]"
   property string _mullvadRegionsSig: "[]"
@@ -201,23 +205,24 @@ Item {
   function refreshStatusAndAccounts(forceAccounts, fullPeers) {
     if (!installed) return
     var launched = false
+    var wantPanelDetails = fullPeers === true || peersWanted
     if (!statusProcess.running) {
       _statusOutput = ""
       _statusError = ""
       refreshing = true
-      _statusFullPeers = fullPeers === true || peersWanted || _pendingFullPeers
+      _statusFullPeers = wantPanelDetails || _pendingFullPeers
       if (_statusFullPeers) _pendingFullPeers = false
       statusProcess.command = _statusFullPeers
         ? ["tailscale", "status", "--json"]
         : ["tailscale", "status", "--json", "--peers=false"]
       statusProcess.running = true
       launched = true
-    } else if ((fullPeers === true || peersWanted) && !_statusFullPeers) {
+    } else if (wantPanelDetails && !_statusFullPeers) {
       // A full-peer request arrived while a light poll is in flight; remember
       // it so the panel is not left stale until the next periodic refresh.
       _pendingFullPeers = true
     }
-    if (!mullvadExitNodesProcess.running) {
+    if (wantPanelDetails && !mullvadExitNodesProcess.running) {
       _mullvadExitNodesOutput = ""
       _mullvadExitNodesError = ""
       mullvadExitNodesProcess.command = ["tailscale", "exit-node", "list"]
@@ -225,7 +230,7 @@ Item {
       launched = true
     }
     var now = Date.now()
-    var shouldRefreshAccounts = forceAccounts === true || accounts.length === 0 || now - _lastAccountsRefreshMs > 60000
+    var shouldRefreshAccounts = forceAccounts === true || (wantPanelDetails && (accounts.length === 0 || now - _lastAccountsRefreshMs > 60000))
     if (shouldRefreshAccounts && !accountsProcess.running) {
       _accountsOutput = ""
       _accountsError = ""
@@ -265,10 +270,12 @@ Item {
     mullvadExitNodes = []
     mullvadRegions = []
     _mullvadRegionsSig = "[]"
+    _accountsSig = "[]"
     accounts = []
     selectedAccountId = ""
     selectedAccountLabel = ""
     switchingAccountId = ""
+    renamingAccountId = ""
     settingExitNodeId = ""
     accountsAccessDenied = false
   }
@@ -330,6 +337,12 @@ Item {
 
   function parseAccounts(raw) {
     var parsed = Model.parseAccounts(raw, I18n.t)
+    // Reassigning the array rebuilds every row — including one with an open
+    // rename editor whose draft would be lost — so only publish when the
+    // content really changed between polls.
+    var sig = JSON.stringify(parsed.accounts) + "\n" + parsed.selectedAccountId
+    if (sig === _accountsSig) return
+    _accountsSig = sig
     accounts = parsed.accounts
     selectedAccountId = parsed.selectedAccountId
     selectedAccountLabel = parsed.selectedAccountLabel
@@ -385,12 +398,27 @@ Item {
 
   function switchAccount(id) {
     var accountId = String(id || "")
-    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running) return
+    // A switch racing an in-flight rename would move the daemon between the
+    // rename's switch and its set --nickname, renaming the wrong profile.
+    // Also wait out an in-flight exit-node change: its target profile is
+    // resolved from the same selectedAccountId this switch would move.
+    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running || renameProcess.running || exitNodeProcess.running) return
     _switchOutput = ""
     _switchError = ""
     switchingAccountId = accountId
     switchProcess.command = ["tailscale", "switch", accountId]
     switchProcess.running = true
+  }
+
+  function renameAccount(id, nickname) {
+    if (!installed || renameProcess.running || switchProcess.running || exitNodeProcess.running) return
+    var plan = Model.renamePlan(id, selectedAccountId, nickname)
+    if (!plan) return
+    _renameOutput = ""
+    _renameError = ""
+    renamingAccountId = String(id || "")
+    renameProcess.command = plan.command
+    renameProcess.running = true
   }
 
   function exitNodeTarget(peer) {
@@ -403,7 +431,10 @@ Item {
   }
 
   function setExitNode(peer) {
-    if (!installed || !running || !peer || exitNodeProcess.running) return
+    // An exit-node command landing inside a rename's temporary profile
+    // switch would apply the exit node to the wrong profile, or have its own
+    // target swapped underneath it.
+    if (!installed || !running || !peer || exitNodeProcess.running || renameProcess.running || switchProcess.running) return
     var active = peer.ExitNode === true
     var target = active ? "" : exitNodeTarget(peer)
     if (!active && target === "") return
@@ -415,7 +446,7 @@ Item {
   }
 
   function authorizeTailscaleOperator() {
-    if (!installed || operatorProcess.running || userName === "") return
+    if (!installed || operatorProcess.running || !/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(userName)) return
     _operatorOutput = ""
     _operatorError = ""
     actionStatus = I18n.t("tailscale.authorizingOperator")
@@ -656,8 +687,34 @@ Item {
         root.lastError = ""
         root.actionStatus = ""
         root._lastAccountsRefreshMs = 0
+        // Optimistic so a rename requested right after a switch takes the
+        // in-place path; the next accounts poll confirms it.
+        root.selectedAccountId = root.switchingAccountId
       }
       root.switchingAccountId = ""
+      delayedRefresh.restart()
+    }
+  }
+
+  Process {
+    id: renameProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: renameStdout; waitForEnd: true; onStreamFinished: root._renameOutput = text }
+    stderr: StdioCollector { id: renameStderr; waitForEnd: true; onStreamFinished: root._renameError = text }
+    onExited: function(exitCode) {
+      var stdout = String(renameStdout.text || root._renameOutput || "")
+      var stderr = String(renameStderr.text || root._renameError || "")
+      if (exitCode !== 0) {
+        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.renameFailed"))
+        root.actionStatus = root.lastError
+        actionStatusTimer.restart()
+      } else {
+        root.lastError = ""
+        root.actionStatus = ""
+        root._lastAccountsRefreshMs = 0
+      }
+      root.renamingAccountId = ""
       delayedRefresh.restart()
     }
   }

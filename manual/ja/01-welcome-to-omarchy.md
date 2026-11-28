@@ -1,11 +1,11 @@
-# Omarchy へようこそ！
+# Omarchyへようこそ！
 
-Omarchy は [omakase](https://manuals.omamix.org/3/omacom/76/omakase-computing) な Linux ディストリビューションで、[Arch](https://archlinux.org/)、タイル型ウィンドウマネージャー [Hyprland](https://hypr.land/)、そしてデスクトップ構築キット [Quickshell](https://quickshell.org/) をベースにしています。現代的で目利きのコンピューターユーザーがすぐに生産的になれるために必要なものがすべて入っています。[Neovim](https://neovim.io/)（btw）から Chromium、[Obsidian](https://obsidian.md/) から LibreOffice、[Hype](https://github.com/omacom/hype) から [Monologue](https://github.com/omacom/monologue) まで。なんと、レトロな Winamp 風音楽プレーヤーまで入っています！
+Omarchyは、[Arch](https://archlinux.org/)、タイリングウィンドウマネージャーの[Hyprland](https://hypr.land/)、デスクトップ構築キットの[Quickshell](https://quickshell.org/)をベースにした、[おまかせ](https://manuals.omamix.org/3/omacom/76/omakase-computing) Linuxディストリビューションです。現代の賢いコンピューターユーザーがすぐに生産性を発揮するために必要なものがすべて入っています。[Neovim](https://neovim.io/)（btw）からGoogle Chrome、[Obsidian](https://obsidian.md/)からLibreOffice、[Hype](https://github.com/omacom/hype)から[Monologue](https://github.com/omacom/monologue)まで。なんと、レトロなWinamp風の音楽プレイヤーまであります！
 
-とはいえ、これは単にプリインストールされたパッケージの福袋ではありません。美しさと生産性の両方を考えて設計された完成されたシステムです。なぜなら、_美しい_ システムは _やる気の出る_ システムであり、生産性は常々 [モチベーションの下流にある](https://world.hey.com/dhh/beautiful-motivations-6fef7c73) からです。ここには余分なものは一切ありません。私が使っているものだけです。
+ただし、これはただプリインストールされたパッケージの寄せ集めではありません。美しさと生産性の両方を考えて設計された、完成されたシステムです。なぜなら、_美しい_システムは_やる気が出る_システムであり、生産性はいつも[モチベーションの下流にある](https://world.hey.com/dhh/beautiful-motivations-6fef7c73)からです。ここに無駄なものは一切ありません。私が使うものだけです。
 
-確かに、Omarchy のような TUI 中心で、テーマにこだわり、タイル型ウィンドウマネージャーで動くシステムの美しさを理解する目を養うのは、後天的に身につく趣味かもしれません。でも、だからこそあなたはここにいるのではありませんか？ コンフォートゾーンの少し外側にあるものを体験するために？ コンピューターとの新しい付き合い方へのちょっとした冒険に出るために？ そうであることを願っています。
+確かに、TUI中心で、テーマにこだわり、タイリングウィンドウマネージャーで管理されるOmarchyのようなシステムの美しさを味わえるようになるには、慣れが必要かもしれません。でも、あなたがここにいるのはそのためでしょう？居心地のいい場所から少し外に出て、何かを体験するためでしょう？コンピューターとの新しい付き合い方へのちょっとした冒険に出るためでしょう？そう願っています。
 
-Omarchy は Windows のようではなく、macOS のようでもありません。できる限り馴染み深くあろうとはしていません。美しく、そして _より良く_ あろうとしています。その Linux らしさをすべて受け入れてください。いくつかの設定ファイルを手で編集すること、確かにそうです。ターミナルを多用すること、間違いありません。
+OmarchyはWindowsのようでも、macOSのようでもありません。できるだけ馴染み深いものになろうとはしていません。美しく、_より良い_ものになろうとしています。そのLinuxらしさをすべて受け入れてください。設定ファイルを手作業で編集することもあります。もちろん。ターミナルを多用することも。間違いなく。
 
-では、基本から始めましょう。
+さあ、基本から始めましょう。

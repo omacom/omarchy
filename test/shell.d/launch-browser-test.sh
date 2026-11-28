@@ -20,15 +20,29 @@ cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 Exec=chromium %U
 EOF
 
+# Zen's binary name is not its window class, so only StartupWMClass finds it.
+# Use a test-local path: omarchy-cmd-default-browser only accepts an installed Exec.
+mkdir -p "$test_tmp/opt/zen-browser-bin"
+cat >"$test_tmp/opt/zen-browser-bin/zen-bin" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$test_tmp/opt/zen-browser-bin/zen-bin"
+cat >"$test_home/.local/share/applications/zen.desktop" <<EOF
+[Desktop Entry]
+Exec=$test_tmp/opt/zen-browser-bin/zen-bin %u
+StartupWMClass=zen
+EOF
+
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 [[ -z ${BROWSER:-} ]] || printf '%s\n' "$BROWSER" >"$OMARCHY_TEST_XDG_SETTINGS_BROWSER"
-[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo chromium.desktop
+[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo "${OMARCHY_TEST_DEFAULT_BROWSER:-chromium.desktop}"
 SH
 cat >"$mock_bin/xdg-mime" <<'SH'
 #!/bin/bash
 if [[ $* == "query default x-scheme-handler/https" ]]; then
-  echo chromium.desktop
+  echo "${OMARCHY_TEST_DEFAULT_BROWSER:-chromium.desktop}"
 fi
 SH
 cat >"$mock_bin/chromium" <<'SH'
@@ -83,6 +97,16 @@ grep -F 'https://example.test/fallback' "$launch_log" >/dev/null ||
 grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
 
+rm -f "$focus_log" "$launch_log"
+
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_DEFAULT_BROWSER=zen.desktop \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/zen"
+
+grep -Fx '^zen$' "$focus_log" >/dev/null ||
+  fail "browser launcher focuses the window class the desktop entry declares"
+
 pass "browser launcher follows opened links to the browser workspace"
 
 rm -f "$launch_log"
@@ -120,6 +144,12 @@ launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
 grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+rm -f "$launch_log"
+launch --private "https://example.test/path/--private-doc"
+grep -F -- 'chromium --incognito https://example.test/path/--private-doc' "$launch_log" >/dev/null ||
+  fail "a private launch only replaces exact --private tokens and preserves URLs containing --private" "$(cat "$launch_log")"
+pass "a private launch preserves URLs containing --private"
 
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
 # from the same ones; a browser outside ~/.local and /usr used to resolve and
@@ -175,7 +205,7 @@ grep -F "No default browser found" "$notify_log" >/dev/null ||
   fail "browser launcher says no default browser was found" "$(cat "$notify_log" 2>/dev/null)"
 pass "browser launcher fails visibly instead of handing uwsm-app an empty command"
 
-# A web app reaches the same empty command through its chromium.desktop
+# A web app reaches the same empty command through its Chrome or Chromium
 # fallback when the default is not Chromium-based, so it needs its own guard
 # and message.
 cat >"$XDG_DATA_DIRS/applications/firefox.desktop" <<'EOF'
@@ -202,3 +232,29 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
   fail "web app launcher asks for a Chromium-based browser" "$(cat "$notify_log" 2>/dev/null)"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"
+
+# Installs from before Chrome became the default may only have Chromium, and
+# their web apps have to keep opening there. Chrome wins once both are present.
+launch_webapp() {
+  rm -f "$launch_log"
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+    bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" 2>/dev/null || true
+}
+cat >"$XDG_DATA_DIRS/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium %U
+EOF
+launch_webapp
+grep -F -- '-- chromium --app=https://example.test/app' "$launch_log" >/dev/null ||
+  fail "a web app falls back to Chromium without Chrome" "$(cat "$launch_log" 2>/dev/null)"
+
+cat >"$XDG_DATA_DIRS/applications/google-chrome.desktop" <<'EOF'
+[Desktop Entry]
+Exec=google-chrome-stable %U
+EOF
+cp "$mock_bin/chromium" "$mock_bin/google-chrome-stable"
+launch_webapp
+grep -F -- '-- google-chrome-stable --app=https://example.test/app' "$launch_log" >/dev/null ||
+  fail "a web app falls back to Chrome over Chromium" "$(cat "$launch_log" 2>/dev/null)"
+pass "web app launcher falls back to Chrome, then Chromium, when the default is not Chromium-based"

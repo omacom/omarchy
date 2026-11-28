@@ -29,21 +29,26 @@ while (( $# > 0 )); do
   shift
 done
 
-selection_file=$(mktemp)
-done_file=$(mktemp)
-rm -f "$done_file"
-trap 'rm -f "$selection_file" "$done_file"' EXIT
+work_dir=$(mktemp -d)
+selection_file="$work_dir/selection"
+done_file="$work_dir/done"
+: >"$selection_file"
+trap 'rm -rf "$work_dir"' EXIT
 
-payload=$(perl -MEncode=decode -MJSON::PP=encode_json -e '
-  my $payload = {
-    mode => "input",
-    prompt => decode("UTF-8", $ARGV[0]),
-    selectionFile => decode("UTF-8", $ARGV[1]),
-    doneFile => decode("UTF-8", $ARGV[2])
-  };
-  $payload->{width} = int($ARGV[3]) if length($ARGV[3] // "");
-  print encode_json($payload)
-' "$prompt" "$selection_file" "$done_file" "$menu_width")
+payload=$(jq -nc \
+  --arg prompt "$prompt" \
+  --arg selectionFile "$selection_file" \
+  --arg doneFile "$done_file" \
+  --arg width "$menu_width" \
+  '
+    {
+      mode: "input",
+      prompt: $prompt,
+      selectionFile: $selectionFile,
+      doneFile: $doneFile
+    }
+    + (if ($width | length) > 0 then { width: ($width | tonumber? // 0 | trunc) } else {} end)
+  ')
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 

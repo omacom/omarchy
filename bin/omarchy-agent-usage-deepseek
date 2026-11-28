@@ -8,10 +8,9 @@ Local stats come from pi/omp session files whose assistant messages ran on the
 deepseek provider, from opencode sessions that ran on a deepseek provider, and
 from DeepSeek Harness (dsh) session logs on its DeepSeek routes. DeepSeek
 billing is prepaid, so the record carries the live credit balance from
-GET https://api.deepseek.com/user/balance when a key is available, plus the
-optional funded/spent detail derived from ~/.config/omarchy/agents/deepseek.json
-(the same shape the fireworks collector uses). The agents panel only ever reads
-the JSON this prints.
+GET https://api.deepseek.com/user/balance when a key is available, and the last
+30 days' spend from the costs pi and opencode wrote beside each reply. The
+agents panel only ever reads the JSON this prints.
 """
 
 from __future__ import annotations
@@ -34,7 +33,6 @@ from collectors import (  # noqa: E402
   Stats,
   base_record as shared_base_record,
   cached_scan,
-  config_home,
   data_home,
   dsh_home,
   emit,
@@ -55,6 +53,7 @@ from collectors import (  # noqa: E402
   scan_routed,
   trusted_endpoint,
   warn,
+  opencode_credential_key,
 )
 
 AGENT_ID = "deepseek"
@@ -127,7 +126,7 @@ def run_local_scans(reuse: bool = True) -> tuple[dict[str, Any], bool]:
   routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
   for row in routed_rows:
     stats.add_row(row, model_name(row.model))
-  return stats.snapshot(), complete and routed_complete
+  return stats.snapshot_with_spend(), complete and routed_complete
 
 
 def cached_local_stats(max_age: float) -> dict[str, Any]:
@@ -221,6 +220,7 @@ def api_key() -> str:
   for read in (
     lambda: read_json_key(pi_agent_dir() / "auth.json", "deepseek"),
     lambda: read_json_key(Path.home() / ".omp" / "agent" / "auth.json", "deepseek"),
+    lambda: opencode_credential_key("deepseek"),
     lambda: read_json_key(data_home() / "opencode" / "auth.json", "deepseek"),
     lambda: read_dsh_credentials_key(dsh_home() / ".credentials.yaml"),
     lambda: read_dotenv_key(dsh_home() / ".env"),
@@ -229,10 +229,6 @@ def api_key() -> str:
     if key:
       return key
   return ""
-
-
-def read_config() -> dict[str, Any]:
-  return read_json(config_home() / "omarchy" / "agents" / "deepseek.json")
 
 
 # ----------------------------------------------------------------- balance
@@ -311,20 +307,15 @@ def fetch_balance(api_base_url: str, key: str) -> dict[str, Any]:
   }
 
 
+# DeepSeek says what is left, never what was bought, so the balance has no
+# funded figure; what was spent is the record's local spend.
 def balance_record(remaining: Decimal, currency: str) -> dict[str, Any]:
-  config = read_config()
-  funded = money(config.get("fundedAmount"))
-  if funded < 0:
-    funded = Decimal("0")
-  spent = max(Decimal("0"), funded - remaining) if funded > 0 else Decimal("0")
   return {
     "remaining": float(max(Decimal("0"), remaining)),
-    "funded": float(funded),
-    "spent": float(spent),
+    "funded": 0.0,
+    "spent": 0.0,
     "currency": str(currency or "CNY"),
-    # funded/spent derive from the configured fundedAmount, not DeepSeek's
-    # own ledger, so they are labelled estimates; remaining is live.
-    "estimated": funded > 0,
+    "estimated": False,
   }
 
 

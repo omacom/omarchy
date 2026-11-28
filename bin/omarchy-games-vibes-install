@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:summary=Install a game into Game Vibes from a git repository
+# omarchy:args=[git-repo-url]
+# omarchy:examples=omarchy games vibes install https://github.com/example/omarchy-snake-game.git
+
+# A game someone shares is a git repository with the game's index.html at its
+# root, as the omarchy-make-game skill makes them. It's cloned into ~/Games/vibes, named
+# after the repository, and opened in Game Vibes.
+
+if [[ -z $1 ]]; then
+  REPO_URL=$(gum input --placeholder="$(omarchy-i18n games.vibesRepoPlaceholder)" --header="")
+else
+  REPO_URL="$1"
+fi
+
+if [[ -z $REPO_URL ]]; then
+  exit 1
+fi
+
+# Refuse a URL that names a git option or a transport helper before cloning.
+omarchy-git-url-check "$REPO_URL" || exit 1
+
+# Named as omarchy-theme-install names a theme: the repository's own name,
+# without the scp-style host, an omarchy- prefix or a -game suffix. It becomes
+# a folder and a name passed around, so it is held to what a game's name is.
+REPO_PATH="$REPO_URL"
+[[ $REPO_PATH != *"://"* && $REPO_PATH == *:* && ${REPO_PATH%%:*} != */* ]] && REPO_PATH="${REPO_PATH#*:}"
+GAME_NAME=$(basename -- "$REPO_PATH" .git | sed -E 's/^omarchy-//; s/-game$//' | tr '[:upper:]_.' '[:lower:]--')
+if ! (LC_ALL=C; [[ $GAME_NAME =~ ^[a-z0-9][a-z0-9-]*$ ]]); then
+  echo "Error: '$REPO_URL' does not give a usable game name."
+  exit 1
+fi
+
+GAME_PATH="$HOME/Games/vibes/$GAME_NAME"
+
+# Installing again replaces the copy that came from the same repository. A
+# game made here, or one from somewhere else, is never written over. The
+# quotes keep the URL from being read as a pattern.
+refuse_another_game() {
+  if [[ -e $GAME_PATH && $(git -C "$GAME_PATH" config --get remote.origin.url 2>/dev/null) != "$REPO_URL" ]]; then
+    echo "Error: ~/Games/vibes/$GAME_NAME is already a game of yours. Rename or remove it first."
+    exit 1
+  fi
+}
+
+# One install at a time, so two can't take the same name from each other.
+mkdir -p "$HOME/Games/vibes"
+exec 9>"$HOME/Games/vibes/.install.lock"
+flock 9
+refuse_another_game
+
+# The clone is made and checked beside the games before it takes its place,
+# so a failed reinstall leaves the game that was there.
+FRESH=$(mktemp -d "$HOME/Games/vibes/.install.XXXXXX")
+trap 'rm -rf "$FRESH"' EXIT
+
+if ! git clone --depth 1 -- "$REPO_URL" "$FRESH/game"; then
+  echo "Error: Failed to clone game repo."
+  exit 1
+fi
+
+# A repository holds whatever its author pushed, so its symlinks, which point
+# wherever they chose, are left out.
+find "$FRESH/game" -type l -delete
+
+if [[ ! -f $FRESH/game/index.html ]]; then
+  echo "Error: '$REPO_URL' has no index.html at its root, so it isn't a Game Vibes game."
+  exit 1
+fi
+
+# Asked again, for a game made or copied there while this one downloaded.
+refuse_another_game
+rm -rf "$GAME_PATH"
+mv "$FRESH/game" "$GAME_PATH"
+# The game is in place: let the next install go ahead while this one is played.
+exec 9>&-
+
+omarchy-games-vibes-launch "$GAME_NAME"

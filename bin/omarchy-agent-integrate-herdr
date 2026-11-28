@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Install herdr's status and session-restore integration for coding agents
+# omarchy:args=<agent...>
+# omarchy:hidden=true
+
+# omarchy-install-ai-cli runs this once it has installed an agent's package.
+# herdr only installs into a config directory the agent already made, and the
+# agent makes it on its first run, after this, so it is created here. A failure
+# only warns: the agent should still start.
+
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+
+for agent in "$@"; do
+  case $agent in
+  pi) target=pi dir=$HOME/.pi/agent ;;
+  omp) target=omp dir=$HOME/.omp/agent ;;
+  claude) target=claude dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude} ;;
+  codex) target=codex dir=${CODEX_HOME:-$HOME/.codex} ;;
+  grok) target=grok dir=${GROK_HOME:-$HOME/.grok} ;;
+  copilot) target=copilot dir=$HOME/.copilot ;;
+  qwen) target=qwen dir=$HOME/.qwen ;;
+  opencode) target=opencode dir=$config/opencode ;;
+  agy) target=antigravity-cli dir=$HOME/.gemini/config ;;
+  cursor-agent) target=cursor dir=$HOME/.cursor ;;
+  devin) target=devin dir=$config/devin ;;
+  kilo) target=kilo dir=$config/kilo ;;
+  kimi) target=kimi dir=$HOME/.kimi-code ;;
+  *) continue ;;
+  esac
+
+  # herdr reports to stdout, which would land on the agent's first screen.
+  if ! mkdir -p "$dir" || ! herdr integration install "$target" >/dev/null; then
+    echo "Could not install the herdr integration for $target" >&2
+  fi
+done
+
+exit 0

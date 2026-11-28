@@ -21,6 +21,7 @@ THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
 THEME_GENERATION_PATH="$HOME/.local/state/omarchy/current/theme.generation"
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
 OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
+OMARCHY_PACKAGED_THEMES_PATH="${OMARCHY_PACKAGED_THEMES_PATH:-/usr/share/omarchy/themes}"
 
 # What a theme installed from a git repo may not ship, because these run code.
 # Hyprland requires a theme's hyprland.lua and gum_env.lua at login and Neovim
@@ -256,16 +257,16 @@ set_theme_background() {
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") &
+    (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") </dev/null >/dev/null 2>&1 9>&- &
   elif [[ -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$new_background_snapshot") &
+    (sleep 3; rm -f "$new_background_snapshot") </dev/null >/dev/null 2>&1 9>&- &
   else
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     if [[ -f $OLD_BACKGROUND_SNAPSHOT ]]; then
-      (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") &
+      (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") </dev/null >/dev/null 2>&1 9>&- &
     fi
   fi
 
@@ -376,7 +377,12 @@ report_ignored_theme_files() {
   echo "A theme installed from a git repo cannot supply Lua, a terminal config, or vscode.json." >&2
 }
 
-THEME_NAME=$(echo "$1" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+# A folder of exactly the given name wins, so a hand-made "Walk Handmade Theme" or "Gruvbox" is reachable;
+# otherwise the name omarchy-theme-list shows (Tokyo Night) is turned back into its folder (tokyo-night).
+THEME_NAME=$(echo "$1" | sed -E 's/<[^>]+>//g')
+if [[ ! -d $OMARCHY_THEMES_PATH/$THEME_NAME && ! -d $USER_THEMES_PATH/$THEME_NAME ]]; then
+  THEME_NAME=$(echo "$THEME_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+fi
 THEME_HEADLESS=0
 if [[ ${OMARCHY_THEME_HEADLESS:-} == "1" || ${OMARCHY_THEME_OFFLINE:-} == "1" ]]; then
   THEME_HEADLESS=1
@@ -413,6 +419,14 @@ mkdir -p "$NEXT_THEME_PATH"
 
 # Copy official theme first, then overlay the user's theme on top
 cp -r "$OMARCHY_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
+# The stills, intros and loops ship from omarchy-themes-backgrounds,
+# omarchy-themes-intros and omarchy-themes-loops into the installed tree, never
+# the git checkout, so a dev-linked $OMARCHY_PATH takes them from there.
+packaged_backgrounds="$OMARCHY_PACKAGED_THEMES_PATH/$THEME_NAME/backgrounds"
+if [[ -d $packaged_backgrounds ]]; then
+  mkdir -p "$NEXT_THEME_PATH/backgrounds"
+  cp -r --update=none "$packaged_backgrounds/." "$NEXT_THEME_PATH/backgrounds/"
+fi
 
 if theme_came_from_a_repo "$USER_THEMES_PATH/$THEME_NAME"; then
   stage_installed_theme "$USER_THEMES_PATH/$THEME_NAME"
@@ -424,6 +438,14 @@ fi
 # Generate colors.toml from alacritty.toml if theme is missing colors.toml
 if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]; then
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
+fi
+
+# A theme with no backgrounds, its own or the user's, gets one drawn from its colors.
+if [[ -z $(find -L "$NEXT_THEME_PATH/backgrounds" "$HOME/.config/omarchy/backgrounds/$THEME_NAME" -maxdepth 1 -type f \
+  \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
+     -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
+  -print -quit 2>/dev/null) ]]; then
+  omarchy-theme-bg-generate "$NEXT_THEME_PATH" || true
 fi
 
 CHOSEN_THEME_BACKGROUND=""
@@ -509,6 +531,9 @@ if [[ $THEME_HEADLESS == "1" ]]; then
   # real login still needs a current background symlink for omarchy-shell to
   # render.
   [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]] || set_theme_background_link || true
+  # The app retints don't run headless, but the first login should already
+  # show Omarchy's app icons in the theme's colors.
+  omarchy-theme-set-icons || true
 elif [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]]; then
   shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
 else
@@ -521,9 +546,11 @@ fi
 flock -u 9
 
 # What the user is looking at: the terminals and the programs drawn inside
-# them, plus the window borders when no intro is playing. These run as soon as
-# the theme is in place, alongside the wallpaper and bar transition.
+# them, Omarchy's app icons in the dock, plus the window borders when no intro
+# is playing. These run as soon as the theme is in place, alongside the
+# wallpaper and bar transition, so the dock's icons fade with the palette.
 visible_theme_commands=(
+  omarchy-theme-set-icons
   omarchy-restart-terminal
   omarchy-theme-set-foot
   omarchy-theme-set-tmux
@@ -538,10 +565,12 @@ visible_theme_commands=(
 # for these.
 other_theme_commands=(
   omarchy-theme-set-gnome
+  omarchy-theme-set-qt
   omarchy-theme-set-pi
   omarchy-theme-set-claude
   omarchy-theme-set-hermes
   omarchy-theme-set-t3code
+  omarchy-theme-set-herdr-app
   omarchy-theme-set-browser
   omarchy-theme-set-vscode
   omarchy-theme-set-obsidian

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Claude Code
+Comment=Start Claude Code in a terminal
+Exec=omarchy-agent --agent claude --app-id=org.omarchy.claude
+Icon=omarchy-agent-claude
+StartupWMClass=org.omarchy.claude
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

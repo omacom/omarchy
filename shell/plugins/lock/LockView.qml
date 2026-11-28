@@ -72,10 +72,21 @@ Item {
     syncingPasswordText = false
   }
 
+  // The field loses focus while a password is checked (it is disabled then),
+  // and forcing focus onto it would not stick until the check ends.
+  function restorePasswordFocus() {
+    if (inputEnabled && passwordInput.enabled && !passwordInput.activeFocus) forcePasswordFocus()
+  }
+
   onPasswordTextChanged: syncPasswordText()
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
+
+  // A VT switch, which the NVIDIA driver forces around every suspend, takes the
+  // keyboard away and Qt drops the field's focus with it. Nothing gives it back
+  // when the keyboard returns, so typing went nowhere until the field was clicked.
+  Window.onActiveFocusItemChanged: Qt.callLater(restorePasswordFocus)
   Component.onCompleted: {
     syncPasswordText()
     if (inputEnabled) Qt.callLater(forcePasswordFocus)

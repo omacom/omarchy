@@ -74,7 +74,7 @@ AGENT_NAME = "Local models"
 # Codex's built-in `--oss` providers have no config.toml entry.
 KNOWN_LOCAL_PROVIDERS = {
   "gpt4all", "jan", "koboldcpp", "llama-cpp", "llamacpp", "llamafile",
-  "lm-studio", "lmstudio", "local", "localai", "mlx", "ollama",
+  "lm-studio", "lmstudio", "local", "localai", "mlx", "ollama", "omarchy-local",
   "openai-local", "oss", "sglang", "tabby", "text-generation-webui", "vllm",
 }
 
@@ -139,6 +139,11 @@ def antigravity_row(provider, model):
   return str(provider or "").strip().lower().startswith("google") and str(model or "").startswith("antigravity-")
 
 
+# The provider ids Omarchy gives a paired machine's models on the tailnet,
+# omarchy-local-<host>: self-hosted, whatever the host is called.
+PAIRED_PREFIX = "omarchy-local-"
+
+
 class Classifier:
   def __init__(self):
     self.configured = configured_providers()
@@ -150,7 +155,8 @@ class Classifier:
     self.local_ids = {pid for pid in ids - CLAIMED_PROVIDERS if not pid.startswith(CLAIMED_PREFIXES)}
 
   def provider_is_local(self, provider):
-    return str(provider or "").strip().lower() in self.local_ids
+    pid = str(provider or "").strip().lower()
+    return pid in self.local_ids or pid.startswith(PAIRED_PREFIX)
 
   def accepts(self, provider, model):
     return self.provider_is_local(provider) and not cloud_model(model)
@@ -170,7 +176,7 @@ def classifier():
 
 
 def pi_pattern():
-  ids = "|".join(re.escape(pid) for pid in sorted(classifier().local_ids))
+  ids = "|".join([re.escape(pid) for pid in sorted(classifier().local_ids)] + [re.escape(PAIRED_PREFIX) + '[^"]*'])
   return r'(?i)"provider"\s*:\s*"(?:' + ids + ')"'
 
 
@@ -284,7 +290,8 @@ def run_local_scans(max_age):
   complete = scan_codex(stats, use_file_cache=max_age > 0)
   pi_rows, pi_complete = scan_pi_sessions(pi_pattern(), accept_pi)
   # The closing quote makes the database's prefilter match the whole id.
-  db_rows, db_complete = scan_opencode([pid + '"' for pid in sorted(classifier().local_ids)], accept_opencode)
+  # A paired machine's ids share a prefix, so it stays open.
+  db_rows, db_complete = scan_opencode([pid + '"' for pid in sorted(classifier().local_ids)] + [PAIRED_PREFIX], accept_opencode)
   # Claude Code pointed at a self-hosted endpoint, for the models that ran
   # there, and MiniMax Code's custom providers on one.
   routed_rows, routed_complete = scan_routed(AGENT_ID)

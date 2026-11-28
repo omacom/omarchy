@@ -35,9 +35,7 @@ cp "$ROOT/config/hyprland-mimeapps.list" "$XDG_CONFIG_HOME/"
 
 grep -qxF "Exec=omarchy-launch-browser %U" "$applications/omarchy-browser.desktop" ||
   fail "the link entry opens links through omarchy-launch-browser"
-grep -qxF "NoDisplay=true" "$applications/omarchy-browser.desktop" ||
-  fail "the link entry stays out of the app launcher"
-pass "the link entry opens links through omarchy-launch-browser, out of the launcher's sight"
+pass "the link entry opens links through omarchy-launch-browser"
 
 omarchy-default-browser firefox || fail "setting the default browser succeeds behind the link entry"
 grep -qxF "x-scheme-handler/https=firefox.desktop" "$XDG_CONFIG_HOME/mimeapps.list" ||

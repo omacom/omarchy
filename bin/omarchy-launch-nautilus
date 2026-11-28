@@ -1,5 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Launch Files
+# omarchy:summary=Launch Files (the old name, kept for personal bindings)
+# omarchy:hidden=true
 
-exec setsid uwsm-app -- nautilus --new-window
+exec omarchy-launch-files "$@"

@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Print the CPU line of the About box, split in two when it overruns the box.
+# omarchy:args=[name|details]
+# omarchy:hidden=true
+
+# A row of the About box can't wrap on its own: fastfetch writes a value as one
+# line, and a newline inside one lands under the logo. So the CPU is two rows in
+# the config, and this decides what goes in each. When the whole line fits, the
+# first row carries it and the second prints nothing, which fastfetch hides.
+
+# The columns between the value's start and the box's right edge.
+WIDTH=47
+
+IFS=$'\t' read -r name cores freq < <(
+  fastfetch --logo none --pipe --structure cpu --format json 2>/dev/null | jq -r '
+    .[0].result
+    | [
+        .cpu,
+        (if (.coreTypes | length) > 1 then (.coreTypes | map(.count | tostring) | join("+")) else (.cores.online | tostring) end),
+        (if .frequency.max > 0 then .frequency.max else .frequency.base end)
+      ]
+    | @tsv'
+)
+
+[[ -n $name ]] || exit 0
+
+details="($cores)"
+(( freq > 0 )) && details+=" @ $(awk -v mhz="$freq" 'BEGIN { printf "%.2f GHz", mhz / 1000 }')"
+
+line="$name $details"
+if (( ${#line} <= WIDTH )); then
+  [[ ${1:-name} == "name" ]] && echo "$line"
+elif [[ ${1:-name} == "name" ]]; then
+  echo "$name"
+else
+  echo "$details"
+fi

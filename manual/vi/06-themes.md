@@ -1,12 +1,12 @@
 # Chủ đề
 
-Omarchy đi kèm với hai mươi hai chủ đề tuyệt đẹp. Bạn có thể chọn giữa chúng qua _Giao diện > Chủ đề_ trong Omarchy Menu (`Super + Space`) hoặc nhảy thẳng tới trình chọn chủ đề bằng `Super + Ctrl + T`.
+Omarchy đi kèm với hai mươi ba chủ đề đẹp. Bạn có thể chọn giữa chúng qua _Appearance > Theme_ trong Omarchy Menu (`Super + Space`) hoặc nhảy thẳng tới trình chọn chủ đề bằng `Super + Ctrl + T`.
 
-Mỗi chủ đề tạo phong cách cho desktop, terminal, neovim, màn hình hoạt động (btop), Chromium, và toàn bộ Omarchy shell: thanh trên cùng, menu, thông báo, OSD, và màn hình khóa. (Đối với Obsidian, bạn phải tự chọn chủ đề Omarchy qua _Giao diện > Chủ đề_ bên trong ứng dụng).
+Mỗi chủ đề tạo phong cách cho desktop, terminal, neovim, màn hình hoạt động (btop), trình duyệt của bạn (Chrome, Chromium, Edge hoặc Brave), và toàn bộ shell của Omarchy: thanh trên cùng, menu, thông báo, OSD và màn hình khóa. (Đối với Obsidian, bạn phải tự chọn chủ đề Omarchy qua _Appearance > Themes_ bên trong ứng dụng).
 
 Các chủ đề có một bộ hình nền mà bạn có thể chọn qua lại bằng `Super + Ctrl + W`.
 
-Bạn có thể tìm thêm nhiều chủ đề nữa trên [trang chủ đề bổ sung](https://omarchy.org/themes/) hoặc thậm chí [tự tạo chủ đề của riêng bạn](43-making-your-own-theme.md).
+Bạn có thể tìm thấy thêm nhiều chủ đề nữa trên [trang chủ đề bổ sung](https://omarchy.org/themes/) hoặc thậm chí [tự tạo chủ đề của riêng bạn](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Màn hình mở khóa
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Các chủ đề cũng có thể có thiết kế mở khóa tùy chỉnh, được dùng cho quá trình giải mã khi khởi động. Bạn có thể chọn một trong số chúng trong _Giao diện > Mở khóa_. Chúng trông như thế này:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Biểu tượng ứng dụng
+
+Các biểu tượng trong trình khởi chạy ứng dụng và dock được vẽ bằng màu sắc của chủ đề của bạn, vì vậy chúng thay đổi theo chủ đề. Chúng đến từ một bộ biểu tượng, mà bạn chọn riêng biệt với chủ đề tại _Appearance > Icons_, từ các bản xem trước của mỗi bộ, giống như cách bạn chọn một chủ đề:
+
+- _Papercraft_ là mặc định: mọi thứ được cài sẵn, được vẽ theo một phong cách duy nhất. Các ứng dụng được nhận biết qua logo của chúng, như Chrome, HEY hoặc YouTube, giữ nguyên hình dạng của logo và mang màu sắc của chủ đề.
+- _Arcade_ vẽ cùng các ứng dụng đó dưới dạng pixel art 8-bit, giống như một máy chơi game console cũ sẽ làm vậy.
+- _Original_ hiển thị mọi ứng dụng với biểu tượng mà nhà phát triển của nó đã tạo cho nó.
+
+Bạn có thể cài đặt một bộ biểu tượng do người khác tạo bằng _Install > Style > Icons_ (hoặc `omarchy icons install <git url>`), và gỡ bỏ nó lại tại _Remove > Icons_. _Update > Extra Icons_ sẽ tải phiên bản mới nhất của các bộ bạn đã cài đặt.
+
+Để tự tạo bộ của riêng bạn, hãy đặt các biểu tượng của bạn vào `~/.config/omarchy/icons/<name>/`, mỗi ứng dụng một tệp, được đặt tên theo dòng `Icon=` trong tệp `.desktop` của ứng dụng. Một tệp kết thúc bằng `.svg` sẽ được hiển thị nguyên trạng. Một tệp kết thúc bằng `.svg.tpl` sẽ được vẽ bằng màu sắc của chủ đề: hãy viết `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` hoặc `{{ icon_shadow }}` tại vị trí cần đặt màu. Bộ mặc định tại `/usr/share/omarchy/icons/papercraft/` là một nơi tốt để bắt đầu. Hãy thêm một tệp `preview.png` để hiển thị bộ của bạn trong trình chọn; nếu không có, Omarchy sẽ tự vẽ một bản xem trước từ các biểu tượng của bạn. Để thay đổi một biểu tượng duy nhất của bộ mặc định, hãy đặt phiên bản của bạn vào `~/.config/omarchy/icons/papercraft/`.
+
+### Mở khóa
+
+Các chủ đề cũng có thể có một thiết kế mở khóa tùy chỉnh, được dùng cho quá trình giải mã khi khởi động. Bạn có thể chọn một trong số chúng tại _Appearance > Unlock_. Chúng trông như thế này:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -96,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

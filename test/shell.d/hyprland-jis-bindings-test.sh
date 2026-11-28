@@ -29,7 +29,7 @@ fire() {
   fi
 
   HOME="$home" XDG_CONFIG_HOME="$home/.config" OMARCHY_PATH="$ROOT" \
-    TEST_KEYS="$keys" TEST_CLASS="$class" TEST_TAGS="$tags" TEST_LAYOUT="${TEST_LAYOUT:-jp}" lua <<'LUA'
+    TEST_KEYS="$keys" TEST_CLASS="$class" TEST_TAGS="$tags" TEST_LAYOUT="${TEST_LAYOUT:-jp}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local real_open = io.open
@@ -90,7 +90,7 @@ assert_fires() {
   shift 2
   local actual
 
-  actual=$(fire "$@")
+  actual=$(fire "$@") || fail "$description" "$actual"
   [[ $actual == "$expected" ]] ||
     fail "$description" "expected: $expected"$'\n'"actual:   $actual"
   pass "$description"

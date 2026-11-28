@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Az Omarchyt általában a gyorsbillentyűkkel és az Omarchy menüvel (`Super + Space`) vezérled. De az `omarchy` CLI-n keresztül is vezérelheted. Ez különösen hasznos, amikor egy AI-ügynök dolgozik veled a testreszabáson vagy a konfiguráláson.
+Az Omarchy általában gyorsbillentyűkkel és az Omarchy menüvel (`Super + Space`) vezérelhető. De az `omarchy` CLI-n keresztül is vezérelheted. Ez különösen hasznos, ha egy AI agent dolgozik veled a testreszabáson vagy a konfiguráción.
 
-A CLI hozzáfér minden belső eszközhöz, amelyet a menün keresztül és más módokon is használ a rendszer. Minden elérhető lehetőséget megnézhetsz, ha futtatod az `omarchy` parancsot a terminálban.
+A CLI hozzáfér minden belső eszközhöz, amelyet a menün keresztül és egyéb módon is használnak. Minden elérhető lehetőséget megnézhetsz, ha lefuttatod az `omarchy` parancsot a terminálban.
 
 Valahogy így néz ki:
 
@@ -22,10 +22,11 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -38,25 +39,26 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-És minden csoportban mélyebbre is áshatsz:
+Diagnosztikához futtasd közvetlenül az `omarchy-debug --no-sudo --print` parancsot. Kiírja a diagnosztikát, és sudo kérése nélkül beírja a `/tmp/omarchy-debug.log` fájlba, olyan csomagtelepítéseknél is, ahol az `omarchy debug` az "Unknown Omarchy command" hibával meghiúsulhat.
+
+És minden csoportot részletesebben is megnézhetsz:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Minden parancs elfogadja a `--help` kapcsolót is, akár egy egész csoportról kérdezel (`omarchy capture --help`), akár egyetlen parancsról (`omarchy capture screenshot --help`).
+Minden parancs elfogadja a `--help` kapcsolót is, akár egy egész csoportról (`omarchy capture --help`), akár egyetlen parancsról (`omarchy capture screenshot --help`) kérdezel.
 
 ### A menü megnyitása a terminálból
 
-Az Omarchy menü is szkriptelhető, ami jól jön a saját billentyűparancsaidhoz. Az `omarchy menu` a gyökérnél nyitja meg, és a fa bármely pontjára közvetlenül odaugorhatsz, ha megnevezed: az `omarchy menu summon appearance.theme` egyenesen a témaválasztóhoz visz, az `omarchy menu toggle system` megnyitja a rendszermenüt, és újra bezárja, ha már nyitva van, az `omarchy menu close` pedig eltünteti.
+Az Omarchy menü szkriptelhető is, ami jól jön a saját billentyűparancsaidhoz. Az `omarchy menu` a gyökérnél nyitja meg, és a fa bármely pontjára közvetlenül odaugorhatsz, ha megnevezed: az `omarchy menu summon appearance.theme` egyenesen a témaválasztóhoz visz, az `omarchy menu toggle system` megnyitja a rendszermenüt, és újra bezárja, ha már nyitva van, az `omarchy menu close` pedig eltünteti.

@@ -1,0 +1,672 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Control a connected Shure MV7+ microphone's onboard DSP
+# omarchy:group=audio
+# omarchy:subcommand=status [--json] — Show current MV7+ settings
+# omarchy:subcommand=mode [auto|manual] — Show or set Auto Level / Manual mode
+# omarchy:subcommand=gain [0..36] — Show or set manual gain in dB
+# omarchy:subcommand=tone [-100..100|dark|natural|bright] — Show or set tone
+# omarchy:subcommand=mute [on|off|toggle] — Show, set, or toggle hardware mute
+# omarchy:subcommand=hpf [off|75|150] — Show or set high-pass filter
+# omarchy:subcommand=denoiser [on|off|toggle] — Show, set, or toggle Real-time Denoiser
+# omarchy:subcommand=popper [on|off|toggle] — Show, set, or toggle Popper Stopper
+# omarchy:subcommand=limiter [on|off|toggle] — Show, set, or toggle Limiter (manual mode)
+# omarchy:subcommand=compressor [off|light|medium|heavy] — Show or set Compressor (manual mode)
+# omarchy:subcommand=reverb [on|off|toggle|type|intensity|monitor] — Control Reverb settings
+# omarchy:subcommand=monitor <mic|playback> [0..100] — Show or set headphone monitor mix
+# omarchy:subcommand=preset <neutral|factory> — Apply Neutral (DSP off) or Factory Defaults
+# omarchy:examples=omarchy audio mv7plus status | omarchy audio mv7plus preset neutral | omarchy audio mv7plus hpf 75 | omarchy audio mv7plus denoiser on
+
+"""Read and control Shure MV7+ (14ed:1019) onboard DSP over /dev/hidraw."""
+
+import errno
+import fcntl
+import glob
+import json
+import os
+import re
+import select
+import struct
+import sys
+import time
+
+CMD_GET_FEAT = bytes([0x01, 0x02, 0x02])
+CMD_SET_FEAT = bytes([0x02, 0x02, 0x02])
+CMD_CONFIRM = bytes([0x01, 0x00, 0x00])
+RES_GET_FEAT = bytes([0x03, 0x02, 0x02])
+
+# (name, prefix, feat_hi, feat_lo, format, min_val, max_val)
+FEATURES = [
+    ("auto_level",       0x00, 0x01, 0x85, "u8",      0,    1),
+    ("gain_db",          0x00, 0x01, 0x02, "u16x100", 0.0,  36.0),
+    ("mute",             0x00, 0x01, 0x04, "u8",      0,    1),
+    ("hpf",              0x00, 0x01, 0x06, "u8",      0,    2),
+    ("limiter",          0x00, 0x01, 0x51, "u8",      0,    1),
+    ("compressor",       0x00, 0x01, 0x5C, "u8",      0,    3),
+    ("denoiser",         0x00, 0x01, 0x58, "u8",      0,    1),
+    ("popper_stopper",   0x00, 0x03, 0x81, "u8",      0,    1),
+    ("tone_pct",         0x00, 0x02, 0x04, "i16",     -100, 100),
+    ("reverb_output",    0x00, 0x03, 0x82, "u8",      0,    1),
+    ("reverb_type",      0x00, 0x03, 0x83, "u8",      0,    2),
+    ("reverb_intensity", 0x00, 0x03, 0x84, "u8",      0,    100),
+    ("reverb_monitor",   0x00, 0x03, 0x85, "u8",      0,    1),
+    ("mic_level",        0x00, 0x01, 0x86, "u8",      0,    100),
+    ("playback_level",   0x03, 0x01, 0x86, "u8",      0,    100),
+]
+
+FEATURE_MAP = {f[0]: f for f in FEATURES}
+
+PRESETS = {
+    "neutral": [
+        ("auto_level", 0),
+        ("mute", 0),
+        ("hpf", 0),
+        ("limiter", 0),
+        ("compressor", 0),
+        ("denoiser", 0),
+        ("popper_stopper", 0),
+        ("tone_pct", 0),
+        ("reverb_output", 0),
+        ("reverb_monitor", 0),
+    ],
+    "factory": [
+        ("mute", 0),
+        ("hpf", 0),
+        ("limiter", 0),
+        ("compressor", 0),
+        ("denoiser", 0),
+        ("popper_stopper", 0),
+        ("tone_pct", 0),
+        ("reverb_output", 0),
+        ("reverb_type", 0),
+        ("reverb_intensity", 0),
+        ("reverb_monitor", 0),
+        ("mic_level", 100),
+        ("playback_level", 100),
+        ("auto_level", 1),
+    ],
+}
+
+USAGE = """\
+Usage: omarchy audio mv7plus [--json] <command> [args...]
+
+  status [--json]                         Show current MV7+ settings
+  mode [auto|manual]                      Show or set Auto Level / Manual mode
+  gain [0..36]                            Show or set manual gain in dB (0.5 dB steps)
+  tone [-100..100|dark|natural|bright]    Show or set tone (-100 to +100)
+  mute [on|off|toggle]                    Show, set, or toggle hardware mute
+  hpf [off|75|150]                        Show or set high-pass filter (off, 75 Hz, 150 Hz)
+  denoiser [on|off|toggle]                Show, set, or toggle Real-time Denoiser
+  popper [on|off|toggle]                  Show, set, or toggle Popper Stopper
+  limiter [on|off|toggle]                 Show, set, or toggle Limiter (manual mode)
+  compressor [off|light|medium|heavy]     Show or set Compressor (manual mode)
+  reverb [on|off|toggle]                  Show, set, or toggle Reverb output
+  reverb type [plate|hall|studio]         Show or set Reverb type
+  reverb intensity [0..100]               Show or set Reverb intensity (%)
+  reverb monitor [on|off|toggle]          Show, set, or toggle Direct Monitor reverb
+  monitor mic [0..100]                    Show or set headphone monitor Mic level (%)
+  monitor playback [0..100]               Show or set headphone monitor Playback level (%)
+  preset <neutral|factory>                Apply Neutral (DSP off) or Factory Defaults
+"""
+
+INT_RE = re.compile(r"^-?[0-9]+$")
+FLOAT_RE = re.compile(r"^[0-9]+(?:\.[0-9]+)?$")
+
+
+class UsageError(Exception):
+    pass
+
+
+def find_mv7plus(sysfs_glob="/sys/class/hidraw/hidraw*/device/uevent"):
+    for uev in sorted(glob.glob(sysfs_glob)):
+        try:
+            with open(uev, "r", encoding="utf-8", errors="ignore") as f:
+                txt = f.read()
+        except OSError:
+            continue
+        if "000014ED:00001019" in txt.upper():
+            return "/dev/" + os.path.basename(os.path.dirname(os.path.dirname(uev)))
+    return None
+
+
+def crc16_ansi(data: bytes) -> int:
+    crc = 0x0000
+    for b in data:
+        for _ in range(8):
+            crc = ((crc >> 1) ^ 0xA001) if ((crc ^ b) & 1) else (crc >> 1)
+            b >>= 1
+    return crc
+
+
+def build_packet(seq: int, hdr: int, cmd: bytes, payload: bytes) -> bytes:
+    data_len = 3 + len(payload) + 2
+    inner = bytes([0x11, 0x22, seq & 0xFF, hdr, 0x08, data_len, 0x70, data_len]) + cmd + payload
+    total_len = len(inner) + 2
+    crc = crc16_ansi(inner)
+    pkt = bytes([0x01, total_len]) + inner + bytes([(crc >> 8) & 0xFF, crc & 0xFF])
+    return pkt.ljust(64, b"\x00")
+
+
+def parse_response(buf: bytes):
+    if len(buf) < 18 or buf[2:4] != b"\x11\x22":
+        return None
+    total_len = buf[1]
+    if total_len < 16 or total_len + 2 > len(buf):
+        return None
+    inner = buf[2:total_len]
+    crc_got = (buf[total_len] << 8) | buf[total_len + 1]
+    if crc_got != crc16_ansi(inner):
+        return None
+    if buf[10:13] != RES_GET_FEAT:
+        return None
+    return buf[13], (buf[14], buf[15]), buf[16:total_len]
+
+
+def encode_value(fmt: str, value, min_val, max_val) -> bytes:
+    if fmt == "u8":
+        iv = max(int(min_val), min(int(max_val), int(round(float(value)))))
+        return bytes([iv])
+    if fmt == "u16x100":
+        fv = max(float(min_val), min(float(max_val), float(value)))
+        # Snap to 0.5 dB steps as MV7+ hardware uses
+        fv = round(fv * 2.0) / 2.0
+        return struct.pack(">H", int(round(fv * 100)))
+    if fmt == "i16":
+        iv = max(int(min_val), min(int(max_val), int(round(float(value)))))
+        return struct.pack(">h", iv)
+    raise ValueError(f"unsupported format: {fmt}")
+
+
+def decode_value(fmt: str, raw: bytes):
+    if fmt == "u8":
+        return raw[0] if raw else None
+    if fmt == "u16x100":
+        return round(struct.unpack(">H", raw[:2])[0] / 100.0, 1) if len(raw) >= 2 else None
+    if fmt == "i16":
+        return struct.unpack(">h", raw[:2])[0] if len(raw) >= 2 else None
+    return None
+
+
+class MV7Plus:
+    def __init__(self, path: str):
+        self.fd = os.open(path, os.O_RDWR | os.O_NONBLOCK)
+        self.seq = 1
+
+    def close(self):
+        os.close(self.fd)
+
+    def _next_seq(self) -> int:
+        s = self.seq
+        self.seq = (self.seq + 1) & 0xFF
+        return s
+
+    def drain(self, timeout_ms: int = 12):
+        while True:
+            r, _, _ = select.select([self.fd], [], [], timeout_ms / 1000.0)
+            if not r:
+                break
+            try:
+                os.read(self.fd, 64)
+            except BlockingIOError:
+                break
+
+    def get_feat(self, pfx: int, feat):
+        self.drain(5)
+        pkt = build_packet(self._next_seq(), 0x03, CMD_GET_FEAT, bytes([pfx, feat[0], feat[1]]))
+        os.write(self.fd, pkt)
+        deadline = time.monotonic() + 0.35
+        while time.monotonic() < deadline:
+            r, _, _ = select.select([self.fd], [], [], 0.04)
+            if not r:
+                continue
+            try:
+                buf = os.read(self.fd, 64)
+            except BlockingIOError:
+                continue
+            parsed = parse_response(buf)
+            if parsed and parsed[0] == pfx and parsed[1] == feat:
+                return parsed[2]
+        return None
+
+    def set_feat(self, pfx: int, feat, val: bytes):
+        self.drain(5)
+        pkt = build_packet(self._next_seq(), 0x00, CMD_SET_FEAT, bytes([pfx, feat[0], feat[1]]) + val)
+        os.write(self.fd, pkt)
+        confirm = build_packet(self._next_seq(), 0x03, CMD_CONFIRM, b"")
+        os.write(self.fd, confirm)
+        # Drain the device's SET/CONFIRM echoes; callers verify via read_one/read_all.
+        for _ in range(2):
+            r, _, _ = select.select([self.fd], [], [], 0.04)
+            if r:
+                try:
+                    os.read(self.fd, 64)
+                except BlockingIOError:
+                    pass
+
+    def set_named(self, name: str, value):
+        if name not in FEATURE_MAP:
+            raise ValueError(f"unknown feature: {name}")
+        _, pfx, f0, f1, fmt, mn, mx = FEATURE_MAP[name]
+        self.set_feat(pfx, (f0, f1), encode_value(fmt, value, mn, mx))
+
+    def read_one(self, name: str):
+        if name not in FEATURE_MAP:
+            raise ValueError(f"unknown feature: {name}")
+        _, pfx, f0, f1, fmt, _, _ = FEATURE_MAP[name]
+        raw = self.get_feat(pfx, (f0, f1))
+        if raw is None:
+            raise TimeoutError(f"MV7+ did not confirm {name}")
+        return {name: decode_value(fmt, raw)}
+
+    def toggle_named(self, name: str):
+        if name not in FEATURE_MAP:
+            raise ValueError(f"unknown feature: {name}")
+        _, _, _, _, fmt, mn, mx = FEATURE_MAP[name]
+        if fmt != "u8" or mn != 0 or mx != 1:
+            raise ValueError(f"feature is not toggleable: {name}")
+        cur = self.read_one(name)[name]
+        if cur not in (0, 1):
+            raise ValueError(f"unexpected boolean state for {name}: {cur}")
+        self.set_named(name, 0 if cur == 1 else 1)
+        time.sleep(0.03)
+        return self.read_one(name)
+
+    def read_all(self, require_complete: bool = False):
+        out = {}
+        missing = []
+        for name, pfx, f0, f1, fmt, _, _ in FEATURES:
+            raw = self.get_feat(pfx, (f0, f1))
+            if raw is None:
+                out[name] = None
+                missing.append(name)
+            else:
+                out[name] = decode_value(fmt, raw)
+        if len(missing) == len(FEATURES) or (require_complete and missing):
+            raise TimeoutError(f"MV7+ did not reply for: {', '.join(missing[:3])}")
+        return out
+
+    def apply_preset(self, name: str):
+        if name not in PRESETS:
+            raise ValueError(f"unknown preset: {name}")
+        for k, v in PRESETS[name]:
+            self.set_named(k, v)
+        time.sleep(0.08)
+        return self.read_all(require_complete=True)
+
+
+def lock_path():
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime and os.path.isdir(runtime):
+        return os.path.join(runtime, "omarchy-mv7plus-hid.lock")
+    return os.path.join("/tmp", f"omarchy-mv7plus-hid-{os.getuid()}.lock")
+
+
+def acquire_lock(path: str, timeout_s: float = 3.0):
+    fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fd
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EAGAIN) or time.monotonic() >= deadline:
+                os.close(fd)
+                raise TimeoutError("HID device lock busy")
+            time.sleep(0.05)
+
+
+def fmt_bool(val) -> str:
+    if val == 1:
+        return "on"
+    if val == 0:
+        return "off"
+    return "unknown" if val is None else str(val)
+
+
+def fmt_mode(val) -> str:
+    if val == 1:
+        return "auto"
+    if val == 0:
+        return "manual"
+    return "unknown" if val is None else str(val)
+
+
+def fmt_gain(val) -> str:
+    if isinstance(val, (int, float)):
+        return f"{float(val):.1f} dB"
+    return "unknown" if val is None else str(val)
+
+
+def fmt_hpf(val) -> str:
+    return {0: "off", 1: "75 Hz", 2: "150 Hz"}.get(val, "unknown" if val is None else str(val))
+
+
+def fmt_compressor(val) -> str:
+    return {0: "off", 1: "light", 2: "medium", 3: "heavy"}.get(val, "unknown" if val is None else str(val))
+
+
+def fmt_reverb_type(val) -> str:
+    return {0: "plate", 1: "hall", 2: "studio"}.get(val, "unknown" if val is None else str(val))
+
+
+def fmt_tone(val) -> str:
+    if isinstance(val, int) and not isinstance(val, bool):
+        if val == 0:
+            return "natural (0%)"
+        if val < 0:
+            return f"dark ({val}%)"
+        return f"bright (+{val}%)"
+    return "unknown" if val is None else str(val)
+
+
+def fmt_percent(val) -> str:
+    return "unknown" if val is None else f"{val}%"
+
+
+def format_status(dev: str, st: dict) -> str:
+    lines = [
+        f"Device:          Shure MV7+ ({dev})",
+        f"Mute:            {fmt_bool(st.get('mute'))}",
+        f"Mode:            {fmt_mode(st.get('auto_level'))}",
+        f"Manual Gain:     {fmt_gain(st.get('gain_db'))}",
+        f"Tone:            {fmt_tone(st.get('tone_pct'))}",
+        f"High-Pass:       {fmt_hpf(st.get('hpf'))}",
+        f"Denoiser:        {fmt_bool(st.get('denoiser'))}",
+        f"Popper Stopper:  {fmt_bool(st.get('popper_stopper'))}",
+        f"Limiter:         {fmt_bool(st.get('limiter'))}",
+        f"Compressor:      {fmt_compressor(st.get('compressor'))}",
+        (
+            f"Reverb:          {fmt_bool(st.get('reverb_output'))} "
+            f"({fmt_reverb_type(st.get('reverb_type'))}, "
+            f"{fmt_percent(st.get('reverb_intensity'))}, "
+            f"monitor {fmt_bool(st.get('reverb_monitor'))})"
+        ),
+        (
+            f"Monitor Mix:     mic {fmt_percent(st.get('mic_level'))}, "
+            f"playback {fmt_percent(st.get('playback_level'))}"
+        ),
+    ]
+    return "\n".join(lines)
+
+
+def require_max_args(args, limit: int, ctx: str):
+    if len(args) > limit:
+        raise UsageError(f"too many arguments for {ctx}")
+
+
+def parse_int_range(raw: str, lo: int, hi: int, label: str) -> int:
+    if not INT_RE.match(raw):
+        raise UsageError(f"{label} must be an integer between {lo} and {hi} (got: {raw})")
+    num = int(raw)
+    if num < lo or num > hi:
+        raise UsageError(f"{label} must be between {lo} and {hi} (got: {raw})")
+    return num
+
+
+def parse_percent(raw: str, label: str) -> int:
+    cleaned = raw[:-1] if raw.endswith("%") else raw
+    return parse_int_range(cleaned, 0, 100, label)
+
+
+def parse_bool_action(key: str, args, ctx: str):
+    require_max_args(args, 1, ctx)
+    if not args:
+        return ("read_one", key, None, fmt_bool)
+    tok = args[0].lower()
+    if tok in ("on", "1", "true"):
+        return ("set", key, 1, fmt_bool)
+    if tok in ("off", "0", "false"):
+        return ("set", key, 0, fmt_bool)
+    if tok == "toggle":
+        return ("toggle", key, None, fmt_bool)
+    raise UsageError(f"expected on, off, or toggle (got: {args[0]})")
+
+
+def parse_enum_action(key: str, args, ctx: str, mapping: dict, fmt_fn, err_desc: str):
+    require_max_args(args, 1, ctx)
+    if not args:
+        return ("read_one", key, None, fmt_fn)
+    tok = args[0].lower()
+    if tok not in mapping:
+        raise UsageError(f"{err_desc} (got: {args[0]})")
+    return ("set", key, mapping[tok], fmt_fn)
+
+
+def parse_cli(argv):
+    json_mode = False
+    pos = []
+    after_sep = False
+    for tok in argv:
+        if not after_sep and tok == "--":
+            after_sep = True
+            pos.append(tok)
+            continue
+        if not after_sep and tok == "--json":
+            json_mode = True
+            continue
+        pos.append(tok)
+
+    if pos and pos[0] == "--":
+        pos = pos[1:]
+
+    if not pos:
+        return json_mode, ("status", None, None, None)
+
+    cmd, rest = pos[0], pos[1:]
+    if cmd in ("-h", "--help", "help"):
+        return json_mode, ("help", None, None, None)
+
+    if cmd == "status":
+        if rest and rest[0] == "--":
+            rest = rest[1:]
+        require_max_args(rest, 0, "status")
+        return json_mode, ("status", None, None, None)
+
+    if cmd == "mode":
+        return json_mode, parse_enum_action(
+            "auto_level", rest, "mode",
+            {"auto": 1, "1": 1, "manual": 0, "0": 0},
+            fmt_mode, "mode must be auto or manual",
+        )
+
+    if cmd == "gain":
+        require_max_args(rest, 1, "gain")
+        if not rest:
+            return json_mode, ("read_one", "gain_db", None, fmt_gain)
+        raw = rest[0]
+        cleaned = raw[:-2] if raw.lower().endswith("db") else raw
+        if not FLOAT_RE.match(cleaned):
+            raise UsageError(f"gain must be a number between 0 and 36 dB (got: {raw})")
+        val = float(cleaned)
+        if val < 0.0 or val > 36.0:
+            raise UsageError(f"gain must be between 0 and 36 dB (got: {raw})")
+        return json_mode, ("set", "gain_db", val, fmt_gain)
+
+    if cmd == "tone":
+        if rest and rest[0] == "--":
+            rest = rest[1:]
+        require_max_args(rest, 1, "tone")
+        if not rest:
+            return json_mode, ("read_one", "tone_pct", None, fmt_tone)
+        raw = rest[0]
+        low = raw.lower()
+        if low == "dark":
+            val = -100
+        elif low in ("natural", "neutral"):
+            val = 0
+        elif low == "bright":
+            val = 100
+        else:
+            cleaned = raw[:-1] if raw.endswith("%") else raw
+            if cleaned.startswith("+") and len(cleaned) > 1 and cleaned[1].isdigit():
+                cleaned = cleaned[1:]
+            val = parse_int_range(cleaned, -100, 100, "tone")
+        return json_mode, ("set", "tone_pct", val, fmt_tone)
+
+    if cmd == "mute":
+        return json_mode, parse_bool_action("mute", rest, "mute")
+
+    if cmd == "hpf":
+        return json_mode, parse_enum_action(
+            "hpf", rest, "hpf",
+            {"off": 0, "0": 0, "75": 1, "75hz": 1, "1": 1, "150": 2, "150hz": 2, "2": 2},
+            fmt_hpf, "hpf must be off, 75, or 150",
+        )
+
+    if cmd == "denoiser":
+        return json_mode, parse_bool_action("denoiser", rest, "denoiser")
+
+    if cmd in ("popper", "popper-stopper"):
+        return json_mode, parse_bool_action("popper_stopper", rest, "popper")
+
+    if cmd == "limiter":
+        return json_mode, parse_bool_action("limiter", rest, "limiter")
+
+    if cmd == "compressor":
+        return json_mode, parse_enum_action(
+            "compressor", rest, "compressor",
+            {"off": 0, "0": 0, "light": 1, "1": 1, "medium": 2, "2": 2, "heavy": 3, "3": 3},
+            fmt_compressor, "compressor must be off, light, medium, or heavy",
+        )
+
+    if cmd == "reverb":
+        if not rest:
+            return json_mode, ("read_one", "reverb_output", None, fmt_bool)
+        sub = rest[0].lower()
+        if sub in ("on", "off", "toggle", "0", "1", "true", "false"):
+            return json_mode, parse_bool_action("reverb_output", rest, "reverb")
+        if sub == "type":
+            return json_mode, parse_enum_action(
+                "reverb_type", rest[1:], "reverb type",
+                {"plate": 0, "0": 0, "hall": 1, "1": 1, "studio": 2, "2": 2},
+                fmt_reverb_type, "reverb type must be plate, hall, or studio",
+            )
+        if sub == "intensity":
+            require_max_args(rest[1:], 1, "reverb intensity")
+            if len(rest) == 1:
+                return json_mode, ("read_one", "reverb_intensity", None, fmt_percent)
+            val = parse_percent(rest[1], "reverb intensity")
+            return json_mode, ("set", "reverb_intensity", val, fmt_percent)
+        if sub == "monitor":
+            return json_mode, parse_bool_action("reverb_monitor", rest[1:], "reverb monitor")
+        raise UsageError(
+            f"unknown reverb option: {rest[0]} (expected on, off, toggle, type, intensity, or monitor)"
+        )
+
+    if cmd == "monitor":
+        if not rest:
+            return json_mode, ("monitor_summary", None, None, None)
+        sub = rest[0].lower()
+        if sub == "mic":
+            require_max_args(rest[1:], 1, "monitor mic")
+            if len(rest) == 1:
+                return json_mode, ("read_one", "mic_level", None, fmt_percent)
+            return json_mode, ("set", "mic_level", parse_percent(rest[1], "monitor mic level"), fmt_percent)
+        if sub == "playback":
+            require_max_args(rest[1:], 1, "monitor playback")
+            if len(rest) == 1:
+                return json_mode, ("read_one", "playback_level", None, fmt_percent)
+            return json_mode, ("set", "playback_level", parse_percent(rest[1], "monitor playback level"), fmt_percent)
+        raise UsageError(f"monitor target must be mic or playback (got: {rest[0]})")
+
+    if cmd == "preset":
+        require_max_args(rest, 1, "preset")
+        if not rest or rest[0].lower() not in PRESETS:
+            got = rest[0] if rest else "none"
+            raise UsageError(f"preset must be neutral or factory (got: {got})")
+        return json_mode, ("preset", rest[0].lower(), None, None)
+
+    raise UsageError(f"unknown command: {cmd} (try: omarchy audio mv7plus --help)")
+
+
+def emit_json(obj):
+    print(json.dumps(obj, separators=(",", ":")))
+
+
+def emit_error(json_mode: bool, payload: dict, human_msg: str) -> int:
+    if json_mode:
+        emit_json(payload)
+    else:
+        print(f"omarchy-audio-mv7plus: {human_msg}", file=sys.stderr)
+    return 1
+
+
+def run(argv) -> int:
+    try:
+        json_mode, action = parse_cli(argv)
+    except UsageError as exc:
+        print(f"omarchy-audio-mv7plus: {exc}", file=sys.stderr)
+        return 2
+
+    kind, key, val, fmt_fn = action
+    if kind == "help":
+        sys.stdout.write(USAGE)
+        return 0
+
+    dev = find_mv7plus()
+    if not dev:
+        return emit_error(json_mode, {"connected": False}, "No Shure MV7+ microphone connected.")
+
+    try:
+        lock_fd = acquire_lock(lock_path())
+    except (OSError, TimeoutError) as exc:
+        return emit_error(json_mode, {"connected": True, "device": dev, "error": str(exc)}, str(exc))
+
+    try:
+        try:
+            mic = MV7Plus(dev)
+        except PermissionError:
+            return emit_error(
+                json_mode,
+                {"connected": True, "device": dev, "error": "permission"},
+                "Cannot open MV7+ HID device. Check /etc/udev/rules.d/62-shure-mv7plus.rules.",
+            )
+        except OSError as exc:
+            return emit_error(json_mode, {"connected": False, "error": str(exc)}, str(exc))
+
+        try:
+            if kind == "status":
+                state = mic.read_all(require_complete=not json_mode)
+            elif kind == "read_one":
+                state = mic.read_one(key)
+            elif kind == "set":
+                mic.set_named(key, val)
+                time.sleep(0.03)
+                state = mic.read_one(key)
+            elif kind == "toggle":
+                state = mic.toggle_named(key)
+            elif kind == "monitor_summary":
+                state = {}
+                state.update(mic.read_one("mic_level"))
+                state.update(mic.read_one("playback_level"))
+            elif kind == "preset":
+                state = mic.apply_preset(key)
+            else:
+                raise ValueError(f"unsupported action: {kind}")
+        except Exception as exc:
+            return emit_error(json_mode, {"connected": True, "device": dev, "error": str(exc)}, str(exc))
+        finally:
+            mic.close()
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+
+    if json_mode:
+        emit_json({"connected": True, "device": dev, "state": state})
+    elif kind in ("status", "preset"):
+        print(format_status(dev, state))
+    elif kind == "monitor_summary":
+        print(f"mic {fmt_percent(state.get('mic_level'))}, playback {fmt_percent(state.get('playback_level'))}")
+    else:
+        print(fmt_fn(state.get(key)))
+    return 0
+
+
+def main():
+    sys.exit(run(sys.argv[1:]))
+
+
+if __name__ == "__main__":
+    main()

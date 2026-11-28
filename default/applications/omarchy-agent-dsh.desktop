@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=DeepSeek Harness
+Comment=Start DeepSeek Harness in a terminal
+Exec=omarchy-agent --agent dsh --app-id=org.omarchy.dsh
+Icon=omarchy-agent-dsh
+StartupWMClass=org.omarchy.dsh
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

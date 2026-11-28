@@ -19,8 +19,6 @@ esac
 provider=$1
 shift
 
-# mise removes its wrapper dispatch directories before calling us, so exec
-# finds the real CLI (or its first-run installer) rather than this wrapper.
 # Pin the resolved home for children, including an implicit Main account.
 # Explicit provider homes still take precedence.
 if [[ -z ${!account_env:-} ]]; then
@@ -31,26 +29,23 @@ if [[ -z ${!account_env:-} ]]; then
   fi
 fi
 
-# Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
-# avoid recursion, but the agent's subprocesses need them for other providers.
-if ! agent_binary=$(type -P "$provider"); then
-  # A mise dispatcher can exist before its CLI or first-run installer does.
-  # Omarchy declares these agents, so installing one leaves the user's config
-  # alone. A user who removed the preinstalls selects it in their own config.
-  export MISE_MINIMUM_RELEASE_AGE=0
-  if omarchy-mise-default-tools declares "$provider"; then
-    mise install --quiet "$provider"
-  else
-    mise use -g --quiet "$provider"
-  fi
-  agent_binary=$(mise which "$provider")
+# The real CLI is whatever PATH finds past the dispatchers, the directory this
+# was started from. A dispatcher exists only while its CLI is installed, so one
+# left by a CLI removed outside Omarchy takes itself away and answers the way
+# a shell would.
+dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
+cli_path=""
+IFS=: read -r -a dirs <<<"$PATH"
+for dir in "${dirs[@]}"; do
+  [[ $dir == "$dispatchers" ]] || cli_path+="${cli_path:+:}$dir"
+done
+if ! agent_binary=$(PATH=$cli_path type -P "$provider"); then
+  rm -f "$dispatchers/$provider"
+  echo "$provider: command not found" >&2
+  exit 127
 fi
-# mise also drops its shims, leaving only the tools installed at launch. A
-# long-lived agent needs them back to find tools installed after it started.
-mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
-PATH="$mise_data_dir/command-wrappers/bin:$PATH"
-if [[ :$PATH: != *":$mise_data_dir/shims:"* ]]; then
-  PATH="$PATH:$mise_data_dir/shims"
-fi
-export PATH
+
+# The agent's own subprocesses dispatch too, so another provider they start
+# runs as its selected account.
+export PATH="$dispatchers:$cli_path"
 exec "$agent_binary" "$@"

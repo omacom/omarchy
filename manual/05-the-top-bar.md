@@ -6,9 +6,9 @@ It's also the one piece of the desktop that's always on screen, so it's worth kn
 
 ## What's on it by default
 
-The bar has three sections. On the left sits the Omarchy logo (the menu launcher) and the workspace indicators. In the center you get the status indicators, the clock, Elsewhen (a world clock), the weather, and an Omarchy update badge. On the right: the system tray, the keyboard layout (when more than one is configured), agents, bluetooth, network, audio, display, and power.
+The bar has three sections. On the left sits the Omarchy logo (the menu launcher) and the workspace indicators. In the center you get the status indicators, the clock, Elsewhen (a world clock), the weather, and an Omarchy update badge. On the right: the system tray, the keyboard layout (when more than one layout or input method is configured), agents, bluetooth, network, audio, display, and power.
 
-A few of those only show up when they have something to say. The keyboard layout appears only if you've configured more than one layout. The update badge appears only when there's an Omarchy update waiting. And the agents icon appears the first time Omarchy finds AI coding usage on the machine (see [AI](17-ai.md)).
+A few of those only show up when they have something to say. The keyboard layout appears only if you've configured more than one layout or input method. The update badge appears only when there's an Omarchy update waiting.
 
 ## Clicking around
 
@@ -19,6 +19,7 @@ Nearly every widget does something on left, right, and middle click, and several
 | Menu | Omarchy menu | New terminal | — |
 | Workspaces | Focus that workspace on this monitor | — | Scroll: next/previous workspace |
 | Clock | Calendar popup | Cycle the label format | Middle: timezone picker |
+| World clock | World clock panel | Refresh | Middle: refresh |
 | Weather | Forecast popup | Full weather as a notification | Middle: refresh |
 | Audio | Audio panel | Mute | Middle: panel · scroll: volume |
 | Microphone | Mute the mic | — | Middle: audio panel · scroll: input volume |
@@ -27,7 +28,7 @@ Nearly every widget does something on left, right, and middle click, and several
 | Display | Display panel | — | Scroll: brightness |
 | Power | Power panel | Toggle the battery percentage | — |
 | Media | Play/pause | Cover-art popup | Middle: next · scroll: prev/next |
-| Agents | Agents panel | Launch your agent | Middle: next subscription |
+| Agents | Agents panel | Launch your agent | Middle: refresh usage |
 | Tray | Hover to reveal the drawer | Right on the chevron to manage | — |
 | Omarchy update | Run the update | — | — |
 
@@ -46,6 +47,7 @@ Clicking a bar icon opens a panel, which is a proper popup with sliders, lists, 
 | `Super + Ctrl + P` | Power |
 | `Super + Ctrl + Alt + D` | Calendar |
 | `Super + Ctrl + Alt + E` | World clock |
+| `Super + Ctrl + X` | Agents |
 | `Super + Ctrl + 1-9` | Toggle the nth panel in the right section |
 
 The panels aren't read-outs. They're where you actually do the thing:
@@ -74,7 +76,7 @@ Removing either service takes its widget back off the bar.
 
 ## Indicators
 
-The little cluster in the center is the indicators widget. These are status glyphs for modes you've turned on: do not disturb, night light, a queued [reminder](09-reminders.md), an active screen recording, stay awake, and [dictation](11-text-extraction-dictation.md). They light up when the mode is active and otherwise stay out of the way — hover anywhere on the bar to peek at the inactive ones. Clicking an indicator toggles that mode. One more is status only: a remote session lights up red while someone is connected to this machine through gliff.
+The little cluster in the center is the indicators widget. These are status glyphs for modes you've turned on: do not disturb, night light, a queued [reminder](09-reminders.md), an active screen recording, and stay awake, plus warnings while passwordless sudo is on or someone is connected to a remote session. They light up when the mode is active and otherwise stay out of the way — hover just beside them, where the inactive ones would sit, to peek at those. Clicking an indicator toggles that mode. One more is status only: a remote session lights up red while someone is connected to this machine through gliff.
 
 If you'd rather they were always visible, set `alwaysShow` to `true` on the widget. And if you only care about some of them, list the ones you want in `items`: `["Dnd", "Reminder", "NightLight"]`. You can have more than one indicators widget, so different sections can show different subsets.
 

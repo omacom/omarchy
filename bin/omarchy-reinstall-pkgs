@@ -19,6 +19,11 @@ omarchy-update-pacman -Suu --noconfirm
 
 # Ensure this platform's default packages are installed
 default_packages=$(omarchy-pkg-defaults)
+# pipewire-jack conflicts with jack and jack2, and --ask 4 below would remove
+# them for it, so a machine that kept either keeps it.
+if omarchy-pkg-present jack2 || omarchy-pkg-present jack; then
+  default_packages=$(grep -vx pipewire-jack <<<"$default_packages")
+fi
 mapfile -t packages <<<"$default_packages"
 # --ask 4 accepts removing a stock package a default replaces, such as
 # power-profiles-daemon for omarchy-power-profiles-daemon.

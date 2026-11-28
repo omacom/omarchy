@@ -7,7 +7,7 @@ if ! omarchy-hw-match "H7407BA"; then
   exit 0
 fi
 
-omarchy-pkg-add asus-proart-p14-speaker-firmware
+omarchy-pkg-add asus-proart-p14-audio
 
 if omarchy-audio-tuning match >/dev/null 2>&1; then
   omarchy-pkg-add lsp-plugins-lv2

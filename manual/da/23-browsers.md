@@ -1,12 +1,12 @@
 # Browsere
 
-Omarchy leveres med [Chromium](https://www.chromium.org/) som standardbrowser. Det er den almindelige open source-build, tematiseret til at matche resten af dit system, og det er den, `Super + Shift + Return` åbner, og den, som enhver [webapp](25-web-apps.md) kører inde i.
+Omarchy leveres med [Google Chrome](https://www.google.com/chrome/) som standardbrowser. Den er tematiseret, så den matcher resten af dit system, og det er den, `Super + Shift + Return` (eller `Super + Shift + B`) åbner, med `Super + Shift + Alt + B` til et privat vindue, og den, enhver [webapp](25-web-apps.md) kører i. Den åbner direkte i et browservindue: der er ingen velkomstskærm eller loginprompt, brugsstatistik og nedbrudsrapporter bliver ikke sendt til Google, og prompterne om annonceprivatliv er slået fra. Du kan stadig logge ind på din Google-konto fra profilknappen, når som helst du vil have synkronisering.
 
-Hvis Chromium ikke er din smag, sidder du ikke fast med den. Under _Installer > Browser_ i Omarchy-menuen finder du Chrome, Edge, Brave, Brave Origin, Firefox og [Zen](https://zen-browser.app/). Vælg en, og Omarchy installerer den, opsætter dens politikmappe og anvender dit aktuelle tema på den.
+Hvis Chrome ikke er din smag, er du ikke låst fast med den. Under _Install > Browser_ i Omarchy-menuen finder du [Chromium](https://www.chromium.org/) (den helt almindelige open source-version, som Chrome er bygget ud fra), Edge, Brave, Brave Origin, Firefox og [Zen](https://zen-browser.app/) (Edge kun på x86-maskiner). Vælg en, og Omarchy installerer den, opsætter dens politikmappe og anvender dit nuværende tema på den.
 
-## Gøre en til standard
+## Sådan gør du en til standardbrowser
 
-At installere en browser forfremmer den ikke. Når den er på maskinen, skal du gå til _Opsætning > Defaults > Browser_ og vælge den — menuen viser kun browsere, du faktisk har installeret, og markerer den aktuelle standard med et flueben.
+At installere en browser gør den ikke til standard. For at skifte skal du gå til _Setup > Defaults > Browser_ og vælge en. Den nuværende standard er markeret med et flueben, og hvis du vælger en browser, du ikke har endnu, bliver den installeret først.
 
 Fra terminalen er det:
 
@@ -14,26 +14,28 @@ Fra terminalen er det:
 omarchy default browser firefox
 ```
 
-Kør den uden argument, og den fortæller dig den aktuelle standard. Dette sætter XDG-handleren, så det er ikke kun Omarchys genvejstaster, der følger med — alt, der åbner et link, fra en chatapp til en terminalkommando, går til den browser, du valgte.
+Kør den uden argument, og den fortæller dig den nuværende standard. Det sætter XDG-handleren, så det ikke kun er Omarchys genvejstaster, der følger med — alt, hvad der åbner et link, fra en chatapp til en terminalkommando, går til den browser, du har valgt.
 
-## Kopiér URL og Download Video
+## Copy URL og Download Video
 
-Chromium-familiens browsere (Chromium selv, Chrome, Edge og Brave) leveres med to Omarchy-udvidelser, der rækker ud af browseren og ind i resten af dit system.
+Browserne i Chromium-familien (Chromium selv, Chrome, Edge, Brave og Brave Origin) leveres med tre Omarchy-udvidelser: to, der rækker ud af browseren og ind i resten af dit system, og en, der rydder op i WhatsApp.
 
-**Copy URL** sætter den aktuelle fanes adresse på din udklipsholder med `Alt + Shift + L`. Det er hurtigere end at klikke ind i adresselinjen og kopiere, og fordi det går gennem systemets udklipsholder frem for browserens, får du en Omarchy-notifikation, der bekræfter det, og URL'en er øjeblikkeligt tilgængelig i [udklipshistorik](08-unified-clipboard-history.md) og enhver anden app. Der er også en værktøjslinjeknap, hvis du foretrækker at klikke.
+**Copy URL** lægger den aktuelle fanes adresse på din udklipsholder med `Alt + Shift + L`. Det er hurtigere end at klikke ind i adresselinjen og kopiere, og fordi det går gennem systemets udklipsholder i stedet for browserens, får du en Omarchy-notifikation, der bekræfter det, og URL'en er med det samme tilgængelig i [historikken for udklipsholderen](08-unified-clipboard-history.md) og enhver anden app. Der er også en knap på værktøjslinjen, hvis du foretrækker at klikke.
 
-**Download Video** henter videoen, der afspilles på den side, du ser på, med `Alt + Shift + D`. Den overlader URL'en til [yt-dlp](https://github.com/yt-dlp/yt-dlp), så den virker på langt mere end YouTube, og downloadet lander i `~/Videos`. Fremskridt vises i det samme skærmdisplay, som lydstyrke og lysstyrke bruger, og opdateres på stedet frem for at stable notifikationer op. Sæt `OMARCHY_YTDLP_DIR`, hvis du hellere vil have filerne et andet sted hen — se [FAQ](46-faq.md) for, hvor miljøvariabler skal placeres.
+**Download Video** henter den video, der afspilles på den side, du kigger på, med `Alt + Shift + D`. Den giver URL'en videre til [yt-dlp](https://github.com/yt-dlp/yt-dlp), så den virker på langt mere end YouTube, og downloadet lander i `~/Videos`. Fremskridtet vises i den samme skærmvisning, som lydstyrke og lysstyrke bruger, og opdateres på stedet i stedet for at stable notifikationer op. Sæt `OMARCHY_YTDLP_DIR`, hvis du hellere vil have, at filerne havner et andet sted — se [FAQ](46-faq.md) for, hvor du skal placere miljøvariabler.
 
-Begge udvidelser taler med Omarchy gennem en lille native messaging host, som installeres for dig sammen med browseren. Det er den del, der lader en websides video ende i din hjemmemappe og en URL ende i din udklipsholderhåndtering, hvilket en normal udvidelse ikke kan gøre på egen hånd.
+Begge udvidelser taler med Omarchy gennem en lille native messaging host, som bliver installeret for dig sammen med browseren. Det er den del, der lader en websides video ende i din hjemmemappe og en URL ende i din udklipsholderstyring, hvilket en normal udvidelse ikke kan gøre på egen hånd.
+
+**WhatsApp Slim** får WhatsApp Web til at følge dit systemtema og folder dens chatliste sammen, når vinduet er smalt.
 
 Disse er kun til Chromium-familien. Firefox og Zen får dem ikke.
 
 ## Firefox og Zen
 
-Firefox og Zen er en anden familie, så de får en anden behandling: Omarchy installerer en politikfil til fornuftige standarder og skifter dem til native Wayland-tilstand, som du ønsker til brøkskalering og jævn pegefelt-rulning.
+Firefox og Zen er en anden familie, så de får en anden behandling: Omarchy installerer en politikfil med fornuftige standarder og skifter dem til native Wayland-tilstand, hvilket du vil have til fraktioneret skalering og jævn rulning med pegepladen.
 
-De får ikke Chromium-udvidelserne ovenfor, og de tematiseres ikke af Omarchy, så de dele af oplevelsen er dine at sætte op.
+De får ikke Chromium-udvidelserne ovenfor, og de bliver ikke tematiseret af Omarchy, så de dele af oplevelsen skal du selv sætte op.
 
-## Fjerne en igen
+## Sådan fjerner du en igen
 
-Alt, hvad du har installeret her, kan tages af igen under _Fjern > Browser_. Chromium er ikke på den liste — den er en del af basissystemet.
+Enhver af disse browsere, Chrome inklusive, kan fjernes igen under _Remove > Browser_. Links går derefter til Chrome eller Chromium, hvis den anden stadig er installeret.

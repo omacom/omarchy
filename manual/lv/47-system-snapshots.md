@@ -1,27 +1,37 @@
 # Sistēmas momentuzņēmumi
 
-Mēs automātiski izveidojam momentuzņēmumus katrā Omarchy atjauninājumā, bet, ja vēlaties izveidot savu, varat izmantot `omarchy-snapshot create`.
+Mēs automātiski izveidojam momentuzņēmumus pie katra Omarchy atjauninājuma, bet, ja vēlaties izveidot savējo, varat izmantot `omarchy-snapshot create`.
 
-Lai sāknētu un atjaunotu momentuzņēmumu, izvēlieties to Limine sāknēšanas ielādētājā. (Ja pašlaik sāknējaties tieši Omarchy atšifrēšanas ekrānā, vispirms BIOS būs jāizvēlas Limine kā sāknēšanas opcija).
+Tas, kā jūs sāknējaties momentuzņēmumā un atjaunojat no tā, ir atkarīgs no sāknēšanas ielādētāja, ar kuru jūsu dators startējas. Jaunās UEFI instalācijās tiek izmantots systemd-boot; vecākās instalācijās un BIOS datoros tiek izmantots Limine. `omarchy-boot-backend` pateiks, kurš no tiem ir jums.
 
-Tajā ekrānā izvēlieties momentuzņēmumu, kurā vēlaties sāknēties, pēc datuma un versijas. Omarchy versiju momentuzņēmuma izveides laikā var redzēt apakšējā kreisajā stūrī.
+## Ar systemd-boot
+
+Omarchy izvēlnē izvēlieties _System > Snapshots_ un izvēlieties momentuzņēmumu, kurā vēlaties sāknēties. Dators tajā restartēsies vienu reizi. Vai arī turiet nospiestu Space, kamēr dators startējas, lai redzētu sāknēšanas izvēlni, kurā katrs momentuzņēmums ir uzskaitīts, sākot ar jaunāko, norādot tā Omarchy versiju un datumu.
+
+Momentuzņēmums sāknējas ar pagaidu slāni virspusē, tāpēc varat to lietot kā parasti, bet viss, ko izmainīsiet, nākamajā restartēšanā būs pazudis. Lai to saglabātu, padariet to par savu sistēmu: noklikšķiniet uz paziņojuma, kas parādās, kad piesakāties, izvēlieties _System > Snapshots > Restore This Snapshot_ vai palaidiet `omarchy-snapshot restore`. Atjaunošana notiek, kamēr dators restartējas. Sistēma, kāda tā bija iepriekš, sāknēšanas izvēlnē paliek kā _Before restore_, un `omarchy-snapshot restore backup` to atgriež atpakaļ.
+
+No termināļa:
+
+- `omarchy-snapshot list` uzskaita momentuzņēmumus, kuros varat sāknēties;
+- `omarchy-snapshot boot 12` vienu reizi restartējas momentuzņēmumā 12;
+- `omarchy-snapshot restore 12` padara momentuzņēmumu 12 par sistēmu nākamajā restartēšanā, un `omarchy-snapshot restore --cancel` ļauj pārdomāt pirms šīs restartēšanās.
+
+## Ar Limine
+
+Lai sāknētos momentuzņēmumā un atjaunotu no tā, izvēlieties to Limine sāknēšanas ielādētājā. Sāknēšanas izvēlne pēc noklusējuma paliek paslēpta, tāpēc nospiediet jebkuru taustiņu, tiklīdz Limine startējas, lai to parādītu.
+
+Šajā ekrānā izvēlieties momentuzņēmumu, kurā vēlaties sāknēties, pēc datuma un versijas. Omarchy versiju momentuzņēmuma izveides brīdī var redzēt apakšējā kreisajā stūrī.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Kad būsiet iekšā, parādīsies paziņojums, kas informēs, ka atrodaties sāknējamā momentuzņēmumā, un, ja uz tā noklikšķināsiet, sāksies atjaunošanas process. Varat arī izmantot `omarchy-snapshot restore`.
+Kad būsiet tajā iekšā, parādīsies paziņojums, kas informēs, ka atrodaties sāknējamā momentuzņēmumā, un, ja noklikšķināsiet uz tā, sāksies atjaunošanas process. Alternatīvi varat izmantot `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Tas atjaunos jūsu saknes failu sistēmu, bet ne jūsu `/home`. Tāpēc tas der bojāta sistēmas atjauninājuma atcelšanai, bet ne zaudētu personīgo failu atgūšanai.
+## Ko aptver atjaunošana
 
-Tas arī nozīmē, ka jūsu `~/.config` direktorijs paliek tāds, kāds tas ir. Tāpēc, ja atgriežaties pie vecākas bibliotēkas vai lietojumprogrammas versijas, kas konfigurācijas failus glabā jaunā formātā, jums tas būs jāatrisina pašam.
+Atjaunošana atgriež jūsu saknes failu sistēmu, bet ne jūsu `/home`. Tāpēc tā der bojāta sistēmas atjauninājuma atcelšanai, bet ne zaudētu personīgo failu atgūšanai.
 
-Tas pats attiecas uz paša Omarchy ierakstu par to, kuras migrācijas jau ir palaistas: tas atrodas jūsu mājas direktorijā, tāpēc tas pārdzīvo atjaunošanu. Migrācijas, kas palaistas pēc momentuzņēmuma izveides, paliek atzīmētas kā pabeigtas, lai gan to veiktās izmaiņas saknes failu sistēmā ir atceltas, un nākamais `omarchy update` tās vairs nepalaidīs vēlreiz. Tāpēc, ja pēc atjaunošanas atjaunināt vēlreiz un kaut kas, ko iepriekšējais atjauninājums bija iestatījis, joprojām trūkst, tas, visticamāk, ir iemesls.
+Tas nozīmē arī to, ka jūsu `~/.config` direktorija paliek tāda, kāda tā ir. Tāpēc, ja atgriežaties pie bibliotēkas vai lietojumprogrammas senākas versijas, kas konfigurācijas failus glabā jaunā formātā, jums tas būs jāsakārto pašam.
 
-_Piezīme: Šī funkcija ir pieejama tikai instalācijās, kas izmanto Limine sāknēšanas ielādētāju, kas ir noklusējums kopš Omarchy 2.0. Tā nav pieejama, ja izmantojat GRUB vai systemd-boot._
-
-### Sāknēšanas izvēlnes izlaišana
-
-Ja nekad neaiztiekat sāknēšanas izvēlni un vēlaties, lai dators dotos tieši uz atšifrēšanas ekrānu, Omarchy izvēlnē palaidiet _Setup > Direct Boot_. Tas pievieno EFI ierakstu, kas norāda tieši uz Omarchy, tāpēc programmaparatūra to sāknē, neapstājoties pie Limine.
-
-Kompromiss ir tas pats, kas minēts sākumā: ja tiešā sāknēšana ir ieslēgta, lai piekļūtu momentuzņēmumam, vispirms BIOS sāknēšanas izvēlnē jāizvēlas Limine. Palaidiet _Setup > Direct Boot_ vēlreiz, lai noņemtu ierakstu un atgrieztos pie sāknēšanas caur Limine. Daža programmaparatūra nelabvēlīgi izturas pret pielāgotiem EFI ierakstiem, tāpēc iestatīšana atsakās darboties American Megatrends un Apple programmaparatūrā.
+Tas pats attiecas uz paša Omarchy ierakstu par to, kuras migrācijas jau ir palaistas: tas atrodas jūsu mājas direktorijā, tāpēc atjaunošanu pārdzīvo. Migrācijas, kas palaistas pēc momentuzņēmuma uzņemšanas, paliek atzīmētas kā paveiktas, pat ja to veiktās izmaiņas saknes failu sistēmā ir atceltas, un nākamais `omarchy update` tās vairs nepalaidīs. Tāpēc, ja pēc atjaunošanas atjaunināt vēlreiz un kaut kas, ko iepriekšējais atjauninājums bija iestatījis, joprojām trūkst, tas, visticamāk, ir iemesls.

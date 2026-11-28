@@ -1,0 +1,162 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Preview a theme an agent made as a desktop, without applying it
+# omarchy:args=<theme-dir> [--out file.png]
+# omarchy:examples=omarchy agent look theme ~/.config/omarchy/themes/tea-house
+
+# Draws the theme as it would look on screen: its first background with a
+# bar, a focused terminal and an unfocused window in the theme's colors. An
+# agent sees its theme whole without switching the user's desktop to it.
+# Prints the problems a person would notice: missing colors, text that is hard
+# to read, and backgrounds that are too small, too bright for a dark theme, or
+# nearly empty. Exits 1 when it found any.
+import os, re, subprocess, sys, tempfile
+
+args = sys.argv[1:]
+if not args or args[0].startswith("-"):
+    sys.exit("Usage: omarchy agent look theme <theme-dir> [--out file.png]")
+theme = args[0]
+out = args[args.index("--out") + 1] if "--out" in args else tempfile.mkstemp(suffix=".png", prefix="look-")[1]
+REQUIRED = ["mode", "accent", "selection", "muted", "background", "dark_background", "darker_background",
+            "lighter_background", "foreground", "dark_foreground", "light_foreground", "bright_foreground",
+            "red", "yellow", "green", "cyan", "blue", "magenta", "bright_red", "bright_yellow", "bright_green",
+            "bright_cyan", "bright_blue", "bright_magenta"]
+
+colors = {}
+path = os.path.join(theme, "colors.toml")
+if os.path.exists(path):
+    for line in open(path, encoding="utf-8", errors="replace"):
+        # As omarchy-theme-color reads it: what is between the quotes.
+        m = re.match(r'\s*([a-z_]+)\s*=\s*(?:["\']([^"\']*)["\']|(.*?)\s*$)', line)
+        if m:
+            colors[m.group(1)] = m.group(2) if m.group(2) is not None else m.group(3)
+
+problems = []
+missing = [k for k in REQUIRED if k not in colors]
+if not os.path.exists(path):
+    problems.append("no colors.toml")
+elif missing:
+    problems.append("colors.toml is missing: " + ", ".join(missing))
+
+
+def valid(key):
+    return re.fullmatch(r"#[0-9A-Fa-f]{6}", colors.get(key, "")) is not None
+
+
+# The preview draws gray for a color it can't read, so say which those are.
+invalid = [f"{k} {colors[k]}" for k in REQUIRED if k != "mode" and k in colors and not valid(k)]
+if invalid:
+    problems.append("colors.toml has colors that aren't #rrggbb: " + ", ".join(invalid))
+
+
+def c(key, fallback="#888888"):
+    return colors[key] if valid(key) else fallback
+
+
+def luminance(hex_):
+    r, g, b = (int(hex_[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    f = lambda x: x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+
+def contrast(a, b):
+    la, lb = sorted((luminance(a), luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+bg = c("background", "#1e1e2e")
+for key, minimum in [("foreground", 7), ("accent", 3), ("dark_foreground", 3), ("red", 3), ("green", 3), ("yellow", 3), ("blue", 3)]:
+    if valid(key):
+        ratio = contrast(c(key), bg)
+        if ratio < minimum:
+            problems.append(f"{key} {c(key)} on background {bg} has contrast {ratio:.1f}:1, under {minimum}:1, so it is hard to read")
+if valid("selection") and contrast(c("foreground"), c("selection")) < 4.5:
+    problems.append(f"foreground on selection has contrast {contrast(c('foreground'), c('selection')):.1f}:1, under 4.5:1")
+mode = colors.get("mode", "dark")
+if mode == "dark" and luminance(bg) > 0.2:
+    problems.append(f"mode is dark but background {bg} is light")
+
+bgdir = os.path.join(theme, "backgrounds")
+images = sorted(f for f in os.listdir(bgdir) if not f.startswith("omarchy.") and os.path.isfile(os.path.join(bgdir, f))) if os.path.isdir(bgdir) else []
+if not images:
+    problems.append("no backgrounds (besides omarchy.*) in backgrounds/")
+for name in images:
+    p = os.path.join(bgdir, name)
+    try:
+        info = subprocess.run(["magick", p, "-format", "%w %h %[fx:mean] %[fx:standard_deviation]", "info:"],
+                              capture_output=True, text=True, timeout=30).stdout.split()
+        w, h, mean, sd = int(info[0]), int(info[1]), float(info[2]), float(info[3])
+    except Exception:
+        problems.append(f"backgrounds/{name} can't be read as an image")
+        continue
+    if w < 1920 or h < 1080:
+        problems.append(f"backgrounds/{name} is {w}x{h}, under 1920x1080, so it will look blurry")
+    if mode == "dark" and mean > 0.65:
+        problems.append(f"backgrounds/{name} is bright (mean {mean:.2f}) for a dark theme; light text on it will be hard to read")
+    if sd < 0.02:
+        problems.append(f"backgrounds/{name} is nearly flat (std dev {sd:.3f}); it looks empty")
+
+W, H = 1280, 720
+mono = subprocess.run(["fc-match", "-f", "%{file}", "monospace"], capture_output=True, text=True).stdout or "DejaVu-Sans-Mono"
+args = ["magick"]
+if images:
+    args += [os.path.join(bgdir, images[0]), "-resize", f"{W}x{H}^", "-gravity", "center", "-extent", f"{W}x{H}", "-gravity", "NorthWest"]
+else:
+    args += ["-size", f"{W}x{H}", f"xc:{c('darker_background', bg)}"]
+
+draw = []
+def rect(x0, y0, x1, y1, fill, stroke=None, width=0):
+    draw.extend(["-fill", fill, "-stroke", stroke or "none", "-strokewidth", str(width), "-draw", f"rectangle {x0},{y0} {x1},{y1}"])
+def text(x, y, s, fill, size=15):
+    draw.extend(["-stroke", "none", "-fill", fill, "-font", mono, "-pointsize", str(size), "-annotate", f"+{x}+{y}", s])
+
+# Bar
+rect(0, 0, W, 30, c("background") + "e6")
+for i, ws in enumerate("12345"):
+    if i == 0:
+        rect(10 + i * 28, 6, 32 + i * 28, 24, c("accent"))
+    text(16 + i * 28, 21, ws, c("background") if i == 0 else c("foreground"), 13)
+text(W // 2 - 60, 21, "Sunday 21:14", c("foreground"), 13)
+text(W - 150, 21, "wifi  vol  bat", c("dark_foreground"), 13)
+# Focused terminal
+rect(80, 70, 760, 640, c("background") + "f2", c("accent"), 3)
+lines = [
+    [("~/Work", "blue"), (" ❯ ", "accent"), ("ls -la", "foreground")],
+    [("drwxr-xr-x", "dark_foreground"), (" src/", "blue"), ("  README.md", "foreground"), ("  build.sh", "green")],
+    [("~/Work", "blue"), (" ❯ ", "accent"), ("git status", "foreground")],
+    [("modified:   ", "red"), ("src/theme.cpp", "foreground")],
+    [("new file:   ", "green"), ("src/preview.qml", "foreground")],
+    [("warning: ", "yellow"), ("2 files not staged", "foreground")],
+    [("info: ", "cyan"), ("a ", "foreground"), ("magenta", "magenta"), (" word, a ", "foreground"), ("muted", "muted"), (" one", "foreground")],
+]
+for row, parts in enumerate(lines):
+    x = 104
+    for s, key in parts:
+        text(x, 112 + row * 30, s, c(key, c("foreground")))
+        x += 9 * len(s) + 2
+rect(96, 112 + 7 * 30 - 18, 744, 112 + 7 * 30 + 8, c("selection"))
+text(104, 112 + 7 * 30, "selected text on the selection color", c("foreground"))
+for i, key in enumerate(["red", "yellow", "green", "cyan", "blue", "magenta"]):
+    rect(104 + i * 100, 400, 190 + i * 100, 440, c(key))
+    rect(104 + i * 100, 446, 190 + i * 100, 486, c("bright_" + key))
+text(104, 530, "accent", c("accent"))
+rect(180, 512, 300, 540, c("accent"))
+text(320, 530, "lighter_background", c("foreground"))
+rect(500, 512, 600, 540, c("lighter_background"))
+# Unfocused window
+rect(800, 70, 1200, 640, c("dark_background") + "f2", c("muted"), 2)
+text(824, 112, "Unfocused window", c("dark_foreground"))
+text(824, 142, "dark_foreground text", c("dark_foreground"))
+text(824, 172, "foreground text", c("foreground"))
+text(824, 202, "light_foreground text", c("light_foreground"))
+
+result = subprocess.run(args + draw + [out], capture_output=True, text=True, timeout=60)
+if result.returncode != 0:
+    print("preview failed: " + result.stderr.strip()[:300], file=sys.stderr)
+    sys.exit(1)
+print(f"screenshot: {out}")
+print(f"backgrounds: {len(images)} ({', '.join(images[:6])})")
+print("problems:" if problems else "problems: none")
+for p in problems:
+    print("  - " + p)
+sys.exit(1 if problems else 0)

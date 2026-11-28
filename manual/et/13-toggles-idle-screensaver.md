@@ -1,32 +1,36 @@
-# Lülitid, tegevusetus ja ekraanisäästja
+# Lülitid, jõudeolek ja ekraanisäästja
 
-Suur osa sellest, mida sa päevast päeva muudad, ei ole õieti seade. See on režiim, mille lülitad tunniks ajaks sisse ja siis jälle välja: öövalgus, kui töötad hilja, ära sega, kui esitled, püsi ärkvel, kui midagi vaatad. Omarchy nimetab neid lülititeks ja need kõik töötavad ühtemoodi — kiirklahv, menüükirje ja käsk, mis kõik vajutavad sama lülitit.
+Palju sellest, mida sa iga päev muudad, ei ole tegelikult seade. See on režiim, mille lülitad tunniks ajaks sisse ja siis jälle välja: öövalgus, kui töötad hilja, mitte segada režiim, kui esitled, ärkvel püsimine, kui midagi vaatad. Omarchy nimetab neid lülititeks ja need kõik töötavad samamoodi — kiirklahv, menüüpunkt ja käsk tabavad kõik ühte ja sama lülitit.
 
 ### Lülitite menüü
 
-`Super + Ctrl + O` avab otse _Trigger > Toggle_, või saad sinna kõndida Omarchy menüüst (`Super + Space`). Kõik selles loendis on lülitid, mida saad vajutada, mõtlemata sellele, kus olek elab. Lülitid selle kohta, kuidas töölaud välja näeb, istuvad selle kõrval, _Appearance_ all.
+`Super + Ctrl + O` avab otse _Päästik > Lüliti_ või saad sinna kõndida Omarchy menüüst (`Super + Space`). Kõik selles loendis olevad asjad on lülitid, mida saad ümber lülitada, mõtlemata sellele, kus olek elab. Lülitid selle kohta, kuidas töölaud välja näeb, asuvad selle kõrval, _Välimus_ all.
 
-Terminalist on samad lülitid `omarchy toggle <thing>`. Käivita `omarchy toggle` omaette, et näha kogu rühma.
+Terminalist on samad lülitid `omarchy toggle <thing>`. Käivita `omarchy toggle` üksinda, et näha kogu rühma.
 
-| Toggle | Hotkey | Command |
+| Lüliti | Kiirklahv | Käsk |
 | ------ | ------ | ------- |
 | Öövalgus | — | `omarchy toggle nightlight` |
-| Vaigista märguanded | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
-| Püsi ärkvel (tegevusetusel ei lukusta) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Krahhi salvestamine | — | `omarchy toggle crash-capture` |
+| Vaigista teavitused | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Püsi ärkvel (jõudeolekul ei lukustata) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Kokkujooksmise jäädvustamine | — | `omarchy toggle crash-capture` |
 | Ekraanisäästja | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) teema sünkroonimine | — | `omarchy toggle theme sync` |
 | Menüüriba | `Super + Shift + Space` | `omarchy toggle bar` |
-| Puuteplaat | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Puuteekraan | — | `omarchy toggle touchscreen` |
+| Täisekraan-töölaud (ilma ribata, ilma vahedeta) | `Super + Ctrl + Alt + F` | `omarchy toggle fullscreen desktop` |
+| Animatsioonid, hägusus ja varjud | — | `omarchy toggle animations` |
+| Puuteplaat | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Puuteekraan | — | `omarchy device touchscreen` |
 | Peatamine | — | `omarchy toggle suspend` |
-| Hübriid-GPU | — | `omarchy toggle hybrid gpu` |
+| Hübriid-GPU | — | `omarchy device gpu hybrid` |
 
-Puuteplaadi, puuteekraani ja hübriid-GPU lülitid elavad _Trigger > Hardware_ all (`Super + Ctrl + H`), mitte Toggle all, sest need ilmuvad ainult siis, kui sul selline riistvara päriselt on. Puuteplaadi ja puuteekraani omad elavad Hyprland taaslaadimise üle — keelatud seadme nimi salvestatakse väikesesse olekufaili, mida Hyprland loeb käivitamisel, et see uuesti keelata.
+Puuteplaadi, puuteekraani ja hübriid-GPU lülitid elavad _Lüliti_ asemel _Päästik > Riistvara_ (`Super + Ctrl + H`) all, kuna need ilmuvad ainult siis, kui sul see riistvara tegelikult olemas on. Puuteplaadi ja puuteekraani omad jäävad Hyprland uuesti laadimisest ellu — keelatud seadme nimi salvestatakse väikesesse olekufaili, mida Hyprland käivitamisel loeb, et see uuesti keelata.
 
-_Appearance_ hoiab menüüriba ja animatsioone ning paari asja, mis ei ole `omarchy toggle` käsud, kuid käituvad samamoodi: aku protsent ribal, tööruumi vaikepaigutus ja _Windows_ all akende vahed (`Super + Shift + Backspace`) ning 1 akna ruudukujuline suhe (`Super + Ctrl + Backspace`).
+_Välimus_ hoiab menüüriba ja animatsioone ning lisaks mõnda asja, mis ei ole `omarchy toggle` käsud, aga käituvad samamoodi: aku protsent ribal, tööruumide vaikepaigutus ja _Aknad_ all aknavahed (`Super + Shift + Backspace`) ja 1 akna ruudukujuline kuvasuhe (`Super + Ctrl + Backspace`).
 
-Enamik neist on lihtsalt lipufail `~/.local/state/omarchy/toggles/` all. Kui tahad skriptis ühe põhjal hargneda, annab `omarchy-toggle-enabled` sulle väljundkoodi, selle asemel et sind otsima saata:
+Kui Hyprlandil ei ole GPU-d, millega joonistada, ja see renderdab selle asemel CPU-ga (llvmpipe), nagu Macidel, mille GPU-d veel ei toetata, enamikus virtuaalmasinates või kui graafikadraiver ei laadi, lülitab Omarchy selle sessiooni ajaks animatsioonid, hägususe ja varjud välja ja ütleb sulle seda korra teavitusega. _Välimus > Animatsioonid sees_ toob need tagasi ja Omarchy jätab selle ka hilisemate sessioonide jaoks meelde.
+
+Enamik neist on lihtsalt lipufail kausta `~/.local/state/omarchy/toggles/` all. Kui tahad skriptis mõne põhjal hargneda, annab `omarchy-toggle-enabled` sulle otsimise asemel väljundkoodi:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
@@ -36,15 +40,15 @@ Lipud on nimetatud väljalülitatud oleku järgi — `screensaver-off`, `suspend
 
 ### Näidikud ribal
 
-Kui režiim on sees, saad ülariba keskele kella kõrvale väikese glüüfi. See on näidikute vidin ja see kannab dikteerimist, ekraani salvestamist, ootel meeldetuletusi, öövalgust, ära sega režiimi ja ärkvel püsimist.
+Kui režiim on sees, saad ülemise riba keskele kella kõrvale väikese kujutise. See on näidikute vidin ja see kannab ekraanisalvestust, ootel meeldetuletusi, öövalgust, mitte segada režiimi ja ärkvel püsimist, lisaks hoiatusi, kui paroolita sudo on sees või keegi on kaugsessiooniga ühendatud.
 
-Mitteaktiivsed näidikud on peidetud. Liigu hiirega ükskõik kuhu ribale ja need ilmuvad tuhmilt, nii et saad ühele klõpsata, et see sisse lülitada, ilma selle kiirklahvi teadmata. Aktiivsele klõpsamine lülitab selle jälle välja. Kui eelistad näha neid kõiki kogu aeg, sea `~/.config/omarchy/shell.json` failis kirje `omarchy.indicators` juures `alwaysShow` väärtuseks `true` — vaata [ülemist riba](05-the-top-bar.md), kuidas riba vidinaid seadistatakse.
+Mitteaktiivsed näidikud on peidetud. Hõlju kursoriga ükskõik kus ribal ja need tuhmuvad sisse, nii et saad ühele klõpsata, et see sisse lülitada, ilma selle kiirklahvi teadmata. Aktiivsele klõpsamine lülitab selle uuesti välja. Kui eelistad neid kõiki kogu aeg näha, määra `alwaysShow` väärtuseks `true` kirjel `omarchy.indicators` failis `~/.config/omarchy/shell.json` — vaata [ülemist riba](05-the-top-bar.md), kuidas riba vidinaid konfigureeritakse.
 
 ### Öövalgus
 
 Öövalgus soojendab ekraani 4000K-ni ja selle uuesti lülitamine paneb selle tagasi 6500K peale. Lülita seda lülitite menüüst (`Super + Ctrl + O`) või käsuga `omarchy toggle nightlight`. Seda juhib hyprsunset, mille lüliti käivitab sinu eest, kui see juba ei tööta.
 
-Vaikimisi ei tee hyprsunset sinu ekraaniga üldse midagi. `~/.config/hypr/hyprsunset.conf` tuleb identiteediprofiiliga just selleks, et ekraan püsiks puutumata, kuni soojust küsid. Kui eelistad, et see lülituks kella järgi, asenda see ajaprofiiliga:
+Vaikimisi ei tee hyprsunset sinu ekraaniga üldse midagi. `~/.config/hypr/hyprsunset.conf` tuleb identiteediprofiiliga just selleks, et ekraan jääks puutumata, kuni sa soojust küsid. Kui eelistad, et see lülituks kella järgi, asenda see ajaprofiiliga:
 
 ```
 profile {
@@ -53,19 +57,19 @@ profile {
 }
 ```
 
-Seejärel käivita hyprsunset sisselogimisel, lisades `o.launch_on_start("hyprsunset")` faili `~/.config/hypr/autostart.lua`. Lüliti kasutatav 4000K/6500K paar on fikseeritud, nii et seadistusfail on koht, kuhu minna, kui tahad teistsugust temperatuuri.
+Seejärel käivita hyprsunset sisselogimisel, lisades `o.launch_on_start("hyprsunset")` faili `~/.config/hypr/autostart.lua`. Lüliti kasutatav 4000K/6500K paar on fikseeritud, nii et konfiguratsioonifail on koht, kuhu minna, kui tahad teistsugust temperatuuri.
 
-### Ära sega
+### Mitte segada
 
-`Super + Ctrl + Alt + ,` vaigistab märguanded. Sel ajal, kui see on sees, ei hüppa ühtegi teadet esile ja läbikriipsutatud kella näidik istub ribal, et tuletada meelde, miks töölaud on vaikseks jäänud.
+`Super + Ctrl + Alt + ,` vaigistab teavitused. Kuni see on sees, ei ilmu ühtegi riba ja läbikriipsutatud kella näidik istub ribal, et sulle meelde tuletada, miks töölaud on vaiksemaks jäänud.
 
-Midagi ei lähe siiski kaotsi. Vaigistatud märguanded hoitakse tagasi: pane viimased paarid `Super + Shift + Alt + ,` abil ekraanile tagasi. Ülejäänu kohta vaata [märguandeid](10-notices.md).
+Midagi ei lähe aga kaduma. Vaigistatud teavitused hoitakse tagasi: pane viimased paar tükki `Super + Shift + Alt + ,` abil uuesti ekraanile. Ülejäänu kohta vaata [teateid](10-notices.md).
 
-Kahte liiki sõnumid pääsevad siiski läbi: Omarchy enda kinnitusteated millegi kohta, mida just tegid ("Theme changed", "Screenshot saved"), ja käsurealt saadetud kriitilised hoiatused. Vestlusrakendused, mis märgivad kõik kriitiliseks, et end sinu ette suruda, ei kvalifitseeru.
+Kolme liiki sõnumid pääsevad ikka läbi: Omarchy enda kinnitusteaded millegi kohta, mida sa just tegid ("Theme changed", "Screenshot saved"), käsurealt saadetud kriitilised hoiatused ja kinnituskoodid. Vestlusrakendused, mis märgivad kõik kriitiliseks, et end sinu ette sundida, ei kvalifitseeru.
 
-### Tegevusetus
+### Jõudeolek
 
-Omarchy kest omab tegevusetuse käitumist ja ajastused on ülemise taseme `idle` plokk failis `~/.config/omarchy/shell.json`:
+Omarchy kest omab jõudeoleku käitumist ja ajastused on ülemise taseme `idle` plokk failis `~/.config/omarchy/shell.json`:
 
 ```json
 {
@@ -77,26 +81,26 @@ Omarchy kest omab tegevusetuse käitumist ja ajastused on ülemise taseme `idle`
 }
 ```
 
-Mõlemad numbrid on sekundid, mida loetakse hetkest, mil jäid tegevusetuks — mitte teineteisest. Nii et vaikeseadetega tuleb ekraanisäästja ette kahe ja poole minuti pärast ja lukustuskuva võtab viie minuti kohal üle, olenemata sellest, kas ekraanisäästja töötas. Salvesta fail ja kest võtab uued ajastused kohe kasutusele.
+Mõlemad numbrid on sekundid, mida loetakse hetkest, mil sa jõude jäid — mitte üksteisest. Nii et vaikeseadetega tuleb ekraanisäästja üles kahe ja poole minuti pärast ja lukustuskuva võtab viie minuti kohal üle, olenemata sellest, kas ekraanisäästja töötas või mitte. Salvesta fail ja kest võtab uued ajastused kohe kasutusele.
 
-Kui lükkad ekraanisäästja enne lukustustähtaega ära, loeb see tegevuseks ja ootel lukustus tühistatakse. Sind ei lukustata välja selle eest, et oma masinale pilgu heidad.
+Kui lükkad ekraanisäästja enne lukustamise tähtaega kõrvale, loetakse see aktiivsuseks ja ootel lukustus tühistatakse. Sind ei lukustata välja selle eest, et sa oma masinale pilgu heidad.
 
-Et tegevusetusel lukustamine täielikult peatada, lülitab `Super + Ctrl + I` — või `omarchy toggle idle` — sisse ärkvel püsimise ja ribale ilmub kohvitassi näidik. See on see, mida vajutada enne pikka esitlust või ehitust, mida tahad jälgida. Vajuta uuesti, et normaalsuse juurde tagasi minna. `omarchy toggle idle status` prindib praeguse oleku JSON-ina, kui sul on seda skriptist vaja.
+Et jõudeolekul lukustamine täielikult peatada, lülitab `Super + Ctrl + I` — või `omarchy toggle idle` — ärkvel püsimise sisse ja ribale ilmub kohvitassi näidik. See on see, mida vajutada enne pikka esitlust või järge, mida vaadata tahad. Vajuta seda uuesti, et normaalsuse juurde tagasi minna. `omarchy toggle idle status` prindib praeguse oleku JSON-ina, kui sul seda skriptist vaja on.
 
-See käib lukustamise ja ekraanisäästja, mitte toite kohta. Peatamisel ja talveunel on oma seadistus [süsteemi unes](36-system-sleep.md).
+See puudutab lukustamist ja ekraanisäästjat, mitte toidet. Peatamisel ja talveunel on oma seadistus [süsteemi unerežiimis](36-system-sleep.md).
 
 ### Ekraanisäästja
 
-Omarchy ekraanisäästja on ASCII kunst, mis jookseb läbi juhuslike tekstiefektide, üks eksemplar iga monitori kohta. Mis tahes klahv või hiireliigutus väljub sellest.
+Omarchy ekraanisäästja on ASCII-kunst, mis läbib juhuslikke tekstiefekte, iga monitori kohta üks eksemplar. Suvaline klahv või hiire liigutus väljub sellest.
 
-Saad selle nõudmisel käivitada _System > Screensaver_ alt (`Super + Esc`), mis surub selle ette isegi siis, kui oled tegevusetuse ekraanisäästja välja lülitanud. Vaikimisi ei ole sellele kiirklahvi seotud.
+Saad selle nõudmisel käivitada _Süsteem > Ekraanisäästja_ (`Super + Esc`) alt, mis sunnib selle üles isegi siis, kui oled jõudeoleku ekraanisäästja välja lülitanud. Sellele ei ole vaikimisi kiirklahvi seotud.
 
-`omarchy toggle screensaver` on see, mis tegevusetuse oma välja lülitab, kui eelistad minna töötamisest otse lukustatuks. Mis tahes klahv, klõps, kerimine või hiireliigutus sulgeb selle.
+`omarchy toggle screensaver` on see, mis jõudeoleku oma välja lülitab, kui eelistad minna otse töötamisest lukustatuks. Suvaline klahv, klõps, kerimine või hiire liigutus sulgeb selle.
 
-Logo, mille see joonistab, saad ise muuta, _Appearance > Branding > Screensaver_ all. Laadi üles png või svg ja Omarchy teisendab selle ASCII-ks. Vaata [brändingut](41-branding.md).
+Logo, mida see joonistab, on sinu muuta, _Välimus > Bränding > Ekraanisäästja_ all. Laadi üles png või svg ja Omarchy teisendab selle ASCII-ks. Vaata [brändingut](41-branding.md).
 
 ### Lukustuskuva
 
-`Super + Ctrl + L` lukustab masina. See käivitab Omarchy kesta lukustuskuva, tumestab ekraani, lähtestab klaviatuuripaigutuse esimesele, et sa ei trükiks oma parooli vales tähestikus, ja — kui see sul töötab — lukustab väljaminekul 1Password.
+`Super + Ctrl + L` lukustab masina. See käivitab Omarchy kestast lukustuskuva, tühjendab ekraani, lähtestab sinu klaviatuuripaigutuse esimesele, et sa ei kirjutaks oma parooli vales tähestikus, ja — kui sul see töötab — lukustab väljapääsul 1Passwordi.
 
-Lukustuskuva võtab parooli ja võtab ka sõrmejälje, kui oled selle seadistanud. See ja muud autentimisviisid on kaetud [riistvaralises autentimises](37-hardware-authentication.md).
+Lukustuskuva võtab parooli ja see võtab ka sõrmejälje, kui oled selle seadistanud. See ja muud autentimisviisid on kaetud [riistvaralises autentimises](37-hardware-authentication.md).

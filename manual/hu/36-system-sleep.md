@@ -1,21 +1,21 @@
 # Rendszeralvás
 
-Az Omarchy alapértelmezetten engedélyezi a felfüggesztést és a hibernálást, de ha bármelyikkel problémád van a gépeden, kikapcsolhatod őket.
+Az Omarchy alapértelmezetten engedélyezi a felfüggesztést, a beállítása után pedig a hibernálást is, de ha bármelyikkel gondod van a gépeden, kikapcsolhatod őket.
 
-Az NVIDIA GB10 gépeken, például a DGX Spark és az ASUS Ascent GX10 esetében a felfüggesztés és a hibernálás ki van kapcsolva, ahogyan az NVIDIA DGX OS rendszerében is, mert még nem bizonyított, hogy az alvás működik ezen a hardveren. A felfüggesztés kapcsolója és a hibernálás beállítása ott nem érvényes. Az alvás visszakapcsolásához távolítsd el az `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` fájlt a `sudo rm` paranccsal; a Felfüggesztés ezután visszatér a menübe, a hibernálás pedig a többi géphez hasonlóan beállítható. A `sudo omarchy apply hardware --install-user "$USER"` parancs futtatása visszahelyezi a fájlt.
+NVIDIA GB10 gépeken, például a DGX Spark és az ASUS Ascent GX10 esetén a felfüggesztés és a hibernálás ki van kapcsolva, ahogy az NVIDIA DGX OS rendszerében is, mert az alvás még nem bizonyult működőképesnek azon a hardveren. A felfüggesztés kapcsolója és a hibernálás beállítása ott nem érvényes. Az alvás visszakapcsolásához töröld a `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` fájlt a `sudo rm` paranccsal; a Felfüggesztés ezután visszakerül a menübe, és a hibernálás a többi géphez hasonlóan beállítható. A `sudo omarchy apply hardware --install-user "$USER"` futtatása visszaállítja a fájlt.
 
 ### Energiaprofilok
 
-Laptopon az Omarchy külön megjegyzi az energiaprofilodat hálózatra csatlakoztatott és akkumulátorról működő állapothoz, és a csatlakoztatáskor és kihúzáskor vált a kettő között. Ez alapból teljesítményt jelent hálózati tápellátáson, és kiegyensúlyozott módot akkumulátoron.
+Laptopon az Omarchy külön megjegyzi az energiaprofilodat hálózatra csatlakoztatott és akkumulátorról működő állapothoz, és vált a kettő között, ahogy csatlakoztatod és kihúzod. Alapból ez teljesítményt jelent AC mellett és kiegyensúlyozottat akkumulátoron.
 
-Az `omarchy powerprofiles list` paranccsal megnézheted, mit kínál a géped, és az `omarchy powerprofiles set autodetect power-saver` paranccsal beállíthatod a kívántat ahhoz az állapothoz, amelyben éppen vagy. Ha a másik állapotot szeretnéd beállítani anélkül, hogy bármit kihúznál, nevezd meg közvetlenül: `omarchy powerprofiles set battery power-saver`. Amit választasz, azt kapod vissza legközelebb, amikor abban az állapotban leszel.
+Megnézheted, mit kínál a géped az `omarchy powerprofiles list` paranccsal, és beállíthatod a kívántat az aktuális állapotodhoz az `omarchy powerprofiles set autodetect power-saver` paranccsal. A másik állapot beállításához anélkül, hogy bármit kihúznál, nevezd meg közvetlenül: `omarchy powerprofiles set battery power-saver`. Bármit választasz, azt kapod vissza legközelebb, amikor abban az állapotban vagy.
 
-### Felfüggesztés ki-/bekapcsolása
+### Felfüggesztés kapcsolása
 
-A felfüggesztést az `omarchy toggle suspend` terminálban történő futtatásával kapcsolhatod át. Ez csak megjeleníti/elrejti a lehetőséget a _Rendszer_ alatt (vagy a `Super + Esc` billentyűkombinációval), ezután pedig megnézheted, következetesen működik-e a rendszereden. Ha nem, ugyanezzel a paranccsal ismét elrejtheted.
+A felfüggesztést a terminálból az `omarchy toggle suspend` futtatásával kapcsolhatod. Ez csak megjeleníti/elrejti a lehetőséget a _System_ alatt (vagy `Super + Esc`), és ezután megnézheted, megbízhatóan működik-e a rendszereden. Ha nem, ugyanazzal a paranccsal újra elrejtheted.
 
-### Hibernálás ki-/bekapcsolása
+### Hibernálás kapcsolása
 
-A hibernálást az `omarchy hibernation setup` terminálban történő futtatásával állíthatod be. A hibernálás egy /swap alkötetet hoz létre a rendszerindító meghajtódon, a fizikai RAM méretével megegyező nagyságban, ezért gondoskodj arról, hogy bőven legyen szabad helyed. Egy 32GB-os gépen ehhez a kötethez mindig 32GB+ szabad helyre lesz szükséged. A hibernáláshoz az alapértelmezett Limine rendszerbetöltő is szükséges.
+A hibernálást a terminálból az `omarchy hibernation setup` futtatásával állíthatod be (Apple Silicon Mac gépeken nem elérhető). A hibernálás létrehoz egy /swap alkötetet a rendszerindító meghajtódon a fizikai RAM méretével egyező méretben, ezért gondoskodj róla, hogy bőven legyen szabad helyed. Egy 32GB-os gépen ehhez a kötethez mindig 32GB+ szabad helyre lesz szükséged. A hibernáláshoz az alapértelmezett Limine bootloader is szükséges.
 
-Beállítás után a hibernálás lehetőséget a _Rendszer_ alatt (vagy a `Super + Esc` billentyűkombinációval) látod, ezután pedig megnézheted, következetesen működik-e a rendszereden. Ha nem, az `omarchy hibernation remove` parancs futtatásával ismét eltávolíthatod.
+Ha be van állítva, a hibernálás lehetőséget a _System_ alatt (vagy `Super + Esc`) látod, és ezután megnézheted, megbízhatóan működik-e a rendszereden. Ha nem, az `omarchy hibernation remove` futtatásával újra eltávolíthatod.

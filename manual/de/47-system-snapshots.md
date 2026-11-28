@@ -1,27 +1,37 @@
-# Systemsnapshots
+# System-Snapshots
 
-Wir erstellen bei jedem Omarchy-Update automatisch Snapshots, aber wenn du einen eigenen erstellen möchtest, kannst du `omarchy-snapshot create` verwenden.
+Wir erstellen bei jedem Omarchy-Update automatisch Snapshots, aber wenn du deinen eigenen erstellen willst, kannst du `omarchy-snapshot create` verwenden.
 
-Um einen Snapshot zu booten und wiederherzustellen, wählst du ihn im Limine-Bootloader aus. (Wenn du aktuell direkt zum Omarchy-Entschlüsselungsbildschirm bootest, musst du zuerst Limine als Boot-Option über das BIOS auswählen).
+Wie du einen Snapshot bootest und wiederherstellst, hängt davon ab, mit welchem Bootloader deine Maschine startet. Neue UEFI-Installationen verwenden systemd-boot; ältere Installationen und BIOS-Maschinen verwenden Limine. `omarchy-boot-backend` sagt dir, welchen du hast.
+
+## Mit systemd-boot
+
+Wähle im Omarchy-Menü _System > Snapshots_ und wähle den Snapshot, in den du booten möchtest. Die Maschine startet einmalig in ihn neu. Oder halte Space gedrückt, während die Maschine startet, um das Boot-Menü zu sehen, in dem jeder Snapshot mit seiner Omarchy-Version und seinem Datum aufgelistet ist, der neueste zuerst.
+
+Ein Snapshot bootet mit einer temporären Schicht darüber, sodass du ihn ganz normal verwenden kannst, aber alles, was du änderst, ist beim nächsten Neustart weg. Damit er bleibt, mache ihn zu deinem System: Klicke auf die Benachrichtigung, die erscheint, wenn du dich anmeldest, wähle _System > Snapshots > Restore This Snapshot_ oder führe `omarchy-snapshot restore` aus. Die Wiederherstellung erfolgt, während die Maschine neu startet. Das System, wie es vorher war, bleibt im Boot-Menü als _Before restore_ erhalten, und `omarchy-snapshot restore backup` stellt es wieder her.
+
+Vom Terminal aus:
+
+- `omarchy-snapshot list` listet die Snapshots auf, in die du booten kannst;
+- `omarchy-snapshot boot 12` startet einmalig in Snapshot 12 neu;
+- `omarchy-snapshot restore 12` macht Snapshot 12 beim nächsten Neustart zum System, und `omarchy-snapshot restore --cancel` macht das vor diesem Neustart wieder rückgängig.
+
+## Mit Limine
+
+Um einen Snapshot zu booten und wiederherzustellen, wählst du ihn aus dem Limine-Bootloader aus. Das Boot-Menü bleibt standardmäßig verborgen, drücke also eine beliebige Taste, sobald Limine startet, um es aufzurufen.
 
 Wähle auf diesem Bildschirm anhand von Datum und Version den Snapshot aus, in den du booten möchtest. Die Omarchy-Version zum Zeitpunkt des Snapshots siehst du in der unteren linken Ecke.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Wenn du drin bist, erscheint eine Benachrichtigung, die dich darüber informiert, dass du dich in einem bootfähigen Snapshot befindest, und wenn du sie anklickst, wird der Wiederherstellungsprozess gestartet. Alternativ kannst du `omarchy-snapshot restore` verwenden.
+Wenn du darin angekommen bist, poppt eine Benachrichtigung auf, die dich darüber informiert, dass du dich in einem bootfähigen Snapshot befindest, und wenn du sie anklickst, startet der Wiederherstellungsvorgang. Alternativ kannst du `omarchy-snapshot restore` verwenden.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Dadurch wird dein Root-Dateisystem wiederhergestellt, aber nicht dein `/home`. Das funktioniert also, um ein fehlerhaftes Systemupdate rückgängig zu machen, aber nicht, um verlorene persönliche Dateien wiederherzustellen.
+## Was eine Wiederherstellung abdeckt
 
-Das bedeutet auch, dass dein Verzeichnis `~/.config` unverändert bleibt. Wenn du also zu einer früheren Version einer Bibliothek oder Anwendung zurückkehrst, die Konfigurationsdateien in einem neuen Format speichert, musst du das manuell in Ordnung bringen.
+Eine Wiederherstellung stellt dein Root-Dateisystem wieder her, aber nicht dein `/home`. Sie eignet sich also, um ein fehlerhaftes System-Update rückgängig zu machen, aber nicht, um verlorene persönliche Dateien wiederherzustellen.
 
-Das Gleiche gilt für Omarchys eigene Aufzeichnung darüber, welche Migrationen bereits ausgeführt wurden: Sie liegt in deinem Home-Verzeichnis und übersteht daher die Wiederherstellung. Migrationen, die nach dem Erstellen des Snapshots ausgeführt wurden, bleiben als erledigt markiert, obwohl die Änderungen, die sie am Root-Dateisystem vorgenommen haben, rückgängig gemacht wurden, und das nächste `omarchy update` wird sie nicht erneut ausführen. Wenn du also nach einer Wiederherstellung erneut ein Update durchführst und etwas, das ein früheres Update eingerichtet hatte, immer noch fehlt, ist das der wahrscheinliche Grund.
+Das bedeutet auch, dass dein `~/.config`-Verzeichnis so bleibt, wie es ist. Wenn du also zu einer früheren Version einer Bibliothek oder Anwendung zurückkehrst, die Konfigurationsdateien in einem neuen Format speichert, musst du das manuell in Ordnung bringen.
 
-_Hinweis: Diese Funktion ist nur auf Installationen verfügbar, die den Limine-Bootloader verwenden, der seit Omarchy 2.0 der Standard ist. Sie ist nicht verfügbar, wenn du GRUB oder systemd-boot verwendest._
-
-### Das Boot-Menü überspringen
-
-Wenn du das Boot-Menü nie anrührst und einfach möchtest, dass der Rechner direkt zum Entschlüsselungsbildschirm geht, führe _Setup > Direct Boot_ im Omarchy-Menü aus. Dadurch wird ein EFI-Eintrag hinzugefügt, der direkt auf Omarchy zeigt, sodass die Firmware es bootet, ohne bei Limine anzuhalten.
-
-Der Kompromiss ist der oben erwähnte: Wenn Direct Boot aktiviert ist, bedeutet das Erreichen eines Snapshots, dass du zuerst Limine aus deinem BIOS-Boot-Menü auswählen musst. Führe _Setup > Direct Boot_ erneut aus, um den Eintrag zu entfernen und wieder über Limine zu booten. Manche Firmware kommt mit benutzerdefinierten EFI-Einträgen nicht gut klar, daher weigert sich das Setup, auf American Megatrends und Apple Firmware zu laufen.
+Das Gleiche gilt für Omarchys eigene Aufzeichnung darüber, welche Migrationen bereits ausgeführt wurden: Sie liegt in deinem Home-Verzeichnis, übersteht die Wiederherstellung also. Migrationen, die nach dem Erstellen des Snapshots ausgeführt wurden, bleiben als erledigt markiert, obwohl die Änderungen, die sie am Root-Dateisystem vorgenommen haben, rückgängig gemacht wurden, und das nächste `omarchy update` wird sie nicht erneut ausführen. Wenn du also nach einer Wiederherstellung erneut aktualisierst und etwas, das ein früheres Update eingerichtet hatte, immer noch fehlt, ist das der wahrscheinliche Grund.

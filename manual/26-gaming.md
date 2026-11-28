@@ -4,7 +4,7 @@ Omarchy isn't just for _pRoDUcTiVItY_, it's also for having fun, and what's more
 
 Thanks to Valve's incredible work on [the proton compatibility layer](https://en.wikipedia.org/wiki/Proton_(software)), there are now tens of thousands of playable modern games on Linux. Oh, and did you know that the [Steam Deck](https://store.steampowered.com/steamdeck/) actually runs Arch!
 
-All gaming installers live under _Install > Gaming_ in the Omarchy menu (`Super + Space`). If you ever want to undo one, use _Remove > Gaming_.
+All gaming installers live under _Install > Gaming_ in the Omarchy menu (`Super + Space`). If you ever want to undo one, use _Remove > Gaming_. Minecraft, NVIDIA GeForce NOW, Battle.net, Lutris, and Heroic are offered on x86 machines only.
 
 ## Steam
 
@@ -60,7 +60,7 @@ Install support for Bluetooth Xbox controllers by selecting _Install > Gaming > 
 
 ## Moonlight (Game streaming from a PC)
 
-The [Moonlight client](https://github.com/moonlight-stream/moonlight-qt) comes preinstalled with Omarchy, so you can stream games from a Windows PC running [Sunshine](https://app.lizardbyte.dev/Sunshine/) right away. Launch Moonlight via `Super + Space`.
+Install the [Moonlight client](https://github.com/moonlight-stream/moonlight-qt) by selecting _Install > Gaming > Moonlight_ from the Omarchy menu (`Super + Space`), and you can stream games from a Windows PC running [Sunshine](https://app.lizardbyte.dev/Sunshine/).
 
 If both your Omarchy machine and the remote gaming PC are hardwired, the experience is indistinguishable from playing locally. Crank the resolution up to native, set the refresh to 120Hz, and max the bitrate — this is the best way to play competitive shooters like Fortnite on Linux.
 

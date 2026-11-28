@@ -46,10 +46,6 @@ Item {
   readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
   readonly property bool backgroundReady: backgroundActive && backgroundService.ready !== false
 
-  function restoreStartupCursor() {
-    Quickshell.execDetached(["hyprctl", "eval", "if omarchy_startup_cursor_restore then omarchy_startup_cursor_restore() end"])
-  }
-
   function finishStartup() {
     if (!cover || !startupSettled) return
     var registry = host ? host.pluginRegistry : null
@@ -82,6 +78,7 @@ Item {
 
   function prepareTheme(fromPath, token, colors, shell) {
     framePoll.stop()
+    frameStatus.consecutiveFailures = 0
     themeFade.stop()
     themeCutReveal.stop()
     revealDelayFrames = 0
@@ -104,6 +101,7 @@ Item {
     if (!themeToken && !cover) return
     themeFinishing = false
     framePoll.stop()
+    frameStatus.consecutiveFailures = 0
     themeFallback.stop()
     // A background change keeps the theme, so it hands over no palette.
     if (themeToken && (themeColors || themeShell)) {
@@ -151,6 +149,7 @@ Item {
   function cancelTheme() {
     themeFinishing = false
     framePoll.stop()
+    frameStatus.consecutiveFailures = 0
     themeFallback.stop()
     themeFade.stop()
     themeCutReveal.stop()
@@ -171,7 +170,6 @@ Item {
     to: 0
     duration: Style.duration(420)
     easing.type: Easing.OutCubic
-    onStarted: root.restoreStartupCursor()
     onFinished: root.startupPending = false
   }
 
@@ -234,7 +232,7 @@ Item {
   // Stop once nothing is covered: a still wallpaper never reports video.
   Timer {
     id: framePoll
-    interval: 16
+    interval: 50
     repeat: true
     onTriggered: {
       if (!root.cover && !root.themeToken) stop()
@@ -246,10 +244,20 @@ Item {
     id: frameStatus
     command: ["owe", "render-status"]
     property string token: ""
+    property int consecutiveFailures: 0
     onStarted: token = root.themeToken
     stdout: StdioCollector { id: frameStatusOut }
     onExited: function(exitCode) {
-      if (exitCode !== 0 || token !== root.themeToken || (!token && !root.cover)) return
+      if (token !== root.themeToken || (!token && !root.cover)) return
+      if (exitCode !== 0) {
+        consecutiveFailures += 1
+        if (consecutiveFailures >= 5) {
+          framePoll.stop()
+          root.revealTheme()
+        }
+        return
+      }
+      consecutiveFailures = 0
       try {
         var status = JSON.parse(frameStatusOut.text)
         if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
@@ -280,16 +288,14 @@ Item {
 
   Component.onCompleted: {
     checked = true
-    if (sessionConsumed) restoreStartupCursor()
     if (!startupBackgroundPath && !startupPending) startupBackground.running = true
     introProc.running = true
   }
 
-  Component.onDestruction: if (startupPending) restoreStartupCursor()
-
   onBackgroundActiveChanged: {
     if (!backgroundActive && checked) {
       if (cover || themeToken) {
+        frameStatus.consecutiveFailures = 0
         framePoll.start()
         if (!frameStatus.running) frameStatus.running = true
       }

@@ -42,8 +42,9 @@ plymouth set and omarchy refresh plymouth republish them from the checkout,
 reading this link's authorization out of the root-owned /etc/omarchy.conf.
 
 Also writes $sudoers_file so sudo resolves omarchy-*
-from the checkout instead of the packaged copies. That part takes effect
-immediately, no reboot needed.
+from the checkout instead of the packaged copies, and links every agent
+harness's Omarchy skills to the checkout's. Those take effect immediately,
+no reboot needed.
 
 Use --no-reboot when another command will handle the reboot prompt.
 USAGE
@@ -116,6 +117,17 @@ sudo install -Dm440 -o root -g root "$staged_sudoers" "$sudoers_file"
 
 echo "Pointed Omarchy at $target"
 echo "sudo now resolves omarchy-* from $target/bin"
+
+# Agents read the skills of the code they run. The checkout's own command
+# does it, since the package's may predate it; a checkout older than the
+# command keeps the links it has.
+if [[ -x $target/bin/omarchy-agent-skills-link ]]; then
+  "$target/bin/omarchy-agent-skills-link" "$target"
+  echo "Agent skills now link to $target/default/agents/skills"
+fi
+if [[ -x $target/bin/omarchy-agent-pi-defaults ]]; then
+  "$target/bin/omarchy-agent-pi-defaults" "$target"
+fi
 echo
 
 if (( prompt_reboot )) && gum confirm "Reboot now to activate?"; then

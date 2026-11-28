@@ -1,12 +1,12 @@
 # Temas
 
-O Omarchy vem com vinte e dois temas lindos. Você pode alternar entre eles em _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou ir direto para o seletor de temas usando `Super + Ctrl + T`.
+O Omarchy vem com vinte e três temas lindos. Você pode selecionar entre eles em _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou ir direto para o seletor de temas usando `Super + Ctrl + T`.
 
-Cada tema estiliza a área de trabalho, o terminal, o neovim, a tela de atividades (btop), o Chromium e todo o shell do Omarchy: barra superior, menu, notificações, OSD e a tela de bloqueio. (No Obsidian, você deve selecionar manualmente o tema do Omarchy em _Aparência > Temas_ dentro do aplicativo).
+Cada tema estiliza a área de trabalho, o terminal, o neovim, a tela de atividade (btop), seu navegador (Chrome, Chromium, Edge ou Brave) e todo o shell do Omarchy: barra superior, menu, notificações, OSD e a tela de bloqueio. (Para o Obsidian, você precisa selecionar manualmente o tema do Omarchy em _Aparência > Temas_ dentro do app).
 
 Os temas têm um conjunto de imagens de fundo entre as quais você pode escolher usando `Super + Ctrl + W`.
 
-Você pode encontrar ainda mais temas na [página de temas extras](https://omarchy.org/themes/) ou até [criar seu próprio tema](43-making-your-own-theme.md).
+Você encontra ainda mais temas na [página de temas extras](https://omarchy.org/themes/) ou até [criar seu próprio tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Ícones dos aplicativos
+
+Os ícones no lançador de aplicativos e no dock são desenhados nas cores do seu tema, então mudam junto com ele. Eles vêm de um conjunto de ícones, que você escolhe separadamente do tema em _Aparência > Ícones_, a partir de prévias de cada conjunto, do mesmo jeito que escolhe um tema:
+
+- _Papercraft_ é o padrão: tudo o que vem instalado, desenhado em um único estilo. Apps conhecidos pelo logotipo, como Chrome, HEY ou YouTube, mantêm sua forma e ganham as cores do tema.
+- _Arcade_ desenha os mesmos apps como pixel art de 8 bits, como um console de jogos antigo faria.
+- _Original_ mostra cada app com o ícone que seu criador lhe deu.
+
+Você pode instalar um conjunto de ícones criado por outra pessoa em _Instalar > Estilo > Ícones_ (ou `omarchy icons install <git url>`) e removê-lo novamente em _Remover > Ícones_. _Atualizar > Ícones extras_ busca a versão mais recente dos conjuntos que você instalou.
+
+Para criar o seu próprio, coloque seus ícones em `~/.config/omarchy/icons/<name>/`, um arquivo por app, com o nome da linha `Icon=` do arquivo `.desktop` do app. Um arquivo que termina em `.svg` é exibido como está. Um arquivo que termina em `.svg.tpl` é desenhado nas cores do tema: escreva `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` ou `{{ icon_shadow }}` onde vai uma cor. O conjunto padrão em `/usr/share/omarchy/icons/papercraft/` é um bom ponto de partida. Adicione um `preview.png` para mostrar seu conjunto no seletor; sem ele, o Omarchy desenha uma prévia a partir dos seus ícones. Para alterar um único ícone do conjunto padrão, coloque sua versão em `~/.config/omarchy/icons/papercraft/`.
+
 ### Desbloqueios
 
-Os temas também podem ter um design de desbloqueio personalizado, que é usado no processo de descriptografia na inicialização. Você pode selecionar um deles em _Aparência > Desbloqueio_. Eles têm esta aparência:
+Os temas também podem ter um design de desbloqueio personalizado, que é usado no processo de descriptografia na inicialização. Você pode selecionar um deles em _Aparência > Desbloqueio_. Eles são assim:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -96,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

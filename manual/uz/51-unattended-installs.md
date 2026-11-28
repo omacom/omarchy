@@ -1,36 +1,36 @@
 # Nazoratsiz o'rnatishlar
 
-Omarchy ISO hech kim klaviatura oldida bo'lmasa ham o'zini o'zi o'rnatishi mumkin. Agar o'rnatuvchi konfiguratsiya fayllarini o'z ichiga olgan `cidata` yorlig'li ikkinchi diskni topsa, u ularni nusxalaydi, sozlash ustasini butunlay o'tkazib yuboradi va mustaqil ravishda tayyor tizimga qayta yuklanadi. Maxsus ISO yig'ilishi ham, qo'shimcha yuklash menyusi bandi ham kerak emas — bunday disk ulanmagan bo'lsa, hech narsa o'zgarmaydi va siz oddiy ustani olasiz.
+Omarchy ISO klaviatura oldida hech kim bo'lmasa ham o'zini o'zi o'rnata oladi. Agar o'rnatuvchi konfiguratsiya fayllarini olib yuruvchi `cidata` deb belgilangan ikkinchi diskni topsa, u ularni nusxalab oladi, sozlash ustasini butunlay o'tkazib yuboradi va tayyor tizimga o'zi qayta yuklanadi. Maxsus ISO yig'masi ham, qo'shimcha yuklash menyusi bandi ham kerak emas — bunday disk ulanmagan bo'lsa, hech narsa o'zgarmaydi va siz oddiy ustani olasiz.
 
-Bu Omarchy ni bir martalik dev muhitlari uchun ajoyib bazaviy obrazga aylantiradi: Proxmox da yoki Packer bilan VM yarating, uni yuklang, keting, SSH orqali kiring. `cidata` — bu cloud-init `NoCloud` yorlig'i, shuning uchun barcha keng tarqalgan virtualizatsiya vositalari bunday diskni qanday ulashni allaqachon biladi.
+Bu Omarchy ni bir martalik ishlab chiqish muhitlari uchun asosiy obraz sifatida ajoyib qiladi: Proxmox da yoki Packer bilan VM yarating, uni yuklang, ketib qoling, SSH orqali kiring. `cidata` — bu cloud-init ning `NoCloud` yorlig'i, shuning uchun barcha keng tarqalgan virtualizatsiya vositalari bunday diskni qanday ulashni allaqachon biladi.
 
 ## Konfiguratsiya fayllari
 
-Fayllar aynan o'rnatuvchining o'z ustasi yozadigan fayllardir, shuning uchun boshlang'ich to'plamni olishning eng oson yo'li — bitta interaktiv o'rnatishni amalga oshirish (masalan, VM da) va u `/root` ga yozgan narsalarni nusxalashdir:
+Fayllar aynan o'rnatuvchining o'z ustasi yozadigan narsalardir, shuning uchun boshlang'ich to'plamni olishning eng oson yo'li — bitta interaktiv o'rnatishni bajarish (masalan, VM da) va u `/root` ga yozgan narsalarni nusxalashdir:
 
-| Fayl | Majburiy | Maqsadi |
+| File | Required | Purpose |
 |------|----------|---------|
-| `user_configuration.json` | Ha | Disk, xost nomi, vaqt mintaqasi, klaviatura |
-| `user_credentials.json` | Ha | Foydalanuvchi nomi va parol xeshi |
-| `user_encrypt_installation.txt` | Yo'q | Konfiguratsiyada `disk_encryption` bloki bo'lganda `true` |
-| `authorized_keys` | Yo'q | SSH ochiq kalitlari, har qatorda bittadan |
-| `tailscale_authkey` | Yo'q | Birinchi yuklanishda tailnet ingizga qo'shilish uchun Tailscale auth kaliti |
+| `user_configuration.json` | Yes | Disk, hostname, timezone, keyboard |
+| `user_credentials.json` | Yes | Username and password hash, and the LUKS passphrase for an encrypted install |
+| `user_encrypt_installation.txt` | No | `true` when the configuration carries a `disk_encryption` block |
+| `authorized_keys` | No | SSH public keys, one per line |
+| `tailscale_authkey` | No | Tailscale auth key for joining your tailnet on first boot |
 
-`user_credentials.json` uchun parol xeshini `openssl passwd -6 "yourpassword"` bilan yarating.
+Generate the password hash for `user_credentials.json` with `openssl passwd -6 "yourpassword"`.
 
-Git commit lari uchun ism va email o'rnatishning bir qismi emas. Mashina ishga tushgandan so'ng ularni o'rnating, masalan SSH orqali, `omarchy setup git --name "Jane Doe" --email jane@example.com` bilan.
+The name and email for git commits aren't part of the install. Set them once the machine is up, over SSH for example, with `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-Shuningdek, `user_credentials.json` o'rniga `defer-provisioning` nomli bo'sh faylni ham tashlab qo'yishingiz mumkin. Bu siz interaktiv tarzda ishga tushirishingiz mumkin bo'lgan o'sha [boshqa egasi uchun tayyorlash o'rnatishini](02-getting-started.md) bajaradi: mashina hech qanday shaxsiy ma'lumotlarsiz o'rnatiladi va uni birinchi bo'lib yuklagan kishi klaviaturasini tanlaydi va o'z foydalanuvchisini yaratadi. Bu obraz yaratish stendlari uchun rejim bo'lib, bunda disk umuman hech kimning hisob ma'lumotlarini saqlamasligi kerak.
+You can also drop in an empty file named `defer-provisioning` in place of `user_credentials.json`. That runs the same [prepare-for-another-owner install](02-getting-started.md) you can trigger interactively: the machine installs with no personal details, and whoever boots it first picks their keyboard and creates their user. That's the mode for imaging rigs, where the drive shouldn't carry anyone's credentials at all.
 
-## SSH kirishi
+## SSH access
 
-`authorized_keys` mavjud bo'lganda, o'rnatish kalitlarni foydalanuvchining `~/.ssh/authorized_keys` sifatida o'rnatadi, `sshd` ni yoqadi va uning uchun firewall ni ochadi. (Standart Omarchy o'rnatishi openssh ni xizmati o'chirilgan va porti yopiq holda yetkazib beradi, shuning uchun nazoratsiz mashinaga aks holda umuman kirib bo'lmasdi.) O'rnatish faqat kalitlaringizni qo'shadi — u SSH daemon ining boshqa autentifikatsiya sozlamalarining hech birini yumshatmaydi.
+When `authorized_keys` is present, the install sets the keys up as the user's `~/.ssh/authorized_keys`, enables `sshd`, and opens the firewall for it. (A stock Omarchy install ships openssh with the service disabled and the port closed, so an unattended machine would otherwise be unreachable.) The install only adds your keys — it doesn't loosen any of the SSH daemon's other authentication settings.
 
-`tailscale_authkey` mavjud bo'lganda, mashina buning o'rniga birinchi yuklanishda tailnet ingizga qo'shiladi: Tailscale ISO ning to'plamdagi paketlaridan o'rnatiladi, firewall tailnet interfeysiga ruxsat beradi va fon vazifasi mashinada haqiqatan ham tarmoq paydo bo'lishi bilan qo'shilishni ishga tushiradi, muvaffaqiyatga erishguncha qayta urinib turadi. Bitta disk obrazi ko'plab mashinalarga xizmat qilishi uchun qayta ishlatiladigan, oldindan avtorizatsiya qilingan kalitdan foydalaning.
+When `tailscale_authkey` is present, the machine joins your tailnet on first boot instead: Tailscale is installed from the ISO's bundled packages, the firewall allows the tailnet interface, and a background job runs the join as soon as the machine actually has network, retrying until it succeeds. Use a reusable, pre-authorized key so one drive image can serve many machines.
 
-## cidata diskini yaratish
+## Building the cidata drive
 
-To'g'ri yorliqqa ega har qanday fayl tizimi ishlaydi. Kichik ISO — eng oson yo'li:
+Any filesystem with the right label works. A tiny ISO is the easy way:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Keyin uni Omarchy ISO bilan birga VM ga ulang. Mana to'liq Proxmox misoli:
+Then attach it to the VM alongside the Omarchy ISO. Here's a full Proxmox example:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Yuklash tartibida disk ataylab birinchi ko'rsatilgan: bo'sh disk birinchi yuklanishda ISO ga o'tib ketadi va o'rnatilgan tizim undan keyin har doim diskdan yuklanadi.
+The boot order lists the disk first on purpose: the empty disk falls through to the ISO on the first boot, and the installed system boots from disk ever after.
 
-## Ikkita ogohlantirish
+## Two caveats
 
-Shifrlangan nazoratsiz o'rnatishlar to'liq nazoratsiz emas — birinchi yuklanishda kimdir baribir LUKS parol iborasini kiritishi kerak. Va `user_configuration.json` dagi `disk_encryption` bloki o'sha parol iborasini ochiq matnda saqlaydi, shuning uchun shifrlangan o'rnatishdan yaratilgan cidata diskiga u bo'lgan sirdek munosabatda bo'ling.
+Encrypted unattended installs aren't fully unattended — someone still has to type the LUKS passphrase at the first boot. And that passphrase goes at the top level of `user_credentials.json` as `encryption_password` — archinstall reads it there, not from the `disk_encryption` block in `user_configuration.json` — so treat a cidata drive built from an encrypted install as the secret it is.

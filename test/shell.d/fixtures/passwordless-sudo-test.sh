@@ -72,9 +72,7 @@ case "$name" in
   omarchy-shell) ;;
   getent) printf '%s:x:1000:1000:Test:/nonexistent:/bin/bash\n' "${TEST_ACCOUNT:-audituser}" ;;
   sudo)
-    if [[ ${1:-} == -h ]]; then echo 'usage: sudo [-N] command'; exit 0; fi
-    if [[ ${1:-} == -k ]]; then exit 0; fi
-    if [[ ${1:-} == -n && ${3:-} == -l ]]; then
+    if [[ ${1:-} == -n && ${2:-} == -l ]]; then
       [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
       default_policy='    Options: authenticate'
       [[ ${TEST_STATUS:-3} == 3 ]] || default_policy='    Options: !authenticate'
@@ -82,7 +80,7 @@ case "$name" in
       exit 0
     fi
     if [[ ${1:-} == -n ]]; then shift; fi
-    if [[ ${1:-} == -N || ${1:-} == -kn ]]; then shift; fi
+    if [[ ${1:-} == -kn ]]; then shift; fi
     if [[ ${1:-} == -- ]]; then shift; fi
     [[ ${2:-} != __status ]] || exit "${TEST_STATUS:-3}"
     [[ ${2:-} != __enable || ${TEST_ENABLE_FAIL:-0} != 1 ]] || exit 1

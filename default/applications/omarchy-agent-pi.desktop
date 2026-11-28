@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Pi
+Comment=Start Pi in a terminal
+Exec=omarchy-agent --agent pi --app-id=org.omarchy.pi
+Icon=omarchy-agent-pi
+StartupWMClass=org.omarchy.pi
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

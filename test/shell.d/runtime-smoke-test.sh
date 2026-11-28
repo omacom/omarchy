@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:exclusive
+# A full shell on llvmpipe beside a busy pool can miss its IPC deadline or be the OOM killer's pick.
 
 set -euo pipefail
 
@@ -75,6 +77,24 @@ Item {
   }
 }
 QML
+
+# An ordinary service (no keepLoaded) keeps its instance across a rescan that
+# only finds a new plugin, as on a first login whose setup links Superwhisper's
+# panel; only a full reload may recreate it.
+plain_service_id="acme.plain-service"
+plain_service_dir="$SCRATCH_HOME/.config/omarchy/plugins/$plain_service_id"
+mkdir -p "$plain_service_dir"
+cat >"$plain_service_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$plain_service_id",
+  "name": "Plain Service",
+  "version": "1.0.0",
+  "kinds": ["service"],
+  "entryPoints": {"service": "Service.qml"}
+}
+JSON
+sed 's/"acme-keep"/"acme-plain"/' "$keep_service_dir/Service.qml" >"$plain_service_dir/Service.qml"
 
 # A replacement bar must not receive a generic factory for another plugin's
 # live service, and its barConfig must be a detached snapshot on both initial
@@ -372,12 +392,12 @@ for _ in {1..50}; do
   sleep 0.1
 done
 (( $(text_color_count) > 0 )) || fail_with_log "transparent bar samples the wallpaper when turned on"
-sleep 0.5
+sleep 0.2
 before=$(text_color_count)
 
 printf '{}' >"$state_dir/unrelated.tmp"
 mv "$state_dir/unrelated.tmp" "$state_dir/unrelated.json"
-sleep 1
+sleep 0.3
 (( $(text_color_count) == before )) ||
   fail_with_log "unrelated state writes re-sample the wallpaper (was $before, now $(text_color_count))"
 
@@ -447,12 +467,26 @@ for _ in {1..80}; do
   sleep 0.1
 done
 [[ $keep_marker_set == "ok" ]] || fail_with_log "keepLoaded fixture service IPC responds"
+[[ $(scratch_ipc shell setPluginEnabled "$plain_service_id" true) == "ok" ]] ||
+  fail_with_log "plain fixture service could not be enabled"
+plain_marker_set=""
+for _ in {1..80}; do
+  plain_marker_set=$(scratch_ipc acme-plain set "survived" 2>/dev/null || true)
+  [[ $plain_marker_set == "ok" ]] && break
+  sleep 0.1
+done
+[[ $plain_marker_set == "ok" ]] || fail_with_log "plain fixture service IPC responds"
 [[ $(scratch_ipc image-selector ping) == "ok" ]] || fail_with_log "image selector IPC responds"
 [[ $(scratch_ipc osd ping) == "ok" ]] || fail_with_log "OSD IPC responds"
 [[ $(scratch_ipc osd show '{"message":"Runtime smoke","duration":0}') == "ok" ]] || fail_with_log "OSD IPC opens"
 [[ $(scratch_ipc osd close) == "ok" ]] || fail_with_log "OSD IPC closes"
 pass "plugin IPC contracts respond"
 
+late_plugin_id="acme.late-plugin"
+mkdir -p "$SCRATCH_HOME/.config/omarchy/plugins/$late_plugin_id"
+sed "s/$victim_service_id/$late_plugin_id/; s/Victim Service/Late Plugin/" "$victim_service_dir/manifest.json" \
+  >"$SCRATCH_HOME/.config/omarchy/plugins/$late_plugin_id/manifest.json"
+cp "$victim_service_dir/Service.qml" "$SCRATCH_HOME/.config/omarchy/plugins/$late_plugin_id/"
 scratch_ipc_quiet shell rescanPlugins >/dev/null
 selector_rows_b64=$(printf '%s\t%s' "$SCRATCH_DIR/selector.png" "$SCRATCH_DIR/selector.png" | base64 -w 0)
 selector_selection_file=$(mktemp "$SCRATCH_DIR/selector-selection.XXXXXX")
@@ -483,19 +517,40 @@ lock_event_after=$(jq -r '.lastEvent // empty' <<<"$lock_status_after")
 [[ $(scratch_ipc acme-keep get) == "survived" ]] ||
   fail_with_log "plugin rescan keeps the keepLoaded service instance mounted"
 pass "keepLoaded service instance survives plugin rescan"
+late_listed=""
+for _ in {1..80}; do
+  late_listed=$(scratch_ipc shell listPlugins 2>/dev/null || true)
+  [[ $late_listed == *"$late_plugin_id"* ]] && break
+  sleep 0.1
+done
+[[ $late_listed == *"$late_plugin_id"* ]] || fail_with_log "plugin rescan finds a newly added plugin"
+[[ $(scratch_ipc acme-plain get) == "survived" ]] ||
+  fail_with_log "a rescan that only adds a plugin keeps running services"
+pass "a rescan that only adds a plugin leaves running services alone"
 
 # Dropping the service entry point from the manifest must drop the kept
-# instance instead of leaving a zombie behind.
+# instance instead of leaving a zombie behind. Editing a loaded local plugin
+# schedules a debounced full reload (localPluginReloadTimer, 150ms), so wait
+# until that full reload finishes — shown by acme-plain being recreated with an
+# empty marker — before probing bar geometry and direct panel IPC; otherwise a
+# leftover rescan from acme.late-plugin can drop acme-keep first and leave the
+# full reload to unload bar widgets mid-probe.
 jq 'del(.keepLoaded) | .kinds = ["overlay"] | .entryPoints = {"overlay": "Service.qml"}' \
   "$keep_service_dir/manifest.json" >"$keep_service_dir/manifest.json.tmp"
 mv "$keep_service_dir/manifest.json.tmp" "$keep_service_dir/manifest.json"
-keep_gone=""
+keep_reloaded=0
 for _ in {1..80}; do
   keep_gone=$(scratch_ipc acme-keep get 2>/dev/null || true)
-  [[ $keep_gone != "survived" ]] && break
+  if [[ $keep_gone != "survived" ]] &&
+     plain_after=$(scratch_ipc acme-plain get 2>/dev/null) &&
+     [[ -z $plain_after ]]; then
+    keep_reloaded=1
+    break
+  fi
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while dropping kept service"
   sleep 0.1
 done
-[[ $keep_gone != "survived" ]] ||
+(( keep_reloaded )) ||
   fail_with_log "kept service is dropped when its plugin stops declaring a service"
 pass "kept service is dropped when its plugin stops declaring a service"
 
@@ -505,7 +560,9 @@ geometry=""
 for _ in {1..80}; do
   geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
   if jq -e --argjson layout "$default_layout" '
-    . as $rows | all([$layout[]] | add | .[]; (.id // .) as $id | any($rows[]; .id == $id))
+    . as $rows |
+    all([$layout[]] | add | .[]; (.id // .) as $id | any($rows[]; .id == $id)) and
+    all("omarchy.menu", "omarchy.workspaces", "omarchy.clock"; . as $id | any($rows[]; .id == $id and .visible == true))
   ' <<<"$geometry" >/dev/null 2>&1; then
     break
   fi
@@ -535,9 +592,26 @@ jq -e --argjson layout "$default_layout" '
 }
 pass "default bar layout renders each widget in its configured section"
 
+# A panel's first open builds its content on the shell's thread, which in CI's
+# emulated VM can hold the next call past omarchy-shell's interactive 2s, so
+# these calls get 10s. Right after the reload above, widgets also finish their
+# asynchronous component load in parallel, so retry open while a target is
+# still registering; close must succeed on the first call.
 for panel_id in omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network omarchy.power; do
-  scratch_ipc "$panel_id" open >/dev/null || fail_with_log "direct panel IPC opens $panel_id"
-  scratch_ipc "$panel_id" close >/dev/null || fail_with_log "direct panel IPC closes $panel_id"
+  opened=0
+  err=""
+  for _ in {1..50}; do
+    if err=$(OMARCHY_SHELL_IPC_TIMEOUT=10s scratch_ipc "$panel_id" open 2>&1 >/dev/null); then
+      opened=1
+      break
+    fi
+    [[ $err == *"Target not found."* ]] || break
+    kill -0 "$SCRATCH_PID" 2>/dev/null || break
+    sleep 0.1
+  done
+  (( opened )) || fail_with_log "direct panel IPC opens $panel_id: ${err:-no answer}"
+  err=$(OMARCHY_SHELL_IPC_TIMEOUT=10s scratch_ipc "$panel_id" close 2>&1 >/dev/null) ||
+    fail_with_log "direct panel IPC closes $panel_id: ${err:-no answer}"
 done
 pass "direct panel IPC opens and closes default panels"
 
@@ -638,7 +712,7 @@ pass "bar put places a widget after the one it names"
 
 placed=$(center_ids)
 bar_put omarchy.microphone --section right >/dev/null
-sleep 0.5
+sleep 0.2
 [[ $(center_ids) == "$placed" ]] ||
   fail_with_log "bar put left a widget already on the bar alone (was $placed, now $(center_ids))"
 jq -e 'all(.bar.layout.right[]; (.id // .) != "omarchy.microphone")' \
@@ -664,7 +738,7 @@ done
 jq -e 'any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")' \
   <<<"$(scratch_ipc shell listShellConfig)" >/dev/null ||
   fail_with_log "a bar change still applies in memory while shell.json is unreadable"
-sleep 0.5
+sleep 0.2
 cmp -s "$config" "$SCRATCH_DIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
 pass "a bar change leaves an unreadable shell.json as the user left it"
 

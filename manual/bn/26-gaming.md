@@ -1,85 +1,85 @@
 # গেমিং
 
-Omarchy শুধু _উৎপাদনশীলতার_ জন্যই নয়, এটি মজা করার জন্যও, আর গেমিংয়ের চেয়ে বেশি মজার আর কী আছে? Omarchy গেমিং বিকল্পের একটি পুরো গুচ্ছ সহ আসে — নেটিভ ও রেট্রো খেলার জন্য Steam এবং RetroArch, non-Steam স্টোরের জন্য Battle.net, Lutris এবং Heroic, PC স্ট্রিমিংয়ের জন্য Moonlight, ক্লাউডের জন্য Xbox Cloud Gaming + NVIDIA GeForce NOW, সেই সঙ্গে চিরসবুজ Minecraft।
+Omarchy শুধু _pRoDUcTiVItY_-র জন্য নয়, এটা মজা করার জন্যও, আর গেমিংয়ের চেয়ে বেশি মজা আর কীসে? Omarchy-র সঙ্গে গেমিং অপশনের পুরো একটা স্যুট আসে — নেটিভ ও রেট্রো খেলার জন্য Steam ও RetroArch, নন-Steam স্টোরের জন্য Battle.net, Lutris ও Heroic, PC স্ট্রিমিংয়ের জন্য Moonlight, ক্লাউডের জন্য Xbox Cloud Gaming + NVIDIA GeForce NOW, আর সেই সঙ্গে চিরসবুজ Minecraft।
 
-Valve-এর [proton কম্প্যাটিবিলিটি লেয়ারের](https://en.wikipedia.org/wiki/Proton_(software)) উপর অবিশ্বাস্য কাজের জন্য ধন্যবাদ, এখন Linux-এ হাজার হাজার খেলারযোগ্য আধুনিক গেম আছে। ওহ, আর আপনি কি জানতেন যে [Steam Deck](https://store.steampowered.com/steamdeck/) আসলে Arch চালায়!
+Valve-এর [Proton কম্প্যাটিবিলিটি লেয়ার](https://en.wikipedia.org/wiki/Proton_(software))-এর ওপর অবিশ্বাস্য কাজের সৌজন্যে, এখন Linux-এ দশ হাজার হাজার আধুনিক গেম খেলা যায়। ওহ, আর আপনি কি জানতেন যে [Steam Deck](https://store.steampowered.com/steamdeck/)-এ আসলে Arch-ই চলে!
 
-সব গেমিং ইনস্টলার Omarchy মেনুতে (`Super + Space`) _ইনস্টল > Gaming_-এর অধীনে থাকে। আপনি কখনও কোনোটি ফিরিয়ে নিতে চাইলে, _সরান > Gaming_ ব্যবহার করুন।
+সব গেমিং ইনস্টলার Omarchy মেনুতে (`Super + Space`) _Install > Gaming_-এর অধীনে থাকে। কোনো একটা কখনো বাতিল করতে চাইলে _Remove > Gaming_ ব্যবহার করুন। Minecraft, NVIDIA GeForce NOW, Battle.net, Lutris ও Heroic শুধু x86 মেশিনের জন্যই দেওয়া হয়।
 
 ## Steam
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > Steam_ বেছে [Steam](https://store.steampowered.com/) ইনস্টল করুন।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Steam_ বেছে নিয়ে [Steam](https://store.steampowered.com/) ইনস্টল করুন।
 
-আপনি এটি ইনস্টল করার পর, আপনি `Super + Space` দিয়ে Steam চালাতে পারবেন।
+ইনস্টল করার পর, আপনি `Super + Space` দিয়ে Steam চালু করতে পারবেন।
 
-লক্ষ করুন, Steam শুরু হতে 10-20 সেকেন্ড লাগতে পারে, এবং এটি লোড হচ্ছে বলে কোনো দৃশ্যমান প্রতিক্রিয়া দেবে না।
+মনে রাখবেন, Steam চালু হতে 10-20 সেকেন্ড লাগতে পারে, আর এটা লোড হচ্ছে এমন কোনো ভিজ্যুয়াল ফিডব্যাক এটি দেবে না।
 
  ![gaming-steam](images/gaming-steam.webp)
 
 ## RetroArch
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > RetroArch_ বেছে [RetroArch](https://www.retroarch.com/) ইনস্টল করুন। এটি libretro কোরের পুরো সেটসহ আসে, ফলে সব ক্লাসিক সিস্টেমই কভার হয়।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > RetroArch_ বেছে নিয়ে [RetroArch](https://www.retroarch.com/) ইনস্টল করুন। এর সঙ্গে libretro কোরের পুরো সেট আসে, তাই সব ক্লাসিক সিস্টেমই কভার করা হয়েছে।
 
-RetroArch সেই নিখুঁত রেট্রো চেহারার জন্য সুন্দর CRT Royale শেডার দিয়ে সম্পূর্ণভাবে আগে থেকে কনফিগার করা আছে।
+সেই নিখুঁত রেট্রো লুকের জন্য RetroArch সুন্দর CRT Royale শেডার দিয়ে পুরোপুরি প্রিকনফিগার করা থাকে।
 
 শুরু করতে:
 
-1. আপনার BIOS ফাইলগুলো `~/Games/bios`-এ এবং আপনার ROM-গুলো `~/Games/roms`-এ রাখুন।
-2. `Super + Space` দিয়ে RetroArch চালান এবং `retro` টাইপ করুন।
-3. `~/Games/roms` ডিরেক্টরি স্ক্যান করুন আর আপনি খেলতে প্রস্তুত।
+1. আপনার BIOS ফাইলগুলো `~/Games/bios`-এ আর আপনার ROMগুলো `~/Games/roms`-এ ফেলুন।
+2. `Super + Space` দিয়ে RetroArch চালু করুন আর `retro` টাইপ করুন।
+3. `~/Games/roms` ডিরেক্টরি স্ক্যান করুন, ব্যাস, খেলার জন্য তৈরি।
 
-আপনি _ইনস্টল > Gaming > RetroArch Game Launcher_ দিয়ে কোনো পছন্দের গেমকে অ্যাপ লঞ্চারে তার নিজের এন্ট্রিও দিতে পারেন, যা আপনাকে একটি কোর ও একটি ROM বাছতে দেয়, এবং `Super + Space` থেকে সরাসরি গেমে যেতে দেয়।
+_Install > Gaming > RetroArch Game Launcher_ দিয়ে আপনি প্রিয় কোনো গেমকে অ্যাপ লঞ্চারে নিজের আলাদা এন্ট্রিও দিতে পারেন, যেখানে আপনি একটি কোর আর একটি ROM বেছে নিতে পারেন, আর `Super + Space` থেকে সরাসরি গেমে ঝাঁপিয়ে পড়তে পারেন।
 
  ![gaming-retroarch](images/gaming-retroarch.webp)
 
 ## Xbox Cloud Gaming
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > Xbox Cloud Gaming_ বেছে Xbox Cloud Gaming ওয়েব অ্যাপটি ইনস্টল করুন। এটি পরিষেবাটির জন্য "শুধু" একটি ওয়েব অ্যাপ, তবে এটি দ্রুত শুরু হয় এবং 1080p-তে দারুণভাবে চলে।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Xbox Cloud Gaming_ বেছে নিয়ে Xbox Cloud Gaming ওয়েব অ্যাপ ইনস্টল করুন। এটি সার্ভিসটির জন্য "শুধুই" একটি ওয়েব অ্যাপ, কিন্তু এটি দ্রুত চালু হয় আর 1080p-তে দারুণ চলে।
 
-আপনার যদি ইতিমধ্যেই Xbox Game Pass থাকে, তাহলে Fortnite এবং অন্যান্য গেম যেগুলো আপনি Linux-এ নেটিভভাবে চালাতে পারবেন না, সেগুলো খেলার এটি একটি শক্ত উপায়।
+আপনার কাছে ইতিমধ্যে Xbox Game Pass থাকলে, Fortnite আর Linux-এ নেটিভভাবে চালাতে পারবেন না এমন অন্যান্য টাইটেল খেলার জন্য এটি একটি শক্তপোক্ত উপায়।
 
  ![gaming-xbox-cloud](images/gaming-xbox-cloud.webp)
 
 ## NVIDIA GeForce Now
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > NVIDIA GeForce NOW_ বেছে ক্লাউড-গেমিং পরিষেবা [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/) ইনস্টল করুন। Linux-এ নেটিভভাবে পাওয়া যায় না এমন গেম খেলার আরেকটি দারুণ উপায়।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > NVIDIA GeForce NOW_ বেছে নিয়ে ক্লাউড-গেমিং সার্ভিস [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/) ইনস্টল করুন। Linux-এ নেটিভভাবে পাওয়া যায় না এমন টাইটেল খেলার আরেকটি দারুণ উপায়।
 
  ![gaming-geforce-now](images/gaming-geforce-now.webp)
 
 ## Minecraft
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > Minecraft_ বেছে Minecraft ইনস্টল করুন।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Minecraft_ বেছে নিয়ে Minecraft ইনস্টল করুন।
 
-Steam-এর মতো, লক্ষ করুন, লগ ইন করা বা শুরু করার পর পরের স্ক্রিনটি আসতে কিছুটা সময় লাগতে পারে, এবং আপনি অপেক্ষা করার সময় কোনো প্রতিক্রিয়া পাবেন না।
+Steam-এর মতোই, মনে রাখবেন লগ ইন করার বা চালু হওয়ার পর পরের স্ক্রিন আসতে কিছুটা সময় লাগতে পারে, আর অপেক্ষা করার সময় আপনি কোনো ফিডব্যাক পাবেন না।
 
  ![gaming-minecraft](images/gaming-minecraft.webp)
 
 ## Xbox Controllers
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > Xbox Controllers_ বেছে Bluetooth Xbox কন্ট্রোলারের জন্য সমর্থন ইনস্টল করুন। Bluetooth-এর মাধ্যমে (`Super + Ctrl + B`) কন্ট্রোলারগুলো পেয়ার করুন আর তারা আপনার সব গেমে কাজ করবে। আপনি যদি শুধু USB-C কেবল দিয়ে আপনার কন্ট্রোলারটি তার দিয়ে যুক্ত করেন, তাহলে আপনার এটির প্রয়োজন নেই।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Xbox Controllers_ বেছে নিয়ে Bluetooth Xbox কন্ট্রোলারের সাপোর্ট ইনস্টল করুন। Bluetooth দিয়ে (`Super + Ctrl + B`) কন্ট্রোলারগুলো পেয়ার করুন, আর সেগুলো আপনার সব গেমেই কাজ করবে। আপনি যদি USB-C কেবল দিয়ে কন্ট্রোলার সরাসরি তারে জুড়ে ব্যবহার করেন, তাহলে আপনার এটির দরকার নেই।
 
-## Moonlight (একটি PC থেকে গেম স্ট্রিমিং)
+## Moonlight (PC থেকে গেম স্ট্রিমিং)
 
-[Moonlight ক্লায়েন্ট](https://github.com/moonlight-stream/moonlight-qt) Omarchy-এর সঙ্গে আগে থেকেই ইনস্টল করা থাকে, ফলে আপনি [Sunshine](https://app.lizardbyte.dev/Sunshine/) চলা একটি Windows PC থেকে এখনই গেম স্ট্রিম করতে পারেন। `Super + Space`-এর মাধ্যমে Moonlight চালান।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Moonlight_ বেছে নিয়ে [Moonlight client](https://github.com/moonlight-stream/moonlight-qt) ইনস্টল করুন, আর আপনি [Sunshine](https://app.lizardbyte.dev/Sunshine/) চলা একটি Windows PC থেকে গেম স্ট্রিম করতে পারবেন।
 
-আপনার Omarchy মেশিন এবং দূরবর্তী গেমিং PC দুটোই তার দিয়ে যুক্ত থাকলে, সেই অভিজ্ঞতা স্থানীয়ভাবে খেলার থেকে আলাদা করা যায় না। রেজোলিউশন নেটিভ পর্যন্ত বাড়ান, রিফ্রেশ 120Hz-এ সেট করুন এবং বিটরেট সর্বোচ্চ করুন — Linux-এ Fortnite-এর মতো প্রতিযোগিতামূলক শুটার খেলার এটি সেরা উপায়।
+আপনার Omarchy মেশিন আর রিমোট গেমিং PC দুটোই তারে জোড়া থাকলে, অভিজ্ঞতা লোকালি খেলার থেকে আলাদা করে বোঝা যাবে না। রেজোলিউশন নেটিভ পর্যন্ত বাড়িয়ে দিন, রিফ্রেশ 120Hz-এ সেট করুন, আর বিটরেট সর্বোচ্চ করে দিন — Linux-এ Fortnite-এর মতো প্রতিযোগিতামূলক শ্যুটার খেলার এটাই সেরা উপায়।
 
-আপনি `omarchy install service sunshine` চালিয়ে একটি Omarchy মেশিনকে হোস্টও বানাতে পারেন, যা Sunshine ইনস্টল করে এবং আপনার LAN ও Tailscale-এর জন্য Moonlight স্ট্রিমিং পোর্টগুলো খুলে দেয়।
+আপনি `omarchy install service sunshine` চালিয়ে একটি Omarchy মেশিনকে হোস্টও বানাতে পারেন, যা Sunshine ইনস্টল করে আর আপনার LAN ও Tailscale-এর জন্য Moonlight স্ট্রিমিং পোর্ট খুলে দেয়।
 
 ## Battle.net
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > Battle.net_ বেছে [Battle.net](https://eu.shop.battle.net/en-us) ইনস্টল করুন। এটি আপনাকে Diablo, Starcraft এবং World of Warcraft-এর মতো গেম GE-Proton-এর অধীনে চলা একটি স্বতন্ত্র ইনস্টল হিসেবে দেয় — কোনো Steam, Lutris বা Heroic-এর প্রয়োজন নেই।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Battle.net_ বেছে নিয়ে [Battle.net](https://eu.shop.battle.net/en-us) ইনস্টল করুন। এতে আপনি Diablo, Starcraft আর World of Warcraft-এর মতো টাইটেল GE-Proton-এর অধীনে চলা স্ট্যান্ডঅ্যালোন ইনস্টল হিসেবে পাবেন — Steam, Lutris বা Heroic-এর কোনো দরকার নেই।
 
  ![gaming-starcraft](images/gaming-starcraft.webp)
 
 ## Lutris (Windows গেম)
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > Lutris_ বেছে [Lutris](https://lutris.net/) ইনস্টল করুন। Lutris হলো EA এবং Ubisoft Connect-এর মতো স্টোরের Windows গেম খেলার উপায় যাদের উপরে নিজস্ব কোনো ইনস্টলার নেই।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Lutris_ বেছে নিয়ে [Lutris](https://lutris.net/) ইনস্টল করুন। উপরে যাদের নিজের ইনস্টলার নেই, EA আর Ubisoft Connect-এর মতো স্টোর থেকে Windows গেম খেলার উপায় হলো Lutris।
 
-ইনস্টলটি একটু অগোছালো এবং মাঝে মাঝে মনে হয় কিছুই হচ্ছে না — শুধু ধৈর্য ধরুন, এটি পটভূমিতে কাজ করছে।
+ইনস্টলেশন একটু খাপছাড়া, আর মাঝে মাঝে মনে হয় কিছুই হচ্ছে না — শুধু ধৈর্য ধরুন, এটি ব্যাকগ্রাউন্ডে কাজ করছে।
 
 ## Heroic Launcher (Epic Games)
 
-Omarchy মেনু (`Super + Space`) থেকে _ইনস্টল > Gaming > Heroic (Epic Games)_ বেছে [Heroic Launcher](https://heroicgameslauncher.com/) ইনস্টল করুন। Heroic আপনাকে OddSparks-এর মতো Epic Games গেম চালাতে দেয় যেগুলো anti-cheat-এর উপর নির্ভর করে না — সেই সঙ্গে GOG এবং Amazon Prime Gaming-এর গেমও। দুঃখের বিষয়, এর মানে হলো কোনো Fortnite এবং কোনো Rocket League নেই — Tim Sweeney Linux-এ না আসা পর্যন্ত, এটাই সবচেয়ে কাছাকাছি যাওয়া যায়।
+Omarchy মেনু (`Super + Space`) থেকে _Install > Gaming > Heroic (Epic Games)_ বেছে নিয়ে [Heroic Launcher](https://heroicgameslauncher.com/) ইনস্টল করুন। Heroic দিয়ে আপনি OddSparks-এর মতো অ্যান্টি-চিটের ওপর নির্ভর করে না এমন Epic Games টাইটেল চালাতে পারবেন — তার সঙ্গে GOG আর Amazon Prime Gaming-এর গেমও। দুঃখের বিষয়, তার মানে কোনো Fortnite নেই, কোনো Rocket League নেই — Tim Sweeney Linux-এ না আসা পর্যন্ত, এটাই সবচেয়ে কাছাকাছি পাওয়া।
 
-Lutris-এর মতো, গেম ইনস্টলের সময় এটি ধীর ও অগোছালো অনুভূত হতে পারে। এটিকে সময় দিন।
+Lutris-এর মতোই, গেম ইনস্টল করার সময় এটি ধীর আর খাপছাড়া মনে হতে পারে। একে সময় দিন।

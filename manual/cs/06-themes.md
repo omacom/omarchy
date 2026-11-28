@@ -1,12 +1,12 @@
 # Motivy
 
-Omarchy přichází s dvaadvaceti krásnými motivy. Vybírat mezi nimi můžete přes _Vzhled > Motiv_ v Omarchy Menu (`Super + Space`) nebo přejít rovnou na výběr motivu pomocí `Super + Ctrl + T`.
+Omarchy přichází s dvaceti třemi krásnými motivy. Můžete mezi nimi vybírat přes _Vzhled > Motiv_ v nabídce Omarchy (`Super + Space`) nebo skočit rovnou do výběru motivu pomocí `Super + Ctrl + T`.
 
-Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (U Obsidianu musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
+Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), vašeho prohlížeče (Chrome, Chromium, Edge nebo Brave) a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (V Obsidianu musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ přímo v aplikaci).
 
 Motivy mají sadu obrázků na pozadí, mezi kterými můžete vybírat pomocí `Super + Ctrl + W`.
 
-Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce [vytvořte vlastní motiv](43-making-your-own-theme.md).
+Další motivy najdete na [stránce s extra motivy](https://omarchy.org/themes/) nebo si dokonce [vytvořte vlastní motiv](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Ikony aplikací
+
+Ikony ve spouštěči aplikací a v doku jsou vykreslené v barvách vašeho motivu, takže se mění spolu s ním. Pocházejí ze sady ikon, kterou vybíráte odděleně od motivu pod _Vzhled > Ikony_, z náhledů jednotlivých sad, stejně jako vybíráte motiv:
+
+- _Papercraft_ je výchozí: vše, co je nainstalované, nakreslené v jednom stylu. Aplikace známé svým logem, jako Chrome, HEY nebo YouTube, si zachovávají svůj tvar a přebírají barvy motivu.
+- _Arcade_ vykresluje tytéž aplikace jako 8-bit pixel art, jako by to udělala stará herní konzole.
+- _Original_ zobrazuje každou aplikaci s ikonou, kterou jí dal její tvůrce.
+
+Sadu ikon, kterou vytvořil někdo jiný, můžete nainstalovat přes _Instalovat > Styl > Ikony_ (nebo `omarchy icons install <git url>`) a zase ji odebrat pod _Odebrat > Ikony_. _Aktualizovat > Extra ikony_ stáhne nejnovější verzi sad, které máte nainstalované.
+
+Chcete-li vytvořit vlastní, vložte své ikony do `~/.config/omarchy/icons/<name>/`, jeden soubor pro každou aplikaci, pojmenovaný podle řádku `Icon=` v souboru `.desktop` dané aplikace. Soubor končící na `.svg` se zobrazí tak, jak je. Soubor končící na `.svg.tpl` se vykreslí v barvách motivu: tam, kam patří barva, napište `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` nebo `{{ icon_shadow }}`. Výchozí sada v `/usr/share/omarchy/icons/papercraft/` je dobrým místem, odkud začít. Přidejte `preview.png`, aby se vaše sada zobrazovala ve výběru; bez něj Omarchy vykreslí náhled z vašich ikon. Chcete-li změnit jednu ikonu výchozí sady, vložte svou verzi do `~/.config/omarchy/icons/papercraft/`.
+
 ### Odemknutí
 
-Motivy mohou mít také vlastní design odemknutí, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Odemknutí_. Vypadají takto:
+Motivy mohou mít také vlastní design odemknutí, který se používá při dešifrování při spouštění systému. Jeden z nich můžete vybrat pod _Vzhled > Odemknutí_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -96,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

@@ -2,18 +2,18 @@
 
 ### Pirksta nospieduma autentifikācija
 
-Daudziem klēpjdatoriem ir pirksta nospieduma sensors autentifikācijai. To vari izmantot ar Omarchy, Omarchy izvēlnē (`Super + Space`) palaižot _Iestatīšana > Drošība > Pirksta nospiedums_.
+Daudziem klēpjdatoriem ir pirksta nospieduma sensors autentifikācijai. Omarchy to varat izmantot, palaižot _Setup > Security > Fingerprint_ Omarchy izvēlnē (`Super + Space`).
 
-Tas instalēs pirksta nospieduma pakotni, nolasīs tavu nospiedumu, pārbaudīs to, un tu būsi gatavs ar pirksta nospiedumu atbloķēt datoru no bloķēšanas ekrāna (kuru vari izsaukt ar `Super + Ctrl + L`), ieiet sudo režīmā un apstiprināt sistēmas pieprasījumus.
+Tas atvērs pilnekrāna pirksta nospiedumu, kas aizpildās, pieskaroties sensoram. Fonā Omarchy instalēs pirksta nospieduma pakotni, ievāks jūsu nospiedumu, pārbaudīs to, un viss būs gatavs, lai ar pirksta nospiedumu atbloķētu datoru no bloķēšanas ekrāna (ko varat izsaukt ar `Super + Ctrl + L`), ieietu sudo režīmā un autorizētu sistēmas uzvednes.
 
-Kad bloķēšanas ekrāns ir izslēdzis displeju, sensors atpūšas, lai taupītu enerģiju, tāpēc pirms pieskaršanās tam pamodini ekrānu ar jebkuru taustiņu vai skārienpaliktni.
+Tiklīdz bloķēšanas ekrāns ir izslēdzis displeju, sensors atpūšas, lai taupītu enerģiju, tāpēc pirms pieskaršanās tam pamodiniet ekrānu ar jebkuru taustiņu vai skārienpaliktni.
 
-Kad tava klēpjdatora vāks ir aizvērts, pirksta nospieduma pieprasījums tiek automātiski izlaists, tāpēc tu nonāksi tieši pie paroles ievades, nevis gaidīsi sensoru, kuram nevari tikt klāt. Ja citādi tev jāstrādā ar ārējo tastatūru, kurai nav sensora, vienkārši nospied `CTRL + C`, kad `sudo` laikā tev tiek prasīts pirksta nospiedums.
+Kad klēpjdatora vāks ir aizvērts, pirksta nospieduma uzvedne tiek automātiski izlaista, tāpēc uzreiz nonāksiet pie paroles uzvednes, nevis gaidīsiet sensoru, kuram nevarat piekļūt. Ja citādi jāstrādā ar ārējo tastatūru, kurai nav sensora, vienkārši nospiediet `CTRL + C`, kad `sudo` laikā tiekat aicināts izmantot pirksta nospiedumu.
 
-Pirksta nospieduma autentifikāciju vari noņemt Omarchy izvēlnē zem _Noņemt > Drošība > Pirksta nospiedums_.
+Pirksta nospieduma autentifikāciju varat noņemt sadaļā _Remove > Security > Fingerprint_ Omarchy izvēlnē.
 
 ### Fido2 autentifikācija
 
-Ja izmanto Fido2 ierīci, vari to iestatīt `sudo` autentifikācijai, Omarchy izvēlnē (`Super + Space`) izmantojot _Iestatīšana > Drošība > Fido2_. Taču tā attiecas uz `sudo` un sistēmas autorizācijas pieprasījumiem, nevis uz tava datora atbloķēšanu.
+Ja izmantojat Fido2 ierīci, varat to iestatīt `sudo` autentifikācijai, izmantojot _Setup > Security > Fido2_ Omarchy izvēlnē (`Super + Space`). Taču tā attiecas uz `sudo` un sistēmas autorizācijas uzvednēm, nevis uz datora atbloķēšanu.
 
-Fido2 autentifikāciju vari noņemt Omarchy izvēlnē zem _Noņemt > Drošība > Fido2_.
+Fido2 autentifikāciju varat noņemt sadaļā _Remove > Security > Fido2_ Omarchy izvēlnē.

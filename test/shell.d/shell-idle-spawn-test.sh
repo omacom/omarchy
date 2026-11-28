@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:exclusive
+# A full shell on llvmpipe beside a busy pool can be starved or killed during startup.
 
 # An idle shell must not start processes. The shell runs all day, once per
 # session, and a Timer that starts a Process costs that process every tick for
@@ -136,6 +138,8 @@ stub() {
 # Keep startup off the network. These only shape what startup does; a poll
 # still shows up as an exec whether or not its command is stubbed.
 stub omarchy-update-available 'exit 1'
+# The local models listing and tailnet survey, which the shell takes once.
+stub omarchy-models 'exit 0'
 # A weather fetch that fails is retried, so answer it the way wttr.in does.
 stub curl 'case "${*: -1}" in
   *"?format=j1") printf "{\"current_condition\":[{\"weatherCode\":\"113\",\"temp_F\":\"72\"}]}\n" ;;
@@ -156,6 +160,15 @@ stub bash '[[ ${1:-} == "-lc" ]] && shift && set -- -c "$@"
 exec /bin/bash "$@"'
 
 fail_with_log() {
+  local status=""
+  if [[ -n $QS_PID ]] && ! kill -0 "$QS_PID" 2>/dev/null; then
+    if wait "$QS_PID" 2>/dev/null; then
+      status=0
+    else
+      status=$?
+    fi
+    printf 'test shell exited with status %s\n' "$status" >&2
+  fi
   sed -n '1,120p' "$log" >&2
   fail "$@"
 }
@@ -178,6 +191,7 @@ OMARCHY_EXEC_LOG="$exec_log" \
 LD_PRELOAD="$TMPDIR/exec-log.so" \
 QS_DISABLE_FILE_WATCHER=1 \
 QS_NO_RELOAD_POPUP=1 \
+QS_DISABLE_CRASH_HANDLER=1 \
   quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
@@ -193,24 +207,21 @@ done
 (( ready )) || fail_with_log "test shell answers IPC within 15 seconds"
 
 # Startup runs its one-off probes (hardware, packages, config) for a few seconds
-# after IPC answers, and ends by restoring the cursor once the startup cover has
-# faded, which waits on the wallpaper. Idle starts once that has happened and
-# everything has been quiet for a few seconds. A shell that never goes quiet
-# fails below with the commands it kept running.
-startup_done() {
-  grep -q 'omarchy_startup_cursor_restore' "$exec_log" 2>/dev/null
-}
-
+# after IPC answers, and its cover waits up to ten seconds on the wallpaper.
+# Idle starts once that is over and everything has been quiet for a few
+# seconds. A shell that never goes quiet fails below with the commands it kept
+# running.
 settle_start=$SECONDS
 quiet_since=$SECONDS
 last=$(exec_count)
 while (( SECONDS - settle_start < 40 )); do
+  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited during startup"
   sleep 0.5
   now=$(exec_count)
   if (( now != last )); then
     last=$now
     quiet_since=$SECONDS
-  elif (( SECONDS - quiet_since >= 4 )) && { startup_done || (( SECONDS - settle_start >= 20 )); }; then
+  elif (( SECONDS - quiet_since >= 3 && SECONDS - settle_start >= 11 )); then
     break
   fi
 done

@@ -1,13 +1,13 @@
 # Fuentes
 
-Omarchy usa JetBrainsMono Nerd Font como fuente tanto de la terminal como del sistema de forma predeterminada.
+Omarchy usa JetBrainsMono Nerd Font como fuente de la terminal y del sistema de forma predeterminada.
 
  ![fonts-jetbrainsmono](images/fonts-jetbrainsmono.webp)
 
-Puedes cambiarla desde el menú _Apariencia > Fuente_ en el menú de Omarchy (`Super + Space`). Eso establece la fuente monoespaciada en todas partes: la terminal, la barra y cualquier otra cosa que la pida.
+Puedes cambiarla en el menú _Apariencia > Fuente_ del menú de Omarchy (`Super + Space`). Eso establece la fuente monoespaciada en todas partes: la terminal, la barra y cualquier otro elemento que la solicite.
 
-Puedes instalar otras fuentes de programación populares desde _Instalar > Estilo > Fuente_ en el menú de Omarchy: Cascadia Mono, Meslo LG Mono, Fira Code, Victor Code, Bitstream Vera Mono e Iosevka están a un solo clic, en sus versiones Nerd Font para que los glifos de la barra y de la terminal sigan funcionando. Después de instalar una, elígela en _Apariencia > Fuente_.
+Puedes instalar otras fuentes de programación populares desde _Instalar > Estilo > Fuente_ en el menú de Omarchy: Cascadia Mono, Meslo LG Mono, Fira Code, Victor Code, Bitstream Vera Mono e Iosevka están a un solo clic, en sus versiones Nerd Font para que los glifos de la barra y la terminal sigan funcionando. Al instalar una también se cambia todo el sistema para usarla, y puedes volver cuando quieras desde _Apariencia > Fuente_.
 
 ## Chino, japonés y coreano
 
-El chino, el japonés y el coreano comparten muchos caracteres, pero dibujan algunos de forma distinta, así que el mismo carácter le parece correcto a un lector y ajeno a otro. Elegir uno de estos idiomas en _Configuración > Idioma_, o su método de entrada, establece las formas correspondientes. Para elegirlas tú mismo, ejecuta `omarchy font cjk jp`, `kr`, `sc`, `tc` (Taiwán) o `hk` (Hong Kong) en una terminal; `omarchy font cjk default` vuelve a la elección del sistema, que son las formas japonesas. El texto que una página web o un documento marque con su propio idioma, y todo el escritorio mientras esté en uno de estos idiomas, conserva las formas de ese idioma.
+El chino, el japonés y el coreano comparten muchos caracteres, pero algunos los dibujan de forma distinta, así que un mismo carácter le parece correcto a un lector y extraño a otro. Al elegir uno de estos idiomas en _Configuración > Región > Idioma_, o su método de entrada, se establecen las formas correspondientes. Para elegirlas tú mismo, ejecuta `omarchy font cjk jp`, `kr`, `sc`, `tc` (Taiwán) o `hk` (Hong Kong) en una terminal; `omarchy font cjk default` vuelve a la elección del sistema, que son las formas japonesas. El texto que una página web o un documento marca con su propio idioma, y todo el escritorio mientras está en uno de estos idiomas, conserva las formas de ese idioma.

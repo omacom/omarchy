@@ -1,0 +1,207 @@
+#!/bin/bash
+
+# omarchy:summary=Screenshot a desktop program an agent built, then close it
+# omarchy:args=[--keys "Down Return"] [--theme <name|dir>] [--language <code>] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]
+# omarchy:examples=omarchy agent look app -- ./build/tally | omarchy agent look app --keys "N" -- ./build/tally | omarchy agent look app --theme catppuccin-latte --language ar -- ./build/tally
+
+# An Omarchy app started from the omarchy-make-app scaffold draws itself offscreen
+# when OMARCHY_LOOK_SCREENSHOT names a file: it presses the keys in
+# OMARCHY_LOOK_KEYS through its window's Shortcuts, saves the window, and
+# quits. That needs no display, takes no focus, and shows nothing on the
+# user's screen. Any other program is started as a floating window that never
+# takes the keyboard focus, captured alone, and closed, which needs the
+# display to be on. Either way an agent sees its window without a program
+# blocking its shell forever. Prints the screenshot's path and whatever the
+# program printed.
+#
+# --theme and --language show a scaffolded app in another theme or language
+# without changing the user's: it runs in a throwaway home holding only the
+# theme's colors.toml and the language file, which is all the template's
+# Theme and Translator read from the home.
+
+set -uo pipefail
+
+keys="" after=2 size="" out="" theme="" language=""
+while (( $# )) && [[ $1 != "--" ]]; do
+  case $1 in
+    --keys) keys=$2; shift 2 ;;
+    --theme) theme=$2; shift 2 ;;
+    --language) language=$2; shift 2 ;;
+    --after) after=$2; shift 2 ;;
+    --size) size=$2; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+[[ ${1:-} == "--" ]] && shift
+if [[ ! $after =~ ^(0|[1-9][0-9]*)$ ]]; then
+  echo "--after takes whole seconds, like 2" >&2
+  exit 2
+fi
+if [[ -n $size && ! $size =~ ^[0-9]+x[0-9]+$ ]]; then
+  echo "--size takes a width and height, like 1280x800" >&2
+  exit 2
+fi
+if (( $# == 0 )); then
+  echo "Usage: omarchy agent look app [--keys \"Down Return\"] [--theme <name|dir>] [--language <code>] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]" >&2
+  exit 2
+fi
+
+# A theme by directory, or by name among the user's themes and then the stock
+# ones ("Catppuccin Latte" and "catppuccin-latte" both work).
+colors=""
+if [[ -n $theme ]]; then
+  slug=$(tr '[:upper:] ' '[:lower:]-' <<<"$theme")
+  for dir in "$theme" "$HOME/.config/omarchy/themes/$slug" "$OMARCHY_PATH/themes/$slug"; do
+    if [[ -f $dir/colors.toml ]]; then
+      colors=$dir/colors.toml
+      break
+    fi
+  done
+  if [[ -z $colors ]]; then
+    echo "No theme $theme with a colors.toml: pass a theme's name or its directory." >&2
+    exit 2
+  fi
+fi
+if [[ -n $language && ! $language =~ ^[a-z]{2,3}(-[A-Za-z0-9]+)?$ ]]; then
+  echo "--language takes a language code, like da or pt-BR" >&2
+  exit 2
+fi
+[[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+rm -f "$out"
+log=$(mktemp)
+
+finish() {
+  magick "$out" -resize '1280x>' "$out"
+  echo "screenshot: $out"
+  if [[ -s $log ]]; then
+    echo "program output:"
+    head -40 "$log"
+  fi
+  rm -f "$log"
+  exit 0
+}
+
+# A relative path is relative to here, and a command run from the wrong
+# directory would otherwise be blamed on the app.
+if ! type -P -- "$1" >/dev/null; then
+  echo "No program $1 here in $PWD: build it first, or cd to the app's directory (each shell command starts in the same place)." >&2
+  rm -f "$log"
+  exit 2
+fi
+
+# Only a program carrying the template's hook draws itself offscreen: the
+# built binary, not a script that starts it. Run this way, any other would
+# open a focused window on the user's desktop.
+if grep -qa OMARCHY_LOOK_SCREENSHOT "$(type -P -- "$1")" 2>/dev/null; then
+  home=$HOME
+  if [[ -n $theme || -n $language ]]; then
+    # What isn't asked for comes from the user's own theme and language.
+    home=$(mktemp -d)
+    mkdir -p "$home/.local/state/omarchy/current/theme" "$home/.config/omarchy"
+    cp "${colors:-$HOME/.local/state/omarchy/current/theme/colors.toml}" "$home/.local/state/omarchy/current/theme/colors.toml" 2>/dev/null
+    if [[ -n $language ]]; then
+      echo "$language" >"$home/.config/omarchy/language"
+    else
+      cp "$HOME/.config/omarchy/language" "$home/.config/omarchy/language" 2>/dev/null
+    fi
+  fi
+  # The program is resolved before HOME changes, so a command found through
+  # the user's PATH still runs.
+  program=$(type -P -- "$1")
+  # Offscreen, Qt Quick picks its software renderer, which draws no shader
+  # effects: Material buttons lose their fill and every shadow disappears,
+  # and an agent "fixes" a window that looks fine on screen. The GPU renderer
+  # draws them; without a GPU, the software one still shows the rest.
+  for backend in rhi software; do
+    HOME=$home QT_QUICK_BACKEND=$backend OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_SIZE=$size OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
+      QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$program" "${@:2}" >"$log" 2>&1 </dev/null
+    [[ -s $out ]] && break
+  done
+  [[ $home != "$HOME" ]] && rm -rf "$home"
+  [[ -s $out ]] && finish
+fi
+
+# Not a scaffolded app, or one without the hook: capture its window on screen.
+if [[ -n $theme || -n $language ]]; then
+  echo "This program can't be shown in another theme or language: --theme and --language need the OMARCHY_LOOK_SCREENSHOT handling in the omarchy-make-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
+  rm -f "$log"
+  exit 2
+fi
+if [[ -n $keys ]]; then
+  echo "This program can't press keys for a screenshot: --keys needs the OMARCHY_LOOK_KEYS handling in the omarchy-make-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
+fi
+if ! hyprctl monitors -j | jq -e 'any(.[]; .dpmsStatus)' >/dev/null; then
+  echo "The display is off, so the window can't be captured on screen, and this program didn't draw itself offscreen (the omarchy-make-app template's main.cpp does, on OMARCHY_LOOK_SCREENSHOT). It printed:" >&2
+  head -40 "$log" >&2
+  rm -f "$log"
+  exit 1
+fi
+
+# Hyprland starts the program with the session's environment, so pass on the
+# caller's directory, home and PATH: an agent working in another home sees
+# its own files. It runs in a session of its own, whose id is the pid it
+# records: that is how its window is told from any other, even one a wrapper
+# started in the background before exiting.
+pidfile=$(mktemp)
+command="echo \$\$ >${pidfile@Q}; cd ${PWD@Q} && export HOME=${HOME@Q} PATH=${PATH@Q} && exec ${*@Q} >${log@Q} 2>&1"
+[[ -n $size ]] || size=1280x800
+hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "setsid bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true, size = { ${size/x/, } } })" >/dev/null
+
+# Whether a process is the launched program or one it started: in its
+# session, or, for one that started a session of its own, below it.
+launched() {
+  local pid=$1
+  [[ -n $root && $pid =~ ^[0-9]+$ ]] || return 1
+  [[ $(ps -o sid= -p "$pid" | tr -d ' ') == "$root" ]] && return 0
+  while [[ $pid =~ ^[0-9]+$ ]] && (( pid > 1 )); do
+    (( pid == root )) && return 0
+    pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
+  done
+  return 1
+}
+
+# The launched program's own window. Anything else that opens meanwhile is
+# the user's, and is neither captured nor closed.
+own_window() {
+  local id pid
+  while read -r id pid; do
+    if launched "$pid"; then
+      echo "$id $pid"
+      return
+    fi
+  done < <(hyprctl clients -j | jq -r '.[] | "\(.stableId) \(.pid)"')
+}
+
+# Ends the launched program, whether or not its window ever came.
+stop() {
+  kill $root $pid 2>/dev/null
+  rm -f "$pidfile"
+}
+
+root="" id="" pid=""
+for _ in {1..30}; do
+  root=$(<"$pidfile")
+  read -r id pid < <(own_window)
+  [[ -n $id ]] && break
+  sleep 0.5
+done
+if [[ -z $id ]]; then
+  echo "The program opened no window of its own within 15 seconds. It printed:" >&2
+  head -40 "$log" >&2
+  stop
+  rm -f "$log"
+  exit 1
+fi
+
+sleep "$after"
+# The window itself, never its area of the screen: by now that could show
+# another workspace, or a window the user put in front.
+timeout 5 grim -T "$id" "$out"
+stop
+if [[ ! -s $out ]]; then
+  echo "The window couldn't be captured." >&2
+  rm -f "$log"
+  exit 1
+fi
+finish

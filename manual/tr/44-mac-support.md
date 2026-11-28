@@ -1,72 +1,153 @@
 # Mac desteği
 
-Omarchy'nin **Intel Mac'ler** için yerleşik desteği vardır. Şu anda bilinen birkaç sınırlama vardır, ancak bunların farkında olduğunuz ve sizin için uygun olduğu sürece, Omarchy yükleyerek eski Mac'lerinize yeni bir hayat verebilirsiniz.
+## Apple Silicon için Omarchy
 
-Lütfen M serisi bir Mac'e kurulumun şu anda doğrudan desteklenmediğini unutmayın. Bunun durumu hakkında daha fazla bilgiyi [Discord](https://discord.gg/tXFUdasqhY) sunucumuzdaki #omarchy-on-other kanalında bulabilirsiniz.
+Apple Silicon için Omarchy, resmi bir Omacom çözümüdür ve ilk olarak Omarchy 4.5 ile yayınlandı. macOS'un yanına kurulur ve Mac'iniz açıldığında ikisi arasında seçim yaparsınız.
 
-Basit bir testte, yalnızca Omarchy kurarak 2019 MacBook Pro'da %36 performans kazancı elde edebildik.
+Omarchy Mac hakkında bir bildirim mi aldınız? [Omarchy Mac'ten geliyorsanız](#coming-from-omarchy-mac) bölümüne gidin.
+
+Şu Mac'lerde çalışır:
+
+| Mac | Çipler |
+| --- | --- |
+| MacBook Air | M1, M2, M3 |
+| MacBook Pro | M1, M1 Pro, M1 Max, M2, M2 Pro, M2 Max, M3, M3 Pro, M3 Max |
+| MacBook Neo | A18 Pro |
+| Mac mini | M1, M2, M2 Pro |
+| Mac Studio | M1 Max, M1 Ultra, M2 Max, M2 Ultra |
+| iMac | M1, M3 |
+| Mac Pro | M2 Ultra |
+
+M4 ve daha yeni Mac'ler henüz desteklenmiyor. M4 desteği edge kanalında test ediliyor ve sırada o var. Yükleyici, herhangi bir değişiklik yapmadan önce Mac'inizi kontrol eder.
+
+M4 ve daha yenileri dahil herhangi bir Apple Silicon Mac'te, Omarchy'yi [Try Omarchy](https://github.com/omacom/try-omarchy) ile bir sanal makinede çalıştırabilirsiniz.
+
+### Neye ihtiyacınız var
+
+- macOS 15 Sequoia veya sonrası ve bir yönetici hesabı
+- Omarchy için boş disk alanı. Yükleyici bir boyut önerir ve değiştirmenize izin verir.
+- Mac'inizin yedeği, güç bağlantısı ve bir internet bağlantısı. Kurulum birkaç gigabayt indirir.
+
+### Kurulum
+
+macOS'tan kurarsınız. Omarchy Installer'ı [Homebrew](https://brew.sh) ile kurun:
+
+```sh
+brew install omacom/mac/omarchy
+```
+
+Veya en yeni Omarchy Installer'ı [sürümler sayfasından](https://github.com/omacom/omarchy-mac-installer/releases) indirin ve açın.
+
+Yükleyici Mac'inizi kontrol eder, planı size gösterir ve macOS bölümünü küçülterek Omarchy'ye yer açar. macOS diskte kalır ve USB sürücü gerekmez. İlk aşama tamamlandığında, macOS Recovery içinde kurulumu bitirmeniz için size yol gösterir: kapatın, "Loading startup options" görünene kadar güç düğmesini basılı tutun, Omarchy'yi seçin ve adımları izleyin.
+
+İlk açılışta Omarchy, diskini şifreleyen bir parola ister. Kurtarma anahtarı yoktur: parolayı unutursanız Omarchy dosyalarınız kurtarılamaz.
+
+Daha sonra Omarchy ile macOS arasında geçiş yapmak için kapatın, ardından başlangıç seçenekleri görünene kadar güç düğmesini basılı tutun ve birini seçin.
+
+### Omarchy Mac'ten geliyorsanız
+
+Omarchy Mac artık Apple Silicon için Omarchy'nin bir parçası ve onu çalıştıran her Mac destekleniyor. Mevcut kurulumunuz çalışmaya devam eder ve sistem paketleri hâlâ güncellenir, ancak artık Omarchy güncellemeleri almaz. Son tarih yok ve yerinde yükseltme yok: yedeklersiniz, eski kurulumu kaldırırsınız, sıfırdan kurarsınız ve geri yüklersiniz. 2 ile 5 arasındaki adımlar macOS'ta gerçekleşir, bu yüzden yeniden başlatmadan önce bu sayfayı telefonunuzda açın.
+
+1. **Omarchy'den, Mac'in dışına yedekleyin.** Eski kurulumu kaldırmak onu siler ve macOS, Omarchy diskini okuyamaz. SSH ve GPG anahtarları, tarayıcı profilleri ve gönderilmemiş çalışmalar dahil, ev klasörünüzü harici bir sürücüye veya başka bir bilgisayara kopyalayın. Paket listenizi `pacman -Qqe > ~/packages.txt` ile kaydedin. Kaldırma ve kurulum işlemlerinin ikisi de diskini yeniden boyutlandırdığı için macOS'u da yedekleyin.
+2. **Mac'inizi macOS'ta başlatın.** Kapatın, başlangıç seçenekleri görünene kadar güç düğmesini basılı tutun ve macOS'u seçin.
+3. **Omarchy Installer'ı kurun**; [Kurulum](#installing) bölümünde gösterildiği gibi.
+4. **Eski kurulumu kaldırın.** Omarchy Installer'ı açın ve Installation > Remove Omarchy'yi seçin. Neyi sileceğini gösterir ve alanı macOS'a geri verir. Kurulumunuzu tanımazsa, diskte değişiklik yapmadan durur. Bölümleri elle silmek yerine, macOS'u silebileceği için [Discord](https://discord.gg/tXFUdasqhY) üzerinden yardım isteyin.
+5. **Apple Silicon için Omarchy'yi kurun**; yükleyici ile.
+6. **Dosyalarınızı geri yükleyin.** Tüm `~/.config` klasörünü yeni varsayılanların üzerine kopyalamak yerine ayarlarınızı parça parça geri getirin, çünkü eski ayarlar onları geçersiz kılabilir.
+
+### Bilmekte fayda var
+
+- M1 ve M2 MacBook'larda, kapağı açarak veya güç düğmesine basarak uykudan uyandırın.
+- Sorular veya sorunlar: [Discord](https://discord.gg/tXFUdasqhY) üzerinden bize sorun.
+
+[yükleyicinin README'si](https://github.com/omacom/omarchy-mac-installer#readme), sürüm kanallarını, yükleyiciyi güncellemeyi ve Omarchy'yi kaldırmayı kapsar.
+
+## Intel Mac'ler
+
+Basit bir testte, 2019 MacBook Pro'da yalnızca Omarchy kurarak %36 performans artışı elde edebildik.
 
  ![macbook-omarchy](images/macbook-omarchy.webp)
 
-### Omarchy'yi Mac'e kurma
+### Omarchy'yi Mac'e Kurmak
 
-Omarchy şu anda kurulu **tek** işletim sistemi olmayı destekler. Kurulum sırasında sürücü silinecek ve MacOS artık önyükleneemeyecektir.
+Omarchy şu anda kurulu **tek** işletim sistemi olmayı destekliyor. Kurulum sırasında sürücü silinecek ve MacOS artık başlatılamayacak.
 
-İsterseniz daha sonra İnternet Kurtarma aracılığıyla geri yükleyebilirsiniz.
+İsterseniz daha sonra Internet Recovery ile onu yine de geri yükleyebilirsiniz.
 
-Bu bölümde, [Başlarken](02-getting-started.md) bölümünü zaten gözden geçirdiğinizi ve USB sürücünüzün hazır olduğunu varsayacağız. Eğer hazır değilse, şimdi gidip bunu yapın.
+Bu bölüm için, [Başlarken](02-getting-started.md) bölümünü zaten incelediğinizi ve USB sürücünüzün hazır olduğunu varsayacağız. İncelemediyseniz hemen şimdi yapın.
 
-#### Güvenli Önyüklemeyi devre dışı bırak
+#### Secure Boot'u Devre Dışı Bırakma
 
-Önyüklenebilir USB'yi ve işletim sistemini önyükleyebilmek için Apple'ın Güvenli Önyüklemesini devre dışı bırakmak gereklidir. Devre dışı bırakmak için şunları yapın:
+Önyüklenebilir USB'yi ve işletim sistemini başlatabilmek için Apple'ın Secure Boot'unu devre dışı bırakmak gerekir. Devre dışı bırakmak için şunları yapın:
 
 1. Mac'inizi kapatın
-2. Açın ve yükleme ekranının göründüğünü görene kadar _hemen_ Command-R tuşlarına basılı tutun
+2. Açın ve yükleme ekranını görene kadar _hemen_ Command-R'yi basılı tutun
 3. Kullanıcınızı seçin ve istenirse parolanızı girin
-4. Kurtarma ekranına girdikten sonra, menü çubuğundan **Utilities > Startup Security Utility** seçeneğini seçin
+4. Kurtarma ekranına geldiğinizde, menü çubuğundan **Utilities > Startup Security Utility**'yi seçin
 5. Kimlik doğrulaması istendiğinde parolanızı girin
-6. Güvenli Önyükleme seçeneklerinden "No Security" seçeneğini seçin
-7. Harici Önyükleme seçeneklerinden "Allow booting from external or removable media" seçeneğini seçin
+6. Secure Boot seçeneklerinden "No Security"yi seçin
+7. External Boot seçeneklerinden "Allow booting from external or removable media"yı seçin
 
-#### Kurulumu başlat
+#### Kurulumu Başlatma
 
-1. USB sürücüsünü takın
-2. Mac'inizi yeniden başlatın ve bir önyükleme cihazları ekranı görene kadar _hemen_ Option tuşuna basılı tutun
-3. Turuncu EFI Boot cihazını seçin
-4. [Normal kurulum](02-getting-started.md) ile devam edin
+1. USB sürücüyü takın
+2. Mac'inizi yeniden başlatın ve önyükleme aygıtlarının olduğu bir ekran görene kadar _hemen_ Option'ı basılı tutun
+3. Turuncu EFI Boot aygıtını seçin
+4. [Kuruluma normal şekilde](02-getting-started.md) devam edin
 
-Kurulum programı Mac donanımını algılar ve gereken düzeltmeleri otomatik olarak uygular: Broadcom Wi-Fi sürücüleri ve bellenimi, ona ihtiyaç duyan MacBook modellerindeki SPI klavye sürücüsü ve aynı modeller için bir NVMe askıya alma düzeltmesi.
+Yükleyici Mac donanımını algılar ve gereken düzeltmeleri otomatik olarak uygular: Broadcom Wi-Fi sürücüleri ve firmware'i, Broadcom 1570 bulunan makinelerdeki FaceTime HD kamera sürücüsü (firmware'i, yükleyici çevrimdışı çalıştığı için Mac çevrimiçi olduktan sonra Apple'dan indirilir), ona ihtiyaç duyan MacBook modellerindeki SPI klavye sürücüsü ve aynı modeller için bir NVMe askıya alma düzeltmesi.
 
 ### Bilinen Sınırlamalar
 
-Topluluk üyeleri bu zorluklara sürekli çözüm üretmek için çalışıyor, bu yüzden bunlar sizin için sorun oluşturuyorsa, [Discord](https://discord.gg/tXFUdasqhY) sunucumuzdaki #omarchy-on-other kanalına katılın ve bunları çözmek için güncel yöntemler olup olmadığına bakın.
+Topluluk üyeleri bu zorluklara sürekli çözüm üretmek için çalışıyor, bu yüzden bunlar sizin için sorun oluyorsa [Discord](https://discord.gg/tXFUdasqhY) üzerindeki #omarchy-on-other kanalına katılın ve bunları çözmek için güncel yöntemler olup olmadığına bakın.
 
-#### T1 Çipli cihazlar
+#### FaceTime HD Kamera
+
+Kamera sürücüsü, Mac hazırda beklerken yüklüyse makineyi kilitler, bu yüzden önce kaldırılır. Bir uygulama kamerayı açık tutarken kaldırılamaz, bu yüzden hazırda bekletme, uygulamayı adlandıran bir bildirimle iptal edilir: onu kapatın ve tekrar hazırda bekletin. Buna kritik pil seviyesinde otomatik hazırda bekletme ve askıya almadan önce reddedilen suspend-then-hibernate dahildir. Sıradan askıya alma, kamera açıkken sürücünün kendisi tarafından bildirim olmadan reddedilir.
+
+Kameranın firmware'i Apple'dan indirilir, bu yüzden kamera yalnızca Mac çevrimiçi olduktan sonra çalışır. İndirme açılışta başlar ve sorun ağdaysa her 15 dakikada bir yeniden denenir; Apple'ın dosyası değiştiyse durur ve bir Omarchy güncellemesini bekler. Kamera görünmezse, `journalctl -u facetimehd-firmware-fetcher` nedenini söyler, `sudo systemctl restart facetimehd-firmware-fetcher` tekrar dener ve indirme bittiği halde kamera hâlâ yoksa yeniden başlatmak sürücüyü yükler.
+
+#### T1 Çipli Aygıtlar
 
 Apple T1 çipi 2016'nın sonlarında tanıtıldı ve yalnızca Touch Bar'lı birinci nesil MacBook Pro modellerinde kullanıldı.
-- MacBook Pro 13 inç (2016, iki Thunderbolt 3 bağlantı noktası) – Model: A1706
-- MacBook Pro 13 inç (2016, dört Thunderbolt 3 bağlantı noktası) – Model: A1708
-- MacBook Pro 15 inç (2016) – Model: A1707
+- MacBook Pro 13-inch (2016, iki Thunderbolt 3 bağlantı noktası) – Model: A1706
+- MacBook Pro 13-inch (2016, dört Thunderbolt 3 bağlantı noktası) – Model: A1708
+- MacBook Pro 15-inch (2016) – Model: A1707
 
 #### Bilinen Sorunlar
 
 - Touch Bar çalışmıyor
 - Ses çalışmıyor
 
-#### T2 Çipli cihazlar
+#### T2 Çipli Aygıtlar
 
-Apple T2 Güvenlik Çipi 2017'de tanıtıldı. T2 çipi, 2020'de başlayan Apple silicon'a (M serisi çipler) geçişle birlikte sonlandırıldı.
+Apple T2 Security Chip 2017'de tanıtıldı. T2 çipi, 2020'den itibaren Apple silicon'a (M serisi çipler) geçişle birlikte kullanımdan kaldırıldı.
 
 - iMac Pro (2017) – Model: A1862
-- MacBook Pro 13 inç (2018, dört Thunderbolt 3 bağlantı noktası) – Model: A1989
-- MacBook Pro 15 inç (2018) – Model: A1990
-- MacBook Air (Retina, 13 inç, 2018) – Model: A1932
+- MacBook Pro 13-inch (2018, dört Thunderbolt 3 bağlantı noktası) – Model: A1989
+- MacBook Pro 15-inch (2018) – Model: A1990
+- MacBook Air (Retina, 13-inch, 2018) – Model: A1932
 - Mac mini (2018) – Model: A1998
-- MacBook Pro 13 inç (2019, iki Thunderbolt 3 bağlantı noktası) – Model: A2159
-- MacBook Pro 13 inç (2019, dört Thunderbolt 3 bağlantı noktası) – Model: A2178
-- MacBook Pro 15 inç (2019) – Model: A1990
-- iMac (Retina 5K, 27 inç, 2020) – Model: A2115 (iMac20,1 ve iMac20,2)
-- MacBook Pro 13 inç (2020, iki Thunderbolt 3 bağlantı noktası) – Model: A2265
-- MacBook Pro 15 inç (2020) – Model: A1990
+- MacBook Pro 13-inch (2019, iki Thunderbolt 3 bağlantı noktası) – Model: A2159
+- MacBook Pro 13-inch (2019, dört Thunderbolt 3 bağlantı noktası) – Model: A2178
+- MacBook Pro 15-inch (2019) – Model: A1990
+- iMac (Retina 5K, 27-inch, 2020) – Model: A2115 (iMac20,1 ve iMac20,2)
+- MacBook Pro 13-inch (2020, iki Thunderbolt 3 bağlantı noktası) – Model: A2265
+- MacBook Pro 15-inch (2020) – Model: A1990
 
-Bu modellerde kurulum programı yamalı `linux-t2` çekirdeğini, T2 ses yapılandırmasını, Apple'ın Broadcom Wi-Fi/Bluetooth bellenimini ve `t2fanrd` aracılığıyla fan denetimini otomatik olarak kurar. Touch Bar, çekirdeğin yerleşik Boot Camp tarzı desteği üzerinde çalışır.
+Bu modellerde yükleyici otomatik olarak yamalı `linux-t2` kernel'ını, T2 ses yapılandırmasını, Apple'ın Broadcom Wi-Fi/Bluetooth firmware'ini ve `t2fanrd` ile fan kontrolünü kurar. Touch Bar, kernel'ın yerleşik Boot Camp tarzı desteğiyle çalışır.
+
+#### iMac Retina 5K (2017)
+
+2017 27-inch iMac'te T2 çipi yoktur, bu yüzden yükleyici onu diğer Intel Mac'ler gibi kurar.
+
+- iMac (Retina 5K, 27-inch, 2017) – Model: A1419
+
+#### Bilinen Sorunlar
+
+- Ekran doğal 5120×2880 çözünürlüğünde çalışmıyor: panel iki karodan oluşuyor ve stok sürücü yalnızca birini aydınlatıyor
+- Ses çalışmıyor
+- Parlaklık kontrolünün hiçbir etkisi yok
+- Uyku makineyi kilitliyor; yalnızca güç döngüsü onu kurtarıyor
+
+Bu model için bir topluluk yaması ekranı, sesi ve parlaklığı düzeltir: [omarchy-imac18-3](https://github.com/ahmadtv/omarchy-imac18-3).

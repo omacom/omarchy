@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:summary=Give logged-in users' work a CPU frequency floor that follows the power profile
+# omarchy:args=[monitor|apply|release]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Snapdragon X runs schedutil, which raises a core's clock only as a task's
+# tracked utilisation grows, over tens of milliseconds. Bursty work such as a
+# browser's finishes most bursts before the clock catches up: Speedometer 3.1
+# scored 22 in balanced on an X2 Elite. Holding every core at full clock with
+# the performance governor scored 47, but cost 2W at idle and was the likely
+# cause of hard resets on battery.
+#
+# A utilisation clamp floor (uclamp.min) gets the speed without that cost:
+# schedutil runs a clamped task's core at least at the floor whenever the task
+# is runnable, and idle cores still drop to their lowest clock. Measured on a
+# Zenbook A16 on battery, Speedometer 3.1 scored 42 in balanced with a 75%
+# floor and 45 in performance with a 100% floor.
+#
+# The floor is set on every process of each user logind tracks, and new
+# processes inherit it from whatever forks them, the user's systemd manager
+# included. Setting it on the manager takes CAP_SYS_NICE, since the manager
+# holds a capability its user doesn't, so this runs as root. It is re-applied
+# when the power profile changes and when a user logs in, from D-Bus signals.
+# The service releases it after the monitor stops, since stopping signals
+# every process the monitor would release it with.
+
+floor_for_profile() {
+  case $1 in
+    performance) echo 1024 ;;
+    balanced) echo 768 ;;
+    *) echo 0 ;;
+  esac
+}
+
+apply_floor() {
+  local floor=$1 uid pid
+
+  for uid in $(loginctl list-users --no-legend | awk '{ print $1 }'); do
+    for pid in $(pgrep -U "$uid"); do
+      # A process can exit between the listing and the write
+      uclampset -m "$floor" -a -p "$pid" >/dev/null 2>&1 || true
+    done
+  done
+}
+
+apply_profile_floor() {
+  apply_floor "$(floor_for_profile "$(powerprofilesctl get)")"
+}
+
+monitor() {
+  local line listening=0
+
+  # dbus-monitor prints its first line once it is listening, so the first
+  # floor is applied then: a profile change before it would be missed
+  while IFS= read -r line; do
+    if (( !listening )) || [[ $line == signal* && ($line == *member=PropertiesChanged* || $line == *member=SessionNew*) ]]; then
+      listening=1
+      apply_profile_floor
+    fi
+  done < <(dbus-monitor --system \
+    "type='signal',sender='org.freedesktop.UPower.PowerProfiles',path='/org/freedesktop/UPower/PowerProfiles',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'" \
+    "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='SessionNew'")
+
+  # The monitor only ends if it lost the bus; fail so the service restarts it
+  echo "The D-Bus monitor stopped" >&2
+  return 1
+}
+
+case ${1:-monitor} in
+  monitor) monitor ;;
+  apply) apply_profile_floor ;;
+  release) apply_floor 0 ;;
+  *)
+    echo "Usage: omarchy-powerprofiles-floor [monitor|apply|release]" >&2
+    exit 1
+    ;;
+esac

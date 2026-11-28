@@ -128,7 +128,7 @@ def local_stats(sessions_root, reuse=True):
   for row in pi_rows + harness_rows + db_rows + routed_rows:
     stats.add_row(row, row.model or AGENT_ID)
   complete = pi_complete and harness_complete and db_complete and routed_complete
-  return {"hasLocalStats": bool(stats.sessions), **stats.snapshot()}, complete
+  return {"hasLocalStats": bool(stats.sessions), **stats.snapshot_with_spend()}, complete
 
 
 # The key and gateway Kimchi itself would use: KIMCHI_API_KEY, KIMCHI_BASE_URL,

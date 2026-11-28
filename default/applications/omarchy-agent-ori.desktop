@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Ori
+Comment=Start Ori in a terminal
+Exec=omarchy-agent --agent ori --app-id=org.omarchy.ori
+Icon=omarchy-agent-ori
+StartupWMClass=org.omarchy.ori
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

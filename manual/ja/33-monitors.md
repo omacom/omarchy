@@ -1,69 +1,70 @@
 # モニター
 
-Omarchy はデフォルトで、2x 対応の Retina クラスのディスプレイで動作することを前提としている。これが、美しく鮮明なプログラマー向けフォントを得るために必要なものだ。ほぼすべての新しい高解像度画面を備えたプレミアムノートパソコンの最適化対象がこれだ。27" 5K の [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) や 32" 6K の [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/) で動作させたいのもこれだ。
+Omarchy はデフォルトで、2x 対応の retina クラスのディスプレイで実行していることを前提としています。美しく鮮明なプログラマー向けフォントを得るにはこれが必要です。最近のほぼすべての高解像度画面を備えたプレミアムノートパソコンが最適化されているのも、このクラスです。27" 5K [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) や 32" 6K [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/) で使いたくなるのも、このクラスです。
 
-ただし、PPI が 218 以上のディスプレイを使っていないなら、モニター設定を変更した方がいい。たとえば 27" や 32" の 4K があるなら、`~/.config/hypr/monitors.lua` を開いて（Omarchy メニューの _Setup > Monitors_ から）、その組み合わせ向けの推奨設定に切り替えることで分数スケーリングを使える：
-
-```lua
-local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 1.6
-```
-
-1080p や 1440p のディスプレイを使っているなら、おそらく 1x スケーリングで十分だろう。その場合は次を使える：
+ただし、PPI が 218 以上ではないディスプレイを使っている場合は、モニター設定を変更したくなるはずです。たとえば 27" または 32" の 4K を使っている場合は、トップバーのモニターパネルからそのディスプレイ用の小数スケール（fractional scale）を選ぶか、`~/.config/hypr/monitors.lua` を開いて、その組み合わせ向けの推奨設定に切り替えることで、すべてのモニターに対するデフォルトを設定できます。
 
 ```lua
-local omarchy_gdk_scale = 1
-local omarchy_monitor_scale = 1
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })
 ```
 
-`GDK_SCALE` への変更は、変更後に起動したアプリケーションに適用される（そして GTK は整数しか受け付けないので、モニターのスケールに最も近い整数にしておくこと）。だから、変更後に大きすぎるままになっているウィンドウは必ず終了すること（あるいは `Ctrl + Alt + Del` で全ウィンドウを閉じること！）。
+1080p または 1440p のディスプレイを使っている場合は、おそらく 1x スケーリングを使いたくなるだけでしょう。GTK および X11 アプリについても同様です。そのため、次のように使えます。
 
-`Super + /` で高い方へ、`Super + Alt + /` で低い方へ進めていくことで、主要なモニタースケーリング比率（1x、1.25x、1.6x、2x、3x、4x）をすばやく切り替えることもできるし、トップバーのモニターパネルから選ぶこともできる。これらはフォーカスのあるモニターだけを変更するので、ノートパソコンの画面と外付けディスプレイでそれぞれ別のスケールを持てる。選択は `~/.config/hypr/monitors.lua` にそのモニター向けの `hl.monitor` ルールとして保存されるので、再起動後も維持され、すべてのモニター共通のスケールとして残る `omarchy_monitor_scale` よりも優先される。`GDK_SCALE` は全画面で 1 つの値しか持てないため、これらの変更ではスケールが最も小さいモニターに合わせて設定される。だから X11 アプリは、もう一方の画面で大きすぎるよりは、高密度な画面で少し小さく表示される。
+```lua
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+hl.env("GDK_SCALE", "1")
+```
+
+`GDK_SCALE` への変更は、変更後に起動したアプリケーションに適用されます（GTK は整数しか受け付けないため、モニタースケールに最も近い整数にしておいてください）。そのため、変更後に大きすぎるウィンドウは必ず終了してください（あるいは `Ctrl + Alt + Del` で全ウィンドウを閉じてください！）。
+
+主なモニタースケーリング倍率（1x、1.25x、1.6x、2x、3x、4x）を、`Super + /` で高く、`Super + Alt + /` で低くしながら素早くステップしていくこともできますし、トップバーのモニターパネルから 1 つ選ぶこともできます。これらはフォーカスしているモニターだけを変更するため、ノートパソコンの画面と外部ディスプレイでそれぞれ別のスケールを持たせることができます。パネルでは各モニターの解像度、リフレッシュレート、回転も設定します。あなたの選択は、その物理モニター用に `~/.local/state/omarchy/monitors/settings` に保存されるため、再起動後も保持され、そのモニターを次にどのポートやドックに挿してもついてきます。これらは `~/.config/hypr/monitors.lua` 内の同じモニターに対するルールよりも優先されます（Omarchy がそのファイルを編集することは決してありません）。モニターをすべてそのファイルで設定したい場合は、そこに `omarchy_monitor_panel_settings = false` を追加してください。そうすると、パネルの変更は Hyprland がリロードされるまでの間だけ有効になります。`GDK_SCALE` はすべての画面に対して 1 つの値しか持てないため、選択されたスケールは最も低いスケールのモニターからそれを設定します。その結果、X11 アプリはもう一方の画面で大きすぎになるのではなく、より高密度な画面で少し小さく表示されます。
 
 ### テキストを大きくしたり小さくしたりする
 
-モニタースケーリングはすべてのサイズを変更する。単に _テキスト_ だけを大きくしたり小さくしたりしたいなら、それ専用のノブが 1 つある：
+モニタースケーリングはすべての大きさを変更します。大きくしたり小さくしたりしたいのが _テキスト_ だけなら、そのためのノブは 1 つだけです。
 
 ```
 omarchy display text size 14
 ```
 
-これは 9 から 20 の間のピクセルサイズを受け取り、Omarchy シェル、GTK アプリケーション、ターミナルをまとめて動かすので、デスクトップ全体のバランスが保たれる。引数なしで実行すれば現在の値がわかり、`omarchy display text size reset` でデフォルトに戻せる。Foot だけが唯一の遅れん坊だ：設定をリロードする方法がないので、実行中のターミナルは新しいものを開くまで古いサイズのままになる。
+これは 9 から 20 の間のピクセルサイズを取り、Omarchy シェル、GTK アプリケーション、ターミナルをまとめて動かすため、デスクトップ全体のバランスが保たれます。引数なしで実行すると現在の状態が分かり、`omarchy display text size reset` でデフォルトに戻ります。Foot だけが 1 つ取り残されています。設定をリロードする方法がないため、実行中のターミナルは新しいものを開くまで古いサイズのままです。
 
-### ノートパソコンのディスプレイの拡張とミラーリング
+### ノートパソコンのディスプレイを拡張したりミラーリングしたりする
 
-ノートパソコンに外付け画面を接続すると、ディスプレイは自動的に拡張される。だが、Omarchy メニューの _Trigger > Hardware_ を使うか `Super + Ctrl + Alt + Delete` を押すことで、代わりにミラーリングへ変更できる。これは特に、その外付け画面がプロジェクターで、作業しながら何かを見せたい場合に役立つ。
+外部画面をノートパソコンに接続すると、ディスプレイは自動的に拡張されます。しかし、トップバーのモニターパネル内の _拡張_ | _ミラー_、Omarchy メニュー内の _Trigger > ハードウェア_、または `Super + Ctrl + Alt + Delete` を使って、代わりにミラーリングに変更することができます。外部画面がプロジェクターで、作業しながら何かを見せたい場合に特に役立ちます。
 
-拡張している場合、ノートパソコンの蓋を閉じると内蔵画面は自動的にオフになる。蓋を開けると再びオンになる。Omarchy メニューの _Trigger > Hardware_ や `Super + Ctrl + Delete` を使って手動で制御することもできる。
+拡張している場合、ノートパソコンの蓋を閉じると内部画面は自動的にオフになります。蓋を開けると再びオンになります。Omarchy メニュー内の _Trigger > ハードウェア_、または `Super + Ctrl + Delete` を使って手動で制御することもできます。
+
+ノートパソコンが電源に接続されている間は、蓋を閉じてもスリープすることは決してないため、ドッキングされたノートパソコンは外部画面が一時的に切断されても起動したままです。外部画面が接続されていない場合、電源に接続した状態で蓋を閉じるとロックされるだけです。バッテリー駆動時は、蓋を閉じると通常どおりサスペンドします。
 
 ### 複数の画面を配置する
 
-Hyprland は複数の画面で素晴らしく動作する。配置方法の詳細は [Hyprland のモニターに関するドキュメント](https://wiki.hypr.land/Configuring/Basics/Monitors/) を読むこと。Omarchy では、これらは `~/.config/hypr/monitors.lua` に `hl.monitor` エントリとして記述する — このファイルには、特定のモニターを解像度、位置、回転に固定するためのコメントアウトされた例が付属している。
+Hyprland は複数の画面でも素晴らしく動作します。トップバーのモニターパネルは、画面が置かれている場所にそれらを描画します。ある画面を別の画面の側面にドラッグするとそこへ移動でき、その配置は各モニターの他の設定と一緒に保存されます。パネルでカバーできないことについては、[Hyprland のモニターに関するドキュメント](https://wiki.hypr.land/Configuring/Basics/Monitors/) でレイアウト方法をさらに読んでください。Omarchy では、これらは `~/.config/hypr/monitors.lua` に `hl.monitor` エントリとして入ります。このファイルには、モニターをオフのままにする方法、パネルが提供しないモード、10 ビットカラー、可変リフレッシュレートのためのコメント付きの例が付属しています。
 
-すべてのモニターがそれぞれ独自のワークスペース 1 から 10 を持っているので、`Super + 1` は常に対象モニターの最初のワークスペースを意味する。裏側では、Hyprland は依然として全モニター通しでワークスペースに番号を振っている：ノートパソコンの画面（または最初のモニター）が 1–10、次のモニターが 11–20、という具合で、各モニターは接続するたびに自分のブロックを保持する。特定のモニター向けに [ワークスペースルール](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) やウィンドウルールを書く場合はこれらの番号を使うこと。たとえばワークスペース 12 は 2 台目のモニターの 2 番目のワークスペースだ。`~/.local/state/omarchy/monitor-workspaces` には各モニターがどのブロックを持っているかが列挙されている。
+すべてのモニターが独自のワークスペース 1 から 10 を持つため、`Super + 1` は常に対象のモニターの最初のワークスペースを意味します。裏側では、Hyprland は依然としてすべてのモニターにわたってワークスペースに番号を振ります。ノートパソコンの画面（または最初のモニター）は 1–10 を、次のモニターは 11–20 を、という具合に受け取り、各モニターは接続するたびに自分のブロックを保持します。特定のモニター用に [ワークスペースルール](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) やウィンドウルールを書く場合はこれらの番号を使ってください。たとえばワークスペース 12 は 2 台目のモニターの 2 番目のワークスペースです。`~/.local/state/omarchy/monitors/workspaces` には、各モニターがどのブロックを持っているかが一覧表示されています。
 
-矢印キーは、レイアウトで辺を共有するモニター間では動作する。角でしか接していない画面や、間に隙間がある画面は隣り合っていないので、それらの間を行き来するには `Ctrl + Alt + Tab` を使うこと。
+矢印キーは、レイアウト内で辺を共有するモニター間では動作します。角でしか接していない画面、または間に隙間がある画面は隣接していないため、それらの間を移動するには `Ctrl + Alt + Tab` を使ってください。
 
-| ホットキー | モニター間 |
+| ホットキー | モニター間の動作 |
 | --- | --- |
-| `Super + Arrow` | その方向にもうウィンドウがなくなると、その側のモニターへフォーカスを移動する |
+| `Super + Arrow` | その方向にウィンドウがもうなくなった時点で、その側のモニターにフォーカスを移動する |
 | `Super + Shift + Arrow` | その側のモニター上のウィンドウと入れ替える |
-| `Super + Alt + Arrow` | ウィンドウをその側のモニター上のグループへ移動する |
-| `Super + Shift + Ctrl + Arrow` | ウィンドウをその側のモニターへ、そのモニターが表示しているワークスペース上に移動する |
-| `Super + Shift + Alt + Arrow` | ワークスペースをその側のモニターへ移動し、空いていればその番号を保持する |
-| `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | レイアウトに関係なく、次のモニターまたは前のモニターへフォーカスを移動する |
+| `Super + Alt + Arrow` | ウィンドウを、その側のモニター上のグループへ移動する |
+| `Super + Shift + Ctrl + Arrow` | ウィンドウを、その側のモニターへ、そのモニターが表示しているワークスペース上に移動する |
+| `Super + Shift + Alt + Arrow` | ワークスペースを、その側のモニターへ移動する（空いていれば番号は保持する） |
+| `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | レイアウトに関係なく、次のモニターまたは前のモニターにフォーカスを移動する |
 | `Super + 1-0`、`Super + Tab`、`Super + Scroll Wheel` | 現在のモニターにとどまる |
 
-複数の画面の配置を手助けする TUI が欲しいなら、[Hyprmon](https://github.com/erans/hyprmon/) もチェックしてみるといい。
+複数の画面の配置を助ける TUI が欲しい場合は、[Hyprmon](https://github.com/erans/hyprmon/) もチェックしてみてください。
 
 ### 明るさを制御する
 
-モニターの明るさは、明るさアップ／ダウン専用のファンクションキーで制御する。これらを押しながら shift を押さえ続けると、最大または最小の明るさになる。キーはフォーカスのあるディスプレイを制御するので、DDC/CI に対応した外付けモニターもノートパソコンの画面と同じように調整される。
+モニターの明るさは、明るさアップ／ダウン専用のファンクションキーで制御されます。これらを押すときに Shift を押し続けると、最大の明るさまたは最小の明るさになります。これらのキーはフォーカスしているディスプレイを制御するため、DDC/CI を扱う外部モニターもノートパソコンの画面と同じように調整されます。
 
 ### Apple ディスプレイ
 
-Apple ディスプレイを使っている場合、Apple ディスプレイにフォーカスしていれば、通常のキーボードの明るさキーも自動的に機能する。これは `asdcontrol` コマンドを通じて行われる。
+Apple ディスプレイを使っている場合、Apple ディスプレイにフォーカスしていれば、通常のキーボードの明るさキーも自動的に動作します。これは `asdcontrol` コマンドを通じて行われます。
 
-Apple 6K XDR ディスプレイを使っている場合、`hyprctl monitors` の一覧に幽霊画面が表示されることがある点に注意すること。これは _Setup > Monitors_ 経由で `hl.monitor({ output = "DP-2", disabled = true })` のような設定を行うことでオフにできる。
+Apple 6K XDR ディスプレイを使っている場合、`hyprctl monitors` の一覧に幻の画面が表示されることがあります。これは、`~/.config/hypr/monitors.lua` に `hl.monitor({ output = "DP-2", disabled = true })` のようなものを入れることでオフにできます。
 
-Intel マシンでは、通常の Thunderbolt ケーブルを使って Apple ディスプレイに接続すべきだ。Thunderbolt のない他のマシンでは、通常、動作させるために [DP + USB-A -> USB-C cable](https://www.amazon.com/dp/B0BNX7MS6N) を使わなければならない。
+Intel マシンでは、通常の Thunderbolt ケーブルを使って Apple ディスプレイに接続すべきです。Thunderbolt がない他のマシンでは、通常、動作させるために [DP + USB-A -> USB-C cable](https://www.amazon.com/dp/B0BNX7MS6N) を使わなければならないでしょう。

@@ -10,6 +10,7 @@ require_command grim
 qml_fixture_scratch
 
 cleanup() {
+  hyprctl eval 'hl.window_rule({ name = "omarchy-remote-screen-share", enabled = false }); omarchy_test_capture_rule = nil' >/dev/null
   if [[ -f $QML_FIXTURE_TMP/stub.pid ]]; then
     kill "$(<"$QML_FIXTURE_TMP/stub.pid")" 2>/dev/null || true
   fi
@@ -29,6 +30,8 @@ trap 'kill $!' TERM EXIT
 wait $!
 SH
 chmod +x "$QML_FIXTURE_TMP/bin/gliff-server"
+
+hyprctl eval 'omarchy_test_capture_rule = hl.window_rule({ name = "omarchy-remote-screen-share", enabled = false })' >/dev/null
 
 OMARCHY_QML_TEST_STUB_PID="$QML_FIXTURE_TMP/stub.pid" \
 OMARCHY_QML_TEST_FRAME="$QML_FIXTURE_TMP/frame.png" \

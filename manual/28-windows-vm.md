@@ -1,6 +1,6 @@
 # Windows VM
 
-Omarchy offers an easy way to run Windows through a Docker VM. You can install it using _Install > Windows_ from the Omarchy menu (`Super + Space`).
+Omarchy offers an easy way to run Windows through a Docker VM on x86_64 machines. You can install it using _Install > Windows_ from the Omarchy menu (`Super + Space`).
 
 Your machine needs KVM virtualization for this, which most do — but it's sometimes switched off in the BIOS, and the installer will tell you if that's the case. You'll also want the disk space: whatever you give Windows, plus about 10GB for the image itself.
 
@@ -44,6 +44,6 @@ The version installed is Windows 11 Pro, unactivated. You'll need your own licen
 
 If this computer shipped with Windows, the OEM key is still in firmware even after installing Omarchy. Print it with `omarchy windows key`. That key is bound to this machine — it will activate Windows reinstalled on this hardware, but it usually will not activate the VM.
 
-You can change the resource allocation later by re-running `omarchy-windows-vm install`, which rewrites the VM's configuration from your answers. The compose file itself now lives at `/var/lib/omarchy/windows/docker-compose.yml` and is owned by root — that is deliberate, so a process running as you cannot rewrite it and have the privileged bring-up mount your whole disk into the container. If you need to hand-edit it (for example to mount a USB device), edit it with `sudo` and see all the options on [the Dockur Windows project](https://github.com/dockur/windows).
+You can change the resource allocation later by running `omarchy windows vm install` in a terminal, which rewrites the VM's configuration from your answers. The compose file itself now lives at `/var/lib/omarchy/windows/docker-compose.yml` and is owned by root — that is deliberate, so a process running as you cannot rewrite it and have the privileged bring-up mount your whole disk into the container. If you need to hand-edit it (for example to mount a USB device), edit it with `sudo` and see all the options on [the Dockur Windows project](https://github.com/dockur/windows).
 
-To get rid of the whole thing, use _Remove > Windows_ from the Omarchy menu. That deletes the VM's disk and all its data, so make sure anything you care about is out of `~/Windows` first.
+To get rid of the whole thing, use _Remove > Windows_ from the Omarchy menu. That deletes the VM's disk in `~/.windows` and everything installed inside Windows, so copy anything you need out of the VM first. Your shared `~/Windows` folder is left alone.

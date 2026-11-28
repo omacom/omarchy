@@ -1,29 +1,29 @@
 # Omarchy na ...
 
-### Čipi Apple M1/M2
+### Računalniki Mac z Apple Silicon
 
-[Asahi Alarm](https://asahi-alarm.org/) je različica Archa za računalnike Apple M1/M2, zgrajena na podlagi [Asahi Linux](https://asahilinux.org/). Omarchy lahko zaženete na tem z nekaj truda. Glejte [vodnik, ki ga vodijo uporabniki](https://github.com/omarchy-mac/omarchy-mac).
+Omarchy za Apple Silicon deluje na računalnikih Mac M1, M2 in M3 ter se namesti poleg sistema macOS. Glej [Omarchy za Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) v poglavju o podpori za Mac.
 
-### Navidezni stroj Apple
+### Preizkusite Omarchy na Macu
 
-Omarchy lahko namestite tudi znotraj VM Parallels. Kar zapleten postopek, a tudi za to obstaja [vodnik, ki ga vodijo uporabniki](https://github.com/omacom/omarchy/discussions/452).
+[Try Omarchy](https://github.com/omacom/try-omarchy) požene Omarchy v virtualnem stroju na vsakem Macu z Apple Silicon s sistemom macOS 15 ali novejšim, pri čemer vam ni treba ničesar particionirati ali nameščati poleg sistema macOS.
 
 ### VirtualBox
 
-VirtualBox je priljubljen zaganjalnik VM. [Omarchy lahko zaženete tudi znotraj tega](https://github.com/omacom/omarchy/discussions/176). A zmogljivost verjetno ne bo odlična.
+VirtualBox je priljubljen zaganjalnik VM. [Omarchy lahko poganjate tudi v njem](https://github.com/omacom/omarchy/discussions/176). A zmogljivost verjetno ne bo odlična.
 
-### VMware Workstation na Windows 11
+### VMware Workstation v sistemu Windows 11
 
-Še en priljubljen zaganjalnik VM za Windows. [Omarchy je bil nastavljen tudi znotraj tega](https://github.com/omacom/omarchy/discussions/572).
+Še en priljubljen zaganjalnik VM za Windows. [Tudi v njem so že namestili Omarchy](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-Steam Deck deluje na Archu, kar pomeni, da lahko Omarchy zaženete na svojem Steam Decku. Altynbek Orumbayev ima [popoln namestitveni skript in razlago, kako to storiti](https://github.com/aorumbayev/deckarchy). Kako kul je to!
+Steam Deck poganja Arch, kar pomeni, da lahko Omarchy poganjate na svojem Steam Decku. Altynbek Orumbayev ima [popolno namestitveno skripto in razlago, kako to storiti](https://github.com/aorumbayev/deckarchy). Kako kul je to!
 
 ### NixOS
 
-Omarchy je v resnici Arch + Hyprland, Henry Sipp pa je [bistvo nastavitve prenesel na NixOS](https://github.com/henrysipp/omarchy-nix). Če ste torej »nix-pilled«, je tukaj dobro izhodišče. Morda ostane aktualen z najnovejšimi spremembami Omarchyja ali pa ne, a je vseeno precej kul!
+Omarchy je v resnici Arch + Hyprland, vendar je Henry Sipp [bistvo nastavitve prenesel na NixOS](https://github.com/henrysipp/omarchy-nix). Torej, če ste postali nix-pilled, je to dobro izhodišče. Morda bo sledil najnovejšim spremembam v Omarchyju, morda pa ne, a je vseeno precej kul!
 
 ### Nekaj drugega!
 
-Če poskušate zagnati Omarchy na konfiguraciji, ki ni privzeta, se pridružite kanalu #omarchy-on-other na [našem skupnostnem Discordu](https://discord.gg/tXFUdasqhY).
+Če poskušate Omarchy zagnati na konfiguraciji, ki ni privzeta, se pridružite kanalu #omarchy-on-other na [našem skupnostnem Discordu](https://discord.gg/tXFUdasqhY).

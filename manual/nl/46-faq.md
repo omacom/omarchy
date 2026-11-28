@@ -1,8 +1,8 @@
-# Veelgestelde vragen
+# FAQ
 
-### Hoe wissel ik tussen toetsenbordindelingen?
+### Hoe schakel ik tussen toetsenbordindelingen?
 
-Bewerk je bestand `~/.config/hypr/input.lua` en voeg dit toe om tussen indelingen te wisselen met `Left Alt + Right Alt`:
+Bewerk je bestand `~/.config/hypr/input.lua` en voeg dit toe om met `Left Alt + Right Alt` tussen indelingen te schakelen:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-De balk toont automatisch je huidige toetsenbordindeling zodra je meerdere indelingen hebt geconfigureerd (en je kunt er ook op klikken om te wisselen).
+De balk toont automatisch je huidige toetsenbordindeling zodra je meerdere indelingen hebt geconfigureerd (en je kunt er ook op klikken om te schakelen).
 
-### Hoe wijzig ik het klokformaat naar 12-uurs?
+### Hoe verander ik de klokindeling naar 12-uurs?
 
-Klik met de rechtermuisknop op de klok in de balk om door de gangbare formaten te bladeren, inclusief de 12-uursformaten. Je kunt het formaat ook direct instellen:
+Klik met rechts op de klok in de balk om door de gangbare indelingen te bladeren, waaronder de 12-uursindelingen. Je kunt de indeling ook direct instellen:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Dit toont Sunday 10:55 AM.
+Dit geeft zondag 10:55 AM weer.
 
-### Hoe wijzig ik mijn tijdzone?
+### Hoe verander ik mijn tijdzone?
 
-Voer _Bijwerken > Timezone_ uit in het Omarchy-menu en kies uit de lijst. Als de tijdzone klopt maar de klok zelf is afgedreven, herstart _Bijwerken > Time_ de tijdsynchronisatie voor je.
+Voer _Instellen > Regio > Tijdzone_ uit in het Omarchy-menu en kies uit de lijst. Als de tijdzone klopt maar de klok zelf is verlopen, herstart _Bijwerken > Tijd_ de tijdsynchronisatie voor je.
 
-### Hoe wijzig ik mijn DNS, deel ik mijn wifi of controleer ik mijn verbindingssnelheid?
+### Hoe verander ik mijn DNS, deel ik mijn Wi-Fi of controleer ik mijn verbindingssnelheid?
 
-Die staan allemaal in [netwerken](35-networking.md).
+Die vind je allemaal in [netwerken](35-networking.md).
 
 ### Hoe controleer ik hoe snel mijn schijf is?
 
-_Activeren > Speed Test > Disk Speed Test_ meet live lees- en schrijfsnelheid op je schijf, of `omarchy disk speedtest` vanuit de terminal.
-
-### Waarom kan ik me in Chromium niet aanmelden bij mijn Google-account?
-
-De gewone opensource Chromium-build wordt niet geleverd met de OAuth-inloggegevens die Google vereist voor accountaanmelding. Voer _Installeren > Service > Chromium Account_ uit in het Omarchy-menu om ze toe te voegen, herstart de browser, en de aanmelding gaat door.
+_Trigger > Snelheidstest > Schijfsnelheidstest_ meet live de lees- en schrijfsnelheid van je schijf, of `omarchy disk speedtest` vanuit de terminal.
 
 ### Hoe voeg ik een printer toe?
 
-Printen is ingesteld en werkt meteen uit de doos, en je voegt elke printer zelf toe vanuit _Print Settings_ in de app-launcher (`Super + Space`).
+Printen is kant-en-klaar ingesteld en actief, en je voegt elke printer zelf toe vanuit _Printinstellingen_ in de app-starter (`Super + Alt + Space`).
 
-Kies _Add_ en geef het even de tijd om te zoeken: een printer die via USB is aangesloten, en de meeste netwerkprinters, worden voor je gevonden. Als de jouwe niet in de lijst staat, kies dan _Network Printer > Internet Printing Protocol (ipp)_ en voer het adres in — het scherm van de printer zelf of de webpagina vertelt je wat dat is, meestal iets als `192.168.1.50` met een wachtrij van `ipp/print`. _Forward_ biedt vervolgens een stuurprogramma aan, waarbij een moderne printer het beste werkt met het stuurprogrammaloze _IPP Everywhere_-profiel en een oudere het eigen stuurprogramma van het model wil.
+Kies _Toevoegen_ en geef het een moment om te zoeken: een printer die via USB is aangesloten, en de meeste netwerkprinters, worden voor je gevonden. Als die van jou niet in de lijst staat, kies dan _Netwerkprinter > Internet Printing Protocol (ipp)_ en voer het adres in — het display van de printer zelf of de webpagina ervan vertelt je wat dat is, meestal iets als `192.168.1.50` met een wachtrij van `ipp/print`. _Volgende_ biedt vervolgens een stuurprogramma aan, waarbij een moderne printer het beste werkt op het stuurprogrammaloze profiel _IPP Everywhere_ en een oudere het eigen stuurprogramma van het model wil.
 
-Klik met de rechtermuisknop op een printer en kies _Set as Default_ om te kiezen welke je apps als eerste pakken, en _Properties_ om papierformaat, duplex en kwaliteit in te stellen.
+Klik met rechts op een printer en kies _Instellen als standaard_ om te kiezen welke je apps als eerste gebruiken, en _Eigenschappen_ om papierformaat, dubbelzijdig printen en kwaliteit in te stellen.
 
-Automatische ontdekking, waarbij printers op het netwerk verschijnen zonder te worden toegevoegd, is tijdelijk uitgeschakeld terwijl eraan wordt gewerkt, en daarom is de eerste stap hierboven aan jou in plaats van automatisch. Printen naar een PDF-bestand werkt zonder enige printer.
+Automatische detectie, waarbij printers op het netwerk verschijnen zonder dat ze zijn toegevoegd, is tijdelijk uitgeschakeld terwijl er opnieuw aan wordt gewerkt, en daarom is de eerste stap hierboven aan jou en niet automatisch. Printen naar een PDF-bestand werkt helemaal zonder printer.
 
-### Hoe wijzig ik waar schermafbeeldingen of schermopnames worden opgeslagen?
+### Hoe verander ik waar screenshots of schermopnamen worden opgeslagen?
 
-Opgeslagen schermafbeeldingen gaan standaard naar `~/Pictures/Screenshots`. Om een andere map te gebruiken, voeg je dit toe aan een bestand onder `~/.config/uwsm/env.d/` (zoals `~/.config/uwsm/env.d/capture`):
+Opgeslagen screenshots gaan standaard naar `~/Pictures/Screenshots`. Om een andere map te gebruiken, voeg je dit toe aan een bestand onder `~/.config/uwsm/env.d/` (zoals `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Je kunt hetzelfde doen voor schermopnames met `OMARCHY_SCREENRECORD_DIR`.
+Hetzelfde kun je doen voor schermopnamen met `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap maakt zijn schermafbeeldingenmap automatisch aan. Maak de schermopnamemap zelf aan en herstart vervolgens Omarchy om een van beide omgevingswijzigingen van kracht te laten worden.
+Omasnap maakt zijn screenshotmap automatisch. Maak de map voor schermopnamen zelf en herstart daarna Omarchy om een van beide omgevingswijzigingen van kracht te laten worden.
 
-### Hoe krijg ik de luidsprekers + webcam werkend op mijn Apple Studio Display?
+### Hoe krijg ik de luidsprekers + webcam aan de praat op mijn Apple Studio Display?
 
-Je zou denken dat het allemaal zou moeten werken door gewoon USB-C in te pluggen, maar dat is helaas niet het geval. De oplossing die ik heb gevonden om het betrouwbaar te laten werken is [de WJESOG DisplayPort + USB-A => USB-C-kabel](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Dan werken luidsprekers en webcam als een tierelier.
+Je zou denken dat alles gewoon zou moeten werken door USB C aan te sluiten, maar helaas is dat niet het geval. De oplossing die ik heb gevonden om het betrouwbaar te laten werken, is [de WJESOG DisplayPort + USB-A => USB-C-kabel](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) gebruiken. Dan werken luidsprekers en webcam als een zonnetje.
 
-Onthoud dat je in Omarchy ingebouwde helderheidsregeling hebt voor de Apple Displays (zowel Studio als XDR) met de gewone helderheidsknoppen op het toetsenbord.
+Vergeet niet dat je in Omarchy ingebouwde helderheidsregeling hebt voor de Apple Displays (zowel Studio als XDR) met de gewone helderheidstoetsen op het toetsenbord.
 
-### Hoe kom ik af van alle extra software?
+### Hoe raak ik alle extra software kwijt?
 
 Als je programma's zoals Obsidian of LibreOffice of een van de andere vooraf geïnstalleerde dingen niet wilt, kun je ze heel eenvoudig verwijderen.
 
-Voer _Verwijderen > Package_ uit om elk geïnstalleerd pakket te zien. Vervolgens kun je met tab elk pakket selecteren dat je wilt verwijderen, en met return beginnen alles te verwijderen wat je hebt geselecteerd.
+Voer _Verwijderen > Pakket_ uit om elk geïnstalleerd pakket te zien. Daarna kun je met tab elk pakket selecteren dat je wilt verwijderen, en met return beginnen met het verwijderen van alles wat je hebt geselecteerd.
 
-En je kunt _Verwijderen > Web App_ uit het Omarchy-menu gebruiken om alle vooraf geïnstalleerde webapps te verwijderen die je niet wilt.
+En je kunt _Verwijderen > Webapp_ in het Omarchy-menu gebruiken om alle vooraf geïnstalleerde webapps te verwijderen die je niet wilt.
 
-Of voer _Verwijderen > Preinstalls_ uit om alle vooraf geïnstalleerde extra's — webapps, TUI's en optionele applicaties — in één keer weg te vegen. De sneltoetsen die ze startten verdwijnen met ze mee, zodat je achterblijft met een schone lei aan toewijzingen om te vullen met je eigen in `~/.config/hypr/bindings.lua`.
+Of voer _Verwijderen > Voorinstallaties_ uit om alle vooraf geïnstalleerde extra's — webapps, TUI's en optionele applicaties — in één keer op te ruimen. De sneltoetsen waarmee ze werden gestart, verdwijnen met ze, dus je houdt een schone lei aan toewijzingen over om te vullen met je eigen toewijzingen in `~/.config/hypr/bindings.lua`.
 
 ---
 
-Zie voor fouten en kapotte stukken [het gedeelte Probleemoplossing](45-troubleshooting.md).
+Voor fouten en kapotte onderdelen, zie [het gedeelte Problemen oplossen](45-troubleshooting.md).
