@@ -35,7 +35,23 @@ profile_available() {
 
 state_dir="${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/powerprofiles}"
 state_file="$state_dir/$action"
-game_state="${OMARCHY_GAME_POWER_STATE:-${XDG_RUNTIME_DIR:-/tmp}/omarchy-game-power-active}"
+game_state="${OMARCHY_GAME_POWER_STATE:-}"
+if [[ -z $game_state && -n ${XDG_RUNTIME_DIR:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  game_state="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/omarchy-game-power-active"
+fi
+
+# Serialize profile transitions so rapid game open/close events always settle
+# on the final marker state instead of racing out of order.
+lock_file=""
+if [[ -n $game_state ]]; then
+  lock_file="${game_state}.lock"
+elif [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  lock_file="$XDG_RUNTIME_DIR/omarchy-powerprofiles.lock"
+fi
+if [[ -n $lock_file && -d $(dirname "$lock_file") ]]; then
+  exec 9>"$lock_file"
+  flock 9
+fi
 
 if [[ -n $requested_profile ]]; then
   profile_available "$requested_profile" || {
@@ -44,7 +60,7 @@ if [[ -n $requested_profile ]]; then
   }
 
   profile="$requested_profile"
-elif [[ $action == "ac" && -f $game_state ]] && profile_available performance; then
+elif [[ $action == "ac" && -n $game_state && -f $game_state ]] && profile_available performance; then
   profile=performance
 elif [[ -r $state_file ]]; then
   profile=$(<"$state_file")

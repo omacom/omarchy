@@ -82,37 +82,42 @@ pass "power profile retains performance as AC default"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
 
+# Active-game marker scoped to the live Hyprland instance boosts AC to
+# performance without overwriting the saved preference, ignores stale markers
+# from prior Hyprland instances, and yields to manual profile choices.
+mkdir -p "$tmp_dir/runtime/hypr/sig-active" "$tmp_dir/runtime/hypr/sig-old"
+: >"$tmp_dir/runtime/hypr/sig-old/omarchy-game-power-active"
+unset OMARCHY_GAME_POWER_STATE
+
 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
-ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" boost
-[[ -f $OMARCHY_GAME_POWER_STATE ]] || fail "game boost records active game marker"
-[[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "game boost sets performance on AC"
-[[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "game boost leaves saved AC preference intact"
-pass "game boost applies performance on AC without overwriting saved preference"
+ON_BATTERY=0 XDG_RUNTIME_DIR="$tmp_dir/runtime" HYPRLAND_INSTANCE_SIGNATURE="sig-active" \
+  "$ROOT/bin/omarchy-powerprofiles-set" autodetect
+[[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "stale marker from old Hyprland instance must be ignored"
 
-ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" restore
-[[ ! -f $OMARCHY_GAME_POWER_STATE ]] || fail "game restore clears active game marker"
-[[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "game restore returns to saved AC preference"
-calls_before=$(wc -l <"$tmp_dir/calls")
-ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" restore
-(( $(wc -l <"$tmp_dir/calls") == calls_before )) || fail "game restore is a no-op without active marker"
-pass "game restore clears marker, restores saved preference, and no-ops when inactive"
+: >"$tmp_dir/runtime/hypr/sig-active/omarchy-game-power-active"
+ON_BATTERY=0 XDG_RUNTIME_DIR="$tmp_dir/runtime" HYPRLAND_INSTANCE_SIGNATURE="sig-active" \
+  "$ROOT/bin/omarchy-powerprofiles-set" autodetect
+[[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "active game marker boosts AC to performance"
+[[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "active game boost leaves saved AC preference intact"
 
-calls_before=$(wc -l <"$tmp_dir/calls")
-ON_BATTERY=1 "$ROOT/bin/omarchy-powerprofiles-game" boost
-[[ -f $OMARCHY_GAME_POWER_STATE ]] || fail "game boost on battery still records active marker"
-(( $(wc -l <"$tmp_dir/calls") == calls_before )) || fail "game boost on battery does not switch to performance"
-"$ROOT/bin/omarchy-powerprofiles-set" ac
+"$ROOT/bin/omarchy-powerprofiles-set" battery power-saver
+ON_BATTERY=1 XDG_RUNTIME_DIR="$tmp_dir/runtime" HYPRLAND_INSTANCE_SIGNATURE="sig-active" \
+  "$ROOT/bin/omarchy-powerprofiles-set" autodetect
+[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "active game marker does not boost while on battery"
+XDG_RUNTIME_DIR="$tmp_dir/runtime" HYPRLAND_INSTANCE_SIGNATURE="sig-active" \
+  "$ROOT/bin/omarchy-powerprofiles-set" ac
 [[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "plugging in AC mid-game boosts to performance"
-[[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "AC plug-in game boost leaves saved AC preference intact"
-pass "game started on battery boosts when AC is plugged in"
 
-"$ROOT/bin/omarchy-powerprofiles-set" ac power-saver
-[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "manual profile choice overrides game boost"
+XDG_RUNTIME_DIR="$tmp_dir/runtime" HYPRLAND_INSTANCE_SIGNATURE="sig-active" \
+  "$ROOT/bin/omarchy-powerprofiles-set" ac power-saver
+[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "manual profile choice overrides active game boost"
 [[ $(<"$tmp_dir/state/ac") == "power-saver" ]] || fail "manual profile choice updates saved AC preference"
-ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" restore
-[[ ! -f $OMARCHY_GAME_POWER_STATE ]] || fail "game restore clears marker after manual override"
-[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "game restore keeps updated saved preference"
-pass "manual profile selection overrides active game boost and persists"
+
+rm -f "$tmp_dir/runtime/hypr/sig-active/omarchy-game-power-active"
+ON_BATTERY=0 XDG_RUNTIME_DIR="$tmp_dir/runtime" HYPRLAND_INSTANCE_SIGNATURE="sig-active" \
+  "$ROOT/bin/omarchy-powerprofiles-set" autodetect
+[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "clearing active game marker restores saved AC preference"
+pass "active game marker boosts AC per Hyprland instance, survives AC plug-in, and yields to manual choices"
 
 cat >"$tmp_dir/bin/loginctl" <<'EOF'
 #!/bin/bash

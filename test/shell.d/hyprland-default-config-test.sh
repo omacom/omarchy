@@ -313,10 +313,15 @@ assert(#check({ class = "foot", pid = plain_pid, floating = false, fullscreen = 
 LUA
 pass "native Linux Steam games fullscreen on open without affecting dialogs or other apps"
 
-# Game windows call omarchy-powerprofiles-game boost on open and restore once
-# the last game window is destroyed, while ignoring non-games.
-HOME="$fresh_home" OMARCHY_PATH="$ROOT" SteamGameId=239820 lua - <<'LUA' || fail "game-power boosts when games open and restores only when the last game closes"
+# Game windows manage an instance-scoped active-game marker and reconcile
+# power profiles through omarchy-powerprofiles-set autodetect.
+game_runtime="$tmpdir/game-runtime"
+mkdir -p "$game_runtime/hypr/sig-1"
+: >"$game_runtime/hypr/sig-1/omarchy-game-power-active"
+HOME="$fresh_home" OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$game_runtime" HYPRLAND_INSTANCE_SIGNATURE="sig-1" SteamGameId=239820 lua - <<'LUA' || fail "game-power tracks active games with an instance marker and restores on exit"
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local marker = os.getenv("XDG_RUNTIME_DIR") .. "/hypr/sig-1/omarchy-game-power-active"
+local function exists(p) local f = io.open(p, "r"); if f then f:close(); return true end; return false end
 local handlers, windows, execs = {}, {}, {}
 hl = {
   window_rule = function() end,
@@ -331,6 +336,8 @@ local function fire(event, ...) for _, fn in ipairs(handlers[event] or {}) do fn
 require("default.hypr.helpers")
 require("default.hypr.apps")
 
+assert(not exists(marker) and #execs == 1, "stale marker should be cleared and restored on reload with no games")
+
 local stat = assert(io.open("/proc/self/stat", "r"))
 local self_pid = tonumber(stat:read("*a"):match("^(%d+)"))
 stat:close()
@@ -343,20 +350,20 @@ for _, win in ipairs({
   windows = { win }; fire("window.open", win)
   windows = {}; fire("window.destroy", win)
 end
-assert(#execs == 0, "non-game windows should not trigger power profile changes")
+assert(#execs == 1 and not exists(marker), "non-game windows should not create marker or sync profiles")
 
 local native = { address = "0x10", class = "Gamedevtycoon64-bin", pid = self_pid, floating = false, fullscreen = 0, tags = {} }
 local proton = { address = "0x20", class = "steam_app_1091500", tags = {} }
 windows = { native }; fire("window.open", native)
-assert(#execs == 1 and execs[1] == "omarchy-powerprofiles-game boost", "native Steam game should boost on open")
+assert(exists(marker) and #execs == 2 and execs[2] == "omarchy-powerprofiles-set autodetect", "first game should create marker and sync")
 
 windows = { native, proton }; fire("window.open", proton)
-assert(#execs == 2 and execs[2] == "omarchy-powerprofiles-game boost", "Proton game should boost on open")
+assert(exists(marker) and #execs == 2, "second game should not re-sync when marker already exists")
 
 windows = { proton }; fire("window.destroy", native)
-assert(#execs == 2, "closing one of two games should not restore")
+assert(exists(marker) and #execs == 2, "closing one of two games should keep marker active")
 
 windows = { proton }; fire("window.destroy", proton)
-assert(#execs == 3 and execs[3] == "omarchy-powerprofiles-game restore", "closing the last game should restore")
+assert(not exists(marker) and #execs == 3 and execs[3] == "omarchy-powerprofiles-set autodetect", "closing last game should clear marker and sync")
 LUA
-pass "game windows boost on open and restore only after the last game exits"
+pass "game windows boost on open, clear stale markers, and restore after the last game exits"
