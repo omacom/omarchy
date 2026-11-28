@@ -10,6 +10,14 @@ fip() {
 
 dip() {
   (( $# == 0 )) && echo "Usage: dip <port1> [port2] ..." && return 1
+  local port
+  # Validate every argument before passing any of them to pkill's regex.
+  for port in "$@"; do
+    if [[ ! $port =~ ^[0-9]+$ ]]; then
+      echo "Invalid port: $port. Expected digits only." >&2
+      return 1
+    fi
+  done
   for port in "$@"; do
     pkill -f "ssh.*-L ${port}:localhost:${port}" && echo "Stopped forwarding port $port" || echo "No forwarding on port $port"
   done
