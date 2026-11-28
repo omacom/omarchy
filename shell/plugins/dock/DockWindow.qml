@@ -287,6 +287,7 @@ PanelWindow {
 
     HoverHandler {
       id: bodyHover
+      parent: window.contentItem
       onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
@@ -320,6 +321,22 @@ PanelWindow {
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
+
+    // Use the pointer's distance along the strip for a continuous wave:
+    // the closest icon grows most, with a smaller lift for its neighbors.
+    readonly property real pointerInfluence: {
+      if (!bodyHover.hovered || window.hoverStale || window.dragging
+          || window.insertIndex >= 0 || !window.contentShown) return 0
+      var pointer = bodyHover.point.position
+      if (menu.visible && pointer.x >= menu.x && pointer.x <= menu.x + menu.width
+          && pointer.y >= menu.y && pointer.y <= menu.y + menu.height) return 0
+      var center = slot.mapToItem(window.contentItem, slot.width / 2, slot.height / 2)
+      var distance = Math.abs(window.vertical ? pointer.y - center.y : pointer.x - center.x)
+      var reach = window.slotSize * 2
+      return DockModel.hoverInfluence(distance, reach)
+    }
+    readonly property real magnification: 1 + 0.15 * pointerInfluence
+
 
     width: window.slotSize
     height: window.slotSize
@@ -365,7 +382,7 @@ PanelWindow {
       y: window.iconInset
       width: window.iconSize
       height: window.iconSize
-      scale: appsSlot.hovered ? 1.15 : 1
+      scale: appsSlot.magnification
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
@@ -460,7 +477,7 @@ PanelWindow {
 
     mouse.onReleased: function(event) {
       if (!appSlot.lifted) return
-      window.dropPoint = appSlot.mapToItem(body, event.x, event.y)
+      window.dropPoint = appSlot.mouse.mapToItem(window.contentItem, event.x, event.y)
       var from = window.dragIndex
       var to = window.dropIndex
       appSlot.dragged = true
@@ -497,7 +514,7 @@ PanelWindow {
         x: window.vertical ? 0 : appSlot.displayedShift
         y: window.vertical ? appSlot.displayedShift : 0
       }
-      scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
+      scale: appSlot.lifted ? 1.15 : appSlot.magnification
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
