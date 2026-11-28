@@ -102,6 +102,8 @@
   "appearance.windows.transparency.glassy": {"icon":"󰂵","label":"Glassy Windows","checked":"[[ $(omarchy-hyprland-window-transparency) == \"glassy\" ]]","action":"omarchy-hyprland-window-transparency glassy"},
   "appearance.windows.one-window-ratio-on": {"icon":"","label":"1-Window Ratio On","when":"! omarchy-hyprland-toggle-enabled single-window-aspect-ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
   "appearance.windows.one-window-ratio-off": {"icon":"","label":"1-Window Ratio Off","when":"omarchy-hyprland-toggle-enabled single-window-aspect-ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
+  "appearance.windows.title-bars-visible-on": {"icon":"󰖯","label":"Titlebar Snap On","when":"! omarchy-hyprland-toggle-enabled floating-title-bar-visible","action":"omarchy-hyprland-toggle floating-title-bar-visible"},
+  "appearance.windows.title-bars-visible-off": {"icon":"󰖯","label":"Titlebar Snap Off","when":"omarchy-hyprland-toggle-enabled floating-title-bar-visible","action":"omarchy-hyprland-toggle floating-title-bar-visible"},
   "appearance.branding": {"icon":"","iconFont":"omarchy","label":"Branding"},
   "appearance.branding.screensaver": {"icon":"󱄄","label":"Screensaver"},
   "appearance.branding.about": {"icon":"","label":"About"},
