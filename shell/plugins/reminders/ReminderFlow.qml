@@ -31,6 +31,8 @@ Item {
   property int cardHeight: Math.min(contentMargin * 2 + headerHeight, panel.height - Style.gapsOut * 2)
   readonly property string promptText: root.step === "message" ? I18n.t("reminders.messagePrompt") : I18n.t("reminders.minutesPrompt")
 
+  onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
+
   function open(payloadJson) {
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
@@ -41,7 +43,7 @@ Item {
     root.minutes = ""
     root.filterText = ""
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function close() {
@@ -82,7 +84,7 @@ Item {
       root.minutes = nextMinutes
       root.step = "message"
       root.filterText = ""
-      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      Qt.callLater(function() { filterInput.forceActiveFocus() })
       return
     }
 
@@ -123,9 +125,8 @@ Item {
       Item {
         id: keyCatcher
         anchors.fill: parent
-        focus: true
 
-        Keys.priority: Keys.BeforeItem
+        // Focus is on filterInput, which forwards every key here first.
         Keys.onPressed: function(event) {
           if (event.key === Qt.Key_Escape) {
             if (root.filterText) root.setFilter("")
@@ -136,9 +137,6 @@ Item {
             event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.submit()
-            event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-            root.setFilter(root.filterText + event.text)
             event.accepted = true
           }
         }
@@ -151,14 +149,26 @@ Item {
         anchors.bottomMargin: card.contentBottomInset
         anchors.leftMargin: card.contentLeftInset
 
-        Text {
-          textFormat: Text.PlainText
+        FilterInput {
+          id: filterInput
           anchors.left: parent.left
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
-          text: root.filterText || root.promptText
+          keyHandler: keyCatcher
           color: root.foreground
-          opacity: root.filterText ? 1 : 0.58
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.heading
+          onTextChanged: if (text !== root.filterText) root.setFilter(text)
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          anchors.fill: filterInput
+          verticalAlignment: Text.AlignVCenter
+          visible: !root.filterText && !filterInput.preeditText
+          text: root.promptText
+          color: root.foreground
+          opacity: 0.58
           font.family: root.fontFamily
           font.pixelSize: Style.font.heading
           elide: Text.ElideRight
