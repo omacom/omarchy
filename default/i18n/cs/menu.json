@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Automaticky skrýt Dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "Vždy viditelný Dock"
-  },
   "appearance.dock.position": {
     "label": "Poloha Docku"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dok v dlaždicovém režimu"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dok jen v plovoucím režimu"
   }
 }

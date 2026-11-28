@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "הסתרת Dock אוטומטית"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock תמיד מוצג"
-  },
   "appearance.dock.position": {
     "label": "מיקום Dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock במצב ריצוף"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock רק במצב צף"
   }
 }

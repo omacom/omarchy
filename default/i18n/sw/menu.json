@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Ficha Dock kiotomatiki"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock wa daima"
-  },
   "appearance.dock.position": {
     "label": "Nafasi ya Dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock kwenye Vigae"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock kwenye Inayoelea tu"
   }
 }

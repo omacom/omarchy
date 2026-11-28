@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Ocultar dock automáticamente"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock siempre visible"
-  },
   "appearance.dock.position": {
     "label": "Posición del dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock en mosaico"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock solo en flotante"
   }
 }

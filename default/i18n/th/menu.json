@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "ซ่อน Dock อัตโนมัติ"
-  },
-  "appearance.dock.always-on": {
-    "label": "แสดง Dock เสมอ"
-  },
   "appearance.dock.position": {
     "label": "ตำแหน่ง Dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock ในโหมดเรียงไทล์"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock เฉพาะโหมดลอยตัว"
   }
 }

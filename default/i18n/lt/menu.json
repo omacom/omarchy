@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dokas"
   },
-  "appearance.dock.autohide": {
-    "label": "Slėpti Dock automatiškai"
-  },
-  "appearance.dock.always-on": {
-    "label": "Visada rodyti Dock"
-  },
   "appearance.dock.position": {
     "label": "Dock padėtis"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock plyteliniame"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock tik plaukiojančiame"
   }
 }

@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "程序坞"
   },
-  "appearance.dock.autohide": {
-    "label": "自动隐藏程序坞"
-  },
-  "appearance.dock.always-on": {
-    "label": "常显程序坞"
-  },
   "appearance.dock.position": {
     "label": "程序坞位置"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "平铺时显示 Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "仅浮动时显示 Dock"
   }
 }

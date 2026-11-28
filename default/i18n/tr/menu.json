@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Otomatik Gizle"
-  },
-  "appearance.dock.always-on": {
-    "label": "Her Zaman Açık"
-  },
   "appearance.dock.position": {
     "label": "Dock Konumu"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Döşemede Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Yalnızca Yüzende Dock"
   }
 }

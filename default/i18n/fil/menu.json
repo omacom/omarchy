@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Awtomatikong Itago ang Dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "Laging Kita ang Dock"
-  },
   "appearance.dock.position": {
     "label": "Posisyon ng Dock"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock sa Tiling"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock Lang sa Floating"
   }
 }

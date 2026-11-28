@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "داک"
   },
-  "appearance.dock.autohide": {
-    "label": "پنهان‌شدن خودکار داک"
-  },
-  "appearance.dock.always-on": {
-    "label": "داک همیشه روشن"
-  },
   "appearance.dock.position": {
     "label": "موقعیت داک"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock در کاشی‌کاری"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock فقط در شناور"
   }
 }

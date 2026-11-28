@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "독"
   },
-  "appearance.dock.autohide": {
-    "label": "독 자동 숨기기"
-  },
-  "appearance.dock.always-on": {
-    "label": "독 항상 표시"
-  },
   "appearance.dock.position": {
     "label": "독 위치"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "타일링에서 Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "플로팅에서만 Dock"
   }
 }

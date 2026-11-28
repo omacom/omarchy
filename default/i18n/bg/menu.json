@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Док"
   },
-  "appearance.dock.autohide": {
-    "label": "Скривай дока"
-  },
-  "appearance.dock.always-on": {
-    "label": "Винаги видим док"
-  },
   "appearance.dock.position": {
     "label": "Позиция на дока"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Док при мозаечна подредба"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Док само при плаваща подредба"
   }
 }

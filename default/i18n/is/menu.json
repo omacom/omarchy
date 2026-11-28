@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Fela dock sjálfkrafa"
-  },
-  "appearance.dock.always-on": {
-    "label": "Alltaf sýnilegt dock"
-  },
   "appearance.dock.position": {
     "label": "Staðsetning docks"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock í flísaham"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock aðeins í fljótandi ham"
   }
 }

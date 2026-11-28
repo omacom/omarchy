@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "डॉक"
   },
-  "appearance.dock.autohide": {
-    "label": "ऑटो-छिपा डॉक"
-  },
-  "appearance.dock.always-on": {
-    "label": "हमेशा दृश्य डॉक"
-  },
   "appearance.dock.position": {
     "label": "डॉक स्थिति"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "टाइलिंग पर Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "केवल फ्लोटिंग पर Dock"
   }
 }

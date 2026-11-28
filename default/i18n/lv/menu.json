@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Doks"
   },
-  "appearance.dock.autohide": {
-    "label": "Paslēpt doku automātiski"
-  },
-  "appearance.dock.always-on": {
-    "label": "Vienmēr redzams doks"
-  },
   "appearance.dock.position": {
     "label": "Doka vieta"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Doks mozaīkas režīmā"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Doks tikai peldošajā režīmā"
   }
 }
