@@ -65,6 +65,7 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.tray` | System tray | hover = reveal drawer · right on chevron = manage |
 | `omarchy.weather` | Weather icon + popup with forecast | left = popup · right = full notification |
 | `omarchy.microphone` | Mic icon + scroll volume | left = mute toggle · middle = audio panel · scroll = source volume |
+| `omarchy.camera` | Camera icon, lit while an app has a camera open | left = disable/enable every USB camera |
 
 | `omarchy.audio` | Volume icon + popup with master slider, output-device picker, per-app mixer | left = popup · right = mute · middle = popup · scroll = volume |
 | `omarchy.mv7plus` | Shure MV7+ onboard DSP panel (auto-shown when connected): gain, tone, HPF, denoiser, popper stopper, limiter, compressor, reverb, monitor mix | left = popup · right/middle = hardware mute |
