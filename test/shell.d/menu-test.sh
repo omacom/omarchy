@@ -125,6 +125,19 @@ assert(
   'menu visibility memo does not hide a working branch after a depth-limited back-link'
 )
 
+// Multiple back-links targeting the same empty submenu must terminate immediately
+// without exponential recursion.
+const cycleMerged = menu.mergeMenuSources([
+  menu.normalizeItem('a', { label: 'A' }),
+  menu.normalizeItem('a.one', { label: 'One', target: 'a' }),
+  menu.normalizeItem('a.two', { label: 'Two', target: 'a' })
+], [])
+const cycleIndex = menu.buildSearchIndex(cycleMerged.items, cycleMerged.itemOrder)
+assert(
+  !menu.isVisible(cycleMerged.items, cycleMerged.itemOrder, {}, cycleMerged.items.a, 0, cycleIndex, Object.create(null)),
+  'menu visibility stops immediately on multiple cyclic back-links to an empty submenu'
+)
+
 // Parent/item ids matching Object.prototype keys must not break index building.
 const protoMerged = menu.mergeMenuSources([
   menu.normalizeItem('constructor', { label: 'Constructor' }),

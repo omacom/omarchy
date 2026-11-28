@@ -336,7 +336,7 @@ function altVariantIds(items, itemOrder) {
   return ids
 }
 
-function isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex, memo, state) {
+function isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex, memo, state, visiting) {
   if (!entry) return false
   if (memo && Object.prototype.hasOwnProperty.call(memo, entry.id)) return memo[entry.id]
   if (entry.when && whenResults && whenResults[entry.id] === false) {
@@ -359,13 +359,21 @@ function isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex,
   }
 
   var target = entry.kind === "link" ? entry.target : entry.id
+  if (visiting && visiting[target]) {
+    if (state) state.truncated = true
+    return false
+  }
+
+  var activeVisiting = visiting || Object.create(null)
+  activeVisiting[target] = true
+
   var visible = false
   var childState = { truncated: false }
   if (searchIndex && searchIndex.children) {
     var children = Object.prototype.hasOwnProperty.call(searchIndex.children, target) ? searchIndex.children[target] : null
     if (children) {
       for (var c = 0; c < children.length; c++) {
-        if (isVisibleMemo(items, itemOrder, whenResults, children[c], guard + 1, searchIndex, memo, childState)) {
+        if (isVisibleMemo(items, itemOrder, whenResults, children[c], guard + 1, searchIndex, memo, childState, activeVisiting)) {
           visible = true
           break
         }
@@ -375,12 +383,14 @@ function isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex,
     var order = Array.isArray(itemOrder) ? itemOrder : []
     for (var i = 0; i < order.length; i++) {
       var child = item(items, order[i])
-      if (child && child.parent === target && isVisibleMemo(items, itemOrder, whenResults, child, guard + 1, searchIndex, memo, childState)) {
+      if (child && child.parent === target && isVisibleMemo(items, itemOrder, whenResults, child, guard + 1, searchIndex, memo, childState, activeVisiting)) {
         visible = true
         break
       }
     }
   }
+
+  delete activeVisiting[target]
 
   if (visible) {
     if (memo) memo[entry.id] = true
@@ -393,7 +403,7 @@ function isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex,
 }
 
 function isVisible(items, itemOrder, whenResults, entry, depth, searchIndex, memo) {
-  return isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex, memo, null)
+  return isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex, memo, null, null)
 }
 
 // A `disabled:` row stays listed but goes dim and unselectable. The
