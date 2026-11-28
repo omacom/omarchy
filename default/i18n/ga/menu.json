@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "I gcónaí i bhfolach"
+  },
+  "install.gaming.tools": {
+    "label": "Uirlisí Cluichí",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Uirlisí Cluichí",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

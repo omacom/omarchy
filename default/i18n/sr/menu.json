@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Увек сакривен"
+  },
+  "install.gaming.tools": {
+    "label": "Алати за игре",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Алати за игре",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

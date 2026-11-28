@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Alati peidetud"
+  },
+  "install.gaming.tools": {
+    "label": "Mängutööriistad",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Mängutööriistad",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

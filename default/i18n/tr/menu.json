@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Her Zaman Gizli"
+  },
+  "install.gaming.tools": {
+    "label": "Oyun Araçları",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Oyun Araçları",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

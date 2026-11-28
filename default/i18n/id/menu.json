@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Selalu Tersembunyi"
+  },
+  "install.gaming.tools": {
+    "label": "Alat Gaming",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Alat Gaming",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

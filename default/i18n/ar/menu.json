@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "مخفي دائمًا"
+  },
+  "install.gaming.tools": {
+    "label": "أدوات الألعاب",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "أدوات الألعاب",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }
