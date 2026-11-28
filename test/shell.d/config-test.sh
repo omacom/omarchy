@@ -494,3 +494,34 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
+
+clicks_home=$(mktemp -d)
+mkdir -p "$clicks_home/.config/omarchy"
+run_clicks_cli() {
+  HOME="$clicks_home" OMARCHY_PATH="$ROOT" PATH="$mock_path" omarchy-bar clicks "$@"
+}
+
+[[ $(run_clicks_cli) == $'background on\nlayout on' ]] || fail "bar clicks prints both on by default"
+printf '%s\n' '{"version":1,"idle":{"screensaver":10,"lock":20},"bar":{"position":"top","background":"glassy"}}' >"$clicks_home/.config/omarchy/shell.json"
+run_clicks_cli background off >/dev/null
+jq -e '.bar.clicks.background == false and .bar.position == "top" and .bar.background == "glassy" and .idle.lock == 20' \
+  "$clicks_home/.config/omarchy/shell.json" >/dev/null || fail "clicks background off keeps other settings"
+[[ $(run_clicks_cli) == $'background off\nlayout on' ]] || fail "clicks prints background off and layout on"
+run_clicks_cli layout off >/dev/null
+[[ $(run_clicks_cli) == $'background off\nlayout off' ]] || fail "clicks prints both off"
+run_clicks_cli on >/dev/null
+jq -e '.bar.clicks.background == true and .bar.clicks.layout == true' \
+  "$clicks_home/.config/omarchy/shell.json" >/dev/null || fail "bare clicks on writes both true"
+run_clicks_cli off >/dev/null
+jq -e '.bar.clicks.background == false and .bar.clicks.layout == false' \
+  "$clicks_home/.config/omarchy/shell.json" >/dev/null || fail "bare clicks off writes both false"
+printf '%s\n' '{"version":1,"bar":{"clicks":"bad"}}' >"$clicks_home/.config/omarchy/shell.json"
+[[ $(run_clicks_cli) == $'background on\nlayout on' ]] || fail "non-object bar.clicks defaults to on"
+run_clicks_cli layout off >/dev/null
+jq -e '.bar.clicks.layout == false' "$clicks_home/.config/omarchy/shell.json" >/dev/null || fail "clicks recovers from non-object bar.clicks"
+! run_clicks_cli banana >/dev/null 2>&1 || fail "clicks rejects invalid target"
+! run_clicks_cli background >/dev/null 2>&1 || fail "clicks requires on or off"
+! run_clicks_cli background banana >/dev/null 2>&1 || fail "clicks rejects invalid action"
+! run_clicks_cli on extra >/dev/null 2>&1 || fail "clicks on rejects extra arguments"
+rm -rf "$clicks_home"
+pass "bar clicks toggles, reads defaults, validates args, and handles malformed state"
