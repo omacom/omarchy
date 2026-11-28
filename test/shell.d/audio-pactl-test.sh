@@ -75,6 +75,14 @@ OUT
     "volume": {"front-left": {"value_percent": "50%"}}
   },
   {
+    "index": 3,
+    "name": "device.audio_group:pw-audio-namespace.4242",
+    "description": "Device Audio Group for pw-audio-namespace.4242",
+    "ports": [],
+    "properties": {"session.audio-group": "pw-audio-namespace.4242"},
+    "volume": {"front-left": {"value_percent": "100%"}}
+  },
+  {
     "index": 2,
     "name": "alsa_output.headphones",
     "description": "Studio\\DAC Headphones",
@@ -138,6 +146,9 @@ grep -qx 'C pactl get-sink-mute alsa_output.headphones' "$CALLS" ||
 grep -Fxq 'omarchy-osd -i volume-medium -m Studio\DAC Headphones' "$CALLS" ||
   fail 'audio-output-switch preserves backslashes in sink descriptions' "$(calls)"
 pass 'audio-output-switch reads pactl outputs in the C locale'
+grep -q 'device.audio_group' "$CALLS" &&
+  fail 'audio-output-switch skips an audio group sink' "$(calls)"
+pass 'audio-output-switch skips an audio group sink'
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 2>/dev/null || true
@@ -188,8 +199,9 @@ pass 'input mute still toggles a microphone and shows what it became'
 
 # --- omarchy-audio-sink-availability ---
 
-# A headset jack input with nothing plugged in, a virtual source (no ports)
-# and a filter's source (one port of unknown availability).
+# A headset jack input with nothing plugged in, a virtual source (no ports),
+# a filter's source (one port of unknown availability) and the device end of a
+# WirePlumber audio group.
 cat >"$SOURCES" <<'OUT'
 Source #1074
 	Name: alsa_input.pci-0000_00_1f.3.analog-stereo
@@ -207,6 +219,13 @@ Source #1102
 	Ports:
 		[In] Mic: Microphone (type: Mic, priority: 100, availability unknown)
 	Active Port: [In] Mic
+Source #1180
+	Name: device.audio_group:pw-audio-namespace.4242
+	Properties:
+		node.virtual = "true"
+		session.audio-group = "pw-audio-namespace.4242"
+	Formats:
+		pcm
 OUT
 cat >"$SINKS" <<'OUT'
 Sink #57
@@ -214,20 +233,27 @@ Sink #57
 	Ports:
 		[Out] analog-output-headphones: Headphones (type: Headphones, priority: 300, availability group: Headphone, not available)
 	Active Port: [Out] analog-output-headphones
+Sink #1181
+	Name: device.audio_group:pw-audio-namespace.4242
+	Properties:
+		node.virtual = "true"
+		session.audio-group = "pw-audio-namespace.4242"
+	Formats:
+		pcm
 OUT
 
 : >"$CALLS"
-expected=$'alsa_input.pci-0000_00_1f.3.analog-stereo\t0\neasyeffects_source\t1\neffect_output.mic-filter\t1'
+expected=$'alsa_input.pci-0000_00_1f.3.analog-stereo\t0\neasyeffects_source\t1\neffect_output.mic-filter\t1\ndevice.audio_group:pw-audio-namespace.4242\t0'
 actual=$(omarchy-audio-sink-availability sources)
-[[ $actual == "$expected" ]] || fail 'source availability reports an empty jack input unavailable' "$actual"
+[[ $actual == "$expected" ]] || fail 'source availability reports an empty jack input and an audio group unavailable' "$actual"
 grep -qx 'C pactl list sources' "$CALLS" || fail 'source availability reads pactl in the C locale' "$(calls)"
-pass 'source availability reports an empty jack input unavailable'
+pass 'source availability reports an empty jack input and an audio group unavailable'
 
 : >"$CALLS"
 actual=$(LC_ALL=de_DE.UTF-8 omarchy-audio-sink-availability)
-[[ $actual == $'alsa_output.pci-0000_00_1f.3.analog-stereo\t0' ]] || fail 'sink availability reports an empty headphone jack unavailable' "$actual"
+[[ $actual == $'alsa_output.pci-0000_00_1f.3.analog-stereo\t0\ndevice.audio_group:pw-audio-namespace.4242\t0' ]] || fail 'sink availability reports an empty headphone jack and an audio group unavailable' "$actual"
 grep -qx 'C pactl list sinks' "$CALLS" || fail 'sink availability reads pactl in the C locale whatever the caller'"'"'s' "$(calls)"
-pass 'sink availability reports an empty headphone jack unavailable, in the C locale'
+pass 'sink availability reports an empty headphone jack and an audio group unavailable, in the C locale'
 
 # --- omarchy-audio-input-set-default ---
 
