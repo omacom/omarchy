@@ -130,8 +130,9 @@ else
   # Current brightness percentage
   current=$(backlight_brightness "$device") || exit 1
 
-  # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
-  # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
+  # Apply non-uniform step size: 1% steps if at or below 5% for the default 5%
+  # keys, and clamp all relative downward steps (including 1%-) to at least 1%
+  # so precise dimming cannot turn the backlight off.
   if [[ $step == "+5%" ]]; then
     if (( current < 5 )); then
       (( target = current + 1 ))
@@ -141,11 +142,12 @@ else
 
     (( target > 100 )) && target=100
     step="$target%"
-  elif [[ $step == "5%-" ]]; then
-    if (( current <= 5 )); then
+  elif [[ $step =~ ^([0-9]+)%-$ ]]; then
+    amount=$(( 10#${BASH_REMATCH[1]} ))
+    if (( amount == 5 && current <= 5 )); then
       (( target = current - 1 ))
     else
-      (( target = current - 5 ))
+      (( target = current - amount ))
     fi
 
     (( target < 1 )) && target=1

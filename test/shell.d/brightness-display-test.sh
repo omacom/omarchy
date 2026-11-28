@@ -31,7 +31,7 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 #!/bin/bash
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
-  printf 'mock_backlight,backlight,40,40%%\n'
+  printf 'mock_backlight,backlight,%s,%s%%\n' "${BACKLIGHT_CURRENT:-40}" "${BACKLIGHT_CURRENT:-40}"
 fi
 SH
 
@@ -220,3 +220,9 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+: >"$call_log"
+BACKLIGHT_CURRENT=1 run_brightness --no-osd --monitor eDP-1 1%-
+grep -Fx 'brightnessctl -d mock_backlight -m set 1%' "$call_log" >/dev/null || \
+  fail "precise brightness down clamps at 1% on internal backlight" "$(<"$call_log")"
+pass "precise brightness down clamps at 1% on internal backlight"
