@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=BambuStudio
+Comment=Bambu Studio, without the settings-tooltip grab that freezes the session
+Exec=omarchy-launch-bambu-studio %U
+Icon=BambuStudio
+Type=Application
+Categories=Utility;
+MimeType=x-scheme-handler/bambustudio;model/stl;application/vnd.ms-3mfdocument;application/prs.wavefront-obj;application/x-amf;
+StartupWMClass=BambuStudio
