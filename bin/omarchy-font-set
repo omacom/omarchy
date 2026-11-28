@@ -26,6 +26,16 @@ if ! fc-list | grep -Fqi -- "$font_name"; then
   exit 1
 fi
 
+# The override below only takes effect once the installed default puts the
+# "Omarchy Fixed Pitch" placeholder in the monospace chain. A checkout running
+# ahead of omarchy-settings would otherwise replace a working choice with one
+# nothing reads, so stop before touching any terminal or font configuration.
+settings=$(fc-conflist 2>/dev/null | sed -nE 's#^\+ (.*/50-omarchy\.conf):.*#\1#p' | head -n1)
+if [[ -z $settings ]] || ! grep -Fq "<string>Omarchy Fixed Pitch</string>" "$settings"; then
+  echo "Update omarchy-settings before setting a font: the installed fontconfig defaults predate this command." >&2
+  exit 1
+fi
+
 sed_escape() {
   local value="$1"
   value=${value//\\/\\\\}
@@ -79,8 +89,16 @@ fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
 # and anything resolving "monospace" all read from here. This file is loaded
-# after the package-owned default, and prepend_first puts the chosen family at
-# the head of the list so it wins over the family that default prefers.
+# after the package-owned default, which replaces the generic with the
+# placeholder "Omarchy Fixed Pitch" followed by its own family; the alias
+# inserts the chosen family right where that placeholder sits.
+#
+# An alias rather than a prepend_first edit: /etc/fonts/conf.d/48-guessfamily.conf
+# appends the generic "monospace" to every pattern whose family name merely
+# contains "mono", so a request for "Liberation Mono" arrives here carrying the
+# placeholder too. prepend_first would put the chosen family at the head of that
+# list, ahead of the family the application actually asked for, and every
+# installed font with "mono" in its name would resolve to this one.
 fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
 xml_font_name=$(xml_escape "$font_name")
 mkdir -p "$(dirname "$fontconfig_file")"
@@ -88,14 +106,12 @@ cat >"$fontconfig_file" <<XML
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
-  <match target="pattern">
-    <test name="family" qual="any">
-      <string>monospace</string>
-    </test>
-    <edit name="family" mode="prepend_first" binding="strong">
-      <string>$xml_font_name</string>
-    </edit>
-  </match>
+  <alias binding="strong">
+    <family>Omarchy Fixed Pitch</family>
+    <prefer>
+      <family>$xml_font_name</family>
+    </prefer>
+  </alias>
 </fontconfig>
 XML
 

@@ -15,6 +15,10 @@ cat >"$tmp/bin/fc-list" <<'SH'
 #!/bin/bash
 printf '%s\n' 'B&H <Mono> "Pro" / 1'\''s'
 SH
+cat >"$tmp/bin/fc-conflist" <<SH
+#!/bin/bash
+printf '+ %s: stub\\n' "$ROOT/default/fontconfig/conf.avail/50-omarchy.conf"
+SH
 for cmd in pkill omarchy-restart-shell pgrep omarchy-hook omarchy-notification-send; do
   printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/$cmd"
 done
@@ -40,7 +44,7 @@ grep -Fxq 'font-family = "B&H <Mono> \"Pro\" / 1'\''s"' "$tmp/dots/ghostty.conf"
   fail "omarchy-font-set escapes sed and quote chars in ghostty config" "$(<"$tmp/dots/ghostty.conf")"
 grep -Fxq 'font=B&H <Mono> "Pro" / 1'\''s:size=11' "$tmp/dots/foot.ini" ||
   fail "omarchy-font-set escapes sed chars in foot.ini" "$(<"$tmp/dots/foot.ini")"
-grep -Fq '<string>B&amp;H &lt;Mono&gt; &quot;Pro&quot; / 1&apos;s</string>' "$tmp/home/.config/fontconfig/fonts.conf" ||
+grep -Fq '<family>B&amp;H &lt;Mono&gt; &quot;Pro&quot; / 1&apos;s</family>' "$tmp/home/.config/fontconfig/fonts.conf" ||
   fail "omarchy-font-set XML-escapes fontconfig family names" "$(<"$tmp/home/.config/fontconfig/fonts.conf")"
 pass "omarchy-font-set escapes special characters and preserves symlinked configs"
 
