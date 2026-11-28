@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock في الوضع العائم فقط"
+  },
+  "appearance.dock.visibility": {
+    "label": "ظهور Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "ظاهر دائمًا"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "يختفي مع أول تطبيق"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "مخفي دائمًا"
   }
 }

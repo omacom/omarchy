@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "শুধু ভাসমানে Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock দৃশ্যমানতা"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "সবসময় চালু"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "প্রথম অ্যাপে লুকায়"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "সবসময় লুকানো"
   }
 }

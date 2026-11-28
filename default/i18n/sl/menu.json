@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock samo v lebdečem načinu"
+  },
+  "appearance.dock.visibility": {
+    "label": "Vidnost Docka"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Vedno vidna"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Skrije prva aplikacija"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Vedno skrita"
   }
 }

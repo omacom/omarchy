@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock صرف فلوٹنگ پر"
+  },
+  "appearance.dock.visibility": {
+    "label": "ڈاک کی نمائش"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "ہمیشہ دکھائیں"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "پہلی ایپ چھپائے"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "ہمیشہ چھپائیں"
   }
 }

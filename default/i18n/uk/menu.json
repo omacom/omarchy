@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock лише у плаваючому режимі"
+  },
+  "appearance.dock.visibility": {
+    "label": "Видимість Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Завжди видно"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Ховається при першому застосунку"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Завжди приховано"
   }
 }

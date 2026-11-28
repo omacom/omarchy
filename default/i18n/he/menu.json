@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock רק במצב צף"
+  },
+  "appearance.dock.visibility": {
+    "label": "נראות Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "תמיד גלוי"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "הסתרה באפליקציה ראשונה"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "תמיד מוסתר"
   }
 }

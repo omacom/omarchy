@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock เฉพาะโหมดลอยตัว"
+  },
+  "appearance.dock.visibility": {
+    "label": "การแสดงผล Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "แสดงตลอด"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "ซ่อนเมื่อเปิดแอปแรก"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "ซ่อนตลอด"
   }
 }

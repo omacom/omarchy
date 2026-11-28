@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Doks tikai peldošajā režīmā"
+  },
+  "appearance.dock.visibility": {
+    "label": "Doka redzamība"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Vienmēr redzams"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Pirmā lietotne slēpj"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Vienmēr slēpts"
   }
 }

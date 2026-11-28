@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock faqat suzuvchi rejimda"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock koʻrinishi"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Doim koʻrinadi"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Birinchi ilova yashiradi"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Doim yashirin"
   }
 }

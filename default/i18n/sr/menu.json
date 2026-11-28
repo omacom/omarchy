@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Док само у плутајућем"
+  },
+  "appearance.dock.visibility": {
+    "label": "Видљивост дока"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Увек видљив"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Прва апликација сакрива"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Увек сакривен"
   }
 }

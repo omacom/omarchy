@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock μόνο στην αιωρούμενη"
+  },
+  "appearance.dock.visibility": {
+    "label": "Ορατότητα Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Πάντα ορατό"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Κρύβεται με την πρώτη εφαρμογή"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Πάντα κρυφό"
   }
 }

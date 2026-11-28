@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock alleen bij zwevend"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock-zichtbaarheid"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Altijd zichtbaar"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Eerste app verbergt"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Altijd verborgen"
   }
 }

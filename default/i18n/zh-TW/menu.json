@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "僅在浮動時顯示 Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock 顯示方式"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "永遠顯示"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "開啟首個應用程式時隱藏"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "永遠隱藏"
   }
 }
