@@ -21,11 +21,15 @@ build() {
   map add_binary sway seatd seatd-launch quickshell
 
   # What Qt and Quickshell load at run time, which no ELF dependency names.
+  # Omarchy/Ttfx, the optional TTFX logo animation (native/ttfx-qml,
+  # ui/AnimatedLogo.qml), comes along only where it is installed: a module
+  # that is missing has no files to copy.
   for plugin in platforms/libqwayland.so wayland-shell-integration/libxdg-shell.so; do
     add_binary "$qt/plugins/$plugin"
   done
   for module in QML QtQml QtQml/Models QtQml/WorkerScript QtQuick QtQuick/Shapes \
-    Quickshell Quickshell/_Window Quickshell/Io Quickshell/I3 Quickshell/I3/_Ipc Quickshell/Wayland "$qt"/qml/Quickshell/Wayland/_*; do
+    Quickshell Quickshell/_Window Quickshell/Io Quickshell/I3 Quickshell/I3/_Ipc Quickshell/Wayland "$qt"/qml/Quickshell/Wayland/_* \
+    Omarchy/Ttfx; do
     module=${module#"$qt/qml/"}
     # The .qmltypes are for tools such as qmllint.
     for file in "$qt/qml/$module"/*; do
@@ -66,6 +70,11 @@ build() {
     add_file "$arrow"
   else
     warning "omarchy-splash: $arrow (adwaita-cursors) is missing; the pointer is drawn unscaled"
+  fi
+
+  # The TTFX logo's effect and seed (ui/AnimatedLogo.qml), where set.
+  if [[ -f /etc/omarchy/boot-splash-ttfx.conf ]]; then
+    add_file /etc/omarchy/boot-splash-ttfx.conf /usr/lib/omarchy-splash/ttfx.conf 644
   fi
 
   for script in answer plymouth power-button session stop ui-launch; do

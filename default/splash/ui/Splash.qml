@@ -71,6 +71,8 @@ PanelWindow {
     width: Math.min(810, parent.width - 80)
     height: width * 19 / 81
     color: window.colors.accent
+    background: window.colors.background
+    phase: window.shell.phase
   }
 
   Item {

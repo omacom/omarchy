@@ -28,6 +28,14 @@ As Plymouth does, the splash stays up while the real root boots. The late hook l
 
 The splash's output goes to `/run/omarchy-splash/session.log` and `ui.log`, which survive into the real root; `omarchy.splash.debug` on the kernel command line adds sway's debug log to the first.
 
+### The TTFX logo (optional)
+
+With the `Omarchy.Ttfx` QML module installed (`native/ttfx-qml`, at `/usr/lib/qt6/qml/Omarchy/Ttfx`), the splash's logo is played by the TTFX engine instead of drawn as a shape: `ui/Logo.qml` loads `ui/AnimatedLogo.qml`, which loops the effect while the splash waits and asks for the password, then plays it once to its end after Enter, a little faster, and holds the whole logo. The login screen's window does the same. Without the module, or with an effect it can't start, `Logo.qml` shows its shape as before; the splash's log notes the missing module once.
+
+The hook copies the module into the image where it is installed, like Quickshell's own modules, and `/etc/omarchy/boot-splash-ttfx.conf` as `/usr/lib/omarchy-splash/ttfx.conf` where it exists: `effect=` (a name from `native/plymouth-ttfx-engine/effects.txt`) and `seed=` lines, Decrypt with the Plymouth renderer's seed without it. The login screen reads the file itself. A change to the file takes a rebuild of the boot images (`omarchy-update-boot-splash`), as does installing or updating the module.
+
+It draws on the CPU into one image the size of the logo, redrawing only the cells that changed, so it adds to the software backend's work only within the logo's rectangle. On a 2015 MacBook Pro (i5-5257U, 2560x1600 at scale 2, 60 Hz), Quickshell on the software backend spent 33-42% of one core while the effect loops, at 49-58 frames per second, and nothing once a one-time playback holds its last frame.
+
 ### Updating the boot image
 
 The image carries copies of the hook's scripts and QML, and of the programs and libraries it runs, and mkinitcpio's pacman hook rebuilds it only for kernels, firmware and `/usr/lib/initcpio`. The splash's own files, `/etc/initcpio/*/omarchy-splash` and `/usr/share/omarchy/default/splash/`, are among the inputs `omarchy-boot-sync-initcpio` hashes after an omarchy-settings update (`91-omarchy-initcpio-rebuild.hook`), so every boot image is rebuilt when one of them changed. The real root's `stop` and the image it stops therefore come from the same release. Omarchy's own pacman hook, `default/libalpm/hooks/90-omarchy-boot-splash.hook` (shipped by the omarchy package), runs `omarchy-update-boot-splash` after an upgrade of the image's sway's `/usr/lib/libwlroots-0.20.so*`, so Omarchy's build of it (below) reaches the image whenever it lands: where the HOOKS baseline names `omarchy-splash`, that rebuilds every boot image through `omarchy-boot-rebuild` (`mkinitcpio -P` where Omarchy manages no boot loader), and nothing elsewhere. The migration that brings the splash in builds the first image, once the splash's runtime is installed.
