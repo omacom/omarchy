@@ -75,16 +75,18 @@
     }
   },
   "dock": {
-    "position": "right",
+    "position": "bottom",
     "pinned": [
       "folio",
       "omarchy-browser",
       "omarchy-terminal",
+      "omarchy-agent",
       "omacalc",
       "omawrite",
       "hype",
-      "monologue",
-      "cliamp"
+      "cliamp",
+      "Game Vibes",
+      "monologue"
     ]
   },
   "plugins": []

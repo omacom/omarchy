@@ -411,3 +411,13 @@ end
 function o.transparent_window(match, opacity)
   o.window(match, { opacity = opacity or "0.985 0.96", tag = "+transparent-window" })
 end
+
+-- Dynamic tags carry their name; rule-applied tags carry a trailing "*".
+function o.has_tag(window, name)
+  for _, tag in ipairs(window.tags or {}) do
+    if tag == name or tag == name .. "*" then
+      return true
+    end
+  end
+  return false
+end

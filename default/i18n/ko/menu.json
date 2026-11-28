@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "플로팅에서만 Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock 표시"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "항상 표시"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "첫 앱 실행 시 숨김"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "항상 숨김"
   }
 }

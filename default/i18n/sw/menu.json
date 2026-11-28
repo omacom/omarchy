@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock kwenye Inayoelea tu"
+  },
+  "appearance.dock.visibility": {
+    "label": "Mwonekano wa Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Daima inaonekana"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Programu ya kwanza huficha"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Daima imefichwa"
   }
 }

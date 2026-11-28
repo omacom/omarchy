@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock tik plaukiojančiame"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock matomumas"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Visada matomas"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Pirmoji programa slepia"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Visada paslėptas"
   }
 }

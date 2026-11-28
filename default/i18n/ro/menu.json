@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock doar în modul flotant"
+  },
+  "appearance.dock.visibility": {
+    "label": "Vizibilitate Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Mereu vizibil"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Se ascunde la prima aplicație"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Mereu ascuns"
   }
 }

@@ -20,7 +20,7 @@ PanelWindow {
 
   property var dock: null
 
-  readonly property string position: dock ? dock.position : "right"
+  readonly property string position: dock ? dock.position : "bottom"
   readonly property bool vertical: dock ? dock.vertical : false
   readonly property var monitor: Hyprland.monitorFor(screen)
   readonly property var workspace: monitor ? monitor.activeWorkspace : null
@@ -53,11 +53,13 @@ PanelWindow {
   // they are put, mostly clear of it.
   readonly property bool overWindows: fullscreenMode === 1 || (!floating && occupied)
   readonly property bool shown: !!dock && (floating || (dock.tiling && !!workspace)) && fullscreenMode < 2
-  // The dock stays out on an empty workspace, where it is the way to start
-  // something, and gets out of the way once the workspace has a window: it
-  // then waits off screen until the pointer reaches its edge, and stays while
-  // the pointer, a menu, or a drag still needs it.
-  readonly property bool autohide: !!dock && occupied
+  // A hidden dock waits off screen until the pointer reaches its edge, and
+  // stays while the pointer, a menu, or a drag still needs it. As it comes, the
+  // dock stays out on an empty workspace, where it is the way to start
+  // something, and hides once the workspace has a window. It can also be set to
+  // stay out always or to hide always. A maximized window hides it either way,
+  // so it can still be called up.
+  readonly property bool autohide: !!dock && (dock.visibility === "hidden" || fullscreenMode === 1 || (dock.visibility === "first-app" && occupied))
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
   readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || movingDock || holdOpen || insertIndex >= 0)
@@ -75,7 +77,9 @@ PanelWindow {
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
   // A submenu opens beside the menu, which a vertical dock needs the width for.
-  readonly property int submenuRoom: Style.space(140) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap
+  // It is as wide as the widest choice any of the submenus holds, so none is
+  // clipped by the window, and the window does not resize as one opens.
+  readonly property int submenuRoom: Math.max(Style.space(140), Math.ceil(submenu.widestOf(false))) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -205,9 +209,9 @@ PanelWindow {
   }
   property var menuItem: null
   property Item menuSlot: null
-  // The apps button's menu: where the dock sits and the layout. Each opens
-  // its choices in a submenu beside it, on hover as a menu bar's do, or on a
-  // click.
+  // The apps button's menu: where the dock sits, the layout, and when the dock
+  // is out. Each opens its choices in a submenu beside it, on hover as a menu
+  // bar's do, or on a click.
   property bool settingsMenu: false
   property string openSubmenu: ""
   // Whether the submenu opens on the near side of the menu, for the rows'
@@ -233,7 +237,7 @@ PanelWindow {
     id: submenuTimer
     interval: 200
     onTriggered: {
-      var row = window.pendingSubmenu === "position" ? positionRow : layoutRow
+      var row = window.pendingSubmenu === "position" ? positionRow : window.pendingSubmenu === "layout" ? layoutRow : visibilityRow
       if (row.hovered) window.openSubmenu = window.pendingSubmenu
     }
   }
@@ -905,6 +909,17 @@ PanelWindow {
       }
 
       PopupMenuRow {
+        id: visibilityRow
+        visible: window.settingsMenu
+        text: Commons.I18n.t("dock.visibility")
+        submenu: true
+        submenuBefore: window.submenuBefore
+        highlighted: window.openSubmenu === "visibility"
+        onHoveredChanged: if (hovered) window.hoverSubmenu("visibility")
+        onTriggered: window.openSubmenu = "visibility"
+      }
+
+      PopupMenuRow {
         visible: menu.hasEntry && menu.running
         text: Commons.I18n.t("dock.newWindow")
         onTriggered: {
@@ -936,10 +951,24 @@ PanelWindow {
   BorderSurface {
     id: submenu
 
-    readonly property Item row: window.openSubmenu === "position" ? positionRow : window.openSubmenu === "layout" ? layoutRow : null
+    // Wide enough for its longest choice with its tick, which a translation
+    // can make longer than any in English: of the choices showing, or of every
+    // submenu's.
+    function widestOf(showing) {
+      var width = 0
+      for (var i = 0; i < submenuColumn.children.length; i++) {
+        var choice = submenuColumn.children[i]
+        if ((choice.visible || !showing) && choice.contentWidth > width) width = choice.contentWidth
+      }
+      return width
+    }
+    readonly property Item row: window.openSubmenu === "position" ? positionRow
+      : window.openSubmenu === "layout" ? layoutRow
+      : window.openSubmenu === "visibility" ? visibilityRow
+      : null
 
     visible: menu.visible && window.settingsMenu && !!row
-    width: Math.max(Style.space(140), submenuColumn.implicitWidth) + padding * 2
+    width: Math.max(Style.space(140), Math.ceil(widestOf(true))) + padding * 2
     height: submenuColumn.implicitHeight + padding * 2
     x: window.submenuX(submenu)
     y: window.submenuY(row, submenu)
@@ -985,6 +1014,22 @@ PanelWindow {
           checked: !!window.dock && (window.dock.modes[window.workspaceId] || "dwindle") === modelData[0]
           onTriggered: {
             window.setLayout(modelData[0])
+            window.closeMenu()
+          }
+        }
+      }
+
+      Repeater {
+        model: [["always", Commons.I18n.t("dock.visibilityAlways")], ["first-app", Commons.I18n.t("dock.visibilityFirstApp")], ["hidden", Commons.I18n.t("dock.visibilityHidden")]]
+
+        delegate: PopupMenuRow {
+          required property var modelData
+
+          visible: window.openSubmenu === "visibility"
+          text: modelData[1]
+          checked: !!window.dock && window.dock.visibility === modelData[0]
+          onTriggered: {
+            Util.execDetached("omarchy-dock visibility " + modelData[0])
             window.closeMenu()
           }
         }

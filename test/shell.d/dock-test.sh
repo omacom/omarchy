@@ -14,9 +14,14 @@ const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
-assertEqual(dock.normalizePosition('diagonal'), 'right', 'dock falls back to the right')
-assertEqual(dock.normalizePosition(undefined), 'right', 'dock sits on the right by default')
+assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
+assertEqual(dock.normalizePosition(undefined), 'bottom', 'dock sits at the bottom by default')
 assert(dock.isVertical('right') && !dock.isVertical('top'), 'dock runs vertically on the left and right')
+assertEqual(dock.normalizeVisibility(undefined), 'first-app', 'dock hides once its workspace has a window by default')
+assertEqual(dock.normalizeVisibility('always'), 'always', 'dock accepts a valid visibility')
+assertEqual(dock.normalizeVisibility('sometimes'), 'first-app', 'dock falls back from an unknown visibility')
+assertEqual(dock.normalizeVisibility(undefined, true), 'hidden', 'a config that auto-hid the dock keeps it hidden')
+assertEqual(dock.normalizeVisibility('always', true), 'always', 'a visibility wins over the old auto-hide')
 assertEqual(dock.nearestEdge(100, 500, 1600, 1000, 'top'), 'left', 'a dock dragged near the left edge moves there')
 assertEqual(dock.nearestEdge(800, 40, 1600, 1000, 'top'), 'left', "a dock dragged to the bar's edge goes to the next closest one")
 assertEqual(dock.nearestEdge(800, 40, 1600, 1000, ''), 'top', 'without a bar every edge is open to the dock')
@@ -163,7 +168,7 @@ printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-shell"
 chmod +x "$mock_bin/omarchy-shell"
 omarchy_dock() { HOME="$home" PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-dock "$@"; }
 
-[[ $(omarchy_dock position) == "right" ]] || fail "dock position defaults to right"
+[[ $(omarchy_dock position) == "bottom" ]] || fail "dock position defaults to bottom"
 omarchy_dock position left >/dev/null
 jq -e '.dock.position == "left" and .version == 1' "$home/.config/omarchy/shell.json" >/dev/null ||
   fail "dock position is saved" "$(cat "$home/.config/omarchy/shell.json")"
@@ -172,6 +177,17 @@ if omarchy_dock position diagonal 2>/dev/null; then
   fail "dock position rejects anything but top, bottom, left, and right"
 fi
 pass "dock position is set and read through omarchy-dock"
+
+[[ $(omarchy_dock visibility) == "first-app" ]] || fail "dock visibility defaults to first-app"
+omarchy_dock visibility always >/dev/null
+jq -e '.dock.visibility == "always"' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock visibility is saved" "$(cat "$home/.config/omarchy/shell.json")"
+[[ $(omarchy_dock visibility) == "always" ]] || fail "dock visibility reads back"
+if omarchy_dock visibility sometimes 2>/dev/null; then
+  fail "dock visibility rejects anything but always, first-app, and hidden"
+fi
+omarchy_dock visibility first-app >/dev/null
+pass "dock visibility is set and read through omarchy-dock"
 
 default_pins=$(jq -r '.dock.pinned[]' "$ROOT/config/omarchy/shell.json" | paste -sd " ")
 [[ -n $default_pins && $(omarchy_dock pinned | paste -sd " ") == "$default_pins" ]] || fail "dock pins start from the defaults"

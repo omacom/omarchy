@@ -10,7 +10,7 @@ Your Spotlight or Raycast or Start-menu reflex becomes `Super + Space`. That ope
 
 ### No desktop icons, and the dock stays out of the way
 
-No icons to arrange on the desktop, and the dock hides once a workspace has a window, until you push the pointer to its edge of the screen, the right one unless you move it (see [navigation](04-navigation.md)). Apps start from a hotkey (`Super + Return` for the terminal, `Super + Shift + Return` for the browser, and `Super + K` for a list of everything that's mapped) or from the menu. The one persistent piece of UI is [the top bar](05-the-top-bar.md), which covers what the menu bar, system tray, and Notification Center did for you before — and nearly every widget on it does something on left, right, and middle click.
+No icons to arrange on the desktop, and the dock hides once a workspace has a window, until you push the pointer to its edge of the screen, the bottom one unless you move it (see [navigation](04-navigation.md)). Apps start from a hotkey (`Super + Return` for the terminal, `Super + Shift + Return` for the browser, and `Super + K` for a list of everything that's mapped) or from the menu. The one persistent piece of UI is [the top bar](05-the-top-bar.md), which covers what the menu bar, system tray, and Notification Center did for you before — and nearly every widget on it does something on left, right, and middle click.
 
 ### Windows place themselves
 

@@ -1441,5 +1441,23 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock i kakelläge"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock endast i flytläge"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dockens synlighet"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Alltid synlig"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Första appen döljer"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Alltid dold"
   }
 }

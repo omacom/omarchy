@@ -17,6 +17,9 @@ Rectangle {
   // The side the submenu opens on, for its mark to point there.
   property bool submenuBefore: Commons.I18n.rightToLeft
   readonly property bool hovered: rowMouse.containsMouse
+  // The width the label needs with room kept for a mark after it, for a menu
+  // to size itself to its widest row.
+  readonly property real contentWidth: label.implicitWidth + Style.spacing.controlPaddingX * 3 + Style.font.body
   signal triggered()
 
   width: parent ? parent.width : 0
@@ -25,6 +28,7 @@ Rectangle {
   color: rowMouse.containsMouse || highlighted ? Style.hoverFill : "transparent"
 
   Text {
+    id: label
     anchors.verticalCenter: parent.verticalCenter
     anchors.left: parent.left
     anchors.leftMargin: Style.spacing.controlPaddingX

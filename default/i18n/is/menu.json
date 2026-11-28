@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock aðeins í fljótandi ham"
+  },
+  "appearance.dock.visibility": {
+    "label": "Sýnileiki Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Alltaf sýnilegt"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Fyrsta forrit felur"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Alltaf falið"
   }
 }

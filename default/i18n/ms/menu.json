@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock Sahaja pada Terapung"
+  },
+  "appearance.dock.visibility": {
+    "label": "Keterlihatan Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Sentiasa Terlihat"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Apl Pertama Menyembunyikan"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Sentiasa Tersembunyi"
   }
 }

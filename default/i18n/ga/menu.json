@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Duga ar snámh amháin"
+  },
+  "appearance.dock.visibility": {
+    "label": "Infheictheacht an Duga"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Infheicthe i gcónaí"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Folaíonn an chéad aip"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "I gcónaí i bhfolach"
   }
 }

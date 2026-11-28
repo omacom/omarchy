@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "フローティングのみ Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock の表示"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "常に表示"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "最初のアプリで隠す"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "常に非表示"
   }
 }

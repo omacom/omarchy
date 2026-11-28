@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock மிதவையில் மட்டும்"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock தெரிவுநிலை"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "எப்போதும் தெரியும்"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "முதல் செயலி மறைக்கும்"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "எப்போதும் மறைந்திருக்கும்"
   }
 }

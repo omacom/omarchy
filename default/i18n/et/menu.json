@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dokk ainult hõljumisel"
+  },
+  "appearance.dock.visibility": {
+    "label": "Doki nähtavus"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Alati nähtav"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Esimene rakendus peidab"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Alati peidetud"
   }
 }

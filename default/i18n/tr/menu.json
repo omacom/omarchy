@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Yalnızca Yüzende Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock Görünürlüğü"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Her Zaman Görünür"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "İlk Uygulamada Gizlenir"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Her Zaman Gizli"
   }
 }

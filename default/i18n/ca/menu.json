@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock només en flotant"
+  },
+  "appearance.dock.visibility": {
+    "label": "Visibilitat del Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Sempre visible"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "S'amaga amb la primera aplicació"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Sempre amagat"
   }
 }

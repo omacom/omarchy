@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock Lang sa Floating"
+  },
+  "appearance.dock.visibility": {
+    "label": "Pagiging Nakikita ng Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Laging Nakikita"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Nagtatago sa Unang App"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Laging Nakatago"
   }
 }

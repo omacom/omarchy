@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock فقط در شناور"
+  },
+  "appearance.dock.visibility": {
+    "label": "نمایش Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "همیشه نمایان"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "پنهان با اولین برنامه"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "همیشه پنهان"
   }
 }
