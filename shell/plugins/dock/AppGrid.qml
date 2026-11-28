@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
@@ -336,6 +337,23 @@ Item {
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+
+            ScrollBar.vertical: ScrollBar {
+              parent: grid.parent
+              // Keep a usable drag target when the card's padding is narrow.
+              readonly property real room: Math.max(0, (card.width - grid.width) / 2 - (LayoutMirroring.enabled ? card.borderLeft : card.borderRight))
+              readonly property real overlap: Math.max(0, width - room)
+              readonly property real edgePadding: Math.min(width / 2, Style.space(2))
+              readonly property real innerPadding: hovered || pressed || activeFocus ? edgePadding : Math.max(edgePadding, width - edgePadding - Style.space(2))
+              x: LayoutMirroring.enabled ? -width + overlap : grid.width - overlap
+              y: grid.y
+              width: Style.space(12)
+              hoverEnabled: true
+              leftPadding: LayoutMirroring.enabled ? edgePadding : innerPadding
+              rightPadding: LayoutMirroring.enabled ? innerPadding : edgePadding
+              height: grid.height
+              policy: grid.contentHeight > grid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+            }
 
             // Mouse wheels keep the grid's own scrolling.
             WheelHandler {
