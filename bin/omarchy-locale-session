@@ -22,6 +22,55 @@ locale_generated() {
 generator=/usr/bin/omarchy-locale-generate
 [[ -x $generator ]] || generator=$OMARCHY_PATH/bin/omarchy-locale-generate
 
+# True when an unfiltered `sudo -l -l` listing grants <command> to root under
+# an !authenticate entry. Classic sudo puts those tags in a command-filtered
+# listing too; sudo-rs prints them only unfiltered, so the filtered check
+# falls through to this. A rule's bare path permits any arguments, ALL permits
+# any command, and otherwise the rule line is a glob over the whole command.
+sudoers_listing_grants() {
+  local command=$2 line runas root=0 passwordless=0 commands=0 negated granted=0
+  while IFS= read -r line; do
+    if [[ $line == "Sudoers entry:"* ]]; then
+      root=0 passwordless=0 commands=0
+      continue
+    fi
+    line=${line#"${line%%[![:space:]]*}"}
+    line=${line%,}
+    case $line in
+      RunAsUsers:*)
+        runas=",${line#RunAsUsers:},"
+        runas=${runas//[[:space:]]/}
+        if [[ $runas == *",root,"* || $runas == *",ALL,"* ]]; then
+          root=1
+        fi
+        ;;
+      Options:*)
+        if [[ $line == *'!authenticate'* ]]; then
+          passwordless=1
+        fi
+        ;;
+      Commands:)
+        commands=1
+        ;;
+      *)
+        (( commands && root )) || continue
+        negated=0
+        if [[ $line == '!'* ]]; then
+          negated=1
+          line=${line#!}
+        fi
+        # sudo takes the last matching command, so an exclusion or a
+        # password-requiring entry after a grant overrides it.
+        # shellcheck disable=SC2053 # the rule line is a sudoers glob
+        if [[ $line == "ALL" || $line == "${command%% *}" || $command == $line ]]; then
+          granted=$(( passwordless && !negated ))
+        fi
+        ;;
+    esac
+  done <<<"$1"
+  (( granted ))
+}
+
 # True when sudo would run the helper for this code without a password. `sudo
 # -l` alone only says a command is permitted, which the blanket %wheel rule
 # answers yes to; the long listing prints the matched entry's tags, so
@@ -29,7 +78,15 @@ generator=/usr/bin/omarchy-locale-generate
 # nothing, so a machine whose omarchy-settings predates the grant falls
 # through to a prompt instead of failing.
 generator_is_passwordless() {
-  sudo -n -l -l "$generator" "$1" 2>/dev/null | grep -q '!authenticate'
+  local listing
+  listing=$(LC_ALL=C sudo -n -l -l "$generator" "$1" 2>/dev/null) || return 1
+  if [[ $listing == *'!authenticate'* ]]; then
+    return 0
+  fi
+  # Classic sudo already evaluated the exact command, including expiry.
+  [[ $listing != *"Sudoers entry:"* ]] || return 1
+  listing=$(LC_ALL=C sudo -n -l -l 2>/dev/null) || return 1
+  sudoers_listing_grants "$listing" "$generator $1"
 }
 
 # generate_locale <registry code> <locale>

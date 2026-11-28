@@ -277,7 +277,8 @@ for policy in '    Options: !authenticate' '    Options: authenticate'; do
   expected=1
   [[ $policy != *'!authenticate'* ]] || expected=0
   assert_status "$expected" env TEST_POLICY="$policy" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
-  [[ $(wc -l <"$test_tmp/commands") == 1 ]]
+  # A filtered listing without the tags is followed by the full one (sudo-rs).
+  ! grep -qv '^sudo -n -l -l' "$test_tmp/commands" || fail "menu probe ran more than a policy listing"
   grep -q '^sudo -n -l -l -- .* __status ' "$test_tmp/commands"
 done
 assert_status 1 env TEST_POLICY_FAILURE=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
@@ -360,6 +361,20 @@ grep -q '^sudo -- .* __enable .* 15$' "$test_tmp/commands"
 assert_status 1 env TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 15 >"$test_tmp/public.log" 2>&1
 ! grep -q '^gum\|__enable ' "$test_tmp/commands" || fail "unsafe grant was offered enablement"
 pass "password-required listings do not block enabling, disabling, or active detection"
+
+# sudo-rs prints the matched entry's tags only on an unfiltered listing.
+rs_entry=$'Sudoers entry:\n    RunAsUsers: ALL\n    RunAsGroups: ALL\n    Commands:\n\tALL'
+rs_grant=$'\nSudoers entry:\n    RunAsUsers: ALL\n    Options: !authenticate\n    Commands:\n\tALL'
+TEST_POLICY=/usr/bin/omarchy-sudo-passwordless TEST_UNFILTERED_POLICY="$rs_entry$rs_grant" \
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active || fail "sudo-rs grant not detected as active"
+assert_status 1 env TEST_POLICY=/usr/bin/omarchy-sudo-passwordless TEST_UNFILTERED_POLICY="$rs_entry" \
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+pass "active detection reads a sudo-rs grant from the unfiltered listing"
+
+assert_status 1 env TEST_POLICY=$'Sudoers entry:\n    RunAsUsers: ALL\n    Commands:\n\tALL' \
+  TEST_UNFILTERED_POLICY="$rs_entry$rs_grant" \
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+pass "classic sudo's filtered answer cannot be overridden by an unfiltered grant"
 
 : >"$test_tmp/commands"
 TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active

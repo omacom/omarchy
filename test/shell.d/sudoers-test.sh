@@ -302,6 +302,75 @@ omarchy-theme-browser|omarchy-theme-set-browser-policy|1c2027|sudo /usr/bin/omar
 ROWS
 pass "helpers take the passwordless sudo grant where it reaches and polkit elsewhere"
 
+# sudo-rs omits the tags from a command-filtered listing. The grant is still
+# visible on the unfiltered one, and a command that is not under it must not
+# inherit a tag from some other entry.
+rs_bin="$test_tmp/sudo-rs-bin"
+mkdir -p "$rs_bin"
+cat >"$rs_bin/pkexec" <<'SH'
+#!/bin/bash
+printf 'pkexec %s\n' "$*" >"$ELEVATION_LOG"
+SH
+chmod +x "$rs_bin/pkexec"
+cat >"$rs_bin/sudo" <<'SH'
+#!/bin/bash
+if [[ $1 == -n && $2 == -l && $3 == -l && $# -eq 3 ]]; then
+  printf '%s' "$STUB_SUDO_RS_LISTING"
+  exit 0
+fi
+if [[ $1 == -n && $2 == -l ]]; then
+  printf '%s\n' "${STUB_FILTERED_LISTING:-filtered}"
+  exit "${STUB_FILTERED_STATUS:-0}"
+fi
+printf 'sudo %s\n' "$*" >"$ELEVATION_LOG"
+SH
+chmod +x "$rs_bin/sudo"
+rs_listing=$'Sudoers entry:\n    RunAsUsers: root\n    Options: !authenticate\n    Commands:\n\t/usr/bin/omarchy-dns Cloudflare\n\t/usr/bin/omarchy-dns Google\n\t/usr/bin/omarchy-dns DHCP\n'
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-dns" Cloudflare </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "sudo /usr/bin/omarchy-dns Cloudflare" ]] ||
+  fail "omarchy-dns takes a sudo-rs passwordless grant" "got: $(<"$test_tmp/elevation")"
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-dns" Custom </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "pkexec /usr/bin/omarchy-dns Custom" ]] ||
+  fail "omarchy-dns keeps Custom on polkit when sudo-rs lists only the stock providers" "got: $(<"$test_tmp/elevation")"
+# sudo takes the last matching command, so an exclusion after a blanket grant
+# cancels it for that command and leaves the others passwordless.
+rs_excluded=$'Sudoers entry:\n    RunAsUsers: ALL\n    Options: !authenticate\n    Commands:\n\tALL\n\t!/usr/bin/omarchy-dns\n'
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_excluded" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-dns" Cloudflare </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "pkexec /usr/bin/omarchy-dns Cloudflare" ]] ||
+  fail "omarchy-dns honours a sudo-rs exclusion after a blanket grant" "got: $(<"$test_tmp/elevation")"
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_excluded" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-theme-set-browser-policy" 1c2027 </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "sudo /usr/bin/omarchy-theme-set-browser-policy 1c2027" ]] ||
+  fail "a sudo-rs exclusion leaves other commands under the blanket grant" "got: $(<"$test_tmp/elevation")"
+rs_listing+=$'\nSudoers entry:\n    RunAsUsers: root\n    Options: !authenticate\n    Commands:\n\t/usr/bin/omarchy-theme-set-browser-policy [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]\n'
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-theme-set-browser-policy" 1c2027 </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "sudo /usr/bin/omarchy-theme-set-browser-policy 1c2027" ]] ||
+  fail "omarchy-theme-set-browser-policy matches a sudo-rs glob grant" "got: $(<"$test_tmp/elevation")"
+pass "helpers read a sudo-rs passwordless grant from the unfiltered listing"
+
+for filtered_status in 0 1; do
+  filtered_listing=filtered
+  if (( filtered_status == 0 )); then
+    filtered_listing=$'Sudoers entry:\n    RunAsUsers: root\n    Commands:\n\tALL'
+  fi
+  : >"$test_tmp/elevation"
+  STUB_FILTERED_STATUS=$filtered_status STUB_FILTERED_LISTING="$filtered_listing" \
+    STUB_SUDO_RS_LISTING="$rs_excluded" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+    bash "$ROOT/bin/omarchy-theme-set-browser-policy" 1c2027 </dev/null >/dev/null 2>&1 || true
+  [[ $(<"$test_tmp/elevation") == "pkexec /usr/bin/omarchy-theme-set-browser-policy 1c2027" ]] ||
+    fail "a classic filtered answer or a denied listing stays on polkit" "got: $(<"$test_tmp/elevation")"
+done
+pass "helpers preserve classic sudo policy and rejected command listings"
+
 # expect_rejected <drop-in> <command> [args...]
 expect_rejected() {
   if STUB_DROPIN="$sudoers_dir/$1" ELEVATION_LOG="$test_tmp/elevation" PATH="$stub_bin:$PATH" \
