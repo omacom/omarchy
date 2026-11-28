@@ -1355,8 +1355,12 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
       replies: dict[str, str | None] = {}
       order = "seq" if "seq" in columns else "time_created" if "time_created" in columns else ""
       if order:
+        # The redundant lower bound is what lets the index seek. Without it,
+        # the OR leaves the ordering column unconstrained, so each prompt read
+        # forward through the rest of its session: quadratic in its length.
         for session_id, reply_id, created_at, typed_at in conn.execute(
           "SELECT u.session_id, (SELECT a.id FROM session_message a WHERE a.session_id = u.session_id AND a.type = 'assistant'"
+          f" AND a.{order} >= u.{order}"
           f" AND (a.{order} > u.{order} OR (a.{order} = u.{order} AND a.id > u.id)) ORDER BY a.{order}, a.id LIMIT 1),"
           " CASE WHEN json_valid(u.data) THEN json_extract(u.data, '$.time.created') END,"
           f" {'u.time_created' if 'time_created' in columns else 'NULL'}"
