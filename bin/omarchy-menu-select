@@ -141,6 +141,11 @@ payload=$(
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 
+# Arch ships a Bash sleep builtin. Use it to wait without starting a process
+# on every poll while the user chooses; other installations use normal sleep.
+if [[ ! -e $done_file ]]; then
+  enable -f /usr/lib/bash/sleep sleep 2>/dev/null || true
+fi
 while [[ ! -e $done_file ]]; do
   sleep 0.05
 done
