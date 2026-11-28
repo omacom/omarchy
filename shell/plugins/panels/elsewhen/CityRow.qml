@@ -134,13 +134,17 @@ Rectangle {
     }
 
     onReleased: {
-      if (armed) row.panel.releaseRowDrag()
-      else row.panel.focusOn(row.index)
+      // End the gesture before telling the panel: focusOn/releaseRowDrag rebuild
+      // this row's delegate, and calling a component function afterwards lands in
+      // an invalid QML context (QQmlVMEMetaObject warning + TypeError).
+      var wasArmed = armed
       finish()
+      if (wasArmed) row.panel.releaseRowDrag()
+      else row.panel.focusOn(row.index)
     }
     onCanceled: {
-      row.panel.cancelRowDrag()
       finish()
+      row.panel.cancelRowDrag()
     }
   }
 
@@ -374,7 +378,7 @@ Rectangle {
     fontFamily: row.fontFamily
     fontSize: Style.font.bodySmall
     enabled: row.removable
-    opacity: row.removable && (rowHover.hovered || removeButton._hot) ? 1 : 0
+    opacity: row.removable && (rowHover.hovered || removeButton._hot || row.picked) ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     onClicked: row.panel.removeCityAt(row.index)
@@ -397,7 +401,7 @@ Rectangle {
     hoverColor: row.foreground
     fontFamily: row.fontFamily
     fontSize: Style.font.caption
-    opacity: !row.editingPeople && (rowHover.hovered || peopleButton._hot) ? 1 : 0
+    opacity: !row.editingPeople && (rowHover.hovered || peopleButton._hot || row.picked) ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     onClicked: row.panel.startPeopleEdit(row.index)
