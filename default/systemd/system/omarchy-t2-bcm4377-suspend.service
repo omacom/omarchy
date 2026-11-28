@@ -1,0 +1,21 @@
+[Unit]
+Description=Unload BCM4377 Wi-Fi and Bluetooth around suspend
+Documentation=https://github.com/omacom/omarchy/issues/11264
+Before=sleep.target
+StopWhenUnneeded=yes
+# ExecStop does not run when ExecStart fails or is killed. Failing this unit
+# fails sleep itself, and OnFailure puts back whatever pre unloaded.
+OnFailure=omarchy-t2-bcm4377-recover.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# pre waits up to 20s for a reload or rebind still running from the previous
+# wake, then hci_bcm4377 ring teardown can itself exceed 15s.
+TimeoutStartSec=70
+TimeoutStopSec=30
+ExecStart=/usr/bin/omarchy-t2-bcm4377-suspend pre
+ExecStop=/usr/bin/omarchy-t2-bcm4377-suspend post
+
+[Install]
+RequiredBy=sleep.target
