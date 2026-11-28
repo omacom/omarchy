@@ -377,4 +377,65 @@ for (let x = 1400; x >= 40; x -= 4) {
 assertEqual(pos, 0, 'sweeping left to the margin reaches the first theme')
 assertEqual(visitedLeft.size, 23, 'sweeping across the screen visits all 23 themes smoothly in order')
 assertEqual(picker.createScrubAnchor(23, 10, 1320, 1440).rightPitch, 32, 'anchoring near the right edge clamps pitch to minPitch')
+
+const updateVisibleFn = imagePickerQml.match(/function updateVisibleItems\(\) \{[\s\S]*?\n  \}/)[0]
+const visibleModel = new WindowModel()
+const visibleCtx = {
+  previewHold: { held: true },
+  visibleImages: visibleModel,
+  matchingImageIndices: [0, 1, 2, 3, 4],
+  selectedIndex: 2,
+  previewRadius: 1,
+  ImagePickerModel: picker
+}
+require('vm').runInNewContext(updateVisibleFn, visibleCtx)
+visibleCtx.updateVisibleItems()
+assertEqual(visibleModel.count, 3, 'updateVisibleItems populates delegates while previews are held')
+visibleCtx.previewHold.held = false
+visibleCtx.updateVisibleItems()
+assertEqual(visibleModel.count, 0, 'updateVisibleItems releases delegates once preview hold expires')
+visibleCtx.previewHold.held = true
+visibleCtx.updateVisibleItems()
+assertEqual(visibleModel.count, 3, 'updateVisibleItems restores delegates when previews are held again')
+
+const coldOpenFns = [
+  imagePickerQml.match(/function closeSelector\(nextDoneFile\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function openThemes\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function openBackgrounds\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function updateThemeRows\(rows\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+const coldCtx = {
+  requestSerial: 0, requestActive: true, selectionFile: '/tmp/sel', doneFile: '/tmp/done',
+  filterText: '', releasedDoneFiles: [],
+  themeRows: '', backgroundRows: '', themeOpenPending: false, backgroundOpenPending: false,
+  themeMode: false, opened: true, deleteSelectionPath: '', selectedImage: '', imageRows: '',
+  awaitingDeleteRefresh: false, openedThemes: 0,
+  finishDoneFile(path) { coldCtx.releasedDoneFiles.push(path) },
+  openThemeRows() { coldCtx.openedThemes += 1 },
+  openBackgroundRows() {},
+  refreshThemeRows() {}, refreshExtraThemes() {}, refreshStockThemes() {},
+  refreshCurrentBackground() {}, refreshBackgroundRows() {},
+  currentPath() { return '' }, currentThemePreview() { return '' }, loadRows() {}
+}
+coldCtx.root = coldCtx
+require('vm').runInNewContext(coldOpenFns, coldCtx)
+coldCtx.openThemes()
+assert(coldCtx.themeOpenPending && !coldCtx.backgroundOpenPending && !coldCtx.opened, 'cold theme open closes any active picker and marks theme open pending')
+assertDeepEqual(coldCtx.releasedDoneFiles, ['/tmp/done'], 'cold theme open releases any superseded caller doneFile')
+coldCtx.openBackgrounds()
+assert(!coldCtx.themeOpenPending && coldCtx.backgroundOpenPending, 'a newer cold background open supersedes a pending theme open')
+coldCtx.updateThemeRows('/themes/a.png')
+assertEqual(coldCtx.openedThemes, 0, 'a superseded theme scan caches rows without opening over pending backgrounds')
+
+const bgLoadRoot = {
+  filterText: '', selectedImage: '', requestSerial: 1, backgroundMode: true,
+  initialBackgroundSelection: '',
+  indexForSelectedImage(images) { return picker.indexForSelectedImage(images, this.selectedImage) },
+  currentPath() { return this.imageArray[this.selectedIndex]?.filePath || '' },
+  enableNeighborsWhenReady() {}, revealWhenSettled() {}
+}
+const bgLoadCtx = { root: bgLoadRoot, ImagePickerModel: picker, Qt: { callLater(cb) { cb() } } }
+require('vm').runInNewContext(`${refreshHandler}; loadRows`, bgLoadCtx)
+bgLoadCtx.loadRows('/bg/first.png\n/bg/active.png', false)
+assertEqual(bgLoadRoot.initialBackgroundSelection, '/bg/first.png', 'cold background load records initial selection so a late current-background lookup can still jump')
 JS

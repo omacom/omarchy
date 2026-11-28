@@ -67,7 +67,7 @@ Item {
     id: disc
     anchors.fill: parent
     visible: false
-    layer.enabled: true
+    layer.enabled: avatar.pictured
 
     Rectangle {
       anchors.fill: parent

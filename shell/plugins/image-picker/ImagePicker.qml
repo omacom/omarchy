@@ -44,6 +44,7 @@ Item {
   property string backgroundRows: ""
   property bool backgroundMode: false
   property bool backgroundOpenPending: false
+  property int backgroundRowsGeneration: 0
   property string currentBackgroundPath: ""
   property string initialBackgroundSelection: ""
   property var extraThemeNames: []
@@ -87,8 +88,12 @@ Item {
   PreviewHold {
     id: previewHold
     active: root.opened
-    // The selected preview decodes first again on the next open.
-    onHeldChanged: if (!held) root.neighborImagesEnabled = false
+    // Release delegates and reset decode ordering once the grace period ends.
+    onHeldChanged: {
+      if (!held) root.neighborImagesEnabled = false
+      root.updateVisibleItems()
+      if (held) Qt.callLater(root.enableNeighborsWhenReady)
+    }
   }
 
   function scriptPath(name) {
@@ -309,6 +314,8 @@ Item {
     root.neighborImagesEnabled = false
     root.imageArray = newImages
     root.imagesLoaded = true
+    if (root.backgroundMode && !root.initialBackgroundSelection)
+      root.initialBackgroundSelection = root.currentPath()
     Qt.callLater(root.enableNeighborsWhenReady)
 
     if (reveal !== false) {
@@ -401,7 +408,8 @@ Item {
   }
 
   function updateVisibleItems() {
-    ImagePickerModel.syncWindow(visibleImages, ImagePickerModel.visibleWindow(matchingImageIndices, selectedIndex, previewRadius))
+    var window = previewHold.held ? ImagePickerModel.visibleWindow(matchingImageIndices, selectedIndex, previewRadius) : []
+    ImagePickerModel.syncWindow(visibleImages, window)
   }
 
   function enableNeighborsWhenReady() {
@@ -427,7 +435,8 @@ Item {
     if (themeRows) {
       openThemeRows()
     } else {
-      // First open before the startup refresh has landed.
+      // First open before theme rows have been loaded.
+      closeSelector("")
       themeOpenPending = true
     }
     refreshThemeRows()
@@ -444,6 +453,7 @@ Item {
     if (backgroundRows) {
       openBackgroundRows()
     } else {
+      closeSelector("")
       backgroundOpenPending = true
     }
     refreshCurrentBackground()
@@ -458,11 +468,13 @@ Item {
 
   function refreshBackgroundRows() {
     if (backgroundRowsProc.running) { backgroundRowsProc.queued = true; return }
+    backgroundRowsProc.activeGeneration = root.backgroundRowsGeneration
     backgroundRowsProc.running = true
   }
 
   function refreshCurrentBackground() {
     if (currentBackgroundProc.running) { currentBackgroundProc.queued = true; return }
+    currentBackgroundProc.activeGeneration = root.backgroundRowsGeneration
     currentBackgroundProc.running = true
   }
 
@@ -479,7 +491,7 @@ Item {
       }
     } else if (changed && backgroundMode && opened) {
       if (rows) {
-        selectedImage = currentPath() || currentBackgroundPath
+        selectedImage = (initialBackgroundSelection ? currentPath() : "") || currentBackgroundPath
         imageRows = rows
         loadRows(rows, false)
       } else {
@@ -564,22 +576,32 @@ Item {
     watchChanges: true
     onFileChanged: {
       reload()
+      root.backgroundRowsGeneration += 1
       root.backgroundRows = ""
-      root.refreshBackgroundRows()
-      root.refreshCurrentBackground()
+      root.currentBackgroundPath = ""
+      root.initialBackgroundSelection = ""
+      if (root.backgroundOpenPending || (root.opened && root.backgroundMode)) {
+        root.refreshBackgroundRows()
+        root.refreshCurrentBackground()
+      }
     }
   }
 
   Process {
     id: backgroundRowsProc
     property bool queued: false
+    property int activeGeneration: 0
     command: [root.omarchyPath + "/bin/omarchy-theme-bg-switcher", "--print-rows"]
     stdout: StdioCollector {
-      onStreamFinished: root.updateBackgroundRows(String(text || "").trim())
+      onStreamFinished: {
+        if (backgroundRowsProc.activeGeneration !== root.backgroundRowsGeneration) return
+        root.updateBackgroundRows(String(text || "").trim())
+      }
     }
     onExited: {
       if (queued) {
         queued = false
+        activeGeneration = root.backgroundRowsGeneration
         running = true
       }
     }
@@ -588,10 +610,12 @@ Item {
   Process {
     id: currentBackgroundProc
     property bool queued: false
+    property int activeGeneration: 0
     command: ["readlink", "-f", root.stateHome + "/omarchy/current/background"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (currentBackgroundProc.activeGeneration !== root.backgroundRowsGeneration) return
         var resolved = String(text || "").trim()
         if (!resolved) return
         root.currentBackgroundPath = resolved
@@ -608,6 +632,7 @@ Item {
     onExited: {
       if (queued) {
         queued = false
+        activeGeneration = root.backgroundRowsGeneration
         running = true
       }
     }
@@ -664,14 +689,6 @@ Item {
       root.refreshExtraThemes()
       root.refreshThemeRows()
     }
-  }
-
-  Component.onCompleted: {
-    refreshThemeRows()
-    refreshBackgroundRows()
-    refreshCurrentBackground()
-    refreshExtraThemes()
-    refreshStockThemes()
   }
 
   function startImageScan(serial, dirs) {
@@ -757,7 +774,6 @@ Item {
     // leaving the picker invisible behind its own open overlay.
     if (opened || requestActive) return
 
-    previewHold.warm()
     requestSerial += 1
     imageRows = nextImageRows
     selectedImage = nextSelectedImage
@@ -770,8 +786,10 @@ Item {
     if (imageRows && imageRows === loadedImageRows && imageArray.length > 0) {
       selectedIndex = selectedImageIndex()
       imagesLoaded = true
+      previewHold.warm()
     } else if (imageRows) {
       loadRows(imageRows, false)
+      previewHold.warm()
     }
   }
 
@@ -928,7 +946,7 @@ Item {
                 id: maskShape
                 anchors.fill: parent
                 visible: false
-                layer.enabled: true
+                layer.enabled: root.opened
 
                 Shape {
                   anchors.fill: parent
@@ -948,7 +966,7 @@ Item {
 
               Item {
                 anchors.fill: parent
-                layer.enabled: true
+                layer.enabled: maskShape.layer.enabled
                 layer.smooth: true
                 layer.effect: MultiEffect {
                   maskEnabled: true
