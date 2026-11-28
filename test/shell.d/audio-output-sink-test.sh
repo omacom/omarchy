@@ -160,3 +160,18 @@ pass "filter with no exact output falls back to itself"
 printf 'Sink Input #42\n  Sink: 999\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
 [[ $(resolve) == "$filter" ]] || fail "a missing downstream sink falls back to the filter"
 pass "missing downstream sink falls back to the filter"
+
+# DSP sinks can be stacked: an equalizer in front of the speaker tuning plays into
+# the tuning, which plays into the card. The volume belongs on the card.
+reset_scenario
+printf '%s\n' eq_sink >"$test_home/data/default-sink"
+printf '41\tomarchy_speaker_tuning\tPipeWire\tfloat32le 2ch 48000Hz\tRUNNING\n902\teq_sink\tPipeWire\tfloat32le 2ch 48000Hz\tRUNNING\n' >>"$test_home/data/sinks"
+printf 'Sink Input #50\n  Sink: 41\n  node.name = "eq_sink.output"\nSink Input #51\n  Sink: 267\n  node.name = "omarchy_speaker_tuning_output"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "a DSP sink in front of a tuning resolves through both to the card"
+pass "stacked DSP sinks resolve through both to the card"
+
+# A misrouted chain that loops back on itself still ends.
+printf 'Sink Input #50\n  Sink: 41\n  node.name = "eq_sink.output"\nSink Input #51\n  Sink: 902\n  node.name = "omarchy_speaker_tuning_output"\n' >"$test_home/data/sink-inputs"
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" TEST_DATA="$test_home/data" PATH="$test_bin:$PATH" \
+  timeout 5 bash "$ROOT/bin/omarchy-audio-output-sink" >/dev/null || fail "a DSP chain that loops back on itself still ends"
+pass "DSP chain that loops back on itself still ends"
