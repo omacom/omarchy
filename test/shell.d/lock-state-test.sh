@@ -70,4 +70,50 @@ attempt = runPasswordPam([['error', 1]], false)
 assertEqual(attempt.failedAttempts, 0, 'password error after unlock does not increment failedAttempts')
 assertEqual(attempt.pendingPassword, '', 'password error after unlock still scrubs pendingPassword')
 assertEqual(attempt.authenticatingPassword, false, 'password error after unlock clears authenticatingPassword')
+// An idle lock armed its blank before the session lock had a surface, and with
+// no real output the panel went dark over a lock that never appeared (#20487).
+// The blank waits for a secure lock on a real screen, and comes back once the
+// lock turns secure.
+const runBlankFn = serviceQml.match(/function runBlank\(\) \{[\s\S]*?\n  \}/)[0]
+const canBlankFn = (serviceQml.match(/function canBlank\(\) \{[\s\S]*?\n  \}/) || [''])[0]
+const onSecureBody = serviceQml.match(/onSecureStateChanged: \{([\s\S]*?)\n    \}/)[1]
+
+function lockService(secure, screens) {
+  const ctx = {
+    lockRequested: true,
+    lastEvent: '',
+    pendingSessionLock: true,
+    sessionLock: { secure },
+    blankProcess: { running: false },
+    idleBlankTimer: { running: false },
+    sessionLockStabilizeTimer: { stop() {} },
+    pendingSessionLockTimer: { stop() {} },
+    armed: 0,
+    hasRealScreen: () => screens > 0,
+    pauseFingerprint() {},
+    startFingerprint() {},
+    logEvent(event) { ctx.lastEvent = event },
+    armBlankTimer() { ctx.armed += 1 }
+  }
+  ctx.root = ctx
+  require('vm').runInNewContext(`${canBlankFn}\n${runBlankFn}\nfunction fireSecure() {${onSecureBody}}`, ctx)
+  return ctx
+}
+
+let lock = lockService(false, 1)
+lock.runBlank()
+assertEqual(lock.blankProcess.running, false, 'a lock still waiting for its surface keeps the panel on')
+
+lock = lockService(true, 0)
+lock.runBlank()
+assertEqual(lock.blankProcess.running, false, 'a lock with no real screen keeps the panel on')
+
+lock = lockService(true, 1)
+lock.runBlank()
+assertEqual(lock.blankProcess.running, true, 'a secure lock on a real screen blanks')
+
+lock = lockService(false, 1)
+lock.secure = true
+lock.fireSecure()
+assertEqual(lock.armed, 1, 'the lock turning secure re-arms the blank it held back')
 JS
