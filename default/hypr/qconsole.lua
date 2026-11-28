@@ -81,18 +81,10 @@ local function alone()
   return tiled <= 1
 end
 
--- Sizing the console with a window rule would freeze it at whatever the screen
--- measured when it first opened, because Hyprland resolves those expressions
--- once, as the window maps. Rescaling the monitor afterwards would leave a
--- console that is no longer half of anything. Gaps are re-applied by the layout
--- instead, so the console is sized by the area left around it, and that area is
--- recomputed whenever the monitor it opens on changes.
-local function fit(monitor)
-  -- A monitor handle whose output has gone away answers nil to every field, and
-  -- layout changes are exactly when that happens, so this also covers reading
-  -- width, height and reserved below.
+local function work_area(monitor)
+  -- A disconnected monitor handle answers nil to every field.
   if not monitor or not monitor.scale or monitor.scale <= 0 then
-    return false
+    return nil
   end
 
   -- Width and height are the panel's own pixels, so a monitor turned on its
@@ -106,9 +98,23 @@ local function fit(monitor)
   -- Monitor dimensions are in physical pixels; gaps are logical, so the scale
   -- has to come out before the reserved area (already logical) comes off.
   local reserved = monitor.reserved
-  height = height / monitor.scale - reserved.top - reserved.bottom
-  width = width / monitor.scale - reserved.left - reserved.right
+  local x, y = monitor.x, monitor.y
+  return {
+    monitor = monitor,
+    width = width / monitor.scale - reserved.left - reserved.right,
+    height = height / monitor.scale - reserved.top - reserved.bottom,
+    left = x and x + reserved.left,
+    top = y and y + reserved.top,
+  }
+end
 
+-- Gaps are reapplied by the layout when the usable area changes. Window rule
+-- sizes would freeze the panel at the size it received when it first opened.
+local function fit(area)
+  if not area then
+    return false
+  end
+  local width, height = area.width, area.height
   local tall = math.floor(height * share)
   local wide = width
   if alone() then
@@ -116,6 +122,33 @@ local function fit(monitor)
   end
 
   return cover(math.floor((width - wide) / 2), math.floor(height - tall))
+end
+
+local function fit_floating(area, reposition)
+  local width, height = math.floor(area.width), math.floor(area.height)
+  if width < 1 or height < 1 then
+    return
+  end
+
+  for _, window in ipairs(hl.get_workspace_windows(CONSOLE)) do
+    -- A move can emit events before the window has reached the destination.
+    if window.mapped and window.monitor == area.monitor and window.floating
+      and not window.hidden and not window.pinned and (window.fullscreen or 0) == 0 then
+      local size = window.size
+      local at = reposition and window.at
+      local too_large = size.x > area.width or size.y > area.height
+      local clipped = at and area.left and area.top
+        and (at.x < area.left - 1 or at.y < area.top - 1
+          or at.x + size.x > area.left + area.width + 1 or at.y + size.y > area.top + area.height + 1)
+
+      if too_large then
+        hl.dispatch(hl.dsp.window.resize({ x = math.min(size.x, width), y = math.min(size.y, height), relative = false, window = window }))
+      end
+      if too_large or clipped then
+        hl.dispatch(hl.dsp.window.center({ window = window }))
+      end
+    end
+  end
 end
 
 -- The console keeps the geometry of the output it is open on: a follow_mouse hop
@@ -132,11 +165,19 @@ local function console_monitor()
   return hl.get_active_monitor()
 end
 
-local function refit(monitor)
-  if fit(monitor or console_monitor()) then
+local function refit(monitor, reposition)
+  local area = work_area(monitor or console_monitor())
+  if fit(area) then
     -- Land the new gaps in this pass rather than a frame later, so the console
     -- does not visibly resize itself once it has already dropped down.
     hl.exec_scheduled_prop_refresh_immediately()
+  end
+
+  -- Gaps only affect tiled windows. A visible float can keep its old size
+  -- or offset after Hyprland moves it to another monitor.
+  local ws = hl.get_workspace(CONSOLE)
+  if area and ws and ws.visible then
+    fit_floating(area, reposition)
   end
 end
 
@@ -145,10 +186,10 @@ end
 -- runs this again with the console already on screen, so it starts from the
 -- output the console is on rather than whichever one the pointer is over.
 cover(0, 0)
-fit(console_monitor())
+fit(work_area(console_monitor()))
 
 hl.on("monitor.layout_changed", function()
-  refit()
+  refit(nil, true)
 end)
 
 hl.on("monitor.focused", function()
@@ -160,13 +201,13 @@ end)
 -- take the monitor they are handed rather than looking one up.
 hl.on("workspace.special_active", function(ws, mon)
   if ws and ws.name == CONSOLE then
-    refit(mon)
+    refit(mon, true)
   end
 end)
 
 hl.on("workspace.move_to_monitor", function(ws, mon)
   if ws and ws.name == CONSOLE then
-    refit(mon)
+    refit(mon, true)
   end
 end)
 
@@ -193,6 +234,13 @@ hl.on("window.open", recount)
 hl.on("window.destroy", recount)
 hl.on("window.move_to_workspace", recount)
 hl.on("window.update_rules", recount)
+
+-- A bar can map after the console has already fitted to a new output.
+hl.on("layer.opened", function(layer)
+  if layer.namespace == "omarchy-bar" then
+    recount()
+  end
+end)
 
 -- The direction names the edge the offset is measured from, not where the
 -- workspace goes: "slide top" drops it down into view, and "slide bottom"
