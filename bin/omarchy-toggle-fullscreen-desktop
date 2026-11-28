@@ -23,5 +23,8 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+# Reload for the gaps before the bar moves; reloading mid-resize leaves foot drawn at a stale size.
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
+gaps_status=$?
+omarchy-toggle-bar "$ACTION"
+exit "$gaps_status"
