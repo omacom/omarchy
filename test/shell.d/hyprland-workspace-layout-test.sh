@@ -500,3 +500,30 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# Setting a layout reaches any workspace, not only the focused one, so a tool can
+# arrange a workspace the user is not looking at.
+set_layout() {
+  env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
+    HYPRCTL_LOG="$log_file" NOTIFICATION_LOG="$notification_log" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-set" "$@"
+}
+other_file="$home_dir/.local/state/omarchy/workspace-layouts/7.lua"
+: >"$log_file"
+set_layout 7 scrolling
+grep -Fx 'eval o.workspace_mode({ workspace = "7", mode = "scrolling" })' "$log_file" >/dev/null ||
+  fail "setting a layout applies it to that workspace" "$(cat "$log_file")"
+grep -q 'mode = "scrolling"' "$other_file" || fail "setting a layout saves it for that workspace" "$(cat "$other_file" 2>&1)"
+set_layout 7 dwindle
+[[ ! -e $other_file ]] || fail "setting the default layout forgets the workspace's own one" "saved: $(cat "$other_file")"
+pass "a layout can be set on any workspace"
+
+: >"$log_file"
+for args in "-2 floating" "0 floating" "7 sideways" "7" ""; do
+  # shellcheck disable=SC2086
+  if set_layout $args 2>/dev/null; then
+    fail "setting a layout refuses '$args'"
+  fi
+done
+[[ ! -s $log_file ]] || fail "a refused layout applies nothing" "$(cat "$log_file")"
+pass "setting a layout refuses a bad workspace or mode"
