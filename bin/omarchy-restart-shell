@@ -136,10 +136,13 @@ if (( relock )) && ! relock_session; then
 fi
 
 # Core IPC answers before the notification plugin has registered its bus
-# name, so wait for it separately before one-time toasts are sent.
+# name, so wait for it separately before one-time toasts are sent. Use a
+# deadline because slow notification plugins can take longer than a fixed
+# number of probes to register.
 if (( notifications_were_running )); then
   notifications_restored=0
-  for (( attempt = 0; attempt < 20; attempt++ )); do
+  deadline=$((SECONDS + 15))
+  while (( SECONDS < deadline )); do
     if notifications_ready; then
       notifications_restored=1
       break

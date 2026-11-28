@@ -159,7 +159,7 @@ else
     (( checks == 1 )) && echo 'b true' || echo 'b false'
     exit 0
   fi
-  if (( checks == 1 || checks >= 4 )); then
+  if (( checks == 1 || checks >= ${OMARCHY_TEST_NOTIFICATIONS_READY_AT:-4} )); then
     echo 'b true'
   else
     echo 'b false'
@@ -211,6 +211,32 @@ grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null
 pass "restart replaces duplicate shell instances from the session checkout"
 [[ $(<"$test_tmp/notification-checks") == 4 ]] || fail "restart waits for the existing notification service after core IPC is ready"
 pass "restart waits for notification readiness before one-time update hooks"
+
+# The notification plugin can register well after core IPC, beyond the old
+# twenty-probe window. Keep the fast restoration case above as well.
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$test_tmp/notification-checks"
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
+OMARCHY_TEST_NOTIFICATIONS_READY_AT=25 \
+  timeout 10 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/slow-notifications.out" 2>"$test_tmp/slow-notifications.err" ||
+  fail "restart allows notification registration beyond two seconds" "$(cat "$test_tmp/slow-notifications.err")"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ ! -s $test_tmp/slow-notifications.out && ! -s $test_tmp/slow-notifications.err ]] || fail "successful delayed restoration is silent"
+[[ $(<"$test_tmp/notification-checks") == 25 ]] || fail "restart waits until the delayed notification service returns"
+[[ $(<"$restart_state") == 303 ]] || fail "delayed restoration leaves the fresh shell running"
+pass "restart allows notification registration beyond two seconds"
 
 : >"$restart_log"
 printf '303\n' >"$restart_state"
@@ -286,14 +312,17 @@ if PATH="$restart_bin:$PATH" \
   OMARCHY_TEST_SESSION_PATH="$restart_root" \
   OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
   OMARCHY_TEST_NOTIFICATIONS_DIE=1 \
-  timeout 10 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/dead-notifications.out" 2>&1; then
+  timeout 20 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/dead-notifications.out" 2>"$test_tmp/dead-notifications.err"; then
   fail "a restart whose notification service never returns must not report success"
+else
+  [[ $? == 1 ]] || fail "a missing notification service fails before the external timeout"
 fi
 wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "lock recovery waited on the notification service" "$(cat "$ipc_log")"
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
-grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
+[[ ! -s $test_tmp/dead-notifications.out ]] || fail "a missing notification service writes no stdout"
+[[ $(<"$test_tmp/dead-notifications.err") == "Omarchy shell restarted, but its notification service did not become ready." ]] || fail "a missing notification service is reported exactly" "$(cat "$test_tmp/dead-notifications.err")"
 pass "restart recovers the lock even when the notification service never returns"
 
 # A worktree's shell left running after a visual check holds the notification
