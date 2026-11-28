@@ -183,6 +183,17 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
 
+# A shell that never loaded the session environment has no OMARCHY_PATH, which
+# the update's security entrypoints refuse. The update refuses it first, before
+# it prunes the package cache or takes a snapshot, not partway through.
+if (unset OMARCHY_PATH; run_update -y); then
+  fail "an update without OMARCHY_PATH passes for a whole one"
+fi
+[[ ! -s $test_tmp/steps ]] || fail "an update without OMARCHY_PATH runs steps first" "$(steps_run)"
+grep -q "OMARCHY_PATH does not match this Omarchy command." "$test_tmp/err" ||
+  fail "an update without OMARCHY_PATH does not say why it stopped" "$(cat "$test_tmp/err")"
+pass "an update without OMARCHY_PATH stops before its first step"
+
 # Multiple Hyprland PIDs must not break the deleted-executable reboot check.
 restart_bin="$test_tmp/restart-bin"
 restart_home="$test_tmp/restart-home"
