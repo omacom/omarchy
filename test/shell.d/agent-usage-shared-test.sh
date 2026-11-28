@@ -18,6 +18,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 WORK="$WORK" python3 - <<'PY'
 import contextlib
+import io
 import json
 import os
 import sqlite3
@@ -1332,6 +1333,16 @@ deep_header = work / "deep-header.jsonl"
 deep_header.write_text("[" * 200_000 + "\n")
 check("a session header nested deeper than the parser goes names no parent instead of stopping the scan",
       collectors.pi_parent_session(str(deep_header)) is None)
+
+# Bound both on-disk forms before decompression or splitting into lines.
+for extension in (".jsonl", ".jsonl.zstd"):
+  oversized = work / ("oversized" + extension)
+  with oversized.open("wb") as handle:
+    handle.truncate(collectors.DSH_MAX_LOG_BYTES + 1)
+  with contextlib.redirect_stderr(io.StringIO()):
+    oversized_result = collectors.dsh_log_lines(oversized)
+  check("oversized " + extension + " input is an incomplete scan", oversized_result == ([], False))
+  oversized.unlink()
 
 # --------------------------------------------------------------- accounts
 
