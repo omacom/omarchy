@@ -204,3 +204,38 @@ JS
 else
   skip "node is not installed; skipping the WhatsApp Slim content script check"
 fi
+
+# --- System title bar for profiles that already exist ---
+
+# A profile that never chose a frame is switched; one that chose, either way,
+# is left alone, and so is a browser that is running, since it would write its
+# own Preferences back over the change when it exits.
+title_bar_home="$test_tmp/title-bar-home"
+chrome="$title_bar_home/.config/google-chrome"
+brave="$title_bar_home/.config/BraveSoftware/Brave-Origin"
+mkdir -p "$chrome/Default" "$chrome/Profile 1" "$chrome/Profile 2" "$brave/Default"
+printf '{"browser":{"theme":{"color_scheme":2}}}\n' >"$chrome/Default/Preferences"
+printf '{"browser":{"custom_chrome_frame":true}}\n' >"$chrome/Profile 1/Preferences"
+printf '{"extensions":{}}\n' >"$chrome/Profile 2/Preferences"
+printf '{"browser":{}}\n' >"$brave/Default/Preferences"
+ln -s "host-12345" "$brave/SingletonLock"
+set_title_bar() { env -u XDG_CONFIG_HOME HOME="$title_bar_home" "$ROOT/bin/omarchy-install-chromium-system-title-bar"; }
+
+status=0
+running=$(set_title_bar) || status=$?
+(( status != 0 )) || fail "a running browser makes the command fail"
+[[ $running == "$brave" ]] || fail "the running browser's profile directory is named" "$running"
+jq -e '.browser.custom_chrome_frame == false and .browser.theme.color_scheme == 2' "$chrome/Default/Preferences" >/dev/null ||
+  fail "an undecided profile is switched and keeps its other settings" "$(cat "$chrome/Default/Preferences")"
+jq -e '.browser.custom_chrome_frame == true' "$chrome/Profile 1/Preferences" >/dev/null ||
+  fail "a profile that chose its own frame keeps it" "$(cat "$chrome/Profile 1/Preferences")"
+jq -e '.browser.custom_chrome_frame == false' "$chrome/Profile 2/Preferences" >/dev/null ||
+  fail "a profile with no browser settings yet is switched" "$(cat "$chrome/Profile 2/Preferences")"
+jq -e '.browser | has("custom_chrome_frame") | not' "$brave/Default/Preferences" >/dev/null ||
+  fail "a running browser's profile is left alone" "$(cat "$brave/Default/Preferences")"
+
+rm "$brave/SingletonLock"
+set_title_bar >/dev/null || fail "with every browser closed nothing is left to report"
+jq -e '.browser.custom_chrome_frame == false' "$brave/Default/Preferences" >/dev/null ||
+  fail "the browser is switched once it is closed" "$(cat "$brave/Default/Preferences")"
+pass "existing Chromium profiles that never chose a frame get the system title bar"
