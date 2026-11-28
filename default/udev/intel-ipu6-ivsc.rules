@@ -1,0 +1,4 @@
+# Load intel_ipu6 only once the IVSC firmware has enumerated its CSI MEI client
+# (see /etc/modprobe.d/intel-ipu6-ivsc.conf). modprobe rather than the kmod
+# builtin: the builtin honours the blacklist for explicit names too.
+ACTION=="add", SUBSYSTEM=="mei", KERNEL=="intel_vsc-92335fcf-3203-4472-af93-7b4453ac29da", RUN+="/usr/bin/modprobe -q intel_ipu6"
