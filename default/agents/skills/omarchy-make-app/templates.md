@@ -153,14 +153,15 @@ jobs:
 #include "translator.h"
 
 int main(int argc, char *argv[]) {
+    // Matches the Wayland app_id and launcher icon to <name>.desktop. Set before
+    // construction: a theme's portal settings read can block later registration.
+    QGuiApplication::setDesktopFileName("<name>");
     QGuiApplication app(argc, argv);
     app.setApplicationName("<name>");
     app.setApplicationVersion("0.1.0");
 
-    // Matches the window to <name>.desktop, so the compositor (Wayland app_id)
-    // and the launcher pick up the installed icon. The compiled-in copy covers
-    // a run from build/, and needs qt6-svg's icon engine.
-    app.setDesktopFileName("<name>");
+    // The compiled-in icon covers a run from build/, and needs qt6-svg's
+    // icon engine.
     app.setWindowIcon(QIcon::fromTheme("<name>", QIcon(":/<name>.svg")));
 
     QQuickStyle::setStyle("Material");
