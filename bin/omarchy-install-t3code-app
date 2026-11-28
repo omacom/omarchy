@@ -50,7 +50,7 @@ trap 'rm -rf "$work" "$download"' EXIT
 if [[ $channel == "stable" ]]; then
   feed_url="$REPO_URL/releases/latest/download/latest-linux$arch_suffix.yml"
 else
-  tag=$(curl -fsSL --retry 3 "https://api.github.com/repos/pingdotgg/t3code/releases?per_page=100" |
+  tag=$(curl --proto '=https' --proto-redir '=https' -fsSL --retry 3 "https://api.github.com/repos/pingdotgg/t3code/releases?per_page=100" |
     jq -r '[.[] | select(.draft | not) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]+\\.[0-9]+$"))][0] // empty')
   if [[ -z $tag ]]; then
     echo "Could not find a T3 Code nightly release." >&2
@@ -59,7 +59,7 @@ else
   feed_url="$REPO_URL/releases/download/$tag/nightly-linux$arch_suffix.yml"
 fi
 
-curl -fsSL --retry 3 "$feed_url" -o "$work/feed.yml"
+curl --proto '=https' --proto-redir '=https' -fsSL --retry 3 "$feed_url" -o "$work/feed.yml"
 version=$(sed -n 's/^version: *//p' "$work/feed.yml")
 file=$(sed -n 's/^path: *//p' "$work/feed.yml")
 sha512=$(sed -n 's/^sha512: *//p' "$work/feed.yml")
@@ -70,7 +70,7 @@ fi
 
 echo "Downloading T3 Code $version..."
 mkdir -p "$APP_DIR"
-curl -fL --retry 3 --progress-bar "$REPO_URL/releases/download/v$version/$file" -o "$download"
+curl --proto '=https' --proto-redir '=https' -fL --retry 3 --progress-bar "$REPO_URL/releases/download/v$version/$file" -o "$download"
 if [[ $(openssl dgst -sha512 -binary "$download" | base64 -w0) != "$sha512" ]]; then
   echo "The T3 Code download does not match its release checksum." >&2
   exit 1
