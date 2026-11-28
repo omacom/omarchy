@@ -58,6 +58,7 @@ Item {
   property string backgroundSignature: ""
   property string lastEvent: "init"
   property string lastEventAt: ""
+  property double initialBlankDeadlineMs: 0
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
@@ -222,7 +223,9 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
-    armBlankTimer()
+    // A new lock can start before a slow display has finished waking.
+    initialBlankDeadlineMs = Date.now() + idleBlankTimer.initialMs
+    armBlankTimer(idleBlankTimer.initialMs)
     logEvent("lock-requested")
     queueSessionLock()
 
@@ -238,6 +241,7 @@ Item {
     if (!root.currentlyLocked()) return
 
     lockRequested = false
+    initialBlankDeadlineMs = 0
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
@@ -249,7 +253,9 @@ Item {
   }
 
   function armBlankTimer(delayMs) {
-    idleBlankTimer.interval = delayMs || idleBlankTimer.idleMs
+    var interval = delayMs || idleBlankTimer.idleMs
+    var initialRemainingMs = initialBlankDeadlineMs - Date.now()
+    idleBlankTimer.interval = Math.max(interval, initialRemainingMs)
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
   }
@@ -785,10 +791,13 @@ Item {
     // panel lights (on NVIDIA it waits out a VT switch and a modeset), so the
     // idle run-up blanked the lock just as it appeared.
     readonly property int resumeMs: 15000
+    // The lock may start while the display is still waking from the greeter.
+    readonly property int initialMs: 15000
     interval: idleMs
     repeat: false
     property double armedAt: 0
     onTriggered: {
+      root.initialBlankDeadlineMs = 0
       // A countdown frozen by suspend fires right after resume, which would
       // blank the freshly woken unlock screen under the user. Wall-clock time
       // exposes the gap: take a fresh run-up instead of blanking.
