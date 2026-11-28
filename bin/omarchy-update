@@ -2,14 +2,18 @@
 
 # omarchy:summary=Update Omarchy and system packages
 # omarchy:alias=omarchy up
-# omarchy:args=[-y]
-# omarchy:examples=omarchy update | omarchy update -y
+# omarchy:args=[-y|--yes]
+# omarchy:examples=omarchy update | omarchy update --yes
 # omarchy:requires-sudo=true
 
 set -e
 
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
+
+is_unattended_flag() {
+  [[ ${1:-} == "-y" || ${1:-} == "--yes" ]]
+}
 
 # Ask for the password once, then keep sudo's timestamp fresh so long package
 # downloads, migrations, hooks, and mise never outlast it and prompt again.
@@ -82,13 +86,15 @@ update_log_start=$(stat -c %s /tmp/omarchy-update.log 2>/dev/null || echo 0)
 
 omarchy-update-requires-free-space
 
-# -y skips the start confirmation and, unless the caller set
+# -y/--yes skips the start confirmation and, unless the caller set
 # OMARCHY_UPDATE_UNATTENDED itself, suppresses Omarchy confirmation prompts;
 # sudo authorization is still required. Interactive review steps report and
 # move on instead of waiting.
-[[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=${OMARCHY_UPDATE_UNATTENDED:-1}
+if is_unattended_flag "$1"; then
+  export OMARCHY_UPDATE_UNATTENDED=${OMARCHY_UPDATE_UNATTENDED:-1}
+fi
 
-if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
+if is_unattended_flag "$1" || omarchy-update-confirm; then
   authorize_update
 
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning

@@ -157,6 +157,13 @@ pass "-y is what marks an update unattended, not the update itself"
 [[ $(cat "$test_tmp/steps.orphan-args") == "-y" ]] || fail "a confirmed update approves orphan removal"
 pass "a confirmed update approves orphan removal"
 
+run_update --yes || fail "an update with --yes reports a failure"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "--yes runs a different set of steps" "$(cat "$test_tmp/order")"
+grep -q '^omarchy-update-system-pkgs unattended=1$' "$test_tmp/steps" ||
+  fail "--yes does not mark the update unattended"
+pass "--yes skips the confirmation and marks the update unattended"
+
 NO_PENDING=1 run_update -y || fail "an update with nothing to migrate reports a failure"
 diff <(expected_steps "" "") <(steps_run) >"$test_tmp/order" ||
   fail "an update with nothing to migrate restarts the shell anyway" "$(cat "$test_tmp/order")"
