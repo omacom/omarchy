@@ -12,7 +12,4 @@ set -euo pipefail
   exit 1
 }
 
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-setter="$script_dir/omarchy-plymouth-effect-set"
-[[ -x $setter ]] || setter=omarchy-plymouth-effect-set
-exec "$setter" playback "$1"
+exec "$OMARCHY_PATH/bin/omarchy-plymouth-effect-set" playback "$1"
