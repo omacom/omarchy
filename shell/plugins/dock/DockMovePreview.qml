@@ -41,17 +41,17 @@ PanelWindow {
     readonly property real thickness: preview.dock ? preview.dock.moveThickness : 0
     readonly property real length: preview.dock ? preview.dock.moveLength : 0
     readonly property real gap: Style.spacing.xs
-    readonly property real left: preview.reserved[0] || 0
-    readonly property real top: preview.reserved[1] || 0
-    readonly property real right: preview.reserved[2] || 0
-    readonly property real bottom: preview.reserved[3] || 0
+    readonly property real keepLeft: preview.reserved[0] || 0
+    readonly property real keepTop: preview.reserved[1] || 0
+    readonly property real keepRight: preview.reserved[2] || 0
+    readonly property real keepBottom: preview.reserved[3] || 0
 
-    x: preview.edge === "left" ? left + gap
-      : preview.edge === "right" ? preview.width - right - gap - width
-      : left + Math.round((preview.width - left - right - width) / 2)
-    y: preview.edge === "top" ? top + gap
-      : preview.edge === "bottom" ? preview.height - bottom - gap - height
-      : top + Math.round((preview.height - top - bottom - height) / 2)
+    x: preview.edge === "left" ? keepLeft + gap
+      : preview.edge === "right" ? preview.width - keepRight - gap - width
+      : keepLeft + Math.round((preview.width - keepLeft - keepRight - width) / 2)
+    y: preview.edge === "top" ? keepTop + gap
+      : preview.edge === "bottom" ? preview.height - keepBottom - gap - height
+      : keepTop + Math.round((preview.height - keepTop - keepBottom - height) / 2)
     width: preview.vertical ? thickness : length
     height: preview.vertical ? length : thickness
     radius: Style.cornerRadius
