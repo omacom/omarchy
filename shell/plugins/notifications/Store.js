@@ -95,6 +95,7 @@ function isDuplicate(row, shown) {
   if (!row || !shown || Math.abs(row.ts - shown.ts) > DUPLICATE_WINDOW) return false
   for (var i = 0; i < DUPLICATE_ROLES.length; i++)
     if (row[DUPLICATE_ROLES[i]] !== shown[DUPLICATE_ROLES[i]]) return false
+  if (Markup.sourceUrl(row) !== Markup.sourceUrl(shown)) return false
   return true
 }
 
