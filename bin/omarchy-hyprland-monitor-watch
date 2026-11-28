@@ -61,10 +61,42 @@ recover_modeless() {
   ) 9>"$MODELESS_LOCK" &
 }
 
+ACPI_LID="${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}"
+
+# The ACPI lid's state, read with builtins so the poll forks nothing to check
+# it. Empty where the lid is not an ACPI one (Apple Silicon's, for one).
+read_lid_state() {
+  local state_file state
+  lid_state=""
+
+  for state_file in "$ACPI_LID"/*/state; do
+    [[ -r $state_file ]] && read -r _ state <"$state_file" && lid_state+=$state
+  done
+}
+
+# A full sync forks a chain of helpers and costs about a tenth of a second of
+# CPU, so the poll looks at the lid every two seconds and syncs only when it has
+# changed, when the wall clock jumped further than a tick (the machine slept),
+# or once a minute for any other drift. Without an ACPI lid to read, it syncs
+# every tick as before.
 poll_clamshell_state() {
+  local lid_state last_lid last_tick=$EPOCHSECONDS last_sync=$EPOCHSECONDS now
+
+  read_lid_state
+  last_lid=$lid_state
+
   while true; do
     sleep 2
-    sync_clamshell
+    now=$EPOCHSECONDS
+    read_lid_state
+
+    if [[ -z $lid_state || $lid_state != "$last_lid" ]] || (( now - last_tick > 10 || now - last_sync >= 60 )); then
+      sync_clamshell
+      last_sync=$now
+    fi
+
+    last_lid=$lid_state
+    last_tick=$now
   done
 }
 
