@@ -245,6 +245,10 @@
   "setup.network.dns.google": {"icon":"󰊭","label":"Google","when":"omarchy-region-global","checked":"[[ \"$(omarchy-dns)\" == \"Google\" ]]","action":"omarchy-dns Google"},
   "setup.network.dns.alidns": {"icon":"󰖟","label":"AliDNS","when":"omarchy-region-cn","checked":"[[ \"$(omarchy-dns)\" == \"AliDNS\" ]]","action":"omarchy-dns AliDNS"},
   "setup.network.dns.custom": {"icon":"","label":"Custom","checked":"[[ \"$(omarchy-dns)\" == \"Custom\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dns Custom'"},
+  "setup.network.mac": {"icon":"󰩠","label":"MAC Address"},
+  "setup.network.mac.permanent": {"icon":"󰌾","label":"Hardware","checked":"[[ \"$(omarchy-network-mac --current)\" == \"permanent\" ]]","action":"omarchy-network-mac permanent"},
+  "setup.network.mac.stable": {"icon":"󰒃","label":"Stable","checked":"[[ \"$(omarchy-network-mac --current)\" == \"stable\" ]]","action":"omarchy-network-mac stable"},
+  "setup.network.mac.random": {"icon":"󰒓","label":"Random","checked":"[[ \"$(omarchy-network-mac --current)\" == \"random\" ]]","action":"omarchy-network-mac random"},
   "setup.network.hostname": {"icon":"󰌢","label":"Hostname","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-hostname"},
   "setup.network.qr": {"icon":"󰐲","label":"QR Code","aliases":["wifi-qr"],"when":"omarchy-network-wifi-connected","action":"omarchy-shell shell summon omarchy.wifiqr"},
 

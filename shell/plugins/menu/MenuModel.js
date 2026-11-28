@@ -468,6 +468,7 @@ var GUARD_READERS = [
   "omarchy-hyprland-corners",
   "omarchy-hyprland-window-transparency",
   "omarchy-hyprland-workspace-layout-default",
+  "omarchy-network-mac --current",
   "omarchy-shell notifications isDnd",
   "omarchy-toggle-nightlight --status"
 ]

@@ -16,6 +16,12 @@ Omarchy uses whatever DNS your network hands out over DHCP. You can override tha
 
 From the terminal, `omarchy dns` prints the current provider and `omarchy dns Cloudflare` sets one.
 
+## MAC address
+
+By default your laptop shows its hardware MAC address to every network. Under _Setup > Network > MAC Address_ you can choose _Stable_, a private address that stays the same on each network, or _Random_, a new address on every connection. _Hardware_ goes back to the default. Use _Hardware_ on networks that only allow known devices.
+
+A new setting applies the next time you connect. From the terminal, `omarchy network mac` prints the current mode, `omarchy network mac stable` sets one, and `--now` reconnects right away, which interrupts anything running over the network.
+
 ## Pinning the Wi-Fi band
 
 If your router puts 2.4GHz, 5GHz, and 6GHz on the same network name, your laptop will sometimes cling to the slow one. `omarchy network band` shows which band you're on, and `omarchy network band 5` pins it. Use `auto` to let it choose again.

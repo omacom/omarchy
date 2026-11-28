@@ -1,0 +1,268 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set which MAC address NetworkManager presents (hardware, stable per network, or random)
+# omarchy:group=network
+# omarchy:args=[permanent|stable|random|--current] [--now] [--dry-run]
+# omarchy:examples=omarchy network mac stable | omarchy network mac random --now
+
+set -euo pipefail
+
+# Whenever this runs as root, pin PATH to trusted system directories so a dev
+# link cannot make root resolve a helper out of a user-writable checkout. The
+# unprivileged phase keeps the caller's PATH so it can still find sudo/pkexec.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+# Modes map onto NetworkManager's cloned-mac-address:
+#   permanent  the hardware address
+#   stable     a hashed address that survives reconnects and reboots but
+#              differs between networks and between machines. Wi-Fi uses
+#              stable-ssid (one address per SSID, so profiles that share an
+#              SSID share it); ethernet has no SSID and uses stable (one
+#              address per profile).
+#   random     a fresh address on every connection
+# Only the drop-in is written. Profiles are left alone, so an unset profile
+# follows this setting and one with its own value keeps winning; those are
+# reported rather than rewritten.
+# The path override exists for unprivileged tests only; root never honours it,
+# so an inherited variable cannot turn the privileged half into a file write.
+NM_MAC_CONF=/etc/NetworkManager/conf.d/21-omarchy-mac.conf
+if (( EUID != 0 )); then
+  NM_MAC_CONF=${OMARCHY_NETWORK_MAC_CONF:-$NM_MAC_CONF}
+fi
+PACKAGED_PATH=/usr/bin/omarchy-network-mac
+
+usage() {
+  echo "Usage: omarchy-network-mac [permanent|stable|random|--current] [--now] [--dry-run]" >&2
+}
+
+wifi_value_for() {
+  case "$1" in
+    permanent) echo permanent ;;
+    stable) echo stable-ssid ;;
+    random) echo random ;;
+    *) return 1 ;;
+  esac
+}
+
+ethernet_value_for() {
+  case "$1" in
+    permanent) echo permanent ;;
+    stable) echo stable ;;
+    random) echo random ;;
+    *) return 1 ;;
+  esac
+}
+
+# LC_ALL=C because nmcli translates state words; `-e no` because `-g` would
+# otherwise escape ':' and '\' in values.
+nm_get() {
+  LC_ALL=C nmcli -e no -g "$@" 2>/dev/null
+}
+
+dropin_value() {
+  [[ -f $NM_MAC_CONF ]] || return 0
+  awk -F= -v key="$1" '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*\[/ { in_conn = ($0 ~ /^[[:space:]]*\[connection\][[:space:]]*$/); next }
+    in_conn {
+      k = $1; gsub(/[[:space:]]/, "", k)
+      if (k == key) { v = $0; sub(/^[^=]*=/, "", v); gsub(/[[:space:]]/, "", v); print v; exit }
+    }
+  ' "$NM_MAC_CONF"
+}
+
+current_mode() {
+  case "$(dropin_value wifi.cloned-mac-address)" in
+    permanent) echo permanent ;;
+    stable-ssid) echo stable ;;
+    random) echo random ;;
+    *) echo default ;;
+  esac
+}
+
+# Profiles that carry their own cloned-mac-address beat the drop-in. Print them
+# so "stable" is never silently a lie; never touch them.
+report_overrides() {
+  local uuid type prop value name
+  while IFS=: read -r uuid type; do
+    [[ -n $uuid ]] || continue
+    case "$type" in
+      802-11-wireless) prop=802-11-wireless.cloned-mac-address ;;
+      802-3-ethernet) prop=802-3-ethernet.cloned-mac-address ;;
+      *) continue ;;
+    esac
+    value=$(nm_get "$prop" connection show "$uuid" || true)
+    [[ -n $value && $value != "--" ]] || continue
+    name=$(nm_get connection.id connection show "$uuid" || echo "$uuid")
+    echo "note: profile \"$name\" sets cloned-mac-address=$value and ignores this setting" >&2
+  done < <(LC_ALL=C nmcli -t -f UUID,TYPE connection show 2>/dev/null)
+}
+
+warn_backend() {
+  if grep -rqsE '^[[:space:]]*wifi\.backend[[:space:]]*=[[:space:]]*iwd' /etc/NetworkManager/ /usr/lib/NetworkManager/conf.d/ 2>/dev/null; then
+    echo "note: the iwd Wi-Fi backend handles MAC randomization itself; cloned-mac-address may not apply to Wi-Fi" >&2
+  fi
+}
+
+sudo_grants_passwordless() {
+  sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
+}
+
+require_root() {
+  if (( EUID == 0 )); then
+    return
+  elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
+    exec sudo "$PACKAGED_PATH" "$@"
+  else
+    exec pkexec "$PACKAGED_PATH" "$@"
+  fi
+}
+
+render_dropin() {
+  local wifi=$1 eth=$2
+  cat <<EOF
+# Managed by omarchy-network-mac. Delete this file to return to NetworkManager's
+# default (keep whatever address the device already has).
+[connection]
+wifi.cloned-mac-address=$wifi
+ethernet.cloned-mac-address=$eth
+EOF
+}
+
+write_dropin() {
+  local content=$1 tmp
+  install -d -m 0755 "$(dirname "$NM_MAC_CONF")"
+  tmp=$(mktemp "$NM_MAC_CONF.XXXXXX")
+  if ! { printf '%s\n' "$content" >"$tmp" && chmod 0644 "$tmp" && mv -f "$tmp" "$NM_MAC_CONF"; }; then
+    rm -f -- "$tmp"
+    return 1
+  fi
+}
+
+reload_conf() {
+  nmcli general reload conf >/dev/null 2>&1 || systemctl reload NetworkManager.service 2>/dev/null || true
+}
+
+# A new cloned address only reaches the interface when the link is brought up,
+# and `nmcli device reapply` does not do that. Bring each active Wi-Fi and
+# ethernet profile up again. This drops TCP sessions, renews the DHCP lease and
+# shows captive portals again, which is why it is opt-in.
+reactivate_active() {
+  local uuid type rc=0
+  reactivated=0
+  while IFS=: read -r uuid type; do
+    [[ -n $uuid ]] || continue
+    case "$type" in
+      802-11-wireless | 802-3-ethernet)
+        reactivated=$((reactivated + 1))
+        nmcli connection up uuid "$uuid" >/dev/null || rc=1
+        ;;
+    esac
+  done < <(LC_ALL=C nmcli -t -f UUID,TYPE connection show --active)
+  return "$rc"
+}
+
+mode="" now=0 dry=0 reactivated=0 current_only=0
+for arg in "$@"; do
+  case "$arg" in
+    --now) now=1 ;;
+    --dry-run) dry=1 ;;
+    --current) current_only=1 ;;
+    permanent | stable | random)
+      if [[ -n $mode ]]; then
+        usage
+        exit 1
+      fi
+      mode=$arg
+      ;;
+    *) usage; exit 1 ;;
+  esac
+done
+
+if (( current_only )); then
+  # Cheap read for menus and panels: the mode and nothing else, no nmcli calls.
+  if [[ -n $mode ]] || (( now || dry )); then
+    usage
+    exit 1
+  fi
+  current_mode
+  exit 0
+fi
+
+if [[ -z $mode ]]; then
+  if (( now || dry )); then
+    usage
+    exit 1
+  fi
+  current_mode
+  report_overrides
+  warn_backend
+  exit 0
+fi
+
+wifi=$(wifi_value_for "$mode")
+eth=$(ethernet_value_for "$mode")
+content=$(render_dropin "$wifi" "$eth")
+
+if (( dry )); then
+  printf '# would write %s\n%s\n' "$NM_MAC_CONF" "$content"
+  if (( now )); then
+    echo "# would then re-activate the active Wi-Fi and ethernet connections"
+  fi
+  exit 0
+fi
+
+# A convenience guard, not a security control: sudo's env_reset can hide these
+# variables from the privileged half, so it only protects the common case.
+if (( now )) && [[ -n ${SSH_CONNECTION:-}${SSH_CLIENT:-}${SSH_TTY:-} ]]; then
+  echo "Refusing --now over SSH: re-activating the link would drop this session. Run it from a local console, or omit --now to apply on the next connect." >&2
+  exit 1
+fi
+
+args=("$mode")
+if (( now )); then
+  args+=(--now)
+fi
+require_root "${args[@]}"
+
+had_previous=0 previous=""
+if [[ -f $NM_MAC_CONF ]]; then
+  had_previous=1
+  previous=$(<"$NM_MAC_CONF")
+fi
+
+unchanged=0
+if (( had_previous )) && [[ $previous == "$content" ]]; then
+  unchanged=1
+else
+  write_dropin "$content"
+  reload_conf
+fi
+
+if (( now )); then
+  if ! reactivate_active; then
+    echo "Re-activation failed; restoring the previous setting." >&2
+    if (( had_previous )); then
+      write_dropin "$previous" || echo "Could not restore $NM_MAC_CONF; check it by hand." >&2
+    else
+      rm -f "$NM_MAC_CONF"
+    fi
+    reload_conf
+    reactivate_active || true
+    exit 1
+  fi
+  if (( reactivated )); then
+    echo "Now $mode (re-activated $reactivated active connection(s))."
+  else
+    echo "Set to $mode. No active Wi-Fi or ethernet link; applies on the next connect."
+  fi
+elif (( unchanged )); then
+  echo "Already $mode."
+else
+  echo "Set to $mode. Applies to the next connection; add --now to re-activate active links."
+fi
+
+warn_backend
+report_overrides

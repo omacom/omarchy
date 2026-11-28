@@ -79,6 +79,9 @@ Panel {
   property bool wifiStationAvailable: false
   property string dnsProvider: ""
   property string pendingDnsProvider: ""
+  // MAC address mode ("permanent" | "stable" | "random" | "default").
+  property string macMode: "default"
+  property string pendingMacMode: ""
   // Wi-Fi band state from `omarchy-network-band`. `bandCurrent` is the band
   // the radio is actually on; `bandSelected` is the pinned choice ("auto" when
   // nothing is pinned), and the two differ whenever Auto is in effect.
@@ -140,9 +143,9 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
-  // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ MAC row ⇄ Wi-Fi networks. h/l
+  // move within header actions, band pills, DNS providers, or MAC modes.
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "mac" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -164,6 +167,8 @@ Panel {
   property string region: "global"
   readonly property var dnsProviders: region === "cn" ? ["DHCP", "AliDNS", "Custom"] : ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
+  readonly property var macModes: ["permanent", "stable", "random"]
+  property int macIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
   // panel is describing.
@@ -187,6 +192,7 @@ Panel {
   readonly property bool bandBusy: pendingBand !== ""
   // The DNS pills show a choice the moment it's made, and fall back if it fails.
   readonly property string dnsEffective: pendingDnsProvider !== "" ? pendingDnsProvider : dnsProvider
+  readonly property string macEffective: pendingMacMode !== "" ? pendingMacMode : macMode
   // The speed test needs an interface to test, so its hero action only
   // appears once there is one.
   readonly property bool canRunSpeedTest: !!info.iface
@@ -268,6 +274,15 @@ Panel {
   function activateDns() {
     if (dnsIndex < 0 || dnsIndex >= dnsProviders.length) return
     setDns(dnsProviders[dnsIndex])
+  }
+
+  function selectMacByDelta(delta) {
+    macIndex = Math.max(0, Math.min(macModes.length - 1, macIndex + delta))
+  }
+
+  function activateMac() {
+    if (macIndex < 0 || macIndex >= macModes.length) return
+    setMac(macModes[macIndex])
   }
 
   function selectBandByDelta(delta) {
@@ -366,6 +381,8 @@ Panel {
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
       var idx = dnsProviders.indexOf(dnsProvider)
       dnsIndex = idx >= 0 ? idx : 0
+      var macIdx = macModes.indexOf(macMode)
+      macIndex = macIdx >= 0 ? macIdx : 0
       syncBandIndex()
       cursorActive = hasCaptivePortal
     } else {
@@ -639,6 +656,10 @@ Panel {
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
     }
+    if (!macProc.running) {
+      macProc.command = ["omarchy-network-mac", "--current"]
+      macProc.running = true
+    }
     // A closed panel has no nearby-network list to fill, and bare refresh()
     // reaches here from action completion, timeouts and construction.
     if (opened && wifiDevice) {
@@ -793,6 +814,16 @@ Panel {
     region = (lines[1] || "").trim() || "global"
   }
 
+  function updateMac(raw) {
+    // First line only: any notes about profiles that override the setting go
+    // to stderr and are not the panel's business. Anything unexpected is ignored.
+    var value = String(raw || "").split("\n")[0].trim()
+    if (value !== "default" && macModes.indexOf(value) < 0) return
+    macMode = value
+    // The first read can land after the panel opened on a placeholder index.
+    if (!cursorActive) macIndex = Math.max(0, macModes.indexOf(macMode))
+  }
+
   function updateBand(raw) {
     var status = Model.parseBandStatus(raw)
 
@@ -850,6 +881,17 @@ Panel {
     // tried without reopening it.
     root.pendingDnsProvider = provider
     actionProc.command = ["bash", "-c", root.dnsCommand(provider)]
+    actionProc.running = true
+  }
+
+  // A new MAC only reaches the interface on the next connection; the panel
+  // deliberately does not re-activate the link, which would drop sessions.
+  // The tooltips say so.
+  function setMac(mode) {
+    if (!root.bar || macModes.indexOf(mode) < 0 || actionProc.running) return
+
+    root.pendingMacMode = mode
+    actionProc.command = ["omarchy-network-mac", mode]
     actionProc.running = true
   }
 
@@ -1151,6 +1193,14 @@ Panel {
   }
 
   Process {
+    id: macProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateMac(text)
+    }
+  }
+
+  Process {
     id: bandProc
     stdout: StdioCollector {
       waitForEnd: true
@@ -1181,6 +1231,16 @@ Panel {
       if (root.pendingDnsProvider !== "") {
         if (exitCode === 0) root.dnsProvider = root.pendingDnsProvider
         root.pendingDnsProvider = ""
+      }
+      if (root.pendingMacMode !== "") {
+        if (exitCode === 0) root.macMode = root.pendingMacMode
+        root.pendingMacMode = ""
+        // A read that began before the change could land after it with the old
+        // value; read again so the pills settle on what is really in force.
+        if (!macProc.running) {
+          macProc.command = ["omarchy-network-mac", "--current"]
+          macProc.running = true
+        }
       }
       if (root.pendingBand !== "") {
         // A refused or reverted pin leaves bandSelected alone, so the pills
@@ -1357,6 +1417,13 @@ Panel {
               root.focusSection = root.canSelectBand ? "band" : "dns"
               root.bandAutoFocused = true
             }
+          } else if (root.focusSection === "mac") {
+            if (dy < 0) {
+              root.focusSection = "dns"
+            } else if (root.wifiNetworks.length > 0) {
+              root.focusSection = "wifi"
+              if (root.selectedIndex < 0) root.selectedIndex = 0
+            }
           } else if (root.focusSection === "band") {
             // Automatic on the header line, then the pills -- which collapse
             // away under Automatic, leaving a single row to walk.
@@ -1388,15 +1455,14 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
-            } else if (root.wifiNetworks.length > 0) {
-              root.focusSection = "wifi"
-              if (root.selectedIndex < 0) root.selectedIndex = 0
+            } else {
+              root.focusSection = "mac"
             }
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
+            // k from the top row escapes back up to the MAC row rather
+            // than wrapping around to the bottom of the list.
             if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
+              root.focusSection = "mac"
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1406,6 +1472,7 @@ Panel {
           if (root.focusSection === "header") root.selectHeaderByDelta(dx)
           else if (root.focusSection === "band") { if (!root.bandAutoFocused) root.selectBandByDelta(dx) }
           else if (root.focusSection === "dns") root.selectDnsByDelta(dx)
+          else if (root.focusSection === "mac") root.selectMacByDelta(dx)
           else if (root.focusSection === "wifi") root.selectWifiActionByDelta(dx)
         }
       }
@@ -1415,6 +1482,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "mac") root.activateMac()
           else root.activateSelected()
         }
       }
@@ -1817,6 +1885,58 @@ Panel {
         }
       }
 
+      // MAC address mode.
+      PanelSeparator {
+        foreground: root.bar.foreground
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(10)
+
+        PanelSectionHeader {
+          text: Commons.I18n.t("network.macAddress")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+        }
+
+        Row {
+          id: macRow
+          width: parent.width
+          spacing: Style.space(6)
+
+          readonly property int count: 3
+          readonly property real cellWidth: (width - spacing * (count - 1)) / count
+
+          MacModePill {
+            mode: "permanent"
+            index: 0
+            title: Commons.I18n.t("network.macPermanent")
+            tooltipText: Commons.I18n.t("network.macPermanentTooltip")
+            width: macRow.cellWidth
+            onClicked: root.setMac(mode)
+          }
+
+          MacModePill {
+            mode: "stable"
+            index: 1
+            title: Commons.I18n.t("network.macStable")
+            tooltipText: Commons.I18n.t("network.macStableTooltip")
+            width: macRow.cellWidth
+            onClicked: root.setMac(mode)
+          }
+
+          MacModePill {
+            mode: "random"
+            index: 2
+            title: Commons.I18n.t("network.macRandom")
+            tooltipText: Commons.I18n.t("network.macRandomTooltip")
+            width: macRow.cellWidth
+            onClicked: root.setMac(mode)
+          }
+        }
+      }
+
 
       // Wi-Fi networks (only if a Wi-Fi station is available).
       PanelSeparator {
@@ -1958,6 +2078,32 @@ Panel {
       root.cursorActive = true
       root.focusSection = "dns"
       root.dnsIndex = pill.index
+    }
+  }
+
+  // One MAC mode pill; the same shape as DnsProviderPill, bound to the MAC row.
+  component MacModePill: Button {
+    id: macPill
+    required property string mode
+    required property int index
+    required property string title
+
+    text: title
+    fontSize: Style.font.bodySmall
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.controlPaddingX
+    verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+    bordered: true
+
+    active: root.macEffective === mode
+    hasCursor: root.cursorActive && root.focusSection === "mac" && root.macIndex === index
+
+    onHovered: function(isHovered) {
+      if (!isHovered) return
+      root.cursorActive = true
+      root.focusSection = "mac"
+      root.macIndex = macPill.index
     }
   }
 

@@ -499,6 +499,18 @@
   "setup.network.dns.custom": {
     "label": "Custom"
   },
+  "setup.network.mac": {
+    "label": "MAC Address"
+  },
+  "setup.network.mac.permanent": {
+    "label": "Hardware"
+  },
+  "setup.network.mac.stable": {
+    "label": "Stable"
+  },
+  "setup.network.mac.random": {
+    "label": "Random"
+  },
   "setup.network.hostname": {
     "label": "Hostname"
   },
