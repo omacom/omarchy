@@ -15,6 +15,42 @@ BarWidget {
   property bool expanded: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
+  property int previousOverflowCount: 0
+  // Injected by the bar. Widgets folded off a side section while the bar is
+  // too short appear in this drawer after the tray section, so the chevron
+  // reaches them in every bar position.
+  property var barOverflow: null
+  readonly property var overflowKeys: barOverflow ? barOverflow.keys : []
+  readonly property int overflowCount: overflowKeys.length
+  readonly property real drawerCoverStart: trayContent.item ? trayContent.item.drawerCoverStart : 0
+  readonly property real drawerCoverLength: trayContent.item ? trayContent.item.drawerCoverLength : 0
+  // While the overflow drawer is open, the sections it reaches hide so they
+  // do not draw through it. The bar keeps its normal background; the drawer
+  // itself paints none. Push the state when the API arrives and whenever the
+  // drawer moves; a Binding whose target starts null can miss the injection.
+  function syncOverflowApi() {
+    if (!barOverflow) return
+    barOverflow.drawerOpen = overflowCount > 0 && revealProgress > 0
+    barOverflow.coverStart = drawerCoverStart
+    barOverflow.coverLength = drawerCoverLength
+  }
+  onBarOverflowChanged: syncOverflowApi()
+  onRevealProgressChanged: syncOverflowApi()
+  onDrawerCoverStartChanged: syncOverflowApi()
+  onDrawerCoverLengthChanged: syncOverflowApi()
+  onOverflowCountChanged: {
+    // A normal tray opened by hover must not stay open when folding starts;
+    // the overflow drawer opens by click instead.
+    if (previousOverflowCount === 0 && overflowCount > 0) expanded = false
+    previousOverflowCount = overflowCount
+    syncOverflowApi()
+  }
+  Component.onDestruction: {
+    if (!root.barOverflow) return
+    root.barOverflow.drawerOpen = false
+    root.barOverflow.coverStart = 0
+    root.barOverflow.coverLength = 0
+  }
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
@@ -39,7 +75,7 @@ BarWidget {
   readonly property var sectionShown: trayContent.item ? trayContent.item.sectionShown : null
   readonly property int sectionCount: bar && bar.layoutConfig && Array.isArray(bar.layoutConfig.tray) ? bar.layoutConfig.tray.length : 0
   readonly property real sectionExtent: sectionHost ? (vertical ? sectionHost.implicitHeight : sectionHost.implicitWidth) : 0
-  readonly property bool hasDrawer: allItems.length > 0 || sectionCount > 0 || barDragging
+  readonly property bool hasDrawer: allItems.length > 0 || sectionCount > 0 || overflowCount > 0 || barDragging
   readonly property int drawerExtent: drawerCount * trayItemExtent + Math.max(0, drawerCount - 1) * trayItemGap + sectionExtent
   // A widget being dragged along the bar opens the drawer, to show where it
   // can go, and so does any panel open from the tray or the tray section.
@@ -254,7 +290,10 @@ BarWidget {
   implicitWidth: root.vertical ? root.barSize : trayContent.implicitWidth
   implicitHeight: root.vertical ? trayContent.implicitHeight : root.barSize
 
-  Component.onCompleted: revealProgress = drawerOpen ? 1 : 0
+  Component.onCompleted: {
+    revealProgress = drawerOpen ? 1 : 0
+    syncOverflowApi()
+  }
 
   onDrawerOpenChanged: {
     revealAnimation.stop()
@@ -301,6 +340,8 @@ BarWidget {
       id: horizontalTrayRoot
 
       readonly property int chevronWidth: root.hasDrawer ? expandIcon.implicitWidth : 0
+      readonly property real drawerCoverStart: drawerArea.x
+      readonly property real drawerCoverLength: drawerArea.width
       readonly property var sectionShown: root.shownSection(drawerArea.x + trayClip.x, trayClip.width, drawerArea.x + trayClip.x + drawerContent.x + section.x, section.width)
 
       implicitWidth: pinnedRow.implicitWidth + chevronWidth + root.revealExtent
@@ -314,7 +355,10 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          // The normal tray keeps its hover reveal. An overflow drawer is
+          // large enough to cover the center, so it waits for a click.
+          enabled: root.overflowCount === 0
+          onHoveredChanged: if (enabled) root.expanded = hovered
         }
 
         BarIconButton {
@@ -326,6 +370,7 @@ BarWidget {
           text: root.fixedAtStart ? "\uf054" : "\uf053"
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.LeftButton) root.expanded = !root.expanded
           }
         }
 
@@ -391,6 +436,8 @@ BarWidget {
       id: verticalTrayRoot
 
       readonly property int chevronHeight: root.hasDrawer ? expandIcon.implicitHeight : 0
+      readonly property real drawerCoverStart: drawerArea.y
+      readonly property real drawerCoverLength: drawerArea.height
       readonly property var sectionShown: root.shownSection(drawerArea.y + trayClip.y, trayClip.height, drawerArea.y + trayClip.y + drawerContent.y + section.y, section.height)
 
       implicitWidth: root.barSize
@@ -404,7 +451,10 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          // Same as the horizontal drawer: normal tray hovers, overflow
+          // waits for a click.
+          enabled: root.overflowCount === 0
+          onHoveredChanged: if (enabled) root.expanded = hovered
         }
 
         BarIconButton {
@@ -417,6 +467,7 @@ BarWidget {
           textRotation: 90
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.LeftButton) root.expanded = !root.expanded
           }
         }
 

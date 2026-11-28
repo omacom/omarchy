@@ -105,6 +105,22 @@ ShellRoot {
 
   // A tray as far as the bar sees one: it hosts the tray section, and says
   // which edge the section's widgets grow from.
+  // A tray clone keeps its own manifest id and receives the overflow drawer
+  // through its provenance, not the built-in tray's id.
+  Component {
+    id: testTrayClone
+
+    Item {
+      property var bar: null
+      property string moduleName: ""
+      property var settings: ({})
+      property string fixedEdge: "center"
+      property var barOverflow: null
+      implicitWidth: 30
+      implicitHeight: 20
+    }
+  }
+
   Component {
     id: testTray
 
@@ -139,11 +155,14 @@ ShellRoot {
       "test.clock": { component: testWidget },
       "test.twin": { component: testWidget },
       "test.inner": { component: testWidget },
-      "test.tray": { component: testTray }
+      "test.tray": { component: testTray },
+      "test.tray-clone": { component: testTrayClone }
     })
 
     function metadataFor(id) {
-      return widgets[id] ? { firstParty: true } : null
+      if (!widgets[id]) return null
+      if (id === "test.tray-clone") return { firstParty: false, clonedFrom: "omarchy.tray" }
+      return { firstParty: true }
     }
   }
 
@@ -306,7 +325,17 @@ ShellRoot {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "a settle whose frames stop finishes at the current thickness: " + root.surface.settle + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
         root.check(root.settles.join(",") === "clearing,", "with no frames it never reveals, the watchdog finishes it: " + root.settles.join(","))
         root.surface.visible = true
-      }, 300]
+      }, 300],
+      // A tray clone keeps its own id but still owns the overflow drawer.
+      [function() {
+        root.check(root.bar.isTrayWidget("test.tray-clone"), "a tray clone counts as the tray")
+        root.check(!root.bar.isTrayWidget("test.a"), "an ordinary widget is not the tray")
+        host.mutateShellConfig(function(config) { config.bar.layout.left.push({ id: "test.tray-clone" }) })
+      }, 300],
+      [function() {
+        var clone = root.slotOf("test.tray-clone", "left")
+        root.check(clone && clone.activeItem.barOverflow !== null, "a tray clone receives the overflow drawer api")
+      }, 200]
     ]
     stepper.start()
   }

@@ -1534,7 +1534,8 @@ ShellRoot {
         pluginId: manifest.id,
         sourceDir: manifest.__sourceDir || "",
         source: "plugin",
-        firstParty: !!manifest.__isFirstParty
+        firstParty: !!manifest.__isFirstParty,
+        clonedFrom: Util.isPlainObject(manifest.omarchy) ? String(manifest.omarchy.clonedFrom || "") : ""
       }
 
       var placed = shell.pluginRegistry.inBar(pluginId)
