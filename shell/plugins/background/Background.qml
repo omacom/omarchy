@@ -20,7 +20,6 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
-  property string displayedSignature: ""
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -78,9 +77,10 @@ Item {
   // missing panel, or a newer on-disk file signature means the desktop cache
   // cannot satisfy the request yet.
   function stillCacheEntry(screen, path, signature) {
-    if (!screen || !path || suspended || isVideo(path)) return null
+    if (!screen || !path || !signature || suspended || isVideo(path)) return null
     if (displayedBackground !== path) return null
-    if (signature && displayedSignature && displayedSignature !== signature) return null
+    var meta = nativeSizes[path]
+    if (!meta || !meta.signature || meta.signature !== signature) return null
     var panel = panelForScreen(screen)
     if (!panel || !panel.backgroundReady) return null
     var size = panel.decodeSize(path)
@@ -99,13 +99,14 @@ Item {
   // desktop's in-flight decode instead of firing a duplicate startup decode.
   function stillPending(screen, path, signature) {
     if (!screen || !path || suspended || isVideo(path)) return false
-    if (signature && displayedSignature && displayedSignature !== signature) return false
     if (displayedBackground !== "" && displayedBackground !== path) return false
     var panel = panelForScreen(screen)
     if (!panel) return false
     if (displayedBackground === "") return readlinkProc.running
     if (panel.backgroundReady) return false
-    if (nativeSizes[path] === undefined) return sizeProbe.running || sizeQueue.indexOf(path) !== -1
+    var meta = nativeSizes[path]
+    if (meta === undefined) return sizeProbe.running || sizeQueue.indexOf(path) !== -1
+    if (signature && (!meta.signature || meta.signature !== signature)) return false
     var size = panel.decodeSize(path)
     return size.width > 0 && size.height > 0
   }
@@ -144,8 +145,7 @@ Item {
     setBackground(path, true)
   }
 
-  function setBackground(path, instant, signature) {
-    displayedSignature = signature || ""
+  function setBackground(path, instant) {
     if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
   }
@@ -283,7 +283,11 @@ Item {
   function probeNextSize() {
     if (sizeProbe.running || sizeQueue.length === 0) return
     sizeProbe.path = sizeQueue[0]
-    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", "--", sizeProbe.path]
+    sizeProbe.command = [
+      "bash", "-c",
+      "dims=$(magick identify -ping -format '%w %h' -- \"$1\" 2>/dev/null) || dims=''; sig=$(stat -Lc '%y:%s:%i' -- \"$1\" 2>/dev/null) || sig=''; printf '%s\\n%s\\n' \"$dims\" \"$sig\"",
+      "_", sizeProbe.path
+    ]
     sizeProbe.running = true
   }
 
@@ -321,12 +325,18 @@ Item {
     property string path: ""
     stdout: StdioCollector { id: sizeProbeOut }
     onExited: function(exitCode) {
-      var parts = String(sizeProbeOut.text || "").trim().split(/\s+/)
+      var lines = String(sizeProbeOut.text || "").split("\n")
+      var parts = String(lines[0] || "").trim().split(/\s+/)
+      var signature = String(lines[1] || "").trim()
       var width = exitCode === 0 ? parseInt(parts[0], 10) : 0
       var height = exitCode === 0 ? parseInt(parts[1], 10) : 0
       var known = Object.assign({}, root.nativeSizes)
       // An unreadable header records 0x0, which decodes at screen size.
-      known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0 }
+      known[path] = {
+        width: width > 0 ? width : 0,
+        height: height > 0 ? height : 0,
+        signature: exitCode === 0 ? signature : ""
+      }
       root.nativeSizes = known
       root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
       root.probeNextSize()
@@ -335,14 +345,9 @@ Item {
 
   Process {
     id: readlinkProc
-    command: ["bash", "-c", "path=$(readlink -f -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc '%y:%s:%i' -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
+    command: ["readlink", "-f", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: {
-        var lines = String(text || "").split("\n")
-        var next = String(lines[0] || "").trim()
-        var sig = String(lines[1] || "").trim()
-        root.setBackground(next, false, sig)
-      }
+      onStreamFinished: root.setBackground(String(text || "").trim(), false)
     }
   }
 

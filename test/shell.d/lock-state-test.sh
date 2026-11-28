@@ -82,11 +82,27 @@ const stillPendingFn = backgroundQml.match(/function stillPending\(screen, path,
 const desktopStillEntryFn = serviceQml.match(/function desktopStillEntry\(screen\) \{[\s\S]*?\n  \}/)
 const desktopStillPendingFn = serviceQml.match(/function desktopStillPending\(screen\) \{[\s\S]*?\n  \}/)
 const lockRequestFn = serviceQml.match(/function lockWallpaperRequest\(screen, fallbackWidth, fallbackHeight\) \{[\s\S]*?\n  \}/)
-assert(panelForScreenFn && stillCacheEntryFn && stillPendingFn, 'Background.qml defines panelForScreen, stillCacheEntry, and stillPending')
-assert(desktopStillEntryFn && desktopStillPendingFn && lockRequestFn, 'lock/Service.qml defines desktop still helpers')
-assert(/versionPrefix/.test(backgroundMediaQml), 'BackgroundMedia.qml supports versionPrefix for disjoint lock overwrite keys')
-assert(/%y:%s:%i/.test(readlinkBlock), 'readlinkProc tracks nanosecond mtime, size, and inode')
-assert(/\?lockv=/.test(serviceQml), 'lockWallpaperUrl uses disjoint ?lockv= query parameter')
+const imageUrlExpr = backgroundMediaQml.match(/readonly property url imageUrl:\s*([^\n]+)/)[1]
+const lockUrlExpr = serviceQml.match(/readonly property string lockWallpaperUrl:\s*([\s\S]*?\n\s*:\s*"")/)[1]
+function evalImageUrl(pathVal, version, versionPrefix) {
+  return require('vm').runInNewContext(`(${imageUrlExpr})`, {
+    path: pathVal,
+    video: false,
+    version,
+    versionPrefix,
+    Util: { fileUrl: (p) => 'file://' + p }
+  })
+}
+function evalLockUrl(lockWallpaperPath, backgroundVersion) {
+  return require('vm').runInNewContext(`(${lockUrlExpr})`, {
+    lockWallpaperPath,
+    backgroundVersion,
+    Util: { isVideoPath: () => false, fileUrl: (p) => 'file://' + p }
+  })
+}
+assertEqual(evalImageUrl('/wall/a.webp', 1, 'v'), 'file:///wall/a.webp?v=1', 'desktop/shared BackgroundMedia URL uses ?v=')
+assertEqual(evalImageUrl('/wall/a.webp', 1, 'lockv'), 'file:///wall/a.webp?lockv=1', 'lock overwrite BackgroundMedia URL uses disjoint ?lockv=')
+assertEqual(evalLockUrl('/wall/a.webp', 1), 'file:///wall/a.webp?lockv=1', 'lock preload URL matches lock overwrite BackgroundMedia URL')
 
 function runReadlink(entries) {
   const ctx = {
@@ -137,11 +153,10 @@ const dp1 = { name: 'DP-1' }
 const hdmi1 = { name: 'HDMI-A-1' }
 const bgCtx = {
   displayedBackground: '/wall/a.webp',
-  displayedSignature: 'sig-a-1',
   currentBackground: '/wall/a.webp',
   suspended: false,
   reloadVersion: 1,
-  nativeSizes: { '/wall/a.webp': { width: 5120, height: 2880 } },
+  nativeSizes: { '/wall/a.webp': { width: 5120, height: 2880, signature: 'sig-a-1' } },
   readlinkProc: { running: false },
   sizeProbe: { running: false },
   sizeQueue: [],
@@ -205,7 +220,7 @@ bgCtx.sizeProbe.running = true
 assertEqual(lockCtx.desktopStillEntry(dp1), null, 'stillCacheEntry stays null until decodeSize is non-zero')
 assertEqual(lockCtx.desktopStillPending(dp1), true, 'stillPending defers duplicate preload while startup sizeProbe runs')
 bgCtx.sizeProbe.running = false
-bgCtx.nativeSizes['/wall/a.webp'] = { width: 5120, height: 2880 }
+bgCtx.nativeSizes['/wall/a.webp'] = { width: 5120, height: 2880, signature: 'sig-a-1' }
 bgCtx.backgrounds.instances[0].backgroundReady = true
 bgCtx.backgrounds.instances[0].decodeSize = origDecodeSize
 
@@ -236,8 +251,21 @@ bgCtx.backgrounds.instances[0].backgroundReady = true
 
 // First lock observation after desktop loaded earlier bytes (signature mismatch): never share stale desktop cache.
 lockCtx.backgroundSignature = 'sig-a-2'
-assertEqual(lockCtx.desktopStillEntry(dp1), null, 'signature mismatch against desktop displayedSignature rejects stale cache')
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'signature mismatch against desktop probed signature rejects stale cache')
 assertEqual(lockCtx.desktopStillPending(dp1), false, 'signature mismatch does not suppress lock preload')
+
+// Missing desktop signature never allows blind sharing.
+bgCtx.nativeSizes['/wall/a.webp'] = { width: 5120, height: 2880, signature: '' }
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'missing desktop file signature rejects cache sharing')
+bgCtx.nativeSizes['/wall/a.webp'] = { width: 5120, height: 2880, signature: 'sig-a-1' }
 lockCtx.backgroundSignature = 'sig-a-1'
+
+// Theme transition to wallpaper B with its own probed signature resumes cache sharing immediately.
+bgCtx.displayedBackground = '/wall/b.webp'
+bgCtx.nativeSizes['/wall/b.webp'] = { width: 5120, height: 2880, signature: 'sig-b-1' }
+bgCtx.backgrounds.instances[0].decodeSize = (p) => p === '/wall/b.webp' ? { width: 3840, height: 2160 } : { width: 0, height: 0 }
+lockCtx.backgroundPath = '/wall/b.webp'
+lockCtx.backgroundSignature = 'sig-b-1'
+assertEqual(lockCtx.lockWallpaperRequest(dp1, 1920, 1080).shared, true, 'theme transition shares cache once new still signature matches')
 
 JS
