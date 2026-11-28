@@ -3,10 +3,15 @@ import qs.Commons
 import qs.Commons as Commons
 
 // Shared visual chrome for keyboard-and-mouse-navigable items inside a panel.
-// Contract: items must NOT read `containsMouse` for color/border. Mouse
-// hover updates the panel's cursor state at the root; visuals derive from
-// `hasCursor` / `current`. That's what guarantees a single highlight on
-// screen at any time across both keyboard and mouse interaction.
+// Contract: items must NOT read `containsMouse` for color/border. Pointer
+// enter claims the panel's cursor at the root and pointer leave releases it
+// (see Cursor.applyHover); visuals derive from `hasCursor` / `current`. That
+// keeps a single highlight on screen and clears it when the pointer leaves.
+//
+// The row owns the pointer source: its HoverHandler reports hover for the
+// whole row, including child controls, and emits `hovered(bool)` so the panel
+// can claim and release the cursor in one place. `pointerInside` lets an
+// inline action tell a handoff (pointer still on the row) from a real leave.
 //
 // Cursor paint is always the shared hover-cursor fill plus optional
 // hover-cursor border. `outline` remains as a compatibility flag for
@@ -15,7 +20,13 @@ import qs.Commons as Commons
 BorderSurface {
   id: root
 
+  signal hovered(bool isHovered)
+  readonly property alias pointerInside: rowHover.hovered
+
   property bool hasCursor: false
+  // False when the row's click target is disabled, so hover does not claim
+  // a cursor the row cannot act on.
+  property bool hoverEnabled: true
   property bool current: false
   property bool outline: false
   property bool bordered: false
@@ -39,4 +50,14 @@ BorderSurface {
   Behavior on color {
     ColorAnimation { duration: Style.duration(60) }
   }
+
+  HoverHandler {
+    id: rowHover
+    enabled: root.hoverEnabled && root.visible && root.enabled
+    onHoveredChanged: root.hovered(hovered)
+  }
+
+  // A delegate removed from its model or a panel closing can take the row
+  // away without a pointer leave. Release the cursor it still owns.
+  Component.onDestruction: if (rowHover.hovered) root.hovered(false)
 }

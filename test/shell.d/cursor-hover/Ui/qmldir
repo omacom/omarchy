@@ -1,0 +1,5 @@
+module qs.Ui
+BorderOverlay 1.0 BorderOverlay.qml
+BorderSurface 1.0 BorderSurface.qml
+singleton Cursor 1.0 Cursor.qml
+CursorSurface 1.0 CursorSurface.qml

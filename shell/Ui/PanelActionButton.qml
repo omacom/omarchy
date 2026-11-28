@@ -9,10 +9,12 @@ import qs.Commons as Commons
 //   - urgent:  hoverColor === bar.urgent → red-tint hover for destructive
 //              actions like forget/unpair
 //
-// `enabled` gates clicks and dims the icon. The component owns its own
-// hover state visuals; mouse hover does NOT update any panel cursor state
-// here because action buttons are not cursor targets — the row they live
-// in is.
+// `enabled` gates clicks and dims the icon. The row that contains the
+// button normally owns the panel cursor, but an inline action can be a
+// cursor target too: set `hasCursor` and handle `hovered(bool)`. The row's
+// claim must then check `containsMouse` before clearing the action's focus,
+// because Qt delivers the child MouseArea's hover before the row's
+// HoverHandler.
 //
 // Set `focusable: true` to make the button keyboard-tabbable with the
 // shared hover-cursor/focus tokens. Use this
@@ -49,6 +51,10 @@ BorderSurface {
 
   signal clicked()
   signal hovered(bool isHovered)
+
+  // The row's claim checks this before clearing an action focus that the
+  // child MouseArea just set.
+  readonly property alias containsMouse: mouse.containsMouse
 
   activeFocusOnTab: focusable
   Keys.onReturnPressed: if (focusable) root.clicked()
@@ -109,7 +115,7 @@ BorderSurface {
     anchors.fill: parent
     hoverEnabled: true
     cursorShape: root.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-    enabled: root.enabled
+    enabled: root.enabled && root.visible
     onContainsMouseChanged: root.hovered(containsMouse)
     onClicked: {
       if (root.focusable) root.forceActiveFocus()

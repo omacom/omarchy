@@ -892,11 +892,11 @@ Panel {
                 hasCursor: root.cursorActive && root.focusRow === "profile" && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
-                  if (h) {
+                  Cursor.applyHover(h, hasCursor, function() {
                     root.cursorActive = true
                     root.focusRow = "profile"
                     root.profileIndex = index
-                  }
+                  }, function() { root.cursorActive = false })
                 }
               }
             }

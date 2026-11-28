@@ -724,7 +724,11 @@ Panel {
             foreground: root.bar.foreground
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor() }
+            onHovered: function(on) {
+              Cursor.applyHover(on, powerSwitch.hasCursor, function() {
+                root.setHeaderCursor()
+              }, function() { root.cursorActive = false })
+            }
             onToggled: root.toggleBluetooth()
 
             PanelToolTip {
@@ -914,6 +918,14 @@ Panel {
     readonly property bool showForgetButton: forgetAvailable && (rowMouse.containsMouse || rowSelected)
 
     hasCursor: rowSelected && !root.actionFocused
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, row.hasCursor, function() {
+        root.cursorActive = true
+        root.focusSection = row.sectionName
+        root.selectedIndex = row.rowIndex
+        if (!forgetBtn.containsMouse) root.actionFocused = false
+      }, function() { root.cursorActive = false })
+    }
     current: isConnected
     foreground: root.bar.foreground
     fill: root.hoverFill
@@ -946,13 +958,6 @@ Panel {
       hoverEnabled: true
       acceptedButtons: Qt.LeftButton | Qt.RightButton
       cursorShape: row.dev ? Qt.PointingHandCursor : Qt.ArrowCursor
-
-      onContainsMouseChanged: if (containsMouse) {
-        root.cursorActive = true
-        root.focusSection = row.sectionName
-        root.selectedIndex = row.rowIndex
-        root.actionFocused = false
-      }
 
       onClicked: function(mouse) {
         var dev = root.deviceFor(row)
@@ -1033,16 +1038,22 @@ Panel {
         foreground: root.bar.foreground
         hoverColor: root.bar.foreground
         fontFamily: root.bar.fontFamily
-        hasCursor: row.rowSelected && root.actionFocused
+        hasCursor: root.cursorActive && row.rowSelected && root.actionFocused
         onHovered: function(isHovered) {
-          if (!isHovered) {
-            if (rowMouse.containsMouse) root.actionFocused = false
-            return
-          }
-          root.cursorActive = true
-          root.focusSection = row.sectionName
-          root.selectedIndex = row.rowIndex
-          root.actionFocused = true
+          Cursor.applyHover(isHovered, forgetBtn.hasCursor, function() {
+            root.cursorActive = true
+            root.focusSection = row.sectionName
+            root.selectedIndex = row.rowIndex
+            root.actionFocused = true
+          }, function() {
+            if (row.pointerInside) {
+              root.actionFocused = false
+            } else {
+              root.cursorActive = false
+              root.actionFocused = false
+            }
+          })
+          if (!isHovered && row.rowSelected && root.cursorActive) root.actionFocused = false
         }
         onClicked: {
           var dev = root.deviceFor(row)

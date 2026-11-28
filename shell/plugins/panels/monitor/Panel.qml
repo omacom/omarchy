@@ -1000,7 +1000,11 @@ Panel {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.selectDisplay(pick.modelData.name)
-                    onContainsMouseChanged: if (containsMouse) root.pointAt("displays", pick.index)
+                    onContainsMouseChanged: {
+                      Cursor.applyHover(containsMouse, pick.picked, function() {
+                        root.pointAt("displays", pick.index)
+                      }, function() { root.cursorActive = false })
+                    }
                   }
 
                   PanelToolTip {
@@ -1054,8 +1058,14 @@ Panel {
               id: brightnessRow
               width: parent.width
               height: brightnessSlider.implicitHeight + Style.spacing.controlGap
+              hoverEnabled: root.currentBrightness >= 0
               hasCursor: root.cursorActive && root.focusSection === "brightness" && root.selectedIndex === -1
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(brightnessRow)
+              onHovered: function(isHovered) {
+                Cursor.applyHover(isHovered, brightnessRow.hasCursor, function() {
+                  root.pointAt("brightness", -1)
+                }, function() { root.cursorActive = false })
+              }
               foreground: root.bar.foreground
               outline: true
 
@@ -1077,9 +1087,6 @@ Panel {
                 }
               }
 
-              HoverHandler {
-                onHoveredChanged: if (hovered) root.pointAt("brightness", -1)
-              }
             }
           }
 
@@ -1127,6 +1134,15 @@ Panel {
               height: textSizeSlider.implicitHeight + Style.spacing.controlGap
               hasCursor: root.cursorActive && root.focusSection === "textsize" && root.selectedIndex === -1
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(textSizeRow)
+              onHovered: function(isHovered) {
+                Cursor.applyHover(isHovered, textSizeRow.hasCursor, function() {
+                  root.pointAt("textsize", -1)
+                }, function() {
+                  // A text-size change reflows the panel under a stationary
+                  // pointer; keep the keyboard cursor through that move.
+                  if (!root.reflowingText) root.cursorActive = false
+                })
+              }
               foreground: root.bar.foreground
               outline: true
 
@@ -1145,9 +1161,6 @@ Panel {
                 onReleased: function(v) { root.applyTextSizeStop(v) }
               }
 
-              HoverHandler {
-                onHoveredChanged: if (hovered) root.pointAt("textsize", -1)
-              }
             }
           }
 
@@ -1378,7 +1391,11 @@ Panel {
               // so h/l afterwards moves the shown display instead of the last row.
               HoverHandler {
                 enabled: root.layoutMovable
-                onHoveredChanged: if (hovered) root.pointAt("layout", 0)
+                onHoveredChanged: {
+                  Cursor.applyHover(hovered, layoutRow.hasCursor, function() {
+                    root.pointAt("layout", 0)
+                  }, function() { root.cursorActive = false })
+                }
               }
 
               HoverHandler { id: layoutHover }
@@ -1449,7 +1466,15 @@ Panel {
               checked: root.rotateMenuTransform === modelData[0] / 90
               // Hover and the keyboard share one lit row.
               highlighted: root.rotateMenuIndex === index
-              HoverHandler { onHoveredChanged: if (hovered) root.rotateMenuIndex = index }
+              HoverHandler {
+                onHoveredChanged: {
+                  if (hovered) {
+                    root.rotateMenuIndex = index
+                  } else if (root.rotateMenuIndex === index) {
+                    root.rotateMenuIndex = root.rotateMenuTransform % 4
+                  }
+                }
+              }
               onTriggered: {
                 root.setRotation(root.rotateMenuName, modelData[0])
                 root.closeRotateMenu()
@@ -1479,7 +1504,11 @@ Panel {
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pill)
 
     onClicked: if (root.current) root.setScale(root.current.name, scaleValue)
-    onHovered: function(isHovered) { if (isHovered) root.pointAt("scale", pill.scaleIndex) }
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, pill.hasCursor, function() {
+        root.pointAt("scale", pill.scaleIndex)
+      }, function() { root.cursorActive = false })
+    }
   }
 
   component ResolutionPill: Button {
@@ -1500,7 +1529,11 @@ Panel {
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(resolutionPill)
 
     onClicked: if (root.current) root.setResolution(root.current.name, resolution)
-    onHovered: function(isHovered) { if (isHovered) root.pointAt("resolution", resolutionPill.resolutionIndex) }
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, resolutionPill.hasCursor, function() {
+        root.pointAt("resolution", resolutionPill.resolutionIndex)
+      }, function() { root.cursorActive = false })
+    }
   }
 
   // A refresh rate at the current resolution, set as that exact mode.
@@ -1522,7 +1555,11 @@ Panel {
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(refreshPill)
 
     onClicked: if (root.current) root.setResolution(root.current.name, root.current.current + "@" + option.rate)
-    onHovered: function(isHovered) { if (isHovered) root.pointAt("refresh", refreshPill.refreshIndex) }
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, refreshPill.hasCursor, function() {
+        root.pointAt("refresh", refreshPill.refreshIndex)
+      }, function() { root.cursorActive = false })
+    }
   }
 
   // Extend puts each display beside the others; Mirror shows the built-in
@@ -1554,7 +1591,11 @@ Panel {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onClicked: root.setMirror(mirrorLink.mode === "mirror")
-      onContainsMouseChanged: if (containsMouse) root.pointAt("mirror", mirrorLink.modeIndex)
+      onContainsMouseChanged: {
+        Cursor.applyHover(containsMouse, mirrorLink.picked, function() {
+          root.pointAt("mirror", mirrorLink.modeIndex)
+        }, function() { root.cursorActive = false })
+      }
     }
   }
 

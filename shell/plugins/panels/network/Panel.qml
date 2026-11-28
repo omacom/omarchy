@@ -313,9 +313,10 @@ Panel {
 
   // Single cursor model: exactly one highlighted spot across the whole
   // panel, located via `focusSection` + (`headerIndex` | `dnsIndex` |
-  // `selectedIndex`). Mouse hover and keyboard nav both mutate this state
-  // at the root; items never read containsMouse for visuals. See
-  // CursorSurface for the shared chrome shared by rows and pills.
+  // `selectedIndex`). Mouse hover claims the cursor and releases it on
+  // leave (Cursor.applyHover); keyboard nav mutates the same state at the
+  // root. Items never read containsMouse for visuals. See CursorSurface
+  // for the shared chrome used by rows and pills.
   readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Commons.Color.accent) : "transparent"
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "transparent"
 
@@ -1469,7 +1470,11 @@ Panel {
             fontSize: Style.font.subtitle * 1.5
             hasCursor: root.qrHeaderHasCursor
             Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.qrHeaderIndex) }
+            onHovered: function(on) {
+              Cursor.applyHover(on, qrAction.hasCursor, function() {
+                root.setHeaderCursor(root.qrHeaderIndex)
+              }, function() { root.cursorActive = false })
+            }
             onClicked: root.summonWifiQr()
           }
 
@@ -1484,7 +1489,11 @@ Panel {
             fontSize: Style.font.subtitle * 1.5
             hasCursor: root.speedHeaderHasCursor
             Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.speedHeaderIndex) }
+            onHovered: function(on) {
+              Cursor.applyHover(on, speedAction.hasCursor, function() {
+                root.setHeaderCursor(root.speedHeaderIndex)
+              }, function() { root.cursorActive = false })
+            }
             onClicked: root.summonSpeedTest()
           }
 
@@ -1495,7 +1504,11 @@ Panel {
             hasCursor: root.toggleHeaderHasCursor
             foreground: root.bar.foreground
             Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.toggleHeaderIndex) }
+            onHovered: function(on) {
+              Cursor.applyHover(on, powerSwitch.hasCursor, function() {
+                root.setHeaderCursor(root.toggleHeaderIndex)
+              }, function() { root.cursorActive = false })
+            }
             onToggled: root.toggleNetwork()
 
             PanelToolTip {
@@ -1585,9 +1598,10 @@ Panel {
         active: true
         hasCursor: root.cursorActive && root.focusSection === "portal"
         onHovered: function(on) {
-          if (!on) return
-          root.cursorActive = true
-          root.focusSection = "portal"
+          Cursor.applyHover(on, portalAction.hasCursor, function() {
+            root.cursorActive = true
+            root.focusSection = "portal"
+          }, function() { root.cursorActive = false })
         }
         onClicked: root.openCaptivePortal()
       }
@@ -1707,10 +1721,11 @@ Panel {
               onToggled: root.toggleBandAuto()
 
               onHovered: function(isHovered) {
-                if (!isHovered) return
-                root.cursorActive = true
-                root.focusSection = "band"
-                root.bandAutoFocused = true
+                Cursor.applyHover(isHovered, bandAutoSwitch.hasCursor, function() {
+                  root.cursorActive = true
+                  root.focusSection = "band"
+                  root.bandAutoFocused = true
+                }, function() { root.cursorActive = false })
               }
 
               PanelToolTip {
@@ -1924,10 +1939,12 @@ Panel {
     onClicked: root.setBand(band)
 
     onHovered: function(isHovered) {
-      if (!isHovered) return
-      root.cursorActive = true
-      root.focusSection = "band"
-      root.bandIndex = pill.slot
+      Cursor.applyHover(isHovered, pill.hasCursor, function() {
+        root.cursorActive = true
+        root.focusSection = "band"
+        root.bandAutoFocused = false
+        root.bandIndex = pill.slot
+      }, function() { root.cursorActive = false })
     }
   }
 
@@ -1954,10 +1971,11 @@ Panel {
     hasCursor: root.cursorActive && root.focusSection === "dns" && root.dnsIndex === index
 
     onHovered: function(isHovered) {
-      if (!isHovered) return
-      root.cursorActive = true
-      root.focusSection = "dns"
-      root.dnsIndex = pill.index
+      Cursor.applyHover(isHovered, pill.hasCursor, function() {
+        root.cursorActive = true
+        root.focusSection = "dns"
+        root.dnsIndex = pill.index
+      }, function() { root.cursorActive = false })
     }
   }
 
@@ -1978,10 +1996,19 @@ Panel {
       : false
     readonly property bool canForget: root.canForgetNetwork(net)
     readonly property bool isSelected: root.focusSection === "wifi" && root.selectedIndex === index
-    readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
+    readonly property bool forgetFocused: root.cursorActive && isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
+    hoverEnabled: !root.busy && root.wifiStationAvailable
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, row.hasCursor, function() {
+        root.cursorActive = true
+        root.focusSection = "wifi"
+        root.selectedIndex = row.index
+        if (!rightMouse.containsMouse) root.wifiActionFocused = false
+      }, function() { root.cursorActive = false })
+    }
     current: isConnected
     foreground: root.bar.foreground
     fill: root.hoverFill
@@ -2049,11 +2076,6 @@ Panel {
       acceptedButtons: Qt.LeftButton
       cursorShape: Qt.PointingHandCursor
       enabled: !root.busy
-
-      // Move the cursor here when the mouse enters; mouse leaving doesn't
-      // clear it (so the cursor stays where the mouse last was and
-      // subsequent j/k pick up from this row).
-      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
 
       onClicked: {
         if (!row.net) return
@@ -2136,7 +2158,22 @@ Panel {
           acceptedButtons: Qt.LeftButton
           enabled: row.canForget && !root.busy
           cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-          onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true }
+          onContainsMouseChanged: {
+            Cursor.applyHover(containsMouse, row.forgetFocused, function() {
+              root.cursorActive = true
+              root.focusSection = "wifi"
+              root.selectedIndex = row.index
+              root.wifiActionFocused = true
+            }, function() {
+              if (row.pointerInside) {
+                root.wifiActionFocused = false
+              } else {
+                root.cursorActive = false
+                root.wifiActionFocused = false
+              }
+            })
+            if (!containsMouse && row.isSelected && root.cursorActive) root.wifiActionFocused = false
+          }
           onClicked: if (row.net) root.forget(row.net)
         }
 
