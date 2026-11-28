@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Android app support, along with every Android app and its data
+# omarchy:requires-sudo=true
+
+set -e
+
+delete_ufw_rule() {
+  sudo ufw --force delete "$@" >/dev/null 2>&1 || true
+}
+
+# Forwarding rules are deleted through `ufw route delete`; `ufw delete route`
+# matches nothing and leaves them in place.
+delete_ufw_route_rule() {
+  sudo ufw --force route delete "$@" >/dev/null 2>&1 || true
+}
+
+close_firewall() {
+  if omarchy-cmd-missing ufw; then
+    return
+  fi
+
+  delete_ufw_rule allow in on waydroid0 to any port 67 proto udp
+  delete_ufw_rule allow in on waydroid0 to any port 53
+  delete_ufw_route_rule allow in on waydroid0
+  sudo ufw reload >/dev/null
+}
+
+if [[ -t 0 ]] && ! gum confirm --default=false "Remove Android, every Android app, and all their data?"; then
+  exit 0
+fi
+
+if omarchy-cmd-present waydroid; then
+  waydroid session stop >/dev/null 2>&1 || true
+  sudo waydroid container stop >/dev/null 2>&1 || true
+fi
+sudo systemctl disable --now waydroid-container.service >/dev/null 2>&1 || true
+
+close_firewall
+omarchy-pkg-drop waydroid
+
+# Android's own files under the user's data directory belong to Android's
+# users, not this one, so removing them takes root. Staying on one file system
+# keeps rm out of an Android image a failed stop left mounted.
+sudo rm -rf --one-file-system /var/lib/waydroid "$HOME/.local/share/waydroid"
+rm -f "$HOME"/.local/share/applications/waydroid.*.desktop
+
+echo ""
+echo "Android and every Android app have been removed."

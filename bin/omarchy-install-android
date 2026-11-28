@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# omarchy:summary=Install Android app support with the Google Play Store, running Android in a Waydroid container
+# omarchy:requires-sudo=true
+
+set -e
+
+UFW_COMMENT="omarchy-android"
+
+# Android gets its address and DNS from Waydroid's dnsmasq on waydroid0 and
+# reaches the internet through the host, all of which the default-deny
+# firewall refuses, so without these Android boots with no network at all.
+# Only traffic Android starts is forwarded: replies come back through ufw's
+# established-connection rule, and nothing else may open a connection to it.
+open_firewall() {
+  if omarchy-cmd-missing ufw; then
+    return
+  fi
+
+  sudo ufw allow in on waydroid0 to any port 67 proto udp comment "$UFW_COMMENT" >/dev/null
+  sudo ufw allow in on waydroid0 to any port 53 comment "$UFW_COMMENT" >/dev/null
+  sudo ufw route allow in on waydroid0 comment "$UFW_COMMENT" >/dev/null
+  sudo ufw reload >/dev/null
+}
+
+# An image is reused only when it finished downloading and carries Google Play;
+# Waydroid writes its config before it downloads, so the config alone proves
+# neither.
+gapps_image_present() {
+  [[ -f /var/lib/waydroid/images/system.img ]] && grep -q "GAPPS" /var/lib/waydroid/waydroid.cfg 2>/dev/null
+}
+
+wait_for_android() {
+  local i
+
+  for ((i = 0; i < 90; i++)); do
+    if [[ $(sudo waydroid shell getprop sys.boot_completed 2>/dev/null) == "1" ]]; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Android did not finish starting. Run 'waydroid log' to see why." >&2
+  return 1
+}
+
+echo "Installing Waydroid..."
+# python-pyclip is what Waydroid shares the clipboard through; without it the
+# clipboard is silently left out.
+omarchy-pkg-add waydroid python-pyclip
+
+# The Google Play image is downloaded from Waydroid's own servers on this
+# machine and never redistributed: Google licenses it to individuals, not
+# to distributions.
+if ! gapps_image_present; then
+  echo -e "\nDownloading Android with Google Play (about 1.4 GB)..."
+  sudo waydroid init -f -s GAPPS
+fi
+
+echo -e "\nOpening the firewall for Android..."
+open_firewall
+
+echo -e "\nStarting Android..."
+sudo systemctl enable --now waydroid-container.service
+
+if ! waydroid status | grep -q "Session:.*RUNNING"; then
+  setsid waydroid session start >/dev/null 2>&1 &
+fi
+wait_for_android
+
+# Each Android app gets a window of its own instead of one Android tablet
+# window; takes effect from the next session.
+waydroid prop set persist.waydroid.multi_windows true
+
+omarchy-setup-android-play
+
+echo ""
+echo "Android apps now show up in the app launcher. Open Google Play Store there to sign in and install apps."
