@@ -104,3 +104,76 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+# A restart during the sleep transition is rejected by logind. Retry that
+# rejection in-process so the unit does not record a failure.
+cat >"$mock_bin/systemd-inhibit" <<'SH'
+#!/bin/bash
+
+while [[ $1 == --* ]]; do
+  shift
+done
+
+attempts_file="$INHIBIT_ATTEMPTS"
+attempts=0
+[[ -f $attempts_file ]] && attempts=$(<"$attempts_file")
+attempts=$((attempts + 1))
+printf '%s\n' "$attempts" >"$attempts_file"
+if (( attempts == 1 )); then
+  echo "Failed to inhibit: The operation inhibition has been requested for is already running" >&2
+  exit 1
+fi
+
+exec "$@"
+SH
+chmod +x "$mock_bin/systemd-inhibit"
+: >"$lock_log"
+rm -f "$producer_pid_file"
+
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+echo "$$" >"$PRODUCER_PID_FILE"
+printf '   boolean true\n'
+exec sleep 30
+SH
+chmod +x "$mock_bin/dbus-monitor"
+
+inhibit_attempts="$tmpdir/inhibit-attempts"
+rm -f "$inhibit_attempts"
+OMARCHY_PATH="$mock_omarchy" \
+  PATH="$mock_bin:$PATH" \
+  PRODUCER_PID_FILE="$producer_pid_file" \
+  LOCK_LOG="$lock_log" \
+  INHIBIT_ATTEMPTS="$inhibit_attempts" \
+  "$sleep_monitor"
+
+[[ $(<"$lock_log") == "locked" ]] ||
+  fail "sleep monitor locks after logind rejects the first inhibitor"
+[[ $(<"$inhibit_attempts") == "2" ]] ||
+  fail "sleep monitor retries an inhibitor rejected as already running" \
+    "attempts: $(<"$inhibit_attempts")"
+pass "sleep monitor retries an inhibitor rejected as already running"
+
+# The rejection capture must not swallow the lock helper's warnings, such as a
+# report that the machine is suspending without a secure lock.
+cat >"$mock_omarchy/bin/omarchy-system-sleep-lock" <<'SH'
+#!/bin/bash
+
+echo locked >>"$LOCK_LOG"
+echo "suspending without a secure lock" >&2
+SH
+: >"$lock_log"
+rm -f "$inhibit_attempts" "$producer_pid_file"
+monitor_output=$(
+  OMARCHY_PATH="$mock_omarchy" \
+    PATH="$mock_bin:$PATH" \
+    PRODUCER_PID_FILE="$producer_pid_file" \
+    LOCK_LOG="$lock_log" \
+    INHIBIT_ATTEMPTS="$inhibit_attempts" \
+    "$sleep_monitor" 2>&1
+)
+
+[[ $monitor_output == *"suspending without a secure lock"* ]] ||
+  fail "sleep monitor keeps the lock helper's warnings" "output: $monitor_output"
+pass "sleep monitor keeps the lock helper's warnings"
