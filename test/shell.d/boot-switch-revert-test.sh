@@ -27,7 +27,7 @@ run() {
     set -euo pipefail
     source "$1/functions"
     STORE=$1/store ESP=$1/esp LOADER_PATH="\\EFI\\systemd\\systemd-bootx64.efi" LOADER_LABEL="Omarchy Boot"
-    MACHINE_ID_FILE=$1/machine-id FALLBACK=EFI/BOOT/BOOTX64.EFI LOADER_SOURCE=$1/systemd-bootx64.efi
+    SNAPSHOTS=$1/snapshots MACHINE_ID_FILE=$1/machine-id FALLBACK=EFI/BOOT/BOOTX64.EFI LOADER_SOURCE=$1/systemd-bootx64.efi
     mkdir -p "$STORE"
     eval "$2"
   ' _ "$test_tmp" "$1"
@@ -124,6 +124,20 @@ finish_esp() {
 [[ $(finish_esp 'Windows Boot Manager') == "Windows Boot Manager" ]] || fail "another system's fallback loader stays"
 pass "the finish replaces Limine's fallback loader and only Limine's"
 
+# The finish deletes the snapshots taken on Limine, which have no boot image,
+# and keeps the ones systemd-boot can start.
+new_esp
+mkdir -p "$test_tmp"/snapshots/{7,8,12}/snapshot
+echo image >"$test_tmp/snapshots/8/omarchy-boot-image"
+run 'state_set final_step snapshot
+  boot_entry_for() { :; }
+  notice() { :; }
+  snapper() { echo "$*" >"$STORE/snapper"; }
+  finalize' || fail "the finish deletes the Limine snapshots"
+[[ $(cat "$test_tmp/store/snapper") == "-c root delete 12 7" ]] ||
+  fail "only snapshots without a boot image are deleted" "$(cat "$test_tmp/store/snapper")"
+pass "the finish deletes the snapshots systemd-boot can't start"
+
 # A trial that came up puts its entry first, also when the boot order has
 # nothing else in it.
 new_esp
@@ -153,3 +167,27 @@ for root_options in subvolid=256,subvol=/@ rw,subvolid=256,subvol=/@,compress=zs
     fail "the store's entry selects @omarchy-boot from root options $root_options" "$entry"
 done
 pass "the boot store's fstab entry selects @omarchy-boot, never the root's subvolid"
+
+# backup_esp flushes the backed-up loader files and directories before
+# recording esp_backed_up=1, so a power loss never leaves the flag ahead of the
+# backups revert relies on.
+new_esp
+mkdir -p "$test_tmp/bin" "$test_tmp/esp/EFI/systemd" "$test_tmp/esp/loader"
+cat >"$test_tmp/bin/sync" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >>"$SYNC_LOG"
+SH
+chmod +x "$test_tmp/bin/sync"
+printf 'theirs\n' >"$test_tmp/esp/EFI/systemd/systemd-bootx64.efi"
+printf 'default theirs\n' >"$test_tmp/esp/loader/loader.conf"
+: >"$test_tmp/sync.log"
+PATH="$test_tmp/bin:$PATH" SYNC_LOG="$test_tmp/sync.log" run 'backup_esp' || fail "backup_esp runs with sync logged"
+backup_loader_line=$(grep -n 'backup/esp/systemd/systemd-bootx64\.efi$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+backup_conf_line=$(grep -n 'backup/esp/loader\.conf$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+backup_esp_dir_line=$(grep -n 'backup/esp$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+backup_dir_line=$(grep -n 'store/backup$' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+state_line=$(grep -n 'store/state\.' "$test_tmp/sync.log" | cut -d: -f1 | head -1)
+[[ -n $backup_loader_line && -n $backup_conf_line && -n $backup_esp_dir_line && -n $backup_dir_line && -n $state_line ]] &&
+  ((backup_loader_line < state_line && backup_conf_line < state_line && backup_esp_dir_line < state_line && backup_dir_line < state_line)) ||
+  fail "backup_esp syncs the backup files and directories before writing esp_backed_up" "$(cat "$test_tmp/sync.log")"
+pass "backup_esp flushes loader backups before recording esp_backed_up"

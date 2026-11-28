@@ -3,6 +3,7 @@
 # omarchy:summary=Remove Tailscale and its bar plugin.
 # omarchy:requires-sudo=true
 
+echo "Removing Tailscale..."
 tailscale down 2>/dev/null || true
 systemctl --user disable --now omarchy-tailscale-receive.service 2>/dev/null || true
 sudo systemctl disable --now tailscaled.service 2>/dev/null || true

@@ -40,6 +40,55 @@ assert(
   'network releases the previous scanner device before enabling its replacement'
 )
 
+// Redundant writes to scannerEnabled must be skipped so opening when already
+// false (or reopening while still true) does not hit NetworkManager's D-Bus.
+var scannerWrites = 0
+var trackedState = false
+var trackedDevice = {
+  get scannerEnabled() { return trackedState },
+  set scannerEnabled(v) { scannerWrites++; trackedState = v }
+}
+opened = true
+scannerDevice = null
+wifiDevice = trackedDevice
+setScannerEnabled(false)
+assertEqual(scannerWrites, 0, 'network skips redundant scannerEnabled=false write')
+setScannerEnabled(true)
+setScannerEnabled(true)
+assertEqual(scannerWrites, 1, 'network skips redundant scannerEnabled=true write')
+
+// A deferred release on a closed panel must not disable the shared scanner
+// while another monitor's network panel is open; when no peer is open, it
+// releases the scanner.
+const peerHelper = panelSource.match(/function otherPanelOpen\(\) \{[\s\S]*?\n {2}\}/)
+const releaseHelper = panelSource.match(/function releaseScanner\(\) \{[\s\S]*?\n {2}\}/)
+assert(peerHelper && releaseHelper, 'network has peer-aware scanner release helpers')
+const peerTest = new Function(
+  'trackedDevice',
+  'scannerHelper',
+  'peerHelper',
+  'releaseHelper',
+  `
+  var moduleName = 'omarchy.network'
+  var opened = false
+  var wifiDevice = trackedDevice
+  var scannerDevice = trackedDevice
+  var root = {}
+  var peerPanel = { opened: true }
+  var bar = { moduleWidgets: () => [root, peerPanel] }
+  eval(scannerHelper + '\\n' + peerHelper + '\\n' + releaseHelper)
+  releaseScanner()
+  const peerKept = trackedDevice.scannerEnabled === true && scannerDevice === null
+  peerPanel.opened = false
+  scannerDevice = trackedDevice
+  releaseScanner()
+  const soloReleased = trackedDevice.scannerEnabled === false && scannerDevice === null
+  return { peerKept, soloReleased }
+  `
+)(trackedDevice, scannerHelper[0], peerHelper[0], releaseHelper[0])
+assert(peerTest.peerKept, 'deferred release on a closed panel does not stop a peer panel scan')
+assert(peerTest.soloReleased, 'deferred release stops the scanner when no peer panel is open')
+
 assertDeepEqual(
   network.parseNetworkStatus('wifi\tCafe WiFi\t78\t5200\n'),
   { kind: 'wifi', label: 'Cafe WiFi', signalStrength: 78, frequency: '5200' },

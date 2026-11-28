@@ -32,6 +32,11 @@
             "description": "Warning while passwordless root access is enabled"
           },
           {
+            "value": "PasswordlessLogin",
+            "label": "Passwordless login",
+            "description": "Warning while passwordless disk unlock is enabled"
+          },
+          {
             "value": "ScreenRecording",
             "label": "Screen recording",
             "description": "GPU screen recorder status"

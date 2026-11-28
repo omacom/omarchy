@@ -1,4 +1,9 @@
 # Upgrades must not delete the version a running process is executing from:
 # mise up would prune the old install dir out from under a live session.
+#
+# Skip re-evaluating hook-env on rapid idle prompts; directory changes and
+# MISE_ENV changes still refresh immediately, and out-of-process updates
+# (like omarchy-update-mise) are picked up once the TTL expires.
 [settings]
 upgrade.auto_prune = false
+hook_env.cache_ttl = "5s"
