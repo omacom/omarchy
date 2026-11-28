@@ -313,6 +313,12 @@
   "trigger.toggle.nightlight-off": {
     "label": "Nightlight Off"
   },
+  "trigger.toggle.auto-brightness-on": {
+    "label": "Auto Brightness On"
+  },
+  "trigger.toggle.auto-brightness-off": {
+    "label": "Auto Brightness Off"
+  },
   "trigger.toggle.screensaver-on": {
     "label": "Screensaver On"
   },
