@@ -638,7 +638,9 @@ def history_entries(root, problems):
       entry = json.loads(line)
     except ValueError:
       continue
-    if isinstance(entry, dict):
+    # A slash command (/exit, /usage, /model) runs in agy itself and never
+    # reaches a model, so it is no prompt.
+    if isinstance(entry, dict) and entry.get("type") != "slash_command":
       yield entry
 
 
