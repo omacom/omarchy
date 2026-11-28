@@ -21,7 +21,19 @@ case "$font_name" in
     ;;
 esac
 
-if ! fc-list | grep -Fqi -- "$font_name"; then
+# Reject line breaks and metacharacters unsupported across terminal configs.
+# Double quotes are escaped for the quoted values below.
+if [[ $font_name == *$'\n'* || $font_name == *$'\r'* || $font_name == *['\\`$;']* ]]; then
+  echo "Font name contains characters that cannot be written into terminal configs." >&2
+  exit 1
+fi
+
+# Fontconfig parses commas and colons as pattern syntax, even in a family
+# property, and escapes them (and hyphens) in its default output. Escape them
+# for the query and ask for the family unescaped so it compares as written.
+fontconfig_family=${font_name//,/\\,}
+fontconfig_family=${fontconfig_family//:/\\:}
+if ! fc-list -f '%{family}\n' ":family=$fontconfig_family" | grep -Fqi -- "$font_name"; then
   echo "Font '$font_name' not found."
   exit 1
 fi
@@ -70,11 +82,14 @@ fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
   # Preserve the primary font's size, not a fallback's; Omarchy ships 9 when none is present.
-  foot_size="$(sed -n 's/^font=[^,]*:size=\([0-9.]\+\).*/\1/p' ~/.config/foot/foot.ini | head -1)"
+  # The primary font ends at the first unescaped comma, since families are written escaped below.
+  foot_size="$(sed -n 's/^font=\(\\.\|[^,\\]\)*:size=\([0-9.]\+\).*/\2/p' ~/.config/foot/foot.ini | head -1)"
   if [[ -z $foot_size ]]; then
     foot_size=9
   fi
-  sed --follow-symlinks -i "s/^font=.*/font=$sed_font_name:size=$foot_size/g" ~/.config/foot/foot.ini
+  # Foot reads a fontconfig pattern, where -, comma and colon end the family.
+  foot_font_name=$(printf '%s' "$font_name" | sed 's/[-,:]/\\&/g; s/[\\&/]/\\&/g')
+  sed --follow-symlinks -i "s/^font=.*/font=$foot_font_name:size=$foot_size/g" ~/.config/foot/foot.ini
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
