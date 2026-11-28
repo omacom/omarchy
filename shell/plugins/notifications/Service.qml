@@ -11,14 +11,12 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import qs.Commons
-import qs.Commons as Commons
 
 import "Store.js" as Store
 import "Security.js" as Security
 import "Layout.js" as Layout
 import "Markup.js" as Markup
 import "Delivery.js" as Delivery
-import "Icons.js" as Icons
 
 Item {
   id: service

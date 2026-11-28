@@ -1,5 +1,4 @@
 import QtQuick
-import qs.Commons
 import qs.Commons as Commons
 
 // 1px horizontal divider for panel sections. The alpha-on-foreground tint
