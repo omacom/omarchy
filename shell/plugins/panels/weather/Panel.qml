@@ -541,12 +541,16 @@ Panel {
     // popup follows wherever the widget is placed.
     centerOnBar: false
     focusTarget: panel.loadedContent
-    contentWidth: panel.fittedContentWidth(Style.space(480))
+    contentWidth: panel.fittedContentWidth((panel.loadedContent ? Math.ceil(panel.loadedContent.implicitWidth) : 0)
+      + 2 * panel.padding + Border.left(panel.borderSpec) + Border.right(panel.borderSpec))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias locationField: locationField
+      implicitWidth: Math.max(weatherHero.naturalWidth,
+                              forecastRow.implicitWidth + 2 * weatherHero.inset,
+                              fetchingLabel.implicitWidth)
       implicitHeight: weatherColumn.implicitHeight
       anchors.fill: parent
       blocked: root.editingLocation
@@ -568,16 +572,25 @@ Panel {
           width: weatherScroll.width
           spacing: Style.space(14)
 
-      // ---- Hero row: big icon + temp on the left; location and stats stacked on the right.
       Item {
+        id: weatherHero
         width: parent.width
-        height: Math.max(heroLeft.height, heroRight.height)
+        readonly property int inset: Style.space(16)
+        readonly property int columnGap: Style.space(20)
+        readonly property real locationWidth: locationName.implicitWidth + locationIcon.implicitWidth + locationRow.spacing
+        readonly property real detailWidth: Math.max(root.current ? Math.ceil(weatherStats.naturalWidth) + 2 : 0,
+                                                    root.editingLocation ? Style.space(216) : locationWidth)
+        readonly property real naturalWidth: heroLeft.naturalWidth + columnGap + detailWidth + 2 * inset
+        readonly property bool stacked: naturalWidth > width
+        height: stacked ? heroLeft.height + Style.space(10) + heroRight.height
+                        : Math.max(heroLeft.height, heroRight.height)
 
         Row {
           id: heroLeft
-          anchors.left: parent.left
-          anchors.leftMargin: Style.space(16)
-          anchors.verticalCenter: parent.verticalCenter
+          readonly property real naturalWidth: heroIcon.implicitWidth + spacing + tempBig.implicitWidth
+                                              + temperatureReading.spacing + tempUnitLabel.implicitWidth
+          x: Commons.I18n.rightToLeft ? parent.width - width - weatherHero.inset : weatherHero.inset
+          y: weatherHero.stacked ? 0 : (parent.height - height) / 2
           spacing: Style.space(16)
 
           Text {
@@ -594,6 +607,7 @@ Panel {
           }
 
           Row {
+            id: temperatureReading
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
             // A reading and its unit ("13 °C") stay in that order in a
@@ -613,6 +627,7 @@ Panel {
             }
             Text {
               textFormat: Text.PlainText
+              id: tempUnitLabel
               text: root.current ? root.tempUnit : ""
               color: root.bar.foreground
               font.family: root.bar.fontFamily
@@ -625,14 +640,16 @@ Panel {
 
         Column {
           id: heroRight
-          width: weatherStats.implicitWidth
-          anchors.right: parent.right
-          anchors.rightMargin: Style.space(20)
-          anchors.verticalCenter: parent.verticalCenter
+          width: Math.max(0, Math.min(weatherHero.detailWidth, parent.width - 2 * weatherHero.inset))
+          x: weatherHero.stacked === Commons.I18n.rightToLeft
+             ? parent.width - width - weatherHero.inset : weatherHero.inset
+          y: weatherHero.stacked ? heroLeft.height + Style.space(10) : (parent.height - height) / 2
           spacing: Style.space(12)
 
           Row {
+            id: locationRow
             visible: !root.editingLocation && root.reportLocation !== ""
+            width: parent.width
             spacing: Style.space(6)
 
             TapHandler {
@@ -643,6 +660,7 @@ Panel {
             }
 
             Text {
+              id: locationIcon
               text: ""  // nf-fa-map_marker
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
@@ -650,8 +668,11 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+              id: locationName
               textFormat: Text.PlainText
               text: (root.reportLocation || "").toUpperCase()
+              width: Math.min(implicitWidth, Math.max(0, heroRight.width - locationIcon.width - parent.spacing))
+              elide: Text.ElideRight
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.body
@@ -666,7 +687,7 @@ Panel {
 
             TextField {
               id: locationField
-              width: Style.space(190)
+              width: Math.max(0, Math.min(Style.space(190), heroRight.width - Style.space(18) - parent.spacing))
               enabled: !root.savingLocation
               placeholderText: Commons.I18n.t("weather.searchCity")
               foreground: root.bar.foreground
@@ -727,12 +748,16 @@ Panel {
             }
           }
 
-          Row {
+          Flow {
             id: weatherStats
             visible: !!root.current
-            spacing: Style.space(36)
+            width: parent.width
+            spacing: Style.space(28)
+            readonly property real naturalWidth: feelsStat.implicitWidth + windStat.implicitWidth
+                                                + humidityStat.implicitWidth + 2 * spacing
 
             Column {
+              id: feelsStat
               spacing: Style.space(5)
               Text {
                 text: Commons.I18n.t("weather.feels")
@@ -752,6 +777,7 @@ Panel {
             }
 
             Column {
+              id: windStat
               spacing: Style.space(5)
               Text {
                 text: Commons.I18n.t("weather.wind")
@@ -771,6 +797,7 @@ Panel {
             }
 
             Column {
+              id: humidityStat
               spacing: Style.space(5)
               Text {
                 text: Commons.I18n.t("weather.humid")
@@ -846,7 +873,10 @@ Panel {
       }
 
       Text {
+        id: fetchingLabel
         visible: !root.current
+        width: Math.min(implicitWidth, parent.width)
+        wrapMode: Text.Wrap
         text: Commons.I18n.t("weather.fetching")
         textFormat: Text.PlainText
         color: Qt.darker(root.bar.foreground, 1.5)
