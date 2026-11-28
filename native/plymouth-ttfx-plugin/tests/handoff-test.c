@@ -109,6 +109,29 @@ int main(void)
         assert(strstr(text, "width=162\nheight=20\n") != NULL);
         assert(strstr(text, "input=embedded-logo-v2\n") != NULL);
         assert(strstr(text, "playback=hold-final\n") != NULL);
+        /* No display: no optional keys. */
+        assert(strstr(text, "display=") == NULL);
+        handoff.display_width = 1728;
+        handoff.display_height = 1117;
+        handoff.outro_desktop = true;
+        handoff.outro_ms = 700;
+        assert(ttfx_handoff_publish(dir, &handoff));
+        file = openat(dir, TTFX_HANDOFF_NAME, O_RDONLY | O_NOFOLLOW);
+        assert(file >= 0);
+        memset(text, 0, sizeof(text));
+        assert(read(file, text, sizeof(text) - 1) > 0);
+        close(file);
+        assert(strstr(text, "playback=hold-final\ndisplay=1728x1117\noutro=desktop\noutro_ms=700\n") != NULL);
+        /* A desktop outro needs a display and an in-range budget. */
+        handoff.outro_ms = 50;
+        assert(!ttfx_handoff_publish(dir, &handoff));
+        handoff.outro_ms = 700;
+        handoff.display_height = 0;
+        assert(!ttfx_handoff_publish(dir, &handoff));
+        handoff.display_width = 0;
+        assert(!ttfx_handoff_publish(dir, &handoff));
+        handoff.outro_desktop = false;
+        assert(ttfx_handoff_publish(dir, &handoff));
         /* A colliding temporary leaf (including symlink) cannot be followed.
          * Publication fails closed, removing stale final state, not its target. */
         assert(symlinkat("missing-target", dir, TTFX_HANDOFF_TEMP) == 0);

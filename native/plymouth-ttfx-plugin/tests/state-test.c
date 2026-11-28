@@ -746,6 +746,11 @@ static void test_outro_parsing_and_pacing(void)
         assert(ttfx_outro_mode_parse("Reverse"));
         assert(ttfx_outro_mode_parse(""));
         assert(!ttfx_outro_mode_parse("none"));
+        assert(!ttfx_outro_mode_parse("desktop"));
+        assert(ttfx_outro_desktop_parse("desktop"));
+        assert(!ttfx_outro_desktop_parse(NULL));
+        assert(!ttfx_outro_desktop_parse("reverse"));
+        assert(!ttfx_outro_desktop_parse("Desktop"));
         assert(ttfx_outro_ms_parse(NULL) == TTFX_OUTRO_DEFAULT_MS);
         assert(ttfx_outro_ms_parse("") == TTFX_OUTRO_DEFAULT_MS);
         assert(ttfx_outro_ms_parse("-5") == TTFX_OUTRO_DEFAULT_MS);

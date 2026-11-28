@@ -22,9 +22,13 @@ typedef struct {
         uint64_t max_age_ms;    /* reject captures older than this */
         uint64_t max_ms;        /* stay at most this long */
         uint64_t fade_ms;       /* fade-out length, 0 = none */
+        uint64_t settle_ms;     /* plain background first, frame after this */
         const char *pid_file;
         const char *ready_file;
         bool alpha_modifier;    /* use wp_alpha_modifier_v1 when offered */
+        const char *handoff;    /* plugin handoff state (desktop outro) */
+        bool outro;             /* play the desktop outro when the handoff asks */
+        bool hide_cursor;       /* take the pointer and show no cursor over the frame */
         bool help;
 } continuity_options_t;
 

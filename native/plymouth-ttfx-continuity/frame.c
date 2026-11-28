@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 #define MAX_AGE_LIMIT_MS UINT64_C(86400000)
+#define SETTLE_MS_LIMIT UINT64_C(1000)
 #define MAX_MS_LIMIT UINT64_C(600000)
 #define FADE_MS_LIMIT UINT64_C(10000)
 
@@ -43,7 +44,10 @@ continuity_args_result_t continuity_parse_args(int argc, char **argv,
                 .max_age_ms = 60000U,
                 .max_ms = 8000U,
                 .fade_ms = 200U,
-                .alpha_modifier = true
+                .alpha_modifier = true,
+                .hide_cursor = true,
+                .handoff = "/run/" TTFX_HANDOFF_NAME,
+                .outro = true
         };
         const char *bad_name = "";
         size_t bad_length = 0;
@@ -66,6 +70,14 @@ continuity_args_result_t continuity_parse_args(int argc, char **argv,
                         options->alpha_modifier = false;
                         continue;
                 }
+                if (strcmp(arg, "--show-cursor") == 0) {
+                        options->hide_cursor = false;
+                        continue;
+                }
+                if (strcmp(arg, "--no-outro") == 0) {
+                        options->outro = false;
+                        continue;
+                }
                 if (strncmp(arg, "--", 2) != 0)
                         goto bad;
                 eq = strchr(arg, '=');
@@ -73,7 +85,8 @@ continuity_args_result_t continuity_parse_args(int argc, char **argv,
                 bad_length = name_length;
 #define IS(name) (name_length == sizeof(name) - 1U && strncmp(arg, name, name_length) == 0)
                 if (!IS("--file") && !IS("--max-age-ms") && !IS("--max-ms") && !IS("--fade-ms") &&
-                    !IS("--pid-file") && !IS("--ready-file"))
+                    !IS("--settle-ms") &&
+                    !IS("--pid-file") && !IS("--ready-file") && !IS("--handoff"))
                         goto bad;
                 if (eq != NULL) {
                         value = eq + 1;
@@ -95,6 +108,9 @@ continuity_args_result_t continuity_parse_args(int argc, char **argv,
                 } else if (IS("--max-ms")) {
                         if (!parse_ms(value, MAX_MS_LIMIT, &options->max_ms))
                                 goto bad_value;
+                } else if (IS("--settle-ms")) {
+                        if (!parse_ms(value, SETTLE_MS_LIMIT, &options->settle_ms))
+                                goto bad_value;
                 } else if (IS("--fade-ms")) {
                         if (!parse_ms(value, FADE_MS_LIMIT, &options->fade_ms))
                                 goto bad_value;
@@ -102,6 +118,10 @@ continuity_args_result_t continuity_parse_args(int argc, char **argv,
                         if (*value == '\0')
                                 goto bad_value;
                         options->pid_file = value;
+                } else if (IS("--handoff")) {
+                        if (*value == '\0')
+                                goto bad_value;
+                        options->handoff = value;
                 } else if (IS("--ready-file")) {
                         if (*value == '\0')
                                 goto bad_value;

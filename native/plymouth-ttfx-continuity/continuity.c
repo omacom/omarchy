@@ -42,6 +42,7 @@
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
 #include "frame.h"
+#include "outro.h"
 
 #define NAMESPACE "omarchy-plymouth-continuity"
 #define MAX_OUTPUTS 16
@@ -49,6 +50,8 @@
 #define COPY_STEP_BYTES ((size_t)2 << 20)
 /* Exit anyway if the fade's frame callbacks stop coming (output off). */
 #define FADE_GRACE_NS UINT64_C(500000000)
+/* Same for the desktop outro. */
+#define OUTRO_GRACE_NS UINT64_C(500000000)
 
 typedef struct client client_t;
 
@@ -73,6 +76,7 @@ enum phase {
         PHASE_WAIT_CONFIGURE,   /* surface created: configure, output, copy */
         PHASE_SHOWN,
         PHASE_FADING,
+        PHASE_OUTRO,            /* the desktop outro plays */
         PHASE_DONE
 };
 
@@ -80,6 +84,8 @@ struct client {
         continuity_options_t options;
         uint64_t start_ns;
         uint64_t first_frame_ns;
+        uint64_t settle_until_ns;       /* plain background shown until then */
+        struct wl_buffer *settle_buffer;
         const char *exit_reason;
         continuity_timing_t timing;
         bool timing_logged;
@@ -89,6 +95,10 @@ struct client {
         struct wl_registry *registry;
         struct wl_compositor *compositor;
         struct wl_shm *shm;
+        struct wl_subcompositor *subcompositor;
+        struct wl_seat *seat;
+        struct wl_pointer *pointer;
+        bool cursor_logged;
         struct zwlr_layer_shell_v1 *layer_shell;
         struct wp_viewporter *viewporter;
         struct wp_alpha_modifier_v1 *alpha_modifier;
@@ -125,6 +135,23 @@ struct client {
         size_t fade_map_size;
         bool fade_with_buffers;
         uint64_t fade_start_ns;
+
+        /* Desktop outro: prepared after the first frame, played on SIGUSR1
+         * or --max-ms. The frame surface becomes a 1x1 background stretched
+         * over the output (fading out through the alpha modifier), and a
+         * synchronized subsurface above it carries the grid. */
+        continuity_outro_t outro;
+        bool outro_ready;
+        bool outro_tried;
+        struct wl_surface *glyph_surface;
+        struct wl_subsurface *glyph_subsurface;
+        struct wp_viewport *glyph_viewport;
+        fade_buffer_t glyph[2];
+        uint32_t *glyph_map;
+        size_t glyph_map_size;
+        bool glyph_dirty;
+        struct wl_buffer *background_buffer;
+        uint64_t outro_start_ns;
 
         enum phase phase;
         bool pid_written;
@@ -501,6 +528,199 @@ static void start_fade(client_t *c, const char *reason)
         fade_step(c);
 }
 
+/* ---- desktop outro ---- */
+
+/* Rebuilds the plugin's playback once the frame is on screen: it costs a few
+ * milliseconds of engine steps and a pass over the frame, which must not
+ * delay the first frame. Any mismatch leaves the plain fade in place. */
+static void prepare_outro(client_t *c)
+{
+        continuity_handoff_t handoff;
+        const char *why = "disabled";
+
+        if (c->outro_tried)
+                return;
+        c->outro_tried = true;
+        if (!c->options.outro)
+                goto out;
+        why = "no-handoff";
+        if (!continuity_handoff_read(c->options.handoff, &handoff))
+                goto out;
+        why = "handoff-not-desktop";
+        if (!handoff.outro_desktop)
+                goto out;
+        why = "no-subcompositor-or-viewporter";
+        if (c->subcompositor == NULL || c->viewport == NULL)
+                goto out;
+        why = "map";
+        if (!map_frame_pixels(c))
+                goto out;
+        c->outro_ready = continuity_outro_prepare(&c->outro, &handoff, c->pixels, c->header.width,
+                                                  c->header.height, c->header.stride / 4U, &why);
+out:
+        log_line("outro", "ready=%s reason=%s", c->outro_ready ? "yes" : "no", why);
+}
+
+static bool create_glyph_buffers(client_t *c)
+{
+        size_t one = (size_t)c->header.bytes;
+        size_t size = one * 2U;
+        struct wl_shm_pool *pool;
+        int fd = create_shm_file(size);
+
+        if (fd < 0)
+                return false;
+        /* A fresh memfd reads as zeros: both buffers start fully transparent. */
+        c->glyph_map = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (c->glyph_map == MAP_FAILED) {
+                c->glyph_map = NULL;
+                close(fd);
+                return false;
+        }
+        c->glyph_map_size = size;
+        pool = wl_shm_create_pool(c->shm, fd, (int32_t)size);
+        for (int i = 0; i < 2; i++) {
+                c->glyph[i].pixels = c->glyph_map + (size_t)i * (one / 4U);
+                c->glyph[i].buffer = wl_shm_pool_create_buffer(pool, (int32_t)((size_t)i * one),
+                                                               (int32_t)c->header.width,
+                                                               (int32_t)c->header.height,
+                                                               (int32_t)c->header.stride,
+                                                               WL_SHM_FORMAT_ARGB8888);
+                wl_buffer_add_listener(c->glyph[i].buffer, &fade_buffer_listener, &c->glyph[i]);
+        }
+        wl_shm_pool_destroy(pool);
+        close(fd);
+        return c->glyph[0].buffer != NULL && c->glyph[1].buffer != NULL;
+}
+
+static bool create_background_buffer(client_t *c)
+{
+        struct wl_shm_pool *pool;
+        uint32_t *pixel;
+        int fd = create_shm_file(4U);
+
+        if (fd < 0)
+                return false;
+        pixel = mmap(NULL, 4U, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (pixel == MAP_FAILED) {
+                close(fd);
+                return false;
+        }
+        *pixel = c->outro.background & 0xffffffU;
+        munmap(pixel, 4U);
+        pool = wl_shm_create_pool(c->shm, fd, 4);
+        c->background_buffer = wl_shm_pool_create_buffer(pool, 0, 1, 1, 4, WL_SHM_FORMAT_XRGB8888);
+        wl_shm_pool_destroy(pool);
+        close(fd);
+        return c->background_buffer != NULL;
+}
+
+/* Draws the exposed outro frame into a released glyph buffer and commits it
+ * to the (synchronized) glyph surface; applied with the next parent commit. */
+static void commit_glyphs(client_t *c, bool full_damage)
+{
+        fade_buffer_t *target = NULL;
+
+        for (int i = 0; i < 2 && target == NULL; i++)
+                if (!c->glyph[i].busy)
+                        target = &c->glyph[i];
+        if (target == NULL) {
+                c->glyph_dirty = true;
+                return;
+        }
+        continuity_outro_render(&c->outro, target->pixels, c->header.stride / 4U);
+        target->busy = true;
+        c->glyph_dirty = false;
+        wl_surface_attach(c->glyph_surface, target->buffer, 0, 0);
+        if (full_damage)
+                wl_surface_damage_buffer(c->glyph_surface, 0, 0, INT32_MAX, INT32_MAX);
+        else
+                wl_surface_damage_buffer(c->glyph_surface, (int32_t)c->outro.rect_x,
+                                         (int32_t)c->outro.rect_y, (int32_t)c->outro.rect_width,
+                                         (int32_t)c->outro.rect_height);
+        wl_surface_commit(c->glyph_surface);
+}
+
+static void set_background_alpha(client_t *c, uint8_t alpha)
+{
+        if (c->alpha_surface != NULL)
+                wp_alpha_modifier_surface_v1_set_multiplier(c->alpha_surface,
+                                                            (uint32_t)((uint64_t)alpha * UINT32_MAX / 255U));
+}
+
+static void outro_step(client_t *c)
+{
+        uint64_t now = boottime_ns();
+        uint64_t elapsed = now > c->outro_start_ns ? now - c->outro_start_ns : 0;
+        uint8_t alpha = continuity_outro_background_alpha(elapsed, c->outro.outro_ms,
+                                                          CONTINUITY_OUTRO_REVEAL_MS);
+
+        if (continuity_outro_advance(&c->outro, elapsed) || c->glyph_dirty)
+                commit_glyphs(c, false);
+        /* Without the alpha modifier the background stays until the end. */
+        if (c->outro.finished && (alpha == 0 || c->alpha_surface == NULL)) {
+                finish(c, "outro");
+                return;
+        }
+        set_background_alpha(c, alpha);
+        request_frame(c);
+        wl_surface_commit(c->surface);
+}
+
+/* Swaps the frame for background + grid in one parent commit (the glyph
+ * surface is synchronized), so the first outro frame looks exactly like the
+ * last Plymouth frame, then plays it. False when it cannot start. */
+static bool start_outro(client_t *c, const char *reason)
+{
+        struct wl_region *empty;
+
+        if (!c->outro_ready || c->phase != PHASE_SHOWN)
+                return false;
+        if (!create_glyph_buffers(c) || !create_background_buffer(c) ||
+            !continuity_outro_begin(&c->outro)) {
+                log_line("outro", "start=failed");
+                return false;
+        }
+        c->glyph_surface = wl_compositor_create_surface(c->compositor);
+        if (c->glyph_surface == NULL)
+                return false;
+        c->glyph_subsurface = wl_subcompositor_get_subsurface(c->subcompositor, c->glyph_surface,
+                                                              c->surface);
+        c->glyph_viewport = wp_viewporter_get_viewport(c->viewporter, c->glyph_surface);
+        if (c->glyph_subsurface == NULL || c->glyph_viewport == NULL)
+                return false;
+        wl_subsurface_set_position(c->glyph_subsurface, 0, 0);
+        wl_subsurface_set_sync(c->glyph_subsurface);
+        empty = wl_compositor_create_region(c->compositor);
+        wl_surface_set_input_region(c->glyph_surface, empty);
+        wl_region_destroy(empty);
+        wp_viewport_set_destination(c->glyph_viewport, (int32_t)c->logical_width,
+                                    (int32_t)c->logical_height);
+        commit_glyphs(c, true);
+
+        c->exit_reason = reason;
+        wl_surface_set_opaque_region(c->surface, NULL);
+        wl_surface_attach(c->surface, c->background_buffer, 0, 0);
+        wl_surface_damage_buffer(c->surface, 0, 0, INT32_MAX, INT32_MAX);
+        set_background_alpha(c, 255);
+        c->phase = PHASE_OUTRO;
+        c->outro_start_ns = boottime_ns();
+        log_line("outro", "start reason=%s calls=%" PRIu32 " outro_ms=%u mechanism=%s", reason,
+                 c->outro.calls, c->outro.outro_ms,
+                 c->alpha_surface != NULL ? "alpha-modifier" : "opaque");
+        request_frame(c);
+        wl_surface_commit(c->surface);
+        return true;
+}
+
+/* SIGUSR1 and --max-ms: the desktop outro when it is ready, else the fade. */
+static void leave(client_t *c, const char *reason)
+{
+        if (c->phase == PHASE_SHOWN && c->outro_ready && start_outro(c, reason))
+                return;
+        start_fade(c, reason);
+}
+
 static void frame_done(void *data, struct wl_callback *callback, uint32_t time)
 {
         client_t *c = data;
@@ -523,9 +743,60 @@ static void frame_done(void *data, struct wl_callback *callback, uint32_t time)
                                 log_line("warning", "ready-file not written");
                 }
                 maybe_log_timing(c);
+                /* Rebuilding the outro blocks for a while: not while the
+                 * plain background waits for the frame. */
+                if (c->settle_until_ns == 0)
+                        prepare_outro(c);
         }
         if (c->phase == PHASE_FADING)
                 fade_step(c);
+        else if (c->phase == PHASE_OUTRO)
+                outro_step(c);
+}
+
+/* A 1x1 buffer of the frame's corner colour (the plain boot background),
+ * stretched by the viewport. Shown first while a compositor that has just
+ * started settles its own first frames (Hyprland zooms a newly added
+ * monitor), so whatever it does to them happens to a plain colour. */
+static bool create_settle_buffer(client_t *c)
+{
+        struct wl_shm_pool *pool;
+        uint32_t *pixel, corner = 0;
+        int fd;
+
+        /* The frame lives in the shm file; its first word is the corner. */
+        if (pread(c->shm_fd, &corner, sizeof(corner), 0) != (ssize_t)sizeof(corner))
+                return false;
+        fd = create_shm_file(4U);
+        if (fd < 0)
+                return false;
+        pixel = mmap(NULL, 4U, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (pixel == MAP_FAILED) {
+                close(fd);
+                return false;
+        }
+        *pixel = corner & 0xffffffU;
+        munmap(pixel, 4U);
+        pool = wl_shm_create_pool(c->shm, fd, 4);
+        c->settle_buffer = wl_shm_pool_create_buffer(pool, 0, 1, 1, 4, WL_SHM_FORMAT_XRGB8888);
+        wl_shm_pool_destroy(pool);
+        close(fd);
+        return c->settle_buffer != NULL;
+}
+
+static void show_frame_after_settle(client_t *c)
+{
+        c->settle_until_ns = 0;
+        if (c->phase != PHASE_SHOWN)
+                return;
+        log_line("settled", "frame=attached");
+        wl_surface_attach(c->surface, c->buffer, 0, 0);
+        wl_surface_damage_buffer(c->surface, 0, 0, INT32_MAX, INT32_MAX);
+        request_frame(c);
+        wl_surface_commit(c->surface);
+        (void)wl_display_flush(c->display);
+        if (c->first_frame_ns != 0)
+                prepare_outro(c);
 }
 
 /* Attaches the frame once the first configure, the target output's
@@ -574,7 +845,12 @@ static void try_show(client_t *c)
         wl_region_add(opaque, 0, 0, (int32_t)width, (int32_t)height);
         wl_surface_set_opaque_region(c->surface, opaque);
         wl_region_destroy(opaque);
-        wl_surface_attach(c->surface, c->buffer, 0, 0);
+        if (c->options.settle_ms > 0 && c->viewport != NULL && create_settle_buffer(c)) {
+                wl_surface_attach(c->surface, c->settle_buffer, 0, 0);
+                c->settle_until_ns = boottime_ns() + c->options.settle_ms * UINT64_C(1000000);
+        } else {
+                wl_surface_attach(c->surface, c->buffer, 0, 0);
+        }
         wl_surface_damage_buffer(c->surface, 0, 0, INT32_MAX, INT32_MAX);
         request_frame(c);
         if (c->presentation != NULL) {
@@ -600,6 +876,7 @@ static void layer_configure(void *data, struct zwlr_layer_surface_v1 *layer_surf
                 return;
         }
         if (c->phase != PHASE_WAIT_CONFIGURE) {
+                log_line("configure", "late=yes size=%ux%u", width, height);
                 /* A later resize keeps the 1:1 mapping only with a viewport. */
                 if (c->viewport != NULL && (width != c->logical_width || height != c->logical_height)) {
                         c->logical_width = width;
@@ -627,6 +904,101 @@ static const struct zwlr_layer_surface_v1_listener layer_listener = {
         .closed = layer_closed
 };
 
+/* ---- cursor ---- */
+
+/* The frame covers the whole output, so while the pointer is over it the
+ * cursor is hidden: the boot screen shows none, and the desktop's cursor
+ * comes back when the overlay goes, with the desktop. */
+static void pointer_enter(void *data, struct wl_pointer *pointer, uint32_t serial,
+                          struct wl_surface *surface, wl_fixed_t x, wl_fixed_t y)
+{
+        client_t *c = data;
+        (void)surface; (void)x; (void)y;
+        wl_pointer_set_cursor(pointer, serial, NULL, 0, 0);
+        if (!c->cursor_logged) {
+                c->cursor_logged = true;
+                log_line("cursor", "hidden=yes");
+        }
+}
+
+static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial, struct wl_surface *s)
+{
+        (void)data; (void)p; (void)serial; (void)s;
+}
+
+static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time, wl_fixed_t x, wl_fixed_t y)
+{
+        (void)data; (void)p; (void)time; (void)x; (void)y;
+}
+
+static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, uint32_t time,
+                           uint32_t button, uint32_t state)
+{
+        (void)data; (void)p; (void)serial; (void)time; (void)button; (void)state;
+}
+
+static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis, wl_fixed_t value)
+{
+        (void)data; (void)p; (void)time; (void)axis; (void)value;
+}
+
+static void pointer_frame(void *data, struct wl_pointer *p)
+{
+        (void)data; (void)p;
+}
+
+static void pointer_axis_source(void *data, struct wl_pointer *p, uint32_t source)
+{
+        (void)data; (void)p; (void)source;
+}
+
+static void pointer_axis_stop(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis)
+{
+        (void)data; (void)p; (void)time; (void)axis;
+}
+
+static void pointer_axis_discrete(void *data, struct wl_pointer *p, uint32_t axis, int32_t discrete)
+{
+        (void)data; (void)p; (void)axis; (void)discrete;
+}
+
+/* Bound at version 5: the later axis events are never sent. */
+static const struct wl_pointer_listener pointer_listener = {
+        .enter = pointer_enter,
+        .leave = pointer_leave,
+        .motion = pointer_motion,
+        .button = pointer_button,
+        .axis = pointer_axis,
+        .frame = pointer_frame,
+        .axis_source = pointer_axis_source,
+        .axis_stop = pointer_axis_stop,
+        .axis_discrete = pointer_axis_discrete,
+};
+
+static void seat_capabilities(void *data, struct wl_seat *seat, uint32_t capabilities)
+{
+        client_t *c = data;
+        bool has_pointer = (capabilities & WL_SEAT_CAPABILITY_POINTER) != 0;
+
+        if (has_pointer && c->pointer == NULL) {
+                c->pointer = wl_seat_get_pointer(seat);
+                wl_pointer_add_listener(c->pointer, &pointer_listener, c);
+        } else if (!has_pointer && c->pointer != NULL) {
+                wl_pointer_release(c->pointer);
+                c->pointer = NULL;
+        }
+}
+
+static void seat_name(void *data, struct wl_seat *seat, const char *name)
+{
+        (void)data; (void)seat; (void)name;
+}
+
+static const struct wl_seat_listener seat_listener = {
+        .capabilities = seat_capabilities,
+        .name = seat_name,
+};
+
 static bool create_surface(client_t *c)
 {
         const uint32_t anchors = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
@@ -652,9 +1024,15 @@ static bool create_surface(client_t *c)
         zwlr_layer_surface_v1_set_exclusive_zone(c->layer_surface, -1);
         zwlr_layer_surface_v1_set_keyboard_interactivity(c->layer_surface,
                                                          ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
-        empty = wl_compositor_create_region(c->compositor);
-        wl_surface_set_input_region(c->surface, empty);
-        wl_region_destroy(empty);
+        if (c->seat != NULL) {
+                /* The whole surface takes the pointer (NULL = infinite) so it
+                 * can hide the cursor; nothing acts on the input. */
+                wl_surface_set_input_region(c->surface, NULL);
+        } else {
+                empty = wl_compositor_create_region(c->compositor);
+                wl_surface_set_input_region(c->surface, empty);
+                wl_region_destroy(empty);
+        }
         /* Initial commit without a buffer: the compositor answers with a
          * configure carrying the output's logical size. */
         wl_surface_commit(c->surface);
@@ -691,6 +1069,11 @@ static void output_done(void *data, struct wl_output *wl_output)
         output_t *o = data;
         (void)wl_output;
         o->info.done = true;
+        /* An output that changes while the frame is up is logged: a mode or
+         * scale change there shows the frame at another size. */
+        if (o->client->target == o && o->client->phase != PHASE_WAIT_CONFIGURE)
+                log_line("output-changed", "output=%s mode=%dx%d scale=%d", o->name,
+                         o->info.mode_width, o->info.mode_height, o->scale);
         if (o->client->target == o)
                 try_show(o->client);
 }
@@ -734,6 +1117,12 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t n
 
         if (strcmp(interface, wl_compositor_interface.name) == 0 && version >= 4) {
                 c->compositor = wl_registry_bind(registry, name, &wl_compositor_interface, 4);
+        } else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
+                c->subcompositor = wl_registry_bind(registry, name, &wl_subcompositor_interface, 1);
+        } else if (strcmp(interface, wl_seat_interface.name) == 0 && version >= 5 &&
+                   c->seat == NULL && c->options.hide_cursor) {
+                c->seat = wl_registry_bind(registry, name, &wl_seat_interface, 5);
+                wl_seat_add_listener(c->seat, &seat_listener, c);
         } else if (strcmp(interface, wl_shm_interface.name) == 0) {
                 c->shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
         } else if (strcmp(interface, wl_output_interface.name) == 0 && version >= 2 &&
@@ -877,7 +1266,7 @@ static void handle_signals(client_t *c, int signal_fd)
         while (read(signal_fd, &info, sizeof(info)) == (ssize_t)sizeof(info)) {
                 switch (info.ssi_signo) {
                 case SIGUSR1:
-                        start_fade(c, "sigusr1");
+                        leave(c, "sigusr1");
                         break;
                 case SIGTERM:
                         finish(c, "sigterm");
@@ -925,6 +1314,16 @@ static void run_loop(client_t *c, int signal_fd, int deadline_fd)
                                          FADE_GRACE_NS;
                         uint64_t now = boottime_ns();
                         timeout_ms = now >= limit ? 0 : (int)((limit - now) / UINT64_C(1000000)) + 1;
+                } else if (c->settle_until_ns != 0) {
+                        uint64_t now = boottime_ns();
+                        timeout_ms = now >= c->settle_until_ns ? 0 :
+                                     (int)((c->settle_until_ns - now) / UINT64_C(1000000)) + 1;
+                } else if (c->phase == PHASE_OUTRO) {
+                        uint64_t limit = c->outro_start_ns +
+                                         (c->outro.outro_ms + CONTINUITY_OUTRO_REVEAL_MS) * UINT64_C(1000000) +
+                                         OUTRO_GRACE_NS;
+                        uint64_t now = boottime_ns();
+                        timeout_ms = now >= limit ? 0 : (int)((limit - now) / UINT64_C(1000000)) + 1;
                 }
                 ready = poll(fds, 3, timeout_ms);
                 if (ready < 0 && errno != EINTR) {
@@ -953,10 +1352,14 @@ static void run_loop(client_t *c, int signal_fd, int deadline_fd)
                 if (ready > 0 && (fds[2].revents & POLLIN)) {
                         uint64_t expirations;
                         (void)!read(deadline_fd, &expirations, sizeof(expirations));
-                        start_fade(c, "max-ms");
+                        leave(c, "max-ms");
                 }
+                if (c->settle_until_ns != 0 && boottime_ns() >= c->settle_until_ns)
+                        show_frame_after_settle(c);
                 if (ready == 0 && c->phase == PHASE_FADING && !c->copying)
                         finish(c, "fade-timeout");
+                if (ready == 0 && c->phase == PHASE_OUTRO && !c->copying)
+                        finish(c, "outro-timeout");
                 if (c->copying && c->phase != PHASE_DONE)
                         copy_step(c);
         }
@@ -966,9 +1369,11 @@ static void usage(void)
 {
         fputs("Usage: omarchy-plymouth-continuity [--file PATH] [--max-age-ms N] [--max-ms N]\n"
               "                                   [--fade-ms N] [--pid-file PATH] [--ready-file PATH]\n"
-              "                                   [--no-alpha-modifier]\n"
+              "                                   [--no-alpha-modifier] [--handoff PATH] [--no-outro]\n"
+              "                                   [--settle-ms N] [--show-cursor]\n"
               "Shows the last Plymouth frame (" CONTINUITY_RAW_PATH ") as a Wayland overlay\n"
-              "until SIGTERM/SIGINT (immediate), SIGUSR1 or --max-ms (with a fade).\n"
+              "until SIGTERM/SIGINT (immediate), SIGUSR1 or --max-ms (with a fade, or the\n"
+              "reverse outro when the theme hands it to the desktop: [ttfx] Outro=desktop).\n"
               "Always exits 0.\n", stderr);
 }
 
@@ -1042,6 +1447,12 @@ out:
         log_timing(c);
         if (c->display != NULL) {
                 /* Unmap promptly: the compositor drops the surface with it. */
+                if (c->glyph_viewport != NULL)
+                        wp_viewport_destroy(c->glyph_viewport);
+                if (c->glyph_subsurface != NULL)
+                        wl_subsurface_destroy(c->glyph_subsurface);
+                if (c->glyph_surface != NULL)
+                        wl_surface_destroy(c->glyph_surface);
                 if (c->layer_surface != NULL)
                         zwlr_layer_surface_v1_destroy(c->layer_surface);
                 if (c->surface != NULL)
@@ -1053,6 +1464,9 @@ out:
                 munmap(c->pixels, c->pixels_size);
         if (c->fade_map != NULL)
                 munmap(c->fade_map, c->fade_map_size);
+        if (c->glyph_map != NULL)
+                munmap(c->glyph_map, c->glyph_map_size);
+        continuity_outro_free(&c->outro);
         continuity_copy_release(&c->copy);
         if (c->frame_fd >= 0)
                 close(c->frame_fd);

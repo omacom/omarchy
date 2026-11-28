@@ -78,6 +78,11 @@ grep -q '^first_frame_ns=[0-9]' "$work/single.ready" || fail "single: ready file
 [[ ! -e $work/single.pid ]] || fail "single: pid file left behind"
 [[ $(sha256sum "$work/single.raw") == "$sha_before" ]] || fail "single: raw file changed"
 [[ $(grep -c ' timing ' "$work/single.log") == 1 ]] || fail "single: timing logged more than once"
+# --settle-ms: the plain background goes up first, then the frame.
+run_client settle --file "$work/single.raw" --max-ms 300 --fade-ms 0 --settle-ms 50
+expect settle 'first-frame .*output=HEADLESS-1'
+expect settle 'settled .*frame=attached'
+expect settle 'exit .*reason=max-ms'
 
 # SIGUSR1 fades with the ARGB buffer fallback (lazy read-only frame map).
 "$client" --file "$work/single.raw" --max-ms 5000 --fade-ms 100 --no-alpha-modifier \
@@ -98,6 +103,38 @@ kill -TERM "$pid"
 wait "$pid" || fail "term: non-zero exit"
 expect term 'exit .*reason=sigterm'
 grep -q ' fade ' "$work/term.log" && fail "term: faded"
+
+# Desktop outro: a frame and handoff that rebuild exactly play the reverse
+# outro on SIGUSR1 (background + synchronized glyph subsurface), and finish.
+fixture=${OMARCHY_CONTINUITY_OUTRO_FIXTURE:-}
+if [[ -x $fixture ]]; then
+  outro_case() { # NAME SEED EXTRA_ARGS...
+    local name=$1 seed=$2 pid
+    shift 2
+    "$fixture" "$work/$name.raw" "$work/$name.state" 1280 800 2 "$seed" || fail "$name: fixture"
+    "$client" --file "$work/$name.raw" --handoff "$work/$name.state" --max-ms 5000 "$@" \
+      2>"$work/$name.log" &
+    pid=$!
+    for _ in $(seq 1 1000); do grep -Eq ' outro boottime=[0-9.]+ ready=' "$work/$name.log" && break; sleep 0.005; done
+    kill -USR1 "$pid"
+    wait "$pid" || fail "$name: non-zero exit"
+  }
+  outro_case outro 22321466108495961
+  expect outro 'outro .*ready=yes reason=ok'
+  expect outro 'outro .*start reason=sigusr1 calls=[0-9]+ outro_ms=700 mechanism=alpha-modifier'
+  expect outro 'exit .*reason=outro'
+  grep -q ' fade ' "$work/outro.log" && fail "outro: faded instead"
+  # Another seed in the handoff: the rebuilt frame differs, so it fades.
+  outro_case outro-mismatch 7
+  expect outro-mismatch 'outro .*ready=no reason=frame-mismatch'
+  expect outro-mismatch ' fade .*reason=sigusr1'
+  # --no-outro keeps the plain fade.
+  outro_case outro-off 22321466108495961 --no-outro
+  expect outro-off 'outro .*ready=no reason=disabled'
+  expect outro-off ' fade .*reason=sigusr1'
+else
+  printf 'continuity wayland outro: SKIP (no fixture helper)\n'
+fi
 
 # Frame size not matching the only output's mode.
 frame "$work/mismatch.raw" 1024 768

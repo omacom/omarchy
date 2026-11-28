@@ -190,6 +190,7 @@ struct _ply_boot_splash_plugin {
          * the engine records its playback, playing backwards, and the screen
          * is (to become) the plain background. */
         bool outro_enabled;
+        bool outro_desktop;
         unsigned int outro_ms;
         bool outro_mode_allowed;
         bool outro_recording;
@@ -1325,7 +1326,16 @@ static void publish_handoff(ply_boot_splash_plugin_t *plugin)
                         .background = plugin->background_color, .foreground = plugin->text_color,
                         .hold_final = plugin->state.playback_mode == TTFX_PLAYBACK_SUBMIT_TO_FINISH
                 };
-                plugin->handoff_published = ttfx_handoff_publish(plugin->handoff_directory, &handoff);
+                view_t *single = plugin->views != NULL && plugin->views->next == NULL ? plugin->views : NULL;
+                ttfx_handoff_t described = handoff;
+                if (single != NULL) {
+                        described.display_width = (uint32_t)ply_pixel_display_get_width(single->display);
+                        described.display_height = (uint32_t)ply_pixel_display_get_height(single->display);
+                        /* Only the boot splash hands its outro to the desktop. */
+                        described.outro_desktop = plugin->outro_desktop && plugin->outro_mode_allowed;
+                        described.outro_ms = plugin->outro_ms;
+                }
+                plugin->handoff_published = ttfx_handoff_publish(plugin->handoff_directory, &described);
         } else {
                 ttfx_handoff_clear(plugin->handoff_directory);
         }
@@ -1939,6 +1949,7 @@ static ply_boot_splash_plugin_t *create_plugin(ply_key_file_t *key_file)
         free(configured_hold);
         /* Installed descriptors predate these keys: absent means on. */
         plugin->outro_enabled = ttfx_outro_mode_parse(configured_outro);
+        plugin->outro_desktop = ttfx_outro_desktop_parse(configured_outro);
         plugin->outro_ms = ttfx_outro_ms_parse(configured_outro_ms);
         free(configured_outro);
         free(configured_outro_ms);

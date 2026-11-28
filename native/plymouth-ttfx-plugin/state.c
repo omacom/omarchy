@@ -150,6 +150,11 @@ bool ttfx_handoff_publish(int directory, const ttfx_handoff_t *h)
         }
         if (length == 0U || length == 128U)
                 goto fail;
+        if (h->display_width > TTFX_CAPTURE_MAX_WIDTH || h->display_height > TTFX_CAPTURE_MAX_HEIGHT ||
+            (h->display_width == 0U) != (h->display_height == 0U) ||
+            (h->outro_desktop && (h->display_width == 0U || h->outro_ms < TTFX_OUTRO_MIN_MS ||
+                                  h->outro_ms > TTFX_OUTRO_MAX_MS)))
+                goto fail;
         int size = snprintf(text, sizeof(text),
                 "version=2\neffect=%s\nseed=%" PRIu64 "\ncycle=%" PRIu64 "\nstep=%" PRIu64
                 "\nwidth=%" PRIu32 "\nheight=%" PRIu32 "\nfps=%" PRIu32 "\nspeed=%" PRIu32
@@ -160,6 +165,16 @@ bool ttfx_handoff_publish(int directory, const ttfx_handoff_t *h)
                 h->hold_final ? "hold-final" : "continuous");
         if (size <= 0 || (size_t)size >= sizeof(text))
                 goto fail;
+        /* Optional trailing keys: older readers stop at the ones they know. */
+        if (h->display_width != 0U) {
+                int extra = snprintf(text + size, sizeof(text) - (size_t)size,
+                        "display=%" PRIu32 "x%" PRIu32 "\noutro=%s\noutro_ms=%u\n",
+                        h->display_width, h->display_height,
+                        h->outro_desktop ? "desktop" : "plymouth", h->outro_ms);
+                if (extra <= 0 || (size_t)extra >= sizeof(text) - (size_t)size)
+                        goto fail;
+                size += extra;
+        }
         /* Fixed-size tmpfs I/O only: no disk sync, wait, sleep or retry loops.
          * O_EXCL prevents following symlinks/FIFOs and never truncates an existing leaf. */
         file = openat(directory, TTFX_HANDOFF_TEMP,
@@ -814,7 +829,12 @@ bool ttfx_firmware_display(const char *device_name, const char *sysfs_drm_root)
 
 bool ttfx_outro_mode_parse(const char *value)
 {
-        return value == NULL || strcmp(value, "none") != 0;
+        return value == NULL || (strcmp(value, "none") != 0 && strcmp(value, "desktop") != 0);
+}
+
+bool ttfx_outro_desktop_parse(const char *value)
+{
+        return value != NULL && strcmp(value, "desktop") == 0;
 }
 
 unsigned int ttfx_outro_ms_parse(const char *value)

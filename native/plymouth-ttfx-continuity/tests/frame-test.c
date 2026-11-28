@@ -342,8 +342,12 @@ static void test_args(void)
         char *defaults[] = {"x", NULL};
         assert(continuity_parse_args(1, defaults, &o, err, sizeof(err)) == CONTINUITY_ARGS_OK);
         assert(strcmp(o.file, "/run/omarchy-plymouth-handoff.raw") == 0 && !o.file_overridden);
-        assert(o.max_age_ms == 60000 && o.max_ms == 8000 && o.fade_ms == 200);
+        assert(o.max_age_ms == 60000 && o.max_ms == 8000 && o.fade_ms == 200 && o.settle_ms == 0);
         assert(o.pid_file == NULL && o.ready_file == NULL && o.alpha_modifier && !o.help);
+        assert(o.hide_cursor);
+        char *show_cursor[] = {"x", "--show-cursor", NULL};
+        assert(continuity_parse_args(2, show_cursor, &o, err, sizeof(err)) == CONTINUITY_ARGS_OK);
+        assert(!o.hide_cursor);
 
         char *all[] = {"x", "--file", "/tmp/f", "--max-age-ms=5", "--max-ms", "0", "--fade-ms=0",
                        "--pid-file", "/p", "--ready-file=/r", "--no-alpha-modifier", NULL};
@@ -360,6 +364,11 @@ static void test_args(void)
         assert(continuity_parse_args(2, negative, &o, err, sizeof(err)) == CONTINUITY_ARGS_ERROR);
         char *huge[] = {"x", "--max-ms=99999999999999999999999", NULL};
         assert(continuity_parse_args(2, huge, &o, err, sizeof(err)) == CONTINUITY_ARGS_ERROR);
+        char *settle[] = {"x", "--settle-ms", "30", NULL};
+        assert(continuity_parse_args(3, settle, &o, err, sizeof(err)) == CONTINUITY_ARGS_OK);
+        assert(o.settle_ms == 30);
+        char *too_long_settle[] = {"x", "--settle-ms=1001", NULL};
+        assert(continuity_parse_args(2, too_long_settle, &o, err, sizeof(err)) == CONTINUITY_ARGS_ERROR);
         char *too_long_fade[] = {"x", "--fade-ms=10001", NULL};
         assert(continuity_parse_args(2, too_long_fade, &o, err, sizeof(err)) == CONTINUITY_ARGS_ERROR);
         char *missing[] = {"x", "--file", NULL};

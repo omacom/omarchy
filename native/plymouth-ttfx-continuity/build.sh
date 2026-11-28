@@ -5,7 +5,9 @@
 # OUTPUT_DIR defaults to a new ${TMPDIR:-/var/tmp}/omarchy-plymouth-continuity.XXXXXXXX
 # directory, which is retained. Generated protocol code and the binary go
 # there; nothing is written into the source tree.
-# Needs gcc, pkg-config, wayland-client, wayland-scanner and wayland-protocols.
+# Needs gcc, pkg-config, wayland-client, wayland-scanner and wayland-protocols,
+# plus cargo for the TTFX engine the desktop outro replays, unless
+# TTFX_ENGINE_LIB names an already built libttfx_plymouth.a.
 set -euo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -46,8 +48,17 @@ wayland_cflags=($("$pkg_config" --cflags wayland-client))
 # shellcheck disable=SC2207
 wayland_libs=($("$pkg_config" --libs wayland-client))
 
+engine=${TTFX_ENGINE_LIB:-}
+if [[ -z $engine ]]; then
+  (cd "$root/../plymouth-ttfx-engine" &&
+    CARGO_TARGET_DIR="$out/engine-target" cargo build --locked --offline --profile plymouth >&2)
+  engine=$out/engine-target/plymouth/libttfx_plymouth.a
+fi
+[[ -f $engine ]] || { echo "TTFX engine library not found: $engine" >&2; exit 1; }
+
 gcc "${cflags[@]}" "${wayland_cflags[@]}" -I"$gen" -I"$root" \
-  "$root/continuity.c" "$root/frame.c" "${sources[@]}" \
-  -pie -Wl,-z,relro,-z,now "${wayland_libs[@]}" \
+  "$root/continuity.c" "$root/frame.c" "$root/outro.c" "$root/../plymouth-ttfx-plugin/state.c" \
+  "${sources[@]}" \
+  -pie -Wl,-z,relro,-z,now "${wayland_libs[@]}" "$engine" -ldl -lpthread -lm \
   -o "$out/omarchy-plymouth-continuity"
 printf '%s\n' "$out/omarchy-plymouth-continuity"

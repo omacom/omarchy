@@ -45,6 +45,12 @@ typedef struct {
         ttfx_phase_t phase;
         uint32_t width, height, fps, speed, background, foreground;
         bool hold_final;
+        /* The splash's logical display size (0 x 0 when unknown), from which
+         * the grid geometry follows (ttfx_geometry_for_view), and whether the
+         * desktop plays the reverse outro instead of Plymouth, in outro_ms. */
+        uint32_t display_width, display_height;
+        bool outro_desktop;
+        unsigned int outro_ms;
 } ttfx_handoff_t;
 /* open verifies fixed /run, root ownership and tmpfs. No path/env overrides.
  * publish accepts only that trusted directory fd in production. */
@@ -227,8 +233,11 @@ bool ttfx_firmware_display(const char *device_name, const char *sysfs_drm_root);
 #define TTFX_OUTRO_MIN_MS 100U
 #define TTFX_OUTRO_MAX_MS 1500U
 #define TTFX_OUTRO_TICKS_PER_SECOND 240U
-/* True (reverse) unless the value is exactly "none". */
+/* True (reverse) unless the value is exactly "none" or "desktop". */
 bool ttfx_outro_mode_parse(const char *value);
+/* "desktop": Plymouth hands the final frame over without playing the outro,
+ * and the desktop's continuity client plays it once the desktop is ready. */
+bool ttfx_outro_desktop_parse(const char *value);
 unsigned int ttfx_outro_ms_parse(const char *value);
 /* Engine draw calls that fit the budget at one call per 240 Hz tick. */
 uint32_t ttfx_outro_max_calls(unsigned int ms);
