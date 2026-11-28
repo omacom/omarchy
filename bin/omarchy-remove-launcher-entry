@@ -43,8 +43,8 @@ else
   desktop_dirs+=("/usr/local/share/applications" "/usr/share/applications")
 fi
 
-# Uninstalling a package asks for a password in a terminal. Say so on stdout
-# first, so the launcher knows to get out of the way, and leave the terminal
+# A flatpak uninstall still runs in a terminal. Say so on stdout first, so the
+# launcher knows to get out of the way, and leave the terminal
 # running on its own rather than as a child the shell would take down with it.
 uninstall_in_terminal() {
   echo "terminal"
@@ -99,9 +99,13 @@ fi
 
 if package_name="$(pacman -Qqo -- "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
   display_name="${entry_name:-$desktop_name}"
-  quoted_package="$(printf '%q' "$package_name")"
-  quoted_display="$(printf '%q' "$display_name")"
-  uninstall_in_terminal "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
+  if uninstall_output="$(pkexec /usr/bin/pacman -Rns --noconfirm -- "$package_name" 2>&1)"; then
+    omarchy-notification-send "$(omarchy-i18n launcher.uninstalled)" "$display_name"
+  else
+    # pacman's last line names the reason, e.g. the package that depends on it.
+    omarchy-notification-send -u critical "$(omarchy-i18n launcher.uninstallFailed "$display_name")" "$(tail -1 <<<"$uninstall_output")"
+    exit 1
+  fi
   exit 0
 fi
 
