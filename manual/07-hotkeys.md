@@ -46,6 +46,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + M` | Minimize window to the dock |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
+| `Super + Shift + J` | Swap which side of the split the window sits on |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
 | `Super + L`               | Cycle through the dwindle, scrolling, and floating layouts |
 | `Super + Alt + L`         | Cycle through the layouts in reverse |
