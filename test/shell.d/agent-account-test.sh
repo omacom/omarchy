@@ -565,6 +565,12 @@ for name, expected in [("Ultra", "Ultra"), ("Ultra\tPlan", "Ultra Plan"), ("Ultr
   state.claude_account_file(home).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-ultra", "planDisplayName": name}}))
   found = state.identity("claude", home)
   assert found["plan"] == expected, (name, found)
+
+# A Pro login upgraded to Ultra since keeps saying pro; the profile is current.
+(home / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"rateLimitTier": "default_claude_pro", "subscriptionType": "pro"}}))
+state.claude_account_file(home).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-ultra", "planDisplayName": "Ultra"}}))
+found = state.identity("claude", home)
+assert found["plan"] == "Ultra", found
 PY
 pass "a Claude Max plan reads the profile's plan name"
 

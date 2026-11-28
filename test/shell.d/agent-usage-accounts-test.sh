@@ -78,6 +78,9 @@ write_json(home() / ".claude.json", {"oauthAccount": {"planDisplayName": "Ultra"
 write_json(accounts / "claude" / "work" / ".claude.json", {"oauthAccount": {"planDisplayName": "Max"}})
 expect("the active Max 5x account uses its profile name", claude()["tierLabel"], "Max")
 login = json.loads((home() / ".claude" / ".credentials.json").read_text())
+login["claudeAiOauth"]["subscriptionType"] = "pro"
+write_json(home() / ".claude" / ".credentials.json", login)
+expect("a Pro login upgraded to Ultra since uses its profile name", claude()["accounts"][0]["plan"], "Ultra")
 login["claudeAiOauth"]["subscriptionType"] = "team"
 write_json(home() / ".claude" / ".credentials.json", login)
 expect("a Team subscription ignores the Max display name", claude()["accounts"][0]["plan"], "Team 20x")

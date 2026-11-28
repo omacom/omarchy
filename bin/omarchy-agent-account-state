@@ -175,11 +175,13 @@ def identity(provider: str, home: Path) -> dict[str, str]:
     login = (read_json(home / ".credentials.json") or {}).get("claudeAiOauth") or {}
     subscription = str(login.get("subscriptionType") or "")
     plan = plan_label(str(login.get("rateLimitTier") or ""), subscription)
-    # Max 20x is now called Ultra; only the profile's display name says so.
+    # Max 20x is now called Ultra; only the profile's display name says so. The
+    # login keeps the subscription it was made with, so an individual plan
+    # upgraded since, Pro to Ultra say, takes its name from the profile too.
     name = account.get("planDisplayName")
     if isinstance(name, str):
       name = " ".join(name.split())
-    if subscription.lower() == "max" and isinstance(name, str) and 0 < len(name) <= 32 and name.isprintable():
+    if subscription.lower() in ("pro", "max") and isinstance(name, str) and 0 < len(name) <= 32 and name.isprintable():
       plan = name
     return {
       "accountId": str(account.get("accountUuid") or ""),
