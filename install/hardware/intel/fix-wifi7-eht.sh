@@ -14,3 +14,8 @@ if omarchy-hw-pci 8086:e440 8086:272b; then
 options iwlwifi disable_11be=Y
 EOF
 fi
+
+# BE200 cards lose their PCIe link on resume from s2idle; reload the driver across sleep
+if lspci -nn | grep -q '\[8086:272b\]'; then
+  install -D -m 0755 -o root -g root "$OMARCHY_PATH/default/systemd/system-sleep/iwlwifi-reset" /usr/lib/systemd/system-sleep/iwlwifi-reset
+fi
