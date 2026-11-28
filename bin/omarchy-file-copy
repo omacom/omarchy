@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Copy a file to the clipboard
+# omarchy:args=<file>
+# omarchy:examples=omarchy file copy ~/Videos/recording.mp4
+
+set -euo pipefail
+
+if (( $# != 1 )); then
+  echo "Usage: omarchy file copy <file>" >&2
+  exit 1
+fi
+
+# A file URI, as file managers put a copied file on the clipboard: pasting it
+# into Files copies the file, and into a browser or chat attaches it.
+# The directory is resolved and the name kept: "link/.." must follow the link,
+# which abspath() alone would cut lexically, while a selected file symlink
+# stays itself rather than becoming its target.
+uri=$(python3 -c '
+import os, pathlib, sys
+head, name = os.path.split(sys.argv[1])
+if name in ("", ".", ".."):
+  path = os.path.realpath(sys.argv[1])
+else:
+  path = os.path.join(os.path.realpath(head or "."), name)
+print(pathlib.Path(path).as_uri())
+' "$1")
+printf '%s\n' "$uri" | wl-copy --type text/uri-list

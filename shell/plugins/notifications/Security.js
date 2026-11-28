@@ -69,9 +69,9 @@ function parseExecArgv(value) {
   return parsed
 }
 
-// The omarchy-actions hint (omarchy-notification-send --action): up to three
+// The omarchy-actions hint (omarchy-notification-send --action): up to nine
 // buttons, each a label and an argv held to the same rules as the click.
-var MAX_EXEC_ACTIONS = 3
+var MAX_EXEC_ACTIONS = 9
 function parseExecActions(value) {
   var text = String(value || "")
   if (!text || text.length > MAX_BODY) return null

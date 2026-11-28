@@ -96,3 +96,24 @@ function deckMargins(barPosition, thickness, gap) {
     right: (position === "right" ? bar : 0) + edge
   }
 }
+
+// How many of a menu's rows to show in the room left: at least one, and
+// whole rows only, so the last is never cut through.
+function menuRows(count, rowPitch, room) {
+  if (count <= 0) return 0
+  if (!(room > 0) || !(rowPitch > 0)) return 1
+  return Math.max(1, Math.min(count, Math.floor(room / rowPitch)))
+}
+
+// Below the bar while a whole row fits under it; otherwise over the card's own
+// content, whose top is on screen, since the deck does not scroll to make room.
+function menuOpensUp(roomUnder, rowPitch) {
+  return !(roomUnder >= rowPitch)
+}
+
+// Presentation does not renumber deeds: IPC and number keys still address the
+// complete list, including actions hidden behind More.
+function actionButtons(deeds, moreLabel) {
+  if (deeds.length <= 1) return deeds.slice()
+  return [deeds[0], { kind: "more", label: moreLabel }]
+}
