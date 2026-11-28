@@ -191,10 +191,11 @@ Item {
     }
 
     root.disarmPointer()
-    root.rebuildDisplay()
+    root.rebuildDisplay(true)
   }
 
-  function rebuildDisplay() {
+  function rebuildDisplay(preserveScroll) {
+    var savedY = preserveScroll ? resultList.contentY : -1
     var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber)
 
     displayModel.clear()
@@ -216,7 +217,12 @@ Item {
     else if (selectedIndex < 0) selectedIndex = 0
 
     Qt.callLater(function() {
-      if (displayModel.count > 0) resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+      if (displayModel.count === 0) return
+      if (savedY >= 0) {
+        var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
+        resultList.contentY = Math.max(resultList.originY, Math.min(bottom, savedY))
+      }
+      resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
     })
   }
 
@@ -263,6 +269,13 @@ Item {
     if (!pointerGate.moved(item, mouse)) return
     root.cursorActive = true
     root.selectedIndex = index
+  }
+
+  function scrollFlickable(flick, event, step) {
+    var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * step
+    var bottom = flick.originY + Math.max(0, flick.contentHeight - flick.height)
+    flick.contentY = Math.max(flick.originY, Math.min(bottom, flick.contentY - delta))
+    event.accepted = true
   }
 
   function activateIndex(index) {
@@ -512,7 +525,8 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: clearHistoryButton.visible ? clearHistoryButton.left : parent.right
+            anchors.rightMargin: clearHistoryButton.visible ? Style.spacing.sm : 0
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || Commons.I18n.t("clipboard.search")
             color: root.foreground
@@ -520,6 +534,21 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          PanelActionButton {
+            id: clearHistoryButton
+            visible: root.history.length > 0
+            enabled: !root.clearConfirmOpen
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            iconText: "󰆴"
+            tooltipText: Commons.I18n.t("clipboard.clearHistory")
+            foreground: Util.alpha(root.foreground, 0.48)
+            hoverColor: Commons.Color.urgent
+            fontFamily: root.fontFamily
+            fontSize: Style.font.icon
+            onClicked: root.requestClearHistory()
           }
         }
 
@@ -545,6 +574,12 @@ Item {
                 spacing: Style.space(4)
                 boundsBehavior: Flickable.StopAtBounds
 
+                WheelHandler {
+                  acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                  target: null
+                  onWheel: function(event) { root.scrollFlickable(resultList, event, root.rowHeight * 3) }
+                }
+
                 delegate: Rectangle {
                   id: row
                   required property int index
@@ -560,10 +595,12 @@ Item {
                   radius: root.cornerRadius
                   color: hasCursor ? root.selectedBackground : "transparent"
 
+                  HoverHandler { id: rowHover }
+
                   Row {
                     anchors.fill: parent
                     anchors.leftMargin: Style.space(12)
-                    anchors.rightMargin: Style.space(12)
+                    anchors.rightMargin: deleteButton.width + Style.space(14)
                     anchors.topMargin: Style.space(8)
                     anchors.bottomMargin: Style.space(8)
                     spacing: Style.space(10)
@@ -605,11 +642,27 @@ Item {
                       root.activateIndex(row.index)
                     }
                   }
+
+                  PanelActionButton {
+                    id: deleteButton
+                    visible: row.hasCursor && rowHover.hovered && !root.clearConfirmOpen
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconText: "✕"
+                    tooltipText: Commons.I18n.t("common.delete")
+                    foreground: Util.alpha(root.selectedText, 0.55)
+                    hoverColor: Commons.Color.urgent
+                    fontFamily: root.fontFamily
+                    fontSize: Style.font.body
+                    onClicked: root.removeDisplayIndex(row.index)
+                  }
                 }
               }
             }
 
             Item {
+              id: previewPane
               width: parent.width / 2
               height: parent.height
               clip: true
@@ -625,34 +678,128 @@ Item {
                 color: Util.alpha(root.border, 0.28)
               }
 
-              Text {
-                textFormat: Text.PlainText
-                visible: parent.activeRow && !parent.activeRow.previewImage
-                anchors.fill: parent
+              Flickable {
+                id: previewFlick
+                visible: previewPane.activeRow !== null && !previewPane.activeRow.previewImage
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: previewActions.top
                 anchors.leftMargin: root.contentMargin
-                anchors.rightMargin: 0
-                anchors.topMargin: 0
-                anchors.bottomMargin: 0
-                text: parent.activeRow ? parent.activeRow.fullText : ""
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.title
-                wrapMode: Text.WrapAnywhere
-                elide: Text.ElideRight
-                verticalAlignment: Text.AlignTop
+                anchors.bottomMargin: Style.spacing.md
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.VerticalFlick
+                contentWidth: width
+                contentHeight: previewTextItem.implicitHeight
+
+                WheelHandler {
+                  acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                  target: null
+                  onWheel: function(event) { root.scrollFlickable(previewFlick, event, Style.font.title * 4) }
+                }
+
+                Text {
+                  id: previewTextItem
+                  textFormat: Text.PlainText
+                  width: previewFlick.width
+                  text: previewPane.activeRow ? previewPane.activeRow.fullText : ""
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.title
+                  wrapMode: Text.WrapAnywhere
+                  verticalAlignment: Text.AlignTop
+                  onTextChanged: previewFlick.contentY = 0
+                }
+              }
+
+              Rectangle {
+                anchors.left: previewFlick.left
+                anchors.right: previewFlick.right
+                anchors.top: previewFlick.top
+                height: Math.min(Style.space(28), previewFlick.height / 2)
+                visible: previewFlick.visible && opacity > 0
+                opacity: height > 0 && previewFlick.contentHeight > previewFlick.height
+                  ? Math.max(0, Math.min(1, (previewFlick.contentY - previewFlick.originY) / height))
+                  : 0
+                gradient: Gradient {
+                  GradientStop { position: 0; color: root.background }
+                  GradientStop { position: 1; color: Util.alpha(root.background, 0) }
+                }
+              }
+
+              Rectangle {
+                anchors.left: previewFlick.left
+                anchors.right: previewFlick.right
+                anchors.bottom: previewFlick.bottom
+                height: Math.min(Style.space(28), previewFlick.height / 2)
+                visible: previewFlick.visible && opacity > 0
+                opacity: height > 0 && previewFlick.contentHeight > previewFlick.height
+                  ? Math.max(0, Math.min(1, (previewFlick.originY + previewFlick.contentHeight - previewFlick.height - previewFlick.contentY) / height))
+                  : 0
+                gradient: Gradient {
+                  GradientStop { position: 0; color: Util.alpha(root.background, 0) }
+                  GradientStop { position: 1; color: root.background }
+                }
               }
 
               SizedImage {
-                visible: parent.activeRow && parent.activeRow.previewImage
-                anchors.fill: parent
+                visible: previewPane.activeRow !== null && previewPane.activeRow.previewImage.length > 0
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: previewActions.top
                 anchors.leftMargin: root.contentMargin
-                anchors.rightMargin: 0
-                anchors.topMargin: 0
-                anchors.bottomMargin: 0
-                url: parent.activeRow ? parent.activeRow.previewImage : ""
+                anchors.bottomMargin: Style.spacing.md
+                url: previewPane.activeRow ? previewPane.activeRow.previewImage : ""
                 verticalAlignment: Image.AlignTop
                 asynchronous: true
                 smooth: true
+              }
+
+              Row {
+                id: previewActions
+                visible: previewPane.activeRow !== null
+                enabled: !root.clearConfirmOpen
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                spacing: Style.spacing.sm
+
+                readonly property real maxWidth: Math.max(0, previewPane.width - root.contentMargin)
+                readonly property real openWidth: Math.min(openButton.implicitWidth, Math.max(0, maxWidth - spacing) / 2)
+                readonly property real copyWidth: Math.min(copyButton.implicitWidth, Math.max(0, maxWidth - openWidth - spacing))
+
+                Button {
+                  id: copyButton
+                  width: previewActions.copyWidth
+                  iconText: "󰆏"
+                  text: Commons.I18n.t("common.copy")
+                  foreground: root.foreground
+                  accent: root.selectedText
+                  opacity: hot ? 1.0 : 0.72
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.bodySmall
+                  iconSize: Style.font.bodySmall
+                  horizontalPadding: Style.spacing.md
+                  verticalPadding: Style.spacing.xs
+                  onClicked: root.copyIndex(root.selectedIndex)
+                }
+
+                Button {
+                  id: openButton
+                  width: previewActions.openWidth
+                  iconText: "󰏌"
+                  text: Commons.I18n.t("dock.open")
+                  foreground: root.foreground
+                  accent: root.selectedText
+                  opacity: hot ? 1.0 : 0.72
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.bodySmall
+                  iconSize: Style.font.bodySmall
+                  horizontalPadding: Style.spacing.md
+                  verticalPadding: Style.spacing.xs
+                  onClicked: root.openIndex(root.selectedIndex)
+                }
               }
             }
           }

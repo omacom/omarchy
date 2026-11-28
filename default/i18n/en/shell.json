@@ -256,6 +256,7 @@
   "bluetooth.turnOn": "Turn Bluetooth on",
   "bluetooth.turnOnToScan": "Turn Bluetooth on to scan",
   "bluetooth.turnedOff": "Turned Off",
+  "clipboard.clearHistory": "Clear clipboard history",
   "clipboard.deleteHistory": "Delete entire clipboard history?",
   "clipboard.empty": "Clipboard is empty",
   "clipboard.files": {
@@ -279,8 +280,10 @@
   "clock.weekShort": "W",
   "clock.year": "year",
   "common.apply": "Apply",
+  "common.back": "Back",
   "common.cancel": "Cancel",
   "common.confirm": "Confirm",
+  "common.copy": "Copy",
   "common.delete": "Delete",
   "common.loading": "Loading…",
   "common.noMatches": "No matches",
