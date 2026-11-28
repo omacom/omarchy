@@ -5,7 +5,17 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const bluetooth = requireFromRoot('shell/plugins/panels/bluetooth/Model.js')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/Panel.qml', 'utf8')
+
+// Discovery is an active LE scan from a private address, so a bonded BLE HID
+// device returning from another host is invisible while it runs. The panel
+// must stop scanning on its own, not wait for the panel to close.
+assert(/id: discoveryRetry[\s\S]*?running:[^\n]*scanWindowActive/.test(panelSource), 'bluetooth bounds discovery to a scan window')
+assert(/id: discoveryWindow[\s\S]*?onTriggered:\s*\{[\s\S]*?scanWindowActive = false[\s\S]*?adapter\.discovering = false/.test(panelSource), 'bluetooth ends the scan window while the panel stays open')
+assert(/t === "s"[\s\S]{0,80}scanForDevices/.test(panelSource), 'bluetooth can start another scan on demand')
+assert(/function runDeviceAction[\s\S]*?adapter\.discovering = false[\s\S]*?actionAfterScan/.test(panelSource), 'bluetooth stops discovery before a pair or connect')
 
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')

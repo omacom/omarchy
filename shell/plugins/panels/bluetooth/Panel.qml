@@ -29,6 +29,15 @@ Panel {
   // Discovering property also reflects sessions other clients hold, which are
   // never this panel's to stop.
   property bool owesDiscoveryStop: false
+
+  // Discovery is an active LE scan from a private address. A bonded BLE HID
+  // device returning from another host advertises directly at this adapter's
+  // public identity address, which the controller cannot resolve while that
+  // scan runs. Leaving discovery on for the whole time the panel is open makes
+  // the mouse invisible and turns a reconnect into "le-connection-abort-by-local".
+  // Keep each scan to a short window instead, and let `s` start another one.
+  property bool scanWindowActive: false
+  readonly property int scanWindowMs: 12000
   readonly property var devices: Bluetooth.devices ? Bluetooth.devices.values : []
   readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
   property var pendingAudioOutputDevice: null
@@ -267,10 +276,29 @@ Panel {
     return ["omarchy-bluetooth", action, "--", address]
   }
 
+  // Start another bounded scan; `s` in the panel calls this.
+  function scanForDevices() {
+    if (!adapter || !adapter.enabled) return
+    scanWindowActive = true
+    owesDiscoveryStop = true
+    adapter.discovering = true
+  }
+
   function runDeviceAction(device, action, pending) {
     if (!device || !device.address) return
     setPendingAction(device.address, pending)
-    Quickshell.execDetached(deviceCommand(action, device.address))
+
+    // A connect needs the radio out of inquiry or the controller aborts the LE
+    // link. Stop the panel's own scan first and give BlueZ a moment to settle.
+    var command = deviceCommand(action, device.address)
+    if (adapter !== null && adapter.discovering) {
+      scanWindowActive = false
+      adapter.discovering = false
+      actionAfterScan.command = command
+      actionAfterScan.restart()
+    } else {
+      Quickshell.execDetached(command)
+    }
   }
 
   function connectDevice(device) {
@@ -413,12 +441,15 @@ Panel {
       // from another monitor, or one leaked by an instance that could not
       // finish its own stop — so this close settles it either way.
       if (adapter !== null && adapter.discovering) owesDiscoveryStop = true
+      scanWindowActive = true
       if (connectedDevices.length > 0) { focusSection = "connected"; selectedIndex = 0 }
       else if (knownDevices.length > 0) { focusSection = "known"; selectedIndex = 0 }
       else if (discoveredDevices.length > 0) { focusSection = "discovered"; selectedIndex = 0 }
       else { focusSection = "header" }
       actionFocused = false
       cursorActive = false
+    } else {
+      scanWindowActive = false
     }
   }
 
@@ -504,17 +535,31 @@ Panel {
   implicitHeight: button.implicitHeight
 
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
-  // discovery can also time out on its own. While the panel is open, keep
-  // nudging it back on so an enabled adapter is always scanning.
+  // discovery can also time out on its own. Nudge it back on inside a scan
+  // window, never for the whole time the panel is open.
   Timer {
     id: discoveryRetry
     interval: 1000
     repeat: true
     triggeredOnStart: true
-    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    running: root.opened && root.scanWindowActive && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
     onTriggered: {
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
+    }
+  }
+
+  // End the window even while the panel stays open. The panel is usually
+  // opened to reach a device that is already paired, so the scan must not keep
+  // the adapter in inquiry after the first few seconds.
+  Timer {
+    id: discoveryWindow
+    interval: root.scanWindowMs
+    repeat: false
+    running: root.opened && root.scanWindowActive && root.adapter !== null && root.adapter.discovering === true
+    onTriggered: {
+      root.scanWindowActive = false
+      if (root.adapter !== null) root.adapter.discovering = false
     }
   }
 
@@ -557,8 +602,8 @@ Panel {
 
   // The debt is settled the moment BlueZ reports discovery down — whether
   // because the stop above landed or the session ended some other way — so a
-  // stale claim never touches a scan another client starts later. While the
-  // panel is open, discoveryRetry re-incurs it as it restarts the scan.
+  // stale claim never touches a scan another client starts later. A rescan
+  // (`s`) or a fresh open puts the debt back while the panel is open.
   Connections {
     target: root.adapter
     function onDiscoveringChanged() {
@@ -577,6 +622,17 @@ Panel {
       if (items[i] && items[i] !== root) { items[i].owesDiscoveryStop = true; return }
     }
     if (adapter !== null && adapter.discovering) adapter.discovering = false
+  }
+
+  Timer {
+    id: actionAfterScan
+    interval: 600
+    repeat: false
+    property var command: []
+    onTriggered: {
+      if (command && command.length > 0) Quickshell.execDetached(command)
+      command = []
+    }
   }
 
   Timer {
@@ -688,6 +744,7 @@ Panel {
       onDeleteRequested: if (root.cursorActive) root.deleteSelected()
       onTextKey: function(t) {
         if (t === "b" || t === "B") root.toggleBluetooth()
+        else if (t === "s" || t === "S") root.scanForDevices()
       }
 
       Column {
@@ -878,7 +935,8 @@ Panel {
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
           text: !root.adapter ? Commons.I18n.t("bluetooth.noBluetoothAdapter")
               : !root.adapter.enabled ? Commons.I18n.t("bluetooth.turnOnToScan")
-              : Commons.I18n.t("bluetooth.scanning")
+              : root.adapter.discovering ? Commons.I18n.t("bluetooth.scanning")
+              : Commons.I18n.t("bluetooth.pressSToScan")
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
