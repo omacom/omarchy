@@ -10,6 +10,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import pwd
 import re
 import shlex
 import shutil
@@ -197,6 +198,16 @@ def cleanup_transfers(parent: Path) -> None:
         path.unlink(missing_ok=True)
 
 
+# A process that rewrote its own argv, as Chromium's setproctitle does, can leave
+# /proc/<pid>/environ without a HOME. Its home is then its owner's, never a path
+# relative to wherever this check happens to run.
+def owner_home(proc: Path) -> str:
+  try:
+    return pwd.getpwuid(proc.stat().st_uid).pw_dir
+  except (OSError, KeyError):
+    return ""
+
+
 def home_in_use(provider: str, home: Path) -> bool:
   if accounts.home_in_use(provider, home):
     return True
@@ -220,7 +231,9 @@ def home_in_use(provider: str, home: Path) -> bool:
         continue
       configured = next((v[len(home_key):].decode() for v in env if v.startswith(home_key)), "")
       selected_pin = next((v[len(pinned_key):].decode() for v in env if v.startswith(pinned_key)), "")
-      process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "")
+      process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "") or owner_home(proc)
+      if not (configured or selected_pin or process_home):
+        continue
       selected = Path(configured or selected_pin) if configured or selected_pin else Path(process_home) / f".{provider}"
       if selected.resolve() == home.resolve():
         return True

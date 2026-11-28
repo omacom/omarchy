@@ -168,6 +168,31 @@ finally:
   child.terminate()
   child.wait()
 
+# A process whose environ shows no HOME (Chromium's setproctitle clobbers it)
+# has its owner's home, not one relative to where the check runs. The receiver
+# runs from the destination home, as an SSH login does.
+code = 'import ctypes,time; ctypes.CDLL(None).prctl(15,b"claude",0,0,0); print("ready",flush=True); time.sleep(30)'
+child = subprocess.Popen([sys.executable, "-c", code], env={}, stdout=subprocess.PIPE, text=True)
+previous_cwd = os.getcwd()
+try:
+  assert child.stdout.readline().strip() == "ready"
+  os.chdir(Path.home())
+  assert not transfer.home_in_use("claude", state.primary_home("claude")), "a process without HOME is not matched against the checker's directory"
+  os.chdir(previous_cwd)
+  # And it is still found when its owner's home is the one being replaced.
+  class Owner:
+    pw_dir = str(Path.home())
+  real_getpwuid = transfer.pwd.getpwuid
+  transfer.pwd.getpwuid = lambda uid: Owner
+  try:
+    assert transfer.home_in_use("claude", state.primary_home("claude")), "a process without HOME is found in its owner's home"
+  finally:
+    transfer.pwd.getpwuid = real_getpwuid
+finally:
+  os.chdir(previous_cwd)
+  child.terminate()
+  child.wait()
+
 # Native release names and interpreter-hosted CLIs are also recognized.
 child_env = dict(os.environ)
 for key in ["OMARCHY_AGENT_CLAUDE_HOME", "OMARCHY_AGENT_CODEX_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME"]:
