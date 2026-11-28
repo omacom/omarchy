@@ -135,10 +135,40 @@ function pickPanelSlot(candidates, focusedScreen) {
 // Requiring the pointer to sit inside another widget makes the empty space
 // around a centered group a dead zone, even though it visually reads as the
 // most natural place to drop.
-function nearestDropTarget(candidates, point, vertical) {
+function nearestDropTarget(candidates, point, vertical, edges) {
   var axis = vertical ? Number(point && point.y) : Number(point && point.x)
   var nearest = nearestEdge(candidates, axis, vertical)
+  var anchored = nearestRegionEdge(regionEdgeAnchors(edges, candidates), axis)
+  if (anchored && (!nearest || anchored.distance < nearest.distance)) return anchored.target
   return nearest ? nearest.target : null
+}
+
+// A side section a drag has emptied keeps no slots, so nothing else answers a
+// drop at its end of the bar and the drop falls into the center group. `edges`
+// (an anchor per side section, { region, axis, after }) stands in for the
+// section's end; an anchor whose region a candidate still holds stands down,
+// so a section with widgets keeps resolving by its widgets alone.
+function regionEdgeAnchors(edges, rows) {
+  var list = Array.isArray(edges) ? edges : []
+  if (list.length === 0) return []
+  var pool = Array.isArray(rows) ? rows : []
+  var taken = {}
+  for (var i = 0; i < pool.length; i++)
+    if (pool[i] && pool[i].region) taken[pool[i].region] = true
+  return list.filter(function(edge) {
+    return !!edge && !!edge.region && !taken[edge.region] && isFinite(Number(edge.axis))
+  })
+}
+
+// The nearest emptied-section anchor along the drag axis, or null.
+function nearestRegionEdge(anchors, axis) {
+  var best = null
+  for (var i = 0; i < anchors.length; i++) {
+    var distance = Math.abs(axis - Number(anchors[i].axis))
+    if (!best || distance < best.distance)
+      best = { target: { region: anchors[i].region, after: anchors[i].after !== false }, distance: distance }
+  }
+  return best
 }
 
 function nearestEdge(candidates, axis, vertical) {
@@ -185,10 +215,14 @@ function ownRoomTarget(rows, axis, vertical, source) {
 // { region, after }: after its last widget, or before its first. Over the
 // room the dragged widget (`source`, a candidate's slot) still holds, a drop
 // puts it back, so a widget picked up beside an empty box, whose reach
-// covers its inner end, isn't thrown into it as the drag starts.
-function centerDropTarget(candidates, box, point, vertical, source) {
+// covers its inner end, isn't thrown into it as the drag starts. `edges`
+// (an anchor per side section, { region, axis, after }) lets the end of the
+// bar answer for a side section no candidate holds, which a drop would
+// otherwise fall past into the center group.
+function centerDropTarget(candidates, box, point, vertical, source, edges) {
   var rows = Array.isArray(candidates) ? candidates : []
-  if (!box) return nearestDropTarget(rows, point, vertical)
+  var anchors = regionEdgeAnchors(edges, rows)
+  if (!box) return nearestDropTarget(rows, point, vertical, anchors)
   var axis = vertical ? Number(point && point.y) : Number(point && point.x)
   var start = Number(vertical ? box.y : box.x)
   var end = start + Number(vertical ? box.height : box.width)
@@ -208,7 +242,9 @@ function centerDropTarget(candidates, box, point, vertical, source) {
   var edge = beginDistance <= endDistance
     ? { target: { region: "centerBegin", after: true }, distance: beginDistance }
     : { target: { region: "centerEnd", after: false }, distance: endDistance }
-  return outside && outside.distance <= edge.distance ? outside.target : edge.target
+  var best = outside && outside.distance <= edge.distance ? outside : edge
+  var anchored = nearestRegionEdge(anchors, axis)
+  return anchored && (!best || anchored.distance < best.distance) ? anchored.target : best.target
 }
 
 // The stretch of the bar over which a drop lands in the center box: the box
