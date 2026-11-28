@@ -73,6 +73,52 @@ function shownSpan(clipStart, clipLength, start, length) {
   return { start: from, length: to - from }
 }
 
+// Electron apps often share one StatusNotifier id (chrome_status_icon_1). While an
+// id is shared, pin and hide follow the icon's label so one icon does not claim
+// the others. A unique id keeps the bare id as its key, so a changing title never
+// loses the setting.
+function itemLabel(item) {
+  if (!item) return ""
+  var title = String(item.title || "").replace(/[\r\n]/g, " ").trim()
+  if (title) return title
+  return String(item.tooltipTitle || "").replace(/[\r\n]/g, " ").trim()
+}
+
+function stateKey(item, shared) {
+  var id = String(item && item.id || "")
+  var label = itemLabel(item)
+  if (!id) return label
+  if (!shared || !label || label === id) return id
+  return id + "\n" + label
+}
+
+// A stored key applies when it is this icon's key. A unique id also honors a
+// labelled key saved while a sibling shared the id.
+function keyMatches(k, item, shared) {
+  var id = String(item && item.id || "")
+  if (k === stateKey(item, shared)) return true
+  var label = itemLabel(item)
+  return !shared && !!id && !!label && k === id + "\n" + label
+}
+
+function appliesStored(keys, item, shared) {
+  if (!Array.isArray(keys) || !item) return false
+  return keys.some(function(k) { return keyMatches(k, item, shared) })
+}
+
+// Flips one icon's pin or hide. Only keys that belong to this icon change, so a
+// sibling's saved setting survives; pinning also clears this icon from the other list.
+function toggleStored(keys, others, item, shared) {
+  var on = appliesStored(keys, item, shared)
+  var mine = function(k) { return keyMatches(k, item, shared) }
+  keys = keys.filter(function(k) { return !mine(k) })
+  if (!on) {
+    others = others.filter(function(k) { return !mine(k) })
+    keys.push(stateKey(item, shared))
+  }
+  return { keys: keys, others: others }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     shownSpan: shownSpan,
@@ -80,6 +126,10 @@ if (typeof module !== "undefined") {
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
     ownedByOmarchy: ownedByOmarchy,
+    itemLabel: itemLabel,
+    stateKey: stateKey,
+    appliesStored: appliesStored,
+    toggleStored: toggleStored,
     activatesOnDoubleClick: activatesOnDoubleClick
   }
 }
