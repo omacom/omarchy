@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
@@ -335,6 +336,15 @@ Item {
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+
+            ScrollBar.vertical: ScrollBar {
+              parent: grid.parent
+              x: LayoutMirroring.enabled ? -width : grid.width
+              y: grid.y
+              width: Style.space(12)
+              height: grid.height
+              policy: grid.contentHeight > grid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+            }
 
             // Mouse wheels keep the grid's own scrolling.
             WheelHandler {
