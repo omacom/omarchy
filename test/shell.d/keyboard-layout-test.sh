@@ -80,7 +80,9 @@ assertEqual(briefs['English (US, intl., with dead keys)'], 'en', 'the table read
 assertEqual(briefs['Generic 105-key PC'], undefined, 'the table skips keyboard models')
 assertEqual(briefs['Switching to another layout'], undefined, 'the table skips option groups')
 assertEqual(briefs["'Right Alt (while pressed)'"], undefined, 'the table skips the options under a group')
-assertEqual(Object.keys(briefs).length, 6, 'the table holds nothing but the layouts')
+assertEqual(briefs['xkb:us()'], 'en', 'the table files a layout brief under its code')
+assertEqual(briefs['xkb:us(intl)'], 'en', 'the table files a variant brief under its layout and variant')
+assertEqual(Object.keys(briefs).length, 12, 'the table holds nothing but the layouts, by description and by code')
 
 assertEqual(model.shortLabel('English (US)', briefs), 'EN', 'the label is the language, not the country')
 assertEqual(model.shortLabel('Portuguese (Brazil)', briefs), 'PT', 'a country variant keeps its language')
@@ -105,6 +107,28 @@ assertEqual(model.shortLabel('Elvish (Tengwar)', briefs), 'ELV', 'an unlisted la
 assertEqual(model.shortLabel('English (US)', {}), 'ENG', 'the label survives an empty table')
 assertEqual(model.shortLabel('constructor', {}), 'CON', 'a description naming a built-in still falls back')
 assertEqual(model.shortLabel('', briefs), '', 'no keymap means no label')
+
+// us and us(intl) both read EN, and so do us and gb, so a layout whose label
+// another configured one shares gets a short tag after it: its variant, or its
+// layout when it has none. Labels nobody else reads keep no tag.
+const shared = model.layoutBriefs([
+  'layouts:',
+  "- layout: 'us'", "  variant: ''", "  brief: 'en'", '  description: English (US)',
+  "- layout: 'us'", "  variant: 'intl'", "  brief: 'en'", '  description: English (US, intl., with dead keys)',
+  "- layout: 'us'", "  variant: 'mac'", "  brief: 'en'", '  description: English (Macintosh, ABC, ANSI)',
+  "- layout: 'gb'", "  variant: ''", "  brief: 'en'", '  description: English (UK)',
+  "- layout: 'es'", "  variant: ''", "  brief: 'es'", '  description: Spanish',
+].join('\n'))
+const tags = (layouts, variants, table) => layouts.split(',').map((_, index) => model.layoutTag(layouts, variants, index, table))
+
+assertEqual(tags('us,us', ',intl', shared).join('/'), 'us/int', 'a variant of a repeated layout is tagged by its variant, cut to three letters')
+assertEqual(tags('us,gb', ',', shared).join('/'), 'us/gb', 'two layouts sharing a language are tagged by their layouts')
+assertEqual(tags('us,es', ',', shared).join('/'), '/', 'layouts with labels of their own get no tag')
+assertEqual(model.layoutTag('us', '', 0, shared), '', 'a single layout gets no tag')
+assertEqual(model.layoutTag('us', '', 3, shared), '', 'an index past the list gets no tag')
+assertEqual(tags('us,us,us', ',mac,mac-iso', shared).join('/'), 'us/\u2082/\u2083', 'tags that collide fall back to their place in the group')
+assertEqual(tags('us,us', ',intl', {}).join('/'), 'us/int', 'a repeated layout is tagged before the table loads')
+assertEqual(tags('us,gb', ',', {}).join('/'), '/', 'layouts only the table says share a label wait for it')
 
 // The seat as hyprctl reports it, virtual keyboards already filtered out: the
 // buttons libinput calls keyboards sit beside the one being typed on, and the
@@ -194,5 +218,13 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   const several = widgetState('us,dk')
   assert(needs(several.layoutsRead, several.multipleLayouts, false), 'a first reading of several layouts needs the table')
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
+
+  const variants = { typedKeyboardName: '', multipleLayouts: true, layoutsRead: false }
+  variants.typedKeyboards = keyboards => keyboards
+  variants.selectKeyboard = typed => typed[0]
+  reading(variants, model, JSON.stringify({ keyboards: [{ name: 'at-translated-set-2-keyboard', layout: 'fr,fr', variant: ',bepo', active_keymap: 'French (BEPO)', active_layout_index: 1 }] }))
+  assertEqual(model.layoutTag(variants.layoutCodes, variants.layoutVariants, variants.layoutIndex, {}), 'bep', 'a reading carries the layouts and variants the tag needs')
+  reading(variants, model, JSON.stringify({ keyboards: [] }))
+  assertEqual(model.layoutTag(variants.layoutCodes, variants.layoutVariants, variants.layoutIndex, {}), '', 'an unplugged keyboard takes its tag with it')
 }
 JS

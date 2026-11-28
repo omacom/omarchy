@@ -29,6 +29,10 @@ BarWidget {
   property int layoutIndex: 0
   property int layoutCount: 0
   property var syncNames: []
+  // The kb_layout and kb_variant lists as Hyprland reports them, which tell two
+  // variants of one layout apart where the brief cannot.
+  property string layoutCodes: ""
+  property string layoutVariants: ""
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
@@ -45,6 +49,9 @@ BarWidget {
     briefsProc.running = true
   }
   readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  // A small tag after the label when another configured layout reads the same
+  // (us and us(intl) are both EN): see KeyboardLayoutModel.layoutTag.
+  readonly property string layoutTag: KeyboardLayoutModel.layoutTag(layoutCodes, layoutVariants, layoutIndex, layoutBriefs)
   readonly property var inputState: InputMethodState.state
   readonly property bool multipleInputs: (inputState.methods || []).length > 1
   readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
@@ -175,6 +182,8 @@ BarWidget {
           root.keyboardUnresolved = true
           if (typed.length === 0) {
             root.layoutFull = ""
+            root.layoutCodes = ""
+            root.layoutVariants = ""
             root.keyboardName = ""
           }
           return
@@ -186,6 +195,8 @@ BarWidget {
         root.layoutsRead = true
         root.layoutIndex = kb.active_layout_index || 0
         root.layoutCount = kb.layout === undefined ? 0 : String(kb.layout).split(",").length
+        root.layoutCodes = String(kb.layout || "")
+        root.layoutVariants = String(kb.variant || "")
         // Buttons and virtual keyboards are included on purpose: they hold the
         // same list, and leaving them behind is what lets a reading drift onto
         // one of them later.
@@ -261,6 +272,46 @@ BarWidget {
     text: root.inputLabel
     fontSize: Style.font.caption
     horizontalMargin: 6
+    // An input method's own label (あ, 拼) never carries a layout tag.
+    readonly property bool tagged: root.layoutTag !== "" && root.inputLabel === root.layoutLabel
+    labelVisible: !tagged
+    fixedWidth: tagged && !vertical ? Math.max(12, tagRow.implicitWidth + scaledHorizontalMargin * 2) : -1
+
+    FontMetrics {
+      id: tagMetrics
+      font: baseText.font
+    }
+
+    Row {
+      id: tagRow
+      visible: button.tagged
+      anchors.centerIn: parent
+      // Line the figures up with the icons beside them, as the plain label does.
+      anchors.verticalCenterOffset: button.vertical ? 0 : (tagMetrics.descent - tagMetrics.ascent + tagMetrics.tightBoundingRect("0").height) / 2
+      spacing: 1
+      scale: button.pressScale
+
+      Text {
+        id: baseText
+        textFormat: Text.PlainText
+        text: root.inputLabel
+        color: button.foreground
+        font.family: button.fontFamily
+        font.pixelSize: button.fontSize
+        renderType: Text.NativeRendering
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        text: root.layoutTag
+        color: button.foreground
+        opacity: 0.75
+        font.family: button.fontFamily
+        font.pixelSize: Math.round(button.fontSize * 0.72)
+        renderType: Text.NativeRendering
+        anchors.baseline: baseText.baseline
+      }
+    }
     tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
     onPressed: function(button) {
       if (root.multipleInputs && button === Qt.LeftButton) {

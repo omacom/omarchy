@@ -15,15 +15,26 @@
 function layoutBriefs(text) {
   var briefs = {}
   var brief = ""
+  var layout = "", variant = ""
 
   String(text || "").split("\n").forEach(function (line) {
     if (/^\s*- /.test(line)) brief = ""
+
+    // Each layout block names its layout and variant before its brief, so the
+    // brief can be filed under the code too ("xkb:us(intl)"), which is what
+    // kb_layout and kb_variant hand back.
+    var code = line.match(/^(?:- |  )(layout|variant): '(.*)'$/)
+    if (code) {
+      if (code[1] === "layout") { layout = code[2]; variant = "" } else variant = code[2]
+      return
+    }
 
     var field = line.match(/^  (brief|description): (.*)$/)
     if (!field) return
 
     if (field[1] === "brief") {
       brief = field[2].replace(/^'|'$/g, "")
+      if (layout) briefs["xkb:" + layout + "(" + variant + ")"] = brief
     } else if (brief) {
       briefs[field[2]] = brief
       brief = ""
@@ -110,6 +121,41 @@ function selectKeyboard(typed, namedByEvent) {
   }, keyboards[0])
 }
 
+// Two layouts can still read the same: us and us(intl) are both EN, and so
+// are us and gb. Keep the label and add a short tag the widget draws smaller
+// after it: the variant ("intl" reads int), or the layout for an entry without
+// one ("us"), lowercase and capped at three letters like the label. Tags that
+// collide too fall back to GNOME's subscript numbers (EN₁, EN₂). A label no
+// other configured layout shares gets no tag.
+function layoutTag(layouts, variants, index, briefs) {
+  var codes = String(layouts || "").split(",")
+  var names = String(variants || "").split(",")
+  if (!codes[index]) return ""
+  var table = briefs || {}
+
+  function base(i) {
+    var brief = table["xkb:" + codes[i] + "(" + (names[i] || "") + ")"]
+    if (typeof brief !== "string" || !brief) brief = table["xkb:" + codes[i] + "()"]
+    var label = typeof brief === "string" && brief ? brief.split("-")[0] : codes[i]
+    return label.substring(0, 3).toUpperCase()
+  }
+
+  function tag(i) {
+    return String(names[i] || codes[i]).split(/[-_]/)[0].substring(0, 3).toLowerCase()
+  }
+
+  var group = []
+  for (var i = 0; i < codes.length; i++) {
+    if (codes[i] && base(i) === base(index)) group.push(i)
+  }
+  if (group.length < 2) return ""
+
+  var tags = group.map(tag)
+  var position = group.indexOf(index)
+  var shared = tags.filter(function (other) { return other === tags[position] }).length > 1
+  return shared ? String.fromCharCode(0x2080 + position + 1) : tags[position]
+}
+
 function inputLabel(state, fallback) {
   if (!state || !state.current || state.current.indexOf("keyboard-") === 0) return fallback
   if (state.label) return String(state.label).substring(0, 3)
@@ -139,6 +185,7 @@ if (typeof module !== "undefined") {
     layoutBriefs: layoutBriefs,
     selectKeyboard: selectKeyboard,
     shortLabel: shortLabel,
+    layoutTag: layoutTag,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
     showIndicator: showIndicator
