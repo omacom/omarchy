@@ -222,6 +222,9 @@ border-alpha     = 1.0
 # selection is the text-selection tint inside the input field.
 selection        = "{{ accent }}"
 selection-alpha  = 0.45
+# Password field size in px. Defaults: 381 x 67.
+# field-width      = 381
+# field-height     = 67
 
 [image-picker]
 # Carousel-style picker shown directly over the desktop, with no card
