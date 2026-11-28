@@ -95,7 +95,7 @@ omarchy_kmscon() {
       read -r fb_name </sys/class/graphics/fb0/name 2>/dev/null || true
     fi
     local -a drm_args=()
-    if [[ $fb_name == msmdrmfb ]]; then
+    if [[ $fb_name == "msmdrmfb" ]]; then
       drm_args=(--no-drm)
     fi
 
