@@ -94,6 +94,8 @@ run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-laptop-7.sh"
 run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-laptop8.sh"
 run_logged "$OMARCHY_INSTALL/hardware/samsung/galaxy-book4-edge-14.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/huawei/fix-matebook-d15-speakers.sh"
+
 run_logged "$OMARCHY_INSTALL/hardware/fix-bcm43xx.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-surface-keyboard.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-yt6801-ethernet-adapter.sh"
