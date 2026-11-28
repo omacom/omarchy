@@ -272,3 +272,8 @@ minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows alone on a tiled workspace without a dock" "$(cat "$TMPDIR/hyprctl.log")"
 omarchy_dock tiling on >/dev/null
 pass "minimize works on a tiled workspace only while it has a dock"
+
+require_quickshell "app grid context menu test"
+qml_fixture_scratch
+trap 'qml_fixture_cleanup; rm -rf "$TMPDIR"' EXIT
+run_qml_fixture dock-menu "clicking another app dismisses the open context menu without launching" Ui Commons
