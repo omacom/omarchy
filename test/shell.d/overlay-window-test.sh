@@ -62,24 +62,58 @@ assertEqual(focusedScreen({ focusedMonitor: { name: 'DP-1' } }, { screens: [scre
 assertEqual(focusedScreen({ focusedMonitor: null }, { screens: [] }), null,
   'no outputs leaves the overlay unmapped')
 
+// Hyprland keeps a layer surface on the layer it was created with until its
+// first frame, so a new surface is only created a turn after the open, once
+// the layer bindings have followed shown, and only a surface that has shown
+// is raised in place.
+const attachBody = /function attach\(\) \{([\s\S]*?)\n  \}/.exec(overlay)[1]
+const attach = new Function('window', `with (window) { ${attachBody} }`)
+const overlayWindow = (shown, targetScreen, focused) => {
+  const created = { shown, targetScreen, focusedScreen: () => focused }
+  created.attach = () => attach(created)
+  return created
+}
 const shownHandler = /onShownChanged: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
 let refreshed = 0
 const Hyprland = { refreshMonitors() { refreshed++ } }
-const changeShown = new Function('shown', 'focusedScreen', 'Hyprland', `let targetScreen = null; ${shownHandler}; return targetScreen`)
-assertEqual(changeShown(false, () => external, Hyprland), null, 'closing drops the previous screen reference')
+const opening = []
+const changeShown = new Function('window', 'Hyprland', 'Qt', `with (window) { ${shownHandler} }`)
+const openQt = { callLater(callback) { opening.push(callback) } }
+const closing = overlayWindow(false, screen, external)
+changeShown(closing, Hyprland, openQt)
+assertEqual(closing.targetScreen, screen, 'closing keeps the parked surface on its current screen')
 assertEqual(refreshed, 0, 'closing does not refresh monitor data')
-assertEqual(changeShown(true, () => screen, Hyprland), screen, 'reopening selects a current screen')
+const reopening = overlayWindow(true, screen, screen)
+changeShown(reopening, Hyprland, openQt)
+assertEqual(reopening.targetScreen, screen, 'reopening on the parked screen raises the parked surface in place')
+assertEqual(opening.length, 0, 'raising a parked surface creates no new one')
 assertEqual(refreshed, 1, 'opening refreshes monitor scales after a live change while closed')
+const first = overlayWindow(true, null, screen)
+changeShown(first, Hyprland, openQt)
+assertEqual(first.targetScreen, null, 'a first open maps nothing until the overlay layer is in place')
+opening.shift()()
+assertEqual(first.targetScreen, screen, 'a first open creates its surface on the next turn')
+const moving = overlayWindow(true, screen, external)
+changeShown(moving, Hyprland, openQt)
+assertEqual(moving.targetScreen, null, 'opening on another screen drops the surface parked on the old one')
+opening.shift()()
+assertEqual(moving.targetScreen, external, 'opening on another screen creates its surface there on the next turn')
+assertEqual(refreshed, 3, 'opening on another screen refreshes monitor scales')
+const abandoned = overlayWindow(true, screen, external)
+changeShown(abandoned, Hyprland, openQt)
+abandoned.shown = false
+opening.shift()()
+assertEqual(abandoned.targetScreen, null, 'closing before the new surface is created leaves the overlay unmapped')
 const scaleHandler = /onDevicePixelRatioChanged: ([^\n]+)/.exec(overlay)[1]
 const changeScale = new Function('shown', 'Hyprland', scaleHandler)
 changeScale(false, Hyprland)
-assertEqual(refreshed, 1, 'scale changes on hidden windows do not refresh monitor data')
+assertEqual(refreshed, 4, 'scale changes on hidden windows do not refresh monitor data')
 const changedScreen = { name: 'eDP-1', width: 960, height: 600 }
 assert(!ready(true, true, 960, 600, changedScreen, monitor, 2),
   'a stale monitor scale keeps content transparent after a live scale change')
 Hyprland.refreshMonitors = () => { refreshed++; monitor.scale = 2 }
 changeScale(true, Hyprland)
-assertEqual(refreshed, 2, 'a showing window refreshes monitor scales when Qt receives a live change')
+assertEqual(refreshed, 5, 'a showing window refreshes monitor scales when Qt receives a live change')
 assert(ready(true, true, 960, 600, changedScreen, monitor, 2),
   'fresh monitor data lets content reveal at the new scale')
 
@@ -87,7 +121,7 @@ const screensChangedBody = /function onScreensChanged\(\) \{([\s\S]*?)\n    \}/.
 const screensChanged = new Function('window', 'Quickshell', 'Qt', screensChangedBody)
 const pending = []
 const Qt = { callLater(callback) { pending.push(callback) } }
-const window = { shown: true, targetScreen: external, focusedScreen: () => screen }
+const window = overlayWindow(true, external, screen)
 screensChanged(window, { screens: [screen] }, Qt)
 assertEqual(window.targetScreen, null, 'screen removal unmaps before Qt finishes destroying the old window')
 pending.shift()()
@@ -99,7 +133,14 @@ assertEqual(window.targetScreen, screen, 'connecting another screen does not mov
 window.shown = false
 window.targetScreen = null
 screensChanged(window, { screens: [screen, external] }, Qt)
-assertEqual(window.targetScreen, null, 'screen changes leave a closed overlay unmapped')
+pending.shift()()
+assertEqual(window.targetScreen, null, 'screen changes leave a never-opened overlay unmapped')
+window.targetScreen = external
+window.focusedScreen = () => screen
+screensChanged(window, { screens: [screen] }, Qt)
+assertEqual(window.targetScreen, null, 'removing a parked overlay screen unmaps before teardown')
+pending.shift()()
+assertEqual(window.targetScreen, null, 'a parked overlay waits for its next open to map on a remaining screen')
 window.shown = true
 window.targetScreen = external
 screensChanged(window, { screens: [screen] }, Qt)
@@ -123,6 +164,22 @@ changeScreen(menuPanel)
 assertEqual(menuPanel.cardTop, -1, 'moving an open menu off a disconnected output unfreezes its old top edge')
 assertEqual(menuPanel.maxRowsHeight, -1, 'moving an open menu drops the old output row-height limit')
 assert(menuPanel.shown, 'resetting the layout keeps the menu open')
+
+// The menu shows before its rows have loaded, so a search typed then must not
+// freeze the card around the empty list's single row.
+const freezeBody = /function freezeCardTop\(\) \{([\s\S]*?)\n    \}/.exec(menuQml)[1]
+const freezeCardTop = new Function('panel', 'root', `with (panel) { ${freezeBody} }`)
+const menuRoot = { mode: 'menu', keybindingsLoaded: false, rowsLoaded: false, visibleRowsHeight: 34 }
+const loadingPanel = { shown: true, cardTop: -1, effectiveCardTop: 523, maxRowsHeight: -1 }
+freezeCardTop(loadingPanel, menuRoot)
+assertEqual(loadingPanel.cardTop, -1, 'a search typed before the rows load leaves the card centered')
+assertEqual(loadingPanel.maxRowsHeight, -1, 'the empty list never becomes the row-height limit')
+menuRoot.rowsLoaded = true
+menuRoot.visibleRowsHeight = 510
+loadingPanel.effectiveCardTop = 285
+freezeCardTop(loadingPanel, menuRoot)
+assertEqual(loadingPanel.cardTop, 285, 'the first search after the rows load freezes the top edge')
+assertEqual(loadingPanel.maxRowsHeight, 510, 'the loaded menu sets the row-height limit')
 
 // Fullscreen overlays open without an additional compositor animation.
 const shellRules = read('default/hypr/apps/omarchy-shell.lua')

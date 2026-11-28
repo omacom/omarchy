@@ -96,9 +96,20 @@ layer_absent() {
   ! layer_present "$1"
 }
 
-# Fullscreen overlays map on the overlay layer and unmap when closed.
+# Overlays built on OverlayWindow (the menu, image selector, emoji picker,
+# clipboard and the like) stay mapped between opens, parked 1x1 on the bottom
+# layer, so they keep their fractional scale. Showing means on the overlay.
 layer_on_overlay() {
   hyprctl -j layers | jq -e --arg ns "$1" '[.[].levels["3"][]? | select(.namespace == $ns)] | length > 0'
+}
+
+# Closed means absent or parked: nothing on the overlay layer and nothing
+# larger than 1x1, so a full-size surface stuck below windows does not pass.
+layer_off_overlay() {
+  hyprctl -j layers | jq -e --arg ns "$1" '
+    [.[].levels | to_entries[] | .key as $level | .value[]? | select(.namespace == $ns) | . + { level: $level }]
+    | all(.level != "3" and .w <= 1 and .h <= 1)
+  '
 }
 
 # A layer can be mapped but parked off the monitor: the bar hides that way so

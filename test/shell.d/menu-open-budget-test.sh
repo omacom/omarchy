@@ -20,6 +20,35 @@ setup_scratch_shell
 start_scratch_shell
 wait_scratch_shell
 
+# OverlayWindow parks as a 1x1 surface on the bottom layer (level 1) between
+# opens and raises to the overlay layer (level 3) at full size when shown.
+menu_overlay_state() {
+  local layers
+
+  layers=$(hyprctl -j layers 2>/dev/null) || { echo unknown; return; }
+  [[ -n $layers ]] || { echo unknown; return; }
+  jq -r --argjson pid "$SCRATCH_PID" '
+    ([.[].levels["3"][]? | select(.namespace? == "omarchy-menu" and .pid == $pid)]) as $overlay |
+    ([.[].levels["1"][]? | select(.namespace? == "omarchy-menu" and .pid == $pid)]) as $bottom |
+    ([.[].levels[][]? | select(.namespace? == "omarchy-menu" and .pid == $pid)]) as $all |
+    if ($overlay | any(.w > 1 and .h > 1)) then "shown"
+    elif ($overlay | length == 0) and ($bottom | any(.w == 1 and .h == 1)) and ($all | all(.w <= 1 and .h <= 1)) then "parked"
+    else "transitioning"
+    end
+  ' <<<"$layers" 2>/dev/null || echo unknown
+}
+
+wait_menu_overlay() {
+  local want="$1"
+
+  for _ in {1..300}; do
+    [[ $(menu_overlay_state) == $want ]] && return 0
+    kill -0 "$SCRATCH_PID" 2>/dev/null || return 1
+    sleep 0.01
+  done
+  return 1
+}
+
 # Warm up: the first summon pays registration and content build, and
 # registration itself is asynchronous, so summon until it lands.
 summoned=""
@@ -29,19 +58,19 @@ for _ in {1..80}; do
   sleep 0.1
 done
 [[ -n $summoned ]] || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "menu summons in a scratch shell"; }
-wait_scratch_layer omarchy-menu mapped || fail "menu maps after warm-up summon"
+wait_menu_overlay shown || fail "menu maps on overlay after warm-up summon"
 scratch_ipc_quiet shell hide omarchy.menu >/dev/null 2>&1 || true
-wait_scratch_layer omarchy-menu absent || fail "menu hides after warm-up"
+wait_menu_overlay parked || fail "menu parks on bottom layer after warm-up"
 
 open_ms() {
   local start end
   start=$EPOCHREALTIME
   [[ $(scratch_ipc shell summon omarchy.menu '{"menu":"root"}') == "ok" ]] || return 1
-  wait_scratch_layer omarchy-menu mapped || return 1
+  wait_menu_overlay shown || return 1
   end=$EPOCHREALTIME
   echo $(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
   scratch_ipc_quiet shell hide omarchy.menu >/dev/null 2>&1 || true
-  wait_scratch_layer omarchy-menu absent || return 1
+  wait_menu_overlay parked || return 1
 }
 
 best=""

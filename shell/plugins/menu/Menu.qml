@@ -1460,7 +1460,7 @@ Item {
   }
   OverlayWindow {
     id: panel
-    shown: root.opened && root.rowsLoaded
+    shown: root.opened
     WlrLayershell.namespace: "omarchy-menu"
 
     // The card opens centered exactly as always. The first search keystroke
@@ -1474,6 +1474,7 @@ Item {
     readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
     readonly property int effectiveCardTop: cardTop >= 0 ? cardTop : centeredTop
     function freezeCardTop() {
+      if (!root.rowsLoaded) return
       if (root.mode === "keybindings" && !root.keybindingsLoaded) return
       if (shown && cardTop < 0) {
         cardTop = effectiveCardTop
