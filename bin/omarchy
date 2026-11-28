@@ -365,6 +365,125 @@ register_command() {
     "$requires_sudo" "$hidden" "$metadata_errors"
 }
 
+scan_command_files() {
+  (( $# > 0 )) || return 0
+  awk -v limit="$METADATA_SCAN_LIMIT" -- '
+    function append_err(msg) {
+      metadata_errors = (metadata_errors == "" ? msg : metadata_errors "|" msg)
+    }
+    function reset_file(path) {
+      file_binary = path
+      sub(/^.*\//, "", file_binary)
+      group = ""; name = ""; name_seen = 0
+      summary = ""; has_summary = "false"; fallback_summary = ""
+      args = ""; subcommands = ""; sub_args_joined = ""
+      examples = ""; aliases = ""
+      requires_sudo = ""; hidden = ""; metadata_errors = ""
+    }
+    function emit_file(   stem, fallback_group, fallback_name, fallback_route, dash, route, usage, n, i, a, clean_aliases, parts) {
+      stem = file_binary
+      sub(/^omarchy-/, "", stem)
+      fallback_group = stem
+      fallback_name = ""
+      fallback_route = stem
+      gsub(/-/, " ", fallback_route)
+      fallback_route = "omarchy " fallback_route
+
+      dash = index(stem, "-")
+      if (dash > 0) {
+        fallback_group = substr(stem, 1, dash - 1)
+        fallback_name = substr(stem, dash + 1)
+        gsub(/-/, " ", fallback_name)
+      }
+
+      if (group == "") group = fallback_group
+      if (!name_seen) name = fallback_name
+      if (summary == "" && fallback_summary != "") summary = fallback_summary
+      if (summary == "") {
+        summary = stem
+        gsub(/-/, " ", summary)
+        summary = "Run the " summary " command"
+      }
+
+      route = "omarchy " group
+      if (name != "") route = route " " name
+
+      if (args == "" && sub_args_joined != "") args = sub_args_joined
+      usage = (args != "" ? route " " args : route)
+      if (requires_sudo != "true") requires_sudo = "false"
+      if (hidden != "true") hidden = "false"
+
+      clean_aliases = ""
+      if (aliases != "") {
+        n = split(aliases, parts, "|")
+        for (i = 1; i <= n; i++) {
+          a = parts[i]
+          sub(/^ /, "", a)
+          sub(/ $/, "", a)
+          if (a == "" || a == route) continue
+          clean_aliases = (clean_aliases == "" ? a : clean_aliases "|" a)
+        }
+      }
+
+      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", \
+        file_binary, route, fallback_route, group, name, summary, usage, args, \
+        subcommands, examples, clean_aliases, requires_sudo, hidden, has_summary, metadata_errors
+    }
+    BEGINFILE {
+      reset_file(FILENAME)
+      if (ERRNO != "") {
+        printf "omarchy: %s: %s\n", FILENAME, ERRNO > "/dev/stderr"
+        emit_file()
+        nextfile
+      }
+    }
+    ENDFILE { emit_file() }
+    FNR > limit { nextfile }
+    FNR == 1 && /^#!/ { next }
+    /^[[:space:]]*$/ { next }
+    !/^[[:space:]]*#/ { nextfile }
+    {
+      if (match($0, /^[[:space:]]*#[[:space:]]*omarchy:([[:alnum:]_-]+)=(.*)$/, m)) {
+        k = m[1]
+        v = m[2]
+        sub(/\r$/, "", v)
+        gsub(/\t/, " ", v)
+        if (k == "group") group = v
+        else if (k == "name") { name = v; name_seen = 1 }
+        else if (k == "summary") { summary = v; if (v != "") has_summary = "true" }
+        else if (k == "args") args = v
+        else if (k == "subcommand") {
+          sep = index(v, " — ")
+          if (sep > 0) {
+            sa = substr(v, 1, sep - 1)
+            ss = substr(v, sep + length(" — "))
+            entry = sa "\x1d" ss
+            subcommands = (subcommands == "" ? entry : subcommands "\x1e" entry)
+            sub_args_joined = (sub_args_joined == "" ? sa : sub_args_joined " | " sa)
+          } else {
+            append_err("subcommand must be \x27<args> — <summary>\x27")
+          }
+        }
+        else if (k == "examples") examples = v
+        else if (k == "alias" || k == "aliases") aliases = v
+        else if (k == "requires-sudo") {
+          requires_sudo = v
+          if (v != "true") append_err("requires-sudo must be omitted or true")
+        }
+        else if (k == "hidden") {
+          hidden = v
+          if (v != "true") append_err("hidden must be omitted or true")
+        }
+      } else if (fallback_summary == "" && match($0, /^[[:space:]]*#[[:space:]]*(.+)$/, m)) {
+        v = m[1]
+        sub(/\r$/, "", v)
+        gsub(/\t/, " ", v)
+        if (v != "" && v !~ /^omarchy:/) fallback_summary = v
+      }
+    }
+  ' "$@"
+}
+
 # Scan a batch of command headers in one awk pass (~7ms for all ~630 files vs
 # ~260ms in pure-Bash read/regex loops). Single-file loads stay in Bash to
 # avoid an awk fork.
@@ -432,123 +551,18 @@ register_command_files() {
       done
       COMMAND_ALIASES["$key"]="$aliases"
     fi
-  done < <(
-    awk -v limit="$METADATA_SCAN_LIMIT" '
-      function append_err(msg) {
-        metadata_errors = (metadata_errors == "" ? msg : metadata_errors "|" msg)
-      }
-      function reset_file(path) {
-        file_binary = path
-        sub(/^.*\//, "", file_binary)
-        group = ""; name = ""; name_seen = 0
-        summary = ""; has_summary = "false"; fallback_summary = ""
-        args = ""; subcommands = ""; sub_args_joined = ""
-        examples = ""; aliases = ""
-        requires_sudo = ""; hidden = ""; metadata_errors = ""
-      }
-      function emit_file(   stem, fallback_group, fallback_name, fallback_route, dash, route, usage, n, i, a, clean_aliases, parts) {
-        stem = file_binary
-        sub(/^omarchy-/, "", stem)
-        fallback_group = stem
-        fallback_name = ""
-        fallback_route = stem
-        gsub(/-/, " ", fallback_route)
-        fallback_route = "omarchy " fallback_route
+  done < <(scan_command_files "$@")
+}
 
-        dash = index(stem, "-")
-        if (dash > 0) {
-          fallback_group = substr(stem, 1, dash - 1)
-          fallback_name = substr(stem, dash + 1)
-          gsub(/-/, " ", fallback_name)
-        }
+collect_command_files() {
+  local -n files_ref="$1"
+  local file=""
+  files_ref=()
 
-        if (group == "") group = fallback_group
-        if (!name_seen) name = fallback_name
-        if (summary == "" && fallback_summary != "") summary = fallback_summary
-        if (summary == "") {
-          summary = stem
-          gsub(/-/, " ", summary)
-          summary = "Run the " summary " command"
-        }
-
-        route = "omarchy " group
-        if (name != "") route = route " " name
-
-        if (args == "" && sub_args_joined != "") args = sub_args_joined
-        usage = (args != "" ? route " " args : route)
-        if (requires_sudo != "true") requires_sudo = "false"
-        if (hidden != "true") hidden = "false"
-
-        clean_aliases = ""
-        if (aliases != "") {
-          n = split(aliases, parts, "|")
-          for (i = 1; i <= n; i++) {
-            a = parts[i]
-            sub(/^ /, "", a)
-            sub(/ $/, "", a)
-            if (a == "" || a == route) continue
-            clean_aliases = (clean_aliases == "" ? a : clean_aliases "|" a)
-          }
-        }
-
-        printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", \
-          file_binary, route, fallback_route, group, name, summary, usage, args, \
-          subcommands, examples, clean_aliases, requires_sudo, hidden, has_summary, metadata_errors
-      }
-      BEGINFILE {
-        reset_file(FILENAME)
-        if (ERRNO != "") {
-          printf "omarchy: %s: %s\n", FILENAME, ERRNO > "/dev/stderr"
-          emit_file()
-          nextfile
-        }
-      }
-      ENDFILE { emit_file() }
-      FNR > limit { nextfile }
-      FNR == 1 && /^#!/ { next }
-      /^[[:space:]]*$/ { next }
-      !/^[[:space:]]*#/ { nextfile }
-      {
-        if (match($0, /^[[:space:]]*#[[:space:]]*omarchy:([[:alnum:]_-]+)=(.*)$/, m)) {
-          k = m[1]
-          v = m[2]
-          sub(/\r$/, "", v)
-          gsub(/\t/, " ", v)
-          if (k == "group") group = v
-          else if (k == "name") { name = v; name_seen = 1 }
-          else if (k == "summary") { summary = v; if (v != "") has_summary = "true" }
-          else if (k == "args") args = v
-          else if (k == "subcommand") {
-            sep = index(v, " — ")
-            if (sep > 0) {
-              sa = substr(v, 1, sep - 1)
-              ss = substr(v, sep + length(" — "))
-              entry = sa "\x1d" ss
-              subcommands = (subcommands == "" ? entry : subcommands "\x1e" entry)
-              sub_args_joined = (sub_args_joined == "" ? sa : sub_args_joined " | " sa)
-            } else {
-              append_err("subcommand must be \x27<args> — <summary>\x27")
-            }
-          }
-          else if (k == "examples") examples = v
-          else if (k == "alias" || k == "aliases") aliases = v
-          else if (k == "requires-sudo") {
-            requires_sudo = v
-            if (v != "true") append_err("requires-sudo must be omitted or true")
-          }
-          else if (k == "hidden") {
-            hidden = v
-            if (v != "true") append_err("hidden must be omitted or true")
-          }
-        } else if (fallback_summary == "" && match($0, /^[[:space:]]*#[[:space:]]*(.+)$/, m)) {
-          v = m[1]
-          sub(/\r$/, "", v)
-          gsub(/\t/, " ", v)
-          if (v != "" && v !~ /^omarchy:/) fallback_summary = v
-        }
-      }
-    ' "$@"
-  )
+  for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
+    [[ -f $file && -x $file ]] || continue
+    files_ref+=("$file")
+  done
 }
 
 reset_commands() {
@@ -561,14 +575,8 @@ reset_commands() {
 }
 
 load_commands() {
-  local file=""
   local files=()
-
-  for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
-    [[ -f $file && -x $file ]] || continue
-    files+=("$file")
-  done
-
+  collect_command_files files
   register_command_files "${files[@]}"
 }
 
@@ -745,24 +753,6 @@ sorted_keys() {
   done | sort -u | cut -f2-
 }
 
-fallback_group_for_key() {
-  local key="$1"
-  local fallback="${COMMAND_FALLBACK_ROUTE[$key]#omarchy }"
-
-  printf '%s' "${fallback%% *}"
-}
-
-command_route_for_group() {
-  local key="$1"
-  local group="$2"
-
-  if [[ $(fallback_group_for_key "$key") == "$group" && ${COMMAND_GROUP[$key]} != "$group" ]]; then
-    printf '%s' "${COMMAND_FALLBACK_ROUTE[$key]}"
-  else
-    printf '%s' "${COMMAND_ROUTE[$key]}"
-  fi
-}
-
 # Appends a command's table rows under the given route to the named variable:
 # one per declared subcommand, each with its own summary, or a single row with
 # the full usage. Appending in place keeps full listings free of a subshell per
@@ -787,6 +777,7 @@ sorted_group_keys() {
   local group="$1"
   local include_all="$2"
   local key=""
+  local fallback=""
   local fallback_group=""
   local route=""
 
@@ -795,12 +786,17 @@ sorted_group_keys() {
       continue
     fi
 
-    fallback_group=$(fallback_group_for_key "$key")
+    fallback="${COMMAND_FALLBACK_ROUTE[$key]#omarchy }"
+    fallback_group="${fallback%% *}"
     if [[ ${COMMAND_GROUP[$key]} != "$group" && $fallback_group != "$group" ]]; then
       continue
     fi
 
-    route=$(command_route_for_group "$key" "$group")
+    if [[ $fallback_group == "$group" && ${COMMAND_GROUP[$key]} != "$group" ]]; then
+      route="${COMMAND_FALLBACK_ROUTE[$key]}"
+    else
+      route="${COMMAND_ROUTE[$key]}"
+    fi
     printf '%s\t%s\n' "$route" "$key"
   done | sort -u | cut -f2-
 }
@@ -904,10 +900,9 @@ print_command_table() {
 
 show_commands() {
   local include_all="$1"
-  local key=""
-  local route=""
-  local rows=""
-  local alias_rows=""
+  local files=()
+
+  collect_command_files files
 
   if [[ $include_all == "true" ]]; then
     echo "Omarchy commands (all):"
@@ -915,55 +910,115 @@ show_commands() {
     echo "Omarchy commands:"
   fi
 
-  while IFS= read -r key; do
-    [[ -n $key ]] || continue
-    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
-  done < <(sorted_keys "$include_all")
+  (( ${#files[@]} > 0 )) || return 0
 
-  print_command_table "$rows"
+  scan_command_files "${files[@]}" | awk -F'\x1f' -v all="$include_all" '
+    {
+      key = $1; route = $2; fallback = $3; summary = $6; usage = $7
+      subcommands = $9; aliases = $11; hidden = $13
 
-  for route in "${!ROUTE_IS_ALIAS[@]}"; do
-    key="${ROUTE_TO_KEY[$route]}"
-    if [[ $include_all != "true" && ${COMMAND_HIDDEN[$key]} == "true" ]]; then
-      continue
-    fi
-    alias_rows+="$route"$'\t'"${COMMAND_ROUTE[$key]}"$'\n'
-  done
+      if (!(route in route_to_key)) route_to_key[route] = key
+      if (fallback != route && !(fallback in route_to_key)) route_to_key[fallback] = key
+      if (aliases != "") {
+        n = split(aliases, arr, "|")
+        for (i = 1; i <= n; i++) {
+          a = arr[i]
+          if (!(a in route_to_key) || route_to_key[a] == key) {
+            route_to_key[a] = key
+            alias_target[a] = route
+            alias_hidden[a] = hidden
+          }
+        }
+      }
 
-  if [[ -n $alias_rows ]]; then
-    echo ""
-    echo "Aliases:"
-    print_command_table "$(printf '%s' "$alias_rows" | sort)"
-  fi
-}
-
-markdown_escape() {
-  local value="$1"
-  value="${value//|/\\|}"
-  printf '%s' "$value"
+      if (all == "true" || hidden != "true") {
+        printf "1\x1f%s\t%s\x1f%s\x1f%s\x1f%s\x1f%s\n", route, key, route, usage, summary, subcommands
+      }
+    }
+    END {
+      for (a in alias_target) {
+        if (all == "true" || alias_hidden[a] != "true") {
+          printf "2\x1f%s\t%s\x1f%s\x1f%s\n", a, alias_target[a], a, alias_target[a]
+        }
+      }
+    }
+  ' | sort -t$'\x1f' -k1,1 -k2,2 | awk -F'\x1f' '
+    function print_table(cmds, sums, count,   i, w, max_w) {
+      max_w = 0
+      for (i = 1; i <= count; i++) {
+        w = length(cmds[i])
+        if (w > max_w) max_w = w
+      }
+      if (max_w > 48) max_w = 48
+      for (i = 1; i <= count; i++) {
+        printf "  %-*s  %s\n", max_w, cmds[i], sums[i]
+      }
+    }
+    $1 == "1" {
+      route = $3; usage = $4; summary = $5; subs = $6
+      if (subs != "") {
+        n = split(subs, entries, "\x1e")
+        for (i = 1; i <= n; i++) {
+          sep = index(entries[i], "\x1d")
+          cmd_n++
+          cmd_c[cmd_n] = route " " substr(entries[i], 1, sep - 1)
+          cmd_s[cmd_n] = substr(entries[i], sep + 1)
+        }
+      } else {
+        cmd_n++
+        cmd_c[cmd_n] = usage
+        cmd_s[cmd_n] = summary
+      }
+    }
+    $1 == "2" {
+      alias_n++
+      alias_c[alias_n] = $3
+      alias_s[alias_n] = $4
+    }
+    END {
+      print_table(cmd_c, cmd_s, cmd_n)
+      if (alias_n > 0) {
+        print ""
+        print "Aliases:"
+        print_table(alias_c, alias_s, alias_n)
+      }
+    }
+  '
 }
 
 show_commands_markdown() {
   local include_all="$1"
-  local key=""
-  local rows=""
-  local usage=""
-  local summary=""
+  local files=()
+
+  collect_command_files files
 
   echo "| Command | Binary | Summary |"
   echo "| --- | --- | --- |"
 
-  while IFS= read -r key; do
-    [[ -n $key ]] || continue
-    rows=""
-    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
-    while IFS=$'\t' read -r usage summary; do
-      printf '| `%s` | `%s` | %s |\n' \
-        "$(markdown_escape "$usage")" \
-        "$(markdown_escape "${COMMAND_BINARY[$key]}")" \
-        "$(markdown_escape "$summary")"
-    done <<<"${rows%$'\n'}"
-  done < <(sorted_keys "$include_all")
+  (( ${#files[@]} > 0 )) || return 0
+
+  scan_command_files "${files[@]}" | awk -F'\x1f' -v all="$include_all" '
+    (all == "true" || $13 != "true") {
+      printf "%s\t%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", $2, $1, $2, $1, $7, $6, $9
+    }
+  ' | sort -t$'\x1f' -k1,1 | awk -F'\x1f' '
+    function esc(s) {
+      gsub(/\|/, "\\|", s)
+      return s
+    }
+    {
+      route = $2; bin = esc($3); usage = $4; summary = $5; subs = $6
+      if (subs != "") {
+        n = split(subs, entries, "\x1e")
+        for (i = 1; i <= n; i++) {
+          sep = index(entries[i], "\x1d")
+          printf "| `%s` | `%s` | %s |\n", esc(route " " substr(entries[i], 1, sep - 1)), bin, esc(substr(entries[i], sep + 1))
+        }
+      } else {
+        printf "| `%s` | `%s` | %s |\n", esc(usage), bin, esc(summary)
+      }
+    }
+  '
 }
 
 emit_command_record() {
@@ -982,16 +1037,6 @@ emit_command_record() {
     "${COMMAND_ALIASES[$key]}" \
     "${COMMAND_FALLBACK_ROUTE[$key]}" \
     "${COMMAND_USAGE[$key]}"
-}
-
-emit_command_records() {
-  local include_all="$1"
-  local key=""
-
-  while IFS= read -r key; do
-    [[ -n $key ]] || continue
-    emit_command_record "$key"
-  done < <(sorted_keys "$include_all")
 }
 
 commands_json_filter() {
@@ -1015,8 +1060,21 @@ EOF
 
 show_commands_json() {
   local include_all="$1"
+  local files=()
 
-  emit_command_records "$include_all" | jq -Rn "$(commands_json_filter)"
+  collect_command_files files
+
+  if (( ${#files[@]} == 0 )); then
+    jq -n '{ok: true, commands: []}'
+    return 0
+  fi
+
+  scan_command_files "${files[@]}" | awk -F'\x1f' -v all="$include_all" '
+    (all == "true" || $13 != "true") {
+      printf "%s\t%s\x1f%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", \
+        $2, $1, $2, $1, $4, $5, $6, $12, $13, $8, $10, $11, $3, $7
+    }
+  ' | sort -t$'\x1f' -k1,1 | cut -d$'\x1f' -f2- | jq -Rn "$(commands_json_filter)"
 }
 
 show_commands_check() {
@@ -1098,6 +1156,7 @@ parse_commands_args() {
   done
 
   if [[ $check == "true" ]]; then
+    load_commands
     show_commands_check
   elif [[ $json == "true" ]]; then
     show_commands_json "$include_all"
@@ -1134,9 +1193,20 @@ show_group_help() {
     echo "${group^} commands:"
   fi
 
+  local fallback=""
+  local fallback_group=""
+  local route=""
+
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    append_command_rows rows "$key" "$(command_route_for_group "$key" "$group")"
+    fallback="${COMMAND_FALLBACK_ROUTE[$key]#omarchy }"
+    fallback_group="${fallback%% *}"
+    if [[ $fallback_group == "$group" && ${COMMAND_GROUP[$key]} != "$group" ]]; then
+      route="${COMMAND_FALLBACK_ROUTE[$key]}"
+    else
+      route="${COMMAND_ROUTE[$key]}"
+    fi
+    append_command_rows rows "$key" "$route"
   done < <(sorted_group_keys "$group" "$include_all")
 
   if [[ -n $rows ]]; then
@@ -1173,9 +1243,20 @@ show_related_commands() {
 
   [[ -z ${COMMAND_NAME[$key]} ]] || return
 
+  local fallback=""
+  local fallback_group=""
+  local route=""
+
   while IFS= read -r child_key; do
     [[ -n $child_key && $child_key != "$key" ]] || continue
-    append_command_rows rows "$child_key" "$(command_route_for_group "$child_key" "$group")"
+    fallback="${COMMAND_FALLBACK_ROUTE[$child_key]#omarchy }"
+    fallback_group="${fallback%% *}"
+    if [[ $fallback_group == "$group" && ${COMMAND_GROUP[$child_key]} != "$group" ]]; then
+      route="${COMMAND_FALLBACK_ROUTE[$child_key]}"
+    else
+      route="${COMMAND_ROUTE[$child_key]}"
+    fi
+    append_command_rows rows "$child_key" "$route"
   done < <(sorted_group_keys "$group" false)
 
   if [[ -n $rows ]]; then
@@ -1437,7 +1518,6 @@ main() {
     dispatch_fast_or_help system "$@"
     ;;
   commands)
-    load_commands
     parse_commands_args "$@"
     ;;
   *)
