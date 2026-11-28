@@ -7,7 +7,8 @@
 # omarchy:subcommand=pinned [<desktop-id>...] — Set the pinned apps in dock order, or print them
 # omarchy:subcommand=pin <desktop-id> — Keep an app in the dock
 # omarchy:subcommand=unpin <desktop-id> — Remove an app from the dock
-# omarchy:examples=omarchy dock position left | omarchy dock pin folio
+# omarchy:subcommand=launcher [<plugin-id>|grid] — Set what the dock's apps button opens, or print it
+# omarchy:examples=omarchy dock position left | omarchy dock pin folio | omarchy dock launcher grid
 
 set -euo pipefail
 
@@ -26,6 +27,10 @@ Usage: omarchy dock <command> [args...]
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
   unpin <desktop-id>                   Remove an app from the dock
+  launcher [<plugin-id>|grid]          Menu plugin the apps button opens in
+                                       place of the app grid; grid puts the
+                                       grid back; prints the current one when
+                                       given none
 USAGE
 }
 
@@ -108,6 +113,24 @@ cmd_unpin() {
   echo "Unpinned $id from the dock"
 }
 
+cmd_launcher() {
+  if (( $# == 0 )); then
+    jq -r '.dock.launcher // "grid"' "$(source_file)"
+    return
+  fi
+
+  local id="$1"
+  (( $# == 1 )) || fail "launcher takes a single plugin id"
+  if [[ $id == "grid" ]]; then
+    commit "$NORMALIZE | del(.dock.launcher)"
+    echo "The apps button opens the app grid"
+  else
+    [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "launcher must be a plugin id or grid"
+    commit "$NORMALIZE | .dock.launcher = \$id" --arg id "$id"
+    echo "The apps button opens $id"
+  fi
+}
+
 command="${1:-}"
 (( $# > 0 )) && shift
 
@@ -117,6 +140,7 @@ case "$command" in
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;
+  launcher) cmd_launcher "$@" ;;
   -h | --help | help) usage ;;
   *)
     usage >&2

@@ -97,6 +97,23 @@ bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+## Dock launcher
+
+`dock.launcher` in `shell.json` (`omarchy dock launcher <plugin-id>`) names a `menu`, `panel` or `overlay` plugin that the dock's apps button opens in place of the built-in app grid. The button, `omarchy-shell omarchy.dock apps`, and a tap of Super on a floating workspace toggle it with `shell.toggle()`, and clicking anything else in the dock hides it. An auto-hidden dock stays out on that screen while the launcher is open. A launcher that is not installed, is switched off, or is of another kind leaves the grid in its place.
+
+`open(payloadJson)` receives where to hang from, in logical pixels relative to the screen:
+
+```json
+{
+  "screen": "DP-1",
+  "position": "bottom",
+  "dock": { "x": 812, "y": 1328, "width": 936, "height": 64 },
+  "button": { "x": 812, "y": 1328, "width": 64, "height": 64 }
+}
+```
+
+`dock` and `button` are left out when the dock is not on screen, as on a tiled workspace; the launcher then places itself on `screen`. Both are given where an auto-hidden dock comes out to. A launcher that covers the screen to catch clicks outside itself should leave `dock` out of its input region, so the button can close it and the other apps stay clickable.
+
 ## Keeping the clock current
 
 The clock's `WallClock` moves only on its next whole-minute tick (whole-second with a seconds format), and its Qt timer counts on `CLOCK_MONOTONIC`. So after a resume, a stepped clock or a new timezone the label keeps the old time until that tick, up to a minute later. `omarchy-clock-resync.timer` closes that gap without a process or a poll. `omarchy-settings` ships it and `omarchy-clock-resync.service` in `/usr/lib/systemd/user`; first-run enables the timer on new installs and a migration enables it on existing ones.

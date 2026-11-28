@@ -122,6 +122,9 @@ assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspa
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
+assert(dock.isLauncher({ kinds: ['menu'] }) && dock.isLauncher({ kinds: ['bar-widget', 'panel'] }), 'dock hands the apps button to a menu or panel plugin')
+assert(!dock.isLauncher({ kinds: ['bar-widget'] }) && !dock.isLauncher(undefined), 'dock keeps the apps button from a plugin the shell cannot open')
+
 const fs = require('fs')
 const vm = require('vm')
 const dockQml = fs.readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
@@ -199,6 +202,19 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
+
+[[ $(omarchy_dock launcher) == "grid" ]] || fail "the apps button opens the grid by default"
+omarchy_dock launcher acme.start-menu >/dev/null
+jq -e '.dock.launcher == "acme.start-menu" and .dock.autohide == false' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock launcher is saved" "$(cat "$home/.config/omarchy/shell.json")"
+[[ $(omarchy_dock launcher) == "acme.start-menu" ]] || fail "dock launcher reads back"
+if omarchy_dock launcher '../start menu' 2>/dev/null; then
+  fail "dock launcher takes only a plugin id"
+fi
+omarchy_dock launcher grid >/dev/null
+jq -e '.dock | has("launcher") | not' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock launcher grid puts the grid back" "$(cat "$home/.config/omarchy/shell.json")"
+pass "dock launcher is set through omarchy-dock launcher"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
