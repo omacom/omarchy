@@ -1,0 +1,14 @@
+# The splash's own files are among the inputs 91-omarchy-initcpio-rebuild.hook
+# hashes. This is for the image's sway, which draws with wlroots, and Omarchy's
+# build of it carries the multi-GPU copy. Upgrades only: the migration that
+# brings the splash in builds the first image.
+[Trigger]
+Operation = Upgrade
+Type = Path
+Target = usr/lib/libwlroots-0.20.so*
+
+[Action]
+Description = Rebuilding the boot images for the updated boot splash...
+When = PostTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-update-boot-splash

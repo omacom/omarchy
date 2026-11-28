@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Restart the login screen after sleep if no local seat session exists
+# omarchy:group=system
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# A greeter or autologin session that could not start while the sleep froze
+# user.slice strands the display. SDDM stays up without one; greetd exits at
+# each failure, until systemd gives up restarting it and leaves it failed.
+if systemctl is-active --quiet display-manager.service; then
+  state=active
+elif systemctl is-failed --quiet display-manager.service; then
+  state=failed
+else
+  exit 0
+fi
+
+# Fail closed when logind cannot be queried so a running session is never killed.
+sessions=$(loginctl list-sessions --no-legend 2>/dev/null) || exit 0
+
+# Any session bound to a local seat (desktop, TTY login, or healthy greeter)
+# means the display manager did not strand the display. Seatless background
+# sessions (manager, sshd) leave the seat empty and do not count.
+if awk '$4 ~ /^seat/ { found=1; exit } END { exit !found }' <<<"$sessions"; then
+  exit 0
+fi
+
+if [[ $state == "failed" ]]; then
+  systemctl reset-failed display-manager.service
+  systemctl start --no-block display-manager.service
+else
+  systemctl restart --no-block display-manager.service
+fi

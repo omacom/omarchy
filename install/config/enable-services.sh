@@ -14,7 +14,6 @@ systemctl enable \
   systemd-resolved.service \
   NetworkManager.service \
   power-profiles-daemon.service \
-  sddm.service \
   systemd-oomd.service \
   omarchy-shutdown-ramfs.timer
 

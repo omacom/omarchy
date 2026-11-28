@@ -137,9 +137,10 @@ omarchy_keymap_xkb_extra() {
 
 # Prints the /etc/vconsole.conf XKB lines for a keymap that
 # omarchy_keymap_xkb_extra knows, or returns 1. systemd-firstboot and localectl
-# write XKB lines only for keymaps in kbd-model-map. Hyprland, the SDDM greeter
-# and the initramfs read the layout from these lines. The ISO and first-boot
-# setup add them when they write the keymap of the installed system.
+# write XKB lines only for keymaps in kbd-model-map. Hyprland, the login screen
+# and the boot splash read the layout from these lines. The ISO and first-boot
+# setup add them when they write the keymap of the installed system, and the
+# boot splash's migration on a machine set up before them.
 omarchy_keymap_xkb_settings() {
   local layout variant options
   read -r layout variant options < <(omarchy_keymap_xkb_extra "$1") || return 1
@@ -151,7 +152,7 @@ omarchy_keymap_xkb_settings() {
 }
 
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
-OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
+OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm|greeter)$'
 OMARCHY_HOSTNAME_PATTERN='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
 OMARCHY_HOSTNAME_DEFAULT='omarchy'
 

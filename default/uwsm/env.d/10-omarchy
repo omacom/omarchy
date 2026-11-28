@@ -15,6 +15,15 @@ fi
 # Optional user overrides kept for compatibility with older installs.
 [ -f "$HOME/.config/uwsm/default" ] && . "$HOME/.config/uwsm/default"
 
+# aquamarine keeps whatever a display shows rather than set its mode, which is
+# the boot splash's picture only for the first compositor after it
+# (default/splash/hold); after the login screen it is the console.
+if [ -e /run/omarchy-splash-hold/adopt ]; then
+  export AQ_SPLASH_ADOPT=1
+else
+  unset AQ_SPLASH_ADOPT
+fi
+
 # Put mise shims ahead of system binaries, behind the account dispatchers the
 # env bootstrap put first, without spawning mise on every graphical login.
 if command -v mise >/dev/null 2>&1; then

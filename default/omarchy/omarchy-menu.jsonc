@@ -125,7 +125,6 @@
   "appearance.workspace-layout.floating": {"icon":"󰔶","label":"Floating","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"floating\" ]]","action":"omarchy-hyprland-workspace-layout-default floating"},
   "appearance.animations-on": {"icon":"󰗘","label":"Animations On","when":"omarchy-hyprland-animations-off","action":"omarchy-toggle-animations"},
   "appearance.animations-off": {"icon":"󰗘","label":"Animations Off","when":"! omarchy-hyprland-animations-off","action":"omarchy-toggle-animations"},
-  "appearance.unlock": {"icon":"󰟵","label":"Unlock","aliases":["unlock"],"action":"unlock=$(omarchy-plymouth-switcher); if [[ $unlock == default ]]; then omarchy-launch-floating-terminal-with-presentation omarchy-plymouth-reset; elif [[ -n $unlock ]]; then omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-set-by-theme $(printf %q \"$unlock\")\"; fi"},
 
   // Trigger
   "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},
@@ -506,7 +505,6 @@
   "update.process.shell": {"icon":"󰍜","label":"Shell","action":"omarchy-restart-shell"},
   "update.config.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-floating-terminal-with-presentation omarchy-refresh-hyprland"},
   "update.config.hyprsunset": {"icon":"","label":"Hyprsunset","action":"omarchy-launch-floating-terminal-with-presentation omarchy-refresh-hyprsunset"},
-  "update.config.plymouth": {"icon":"󱣴","label":"Plymouth","action":"omarchy-launch-floating-terminal-with-presentation omarchy-refresh-plymouth"},
   "update.config.tmux": {"icon":"","label":"Tmux","action":"omarchy-launch-floating-terminal-with-presentation omarchy-refresh-tmux"},
   "update.config.shell": {"icon":"󰍜","label":"Shell","action":"omarchy-launch-floating-terminal-with-presentation omarchy-refresh-shell"},
   "update.hardware.audio": {"icon":"","label":"Audio","action":"omarchy-launch-floating-terminal-with-presentation omarchy-restart-audio"},

@@ -1,0 +1,145 @@
+#!/usr/bin/ash
+# Stands in for Plymouth's client inside an initramfs built with the
+# omarchy-splash hook. The encrypt hook asks `plymouth --ping` whether a splash
+# is up and then hands the unlock to `plymouth ask-for-password
+# --command=...`, so those two follow Plymouth. `display-message` hands the
+# splash a text to show, such as omarchy-restore's. Anything else a hook tells
+# Plymouth is accepted and has nothing to do.
+#
+# This runs under the initramfs's busybox ash, like mkinitcpio's own hooks.
+
+run=/run/omarchy-splash
+
+alive() {
+  [ -r "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null
+}
+
+# Whether the splash's attempt at request $1 is still running (see answer),
+# which it may be after the splash itself has gone.
+answering() {
+  local request pid
+  [ -r "$run/answering" ] || return 1
+  read -r request pid <"$run/answering"
+  [ "$request" = "$1" ] && kill -0 "$pid" 2>/dev/null
+}
+
+# Waits for the splash to show a window. It may first wait up to 8 seconds
+# for a display, then needs a moment to start sway and Quickshell. There is no
+# file watcher in the initramfs, so it looks every tenth of a second.
+wait_ready() {
+  local i=0
+  while [ ! -e "$run/ready" ]; do
+    alive "$run/session.pid" || return 1
+    [ "$i" -lt 200 ] || return 1
+    sleep 0.1
+    i=$((i + 1))
+  done
+}
+
+# What Plymouth's client does without its daemon: run the command on the
+# console and let it prompt, as many times as the tries allow.
+console() {
+  local command=$1 tries=$2 status
+
+  /usr/lib/omarchy-splash/stop
+  while :; do
+    # Unquoted on purpose: Plymouth splits the command on spaces.
+    if $command; then
+      return 0
+    else
+      status=$?
+    fi
+    if [ "$tries" -gt 0 ]; then
+      tries=$((tries - 1))
+      [ "$tries" -gt 0 ] || return "$status"
+    fi
+  done
+}
+
+ask_for_password() {
+  local command="" tries=0 id status reply answer
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --command=*) command=${1#--command=} ;;
+      --command) shift; command=$1 ;;
+      --number-of-tries=*) tries=${1#--number-of-tries=} ;;
+      --number-of-tries) shift; tries=$1 ;;
+      --prompt) shift ;;
+    esac
+    shift
+  done
+
+  # Without a command Plymouth prints the password, which no hook here uses.
+  [ -n "$command" ] || return 1
+
+  # A console keymap the splash cannot type with (see session) leaves the
+  # password to the console, as with Plymouth.
+  if ! wait_ready || [ -e "$run/console-keys" ]; then
+    console "$command" "$tries"
+    return
+  fi
+
+  rm -f "$run/result"
+  mkfifo -m 0600 "$run/result"
+  exec 3<>"$run/result"
+
+  while :; do
+    # Request ids only grow, so the splash can tell a new request from the
+    # one it last answered, across every ask-for-password this boot.
+    id=$(( $(cat "$run/last-request" 2>/dev/null || echo 0) + 1 ))
+    echo "$id" >"$run/last-request"
+    printf 'id=%s\ncommand=%s\n' "$id" "$command" >"$run/request.new"
+    mv "$run/request.new" "$run/request"
+
+    # The session outlives a splash that starts again on another GPU (see
+    # session), and ends when the splash is gone for good. An attempt the
+    # splash started is waited for even then: the console's own attempt would
+    # find the volume it unlocked already open, and fail forever.
+    status=""
+    while [ -z "$status" ]; do
+      if read -r -t 1 -u 3 reply answer; then
+        [ "$reply" = "$id" ] && status=$answer
+      elif ! alive "$run/session.pid" && ! answering "$id"; then
+        exec 3>&-
+        rm -f "$run/request" "$run/result" "$run/answering"
+        console "$command" "$tries"
+        return
+      fi
+    done
+
+    [ "$status" = 0 ] && break
+    if [ "$tries" -gt 0 ]; then
+      tries=$((tries - 1))
+      [ "$tries" -gt 0 ] || break
+    fi
+  done
+
+  exec 3>&-
+  rm -f "$run/request" "$run/result" "$run/answering"
+  return "$status"
+}
+
+# The splash shows only the latest message (shell.qml), as Omarchy's Plymouth
+# theme did.
+display_message() {
+  local text=""
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --text=*) text=${1#--text=} ;;
+      --text) shift; text=$1 ;;
+    esac
+    shift
+  done
+
+  printf '%s\n' "$text" >"$run/message.new" && mv "$run/message.new" "$run/message"
+}
+
+case $1 in
+  --ping) alive "$run/session.pid" ;;
+  ask-for-password) shift; ask_for_password "$@" ;;
+  display-message) shift; display_message "$@" ;;
+  quit | --quit) /usr/lib/omarchy-splash/stop ;;
+  *) exit 0 ;;
+esac

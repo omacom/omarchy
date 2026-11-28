@@ -1,0 +1,154 @@
+#!/bin/bash
+
+# omarchy:summary=Set who the login screen signs in, and whether boot signs them in by itself
+# omarchy:args=[--root <dir>] (<user> [--autologin] | --no-autologin | --from-sddm | --reset)
+# omarchy:examples=omarchy system login alice --autologin | omarchy system login --no-autologin
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# greetd shows the login screen (default/splash/greeter) for one user, and with
+# autologin starts that user's session once a boot without asking: on an
+# encrypted install the LUKS prompt is where the owner signs in. This writes
+# greetd's whole configuration, so nothing else needs to edit it.
+#
+#   <user> [--autologin]  the user the login screen signs in, and autologin
+#   --no-autologin        keep the user, stop signing them in by itself
+#   --from-sddm           carry over the user and autologin SDDM had
+#   --reset               nobody in particular, as before setup creates a user
+#
+# --root writes the configuration of the system tree at <dir> (a snapshot a
+# factory reset prepares, or a test's) instead of this one.
+
+root=""
+if [[ ${1:-} == "--root" ]]; then
+  root=${2:?omarchy-system-login: --root needs a directory}
+  shift 2
+elif (( EUID != 0 )); then
+  echo "omarchy-system-login: run this as root (with sudo)" >&2
+  exit 1
+fi
+
+config=$root/etc/greetd/config.toml
+splash=/usr/share/omarchy/default/splash
+username_pattern='^[a-z_][a-z0-9_-]*[$]?$'
+
+usage() {
+  echo "Usage: omarchy-system-login [--root <dir>] (<user> [--autologin] | --no-autologin | --from-sddm | --reset)" >&2
+  exit 1
+}
+
+# The value of key= in an SDDM ini file's lines, the last one winning as SDDM
+# reads them.
+ini_value() {
+  local key=$1 file=$2
+  [[ -f $file ]] || return 0
+  sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*\\([^[:space:]]*\\).*/\\1/p" "$file" | tail -n 1
+}
+
+# The user the current configuration's login screen names, if any.
+configured_user() {
+  [[ -f $config ]] || return 0
+  sed -n "s|^command = \"$splash/greeter \\([^\"]*\\)\"\$|\\1|p" "$config" | head -n 1
+}
+
+user_exists() {
+  if [[ -n $root ]]; then
+    grep -q "^$1:" "$root/etc/passwd" 2>/dev/null
+  else
+    getent passwd "$1" >/dev/null
+  fi
+}
+
+user="" autologin=false carried=false
+case ${1:-} in
+  --no-autologin)
+    (( $# == 1 )) || usage
+    user=$(configured_user)
+    carried=true
+    ;;
+  --from-sddm)
+    (( $# == 1 )) || usage
+    # SDDM autologged in whoever autologin.conf named, and otherwise remembered
+    # who logged in last.
+    user=$(ini_value User "$root/etc/sddm.conf.d/autologin.conf")
+    if [[ -n $user ]]; then
+      # A deferred install's first boot can still have temporary SDDM
+      # autologin. Its pending cleanup only removes SDDM's file; importing
+      # that exception here would make greetd keep it on every later boot.
+      cleanup=$root/etc/systemd/system/graphical.target.wants/omarchy-provision-autologin-once.service
+      if [[ -e $cleanup || -L $cleanup ]]; then
+        autologin=false
+      else
+        autologin=true
+      fi
+    else
+      user=$(ini_value User "$root/var/lib/sddm/state.conf")
+    fi
+    carried=true
+    ;;
+  --reset)
+    (( $# == 1 )) || usage
+    ;;
+  "" | -*)
+    usage
+    ;;
+  *)
+    user=$1
+    case $# in
+      1) ;;
+      2) [[ $2 == "--autologin" ]] || usage; autologin=true ;;
+      *) usage ;;
+    esac
+    ;;
+esac
+
+if [[ -n $user ]] && { [[ ! $user =~ $username_pattern ]] || ! user_exists "$user"; }; then
+  if $carried; then
+    # A name carried over from an older configuration whose account is gone:
+    # show the login screen for nobody in particular instead.
+    user="" autologin=false
+  else
+    echo "omarchy-system-login: no such user: $user" >&2
+    exit 1
+  fi
+fi
+
+mkdir -p "${config%/*}"
+# text_mode = false: Omarchy's greetd leaves the console in the graphics mode
+# the boot splash left it in, for the greeter and every session ("The handoff
+# to the desktop" in docs/boot-splash.md). A greetd without the key ignores it.
+# The sessions' PAM service ships in omarchy-settings, and greetd won't start
+# if the service it names is missing, so this names it only once
+# omarchy-settings has installed it.
+{
+  echo "# The login screen and autologin, written by omarchy-system-login: run it"
+  echo "# again to change them rather than editing this file."
+  echo
+  echo "[terminal]"
+  echo "vt = 1"
+  echo "text_mode = false"
+  if [[ -f $root/etc/pam.d/omarchy-login ]]; then
+    echo
+    echo "[general]"
+    echo "service = \"omarchy-login\""
+  fi
+  echo
+  echo "[default_session]"
+  if [[ -n $user ]]; then
+    echo "command = \"$splash/greeter $user\""
+  else
+    echo "command = \"$splash/greeter\""
+  fi
+  echo "user = \"greeter\""
+  if $autologin && [[ -n $user ]]; then
+    echo
+    echo "[initial_session]"
+    echo "command = \"$splash/login-session\""
+    echo "user = \"$user\""
+  fi
+} >"$config.new"
+
+chmod 0644 "$config.new"
+mv -f "$config.new" "$config"
