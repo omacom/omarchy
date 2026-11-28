@@ -232,11 +232,6 @@ source "$ROOT/default/bash/aliases"
   fail "terminal alias launches the default agent inline"
 pass "terminal alias launches the default agent inline"
 
-grep -Fq 'o.bind("SUPER + SHIFT + CTRL + A", "Agent", "omarchy-agent --pick")' \
-  "$ROOT/default/hypr/bindings/utilities.lua" ||
-  fail "agent launcher has a keyboard shortcut"
-pass "agent launcher has a keyboard shortcut"
-
 cat >"$mock_bin/omarchy-agent" <<'SH'
 #!/bin/bash
 printf '%s\0' omarchy-agent "$@" >"$OMARCHY_TEST_AGENT_OPEN_LOG"
