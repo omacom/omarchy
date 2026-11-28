@@ -10,6 +10,25 @@ else
   instance=(--instance 0)
 fi
 
+# Report a Lua syntax error in the user's config before reloading, so the
+# caller sees it instead of a silently swallowed reload. Hyprland itself
+# skips a broken override and keeps running on the defaults.
+if omarchy-cmd-present lua; then
+  for config_file in "$HOME"/.config/hypr/hyprland.lua "$HOME"/.config/hypr/monitors.lua "$HOME"/.config/hypr/input.lua "$HOME"/.config/hypr/bindings.lua "$HOME"/.config/hypr/looknfeel.lua "$HOME"/.config/hypr/autostart.lua; do
+    [[ -f $config_file ]] || continue
+
+    HYPR_CONFIG_FILE="$config_file" timeout 10 lua -E - >&2 <<'LUA' || true
+local file, err = loadfile(os.getenv("HYPR_CONFIG_FILE"))
+if not file then
+  print(err)
+  os.exit(1)
+end
+LUA
+  done
+fi
+
 # With no Hyprland running there is nothing to reload; it reads the saved
-# config when it starts, so that is not a failure for the caller.
-hyprctl "${instance[@]}" reload >/dev/null 2>&1 || true
+# config when it starts, so that is not a failure for the caller. The reload
+# is time-boxed so a wedged compositor cannot wedge the caller, and its
+# output is left visible so a failed reload reports its error.
+timeout 10 hyprctl "${instance[@]}" reload >&2 || true

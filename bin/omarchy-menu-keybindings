@@ -20,7 +20,7 @@ key_names_file=/usr/share/omarchy-platform/key-names
 leading_keyboard() {
   local option raw value
   for option in kb_layout kb_variant; do
-    raw=$(hyprctl -j getoption "input:$option" 2>/dev/null)
+    raw=$(timeout 10 hyprctl -j getoption "input:$option" 2>/dev/null)
     value=""
     if [[ $raw =~ \"str\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
       value=${BASH_REMATCH[1]}
@@ -422,7 +422,7 @@ dynamic_bindings() {
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
   # bindsRequest), and older versions broke on quotes in bind args.
-  hyprctl binds | awk '
+  timeout 10 hyprctl binds | awk '
     function emit() {
       if (!seen) return
       seen = 0
@@ -712,7 +712,7 @@ keybindings_cache_key() {
 
   # Fetch all Hyprland state in one batched IPC call (falls back to separate
   # calls for older Hyprland or test stubs that don't handle --batch).
-  batch=$(hyprctl --batch "j/getoption input:kb_layout ; j/getoption input:kb_variant ; devices ; binds" 2>/dev/null || true)
+  batch=$(timeout 10 hyprctl --batch "j/getoption input:kb_layout ; j/getoption input:kb_variant ; devices ; binds" 2>/dev/null || true)
 
   read -r hash _ < <(
     {
@@ -734,8 +734,8 @@ keybindings_cache_key() {
         printf '%s\n' "$batch"
       else
         leading_keyboard
-        hyprctl devices 2>/dev/null | grep -F 'active keymap:'
-        hyprctl binds 2>/dev/null
+        timeout 10 hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+        timeout 10 hyprctl binds 2>/dev/null
       fi
     } | sha256sum
   )

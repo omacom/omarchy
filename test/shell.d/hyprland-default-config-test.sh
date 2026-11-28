@@ -262,3 +262,87 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# A broken or missing user override must not abort hyprland.lua: later overrides
+# and default.hypr.toggles still run, even with an existing user's bare require()
+# calls.
+override_home="$tmpdir/override-home"
+mkdir -p "$override_home/.config/hypr" "$override_home/.local/state/omarchy/toggles/hypr"
+cat >"$override_home/.config/hypr/monitors.lua" <<'LUA'
+_G.test_monitors_ran = true
+LUA
+cat >"$override_home/.config/hypr/bindings.lua" <<'LUA'
+this is not lua {{{
+LUA
+cat >"$override_home/.config/hypr/looknfeel.lua" <<'LUA'
+error("runtime boom in looknfeel")
+LUA
+cat >"$override_home/.config/hypr/autostart.lua" <<'LUA'
+_G.test_autostart_ran = true
+LUA
+# input.lua is intentionally absent to verify missing overrides are skipped.
+cat >"$override_home/.local/state/omarchy/toggles/hypr/no-animations.lua" <<'LUA'
+require("default.hypr.toggles.no-animations")
+LUA
+
+override_err="$tmpdir/override.err"
+HOME="$override_home" XDG_CONFIG_HOME="$override_home/.config" XDG_STATE_HOME="$override_home/.local/state" OMARCHY_PATH="$ROOT" \
+  lua - 2>"$override_err" <<'LUA' || fail "broken user overrides do not abort hyprland.lua" "$(<"$override_err")"
+local function proxy()
+  return setmetatable({}, {
+    __index = function(self, key)
+      local value = proxy()
+      rawset(self, key, value)
+      return value
+    end,
+    __call = function() return {} end,
+  })
+end
+
+local animations_disabled = false
+hl = setmetatable({
+  dsp = proxy(),
+  bind = function() end,
+  config = function(cfg)
+    if cfg and cfg.animations and cfg.animations.enabled == false then
+      animations_disabled = true
+    end
+  end,
+  env = function() end,
+  monitor = function() end,
+  window_rule = function() end,
+  workspace_rule = function() end,
+  layer_rule = function() end,
+  gesture = function() end,
+  animation = function() end,
+  curve = function() end,
+  exec_cmd = function() end,
+  dispatch = function() end,
+  on = function() end,
+  timer = function() return { set_enabled = function() end } end,
+  get_config = function() return nil end,
+  get_active_window = function() return nil end,
+}, {
+  __index = function()
+    return function() return {} end
+  end,
+})
+
+dofile(os.getenv("OMARCHY_PATH") .. "/config/hypr/hyprland.lua")
+
+assert(_G.test_monitors_ran == true, "override before the broken file ran")
+assert(_G.test_autostart_ran == true, "override after syntax and runtime errors still ran")
+assert(package.loaded["default.hypr.toggles"] ~= nil, "default.hypr.toggles still loaded")
+assert(animations_disabled == true, "toggles after user overrides still applied")
+
+-- Reloading bootstrap must replace its searcher rather than stacking copies.
+local before_count = #(package.searchers or package.loaders)
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+assert(#(package.searchers or package.loaders) == before_count, "reloading bootstrap keeps searcher count stable")
+LUA
+
+grep -Fq 'Could not load hypr.bindings:' "$override_err" ||
+  fail "syntax error in user override is reported" "$(<"$override_err")"
+grep -Fq 'Could not load hypr.looknfeel:' "$override_err" ||
+  fail "runtime error in user override is reported" "$(<"$override_err")"
+pass "broken or missing user overrides keep later overrides and toggles running"
