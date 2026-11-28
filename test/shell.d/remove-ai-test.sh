@@ -23,6 +23,12 @@ printf 'pkill:%s\n' "$*" >>"$TEST_LOG"
 SCRIPT
 chmod +x "$tmp_dir/bin/pkill"
 
+cat >"$tmp_dir/bin/pgrep" <<'SCRIPT'
+#!/bin/bash
+printf 'pgrep:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/pgrep"
+
 # omarchy-remove-ai-perplexity asks through gum whether the user's data goes
 # too. The stub answers "no" unless a test says otherwise and logs the call: a
 # real gum would hang the run, and one that answered "yes" on its own would be
@@ -452,11 +458,35 @@ pass "OpenClaw removal drops a service's restart record with the service, before
 
 # Antigravity CLI (agy) state and shared skills live under ~/.gemini, while
 # the desktop app keeps its Electron state in ~/.config/Antigravity.
+cat >"$tmp_dir/bin/pgrep" <<'SCRIPT'
+#!/bin/bash
+printf 'pgrep:%s\n' "$*" >>"$TEST_LOG"
+cat <<'EOF'
+101 /opt/Antigravity/antigravity
+102 /opt/Antigravity/antigravity --type=gpu-process --ozone-platform=wayland
+103 /opt/Antigravity/antigravity --type=renderer --app-path=/opt/Antigravity/resources/app.asar
+104 /home/user/.t3/tools/antigravity-acp/antigravity acp
+EOF
+SCRIPT
+chmod +x "$tmp_dir/bin/pgrep"
+
+cat >"$tmp_dir/bin/kill" <<'SCRIPT'
+#!/bin/bash
+printf 'kill:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/kill"
+
+cat >"$tmp_dir/disable-kill.sh" <<'SCRIPT'
+enable -n kill
+SCRIPT
+
 : >"$TEST_LOG"
 fresh_home
 mkdir -p "$HOME/.config/Antigravity" "$HOME/.cache/antigravity-updater" \
   "$HOME/.gemini/antigravity" "$HOME/.gemini/antigravity-cli" "$HOME/.gemini/config"
-"$ROOT/bin/omarchy-remove-ai-antigravity" >/dev/null
+BASH_ENV="$tmp_dir/disable-kill.sh" "$ROOT/bin/omarchy-remove-ai-antigravity" >/dev/null
+
+rm -f "$tmp_dir/bin/kill" "$tmp_dir/disable-kill.sh"
 
 for gone in .config/Antigravity .cache/antigravity-updater; do
   [[ ! -e $HOME/$gone ]] || fail "Antigravity removal deletes the desktop app's config and caches" "$gone"
@@ -468,8 +498,9 @@ for kept in .gemini/antigravity .gemini/antigravity-cli .gemini/config; do
 done
 pass "Antigravity removal keeps ~/.gemini CLI and shared data"
 
-grep -qx 'pkill:-x antigravity' "$TEST_LOG" || fail "Antigravity removal quits the running app before deleting its state"
-pass "Antigravity removal quits the running app before deleting its state"
+grep -qx 'kill:101' "$TEST_LOG" || fail "Antigravity removal signals the main app process"
+! grep -qxE 'kill:(102|103|104)' "$TEST_LOG" || fail "Antigravity removal skips Electron child processes and unrelated antigravity binaries"
+pass "Antigravity removal signals only the main desktop process before deleting its state"
 
 grep -qx 'drop:antigravity' "$TEST_LOG" || fail "Antigravity removal drops the antigravity package"
 pass "Antigravity removal drops the antigravity package"

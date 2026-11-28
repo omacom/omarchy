@@ -8,7 +8,12 @@ set -euo pipefail
 
 # The app rewrites its config directory for as long as it runs, so a removal
 # that leaves it running deletes the directory and watches it come straight back.
-pkill -x antigravity || true
+# Signal only the main Electron process so Chromium's GPU/renderer children
+# aren't killed mid-shutdown (which triggers a SIGTRAP in the browser process).
+while read -r pid cmdline; do
+  [[ -n $pid && ( $cmdline == /opt/Antigravity/antigravity* || $cmdline == /usr/bin/antigravity* ) && $cmdline != *" --type="* ]] || continue
+  kill "$pid" 2>/dev/null || true
+done < <(pgrep -ax antigravity || true)
 
 echo "Removing Antigravity Desktop..."
 omarchy-pkg-drop antigravity
