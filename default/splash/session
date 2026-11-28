@@ -47,12 +47,12 @@ has_connectors() {
   return 1
 }
 
-# Looks for a native GPU every tenth of a second, $1 times at most: there is
-# no file watcher in the initramfs.
+# Looks for a native GPU every tenth of a second, $1 times at most, until stop
+# asks the splash to end: there is no file watcher in the initramfs.
 wait_native() {
   i=0
   find_cards
-  while [ -z "$native" ] && [ "$i" -lt "$1" ]; do
+  while [ -z "$native" ] && [ "$i" -lt "$1" ] && [ ! -e "$run/stopping" ]; do
     sleep 0.1
     i=$((i + 1))
     find_cards
@@ -60,6 +60,8 @@ wait_native() {
 }
 
 wait_native 80
+# The late hook's stop, on a boot that left the initramfs first.
+[ ! -e "$run/stopping" ] || exit 0
 devices=${native:-$firmware}
 if [ -z "$devices" ]; then
   echo "omarchy-splash: no display to draw on"

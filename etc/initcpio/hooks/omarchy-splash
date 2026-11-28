@@ -36,18 +36,27 @@ asks_passphrase() {
     END { exit !found }' "$1" 2>/dev/null
 }
 
+# Whether the splash in $run is up: its session running and its UI loaded
+# (ui/shell.qml writes ready).
+splash_up() {
+  local session
+  session=$(cat "$run/session.pid" 2>/dev/null)
+  [ -n "$session" ] && kill -0 "$session" 2>/dev/null && [ -e "$run/ready" ]
+}
+
 # As Plymouth does, the splash stays up while the real root boots, its progress
 # bar running, rather than leave the screen black until the login screen. A
 # unit for this boot only takes it down in the real root, just before the login
 # screen, a console login or an emergency shell, with the copy of `stop` the
 # real root has: the initramfs's own is gone by then.
 run_latehook() {
-  local run=/run/omarchy-splash session target
+  local run=/run/omarchy-splash target
 
-  # A volume asks_passphrase finds asks on the console while the real root
-  # boots, which the splash would cover.
-  session=$(cat "$run/session.pid" 2>/dev/null)
-  if [ -z "$session" ] || ! kill -0 "$session" 2>/dev/null || asks_passphrase /sysroot/etc/crypttab; then
+  # Only a splash that is up goes on: one still waiting for its GPU or
+  # starting, as on a fast boot, can't finish once switch_root deletes the
+  # image's files. A volume asks_passphrase finds asks on the console while the
+  # real root boots, which the splash would cover.
+  if ! splash_up || asks_passphrase /sysroot/etc/crypttab; then
     /usr/lib/omarchy-splash/stop
     return 0
   fi

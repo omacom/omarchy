@@ -82,3 +82,36 @@ signalled=$(sh -c '. "$1"; pidof() { echo 1 2 3; }; kill() { echo "$2"; }; signa
 [[ $signalled == "1 2 " ]] ||
   fail "stop signals the splash's processes in the initramfs and the real root, and no unit's" "signalled: $signalled"
 pass "stop signals the splash's processes in the initramfs and the real root, and no unit's"
+
+# The late hook leaves the splash up for the real root only once its UI is up:
+# a splash still waiting for its GPU, or starting, can't finish once
+# switch_root deletes the image's files. This shell stands in for a running
+# session.
+splash_up() {
+  sh -c 'run=$2; . "$1"; splash_up' sh "$ROOT/etc/initcpio/hooks/omarchy-splash" "$test_tmp/splash"
+}
+mkdir -p "$test_tmp/splash"
+echo $$ >"$test_tmp/splash/session.pid"
+if splash_up; then fail "a splash whose UI hasn't loaded yet isn't up"; fi
+touch "$test_tmp/splash/ready"
+splash_up || fail "a running splash whose UI has loaded is up"
+true &
+ended=$!
+wait "$ended"
+echo "$ended" >"$test_tmp/splash/session.pid"
+if splash_up; then fail "a splash whose session has ended isn't up"; fi
+pass "the late hook keeps only a running splash whose UI has loaded"
+
+# The late hook's stop ends the wait for a GPU at once, rather than hold the
+# boot up for the rest of its 8 seconds.
+run=$test_tmp/run
+mkdir -p "$run"
+touch "$run/stopping"
+rm -rf "$drm" "$dri"
+{
+  cat "$test_tmp/find-cards.sh"
+  sed -n '/^wait_native() {/,/^}/p' "$ROOT/default/splash/session"
+} >"$test_tmp/wait-native.sh"
+timeout 2 sh -c 'run=$2; . "$1"; wait_native 80' sh "$test_tmp/wait-native.sh" "$run" ||
+  fail "stop ends the wait for a GPU at once"
+pass "stop ends the wait for a GPU at once"
