@@ -379,6 +379,18 @@ ShellRoot {
     return shell.manifestHasKind(manifest, "bar")
   }
 
+  function pluginFirstPartyServiceIds(manifest, barCapabilities) {
+    if (barCapabilities)
+      return ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    // Indicator clones need their existing non-authentication service proxies,
+    // not a replacement bar's configuration or lifecycle permissions.
+    if (shell.manifestHasKind(manifest, "bar-widget")
+        && metadata && metadata.clonedFrom === "omarchy.indicators")
+      return ["omarchy.idle", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
+    return []
+  }
+
   function publicIdleConfigFor(manifest) {
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
     if (!metadata || String(metadata.clonedFrom || "") !== "omarchy.idle") return ({})
@@ -495,6 +507,10 @@ ShellRoot {
     if (_pluginFirstPartyServiceApis[proxyKey]) return _pluginFirstPartyServiceApis[proxyKey]
 
     function service() {
+      var owner = shell.pluginRegistry.installedPlugins[pluginId]
+      if (!owner || !shell.pluginRegistry.isEnabled(pluginId)
+          || shell.pluginFirstPartyServiceIds(owner, shell.pluginHasBarCapabilities(owner)).indexOf(id) === -1)
+        return null
       return shell.serviceFor(shell.pluginRegistry.resolveEnabledId(id))
     }
     var api = pluginFirstPartyServiceApiComponent.createObject(null, {
@@ -569,7 +585,8 @@ ShellRoot {
     return [
       allowOwnService ? "own-service" : "no-own-service",
       barCapabilities ? "bar" : "no-bar",
-      shell.manifestHasKind(manifest, "menu") ? "menu" : "no-menu"
+      shell.manifestHasKind(manifest, "menu") ? "menu" : "no-menu",
+      shell.pluginFirstPartyServiceIds(manifest, barCapabilities).join(",")
     ].join("|")
   }
 
@@ -632,12 +649,10 @@ ShellRoot {
     // makes QML re-enter the binding and report a loop on the caller's service
     // property, even though the resulting proxy is otherwise acyclic.
     var firstPartyServices = ({})
-    if (barCapabilities) {
-      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
-      for (var i = 0; i < serviceIds.length; i++) {
-        var serviceId = serviceIds[i]
-        firstPartyServices[serviceId] = shell.pluginFirstPartyServiceFor(cacheKey, key, serviceId)
-      }
+    var serviceIds = shell.pluginFirstPartyServiceIds(manifest, barCapabilities)
+    for (var i = 0; i < serviceIds.length; i++) {
+      var serviceId = serviceIds[i]
+      firstPartyServices[serviceId] = shell.pluginFirstPartyServiceFor(cacheKey, key, serviceId)
     }
 
     var api = pluginShellApiComponent.createObject(null, {
@@ -653,7 +668,8 @@ ShellRoot {
       _firstPartyServiceLookup: function(requestedId) {
         if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
           return shell.pluginServiceFor(key, requestedId)
-        return hasCurrentBarCapabilities() ? (firstPartyServices[requestedId] || null) : null
+        var allowed = shell.pluginFirstPartyServiceIds(currentManifest(), hasCurrentBarCapabilities())
+        return allowed.indexOf(String(requestedId || "")) !== -1 ? (firstPartyServices[requestedId] || null) : null
       },
       _barEntryShellLookup: function(ownerId, moduleName) {
         return hasCurrentBarCapabilities()
