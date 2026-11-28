@@ -86,6 +86,28 @@ unknown_rate_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$
 grep -Fx $'rate\t7.3W' <<<"$unknown_rate_output" >/dev/null || fail "an unreadable current_now leaves UPower's rate in place" "$unknown_rate_output"
 pass "battery status keeps UPower's rate when the battery has no live reading"
 
+# The Surface Pro 11's battery reads 0 cycles; its support package writes the
+# Surface EC's count to a file, which stands in for a 0 but never a real count.
+surface_dir="$tmp_dir/surface-pro-11-battery"
+mkdir -p "$surface_dir"
+cycles_output() {
+  OMARCHY_SURFACE_BATTERY_DIR="$surface_dir" OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" \
+    PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell
+}
+printf '0\n' >"$tmp_dir/power/CMB0/cycle_count"
+grep -Fx $'cycles\t0' <<<"$(cycles_output)" >/dev/null || fail "a battery's 0 cycles stand without the Surface EC's count"
+printf '148\n' >"$surface_dir/cycle-count"
+grep -Fx $'cycles\t148' <<<"$(cycles_output)" >/dev/null || fail "the Surface EC's cycle count replaces the battery's 0"
+rm "$tmp_dir/power/CMB0/cycle_count"
+grep -Fx $'cycles\t148' <<<"$(cycles_output)" >/dev/null || fail "the Surface EC's cycle count stands in for a missing one"
+printf '212\n' >"$tmp_dir/power/CMB0/cycle_count"
+grep -Fx $'cycles\t212' <<<"$(cycles_output)" >/dev/null || fail "a battery's own cycle count wins over the Surface EC's"
+printf '0\n' >"$tmp_dir/power/CMB0/cycle_count"
+printf 'unknown\n' >"$surface_dir/cycle-count"
+grep -Fx $'cycles\t0' <<<"$(cycles_output)" >/dev/null || fail "an unreadable Surface EC count is ignored"
+rm -r "$surface_dir" "$tmp_dir/power/CMB0/cycle_count"
+pass "battery status takes the Surface EC's cycle count when the battery reports none"
+
 # An 80% hold threshold doesn't trip while the battery is still below it.
 hold_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir" "$hold_dir"' EXIT

@@ -7,6 +7,7 @@ shell_output=false
 power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
 sleep_run_dir="${OMARCHY_SLEEP_RUN_DIR:-/run/omarchy}"
 battery_state_dir="${OMARCHY_BATTERY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/battery}"
+surface_battery_dir="${OMARCHY_SURFACE_BATTERY_DIR:-/run/surface-pro-11-battery}"
 
 case "${1:-}" in
   "")
@@ -218,6 +219,12 @@ if [[ $shell_output == "true" ]]; then
   cycles=""
   [[ ! -r $battery_path/cycle_count ]] || cycles=$(<"$battery_path/cycle_count")
   [[ -n $cycles ]] || cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  # The Surface Pro 11's battery manager firmware keeps no count and reads 0;
+  # the Surface EC has it, and microsoft-surface-pro-11-support writes it here.
+  if [[ -z $cycles || $cycles == "0" ]]; then
+    surface_cycles=$(read_sysfs_number "$surface_battery_dir/cycle-count" || true)
+    [[ -z $surface_cycles ]] || cycles=$surface_cycles
+  fi
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 
