@@ -411,6 +411,28 @@ ShellRoot {
     return shell.serviceFor(shell.pluginRegistry.resolveEnabledId(requestedId))
   }
 
+  // Settings fields from this plugin's own shell.json entry (id stripped).
+  // Deep-copied so nested arrays/objects are not live host config aliases.
+  function pluginEntrySettings(pluginId) {
+    var id = shell.pluginRegistry.resolveEnabledId(String(pluginId || ""))
+    if (!id) return ({})
+    var config = shell.shellConfig
+    var location = shell.pluginRegistry.findEntryLocation(config, id)
+    if (!location || !location.found) return ({})
+    var entry = null
+    if (location.kind === "plugin" && Array.isArray(config.plugins))
+      entry = config.plugins[location.index]
+    else if (location.kind === "bar" && config.bar && config.bar.layout
+        && config.bar.layout[location.section])
+      entry = config.bar.layout[location.section][location.index]
+    else if (location.kind === "bar-option" && config.bar)
+      entry = config.bar
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return ({})
+    var copy = JSON.parse(JSON.stringify(entry))
+    delete copy.id
+    return copy
+  }
+
   function barEntryConfigured(pluginId) {
     var location = shell.pluginRegistry.findEntryLocation(shell.shellConfig, pluginId)
     return location && location.kind === "bar"
@@ -647,6 +669,7 @@ ShellRoot {
       bar: shell.pluginBarStateFor(cacheKey, key),
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
+      entrySettings: shell.pluginEntrySettings(key),
       _serviceLookup: function(requestedId) {
         return allowOwnService ? shell.pluginServiceFor(key, requestedId) : null
       },
@@ -913,6 +936,7 @@ ShellRoot {
       var shellManifest = descriptor ? plugins[descriptor.pluginId] : null
       shellApi.barConfig = shell.publicBarConfig()
       shellApi.idleConfig = shell.publicIdleConfigFor(shellManifest)
+      shellApi.entrySettings = shell.pluginEntrySettings(descriptor ? descriptor.pluginId : "")
     }
     for (var entryKey in _pluginBarEntryShellApis)
       _pluginBarEntryShellApis[entryKey].barConfig = shell.publicBarConfig()

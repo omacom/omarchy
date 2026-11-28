@@ -56,6 +56,12 @@ qml_matches "$shell_qml" 'item\.shell *= *shell\.pluginShellFor\( *panelEntry\.m
   fail "panel plugins receive a scoped shell facade"
 qml_matches "$shell_qml" 'target\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||
   fail "full-bar plugins receive a scoped shell facade"
+qml_matches "$shell_qml" 'entrySettings: *shell\.pluginEntrySettings\( *key *\)' ||
+  fail "scoped shell facades do not receive their own entry settings"
+qml_matches "$shell_qml" 'shellApi\.entrySettings *= *shell\.pluginEntrySettings\(' ||
+  fail "scoped shell entry settings do not refresh with shell config"
+qml_matches "$plugin_shell_api" 'property +var +entrySettings' ||
+  fail "PluginShellApi does not expose entrySettings"
 pass "third-party entry points receive scoped shell facades"
 
 if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
