@@ -1,0 +1,3 @@
+module Quickshell
+singleton Quickshell 1.0 Quickshell.qml
+SystemClock 1.0 SystemClock.qml
