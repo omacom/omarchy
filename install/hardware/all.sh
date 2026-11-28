@@ -86,6 +86,7 @@ run_logged "$OMARCHY_INSTALL/hardware/qualcomm/hibernation.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/powerprofiles-floor.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-yoga-pro7-bass-speakers.sh"
+run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-ideapad-elan-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/yoga-slim7x.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/ideapad-slim-5x.sh"
