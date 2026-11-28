@@ -5,6 +5,7 @@ import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
+import qs.Ui
 import "FingerprintModel.js" as FingerprintModel
 
 Item {
@@ -46,6 +47,12 @@ Item {
   // Outputs the lock last saw, so only a display arriving counts as a wake.
   property int knownScreenCount: 0
   property bool previewVisible: false
+  // Screensaver mode keeps the displays on behind the session lock. The
+  // artwork covers the password prompt until a key is pressed and released.
+  property bool screensaverMode: false
+  property bool showingScreensaver: false
+  property bool customScreensaverAvailable: false
+  readonly property string customScreensaverPath: (Quickshell.env("XDG_CONFIG_HOME") || home + "/.config") + "/omarchy/lock/Screensaver.qml"
   property string enteredPassword: ""
   property string pendingPassword: ""
   property string failureMessage: ""
@@ -221,6 +228,8 @@ Item {
     }
 
     resetAuthenticationState()
+    screensaverMode = false
+    showingScreensaver = false
     lockRequested = true
     armBlankTimer()
     logEvent("lock-requested")
@@ -238,6 +247,8 @@ Item {
     if (!root.currentlyLocked()) return
 
     lockRequested = false
+    screensaverMode = false
+    showingScreensaver = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
@@ -248,7 +259,46 @@ Item {
     runWake()
   }
 
+  // Keep presentation separate from authentication. Dismissing the artwork
+  // only changes what the locked surfaces show, never the session lock.
+  function requestScreensaver() {
+    if (currentlyLocked()) return screensaverMode ? "ok" : "already-locked"
+    if (!beginLock()) return "failed"
+    screensaverMode = true
+    showingScreensaver = true
+    runWake()
+    return "ok"
+  }
+
+  function revealPassword() {
+    if (!lockRequested || !screensaverMode) return
+    showingScreensaver = false
+    enteredPassword = ""
+    runWake()
+  }
+
+  // Switches a screensaver lock to the normal lock, which blanks the displays.
+  function leaveScreensaver() {
+    if (!screensaverMode) return
+    screensaverMode = false
+    showingScreensaver = false
+    enteredPassword = ""
+    runWake()
+    startFingerprint()
+  }
+
+  function screensaverFailed() {
+    if (!lockRequested || !screensaverMode) return
+    logEvent("screensaver-failed")
+    leaveScreensaver()
+  }
+
+  // The artwork never blanks the displays, and a password check holds them on.
   function armBlankTimer(delayMs) {
+    if (!lockRequested || showingScreensaver || authenticatingPassword) {
+      idleBlankTimer.stop()
+      return
+    }
     idleBlankTimer.interval = delayMs || idleBlankTimer.idleMs
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
@@ -355,7 +405,7 @@ Item {
 
   function submitPassword(value) {
     var password = String(value || "")
-    if (!lockRequested || authenticatingPassword || password.length === 0) return
+    if (!lockRequested || showingScreensaver || authenticatingPassword || password.length === 0) return
 
     runWake()
     pendingPassword = password
@@ -391,7 +441,7 @@ Item {
   }
 
   function startFingerprint() {
-    if (!lockRequested || !sessionLock.secure || !fingerprintConfigured || fingerprintPaused) return
+    if (!lockRequested || screensaverMode || !sessionLock.secure || !fingerprintConfigured || fingerprintPaused) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
@@ -493,6 +543,8 @@ Item {
 
       if (!locked && root.lockRequested) {
         root.lockRequested = false
+        root.screensaverMode = false
+        root.showingScreensaver = false
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
@@ -515,13 +567,14 @@ Item {
         backgroundPath: root.backgroundPath
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
-        fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
-        fingerprintUnavailable: root.fingerprintUnavailable
+        fingerprintConfigured: (root.fingerprintConfigured || root.fingerprintUnavailable) && !root.screensaverMode
+        fingerprintUnavailable: root.fingerprintUnavailable && !root.screensaverMode
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
-        inputEnabled: root.lockRequested
-        loadBackground: root.locked
+        visible: !root.showingScreensaver
+        inputEnabled: root.lockRequested && !root.showingScreensaver
+        loadBackground: root.locked && !root.showingScreensaver
         passwordText: root.enteredPassword
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
@@ -529,6 +582,24 @@ Item {
         onWakeRequested: root.runWake()
       }
 
+      ScreensaverView {
+        anchors.fill: parent
+        visible: root.showingScreensaver
+        active: root.lockRequested && root.showingScreensaver
+        source: root.customScreensaverAvailable ? Util.fileUrl(root.customScreensaverPath) : ""
+        // The lock's still wallpaper, as the password prompt draws it unblurred.
+        backgroundComponent: Component {
+          BackgroundMedia {
+            path: root.lockWallpaperPath
+            version: root.backgroundVersion
+            cached: true
+            constrainDecode: true
+            decodeSize: Qt.size(width, height)
+          }
+        }
+        onDismissed: root.revealPassword()
+        onLoadFailed: root.screensaverFailed()
+      }
     }
   }
 
@@ -799,17 +870,27 @@ Item {
       // Only a password check in flight should hold the display up. The
       // fingerprint PAM stays armed for the whole lock, so gating on
       // `authenticating` here would keep the panel lit until unlock.
-      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
+      if (root.lockRequested && !root.authenticatingPassword) {
+        // An idle password prompt returns to the artwork instead of blanking.
+        if (root.screensaverMode) {
+          root.enteredPassword = ""
+          root.failureMessage = ""
+          root.showingScreensaver = true
+        } else {
+          root.runBlank()
+        }
+      }
     }
   }
 
   // Hyprland lights the panel for any key, but a bound key like volume never
   // reaches the lock surface, so nothing re-arms the blank and the lock stays
   // lit. Blank once input has been quiet for the run-up and no countdown is
-  // pending, so the resume run-up is left alone.
+  // pending, so the resume run-up is left alone. Screensaver mode keeps the
+  // displays on, and its idle prompt returns to the artwork instead.
   IdleMonitor {
     id: lockIdleMonitor
-    enabled: root.lockRequested
+    enabled: root.lockRequested && !root.screensaverMode
     timeout: idleBlankTimer.idleMs / 1000
     respectInhibitors: false
     onIsIdleChanged: {
@@ -874,6 +955,15 @@ Item {
   }
 
   FileView {
+    path: root.customScreensaverPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.customScreensaverAvailable = true
+    onLoadFailed: root.customScreensaverAvailable = false
+    onFileChanged: reload()
+  }
+
+  FileView {
     path: "/etc/pam.d/omarchy-lock-password"
     watchChanges: true
     printErrors: false
@@ -908,7 +998,13 @@ Item {
       // omarchy-system-sleep-lock asks for the lock before every suspend.
       if (root.currentlyLocked()) root.noteSleepRequested()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
+      root.leaveScreensaver()
       return "ok"
+    }
+
+    function screensaver(): string {
+      if (!root.passwordPamConfigured) return "missing-pam"
+      return root.requestScreensaver()
     }
 
     function isLocked(): string {
@@ -918,6 +1014,8 @@ Item {
     function status(): string {
       return JSON.stringify({
         locked: root.currentlyLocked(),
+        mode: root.screensaverMode ? "screensaver" : "blank",
+        showingScreensaver: root.showingScreensaver,
         requested: root.lockRequested,
         pending: root.pendingSessionLock,
         sessionLocked: sessionLock.locked,

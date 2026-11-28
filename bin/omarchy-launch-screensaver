@@ -3,4 +3,12 @@
 # omarchy:summary=Launch the Omarchy screensaver on every display.
 # omarchy:args=[force] [options]
 
-exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+# With the screensaver-locked toggle on, the screensaver runs inside the session
+# lock, so it takes the password to dismiss.
+if ! omarchy-toggle-enabled screensaver-locked; then
+  exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+elif omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
+  exit 1
+else
+  omarchy-system-lock --screensaver
+fi
