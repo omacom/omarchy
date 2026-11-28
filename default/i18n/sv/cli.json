@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Ditt fullständiga namn",
   "gitSetup.namePrompt": "Fullständigt namn> ",
   "gpu.enableDedicated": "Aktivera dedikerad GPU och starta om?",
+  "gpu.integratedActive": "Körs på integrerad GPU",
+  "gpu.switchToDgpuHint": "Byt till din dedikerade GPU via Trigger > Hardware > Switch to dGPU för bättre spelprestanda.",
   "gpu.useIntegrated": "Använd endast integrerad GPU och starta om?",
   "hermes.deleteData": "Ta även bort ~/.hermes och ~/.config/Hermes (%1: chattar, minnen, färdigheter, anslutningar och tokens)?",
   "icons.removeExtraTitle": "Ta bort extra ikonuppsättning",

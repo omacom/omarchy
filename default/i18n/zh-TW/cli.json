@@ -195,6 +195,8 @@
   "gitSetup.namePlaceholder": "你的全名",
   "gitSetup.namePrompt": "全名> ",
   "gpu.enableDedicated": "啟用獨立 GPU 並重新開機？",
+  "gpu.integratedActive": "正在使用內建 GPU",
+  "gpu.switchToDgpuHint": "請在 Trigger > Hardware > Switch to dGPU 切換至獨立 GPU，以提升遊戲效能。",
   "gpu.useIntegrated": "僅使用內建 GPU 並重新開機？",
   "hermes.deleteData": "是否同時刪除 ~/.hermes 和 ~/.config/Hermes（%1：聊天、記憶、技能、連線和權杖）？",
   "icons.removeExtraTitle": "移除額外圖示集",

@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "نام کامل شما",
   "gitSetup.namePrompt": "نام کامل> ",
   "gpu.enableDedicated": "GPU اختصاصی فعال و راه‌اندازی مجدد شود؟",
+  "gpu.integratedActive": "در حال اجرا روی GPU یکپارچه",
+  "gpu.switchToDgpuHint": "برای عملکرد بهتر در بازی، از مسیر Trigger > Hardware > Switch to dGPU به GPU اختصاصی خود سوئیچ کنید.",
   "gpu.useIntegrated": "فقط از GPU یکپارچه استفاده و راه‌اندازی مجدد شود؟",
   "hermes.deleteData": "~/.hermes و ~/.config/Hermes هم حذف شود (%1: گفت‌وگوها، حافظه‌ها، مهارت‌ها، اتصال‌ها و توکن‌ها)؟",
   "icons.removeExtraTitle": "حذف مجموعه آیکون اضافی",

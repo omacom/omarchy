@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "آپ کا پورا نام",
   "gitSetup.namePrompt": "پورا نام> ",
   "gpu.enableDedicated": "مخصوص GPU فعال کر کے ری بوٹ کریں؟",
+  "gpu.integratedActive": "مربوط GPU پر چل رہا ہے",
+  "gpu.switchToDgpuHint": "بہتر گیمنگ کارکردگی کے لیے Trigger > Hardware > Switch to dGPU میں اپنے مخصوص GPU پر سوئچ کریں۔",
   "gpu.useIntegrated": "صرف مربوط GPU استعمال کر کے ری بوٹ کریں؟",
   "hermes.deleteData": "~/.hermes اور ~/.config/Hermes بھی حذف کریں (%1: چیٹس، یادیں، سکلز، کنکشنز اور ٹوکنز)؟",
   "icons.removeExtraTitle": "اضافی آئیکن سیٹ ہٹائیں",

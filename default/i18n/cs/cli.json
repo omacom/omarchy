@@ -197,6 +197,8 @@
   "gitSetup.namePlaceholder": "Vaše celé jméno",
   "gitSetup.namePrompt": "Celé jméno> ",
   "gpu.enableDedicated": "Povolit dedikovanou GPU a restartovat?",
+  "gpu.integratedActive": "Běží na integrované GPU",
+  "gpu.switchToDgpuHint": "Pro lepší herní výkon přepněte na dedikovanou GPU v Trigger > Hardware > Switch to dGPU.",
   "gpu.useIntegrated": "Používat pouze integrovanou GPU a restartovat?",
   "hermes.deleteData": "Smazat také ~/.hermes a ~/.config/Hermes (%1: chaty, vzpomínky, dovednosti, připojení a tokeny)?",
   "icons.removeExtraTitle": "Odebrat sadu ikon navíc",

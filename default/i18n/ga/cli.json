@@ -199,6 +199,8 @@
   "gitSetup.namePlaceholder": "D'ainm iomlán",
   "gitSetup.namePrompt": "Ainm iomlán> ",
   "gpu.enableDedicated": "GPU tiomnaithe a chumasú agus atosú?",
+  "gpu.integratedActive": "Ag rith ar GPU comhtháite",
+  "gpu.switchToDgpuHint": "Athraigh chuig do GPU tiomnaithe in Trigger > Hardware > Switch to dGPU chun feidhmíocht chearrbhachais níos fearr a fháil.",
   "gpu.useIntegrated": "GPU comhtháite amháin a úsáid agus atosú?",
   "hermes.deleteData": "An scriosfar ~/.hermes agus ~/.config/Hermes freisin (%1: comhráite, cuimhní, scileanna, ceangail agus comharthaí)?",
   "icons.removeExtraTitle": "Bain tacar deilbhíní breise",

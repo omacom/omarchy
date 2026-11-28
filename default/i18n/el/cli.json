@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Το πλήρες όνομά σου",
   "gitSetup.namePrompt": "Πλήρες όνομα> ",
   "gpu.enableDedicated": "Ενεργοποίηση αποκλειστικής GPU και επανεκκίνηση;",
+  "gpu.integratedActive": "Λειτουργεί με ενσωματωμένη GPU",
+  "gpu.switchToDgpuHint": "Μεταβείτε στην αποκλειστική GPU από Trigger > Hardware > Switch to dGPU για καλύτερες επιδόσεις στα παιχνίδια.",
   "gpu.useIntegrated": "Χρήση μόνο της ενσωματωμένης GPU και επανεκκίνηση;",
   "hermes.deleteData": "Να διαγραφούν επίσης τα ~/.hermes και ~/.config/Hermes (%1: συζητήσεις, μνήμες, δεξιότητες, συνδέσεις και tokens);",
   "icons.removeExtraTitle": "Αφαίρεση πρόσθετων εικονιδίων",

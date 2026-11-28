@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "உங்கள் முழுப் பெயர்",
   "gitSetup.namePrompt": "முழுப் பெயர்> ",
   "gpu.enableDedicated": "தனியான GPU-ஐ இயக்கி மறுதொடக்கம் செய்யவா?",
+  "gpu.integratedActive": "ஒருங்கிணைந்த GPU-இல் இயங்குகிறது",
+  "gpu.switchToDgpuHint": "சிறந்த கேமிங் செயல்திறனுக்கு Trigger > Hardware > Switch to dGPU இல் உங்கள் தனியான GPU-க்கு மாறவும்.",
   "gpu.useIntegrated": "ஒருங்கிணைந்த GPU-ஐ மட்டும் பயன்படுத்தி மறுதொடக்கம் செய்யவா?",
   "hermes.deleteData": "~/.hermes மற்றும் ~/.config/Hermes-ஐயும் நீக்கவா (%1: அரட்டைகள், நினைவகங்கள், திறன்கள், இணைப்புகள் மற்றும் டோக்கன்கள்)?",
   "icons.removeExtraTitle": "கூடுதல் ஐகான் தொகுப்பை நீக்கு",

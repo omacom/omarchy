@@ -196,6 +196,8 @@
   "gitSetup.namePlaceholder": "Fullt nafn þitt",
   "gitSetup.namePrompt": "Fullt nafn> ",
   "gpu.enableDedicated": "Virkja sérstakt GPU og endurræsa?",
+  "gpu.integratedActive": "Keyrir á innbyggðu GPU",
+  "gpu.switchToDgpuHint": "Skiptu yfir í sérstakt GPU í Trigger > Hardware > Switch to dGPU fyrir betri afköst í leikjum.",
   "gpu.useIntegrated": "Nota aðeins innbyggða GPU og endurræsa?",
   "hermes.deleteData": "Eyða einnig ~/.hermes og ~/.config/Hermes (%1: spjöll, minningar, færni, tengingar og tókn)?",
   "icons.removeExtraTitle": "Fjarlægja aukatáknasett",

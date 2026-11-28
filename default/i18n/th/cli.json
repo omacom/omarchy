@@ -195,6 +195,8 @@
   "gitSetup.namePlaceholder": "ชื่อเต็มของคุณ",
   "gitSetup.namePrompt": "ชื่อเต็ม> ",
   "gpu.enableDedicated": "เปิดใช้ GPU แยกและรีบูต?",
+  "gpu.integratedActive": "กำลังทำงานบน GPU ในตัว",
+  "gpu.switchToDgpuHint": "สลับไปใช้ GPU แยกใน Trigger > Hardware > Switch to dGPU เพื่อประสิทธิภาพการเล่นเกมที่ดีขึ้น",
   "gpu.useIntegrated": "ใช้ GPU ในตัวเท่านั้นและรีบูต?",
   "hermes.deleteData": "ลบ ~/.hermes และ ~/.config/Hermes ด้วยไหม (%1: แชท, ความจำ, สกิล, การเชื่อมต่อ และโทเค็น)?",
   "icons.removeExtraTitle": "ลบชุดไอคอนเพิ่มเติม",
