@@ -26,7 +26,7 @@ Item {
   readonly property int firstIdleTimeoutSeconds: IdleModel.firstIdleTimeout(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: IdleModel.delayAfterFirstIdle(screensaverTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
-  readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
+  readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake && !appInhibited
 
   // A retimed IdleMonitor can reuse its notification's address and never rebind isIdle; pulsing it off sends the pointer through null.
   // While idle that pulse would read as the user coming back, so retiming waits until they have.
@@ -51,6 +51,10 @@ Item {
   property bool screensaverStartedThisCycle: false
   property string lastEvent: "starting"
   property string lastEventAt: ""
+  // Apps holding org.freedesktop.ScreenSaver inhibits. They suppress idle like
+  // stay-awake without writing the user's stay-awake toggle.
+  property var appInhibitors: []
+  readonly property bool appInhibited: appInhibitors.length > 0
 
   function secondsFromConfig(value, fallback) {
     return IdleModel.secondsFromConfig(value, fallback)
@@ -175,6 +179,7 @@ Item {
       stayAwake: root.stayAwake,
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
+      appInhibitors: root.appInhibitors,
       idle: idleMonitor.isIdle,
       inIdleCycle: root.idledThisCycle,
       screensaverStarted: root.screensaverStartedThisCycle,
@@ -237,6 +242,29 @@ Item {
 
   function setIdleEnabled(value) {
     return applyStayAwake(!value, true, "ipc")
+  }
+
+  function applyAppInhibitors(line) {
+    var inhibitors
+    try {
+      inhibitors = JSON.parse(line).inhibitors
+    } catch (error) {
+      return
+    }
+    if (!Array.isArray(inhibitors)) return
+
+    logEvent("app-inhibitors", inhibitors.map(function(inhibitor) { return inhibitor.app }).join(", ") || "none")
+    root.appInhibitors = inhibitors
+  }
+
+  onAppInhibitedChanged: {
+    if (appInhibited) {
+      if (screensaverProcess.running) screensaverProcess.running = false
+      if (root.screensaverStartedThisCycle) screensaverStopProcess.running = true
+      cancelIdleCycle("app-inhibit")
+    } else {
+      Qt.callLater(root.handleIdleChanged)
+    }
   }
 
   // With both timeouts at 0 the monitor stops reporting, so nothing else would end a running cycle.
@@ -305,6 +333,29 @@ Item {
   }
 
   Process {
+    id: screensaverInhibitService
+    command: ["/usr/bin/python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/services/idle/screensaver.py"]
+    // The helper exits when this pipe closes, so it cannot outlive the shell.
+    stdinEnabled: true
+    running: true
+    stdout: SplitParser {
+      onRead: function(line) { root.applyAppInhibitors(line) }
+    }
+    onExited: function(exitCode, exitStatus) {
+      root.logEvent("process-exit", "screensaver-inhibit exitCode=" + exitCode + " status=" + exitStatus)
+      root.appInhibitors = []
+      if (exitCode !== 78) screensaverInhibitRestart.restart()
+    }
+  }
+
+  Timer {
+    id: screensaverInhibitRestart
+    interval: 5000
+    repeat: false
+    onTriggered: screensaverInhibitService.running = true
+  }
+
+  Process {
     id: stayAwakeStateProbe
     command: ["bash", "-c", "mkdir -p \"$HOME/.local/state/omarchy/indicators\"; if [[ -f $HOME/.local/state/omarchy/indicators/stay-awake ]]; then echo yes; else echo no; fi"]
     stdout: SplitParser {
@@ -361,7 +412,7 @@ Item {
     }
 
     function toggle(): string {
-      return root.setIdleEnabled(!root.idleEnabled)
+      return root.setIdleEnabled(root.stayAwake)
     }
   }
 }
