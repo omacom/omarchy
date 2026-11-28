@@ -121,7 +121,7 @@ rm -f "$tui_log"
 OMARCHY_TEST_ACCOUNT_HOME="" run_resume set --agent codex --continue --dir "$work_dir" --prompt "Resume Main" >/dev/null
 OMARCHY_TEST_ACCOUNT_HOME="$test_home/.codex-work" run_resume run
 tui_out=$(cat "$tui_log")
-[[ $tui_out == *"ARGS=--app-id=org.omarchy.agent env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me resume --last -- Resume\\ Main "* ]] ||
+[[ $tui_out == *"ARGS=--app-id=org.omarchy.agent env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --no-daemon --approve-for-me resume --last -- Resume\\ Main "* ]] ||
   fail "codex Main account stays pinned even after switching active account" "$tui_out"
 pass "Main account is preserved across account switches before login"
 
@@ -152,7 +152,7 @@ rm -f "$tui_log"
 run_resume set --agent codex --continue --dir "$work_dir" --prompt-file "$prompt_file" >/dev/null
 run_resume run
 tui_out=$(cat "$tui_log")
-[[ $tui_out == *"codex --approve-for-me resume --last -- \$'Line one\\nLine two' "* ]] ||
+[[ $tui_out == *"codex --no-daemon --approve-for-me resume --last -- \$'Line one\\nLine two' "* ]] ||
   fail "codex --continue passes --last and full prompt after --" "$tui_out"
 pass "codex --continue passes multi-line --prompt-file and off is idempotent"
 

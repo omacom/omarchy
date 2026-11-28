@@ -357,7 +357,7 @@ pass "account dispatch follows the active account"
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
   fail "omarchy-agent starts Claude in ~/.claude"
 omarchy-agent-account-use codex side >/dev/null
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
+[[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--no-daemon --approve-for-me" ]] ||
   fail "omarchy-agent starts Codex as the active account"
 pass "omarchy-agent follows the active account"
 
