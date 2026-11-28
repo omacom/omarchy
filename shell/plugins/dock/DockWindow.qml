@@ -144,6 +144,30 @@ PanelWindow {
   // submenu beside it, on hover as a menu bar's do, or on a click.
   property bool settingsMenu: false
   property string openSubmenu: ""
+  property string pendingSubmenu: ""
+
+  // The first submenu opens as the pointer arrives. With one open, the way to
+  // its choices can cross another row, so a row has to hold the pointer a
+  // moment before it takes over; one only passed over changes nothing.
+  function hoverSubmenu(name) {
+    if (name === window.openSubmenu) {
+      submenuTimer.stop()
+    } else if (window.openSubmenu === "") {
+      window.openSubmenu = name
+    } else {
+      window.pendingSubmenu = name
+      submenuTimer.restart()
+    }
+  }
+
+  Timer {
+    id: submenuTimer
+    interval: 200
+    onTriggered: {
+      var row = window.pendingSubmenu === "position" ? positionRow : window.pendingSubmenu === "layout" ? layoutRow : autoHideRow
+      if (row.hovered) window.openSubmenu = window.pendingSubmenu
+    }
+  }
 
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
@@ -205,6 +229,7 @@ PanelWindow {
   function closeMenu() {
     window.menuItem = null
     window.settingsMenu = false
+    submenuTimer.stop()
     window.openSubmenu = ""
     window.menuSlot = null
     if (window.autohide) hideTimer.restart()
@@ -778,7 +803,7 @@ PanelWindow {
         text: Commons.I18n.t("dock.position")
         submenu: true
         highlighted: window.openSubmenu === "position"
-        onHoveredChanged: if (hovered) window.openSubmenu = "position"
+        onHoveredChanged: if (hovered) window.hoverSubmenu("position")
         onTriggered: window.openSubmenu = "position"
       }
 
@@ -788,17 +813,18 @@ PanelWindow {
         text: Commons.I18n.t("dock.layout")
         submenu: true
         highlighted: window.openSubmenu === "layout"
-        onHoveredChanged: if (hovered) window.openSubmenu = "layout"
+        onHoveredChanged: if (hovered) window.hoverSubmenu("layout")
         onTriggered: window.openSubmenu = "layout"
       }
 
       // A tiled workspace always hides the dock; the setting is the floating
       // workspaces' one.
       PopupMenuRow {
+        id: autoHideRow
         visible: window.settingsMenu
         text: Commons.I18n.t("dock.autoHide")
         checked: !!window.dock && window.dock.autohide
-        onHoveredChanged: if (hovered) window.openSubmenu = ""
+        onHoveredChanged: if (hovered) window.hoverSubmenu("")
         onTriggered: {
           Util.execDetached("omarchy-dock autohide " + (window.dock.autohide ? "off" : "on"))
           window.closeMenu()

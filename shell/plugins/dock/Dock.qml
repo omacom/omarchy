@@ -66,14 +66,18 @@ Item {
     var toplevels = Hyprland.toplevels.values
     for (var i = 0; i < toplevels.length; i++) {
       var toplevel = toplevels[i].wayland
-      if (!toplevel || !toplevel.appId || toplevel.parent) continue
-      var entry = root.entryForAppId(toplevel.appId)
+      if (!toplevel || !toplevel.appId) continue
       var workspace = toplevels[i].workspace
+      var minimized = !!workspace && DockModel.isMinimizedWorkspace(workspace.name)
+      // A dialog belongs to its parent's window and has no place of its own,
+      // unless it is minimized: the dock is then the only way back to it.
+      if (toplevel.parent && !minimized) continue
+      var entry = root.entryForAppId(toplevel.appId)
       windows.push({
         key: entry ? DockModel.standInKey(entry.id, entry.categories, pinned) : toplevel.appId,
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
-        minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
+        minimized: minimized,
         address: toplevels[i].address,
         toplevel: toplevel
       })
