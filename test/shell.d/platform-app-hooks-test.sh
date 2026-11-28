@@ -208,20 +208,20 @@ printf '{\n  "mode": "Hybrid"\n}\n' >"$tmp/supergfxd-hybrid.conf"
 # The shared lib32 driver step prints a hint once for all gaming installers
 # when Integrated mode is active on hybrid hardware, and stays quiet otherwise
 # (including when /etc/supergfxd.conf does not exist).
-HYBRID_GPU=0 OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-integrated.conf" \
-  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-integrated.out" 2>&1 ||
+HYBRID_GPU=0 OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$tmp/no-lang" OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-integrated.conf" \
+  PATH="$gpu_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-integrated.out" 2>&1 ||
   fail "lib32 driver step succeeds in Integrated mode" "$(cat "$tmp/gpu-integrated.out")"
 grep -Fq "Trigger > Hardware > Switch to dGPU" "$tmp/gpu-integrated.out" ||
   fail "lib32 driver step hints about switching to dGPU in Integrated mode" "$(cat "$tmp/gpu-integrated.out")"
 
-HYBRID_GPU=0 OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-hybrid.conf" \
-  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-hybrid.out" 2>&1 ||
+HYBRID_GPU=0 OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$tmp/no-lang" OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-hybrid.conf" \
+  PATH="$gpu_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-hybrid.out" 2>&1 ||
   fail "lib32 driver step succeeds in Hybrid mode" "$(cat "$tmp/gpu-hybrid.out")"
 ! grep -Fq "Switch to dGPU" "$tmp/gpu-hybrid.out" ||
   fail "lib32 driver step stays quiet about Integrated mode in Hybrid mode" "$(cat "$tmp/gpu-hybrid.out")"
 
-HYBRID_GPU=0 OMARCHY_SUPERGFXD_CONF="$tmp/no-supergfxd.conf" \
-  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-noconf.out" 2>"$tmp/gpu-noconf.err" ||
+HYBRID_GPU=0 OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$tmp/no-lang" OMARCHY_SUPERGFXD_CONF="$tmp/no-supergfxd.conf" \
+  PATH="$gpu_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-noconf.out" 2>"$tmp/gpu-noconf.err" ||
   fail "lib32 driver step succeeds without supergfxd.conf" "$(cat "$tmp/gpu-noconf.out" "$tmp/gpu-noconf.err")"
 [[ ! -s $tmp/gpu-noconf.err ]] && ! grep -Fq "Switch to dGPU" "$tmp/gpu-noconf.out" ||
   fail "lib32 driver step stays quiet with no stderr when supergfxd.conf is absent" "$(cat "$tmp/gpu-noconf.out" "$tmp/gpu-noconf.err")"
@@ -231,7 +231,7 @@ pass "32-bit drivers: hints about Switch to dGPU only in Integrated mode"
 hint_bin=$tmp/hint-bin
 mkdir -p "$hint_bin"
 printf '#!/bin/bash\nexit "${HYBRID_GPU:-0}"\n' >"$hint_bin/omarchy-hw-hybrid-gpu"
-printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$tmp/notify" >"$hint_bin/omarchy-notification-send"
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"%s"\n' "$tmp/notify" >"$hint_bin/omarchy-notification-send"
 printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$tmp/umu" >"$hint_bin/umu-run"
 printf '#!/bin/bash\nexit 1\n' >"$hint_bin/pgrep"
 printf '#!/bin/bash\necho "[]"\n' >"$hint_bin/hyprctl"
@@ -247,7 +247,10 @@ HOME="$bnet_home" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$tmp/no-lang" \
   OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-integrated.conf" \
   PATH="$hint_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-launch-battlenet" >"$tmp/bnet.out" 2>&1 ||
   fail "Battle.net launches in Integrated mode" "$(cat "$tmp/bnet.out")"
-grep -Fq -- "--transient" "$tmp/notify" && grep -Fq "Trigger > Hardware > Switch to dGPU" "$tmp/notify" ||
+for _ in {1..40}; do [[ -s $tmp/notify ]] && break; sleep 0.05; done
+grep -Fxq -- "--transient" "$tmp/notify" &&
+  grep -Fxq "Running on integrated GPU" "$tmp/notify" &&
+  grep -Fq "Trigger > Hardware > Switch to dGPU" "$tmp/notify" ||
   fail "Battle.net launch sends a transient Switch to dGPU hint in Integrated mode" "$(cat "$tmp/notify" 2>/dev/null)"
 [[ -s $tmp/umu ]] || fail "Battle.net still launches after sending the Integrated-mode hint"
 

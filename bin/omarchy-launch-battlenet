@@ -79,9 +79,9 @@ if ! prefix_running; then
 fi
 
 if grep -Eq '"mode"[[:space:]]*:[[:space:]]*"Integrated"' "${OMARCHY_SUPERGFXD_CONF:-/etc/supergfxd.conf}" 2>/dev/null && omarchy-hw-hybrid-gpu; then
-  omarchy-notification-send --transient -g  \
+  omarchy-notification-send --transient -g "" \
     "$(omarchy-i18n gpu.integratedActive)" \
-    "$(omarchy-i18n gpu.switchToDgpuHint)" >/dev/null 2>&1 || true
+    "$(omarchy-i18n gpu.switchToDgpuHint)" </dev/null >/dev/null 2>&1 &
 fi
 
 env_args=(
