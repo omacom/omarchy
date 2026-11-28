@@ -18,7 +18,12 @@ fzf_args=(
 pkg_names=$(yay -Qqe | fzf "${fzf_args[@]}")
 
 if [[ -n $pkg_names ]]; then
-  # Convert newline-separated selections to space-separated for yay
-  echo "$pkg_names" | tr '\n' ' ' | xargs sudo pacman -Rns --noconfirm
+  mapfile -t packages <<<"$pkg_names"
+
+  # The fingerprint and password prompts don't say what they approve, so name it first
+  printf -v package_list '%s, ' "${packages[@]}"
+  printf '%s\n\n' "$(omarchy-i18n pkg.removing "${package_list%, }")"
+
+  sudo pacman -Rns --noconfirm "${packages[@]}"
   omarchy-show-done $?
 fi
