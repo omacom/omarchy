@@ -253,8 +253,19 @@ function load_module()
   return require("default.hypr.monitor-workspaces")
 end
 
-function plug(name, id, description, active)
-  world.monitors[#world.monitors + 1] = { name = name, id = id, description = description, active = active }
+-- `backend` and the physical size are what Hyprland reports for the output.
+-- Passing no backend leaves `hardware_details` off the monitor, the way
+-- Hyprland 0.56 reports a monitor.
+function plug(name, id, description, active, backend, width, height)
+  world.monitors[#world.monitors + 1] = {
+    name = name,
+    id = id,
+    description = description,
+    active = active,
+    physical_width = width or 344,
+    physical_height = height or 194,
+    hardware_details = backend and { backend = backend } or nil,
+  }
   if not workspace_numbered(active) then create(active, name) end
 end
 
@@ -329,6 +340,203 @@ check(shows("DP-7") == 21, "a monitor starts on its own first workspace, not on 
 check(state_file():find("0\t\tSamsung Panel\n", 1, true), "an unplugged monitor keeps its block: " .. state_file())
 ' || fail "a monitor keeps its block across sessions and connectors"
 pass "a monitor keeps its block across sessions and connectors"
+
+# --- Outputs the session makes -------------------------------------------------
+# A remote-desktop tool adds a headless output for a session and takes it away
+# with the session, under a name of its own. Its block must survive a reload and
+# be readable by the bar while it is there, and go back to the pool afterwards,
+# or each session leaves a block no monitor can ever claim (#18274).
+
+run_lua made-keeps '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+plug("gliff-1", 1, "", 11, "headless")
+world.handlers["monitor.added"]({ name = "gliff-1" })
+check(m.workspace_id(hl.get_monitor("gliff-1"), 1) == 11, "the made output got block " .. m.workspace_id(hl.get_monitor("gliff-1"), 1))
+check(state_file():find("1\tgliff-1\tgliff-1\n", 1, true), "the bar cannot find the made output: " .. state_file())
+
+-- A reload reads the same file again; the made output is still connected, so it
+-- keeps the block it had.
+local reloaded = load_module()
+world.handlers["config.reloaded"]()
+check(reloaded.workspace_id(hl.get_monitor("gliff-1"), 1) == 11, "a reload moved the made output to " .. reloaded.workspace_id(hl.get_monitor("gliff-1"), 1))
+check(shows("gliff-1") == 11, "a reload left the made output on " .. shows("gliff-1"))
+' || fail "a made output keeps its block while its session runs"
+pass "a made output keeps its block while its session runs"
+
+run_lua made-keeps '
+-- The session that made gliff-1 has ended, and the output went with it, so the
+-- made output of the session that starts now takes that block back.
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(not state_file():find("gliff-1", 1, true), "a made output outlives its session: " .. state_file())
+check(state_file():find("0\teDP-1\tPanel\n", 1, true), "the panel lost its block: " .. state_file())
+
+plug("gliff-2", 1, "", 12, "headless")
+world.handlers["monitor.added"]({ name = "gliff-2" })
+check(m.workspace_id(hl.get_monitor("gliff-2"), 1) == 11, "the next session did not take the block back: " .. m.workspace_id(hl.get_monitor("gliff-2"), 1))
+' || fail "the next session takes a made output's block back"
+pass "the next session takes a made output's block back"
+
+run_lua made-disconnect '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+-- The panel keeps all ten slots, so the workspace of the made output can only
+-- wait there as a guest.
+for id = 1, 10 do window("0xb" .. id, id) end
+plug("gliff-1", 1, "", 11, "headless")
+world.handlers["monitor.added"]({ name = "gliff-1" })
+window("0xa", 11)
+
+unplug("gliff-1")
+world.handlers["monitor.removed"]({ name = "gliff-1" })
+fire_timers()
+
+-- Another output turns up before the session ends: it must not take a block that
+-- still holds that window.
+plug("HEADLESS-2", 1, "", 12, "headless")
+world.handlers["monitor.added"]({ name = "HEADLESS-2" })
+check(m.workspace_id(hl.get_monitor("HEADLESS-2"), 1) == 21, "a new output took a block holding a window: " .. m.workspace_id(hl.get_monitor("HEADLESS-2"), 1))
+check(on(11) == "eDP-1", "the workspace of the window moved to " .. tostring(on(11)))
+' || fail "a made output keeps its block after it disconnects"
+pass "a made output keeps its block after it disconnects"
+
+# A made output that does report a description is still one the session made, so
+# the backend is what tells them apart, not whether the description is empty.
+run_lua made-described '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+plug("HEADLESS-1", 1, "Headless output 1", 11, "headless")
+world.handlers["monitor.added"]({ name = "HEADLESS-1" })
+check(m.workspace_id(hl.get_monitor("HEADLESS-1"), 1) == 11, "the described made output got block " .. m.workspace_id(hl.get_monitor("HEADLESS-1"), 1))
+' || fail "a made output that reports a description gets a block"
+pass "a made output that reports a description gets a block"
+
+run_lua made-described '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(not state_file():find("HEADLESS-1", 1, true), "a described made output outlives its session: " .. state_file())
+' || fail "a made output that reports a description still hands its block back"
+pass "a made output that reports a description still hands its block back"
+
+run_lua real-unnamed '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-3", 1, "", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(m.workspace_id(hl.get_monitor("DP-3"), 1) == 11, "a monitor with no description got block " .. m.workspace_id(hl.get_monitor("DP-3"), 1))
+' || fail "a monitor with no description is not mistaken for a made output"
+pass "a monitor with no description is not mistaken for a made output"
+
+run_lua real-unnamed '
+-- A monitor that reports no description is still a monitor: unplugged while the
+-- session was down, it keeps the block it was given.
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(state_file():find("1\t\tDP-3\n", 1, true), "a monitor with no description lost its block: " .. state_file())
+
+plug("DP-4", 1, "New Panel", 12)
+world.handlers["monitor.added"]({ name = "DP-4" })
+check(m.workspace_id(hl.get_monitor("DP-4"), 1) == 21, "a new monitor took the block of the unplugged one: " .. m.workspace_id(hl.get_monitor("DP-4"), 1))
+' || fail "a monitor with no description keeps its block across sessions"
+pass "a monitor with no description keeps its block across sessions"
+
+# Hyprland 0.56 does not report a backend, so an output the session made is the
+# one that reports nothing about itself: no description and no physical size.
+run_lua made-blank '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+plug("gliff-9", 1, "", 11, nil, 0, 0)
+world.handlers["monitor.added"]({ name = "gliff-9" })
+check(m.workspace_id(hl.get_monitor("gliff-9"), 1) == 11, "the blank output got block " .. m.workspace_id(hl.get_monitor("gliff-9"), 1))
+check(state_file():find("1\tgliff-9\tgliff-9\n", 1, true), "the bar cannot find the blank output: " .. state_file())
+' || fail "a blank output gets a block while its session runs"
+pass "a blank output gets a block while its session runs"
+
+run_lua made-blank '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(not state_file():find("gliff-9", 1, true), "a blank output outlives its session: " .. state_file())
+' || fail "a blank output hands its block back"
+pass "a blank output hands its block back"
+
+run_lua made-claimed '
+-- When the backend is reported it decides, even for an output that reports
+-- nothing: a named backend that is not headless is not one the session made.
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-9", 1, "", 11, "drm", 0, 0)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(state_file():find("1\tDP-9\tDP-9\n", 1, true), "a monitor with a backend was dropped: " .. state_file())
+' || fail "a reported backend decides, not the fields"
+pass "a reported backend decides, not the fields"
+
+run_lua made-reclassified '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-9", 1, "", 11, nil, 0, 0)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+-- After an upgrade, the backend identifies the same anonymous output as a
+-- physical monitor. Its old temporary mark must not outlive that correction.
+monitor_named("DP-9").hardware_details = { backend = "drm" }
+load_module()
+world.handlers["config.reloaded"]()
+' || fail "a physical monitor is recognised after an upgrade"
+pass "a physical monitor is recognised after an upgrade"
+
+run_lua made-reclassified '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(state_file():find("1\t\tDP-9\n", 1, true), "the reclassified physical monitor lost its block: " .. state_file())
+' || fail "a reclassified physical monitor keeps its block while unplugged"
+pass "a reclassified physical monitor keeps its block while unplugged"
+
+run_lua made-no-monitor '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+plug("gliff-1", 1, "", 11, "headless")
+world.handlers["monitor.added"]({ name = "gliff-1" })
+' || fail "a blank startup state is set up"
+pass "a blank startup state is set up"
+
+run_lua made-no-monitor '
+-- A remote-desktop session can start with no output at all and get one later:
+-- the row the last session left must still be handed back.
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(not state_file():find("gliff-1", 1, true), "a made output outlives a session with no monitors: " .. state_file())
+
+plug("HEADLESS-1", 0, "", 1, "headless")
+world.handlers["monitor.added"]({ name = "HEADLESS-1" })
+check(m.workspace_id(hl.get_monitor("HEADLESS-1"), 1) == 11, "the output of a blank session got block " .. m.workspace_id(hl.get_monitor("HEADLESS-1"), 1))
+' || fail "a session with no monitor still hands the last block back"
+pass "a session with no monitor still hands the last block back"
 
 # --- The keys ------------------------------------------------------------------
 

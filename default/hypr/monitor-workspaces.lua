@@ -29,12 +29,19 @@ local SLOTS = 10
 local STATE_DIR = paths.state_home .. "/omarchy/monitors"
 local STATE_FILE = STATE_DIR .. "/workspaces"
 local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
+local EPHEMERAL_FILE = STATE_DIR .. "/workspaces-ephemeral"
 
 local M = { slots = SLOTS }
 
 -- Identity -> block, kept across sessions.
 local blocks = {}
 local written = nil
+
+-- Identities of blocks held for an output the session made rather than found.
+-- The compositor takes such an output with it when the session ends, so a saved
+-- block for one is worth keeping only until the next session starts.
+local ephemeral = {}
+local written_ephemeral = nil
 
 -- Connector -> identity for the monitors plugged in now.
 local current = {}
@@ -59,6 +66,54 @@ local function load_blocks()
 end
 
 load_blocks()
+
+-- Which saved blocks belong to an output the session made, so the next session
+-- can tell which of them the compositor took with it.
+local function load_ephemeral()
+  local file = io.open(EPHEMERAL_FILE, "r")
+  if not file then
+    return
+  end
+
+  for line in file:lines() do
+    if line ~= "" then
+      ephemeral[line] = true
+    end
+  end
+
+  file:close()
+end
+
+load_ephemeral()
+
+local function save_ephemeral()
+  local ids = {}
+  for identity in pairs(ephemeral) do
+    ids[#ids + 1] = identity
+  end
+  table.sort(ids)
+
+  local content = table.concat(ids, "\n")
+  if #ids > 0 then
+    content = content .. "\n"
+  end
+
+  if content == written_ephemeral then
+    return
+  end
+
+  local file = io.open(EPHEMERAL_FILE, "w")
+  if not file then
+    os.execute("mkdir -p " .. o.shell_quote(STATE_DIR))
+    file = io.open(EPHEMERAL_FILE, "w")
+  end
+
+  if file then
+    file:write(content)
+    file:close()
+    written_ephemeral = content
+  end
+end
 
 -- Workspace id -> where it came from, { id, identity }, for each workspace that
 -- joined another monitor's block while its own monitor was unplugged. Kept in a
@@ -110,6 +165,10 @@ end
 -- One line per monitor ever seen: its block, its connector while it is plugged
 -- in, and its identity. The bar maps its own connector to a block from this.
 local function save(monitors, identities)
+  -- Written first: the block rows can be unchanged while an output the session
+  -- made has just been recorded.
+  save_ephemeral()
+
   local connector = {}
   for _, monitor in ipairs(monitors) do
     connector[identities[monitor.name]] = monitor.name
@@ -236,11 +295,67 @@ local function free_block()
   return block
 end
 
+-- A monitor the compositor made rather than found, such as the headless one a
+-- remote-desktop tool adds for a session. It is gone when the session ends and
+-- comes back under a name of its own next time, so its block is only worth
+-- holding for the session that made it.
+--
+-- Hyprland 0.57 names the backend that created each output, which says it
+-- exactly. 0.56 does not, and there an output the session made is the one that
+-- reports nothing about itself at all: no description, and no physical size
+-- either, since it has no EDID behind it. A monitor that anonymous is treated
+-- the same way; it still keeps its block while it is connected, and only loses
+-- it across a restart it was unplugged for.
+local function ephemeral_output(monitor)
+  local hardware = monitor.hardware_details
+  if hardware ~= nil then
+    return hardware.backend == "headless"
+  end
+  return (monitor.description or "") == ""
+    and (monitor.physical_width or 0) == 0
+    and (monitor.physical_height or 0) == 0
+end
+
+-- Record the outputs of this session that were made rather than found. They keep
+-- their block while they are connected, so a reload and the bar both still find
+-- it.
+local function mark_ephemeral(identities, monitors)
+  for _, monitor in ipairs(monitors) do
+    local identity = identities[monitor.name]
+    if identity then
+      ephemeral[identity] = ephemeral_output(monitor) or nil
+    end
+  end
+end
+
+-- Hand back the blocks of made outputs from the session that ended. `present`
+-- holds the identities connected now: a headless output does not outlive its
+-- compositor, so any other one is gone for good.
+local function prune_ephemeral(present)
+  local dropped = false
+
+  for identity in pairs(ephemeral) do
+    if not present[identity] then
+      ephemeral[identity] = nil
+      blocks[identity] = nil
+      dropped = true
+    end
+  end
+
+  if dropped then
+    save_ephemeral()
+  end
+
+  return dropped
+end
+
 -- Each connected monitor's block, assigning one to a monitor seen for the first
 -- time. Keyed by connector.
 local function assign(monitors)
   local identities = identities_of(monitors)
   local by_connector = {}
+
+  mark_ephemeral(identities, monitors)
 
   for _, monitor in ipairs(monitors) do
     local identity = identities[monitor.name]
@@ -680,6 +795,23 @@ hl.on("hyprland.start", function()
   -- Windows don't outlive a session, so neither do the workspaces that held them.
   merged = {}
   save_merged()
+
+  -- Nor does an output the session made for itself, so a block saved for one that
+  -- is not here now belongs to a session that has ended. A session can start with
+  -- no monitor at all and get one later, so this runs whether or not one is here.
+  local monitors = connected()
+  local identities = identities_of(monitors)
+  local present = {}
+  for _, identity in pairs(identities) do
+    present[identity] = true
+  end
+
+  -- Nothing connected means reconcile has no work and would leave the file as it
+  -- was, so write the rows prune_ephemeral kept.
+  if prune_ephemeral(present) and #monitors == 0 then
+    save(monitors, identities)
+  end
+
   M.reconcile()
 end)
 
