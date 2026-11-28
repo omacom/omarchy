@@ -20,7 +20,10 @@ id="${1:-}"
 [[ -n $id ]] || fail "plugin id is required"
 
 result=$(omarchy-shell shell setPluginEnabled "$id" false)
-[[ $result == "ok" ]] ||
+if [[ $result == "unknown" ]]; then
   fail "plugin '$id' is not known; run: omarchy-shell shell rescanPlugins"
+elif [[ $result != "ok" ]]; then
+  fail "$result"
+fi
 
 echo "Disabled $id"

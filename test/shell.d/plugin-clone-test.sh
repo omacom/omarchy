@@ -26,7 +26,7 @@ elif [[ $* == *"listPlugins"* ]]; then
   fi
 elif [[ $* == *"setPluginEnabled"* ]]; then
   printf 'omarchy-shell %s\n' "$*" >>"$FAKE_CALLS"
-  printf 'ok\n'
+  printf '%s\n' "${FAKE_DISABLE_RESULT:-ok}"
 fi
 exit 0
 SH
@@ -108,6 +108,16 @@ jq -e '
 grep -qx 'omarchy-plugin-enable tester.menu' "$CALLS" ||
   fail "clone does not enable a multi-kind plugin"
 pass "clone preserves and enables multi-kind plugins"
+
+if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" FAKE_DISABLE_RESULT="could not update shell config" \
+  omarchy-plugin-remove tester.menu --yes > "$TMPDIR/remove-error" 2>&1; then
+  fail "plugin removal refuses a failed config disable"
+fi
+[[ -d $menu ]] || fail "failed config disable retains plugin files"
+[[ $(cat "$TMPDIR/remove-error") == "omarchy-plugin-remove: could not update shell config" ]] ||
+  fail "plugin removal reports the config disable error"
+pass "plugin removal retains files when disabling cannot be saved"
 
 remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" \

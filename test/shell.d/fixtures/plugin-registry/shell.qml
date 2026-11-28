@@ -8,6 +8,8 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int changeCount: 0
+  // A shell.json edited on disk that the cached config has not caught up with.
+  property var diskConfig: null
   property var config: ({
     version: 1,
     bar: { layout: { left: [], center: [], right: [] } },
@@ -361,6 +363,23 @@ ShellRoot {
       [{ id: "third.center-widget", size: 2 }],
       "put leaves a widget that is already on the bar where its owner put it"
     )
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: []
+    }
+    root.diskConfig = {
+      version: 1,
+      bar: { layout: { left: [{ id: "third.center-widget", size: 2 }], center: [], right: [] } },
+      plugins: []
+    }
+    root.assertEqual(registry.putBarWidget("third.center-widget", { section: "right" }), "", "put accepts a widget the file already has on the bar")
+    root.assertDeepEqual(
+      [root.config.bar.layout.left, root.config.bar.layout.right],
+      [[{ id: "third.center-widget", size: 2 }], []],
+      "put leaves a widget added on disk before the cache caught up where it is"
+    )
     root.assertDeepEqual(root.config.bar.layout.right, [], "put adds no second entry for a widget already on the bar")
     root.assertEqual(registry.putBarWidget("third.absent", {}), "unknown", "put reports a widget it does not know")
 
@@ -374,6 +393,19 @@ ShellRoot {
       root.config.bar.layout.center,
       [{ id: "local.first-widget", size: 5 }],
       "put leaves a clone of the widget it was asked to place alone"
+    )
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+    root.diskConfig = {
+      version: 1,
+      bar: { layout: { left: [], center: [{ id: "local.first-widget", size: 5 }], right: [] } },
+      plugins: []
+    }
+    root.assertEqual(registry.putBarWidget("omarchy.first-widget", {}), "", "put accepts a widget whose clone the file already has on the bar")
+    root.assertDeepEqual(
+      root.config.bar.layout.center,
+      [{ id: "local.first-widget", size: 5 }],
+      "put leaves a clone added on disk before the cache caught up alone"
     )
 
     // Refusing an id the scan has not reached would fail the migration.
@@ -613,7 +645,8 @@ ShellRoot {
     pluginsDir: Quickshell.env("HOME") + "/.config/omarchy/plugins"
     shellConfigProvider: function() { return root.config }
     shellConfigMutator: function(mutator) {
-      var next = JSON.parse(JSON.stringify(root.config || {}))
+      var next = JSON.parse(JSON.stringify(root.diskConfig || root.config || {}))
+      root.diskConfig = null
       mutator(next)
       root.config = next
     }
