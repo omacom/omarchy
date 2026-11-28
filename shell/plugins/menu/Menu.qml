@@ -1482,6 +1482,9 @@ Item {
     }
     onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }
     onTargetScreenChanged: { cardTop = -1; maxRowsHeight = -1 }
+    // Opening asks for focus before this window has mapped, and that request
+    // does not reach the new window. Ask again once it is mapped.
+    onBackingWindowVisibleChanged: if (backingWindowVisible) filterInput.forceActiveFocus()
 
     Rectangle {
       anchors.fill: parent

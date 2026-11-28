@@ -159,6 +159,9 @@ Item {
     id: panel
     shown: root.opened
     WlrLayershell.namespace: "omarchy-emojis"
+    // Opening asks for focus before this window has mapped, and that request
+    // does not reach the new window. Ask again once it is mapped.
+    onBackingWindowVisibleChanged: if (backingWindowVisible) keyCatcher.forceActiveFocus()
 
     Rectangle {
       anchors.fill: parent
