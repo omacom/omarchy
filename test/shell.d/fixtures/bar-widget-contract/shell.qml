@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Ui
 
 ShellRoot {
   id: root
@@ -162,6 +163,11 @@ ShellRoot {
 
   Item { id: host }
 
+  // A bar object with no barSize, as a plugin may hand a popup or panel.
+  QtObject { id: sizelessBar; property string position: "top" }
+  PopupCard { anchorItem: host; bar: sizelessBar }
+  KeyboardPanel { anchorItem: host; bar: sizelessBar; visible: false }
+
   QtObject {
     id: mockShell
     property var bar: fakeBar
@@ -178,6 +184,7 @@ ShellRoot {
   QtObject {
     id: fakeBar
     property bool vertical: false
+    property string position: vertical ? "left" : "top"
     property int barSize: 26
     property string omarchyPath: root.rootPath
     property string fontFamily: "monospace"

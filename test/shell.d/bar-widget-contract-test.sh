@@ -34,3 +34,10 @@ PY
 
 OMARCHY_QML_BAR_WIDGETS="$bar_widgets" \
   run_qml_fixture bar-widget-contract "bar widget contracts pass" Ui Commons
+
+if rg -q '(PopupCard|KeyboardPanel)\.qml.*Unable to assign' "$QML_FIXTURE_LOG"; then
+  rg '(PopupCard|KeyboardPanel)\.qml.*Unable to assign' "$QML_FIXTURE_LOG" >&2
+  fail "popup and keyboard panel fixtures build without binding type warnings"
+else
+  pass "popup and keyboard panel fixtures build without binding type warnings"
+fi
