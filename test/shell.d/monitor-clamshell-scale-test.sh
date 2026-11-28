@@ -23,9 +23,9 @@ if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
   other=""
   [[ -n ${OMARCHY_TEST_OTHER_OUTPUT:-} ]] && other=$(printf ',{"name":"%s","disabled":false,"scale":1}' "$OMARCHY_TEST_OTHER_OUTPUT")
   if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" ]]; then
-    printf '[{"name":"eDP-1","disabled":true,"scale":null}%s]' "$other"
+    printf '[{"name":"eDP-1","description":"LG Display 0x0742","disabled":true,"scale":null}%s]' "$other"
   else
-    printf '[{"name":"eDP-1","disabled":false,"scale":%s}%s]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "$other"
+    printf '[{"name":"eDP-1","description":"LG Display 0x0742","disabled":false,"scale":%s}%s]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "$other"
   fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
@@ -250,6 +250,104 @@ for rule in \
   expect_sync "clamshell recovery reads the position and scale out of: $rule" off 1.75 'position = "0x0"' 'scale = 1.25' <<<"$rule"
 done
 
+# None of these ends the panel's rule early, hides it, or poses as a later rule
+# for it: a rule kept in a comment or a string of any kind is not a rule.
+expect_rule() {
+  expect_sync "clamshell recovery reads the panel's rule beside $1" off 1.75 'position = "0x0"' 'scale = 1.25'
+}
+
+expect_rule "a call nested in the rule" <<'LUA'
+hl.monitor({ output = "eDP-1", reserved_area = area({ top = 24 }), position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "a parenthesis and an escaped quote in a string" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = string.sub("preferred\"(", 1, 9), position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "a rule sharing a line with another" <<'LUA'
+hl.monitor({ output = "DP-1", position = "auto", scale = 1 }); hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "an opener split from its table" <<'LUA'
+hl.monitor(
+  { output = "desc:LG Display 0x0742", position = "0x0", scale = 1.25 }
+)
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "a rule quoted in a string" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+local example = 'hl.monitor({ output = "eDP-1", position = "auto", scale = 2 })'
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "a rule in a block comment spanning lines" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+--[[ Previous profile [old]:
+hl.monitor({ output = "eDP-1", position = "auto", scale = 2 })
+]]
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "a rule in a block comment of a higher level" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+--[==[ Previous profile, from a tool that writes t[a[1]]:
+hl.monitor({ output = "eDP-1", position = "auto", scale = 2 })
+]==]
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "a rule in a long string" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+local previous = [=[
+hl.monitor({ output = "eDP-1", position = "auto", scale = 2 })
+]=]
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_rule "a rule in a quoted string continued onto later lines" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+local previous = '\z
+hl.monitor({ output = "eDP-1", position = "auto", scale = 2 })'
+local older = "\
+hl.monitor({ output = \"eDP-1\", position = \"auto\", scale = 2 })"
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+
+# Regression (#7498): a panel configured by description, wrapped over lines as
+# hyprmoncfg writes it, was invisible to the parser, so the catch-all's 2 was
+# forced onto it on every wake and every mouse move on the lock screen.
+desc_config='local omarchy_monitor_scale = 2
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+
+hl.monitor({
+  output = "desc:LG Display 0x0742",
+  mode = "1920x1080@144.00",
+  position = "0x0",
+  scale = 1,
+})'
+expect_sync "clamshell recovery leaves a panel configured by description at its scale" 1 - '!scale = ' <<<"$desc_config"
+expect_sync "clamshell recovery reads a desc rule wrapped over lines" off - 'position = "0x0"' 'scale = 1 ' <<<"$desc_config"
+
+# Hyprland matches desc: as a prefix of the description, spaces either side
+# trimmed, and of two rules naming the panel applies the last.
+expect_sync "clamshell recovery matches a desc prefix to the internal panel" 3 - 'scale = 1.25' <<'LUA'
+hl.monitor({ output = "desc: LG Display ", mode = "preferred", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+expect_sync "clamshell recovery ignores a desc rule for another display" 3 - 'scale = 1.5' <<'LUA'
+hl.monitor({ output = "desc:Dell Inc. U2720Q", mode = "preferred", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.5 })
+LUA
+expect_sync "clamshell recovery takes the last rule naming the internal panel" 3 - 'scale = 1.25' <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 1.5 })
+hl.monitor({ output = "desc:LG Display 0x0742", mode = "preferred", position = "0x0", scale = 1.25 })
+LUA
+expect_sync "clamshell recovery reads a connector rule wrapped over lines" 1.25 - '!scale = ' <<'LUA'
+hl.monitor({
+  output = "eDP-1",
+  mode = "preferred",
+  position = "0x0",
+  scale = 1.25,
+})
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+
 # A panel turned off from the Display panel is a runtime disabled = true with
 # no flag. Once the external display is unplugged, the recovery's rule update
 # has to say disabled = false, or the panel stays off behind Hyprland's
@@ -272,7 +370,7 @@ OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=HEADLESS-1 \
 # panel comes back at its chosen mode and position.
 settings_file="$home_dir/.local/state/omarchy/monitors/settings"
 mkdir -p "${settings_file%/*}"
-printf '%s\t%s\t%s\t%s\n' "2560x1600@60" "640x1440" "1.6" "eDP-1" >"$settings_file"
+printf '%s\t%s\t%s\t%s\n' "2560x1600@60" "640x1440" "1.6" "LG Display 0x0742" >"$settings_file"
 expect_sync "clamshell recovery keeps the scale chosen in the display panel" 1.6 - '!scale = ' <<<"$internal_config"
 expect_sync "clamshell recovery brings the panel back as chosen in the display panel" off - \
   'mode = "2560x1600@60", position = "640x1440", scale = 1.6' <<<"$internal_config"
