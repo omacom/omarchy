@@ -40,6 +40,44 @@ Item {
 }
 QML
 
+# A panel that fails to compile must be reported and closed, not left half open.
+broken_panel_id="acme.broken-panel"
+broken_panel_dir="$SCRATCH_HOME/.config/omarchy/plugins/$broken_panel_id"
+mkdir -p "$broken_panel_dir"
+cat >"$broken_panel_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$broken_panel_id",
+  "name": "Broken Panel",
+  "version": "1.0.0",
+  "kinds": ["panel"],
+  "entryPoints": {"panel": "Panel.qml"}
+}
+JSON
+cat >"$broken_panel_dir/Panel.qml" <<'QML'
+import QtQuick
+
+Item {
+  property int broken:
+}
+QML
+
+# A bar that fails to compile must give way to the built-in bar, every time.
+broken_bar_id="acme.broken-bar"
+broken_bar_dir="$SCRATCH_HOME/.config/omarchy/plugins/$broken_bar_id"
+mkdir -p "$broken_bar_dir"
+cat >"$broken_bar_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$broken_bar_id",
+  "name": "Broken Bar",
+  "version": "1.0.0",
+  "kinds": ["bar"],
+  "entryPoints": {"bar": "Bar.qml"}
+}
+JSON
+cp "$broken_panel_dir/Panel.qml" "$broken_bar_dir/Bar.qml"
+
 # A keepLoaded service must keep its instance (and in-memory state) across a
 # plugin rescan. The marker below can only survive if the object does.
 keep_service_id="acme.keep-service"
@@ -434,6 +472,35 @@ pass "installed plugin changes reload without an explicit rescan"
 scratch_ipc_quiet shell hide omarchy.emojis >/dev/null
 scratch_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null
 pass "shell IPC routes built-in ids to enabled clones"
+
+[[ $(scratch_ipc shell setPluginEnabled "$broken_panel_id" true) == "ok" ]] ||
+  fail_with_log "broken panel plugin could not be enabled"
+[[ $(scratch_ipc shell summon "$broken_panel_id" "{}") == "ok" ]] ||
+  fail_with_log "broken panel plugin could not be summoned"
+for _ in {1..80}; do
+  grep -qF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG" && break
+  grep -qF "errorString is not defined" "$SCRATCH_LOG" && break
+  sleep 0.1
+done
+grep -qF "errorString is not defined" "$SCRATCH_LOG" &&
+  fail_with_log "panel load failure handler throws before closing the panel"
+grep -F "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG" | grep -F "Panel.qml" | grep -qF "Expected token" ||
+  fail_with_log "panel load failure names the plugin and the error"
+# Closed again, the next toggle summons it and tries the load once more.
+for attempt in {1..3}; do
+  panel_failures=$(grep -cF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG")
+  scratch_ipc_quiet shell toggle "$broken_panel_id" "{}" >/dev/null
+  for _ in {1..80}; do
+    (( $(grep -cF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG") > panel_failures )) && break
+    sleep 0.1
+  done
+  (( $(grep -cF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG") > panel_failures )) ||
+    fail_with_log "a panel that fails to load is closed again (attempt $attempt)"
+done
+grep -qF 'Binding loop detected for property "active"' "$SCRATCH_LOG" &&
+  fail_with_log "closing a failed panel must not re-enter its active binding"
+scratch_ipc_quiet shell setPluginEnabled "$broken_panel_id" false >/dev/null
+pass "a panel that fails to load is reported with its error"
 
 shell_config=$(scratch_ipc shell listShellConfig)
 jq -e '
@@ -876,3 +943,39 @@ jq -e '.currentAllowed == false and .retainedAllowed == false' \
   fail_with_log "cached plugin facades revoke capabilities removed from the manifest"
 }
 pass "manifest reload revokes cached facade capabilities"
+
+broken_bar_failures() {
+  grep -cF "bar option $broken_bar_id failed to load, falling back to omarchy.bar" "$SCRATCH_LOG" || true
+}
+
+built_in_bar_registered() {
+  local geometry
+  for _ in {1..80}; do
+    geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
+    jq -e 'any(.[]; .id == "omarchy.clock")' <<<"$geometry" >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+[[ $(scratch_ipc shell enablePlugin "$broken_bar_id" '{}') == "ok" ]] ||
+  fail_with_log "broken bar plugin could not be selected"
+for _ in {1..80}; do
+  (( $(broken_bar_failures) > 0 )) && break
+  sleep 0.1
+done
+(( $(broken_bar_failures) > 0 )) || fail_with_log "a bar that fails to load is reported"
+built_in_bar_registered || fail_with_log "a bar that fails to load falls back to the built-in bar"
+
+# A config change retries the bar from its cached component, which fails
+# synchronously rather than on a later tick.
+bar_failures=$(broken_bar_failures)
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+  fail_with_log "host bar configuration could not be updated with a broken bar selected"
+for _ in {1..80}; do
+  (( $(broken_bar_failures) > bar_failures )) && break
+  sleep 0.1
+done
+(( $(broken_bar_failures) > bar_failures )) || fail_with_log "a config change retries the selected bar"
+built_in_bar_registered || fail_with_log "a bar that fails to load again falls back to the built-in bar"
+pass "a bar that fails to load falls back to the built-in bar"
