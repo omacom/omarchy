@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide internal helpers for managing login users and their sudo access
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-user-functions is an internal function library." >&2
+  exit 64
+fi
+
+# Callers define fail(). Login users are real accounts (UID 1000..59999).
+
+caller_uid() {
+  id -u "${SUDO_USER:-$(id -un)}"
+}
+
+is_login_uid() {
+  (($1 >= 1000 && $1 < 60000))
+}
+
+in_group() {
+  [[ " $(id -nG "$1") " == *" $2 "* ]]
+}
+
+# Resolve only login names, not numeric UIDs accepted by id/getent. Passing a
+# UID on to gpasswd/usermod/userdel does not identify a login name.
+require_login_user() {
+  local entry name uid
+  entry=$(getent passwd "$1") || fail "no such user: $1"
+  IFS=: read -r name _ uid _ <<<"$entry"
+  [[ $name == "$1" ]] || fail "use the login name, not a UID: $1"
+  is_login_uid "$uid" || fail "refusing to manage system account '$name' (UID $uid)"
+}
+
+full_sudo_grant() {
+  local list
+  list=$(LC_ALL=C sudo -l -U "$1" 2>/dev/null) || return 1
+  grep -Eq '^[[:space:]]*\((ALL|root)([[:space:]]*:[^)]*)?\)[[:space:]]+([A-Z]+:[[:space:]]*)*ALL[[:space:]]*$' <<<"$list"
+}
+
+# Enumerating passwd and asking id includes primary wheel members, which are
+# absent from getent group's supplementary-member list.
+other_admin_exists() {
+  local excluded_uid=$1 name uid
+  while IFS=: read -r name _ uid _; do
+    is_login_uid "$uid" || continue
+    ((uid != excluded_uid)) || continue
+    if in_group "$name" wheel || full_sudo_grant "$name"; then
+      return 0
+    fi
+  done < <(getent passwd)
+  return 1
+}
+
+guard_last_admin() {
+  local username=$1 uid
+  uid=$(id -u "$username")
+  if in_group "$username" wheel || full_sudo_grant "$username"; then
+    other_admin_exists "$uid" || fail "refusing to remove the last administrator; no other login user has wheel membership or unrestricted sudo"
+  fi
+}
+
+guard_wheel_removal() {
+  local username=$1 uid
+
+  uid=$(id -u "$username")
+  is_login_uid "$uid" || fail "refusing to change wheel for system account '$username' (UID $uid)"
+  if ((uid == $(caller_uid))); then
+    fail "refusing to remove wheel from your own account"
+  fi
+
+  other_admin_exists "$uid" || fail "refusing to remove the last administrator; no other login user has wheel membership or unrestricted sudo"
+}
+
+warn_wheel_admin() {
+  echo "wheel grants administrator access through sudo and polkit (including pkexec/run0)."
+}
+
+# Removing wheel cannot revoke an independent sudoers rule. A failed query is
+# inconclusive unless sudo explicitly says the account has no grant.
+report_sudo_access() {
+  local username=$1 output
+  if output=$(LC_ALL=C sudo -l -U "$username" 2>&1); then
+    echo "WARNING: $username still has effective sudo privileges. Review /etc/sudoers and /etc/sudoers.d with sudo visudo." >&2
+  elif [[ $output == *"is not allowed to run sudo"* || $output == *"may not run sudo"* ]]; then
+    echo "No sudo access remains for $username."
+  else
+    echo "Could not verify remaining sudo access for $username: $output" >&2
+    echo "Run 'sudo -l -U $username' from a root or another administrator session." >&2
+  fi
+}
