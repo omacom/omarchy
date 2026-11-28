@@ -519,25 +519,53 @@ platform_root_copy() {
     fail "$(basename -- "$script") reads the platform root from the fixture"
 }
 
+# Sets REPLY to monotonic milliseconds from /proc/uptime (CLOCK_BOOTTIME,
+# always an ASCII dot regardless of locale). Immune to NTP wall-clock steps
+# in freshly booted CI VMs, with zero subshell forks.
+read_monotonic_ms() {
+  local up
+  if read -r up _ 2>/dev/null </proc/uptime && [[ $up =~ ^[0-9]+\.[0-9]{2}$ ]]; then
+    REPLY=$((10#${up/./} * 10))
+  else
+    fail "read monotonic clock from /proc/uptime" "${up:-empty}"
+  fi
+}
+
 # How long this machine takes to start processes, as a percentage of the
 # laptop the timing budgets were measured on (100 there, never less): the
 # fastest of three runs of 100 fork/execs of true, against the 25ms they take
-# on that laptop. A test timing process-heavy work multiplies its budget by
-# this, so a Raspberry Pi or an ARM VM gets the room its slower process starts
-# need, and only what is still several times over fails.
+# on that laptop. Timed on CLOCK_MONOTONIC at microsecond resolution inside one
+# warm bash process so NTP wall-clock steps in freshly booted CI VMs cannot
+# skew it and /proc/uptime's 10ms ticks do not quantize a 25ms baseline.
 process_speed_percent() {
-  local best="" start end elapsed
+  python3 - <<'PY'
+import subprocess, time
 
-  for _ in 1 2 3; do
-    start=$EPOCHREALTIME
-    for _ in {1..100}; do /usr/bin/true; done
-    end=$EPOCHREALTIME
-    elapsed=$(( ${end/[.,]/} - ${start/[.,]/} ))
-    if [[ -z $best ]] || (( elapsed < best )); then
-      best=$elapsed
-    fi
-  done
-  echo $(( best > 25000 ? best * 100 / 25000 : 100 ))
+with subprocess.Popen(
+    ["/bin/bash", "-euo", "pipefail"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    text=True,
+) as sh:
+  best = None
+  for _ in range(3):
+    sh.stdin.write("echo ready\n")
+    sh.stdin.flush()
+    if sh.stdout.readline() != "ready\n":
+      raise RuntimeError("calibration shell failed to sync")
+    start = time.monotonic_ns()
+    sh.stdin.write("for _ in {1..100}; do /usr/bin/true; done; echo done\n")
+    sh.stdin.flush()
+    if sh.stdout.readline() != "done\n":
+      raise RuntimeError("calibration shell failed during /usr/bin/true loop")
+    elapsed = (time.monotonic_ns() - start) // 1000
+    if best is None or elapsed < best:
+      best = elapsed
+  sh.stdin.close()
+  if sh.wait() != 0:
+    raise RuntimeError(f"calibration shell exited with {sh.returncode}")
+print(best * 100 // 25000 if best > 25000 else 100)
+PY
 }
 
 # Sets SPEED_PERCENT for a timing test, skipping the rest of the file when the

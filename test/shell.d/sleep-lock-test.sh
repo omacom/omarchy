@@ -70,13 +70,15 @@ run_sleep_lock() {
   local args=()
   [[ -n ${1:-} ]] && args=("$1")
 
-  start_us=${EPOCHREALTIME//[!0-9]/}
+  read_monotonic_ms
+  start_ms=$REPLY
   set +e
   CALL_LOG="$call_log" STATE_DIR="$state_dir" PATH="$mock_bin:$PATH" \
     "$sleep_lock" "${args[@]}" 2>"$journal_log"
   exit_status=$?
   set -e
-  elapsed_us=$((10#${EPOCHREALTIME//[!0-9]/} - 10#$start_us))
+  read_monotonic_ms
+  elapsed_ms=$((REPLY - start_ms))
 
   mapfile -t calls <"$call_log"
 }
@@ -143,8 +145,8 @@ pass "sleep lock reports failure when the session never secures"
 # mid-lock. Bounding by that reserve rather than by the interval leaves room for
 # process startup on a loaded machine, and still catches a wait that ignores
 # its deadline.
-(( elapsed_us <= 1600000 )) ||
-  fail "sleep lock gives up within its budget" "elapsed: ${elapsed_us}us"
+(( elapsed_ms <= 1600 )) ||
+  fail "sleep lock gives up within its budget" "elapsed: ${elapsed_ms}ms"
 pass "sleep lock gives up within its budget"
 
 polls=0

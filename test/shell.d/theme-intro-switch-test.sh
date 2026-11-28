@@ -249,13 +249,14 @@ pass "themes staged from a checkout take their intros and loops from the package
 
 # Snapshot cleanup runs in the background after an ordinary still transition
 # and must close stdout/stderr so callers capturing output do not hang for 3s.
-start=$EPOCHREALTIME
+read_monotonic_ms
+start=$REPLY
 _captured=$(
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
     TEST_ANIMATIONS=false OMARCHY_THEME_WAIT=1 \
     /bin/bash "$ROOT/bin/omarchy-theme-set" alpha </dev/null 2>&1
 ) || fail "captured theme switch completes" "$_captured"
-end=$EPOCHREALTIME
-elapsed_ms=$(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
+read_monotonic_ms
+elapsed_ms=$((REPLY - start))
 (( elapsed_ms < 2000 )) || fail "captured theme switch does not wait 3s for snapshot cleanup (${elapsed_ms}ms)"
 pass "captured theme switch closes stdio on background snapshot cleanup (${elapsed_ms}ms)"
