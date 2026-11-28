@@ -46,6 +46,13 @@ Item {
 
   function entryForAppId(appId) {
     var entry = DesktopEntries.heuristicLookup(appId)
+    if (!entry) {
+      // A web app's window class carries the launching browser's prefix, while
+      // the shipped entries hard-code chrome-. Retry with the prefix
+      // normalized, so an Edge or Brave web app still matches its entry.
+      var chromeClass = DockModel.chromeWebAppClass(appId)
+      if (chromeClass) entry = DesktopEntries.heuristicLookup(chromeClass)
+    }
     if (entry) return entry
     var id = DockModel.claimingEntryId(appId, root.terminalEntries)
     return id ? DesktopEntries.byId(id) : null
