@@ -134,17 +134,18 @@ pass "x86: Steam installs and is removed as before, running no hook"
 # Without an Intel, AMD or NVIDIA GPU there is nothing to add, which must not
 # fail the Steam install that asked.
 gpu_bin=$tmp/gpu-bin
-mkdir -p "$gpu_bin"
+mkdir -p "$gpu_bin" "$tmp/gpu-pci"
+export OMARCHY_PCI_DEVICES_PATH="$tmp/gpu-pci"
+export PATH="$ROOT/bin:$PATH"
 printf '#!/bin/bash\necho "00:02.0 VGA compatible controller: %s"\n' '${GPU:-Apple Inc. AGX}' >"$gpu_bin/lspci"
 printf '#!/bin/bash\nexit "${ARCH_X86:-0}"\n' >"$gpu_bin/omarchy-hw-x86"
-printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
-printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
 printf '#!/bin/bash\necho "omarchy-pkg-add $*" >>"%s"\n' "$tmp/calls" >"$gpu_bin/omarchy-pkg-add"
 chmod +x "$gpu_bin"/*
 rm -f "$tmp/calls"
 PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/output" 2>&1 ||
   fail "no supported GPU is not a failure" "$(cat "$tmp/output")"
 [[ ! -e $tmp/calls ]] || fail "no supported GPU installs nothing" "$(cat "$tmp/calls")"
+! grep -q "NVIDIA GPU" "$tmp/output" || fail "a machine without NVIDIA gets no NVIDIA warning"
 GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
   fail "an AMD GPU installs its 32-bit driver"
 [[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-vulkan-radeon" ]] || fail "an AMD GPU gets lib32-vulkan-radeon" "$(cat "$tmp/calls")"
@@ -156,3 +157,20 @@ ARCH_X86=1 GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$
   fail "aarch64 skips the 32-bit drivers without failing"
 [[ ! -e $tmp/calls ]] || fail "aarch64 installs no 32-bit driver" "$(cat "$tmp/calls")"
 pass "32-bit drivers: aarch64 adds none, even with a supported GPU"
+
+mkdir -p "$tmp/gpu-pci/0000:01:00.0"
+echo 0x10de > "$tmp/gpu-pci/0000:01:00.0/vendor"
+echo 0x030000 > "$tmp/gpu-pci/0000:01:00.0/class"
+for spec in 0x13c2:lib32-nvidia-580xx-utils 0x1e00:lib32-nvidia-utils 0x133f:none; do
+  echo "${spec%:*}" > "$tmp/gpu-pci/0000:01:00.0/device"
+  rm -f "$tmp/calls"
+  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" > "$tmp/output" 2>&1 ||
+    fail "$spec: NVIDIA library selection succeeds" "$(cat "$tmp/output")"
+  if [[ ${spec#*:} == "none" ]]; then
+    [[ ! -e $tmp/calls ]] || fail "unsupported NVIDIA installs no libraries"
+    grep -q "NVIDIA GPU" "$tmp/output" || fail "unsupported NVIDIA warns"
+  else
+    [[ $(cat "$tmp/calls") == "omarchy-pkg-add ${spec#*:}" ]] || fail "$spec: matching NVIDIA libraries"
+  fi
+done
+pass "32-bit drivers: real NVIDIA detection selects matching libraries and skips Kepler"

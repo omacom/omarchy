@@ -7,5 +7,9 @@ echo "Switch NVIDIA machines on linux-omarchy from DKMS to prebuilt NVIDIA modul
 # replacing the conflicting nvidia-open-dkms in place.
 if omarchy-pkg-present nvidia-open-dkms linux-omarchy &&
   [[ $(cat /usr/lib/modules/*/pkgbase 2>/dev/null | sort -u) == "linux-omarchy" ]]; then
-  sudo pacman -S --noconfirm --ask 4 linux-omarchy-nvidia-open
+  if [[ $(omarchy-hw-nvidia-arch) == "modern" ]]; then
+    sudo pacman -S --noconfirm --ask 4 linux-omarchy-nvidia-open
+  else
+    echo "Skipping linux-omarchy-nvidia-open on a non-Turing GPU."
+  fi
 fi

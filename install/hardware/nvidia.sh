@@ -9,17 +9,15 @@ elif omarchy-hw-nvidia; then
   # (omarchy-install-gaming-gpu-lib32). Installed with the driver, they and
   # the multilib packages they pull in were 305 MB of the ISO's offline
   # mirror, for every machine.
-  if omarchy-hw-nvidia-gsp; then
-    PACKAGES=(linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver)
-  elif omarchy-hw-nvidia-without-gsp; then
-    PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils)
-  fi
-
-  # Bail if no supported GPU
-  if [[ -z ${PACKAGES+x} ]]; then
-    echo "No compatible driver for your NVIDIA GPU. See: https://wiki.archlinux.org/title/NVIDIA"
-    exit 0
-  fi
+  case "$(omarchy-hw-nvidia-arch)" in
+    modern)
+      PACKAGES=(linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver) ;;
+    legacy)
+      PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils) ;;
+    *)
+      echo "No compatible driver for your NVIDIA GPU. See: https://wiki.archlinux.org/title/NVIDIA" >&2
+      exit 0 ;;
+  esac
 
   # Local models run in Podman, which reaches the GPU through the CDI spec the
   # container toolkit writes.

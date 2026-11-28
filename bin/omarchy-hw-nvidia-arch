@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Report whether the NVIDIA GPU is a legacy (Maxwell/Pascal/Volta) or modern (Turing+) device
+
+# Turing is the first generation with GSP firmware and the first to use device
+# IDs at 0x1e00 or above; Maxwell, Pascal, and Volta all sit below that line.
+# Anything below 0x1340 (Kepler and older) needs a driver Omarchy does not
+# package. Reads cached sysfs IDs rather than lspci, which reads PCI config
+# space and resumes runtime-suspended GPUs.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+legacy=0
+
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/vendor") == "0x10de" ]] || continue
+  [[ $(< "$device/class") == 0x03* ]] || continue
+  device_id=$(< "$device/device")
+  if (( device_id >= 0x1e00 )); then
+    echo modern
+    exit 0
+  elif (( device_id >= 0x1340 )); then
+    legacy=1
+  fi
+done
+
+# Preserve the callers' modern-first choice when both generations are present.
+if (( legacy )); then
+  echo legacy
+else
+  exit 1
+fi
