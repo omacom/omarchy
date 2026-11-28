@@ -367,6 +367,12 @@
   "trigger.capture.screenrecord.webcam": {
     "label": "With desktop + microphone audio + webcam"
   },
+  "trigger.capture.screenrecord.fullscreen-no-audio": {
+    "label": "Full screen with no audio"
+  },
+  "trigger.capture.screenrecord.fullscreen-desktop-audio": {
+    "label": "Full screen with desktop audio"
+  },
   "trigger.transcode": {
     "label": "Transcode"
   },

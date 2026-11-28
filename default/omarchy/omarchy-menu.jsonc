@@ -153,6 +153,8 @@
   "trigger.capture.screenrecord.desktop-audio": {"icon":"","label":"With desktop audio","action":"omarchy-capture-screenrecording --with-desktop-audio"},
   "trigger.capture.screenrecord.microphone": {"icon":"","label":"With desktop + microphone audio","action":"omarchy-capture-screenrecording --with-desktop-audio --with-microphone-audio"},
   "trigger.capture.screenrecord.webcam": {"icon":"","label":"With desktop + microphone audio + webcam","when":"omarchy-hw-webcam","action":"omarchy-capture-screenrecording-with-webcam"},
+  "trigger.capture.screenrecord.fullscreen-no-audio": {"icon":"","label":"Full screen with no audio","action":"omarchy-capture-screenrecording --fullscreen"},
+  "trigger.capture.screenrecord.fullscreen-desktop-audio": {"icon":"","label":"Full screen with desktop audio","action":"omarchy-capture-screenrecording --fullscreen --with-desktop-audio"},
   "trigger.transcode": {"icon":"󰧸","label":"Transcode","action":"omarchy-transcode"},
   "trigger.share": {"icon":"","label":"Share","aliases":["share"]},
   "trigger.hardware": {"icon":"","label":"Hardware","aliases":["hardware","hw"]},
