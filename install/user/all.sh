@@ -12,6 +12,7 @@ run_logged "$OMARCHY_INSTALL/user/hardware/framework/fix-f13-amd-audio-input.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/dell/xps13-text-scaling.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/video-decode.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/camera.sh"
+run_logged "$OMARCHY_INSTALL/user/hardware/intel/youtube-h264.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
 

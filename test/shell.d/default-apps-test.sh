@@ -126,12 +126,13 @@ for installer in \
   omarchy-install-editor-emacs; do
   ln -s omarchy-test-installer "$mock_bin/$installer"
 done
-# omarchy-install-video-decode and omarchy-install-camera add flags on
-# Snapdragon hardware, so the real ones would make the copied flags file
-# depend on the machine running the test.
+# omarchy-install-video-decode, omarchy-install-camera, and
+# omarchy-install-chromium-h264ify add flags on some hardware, so the real ones
+# would make the copied flags file depend on the machine running the test.
 for setup_command in \
   omarchy-install-chromium-copy-url \
   omarchy-install-chromium-ytdlp \
+  omarchy-install-chromium-h264ify \
   omarchy-install-video-decode \
   omarchy-install-camera \
   omarchy-theme-set-browser; do

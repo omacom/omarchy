@@ -1,0 +1,51 @@
+{
+  "extensionDescription": {
+    "message": "Выбирайте сами видео и аудио кодеки, которые YouTube будет вам показывать",
+    "description": "Extension description"
+  },
+
+  "optionsTitle": {
+    "message": "enhanced-h264ify"
+  },
+
+  "optionsBlock60fps": {
+    "message": "Блокировать 60к/с видео"
+  },
+
+  "optionsBlockH264": {
+    "message": "Блокировать h264 (AVC)"
+  },
+
+  "optionsBlockVP8": {
+    "message": "Блокировать VP8"
+  },
+
+  "optionsBlockVP9": {
+    "message": "Блокировать VP9"
+  },
+
+  "optionsBlockAV1": {
+    "message": "Блокировать AV1"
+  },
+
+  "optionsBlockOpus": {
+    "message": "Блокировать Opus"
+  },
+
+  "optionsBlockMP4A": {
+    "message": "Блокировать AAC (MP4A)"
+  },
+
+  "optionsDisableLN": {
+    "message": "Выключить нормализацию громкости"
+  },
+
+  "optionsTitleVideo": {
+    "message": "Видео"
+  },
+
+  "optionsTitleAudio": {
+    "message": "Аудио"
+  }
+
+}
