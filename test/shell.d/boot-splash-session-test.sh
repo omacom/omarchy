@@ -74,12 +74,15 @@ pass "a volume without a key file asks for its passphrase"
 proc=$test_tmp/proc
 sed -n '/^signal_splash() {/,/^}/p' "$ROOT/default/splash/stop" | sed "s|/proc/|$proc/|g" >"$test_tmp/signal-splash.sh"
 grep -qF "$proc/" "$test_tmp/signal-splash.sh" || fail "signal_splash reads processes from the fixture"
-mkdir -p "$proc/1" "$proc/2" "$proc/3"
+mkdir -p "$proc/1" "$proc/2" "$proc/3" "$proc/4" "$proc/5"
 echo "0::/" >"$proc/1/cgroup"
 echo "0::/init.scope" >"$proc/2/cgroup"
 echo "0::/system.slice/seatd.service" >"$proc/3/cgroup"
-signalled=$(sh -c '. "$1"; pidof() { echo 1 2 3; }; kill() { echo "$2"; }; signal_splash TERM seatd' sh "$test_tmp/signal-splash.sh" | tr '\n' ' ')
-[[ $signalled == "1 2 " ]] ||
+# A cgroup v1 hierarchy a service mounted, a VPN's net_cls say, adds a line.
+printf '1:net_cls:/\n0::/init.scope\n' >"$proc/4/cgroup"
+printf '1:net_cls:/\n0::/system.slice/seatd.service\n' >"$proc/5/cgroup"
+signalled=$(sh -c '. "$1"; pidof() { echo 1 2 3 4 5; }; kill() { echo "$2"; }; signal_splash TERM seatd' sh "$test_tmp/signal-splash.sh" | tr '\n' ' ')
+[[ $signalled == "1 2 4 " ]] ||
   fail "stop signals the splash's processes in the initramfs and the real root, and no unit's" "signalled: $signalled"
 pass "stop signals the splash's processes in the initramfs and the real root, and no unit's"
 

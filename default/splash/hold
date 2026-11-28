@@ -34,12 +34,13 @@ has_open() {
 
 # The DRM devices the splash's sway draws on. systemd didn't start it, which
 # tells it apart as stop does: the initramfs started it in the root cgroup,
-# from which systemd moves it into init.scope as it starts, not a unit's.
+# from which systemd moves it into init.scope as it starts, not a unit's. Only
+# the unified hierarchy's line counts, beside any cgroup v1 one.
 splash_devices() {
   local pid cgroup card
   for pid in $(pidof sway); do
-    read -r cgroup 2>/dev/null <"$proc/$pid/cgroup" || continue
-    [[ $cgroup == "0::/" || $cgroup == "0::/init.scope" ]] || continue
+    cgroup=$(sed -n 's/^0:://p' "$proc/$pid/cgroup" 2>/dev/null)
+    [[ $cgroup == "/" || $cgroup == "/init.scope" ]] || continue
     for card in "$dri"/card*; do
       if has_open "$pid" "$card"; then
         echo "$card"

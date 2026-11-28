@@ -13,13 +13,14 @@ run=/run/omarchy-splash
 # those systemd didn't start. The initramfs started them in the root cgroup,
 # and in the real root systemd has moved them into init.scope as it started.
 # What systemd starts, such as a seatd.service of the system's own, is in a
-# unit's cgroup.
+# unit's cgroup. Only the unified hierarchy's line counts: a cgroup v1
+# hierarchy some service mounts (a VPN's net_cls, say) adds a line of its own.
 signal_splash() {
   local signal=$1 pid
   shift
   for pid in $(pidof "$@"); do
-    case $(cat "/proc/$pid/cgroup" 2>/dev/null) in
-      "" | "0::/" | "0::/init.scope") kill "-$signal" "$pid" 2>/dev/null ;;
+    case $(sed -n 's/^0:://p' "/proc/$pid/cgroup" 2>/dev/null) in
+      "" | "/" | "/init.scope") kill "-$signal" "$pid" 2>/dev/null ;;
     esac
   done
 }
