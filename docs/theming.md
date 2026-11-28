@@ -192,6 +192,8 @@ The helper does not choose the first color unless you use `gradient_start`.
 and bar sizing. The default generated file comes from
 `default/themed/shell.toml.tpl`.
 
+The font family chosen with `omarchy font set` and the bar's position and widget layout in `~/.config/omarchy/shell.json` are global user settings that persist across theme switches. Themes set shell font sizes and bar dimensions through `[font]` and `[bar]` in `shell.toml`.
+
 Themes can override the entire generated file by shipping `shell.toml`, or just
 one section by shipping `shell.<section>.toml`. For example,
 `shell.lock.toml` replaces only the `[lock]` section after the default
