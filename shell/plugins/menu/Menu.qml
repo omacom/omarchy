@@ -105,6 +105,10 @@ Item {
   property bool cursorActive: false
   // Rows with a `alt:` stand-in show and run it while this holds.
   property bool altHeld: false
+  // Escape closes on release: closing on press hands keyboard focus back to
+  // the window underneath while the key is still down, so it gets the release
+  // (a fullscreen browser leaves fullscreen on it).
+  property bool escapeArmed: false
   property int requestSerial: 0
   property int applySerial: 0
   property var items: ({})
@@ -119,7 +123,10 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: {
+    escapeArmed = false
+    if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  }
   // Bound to the central [menu] section in shell.toml via Commons.Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -1514,10 +1521,17 @@ Item {
         // Focus is on filterInput, which forwards every key here first.
         Keys.onReleased: function(event) {
           if (event.key === Qt.Key_Alt) root.altHeld = false
+          if (event.key === Qt.Key_Escape && !event.isAutoRepeat && root.escapeArmed) {
+            root.escapeArmed = false
+            root.cancel()
+            event.accepted = true
+          }
         }
 
         Keys.onPressed: function(event) {
           root.altHeld = event.key === Qt.Key_Alt || (event.modifiers & Qt.AltModifier) !== 0
+          // Any other key in between cancels the pending close.
+          if (event.key !== Qt.Key_Escape) root.escapeArmed = false
 
           if (root.deleteConfirmOpen) {
             // Swallow the rest too, or it would type into the search line behind the dialog.
@@ -1530,8 +1544,10 @@ Item {
             root.requestDeleteSelected()
             event.accepted = true
           } else if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
-            else root.cancel()
+            if (!event.isAutoRepeat) {
+              if (root.filterText) root.setFilter("")
+              else root.escapeArmed = true
+            }
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
