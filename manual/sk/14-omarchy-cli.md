@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy sa zvyčajne ovláda pomocou klávesových skratiek a menu Omarchy (`Super + Space`). Môžete ho však ovládať aj cez `omarchy` CLI. Toto je obzvlášť užitočné, keď s vami na prispôsobení alebo konfigurácii pracuje AI agent.
+Omarchy sa zvyčajne ovláda pomocou klávesových skratiek a menu Omarchy (`Super + Space`). Môžete ho však ovládať aj cez CLI `omarchy`. To je obzvlášť užitočné, keď s vami na prispôsobení alebo konfigurácii spolupracuje AI agent.
 
-CLI má prístup ku všetkým interným nástrojom, ktoré sa používajú cez menu aj inak. Všetko, čo je k dispozícii, uvidíte spustením `omarchy` v termináli.
+CLI má prístup ku všetkým interným nástrojom, ktoré sa používajú cez menu aj inak. Všetko, čo je k dispozícii, si môžete pozrieť spustením `omarchy` v termináli.
 
 Vyzerá to približne takto:
 
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,7 +42,7 @@ Groups:
   ...
 ```
 
-Na diagnostiku spustite priamo `omarchy-debug --no-sudo --print`. Vypíše diagnostiku a zapíše `/tmp/omarchy-debug.log` bez vyžiadania sudo, a to aj pri inštaláciách balíčkov, kde `omarchy debug` môže zlyhať s hlásením "Unknown Omarchy command".
+Na diagnostiku spustite priamo `omarchy-debug --no-sudo --print`. Vypíše diagnostiku a zapíše `/tmp/omarchy-debug.log` bez výzvy na sudo, a to aj pri inštaláciách balíkov, kde `omarchy debug` môže zlyhať s hlásením "Unknown Omarchy command".
 
 A do každej skupiny sa môžete ponoriť hlbšie:
 
@@ -49,15 +50,15 @@ A do každej skupiny sa môžete ponoriť hlbšie:
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Každý príkaz podporuje aj `--help`, či už sa pýtate na celú skupinu (`omarchy capture --help`), alebo na jeden príkaz (`omarchy capture screenshot --help`).
+Každý príkaz podporuje aj `--help`, či už sa pýtate celej skupiny (`omarchy capture --help`), alebo jedného príkazu (`omarchy capture screenshot --help`).
 
 ### Otvorenie menu z terminálu
 
-Menu Omarchy sa dá ovládať aj skriptami, čo sa hodí pre vaše vlastné klávesové skratky. `omarchy menu` ho otvorí v koreňovom menu a pomenovaním môžete preskočiť priamo na ľubovoľné miesto v strome: `omarchy menu summon appearance.theme` prejde priamo na výber témy, `omarchy menu toggle system` otvorí systémové menu a znova ho zatvorí, ak už je otvorené, a `omarchy menu close` ho skryje.
+Menu Omarchy sa dá aj skriptovať, čo sa hodí pre vaše vlastné klávesové skratky. `omarchy menu` ho otvorí na najvyššej úrovni a zadaním názvu môžete skočiť priamo na ľubovoľný bod v strome: `omarchy menu summon appearance.theme` prejde rovno na výber témy, `omarchy menu toggle system` otvorí systémové menu a znova ho zatvorí, ak už je otvorené, a `omarchy menu close` ho skryje.

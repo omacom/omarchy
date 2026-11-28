@@ -34,6 +34,7 @@ from collectors import (  # noqa: E402
   base_record as shared_base_record,
   cached_scan,
   config_home,
+  cursor_account_name,
   cursor_auth_path,
   cursor_token,
   emit,
@@ -378,6 +379,7 @@ def scan(api_base_url: str, auth_path: Path, limits_only: bool, state_db: Path |
     return base_record()
 
   client = CursorClient(token, api_base_url)
+  account_name = cursor_account_name(token, state_db)
   key = account_key(token)
   cache = limits_cache(key)
   kept = kept_limits(cache)
@@ -400,6 +402,8 @@ def scan(api_base_url: str, auth_path: Path, limits_only: bool, state_db: Path |
       limitsStale=True,
       limitsFetchedAt=fetched_at if kept else 0,
     )
+    if account_name:
+      record["accountName"] = account_name
     if retry:
       record["retryAdvised"] = True
     record.update(carried_stats(key, today))
@@ -420,6 +424,8 @@ def scan(api_base_url: str, auth_path: Path, limits_only: bool, state_db: Path |
   # flick, so an answer this recent is the answer, even one with no meters.
   if cache.fresh(force, allow_empty=True):
     record = base_record(ready=True, tierLabel=kept_tier, limits=kept, limitsFetchedAt=fetched_at)
+    if account_name:
+      record["accountName"] = account_name
     record.update(week_stats(client, today, key, scan_age))
     return record
 
@@ -445,6 +451,8 @@ def scan(api_base_url: str, auth_path: Path, limits_only: bool, state_db: Path |
   # The cache only backs later runs; failing to keep it never costs this
   # run's live answer.
   record = base_record(ready=True, tierLabel=tier, limits=limits, limitsFetchedAt=cache.save(limits, tierLabel=tier, weekly=weekly))
+  if account_name:
+    record["accountName"] = account_name
   record.update(week_stats(client, today, key, scan_age))
   return record
 

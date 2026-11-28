@@ -124,3 +124,91 @@ noise=$(HOME="$tmp_dir/empty" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=fa
 [[ -n $noise ]] &&
   fail "webapp remove stays quiet with no applications directory" "$noise"
 pass "webapp remove stays quiet when there is no applications directory"
+
+# Path traversal names must not delete files outside the applications directory.
+touch "$tmp_dir/home/.local/share/victim.desktop"
+if run_remove "../victim" >/dev/null 2>&1; then
+  fail "webapp remove rejects a traversal name"
+fi
+[[ -f "$tmp_dir/home/.local/share/victim.desktop" ]] ||
+  fail "webapp remove does not delete files outside the applications directory"
+pass "webapp remove rejects path traversal names"
+
+# TUI install/remove enforce the same name validation and desktop escaping.
+if HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+  "$ROOT/bin/omarchy-tui-install" "../escape" "btop" tile icon >/dev/null 2>&1; then
+  fail "tui install rejects a name containing a slash"
+fi
+[[ ! -e "$tmp_dir/home/.local/share/escape.desktop" ]] ||
+  fail "tui install writes nothing outside the applications directory"
+
+tui_inject_name=$(printf 'Inject\nExec=evil')
+HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+  "$ROOT/bin/omarchy-tui-install" "$tui_inject_name" "btop" tile icon >/dev/null
+tui_inject_file="$apps_dir/$tui_inject_name.desktop"
+(( $(grep -c '^Exec=' "$tui_inject_file") == 1 )) ||
+  fail "tui install escapes newlines so they cannot inject a second Exec" "$(cat "$tui_inject_file")"
+rm -f "$tui_inject_file"
+
+if HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  "$ROOT/bin/omarchy-tui-remove" "../victim" >/dev/null 2>&1; then
+  fail "tui remove rejects a traversal name"
+fi
+[[ -f "$tmp_dir/home/.local/share/victim.desktop" ]] ||
+  fail "tui remove does not delete files outside the applications directory"
+
+# Punctuation-only TUI names share a deterministic fallback icon name across
+# install and remove, and a failed icon download leaves any existing icon intact.
+HOME="$tmp_dir/home" PATH="$tmp_dir/ibin:$PATH" \
+  "$ROOT/bin/omarchy-tui-install" "!!!" "btop" tile "https://example.test/icon.png" >/dev/null
+punct_icon=$(sed -n 's/^Icon=//p' "$apps_dir/!!!.desktop")
+[[ $punct_icon == tui-* && -f "$icons_dir/$punct_icon.png" ]] ||
+  fail "tui install stores a deterministic fallback icon for punctuation-only names" "$punct_icon"
+mkdir -p "$tmp_dir/failbin"
+cp "$tmp_dir/bin"/* "$tmp_dir/failbin/"
+printf '#!/bin/bash\nexit 22\n' >"$tmp_dir/failbin/curl"
+chmod +x "$tmp_dir/failbin/curl"
+if HOME="$tmp_dir/home" PATH="$tmp_dir/failbin:$PATH" \
+  "$ROOT/bin/omarchy-tui-install" "!!!" "btop" tile "https://example.test/fail.png" >/dev/null 2>&1; then
+  fail "tui install fails when icon download fails"
+fi
+[[ -f "$icons_dir/$punct_icon.png" ]] ||
+  fail "failed tui icon download preserves the existing installed icon"
+HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  "$ROOT/bin/omarchy-tui-remove" "!!!" >/dev/null
+[[ ! -e "$apps_dir/!!!.desktop" && ! -e "$icons_dir/$punct_icon.png" ]] ||
+  fail "tui remove deletes both launcher and fallback icon for punctuation-only names"
+pass "tui install and remove guard against path traversal, key injection, and icon clobbering"
+
+# RetroArch launcher escapes special characters in ROM paths and resolves relative paths.
+rom_dir="$tmp_dir/roms"
+mkdir -p "$rom_dir"
+touch "$rom_dir/core.so" "$rom_dir/Super \"100%\" \$Game.sfc"
+(cd "$rom_dir" && HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+  "$ROOT/bin/omarchy-games-retro-install" "./core.so" './Super "100%" $Game.sfc' >/dev/null)
+retro_desktop="$apps_dir/super-100-game.desktop"
+[[ -f $retro_desktop ]] || fail "retro install creates a desktop entry for a ROM with special characters"
+grep -Fq "$rom_dir/core.so" "$retro_desktop" ||
+  fail "retro install resolves relative paths to absolute paths" "$(cat "$retro_desktop")"
+grep -Fq 'Super \\"100%%\\" \\$Game.sfc' "$retro_desktop" ||
+  fail "retro install escapes quotes, percent, and dollar signs in Exec" "$(cat "$retro_desktop")"
+pass "retro install canonicalizes and escapes Exec paths"
+
+# Protocol handlers reject path traversal and encode query parameters.
+cat >"$tmp_dir/bin/omarchy-launch-webapp" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$1"
+STUB
+chmod +x "$tmp_dir/bin/omarchy-launch-webapp"
+
+zoom_bad=$(PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-zoom" "zoommtg://zoom.us/join?confno=../../evil&pwd=abc")
+[[ $zoom_bad == "https://app.zoom.us/wc/home" ]] ||
+  fail "zoom handler refuses path traversal in confno" "$zoom_bad"
+zoom_ok=$(PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-zoom" "zoommtg://zoom.us/join?confno=123456789&pwd=ab/c%3D#frag")
+[[ $zoom_ok == "https://app.zoom.us/wc/join/123456789?pwd=ab%2Fc%3D" ]] ||
+  fail "zoom handler joins valid meeting and preserves percent escapes in pwd" "$zoom_ok"
+
+hey_ok=$(PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-webapp-handler-hey" "MAILTO:user+tag%40example.com?subject=hi&x=1")
+[[ $hey_ok == "https://app.hey.com/messages/new?to=user%2Btag%40example.com" ]] ||
+  fail "hey handler strips mailto case-insensitively and preserves percent escapes without query injection" "$hey_ok"
+pass "zoom and hey protocol handlers validate and encode URL parameters"

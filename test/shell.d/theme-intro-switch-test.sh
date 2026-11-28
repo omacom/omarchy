@@ -246,3 +246,16 @@ OMARCHY_PACKAGED_THEMES_PATH="$packaged" set_theme solitude
 [[ -f $state/theme/backgrounds/intros/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged intro"
 [[ -f $state/theme/backgrounds/loops/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged loop"
 pass "themes staged from a checkout take their intros and loops from the package"
+
+# Snapshot cleanup runs in the background after an ordinary still transition
+# and must close stdout/stderr so callers capturing output do not hang for 3s.
+start=$EPOCHREALTIME
+_captured=$(
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
+    TEST_ANIMATIONS=false OMARCHY_THEME_WAIT=1 \
+    /bin/bash "$ROOT/bin/omarchy-theme-set" alpha </dev/null 2>&1
+) || fail "captured theme switch completes" "$_captured"
+end=$EPOCHREALTIME
+elapsed_ms=$(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
+(( elapsed_ms < 2000 )) || fail "captured theme switch does not wait 3s for snapshot cleanup (${elapsed_ms}ms)"
+pass "captured theme switch closes stdio on background snapshot cleanup (${elapsed_ms}ms)"

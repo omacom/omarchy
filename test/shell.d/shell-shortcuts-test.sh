@@ -60,6 +60,10 @@ o.bind("F", "unlisted audio", { audio = "+1" })
 o.bind("I", "listed brightness", { brightness = "raise" })
 o.bind("G", "listed ipc", { ipc = "media.next" })
 o.bind("H", "unlisted ipc", { ipc = "media.sourceNext" })
+o.bind("J", "listed dotted ipc", { ipc = "omarchy.dock.apps" })
+o.bind("K", "unlisted dotted ipc", { ipc = "omarchy.dock.refresh" })
+o.bind("L", "listed panel_at", { panel_at = "right:1" })
+o.bind("M", "unlisted panel_at", { panel_at = "left:9" })
 
 for _, file in ipairs({ "utilities", "clipboard", "media" }) do
   dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/" .. file .. ".lua")
@@ -84,6 +88,12 @@ expect_binding $'exec\tomarchy-audio-output-volume \'+1\'\tunlisted audio' "an u
 expect_binding $'global\tomarchy:brightness.raise\tlisted brightness' "a listed brightness key binds its global shortcut"
 expect_binding $'global\tomarchy:ipc.media.next\tlisted ipc' "a listed IPC call binds its global shortcut"
 expect_binding $'exec\tomarchy-shell \'media\' \'sourceNext\'\tunlisted ipc' "an unlisted IPC call falls back to omarchy-shell"
+expect_binding $'global\tomarchy:ipc.omarchy.dock.apps\tlisted dotted ipc' "a listed dotted IPC target binds its global shortcut"
+expect_binding $'exec\tomarchy-shell \'omarchy.dock\' \'refresh\'\tunlisted dotted ipc' "an unlisted dotted IPC target splits target and method"
+expect_binding $'global\tomarchy:panelAt.right:1\tlisted panel_at' "a listed positional bar panel binds its global shortcut"
+expect_binding $'exec\tomarchy-shell -q shell togglePanelAt \'left\' \'9\'\tunlisted panel_at' "an unlisted positional bar panel falls back to omarchy-shell"
+expect_binding $'global\tomarchy:ipc.notifications.keyboard\tControl notifications with the keyboard' "Super+Ctrl+comma reaches notifications.keyboard as a global shortcut"
+expect_binding $'global\tomarchy:ipc.notifications.toggleDnd\tToggle silencing notifications' "Super+Ctrl+Alt+comma reaches notifications.toggleDnd as a global shortcut"
 pass "shell bindings use global shortcuts only for what the shell registers"
 
 # Every default binding that toggles a listed route or panel goes through its
@@ -98,9 +108,11 @@ pass "default bindings reach menus, panels and the media service through global 
 # The shell and the helpers both read this list, so every line is a kind and a target.
 while IFS= read -r line; do
   [[ -z $line || $line == \#* ]] && continue
-  [[ $line =~ ^(menu|panel|audio|brightness|ipc)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
+  [[ $line =~ ^(menu|panel|panelAt|audio|brightness|ipc)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
   if [[ $line == ipc\ * ]]; then
-    [[ $line =~ ^ipc\ (media|notifications)\.[A-Za-z]+$ ]] || fail "ipc shortcuts name a mapped target and method: $line"
+    [[ $line =~ ^ipc\ (media|notifications|omarchy\.dock)\.[A-Za-z]+$ ]] || fail "ipc shortcuts name a mapped target and method: $line"
+  elif [[ $line == panelAt\ * ]]; then
+    [[ $line =~ ^panelAt\ (left|center|right):[1-9][0-9]*$ ]] || fail "panelAt shortcuts name a bar section and 1-based position: $line"
   fi
 done <"$shortcuts"
 pass "shortcuts lines name a kind and a target"

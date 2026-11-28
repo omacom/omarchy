@@ -56,12 +56,7 @@
     },
     {
       "type": "memory",
-      "key": "│ ├",
-      "keyColor": "green"
-    },
-    {
-      "type": "swap",
-      "key": "└ └󰓡",
+      "key": "└ └",
       "keyColor": "green"
     },
     {
@@ -92,6 +87,12 @@
       "text": "channel=$(omarchy-version-channel); echo \"$channel\""
     },
     {
+      "type": "title",
+      "key": "│ ├󰟀",
+      "keyColor": "blue",
+      "format": "{host-name}"
+    },
+    {
       "type": "kernel",
       "key": "│ ├",
       "keyColor": "blue"
@@ -104,11 +105,6 @@
     {
       "type": "de",
       "key": " DE",
-      "keyColor": "blue"
-    },
-    {
-      "type": "terminal",
-      "key": "│ ├",
       "keyColor": "blue"
     },
     {

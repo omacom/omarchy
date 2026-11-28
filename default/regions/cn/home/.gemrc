@@ -1,0 +1,4 @@
+# RubyGems from Alibaba's mirror, which mainland China reaches where
+# rubygems.org is slow (docs/regions.md).
+:sources:
+- https://mirrors.aliyun.com/rubygems/

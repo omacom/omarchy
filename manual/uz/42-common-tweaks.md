@@ -1,16 +1,16 @@
-# Keng tarqalgan tuzatishlar
+# Keng tarqalgan o'zgartirishlar
 
-Bu Omarchy sozlashiga keng tarqalgan moslashtirishlar toʻplami. Shuni bilingki, baʼzan tizim yangilanishlarida muayyan konfiguratsiyalarni dastlabki holatiga qaytarish kerak boʻlishi mumkin. Agar bu sodir boʻlsa, sizning oʻzgarishlaringiz yoʻqolmaydi, lekin bir xil katalogdagi `.bak` fayliga qoʻyiladi.
+Bu Omarchy sozlamalariga kiritiladigan keng tarqalgan moslashuvlar to'plami. Shuni bilingki, tizim yangilanishlari vaqti-vaqti bilan ayrim konfiguratsiyalarni asl holatiga qaytarishi zarur bo'lib qolishi mumkin. Agar shunday bo'lsa, o'zgarishlaringiz yo'qolmaydi, balki asl fayl yonidagi `.bak.<timestamp>` fayliga joylashtiriladi.
 
-Agar biror narsani buzib qoʻysangiz, Omarchy menyusidagi _Yangilash > Config_ orqali alohida konfiguratsiyalarni dastlabki sozlashga qaytarishingiz mumkin. Agar hamma narsani _haqiqatan_ buzib qoʻysangiz, `omarchy-reinstall` orqali barcha konfiguratsiyalarni qayta oʻrnatishingiz mumkin.
+Agar biror narsani buzib qo'ysangiz, alohida konfiguratsiyalarni Omarchy menyusidagi _Update > Config_ orqali asl sozlamalariga qaytarishingiz mumkin. Agar _haqiqatan ham_ hamma narsani buzib qo'ysangiz, `omarchy reinstall configs` orqali barcha konfiguratsiyalarni tiklashingiz yoki `omarchy reinstall` bilan har bir standart paket va konfiguratsiyani qayta o'rnatishingiz mumkin.
 
-### Barcha laganda belgilarini har doim koʻrsatish
+### Barcha tray piktogrammalarini har doim ko'rsatish
 
-Standart holatda, Dropbox, 1password yoki Steam kabi laganda belgilari lagandani kengaytiruvchi strelka orqasida yashiringan, siz uni ustiga olib borganda ularni ochadi. Agar ularni har doim ochiq qilib qoʻymoqchi boʻlsangiz, laganda belgi menejerini ochish uchun kengaytiruvchi strelkani oʻng tugma bilan bosing, keyin koʻrinishini istagan belgilarni qotiring (hech qachon koʻrishni istamaydiganlarini ham yashirishingiz mumkin).
+Odatiy bo'yicha, Dropbox, 1password yoki Steam kabi tray piktogrammalari tray kengaytiruvchi o'q orqasida yashiringan bo'ladi, sichqonchani uning ustiga olib borsangiz, ular paydo bo'ladi. Agar ularni har doim ochiq ko'rinishda saqlamoqchi bo'lsangiz, kengaytiruvchi o'qqa o'ng tugma bilan bosib tray piktogrammalari boshqaruvchisini oching, keyin ko'rinib turishini istagan piktogrammalaringizni mahkamlang (hech qachon ko'rishni istamaydiganlaringizni ham yashirishingiz mumkin).
 
-### Yumaloq oyna burchaklari
+### Dumaloq oyna burchaklari
 
-Omarchy ning standart dizayni kvadrat burchaklardan biri, ammo agar uni ozgina yumshoq qilishni yoqtirsangiz, `~/.config/hypr/looknfeel.lua` ni oʻzgartirishingiz mumkin, yumaloqlash izohlangan holatda qolmasin:
+Omarchy'ning standart dizayni to'rtburchak burchaklardan iborat, lekin buni biroz yumshatishni istasangiz, Omarchy menyusida _Appearance > Windows > Window Corners > Rounded Corners_ ni tanlang yoki `omarchy hyprland corners rounded` ni ishga tushiring. _Theme Corners_ mavzu ishlatadigan holatga qaytaradi. O'zingizning radiusingizni tanlash uchun _Theme Corners_ (`omarchy hyprland corners theme`) da qoling, chunki Rounded va Sharp sizning konfiguratsiyangizdan keyin yuklanadi va uni bekor qiladi, hamda `~/.config/hypr/looknfeel.lua` da rounding ni izohdan chiqaring:
 
 ```
 hl.config({
@@ -21,9 +21,9 @@ hl.config({
 })
 ```
 
-### Oyna oraliqlarini olib tashlash
+### Oyna oralig'larini olib tashlash
 
-Noutbuk displeylarida baʼzi odamlar oyna oraliqlariga (yoki hatto yuqori panelga, uni `Super + Shift + Space` bilan oʻchirishingiz mumkin) hech qanday piksel sarflamaslikni afzal koʻrishadi. `Super + Shift + Backspace` bilan barcha oraliqlar va chegaralarni oʻchirishingiz yoki `~/.config/hypr/looknfeel.lua` ning ushbu qismidagi izohlarni olib tashlash bilan ularni butunlay olib tashlashingiz mumkin:
+Noutbuk ekranlarida ba'zi odamlar oyna oralig'lariga (yoki hatto `Super + Shift + Space` bilan o'chirib-yoqish mumkin bo'lgan yuqori panelga ham) birorta piksel sarflamaslikni afzal ko'radi. Barcha oraliqlar va chekkalarni `Super + Shift + Backspace` bilan o'chirib-yoqishingiz yoki `~/.config/hypr/looknfeel.lua` ning ushbu bo'limidagi izohlarni olib tashlab, ularni butunlay olib tashlashingiz mumkin:
 
 ```
 hl.config({

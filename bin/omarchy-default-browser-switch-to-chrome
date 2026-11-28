@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# omarchy:summary=Move from Chromium to Google Chrome as the default browser
+# omarchy:args=[--offer]
+# omarchy:hidden=true
+
+set -e
+
+# Sticky, so the offer stays on screen, across restarts and reboots, until it
+# is taken up or closed. Any button closes the card, so Don't Switch runs nothing.
+if [[ ${1:-} == "--offer" ]]; then
+  omarchy-notification-wait || exit 1
+  exec omarchy-notification-send --sticky -g 󰊯 "$(omarchy-i18n default.chromeOffer)" "$(omarchy-i18n default.chromeOfferBody)" \
+    --action "$(omarchy-i18n default.chromeOfferSwitch)" omarchy-default-browser-switch-to-chrome \
+    --action "$(omarchy-i18n default.chromeOfferDismiss)" true
+fi
+
+# Installs from before Chrome became the default rarely have it, and installing
+# it needs a password, so the whole switch runs where one can be entered.
+if [[ ! -t 0 ]]; then
+  exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser-switch-to-chrome
+fi
+
+# The offer arrives during the update that brings it, so the switch waits for
+# that update to finish before installing anything or closing Chromium.
+lock="${XDG_RUNTIME_DIR:-/tmp/omarchy-$EUID}/omarchy-update.lock"
+if [[ -f $lock ]] && ! flock -n "$lock" true; then
+  echo "Waiting for the update to finish..."
+  flock "$lock" true
+fi
+
+# Chrome is installed and the default before Chromium closes, so a failed
+# install leaves the browser that was running alone.
+omarchy-default-browser --install chrome
+
+# SIGTERM is Chromium's own clean shutdown, which saves the session.
+if pkill -x chromium; then
+  for _ in {1..50}; do
+    pgrep -x chromium >/dev/null || break
+    sleep 0.2
+  done
+fi
+
+mapfile -t pinned < <(omarchy-dock pinned)
+for i in "${!pinned[@]}"; do
+  if [[ ${pinned[i]} == "chromium" ]]; then
+    pinned[i]=google-chrome
+    omarchy-dock pinned "${pinned[@]}" >/dev/null
+  fi
+done
+
+omarchy-launch-browser

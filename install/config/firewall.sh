@@ -1,14 +1,5 @@
-# Allow nothing in, everything out.
-ufw default deny incoming
-ufw default allow outgoing
-
-# Allow ports for LocalSend.
-ufw allow 53317/udp
-ufw allow 53317/tcp
-
-# Allow Docker containers to use DNS on host.
-ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns'
-ufw allow in proto udp from 192.168.0.0/16 to 172.17.0.1 port 53 comment 'allow-docker-dns'
+FIREWALL_RULES_VERSION="1"
+FIREWALL_STAMP="${OMARCHY_FIREWALL_STAMP:-/var/lib/omarchy/firewall-rules-version}"
 
 # Turn on Docker protections. ufw-docker refuses to install its after.rules
 # block unless UFW is already active, but during ISO finalization the target
@@ -46,9 +37,31 @@ EOF
   return "$status"
 }
 
-install_ufw_docker_rules
+if [[ ! -f $FIREWALL_STAMP || $(<"$FIREWALL_STAMP") != "$FIREWALL_RULES_VERSION" ]]; then
+  # Allow nothing in, everything out.
+  ufw default deny incoming
+  ufw default allow outgoing
 
-# Installs are followed by reboot, so configure UFW to start on the installed
-# system instead of mutating the live install session's firewall.
-sed -i 's/^ENABLED=.*/ENABLED=yes/' /etc/ufw/ufw.conf
-systemctl enable ufw
+  # Allow ports for LocalSend.
+  ufw allow 53317/udp
+  ufw allow 53317/tcp
+
+  # Allow Docker containers to use DNS on host.
+  ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns'
+  ufw allow in proto udp from 192.168.0.0/16 to 172.17.0.1 port 53 comment 'allow-docker-dns'
+
+  install_ufw_docker_rules
+
+  mkdir -p "$(dirname "$FIREWALL_STAMP")"
+  printf '%s\n' "$FIREWALL_RULES_VERSION" >"$FIREWALL_STAMP"
+fi
+
+# Image builds pre-bake the rules above with OMARCHY_FIREWALL_RULES_ONLY=1 while
+# leaving ENABLED=no in ufw.conf, so any later chroot ufw call during install
+# cannot reload the live ISO's kernel firewall.
+if [[ ${OMARCHY_FIREWALL_RULES_ONLY:-0} != "1" ]]; then
+  # Installs are followed by reboot, so configure UFW to start on the installed
+  # system instead of mutating the live install session's firewall.
+  sed -i 's/^ENABLED=.*/ENABLED=yes/' /etc/ufw/ufw.conf
+  systemctl enable ufw
+fi

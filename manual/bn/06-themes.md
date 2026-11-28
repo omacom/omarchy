@@ -1,12 +1,12 @@
-# থিমসমূহ
+# থিম
 
-Omarchy-র সঙ্গে বাইশটি সুন্দর থিম আসে। আপনি Omarchy Menu (`Super + Space`) থেকে _Appearance > Theme_-এর মাধ্যমে এগুলোর মধ্যে থেকে বেছে নিতে পারেন অথবা `Super + Ctrl + T` ব্যবহার করে সরাসরি থিম সিলেক্টরে যেতে পারেন।
+Omarchy-র সঙ্গে আছে তেইশটি সুন্দর থিম। Omarchy Menu (`Super + Space`) থেকে _Appearance > Theme_ এর মাধ্যমে এগুলোর মধ্যে থেকে বেছে নিতে পারেন, অথবা `Super + Ctrl + T` ব্যবহার করে সরাসরি থিম সিলেক্টরে চলে যেতে পারেন।
 
-প্রতিটি থিম ডেস্কটপ, টার্মিনাল, neovim, অ্যাক্টিভিটি স্ক্রিন (btop), Chromium এবং সম্পূর্ণ Omarchy শেলকে স্টাইল করে: টপ বার, মেনু, নোটিফিকেশন, OSD এবং লক স্ক্রিন। (Obsidian-এর ক্ষেত্রে, আপনাকে অ্যাপের ভিতরে _Appearance > Themes_ থেকে ম্যানুয়ালি Omarchy থিমটি নির্বাচন করতে হবে)।
+প্রতিটি থিম ডেস্কটপ, টার্মিনাল, neovim, অ্যাক্টিভিটি স্ক্রিন (btop), আপনার ব্রাউজার (Chrome, Chromium, Edge বা Brave) এবং পুরো Omarchy শেলের স্টাইল নির্ধারণ করে: টপ বার, মেনু, নোটিফিকেশন, OSD এবং লক স্ক্রিন। (Obsidian-এর জন্য, অ্যাপের ভিতরে _Appearance > Themes_ এর মাধ্যমে আপনাকে ম্যানুয়ালি Omarchy থিমটি নির্বাচন করতে হবে)।
 
-থিমগুলোতে ব্যাকগ্রাউন্ড ছবির একটি সেট থাকে, যেগুলোর মধ্যে থেকে আপনি `Super + Ctrl + W` ব্যবহার করে বেছে নিতে পারেন।
+থিমগুলোর সঙ্গে ব্যাকগ্রাউন্ড ছবির একটি সেট থাকে, যেগুলোর মধ্যে থেকে `Super + Ctrl + W` ব্যবহার করে বেছে নিতে পারেন।
 
-আপনি [অতিরিক্ত থিমের পেজে](https://omarchy.org/themes/) আরও বেশি থিম খুঁজে পেতে পারেন অথবা এমনকি [নিজের থিম নিজেই তৈরি করতে পারেন](43-making-your-own-theme.md)।
+আরও থিম পাবেন [অতিরিক্ত থিমের পেজে](https://omarchy.org/themes/) অথবা এমনকি [নিজের থিমও তৈরি করতে পারেন](43-making-your-own-theme.md)।
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,21 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
 ### অ্যাপ আইকন
 
-অ্যাপ লঞ্চার ও ডকের আইকনগুলো আপনার থিমের রঙে আঁকা হয়, তাই থিমের সঙ্গে সঙ্গে এগুলোও বদলে যায়। এগুলো একটি আইকন সেট থেকে আসে, যা আপনি থিম থেকে আলাদাভাবে _Appearance > Icons_-এর অধীনে প্রতিটি সেটের প্রিভিউ থেকে বেছে নেন, ঠিক যেভাবে আপনি একটি থিম বেছে নেন:
+অ্যাপ লঞ্চার এবং ডকে থাকা আইকনগুলো আপনার থিমের রঙে আঁকা হয়, তাই থিম বদলালে এগুলোও বদলে যায়। এগুলো আসে একটি আইকন সেট থেকে, যেটি আপনি থিমের থেকে আলাদাভাবে _Appearance > Icons_ এর অধীনে বেছে নেন, প্রতিটি সেটের প্রিভিউ থেকে, ঠিক যেভাবে আপনি একটি থিম বেছে নেন:
 
-- _Papercraft_ হলো ডিফল্ট: ইনস্টল করা সবকিছু, একই স্টাইলে আঁকা। Chrome, HEY বা YouTube-এর মতো যেসব অ্যাপ তাদের লোগো দিয়ে পরিচিত, সেগুলো তাদের আকৃতি বজায় রাখে এবং থিমের রঙ ধারণ করে।
-- _Arcade_ একই অ্যাপগুলোকে 8-bit পিক্সেল আর্ট হিসেবে আঁকে, পুরোনো গেম কনসোল যেভাবে আঁকত।
-- _Original_ প্রতিটি অ্যাপকে তার নির্মাতার দেওয়া আইকন দিয়ে দেখায়।
+- _Papercraft_ হলো ডিফল্ট: ইনস্টল করা সবকিছুই একই স্টাইলে আঁকা। Chrome, HEY বা YouTube-এর মতো যেসব অ্যাপ তাদের লোগো দিয়ে পরিচিত, সেগুলো তাদের আকৃতি বজায় রাখে এবং থিমের রঙ ধারণ করে।
+- _Arcade_ একই অ্যাপগুলোকে 8-bit pixel art হিসেবে আঁকে, যেমনটা একটি পুরোনো গেম কনসোল করত।
+- _Original_ প্রতিটি অ্যাপকে তার নির্মাতার দেওয়া আইকন দিয়েই দেখায়।
 
-আপনি _Install > Style > Icons_ (অথবা `omarchy icons install <git url>`) দিয়ে অন্য কারও তৈরি করা একটি আইকন সেট ইনস্টল করতে পারেন, এবং _Remove > Icons_-এর অধীনে আবার সেটি সরিয়েও ফেলতে পারেন। _Update > Extra Icons_ আপনার ইনস্টল করা সেটগুলোর সর্বশেষ সংস্করণ নিয়ে আসে।
+অন্য কারও তৈরি করা একটি আইকন সেট আপনি _Install > Style > Icons_ দিয়ে (অথবা `omarchy icons install <git url>`) ইনস্টল করতে পারেন, এবং _Remove > Icons_ এর অধীনে আবার সরিয়েও ফেলতে পারেন। _Update > Extra Icons_ আপনার ইনস্টল করা সেটগুলোর সর্বশেষ সংস্করণ নিয়ে আসে।
 
-নিজের তৈরি করতে, আপনার আইকনগুলো `~/.config/omarchy/icons/<name>/`-এ রাখুন, প্রতি অ্যাপের জন্য একটি ফাইল, অ্যাপের `.desktop` ফাইলের `Icon=` লাইনের নাম অনুসারে নামকরণ করে। `.svg` দিয়ে শেষ হওয়া একটি ফাইল যেমন আছে তেমনই দেখানো হয়। `.svg.tpl` দিয়ে শেষ হওয়া একটি ফাইল থিমের রঙে আঁকা হয়: রঙ যেখানে যাবে সেখানে `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` অথবা `{{ icon_shadow }}` লিখুন। `/usr/share/omarchy/icons/papercraft/`-এ থাকা ডিফল্ট সেটটি শুরু করার জন্য একটি ভালো জায়গা। পিকারে আপনার সেট দেখাতে একটি `preview.png` যোগ করুন; এটি না থাকলে, Omarchy আপনার আইকন থেকে একটি প্রিভিউ আঁকে। ডিফল্ট সেটের একটি মাত্র আইকন বদলাতে, আপনার সংস্করণটি `~/.config/omarchy/icons/papercraft/`-এ রাখুন।
+নিজেরটি তৈরি করতে, আপনার আইকনগুলো `~/.config/omarchy/icons/<name>/` এ রাখুন, প্রতিটি অ্যাপের জন্য একটি করে ফাইল, অ্যাপের `.desktop` ফাইলের `Icon=` লাইন অনুযায়ী নাম দিয়ে। `.svg` দিয়ে শেষ হওয়া একটি ফাইল যেমন আছে তেমনই দেখানো হয়। `.svg.tpl` দিয়ে শেষ হওয়া একটি ফাইল থিমের রঙে আঁকা হয়: যেখানে রঙ বসবে সেখানে লিখুন `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` অথবা `{{ icon_shadow }}`। `/usr/share/omarchy/icons/papercraft/` এ থাকা ডিফল্ট সেটটি শুরু করার জন্য একটি ভালো জায়গা। পিকারে আপনার সেট দেখাতে একটি `preview.png` যোগ করুন; সেটি না থাকলে, Omarchy আপনার আইকনগুলো থেকে একটি প্রিভিউ আঁকে। ডিফল্ট সেটের একটিমাত্র আইকন বদলাতে, আপনার সংস্করণটি `~/.config/omarchy/icons/papercraft/` এ রাখুন।
 
-### আনলকসমূহ
+### আনলক
 
-থিমগুলোতে একটি কাস্টম আনলক ডিজাইনও থাকতে পারে, যা বুট ডিক্রিপশন প্রক্রিয়ার জন্য ব্যবহৃত হয়। আপনি _Appearance > Unlock_-এর অধীনে এগুলোর একটি নির্বাচন করতে পারেন। এগুলো দেখতে এমন:
+থিমগুলোর একটি কাস্টম আনলক ডিজাইনও থাকতে পারে, যা বুট ডিক্রিপশন প্রক্রিয়ার জন্য ব্যবহৃত হয়। এগুলোর মধ্যে থেকে একটি আপনি _Appearance > Unlock_ এর অধীনে নির্বাচন করতে পারেন। এগুলো দেখতে এমন:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -108,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -128,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

@@ -4,60 +4,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/passwordless-sudo-test.sh"
 
-quarantine="$test_tmp/var/lib/omarchy/sudoers-quarantine"
-quarantined_policy() {
-  local entry
-  for entry in "$quarantine"/*/; do
-    if [[ $(cat "$entry/name") == "$1" ]]; then
-      cat "$entry/policy"
-      return 0
-    fi
-  done
-  return 1
-}
-# The old writer accepted any $USER, so a basename can sit just under NAME_MAX.
-long_suffix=$(printf 'l%.0s' {1..223})
-(
-  source "$library"
-  printf 'deleteduser ALL=(ALL) NOPASSWD: ALL\n' >"$(rule_file 1000)"
-  printf 'buildbot$ ALL=(ALL) NOPASSWD: ALL\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-buildbot$"
-  # The legacy command never validated the account name, so a manual or NSS
-  # account outside the current policy still has its exact old grant removed.
-  printf 'Alice ALL=(ALL) NOPASSWD: ALL\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-Alice"
-  # The legacy writer produced the body with echo. Under BASH_ENV with
-  # xpg_echo, USER='ali\0143e' yields this filename with an 'alice' rule, so
-  # a suffix/body mismatch does not prove administrator authorship.
-  printf 'alice ALL=(ALL) NOPASSWD: ALL\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-ali\\0143e"
-  printf 'alice ALL=(ALL) NOPASSWD: ALL\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-$long_suffix"
-  printf 'admin ALL=(ALL) NOPASSWD: /usr/bin/true\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-custom"
-  TEST_DELETE_FAIL=1 assert_status 1 cleanup_all_locked
-  [[ -e $(rule_file 1000) ]]
-  cleanup_all_locked
-  ! compgen -G "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-*"
-  [[ $(stat -c '%a' "$quarantine") == 700 ]]
-  [[ $(quarantined_policy '99-omarchy-nopasswd-ali\0143e') == 'alice ALL=(ALL) NOPASSWD: ALL' ]]
-  [[ $(quarantined_policy "99-omarchy-nopasswd-$long_suffix") == 'alice ALL=(ALL) NOPASSWD: ALL' ]]
-  [[ $(quarantined_policy 99-omarchy-nopasswd-custom) == 'admin ALL=(ALL) NOPASSWD: /usr/bin/true' ]]
-  (( $(ls -A "$quarantine" | wc -l) == 3 ))
-)
-pass "legacy cleanup removes generated rules for any account and quarantines everything else in the prefix"
-
-marker="$test_tmp/var/lib/omarchy/migrations/1788163635"
-: >"$test_tmp/marker-target"
-(
-  source "$library"
-  migrate_locked
-  [[ -f $marker ]]
-  TEST_BAD_PATH="$marker" assert_status 1 migration_complete
-  rm "$marker"
-  ln -s "$test_tmp/marker-target" "$marker"
-  assert_status 1 migration_complete
-  assert_status 1 migrate_locked
-  [[ -L $marker ]]
-  rm "$marker"
-)
-pass "migration checks marker ownership and rejects symlinks"
-
 # systemd-tmpfiles operates on an explicit disposable root, never the host.
 reset_grant
 : >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000"

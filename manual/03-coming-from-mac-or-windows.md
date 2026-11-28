@@ -54,7 +54,7 @@ And when you close a window, the app actually quits. There's no macOS limbo wher
 
 ### On Mac hardware
 
-Omarchy runs well on Intel Macs — see [Mac support](44-mac-support.md). And the keyboard is kind to you: Omarchy doesn't remap anything, and Linux treats the Command key as Super, so Super sits right where Cmd always was. Your thumb won't notice the move.
+Omarchy runs well on Intel Macs, and on M1, M2 and M3 Macs with Omarchy for Apple Silicon. See [Mac support](44-mac-support.md). And the keyboard is kind to you: Omarchy doesn't remap anything, and Linux treats the Command key as Super, so Super sits right where Cmd always was. Your thumb won't notice the move.
 
 ### Give it two weeks
 

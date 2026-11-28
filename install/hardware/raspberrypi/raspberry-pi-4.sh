@@ -13,11 +13,8 @@ limine_config_dir=${OMARCHY_RASPBERRY_PI_4_LIMINE_CONFIG_DIR:-/etc/limine-entry-
 if omarchy-hw-match-device-tree raspberrypi,4-model-b; then
   echo "Detected Raspberry Pi 4 Model B, applying board-specific support..."
 
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/raspberry-pi-4.conf" <<'CONF'
-# Room for vc4's scanout buffers in the first GiB, next to a randomly placed kernel.
-KERNEL_CMDLINE[default]+=" cma=256M"
-CONF
+  # Room for vc4's scanout buffers in the first GiB, next to a randomly placed kernel.
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set raspberry-pi-4 cma=256M
 
   # Raspberry Pi's patch for the CYW43455's Bluetooth, which linux-firmware
   # lacks. Without it the controller runs its ROM firmware and reports the

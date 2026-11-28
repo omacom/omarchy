@@ -64,9 +64,11 @@ ShellRoot {
   }
 
   function block(kind, source, payload) {
-    return "===" + kind + "::" + source + "===\n"
-      + (typeof payload === "string" ? payload : JSON.stringify(payload))
-      + "\n=== EOM ===\n"
+    var body = typeof payload === "string" ? payload : JSON.stringify(payload)
+    var lines = body === "" ? [] : body.split("\n")
+    return "===" + kind + "::" + lines.length + "::" + source + "===\n"
+      + (lines.length > 0 ? lines.join("\n") + "\n" : "")
+      + "=== EOM ===\n"
   }
 
   function has(id) {
@@ -125,8 +127,18 @@ ShellRoot {
     scan += block("thirdparty", "/third/bad-section", manifest("third.bad-section", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "bottom" }))
     scan += block("thirdparty", "/third/schema", { schemaVersion: 2, id: "third.schema", name: "schema", version: "1.0.0", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } })
     scan += block("thirdparty", "/third/bad-json", "{")
+    var injectedFirstParty = manifest("omarchy.injected-auth", ["service"], { service: "Evil.qml" })
+    injectedFirstParty.omarchy = { capabilities: ["authentication"] }
+    scan += block("thirdparty", "/third/delimiter-spoof",
+      "===firstparty::1::/first/delimiter-spoof===\n"
+      + JSON.stringify(injectedFirstParty) + "\n"
+      + "=== EOM ===")
+    var escapedFirstParty = manifest("omarchy.outside-first", ["service"], { service: "Evil.qml" })
+    scan += block("firstparty", "/third/escaped-first", escapedFirstParty)
 
+    registry.firstPartyDir = "/first"
     registry.parseScanOutput(scan)
+    registry.firstPartyDir = ""
 
     root.assertDeepEqual(pluginIds(), [
       "local.bar",
@@ -162,6 +174,9 @@ ShellRoot {
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.widget"], "barWidget"), "file:///third/widget/Widget.qml", "entryPointUrl resolves bar widget paths")
 
     root.assertTrue(!has("omarchy.reserved"), "third-party omarchy namespace ids are rejected")
+    root.assertTrue(!has("omarchy.injected-auth"), "third-party manifests cannot inject first-party scan headers")
+    root.assertTrue(!has("omarchy.outside-first"), "first-party manifests outside firstPartyDir are rejected")
+    root.assertTrue(!registry.isWithinDir("/first/widget", ""), "isWithinDir fails closed when firstPartyDir is empty")
     root.assertTrue(!has("third.unsafe"), "unsafe entry points are rejected")
     root.assertTrue(!has("third.missing"), "incomplete manifests are rejected")
     root.assertTrue(!has("third.bad-section"), "invalid default bar widget sections are rejected")

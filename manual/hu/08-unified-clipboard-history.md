@@ -1,27 +1,27 @@
 # Egységes vágólap és előzmények
 
-Linuxon a terminálban általában a `Ctrl + Shift + C/V` billentyűkombináció kell a másoláshoz és beillesztéshez, mindenhol máshol pedig a `Ctrl + C/V`. Nehéz ezt megszokni annak, aki nem Linuxon született és nőtt fel! Ugyanígy a Super billentyűről a Ctrl billentyűre váltást is, ha Macről jössz.
+Linuxon általában `Ctrl + Shift + C/V` kell a másoláshoz és beillesztéshez a terminálban, mindenhol máshol pedig `Ctrl + C/V`. Ezt bárkinek nehéz megszoknia, aki nem Linuxon született és nevelkedett! Ahogy a Super helyett a Ctrl használatára való átállást is, ha Macről érkezel.
 
-Az Omarchy mindkét problémát egységes vágólap-gyorsbillentyűkkel oldja meg, amelyek (szinte) mindenhol működnek. Ezek a következők:
+Az Omarchy mindkét problémát megoldja az egységes vágólap-gyorsbillentyűkkel, amelyek (szinte) mindenhol működnek. Ezek a következők:
 
-| Gyorsbillentyű | Művelet |
+| Gyorsbillentyű | Parancs |
 | ------- | ----------- |
-| Super + A | Összes kijelölése |
+| Super + A | Mindent kijelöl |
 | Super + C | Másolás |
 | Super + X | Kivágás |
 | Super + V | Beillesztés |
 | Super + Ctrl + V | Vágólap-előzmények |
 
-_Vedd figyelembe, hogy a legtöbb agent harness a `Ctrl + V` billentyűkombinációt használja képek beillesztésére, a `Super + V` billentyűkombinációt pedig szöveg beillesztésére._
+_Vedd figyelembe, hogy a legtöbb agent harness a `Ctrl + V` billentyűkombinációt használja képek beillesztéséhez, a `Super + V` kombinációt viszont szöveg beillesztéséhez._
 
-Használd a `Super + A`, majd a `Super + C` billentyűkombinációt, hogy mindent kimásolj egy fókuszban lévő szövegmezőből vagy más olyan appból, amely támogatja a `Ctrl + A` billentyűkombinációt. Terminálban a `Ctrl + A` a parancssor elejére ugrik a szöveg kijelölése helyett.
+Használd a `Super + A`, majd a `Super + C` billentyűkombinációt, ha mindent ki akarsz másolni egy fókuszban lévő szövegmezőből vagy más olyan alkalmazásból, amely támogatja a `Ctrl + A` kombinációt. Terminálban a `Ctrl + A` a parancssor elejére ugrik a szöveg kijelölése helyett.
 
 ### Vágólap-előzmények
 
-A vágólap-előzményeket az Omarchy shell biztosítja, és szövegekhez és képekhez is működik. A `Super + Ctrl + V` billentyűkombinációval hívod elő, a return billentyűvel kiválasztod a bejegyzést, az pedig felkerül a vágólapra, készen arra, hogy a `Super + V` billentyűkombinációval beilleszd.
+A vágólap-előzményeket az Omarchy shell biztosítja, és szöveggel és képekkel is működik. A `Super + Ctrl + V` billentyűkombinációval hívhatod elő, majd a Return billentyűvel kiválasztod a kívánt bejegyzést, amely ezután egyenesen beillesztődik abba az alkalmazásba, amelyben éppen voltál. A `Shift + Return` kombinációval csak a vágólapra másolod, az `Alt + Return` kombinációval megnyithatod, a `Delete` billentyűvel eltávolíthatod az előzményekből, a `Shift + Delete` kombinációval pedig törölheted az összes előzményt.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Az előzmények között úgy is kereshetsz, hogy egyszerűen elkezdesz gépelni:
+Az előzményekben egyszerűen úgy is kereshetsz, hogy elkezdesz gépelni:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

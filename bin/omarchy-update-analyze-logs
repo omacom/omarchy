@@ -1,8 +1,19 @@
 #!/bin/bash
 
 # omarchy:summary=Check the update log for known failure conditions
+# omarchy:args=[start byte]
 
 update_log="/tmp/omarchy-update.log"
+
+# Read only what the update logged, from the offset it passes: a channel switch
+# logs its own package transactions ahead of the update's.
+log_start=${1:-0}
+[[ $log_start =~ ^[0-9]+$ ]] || log_start=0
+# A log replaced mid-update is shorter than the offset: read all of it.
+(( log_start <= $(stat -c %s "$update_log" 2>/dev/null || echo 0) )) || log_start=0
+update_output() {
+  tail -c "+$((log_start + 1))" "$update_log"
+}
 
 # limine-mkinitcpio-hook's Apple Silicon hook announces itself on every ARM
 # machine, since pacman prints the description before the hook checks for a Mac,
@@ -14,8 +25,8 @@ else
 fi
 
 # Check for initramfs generation failure
-if grep -q "$initcpio_hook" "$update_log"; then
-  if ! grep -q "Initcpio image generation successful" "$update_log"; then
+if update_output | grep -q "$initcpio_hook"; then
+  if ! update_output | grep -q "Initcpio image generation successful"; then
     echo -e '\e[31mError: Initramfs generation may have failed. Review logs before restart.\e[0m'
     echo
   fi

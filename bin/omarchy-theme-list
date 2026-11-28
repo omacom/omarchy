@@ -1,9 +1,25 @@
 #!/bin/bash
 
 # omarchy:summary=List available themes
+# omarchy:args=[--folders]
 # omarchy:examples=omarchy theme list | omarchy theme set "Tokyo Night"
 
-{
-  find ~/.config/omarchy/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n'
-  find "$OMARCHY_PATH/themes/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
-} | sort -u | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'
+# --folders prints each theme's folder name (tokyo-night) instead of the name
+# shown to the user (Tokyo Night), for the pickers that go on to read the folder.
+
+themes=$({
+  find ~/.config/omarchy/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null
+  for theme in "$OMARCHY_PATH"/themes/*/; do
+    theme=${theme%/}
+    # A theme made for other hardware is not offered here.
+    if [[ ! -f $theme/hardware ]] || omarchy-theme-available "${theme##*/}"; then
+      echo "${theme##*/}"
+    fi
+  done
+} | sort -u)
+
+if [[ ${1:-} == "--folders" ]]; then
+  echo "$themes"
+else
+  sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' <<<"$themes"
+fi

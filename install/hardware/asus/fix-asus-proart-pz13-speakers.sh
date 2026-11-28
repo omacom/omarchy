@@ -6,5 +6,5 @@
 # microphone. Its UCM profile comes with alsa-ucm-conf.
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "HT5306QA"; then
-  omarchy-pkg-add asus-proart-pz13-audio
+  OMARCHY_PKG_DEFER=1 omarchy-pkg-add asus-proart-pz13-audio
 fi

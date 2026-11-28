@@ -1,18 +1,18 @@
 # Obavijesti
 
-Obavijesti se pojavljuju u gornjem desnom kutu zaslona u fokusu. Pomoću obavijesti putem tipkovničkih prečaca možete i brzo pristupiti datumu i vremenu, stanju baterije i trenutnim vremenskim prilikama.
+Obavijesti se pojavljuju u gornjem desnom kutu zaslona u fokusu. Datum i vrijeme, stanje baterije i trenutačno vrijeme možete brzo provjeriti i pomoću obavijesti prečacima.
 
 ## Obavijesti
 
-Obavijesti iz iste aplikacije ili web-mjesta slažu se u špil, tako da brbljavi Slack kanal neće izgurati obavijest o neuspjelom buildu s ekrana. Zadržite pokazivač iznad špila da biste ga raširili; dok čitate, ništa novo neće kliznuti pod vaš pokazivač. Kliknite karticu da biste skočili na mjesto odakle je došla, a kliknite je desnom tipkom, srednjom tipkom ili pritisnite ✕ da biste je odbacili.
+Obavijesti iz iste aplikacije ili s istog mjesta slažu se u snop, pa preopširan Slack kanal neće izgurati obavijest o neuspjelom buildu sa zaslona. Zadržite pokazivač iznad snopa da ga raširite; dok čitate, ništa novo neće kliznuti pod vaš pokazivač. Kliknite karticu da skočite na mjesto odakle je došla, kliknite je desnom tipkom, srednjom tipkom ili pritisnite ✕ da je odbacite.
 
-Kartice nude ono što nose: _Kopiraj kod_ za verifikacijske kodove (koji se ne spremaju u [povijest međuspremnika](08-unified-clipboard-history.md) i brišu se nakon minute), uz sve gumbe koje aplikacija pruži. Poveznice u tekstu obavijesti otvaraju se klikom.
+Kartice nude ono što nose: _Kopiraj kod_ za verifikacijske kodove (ne ulaze u [povijest međuspremnika](08-unified-clipboard-history.md) i brišu se nakon minute) te sve gumbe koje aplikacija pruži. Poveznice u tekstu obavijesti otvaraju se klikom.
 
-Da biste ih koristili bez miša, pritisnite `Super + Ctrl + ,`. Odabire se najnovija obavijest, a njezini su gumbi numerirani: pritisnite broj da biste upotrijebili jedan od njih, `Enter` da biste kliknuli obavijest, `↑` i `↓` za kretanje između obavijesti, `Delete` da biste jednu odbacili i `Esc` da biste vratili tipkovnicu. Nakon nekoliko sekundi neaktivnosti i sama se otpušta.
+`Super + ,` odbacuje najnoviju obavijest ili otvara ono na što upućuje kada to nudi, `Super + Alt + ,` odbacuje samo posljednju, `Super + Shift + ,` odbacuje sve, a `Super + Shift + Alt + ,` otvara povijest. Da ih koristite bez miša, pritisnite `Super + Ctrl + ,`. Odabire se najnovija obavijest i njezini se gumbi numeriraju: pritisnite broj da upotrijebite jedan, `Enter` da kliknete obavijest, `↑` i `↓` da se pomičete između obavijesti, `Delete` da odbacite jednu i `Esc` da vratite tipkovnicu. Nakon nekoliko sekundi mirovanja i sama je pušta.
 
-Utišavanjem obavijesti zadržavate ih, osim Omarchyjevih vlastitih potvrda, hitnih upozorenja i verifikacijskih kodova, koje ste zatražili prije trenutak. Posljednjih nekoliko vratite na ekran, zadržane ili ne, pomoću `Super + Shift + Alt + ,`. Povijest se čuva jedan dan.
+Utišavanje obavijesti zadržava ih, osim Omarchyjevih vlastitih potvrda, hitnih upozorenja i verifikacijskih kodova, koje ste zatražili prije trenutak. Posljednjih nekoliko vratite na zaslon, zadržane ili ne, pomoću `Super + Shift + Alt + ,`. Povijest se čuva jedan dan.
 
-## Obavijesti putem tipkovničkih prečaca
+## Obavijesti prečacima
 
 ### Datum i vrijeme
 
@@ -20,13 +20,13 @@ Utišavanjem obavijesti zadržavate ih, osim Omarchyjevih vlastitih potvrda, hit
 
  ![notice-datetime](images/notice-datetime.webp)
 
-### Vremenske prilike
+### Vrijeme
 
 `Super + Ctrl + Alt + W`
 
  ![notice-weather](images/notice-weather.webp)
 
-Lokacija se otkriva na temelju vaše IP adrese, što je obično dovoljno točno, ali ne uvijek. Možete je precizirati pomoću `omarchy weather location --set Malibu` ili biti posve precizni dodavanjem koordinata: `omarchy weather location --set Malibu 34.0259,-118.7798`. Pokrenite `omarchy weather location` samostalno da biste vidjeli gdje misli da se nalazite, a `--clear` za povratak na automatsko otkrivanje.
+Lokacija se određuje prema vašoj IP adresi, što je obično dovoljno točno, ali ne uvijek. Možete je precizirati pomoću `omarchy weather location --set Malibu` ili biti posve precizni dodavanjem koordinata: `omarchy weather location --set Malibu 34.0259,-118.7798`. Pokrenite `omarchy weather location` samostalno da vidite gdje misli da se nalazite, a `--clear` da se vratite na automatsko otkrivanje.
 
 ### Baterija
 

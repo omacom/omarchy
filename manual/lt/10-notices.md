@@ -1,18 +1,18 @@
 # Pranešimai
 
-Pranešimai atsiranda viršutiniame dešiniajame sufokusuoto ekrano kampe. Spartųjų klavišų pranešimais taip pat galite greitai pasiekti datą ir laiką, akumuliatoriaus būseną ir dabartinius orus.
+Pranešimai atsiranda viršutiniame dešiniajame sufokusuoto ekrano kampe. Spartaisiais klavišais iškviečiamais pranešimais taip pat galite greitai pasiekti datą ir laiką, baterijos būseną ir dabartinius orus.
 
 ## Pranešimai
 
-Tos pačios programos ar svetainės pranešimai sukraunami į kaladę, kad plepus Slack kanalas nenustumtų jūsų nepavykusio surinkimo pranešimo nuo ekrano. Užveskite žymeklį ant kaladės, kad ji išsiskleistų; kol skaitote, po jūsų žymekliu nepakišama nieko naujo. Spustelėkite kortelę, kad pereitumėte ten, iš kur ji atėjo, spauskite dešinįjį ar vidurinį pelės mygtuką arba paspauskite ✕, kad ją atmestumėte.
+To paties programos ar svetainės pranešimai sukraunami į kaladę, todėl plepus Slack kanalas nenustums jūsų nepavykusio kūrimo pranešimo už ekrano ribų. Užveskite pelę ant kaladės, kad ją išskleistumėte; kol skaitote, po jūsų žymekliu neįslys nieko naujo. Spustelėkite kortelę, kad pereitumėte ten, iš kur ji atkeliavo, spustelėkite dešiniuoju, viduriniu pelės mygtuku arba paspauskite ✕, kad ją atmestumėte.
 
-Kortelės siūlo tai, ką turi: _Kopijuoti kodą_ patvirtinimo kodams (nelaikoma [iškarpinės istorijoje](08-unified-clipboard-history.md) ir išvaloma po minutės), taip pat visus programos pateikiamus mygtukus. Nuorodos pranešimo tekste atidaromos jas spustelėjus.
+Kortelės siūlo tai, ką atsineša: _Copy code_ patvirtinimo kodams (kurie neįtraukiami į [iškarpinės istoriją](08-unified-clipboard-history.md) ir išvalomi po minutės) ir visus mygtukus, kuriuos pateikia programa. Pranešimo tekste esančios nuorodos atidaromos jas spustelėjus.
 
-Norėdami jais naudotis be pelės, paspauskite `Super + Ctrl + ,`. Pasirenkamas naujausias pranešimas, o jo mygtukai sunumeruojami: paspauskite skaičių, kad panaudotumėte vieną, `Enter`, kad spustelėtumėte pranešimą, `↑` ir `↓`, kad judėtumėte tarp pranešimų, `Delete`, kad atmestumėte vieną, ir `Esc`, kad grąžintumėte klaviatūrą. Po kelių neveiklumo sekundžių jis taip pat pats paleidžia.
+`Super + ,` atmeta naujausią pranešimą arba atidaro tai, į ką jis rodo, kai tai siūlo, `Super + Alt + ,` atmeta tik paskutinį, `Super + Shift + ,` atmeta juos visus, o `Super + Shift + Alt + ,` atidaro istoriją. Norėdami juos naudoti be pelės, paspauskite `Super + Ctrl + ,`. Pasirenkamas naujausias pranešimas, o jo mygtukai sunumeruojami: paspauskite skaičių, kad kurį nors panaudotumėte, `Enter`, kad spustelėtumėte pranešimą, `↑` ir `↓`, kad judėtumėte tarp pranešimų, `Delete`, kad kurį nors atmestumėte, ir `Esc`, kad grąžintumėte klaviatūrą. Po kelių neveiklumo sekundžių ji taip pat atsipalaiduoja pati.
 
-Nutildžius pranešimus, jie sulaikomi, išskyrus pačios Omarchy patvirtinimus, avarinius įspėjimus ir patvirtinimo kodus, kurių ką tik patys paprašėte. Paskutinius kelis vėl parodykite ekrane, sulaikytus ar ne, su `Super + Shift + Alt + ,`. Istorija saugoma vieną dieną.
+Pranešimų nutildymas juos sulaiko, išskyrus pačios Omarchy patvirtinimus, skubius įspėjimus ir patvirtinimo kodus, kurių paprašėte prieš akimirką. Paskutinius kelis vėl parodykite ekrane, sulaikytus ar ne, paspaudę `Super + Shift + Alt + ,`. Istorija saugoma vieną dieną.
 
-## Spartųjų klavišų pranešimai
+## Spartieji pranešimai klavišais
 
 ### Data ir laikas
 
@@ -26,9 +26,9 @@ Nutildžius pranešimus, jie sulaikomi, išskyrus pačios Omarchy patvirtinimus,
 
  ![notice-weather](images/notice-weather.webp)
 
-Vieta nustatoma pagal jūsų IP adresą, kurio paprastai pakanka, bet ne visada. Galite ją patikslinti su `omarchy weather location --set Malibu` arba nurodyti tiksliai, pridėdami koordinates: `omarchy weather location --set Malibu 34.0259,-118.7798`. Paleiskite `omarchy weather location` atskirai, kad pamatytumėte, kur, jo manymu, esate, ir `--clear`, kad grįžtumėte prie automatinio nustatymo.
+Vieta nustatoma pagal jūsų IP adresą, o to paprastai pakanka, bet ne visada. Galite ją patikslinti komanda `omarchy weather location --set Malibu` arba nurodyti tiksliai, pridėdami koordinates: `omarchy weather location --set Malibu 34.0259,-118.7798`. Paleiskite `omarchy weather location` atskirai, kad pamatytumėte, kur, jos manymu, esate, ir `--clear`, kad grįžtumėte prie automatinio nustatymo.
 
-### Akumuliatorius
+### Baterija
 
 `Super + Ctrl + Alt + B`
 

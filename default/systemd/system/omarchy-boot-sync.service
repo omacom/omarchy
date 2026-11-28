@@ -1,0 +1,8 @@
+[Unit]
+Description=Publish Omarchy boot images and snapshot boot entries
+RequiresMountsFor=/var/lib/omarchy/boot /boot /efi
+ConditionPathExists=/var/lib/omarchy/boot/state
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-boot-sync sync

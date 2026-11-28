@@ -15,10 +15,10 @@ if [[ ${1:-} == "--wait" ]]; then
   fi
 fi
 
-jq -r ".[].address" <<<"$clients" | \
-  while read -r addr; do
-    hyprctl dispatch "hl.dsp.window.close({ window = \"address:$addr\" })" >/dev/null
-  done
+batch=$(jq -r '[.[].address | select(length > 0) | "dispatch hl.dsp.window.close({ window = \"address:\(.)\" })"] | join(" ; ")' <<<"$clients")
+if [[ -n $batch ]]; then
+  hyprctl --batch "$batch" >/dev/null
+fi
 
 # Move to the focused monitor's first workspace
 hyprctl dispatch 'o.workspaces.focus(1)' >/dev/null 2>&1 || hyprctl dispatch workspace 1

@@ -1,12 +1,12 @@
 # Teme
 
-Omarchy vine cu douăzeci și două de teme frumoase. Le poți selecta prin _Aspect > Temă_ din Omarchy Menu (`Super + Space`) sau poți sări direct la selectorul de teme folosind `Super + Ctrl + T`.
+Omarchy vine cu douăzeci și trei de teme frumoase. Poți alege dintre ele din _Aspect > Temă_ în Meniul Omarchy (`Super + Space`) sau poți sări direct la selectorul de teme cu `Super + Ctrl + T`.
 
-Fiecare temă stilizează desktopul, terminalul, neovim, ecranul de activitate (btop), Chromium și întregul shell Omarchy: bara de sus, meniul, notificările, OSD și ecranul de blocare. (Pentru Obsidian, trebuie să selectezi manual tema Omarchy prin _Aspect > Teme_ din interiorul aplicației).
+Fiecare temă stilizează desktopul, terminalul, neovim, ecranul de activitate (btop), browserul tău (Chrome, Chromium, Edge sau Brave) și întregul shell Omarchy: bara de sus, meniul, notificările, OSD-ul și ecranul de blocare. (Pentru Obsidian, trebuie să selectezi manual tema Omarchy din _Aspect > Teme_ în interiorul aplicației).
 
-Temele au un set de imagini de fundal între care poți alege folosind `Super + Ctrl + W`.
+Temele au un set de imagini de fundal între care poți alege cu `Super + Ctrl + W`.
 
-Poți găsi și mai multe teme pe [pagina cu teme suplimentare](https://omarchy.org/themes/) sau poți chiar să [îți creezi propria temă](43-making-your-own-theme.md).
+Poți găsi și mai multe teme pe [pagina cu teme suplimentare](https://omarchy.org/themes/) sau chiar [să-ți creezi propria temă](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,17 +65,29 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Pictograme pentru aplicații
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Pictogramele aplicațiilor
 
 Pictogramele din lansatorul de aplicații și din dock sunt desenate în culorile temei tale, așa că se schimbă odată cu ea. Ele provin dintr-un set de pictograme, pe care îl alegi separat de temă din _Aspect > Pictograme_, din previzualizările fiecărui set, la fel cum alegi o temă:
 
 - _Papercraft_ este setul implicit: tot ce vine instalat, desenat într-un singur stil. Aplicațiile cunoscute după logo, precum Chrome, HEY sau YouTube, își păstrează forma și preiau culorile temei.
-- _Arcade_ desenează aceleași aplicații ca pixel art pe 8 biți, cum ar fi făcut-o o consolă de jocuri veche.
-- _Original_ arată fiecare aplicație cu pictograma pe care i-a dat-o creatorul ei.
+- _Arcade_ desenează aceleași aplicații ca pixel art pe 8 biți, cum ar face-o o consolă de jocuri veche.
+- _Original_ afișează fiecare aplicație cu pictograma pe care i-a dat-o creatorul ei.
 
-Poți instala un set de pictograme creat de altcineva cu _Instalare > Stil > Pictograme_ (sau `omarchy icons install <git url>`) și îl poți elimina din nou din _Eliminare > Pictograme_. _Actualizare > Pictograme suplimentare_ aduce cea mai recentă versiune a seturilor pe care le ai instalate.
+Poți instala un set de pictograme creat de altcineva din _Instalare > Stil > Pictograme_ (sau cu `omarchy icons install <git url>`) și îl poți elimina din nou din _Eliminare > Pictograme_. _Actualizare > Pictograme suplimentare_ aduce cea mai recentă versiune a seturilor pe care le ai instalate.
 
-Ca să îți faci propriul set, pune pictogramele în `~/.config/omarchy/icons/<name>/`, câte un fișier pentru fiecare aplicație, numit după linia `Icon=` din fișierul `.desktop` al aplicației. Un fișier care se termină în `.svg` este arătat așa cum este. Un fișier care se termină în `.svg.tpl` este desenat în culorile temei: scrie `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` sau `{{ icon_shadow }}` acolo unde merge o culoare. Setul implicit din `/usr/share/omarchy/icons/papercraft/` este un punct bun de plecare. Adaugă un `preview.png` pentru a-ți arăta setul în selector; fără el, Omarchy desenează o previzualizare din pictogramele tale. Ca să schimbi o singură pictogramă din setul implicit, pune versiunea ta în `~/.config/omarchy/icons/papercraft/`.
+Ca să-ți creezi propriul set, pune-ți pictogramele în `~/.config/omarchy/icons/<name>/`, câte un fișier pentru fiecare aplicație, numit după linia `Icon=` din fișierul `.desktop` al aplicației. Un fișier care se termină în `.svg` este afișat ca atare. Un fișier care se termină în `.svg.tpl` este desenat în culorile temei: scrie `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` sau `{{ icon_shadow }}` acolo unde merge o culoare. Setul implicit din `/usr/share/omarchy/icons/papercraft/` este un bun punct de plecare. Adaugă un fișier `preview.png` ca să-ți afișezi setul în selector; fără el, Omarchy desenează o previzualizare din pictogramele tale. Ca să schimbi o singură pictogramă din setul implicit, pune versiunea ta în `~/.config/omarchy/icons/papercraft/`.
 
 ### Deblocări
 
@@ -108,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -128,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

@@ -48,7 +48,7 @@ claim_path() {
 
     # Only a taken name is worth another spin. Anything else failed the link
     # itself, and the file keeps its place in staging for the next run.
-    [[ -e $candidate ]] || return 1
+    [[ -e $candidate || -L $candidate ]] || return 1
 
     ((index++))
   done
@@ -79,10 +79,10 @@ announce() {
 deliver() {
   local staged target
 
-  while IFS= read -r staged; do
+  while IFS= read -r -d '' staged; do
     target=$(claim_path "$staged") || continue
     announce "$target"
-  done < <(find "$staging" -mindepth 1 -maxdepth 1)
+  done < <(find "$staging" -mindepth 1 -maxdepth 1 -print0)
 }
 
 # Anything left staged by an interrupted run still deserves delivering.

@@ -1444,11 +1444,15 @@ EOF
 EOF
   as_root ln -sfn ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
-  # Fresh Omarchy socket-activates Docker. Disable the old always-on service if
-  # an upgraded install had enabled it, but do not stop running containers mid-upgrade.
+  # Fresh Omarchy socket-activates Docker and CUPS. Disable the old always-on
+  # services if an upgraded install had enabled them, without stopping active
+  # containers or print jobs mid-upgrade. cups.service declares
+  # Also=cups.socket cups.path, so it must be disabled before enabling them.
   as_root systemctl disable docker.service >/dev/null 2>&1 || true
+  as_root systemctl disable cups.service >/dev/null 2>&1 || true
 
-  enable_system_service cups.service
+  enable_system_service cups.socket
+  enable_system_service cups.path
   enable_system_service avahi-daemon.service
   enable_system_service linux-modules-cleanup.service
   enable_system_service docker.socket

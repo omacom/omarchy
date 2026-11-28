@@ -1,8 +1,8 @@
 # Motywy
 
-Omarchy zawiera dwadzieścia dwa piękne motywy. Możesz wybierać między nimi w sekcji _Wygląd > Motyw_ w menu Omarchy (`Super + Space`) albo przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
+Omarchy zawiera dwadzieścia trzy piękne motywy. Możesz wybierać spośród nich w sekcji _Wygląd > Motyw_ w menu Omarchy (`Super + Space`) albo przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
 
-Każdy motyw nadaje styl pulpitowi, terminalowi, neovim, ekranowi aktywności (btop), Chromium oraz całej powłoce Omarchy: górnemu paskowi, menu, powiadomieniom, OSD i ekranowi blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy w sekcji _Wygląd > Motywy_ wewnątrz aplikacji).
+Każdy motyw nadaje styl pulpitowi, terminalowi, neovim, ekranowi aktywności (btop), Twojej przeglądarce (Chrome, Chromium, Edge lub Brave) oraz całej powłoce Omarchy: górnemu paskowi, menu, powiadomieniom, OSD i ekranowi blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy w sekcji _Wygląd > Motywy_ wewnątrz aplikacji).
 
 Motywy mają zestaw obrazów tła, spośród których możesz wybierać za pomocą `Super + Ctrl + W`.
 
@@ -65,21 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
 ### Ikony aplikacji
 
-Ikony w programie uruchamiającym aplikacje i w docku są rysowane w kolorach Twojego motywu, więc zmieniają się wraz z nim. Pochodzą z zestawu ikon, który wybierasz niezależnie od motywu w sekcji _Wygląd > Ikony_, na podstawie podglądów każdego zestawu, w ten sam sposób, w jaki wybierasz motyw:
+Ikony w programie uruchamiającym aplikacje i w doku są rysowane w kolorach Twojego motywu, więc zmieniają się wraz z nim. Pochodzą z zestawu ikon, który wybierasz niezależnie od motywu w sekcji _Wygląd > Ikony_, na podstawie podglądów poszczególnych zestawów, w taki sam sposób, w jaki wybierasz motyw:
 
-- _Papercraft_ to zestaw domyślny: wszystko, co jest zainstalowane, narysowane w jednym stylu. Aplikacje znane z logo, takie jak Chrome, HEY czy YouTube, zachowują jego kształt i przybierają kolory motywu.
+- _Papercraft_ to zestaw domyślny: wszystko, co jest zainstalowane, narysowane w jednym stylu. Aplikacje rozpoznawalne po swoim logo, takie jak Chrome, HEY czy YouTube, zachowują jego kształt i przyjmują kolory motywu.
 - _Arcade_ rysuje te same aplikacje jako 8-bitową grafikę pikselową, jak na starej konsoli do gier.
-- _Original_ pokazuje każdą aplikację z ikoną nadaną jej przez twórcę.
+- _Original_ pokazuje każdą aplikację z ikoną nadaną jej przez jej twórcę.
 
-Możesz zainstalować zestaw ikon stworzony przez kogoś innego w sekcji _Instalacja > Styl > Ikony_ (lub za pomocą `omarchy icons install <git url>`), a usunąć go ponownie w sekcji _Usuwanie > Ikony_. _Aktualizacja > Dodatkowe ikony_ pobiera najnowszą wersję zainstalowanych zestawów.
+Zestaw ikon stworzony przez kogoś innego możesz zainstalować w sekcji _Instalacja > Styl > Ikony_ (lub za pomocą `omarchy icons install <git url>`), a usunąć go ponownie w sekcji _Usuwanie > Ikony_. Sekcja _Aktualizacja > Dodatkowe ikony_ pobiera najnowszą wersję zainstalowanych przez Ciebie zestawów.
 
-Aby stworzyć własny zestaw, umieść ikony w `~/.config/omarchy/icons/<name>/`, po jednym pliku na aplikację, nazwanym zgodnie z wierszem `Icon=` w pliku `.desktop` aplikacji. Plik z końcówką `.svg` jest wyświetlany tak, jak jest. Plik z końcówką `.svg.tpl` jest rysowany w kolorach motywu: wpisz `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` lub `{{ icon_shadow }}` tam, gdzie ma się znaleźć kolor. Dobrym punktem wyjścia jest domyślny zestaw w `/usr/share/omarchy/icons/papercraft/`. Dodaj plik `preview.png`, aby pokazać swój zestaw w selektorze; bez niego Omarchy narysuje podgląd na podstawie Twoich ikon. Aby zmienić pojedynczą ikonę zestawu domyślnego, umieść swoją wersję w `~/.config/omarchy/icons/papercraft/`.
+Aby stworzyć własny zestaw, umieść swoje ikony w `~/.config/omarchy/icons/<name>/`, po jednym pliku na aplikację, nazwanym zgodnie z wierszem `Icon=` w pliku `.desktop` aplikacji. Plik kończący się na `.svg` jest wyświetlany tak, jak jest. Plik kończący się na `.svg.tpl` jest rysowany w kolorach motywu: wpisz `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` lub `{{ icon_shadow }}` w miejscu, w którym ma znaleźć się kolor. Dobrym punktem wyjścia jest domyślny zestaw w `/usr/share/omarchy/icons/papercraft/`. Dodaj plik `preview.png`, aby pokazać swój zestaw w selektorze; bez niego Omarchy narysuje podgląd na podstawie Twoich ikon. Aby zmienić pojedynczą ikonę domyślnego zestawu, umieść swoją wersję w `~/.config/omarchy/icons/papercraft/`.
 
-### Odblokowywanie
+### Odblokowanie
 
-Motywy mogą mieć także własny projekt odblokowywania, używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w sekcji _Wygląd > Odblokowywanie_. Wyglądają tak:
+Motywy mogą też mieć własny projekt odblokowania, który jest używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w sekcji _Wygląd > Odblokowanie_. Wyglądają tak:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -108,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -128,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

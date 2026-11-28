@@ -14,11 +14,11 @@ fi
 
 printf -v install_message '%q' "Installing ${name}..."
 
-# The list has to reach omarchy-pkg-add as several words, so each word is quoted
+# The list has to reach omarchy-pkg-add-curated as several words, so each word is quoted
 # rather than the whole string; -d '' reads past newlines and always ends at EOF.
 read -r -d '' -a package_list <<<"$packages" || true
 printf -v packages_arg '%q ' "${package_list[@]}"
 packages_arg="${packages_arg% }"
 
 exec omarchy-launch-floating-terminal-with-presentation \
-  "echo ${install_message}; omarchy-pkg-add ${packages_arg}"
+  "echo ${install_message}; omarchy-pkg-add-curated ${packages_arg}"

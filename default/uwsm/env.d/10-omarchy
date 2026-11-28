@@ -15,5 +15,28 @@ fi
 # Optional user overrides kept for compatibility with older installs.
 [ -f "$HOME/.config/uwsm/default" ] && . "$HOME/.config/uwsm/default"
 
-# Activate mise if present on the system
-omarchy-cmd-present mise && eval "$(mise activate bash --shims)"
+# Put mise shims ahead of system binaries, behind the account dispatchers the
+# env bootstrap put first, without spawning mise on every graphical login.
+if command -v mise >/dev/null 2>&1; then
+  omarchy_mise_data_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}"
+  omarchy_mise_wrappers_dir="$HOME/.local/share/omarchy/agent-accounts/bin"
+  omarchy_mise_shims_dir="${MISE_SHIMS_DIR:-$omarchy_mise_data_dir/shims}"
+  omarchy_mise_path="$omarchy_mise_wrappers_dir:$omarchy_mise_shims_dir"
+  if [ -n "${PATH:-}" ]; then
+    omarchy_remaining_path=$PATH
+    while :; do
+      omarchy_path_entry=${omarchy_remaining_path%%:*}
+      if [ "$omarchy_path_entry" != "$omarchy_mise_wrappers_dir" ] &&
+         [ "$omarchy_path_entry" != "$omarchy_mise_shims_dir" ]; then
+        omarchy_mise_path="$omarchy_mise_path:$omarchy_path_entry"
+      fi
+      case "$omarchy_remaining_path" in
+        *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
+        *) break ;;
+      esac
+    done
+  fi
+  PATH=$omarchy_mise_path
+  export PATH
+  unset omarchy_mise_data_dir omarchy_mise_wrappers_dir omarchy_mise_shims_dir omarchy_mise_path omarchy_remaining_path omarchy_path_entry
+fi

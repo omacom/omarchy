@@ -54,7 +54,7 @@ README.md  LICENSE  .gitignore
 - Use `QGuiApplication`, not `QApplication`. Call `app.setDesktopFileName("<name>")` so the compositor and launcher match the window to its `.desktop` file and icon.
 - Use the Material style, light or dark as the theme is, with the theme's colors as `Material.accent`, `Material.background`, and `Material.foreground`.
 - Heavy media work goes through the `ffmpeg`/`ffprobe` command-line tools via `QProcess`, not by linking libav.
-- Open and save dialogs go through xdg-desktop-portal over D-Bus (`org.freedesktop.portal.FileChooser`), never `QFileDialog`. Copy Omacut's `src/portalfilepicker.{h,cpp}` behind its abstract `src/filepicker.h`, with its attribution: it is the one that survives a portal that stops answering or is replaced mid-dialog, and the other apps' copies have drifted from it. The abstract picker lets tests inject a fake.
+- Open and save dialogs go through xdg-desktop-portal over D-Bus (`org.freedesktop.portal.FileChooser`), never `QFileDialog` or `QtQuick.Dialogs`: both can fall back to Qt's own non-native dialog, and overriding `QT_QPA_PLATFORMTHEME` to work around it breaks the desktop's Qt platform theme. Copy Omacut's `src/portalfilepicker.{h,cpp}` behind its abstract `src/filepicker.h`, with its attribution: it is the one that survives a portal that stops answering or is replaced mid-dialog, and the other apps' copies have drifted from it. The abstract picker lets tests inject a fake.
 
 ## Omarchy conventions
 
@@ -95,6 +95,8 @@ A test binary that isn't registered with `add_test` never runs, and `ctest` with
 4. Drive the window in the test when a change is about interaction: the starter's window test loads `qrc:/Main.qml` offscreen and sends it keys and clicks with `QTest`, which also types into fields, where `--keys` only reaches `Shortcut`s. Set `QT_FORCE_STDERR_LOGGING=1` when running a test binary by hand, or QML warnings go to the journal instead of the terminal.
 5. `cmake --install build --prefix ~/.local` installs the binary, the `.desktop` entry, and the icon for this user, so the app appears in the Omarchy app launcher (`Super + Space`) before it is packaged. Run it again after every change the user should see there. Once the package is installed, remove the local copy with `xargs rm < build/install_manifest.txt`, or its `.desktop` entry keeps shadowing the package's.
 
+Done is the app doing its one job: `bin/test` green, each look above checked once, installed with step 5, and the work committed (`git add -A && git commit`). Then tell the user what it does, its shortcuts, and that it's in the app launcher. A detail that two rounds of fixing haven't settled (an alignment in one language, a pixel of spacing) doesn't hold that up: leave it, finish, and mention it to the user as something to look at next.
+
 ## Qt Quick traps
 
 - Don't name a component file after a Qt Quick type: `ItemView.qml` fails with "abstract base class". Prefix it with what it shows (`PlacedItem.qml`).
@@ -103,6 +105,7 @@ A test binary that isn't registered with `add_test` never runs, and `ctest` with
 - Every file that sets a `Material.*` attached property must import `QtQuick.Controls.Material`, or the file fails to load.
 - A Material `TextField` floats its `placeholderText` as the label. Don't add a separate label above it, or the two overlap.
 - `font.pixelSize` is an int. Standard keys go in `sequences: [StandardKey.Undo]`, not `sequence:`.
+- Under `LayoutMirroring`, a `Text`'s `horizontalAlignment` is mirrored too: `AlignLeft` already lands on the right in Arabic. Write the left-to-right alignment and let mirroring flip it; choosing `AlignRight` when the language is right to left flips it back to the left. `effectiveHorizontalAlignment` is where it ends up.
 - A `Popup` or `Dialog` is not an `Item` and doesn't inherit the window's `LayoutMirroring`; set on the popup itself it only logs a warning. Set it on the popup's content and its button box. Mirroring flips anchors and layouts, not explicit `x` positions: anything placed by `x` (a timeline, a ruler, a strip of pages) computes its own mirrored position, or stays left to right on purpose.
 - A Material `Popup` animates out: after `close()` its `opened` is false at once, and `visible` only when the transition ends, so wait on the one you mean. A popup that should close on Escape needs `focus: true`.
 - A highlighted Material `Button` colors its caption by Material's own rule and ignores `Material.foreground`, so a caption that must read on the accent replaces the `contentItem`, as the template's does.

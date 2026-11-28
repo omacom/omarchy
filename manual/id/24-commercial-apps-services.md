@@ -1,39 +1,47 @@
 # Aplikasi/layanan komersial
 
-Omarchy sebagian besar berfokus pada penyediaan perangkat lunak gratis dan open source, tetapi tidak fanatik soal itu. Terkadang solusi terbaik adalah tawaran komersial, dan itu sah-sah saja. Berikut ini beberapa opsi yang kami sediakan cara pemasangannya dengan mudah.
+Omarchy sebagian besar berfokus pada penyediaan perangkat lunak gratis dan open source, tetapi tidak fanatik soal itu. Terkadang solusi terbaik adalah penawaran komersial, dan itu sah-sah saja. Berikut beberapa opsi yang kami sediakan cara pemasangan mudahnya.
 
 ## 1Password
 
-Menyimpan kata sandi Anda di pengelola kata sandi adalah praktik terbaik. Apalagi jika Anda bekerja dengan tim. Dan [1password](https://1password.com/) adalah solusi yang hebat, yang juga dilengkapi alat command line untuk mengintegrasikan pencarian kunci dalam skrip.
+Menyimpan kata sandi Anda di pengelola kata sandi adalah praktik terbaik. Apalagi jika Anda bekerja dalam tim. Dan [1password](https://1password.com/) adalah solusi yang hebat, yang juga dilengkapi alat baris perintah untuk mengintegrasikan pencarian kunci dalam skrip.
 
-Anda menjalankan 1Password dengan `Super + Shift + /`. Jika belum terpasang, hotkey itu akan memulai pemasangannya terlebih dahulu (Anda juga dapat menggunakan _Install > Service > 1Password_ dari menu Omarchy). Pemasangnya juga menyiapkan ekstensi 1Password untuk Chromium.
+Anda memulai 1Password dengan `Super + Shift + /`. Jika belum terpasang, hotkey itu akan memulai pemasangannya terlebih dahulu (Anda juga bisa menggunakan _Pasang > Layanan > 1Password_ dari menu Omarchy). Pemasangnya juga menghadirkan alat baris perintah 1Password dan menyiapkan ekstensi 1Password untuk Chrome dan Chromium; mulai ulang browser Anda untuk memuatnya.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) adalah alternatif open source di bidang pengelola kata sandi, dengan tingkat gratis yang mencakup sebagian besar penggunaan pribadi. Pasang dengan _Install > Service > Bitwarden_ dari menu Omarchy, yang juga menyertakan alat command line Bitwarden.
+[Bitwarden](https://bitwarden.com/) adalah alternatif open source di bidang pengelola kata sandi, dengan tingkat gratis yang mencakup sebagian besar penggunaan pribadi. Pasang dengan _Pasang > Layanan > Bitwarden_ dari menu Omarchy, yang juga menghadirkan alat baris perintah Bitwarden.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) adalah layanan streaming musik terpopuler di dunia. Omarchy menyediakannya sebagai aplikasi web, yang memberi Anda pemutar lengkap, tombol media, dan Spotify Connect, tetapi tidak untuk unduhan offline. Jalankan dengan `Super + Shift + M`.
+[Spotify](https://spotify.com/) adalah layanan streaming musik terpopuler di dunia. Omarchy menyediakannya sebagai aplikasi web, yang memberi Anda pemutar lengkap, tombol media, dan Spotify Connect, tetapi bukan unduhan offline. Mulai dengan `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) adalah tempat banyak tim mengobrol, baik di dalam perusahaan maupun dengan kolaborator di luar. Pasang dengan _Install > Service > Slack_ dari menu Omarchy, dan aplikasi akan terbuka begitu siap.
+[Slack](https://slack.com/) adalah tempat banyak tim melakukan obrolan, baik di dalam perusahaan maupun dengan kolaborator luar. Pasang dengan _Pasang > Layanan > Slack_ dari menu Omarchy, dan aplikasi akan terbuka begitu siap.
+
+## Notion
+
+[Notion](https://www.notion.com/) adalah ruang kerja untuk catatan, dokumen, dan proyek. Pasang aplikasi desktopnya dengan _Pasang > Layanan > Notion_ dari menu Omarchy.
+
+## WeChat
+
+[WeChat](https://www.wechat.com/) adalah aplikasi perpesanan yang digunakan sebagian besar orang di Tiongkok, untuk mengobrol, menelepon, dan tetap terhubung dengan siapa pun yang tinggal di sana. Pasang klien Linux resmi Tencent dengan _Pasang > Layanan > WeChat_ dari menu Omarchy, dan aplikasi akan terbuka begitu siap. Aplikasi ini hanya tersedia di komputer x86.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) adalah cara hebat untuk menyinkronkan file antar mesin sambil menyimpan cadangan di cloud. Untuk menyiapkannya, pilih _Install > Service > Dropbox_ dari menu Omarchy. Setelah berjalan, arahkan kursor ke tray di kanan atas bilah dan klik kanan ikon Dropbox untuk menyelesaikan penyiapan.
+[Dropbox](https://www.dropbox.com/) adalah cara hebat untuk menyinkronkan file antar mesin sambil menyimpan cadangan di cloud. Untuk menyiapkannya, pilih _Pasang > Layanan > Dropbox_ dari menu Omarchy. Ini menambahkan ikon Dropbox ke bar: klik untuk masuk, lalu gunakan panel yang sama untuk memeriksa penyimpanan Anda dan membuka file yang baru disinkronkan.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) adalah VPN mesh yang membuat akses ke semua komputer dan server Anda melalui internet secara aman menjadi sangat mudah. Untuk menyiapkannya, pilih _Install > Service > Tailscale_ dari menu Omarchy.
+[Tailscale](https://tailscale.com/) adalah VPN mesh yang membuat akses ke semua komputer dan server Anda melalui internet secara aman menjadi sangat mudah. Untuk menyiapkannya, pilih _Pasang > Layanan > Tailscale_ dari menu Omarchy.
 
-Ia mendapat panel di bilah, aplikasi web untuk konsol admin, dan Taildrop untuk mengirim file antar mesin Anda — lihat [jaringan](35-networking.md).
+Aplikasi ini mendapatkan panel di bar, aplikasi web untuk konsol admin, dan Taildrop untuk mengirim file antar mesin Anda — lihat [jaringan](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) adalah lini perangkat lunak 37signals yang Anda beli sekali dan Anda jalankan di server Anda sendiri, seperti sistem obrolan Campfire. Pilih _Install > Service > ONCE_ dari menu Omarchy untuk memasangnya, yang mengaktifkan layanan latar belakangnya dan membawa Anda ke antarmuka terminal ONCE untuk melanjutkan dari sana.
+[ONCE](https://once.com/) adalah lini perangkat lunak 37signals yang Anda beli sekali dan jalankan di server Anda sendiri, seperti sistem obrolan Campfire. Pilih _Pasang > Layanan > ONCE_ dari menu Omarchy untuk memasangnya, yang mengaktifkan layanan latar belakangnya dan membawa Anda ke antarmuka terminal ONCE untuk melanjutkannya dari sana.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) adalah layanan VPN standar yang memungkinkan Anda mengeluarkan lalu lintas Anda dari sebagian besar wilayah di seluruh dunia. Untuk menyiapkannya, pilih _Install > Service > NordVPN_ dari menu Omarchy. Setelah reboot yang dimintanya, jalankan `nordvpn login` untuk mengautentikasi.
+[NordVPN](https://nordvpn.com/) adalah layanan VPN standar yang memungkinkan Anda mengeluarkan lalu lintas Anda dari sebagian besar wilayah di seluruh dunia. Untuk menyiapkannya, pilih _Pasang > Layanan > NordVPN_ dari menu Omarchy. Setelah reboot yang dimintanya, jalankan `nordvpn login` untuk melakukan autentikasi.

@@ -34,6 +34,7 @@ for dir in "${dirs[@]}"; do
       rm "$link"
     fi
   done
+  pending=()
   for skill in "$skills"/*/; do
     skill=${skill%/}
     link="$dir/${skill##*/}"
@@ -41,6 +42,9 @@ for dir in "${dirs[@]}"; do
     if [[ -e $link || -L $link ]] && ! [[ -L $link && $(readlink "$link") == */default/agents/skills/* ]]; then
       continue
     fi
-    ln -sfn "$skill" "$link"
+    pending+=("$skill")
   done
+  if (( ${#pending[@]} > 0 )); then
+    ln -sfn -t "$dir" -- "${pending[@]}"
+  fi
 done
