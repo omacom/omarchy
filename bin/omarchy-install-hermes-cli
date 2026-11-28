@@ -98,10 +98,113 @@ mise_retired() {
   ! mise where "$legacy_tool" >/dev/null 2>&1 && ! grep -qE '"pipx:hermes-agent(\[|")' <<<"$requested"
 }
 
+# The gateway unit upstream's `hermes gateway install` writes starts the mise
+# build by path -- `ExecStart=~/.local/share/mise/installs/pipx-hermes-agent/...`
+# with `Restart=always` and no start-rate limit -- so once the environment is
+# gone it fails 203/EXEC every five seconds, forever. Such a unit goes the way
+# the ~/.hermes runtime's gateway does in omarchy-remove-ai-hermes: stopped
+# first, since systemd would start it again the moment it was killed.
+unit_dir=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
+
+# Only systemd's own word counts as "stopped": a non-zero exit from is-active
+# also covers an unreachable user manager, which says nothing about whether
+# the process is alive.
+unit_stopped() {
+  local state
+  state=$(systemctl --user is-active "$1" 2>/dev/null) || true
+  [[ $state == "inactive" || $state == "failed" ]]
+}
+
+# The executable an ExecStart= runs: the first token of the last non-empty
+# assignment — an empty assignment resets what ran before it, and a service
+# keeps exactly one command — with systemd's prefix characters (- @ : | + !,
+# in any combination) and the quotes around the token removed, and a leading
+# ~, $HOME, ${HOME} or %h expanded to the real home. Read without eval, so a
+# unit file cannot make this run anything. Empty when the unit runs nothing,
+# and also when its token still carries a variable or specifier: whatever such
+# a line starts cannot be resolved from the unit file alone, and a unit that
+# cannot be classified is nobody's to remove.
+execstart_executable() {
+  local line token value=""
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line == 'ExecStart='* ]] || continue
+    value=${line#ExecStart=}
+    [[ -n ${value//[[:space:]]/} ]] || value=""
+  done <"$1"
+  [[ -n $value ]] || return 0
+  token=${value#"${value%%[![:space:]]*}"}
+  while [[ $token == [-@:+!]* ]]; do
+    token=${token#?}
+  done
+  token=${token#"${token%%[![:space:]]*}"}
+  if [[ $token == \"* ]]; then
+    token=${token#\"}
+    token=${token%%\"*}
+  elif [[ $token == \'* ]]; then
+    token=${token#\'}
+    token=${token%%\'*}
+  else
+    token=${token%%[[:space:]]*}
+  fi
+  case $token in
+    '~') token=$HOME ;;
+    '~/'*) token=$HOME/${token#'~/'} ;;
+    '$HOME') token=$HOME ;;
+    '$HOME/'*) token=$HOME/${token#'$HOME/'} ;;
+    '${HOME}') token=$HOME ;;
+    '${HOME}/'*) token=$HOME/${token#'${HOME}/'} ;;
+    '%h') token=$HOME ;;
+    '%h/'*) token=$HOME/${token#'%h/'} ;;
+  esac
+  [[ $token != *'$'* && $token != *'%'* ]] || return 0
+  printf '%s\n' "$token"
+}
+
+# A gateway unit is the retired environment's own when the executable its
+# ExecStart runs is inside the tool's mise installs directory, matched on that
+# one token and with its trailing slash: a path merely named in an argument, or
+# a tool whose name merely starts the same way, is not it, and neither is a
+# unit whose ExecStart cannot be resolved to an executable at all. A plain
+# string, so the installs directory is found wherever MISE_DATA_DIR or
+# XDG_DATA_HOME put it.
+#
+# Called as "owned" by a caller that has proved the environment Omarchy's to
+# remove: those units go while their executable still runs, with a clean stop
+# instead of the crash loop the environment's removal would leave them
+# restarting into. Called as "repair" on a machine whose proof is gone: only a
+# unit whose executable is already missing goes, and one still running a
+# Hermes the user manages themselves is not even asked of systemd.
+retire_mise_gateway_units() { # $1 = "owned" or "repair"
+  local unit_file unit executable
+  for unit_file in "$unit_dir"/hermes-gateway*.service; do
+    [[ -f $unit_file ]] || continue
+    executable=$(execstart_executable "$unit_file")
+    [[ $executable == *'mise/installs/pipx-hermes-agent/'* ]] || continue
+    # Only a caller with no claim on the environment spares a unit whose
+    # executable still exists: it is the user's own running gateway.
+    if [[ $1 == "repair" && -f $executable ]]; then
+      continue
+    fi
+    unit=${unit_file##*/}
+    if ! systemctl --user disable --now "$unit" 2>/dev/null && ! unit_stopped "$unit"; then
+      echo "Could not stop $unit, which runs the Hermes that mise built. Stop it by hand (systemctl --user disable --now \"$unit\"), then run omarchy-install-hermes-cli --retire-mise again." >&2
+      return 1
+    fi
+    # .bak is what `gateway install --force` leaves behind when it rewrites a
+    # unit, so it goes with the unit.
+    rm -f "$unit_file" "$unit_file.bak" "$unit_dir/default.target.wants/$unit"
+    systemctl --user daemon-reload 2>/dev/null || true
+    # A unit that had been failing stays listed as "not-found failed" after
+    # its file is gone until its failed state is reset.
+    systemctl --user reset-failed "$unit" 2>/dev/null || true
+  done
+}
+
 # Removes the environment the retired wrapper built, judged by what is left
 # rather than by what the commands claimed. Only for a caller that has proved
 # it Omarchy's.
 retire_mise() {
+  retire_mise_gateway_units owned || return 1
   if mise_retired; then
     return 0
   fi
@@ -341,10 +444,16 @@ case "$mode" in
 --retire-mise)
   # The migration's whole job. The environment goes before the wrapper, since
   # once the wrapper is gone nothing marks the environment as Omarchy's and a
-  # rerun could not finish what a failed removal left behind.
+  # rerun could not finish what a failed removal left behind. While the wrapper
+  # still proves the environment Omarchy's, its gateway units go with it,
+  # before their executable does; once the proof is gone, only units left
+  # behind by an environment already gone are swept, and a gateway the user
+  # still runs stays.
   if legacy_owned; then
     retire_mise || exit 1
     forget_legacy
+  else
+    retire_mise_gateway_units repair || exit 1
   fi
   exit 0
   ;;
