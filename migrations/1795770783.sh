@@ -10,6 +10,13 @@ if [[ ! -r $dropin ]]; then
   exit 75
 fi
 
+# A run that failed after masking the daemon below leaves it held down until
+# reboot, even once the state is written.
+if [[ $(systemctl is-enabled power-profiles-daemon.service 2>/dev/null) == masked-runtime ]]; then
+  sudo systemctl -q unmask --runtime power-profiles-daemon.service
+  sudo systemctl start power-profiles-daemon.service
+fi
+
 if [[ -r $state_file ]] && grep -q '^battery_aware=false$' "$state_file"; then
   exit 0
 fi
@@ -20,8 +27,8 @@ if systemctl is-active --quiet power-profiles-daemon.service; then
   # A D-Bus client such as the shell starts the daemon again while it stops,
   # which cancels the stop job and fails the update. A runtime mask holds it
   # down until the state file is written.
-  sudo systemctl -q mask --runtime power-profiles-daemon.service
   trap 'sudo systemctl -q unmask --runtime power-profiles-daemon.service || true; sudo systemctl start power-profiles-daemon.service || true' EXIT
+  sudo systemctl -q mask --runtime power-profiles-daemon.service
   sudo systemctl stop power-profiles-daemon.service
 fi
 
