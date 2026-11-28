@@ -602,12 +602,16 @@ const summaries = rows => Array.from(rows, row => row.summary)
   s.finishClose(key, 'expired')
   assert.equal(s.historyEntries.length, 1, 'same key is not duplicated in history')
   assert.equal(s.historyEntries[0].key, key)
+  assert.equal(s.historyEntries[0].summary, 'Downloading 50%', 'closing the old visible card keeps the newer silenced update')
+  assert.equal(s.historyEntries[0].closed_reason, 'fullscreen')
 
-  // Repeated updates for one key never evict unrelated history entries.
+  // Repeated updates for one key never evict unrelated history entries, and a
+  // stale arrival timestamp never overwrites a newer entry for the same key.
   const now = 1e6
   let history = []
-  for (let i = 0; i < 99; i++) history = Store.addHistory(history, { key: 'msg-' + i, summary: 'Msg ' + i, closed_ts: now - 200 + i, closed_reason: 'fullscreen' }, now)
-  for (let pct = 1; pct <= 150; pct++) history = Store.addHistory(history, { key: 'progress', summary: 'Progress ' + pct + '%', closed_ts: now - 10 + pct / 1000, closed_reason: 'fullscreen' }, now)
+  for (let i = 0; i < 99; i++) history = Store.addHistory(history, { key: 'msg-' + i, summary: 'Msg ' + i, ts: now - 200 + i, closed_ts: now - 200 + i, closed_reason: 'fullscreen' }, now)
+  for (let pct = 1; pct <= 150; pct++) history = Store.addHistory(history, { key: 'progress', summary: 'Progress ' + pct + '%', ts: now - 10 + pct / 1000, closed_ts: now - 10 + pct / 1000, closed_reason: 'fullscreen' }, now)
+  history = Store.addHistory(history, { key: 'progress', summary: 'Progress 1%', ts: now - 20, closed_ts: now, closed_reason: 'expired' }, now)
   assert.equal(history.length, 100)
   assert.equal(history[0].key, 'progress')
   assert.equal(history[0].summary, 'Progress 150%')

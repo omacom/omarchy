@@ -649,7 +649,12 @@ Item {
     // still records it (unless ephemeral), straight to history.
     var muted = Delivery.quietReason(row, doNotDisturb, fullscreenOn(targetDisplayName))
     if (muted) {
-      if (!Delivery.isEphemeral(row)) storeRecord(row, muted)
+      if (!Delivery.isEphemeral(row)) {
+        storeRecord(row, muted)
+        // Drop any earlier live snapshot so closing a superseded visible card
+        // cannot overwrite this newer update in history.
+        storeDrop(key)
+      }
       release(key)
       // A replacement for a card already on screen leaves that card as it was;
       // one still waiting to be shown is gone, and so is its saved row.
