@@ -448,4 +448,6 @@ if [[ -s $selection_file ]]; then
   else
     cat "$selection_file"
   fi
+else
+  exit 1
 fi

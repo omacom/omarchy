@@ -233,6 +233,26 @@ grep -q "$bg_home/.local/state/omarchy/current/theme/backgrounds/wall.png" <<<"$
   fail "background switcher --print-rows prints the current theme's backgrounds" "$bg_rows"
 pass "background switcher --print-rows prints the current theme's backgrounds"
 
+# Cancelling the picker completes the request with an empty selection file and
+# must exit 1 with no output so callers do not treat cancellation as a choice.
+cat >"$stub_bin/omarchy-shell" <<'EOF'
+#!/bin/bash
+if [[ ${1:-} == "image-selector" && ${2:-} == "open" ]]; then
+  : >"$7"
+  printf 'ok\n'
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$stub_bin/omarchy-shell"
+
+status=0
+output=$(PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" "$images") || status=$?
+(( status == 1 )) || fail "cancelled image menu exits 1" "got status $status"
+[[ -z $output ]] || fail "cancelled image menu prints nothing" "got: $output"
+pass "cancelled image menu exits 1 with no output"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
