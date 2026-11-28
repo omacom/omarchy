@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Notify when an agent in a background terminal rings for you
+# omarchy:hidden=true
+
+# Foot runs this as its bell command, and only while its window is unfocused.
+# Coding agents ring the bell when a turn finishes or an approval waits (Codex
+# does by default in Foot), so an agent window answers with a notification that
+# brings it back when clicked. A bell from any other terminal stays as quiet as
+# before. The terminal that rang is this command's parent; a foot server owns
+# several windows and can't say which one rang, so it stays quiet too.
+
+window=$(
+  hyprctl clients -j 2>/dev/null |
+    jq -c --argjson pid "$PPID" '[.[] | select(.pid == $pid)] | if length == 1 and .[0].class == "org.omarchy.agent" then .[0] else empty end' 2>/dev/null
+)
+
+if [[ -n $window ]]; then
+  address=$(jq -r '.address' <<<"$window")
+  title=$(jq -r '.title // ""' <<<"$window")
+  omarchy-notification-send -g 󰚩 "$(omarchy-i18n agents.bellHeadline)" "$title" \
+    --exec hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })"
+fi
