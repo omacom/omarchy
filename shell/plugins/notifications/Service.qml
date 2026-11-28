@@ -1664,10 +1664,13 @@ Item {
             model: toasts
 
             Toast {
+              id: toastCard
               required property var model
               row: model
               scene: service
-              anchors.right: parent.right
+              // Positioned explicitly rather than anchored right: Toast mirrors
+              // its own subtree in RTL locales, which would flip anchors.right.
+              x: deck.width - width
               baseWidth: service.notificationWidth
               maxWidth: surface.maxCardWidth
               place: service.placements[model.key]
@@ -1697,6 +1700,16 @@ Item {
               onTargetWidthChanged: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
               onTargetHeightChanged: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
               Component.onCompleted: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
+
+              // Re-report this display's clamped size when the deck moves here
+              // (e.g. after unplugging a wider display).
+              Connections {
+                target: surface
+                function onShowingNotificationsChanged() {
+                  if (surface.showingNotifications)
+                    service.noteSize(toastCard.model.key, toastCard.targetWidth, toastCard.targetHeight)
+                }
+              }
 
               onExpired: service.closeToast(model.key, "expired")
               onActivated: { service.stopKeyboard(); service.activate(model.key) }

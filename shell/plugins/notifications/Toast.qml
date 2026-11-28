@@ -269,12 +269,12 @@ Item {
     Row {
       id: layout
       // Top-anchored: centred content would slide up as the card grows.
-      // Measure at least at targetWidth so a card collapsed behind a narrower
-      // front card keeps its real wrapped height for when the deck opens.
+      // Always measure at targetWidth so cards collapsed behind a wider or
+      // narrower front card keep a stable wrapped height across deck motion.
       anchors { left: parent.left; top: parent.top
                 leftMargin: plate.contentLeftInset + Style.space(12)
                 topMargin: plate.contentTopInset + card.contentPaddingY }
-      width: Math.max(1, Math.max(parent.width, card.targetWidth)
+      width: Math.max(1, card.targetWidth
              - plate.contentLeftInset - plate.contentRightInset - Style.space(12) * 2)
       spacing: thumb.compact ? Style.space(8) : Style.space(12)
 
