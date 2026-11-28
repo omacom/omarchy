@@ -1526,7 +1526,7 @@ Item {
     var warm = tooltipShown || tooltipWarmTimer.running
     clearTooltip()
 
-    if (!targetTooltipHovered(target) || !text) {
+    if (!target || target.visible === false || target.opacity === 0 || !text) {
       tooltipRequest += 1
       return
     }
@@ -1536,6 +1536,10 @@ Item {
     pendingTooltipTarget = target
     pendingTooltipText = text
 
+    // A widget's MouseArea and passive hover handler can observe the same
+    // pointer entry in either order. Check the live state after both have had
+    // a chance to settle, while still rejecting targets that disappear before
+    // the request is queued.
     Qt.callLater(function() {
       if (request !== tooltipRequest) return
       if (!targetTooltipHovered(pendingTooltipTarget)) {
