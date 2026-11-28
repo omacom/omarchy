@@ -55,6 +55,8 @@ run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-zbook-ultra-g3a-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/getac/fix-v110g3-touchpad.sh"
+
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-spi-keyboard.sh"
