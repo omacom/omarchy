@@ -94,6 +94,11 @@ function clearHistory() {
   return []
 }
 
+function originAddress(toplevel, focusedWorkspace) {
+  if (!toplevel || !toplevel.address || !toplevel.workspace || !focusedWorkspace) return ""
+  return toplevel.workspace.id === focusedWorkspace.id ? String(toplevel.address) : ""
+}
+
 function removedImageEntries(previousHistory, nextHistory, imageDir) {
   var dir = String(imageDir || "").replace(/\/+$/, "")
   if (!dir) return []
@@ -267,6 +272,7 @@ if (typeof module !== "undefined") {
     addEntry: addEntry,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
+    originAddress: originAddress,
     removedImageEntries: removedImageEntries,
     parseEntryJson: parseEntryJson,
     searchableText: searchableText,
