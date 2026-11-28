@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Install gaming performance tools (MangoHud, Gamescope, GameMode).
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing gaming performance tools..."
+
+packages=(mangohud gamescope gamemode)
+if omarchy-hw-x86; then
+  packages+=(lib32-mangohud lib32-gamemode)
+fi
+
+omarchy-pkg-add "${packages[@]}"
+
+added_gamemode_group=0
+if ! id -nG "$USER" | grep -qw gamemode; then
+  sudo usermod -aG gamemode "$USER"
+  added_gamemode_group=1
+fi
+
+cat <<'EOF'
+
+Gaming performance tools installed:
+  - MangoHud:  MANGOHUD=1 %command%  (FPS, frametime, and GPU/CPU overlay)
+  - GameMode:  gamemoderun %command% (CPU governor and process priority boosts)
+  - Gamescope: gamescope -f -- %command% (micro-compositor)
+
+Combine them in Steam or launcher options, e.g.:
+  gamemoderun mangohud %command%
+
+EOF
+
+if (( added_gamemode_group )); then
+  echo "Added $USER to the gamemode group. Log out and back in for full GameMode priority boosts."
+fi
