@@ -92,6 +92,7 @@ omarchy-install-browser)
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
   zen) command=zen-browser ;;
+  vivaldi) command=vivaldi-stable ;;
   esac
   ;;
 omarchy-install-terminal)
@@ -139,6 +140,11 @@ done
 
 cat >"$mock_bin/omarchy-install-browser-extensions" <<'SH'
 #!/bin/bash
+# Like the real helper, reject the browsers it can't wire extensions into.
+case ${*: -1} in
+chromium | chrome | brave | brave-origin | edge) ;;
+*) exit 1 ;;
+esac
 if [[ ${1:-} == "--check" ]]; then
   [[ ${OMARCHY_TEST_BROWSER_EXTENSIONS_STALE:-false} != "true" ]]
 else
@@ -183,6 +189,7 @@ browser_cases=(
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
   'zen zen-browser browser:zen'
+  'vivaldi vivaldi-stable browser:vivaldi'
 )
 
 terminal_cases=(
@@ -363,6 +370,16 @@ grep -Fxq 'omarchy-install-browser-extensions:chromium' "$setup_log" ||
 omarchy-default-browser chrome
 [[ ! -s $terminal_log && ! -s $setup_log ]] || fail "an installed browser with current extensions is selected immediately"
 pass "picking a Chromium-based browser repairs its bundled extensions when they are stale"
+
+# Vivaldi isn't wired to the bundled extensions, so picking an installed one
+# saves it as the default without asking the extension helper about it.
+touch "$installed_dir/vivaldi-stable"
+: >"$terminal_log"
+: >"$setup_log"
+omarchy-default-browser vivaldi || fail "picking an installed Vivaldi succeeds"
+[[ ! -s $terminal_log && ! -s $setup_log ]] || fail "an installed Vivaldi is selected without touching extensions"
+[[ $(omarchy-default-browser) == "vivaldi" ]] || fail "an installed Vivaldi becomes the default browser"
+pass "picking an installed Vivaldi selects it without the bundled extensions"
 
 # Picking an editor points every text type at the editor handler in the
 # user's mimeapps.list, replacing what was there and keeping everything else.
