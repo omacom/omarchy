@@ -38,6 +38,10 @@ Item {
     property int revision: 0
     function metadataFor(id) { return null }
   }
+  // Qt names a screen before adding it, so only its geometry can arrive late;
+  // those reads are tracked and a screen whose size lands afterwards still gets
+  // its bar. BarModel.isRealScreen says which screens are skipped and why.
+  readonly property var realScreens: BarModel.realScreens(Quickshell.screens)
   // Mirrors the on-disk `bar-off` flag so the user can hide the bar without
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
@@ -1629,7 +1633,7 @@ Item {
   }
 
   Variants {
-    model: Quickshell.screens
+    model: root.realScreens
 
     delegate: Component {
       BarPanel {
@@ -1641,7 +1645,7 @@ Item {
   }
 
   Variants {
-    model: Quickshell.screens
+    model: root.realScreens
 
     delegate: Component {
       DragGhostPanel {
@@ -1654,7 +1658,7 @@ Item {
   }
 
   Variants {
-    model: Quickshell.screens
+    model: root.realScreens
 
     delegate: Component {
       BarMoveGhostPanel {

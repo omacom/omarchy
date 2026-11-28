@@ -26,6 +26,23 @@ assertEqual(bar.pickDrawnSlot([undrawn]), undrawn, 'bar falls back to an undrawn
 assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are none')
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
+// With every monitor unplugged, Qt substitutes a nameless 0x0 placeholder and
+// Hyprland a FALLBACK output with a real mode; neither may get a bar. A
+// user-created headless output is a real screen and keeps its bar.
+const qtPlaceholder = { name: '', width: 0, height: 0 }
+const hyprFallback = { name: 'FALLBACK', width: 1920, height: 1080 }
+const monitor = { name: 'HDMI-A-1', width: 3840, height: 2160 }
+const headless = { name: 'HEADLESS-2', width: 1920, height: 1080 }
+const unsized = { name: 'DP-1', width: 0, height: 0 }
+assertEqual(bar.isRealScreen(qtPlaceholder), false, 'bar skips Qt\'s placeholder screen')
+assertEqual(bar.isRealScreen(hyprFallback), false, 'bar skips Hyprland\'s FALLBACK output despite its real mode')
+assertEqual(bar.isRealScreen(monitor), true, 'bar keeps a real monitor')
+assertEqual(bar.isRealScreen(headless), true, 'bar keeps a user-created headless output')
+assertEqual(bar.isRealScreen(unsized), false, 'bar waits for a screen\'s geometry')
+assertEqual(bar.isRealScreen(null), false, 'bar tolerates a missing screen')
+assertEqual(JSON.stringify(bar.realScreens([qtPlaceholder, monitor, hyprFallback, headless])), JSON.stringify([monitor, headless]), 'bar keeps only real screens, in order')
+assertEqual(JSON.stringify(bar.realScreens(null)), '[]', 'bar tolerates a missing screen list')
+
 // The bar drops its input under a real fullscreen window on its workspace, so
 // the window gets the clicks along the edge; a maximized one keeps the bar.
 const output = { x: 0, y: 0, width: 1280, height: 800 }
