@@ -316,6 +316,14 @@ run_root_transaction() {
         (( (8#$native_mode & 0022) == 0 ))
         preserved_module=ttfx-plymouth
       fi
+      # The native renderer only draws the Omarchy wordmark. A chosen logo
+      # needs the script renderer, which shows logo.png; the effect and
+      # playback stay recorded, so choosing an effect under Appearance >
+      # Bootloader turns the animation back on.
+      if [[ $mode == "set" && $preserved_module == "ttfx-plymouth" ]]; then
+        preserved_module=script
+        echo "The TTFX boot animation draws only the Omarchy logo, so it is off while this logo is used. Choose an effect under Appearance > Bootloader to turn it back on." >&2
+      fi
       preserved_playback=$(keyfile_value "$current_keyfile" PlaybackMode)
       [[ $preserved_playback == "submit-to-finish" || $preserved_playback == "continuous" ]] || preserved_playback=
       preserved_enabled=$(keyfile_value "$current_keyfile" Enabled)

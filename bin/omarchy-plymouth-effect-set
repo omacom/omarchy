@@ -87,7 +87,18 @@ if ! $playback_request && [[ $selection == "current" || $selection == "resolved"
     exit 1
   fi
   if [[ $selection == "current" ]]; then
-    if [[ $current_mode == "fixed" ]]; then
+    # A chosen unlock logo hands the boot to the script renderer
+    # (omarchy-plymouth-set) while keeping the effect recorded: no animation
+    # plays, so picking any effect, the recorded one too, turns it back on.
+    native_module=$(awk -F= '
+      /^\[Plymouth Theme\][[:space:]]*$/ { in_section=1; next }
+      /^\[/ { in_section=0 }
+      in_section && $1 == "ModuleName" { value=substr($0, index($0, "=") + 1) }
+      END { print value }
+    ' "$theme_file")
+    if [[ $native_module != "ttfx-plymouth" ]]; then
+      printf 'off\n'
+    elif [[ $current_mode == "fixed" ]]; then
       printf '%s\n' "$current_effect"
     else
       printf '%s\n' "$current_mode"

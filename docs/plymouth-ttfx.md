@@ -14,7 +14,7 @@ Branding changes retain the existing validated effect, seed, colors, and playbac
 
 ## Runtime and handoff
 
-The default is decrypt at 240 Hz with two engine frames per tick. Input Only plays once and holds completion, speeding up when the password is submitted; Full Animated loops. All playback uses `ttfx_engine_draw_logo`. The effect picker omits Off and keeps Random. The Unlock theme picker remains available.
+The default is decrypt at 240 Hz with two engine frames per tick. Input Only plays once and holds completion, speeding up when the password is submitted; Full Animated loops. All playback uses `ttfx_engine_draw_logo`. The effect picker omits Off and keeps Random. The Unlock theme picker remains available. The native renderer draws only the Omarchy wordmark, so choosing a theme's unlock logo there switches the boot to the script renderer, which shows that logo, with the effect still recorded; choosing any effect under Appearance > Bootloader turns the animation back on.
 
 The handoff to the desktop has no blank frame and no console in between:
 

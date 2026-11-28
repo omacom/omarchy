@@ -365,6 +365,17 @@ grep -Fxq 'PlaybackMode=submit-to-finish' "$theme_file" ||
   fail "an effect change keeps a playback mode published while it waited" "$(<"$theme_file")"
 pass "effect and playback changes never write back over each other"
 
+# A chosen unlock logo hands the boot to the script renderer with the effect
+# still recorded. Nothing animates then, so the menu sees Off and picking the
+# recorded effect turns the animation back on.
+TEST_SEED=20 run_set decrypt >/dev/null
+sed -i 's/^ModuleName=.*/ModuleName=script/' "$theme_file"
+[[ $(run_set current) == off ]] || fail "the script renderer reports no running effect"
+TEST_SEED=21 run_set decrypt >/dev/null
+grep -Fxq 'ModuleName=ttfx-plymouth' "$theme_file" || fail "picking the recorded effect turns the animation back on"
+[[ $(run_set current) == decrypt ]] || fail "the turned-on effect is reported again"
+pass "after a chosen logo, picking an effect turns the animation back on"
+
 # Selecting a native effect must not make an unprovisioned stock boot unusable.
 mv -- "$native_module" "$native_module.retired"
 before=$(<"$theme_file")

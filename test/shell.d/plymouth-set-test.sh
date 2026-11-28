@@ -1457,6 +1457,20 @@ batch_native_effect_state() {
   (( $? == 0 )) || fail "refresh falls back safely after module removal" "$output"
   grep -Fxq 'ModuleName=script' "$theme/omarchy.plymouth" || fail "refresh cannot select an absent native renderer"
   pass "refresh preserves installed native playback and safely handles a missing module"
+
+  # A chosen logo is drawn by the script renderer: the native one only draws
+  # the Omarchy wordmark. The effect stays recorded for the effect picker.
+  setup_fresh_run
+  sed -i 's/^ModuleName=.*/ModuleName=ttfx-plymouth/; s/^Effect=.*/Effect=waves/' "$theme/omarchy.plymouth"
+  mkdir -p "$fake_root/usr/lib/plymouth"
+  printf native-module >"$fake_root/usr/lib/plymouth/ttfx-plymouth.so"
+  output=$(run_set 022 env 2>&1)
+  (( $? == 0 )) || fail "a chosen logo publishes over the native renderer" "$output"
+  grep -Fxq 'ModuleName=script' "$theme/omarchy.plymouth" || fail "a chosen logo selects the renderer that draws it"
+  cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "a chosen logo is published for the script renderer"
+  grep -Fxq 'Effect=waves' "$theme/omarchy.plymouth" || fail "a chosen logo keeps the recorded effect"
+  [[ $output == *"Appearance > Bootloader"* ]] || fail "a chosen logo says how to turn the animation back on" "$output"
+  pass "a chosen logo switches to the renderer that draws it and keeps the effect for later"
 }
 
 run_batch batch_fresh_and_migrated
