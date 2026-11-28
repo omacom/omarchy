@@ -44,16 +44,21 @@ def entry(executable, oslist, beta=None):
         config["BetaKey"] = beta
     return {"executable": executable, "config": config}
 
+# Steam counts 100 as a Linux title through the icon a dropped port left
+# behind; 400 has the same launch entries without it, so Steam runs it with
+# Proton itself (Satisfactory) and nothing needs mapping.
+common = {100: {"oslist": "windows", "linuxclienticon": "abc"}, 200: {"oslist": "windows"}, 300: {"oslist": "linux"}, 400: {"oslist": "windows"}}
 apps = {
     100: [entry("Game.exe", "windows"), entry("Game.sh", "linux")],
+    400: [entry("Other.exe", "windows"), entry("Other.sh", "linux")],
     200: [entry("Peak.exe", "windows"), entry("Peak.exe", "linux", beta="internal")],
     300: [entry("run.sh", "linux")],
 }
-files = {100: ["Game.exe"], 200: ["Peak.exe"], 300: ["run.sh"]}
+files = {100: ["Game.exe"], 200: ["Peak.exe"], 300: ["run.sh"], 400: ["Other.exe"]}
 
 body = b""
 for appid, launch in apps.items():
-    info = kv({"appinfo": {"config": {"launch": {str(i): e for i, e in enumerate(launch)}}}})
+    info = kv({"appinfo": {"common": common[appid], "config": {"launch": {str(i): e for i, e in enumerate(launch)}}}})
     header = struct.pack("<IIQ", 0, 0, 0) + b"\0" * 20 + struct.pack("<I", 0) + b"\0" * 20
     body += struct.pack("<II", appid, len(header) + len(info)) + header + info
     game = steam / "steamapps/common" / f"game{appid}"
@@ -81,7 +86,7 @@ found=$(scan)
 [[ $found == $'100\tGame 100' ]] || fail "scan flags only the game whose Linux launcher is missing" "$found"
 grep -Pzq '"CompatToolMapping"\n\t+\{\n\t+"100"\n\t+\{\n\t+"name"\t\t"proton_experimental"' "$steam/config/config.vdf" ||
   fail "scan maps that game to Proton in config.vdf" "$(cat "$steam/config/config.vdf")"
-pass "scan maps a game with a missing Linux launcher to Proton and leaves beta-only and native entries alone"
+pass "scan maps a game Steam starts natively whose Linux launcher is missing, and leaves Proton-run, beta-only and native games alone"
 
 [[ -z $(scan) ]] || fail "a second scan finds nothing left to map"
 (( $(grep -c '"CompatToolMapping"' "$steam/config/config.vdf") == 1 )) || fail "a second scan adds no second mapping block"

@@ -121,7 +121,14 @@ def parse_kv(data, pos, strings):
 
 
 def launch_entries(info):
-    launch = info.get("appinfo", info).get("config", {}).get("launch", {})
+    info = info.get("appinfo", info)
+    launch = info.get("config", {}).get("launch", {})
+    common = info.get("common", {})
+    # Steam starts a game natively only when it counts it as a Linux title: it
+    # lists linux, or still carries a Linux client icon from a dropped port
+    # (BIGFOOT, Rust, The Isle). Otherwise it runs the Windows build with
+    # Proton itself and never reads the Linux entries (Satisfactory, GeckoShop).
+    native = "linux" in str(common.get("oslist", "")).split(",") or bool(common.get("linuxclienticon"))
     entries = []
     for entry in launch.values():
         if not isinstance(entry, dict) or not entry.get("executable"):
@@ -130,6 +137,8 @@ def launch_entries(info):
         # Entries tied to a beta branch don't apply to the public build (PEAK
         # keeps its Linux entry behind an internal playtest key).
         if config.get("BetaKey"):
+            continue
+        if not native and "linux" in config.get("oslist", "").split(","):
             continue
         entries.append({"executable": entry["executable"], "oslist": config.get("oslist", "")})
     return entries
