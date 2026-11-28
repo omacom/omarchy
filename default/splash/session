@@ -14,6 +14,7 @@ run=/run/omarchy-splash
 # only the first GPU's displays light up). The first GPU is the one sway calls
 # its own: the firmware's boot display, which is the likeliest to work.
 find_cards() {
+  local native_has_output=""
   native=""
   firmware=""
   for card in /sys/class/drm/card*; do
@@ -32,17 +33,34 @@ find_cards() {
         continue
         ;;
     esac
+    if [ -z "$native_has_output" ] && has_connected_output "$card"; then
+      native_has_output=1
+    fi
     if [ "$(cat "$card/device/boot_vga" 2>/dev/null)" = 1 ]; then
       native=/dev/dri/$name${native:+:$native}
     else
       native=${native:+$native:}/dev/dri/$name
     fi
   done
+  # Keep native GPUs available for hotplug unless the firmware can draw first.
+  if [ -n "$firmware" ] && [ -z "$native_has_output" ]; then
+    native=""
+  fi
 }
 
 has_connectors() {
   for connector in "$1"-*; do
     [ -e "$connector" ] && return 0
+  done
+  return 1
+}
+
+has_connected_output() {
+  local status_file status
+  for status_file in "$1"-*/status; do
+    if IFS= read -r status 2>/dev/null <"$status_file" && [ "$status" = connected ]; then
+      return 0
+    fi
   done
   return 1
 }

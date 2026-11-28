@@ -14,20 +14,22 @@ trap 'rm -rf "$test_tmp"' EXIT
 drm=$test_tmp/sys/class/drm
 dri=$test_tmp/dev/dri
 drivers=$test_tmp/sys/bus/platform/drivers
-sed -n '/^find_cards() {/,/^}/p; /^has_connectors() {/,/^}/p' "$ROOT/default/splash/session" |
+sed -n '/^find_cards() {/,/^}/p; /^has_connectors() {/,/^}/p; /^has_connected_output() {/,/^}/p' "$ROOT/default/splash/session" |
   sed -e "s|/sys/class/drm|$drm|g" -e "s|/dev/dri|$dri|g" >"$test_tmp/find-cards.sh"
 if ! grep -qF "$drm/card" "$test_tmp/find-cards.sh" || ! grep -qF "$dri/" "$test_tmp/find-cards.sh"; then
   fail "find_cards reads its DRM cards from the fixture"
 fi
 
-# A card with a display connector and a device node, bound to driver $2, or to
-# none while its driver is being unbound.
+# A card with a display connector and a device node, optionally unbound.
 card() {
   mkdir -p "$drm/$1/device" "$drm/$1-eDP-1" "$dri"
   touch "$dri/$1"
   if [[ $2 != "none" ]]; then
     mkdir -p "$drivers/$2"
     ln -s "$drivers/$2" "$drm/$1/device/driver"
+  fi
+  if [[ -n ${3:-} ]]; then
+    printf '%s\n' "$3" >"$drm/$1-eDP-1/status"
   fi
 }
 
@@ -47,11 +49,36 @@ pass "a card whose driver is being unbound is not a display to draw on"
 for firmware in simple-framebuffer efi-framebuffer vesa-framebuffer; do
   rm -rf "$drm" "$dri"
   card card0 "$firmware"
-  card card1 msm_dpu
+  card card1 msm_dpu connected
+  card card2 i915 disconnected
+  mkdir -p "$drm/card1-DP-1"
+  printf '%s\n' disconnected >"$drm/card1-DP-1/status"
   found=$(cards)
-  [[ $found == "$dri/card1|$dri/card0" ]] || fail "the firmware framebuffer and the GPU's own driver are told apart" "$firmware found: $found"
+  [[ $found == "$dri/card1:$dri/card2|$dri/card0" ]] || fail "native drivers keep peers available for hotplug" "$firmware found: $found"
 done
-pass "the firmware framebuffer and the GPU's own driver are told apart"
+pass "native drivers keep peers available for hotplug"
+
+rm -rf "$drm" "$dri"
+card card0 simple-framebuffer connected
+card card1 i915 disconnected
+found=$(cards)
+[[ $found == "|$dri/card0" ]] || fail "disconnected native outputs leave the firmware framebuffer available" "found: $found"
+pass "disconnected native outputs leave the firmware framebuffer available"
+
+printf '%s\n' unknown >"$drm/card1-eDP-1/status"
+found=$(cards)
+[[ $found == "|$dri/card0" ]] || fail "an unprobed native connector leaves the firmware framebuffer available" "found: $found"
+pass "an unprobed native connector leaves the firmware framebuffer available"
+
+rm -rf "$drm/card0" "$drm/card0-eDP-1" "$dri/card0"
+found=$(cards)
+[[ $found == "$dri/card1|" ]] || fail "an unprobed native connector stays available without firmware" "found: $found"
+pass "an unprobed native connector stays available without firmware"
+
+printf '%s\n' disconnected >"$drm/card1-eDP-1/status"
+found=$(cards)
+[[ $found == "$dri/card1|" ]] || fail "a disconnected native card can still hotplug without firmware" "found: $found"
+pass "a disconnected native card can still hotplug without firmware"
 
 # The late hook takes the splash down for a volume in the real root's crypttab
 # that asks for its passphrase on the console, and only for one.
