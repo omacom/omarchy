@@ -333,6 +333,10 @@ Item {
               elide: Text.ElideRight
             }
           }
+
+          WheelScrollArea {
+            flickable: resultGrid
+          }
         }
       }
     }
