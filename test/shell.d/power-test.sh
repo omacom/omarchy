@@ -33,6 +33,15 @@ assertEqual(
   'power shows charging icon while the charge rate is not fresh yet'
 )
 assertEqual(power.modeLabel({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 0 }, false, states, undefined, false), 'Charging', 'power labels charging while the charge rate is not fresh yet')
+const slowCharge = { isPresent: true, percentage: 0.34, state: states.Charging, changeRate: 2.191, timeToFull: 41783 }
+assert(!power.chargeThresholdActive(slowCharge, false, states), 'power does not flag measured charging with a long estimate as threshold')
+assertEqual(power.modeLabel(slowCharge, false, states), 'Charging', 'power labels slow charging with a long estimate as charging')
+assertEqual(
+  power.batteryIcon(slowCharge, false, states),
+  '󰂈',
+  'power shows the charging icon when the time-to-full estimate is long'
+)
+assert(!power.chargeThresholdActive({ ...slowCharge, timeToFull: 8 * 60 * 60 }, false, states), 'power does not infer a threshold at the eight-hour estimate boundary')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
 assertEqual(power.localizeReading('13.1W'), '13.1W', 'power keeps battery readings in English digits by default')

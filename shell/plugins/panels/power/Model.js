@@ -65,7 +65,8 @@ function chargeThresholdActive(device, onBattery, states, rateFresh, limitState)
   if (rateFresh === false) return false
   if (limitState === "off" || limitState === "once") return false
 
-  return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
+  // A long time-to-full estimate can mean slow charging, not a threshold hold.
+  return Number(d.changeRate || 0) <= 0.2
 }
 
 function batteryIcon(device, onBattery, states, rateFresh, limitState) {
