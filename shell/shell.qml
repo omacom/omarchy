@@ -1317,6 +1317,24 @@ ShellRoot {
     return isPluginOpen(id) ? hide(id) : summon(id, payloadJson)
   }
 
+  // The bar panel at a section position, toggled as the bar widget it is: the
+  // generic toggle would summon the overlay of a plugin that has both. Returns
+  // the id it toggled, or "" when there is no panel there.
+  function toggleBarPanelAt(section, index) {
+    var id = shell.bar && typeof shell.bar.panelWidgetIdAt === "function"
+      ? shell.bar.panelWidgetIdAt(section, index)
+      : ""
+    if (!id) return ""
+    var toggled = false
+    if (typeof shell.bar.toggleBarWidget === "function") {
+      toggled = shell.bar.toggleBarWidget(id)
+    } else if (typeof shell.bar.isBarWidgetOpen === "function") {
+      // A replacement bar cloned before toggleBarWidget existed.
+      toggled = shell.bar.isBarWidgetOpen(id) ? shell.bar.hideBarWidget(id) : shell.bar.summonBarWidget(id)
+    }
+    return toggled ? id : ""
+  }
+
   // Map of pluginId -> Loader, populated by the Instantiator delegate below.
   property var panelLoaders: ({})
 
@@ -1777,10 +1795,7 @@ ShellRoot {
       var colon = entry.target.indexOf(":")
       var section = colon >= 0 ? entry.target.slice(0, colon) : "right"
       var index = colon >= 0 ? entry.target.slice(colon + 1) : entry.target
-      var id = shell.bar && typeof shell.bar.panelWidgetIdAt === "function"
-        ? shell.bar.panelWidgetIdAt(section, index)
-        : ""
-      if (id) shell.toggle(id, "{}")
+      shell.toggleBarPanelAt(section, index)
     } else if (entry.kind === "brightness") {
       if (!shell.brightnessKeys.handle(entry.target))
         Util.execArgv(["omarchy-brightness-display", entry.target === "raise" ? "+5%" : "5%-"])
@@ -2109,12 +2124,7 @@ ShellRoot {
     // it after the bar is rearranged. Returns the id it acted on, or "unknown"
     // when the section holds no panel at that position.
     function togglePanelAt(section: string, index: string): string {
-      var id = shell.bar && typeof shell.bar.panelWidgetIdAt === "function"
-        ? shell.bar.panelWidgetIdAt(section, index)
-        : ""
-      if (!id) return "unknown"
-      shell.toggle(id, "{}")
-      return id
+      return shell.toggleBarPanelAt(section, index) || "unknown"
     }
 
     function call(id: string, method: string, arg: string): string {

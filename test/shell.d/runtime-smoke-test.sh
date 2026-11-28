@@ -323,6 +323,60 @@ echo "#ffffff"
 SH
 chmod +x "$SCRATCH_BIN/omarchy-bar-text-color"
 
+# A plugin with both a bar panel and an overlay, each its own layer surface,
+# so a positional hotkey can be seen to open the one it should.
+two_surface_id="acme.two-surface"
+two_surface_dir="$SCRATCH_HOME/.config/omarchy/plugins/$two_surface_id"
+mkdir -p "$two_surface_dir"
+cat >"$two_surface_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$two_surface_id",
+  "name": "Two Surface",
+  "version": "1.0.0",
+  "kinds": ["bar-widget", "overlay"],
+  "entryPoints": {"barWidget": "Panel.qml", "overlay": "Overlay.qml"}
+}
+JSON
+cat >"$two_surface_dir/Panel.qml" <<'QML'
+import QtQuick
+import qs.Ui
+
+Panel {
+  id: root
+  ipcTarget: "acme.two-surface"
+  implicitWidth: 20
+  implicitHeight: 20
+
+  KeyboardPanel {
+    anchorItem: root
+    owner: root
+    bar: root.bar
+    open: root.opened
+  }
+}
+QML
+cat >"$two_surface_dir/Overlay.qml" <<'QML'
+import QtQuick
+import Quickshell
+import Quickshell.Wayland
+
+Item {
+  id: root
+  property bool opened: false
+  function open(payloadJson) { opened = true }
+  function close() { opened = false }
+
+  PanelWindow {
+    visible: root.opened
+    color: "transparent"
+    implicitWidth: 40
+    implicitHeight: 40
+    WlrLayershell.namespace: "acme-two-surface-overlay"
+  }
+}
+QML
+
 state_dir="$SCRATCH_HOME/.local/state/omarchy"
 mkdir -p "$state_dir/current/theme"
 : >"$state_dir/current/theme/a.png"
@@ -757,6 +811,31 @@ for _ in {1..40}; do
 done
 jq -e "$saved" "$config" >/dev/null || fail "a bar change is saved again once shell.json is fixed" "$(cat "$config")"
 pass "a bar change is saved again once shell.json is fixed"
+
+# A positional hotkey (SUPER+CTRL+<n>) opens the bar panel at that position,
+# even for a plugin that also has an overlay: the generic plugin toggle
+# summons the overlay instead.
+[[ $(scratch_ipc shell putBarWidget "$two_surface_id" '{"section":"right","before":"omarchy.tray"}') == "ok" ]] ||
+  fail_with_log "two-surface fixture could not be placed first in the right section"
+two_surface_ready=""
+for _ in {1..80}; do
+  if scratch_ipc "$two_surface_id" close >/dev/null 2>&1; then two_surface_ready=1; break; fi
+  kill -0 "$SCRATCH_PID" 2>/dev/null || break
+  sleep 0.1
+done
+[[ -n $two_surface_ready ]] || fail_with_log "two-surface fixture panel loads in the bar"
+wait_scratch_layer omarchy-keyboard-panel absent ||
+  fail_with_log "no bar panel is open before the positional hotkey"
+[[ $(scratch_ipc shell togglePanelAt right 1) == "$two_surface_id" ]] ||
+  fail_with_log "the positional hotkey resolves the first panel in the right section"
+wait_scratch_layer omarchy-keyboard-panel mapped ||
+  fail_with_log "the positional hotkey opens a two-surface plugin's bar panel"
+[[ $(scratch_layer_state acme-two-surface-overlay) == "absent" ]] ||
+  fail_with_log "the positional hotkey leaves a two-surface plugin's overlay closed"
+[[ $(scratch_ipc shell togglePanelAt right 1) == "$two_surface_id" ]] &&
+  wait_scratch_layer omarchy-keyboard-panel absent ||
+  fail_with_log "a second positional press closes the bar panel"
+pass "a positional hotkey toggles a two-surface plugin's bar panel, not its overlay"
 
 # Run the replacement-bar probes last: switching bar loaders can transiently
 # leave bar-aware panels without a visual host, which should not add noise to
