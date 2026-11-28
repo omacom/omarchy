@@ -136,6 +136,8 @@ const makeScope = () => {
     driveLabel: '',
     driveQueue: [],
     submitted: true,
+    cancelRevealed: false,
+    pointerGate: { reset: () => {} },
     currentMessage: 'auth',
     currentLabel: 'label',
     currentAgent: { mark: 'claude', name: 'Claude', light: false },
@@ -162,6 +164,7 @@ const makeScope = () => {
   vm.createContext(scope)
   vm.runInContext([
     extractFn('authorizationLabel'),
+    extractFn('hideCancel'),
     extractFn('clearRequester'),
     extractFn('resetSnapshot'),
     extractFn('syncFromFlow'),
@@ -249,6 +252,18 @@ const makeScope = () => {
   assertEqual(s.getLabelProgram(), '', 'non-pkexec prompts leave the second line empty')
   s.currentLabel = '   \n  '
   assertEqual(s.authorizationLabel('  \n\t '), 'polkit.authenticationNeeded', 'whitespace-only label and message fall back to default authentication prompt')
+}
+{
+  // Revealing the Cancel pill on one prompt never leaks into the next prompt
+  // (whether advancing to a queued drive or preempting a drive with polkit).
+  const s = makeScope()
+  s.cancelRevealed = true
+  s.driveQueue = [{ device: '/dev/sdb1', label: 'Backup' }]
+  s.cancelRequest()
+  assertEqual(s.cancelRevealed, false, 'cancelling polkit resets cancelRevealed before advancing to a queued drive')
+  s.cancelRevealed = true
+  s.beginFlow()
+  assertEqual(s.cancelRevealed, false, 'preempting an active drive prompt with polkit resets cancelRevealed')
 }
 JS
 
