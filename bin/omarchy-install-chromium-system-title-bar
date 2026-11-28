@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# omarchy:summary=Set Chromium browser profiles that never chose a frame to use the system title bar
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# A Chromium browser on the system title bar drops its own frame and gets
+# Omarchy's titlebar when it floats. A new profile starts that way; this gives
+# the same to a profile that already exists and never chose. One that chose,
+# either way, is left alone.
+#
+# A running browser holds its Preferences in memory and writes them back when
+# it exits, which would undo the change. So a browser that is running is
+# skipped: its profile directory is printed, and the exit status is 3, for the
+# caller to ask for it to be closed and run this again.
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+browser_dirs=(
+  "$config_home/chromium"
+  "$config_home/google-chrome"
+  "$config_home/google-chrome-beta"
+  "$config_home/google-chrome-unstable"
+  "$config_home/BraveSoftware/Brave-Browser"
+  "$config_home/BraveSoftware/Brave-Browser-Beta"
+  "$config_home/BraveSoftware/Brave-Browser-Nightly"
+  "$config_home/BraveSoftware/Brave-Origin"
+  "$config_home/BraveSoftware/Brave-Origin-Beta"
+  "$config_home/BraveSoftware/Brave-Origin-Nightly"
+  "$config_home/microsoft-edge"
+  "$config_home/microsoft-edge-dev"
+)
+
+# A browser attached to a profile directory holds a SingletonLock in it, which
+# can be a dangling symlink, and a socket beside it.
+browser_running() {
+  [[ -L $1/SingletonLock || -e $1/SingletonLock || -S $1/SingletonSocket ]]
+}
+
+skipped=0
+
+for dir in "${browser_dirs[@]}"; do
+  [[ -d $dir ]] || continue
+
+  undecided=()
+  for preferences in "$dir"/*/Preferences; do
+    [[ -f $preferences ]] || continue
+    # A file that is not valid JSON is the browser's to sort out.
+    if jq -e '(.browser // {}) | has("custom_chrome_frame") | not' "$preferences" >/dev/null 2>&1; then
+      undecided+=("$preferences")
+    fi
+  done
+  (( ${#undecided[@]} )) || continue
+
+  if browser_running "$dir"; then
+    printf '%s\n' "$dir"
+    skipped=1
+    continue
+  fi
+
+  for preferences in "${undecided[@]}"; do
+    updated=$(mktemp "$preferences.XXXXXX")
+    jq -c '.browser.custom_chrome_frame = false' "$preferences" >"$updated"
+    chmod --reference="$preferences" "$updated"
+    mv "$updated" "$preferences"
+  done
+done
+
+if (( skipped )); then
+  exit 3
+fi
