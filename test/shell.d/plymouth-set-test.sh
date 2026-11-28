@@ -1047,12 +1047,69 @@ batch_resets_and_refusals() {
   pass "a reset refusal cannot fall through to an unhardened SDDM copy"
 }
 
+# The preview places the unlock entry below the logo and clamps it to the
+# window bottom, mirroring the boot script's layout. ImageMagick renders it
+# and omaview would open the result; the stub keeps the viewer closed, and
+# every other check in this file runs without ImageMagick installed.
+batch_entry_geometry() {
+  if ! command -v magick >/dev/null; then
+    skip "no magick; skipping the rendered entry field geometry cases"
+    return
+  fi
+
+  render="$test_tmp/entry-geometry"
+  viewer_stub="$test_tmp/entry-geometry-stub"
+  mkdir -p "$render" "$viewer_stub"
+  printf '#!/bin/bash\nexit 0\n' >"$viewer_stub/omaview"
+  chmod +x "$viewer_stub/omaview"
+
+  # Prints the top edge (y) of the rendered bright pixels, which track the
+  # entry field's top; empty when nothing bright rendered.
+  entry_top_y() {
+    local logo_w="$1" logo_h="$2"
+    local logo="$render/logo-${logo_w}x${logo_h}.png"
+    local out="$render/out-${logo_w}x${logo_h}.png"
+    magick -size "${logo_w}x${logo_h}" xc:black "$logo"
+    OMARCHY_PATH="$ROOT" PATH="$viewer_stub:$PATH" "$ROOT/bin/omarchy-plymouth-preview" \
+      '#000000' '#ffffff' "$logo" "$out" ||
+      fail "the preview renders a ${logo_w}x${logo_h} logo" "omarchy-plymouth-preview exited nonzero"
+    local bbox
+    bbox=$(magick "$out" -threshold 50% -format '%[bounding-box]' info: 2>/dev/null) || bbox=""
+    [[ -n $bbox ]] || return 0
+    local top
+    if [[ $bbox == *,* ]]; then
+      # x1,y1 x2,y2, as ImageMagick 7.1.2 reports it
+      top=${bbox#*,}
+      top=${top%% *}
+    else
+      # WxH+X+Y, the classic geometry form
+      top=${bbox##*+}
+    fi
+    [[ $top =~ ^[0-9]+$ ]] || return 0
+    printf '%s\n' "$top"
+  }
+
+  # A full-screen logo pushes the field below the window; the clamp keeps it
+  # 40px above the bottom edge (1080 - 48 - 40 = 992).
+  entry_y=$(entry_top_y 1920 1080)
+  [[ -n $entry_y ]] && (( entry_y >= 985 && entry_y <= 1000 )) ||
+    fail "a full-screen logo keeps the entry field on-screen" "entry top y='${entry_y:-none}', expected 985..1000"
+  pass "a full-screen logo keeps the entry field on-screen (entry top y=$entry_y)"
+
+  # A small logo leaves the field below the logo, unclamped (440 + 200 + 40 = 680).
+  entry_y=$(entry_top_y 200 200)
+  [[ -n $entry_y ]] && (( entry_y >= 675 && entry_y <= 690 )) ||
+    fail "a small logo leaves the entry field below the logo" "entry top y='${entry_y:-none}', expected 675..690"
+  pass "a small logo leaves the entry field below the logo (entry top y=$entry_y)"
+}
+
 run_batch batch_fresh_and_migrated
 run_batch batch_logo_swaps_and_bounds
 run_batch batch_source_trust
 run_batch batch_dest_and_asset_trust
 run_batch batch_refreshes_and_fresh_reset
 run_batch batch_resets_and_refusals
+run_batch batch_entry_geometry
 
 batch_failed=0
 for i in "${!batch_pids[@]}"; do
