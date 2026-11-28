@@ -90,6 +90,7 @@
   "appearance.top-bar.position.left": {"icon":"󰁍","label":"Left Bar","action":"omarchy-bar position left"},
   "appearance.top-bar.position.right": {"icon":"󰁔","label":"Right Bar","action":"omarchy-bar position right"},
   "appearance.windows": {"icon":"󰖲","label":"Windows"},
+  "appearance.windows.float-snap": {"icon":"󰕰","label":"Float Snap","checked":"[[ $(omarchy-hyprland-float-snap status) == \"on\" ]]","action":"omarchy-hyprland-float-snap"},
   "appearance.windows.gaps-on": {"icon":"","label":"Window Gaps On","when":"omarchy-hyprland-toggle-enabled window-no-gaps","action":"omarchy-hyprland-window-gaps-toggle"},
   "appearance.windows.gaps-off": {"icon":"","label":"Window Gaps Off","when":"! omarchy-hyprland-toggle-enabled window-no-gaps","action":"omarchy-hyprland-window-gaps-toggle"},
   "appearance.windows.corners": {"icon":"󰘇","label":"Window Corners"},

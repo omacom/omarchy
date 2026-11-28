@@ -183,6 +183,9 @@
   "appearance.windows": {
     "label": "Windows"
   },
+  "appearance.windows.float-snap": {
+    "label": "Float Snap"
+  },
   "appearance.windows.gaps-on": {
     "label": "Window Gaps On"
   },

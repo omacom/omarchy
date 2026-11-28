@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# omarchy:summary=Snap Shift-dragged floating windows to an invisible grid.
+# omarchy:args=[status|on|off|toggle]
+
+set -euo pipefail
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/float-snap"
+action="${1:-toggle}"
+enabled() { omarchy-hyprland-toggle-enabled float-snap; }
+
+case "$action" in
+  status)
+    if enabled; then echo on; else echo off; fi
+    exit 0
+    ;;
+  toggle)
+    if enabled; then action=off; else action=on; fi
+    ;;
+  on|off) ;;
+  *) echo "Usage: omarchy-hyprland-float-snap [status|on|off|toggle]" >&2; exit 1 ;;
+esac
+
+if [[ $action == "on" ]]; then
+  source_dir="$OMARCHY_PATH/default/hypr/float-snap"
+  # Never replace a loaded shared library. Source and ABI changes get a new path.
+  build=$(cat "$source_dir/main.cpp" "$source_dir/geometry.hpp" /usr/include/hyprland/src/version.h | sha256sum)
+  plugin="$state/${build%% *}.so"
+  mkdir -p "$state"
+  if [[ ! -f $plugin ]]; then
+    temp=$(mktemp "$state/build-XXXXXX.so")
+    trap 'rm -f "$temp"' EXIT
+    c++ -std=c++23 -shared -fPIC -O2 $(pkg-config --cflags hyprland) "$source_dir/main.cpp" -o "$temp"
+    mv "$temp" "$plugin"
+    trap - EXIT
+  fi
+  if [[ -f $state/current ]] && [[ $(cat "$state/current") != "$plugin" ]]; then
+    hyprctl plugin unload "$(cat "$state/current")" >/dev/null 2>&1 || true
+  fi
+  printf '%s\n' "$plugin" > "$state/current"
+else
+  if [[ -f $state/current ]]; then
+    hyprctl plugin unload "$(cat "$state/current")" >/dev/null 2>&1 || true
+  fi
+fi
+omarchy-hyprland-toggle float-snap "$action"
+
+if [[ $action == "on" ]] && ! hyprctl plugin list -j | jq -e 'any(.[]; .name == "Float Snap")' >/dev/null; then
+  omarchy-hyprland-toggle float-snap off
+  echo "Float Snap could not load. The setting has been turned off." >&2
+  exit 1
+fi
