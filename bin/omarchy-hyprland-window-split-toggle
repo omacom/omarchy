@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the split direction of the focused Hyprland window
+
+set -euo pipefail
+
+# togglesplit is a dwindle-only layout message; the scrolling layout rejects it
+# with a Lua runtime error. Read the layout and dispatch in the same Lua call so
+# a workspace switch in between cannot let the message reach a non-dwindle
+# workspace.
+hyprctl eval 'local workspace = hl.get_active_workspace(); if workspace and workspace.tiled_layout == "dwindle" then hl.dispatch(hl.dsp.layout("togglesplit")) end' >/dev/null
