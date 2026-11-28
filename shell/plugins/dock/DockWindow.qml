@@ -59,7 +59,7 @@ PanelWindow {
   readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1 || !floating)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
-  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || movingDock || insertIndex >= 0)
+  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || movingDock || holdOpen || insertIndex >= 0)
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
@@ -100,6 +100,44 @@ PanelWindow {
   // The apps button dragged toward another screen edge moves the dock there,
   // to any edge but the bar's.
   property bool movingDock: false
+  // A dock that has just moved stays out a moment, auto-hide or not, so it is
+  // seen to have arrived rather than vanishing as it lands.
+  property bool holdOpen: false
+
+  function holdOpenBriefly() {
+    window.holdOpen = true
+    holdTimer.restart()
+  }
+
+  // Not for the position a starting dock finds itself in, only a move.
+  property bool placed: false
+  onPositionChanged: if (placed) holdOpenBriefly()
+
+  Timer {
+    id: holdTimer
+    interval: 1000
+    onTriggered: {
+      window.holdOpen = false
+      if (window.autohide) hideTimer.restart()
+    }
+  }
+
+  // The edge the pointer is nearest while the dock is dragged, shown by the
+  // outline that previews the move.
+  function trackMove(point) {
+    if (!window.dock) return
+    window.dock.moveScreen = window.screen
+    window.dock.moveLength = window.vertical ? body.height : body.width
+    window.dock.moveThickness = window.slotSize
+    window.dock.moveEdge = DockModel.nearestEdge(point.x, point.y, window.screen.width, window.screen.height, window.barEdge)
+  }
+
+  function endMove() {
+    window.movingDock = false
+    if (!window.dock) return
+    window.dock.moveEdge = ""
+    window.dock.moveScreen = null
+  }
   readonly property string barEdge: dock && dock.shell && dock.shell.bar ? String(dock.shell.bar.position || "top") : ""
 
   // Where this window sits on its screen, which a point from the app grid's
@@ -187,7 +225,10 @@ PanelWindow {
     closeMenu()
     window.revealed = false
   }
-  Component.onCompleted: if (dock) dock.readMode(workspaceId)
+  Component.onCompleted: {
+    if (dock) dock.readMode(workspaceId)
+    placed = true
+  }
 
   function openMenu(item, slot) {
     window.settingsMenu = false
@@ -320,7 +361,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging && !window.movingDock) window.revealed = false
+      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging && !window.movingDock && !window.holdOpen) window.revealed = false
     }
   }
 
@@ -436,6 +477,10 @@ PanelWindow {
   Item {
     id: body
 
+    // Dimmed while the dock is being dragged to another edge.
+    opacity: window.movingDock ? 0.45 : 1
+    Behavior on opacity { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+
     // The strip keeps its order in every language, like the bar: drags and
     // drops reckon slots along x from the first app. Only the menu mirrors.
     LayoutMirroring.enabled: false
@@ -537,25 +582,35 @@ PanelWindow {
     }
 
     // Past a short way from where it was pressed, the press is a move of the
-    // whole dock rather than a click.
+    // whole dock rather than a click. From then on the dock dims and an
+    // outline shows the edge it would land on.
     mouse.onPositionChanged: function(event) {
-      if (!(appsSlot.mouse.pressedButtons & Qt.LeftButton) || window.movingDock) return
-      if (Math.hypot(event.x - appsSlot.pressPoint.x, event.y - appsSlot.pressPoint.y) < Style.space(6)) return
-      window.closeMenu()
-      appsSlot.dragged = true
-      window.movingDock = true
+      if (!(appsSlot.mouse.pressedButtons & Qt.LeftButton)) return
+      if (!window.movingDock) {
+        if (Math.hypot(event.x - appsSlot.pressPoint.x, event.y - appsSlot.pressPoint.y) < Style.space(6)) return
+        window.closeMenu()
+        appsSlot.dragged = true
+        window.movingDock = true
+      }
+      window.trackMove(appsSlot.screenPoint(event))
     }
 
+    // The saved position lands a moment after the drop, so a dock on its way
+    // to another edge is held open here and again when it arrives.
     mouse.onReleased: function(event) {
       if (!window.movingDock) return
-      window.movingDock = false
-      var point = appsSlot.screenPoint(event)
-      var edge = DockModel.nearestEdge(point.x, point.y, window.screen.width, window.screen.height, window.barEdge)
-      if (edge && edge !== window.position) Util.execDetached("omarchy-dock position " + edge)
-      if (window.autohide) hideTimer.restart()
+      window.trackMove(appsSlot.screenPoint(event))
+      var edge = window.dock ? window.dock.moveEdge : ""
+      window.endMove()
+      if (edge && edge !== window.position) {
+        window.holdOpenBriefly()
+        Util.execDetached("omarchy-dock position " + edge)
+      } else if (window.autohide) {
+        hideTimer.restart()
+      }
     }
 
-    mouse.onCanceled: window.movingDock = false
+    mouse.onCanceled: window.endMove()
 
     Behavior on displayedShift {
       enabled: window.animateShifts

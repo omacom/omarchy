@@ -24,6 +24,13 @@ Item {
   readonly property bool autohide: dockConfig.autohide === true
   readonly property bool tiling: dockConfig.tiling !== false
 
+  // A dock being dragged by its apps button: the screen it is on, the edge it
+  // would land on, and its size, for the outline that previews the move.
+  property var moveScreen: null
+  property string moveEdge: ""
+  property real moveLength: 0
+  property real moveThickness: 0
+
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
   // app the order does not know yet goes at the end. Pins are saved in this
@@ -442,6 +449,19 @@ Item {
 
     delegate: Component {
       DockWindow {
+        required property var modelData
+
+        screen: modelData
+        dock: root
+      }
+    }
+  }
+
+  Variants {
+    model: Quickshell.screens
+
+    delegate: Component {
+      DockMovePreview {
         required property var modelData
 
         screen: modelData
