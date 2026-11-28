@@ -552,6 +552,39 @@ check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the other twin
 ' || fail "a monitor keeps its block when its identical twin is unplugged"
 pass "a monitor keeps its block when its identical twin is unplugged"
 
+run_lua twins-asleep '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "LG", 21)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 11)
+world.focused = "DP-2"
+window("0xb", 21)
+world.focused = "eDP-1"
+
+-- A sleep or a KVM switch takes both twins away, and the second one comes back first.
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+unplug("DP-2")
+world.handlers["monitor.removed"]({ name = "DP-2" })
+fire_timers()
+m = load_module()
+world.handlers["config.reloaded"]()
+
+plug("DP-2", 3, "LG", 5)
+world.handlers["monitor.added"]({ name = "DP-2" })
+check(m.workspace_id(hl.get_monitor("DP-2"), 1) == 21, "the twin that came back first took the other'"'"'s block")
+check(world.windows["0xb"].workspace == 21 and on(21) == "DP-2", "its workspace went to " .. world.windows["0xb"].workspace)
+
+plug("DP-1", 4, "LG", 6)
+world.handlers["monitor.added"]({ name = "DP-1" })
+check(world.windows["0xa"].workspace == 11 and on(11) == "DP-1", "the other twin'"'"'s workspace went to " .. world.windows["0xa"].workspace)
+' || fail "twins unplugged together each get their own block back on their own connector"
+pass "twins unplugged together each get their own block back on their own connector"
+
 run_lua reused '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
