@@ -660,47 +660,41 @@ Panel {
             }
           }
 
-          Item {
+          TextField {
+            id: locationField
             visible: root.editingLocation
             width: parent.width
-            height: locationField.implicitHeight
+            rightPadding: locationEditActions.width + Style.space(8)
+            enabled: !root.savingLocation
+            placeholderText: Commons.I18n.t("weather.searchCity")
+            foreground: root.bar.foreground
+            font.family: root.bar.fontFamily
 
-            TextField {
-              id: locationField
-              anchors.left: parent.left
-              anchors.right: locationEditActions.left
-              anchors.rightMargin: Style.space(4)
-              anchors.verticalCenter: parent.verticalCenter
-              enabled: !root.savingLocation
-              placeholderText: Commons.I18n.t("weather.searchCity")
-              foreground: root.bar.foreground
-              font.family: root.bar.fontFamily
+            onTextChanged: if (root.editingLocation && !root.savingLocation) geocodeDebounce.restart()
 
-              onTextChanged: if (root.editingLocation && !root.savingLocation) geocodeDebounce.restart()
-
-              Keys.onPressed: function(event) {
-                if (event.key === Qt.Key_Escape) {
-                  root.cancelEditingLocation()
-                  event.accepted = true
-                } else if (event.key === Qt.Key_Down) {
-                  if (root.suggestionIndex < root.locationSuggestions.length - 1) root.suggestionIndex++
-                  event.accepted = true
-                } else if (event.key === Qt.Key_Up) {
-                  if (root.suggestionIndex > 0) root.suggestionIndex--
-                  event.accepted = true
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                  root.commitLocation()
-                  event.accepted = true
-                }
+            Keys.onPressed: function(event) {
+              if (event.key === Qt.Key_Escape) {
+                root.cancelEditingLocation()
+                event.accepted = true
+              } else if (event.key === Qt.Key_Down) {
+                if (root.suggestionIndex < root.locationSuggestions.length - 1) root.suggestionIndex++
+                event.accepted = true
+              } else if (event.key === Qt.Key_Up) {
+                if (root.suggestionIndex > 0) root.suggestionIndex--
+                event.accepted = true
+              } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                root.commitLocation()
+                event.accepted = true
               }
             }
 
             // Reset a saved city back to IP auto-detect or cancel editing
             // without changing it. While a committed location is loading, the
-            // spinner occupies the same box so the field width stays put.
+            // spinner occupies the same box.
             Item {
               id: locationEditActions
               anchors.right: parent.right
+              anchors.rightMargin: Style.space(4)
               anchors.verticalCenter: parent.verticalCenter
               width: actionButtons.implicitWidth
               height: actionButtons.implicitHeight

@@ -99,29 +99,23 @@ Column {
     onClicked: search.start()
   }
 
-  Item {
+  TextField {
+    id: field
     visible: search.active
     width: parent.width
-    height: field.implicitHeight
-
-    TextField {
-      id: field
-      anchors.left: parent.left
-      anchors.right: closeButton.left
-      anchors.rightMargin: Style.space(4)
-      anchors.verticalCenter: parent.verticalCenter
-      placeholderText: search.placeholderText
-      foreground: search.foreground
-      Keys.onEscapePressed: search.stop()
-      Keys.onReturnPressed: search.pickSelected()
-      Keys.onEnterPressed: search.pickSelected()
-      Keys.onUpPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, -1, search.matches.length)
-      Keys.onDownPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, 1, search.matches.length)
-    }
+    rightPadding: closeButton.width + Style.space(8)
+    placeholderText: search.placeholderText
+    foreground: search.foreground
+    Keys.onEscapePressed: search.stop()
+    Keys.onReturnPressed: search.pickSelected()
+    Keys.onEnterPressed: search.pickSelected()
+    Keys.onUpPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, -1, search.matches.length)
+    Keys.onDownPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, 1, search.matches.length)
 
     PanelActionButton {
       id: closeButton
       anchors.right: parent.right
+      anchors.rightMargin: Style.space(4)
       anchors.verticalCenter: parent.verticalCenter
       iconText: "✕"
       fontSize: Style.font.bodySmall
