@@ -78,6 +78,7 @@ Item {
   readonly property color accentColor: critical ? Commons.Color.urgent
                                                : (row.urgency === 0 ? dimColor : Commons.Color.notifications.countdown)
   readonly property bool hasBody: String(row.body || "").length > 0
+  readonly property string ageText: ago()
   readonly property bool redacted: Store.redacted(row)
   // Omarchy's own toasts and bare notify-send calls name no source worth a
   // letter, and a summary that opens with its own glyph already has its mark.
@@ -176,14 +177,17 @@ Item {
 
   // Single-line toasts without action buttons hug their text (within
   // [minWidth, maxWidth]); body and button cards keep the standard column.
+  // At rest, single-line toasts omit the right-side stamp/close slot so left
+  // and right padding stay even, expanding smoothly on hover for the close mark.
   readonly property bool dynamicWidth: !hasBody && allDeeds.length === 0
+  readonly property bool rightSideReserved: !dynamicWidth || hovered || ageText.length > 0
   readonly property real naturalWidth: Math.ceil(
     plate.contentLeftInset + plate.contentRightInset
     + Style.space(12) * 2
     + (thumb.visible ? thumb.width + layout.spacing : 0)
     + titleProbe.implicitWidth + 1
     + (titleMarks.visible ? titleMarks.width + Style.space(7) : 0)
-    + rightSide.width + Style.space(8)
+    + (rightSideReserved ? rightSide.width + Style.space(8) : 0)
   )
   readonly property real targetWidth: dynamicWidth
       ? Math.min(maxWidth, Math.max(minWidth, naturalWidth))
@@ -421,9 +425,9 @@ Item {
             id: title
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(1, parent.width - rightSide.width
-                   - (titleMarks.visible ? titleMarks.width + Style.space(7) : 0)
-                   - Style.space(8))
+            width: Math.max(1, parent.width
+                   - (card.rightSideReserved ? rightSide.width + Style.space(8) : 0)
+                   - (titleMarks.visible ? titleMarks.width + Style.space(7) : 0))
             text: card.redacted ? I18n.t("notifications.redactedSummary") : String(card.row.summary || "")
             color: Commons.Color.notifications.text
             font.family: "Liberation Sans"
@@ -488,7 +492,7 @@ Item {
                 textFormat: Text.PlainText
                 id: stamp
                 anchors.centerIn: parent
-                text: card.ago()
+                text: card.ageText
                 color: card.dimColor
                 opacity: card.hovered ? 0 : 1
                 visible: opacity > 0.01
