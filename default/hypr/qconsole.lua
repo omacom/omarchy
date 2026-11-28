@@ -81,6 +81,33 @@ local function alone()
   return tiled <= 1
 end
 
+-- The monitor's work area in logical pixels: its box less the reserved strips
+-- (the bar). Width and height are the panel's own pixels, so a monitor turned
+-- on its side still reports them the way the panel is built. The odd transforms
+-- are the quarter turns, and those are the ones that swap the work area.
+-- Monitor dimensions are physical; gaps and windows are logical, so the scale
+-- has to come out before the reserved area (already logical) comes off.
+--
+-- A monitor handle whose output has gone away answers nil to every field, and
+-- layout changes are exactly when that happens, so the scale guard has to come
+-- before anything else is read off it.
+local function work_area(monitor)
+  if not monitor or not monitor.scale or monitor.scale <= 0 then
+    return nil
+  end
+
+  local width, height = monitor.width, monitor.height
+  if monitor.transform % 2 == 1 then
+    width, height = height, width
+  end
+
+  local reserved = monitor.reserved
+  return {
+    width = width / monitor.scale - reserved.left - reserved.right,
+    height = height / monitor.scale - reserved.top - reserved.bottom,
+  }
+end
+
 -- Sizing the console with a window rule would freeze it at whatever the screen
 -- measured when it first opened, because Hyprland resolves those expressions
 -- once, as the window maps. Rescaling the monitor afterwards would leave a
@@ -88,34 +115,41 @@ end
 -- instead, so the console is sized by the area left around it, and that area is
 -- recomputed whenever the monitor it opens on changes.
 local function fit(monitor)
-  -- A monitor handle whose output has gone away answers nil to every field, and
-  -- layout changes are exactly when that happens, so this also covers reading
-  -- width, height and reserved below.
-  if not monitor or not monitor.scale or monitor.scale <= 0 then
+  local area = work_area(monitor)
+  if not area then
     return false
   end
 
-  -- Width and height are the panel's own pixels, so a monitor turned on its
-  -- side still reports them the way the panel is built. The odd transforms are
-  -- the quarter turns, and those are the ones that swap the work area.
-  local width, height = monitor.width, monitor.height
-  if monitor.transform % 2 == 1 then
-    width, height = height, width
-  end
-
-  -- Monitor dimensions are in physical pixels; gaps are logical, so the scale
-  -- has to come out before the reserved area (already logical) comes off.
-  local reserved = monitor.reserved
-  height = height / monitor.scale - reserved.top - reserved.bottom
-  width = width / monitor.scale - reserved.left - reserved.right
-
-  local tall = math.floor(height * share)
-  local wide = width
+  local tall = math.floor(area.height * share)
+  local wide = area.width
   if alone() then
-    wide = math.min(width, tall * box)
+    wide = math.min(area.width, tall * box)
   end
 
-  return cover(math.floor((width - wide) / 2), math.floor(height - tall))
+  return cover(math.floor((area.width - wide) / 2), math.floor(area.height - tall))
+end
+
+-- The gaps lay out only the tiled console. A window floated on it (Super+T)
+-- keeps whatever size Hyprland last laid it out with -- for the console's own
+-- window, the whole of the screen it first opened on -- and Hyprland carries a
+-- floating window to another monitor at the same offset, or centers it, but
+-- never resizes one. So a console floated on a 3440x1440 monitor and opened on
+-- a 1280x800 laptop shows only its middle. It is cut down to the work area
+-- instead, each side only as far as it has to, and centered in it.
+--
+-- Only windows that are still on screen: this runs on window.destroy too,
+-- where the window on its way out is still listed, and one that is gone has no
+-- layout left to resize. Pinned ones follow monitors on their own account, and
+-- a fullscreen one already covers exactly the monitor.
+local function fit_floating(area)
+  for _, window in ipairs(hl.get_workspace_windows(CONSOLE)) do
+    local size = window.mapped and window.floating and not window.pinned and (window.fullscreen or 0) == 0 and window.size
+    if size and (size.x > area.width or size.y > area.height) then
+      local target = "address:" .. window.address
+      hl.dispatch(hl.dsp.window.resize({ x = math.min(size.x, math.floor(area.width)), y = math.min(size.y, math.floor(area.height)), relative = false, window = target }))
+      hl.dispatch(hl.dsp.window.center({ window = target }))
+    end
+  end
 end
 
 -- The console keeps the geometry of the output it is open on: a follow_mouse hop
@@ -133,10 +167,26 @@ local function console_monitor()
 end
 
 local function refit(monitor)
-  if fit(monitor or console_monitor()) then
+  local mon = monitor or console_monitor()
+
+  -- Read the work area for the floating windows before the rule is written:
+  -- writing it schedules a state refresh, and measured on Hyprland 0.56.2 a
+  -- monitor plugged in during the session can read as not yet placed (no
+  -- position, no reserved area) for a moment after one.
+  local ws = hl.get_workspace(CONSOLE)
+  local area = ws and ws.visible and work_area(mon) or nil
+
+  if fit(mon) then
     -- Land the new gaps in this pass rather than a frame later, so the console
     -- does not visibly resize itself once it has already dropped down.
     hl.exec_scheduled_prop_refresh_immediately()
+  end
+
+  -- Only while the console is on screen. It is refitted on its way in, and a
+  -- window is only ever cut down here, never grown back, so a hidden console
+  -- must not be cut down for whichever monitor the pointer is over.
+  if area then
+    fit_floating(area)
   end
 end
 
@@ -179,6 +229,11 @@ end)
 -- those always reads the settled count; the earlier ones refit to what the rule
 -- already is, which cover() skips.
 --
+-- The bar arriving on the monitor changes the work area under a console that is
+-- already open: the shell's bar on a monitor plugged in a moment ago, or after
+-- the shell restarts. Hyprland has taken the reserved area into account by the
+-- time layer.opened fires, and nothing else refits for it.
+--
 -- Only while it is on screen, though. A hidden console is refitted on its way in
 -- by workspace.special_active, and every window opened anywhere on the desktop
 -- would otherwise rewrite the rule.
@@ -193,6 +248,7 @@ hl.on("window.open", recount)
 hl.on("window.destroy", recount)
 hl.on("window.move_to_workspace", recount)
 hl.on("window.update_rules", recount)
+hl.on("layer.opened", recount)
 
 -- The direction names the edge the offset is measured from, not where the
 -- workspace goes: "slide top" drops it down into view, and "slide bottom"
