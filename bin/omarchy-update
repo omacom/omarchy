@@ -107,6 +107,18 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-update-dev
   omarchy-update-keyring
 
+  # #11526: on x86 the UKI is rebuilt by boot tooling that must run on this CPU.
+  # A tool built above the host ISA SIGILLs during the update and leaves the
+  # machine unbootable, so stop before pacman with the rebuild guidance.
+  # Test override: lets the probe be driven without touching /usr/lib/limine.
+  limine_entry_tool=${OMARCHY_LIMINE_ENTRY_TOOL:-/usr/lib/limine/limine-entry-tool}
+  if omarchy-hw-x86 && [[ -x $limine_entry_tool ]] && ! "$limine_entry_tool" --version >/dev/null 2>&1; then
+    echo "$(omarchy-i18n update.limineIsa)" >&2
+    echo "$(omarchy-i18n update.limineIsaRetry)" >&2
+    echo "  sudo pacman -S limine-mkinitcpio-hook limine-snapper-sync" >&2
+    exit 1
+  fi
+
   # Migrations ship with the packages installed here and are written against
   # them, so everything below waits on this finishing. An upgrade that stopped
   # takes the update with it rather than migrating against what is still on disk.

@@ -468,6 +468,8 @@
   "update.noSnapshot": "Continuing the update without a snapshot.",
   "update.miseFailed": "Some mise tools could not be updated. Review the errors above and run %1 to retry.",
   "update.bootUnverified": "The update is not finished: its boot files did not pass verification (see above). Do not reboot until %1 completes.",
+  "update.limineIsa": "The limine-entry-tool cannot run on this CPU (built for a higher ISA level).",
+  "update.limineIsaRetry": "Update the boot tooling first, then retry:",
   "update.cancelled": "Update cancelled",
   "update.needsFreeSpace": "You need at least %1 GiB free to safely update Omarchy.",
   "update.alreadyRunning": "An Omarchy update is already running.",

@@ -175,6 +175,53 @@ for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-au
 done
 pass "a blocked package upgrade stops the update before it migrates"
 
+# A boot tool built above the host ISA cannot run on this CPU: the update must
+# stop before it installs anything and name the fix. The tool path has a test
+# override so the guard can be driven without touching /usr/lib/limine.
+cat >"$test_tmp/limine-tool-fail" <<'SH'
+#!/bin/bash
+exit 1
+SH
+cat >"$test_tmp/limine-tool-ok" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$test_tmp/limine-tool-fail" "$test_tmp/limine-tool-ok"
+
+# The guard keys on omarchy-hw-x86 first, so the boundary fixture stubs it the
+# way the windows-vm tests do: the host's architecture must not decide the test.
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-hw-x86"
+chmod +x "$stub_bin/omarchy-hw-x86"
+
+if OMARCHY_LIMINE_ENTRY_TOOL="$test_tmp/limine-tool-fail" run_update -y; then
+  fail "a boot tool that cannot run stops the update"
+fi
+grep -q '^omarchy-update-system-pkgs ' "$test_tmp/steps" &&
+  fail "an update whose boot tool cannot run still reaches packages" "$(<"$test_tmp/steps")"
+grep -q "limine-entry-tool cannot run on this CPU" "$test_tmp/err" ||
+  fail "the boot blocker names the tool and why" "$(<"$test_tmp/err")"
+pass "a boot tool that cannot run stops the update before packages"
+
+OMARCHY_LIMINE_ENTRY_TOOL="$test_tmp/limine-tool-ok" run_update -y ||
+  fail "a working boot tool lets the update continue"
+grep -q '^omarchy-update-system-pkgs ' "$test_tmp/steps" ||
+  fail "the update reaches packages with a working boot tool" "$(<"$test_tmp/steps")"
+pass "a working boot tool lets the update continue"
+
+OMARCHY_LIMINE_ENTRY_TOOL="$test_tmp/absent-tool" run_update -y ||
+  fail "a missing boot tool lets the update continue"
+pass "a missing boot tool lets the update continue"
+
+# Non-x86: the guard never fires, so even an unrunnable tool is skipped. Put
+# the x86 answer back before the tests after this one.
+printf '#!/bin/bash\nexit 1\n' >"$stub_bin/omarchy-hw-x86"
+chmod +x "$stub_bin/omarchy-hw-x86"
+OMARCHY_LIMINE_ENTRY_TOOL="$test_tmp/limine-tool-fail" run_update -y ||
+  fail "a non-x86 host continues past the boot tool guard"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-hw-x86"
+chmod +x "$stub_bin/omarchy-hw-x86"
+pass "a non-x86 host continues past the boot tool guard"
+
 # Optional tools may fail after system packages have already changed. Finish
 # AUR work, verify boot files and release Stay Awake before offering a reboot.
 FAILING_STEP=omarchy-update-mise run_update -y || fail "a failed mise update prevents system update completion"

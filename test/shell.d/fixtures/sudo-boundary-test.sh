@@ -57,6 +57,16 @@ echo "${SUDO_TEST_PLATFORM:-x86}"
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/omarchy-hw-platform"
 
+# The update probes its boot tool before packages; give every boundary test a
+# tool that can run, so the host's limine state never decides it. A per-test
+# OMARCHY_LIMINE_ENTRY_TOOL override still wins.
+cat >"$SUDO_TEST_ROOT/mock/limine-entry-tool" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "$SUDO_TEST_ROOT/mock/limine-entry-tool"
+export OMARCHY_LIMINE_ENTRY_TOOL="$SUDO_TEST_ROOT/mock/limine-entry-tool"
+
 cat >"$SUDO_TEST_ROOT/mock/sudo" <<'STUB'
 #!/bin/bash
 set -euo pipefail
