@@ -20,6 +20,30 @@ test_home="$TMPDIR/home"
 flag="$test_home/.local/state/omarchy/toggles/example"
 bar_flag="$test_home/.local/state/omarchy/toggles/bar-off"
 
+# Check the wrapper's status and refresh ordering without a desktop session.
+bar_stubs="$TMPDIR/bar-stubs"
+mkdir -p "$bar_stubs"
+cat >"$bar_stubs/omarchy-toggle" <<'SH'
+#!/bin/bash
+[[ $* == "bar-off toggle" ]] || exit 99
+exit "${BAR_UPDATE_STATUS:?}"
+SH
+cat >"$bar_stubs/omarchy-shell" <<'SH'
+#!/bin/bash
+[[ $* == "-q omarchy.bar syncHidden" ]] || exit 99
+printf 'refresh\n' >>"${BAR_REFRESH_LOG:?}"
+exit "${BAR_REFRESH_STATUS:?}"
+SH
+chmod +x "$bar_stubs/"*
+status=0
+PATH="$bar_stubs:$PATH" BAR_UPDATE_STATUS=7 BAR_REFRESH_STATUS=0 BAR_REFRESH_LOG="$TMPDIR/refresh" \
+  "$ROOT/bin/omarchy-toggle-bar" || status=$?
+(( status == 7 )) && [[ ! -e $TMPDIR/refresh ]] || fail "bar reports an update failure without refreshing"
+PATH="$bar_stubs:$PATH" BAR_UPDATE_STATUS=0 BAR_REFRESH_STATUS=9 BAR_REFRESH_LOG="$TMPDIR/refresh" \
+  "$ROOT/bin/omarchy-toggle-bar" || fail "failed refresh does not fail a successful update"
+[[ $(cat "$TMPDIR/refresh") == "refresh" ]] || fail "a successful bar update requests exactly one refresh"
+pass "bar preserves update failures and treats refresh as best effort"
+
 HOME="$test_home" omarchy-toggle example on
 [[ -f $flag ]] || fail "generic toggle enables explicit on state"
 pass "generic toggle enables explicit on state"
