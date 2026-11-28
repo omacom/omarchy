@@ -713,36 +713,6 @@ Item {
                 }
               }
 
-              Rectangle {
-                anchors.left: previewFlick.left
-                anchors.right: previewFlick.right
-                anchors.top: previewFlick.top
-                height: Math.min(Style.space(28), previewFlick.height / 2)
-                visible: previewFlick.visible && opacity > 0
-                opacity: height > 0 && previewFlick.contentHeight > previewFlick.height
-                  ? Math.max(0, Math.min(1, (previewFlick.contentY - previewFlick.originY) / height))
-                  : 0
-                gradient: Gradient {
-                  GradientStop { position: 0; color: root.background }
-                  GradientStop { position: 1; color: Util.alpha(root.background, 0) }
-                }
-              }
-
-              Rectangle {
-                anchors.left: previewFlick.left
-                anchors.right: previewFlick.right
-                anchors.bottom: previewFlick.bottom
-                height: Math.min(Style.space(28), previewFlick.height / 2)
-                visible: previewFlick.visible && opacity > 0
-                opacity: height > 0 && previewFlick.contentHeight > previewFlick.height
-                  ? Math.max(0, Math.min(1, (previewFlick.originY + previewFlick.contentHeight - previewFlick.height - previewFlick.contentY) / height))
-                  : 0
-                gradient: Gradient {
-                  GradientStop { position: 0; color: Util.alpha(root.background, 0) }
-                  GradientStop { position: 1; color: root.background }
-                }
-              }
-
               SizedImage {
                 visible: previewPane.activeRow !== null && previewPane.activeRow.previewImage.length > 0
                 anchors.left: parent.left
@@ -765,39 +735,25 @@ Item {
                 anchors.bottom: parent.bottom
                 spacing: Style.spacing.sm
 
-                readonly property real maxWidth: Math.max(0, previewPane.width - root.contentMargin)
-                readonly property real openWidth: Math.min(openButton.implicitWidth, Math.max(0, maxWidth - spacing) / 2)
-                readonly property real copyWidth: Math.min(copyButton.implicitWidth, Math.max(0, maxWidth - openWidth - spacing))
-
                 Button {
-                  id: copyButton
-                  width: previewActions.copyWidth
                   iconText: "󰆏"
                   text: Commons.I18n.t("common.copy")
                   foreground: root.foreground
                   accent: root.selectedText
-                  opacity: hot ? 1.0 : 0.72
                   fontFamily: root.fontFamily
                   fontSize: Style.font.bodySmall
                   iconSize: Style.font.bodySmall
-                  horizontalPadding: Style.spacing.md
-                  verticalPadding: Style.spacing.xs
                   onClicked: root.copyIndex(root.selectedIndex)
                 }
 
                 Button {
-                  id: openButton
-                  width: previewActions.openWidth
                   iconText: "󰏌"
                   text: Commons.I18n.t("dock.open")
                   foreground: root.foreground
                   accent: root.selectedText
-                  opacity: hot ? 1.0 : 0.72
                   fontFamily: root.fontFamily
                   fontSize: Style.font.bodySmall
                   iconSize: Style.font.bodySmall
-                  horizontalPadding: Style.spacing.md
-                  verticalPadding: Style.spacing.xs
                   onClicked: root.openIndex(root.selectedIndex)
                 }
               }
