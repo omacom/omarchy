@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.rollcall",
+  "name": "Roll call",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Walk through every hardware check that needs a person: speakers, keys, camera, ports, suspend. Summon with: omarchy-shell shell summon omarchy.rollcall",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "Panel.qml"
+  }
+}

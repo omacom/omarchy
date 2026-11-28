@@ -379,6 +379,10 @@
   "trigger.tests": {
     "label": "Speed Test"
   },
+  "trigger.hardware.rollcall": {
+    "label": "Check Hardware",
+    "description": "Walk through speakers, keys, camera, ports and sleep"
+  },
   "trigger.hardware.laptop-display-on": {
     "label": "Laptop Display On"
   },

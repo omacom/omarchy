@@ -20,6 +20,10 @@ Press `Fn + Super` once before you dig into `~/.config/hypr/`, and if that doesn
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.
 
+### Is something wrong with my hardware?
+
+`omarchy rollcall` checks every part of the machine that needs nothing from you — Wi-Fi, Bluetooth, audio, camera, graphics, suspend, firmware, ports and more — and says for each whether it works, is broken, or isn't there. _Trigger > Hardware > Check Hardware_ in the Omarchy menu then walks you through the parts that need your hands, eyes and ears: speakers, microphone, keys, camera, touchpad, an external monitor, USB ports, sleep and wake. Skip anything you don't have at hand. At the end, copy the report and paste it into your bug report; it names drivers and parts, never your networks, devices or name.
+
 ### Why are my external speakers not playing?
 
 Probably because they're not set as the primary output. Click on the speaker icon on the right side of the bar, and it'll open the volume popup where you can pick the output device (and mix per-app volumes too).
