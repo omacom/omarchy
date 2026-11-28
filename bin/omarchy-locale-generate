@@ -23,6 +23,14 @@ fi
 registry=/usr/share/omarchy/default/i18n/locales.json
 regions=/usr/share/omarchy/default/i18n/regions.json
 locale_gen=/etc/locale.gen
+# A checkout install (no package) runs this copy through pkexec, which drops
+# OMARCHY_PATH, so read the registries from beside it. That tree is no less
+# trusted than this script, and the locale is still validated below.
+if [[ ! -e $registry ]]; then
+  tree=$(dirname "$(realpath "${BASH_SOURCE[0]}")")/..
+  registry=$tree/default/i18n/locales.json
+  regions=$tree/default/i18n/regions.json
+fi
 if (( EUID != 0 )); then
   registry=${OMARCHY_LOCALE_REGISTRY:-$registry}
   regions=${OMARCHY_REGION_REGISTRY:-$regions}
