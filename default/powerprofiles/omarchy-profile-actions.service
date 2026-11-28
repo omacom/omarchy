@@ -1,0 +1,14 @@
+[Unit]
+Description=Omarchy power profile actions
+After=NetworkManager.service power-profiles-daemon.service
+Wants=NetworkManager.service power-profiles-daemon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /etc/omarchy/powerprofiles/profile-actions.py
+Restart=on-failure
+RestartSec=2
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=graphical.target
