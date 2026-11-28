@@ -128,8 +128,8 @@
 
   // Trigger
   "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},
-  "trigger.toggle.idle-lock-on": {"icon":"","label":"Stay Awake","when":"[[ ! -f ~/.local/state/omarchy/indicators/stay-awake ]]","action":"omarchy-toggle-idle"},
-  "trigger.toggle.idle-lock-off": {"icon":"","label":"Allow Sleep","when":"[[ -f ~/.local/state/omarchy/indicators/stay-awake ]]","action":"omarchy-toggle-idle"},
+  "trigger.toggle.idle-lock-on": {"icon":"","label":"Stay Awake","when":"[[ ! -f ~/.local/state/omarchy/indicators/stay-awake ]]","action":"omarchy-menu summon stay-awake-picker"},
+  "trigger.toggle.idle-lock-off": {"icon":"󰾪","iconFont":"JetBrainsMono Nerd Font","label":"Allow Sleep","when":"[[ -f ~/.local/state/omarchy/indicators/stay-awake ]]","action":"omarchy-toggle-idle allow-idle"},
   "trigger.toggle.notifications-on": {"icon":"󰂛","label":"Notifications On","when":"[[ $(omarchy-shell notifications isDnd) == on ]]","action":"omarchy-toggle-notification-silencing"},
   "trigger.toggle.notifications-off": {"icon":"󰂛","label":"Silence Notifications","when":"[[ $(omarchy-shell notifications isDnd) != on ]]","action":"omarchy-toggle-notification-silencing"},
   "trigger.toggle.nightlight-on": {"icon":"󰔎","label":"Nightlight On","when":"[[ $(omarchy-toggle-nightlight --status) != *'\"enabled\":true'* ]]","action":"omarchy-toggle-nightlight"},

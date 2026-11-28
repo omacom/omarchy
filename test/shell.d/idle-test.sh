@@ -33,3 +33,20 @@ HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" allow-idle >/dev/null
 [[ ! -f $test_home/.local/state/omarchy/indicators/stay-awake ]] || fail "Stay Awake toggle persists disabled state"
 
 pass "Stay Awake toggle persists state"
+
+state_file="$test_home/.local/state/omarchy/indicators/stay-awake"
+duration_file="$test_home/.local/state/omarchy/stay-awake-last-duration"
+HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" --menu-duration 60
+deadline=$(cat "$state_file")
+(( deadline > $(date +%s) )) || fail "Timed Stay Awake records a future deadline"
+HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" --expire "$deadline"
+[[ -f $state_file ]] || fail "An early expiry leaves Stay Awake active"
+expired=$(($(date +%s) - 1))
+printf '%s\n' "$expired" > "$state_file"
+HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" --expire "$deadline"
+[[ -f $state_file ]] || fail "A stale expiry leaves Stay Awake active"
+HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" --expire "$expired"
+[[ ! -f $state_file ]] || fail "A matching expiry restores idle behavior"
+HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" allow-idle >/dev/null
+[[ $(cat "$duration_file") == 60 ]] || fail "Allow Sleep preserves the last duration"
+pass "Timed Stay Awake expires and remembers its duration"

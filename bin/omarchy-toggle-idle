@@ -7,6 +7,7 @@
 
 STATE_DIR="$HOME/.local/state/omarchy/indicators"
 STATE_FILE="$STATE_DIR/stay-awake"
+LAST_DURATION_FILE="${STATE_DIR%/indicators}/stay-awake-last-duration"
 
 stay_awake_enabled() {
   [[ -f $STATE_FILE ]]
@@ -32,7 +33,7 @@ apply_state() {
   case "$1" in
     stay-awake)
       mkdir -p "$STATE_DIR"
-      touch "$STATE_FILE"
+      write_state_file "$STATE_FILE" ""
       ;;
     allow-idle)
       rm -f "$STATE_FILE"
@@ -40,21 +41,53 @@ apply_state() {
   esac
 }
 
+write_state_file() {
+  local file=$1 value=$2 temp
+  temp=$(mktemp -- "$file.XXXXXX") || return 1
+  if ! printf '%s\n' "$value" > "$temp" || ! mv -f -- "$temp" "$file"; then
+    rm -f -- "$temp"
+    return 1
+  fi
+}
+
+if [[ ${1:-toggle} != "status" && ${1:-} != "--status" ]]; then
+  mkdir -p "$STATE_DIR" || exit 1
+  exec 9>"$STATE_DIR/.stay-awake-lock" || exit 1
+  flock 9 || exit 1
+fi
+
 case "${1:-toggle}" in
+  --menu-duration)
+    case "${2:-}" in
+      0) deadline="" ;;
+      15|30|60|120|240) deadline=$(( $(date +%s) + $2 * 60 )) ;;
+      *) exit 1 ;;
+    esac
+    write_state_file "$STATE_FILE" "$deadline" || exit 1
+    write_state_file "$LAST_DURATION_FILE" "$2" || exit 1
+    ;;
+  --expire)
+    if [[ -f $STATE_FILE ]]; then
+      IFS= read -r deadline < "$STATE_FILE"
+      if [[ $deadline =~ ^[1-9][0-9]{0,10}$ && $deadline == "${2:-}" ]] && (( deadline <= $(date +%s) )); then
+        apply_state allow-idle
+      fi
+    fi
+    ;;
   toggle)
     if stay_awake_enabled; then
-      apply_state allow-idle
+      apply_state allow-idle || exit 1
     else
-      apply_state stay-awake
+      apply_state stay-awake || exit 1
     fi
     print_idle_state
     ;;
   stay-awake|awake|on)
-    apply_state stay-awake
+    apply_state stay-awake || exit 1
     print_idle_state
     ;;
   allow-idle|idle|off)
-    apply_state allow-idle
+    apply_state allow-idle || exit 1
     print_idle_state
     ;;
   status|--status)

@@ -199,9 +199,6 @@ Item {
   }
 
   function persistStayAwake(value) {
-    var command = value
-      ? "mkdir -p \"$HOME/.local/state/omarchy/indicators\" && touch \"$HOME/.local/state/omarchy/indicators/stay-awake\""
-      : "rm -f \"$HOME/.local/state/omarchy/indicators/stay-awake\""
 
     if (stayAwakeStateWriter.running) {
       root.pendingStayAwakePersist = !!value
@@ -209,7 +206,7 @@ Item {
       return
     }
 
-    stayAwakeStateWriter.command = ["bash", "-lc", command]
+    stayAwakeStateWriter.command = ["omarchy-toggle-idle", value ? "stay-awake" : "allow-idle"]
     stayAwakeStateWriter.running = true
   }
 
@@ -304,11 +301,38 @@ Item {
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "wake exitCode=" + exitCode + " status=" + exitStatus) }
   }
 
+  property string stayAwakeDeadline: ""
+
+  Timer {
+    id: stayAwakeExpiry
+    onTriggered: {
+      stayAwakeExpiryProcess.command = ["omarchy-toggle-idle", "--expire", root.stayAwakeDeadline]
+      stayAwakeExpiryProcess.running = true
+    }
+  }
+
+  Process {
+    id: stayAwakeExpiryProcess
+    onExited: root.refreshStayAwakeState()
+  }
+
   Process {
     id: stayAwakeStateProbe
-    command: ["bash", "-c", "mkdir -p \"$HOME/.local/state/omarchy/indicators\"; if [[ -f $HOME/.local/state/omarchy/indicators/stay-awake ]]; then echo yes; else echo no; fi"]
+    command: ["bash", "-c", "mkdir -p -- \"$1\"; if state=$(cat -- \"$2\" 2>/dev/null); then printf 'yes %s\\n' \"$state\"; else echo no; fi",
+      "stay-awake-state", root.stayAwakeStateDir, root.stayAwakeStatePath]
     stdout: SplitParser {
-      onRead: function(line) { root.applyStayAwake(String(line).trim() === "yes", false, "state-file") }
+      onRead: function(line) {
+        var state = String(line).trim()
+        if (!state) return
+        var deadline = /^yes ([1-9][0-9]{0,10})$/.exec(state)
+        root.stayAwakeDeadline = deadline ? deadline[1] : ""
+        stayAwakeExpiry.stop()
+        if (deadline) {
+          stayAwakeExpiry.interval = Math.max(1, Math.min(2147483647, Number(deadline[1]) * 1000 - Date.now()))
+          stayAwakeExpiry.start()
+        }
+        root.applyStayAwake(state.indexOf("yes") === 0 && (!deadline || Number(deadline[1]) * 1000 > Date.now()), false, "state-file")
+      }
     }
     onExited: function() { stayAwakeStateDirWatcher.reload() }
   }

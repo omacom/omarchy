@@ -21,6 +21,7 @@ Item {
   property string pendingInitialMenu: "root"
 
   function open(payloadJson) {
+    if (stayAwakeCommit.running) return
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
@@ -39,6 +40,7 @@ Item {
   }
 
   function close() {
+    if (stayAwakeCommit.running) return
     root.cancel()
   }
 
@@ -587,7 +589,7 @@ Item {
   // submenus are also hidden when none of their descendants are visible;
   // provider-backed menus stay visible because their rows load on demand.
   function isVisible(entry) {
-    return MenuModel.isVisible(root.items, root.itemOrder, root.whenResults, entry)
+    return MenuModel.isVisible(root.items, root.itemOrder, root.liveWhenResults, entry)
   }
 
   // Label with the ✓ marker baked in when `checked:` or `disabled:` evaluated
@@ -962,7 +964,7 @@ Item {
   }
 
   function altVariantFor(id) {
-    return MenuModel.altVariant(root.items, root.whenResults, root.disabledResults, root.item(id))
+    return MenuModel.altVariant(root.items, root.liveWhenResults, root.disabledResults, root.item(id))
   }
 
   function requestDeleteSelected() {
@@ -996,6 +998,11 @@ Item {
   }
 
   function applyDmenuSelection(value) {
+    if (stayAwakePicker) {
+      var minutes = stayAwakeDurations[dmenuOptions.indexOf(value)]
+      if (minutes !== undefined) root.commitStayAwake(minutes)
+      return
+    }
     applySerial = requestSerial
     opened = false
     filterText = ""
@@ -1004,6 +1011,14 @@ Item {
 
   function applySelected(id, action) {
     if (!id) { cancel(); return }
+    if (action === "omarchy-menu summon stay-awake-picker") {
+      root.openStayAwakePicker()
+      return
+    }
+    if (id === "trigger.toggle.idle-lock-off" && action === "omarchy-toggle-idle allow-idle") {
+      root.commitStayAwake(-1)
+      return
+    }
 
     applySerial = requestSerial
     opened = false
@@ -1012,6 +1027,7 @@ Item {
   }
 
   function cancel() {
+    if (stayAwakeCommit.running) return
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
     filterText = ""
@@ -1031,6 +1047,7 @@ Item {
     selectedIndex = 0
     cursorActive = true
     root.disarmPointer()
+    root.readStayAwakeState()
     root.evaluateGuards()
     opened = true
     rebuildDisplay()
@@ -1043,7 +1060,53 @@ Item {
     Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
-  function openDmenu(payload) {
+  readonly property var stayAwakeDurations: [15, 30, 60, 120, 240, 0, -1]
+  property bool stayAwakePicker: false
+
+  function openStayAwakePicker() {
+    var options = [
+      Commons.I18n.t("menu.stayAwake.fifteenMinutes"),
+      Commons.I18n.t("menu.stayAwake.thirtyMinutes"),
+      Commons.I18n.t("menu.stayAwake.oneHour"),
+      Commons.I18n.t("menu.stayAwake.twoHours"),
+      Commons.I18n.t("menu.stayAwake.fourHours"),
+      Commons.I18n.t("menu.stayAwake.untilTurnedOff"),
+      Commons.I18n.t("menu.stayAwake.allowSleep")
+    ]
+    stayAwakePreference.reload()
+    stayAwakePreference.waitForJob()
+    var saved = stayAwakePreference.loaded ? Number(stayAwakePreference.text().trim()) : 15
+    var prompt = root.item("trigger.toggle.idle-lock-on")
+    root.openDmenu({ mode: "select", prompt: prompt ? prompt.label : "Stay Awake", options: options }, Math.max(0, stayAwakeDurations.indexOf(saved)))
+  }
+
+  function commitStayAwake(minutes) {
+    if (stayAwakeCommit.running) return
+    stayAwakeCommit.command = minutes === -1 ? ["omarchy-toggle-idle", "allow-idle"] : ["omarchy-toggle-idle", "--menu-duration", String(minutes)]
+    stayAwakeCommit.running = true
+  }
+
+  Process {
+    id: stayAwakeCommit
+    onExited: function(code) {
+      if (code !== 0) {
+        console.warn("Could not change Stay Awake", code)
+        return
+      }
+      root.readStayAwakeState()
+      root.opened = false
+      root.filterText = ""
+    }
+  }
+
+  FileView {
+    id: stayAwakePreference
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/stay-awake-last-duration"
+    printErrors: false
+  }
+
+  function openDmenu(payload, initialIndex) {
+    stayAwakePicker = initialIndex !== undefined
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
@@ -1064,7 +1127,7 @@ Item {
     activeMenu = "root"
     navStack = []
     filterText = ""
-    selectedIndex = 0
+    selectedIndex = stayAwakePicker ? initialIndex : 0
     cursorActive = mode !== "input"
     root.disarmPointer()
     opened = true
@@ -1134,6 +1197,10 @@ Item {
   }
 
   function openRoute(initialMenu) {
+    if (initialMenu === "stay-awake-picker") {
+      root.openStayAwakePicker()
+      return "ok"
+    }
     var id = root.resolveRoute(initialMenu)
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
@@ -1164,6 +1231,7 @@ Item {
   }
 
   function selectFromPointer(index, item, mouse) {
+    if (root.dmenuActive && root.stayAwakePicker) return
     if (!pointerGate.moved(item, mouse)) return
     if (!root.rowSelectable(index)) return
     root.cursorActive = true
@@ -1385,6 +1453,30 @@ Item {
   // never has to wait on them.
 
   property var whenResults: ({})       // id → true|false (allow visibility)
+  property bool stayAwakeActive: false
+  readonly property var liveWhenResults: Object.assign({}, whenResults, {
+    "trigger.toggle.idle-lock-on": !stayAwakeActive,
+    "trigger.toggle.idle-lock-off": stayAwakeActive
+  })
+
+  function readStayAwakeState() {
+    stayAwakeMarker.reload()
+    stayAwakeMarker.waitForJob()
+    var deadline = stayAwakeMarker.loaded ? Number(stayAwakeMarker.text().trim()) : 0
+    root.stayAwakeActive = stayAwakeMarker.loaded && (!deadline || deadline * 1000 > Date.now())
+  }
+
+  FileView {
+    id: stayAwakeMarker
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/indicators/stay-awake"
+    printErrors: false
+    watchChanges: true
+    onFileChanged: {
+      root.readStayAwakeState()
+      if (root.opened && !root.dmenuActive) root.rebuildDisplay()
+    }
+  }
+
   property var checkedResults: ({})    // id → true|false (show ✓)
   property var disabledResults: ({})   // id → true|false (dim, skip cursor)
   property bool guardsPending: false

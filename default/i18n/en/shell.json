@@ -413,6 +413,13 @@
   "menu.powerProfilePerformance": "performance",
   "menu.powerProfilePowerSaver": "power-saver",
   "menu.selectPrompt": "Select",
+  "menu.stayAwake.fifteenMinutes": "15 minutes",
+  "menu.stayAwake.thirtyMinutes": "30 minutes",
+  "menu.stayAwake.oneHour": "1 hour",
+  "menu.stayAwake.twoHours": "2 hours",
+  "menu.stayAwake.fourHours": "4 hours",
+  "menu.stayAwake.untilTurnedOff": "Until turned off",
+  "menu.stayAwake.allowSleep": "Allow Sleep Now",
   "menu.selectedCount": {
     "one": "%1 selected",
     "other": "%1 selected"
