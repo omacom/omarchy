@@ -48,7 +48,11 @@ if [[ $direction == "off" ]]; then
 elif [[ $direction == "restore" ]]; then
   if [[ -f $saved ]]; then
     level="$(<"$saved")"
-    if [[ ! $level =~ ^[0-9]+$ ]] || brightnessctl -d "$device" set "$level" >/dev/null; then
+    current="$(brightnessctl -d "$device" get)"
+    # Lit after a blank means the hotkeys set it while locked, which is newer than the record.
+    if [[ $current =~ ^[0-9]+$ ]] && (( current > 0 )); then
+      rm -f "$saved"
+    elif [[ ! $level =~ ^[0-9]+$ ]] || brightnessctl -d "$device" set "$level" >/dev/null; then
       rm -f "$saved"
     fi
   fi
