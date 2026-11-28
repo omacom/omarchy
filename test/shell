@@ -5,8 +5,15 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 TEST_DIR="$ROOT/test/shell.d"
 
+tree_state() {
+  git -C "$ROOT" status --porcelain --untracked-files=all 2>/dev/null || true
+  git -C "$ROOT" diff -U0 2>/dev/null || true
+}
+tree_before=$(tree_state)
+
 GROUP="all"
 SHARD=""
+names=()
 while (( $# > 0 )); do
   case "$1" in
     --group=*) GROUP="${1#*=}" ;;
@@ -19,10 +26,11 @@ while (( $# > 0 )); do
       (( $# >= 2 )) || { echo "Missing value for --shard" >&2; exit 2; }
       SHARD="$2"; shift
       ;;
-    *)
-      echo "Usage: $0 [--group all|noncomp|comp|exclusive] [--shard K/N]" >&2
+    -*)
+      echo "Usage: $0 [--group all|noncomp|comp|exclusive] [--shard K/N] [name ...]" >&2
       exit 2
       ;;
+    *) names+=("$1") ;;
   esac
   shift
 done
@@ -46,12 +54,50 @@ if [[ -n $SHARD ]]; then
   SHARD_TOTAL=${BASH_REMATCH[2]}
 fi
 
-shopt -s nullglob
+# With no names, every file runs. A name may be a path, a file in test/shell.d,
+# a test name without its -test.sh suffix, or a prefix of several.
 all_tests=()
-for test in "$TEST_DIR"/*-test.sh; do
-  [[ $(basename "$test") == "base-test.sh" ]] && continue
-  all_tests+=("$test")
-done
+declare -A seen_tests=()
+add_test() {
+  [[ -n ${seen_tests[$1]:-} ]] && return 0
+  seen_tests[$1]=1
+  all_tests+=("$1")
+}
+
+shopt -s nullglob
+if (( ${#names[@]} == 0 )); then
+  for test in "$TEST_DIR"/*-test.sh; do
+    [[ $(basename "$test") == "base-test.sh" ]] && continue
+    add_test "$test"
+  done
+else
+  for n in "${names[@]}"; do
+    matched=0
+    base=$(basename "$n")
+    base=${base%.sh}
+    base=${base%-test}
+    if [[ -f $n ]]; then
+      add_test "$(realpath "$n")"
+      matched=1
+    elif [[ -f $TEST_DIR/$n ]]; then
+      add_test "$TEST_DIR/$n"
+      matched=1
+    elif [[ -f $TEST_DIR/$base-test.sh ]]; then
+      add_test "$TEST_DIR/$base-test.sh"
+      matched=1
+    else
+      for match in "$TEST_DIR"/"$base"*-test.sh; do
+        [[ $(basename "$match") == "base-test.sh" ]] && continue
+        add_test "$match"
+        matched=1
+      done
+    fi
+    if (( ! matched )); then
+      echo "test/shell: no test matching '$n' in $TEST_DIR" >&2
+      exit 2
+    fi
+  done
+fi
 shopt -u nullglob
 
 if (( ${#all_tests[@]} == 0 )); then
@@ -135,11 +181,23 @@ select_shard() {
   done < <(sort_largest_first "$@")
 }
 
+# Files that modify or destroy shared system state run in an epilogue phase
+# with automatic state tree recovery so they do not contaminate other tests.
+is_destructive() {
+  case $(basename "$1") in
+    unowned-system-paths*|*passwordless*|*factory-reset*|*polkit*|*sudoers*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 all_noncomp=()
 all_comp=()
 all_exclusive=()
+all_destructive=()
 for test in "${all_tests[@]}"; do
-  if is_exclusive "$test"; then
+  if is_destructive "$test"; then
+    all_destructive+=("$test")
+  elif is_exclusive "$test"; then
     all_exclusive+=("$test")
   elif uses_compositor "$test"; then
     all_comp+=("$test")
@@ -151,11 +209,13 @@ done
 parallel_noncomp_tests=()
 parallel_comp_tests=()
 exclusive_tests=()
+destructive_tests=()
 case "$GROUP" in
   all)
     parallel_noncomp_tests=("${all_noncomp[@]}")
     parallel_comp_tests=("${all_comp[@]}")
     exclusive_tests=("${all_exclusive[@]}")
+    destructive_tests=("${all_destructive[@]}")
     ;;
   noncomp)
     parallel_noncomp_tests=("${all_noncomp[@]}")
@@ -171,6 +231,7 @@ case "$GROUP" in
       is_comp_exclusive "$test" && continue
       exclusive_tests+=("$test")
     done
+    destructive_tests=("${all_destructive[@]}")
     ;;
 esac
 
@@ -184,6 +245,9 @@ if (( SHARD_TOTAL > 0 )); then
   if (( ${#exclusive_tests[@]} > 0 )); then
     mapfile -t exclusive_tests < <(select_shard "${exclusive_tests[@]}")
   fi
+  if (( ${#destructive_tests[@]} > 0 )); then
+    mapfile -t destructive_tests < <(select_shard "${destructive_tests[@]}")
+  fi
 fi
 
 # Preserve deterministic filename order for reporting.
@@ -191,7 +255,8 @@ declare -A selected_map=()
 for test in \
   ${parallel_noncomp_tests[@]+"${parallel_noncomp_tests[@]}"} \
   ${parallel_comp_tests[@]+"${parallel_comp_tests[@]}"} \
-  ${exclusive_tests[@]+"${exclusive_tests[@]}"}; do
+  ${exclusive_tests[@]+"${exclusive_tests[@]}"} \
+  ${destructive_tests[@]+"${destructive_tests[@]}"}; do
   selected_map["$test"]=1
 done
 
@@ -294,6 +359,15 @@ for test in "${exclusive_tests[@]}"; do
   uses_compositor "$test" && comp=1
   run_one "$test" "$comp"
 done
+for test in "${destructive_tests[@]}"; do
+  comp=0
+  uses_compositor "$test" && comp=1
+  run_one "$test" "$comp"
+  if [[ $(tree_state) != "$tree_before" ]]; then
+    git -C "$ROOT" checkout -- . 2>/dev/null || true
+    git -C "$ROOT" clean -fd 2>/dev/null || true
+  fi
+done
 
 failed=()
 skipped=()
@@ -308,6 +382,15 @@ for test in "${tests[@]}"; do
     skipped+=("${test#$ROOT/}")
   fi
 done
+
+tree_after=$(tree_state)
+if [[ $tree_after != "$tree_before" ]]; then
+  printf '\nError: tests modified the source tree:\n' >&2
+  diff <(printf '%s\n' "$tree_before") <(printf '%s\n' "$tree_after") >&2 || true
+  git -C "$ROOT" checkout -- . 2>/dev/null || true
+  git -C "$ROOT" clean -fd 2>/dev/null || true
+  exit 1
+fi
 
 if (( ${#skipped[@]} > 0 )); then
   printf '\nSkipped checks in %d of %d test files:\n' "${#skipped[@]}" "${#tests[@]}"
