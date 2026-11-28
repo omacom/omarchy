@@ -325,8 +325,8 @@ LUA
 pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
 
 # Hyprland resolves binds against the first layout, so Right Alt is Alt_R when
-# US leads and ISO_Level3_Shift when an AltGr layout does. Where any layout
-# types with AltGr, Right Alt records only once held alone, so AltGr + 2 still
+# US leads and ISO_Level3_Shift when an AltGr layout does. Right Alt records
+# only once held alone, so Right Alt + Left still goes back and AltGr + 2 still
 # types @. Prints each push-to-talk key, and "hold" when it waits like that.
 printf 'some-backend\n' > "$config"
 push_to_talk() {
@@ -345,7 +345,7 @@ o = {
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 LUA
 }
-[[ $(push_to_talk us) == "ALT + Alt_R" ]] || fail "US keeps the instant Right Alt hold" "$(push_to_talk us)"
+[[ $(push_to_talk us) == "ALT + Alt_R hold" ]] || fail "US holds Right Alt alone to dictate, so its chords don't" "$(push_to_talk us)"
 [[ $(push_to_talk dk) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "a leading AltGr layout holds AltGr alone to dictate" "$(push_to_talk dk)"
 [[ $(push_to_talk us,se) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "AltGr behind US keeps typing @" "$(push_to_talk us,se)"
 [[ $(push_to_talk us intl) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "US International keeps AltGr for typing" "$(push_to_talk us intl)"
@@ -353,7 +353,7 @@ mkdir -p "$XDG_CONFIG_HOME/fcitx5"
 printf '[Groups/0/Items/0]\nName=keyboard-us\n[Groups/0/Items/1]\nName=keyboard-se\n' > "$XDG_CONFIG_HOME/fcitx5/profile"
 [[ $(push_to_talk us) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "Fcitx Swedish keeps AltGr for typing" "$(push_to_talk us)"
 rm -r "$XDG_CONFIG_HOME/fcitx5" "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
-pass "Right Alt records at once on US and once held alone where it is AltGr"
+pass "Right Alt records once held alone, on US and where it is AltGr"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"
