@@ -14,6 +14,10 @@ mkdir -p "$fake_bin"
 
 cat >"$fake_bin/sudo" <<'STUB'
 #!/bin/bash
+if [[ ${SUDO_EXIT:-0} != 0 ]]; then
+  echo 'sudo: authentication failed' >&2
+  exit "$SUDO_EXIT"
+fi
 exec "$@"
 STUB
 chmod +x "$fake_bin/sudo"
@@ -35,6 +39,10 @@ cat >"$fake_bin/snapper" <<'STUB'
 #!/bin/bash
 printf 'snapper %s\n' "$*" >>"$TEST_LOG"
 if [[ "$*" == *"list-configs"* ]]; then
+  if [[ ${SNAPSHOT_QUERY_EXIT:-0} != 0 ]]; then
+    echo 'snapper: query failed' >&2
+    exit "$SNAPSHOT_QUERY_EXIT"
+  fi
   echo "config,subvolume"
 fi
 STUB
@@ -55,6 +63,21 @@ grep -qF 'No Snapper configs found' <<<"$stderr" ||
 ! grep -q '^snapper -c .* create ' "$test_tmp/calls.log" ||
   fail "snapshot create does not invent a config to snapshot"
 pass "snapshot create fails loudly when Snapper is installed but unconfigured"
+
+for command in sudo snapper; do
+  : >"$test_tmp/calls.log"
+  if stderr=$(SUDO_EXIT=$([[ $command == "sudo" ]] && echo 1 || echo 0) \
+    SNAPSHOT_QUERY_EXIT=$([[ $command == "snapper" ]] && echo 1 || echo 0) \
+    TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+    bash "$snapshot" create 2>&1); then
+    fail "snapshot create fails when $command cannot query configs"
+  fi
+  grep -qF 'Could not query Snapper configs' <<<"$stderr" ||
+    fail "snapshot create distinguishes a failed $command query from no configs" "$stderr"
+  ! grep -qF 'Configure Snapper with:' <<<"$stderr" ||
+    fail "a failed $command query does not recommend replacing the configuration"
+done
+pass "snapshot create reports query failures without a configuration repair hint"
 
 cat >"$fake_bin/snapper" <<'STUB'
 #!/bin/bash
