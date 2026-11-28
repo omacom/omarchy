@@ -6,12 +6,7 @@
 set -e
 
 echo "Installing Heroic Games Launcher..."
-packages=(heroic-games-launcher-bin)
-# Controller udev rules (DualSense, DualShock, Switch Pro, 8BitDo, etc.) live in multilib (x86_64 only).
-if omarchy-hw-x86; then
-  packages+=(steam-devices)
-fi
-omarchy-pkg-add "${packages[@]}"
+omarchy-pkg-add heroic-games-launcher-bin steam-devices
 omarchy-install-gaming-gpu-lib32
 
 setsid uwsm-app -- gtk-launch heroic >/dev/null 2>&1 &
