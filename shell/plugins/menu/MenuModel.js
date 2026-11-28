@@ -393,7 +393,7 @@ function matchesQuery(entry, query, visible) {
   return true
 }
 
-function searchScore(items, entry, query) {
+function searchScore(items, entry, query, typos) {
   var needle = String(query || "").toLowerCase().trim()
   var label = entry.label.toLowerCase()
   var nameText = nameSearchText(entry)
@@ -408,6 +408,10 @@ function searchScore(items, entry, query) {
   else if (label.indexOf(needle) >= 0) score = 30
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
+  else if (typos) {
+    var typoTier = queryTypoScore(entry, needle)
+    if (typoTier >= 0) score = typoTier
+  }
 
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
@@ -417,6 +421,155 @@ function searchScore(items, entry, query) {
   // Appearance > Branding > About); at equal depth a submenu beats an action.
   var opensMenu = entry.kind === "menu" || entry.kind === "link"
   return score * 10000000 + depthFor(items, entry.id) * 100000 + (opensMenu ? 0 : 50000) + entry.order
+}
+
+// Folds case, strips optional combining diacritics (Latin/Greek/Cyrillic/
+// Arabic/Hebrew) via NFD, and maps non-decomposing Latin letters so unaccented
+// queries match localized labels without spending typo budget. NFD also
+// decomposes Korean Hangul syllables into Jamo so single-jamo typos stay within
+// one edit. Indic/Thai vowel signs are left intact because they are core vowels.
+function foldSearchText(value) {
+  var folded = String(value || "").toLowerCase()
+  if (!/[^\x00-\x7f]/.test(folded)) return folded
+  if (typeof folded.normalize === "function") folded = folded.normalize("NFD")
+  return folded
+    .replace(/[\u0300-\u036f\u0591-\u05bd\u05bf\u05c1\u05c2\u05c4\u05c5\u05c7\u0610-\u061a\u064b-\u065f\u0670]/g, "")
+    .replace(/\u0131/g, "i")
+    .replace(/\u0142/g, "l")
+    .replace(/\u0111/g, "d")
+    .replace(/\u00f8/g, "o")
+    .replace(/\u00df/g, "ss")
+    .replace(/\u00e6/g, "ae")
+    .replace(/\u0153/g, "oe")
+}
+
+function toCodePoints(value) {
+  var str = String(value || "")
+  return /[\ud800-\udfff]/.test(str) ? Array.from(str) : str
+}
+
+// Collapses consecutive duplicate codepoints ("ffiles" -> "files").
+function squeezeRepeats(value) {
+  var chars = toCodePoints(value)
+  if (chars.length <= 1) return String(value || "")
+  var out = chars[0]
+  for (var i = 1; i < chars.length; i++) {
+    if (chars[i] !== chars[i - 1]) out += chars[i]
+  }
+  return out
+}
+
+// Skip edit distance for CJK ideograph/kana terms: 2-3 character words collide
+// too easily at distance 1, while folded/squeezed matching still applies.
+function hasCjkChars(value) {
+  return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(String(value || ""))
+}
+
+// A search that found nothing runs again forgiving typos: each term matches as
+// typed, after diacritic/Hangul folding, after collapsing doubled letters, or
+// within Damerau-Levenshtein budget of a name word prefix.
+function matchesQueryWithTypos(entry, query, visible) {
+  if (!entry || entry.id === "root" || !visible) return false
+  var foldedName = foldSearchText(nameSearchText(entry))
+  var foldedWords = foldedName.split(/\s+/)
+  var foldedDesc = foldSearchText(entry.description || "")
+  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  for (var i = 0; i < terms.length; i++) {
+    if (!terms[i]) continue
+    if (matchesQuery(entry, terms[i], true)) continue
+    if (termTypoDistance(terms[i], foldedName, foldedWords, foldedDesc) >= 0) continue
+    return false
+  }
+  return true
+}
+
+function queryTypoScore(entry, query) {
+  var foldedName = foldSearchText(nameSearchText(entry))
+  var foldedWords = foldedName.split(/\s+/)
+  var foldedDesc = foldSearchText(entry.description || "")
+  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var worst = 0
+  for (var i = 0; i < terms.length; i++) {
+    if (!terms[i]) continue
+    if (matchesQuery(entry, terms[i], true)) continue
+    var dist = termTypoDistance(terms[i], foldedName, foldedWords, foldedDesc)
+    if (dist < 0) return -1
+    if (dist > worst) worst = dist
+  }
+  if (worst === 0) return 35
+  if (worst === 0.5) return 45
+  if (worst === 1) return 70
+  return 80
+}
+
+// Returns 0 for diacritic-folded exact match, 0.5 for doubled-letter prefix
+// match ("ffiles" -> "files"), 1..2 for Damerau-Levenshtein prefix distance,
+// or -1 when out of budget. Uses length and character-overlap prefilters before
+// running DP so worst-case queries stay fast on older CPUs.
+function termTypoDistance(term, foldedName, foldedWords, foldedDesc) {
+  var folded = foldSearchText(term)
+  if (!folded) return -1
+  if (foldedName.indexOf(folded) >= 0) return 0
+  if (termInSearchWords(folded, foldedDesc)) return 0
+
+  var squeezed = squeezeRepeats(folded)
+  if (squeezed.length >= 3) {
+    for (var s = 0; s < foldedWords.length; s++) {
+      if (!foldedWords[s]) continue
+      if (squeezeRepeats(foldedWords[s]).indexOf(squeezed) === 0) return 0.5
+    }
+  }
+
+  if (hasCjkChars(folded)) return -1
+
+  var termChars = toCodePoints(folded)
+  var limit = termChars.length >= 8 ? 2 : termChars.length >= 4 ? 1 : 0
+  if (!limit) return -1
+
+  var best = limit + 1
+  for (var i = 0; i < foldedWords.length; i++) {
+    var word = foldedWords[i]
+    if (word.length < termChars.length - limit) continue
+    var wordChars = toCodePoints(word)
+    if (wordChars.length < termChars.length - limit) continue
+    var start = wordChars.slice(0, termChars.length + limit)
+    var missing = 0
+    for (var c = 0; c < termChars.length && missing <= limit; c++) {
+      if (start.indexOf(termChars[c]) < 0) missing++
+    }
+    if (missing > limit) continue
+    var distances = prefixDistances(termChars, start)
+    for (var n = termChars.length - limit; n < distances.length; n++) {
+      if (distances[n] < best) best = distances[n]
+    }
+    if (best <= 1) break
+  }
+
+  return best <= limit ? best : -1
+}
+
+// Damerau-Levenshtein distances (optimal string alignment, so a swapped pair
+// counts as one typo) from codepoint array a to each prefix of b, using three
+// rolling rows to minimize allocations.
+function prefixDistances(a, b) {
+  var prevPrev = null
+  var prev = []
+  for (var j = 0; j <= b.length; j++) prev[j] = j
+
+  for (var i = 1; i <= a.length; i++) {
+    var curr = [i]
+    for (var k = 1; k <= b.length; k++) {
+      var cost = a[i - 1] === b[k - 1] ? 0 : 1
+      var val = Math.min(prev[k] + 1, curr[k - 1] + 1, prev[k - 1] + cost)
+      if (i > 1 && k > 1 && a[i - 1] === b[k - 2] && a[i - 2] === b[k - 1]) {
+        val = Math.min(val, prevPrev[k - 2] + 1)
+      }
+      curr[k] = val
+    }
+    prevPrev = prev
+    prev = curr
+  }
+  return prev
 }
 
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
@@ -774,6 +927,9 @@ if (typeof module !== "undefined") {
     termInSearchWords: termInSearchWords,
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
+    matchesQueryWithTypos: matchesQueryWithTypos,
+    foldSearchText: foldSearchText,
+    squeezeRepeats: squeezeRepeats,
     searchScore: searchScore,
     dmenuValue: dmenuValue,
     dmenuSelections: dmenuSelections,

@@ -625,12 +625,13 @@ Item {
   // A disabled row earns its place in the submenu it belongs to, where the
   // list around it is the point. Search is a list of what you can do, so it
   // leaves them out.
-  function matchesQuery(entry, query) {
-    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
+  function matchesQuery(entry, query, typos) {
+    var visible = root.isVisible(entry) && !root.isDisabled(entry)
+    return typos ? MenuModel.matchesQueryWithTypos(entry, query, visible) : MenuModel.matchesQuery(entry, query, visible)
   }
 
-  function searchScore(entry, query) {
-    return MenuModel.searchScore(root.items, entry, query)
+  function searchScore(entry, query, typos) {
+    return MenuModel.searchScore(root.items, entry, query, typos)
   }
 
   function displayRow(entry, detail, score, section) {
@@ -744,7 +745,7 @@ Item {
     }
   }
 
-  function rebuildDisplay() {
+  function rebuildDisplay(typos) {
     if (root.dmenuActive) {
       root.rebuildDmenuDisplay()
       return
@@ -768,13 +769,17 @@ Item {
         var entry = root.item(root.itemOrder[i])
         if (!entry || entry.id === "root") continue
         if (!root.isDescendantOf(entry.id, active)) continue
-        if (!root.matchesQuery(entry, query)) continue
+        if (!root.matchesQuery(entry, query, typos)) continue
 
         var detail = root.parentPathFor(entry.id)
-        var row = root.displayRow(entry, detail, root.searchScore(entry, query))
+        var row = root.displayRow(entry, detail, root.searchScore(entry, query, typos))
         if (entry.parent === active) currentRows.push(row)
         else drilldownRows.push(row)
       }
+
+      // Typos only fill a search that found nothing, so a correct spelling
+      // gets exactly the rows it always did at zero extra cost.
+      if (!typos && currentRows.length + drilldownRows.length === 0) return root.rebuildDisplay(true)
 
       var searchSort = function(a, b) {
         if (a.score !== b.score) return a.score - b.score
