@@ -39,7 +39,6 @@ Item {
 
   property string phase: attach || isTask ? "running" : "checking"
   property var st: UpdateModel.create()
-  property int rev: 0
   property bool dirty: false
   property int seenCount: 0
   // Plain ints, so views only rebuild when these actually change.
@@ -59,9 +58,9 @@ Item {
   // The package servers didn't answer, so "nothing new" isn't known.
   property bool checkFailed: false
 
-  readonly property real prog: (rev, phase === "done" ? 1 : UpdateModel.progress(st))
-  readonly property real taskProg: (rev, UpdateModel.transfer(st))
-  readonly property int stepIndex: (rev, phase === "done" ? 5 : UpdateModel.STEPS.indexOf(st.step))
+  readonly property real prog: phase === "done" ? 1 : UpdateModel.progress(st)
+  readonly property real taskProg: UpdateModel.transfer(st)
+  readonly property int stepIndex: phase === "done" ? 5 : UpdateModel.STEPS.indexOf(st.step)
 
   readonly property color fg: Commons.Color.foreground
   readonly property color bg: Commons.Color.background
@@ -237,7 +236,8 @@ Item {
     if (isTask) resolve()
     lineCount = st.lines.length + 1
     toolCount = st.tools.length
-    rev++
+    // st is changed in place, so its bindings are told by hand.
+    stChanged()
     // sudo waiting on a PAM module needs the user as much as a password
     // question does, so a window sent to the background comes back for it.
     if (st.auth && st.auth !== shownAuth && phase === "running") {
@@ -289,7 +289,7 @@ Item {
     property string pending: ""
     command: ["sh", "-c", "[ -p \"$0\" ] && exec cat > \"$0\"", root.stateDir + "/in"]
     stdinEnabled: true
-    onStarted: { write(pending + "\n"); pending = ""; stdinEnabled = false }
+    onStarted: { write(pending + "\n"); writer.pending = ""; stdinEnabled = false }
   }
 
   function send(text) {
@@ -308,7 +308,6 @@ Item {
   }
 
   function pkgState(name) {
-    rev
     // The installer's own tile, before pacman has said which package it is.
     if (!name) return phase === "done" ? "done" : phase === "running" ? "active" : "pending"
     return st.packages[name] || (verified[name] ? "done" : "pending")
@@ -324,7 +323,6 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: {
         root.verified = UpdateModel.installedAtListed(text, verifier.expected)
-        root.rev++
       }
     }
   }
@@ -421,11 +419,10 @@ Item {
   }
 
   readonly property string openable: {
-    rev, apps.count
     for (var i = 0; i < apps.count; i++) if (apps.get(i).desktop) return apps.get(i).desktop
     return ""
   }
-  readonly property bool launched: (rev, /gtk-launch|uwsm-app/.test(task) || st.opened)
+  readonly property bool launched: /gtk-launch|uwsm-app/.test(task) || st.opened
 
   // After the compositor closes it, the window only maps again from hidden.
   function present() {
@@ -488,7 +485,6 @@ Item {
   }
 
   readonly property string headline: {
-    rev
     var what = st.subject
     if (isTask) {
       if (phase === "done") return what ? I18n.t("update.installReady").arg(what) : I18n.t("update.done")
@@ -509,7 +505,6 @@ Item {
   }
 
   readonly property string subline: {
-    rev
     switch (phase) {
       case "checking": return I18n.t("update.checkingDetail")
       case "ready": {
@@ -539,7 +534,6 @@ Item {
 
   // sudo waiting on a PAM module: face, fingerprint, security key, ...
   readonly property var authCard: {
-    rev
     var t = st.auth
     if (!t || phase !== "running" || ask || /^Sorry/.test(t)) return null
     if (/face/i.test(t)) return { glyph: "\udb83\udc7b", title: /not|fail|timed/i.test(t) ? I18n.t("update.authFaceFailed") : I18n.t("update.authFace"), body: t }
@@ -606,7 +600,7 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            text: (root.rev, root.phase === "failed" ? "\uf071" : root.phase === "done" ? (root.st.reboot ? "\uf011" : "\uf00c") : "\ue900")
+            text: root.phase === "failed" ? "\uf071" : root.phase === "done" ? (root.st.reboot ? "\uf011" : "\uf00c") : "\ue900"
             font.family: root.phase === "failed" || root.phase === "done" ? root.fontFamily : "omarchy"
             font.pixelSize: Style.space(40)
             color: root.phase === "failed" ? root.urgent : root.accent
@@ -631,7 +625,7 @@ Item {
               Layout.fillWidth: true
               textFormat: Text.PlainText
               text: root.subline
-              color: (root.rev, root.phase === "failed" || (root.phase === "done" && root.st.errors.length && !root.st.reboot) ? root.urgent : Util.alpha(root.fg, 0.7))
+              color: root.phase === "failed" || (root.phase === "done" && root.st.errors.length && !root.st.reboot) ? root.urgent : Util.alpha(root.fg, 0.7)
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               wrapMode: Text.Wrap
@@ -666,7 +660,7 @@ Item {
               readonly property bool done: index < root.stepIndex
               readonly property bool current: index === root.stepIndex && root.phase === "running"
               readonly property bool failedHere: root.phase === "failed" && index === Math.max(0, root.stepIndex)
-              readonly property real fraction: done || failedHere ? 1 : current ? (root.rev, UpdateModel.stepFraction(root.st)) : 0
+              readonly property real fraction: done || failedHere ? 1 : current ? UpdateModel.stepFraction(root.st) : 0
               Layout.fillWidth: true
               Layout.preferredWidth: 1
               spacing: Style.space(7)
@@ -811,7 +805,7 @@ Item {
                 required property int index
                 textFormat: Text.PlainText
                 width: log.width
-                text: (root.rev, index < root.st.lines.length ? root.st.lines[index] : root.st.tail)
+                text: index < root.st.lines.length ? root.st.lines[index] : root.st.tail
                 color: UpdateModel.isError(text) ? root.urgent : Util.alpha(root.fg, 0.75)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -885,7 +879,7 @@ Item {
             visible: root.isTask && root.phase === "done" && root.openable !== "" && !root.launched
             bordered: true
             foreground: root.accent
-            text: (root.rev, I18n.t("update.open").arg(root.st.subject || I18n.t("update.openApp")))
+            text: I18n.t("update.open").arg(root.st.subject || I18n.t("update.openApp"))
             onClicked: {
               Quickshell.execDetached(["uwsm-app", "--", "gtk-launch", root.openable])
               root.close()
@@ -900,12 +894,12 @@ Item {
           Button {
             visible: root.phase === "done" || root.phase === "failed" || root.phase === "uptodate"
             bordered: true
-            foreground: (root.rev, root.phase === "uptodate" || root.st.reboot ? root.fg : root.accent)
-            text: (root.rev, root.st.reboot ? I18n.t("update.restartLater") : I18n.t("update.close"))
+            foreground: root.phase === "uptodate" || root.st.reboot ? root.fg : root.accent
+            text: root.st.reboot ? I18n.t("update.restartLater") : I18n.t("update.close")
             onClicked: root.close()
           }
           Button {
-            visible: (root.rev, root.phase === "done" && root.st.reboot !== "")
+            visible: root.phase === "done" && root.st.reboot !== ""
             bordered: true
             foreground: root.accent
             text: I18n.t("update.restartNow")
@@ -1172,9 +1166,13 @@ Item {
     readonly property bool active: status === "active"
     readonly property bool finished: status === "done"
     readonly property bool waiting: root.phase === "running" && !active && !finished
-    readonly property var entry: (DesktopEntries.applications.values, desktop ? DesktopEntries.byId(desktop) : null)
+    readonly property var entry: {
+      // The entry an install adds is found once the desktop entries reload.
+      var appsRevision = DesktopEntries.applications.values.length
+      return desktop ? DesktopEntries.byId(desktop) : null
+    }
     readonly property string iconSource: entry && entry.icon ? Quickshell.iconPath(entry.icon, true) : ""
-    readonly property string label: entry ? entry.name : own ? (root.rev, root.st.subject) : /^omarchy(-dev-checkout)?$/.test(name) ? "Omarchy" : /^linux/.test(name) ? I18n.t("update.kernel") : name // i18n: ignore
+    readonly property string label: entry ? entry.name : own ? root.st.subject : /^omarchy(-dev-checkout)?$/.test(name) ? "Omarchy" : /^linux/.test(name) ? I18n.t("update.kernel") : name // i18n: ignore
 
     onActiveChanged: if (active) root.reveal(tile)
 
