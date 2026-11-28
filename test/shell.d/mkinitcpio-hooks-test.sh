@@ -238,6 +238,36 @@ pci_devices 0x10de:0x030000
 assert_composed "NVIDIA-only with hibernation and a provisioning key is unchanged" x86 \
   "$omarchy_hooks_without_kms resume" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
 
+# nvidia.conf is written by install/hardware/nvidia.sh, and it lists the modules
+# only where modinfo finds them: a kernel whose DKMS build failed must still get
+# a bootable image, and the build log must say the driver was left out. Read the
+# heredoc from the script itself, so the test fails if it goes back to listing
+# the modules unconditionally.
+nvidia_conf() {
+  sed -n "/cat > \/etc\/mkinitcpio.conf.d\/nvidia.conf <<'EOF'/,/^EOF$/p" \
+    "$ROOT/install/hardware/nvidia.sh" | sed '1d;$d' | drop_in nvidia.conf
+}
+
+new_etc
+nvidia_conf
+pci_devices 0x10de:0x030000
+KERNEL_MODULES="thunderbolt $nvidia_modules" assert_composed \
+  "an NVIDIA machine whose kernel has the modules early-loads them" x86 \
+  "$omarchy_hooks_without_kms" "$nvidia_modules thunderbolt" ""
+
+new_etc
+nvidia_conf
+pci_devices 0x10de:0x030000
+if actual=$(compose x86 2>"$test_tmp/nvidia-missing.err"); then
+  [[ $actual == "HOOKS=$omarchy_hooks"$'\n'"MODULES=thunderbolt"$'\n'"FILES=" ]] ||
+    fail "an NVIDIA machine whose kernel lacks the modules still builds" "actual:"$'\n'"$actual"
+else
+  fail "an NVIDIA machine whose kernel lacks the modules still builds" "the drop-ins do not source cleanly"
+fi
+grep -q '^nvidia: module not built for 6.99.0-test ' "$test_tmp/nvidia-missing.err" ||
+  fail "a kernel without the modules says so in the build log" "stderr:"$'\n'"$(<"$test_tmp/nvidia-missing.err")"
+pass "an NVIDIA machine whose kernel lacks the modules still builds, and says so in the build log"
+
 new_etc
 drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
 assert_composed "a T2 Mac is unchanged" x86 \

@@ -35,9 +35,29 @@ elif omarchy-hw-nvidia; then
 options nvidia_drm modeset=1
 EOF
 
-  # Configure mkinitcpio for early loading
+  # Configure mkinitcpio for early loading. The modules are listed only when the
+  # kernel has them: a DKMS build for a newly installed kernel can fail, and an
+  # unconditional MODULES entry then fails the whole mkinitcpio run. No UKI is
+  # written then, limine keeps the previous kernel's entry, and the kernel
+  # update silently does nothing. Asking modinfo first degrades that case to a
+  # nouveau-only image, which still boots, and the build log says so.
+  #
+  # As with thunderbolt_module.conf, the modules are named without ? and only
+  # when the kernel has them, since a systemd initramfs copies MODULES as
+  # written into modules-load.d. The module lives in updates/dkms, not
+  # kernel/drivers/video, so ask modinfo rather than test a fixed path.
+  #
+  # Nothing rebuilds the image when the module appears later: a manual dkms
+  # install is no pacman transaction, so run limine-mkinitcpio once it succeeds.
   mkdir -p /etc/mkinitcpio.conf.d
   cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'EOF'
-MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
+# Early-load the proprietary NVIDIA driver where the kernel has it; written by
+# install/hardware/nvidia.sh. A kernel whose module is missing still gets a
+# bootable image, and the warning below says why it went without it.
+if [[ $(modinfo -k "${KERNELVERSION:-$(uname -r)}" -F filename nvidia 2>/dev/null) == /* ]]; then
+  MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
+else
+  printf 'nvidia: module not built for %s — image without nvidia (nouveau fallback)\n' "${KERNELVERSION:-$(uname -r)}" >&2
+fi
 EOF
 fi
