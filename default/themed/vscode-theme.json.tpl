@@ -54,7 +54,7 @@
 
         "textBlockQuote.background": "{{ background }}",
         "textBlockQuote.border": "{{ accent }}",
-        "textCodeBlock.background": "{{ background }}",
+        "textCodeBlock.background": "{{ muted }}40",
         "textLink.activeForeground": "{{ bright_blue }}",
         "textLink.foreground": "{{ blue }}",
         "textPreformat.foreground": "{{ foreground }}",
