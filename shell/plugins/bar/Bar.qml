@@ -1680,23 +1680,41 @@ Item {
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
     visible: cutoutWaitOver || !cutoutPending
-    // An explicit zone instead of Auto, so it moves with the surface's
-    // thickness in the same commit (settle below).
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: surfaceThickness
+    readonly property bool autohide: root.barConfig.autohide === true
+    property bool revealed: false
+    readonly property bool barPopupOpen: autohide && root.moduleSlots.some(slot =>
+      slot && slot.activeItem && (slot.activeItem.opened === true || slot.activeItem.popupOpen === true) &&
+      root.sameWindow(root.slotWindow(slot), barWindow))
+    readonly property bool tucked: autohide && !revealed && !dragActive && !barPopupOpen
+    readonly property bool parked: root.barHidden || tucked
+    onAutohideChanged: revealed = false
+
+    Timer {
+      id: hideDelay
+      interval: 180
+      onTriggered: {
+        if (!barHover.hovered && !edgeHover.hovered) barWindow.revealed = false
+      }
+    }
+
+    // A tucked bar gives the space back. Once revealed, reserve its strip so
+    // tiled windows do not render underneath the bar and hide their contents.
+    exclusionMode: root.barHidden || tucked ? ExclusionMode.Ignore : ExclusionMode.Normal
+    exclusiveZone: thickness
 
     // sameWindow, not identity: the drag records the QsWindow interface of
     // the slot's window, which is not this PanelWindow object itself.
     readonly property bool dragActive: (root.barDragSource !== null && root.sameWindow(root.barDragWindow, barWindow)) ||
       (root.barMoveActive && root.sameWindow(root.barMoveWindow, barWindow))
 
-    // Parked by its whole thickness, so none of it stays on screen however
-    // thick a notch floor makes it.
+    // Park the whole surface, leaving only the edge trigger on screen for autohide.
+    readonly property real parkDistance: surfaceVertical ? implicitWidth : implicitHeight
+    readonly property real parkedMargin: -(parkDistance - (root.barHidden ? 0 : edgeTrigger.depth))
     margins {
-      top: root.barHidden && barWindow.surfaceEdge === "top" ? -barWindow.surfaceThickness : 0
-      bottom: root.barHidden && barWindow.surfaceEdge === "bottom" ? -barWindow.surfaceThickness : 0
-      left: root.barHidden && barWindow.surfaceEdge === "left" ? -barWindow.surfaceThickness : 0
-      right: root.barHidden && barWindow.surfaceEdge === "right" ? -barWindow.surfaceThickness : 0
+      top: barWindow.parked && surfaceEdge === "top" ? barWindow.parkedMargin : 0
+      bottom: barWindow.parked && surfaceEdge === "bottom" ? barWindow.parkedMargin : 0
+      left: barWindow.parked && surfaceEdge === "left" ? barWindow.parkedMargin : 0
+      right: barWindow.parked && surfaceEdge === "right" ? barWindow.parkedMargin : 0
     }
 
     anchors {
@@ -1867,16 +1885,51 @@ Item {
       }
     }
 
+    // Idle, only the strip takes input, so the clear expanse passes clicks
+    // through to the windows and desktop below. Under fullscreen or while
+    // hidden, the bar takes no input; while tucked, only the edge reveals it.
+    mask: dragActive ? null : (underFullscreen || root.barHidden ? noInputRegion : (tucked ? edgeInputRegion : stripInputRegion))
+
+    Region {
+      id: stripInputRegion
+      item: barStrip
+    }
+
     // Under a fullscreen window the strip takes no input: Hyprland 0.56
     // passes the pointer through a faded top layer only while it holds the
     // layer below fullscreen, and it lifts every layer on the monitor back
     // above whenever a window on any other workspace leaves fullscreen, or
     // the layer remaps. The invisible strip would then take the clicks meant
-    // for the top of the fullscreen window.
-    mask: underFullscreen && !dragActive ? noInputRegion : null
 
     Region {
       id: noInputRegion
+    }
+
+    Region {
+      id: edgeInputRegion
+      item: edgeTrigger
+    }
+
+    // The parked surface leaves only its opposite edge on-screen. That strip
+    // reveals the bar without reserving space or mapping another surface.
+    Item {
+      id: edgeTrigger
+      readonly property int depth: 2
+      x: root.position === "left" ? parent.width - depth : 0
+      y: root.position === "top" ? parent.height - depth : 0
+      width: root.vertical ? depth : parent.width
+      height: root.vertical ? parent.height : depth
+
+      HoverHandler {
+        id: edgeHover
+        enabled: barWindow.tucked
+        onHoveredChanged: {
+          if (hovered) {
+            barWindow.revealed = true
+            hideDelay.restart()
+          }
+        }
+      }
     }
 
     // The bar itself, along its screen edge.
@@ -1888,6 +1941,15 @@ Item {
       y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
       width: root.vertical ? barWindow.thickness : parent.width
       height: root.vertical ? parent.height : barWindow.thickness
+
+      HoverHandler {
+        id: barHover
+        enabled: barWindow.autohide && !barWindow.tucked
+        onHoveredChanged: {
+          if (hovered) barWindow.revealed = true
+          else hideDelay.restart()
+        }
+      }
 
       Rectangle {
         anchors.fill: parent

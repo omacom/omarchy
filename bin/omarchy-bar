@@ -6,6 +6,7 @@
 # omarchy:subcommand=reset — Return to the built-in Omarchy bar
 # omarchy:subcommand=defaults — Restore the default bar and service widgets
 # omarchy:subcommand=position [top|bottom|left|right] — Set the bar position, or print it when given none
+# omarchy:subcommand=autohide [on|off] — Show or set whether the bar hides until the pointer reaches its edge
 # omarchy:subcommand=background [opaque|glassy|none|cycle] — Set the bar background, or print it when given none
 # omarchy:subcommand=put <id> [placement] — Put a widget on the bar, leaving one already there where it is
 # omarchy:subcommand=move <id> [placement] — Move a widget within or between sections
@@ -26,6 +27,7 @@ Usage: omarchy bar <command> [args...]
   defaults                             Restore the default bar and service widgets
   position [top|bottom|left|right]     Bar position; prints the current one
                                        when given none
+  autohide [on|off]                    Reveal the bar at the screen edge
   background [opaque|glassy|none|cycle]
                                        Bar background: glassy shows what is
                                        behind the bar blurred, cycle steps
@@ -212,6 +214,20 @@ cmd_defaults() {
     --argjson widgets "$optional_widgets"
   sync_glass || fail "could not change the blur behind the bar"
   echo "Restored the default Omarchy bar"
+}
+
+cmd_autohide() {
+  if (( $# == 0 )); then
+    jq -r 'if .bar.autohide == true then "on" else "off" end' "$(source_file)"
+    return
+  fi
+
+  (( $# == 1 )) || fail "autohide takes a single value"
+  case $1 in
+    on) commit "$NORMALIZE | .bar.autohide = true" ;;
+    off) commit "$NORMALIZE | del(.bar.autohide)" ;;
+    *) fail "autohide must be on or off" ;;
+  esac
 }
 
 cmd_position() {
@@ -493,6 +509,9 @@ case "$command" in
     ;;
   defaults)
     cmd_defaults "$@"
+    ;;
+  autohide)
+    cmd_autohide "$@"
     ;;
   position)
     cmd_position "$@"

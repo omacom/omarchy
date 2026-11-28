@@ -588,6 +588,23 @@ echo "ok"
 STUB
 chmod +x "$put_tmp/bin/omarchy-shell"
 
+bar_config() {
+  HOME="$put_tmp/bar-home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" "$@"
+}
+
+[[ $(bar_config autohide) == "off" ]] || fail "an existing bar defaults to always-on"
+bar_config position bottom
+bar_config autohide on
+[[ $(bar_config autohide) == "on" ]] || fail "the bar saves autohide"
+if bar_config autohide toggle >/dev/null 2>&1; then
+  fail "bar autohide rejects an invalid value"
+fi
+[[ $(bar_config autohide) == "on" ]] || fail "an invalid value leaves autohide enabled"
+bar_config autohide off
+[[ $(bar_config autohide) == "off" && $(bar_config position) == "bottom" ]] ||
+  fail "turning off autohide preserves the bar position"
+pass "bar autohide persists independently of bar position"
+
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=missing \
   OMARCHY_SHELL_ABSENT_ATTEMPTS=2 \
   "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
