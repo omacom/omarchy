@@ -216,13 +216,17 @@ openclaw)
   [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
   ;;
 codex)
+  # --approve-for-me reaches Codex as -c overrides its shared server can't
+  # take, so the session runs embedded and warns about it on every launch.
+  # --no-daemon asks for embedded outright. Drop it once Codex runs
+  # auto-review on the shared server.
   resume_supported=true
   if [[ -n $session ]]; then
-    command=(codex --approve-for-me resume "$session")
+    command=(codex --no-daemon --approve-for-me resume "$session")
   elif [[ $continue_last == "true" ]]; then
-    command=(codex --approve-for-me resume --last)
+    command=(codex --no-daemon --approve-for-me resume --last)
   else
-    command=(codex --approve-for-me)
+    command=(codex --no-daemon --approve-for-me)
   fi
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
