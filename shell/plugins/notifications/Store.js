@@ -6,6 +6,7 @@
 .import "Detect.js" as Detect
 
 var QSIMAGE = /^image:\/\/qsimage\/[0-9]+\/[0-9]+$/
+var ICON_NAME = /^[a-zA-Z0-9_.-]{1,256}$/
 
 // Everything a card draws and a history entry needs, read defensively from an
 // arbitrary sender.
@@ -25,6 +26,7 @@ function snapshot(n, key, urgencyEnum) {
     // Read whole: a path cut short names another file.
     img = Security.localImagePath(n.image)
   }
+  var icon = Security.bounded(n.appIcon || named, 256)
   var hints = n.hints || {}
   var raw = { app: Security.bounded(n.appName, Security.MAX_APP_NAME), summary: Security.bounded(n.summary, Security.MAX_SUMMARY),
               body: Security.bounded(n.body, Security.MAX_BODY) }
@@ -50,8 +52,9 @@ function snapshot(n, key, urgencyEnum) {
     sticky: hints["omarchy-sticky"] === true || hints["omarchy-sticky"] === 1,
     app: raw.app,
     // Else the desktop-entry hint, which names the app's .desktop file and so,
-    // usually, its icon. normalise() drops it when it is a path (Chrome's).
-    appIcon: Security.bounded(n.appIcon || named || n.desktopEntry, 256),
+    // usually, its icon. A path in app_icon (Chromium's temp logo) is not a
+    // name and gives way to the hint too; normalise() drops a path in either.
+    appIcon: ICON_NAME.test(icon) ? icon : Security.bounded(n.desktopEntry, 256),
     summary: id.summary,
     body: id.body,
     // What the sender sent, so a replay keeps the source anchor.
@@ -124,7 +127,7 @@ function normalise(row) {
   out.app = out.app.slice(0, Security.MAX_APP_NAME)
   out.summary = out.summary.slice(0, Security.MAX_SUMMARY)
   out.source = out.source.slice(0, Security.MAX_SOURCE)
-  out.appIcon = /^[a-zA-Z0-9_.-]{1,256}$/.test(out.appIcon) ? out.appIcon : ""
+  out.appIcon = ICON_NAME.test(out.appIcon) ? out.appIcon : ""
   out.link = Security.safeHttpUrl(out.link)
   out.glyph = Security.safeGlyph(out.glyph)
   var argv = Security.parseExecArgv(out.execArgv)
