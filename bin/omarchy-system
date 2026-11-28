@@ -71,23 +71,48 @@ exit_session() {
     fi
   fi
 
-  # Only show the OSD once the exit has taken 2 seconds, so a quick one doesn't flash it.
-  { sleep 2; omarchy-osd -i "${action/firmware/reboot}" -m "$(exit_message)" -d 0; } &
-  local osd_pid=$!
-
+  local cover_shown=0 cover_pid="" cover_ms="" osd_pid=""
   if [[ $action != "logout" ]]; then
     omarchy-state clear re*-required
+    cover_ms=$(omarchy-shell shell showShutdownCover 2>/dev/null || true)
+    if [[ $cover_ms =~ ^[0-9]+$ ]]; then
+      cover_shown=1
+      if (( cover_ms > 0 )); then
+        local wait_ms=$(( cover_ms + 100 )) wait_sec
+        printf -v wait_sec '%d.%03d' $(( wait_ms / 1000 )) $(( wait_ms % 1000 ))
+        sleep "$wait_sec" &
+        cover_pid=$!
+      fi
+    fi
+  fi
+
+  # Only show the OSD when no shutdown cover is up (otherwise it stacks over the
+  # logo), and only once the exit has taken 2 seconds so a quick one doesn't flash it.
+  if (( !cover_shown )); then
+    { sleep 2; omarchy-osd -i "${action/firmware/reboot}" -m "$(exit_message)" -d 0; } &
+    osd_pid=$!
   fi
 
   # Proceed as soon as apps exit, with a bound for unresponsive windows.
   timeout 2s omarchy-hyprland-window-close-all --wait
+  if [[ -n $cover_pid ]]; then
+    wait "$cover_pid"
+  fi
+
   if "${command[@]}"; then
     # The unit kills the delayed OSD when this script exits, so stay until the session goes down.
-    wait "$osd_pid"
+    if [[ -n $osd_pid ]]; then
+      wait "$osd_pid"
+    fi
   else
     local status=$?
-    kill "$osd_pid" 2>/dev/null
-    omarchy-shell -q osd close
+    if [[ -n $osd_pid ]]; then
+      kill "$osd_pid" 2>/dev/null
+      omarchy-shell -q osd close
+    fi
+    if (( cover_shown )); then
+      omarchy-shell -q shell hideShutdownCover
+    fi
     return "$status"
   fi
 }
