@@ -671,6 +671,9 @@
   "install.service": {
     "label": "Service"
   },
+  "install.utility": {
+    "label": "Utility"
+  },
   "install.development": {
     "label": "Development"
   },
@@ -790,6 +793,9 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
+  },
+  "install.utility.gearlever": {
+    "label": "Gear Lever"
   },
   "install.editor.vscode": {
     "label": "VSCode"
