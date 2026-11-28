@@ -5,5 +5,6 @@
   "PrivacySandboxAdTopicsEnabled": false,
   "PrivacySandboxSiteEnabledAdsEnabled": false,
   "PrivacySandboxAdMeasurementEnabled": false,
-  "PromotionalTabsEnabled": false
+  "PromotionalTabsEnabled": false,
+  "HttpAllowlist": ["ping.omacom.io"]
 }
