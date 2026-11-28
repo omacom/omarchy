@@ -989,13 +989,14 @@ pass "a colliding alias runs the command help names"
 # be read goes unnoticed by an alias dispatch, while help, which loads the
 # whole table, trips over it.
 # Root reads through the permission, so this check only means something for
-# an ordinary user.
+# an ordinary user. LC_ALL=C pins bash's error to the English text matched
+# below.
 if (( EUID != 0 )); then
   printf '#!/bin/bash\n\n# omarchy:summary=Unreadable unrelated command\necho unrelated\n' >"$TMPDIR/omarchy-zz-unreadable"
   chmod 111 "$TMPDIR/omarchy-zz-unreadable"
-  stderr=$("$TMPDIR/omarchy" fastalias one 2>&1 >/dev/null)
+  stderr=$(LC_ALL=C "$TMPDIR/omarchy" fastalias one 2>&1 >/dev/null)
   [[ $stderr != *"Permission denied"* ]] || fail "an alias dispatch reads only the commands that can own its route"
-  stderr=$("$TMPDIR/omarchy" fastalias --help 2>&1 >/dev/null)
+  stderr=$(LC_ALL=C "$TMPDIR/omarchy" fastalias --help 2>&1 >/dev/null)
   [[ $stderr == *"Permission denied"* ]] || fail "alias help still loads the whole table"
   chmod 755 "$TMPDIR/omarchy-zz-unreadable"
   rm -f "$TMPDIR/omarchy-zz-unreadable"
