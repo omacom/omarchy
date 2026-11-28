@@ -18,6 +18,7 @@ local modules = {
   "retroarch",
   "screenshot-selection",
   "steam",
+  "game-power", -- after steam so +steam-game is applied on window.open first
   "system",
   "telegram",
   "terminals",
