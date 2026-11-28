@@ -13,3 +13,9 @@ if rg -q 'Indicators.qml.*Binding loop detected for property "implicitWidth"' "$
   fail "indicator tray avoids implicit-width binding loops"
 fi
 pass "indicator tray avoids implicit-width binding loops"
+
+if rg -q 'Indicators.qml.*TypeError:' "$QML_FIXTURE_LOG"; then
+  cat "$QML_FIXTURE_LOG" >&2
+  fail "destroying the indicator host avoids null-owner property reads"
+fi
+pass "destroying the indicator host avoids null-owner property reads"

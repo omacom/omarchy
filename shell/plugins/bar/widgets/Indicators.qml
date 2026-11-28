@@ -527,6 +527,8 @@ BarWidget {
     }
 
     function injectProps() {
+      // Owner bindings can change during bar teardown after root is gone.
+      if (!root) return
       var target = indicatorSource.item
       if (!target) return
       if ("bar" in target) target.bar = root.bar

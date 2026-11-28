@@ -8,6 +8,8 @@ ShellRoot {
   property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property var commands: []
+  property var teardownHost: null
+  property var teardownTray: null
 
   function fail(message) {
     failures.push(String(message))
@@ -73,8 +75,7 @@ ShellRoot {
     }
   }
 
-  QtObject {
-    id: mockBar
+  component TestBar: Item {
     property bool vertical: false
     property int barSize: 26
     property string fontFamily: "monospace"
@@ -89,6 +90,13 @@ ShellRoot {
     function hideTooltip(target) {}
     function registerClickTarget(target) {}
     function unregisterClickTarget(target) {}
+  }
+
+  TestBar { id: mockBar }
+
+  Component {
+    id: teardownHostComponent
+    TestBar {}
   }
 
   QtObject {
@@ -223,12 +231,48 @@ ShellRoot {
 
   function checkInactiveOrders(cases) {
     if (cases.length === 0) {
-      checkTraySection(writeResult)
+      checkTraySection(checkHostTeardown)
       return
     }
     checkInactiveOrder(cases[0], function() {
       root.checkInactiveOrders(cases.slice(1))
     })
+  }
+
+  function checkHostTeardown() {
+    teardownHost = teardownHostComponent.createObject(root)
+    var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
+    teardownTray = component.createObject(teardownHost, {
+      bar: teardownHost,
+      settings: { items: ["StayAwake", "Dnd"] }
+    })
+    if (!teardownTray) {
+      fail("teardown tray failed to instantiate: " + component.errorString())
+      writeResult()
+      return
+    }
+    Qt.callLater(function() {
+      for (var id of ["StayAwake", "Dnd"]) {
+        var slot = root.indicatorSlot(root.teardownTray, "inactive", id)
+        var indicator = null
+        var children = slot ? slot.children : []
+        for (var i = 0; i < children.length; i++) {
+          if (children[i].item) indicator = children[i].item
+        }
+        root.assertTrue(!!indicator && indicator.moduleName === id && indicator.bar === root.teardownHost && indicator.indicatorHost === root.teardownTray, id + " loads with properties injected from the live host")
+      }
+      root.teardownHost.destroy()
+      hostTeardownCheck.start()
+    })
+  }
+
+  Timer {
+    id: hostTeardownCheck
+    interval: 50
+    onTriggered: {
+      root.assertTrue(root.teardownHost === null && root.teardownTray === null, "destroying the host destroys its indicator tray")
+      root.writeResult()
+    }
   }
 
   // In the tray's drawer, an idle widget with its icons hidden takes no room,
