@@ -103,6 +103,10 @@ def on_method_call(connection, sender, path, interface, method, params, invocati
         "org.freedesktop.DBus.Error.Failed",
         "idle service disconnected",
       )
+      try:
+        connection.flush_sync(None)
+      except GLib.Error:
+        pass
       return
     invocation.return_value(GLib.Variant("(u)", (cookie,)))
   elif method == "UnInhibit":

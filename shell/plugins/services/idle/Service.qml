@@ -259,6 +259,7 @@ Item {
 
   onAppInhibitedChanged: {
     if (appInhibited) {
+      if (screensaverProcess.running) screensaverProcess.running = false
       if (root.screensaverStartedThisCycle) screensaverStopProcess.running = true
       cancelIdleCycle("app-inhibit")
     } else {
@@ -333,7 +334,7 @@ Item {
 
   Process {
     id: screensaverInhibitService
-    command: ["python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/services/idle/screensaver.py"]
+    command: ["/usr/bin/python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/services/idle/screensaver.py"]
     // The helper exits when this pipe closes, so it cannot outlive the shell.
     stdinEnabled: true
     running: true
