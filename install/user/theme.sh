@@ -21,3 +21,9 @@ omarchy-theme-set-qt
 
 mkdir -p ~/.config/btop/themes
 ln -snf "$HOME/.local/state/omarchy/current/theme/btop.theme" ~/.config/btop/themes/current.theme
+
+# Default Grok to the terminal palette on fresh installs; existing installs
+# are covered by migrations/1791925379.sh. Kept here (not the removed
+# install/user/mise.sh) because upstream installs coding agents as packages
+# and no longer ships a mise reshim step.
+omarchy-setup-grok-theme
