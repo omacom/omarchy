@@ -293,8 +293,8 @@ Item {
               : 0
 
             visible: root.showingQr
-            width: root.qrSize * moduleSize
-            height: width
+            Layout.preferredWidth: root.qrSize * moduleSize
+            Layout.preferredHeight: root.qrSize * moduleSize
             color: "white"
             radius: Style.cornerRadius
             Layout.alignment: Qt.AlignHCenter

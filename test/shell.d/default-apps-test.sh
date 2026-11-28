@@ -92,6 +92,7 @@ omarchy-install-browser)
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
   zen) command=zen-browser ;;
+  ladybird) command=ladybird ;;
   esac
   ;;
 omarchy-install-terminal)
@@ -183,6 +184,7 @@ browser_cases=(
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
   'zen zen-browser browser:zen'
+  'ladybird ladybird browser:ladybird'
 )
 
 terminal_cases=(

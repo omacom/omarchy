@@ -226,8 +226,8 @@ Item {
           y: index * band
           width: stage.width
           height: band
-          x: { view.frame; return (Math.random() - 0.5) * (Math.random() < 0.35 ? 2.4 : 0.5) * Style.space(70) * view.noise }
-          opacity: { view.frame; return Math.random() < view.noise * 0.5 ? 0.15 : 1 }
+          x: { const _ = view.frame; return (Math.random() - 0.5) * (Math.random() < 0.35 ? 2.4 : 0.5) * Style.space(70) * view.noise }
+          opacity: { const _ = view.frame; return Math.random() < view.noise * 0.5 ? 0.15 : 1 }
         }
       }
 
@@ -235,12 +235,12 @@ Item {
         model: view.noise > 0 ? 18 : 0
 
         Rectangle {
-          x: { view.frame; return -Style.space(120) + Math.random() * (stage.width + Style.space(160)) }
-          y: { view.frame; return Math.random() * stage.height }
-          width: { view.frame; return Style.space(6) + Math.random() * Style.space(90) }
+          x: { const _ = view.frame; return -Style.space(120) + Math.random() * (stage.width + Style.space(160)) }
+          y: { const _ = view.frame; return Math.random() * stage.height }
+          width: { const _ = view.frame; return Style.space(6) + Math.random() * Style.space(90) }
           height: Math.max(1, Style.space(1))
           color: "white"
-          opacity: { view.frame; return Math.random() * 0.5 * view.noise }
+          opacity: { const _ = view.frame; return Math.random() * 0.5 * view.noise }
         }
       }
     }
@@ -251,7 +251,7 @@ Item {
       width: Math.min(view.width - Style.space(48), Style.space(520))
       // Hold the line's height while it is empty, so the print never shifts.
       text: view.statusText !== "" ? view.statusText : " "
-      opacity: { view.frame; return view.noise > 0 && Math.random() < 0.5 ? 0.3 : 1 }
+      opacity: { const _ = view.frame; return view.noise > 0 && Math.random() < 0.5 ? 0.3 : 1 }
       color: view.ctl.phase === "failed" ? view.onScrimUrgent : view.onScrimDim
       font.family: Style.font.family
       font.pixelSize: Style.font.heading

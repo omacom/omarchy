@@ -11,14 +11,12 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import qs.Commons
-import qs.Commons as Commons
 
 import "Store.js" as Store
 import "Security.js" as Security
 import "Layout.js" as Layout
 import "Markup.js" as Markup
 import "Delivery.js" as Delivery
-import "Icons.js" as Icons
 
 Item {
   id: service
@@ -528,7 +526,7 @@ Item {
   // A move started after the jump settles on its own finish instead.
   function landed() { if (t >= 1) settled() }
 
-  readonly property var layout: { layoutRevision; return layoutWith(expanded, openDeck) }
+  readonly property var layout: { const _ = layoutRevision; return layoutWith(expanded, openDeck) }
 
   // The deck as it would stand with this deck open; the keyboard asks before
   // it moves.

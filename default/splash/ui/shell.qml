@@ -28,8 +28,8 @@ ShellRoot {
     editable: root.phase === "password"
   }
 
-  // The layouts the session exported, which sway switches between at a click
-  // (Splash.qml).
+  // The layouts the session exported, which sway switches between on a click
+  // or Shift+Tab (Splash.qml).
   readonly property Layouts layouts: Layouts {
     layout: Quickshell.env("OMARCHY_SPLASH_XKBLAYOUT") ?? ""
     variant: Quickshell.env("OMARCHY_SPLASH_XKBVARIANT") ?? ""

@@ -99,8 +99,14 @@ wait_for_session() {
 
 mapfile -t nodes < <(splash_devices)
 if (( ${#nodes[@]} == 0 )); then
-  echo "the splash has no display open"
-  exit 1
+  session=$(cat /run/omarchy-splash/session.pid 2>/dev/null || true)
+  if [[ -n $session ]] && kill -0 "$session" 2>/dev/null; then
+    echo "the splash is running but has no display open; nothing to hold" >&2
+  else
+    echo "the splash is no longer running; nothing to hold" >&2
+  fi
+  systemd-notify --ready
+  exit 0
 fi
 
 # A compositor takes a device through logind, which opens it, then reads the

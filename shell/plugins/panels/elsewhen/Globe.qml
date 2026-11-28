@@ -3,7 +3,6 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
-import qs.Ui
 import "GlobeModel.js" as Solar
 import "Model.js" as Model
 

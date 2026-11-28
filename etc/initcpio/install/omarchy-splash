@@ -62,6 +62,18 @@ build() {
   add_full_dir /usr/share/libinput
   add_udev_rule 60-input-id.rules
 
+  # Touchpads and pointers (the keyboard hook brings only USB HID,
+  # drivers/hid/hid-* and input/serio|keyboard): I2C HID, Intel THC, PS/2 and
+  # I2C mice/touchpads, Synaptics RMI4, the Intel LPSS (and idma64 DMA) and
+  # I2C/SMBus controllers they sit on, and Intel pinctrl for their GPIO IRQs.
+  map add_checked_modules \
+    '/drivers/hid/(i2c-hid|intel-thc-hid)/' \
+    '/drivers/input/(mouse|rmi4)/' \
+    '/drivers/mfd/intel-lpss' \
+    '/drivers/dma/idma64' \
+    '/drivers/i2c/busses/i2c-(designware|i801|piix4|amd-mp2|qcom-geni)' \
+    '/drivers/pinctrl/intel/'
+
   # The font a shown password is drawn in (ui/Splash.qml), at its own path.
   if [[ -f $font ]]; then
     add_file "$font"

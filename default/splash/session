@@ -52,7 +52,7 @@ has_connectors() {
 wait_native() {
   i=0
   find_cards
-  while [ -z "$native" ] && [ "$i" -lt "$1" ]; do
+  while [ -z "$native" ] && [ ! -e "$run/stopping" ] && [ "$i" -lt "$1" ]; do
     sleep 0.1
     i=$((i + 1))
     find_cards
@@ -60,12 +60,14 @@ wait_native() {
 }
 
 wait_native 80
+[ ! -e "$run/stopping" ] || exit 0
 devices=${native:-$firmware}
 if [ -z "$devices" ]; then
   echo "omarchy-splash: no display to draw on"
   exit 1
 fi
 echo "omarchy-splash: drawing on $devices"
+touch "$run/starting"
 
 # amdgpu powers a GPU down once no display is connected to it, and a GPU that
 # is powered down misses a display plugged in later. The GPUs stay powered
@@ -168,6 +170,7 @@ esac
 while :; do
   seatd-launch -- sway $debug --config /usr/lib/omarchy-splash/sway.conf
   status=$?
+  rm -f "$run/ready"
   if [ -e "$run/stopping" ] || [ -e "$run/dismissed" ] || [ "$devices" != "$firmware" ]; then
     exit "$status"
   fi

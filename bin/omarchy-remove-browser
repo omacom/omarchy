@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a supported browser and clean up Omarchy browser defaults
-# omarchy:args=<chrome|chromium|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chrome|chromium|brave|brave-origin|edge|firefox|zen|ladybird>
 # omarchy:examples=omarchy remove browser firefox | omarchy remove browser brave
 # omarchy:requires-sudo=true
 
@@ -73,8 +73,13 @@ zen)
   set_fallback_default_browser zen.desktop
   omarchy-pkg-drop zen-browser-bin
   ;;
+ladybird)
+  echo "Removing Ladybird..."
+  set_fallback_default_browser org.ladybird.Ladybird.desktop
+  omarchy-pkg-drop ladybird-bin
+  ;;
 *)
-  echo "Usage: omarchy-remove-browser <chrome|chromium|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-remove-browser <chrome|chromium|brave|brave-origin|edge|firefox|zen|ladybird>"
   exit 1
   ;;
 esac

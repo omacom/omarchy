@@ -1002,6 +1002,12 @@ PATH="$kms/bin:$PATH" omarchy_kmscon "$kms/log" us en "" /usr/bin/setup
 grep -qx -- '--palette-light-red=247, 118, 142' "$kms/args" || fail "without an OEM colour bright red is Tokyo Night's" "$(cat "$kms/args")"
 pass "kmscon is started under the keymap's layout, in the language's font and an OEM's colour"
 
+PATH="$kms/bin:$PATH" OMARCHY_KMSCON_FB_NAME=msmdrmfb omarchy_kmscon "$kms/log" us en "" /usr/bin/setup
+grep -qx -- '--no-drm' "$kms/args" || fail "msmdrmfb passes --no-drm to kmscon" "$(cat "$kms/args")"
+PATH="$kms/bin:$PATH" OMARCHY_KMSCON_FB_NAME=simpledrmdrmfb omarchy_kmscon "$kms/log" us en "" /usr/bin/setup
+! grep -qx -- '--no-drm' "$kms/args" || fail "non-msm framebuffer keeps DRM enabled" "$(cat "$kms/args")"
+pass "kmscon falls back to --no-drm on msmdrmfb and keeps DRM elsewhere"
+
 sed -n '/^keyboard_form() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" >"$kms/keyboard.sh"
 cat >"$kms/form.sh" <<SH
 set -euo pipefail

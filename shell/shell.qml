@@ -1800,6 +1800,7 @@ ShellRoot {
     onFileChanged: reload()
   }
 
+  // qmllint disable unresolved-type required
   Variants {
     model: shell.parseShortcuts(shortcutsFile.text())
 
@@ -1812,6 +1813,7 @@ ShellRoot {
       onPressed: shell.runShortcut(modelData)
     }
   }
+  // qmllint enable unresolved-type required
 
   // ------------------------------------------------------------ IPC socket
   //

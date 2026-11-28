@@ -4,13 +4,14 @@ import Quickshell.Wayland
 
 // One screen of the splash, laid out as the Omarchy Plymouth theme laid it
 // out: the logo centred, the unlock field 40px under it with the lock to its
-// left, and the progress bar where the field was. Holding the eye inside the
-// field's right edge shows the password instead of dots, and the keyboard in
-// the bottom-right corner switches the layout it is typed in. The boot splash
-// (shell.qml) and the login screen (greeter.qml) both draw it, each as its
-// `shell`, which all its screens share: `phase`, `progress`, `colors`,
-// `password` (Password.qml), `layouts` (Layouts.qml), `submit()`, `dismiss()`
-// and `showPointer()`, and the boot splash's `message` too.
+// left, and the progress bar where the field was. Clicking the eye inside the
+// field's right edge (or pressing Tab) toggles showing the password instead of
+// dots, and the keyboard in the bottom-right corner (or Shift+Tab) switches
+// the layout it is typed in. The boot splash (shell.qml) and the login screen
+// (greeter.qml) both draw it, each as its `shell`, which all its screens share:
+// `phase`, `progress`, `colors`, `password` (Password.qml), `layouts`
+// (Layouts.qml), `submit()`, `dismiss()` and `showPointer()`, and the boot
+// splash's `message` too.
 PanelWindow {
   id: window
 
@@ -60,8 +61,9 @@ PanelWindow {
     onMovedChanged: if (moved) window.shell.showPointer()
   }
 
-  function reveal(held) {
-    password.revealed = held && field.visible
+  function reveal(shown, held) {
+    password.revealHeld = !!held && shown && field.visible
+    password.revealed = shown && field.visible
   }
 
   Logo {
@@ -76,7 +78,10 @@ PanelWindow {
   Item {
     id: field
     visible: window.shell.phase === "password"
-    onVisibleChanged: if (!visible) pointer.moved = false
+    onVisibleChanged: if (!visible) {
+      pointer.moved = false
+      window.reveal(false)
+    }
     width: 286
     height: 48
     x: (parent.width - width) / 2
@@ -116,7 +121,7 @@ PanelWindow {
       MouseArea {
         anchors.fill: parent
         anchors.margins: -8
-        onPressedChanged: window.reveal(pressed)
+        onClicked: window.reveal(!window.password.revealed)
       }
     }
 
@@ -159,14 +164,34 @@ PanelWindow {
   }
 
   // The layout the password is typed in, while there is another to switch to,
-  // which a click or tap does: no key does (default/splash/layouts).
+  // which a click, tap or Shift+Tab does.
   Item {
+    id: layoutIndicator
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     anchors.margins: 32
     width: toggle.width
     height: toggle.height
     visible: field.visible && window.layouts.count > 1
+
+    property color tint: window.colors.foreground
+
+    ColorAnimation {
+      id: layoutFlash
+      target: layoutIndicator
+      property: "tint"
+      from: window.colors.accent
+      to: window.colors.foreground
+      duration: 450
+      easing.type: Easing.OutQuad
+    }
+
+    Connections {
+      target: window.layouts
+      function onIndexChanged() {
+        if (field.visible) layoutFlash.restart()
+      }
+    }
 
     Row {
       id: toggle
@@ -178,20 +203,23 @@ PanelWindow {
         textFormat: Text.PlainText
         font.family: mono.name
         font.pixelSize: 16
-        color: window.colors.foreground
+        color: layoutIndicator.tint
       }
 
       Keyboard {
         anchors.verticalCenter: parent.verticalCenter
         height: 14
-        color: window.colors.foreground
+        color: layoutIndicator.tint
       }
     }
 
     MouseArea {
       anchors.fill: parent
       anchors.margins: -8
-      onClicked: window.layouts.next()
+      onClicked: {
+        window.layouts.next()
+        window.password.touchReveal()
+      }
     }
   }
 
@@ -243,25 +271,37 @@ PanelWindow {
     // Plymouth's line editing, but for Ctrl+C and Ctrl+D, which clear rather
     // than cancel the prompt (that dropped Plymouth's boot to the emergency
     // shell). Alt+F8 is the Windows sign-in screen's shortcut; Qt's key repeat
-    // releases F8 too. Escape (or Ctrl+[) is the shell's to handle.
+    // releases F8 too. Tab toggles visibility and Shift+Tab cycles layouts
+    // when more than one is configured. Escape (or Ctrl+[) is the shell's to
+    // handle.
     Keys.onReleased: event => {
-      if (event.key === Qt.Key_F8 && !event.isAutoRepeat) window.reveal(false)
+      if (event.key === Qt.Key_F8 && !event.isAutoRepeat && window.password.revealHeld) {
+        window.reveal(false)
+      }
     }
     Keys.onPressed: event => {
       event.accepted = true
-      const text = event.text
-      if (event.key === Qt.Key_F8 && event.modifiers & Qt.AltModifier) {
-        window.reveal(true)
-      } else if (event.key === Qt.Key_Escape || text === "\x1b") {
+      const action = window.password.actionForKey(
+        event.key, event.modifiers, event.text, event.isAutoRepeat,
+        field.visible, window.layouts.count
+      )
+      if (action === "toggleReveal") {
+        window.reveal(!window.password.revealed)
+      } else if (action === "nextLayout") {
+        window.layouts.next()
+        window.password.touchReveal()
+      } else if (action === "reveal") {
+        window.reveal(true, true)
+      } else if (action === "dismiss") {
         window.shell.dismiss()
-      } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || text === "\n" || text === "\r") {
+      } else if (action === "submit") {
         window.shell.submit()
-      } else if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete || text === "\x7f") {
+      } else if (action === "removeLast") {
         window.password.removeLast()
-      } else if (text === "\x15" || text === "\x17" || text === "\x03" || text === "\x04") {
+      } else if (action === "clear") {
         window.password.clear()
-      } else {
-        window.password.append(text)
+      } else if (action === "append") {
+        window.password.append(event.text)
       }
     }
   }

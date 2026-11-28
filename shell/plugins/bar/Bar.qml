@@ -1708,12 +1708,14 @@ Item {
 
     // Parked by its whole thickness, so none of it stays on screen however
     // thick a notch floor makes it.
+    // qmllint disable unresolved-type
     margins {
       top: root.barHidden && barWindow.surfaceEdge === "top" ? -barWindow.surfaceThickness : 0
       bottom: root.barHidden && barWindow.surfaceEdge === "bottom" ? -barWindow.surfaceThickness : 0
       left: root.barHidden && barWindow.surfaceEdge === "left" ? -barWindow.surfaceThickness : 0
       right: root.barHidden && barWindow.surfaceEdge === "right" ? -barWindow.surfaceThickness : 0
     }
+    // qmllint enable unresolved-type
 
     anchors {
       top: barWindow.surfaceEdge === "top" || barWindow.surfaceVertical
@@ -1936,7 +1938,6 @@ Item {
       })
 
       anchor {
-        id: tooltipAnchor
         window: barWindow
         adjustment: PopupAdjustment.Slide
         edges: Edges.Top | Edges.Left
@@ -1964,8 +1965,10 @@ Item {
           }
 
           var point = barWindow.contentItem.mapFromItem(target, localX, localY)
-          tooltipAnchor.rect.x = Math.round(point.x)
-          tooltipAnchor.rect.y = Math.round(point.y)
+          // qmllint disable unresolved-type
+          tooltipWindow.anchor.rect.x = Math.round(point.x)
+          tooltipWindow.anchor.rect.y = Math.round(point.y)
+          // qmllint enable unresolved-type
         }
       }
 

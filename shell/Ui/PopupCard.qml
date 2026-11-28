@@ -93,7 +93,6 @@ PopupWindow {
   }
 
   anchor {
-    id: popupAnchor
     window: anchorItem ? anchorItem.QsWindow.window : null
     adjustment: PopupAdjustment.Slide
     edges: Edges.Top | Edges.Left
@@ -140,8 +139,10 @@ PopupWindow {
           cy = Math.max(root.margin, Math.min(cy, window.height - popupHeight - root.margin))
         }
 
-        popupAnchor.rect.x = Math.round(cx)
-        popupAnchor.rect.y = Math.round(cy)
+        // qmllint disable unresolved-type
+        root.anchor.rect.x = Math.round(cx)
+        root.anchor.rect.y = Math.round(cy)
+        // qmllint enable unresolved-type
         return
       }
 
@@ -153,8 +154,10 @@ PopupWindow {
         point.y = Math.max(root.margin, Math.min(point.y, window.height - popupHeight - root.margin))
       }
 
-      popupAnchor.rect.x = Math.round(point.x)
-      popupAnchor.rect.y = Math.round(point.y)
+      // qmllint disable unresolved-type
+      root.anchor.rect.x = Math.round(point.x)
+      root.anchor.rect.y = Math.round(point.y)
+      // qmllint enable unresolved-type
     }
   }
 
