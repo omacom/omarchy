@@ -58,8 +58,8 @@ Swipe on the trackpad to move around the desktop:
 | Gesture | Action |
 | --- | --- |
 | Three fingers left / right | Previous / next workspace, including empty ones |
-| Three fingers up | Toggle the AI console |
-| Three fingers down | Open the Omarchy menu |
+| Three fingers up | Open the Omarchy menu, or dismiss the Quake console |
+| Three fingers down | Open the Quake console, or dismiss the Omarchy menu |
 | Four fingers left / right | Move the active window to the previous / next workspace |
 | Four fingers down | Toggle fullscreen |
 
