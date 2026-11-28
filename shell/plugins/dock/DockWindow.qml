@@ -123,10 +123,11 @@ PanelWindow {
     if (window.autohide) hideTimer.restart()
   }
 
-  // The slot a point along the dock falls before, counting from the first app.
+  // The slot a point along the dock falls before, counting from the first app,
+  // which comes after the layout and apps buttons.
   function slotIndexAt(point) {
     var along = window.vertical ? point.y : point.x
-    var first = window.slotSize
+    var first = window.slotSize * 2
     var count = window.dock ? window.dock.itemModel.count : 0
     return Math.max(0, Math.min(count, Math.round((along - first) / window.slotSize)))
   }
@@ -302,8 +303,9 @@ PanelWindow {
     Grid {
       id: slots
       anchors.centerIn: parent
-      columns: window.vertical ? 1 : appRepeater.count + 1
+      columns: window.vertical ? 1 : appRepeater.count + 2
 
+      LayoutSlot {}
       AppsSlot {}
 
       Repeater {
@@ -333,6 +335,55 @@ PanelWindow {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+    }
+  }
+
+  // The workspace's layout, in the bar's marks: a square tiles, a circle
+  // scrolls, and a triangle floats. A click cycles to the next one, as
+  // Super + L does, and a right-click back, as Super + Alt + L does.
+  component LayoutSlot: Slot {
+    id: layoutSlot
+
+    readonly property string mode: window.dock && window.dock.modes[window.workspaceId] ? window.dock.modes[window.workspaceId] : "dwindle"
+    property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
+
+    Behavior on displayedShift {
+      enabled: window.animateShifts
+      NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+    }
+
+    transform: Translate {
+      x: window.vertical ? 0 : layoutSlot.displayedShift
+      y: window.vertical ? layoutSlot.displayedShift : 0
+    }
+
+    // The layout commands act on the focused workspace, so a click on another
+    // screen's dock focuses that screen first.
+    mouse.onClicked: function(event) {
+      window.closeMenu()
+      var command = "omarchy-hyprland-workspace-layout-toggle" + (event.button === Qt.RightButton ? " back" : "")
+      if (window.monitor && !window.monitor.focused)
+        command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null && " + command
+      Util.execDetached(command)
+    }
+
+    Text {
+      x: window.iconInset
+      y: window.iconInset
+      width: window.iconSize
+      height: window.iconSize
+      horizontalAlignment: Text.AlignHCenter
+      verticalAlignment: Text.AlignVCenter
+      text: layoutSlot.mode === "scrolling" ? "󰝥" : layoutSlot.mode === "floating" ? "󰔶" : "󱓻"
+      font.family: Style.font.family
+      font.pixelSize: Math.round(window.iconSize * 0.8)
+      // A theme change fades it with the bar's palette.
+      color: Commons.Color.bar.text
+      scale: layoutSlot.hovered ? 1.15 : 1
+      transformOrigin: window.popOrigin
+
+      Behavior on color { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
+      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     }
   }
 
