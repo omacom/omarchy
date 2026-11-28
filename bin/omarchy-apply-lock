@@ -40,6 +40,10 @@ auth       required                    pam_faillock.so authsucc
 account    include                     system-local-login
 EOF
 
+# The omarchy-lock-fido2 PAM service belongs to omarchy-setup-security-fido2 and
+# omarchy-remove-security-fido2; this helper neither writes nor deletes it, so
+# an upgrade keeps a registered security key working on the lock screen.
+
 # Install resume recovery alongside fingerprint PAM, so setup and upgrades
 # cannot leave one configured without the other.
 resume_hook_src="$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume"

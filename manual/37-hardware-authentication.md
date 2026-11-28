@@ -14,6 +14,6 @@ You can remove the fingerprint authentication under _Remove > Security > Fingerp
 
 ### Fido2 authentication
 
-If you're using a Fido2 device, you can set it up for `sudo` authentication using _Setup > Security > Fido2_ in the Omarchy menu (`Super + Space`). It covers `sudo` and system authorization prompts, though, not unlocking your computer.
+If you're using a Fido2 device, you can set it up for `sudo` authentication using _Setup > Security > Fido2_ in the Omarchy menu (`Super + Space`). It covers `sudo`, system authorization prompts and the lock screen. On the lock screen, touch the key to unlock without typing anything; the password still works. Like the fingerprint sensor, the key is only asked while the screen is on, so wake it with any key first. Touching the key is the only check, so anyone holding it can unlock your computer.
 
 You can remove the fido2 authentication under _Remove > Security > Fido2_ in the Omarchy menu.

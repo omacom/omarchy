@@ -12,6 +12,9 @@ Item {
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool fingerprintUnavailable: false
+  property bool fido2Configured: false
+  // The key is waiting for a touch.
+  property bool fido2Prompting: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -30,6 +33,10 @@ Item {
   // Space to keep clear on each side of the field for the fingerprint icon
   // (icon width plus a gap) so the centered dots never run under it.
   readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  // The security-key icon sits left of the fingerprint one, so the dots keep
+  // clear of both.
+  readonly property real fido2Reserve: fido2Configured ? Math.round(fido2Icon.implicitWidth + 12) : 0
+  readonly property real indicatorReserve: fingerprintReserve + fido2Reserve
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
@@ -155,9 +162,9 @@ Item {
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
         // dots stay symmetric and never slide under the icon as they grow.
-        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
+        anchors.rightMargin: inputField.borderRight + 18 + root.indicatorReserve
         anchors.bottomMargin: inputField.borderBottom
-        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve
+        anchors.leftMargin: inputField.borderLeft + 18 + root.indicatorReserve
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
@@ -241,6 +248,24 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
       }
+
+      // Security-key hint, left of the fingerprint one. It brightens while the
+      // key is waiting for a touch, with the words below the field.
+      Text {
+        id: fido2Icon
+        objectName: "fido2Indicator"
+        textFormat: Text.PlainText
+        anchors.right: parent.right
+        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.fido2Configured
+        text: "󰌆"
+        color: root.fido2Prompting ? Commons.Color.lock.text : Commons.Color.lock.placeholder
+        font.family: Style.font.family
+        font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+      }
     }
 
     // The crossed-out icon has no meaning to a user who has never seen it — it
@@ -258,6 +283,20 @@ Item {
       font.family: Style.font.family
       font.pixelSize: Style.font.heading
       font.italic: true
+      horizontalAlignment: Text.AlignHCenter
+    }
+
+    Text {
+      objectName: "fido2Notice"
+      textFormat: Text.PlainText
+      anchors.top: inputField.bottom
+      anchors.topMargin: 18
+      anchors.horizontalCenter: inputField.horizontalCenter
+      visible: root.fido2Configured && root.fido2Prompting && !(root.fingerprintConfigured && root.fingerprintUnavailable)
+      text: Commons.I18n.t("lock.touchSecurityKey")
+      color: Commons.Color.lock.text
+      font.family: Style.font.family
+      font.pixelSize: Style.font.heading
       horizontalAlignment: Text.AlignHCenter
     }
   }

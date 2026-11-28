@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Set up FIDO2 authentication for sudo and polkit
+# omarchy:summary=Set up FIDO2 authentication for sudo, polkit and the lock screen
 # omarchy:requires-sudo=true
 
 set -e
@@ -38,6 +38,19 @@ password  include system-auth
 session   include system-auth
 EOF
   fi
+
+  # Lock screen: the shell starts this service itself, and only while the lock
+  # is up and awake, so the key unlocks without typing anything first. It is
+  # its own service, so a missing or unplugged key just fails the attempt and
+  # the password still works. No pinverification: the lock has no PIN prompt,
+  # which makes the key the only factor on the lock screen (holding it is
+  # enough). omarchy-apply-lock leaves this file alone.
+  echo "Configuring the lock screen for FIDO2 authentication..."
+  sudo tee /etc/pam.d/omarchy-lock-fido2 >/dev/null <<'EOF'
+#%PAM-1.0
+auth       required                    pam_u2f.so cue authfile=/etc/fido2/fido2
+account    include                     system-local-login
+EOF
 }
 
 echo -e "\e[32mSetting up FIDO2 device for authentication.\n\e[0m"
@@ -142,7 +155,7 @@ echo -e "Touch your FIDO2 key when prompted.\n"
 
 if sudo echo "FIDO2 authentication test successful"; then
   echo -e "\e[32m\nPerfect! FIDO2 authentication is now configured.\e[0m"
-  echo "You can use your FIDO2 key for sudo and polkit authentication."
+  echo "You can use your FIDO2 key for sudo, polkit and lock screen authentication."
 else
   echo -e "\e[31m\nVerification failed. You may want to check your configuration.\e[0m"
 fi
