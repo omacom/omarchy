@@ -266,11 +266,11 @@ pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
 # Native Linux Steam games keep their own window class instead of
 # steam_app_<appid>, so steam.lua detects them from SteamGameId in
 # /proc/<pid>/environ on window.open and starts them fullscreen.
-SteamGameId=239820 sleep 10 &
+SteamGameId=239820 sleep 10 >/dev/null 2>&1 &
 steam_game_pid=$!
-env -u SteamGameId -u SteamAppId sleep 10 &
+env -u SteamGameId -u SteamAppId sleep 10 >/dev/null 2>&1 &
 plain_app_pid=$!
-trap 'kill "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true; rm -rf "$tmpdir"' EXIT
+trap 'kill "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true; wait "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true; rm -rf "$tmpdir"' EXIT
 
 HOME="$fresh_home" OMARCHY_PATH="$ROOT" STEAM_GAME_PID="$steam_game_pid" PLAIN_APP_PID="$plain_app_pid" lua - <<'LUA' || fail "native Steam games fullscreen on open while dialogs and non-Steam apps do not"
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
