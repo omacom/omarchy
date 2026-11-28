@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.system",
+  "name": "System",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Memory by what holds it, CPU load, and disk space",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "System",
+    "description": "Memory split between local models, apps, cache and free; CPU load over the last minute and per core; space on each disk.",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

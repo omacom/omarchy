@@ -28,6 +28,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Monitor       | `omarchy.monitor`         | `bar-widget`            | `panels/monitor/Panel.qml`            |
 | Network       | `omarchy.network`         | `bar-widget`            | `panels/network/Panel.qml`            |
 | Power         | `omarchy.power`           | `bar-widget`            | `panels/power/Panel.qml`              |
+| System        | `omarchy.system`          | `bar-widget`            | `panels/system/Panel.qml`             |
 | Tailscale     | `omarchy.tailscale`       | `bar-widget`            | `panels/tailscale/Panel.qml`          |
 | Agents   | `omarchy.agents`     | `bar-widget`            | `agents/Panel.qml`               |
 | Local models | `omarchy.local-models` | `service`           | `local-models/Models.qml`             |
