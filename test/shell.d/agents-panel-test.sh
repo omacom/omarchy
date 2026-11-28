@@ -612,4 +612,37 @@ assertDeepEqual(
 )
 assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
 assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
+
+// Inline account rename returns focus only when still focused, closes any other
+// open rename before starting a new one, and saves only trimmed non-empty changes.
+const renameSrc = ['startRename', 'finishRename'].map(n => source.match(new RegExp('    function ' + n + '\\([^]*?\\n    \\}'))[0]).join('\n') + '\nreturn { startRename, finishRename }'
+let renameFocus = null, renameEvents = []
+const setRenameFocus = next => { const prev = renameFocus; renameFocus = next; if (prev && prev !== next) prev.onBlur() }
+const renameRoot = {
+  renaming: false,
+  focusKeys() { renameEvents.push('focusKeys'); setRenameFocus(null) },
+  renameAccount(p, a, v) { renameEvents.push(['rename', p.id, a.id, v]) }
+}
+const renameSection = (id, label) => {
+  let editing = false
+  const s = {
+    provider: { id }, account: { id }, accountLabel: label, renamedTo: '', root: renameRoot,
+    get editingName() { return editing }, set editingName(v) { editing = v; renameRoot.renaming = v },
+    nameField: { text: '', get activeFocus() { return renameFocus === this }, forceActiveFocus() { setRenameFocus(this) }, selectAll() {}, onBlur() { if (s.editingName) s.finishRename(false) } }
+  }
+  return Object.assign(s, new Function('with (this) { ' + renameSrc + ' }').call(s))
+}
+const secA = renameSection('claude', 'Work'), secB = renameSection('codex', 'Personal')
+secA.startRename(); renameEvents = []; secB.startRename()
+assert(!secA.editingName && secB.editingName && renameRoot.renaming, 'starting a second rename closes the first without clearing root.renaming')
+assertDeepEqual(renameEvents, ['focusKeys'], 'cross-account rename blurs the first before opening the second without stealing focus back')
+renameEvents = []; setRenameFocus({ onBlur() {} })
+assert(!secB.editingName && renameEvents.length === 0, 'blur-canceling an unfocused rename does not steal focus via root.focusKeys')
+secB.startRename(); renameEvents = []; secB.finishRename(false)
+assertDeepEqual(renameEvents, ['focusKeys'], 'canceling rename while focused restores focus to the panel')
+for (const [text, expected] of [['   ', ['focusKeys']], [' Personal ', ['focusKeys']], ['  Side  ', ['focusKeys', ['rename', 'codex', 'codex', 'Side']]]]) {
+  secB.startRename(); renameEvents = []; secB.nameField.text = text; secB.finishRename(true)
+  assertDeepEqual(renameEvents, expected, 'finishRename(true) with ' + JSON.stringify(text) + ' restores focus and saves only trimmed changes')
+}
+assertEqual(secB.renamedTo, 'Side', 'saving a changed rename updates renamedTo')
 JS

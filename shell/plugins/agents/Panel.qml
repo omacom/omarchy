@@ -2797,17 +2797,24 @@ Panel {
       TextField {
         id: addNameField
         width: parent.width
+        rightPadding: addNameSubmit.width + addNameSubmit.inset * 2
         placeholderText: Commons.I18n.t("agents.placeholderWork")
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         function claimFocus() { if (visible) { text = ""; forceActiveFocus() } }
+        function submit() { root.startAdd(text.trim()) }
         onVisibleChanged: claimFocus()
         Component.onCompleted: claimFocus()
         // Enter stops here, or the panel would press its cursor too.
-        Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
-        Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
+        Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
+        Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
         Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
+
+        FieldConfirm {
+          id: addNameSubmit
+          onClicked: addNameField.submit()
+        }
       }
     }
 
@@ -2940,6 +2947,7 @@ Panel {
           TextField {
             id: pasteField
             width: parent.width
+            rightPadding: pasteSubmit.width + pasteSubmit.inset * 2
             placeholderText: root.addKeyEntry ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
             password: true
             foreground: root.foreground
@@ -2962,6 +2970,12 @@ Panel {
             }
             Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
             Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
+
+            FieldConfirm {
+              id: pasteSubmit
+              enabled: pasteField.text.trim() !== ""
+              onClicked: pasteField.submit()
+            }
           }
         }
 
@@ -3054,6 +3068,7 @@ Panel {
     onEditingNameChanged: root.renaming = editingName
 
     function startRename() {
+      root.focusKeys()
       editingName = true
       nameField.text = accountLabel
       nameField.forceActiveFocus()
@@ -3064,7 +3079,7 @@ Panel {
       if (!editingName) return
       var value = nameField.text.trim()
       editingName = false
-      root.focusKeys()
+      if (nameField.activeFocus) root.focusKeys()
       if (save && value !== "" && value !== accountLabel) {
         renamedTo = value
         root.renameAccount(provider, account, value)
@@ -3204,6 +3219,7 @@ Panel {
         anchors.right: sectionActions.left
         anchors.rightMargin: Style.space(8)
         anchors.verticalCenter: sectionName.verticalCenter
+        rightPadding: renameSave.width + renameSave.inset * 2
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -3216,6 +3232,15 @@ Panel {
         Keys.onEscapePressed: function(event) {
           section.finishRename(false)
           event.accepted = true
+        }
+
+        FieldConfirm {
+          id: renameSave
+          inset: Style.space(2)
+          size: Math.max(1, Math.round(nameField.height - Style.space(4)))
+          fontSize: Style.font.iconSmall
+          enabled: nameField.text.trim() !== ""
+          onClicked: section.finishRename(true)
         }
       }
 
@@ -3254,8 +3279,8 @@ Panel {
       }
 
       // The line's buttons, from the right: its terminal, its desktop app,
-      // its makes, and its star. Hidden ones take no room, but an unlit star
-      // keeps its place so the others don't move.
+      // its makes, its star, and remove. Hidden ones take no room, but an unlit
+      // star keeps its place so the others don't move.
       Row {
         id: sectionActions
         anchors.right: parent.right
@@ -3429,6 +3454,21 @@ Panel {
           hasCursor: root.hasKey("providerStar", section.providerIndex)
           onHovered: function(isHovered) { if (isHovered) root.hoverAt("providerStar", section.providerIndex) }
           onClicked: root.makeDefault(section.provider, section.account)
+        }
+
+        // Mouse-only: opens the same confirmation as Delete / x.
+        PanelActionButton {
+          id: sectionRemove
+          outlined: true
+          anchors.verticalCenter: parent.verticalCenter
+          visible: section.engaged && !section.makesOpen && root.removable(section.provider)
+          iconText: "󰅙"
+          tooltipText: section.local && section.local.host !== ""
+            ? Commons.I18n.t("agents.unlink")
+            : Commons.I18n.t("common.delete")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onClicked: root.deleteTarget = section.provider
         }
       }
     }
@@ -4020,5 +4060,17 @@ Panel {
         color: meter.alarming ? root.urgent : root.foreground
       }
     }
+  }
+
+  // Confirm button seated inside the right edge of an inline TextField.
+  component FieldConfirm: PanelActionButton {
+    property real inset: Style.space(4)
+    anchors.right: parent ? parent.right : undefined
+    anchors.rightMargin: inset
+    anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+    iconText: "󰄬"
+    tooltipText: Commons.I18n.t("common.confirm")
+    foreground: root.foreground
+    fontFamily: root.fontFamily
   }
 }
