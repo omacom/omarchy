@@ -42,6 +42,7 @@ Omarchy fires hooks at a handful of moments, and you can hang your own scripts o
 | `theme-set` | After a theme change (theme name in `$1`) |
 | `font-set` | After a font change (font name in `$1`) |
 | `battery-low` | When the battery gets low (percentage in `$1`) |
+| `lock` | When the screen locks (once per lock, including before suspend), in the background so a slow hook never holds up the lock |
 
 The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. Both run as your user. `post-update` runs while `omarchy update`'s sudo authorization is still fresh, so a hook that uses `sudo` won't ask for your password again; `pre-refresh-pacman` runs right after `omarchy refresh pacman` has used sudo itself.
 
