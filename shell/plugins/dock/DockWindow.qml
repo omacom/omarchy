@@ -313,6 +313,83 @@ PanelWindow {
     onCleared: window.closeMenu()
   }
 
+  // The dock slides out over windows, where bare icons land on their content
+  // and borders. A mist of the theme's background rises from the screen edge
+  // behind them: thick at the edge, thinning unevenly inward and toward both
+  // ends, with no outline, so the icons have ground to stand on without the
+  // dock becoming a box. It stays put and clears as the dock tucks away.
+  Canvas {
+    id: mist
+
+    readonly property real reach: window.slotSize * 1.5
+    readonly property real depth: window.gap + window.slotSize * 2.4
+    property color tint: Commons.Color.background
+
+    visible: window.shown && opacity > 0
+    opacity: 1 - body.tuck / (window.slotSize + window.gap)
+    x: window.vertical ? (window.position === "left" ? 0 : window.width - width) : body.x - reach
+    y: window.vertical ? body.y - reach : (window.position === "top" ? 0 : window.height - height)
+    width: window.vertical ? depth : body.width + reach * 2
+    height: window.vertical ? body.height + reach * 2 : depth
+
+    renderStrategy: Canvas.Cooperative
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
+    onTintChanged: requestPaint()
+    onVisibleChanged: if (visible) requestPaint()
+    Connections {
+      target: window
+      function onPositionChanged() { mist.requestPaint() }
+    }
+
+    // Thin strips along the edge, each fading inward from the screen edge to
+    // its own depth. The depth follows smooth noise, so the mist's inner edge
+    // wanders, and tapers to nothing at both ends. The noise is the same every
+    // time, so the mist does not shift between paints.
+    function drift(at) {
+      function hash(n) {
+        var v = Math.sin(n * 12.9898) * 43758.5453
+        return v - Math.floor(v)
+      }
+      function wave(t) {
+        var i = Math.floor(t)
+        var f = t - i
+        f = f * f * (3 - 2 * f)
+        return hash(i) * (1 - f) + hash(i + 1) * f
+      }
+      return wave(at) * 0.65 + wave(at * 2.7 + 31) * 0.35
+    }
+
+    onPaint: {
+      var ctx = getContext("2d")
+      ctx.reset()
+      var length = window.vertical ? height : width
+      var rgb = "rgba(" + Math.round(mist.tint.r * 255) + "," + Math.round(mist.tint.g * 255) + "," + Math.round(mist.tint.b * 255) + ","
+      var strip = 2
+      for (var along = 0; along < length; along += strip) {
+        var taper = Math.max(0, Math.min(1, Math.min(along, length - along) / mist.reach))
+        taper = taper * taper * (3 - 2 * taper)
+        if (taper < 0.01) continue
+        var deep = mist.depth * (0.55 + 0.45 * mist.drift(along / (window.slotSize * 1.4))) * (0.6 + 0.4 * taper)
+        var strength = (0.8 * taper).toFixed(3)
+        var gradient
+        if (window.vertical) {
+          var edgeX = window.position === "left" ? 0 : width
+          gradient = ctx.createLinearGradient(edgeX, 0, window.position === "left" ? deep : width - deep, 0)
+        } else {
+          var edgeY = window.position === "top" ? 0 : height
+          gradient = ctx.createLinearGradient(0, edgeY, 0, window.position === "top" ? deep : height - deep)
+        }
+        gradient.addColorStop(0, rgb + strength + ")")
+        gradient.addColorStop(0.45, rgb + (strength * 0.45).toFixed(3) + ")")
+        gradient.addColorStop(1, rgb + "0)")
+        ctx.fillStyle = gradient
+        if (window.vertical) ctx.fillRect(0, along, width, strip)
+        else ctx.fillRect(along, 0, strip, height)
+      }
+    }
+  }
+
   Item {
     id: body
 
