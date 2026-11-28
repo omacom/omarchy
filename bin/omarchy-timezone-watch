@@ -1,0 +1,222 @@
+#!/bin/bash
+
+# omarchy:summary=Move the clock to the local timezone when the network changes
+# omarchy:args=[--check]
+# omarchy:hidden=true
+
+# Runs as omarchy-timezone-watch.service while automatic timezone is on
+# (omarchy-toggle-timezone-auto). It reacts to two system-bus signals instead
+# of polling: NetworkManager reaching full connectivity, and logind waking
+# from sleep, which between them cover arriving somewhere new with the lid
+# closed, plus the active connections or the access point Wi-Fi is on
+# changing, which is how a Wi-Fi change shows while Ethernet keeps the machine
+# connected throughout. A check runs a few seconds after the last of a burst,
+# once the scan list has filled in, and once at login. A lookup that failed
+# (offline, a timeout, a service error) is retried a few times, further apart
+# each time, before waiting for the next event.
+#
+# A check decides like this:
+#   - On a Wi-Fi network with a remembered zone, that zone wins, with no
+#     lookup at all. Zones are remembered per access point, never per SSID,
+#     since every Starbucks is called Starbucks.
+#   - Otherwise ask omarchy-timezone-detect. A zone that matches the clock is
+#     remembered for this network and that's it. A new zone is only taken
+#     after a second, fresh reading agrees, a couple of minutes later, so a
+#     single odd answer never moves the clock.
+#   - A zone the user just undid is left alone until a different one turns up.
+#
+# --check runs one such check, prints what it came to (done, confirm or
+# retry) and exits, for tests and for poking at it.
+
+set -uo pipefail
+
+readonly STATE_DIR="$HOME/.local/state/omarchy/timezone"
+readonly settle_seconds=${OMARCHY_TIMEZONE_SETTLE_SECONDS:-10}
+readonly confirm_seconds=${OMARCHY_TIMEZONE_CONFIRM_SECONDS:-120}
+read -r -a retry_delays <<<"${OMARCHY_TIMEZONE_RETRY_SECONDS:-60 300 900}"
+readonly retry_delays
+
+# NM_STATE_CONNECTED_GLOBAL, see NetworkManager's NMState.
+readonly NM_CONNECTED_GLOBAL=70
+
+read_state() {
+  [[ -f $STATE_DIR/$1 ]] && head -n 1 "$STATE_DIR/$1"
+}
+
+# Runs a command under the lock omarchy-timezone-set holds, so what a check
+# writes after its lookup can't land on top of a choice made meanwhile. Never
+# held across a lookup, so a pick from the menu doesn't wait on the network.
+locked() {
+  local lock status
+  exec {lock}>"$STATE_DIR/lock"
+  flock "$lock"
+  "$@"
+  status=$?
+  exec {lock}>&-
+  return "$status"
+}
+
+# Both only write while the clock still shows what the check started from.
+learn_network() {
+  local network=$1 zone=$2
+  [[ $(timedatectl show --property=Timezone --value 2>/dev/null) == "$zone" ]] || return 0
+  [[ -f $STATE_DIR/networks/$network ]] || printf '%s\n' "$zone" >"$STATE_DIR/networks/$network"
+}
+
+hold_candidate() {
+  local zone=$1 current=$2
+  [[ $(timedatectl show --property=Timezone --value 2>/dev/null) == "$current" ]] || return 1
+  printf '%s\n' "$zone" >"$STATE_DIR/candidate"
+}
+
+# Returns 0 when a confirming check is due, 2 when the lookup failed and is
+# worth retrying, and 1 when there is nothing more to do.
+check() {
+  local current network known detected status zone source accuracy candidate
+
+  mkdir -p "$STATE_DIR/networks"
+  current=$(timedatectl show --property=Timezone --value 2>/dev/null)
+
+  if network=$(omarchy-timezone-detect --network); then
+    known=$(read_state "networks/$network")
+    if [[ -n $known ]]; then
+      rm -f "$STATE_DIR/candidate"
+      [[ $known == "$current" ]] || omarchy-timezone-set --detected network --expect "$current" "$known"
+      return 1
+    fi
+  fi
+
+  detected=$(omarchy-timezone-detect)
+  status=$?
+  if ((status == 2)); then
+    # Keep any candidate: the retry is still its second look.
+    return 2
+  elif ((status != 0)); then
+    rm -f "$STATE_DIR/candidate"
+    return 1
+  fi
+  read -r zone source accuracy <<<"$detected"
+
+  if [[ $zone == "$current" ]]; then
+    rm -f "$STATE_DIR/candidate" "$STATE_DIR/declined"
+    [[ -n $network ]] && locked learn_network "$network" "$zone"
+    return 1
+  fi
+
+  if [[ $zone == "$(read_state declined)" ]]; then
+    rm -f "$STATE_DIR/candidate"
+    return 1
+  fi
+
+  candidate=$(read_state candidate)
+  if [[ $candidate == "$zone" ]]; then
+    omarchy-timezone-set --detected "$source" --expect "$current" "$zone"
+    return 1
+  fi
+
+  locked hold_candidate "$zone" "$current"
+}
+
+watch_events() {
+  local line member="" due timeout status events_fd retries=0 event
+
+  coproc EVENTS {
+    exec dbus-monitor --system \
+      "type='signal',sender='org.freedesktop.NetworkManager',interface='org.freedesktop.NetworkManager',member='StateChanged'" \
+      "type='signal',sender='org.freedesktop.NetworkManager',path='/org/freedesktop/NetworkManager',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.freedesktop.NetworkManager'" \
+      "type='signal',sender='org.freedesktop.NetworkManager',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.freedesktop.NetworkManager.Device.Wireless'" \
+      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
+  }
+  # Bash clears EVENTS once the coproc exits, so keep its ends now. The pid
+  # stays global: the EXIT trap runs after this function has returned.
+  events_fd=${EVENTS[0]}
+  events_pid=$EVENTS_PID
+  trap 'kill "$events_pid" 2>/dev/null' EXIT
+
+  # A candidate left over from before a restart needs its fresh second look.
+  rm -f "$STATE_DIR/candidate"
+  due=$((EPOCHSECONDS + settle_seconds))
+
+  while :; do
+    if ((due)); then
+      timeout=$((due - EPOCHSECONDS))
+      ((timeout > 0)) || timeout=1
+      IFS= read -r -t "$timeout" line <&"$events_fd"
+    else
+      IFS= read -r line <&"$events_fd"
+    fi
+    status=$?
+
+    if ((status > 128)); then
+      check
+      case $? in
+        0)
+          due=$((EPOCHSECONDS + confirm_seconds))
+          retries=0
+          ;;
+        2)
+          if ((retries < ${#retry_delays[@]})); then
+            due=$((EPOCHSECONDS + retry_delays[retries]))
+            ((retries++))
+          else
+            due=0
+            retries=0
+          fi
+          ;;
+        *)
+          due=0
+          retries=0
+          ;;
+      esac
+      continue
+    fi
+
+    # dbus-monitor went away; let systemd restart the whole watcher.
+    ((status == 0)) || return 1
+
+    # dbus-monitor prints each signal as a header line at column 0, then its
+    # arguments indented beneath it.
+    event=0
+    case $line in
+      "signal "*)
+        case $line in
+          *member=StateChanged*) member=state ;;
+          *member=PrepareForSleep*) member=sleep ;;
+          *member=PropertiesChanged*) member=properties ;;
+          *) member="" ;;
+        esac
+        ;;
+      *"uint32 $NM_CONNECTED_GLOBAL") [[ $member == "state" ]] && event=1 ;;
+      *"boolean false") [[ $member == "sleep" ]] && event=1 ;;
+      # Only the properties that mean a different network: the Wireless
+      # device also announces every scan, which must not set off a lookup.
+      *'string "ActiveConnections"' | *'string "PrimaryConnection"' | *'string "ActiveAccessPoint"')
+        [[ $member == "properties" ]] && event=1
+        ;;
+    esac
+
+    if ((event)); then
+      due=$((EPOCHSECONDS + settle_seconds))
+      retries=0
+    fi
+  done
+}
+
+case ${1:-} in
+  --check)
+    check
+    case $? in
+      0) echo confirm ;;
+      2) echo retry ;;
+      *) echo done ;;
+    esac
+    exit 0
+    ;;
+  "")
+    watch_events
+    ;;
+  *)
+    echo "Usage: omarchy-timezone-watch [--check]" >&2
+    exit 1
+    ;;
+esac
