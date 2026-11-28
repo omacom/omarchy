@@ -289,7 +289,7 @@ assert(
 }
 
 // Exactly the dock's current position is checked, and a shell.json without
-// one has the dock at the bottom.
+// one has the dock on the right.
 {
   const os = require('os')
   const { execFileSync } = require('child_process')
@@ -306,7 +306,7 @@ assert(
       }
     })
   }
-  assertDeepEqual(checked(undefined), ['bottom'], 'menu checks Bottom Dock while no position is set')
+  assertDeepEqual(checked(undefined), ['right'], 'menu checks Right Dock while no position is set')
   assertDeepEqual(checked({ position: 'left' }), ['left'], 'menu checks Left Dock while the dock is on the left')
   fs.rmSync(home, { recursive: true, force: true })
 }
