@@ -32,7 +32,15 @@ trust_device() {
 case "$action" in
   pair)
     power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
+    # Apple accessories (AirPods in particular) routinely fail the first
+    # classic BR/EDR pair attempt over BlueZ (AuthenticationFailed /
+    # ConnectionAttemptFailed) and succeed on an immediate retry — the failed
+    # attempt still seeds the link key BlueZ needed. One silent attempt made
+    # this look broken instead of just retrying.
+    if ! timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1; then
+      sleep 1
+      timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
+    fi
     trust_device
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
     ;;
