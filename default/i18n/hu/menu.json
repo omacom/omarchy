@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Mindig rejtve"
+  },
+  "install.gaming.tools": {
+    "label": "Játékeszközök",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Játékeszközök",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

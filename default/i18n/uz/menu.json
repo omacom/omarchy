@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Doim yashirin"
+  },
+  "install.gaming.tools": {
+    "label": "O‘yin vositalari",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "O‘yin vositalari",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

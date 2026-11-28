@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Πάντα κρυφό"
+  },
+  "install.gaming.tools": {
+    "label": "Εργαλεία παιχνιδιών",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Εργαλεία παιχνιδιών",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }

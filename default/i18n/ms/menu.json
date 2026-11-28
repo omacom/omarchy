@@ -1459,5 +1459,13 @@
   },
   "appearance.dock.visibility.hidden": {
     "label": "Sentiasa Tersembunyi"
+  },
+  "install.gaming.tools": {
+    "label": "Alat Permainan",
+    "description": "MangoHud, Gamescope, GameMode"
+  },
+  "remove.gaming.tools": {
+    "label": "Alat Permainan",
+    "description": "MangoHud, Gamescope, GameMode"
   }
 }
