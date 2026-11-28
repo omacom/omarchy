@@ -332,6 +332,34 @@ fi
 [[ ! -e $settings_file ]] || fail "monitor persist saves nothing when it refuses"
 pass "monitor persist refuses a setting that would misconfigure the monitor"
 
+# Saving a position alone keeps a scale already chosen, and on a monitor with
+# none leaves the scale empty, for Hyprland to keep picking.
+fresh
+run_persist() {
+  HOME="$home_dir" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    "$ROOT/bin/omarchy-hyprland-monitor-persist" "$@"
+}
+mkdir -p "${settings_file%/*}"
+printf '%s\t%s\t%s\t%s\t%s\n' "2880x1800@120" "" "1.6" "1" "eDP-1" >"$settings_file"
+run_persist eDP-1 "" "" 0x0
+run_persist DP-1 "" "" 1440x0
+[[ $(setting eDP-1) == "2880x1800@120|0x0|1.6" && $(saved_transform eDP-1) == "1" ]] ||
+  fail "monitor persist keeps the saved scale when given none" "actual: $(setting eDP-1)"
+[[ $(setting DP-1) == "|1440x0|" ]] || fail "monitor persist leaves a scale nobody chose empty" "actual: $(setting DP-1)"
+pass "monitor persist keeps the scale when given none"
+
+# Each save reads the file and replaces it, and closing the lid saves on its own
+# schedule, so saves that overlap must not drop each other's lines.
+fresh
+for i in {1..20}; do
+  run_persist "DP-$i" "" "" "${i}x0" &
+done
+wait
+for i in {1..20}; do
+  [[ $(setting "DP-$i") == "|${i}x0|" ]] || fail "overlapping monitor saves keep every line" "lost DP-$i: $(<"$settings_file")"
+done
+pass "overlapping monitor saves keep every line"
+
 # An older monitors.lua gets the new template on top and keeps everything that
 # isn't one of Omarchy's own lines, exactly as written: rules, changed values,
 # block comments, conditionals.
