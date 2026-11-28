@@ -47,14 +47,24 @@ if ! (LC_ALL=C; [[ $THEME_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]); then
   exit 1
 fi
 
-# Remove existing theme if present
-if [[ -d $THEME_PATH ]]; then
-  rm -rf "$THEME_PATH"
+# Clone into a staging directory and replace an installed copy only once the
+# clone exists, so a clone that fails or is interrupted (no network, a mistyped
+# URL, a closed terminal) leaves the installed theme where it was. Staging sits
+# beside themes/, not in it, because theme list shows every directory in there.
+STAGING_DIR=$(mktemp -d "$HOME/.config/omarchy/.theme-install.XXXXXX") || exit 1
+trap 'rm -rf "$STAGING_DIR"' EXIT
+STAGED_PATH="$STAGING_DIR/themes/$THEME_NAME"
+
+if ! git clone -- "$REPO_URL" "$STAGED_PATH"; then
+  echo "Error: Failed to clone theme repo."
+  exit 1
 fi
 
-# Clone the repo directly to ~/.config/omarchy/themes
-if ! git clone -- "$REPO_URL" "$THEME_PATH"; then
-  echo "Error: Failed to clone theme repo."
+mkdir -p "$THEMES_DIR"
+rm -rf "$THEME_PATH"
+# -T so a theme rm could not fully remove fails here rather than nesting the clone inside it.
+if ! mv -T "$STAGED_PATH" "$THEME_PATH"; then
+  echo "Error: Failed to replace the installed theme at $THEME_PATH."
   exit 1
 fi
 
