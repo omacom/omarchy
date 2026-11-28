@@ -147,6 +147,29 @@ check(#applied == 0 and env.GDK_SCALE == nil, "applies nothing without saved set
 ' || fail "monitor settings leave monitors.lua alone until something is saved"
 pass "monitor settings leave monitors.lua alone until something is saved"
 
+# The panel's rules name the port, and a port's first rule would start from
+# Hyprland's defaults. What monitors.lua sets beyond the panel's reach for the
+# monitor's description or for every monitor, such as 10-bit color, carries
+# over to them. A rule monitors.lua writes for a port itself stays as written.
+printf '%s\t%s\t%s\t%s\n' \
+  "" "" "2" "Apple Computer Inc iMac 0x1D724" \
+  "" "" "1.5" "Dell Inc. DELL U2723QE" >"$settings"
+run_lua '
+plug("eDP-1", "Apple Computer Inc iMac 0x1D724", { description = "Apple Computer Inc iMac 0x1D724", scale = 1 })
+plug("DP-3", "Dell Inc. DELL U2723QE", { description = "Dell Inc. DELL U2723QE", scale = 1 })
+require("default.hypr.monitor-rules")
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto", bitdepth = 10 })
+hl.monitor({ output = "desc:Dell Inc. DELL U2723QE", mode = "3840x2160@60", vrr = 1 })
+hl.monitor({ output = "DP-4", scale = 1 })
+check(applied[3].bitdepth == nil, "leaves a port rule in monitors.lua as written")
+load_module()
+check(applied[1].output == "eDP-1" and applied[1].scale == 2 and applied[1].bitdepth == 10,
+  "keeps what monitors.lua sets for every monitor, got bitdepth " .. tostring(applied[1].bitdepth))
+check(applied[2].output == "DP-3" and applied[2].scale == 1.5 and applied[2].vrr == 1 and applied[2].mode == "3840x2160@60" and applied[2].bitdepth == nil,
+  "keeps the rule for the monitor'"'"'s description, not the one for every monitor")
+' || fail "the panel's rules keep what monitors.lua sets beyond them"
+pass "the panel's rules keep what monitors.lua sets beyond them"
+
 # On Apple Silicon every monitor rule maps sRGB into the display's own gamut,
 # the panel's port-named rules included, since a rule without cm puts the
 # display back on sRGB. A color choice of a rule's own wins, and nothing changes
