@@ -21,9 +21,20 @@ Panel {
   property int brightnessPercent: 0
   property bool brightnessAvailable: false
   property var brightnessLevels: ({})
+  property string backlightDevice: ""
+  property bool backlightDeviceProbed: false
   property string pendingBrightnessMonitor: ""
   property int pendingBrightnessPercent: 0
   property bool brightnessSetQueued: false
+  property string inFlightBrightnessMonitor: ""
+  property int inFlightBrightnessPercent: 0
+  property bool inFlightInternalBacklight: false
+  property int inFlightExitCode: -1
+  property string lastWrittenMonitor: ""
+  property int lastWrittenPercent: 0
+  property int brightnessWrites: 0
+  property int readAfterBrightnessWrites: 0
+  readonly property bool brightnessDragging: !!(panel.loadedContent && panel.loadedContent.brightnessSlider && panel.loadedContent.brightnessSlider.dragging)
   property string internalMonitor: ""
   property string externalMonitor: ""
   property string focusedMonitor: ""
@@ -394,28 +405,66 @@ Panel {
     if (name === root.focusedMonitor) root.brightnessPercent = percent
   }
 
-  function setDisplayBrightness(name, value) {
-    var percent = Model.clampBrightness(value)
-    showBrightness(name, percent)
-    root.pendingBrightnessMonitor = name
-    root.pendingBrightnessPercent = percent
+  function isInternalBacklight(name) {
+    return /^(eDP|LVDS|DSI)-/.test(name || "") && root.backlightDevice !== ""
+  }
 
-    if (setBrightnessProc.running) {
-      root.brightnessSetQueued = true
-      return
-    }
+  function ensureBacklightDevice(name) {
+    if (!/^(eDP|LVDS|DSI)-/.test(name || "")) return
+    if (!root.backlightDeviceProbed && !deviceProc.running) deviceProc.running = true
+  }
 
+  function brightnessCommand(name, percent) {
+    if (isInternalBacklight(name))
+      return ["brightnessctl", "-q", "-d", root.backlightDevice, "set", percent + "%"]
+    return ["omarchy-brightness-display", "--no-osd", "--monitor", name, percent + "%"]
+  }
+
+  function startBrightnessWrite(name, percent) {
     root.brightnessSetQueued = false
-    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", name, percent + "%"]
+    root.inFlightExitCode = -1
+    root.inFlightBrightnessMonitor = name
+    root.inFlightBrightnessPercent = percent
+    root.inFlightInternalBacklight = isInternalBacklight(name)
+    setBrightnessProc.command = brightnessCommand(name, percent)
     setBrightnessProc.running = true
   }
 
-  function previewBrightness(name, value) {
+  function applyBrightness(name, value, throttled) {
     var percent = Model.clampBrightness(value)
+    ensureBacklightDevice(name)
+    root.brightnessWrites++
     showBrightness(name, percent)
     root.pendingBrightnessMonitor = name
     root.pendingBrightnessPercent = percent
-    brightnessDebounce.restart()
+    if (!throttled) brightnessThrottle.stop()
+    if (setBrightnessProc.running || (throttled && brightnessThrottle.running)) {
+      root.brightnessSetQueued = true
+      return
+    }
+    startBrightnessWrite(name, percent)
+  }
+
+  function setDisplayBrightness(name, value) {
+    applyBrightness(name, value, false)
+  }
+
+  function dragBrightness(name, value) {
+    // External monitors (DDC/CI over I2C, Apple HID) get a short cooldown
+    // between drag writes; internal kernel backlights run as fast as
+    // setBrightnessProc finishes and coalesce intermediate moves.
+    applyBrightness(name, value, !isInternalBacklight(name))
+  }
+
+  function commitBrightness(name, value) {
+    var percent = Model.clampBrightness(value)
+    brightnessThrottle.stop()
+    var alreadyApplied = !setBrightnessProc.running && !root.brightnessSetQueued
+      && root.lastWrittenMonitor === name && root.lastWrittenPercent === percent
+    var alreadyInFlight = setBrightnessProc.running && !root.brightnessSetQueued
+      && root.inFlightBrightnessMonitor === name && root.inFlightBrightnessPercent === percent
+    if (alreadyApplied || alreadyInFlight) return
+    setDisplayBrightness(name, percent)
   }
 
   function adjustBrightness(name, delta) {
@@ -440,16 +489,20 @@ Panel {
   // span ~10–20 points so casual tweaks change the label, while small
   // nudges within one band don't.
 
-  // Brightness is taken from every poll, so a level set elsewhere replaces one
-  // shown here. The list itself is only taken when something besides
+  // Brightness is taken from every poll unless a drag or write is in flight
+  // (or started while the poll was running), so stale reads cannot snap the
+  // slider back. The list itself is only taken when something besides
   // brightness changed: a new one rebuilds the picker and the layout, which
   // would drop a hover or a drag in progress on each poll.
-  function updateDisplays(displaysJson) {
+  function updateDisplays(displaysJson, keepBrightness) {
     var parsed = Model.parseDisplays(displaysJson)
     var levels = {}
     for (var i = 0; i < parsed.displays.length; i++) {
       var display = parsed.displays[i]
-      if (display && display.enabled && typeof display.brightness === "number")
+      if (!display || !display.enabled) continue
+      if (keepBrightness && root.brightnessLevels[display.name] !== undefined)
+        levels[display.name] = root.brightnessLevels[display.name]
+      else if (typeof display.brightness === "number")
         levels[display.name] = display.brightness
     }
     root.brightnessLevels = levels
@@ -670,6 +723,7 @@ Panel {
     closeRotateMenu()
     if (opened) {
       refresh()
+      if (!root.backlightDeviceProbed && !deviceProc.running) deviceProc.running = true
       selectedName = ""
       focusSection = landingSection()
       selectedIndex = sectionFirstIndex(focusSection)
@@ -698,6 +752,9 @@ Panel {
     onRunningChanged: {
       if (running) {
         root.readAfterActions = root.actionsDone
+        root.readAfterBrightnessWrites = (setBrightnessProc.running || root.brightnessSetQueued || brightnessThrottle.running)
+          ? -1
+          : root.brightnessWrites
       } else if (root.rereadState) {
         root.rereadState = false
         Qt.callLater(root.refresh)
@@ -709,13 +766,21 @@ Panel {
         var lines = String(text || "").split("\n")
         var brightness = String(lines[0] || "").trim()
         root.brightnessAvailable = brightness !== "unavailable" && brightness !== ""
-        root.brightnessPercent = root.brightnessAvailable ? Math.max(0, Math.min(100, parseInt(brightness, 10))) : 0
+        var staleBrightness = root.brightnessDragging
+          || setBrightnessProc.running
+          || root.brightnessSetQueued
+          || brightnessThrottle.running
+          || root.readAfterBrightnessWrites !== root.brightnessWrites
+        if (!staleBrightness) {
+          root.brightnessPercent = root.brightnessAvailable ? Math.max(0, Math.min(100, parseInt(brightness, 10))) : 0
+          root.lastWrittenMonitor = ""
+        }
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
-        root.updateDisplays(String(lines[7] || "[]").trim())
+        root.updateDisplays(String(lines[7] || "[]").trim(), staleBrightness)
         // A queued move waits for a read that started after the last command;
         // an older one reads again once this process has stopped.
         if (root.awaitingFreshState) {
@@ -736,10 +801,14 @@ Panel {
   }
 
   Timer {
-    id: brightnessDebounce
-    interval: 180
+    id: brightnessThrottle
+    interval: 60
     repeat: false
-    onTriggered: root.setDisplayBrightness(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+    onTriggered: {
+      if (root.brightnessSetQueued && !setBrightnessProc.running) {
+        root.startBrightnessWrite(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+      }
+    }
   }
 
   Process {
@@ -752,10 +821,49 @@ Panel {
     // visible as a "bounce to zero" after h/l keypresses. External
     // brightness changes are still picked up by the 5s periodic refresh,
     // the open-time refresh, and Component.onCompleted.
+    onExited: function(exitCode) {
+      root.inFlightExitCode = exitCode
+      root.brightnessWrites++
+      if (exitCode === 0) {
+        root.lastWrittenMonitor = root.inFlightBrightnessMonitor
+        root.lastWrittenPercent = root.inFlightBrightnessPercent
+      } else {
+        root.lastWrittenMonitor = ""
+        if (root.inFlightInternalBacklight) {
+          root.backlightDevice = ""
+          root.backlightDeviceProbed = false
+          if (!deviceProc.running) deviceProc.running = true
+        }
+      }
+    }
     onRunningChanged: {
       if (running) return
+      var sameAsSucceeded = root.inFlightExitCode === 0
+        && root.pendingBrightnessMonitor === root.inFlightBrightnessMonitor
+        && root.pendingBrightnessPercent === root.inFlightBrightnessPercent
+      if (root.brightnessSetQueued && sameAsSucceeded) root.brightnessSetQueued = false
+      if (!root.inFlightInternalBacklight) {
+        brightnessThrottle.restart()
+        if (root.brightnessSetQueued && !root.brightnessDragging) {
+          brightnessThrottle.stop()
+          root.startBrightnessWrite(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+        }
+        return
+      }
       if (root.brightnessSetQueued) {
-        root.setDisplayBrightness(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+        root.startBrightnessWrite(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+      }
+    }
+  }
+
+  Process {
+    id: deviceProc
+    command: ["omarchy-hw-display"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.backlightDeviceProbed = true
+        root.backlightDevice = String(text || "").trim()
       }
     }
   }
@@ -858,6 +966,7 @@ Panel {
       id: keyCatcher
       property alias scrollArea: scrollArea
       property alias layoutMap: layoutMap
+      property alias brightnessSlider: brightnessSlider
       reorderable: root.rotateMenuName === "" && root.cursorActive && root.focusSection === "layout"
       reorderableSideways: reorderable
       onReorderRequested: function(dy) { root.placeShown(dy < 0 ? "above" : "below") }
@@ -1070,11 +1179,8 @@ Panel {
                 step: 1
                 value: Math.max(1, root.currentBrightness)
                 integer: true
-                onMoved: function(v) { if (root.current) root.previewBrightness(root.current.name, v) }
-                onReleased: function(v) {
-                  brightnessDebounce.stop()
-                  if (root.current) root.setDisplayBrightness(root.current.name, v)
-                }
+                onMoved: function(v) { if (root.current) root.dragBrightness(root.current.name, v) }
+                onReleased: function(v) { if (root.current) root.commitBrightness(root.current.name, v) }
               }
 
               HoverHandler {

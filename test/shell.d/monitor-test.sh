@@ -244,4 +244,203 @@ proc.running = false
 scope.onProcExited(1)
 scope.onProcRunningChanged(false)
 assertEqual(scope.textSizePreviewIndex, -1, 'failed text size update clears preview')
+
+// Brightness slider: internal displays apply immediately on drag via
+// brightnessctl and coalesce in-flight moves; external displays throttle
+// between drag writes and flush on release; stale state polls never snap back.
+const brightnessSliderBlock = panelSource.match(/PanelSlider\s*\{\s*id:\s*brightnessSlider[\s\S]*?\n\s*\}/)[0]
+const brightnessMovedMatch = brightnessSliderBlock.match(/onMoved:\s*(function\([^)]*\)\s*\{[\s\S]*?\})/)
+const brightnessReleasedMatch = brightnessSliderBlock.match(/onReleased:\s*(function\([^)]*\)\s*\{[\s\S]*?\})/)
+assert(brightnessMovedMatch && brightnessReleasedMatch, 'brightnessSlider defines onMoved and onReleased handlers')
+
+const brightnessProcBlock = panelSource.match(/Process\s*\{\s*id:\s*setBrightnessProc[\s\S]*?\n  \}/)[0]
+const brightnessRunningMatch = brightnessProcBlock.match(/onRunningChanged:\s*\{([\s\S]*?)\n    \}/)
+const brightnessExitedMatch = brightnessProcBlock.match(/onExited:\s*function\(exitCode\)\s*\{([\s\S]*?)\n    \}/)
+const stateProcBlock = panelSource.match(/Process\s*\{\s*id:\s*stateProc[\s\S]*?\n  \}/)[0]
+const stateRunningMatch = stateProcBlock.match(/onRunningChanged:\s*\{([\s\S]*?)\n    \}/)
+const stateFinishedMatch = stateProcBlock.match(/onStreamFinished:\s*\{([\s\S]*?)\n      \}/)
+
+const brightnessCommands = []
+const brightnessProc = {
+  _running: false,
+  command: [],
+  get running() { return this._running },
+  set running(v) {
+    this._running = v
+    if (v) brightnessCommands.push(this.command.slice())
+  },
+}
+const brightnessThrottle = {
+  running: false,
+  start() { this.running = true },
+  restart() { this.running = true },
+  stop() { this.running = false },
+}
+const bScope = {
+  Model: monitor,
+  backlightDevice: 'intel_backlight',
+  backlightDeviceProbed: true,
+  brightnessAvailable: false,
+  brightnessPercent: 50,
+  brightnessLevels: { 'eDP-1': 50, 'DP-1': 60 },
+  focusedMonitor: 'eDP-1',
+  internalMonitor: '',
+  externalMonitor: '',
+  internalEnabled: false,
+  monitorScale: '',
+  displaysJson: '',
+  displays: [],
+  current: { name: 'eDP-1' },
+  brightnessDragging: true,
+  pendingBrightnessMonitor: '',
+  pendingBrightnessPercent: 0,
+  brightnessSetQueued: false,
+  inFlightBrightnessMonitor: '',
+  inFlightBrightnessPercent: 0,
+  inFlightInternalBacklight: false,
+  inFlightExitCode: -1,
+  lastWrittenMonitor: '',
+  lastWrittenPercent: 0,
+  brightnessWrites: 0,
+  readAfterBrightnessWrites: 0,
+  actionsDone: 0,
+  readAfterActions: 0,
+  rereadState: false,
+  awaitingFreshState: false,
+  pendingMirror: '',
+  actionBusy: false,
+  pendingRects: null,
+  mirrorManaged: false,
+  setBrightnessProc: brightnessProc,
+  brightnessThrottle: brightnessThrottle,
+  deviceProc: { running: false },
+  stateProc: { running: false },
+  Qt: { callLater: (fn) => fn() },
+  refresh: () => {},
+  normalizeScale: monitor.normalizeScale,
+}
+bScope.root = bScope
+vm.createContext(bScope)
+vm.runInContext([
+  extractFn('isInternalBacklight'),
+  extractFn('ensureBacklightDevice'),
+  extractFn('brightnessCommand'),
+  extractFn('startBrightnessWrite'),
+  extractFn('applyBrightness'),
+  extractFn('showBrightness'),
+  extractFn('setDisplayBrightness'),
+  extractFn('dragBrightness'),
+  extractFn('commitBrightness'),
+  extractFn('updateDisplays'),
+  `var onBrightnessMoved = ${brightnessMovedMatch[1]}`,
+  `var onBrightnessReleased = ${brightnessReleasedMatch[1]}`,
+  `function onBrightnessProcRunningChanged(running) { ${brightnessRunningMatch ? brightnessRunningMatch[1] : ''} }`,
+  `function onBrightnessProcExited(exitCode) { ${brightnessExitedMatch ? brightnessExitedMatch[1] : ''} }`,
+  `function onStateProcRunningChanged(running) { ${stateRunningMatch ? stateRunningMatch[1] : ''} }`,
+  `function onStateStreamFinished(text) { ${stateFinishedMatch ? stateFinishedMatch[1] : ''} }`,
+].join('\n'), bScope)
+
+// Internal panel drag updates immediately without waiting for slider release.
+bScope.onBrightnessMoved(48)
+assertDeepEqual(
+  brightnessCommands,
+  [['brightnessctl', '-q', '-d', 'intel_backlight', 'set', '48%']],
+  'internal brightness drag writes immediately on first move'
+)
+bScope.onBrightnessMoved(45)
+bScope.onBrightnessMoved(42)
+assertDeepEqual(
+  brightnessCommands,
+  [['brightnessctl', '-q', '-d', 'intel_backlight', 'set', '48%']],
+  'in-flight moves coalesce instead of spawning concurrent processes'
+)
+// A state poll finishing while dragging/writing must not revert the slider level.
+bScope.onStateProcRunningChanged(true)
+bScope.onStateStreamFinished('50\neDP-1\nDP-1\neDP-1\n\neDP-1\n1\n[{"name":"eDP-1","enabled":true,"focused":true,"width":1920,"height":1080,"brightness":50},{"name":"DP-1","enabled":true,"focused":false,"width":2560,"height":1440,"brightness":60}]\noff\n')
+assertEqual(bScope.brightnessLevels['eDP-1'], 42, 'stale state poll preserves active drag brightness')
+assertEqual(bScope.brightnessPercent, 42, 'stale state poll preserves active focused brightness percent')
+
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+assertDeepEqual(
+  brightnessCommands,
+  [
+    ['brightnessctl', '-q', '-d', 'intel_backlight', 'set', '48%'],
+    ['brightnessctl', '-q', '-d', 'intel_backlight', 'set', '42%'],
+  ],
+  'latest coalesced internal brightness runs as soon as the active write completes'
+)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+bScope.brightnessDragging = false
+bScope.onBrightnessReleased(42)
+assertEqual(brightnessCommands.length, 2, 'releasing on the already-written value avoids a duplicate write')
+
+// External monitor drag writes immediately, throttles subsequent drag steps,
+// and flushes immediately on release.
+brightnessCommands.length = 0
+bScope.current = { name: 'DP-1' }
+bScope.brightnessDragging = true
+bScope.onBrightnessMoved(58)
+assertDeepEqual(
+  brightnessCommands,
+  [['omarchy-brightness-display', '--no-osd', '--monitor', 'DP-1', '58%']],
+  'external brightness drag writes immediately on first move'
+)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+assert(brightnessThrottle.running, 'external brightness write arms drag cooldown')
+bScope.onBrightnessMoved(55)
+assertEqual(brightnessCommands.length, 1, 'subsequent external drag step waits for cooldown')
+bScope.brightnessDragging = false
+bScope.onBrightnessReleased(55)
+assertDeepEqual(
+  brightnessCommands,
+  [
+    ['omarchy-brightness-display', '--no-osd', '--monitor', 'DP-1', '58%'],
+    ['omarchy-brightness-display', '--no-osd', '--monitor', 'DP-1', '55%'],
+  ],
+  'releasing external brightness slider flushes final value immediately'
+)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+brightnessThrottle.stop()
+
+// A poll that started during an in-flight write and finishes only after the
+// write and cooldown end must still be discarded so it cannot snap back.
+bScope.onBrightnessMoved(52)
+bScope.onStateProcRunningChanged(true)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+brightnessThrottle.stop()
+bScope.onStateStreamFinished('55\neDP-1\nDP-1\neDP-1\n\neDP-1\n1\n[{"name":"eDP-1","enabled":true,"focused":true,"width":1920,"height":1080,"brightness":42},{"name":"DP-1","enabled":true,"focused":false,"width":2560,"height":1440,"brightness":55}]\noff\n')
+assertEqual(bScope.brightnessLevels['DP-1'], 52, 'poll overlapping a completed write does not revert brightness')
+
+// An idle poll with no overlapping write updates external brightness normally.
+bScope.onStateProcRunningChanged(true)
+bScope.onStateStreamFinished('70\neDP-1\nDP-1\neDP-1\n\neDP-1\n1\n[{"name":"eDP-1","enabled":true,"focused":true,"width":1920,"height":1080,"brightness":42},{"name":"DP-1","enabled":true,"focused":false,"width":2560,"height":1440,"brightness":70}]\noff\n')
+assertEqual(bScope.brightnessLevels['DP-1'], 70, 'idle poll picks up external brightness changes')
+
+// Dragging away and back to the value already being written must not run a
+// duplicate write after the in-flight write succeeds.
+brightnessCommands.length = 0
+bScope.brightnessDragging = true
+bScope.onBrightnessMoved(48)
+bScope.onBrightnessMoved(45)
+bScope.onBrightnessMoved(48)
+bScope.brightnessDragging = false
+bScope.onBrightnessReleased(48)
+brightnessProc.running = false
+bScope.onBrightnessProcExited(0)
+bScope.onBrightnessProcRunningChanged(false)
+assertDeepEqual(
+  brightnessCommands,
+  [['omarchy-brightness-display', '--no-osd', '--monitor', 'DP-1', '48%']],
+  'returning to the in-flight target before completion skips a duplicate write'
+)
 JS

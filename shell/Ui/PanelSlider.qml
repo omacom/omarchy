@@ -138,6 +138,7 @@ Item {
     onPositionChanged: function(mouse) {
       if (!root.dragging) return
       var next = valueFromX(mouse.x)
+      if (next === root.liveValue) return
       root.liveValue = next
       root.moved(next)
     }
