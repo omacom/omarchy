@@ -46,7 +46,7 @@ end
 
 local function has_other_game(closing)
   for _, other in ipairs(hl.get_windows() or {}) do
-    if other ~= closing and (closing == nil or closing.address == nil or other.address ~= closing.address) and is_game(other) then
+    if other ~= closing and not (closing and closing.address and other.address == closing.address) and is_game(other) then
       return true
     end
   end

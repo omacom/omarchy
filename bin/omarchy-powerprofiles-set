@@ -13,6 +13,13 @@ usage() {
 
 (( $# <= 2 )) || usage
 
+# Serialize profile transitions before checking power source or active-game
+# state so rapid game open/close and AC/battery events converge cleanly.
+if [[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR ]]; then
+  exec 9>"$XDG_RUNTIME_DIR/omarchy-powerprofiles.lock"
+  flock 9
+fi
+
 case "$action" in
   autodetect)
     # Use the same signal as the shell (UPower.onBattery) so every entry point
@@ -38,19 +45,6 @@ state_file="$state_dir/$action"
 game_state="${OMARCHY_GAME_POWER_STATE:-}"
 if [[ -z $game_state && -n ${XDG_RUNTIME_DIR:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   game_state="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/omarchy-game-power-active"
-fi
-
-# Serialize profile transitions so rapid game open/close events always settle
-# on the final marker state instead of racing out of order.
-lock_file=""
-if [[ -n $game_state ]]; then
-  lock_file="${game_state}.lock"
-elif [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
-  lock_file="$XDG_RUNTIME_DIR/omarchy-powerprofiles.lock"
-fi
-if [[ -n $lock_file && -d $(dirname "$lock_file") ]]; then
-  exec 9>"$lock_file"
-  flock 9
 fi
 
 if [[ -n $requested_profile ]]; then
