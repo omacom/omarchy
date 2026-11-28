@@ -56,6 +56,10 @@ cat >"$work/bin/pactl" <<'SH'
 printf '%s pactl %s\n' "${LC_ALL:-unset}" "$*" >>"$CALLS"
 case "$*" in
   "list sink-inputs")
+    if [[ -n ${SINK_INPUTS_FILE:-} ]]; then
+      cat "$SINK_INPUTS_FILE"
+      exit 0
+    fi
     cat <<'OUT'
 Sink Input #42
 	Sink: 10
@@ -85,7 +89,7 @@ OUT
 OUT
     ;;
   "get-default-sink")
-    echo "alsa_output.speakers"
+    echo "${DEFAULT_SINK:-alsa_output.speakers}"
     ;;
   "get-sink-volume "*)
     echo "Volume: front-left: 32768 /  50% / -18.06 dB"
@@ -147,6 +151,32 @@ XDG_RUNTIME_DIR="$work" LC_ALL=en_US.UTF-8 omarchy-audio-output-volume mute-togg
 grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
+
+# An unresolved DSP output must not receive the volume change as processor
+# input: the physical sink ID may have gone stale while its stream remains.
+parked_inputs="$work/parked-sink-inputs"
+printf 'Sink Input #43\n\tSink: 999\n\tProperties:\n\t\tnode.name = "effect_output.Dolby_Balanced"\n' >"$parked_inputs"
+: >"$CALLS"
+if DEFAULT_SINK=effect_input.Dolby_Balanced SINK_INPUTS_FILE="$parked_inputs" \
+  LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 >"$work/parked-out" 2>"$work/parked-err"; then
+  fail 'volume adjustment fails when a DSP output has no resolvable downstream sink' "$(calls)"
+fi
+grep -q '^Could not resolve an audio sink to control\.$' "$work/parked-err" ||
+  fail 'unresolved DSP volume adjustment explains that the sink could not be resolved' "$(cat "$work/parked-err")"
+! grep -qE 'pactl (set-sink-volume|set-sink-mute)' "$CALLS" ||
+  fail 'unresolved DSP volume adjustment writes no sink volume or mute' "$(calls)"
+pass 'unresolved DSP volume adjustment writes nothing to the processor input'
+
+: >"$CALLS"
+DEFAULT_SINK=bluez_output.00_11_22_33_44_55.1 omarchy-audio-output-volume lower ||
+  fail 'direct Bluetooth volume command succeeds' "$(calls)"
+mkdir -p "$work/bluetooth-runtime"
+DEFAULT_SINK=bluez_output.00_11_22_33_44_55.1 XDG_RUNTIME_DIR="$work/bluetooth-runtime" omarchy-audio-output-volume mute-toggle ||
+  fail 'direct Bluetooth mute command succeeds' "$(calls)"
+grep -q 'pactl set-sink-volume bluez_output.00_11_22_33_44_55.1 45%' "$CALLS" &&
+  grep -q 'pactl set-sink-mute bluez_output.00_11_22_33_44_55.1 toggle' "$CALLS" ||
+  fail 'direct Bluetooth volume and mute commands still reach the selected sink' "$(calls)"
+pass 'direct Bluetooth volume and mute commands reach the selected sink'
 
 : >"$CALLS"
 (

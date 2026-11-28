@@ -79,6 +79,20 @@ printf '[StreamOutputs]\noutputDevice=%s\n' "$physical" >"$test_home/.config/eas
 [[ $(resolve) == "$headphones" ]] || fail "easyeffects_sink resolves through its port links to Bluetooth headphones"
 pass "easyeffects_sink resolves through its port links to Bluetooth headphones"
 
+reset_scenario
+printf '%s\n' "$headphones" >"$test_home/data/default-sink"
+[[ $(resolve) == "$headphones" ]] || fail "a directly selected Bluetooth sink resolves to itself"
+[[ $(resolve "$headphones") == "$headphones" ]] || fail "an explicit Bluetooth sink resolves to itself"
+pass "direct Bluetooth sinks resolve to themselves"
+
+printf '%s\n' direct_virtual_output >"$test_home/data/default-sink"
+[[ $(resolve) == "direct_virtual_output" ]] || fail "a direct virtual output resolves to itself"
+pass "direct virtual output resolves to itself"
+
+printf '%s\n' omarchy_speaker_tuning >"$test_home/data/default-sink"
+[[ -z $(resolve) ]] || fail "an unlinked shipped tuning is not treated as a volume sink"
+pass "unlinked shipped tuning is not treated as a volume sink"
+
 # EasyEffects 8 idle: no links, but its settings name the output device.
 reset_scenario
 mkdir -p "$test_home/.config/easyeffects/db"
@@ -153,10 +167,10 @@ printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_input.Dolby_Balanced.
 pass "exact output wins over a valid legacy fallback"
 
 printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_output.Dolby_Balanced2"\n' >"$test_home/data/sink-inputs"
-[[ $(resolve) == "$filter" ]] || fail "a filter with no exact output falls back to itself"
-pass "filter with no exact output falls back to itself"
+[[ -z $(resolve) ]] || fail "a filter with no exact output is not treated as a volume sink"
+pass "filter with no exact output is not treated as a volume sink"
 
 # A stale sink ID must not turn into a different output.
 printf 'Sink Input #42\n  Sink: 999\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
-[[ $(resolve) == "$filter" ]] || fail "a missing downstream sink falls back to the filter"
-pass "missing downstream sink falls back to the filter"
+[[ -z $(resolve) ]] || fail "a missing downstream sink is not treated as a volume sink"
+pass "missing downstream sink is not treated as a volume sink"

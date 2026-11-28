@@ -90,8 +90,15 @@ if [[ $sink == "easyeffects_sink" ]]; then
     printf '%s\n' "$linked"
     exit 0
   fi
+
+  # Preserve the existing fallback for EasyEffects when neither its active
+  # links nor its configured output can be resolved.
+  printf '%s\n' "$sink"
+  exit 0
 fi
 
-# Nothing resolvable downstream -- the DSP sink may simply be idle and unlinked.
-# Fall back to the sink itself so callers still have something to act on.
-printf '%s\n' "$sink"
+# A direct output has no downstream stream. Keep that fallback unless this is
+# a known filter input, whose level must stay unchanged while it is unlinked.
+if [[ -z $downstream && $sink != effect_input.* && $sink != "omarchy_speaker_tuning" ]]; then
+  printf '%s\n' "$sink"
+fi
