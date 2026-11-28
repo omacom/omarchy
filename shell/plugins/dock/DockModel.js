@@ -202,6 +202,21 @@ function pickWindow(windows, workspaceId) {
   return order[0]
 }
 
+// A running app shows a dot for each of its windows, up to three, so a glance
+// tells which apps are open and roughly how many windows each has.
+var MAX_DOTS = 3
+
+function dotCount(windowCount) {
+  return Math.max(0, Math.min(MAX_DOTS, windowCount || 0))
+}
+
+// An app with more than one window lists them when the pointer rests on it,
+// so any one of them can be picked directly instead of clicked through in
+// turn. With a single window a click already goes straight to it.
+function listsWindows(item) {
+  return !!item && (item.windows || []).length >= 2
+}
+
 
 // The window a click on the app brings forward, or -1 to launch it instead.
 // The mode is the app's X-Omarchy-Dock-Click: "new" launches, since each
@@ -238,6 +253,8 @@ if (typeof module !== "undefined") {
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
     pickWindow: pickWindow,
-    pickClickWindow: pickClickWindow
+    pickClickWindow: pickClickWindow,
+    dotCount: dotCount,
+    listsWindows: listsWindows
   }
 }
