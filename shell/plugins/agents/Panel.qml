@@ -147,7 +147,7 @@ Panel {
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's button, then each line's
-  // buttons, its Sign-in required link, and the starter tiles; or, while
+  // buttons, its Sign-in required and Park links, and the starter tiles; or, while
   // adding, the choices by provider id. Up and down change rows, left and
   // right move along one. Hovering moves the same cursor, so only one thing
   // is lit.
@@ -191,6 +191,8 @@ Panel {
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
         if (localLogsShown(providers[p])) rows.push([{ kind: "localLogs", index: p }])
+        for (var w = 0; w < parkEntries.length; w++)
+          if (parkEntries[w].providerIndex === p) rows.push([{ kind: "park", index: w }])
       }
       if (starterShown) {
         for (var j = 0; j < starterPrompts.length; j += starterColumns) {
@@ -272,6 +274,10 @@ Panel {
   // The agent a cursor stop belongs to, or -1.
   function lineOf(target) {
     if (!target) return -1
+    if (target.kind === "park") {
+      var entry = parkEntries[target.index]
+      return entry ? entry.providerIndex : -1
+    }
     if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop",
          "localUpdate", "localShare", "localToggle", "localLogs"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
@@ -383,13 +389,13 @@ Panel {
       panelFlick.contentY = Math.min(panelFlick.contentHeight - panelFlick.height, top + item.height + margin - panelFlick.height)
   }
 
-  // The bar icon lights up when any account new sessions use is nearly out,
-  // a prepaid balance is down to its last 10%, or monthly spend is near its cap.
+  // The bar icon lights up when an account in use has an unparked limit
+  // nearly out, a balance is down to its last 10%, or spend is near its cap.
   readonly property bool alarming: {
     for (var i = 0; i < providers.length; i++) {
       // An account not in use limits nothing until it's switched to.
       if (providers[i].account && providers[i].account.active !== true) continue
-      var window = bindingWindow(providers[i])
+      var window = alarmWindow(providers[i])
       if (window && window.percent >= 0.9) return true
       if (balanceAlarming(providers[i].balance)) return true
       if (spendAlarming(providers[i].spend)) return true
@@ -1362,6 +1368,10 @@ Panel {
     else if (target.kind.indexOf("make:") === 0) runLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], providers[target.index].account || null)
+    else if (target.kind === "park" && parkEntries[target.index]) {
+      var park = parkEntries[target.index]
+      toggleParked(providers[park.providerIndex], park.window)
+    }
     else if (target.kind === "localUpdate") runLocalAction(providers[target.index].localModel, "update")
     else if (target.kind === "localShare") runLocalAction(providers[target.index].localModel, "share")
     else if (target.kind === "localToggle") runLocalAction(providers[target.index].localModel, "toggle")
@@ -1645,15 +1655,96 @@ Panel {
     return out
   }
 
-  // The window that decides how much room is left — the fullest one, since
-  // that is what stops the next prompt.
-  function bindingWindow(p) {
+  // The window that decides whether to warn — the fullest unparked one.
+  function alarmWindow(p) {
     var windows = limitWindows(p)
     var best = null
     for (var i = 0; i < windows.length; i++) {
-      if (!best || windows[i].percent > best.percent) best = windows[i]
+      if (!isParked(p, windows[i]) && (!best || windows[i].percent > best.percent)) best = windows[i]
     }
     return best
+  }
+
+  // Split account lines have an account but an empty accounts list. Neither
+  // they nor an unsplit multi-account record may inherit a single-account park.
+  function singleAccount(p) {
+    return !!p && !p.account && (!p.accounts || p.accounts.length < 2)
+  }
+
+  function isParked(p, w) {
+    if (!singleAccount(p) || !w || w.resetAt === "") return false
+    var key = parkKey(p, w)
+    if (key === "") return false
+    var at = usage.parkedLimits[p.providerId][key]
+    return new Date(String(at)).getTime() > root.nowMs && sameReset(at, w.resetAt)
+  }
+
+  // Unpark removes the saved park, whether this window owns or inherits it.
+  function parkKey(p, w) {
+    var parked = p ? usage.parkedLimits[p.providerId] : null
+    if (!parked || !w) return ""
+    if (parked[w.title] !== undefined) return w.title
+    var part = scopedPart(w.title)
+    return part && parked[part.window] !== undefined ? part.window : ""
+  }
+
+  // Allow reset drift, but never keep a park past its own reset.
+  function sameReset(a, b) {
+    var x = new Date(String(a)).getTime()
+    var y = new Date(String(b)).getTime()
+    return isFinite(x) && isFinite(y) && Math.abs(x - y) < 3600000
+  }
+
+  // Short of full the warning still leaves time to act; without a reset it
+  // would never light again. Several accounts can be switched between instead.
+  function canPark(p, w) {
+    return singleAccount(p) && !!w && !p.localModel
+      && w.percent >= 1 && resetMsFor(w) > 0
+  }
+
+  // Include model allowances so a spent model parks without silencing the
+  // row's own allowance while it still has room.
+  function rowWindows(row) {
+    var out = row ? [row] : []
+    var scoped = row && row.scoped ? row.scoped : []
+    for (var i = 0; i < scoped.length; i++)
+      out.push({ title: scoped[i].title + " " + row.title, percent: scoped[i].percent, resetAt: scoped[i].resetAt })
+    return out
+  }
+
+  function rowParkable(p, row) {
+    return rowWindows(row).filter(function(w) { return canPark(p, w) && !isParked(p, w) })
+  }
+
+  function rowParked(p, row) {
+    return rowWindows(row).some(function(w) { return isParked(p, w) })
+  }
+
+  readonly property var parkEntries: {
+    var out = []
+    for (var i = 0; i < providers.length; i++) {
+      var provider = providers[i]
+      if (!singleAccount(provider) || provider.localModel) continue
+      var windows = displayWindows(provider)
+      for (var j = 0; j < windows.length; j++)
+        if (rowParked(provider, windows[j]) || rowParkable(provider, windows[j]).length > 0)
+          out.push({ providerIndex: i, window: windows[j] })
+    }
+    return out
+  }
+
+  function parkIndex(providerIndex, w) {
+    for (var i = 0; !!w && i < parkEntries.length; i++)
+      if (parkEntries[i].providerIndex === providerIndex && parkEntries[i].window.title === w.title) return i
+    return -1
+  }
+
+  function toggleParked(p, row) {
+    if (!p || !row) return
+    var spent = rowParkable(p, row)
+    var windows = spent.length > 0 ? spent : rowWindows(row).filter(function(w) { return isParked(p, w) })
+    for (var i = 0; i < windows.length; i++)
+      usage.setLimitParked(p.providerId, spent.length > 0 ? windows[i].title : parkKey(p, windows[i]), windows[i].resetAt, spent.length > 0)
   }
 
   function resetMsFor(w) {
@@ -1764,18 +1855,29 @@ Panel {
     return currencyPrefix(currency) + Commons.I18n.formatNumber(amount, 2)
   }
 
-  // A balance or spend row's amount is as wide as a limit row's time left
-  // ("19h 40m"), so every line ends where the limit meters do.
+  // The countdown, Park links and balance/spend values share a column so
+  // all meters end in the same place.
   TextMetrics {
     id: valueColumnMetrics
     font.family: root.fontFamily
     font.pixelSize: Style.font.bodySmall
     text: "00h 00m"
   }
-  // The share of a meter row its title takes: wide enough for the longest
-  // window name ("Claude/GPT Weekly") without eliding it.
+  TextMetrics {
+    id: parkMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    text: Commons.I18n.t("agents.park")
+  }
+  TextMetrics {
+    id: unparkMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    text: Commons.I18n.t("agents.unpark")
+  }
+  readonly property real valueColumnWidth: Math.ceil(Math.max(valueColumnMetrics.advanceWidth, parkMetrics.advanceWidth, unparkMetrics.advanceWidth))
+  // Leave room for the longest title ("Claude/GPT Weekly").
   readonly property real labelColumnRatio: 0.34
-  readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
 
   // ------------------------------------------------------------------ spend
   //
@@ -3524,6 +3626,8 @@ Panel {
           required property int index
           width: section.width
           window: modelData
+          provider: section.provider
+          parkIndex: root.parkIndex(section.providerIndex, modelData)
           note: index === 0 && section.noteInRow ? section.provider : null
           stale: !!section.provider && section.provider.limitsStale === true
           fetchedAt: section.provider ? Number(section.provider.limitsFetchedAt || 0) : 0
@@ -3885,13 +3989,19 @@ Panel {
   component CompactLimit: Item {
     id: compact
     property var window: null
+    property var provider: null
+    property int parkIndex: -1
+    readonly property bool picked: parkIndex >= 0 && root.hasKey("park", parkIndex)
     // The agent's note, shown in the time-left slot when there's none.
     property var note: null
     // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
     readonly property var scoped: window && window.scoped ? window.scoped : []
-    readonly property bool alarming: window && window.percent >= 0.9
+    readonly property bool parked: root.isParked(provider, window)
+    readonly property bool parkOffered: root.rowParkable(provider, window).length > 0
+    readonly property bool parkable: parkOffered || root.rowParked(provider, window)
+    readonly property bool alarming: !parked && !!window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
 
@@ -3914,6 +4024,15 @@ Panel {
             : compact.fetchedAt > 0 ? Commons.I18n.t("agents.lastUpdatedJustNow") : Commons.I18n.t("agents.lastUpdatedUnknown"))
         for (var i = 0; i < compact.scoped.length; i++)
           lines.push(root.scopedAllowanceText(compact.scoped[i], compact.window ? compact.window.title : ""))
+        var onRow = root.rowWindows(compact.window)
+        if (compact.parked) {
+          lines.push(Commons.I18n.t("agents.parked"))
+        } else {
+          for (var j = 1; j < onRow.length; j++)
+            if (root.isParked(compact.provider, onRow[j]))
+              lines.push(Commons.I18n.t("agents.modelParked").arg(compact.scoped[j - 1].title))
+        }
+        if (compact.parkOffered) lines.push(Commons.I18n.t("agents.parkHint"))
         return lines.join("\n")
       }
     }
@@ -3937,37 +4056,46 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       value: compact.window ? compact.window.percent : -1
       alarming: compact.alarming
+      muted: compact.parked
       markers: compact.scoped
     }
 
-    // Sized to the widest time left ("19h 40m"), so every meter ends in the
-    // same place.
-    TextMetrics {
-      id: compactValueMetrics
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      text: "00h 00m"
-    }
-
-    // How long until the window resets. The meter says how full it is; the
-    // exact percentage is in the row's tooltip.
-    Text {
+    // Hovering or selecting a spent row trades the countdown for Park.
+    Item {
       id: compactValue
-      width: Math.ceil(compactValueMetrics.advanceWidth)
+      width: root.valueColumnWidth
+      implicitHeight: compactValueText.implicitHeight
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      textFormat: Text.PlainText
-      horizontalAlignment: Text.AlignRight
-      text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
-      color: root.dim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      readonly property bool linkShown: compact.parkable && (compactHover.hovered || compact.picked)
+
+      Text {
+        id: compactValueText
+        anchors.fill: parent
+        visible: !compactValue.linkShown
+        textFormat: Text.PlainText
+        horizontalAlignment: Text.AlignRight
+        text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+
+      TextLink {
+        visible: compactValue.linkShown
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        picked: compact.picked
+        text: compact.parkOffered ? Commons.I18n.t("agents.park") : Commons.I18n.t("agents.unpark")
+        onHovered: if (compact.parkIndex >= 0) root.hoverAt("park", compact.parkIndex)
+        onClicked: root.toggleParked(compact.provider, compact.window)
+      }
     }
 
     UsageNote {
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      visible: !!compact.note && compact.resetMs <= 0 && message !== ""
+      visible: !!compact.note && compact.resetMs <= 0 && !compactValue.linkShown && message !== ""
       record: compact.note
     }
   }
@@ -3977,6 +4105,7 @@ Panel {
     id: meter
     property real value: -1
     property bool alarming: false
+    property bool muted: false
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
     // Other allowances on the same clock, drawn as ticks across the track.
@@ -3997,7 +4126,7 @@ Panel {
       height: meterTrack.height
       radius: meterTrack.radius
       width: meterTrack.width * root.clamp(meter.value, 0, 1)
-      color: meter.alarming ? root.urgent : root.foreground
+      color: meter.alarming ? root.urgent : meter.muted ? root.dim : root.foreground
 
       Behavior on width {
         NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
@@ -4017,7 +4146,7 @@ Panel {
         // fill grows from.
         readonly property real along: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
         x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
-        color: meter.alarming ? root.urgent : root.foreground
+        color: meter.alarming ? root.urgent : meter.muted ? root.dim : root.foreground
       }
     }
   }

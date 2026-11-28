@@ -33,6 +33,7 @@ per local coding model added.
   in the first limit row's empty time-left slot when it has no time to show,
   else beside the name. Each meter's tooltip says how old it is. The name,
   account, and plan stop short of the line's controls and shorten to fit.
+- **Parking** — a fully spent limit with a known reset can be parked from its row, by hovering or selecting it with the keyboard. Only the spent allowances park, including model allowances on a row whose own limit still has room. Parked limits are drawn quietly and stop lighting the bar icon; the agent's other limits still can. The park lasts only until its saved reset (in `~/.local/state/omarchy/agents/parked.json`), or until the provider moves that reset by an hour or more. _Unpark_ ends it sooner. Several accounts can be switched between instead: their lines don't offer Park, and adding a second account ends the agent's parks.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) gets a line for each, read as the agent's name and
   then the account's beside its plan, Claude Work · Max 20x (the email on
