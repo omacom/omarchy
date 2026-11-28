@@ -161,6 +161,13 @@ hl = {
   get_active_window = function()
     return world.active_window and { address = world.active_window } or nil
   end,
+  get_windows = function()
+    local list = {}
+    for address, window in pairs(world.windows) do
+      list[#list + 1] = { address = address, workspace = workspace_object(workspace_numbered(window.workspace)) }
+    end
+    return list
+  end,
   get_window = function(selector)
     local address = selector:match("^address:(.+)$")
     return world.windows[address] and { address = address } or nil
@@ -683,3 +690,90 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+# --- Shared workspaces (omarchy toggle shared-workspaces) ---------------------
+
+share_lua='
+function share(on)
+  local flag = os.getenv("XDG_STATE_HOME") .. "/omarchy/toggles/shared-workspaces"
+  if on then
+    os.execute("mkdir -p \"" .. os.getenv("XDG_STATE_HOME") .. "/omarchy/toggles\"")
+    io.open(flag, "w"):close()
+  else
+    os.remove(flag)
+  end
+end
+'
+
+run_lua shared_focus "$share_lua"'
+share(true)
+plug("DP-1", 0, "LG", 1)
+plug("DP-2", 1, "XENEON", 2)
+world.focused = "DP-2"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 2)
+
+hl.dispatch(m.focus(1))
+check(shows("DP-2") == 1 and on(1) == "DP-2", "workspace 1 comes to the focused monitor, not " .. tostring(on(1)))
+check(shows("DP-1") == 2 and world.swaps == 1, "the two monitors swap their workspaces")
+check(world.focused == "DP-2", "focus stays on the monitor it was on")
+
+hl.dispatch(m.focus(3, "DP-1"))
+check(shows("DP-1") == 3 and world.focused == "DP-1", "the bar of a monitor brings a workspace to that monitor")
+' || fail "with shared workspaces, Super + N brings workspace N to the focused monitor"
+pass "with shared workspaces, Super + N brings workspace N to the focused monitor"
+
+run_lua shared_moves "$share_lua"'
+share(true)
+plug("DP-1", 0, "LG", 1)
+plug("DP-2", 1, "XENEON", 2)
+world.neighbours = { ["DP-1"] = { r = "DP-2" }, ["DP-2"] = { l = "DP-1" } }
+world.focused = "DP-2"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 2)
+world.active_window = "0xa"
+
+hl.dispatch(m.move_window(4, false))
+check(world.windows["0xa"].workspace == 4, "the window goes to workspace 4, not " .. world.windows["0xa"].workspace)
+
+world.focused = "DP-1"
+window("0xb", 5)
+hl.dispatch(hl.dsp.focus({ workspace = "5" }))
+hl.dispatch(m.move_to_monitor("r"))
+check(on(5) == "DP-2" and world.windows["0xb"].workspace == 5, "a workspace keeps its number on another monitor")
+
+world.handlers["config.reloaded"]()
+check(on(5) == "DP-2" and on(4) ~= nil, "a reload leaves shared workspaces where they are")
+' || fail "with shared workspaces, windows and workspaces keep their numbers"
+pass "with shared workspaces, windows and workspaces keep their numbers"
+
+run_lua shared_toggle "$share_lua"'
+plug("DP-1", 0, "LG", 1)
+plug("DP-2", 1, "XENEON", 11)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-2"
+window("0xb", 11)
+window("0xc", 12)
+window("0xd", 13)
+hl.dispatch(hl.dsp.focus({ workspace = "11" }))
+world.active_window = "0xb"
+
+share(true)
+world.handlers["config.reloaded"]()
+check(world.windows["0xb"].workspace == 1 and world.windows["0xa"].workspace == 1, "workspace 11 merges into workspace 1")
+check(world.windows["0xc"].workspace == 2 and on(2) == "DP-2", "workspace 12 becomes 2 on its monitor")
+check(world.windows["0xd"].workspace == 3, "workspace 13 becomes 3")
+check(on(11) == nil, "the merged workspace goes away")
+check(shows("DP-2") <= 10 and on(shows("DP-2")) == "DP-2", "DP-2 shows one of its own workspaces in 1-10, not " .. shows("DP-2"))
+
+share(false)
+world.handlers["config.reloaded"]()
+check(on(world.windows["0xc"].workspace) == "DP-2" and world.windows["0xc"].workspace > 10, "turned off, DP-2 workspaces go back into its block")
+' || fail "turning shared workspaces on merges each block's workspace N into workspace N, and off returns the blocks"
+pass "turning shared workspaces on merges each block's workspace N into workspace N, and off returns the blocks"

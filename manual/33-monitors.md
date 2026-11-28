@@ -43,6 +43,8 @@ Hyprland works great with multiple screens. The monitor panel in the top bar dra
 
 Every monitor has workspaces 1 through 10 of its own, so `Super + 1` always means the first workspace of the monitor you're on. Behind the scenes, Hyprland still numbers workspaces across all monitors: your laptop screen (or first monitor) gets 1–10, the next monitor 11–20, and so on, and each monitor keeps its block every time you plug it in. Use those numbers if you write [workspace rules](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) or window rules for a specific monitor, so workspace 12 is the second workspace of your second monitor. `~/.local/state/omarchy/monitors/workspaces` lists which block each monitor has.
 
+If you'd rather have one set of workspaces shared by every monitor, as in xmonad, run `omarchy toggle shared-workspaces`. Then `Super + 3` brings workspace 3 to the monitor you're on (swapping it with the one there if your other monitor shows it), and workspaces keep their numbers wherever they go. Turning it on merges each monitor's workspace 3 into a single workspace 3; run the command again to go back to workspaces per monitor.
+
 The arrow keys work across monitors that share an edge in your layout. Screens that only touch at a corner, or that have a gap between them, aren't neighbors, so use `Ctrl + Alt + Tab` to get between them.
 
 | Hotkey | Across monitors |

@@ -22,6 +22,11 @@
 -- another output, and a second state file remembers where each came from so it
 -- goes back, under its old number, when that monitor returns. With no room in
 -- the block they stay guests, and the bar lists them after the monitor's own.
+--
+-- `omarchy toggle shared-workspaces` turns all of this off for one set of
+-- workspaces 1-10 shared by every monitor, as in xmonad: Super + 3 brings
+-- workspace 3 to the focused monitor, swapping it with the one there when the
+-- other monitor shows it. Workspaces keep their numbers wherever they go.
 
 local paths = require("default.hypr.paths")
 
@@ -29,8 +34,20 @@ local SLOTS = 10
 local STATE_DIR = paths.state_home .. "/omarchy/monitors"
 local STATE_FILE = STATE_DIR .. "/workspaces"
 local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
+local SHARED_FLAG = paths.state_home .. "/omarchy/toggles/shared-workspaces"
 
 local M = { slots = SLOTS }
+
+-- Read on every use rather than once: Lua state outlives a config reload, and
+-- the toggle only creates or removes the file.
+function M.shared()
+  local file = io.open(SHARED_FLAG, "r")
+  if file then
+    file:close()
+    return true
+  end
+  return false
+end
 
 -- Identity -> block, kept across sessions.
 local blocks = {}
@@ -449,6 +466,11 @@ function M.focus(slot, monitor_name)
       hl.dispatch(hl.dsp.focus({ monitor = monitor.name }))
     end
 
+    if M.shared() then
+      hl.dispatch(hl.dsp.focus({ workspace = tostring(slot), on_current_monitor = true }))
+      return
+    end
+
     local id = M.workspace_id(monitor, slot)
     reclaim(monitor, id)
     hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
@@ -465,8 +487,11 @@ function M.move_window(slot, follow)
       return
     end
 
-    local id = M.workspace_id(monitor, slot)
-    reclaim(monitor, id)
+    local id = slot
+    if not M.shared() then
+      id = M.workspace_id(monitor, slot)
+      reclaim(monitor, id)
+    end
     hl.dispatch(hl.dsp.window.move({ workspace = tostring(id), follow = follow ~= false, window = "address:" .. window.address }))
   end, "o.workspaces.move_window(" .. slot .. (follow == false and ", false" or "") .. ")")
 end
@@ -492,7 +517,7 @@ function M.move_to_monitor(direction)
     hl.dispatch(hl.dsp.workspace.move({ monitor = target.name }))
 
     local moved = hl.get_workspace(id)
-    if not moved or not moved.monitor or (from and moved.monitor.name == from.name) then
+    if not moved or not moved.monitor or (from and moved.monitor.name == from.name) or M.shared() then
       return
     end
 
@@ -533,6 +558,11 @@ end
 -- on a workspace of its own. `added` names a monitor that just arrived, which
 -- leaves whatever Hyprland put it on; `gone` one being removed.
 function M.reconcile(added, gone)
+  if M.shared() then
+    M.reconcile_shared()
+    return
+  end
+
   local monitors = connected(gone)
   if #monitors == 0 then
     return
@@ -673,6 +703,76 @@ function M.reconcile(added, gone)
     elseif focused_name and focused_name ~= gone and hl.get_monitor(focused_name) then
       hl.dispatch(hl.dsp.focus({ monitor = focused_name }))
     end
+  end
+end
+
+-- With shared workspaces, numbers above ten are only left over from per-monitor
+-- blocks, so each comes down to its slot in 1-10: Super + 3 on any monitor was
+-- the same workspace 3 to its owner, so blocks' workspaces with the same slot
+-- merge into one, its windows joining those already there. A monitor left on an
+-- emptied number shows one of its own in 1-10. Unplug records no longer mean
+-- anything.
+function M.reconcile_shared()
+  if next(merged) then
+    merged = {}
+    save_merged()
+  end
+
+  local high = {}
+  for _, workspace in ipairs(hl.get_workspaces()) do
+    if regular(workspace) and workspace.id > SLOTS then
+      high[#high + 1] = workspace
+    end
+  end
+  if #high == 0 then
+    return
+  end
+  table.sort(high, function(left, right) return left.id < right.id end)
+
+  local focused_window = hl.get_active_window()
+  local focused_monitor = hl.get_active_monitor()
+  local focused_name = focused_monitor and focused_monitor.name
+
+  for _, workspace in ipairs(high) do
+    local slot = (workspace.id - 1) % SLOTS + 1
+    if hl.get_workspace(slot) then
+      local id = workspace.id
+      for _, window in ipairs(hl.get_windows()) do
+        if window.workspace and window.workspace.id == id then
+          hl.dispatch(hl.dsp.window.move({ workspace = tostring(slot), follow = false, window = "address:" .. window.address }))
+        end
+      end
+    else
+      renumber(workspace, slot)
+    end
+  end
+
+  for _, monitor in ipairs(connected()) do
+    local active = monitor.active_workspace
+    if regular(active) and active.id > SLOTS then
+      local best = nil
+      for _, workspace in ipairs(hl.get_workspaces()) do
+        if regular(workspace) and workspace.id <= SLOTS and workspace.monitor
+          and workspace.monitor.name == monitor.name and (not best or workspace.id < best) then
+          best = workspace.id
+        end
+      end
+
+      if not best then
+        best = 1
+        while best < SLOTS and hl.get_workspace(best) do
+          best = best + 1
+        end
+      end
+
+      show(monitor, best)
+    end
+  end
+
+  if focused_window and hl.get_window("address:" .. focused_window.address) then
+    hl.dispatch(hl.dsp.focus({ window = "address:" .. focused_window.address }))
+  elseif focused_name and hl.get_monitor(focused_name) then
+    hl.dispatch(hl.dsp.focus({ monitor = focused_name }))
   end
 end
 

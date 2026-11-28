@@ -558,5 +558,7 @@
   "windowsVm.ramHeader": "How much RAM would you like to allocate to Windows VM?",
   "windowsVm.usernameHeader": "Enter Windows username:",
   "windowsVm.usernamePlaceholder": "Username (Press enter to use default: %1)",
+  "workspaces.perMonitor": "Each monitor has its own workspaces",
+  "workspaces.shared": "Workspaces shared across monitors",
   "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?"
 }
