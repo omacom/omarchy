@@ -191,12 +191,16 @@ def any_powered(controllers: list[dict] | None = None) -> bool:
     return any(c["powered"] for c in ctrls)
 
 
+def radio_blocked() -> bool:
+    return run_cmd([power_bin(), "is-blocked"], timeout=5).returncode == 0
+
+
 def ensure_powered() -> None:
     ctrls = read_controllers()
-    if not ctrls:
-        raise RuntimeError("no Bluetooth adapter found")
     if any_powered(ctrls):
         return
+    if not ctrls and not radio_blocked():
+        raise RuntimeError("no Bluetooth adapter found")
     run_cmd([power_bin(), "on"], timeout=15, check=True)
 
 
@@ -375,6 +379,7 @@ def resolve_device(query: str) -> tuple[dict, bool]:
 
 def read_status() -> dict:
     controllers = read_controllers()
+    available = bool(controllers) or radio_blocked()
     powered = any_powered(controllers)
     default_ctrl = next((c for c in controllers if c["default"]), controllers[0] if controllers else None)
     connected = (
@@ -383,7 +388,7 @@ def read_status() -> dict:
         else []
     )
     return {
-        "available": bool(controllers),
+        "available": available,
         "powered": powered,
         "power": "on" if powered else "off",
         "controller": default_ctrl,
@@ -525,6 +530,10 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
     pos = strip_double_dash(args)
     if len(pos) != 1:
         raise UsageError(f"Usage: omarchy bluetooth {action} <device>")
+    if not pos[0].strip():
+        raise UsageError("device name must not be empty")
+    if action in ("pair", "connect", "forget"):
+        ensure_powered()
     dev, known_in_bluez = resolve_device(pos[0])
     addr = dev["address"]
     label = dev["label"]
@@ -536,7 +545,6 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
         return 0
 
     if action == "pair":
-        ensure_powered()
         if not dev["paired"]:
             bt_cmd(["--timeout", "20", "pair", addr], timeout=25, check=True)
             after_pair = read_device_info(addr)
@@ -554,7 +562,6 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
         return 0
 
     if action == "connect":
-        ensure_powered()
         if dev["paired"] and not dev["trusted"]:
             bt_cmd(["trust", addr], timeout=10, check=False)
         bt_cmd(["--timeout", "20", "connect", addr], timeout=25, check=True)
@@ -580,7 +587,6 @@ def cmd_device_action(action: str, args: list[str], as_json: bool) -> int:
         return 0
 
     if action == "forget":
-        ensure_powered()
         if dev["connected"]:
             bt_cmd(["--timeout", "10", "disconnect", addr], timeout=15, check=False)
         bt_cmd(["--timeout", "10", "remove", addr], timeout=15, check=True)

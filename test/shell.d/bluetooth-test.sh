@@ -129,6 +129,21 @@ cat >"$mock_bin/rfkill" <<'SH'
 #!/bin/bash
 
 printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+# The is-blocked read: one SOFT column per bluetooth switch, and no output at all
+# on a machine that has none.
+# util-linux translates the cell values, so a German session prints "gesperrt"
+# where the C locale prints "blocked": the mock does the same unless the caller
+# pinned the locale.
+if [[ $1 == "--noheadings" ]]; then
+  if [[ -n ${MOCK_SOFT_STATE:-} ]]; then
+    if [[ ${LC_ALL:-} == "C" ]]; then
+      printf '%s\n' "$MOCK_SOFT_STATE"
+    else
+      printf '%s\n' "$MOCK_SOFT_STATE" | sed 's/^unblocked$/nicht gesperrt/; s/^blocked$/gesperrt/'
+    fi
+  fi
+  exit 0
+fi
 if [[ $* == *"list bluetooth"* ]]; then
   [[ -n ${RFKILL_LIST:-} ]] && printf '%s\n' "$RFKILL_LIST"
   exit 0
@@ -236,6 +251,35 @@ grep -qx "rfkill block bluetooth" "$multi_log" ||
   fail "bluetooth counts a secondary controller as on" "$(cat "$multi_log")"
 pass "bluetooth counts a secondary controller as on"
 
+# What the bar widget asks when BlueZ hands it no adapter: a soft block means
+# Bluetooth is off and the widget stays put, no bluetooth switch at all means the
+# machine has no radio and the widget is right to go.
+blocked_state() {
+  MOCK_SOFT_STATE="$1" PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+    "$ROOT/bin/omarchy-bluetooth-power" is-blocked
+}
+
+blocked_state $'unblocked\nblocked' ||
+  fail "bluetooth reports a soft-blocked radio as blocked"
+pass "bluetooth reports a soft-blocked radio as blocked"
+
+blocked_state $'unblocked\nunblocked' &&
+  fail "bluetooth reports an unblocked radio as not blocked"
+pass "bluetooth reports an unblocked radio as not blocked"
+
+# "unblocked" contains "blocked", so a loose match here would pin the widget to
+# the bar on every machine that has no Bluetooth at all.
+blocked_state "" &&
+  fail "bluetooth reports a machine with no rfkill switch as not blocked"
+pass "bluetooth reports a machine with no rfkill switch as not blocked"
+
+# The mock rfkill translates the column unless the query pins the locale, the
+# way util-linux does on a localized system. A helper that read the English
+# word from a translated column would hide the widget again on those machines.
+LC_ALL= blocked_state $'unblocked\nblocked' ||
+  fail "bluetooth reads the rfkill block in a localized session"
+pass "bluetooth reads the rfkill block in a localized session"
+
 # On laptops with a platform ACPI switch (e.g. ThinkPad's tpacpi_bluetooth_sw),
 # off must block only the hci* switches so the platform switch does not cut USB
 # power and detach the adapter from BlueZ.
@@ -297,7 +341,8 @@ while i < len(args):
         i += 1
 
 if cmd == ["list"]:
-    if os.environ.get("TEST_NO_CTRL") != "1":
+    detached = os.environ.get("TEST_RFKILL_DETACHED") == "1" and read_s("powered", "yes") != "yes"
+    if os.environ.get("TEST_NO_CTRL") != "1" and not detached:
         print("Controller 50:2E:66:58:2A:60 dhh-bc [default]")
     raise SystemExit(0)
 
@@ -317,6 +362,8 @@ if cmd[:1] == ["power"] and len(cmd) >= 2:
     raise SystemExit(0)
 
 if cmd[:1] == ["devices"]:
+    if os.environ.get("TEST_RFKILL_DETACHED") == "1" and read_s("powered", "yes") != "yes":
+        raise SystemExit(0)
     filt = cmd[1] if len(cmd) >= 2 else ""
     if not filt or (filt == "Connected" and read_s("airpods_connected", "yes") == "yes") or filt in ("Paired", "Trusted"):
         print("Device AA:BB:CC:DD:EE:01 AirPods Pro")
@@ -442,6 +489,13 @@ cat >"$cli_tmp/bin/rfkill" <<'SH'
 printf 'rfkill %s\n' "$*" >>"$TEST_STATE_DIR/bt.log"
 [[ $1 == "block" ]] && printf 'no\n' >"$TEST_STATE_DIR/powered"
 [[ $1 == "unblock" ]] && printf 'yes\n' >"$TEST_STATE_DIR/powered"
+if [[ $* == *"list bluetooth"* && ${TEST_RFKILL_DETACHED:-0} == "1" ]]; then
+  if [[ $(<"$TEST_STATE_DIR/powered") == "no" ]]; then
+    printf 'blocked\n'
+  else
+    printf 'unblocked\n'
+  fi
+fi
 exit 0
 SH
 
@@ -575,3 +629,109 @@ status=0
 bt_cli scan --timeout 0 >/dev/null 2>&1 || status=$?
 (( status == 2 )) || fail "invalid --timeout should exit 2" "got $status"
 pass "bluetooth CLI scan rejects out-of-range --timeout with exit 2"
+
+# On laptops whose platform rfkill switch disconnects the USB controller when
+# soft-blocked, BlueZ lists no controller while Bluetooth is off, but the
+# rfkill switch is still present.
+: >"$BT_STATE_DIR/bt.log"
+TEST_RFKILL_DETACHED=1 bt_cli off >/dev/null
+out=$(TEST_RFKILL_DETACHED=1 bt_cli status --json)
+python3 - "$out" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["available"] is True and d["powered"] is False and d["power"] == "off", d
+assert d["controller"] is None, d
+PY
+out=$(TEST_RFKILL_DETACHED=1 bt_cli scan --timeout 1 --json)
+grep -qx "rfkill unblock bluetooth" "$BT_STATE_DIR/bt.log" || fail "bluetooth scan unblocks rfkill when controller is detached"
+pass "bluetooth CLI treats an rfkill-detached radio as off rather than unavailable and unblocks it on scan"
+
+# Connecting by device name while detached has to unblock rfkill before BlueZ
+# can resolve the name.
+TEST_RFKILL_DETACHED=1 bt_cli off >/dev/null
+: >"$BT_STATE_DIR/bt.log"
+out=$(TEST_RFKILL_DETACHED=1 bt_cli connect "AirPods Pro" --json)
+python3 - "$out" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["address"] == "AA:BB:CC:DD:EE:01" and d["connected"] is True, d
+PY
+grep -qx "rfkill unblock bluetooth" "$BT_STATE_DIR/bt.log" || fail "bluetooth connect by name unblocks rfkill before resolving"
+pass "bluetooth CLI connect by device name unblocks an rfkill-detached radio first"
+
+TEST_RFKILL_DETACHED=1 bt_cli off >/dev/null
+: >"$BT_STATE_DIR/bt.log"
+status=0
+TEST_RFKILL_DETACHED=1 bt_cli connect "" >/dev/null 2>&1 || status=$?
+(( status == 2 )) || fail "empty device names should exit 2" "got $status"
+if grep -q '^rfkill unblock ' "$BT_STATE_DIR/bt.log"; then
+  fail "bluetooth CLI leaves a blocked radio alone for an empty device name"
+fi
+pass "bluetooth CLI rejects empty device names before powering the radio"
+
+# The same transitions in the running panel: adapter gone with the radio
+# blocked, adapter back, adapter gone with no block, and a shell started with
+# the radio already blocked.
+require_compositor "bluetooth radio-off runtime test"
+require_command quickshell
+
+stage=$(mktemp -d)
+trap 'rm -rf "$device_tmp" "$cli_tmp" "$stage"' EXIT
+fixture="$SHELL_TEST_DIR/fixtures/bluetooth-radio-off"
+mkdir -p "$stage/bluetooth" "$stage/bin" "$stage/home"
+ln -s "$ROOT/shell/Ui" "$stage/Ui"
+ln -s "$ROOT/shell/Commons" "$stage/Commons"
+cp -r "$fixture/mocks" "$stage/mocks"
+cp "$fixture/shell.qml" "$stage/shell.qml"
+cp "$ROOT/shell/plugins/panels/bluetooth/Model.js" "$stage/bluetooth/Model.js"
+sed -e 's|^import Quickshell.Bluetooth$|import Quickshell.Bluetooth\nimport "../mocks"|' \
+  -e 's/\bBluetooth\.\(defaultAdapter\|devices\)/BluetoothMock.\1/g' \
+  "$ROOT/shell/plugins/panels/bluetooth/Panel.qml" >"$stage/bluetooth/Panel.qml"
+
+# Only the soft block is faked: off sets it, on lifts it, is-blocked reads it.
+cat >"$stage/bin/omarchy-bluetooth-power" <<'SH'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$1" >>"$BT_TEST_DIR/log"
+case $1 in
+  off) echo blocked >"$BT_TEST_DIR/rfkill" ;;
+  on)
+    echo unblocked >"$BT_TEST_DIR/rfkill"
+    # Unblocking reports a change on the switch while the controller is still
+    # booting, before BlueZ has an adapter again.
+    echo "idx 0 type 2 op 2 soft 0 hard 0" >>"$BT_TEST_DIR/rfkill-events"
+    ;;
+  unplug)
+    echo none >"$BT_TEST_DIR/rfkill"
+    echo "idx 9 type 2 op 1 soft 1 hard 0" >>"$BT_TEST_DIR/rfkill-events"
+    ;;
+  delay-query) touch "$BT_TEST_DIR/delay-query" ;;
+  is-blocked)
+    state=$(<"$BT_TEST_DIR/rfkill")
+    if [[ -f $BT_TEST_DIR/delay-query ]]; then
+      rm "$BT_TEST_DIR/delay-query"
+      echo query-delayed >>"$BT_TEST_DIR/log"
+      sleep 1
+    fi
+    [[ $state == "blocked" ]]
+    ;;
+esac
+SH
+# rfkill event: the switch changes the panel follows while the radio is off.
+cat >"$stage/bin/rfkill" <<'SH'
+#!/bin/bash
+[[ $1 == event ]] && exec tail -n0 -F "$BT_TEST_DIR/rfkill-events" 2>/dev/null
+SH
+chmod +x "$stage/bin/omarchy-bluetooth-power" "$stage/bin/rfkill"
+ln -s omarchy-bluetooth-power "$stage/bin/omarchy-bluetooth"
+: >"$stage/rfkill-events"
+echo unblocked >"$stage/rfkill"
+
+output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" BT_TEST_DIR="$stage" \
+  timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "bluetooth radio-off fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "bluetooth radio-off runtime assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
+  fail "bluetooth radio-off fixture has no QML errors" "$output"
+fi
+grep -qx "omarchy-bluetooth on" "$stage/log" || fail "the panel switch turns a blocked radio back on"
+grep -qx query-delayed "$stage/log" || fail "the runtime test overlaps an in-flight rfkill query"
+pass "bluetooth keeps the widget through turn-off, turn-on, no hardware, a blocked startup and an unplugged radio in QML"
