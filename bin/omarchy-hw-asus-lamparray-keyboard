@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Detect an ASUS laptop keyboard whose RGB lighting is a HID LampArray (Vivobook S16 and similar).
+# omarchy:hidden=true
+
+# These keyboards sit on I2C (HID bus 0018) as 0B05:19B6 and describe their
+# lighting with the HID Lighting and Illumination page (0x59), LampArray (0x01).
+# The same ID over USB is an ROG N-Key keyboard that asusctl drives instead.
+shopt -s nullglob
+for device in /sys/bus/hid/devices/0018:0B05:19B6.*; do
+  if od -An -v -tx1 "$device/report_descriptor" 2>/dev/null | tr -d ' \n' | grep -q "05590901"; then
+    exit 0
+  fi
+done
+exit 1

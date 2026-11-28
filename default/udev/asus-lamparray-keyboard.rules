@@ -1,0 +1,2 @@
+# ASUS laptop keyboards with HID LampArray lighting (I2C 0B05:19B6): let the seat user set the theme color.
+SUBSYSTEM=="hidraw", KERNELS=="0018:0B05:19B6.*", TAG+="uaccess"
