@@ -1,0 +1,134 @@
+#!/bin/bash
+
+# omarchy:summary=Audit installed shell plugins without starting the shell
+# omarchy:group=plugin
+# omarchy:args=[--json]
+# omarchy:examples=omarchy plugin audit | omarchy plugin audit --json
+
+set -o pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+export OMARCHY_PATH
+
+json=false
+while (($#)); do
+  case "$1" in
+    --json)
+      json=true
+      shift
+      ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage: omarchy plugin audit [--json]
+
+Inspect installed plugin manifests and entry points without starting
+omarchy-shell. Invalid plugins are reported, while third-party plugins are
+explicitly marked as unsandboxed because they run in the user's shell process.
+The command exits 1 when a plugin fails validation.
+USAGE
+      exit 0
+      ;;
+    *)
+      echo "omarchy-plugin-audit: unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+validator="$script_dir/omarchy-plugin-validate"
+[[ -x $validator ]] || {
+  echo "omarchy-plugin-audit: validator not found: $validator" >&2
+  exit 1
+}
+
+manifest_paths=()
+add_manifests() {
+  local root="$1" min_depth="$2" max_depth="$3" user_plugins="$4"
+  [[ -d $root ]] || return 0
+
+  if [[ $user_plugins == true ]]; then
+    while IFS= read -r manifest; do
+      manifest_paths+=("$manifest")
+    done < <(find -L "$root" -mindepth "$min_depth" -maxdepth "$max_depth" \
+      -type f -name manifest.json ! -path "$root/.*/*" 2>/dev/null | sort)
+  else
+    while IFS= read -r manifest; do
+      manifest_paths+=("$manifest")
+    done < <(find "$root" -mindepth "$min_depth" -maxdepth "$max_depth" -type f \
+      \( -name manifest.json -o -name '*.manifest.json' \) 2>/dev/null | sort)
+  fi
+}
+
+add_manifests "$OMARCHY_PATH/shell/plugins" 2 4 false
+add_manifests "$HOME/.config/omarchy/plugins" 2 2 true
+
+records=()
+invalid_count=0
+
+for manifest in "${manifest_paths[@]}"; do
+  plugin_dir=$(dirname -- "$manifest")
+  if [[ $manifest == "$OMARCHY_PATH/shell/plugins/"* ]]; then
+    source=first-party
+    risk=trusted-first-party
+  else
+    source=third-party
+    risk=unsandboxed
+  fi
+
+  id=$(jq -r '.id // empty' "$manifest" 2>/dev/null || true)
+  name=$(jq -r '.name // .id // empty' "$manifest" 2>/dev/null || true)
+  [[ -n $id ]] || id=unknown
+  [[ -n $name ]] || name=$(basename -- "$plugin_dir")
+
+  validation_output=""
+  validator_args=("$plugin_dir")
+  if [[ $source == first-party ]]; then
+    # The public validator rejects the reserved namespace for plugin authors;
+    # the explicit, path-scoped flag also lets the audit inspect Omarchy's own
+    # manifests.
+    validator_args=(--first-party "$plugin_dir")
+  fi
+  if validation_output=$("$validator" "${validator_args[@]}" 2>&1); then
+    valid=true
+    issues='[]'
+  else
+    valid=false
+    invalid_count=$((invalid_count + 1))
+    issues=$(jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$validation_output")
+  fi
+
+  records+=("$(jq -cn \
+    --arg id "$id" \
+    --arg name "$name" \
+    --arg source "$source" \
+    --arg risk "$risk" \
+    --arg path "$plugin_dir" \
+    --argjson valid "$valid" \
+    --argjson issues "$issues" \
+    '{id: $id, name: $name, source: $source, risk: $risk, valid: $valid, path: $path, issues: $issues}')")
+done
+
+if $json; then
+  if (( ${#records[@]} == 0 )); then
+    echo '[]'
+  else
+    printf '%s\n' "${records[@]}" | jq -s .
+  fi
+else
+  printf '%-30s %-9s %-13s %-19s %s\n' ID STATUS SOURCE RISK PATH
+  for record in "${records[@]}"; do
+    jq -r '[.id, (if .valid then "valid" else "invalid" end), .source, .risk, .path] | @tsv' \
+      <<<"$record" | awk -F '\t' '{ printf "%-30s %-9s %-13s %-19s %s\n", $1, $2, $3, $4, $5 }'
+    jq -r '.issues[] | "  issue: " + .' <<<"$record"
+  done
+  if (( ${#records[@]} == 0 )); then
+    echo "No installed plugins found."
+  fi
+  printf '\nAudited %d plugin(s); %d invalid.\n' "${#records[@]}" "$invalid_count"
+  if ((${#records[@]} > 0)) && jq -e 'any(.[]; .risk == "unsandboxed")' < <(printf '%s\n' "${records[@]}" | jq -s .) >/dev/null; then
+    echo "Note: third-party plugins are marked unsandboxed because they run in the user's shell process."
+  fi
+fi
+
+(( invalid_count == 0 ))
