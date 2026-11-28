@@ -56,6 +56,7 @@ from collectors import (  # noqa: E402
   recent_dates,
   registered_accounts,
   claude_code_usage,
+  merge_stats,
   scan_opencode,
   scan_pi_sessions,
   today as today_string,
@@ -325,39 +326,6 @@ def local_stats(claude_dir: Path, max_age: float, use_index: bool = True) -> dic
   # Where Claude Code is sent decides whose its turns are, so a scan only
   # answers for the endpoint it was made under.
   return cached_scan(AGENT_ID, sources, max_age, lambda: scan_local(claude_dir, index_file, not use_index), match=claude_code_scan_match(claude_dir))
-
-
-def merge_stats(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
-  merged = dict(base)
-  for key in ("todayPrompts", "todaySessions", "todayTotalTokens", "totalPrompts", "totalSessions"):
-    merged[key] = number(base.get(key)) + number(extra.get(key))
-
-  combined = dict(base.get("todayTokensByModel") or {})
-  for model, count in (extra.get("todayTokensByModel") or {}).items():
-    combined[model] = number(combined.get(model)) + number(count)
-  merged["todayTokensByModel"] = combined
-
-  usage = {model: dict(bucket) for model, bucket in (base.get("modelUsage") or {}).items()}
-  for model, bucket in (extra.get("modelUsage") or {}).items():
-    target = usage.setdefault(model, empty_bucket())
-    for field, count in (bucket or {}).items():
-      target[field] = number(target.get(field)) + number(count)
-  merged["modelUsage"] = usage
-
-  by_date: dict[str, int] = {}
-  for source in (base.get("recentDays") or [], extra.get("recentDays") or []):
-    for day in source:
-      date = str((day or {}).get("date") or "")
-      if date:
-        by_date[date] = by_date.get(date, 0) + number((day or {}).get("messageCount"))
-  merged["recentDays"] = [{"date": date, "messageCount": by_date[date]} for date in sorted(by_date)]
-
-  # Sources overlap in time, so union dates rather than summing counts. A
-  # fallback that only knows a count still bounds the answer from below.
-  dates = set(base.get("activeDates") or []) | set(extra.get("activeDates") or [])
-  merged["activeDates"] = sorted(dates)
-  merged["activeDays"] = max(len(dates), number(base.get("activeDays")), number(extra.get("activeDays")))
-  return merged
 
 
 # ------------------------------------------------------------------- limits
