@@ -625,7 +625,7 @@ Panel {
 
         Column {
           id: heroRight
-          width: weatherStats.implicitWidth
+          width: Math.max(Style.space(190), weatherStats.implicitWidth)
           anchors.right: parent.right
           anchors.rightMargin: Style.space(20)
           anchors.verticalCenter: parent.verticalCenter
@@ -660,69 +660,78 @@ Panel {
             }
           }
 
-          Row {
+          TextField {
+            id: locationField
             visible: root.editingLocation
-            spacing: Style.space(6)
+            width: parent.width
+            trailingPadding: locationEditActions.width + Style.space(8)
+            enabled: !root.savingLocation
+            placeholderText: Commons.I18n.t("weather.searchCity")
+            foreground: root.bar.foreground
+            font.family: root.bar.fontFamily
 
-            TextField {
-              id: locationField
-              width: Style.space(190)
-              enabled: !root.savingLocation
-              placeholderText: Commons.I18n.t("weather.searchCity")
-              foreground: root.bar.foreground
-              font.family: root.bar.fontFamily
+            onTextChanged: if (root.editingLocation && !root.savingLocation) geocodeDebounce.restart()
 
-              onTextChanged: if (root.editingLocation && !root.savingLocation) geocodeDebounce.restart()
-
-              Keys.onPressed: function(event) {
-                if (event.key === Qt.Key_Escape) {
-                  root.cancelEditingLocation()
-                  event.accepted = true
-                } else if (event.key === Qt.Key_Down) {
-                  if (root.suggestionIndex < root.locationSuggestions.length - 1) root.suggestionIndex++
-                  event.accepted = true
-                } else if (event.key === Qt.Key_Up) {
-                  if (root.suggestionIndex > 0) root.suggestionIndex--
-                  event.accepted = true
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                  root.commitLocation()
-                  event.accepted = true
-                }
+            Keys.onPressed: function(event) {
+              if (event.key === Qt.Key_Escape) {
+                root.cancelEditingLocation()
+                event.accepted = true
+              } else if (event.key === Qt.Key_Down) {
+                if (root.suggestionIndex < root.locationSuggestions.length - 1) root.suggestionIndex++
+                event.accepted = true
+              } else if (event.key === Qt.Key_Up) {
+                if (root.suggestionIndex > 0) root.suggestionIndex--
+                event.accepted = true
+              } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                root.commitLocation()
+                event.accepted = true
               }
             }
 
-            // Clear back to IP auto-detect. While a committed location is
-            // loading, this same compact affordance becomes a spinner.
-            Rectangle {
-              width: Style.space(18)
-              height: Style.space(18)
+            // Reset a saved city back to IP auto-detect or cancel editing
+            // without changing it. While a committed location is loading, the
+            // spinner occupies the same box.
+            Row {
+              id: locationEditActions
+              visible: !root.savingLocation
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(4)
               anchors.verticalCenter: parent.verticalCenter
-              radius: Math.min(4, Style.cornerRadius)
-              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
+              spacing: Style.space(2)
 
-              Text {
-                textFormat: Text.PlainText
-                anchors.centerIn: parent
-                text: root.savingLocation ? "󰦖" : "✕"
-                font.family: root.bar.fontFamily
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.pixelSize: Style.font.bodySmall
-
-                RotationAnimator on rotation {
-                  running: root.savingLocation && !Style.reduceMotion
-                  from: 0; to: 360
-                  duration: Style.duration(800)
-                  loops: Animation.Infinite
-                }
+              PanelActionButton {
+                visible: root.configuredLocation !== ""
+                iconText: "󰆤"
+                tooltipText: Commons.I18n.t("weather.useAutoLocation")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onClicked: root.clearLocation()
               }
 
-              MouseArea {
-                id: clearLocationArea
-                anchors.fill: parent
-                enabled: !root.savingLocation
-                hoverEnabled: true
-                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: root.clearLocation()
+              PanelActionButton {
+                iconText: "✕"
+                fontSize: Style.font.bodySmall
+                tooltipText: Commons.I18n.t("common.cancel")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onClicked: root.cancelEditingLocation()
+              }
+            }
+
+            Text {
+              visible: root.savingLocation
+              textFormat: Text.PlainText
+              anchors.centerIn: locationEditActions
+              text: "󰦖"
+              font.family: root.bar.fontFamily
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.pixelSize: Style.font.bodySmall
+
+              RotationAnimator on rotation {
+                running: root.savingLocation && !Style.reduceMotion
+                from: 0; to: 360
+                duration: Style.duration(800)
+                loops: Animation.Infinite
               }
             }
           }

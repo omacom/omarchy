@@ -292,6 +292,22 @@ const downEv = { key: 1, text: '', accepted: false }
 keyCtx.press(downEv)
 assert(downEv.accepted && keyCtx.moves[0] === 1, 'mullvad search still navigates regions with Down arrow')
 
+// Verify clicking a peer row moves the cursor and opens the copy menu, and
+// the shared copy popup is modal so outside clicks dismiss without reopening it.
+const peerClickBody = panelQml.match(/component PeerRow:[\s\S]*?MouseArea \{[\s\S]*?onClicked: \{([\s\S]*?)\n      \}/)[1]
+const peerCtx = {
+  cursor: null,
+  opened: 0,
+  root: { setPeerCursor(i) { peerCtx.cursor = i } },
+  peerRow: { rowIndex: 2, openCopyMenu() { peerCtx.opened += 1 } }
+}
+vm.runInNewContext(`function click() {${peerClickBody}}`, peerCtx)
+peerCtx.click()
+assertEqual(peerCtx.cursor, 2, 'clicking a peer row moves the peer cursor to that row')
+assertEqual(peerCtx.opened, 1, 'clicking a peer row opens the copy menu')
+const copyPopupBlock = panelQml.match(/id: sharedCopyPopup[\s\S]*?closePolicy:/)[0]
+assert(/\bmodal:\s*true\b/.test(copyPopupBlock), 'sharedCopyPopup is modal so outside clicks do not pass through to peer rows')
+
 // Verify closed background polls skip Mullvad exit-node and account list subprocesses,
 // and authorizeTailscaleOperator rejects malformed usernames.
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/panels/tailscale/Service.qml'), 'utf8')
