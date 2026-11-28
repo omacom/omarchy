@@ -52,7 +52,7 @@ has_connectors() {
 wait_native() {
   i=0
   find_cards
-  while [ -z "$native" ] && [ "$i" -lt "$1" ]; do
+  while [ -z "$native" ] && [ ! -e "$run/stopping" ] && [ "$i" -lt "$1" ]; do
     sleep 0.1
     i=$((i + 1))
     find_cards
@@ -60,6 +60,7 @@ wait_native() {
 }
 
 wait_native 80
+[ ! -e "$run/stopping" ] || exit 0
 devices=${native:-$firmware}
 if [ -z "$devices" ]; then
   echo "omarchy-splash: no display to draw on"
