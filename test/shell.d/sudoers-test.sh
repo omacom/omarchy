@@ -117,7 +117,7 @@ if unshare --user --map-root-user --mount true 2>/dev/null; then
   poison_dir="$test_tmp/poison"
   poison_ran="$test_tmp/poison-ran"
   mkdir -p "$poison_dir"
-  for helper in awk dirname grep install jq localedef mktemp rm sed tee tr; do
+  for helper in awk chmod dirname grep install jq localedef mktemp mv rm sed tee tr; do
     cat >"$poison_dir/$helper" <<SH
 #!/bin/bash
 printf '%s\n' "$helper" >>"$poison_ran"
