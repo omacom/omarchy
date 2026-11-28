@@ -105,6 +105,11 @@ write_tree() {
   printf '%s\0' "$@" >"$file"
 }
 
+# $1 case: the machine booted through UEFI, as every Snapdragon laptop does.
+uefi() {
+  mkdir -p "$test_tmp/cases/$1/sys/firmware/efi"
+}
+
 expect() {
   local name="$1" machine="$2" expected="$3" description="$4" actual
   actual=$(detect "$name" "$machine") || fail "$description" "$(cat "$test_tmp/error")"
@@ -128,6 +133,7 @@ write_tree m1-mini proc apple,j274 apple,t8103 apple,arm-platform
 write_tree yoga-slim7x proc lenovo,yoga-slim7x qcom,x1e80100
 write_tree xps13-9345 proc dell,xps13-9345 qcom,x1e80100
 write_tree t14s proc lenovo,thinkpad-t14s qcom,x1e78100 qcom,x1e80100
+for board in yoga-slim7x xps13-9345 t14s; do uefi "$board"; done
 for board in m1-pro m2-max m1-mini; do
   expect "$board" aarch64 aarch64-apple "the $board device tree is Apple Silicon"
 done
@@ -135,6 +141,14 @@ for board in yoga-slim7x xps13-9345 t14s; do
   expect "$board" aarch64 aarch64-qualcomm "the $board device tree is Snapdragon, never Apple Silicon"
 done
 pass "real Apple and Snapdragon device trees are recognised"
+
+# Snapdragon devices that start from the Android bootloader, with no UEFI and
+# none of the laptop boot chain: the AYN Odin 2 Portal handheld and a phone.
+write_tree odin2-portal proc ayn,odin2portal qcom,qcs8550 qcom,sm8550
+write_tree pixel-phone proc google,sargo qcom,sdm670
+expect odin2-portal aarch64 aarch64 "a Snapdragon handheld without UEFI is plain aarch64"
+expect pixel-phone aarch64 aarch64 "a Snapdragon phone without UEFI is plain aarch64"
+pass "only a Snapdragon device that boots through UEFI is a Snapdragon laptop"
 
 write_tree qemu-virt proc linux,dummy-virt
 write_tree raspberry-pi proc raspberrypi,5-model-b brcm,bcm2712
@@ -153,6 +167,7 @@ pass "only a token's vendor prefix identifies the board"
 
 # /proc/device-tree is a link into sysfs; read sysfs when it is missing.
 write_tree sysfs-qualcomm sys lenovo,yoga-slim7x qcom,x1e80100
+uefi sysfs-qualcomm
 write_tree sysfs-apple sys apple,j314s apple,t6000 apple,arm-platform
 expect sysfs-qualcomm aarch64 aarch64-qualcomm "sysfs reads a Snapdragon tree without /proc/device-tree"
 expect sysfs-apple aarch64 aarch64-apple "sysfs identifies Apple Silicon without /proc/device-tree"
