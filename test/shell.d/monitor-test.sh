@@ -16,8 +16,24 @@ assertEqual(monitor.normalizeScale('1.250'), '1.25', 'monitor normalizes fractio
 assertEqual(monitor.normalizeScale('nope'), '', 'monitor rejects invalid scale')
 assertEqual(monitor.cleanScale(3, 1280, 800), '3.2', 'monitor matches clean VM scale')
 assertEqual(monitor.cleanScale(1.25, 1280, 800), '1.25', 'monitor preserves an already clean scale')
-assertEqual(monitor.cleanScale(1.25, 6016, 3384), '1.33', 'monitor matches clean physical display scale')
+assertEqual(monitor.cleanScale(1.25, 6016, 3384), '1.18', 'monitor matches clean physical display scale')
 assertEqual(monitor.cleanScale(1.6, 0, 800), '', 'monitor rejects a missing display mode')
+
+// Hyprland searches one step up and one step down at each distance from the
+// requested scale, so the nearest clean scale below is preferred over a further
+// one above. Searching upward only moved these displays to a scale the
+// compositor never applies.
+assertEqual(monitor.cleanScale(1.25, 1366, 768), '1', 'monitor snaps down when down is nearer')
+assertEqual(monitor.cleanScale(1.25, 2256, 1504), '1.18', 'monitor matches a Framework display scale')
+assertEqual(monitor.cleanScale(1.6, 3024, 1964), '1.33', 'monitor matches a MacBook display scale')
+assertEqual(monitor.cleanScale(1.75, 1920, 1080), '1.67', 'monitor prefers the nearer scale below 1.75')
+assertEqual(monitor.cleanScale(2.25, 1600, 900), '2.5', 'monitor skips a divisor Hyprland rejects after floating-point division')
+assertEqual(monitor.cleanScale(3, 2944, 1840), '2.88', 'monitor matches the compositor on a 2944x1840 panel')
+
+// Hyprland gives up after 89 steps and falls back to the default scale rather
+// than applying something far away, so there is no effective scale to report.
+assertEqual(monitor.cleanScale(3, 1366, 768), '', 'monitor reports no scale where Hyprland finds no divisor')
+assertEqual(monitor.cleanScale(4, 3456, 2234), '', 'monitor reports no scale for an unreachable request')
 assertEqual(
   monitor.matchingScaleIndex(['1', '1.25', '1.6', '2', '3', '4'], 3.2, 1280, 800),
   4,
