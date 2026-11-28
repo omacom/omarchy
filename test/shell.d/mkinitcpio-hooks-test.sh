@@ -21,9 +21,9 @@ printf '%s\0' apple,j416c qcom,x1e80100 >"$test_tmp/platforms/contradiction/proc
 etc="$test_tmp/etc"
 devices="$test_tmp/devices"
 
-omarchy_hooks="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck omarchy-snapshot-overlay omarchy-restore"
+omarchy_hooks="base udev keyboard autodetect microcode modconf kms keymap consolefont plymouth block encrypt filesystems fsck omarchy-snapshot-overlay omarchy-restore"
 omarchy_hooks_without_kms=${omarchy_hooks/ kms / }
-apple_hooks="base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block filesystems fsck"
+apple_hooks="base systemd autodetect microcode modconf kms keyboard sd-vconsole plymouth block filesystems fsck"
 nvidia_modules="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
 
 # The kernel being built, as modinfo answers for it: KERNEL_MODULES names its
@@ -181,17 +181,17 @@ HOOKS=("${_fragment_hooks[@]}" platform-late)
 unset _fragment_hooks _fragment_hook
 CONF
 assert_hooks "a platform fragment's hooks survive on Apple Silicon" aarch64-apple \
-  "base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block platform-firmware filesystems fsck platform-late"
+  "base systemd autodetect microcode modconf kms keyboard sd-vconsole plymouth block platform-firmware filesystems fsck platform-late"
 assert_hooks "a platform fragment's hooks survive on plain aarch64" aarch64 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
+  "base udev keyboard autodetect microcode modconf kms keymap consolefont plymouth block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 assert_hooks "a platform fragment's hooks survive on x86" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
+  "base udev keyboard autodetect microcode modconf kms keymap consolefont plymouth block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 
 # The NVIDIA filter still runs after the fragment and removes only kms.
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x10de:0x030000
 assert_hooks "the NVIDIA filter keeps a platform fragment's hooks" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
+  "base udev keyboard autodetect microcode modconf keymap consolefont plymouth block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 
 # Existing x86 configurations build the image they built before the baseline
 # moved: the same HOOKS, MODULES and FILES.
@@ -308,7 +308,7 @@ mac_files() {
 }
 
 # The HOOKS the M1 Pro builds its encrypted image from today.
-mac_hooks="base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block asahi omarchy-vendorfw omarchy-mac-encrypt sd-encrypt filesystems fsck"
+mac_hooks="base systemd autodetect microcode modconf kms keyboard sd-vconsole plymouth block asahi omarchy-vendorfw omarchy-mac-encrypt sd-encrypt filesystems fsck"
 alarm_systemd="base systemd autodetect microcode modconf kms keyboard sd-vconsole block filesystems fsck"
 alarm_busybox="base udev autodetect microcode modconf kms keyboard keymap consolefont block filesystems fsck"
 
