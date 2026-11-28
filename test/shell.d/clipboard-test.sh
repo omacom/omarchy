@@ -267,6 +267,59 @@ try {
 } finally {
   fs.rmSync(pruneDir, { recursive: true, force: true })
 }
+
+const utilQml = fs.readFileSync(path.join(root, 'shell/Commons/Util.qml'), 'utf8')
+const utilCtx = { Style: { touchpadScrollFactor: 2.5 } }
+require('vm').runInNewContext([
+  utilQml.match(/function clampContentY\(flick, y\) \{[\s\S]*?\n  \}/)[0],
+  utilQml.match(/function wheelScroll\(flick, event, step\) \{[\s\S]*?\n  \}/)[0]
+].join('\n'), utilCtx)
+
+const flick = { originY: 10, height: 100, contentHeight: 260, contentY: 10 }
+const clamp = (f, y) => (utilCtx.clampContentY(f, y), f.contentY)
+const wheel = (py, ay, step = 40) => {
+  const ev = { pixelDelta: { y: py }, angleDelta: { y: ay }, accepted: false }
+  utilCtx.wheelScroll(flick, ev, step)
+  return ev.accepted
+}
+assertDeepEqual([clamp(flick, -20), clamp(flick, 95), clamp(flick, 500)], [10, 95, 170], 'Util.clampContentY clamps to [originY, originY + contentHeight - height]')
+assertEqual(clamp({ originY: 10, height: 100, contentHeight: 40, contentY: 50 }, 50), 10, 'Util.clampContentY stays at originY when content fits')
+
+flick.contentY = 10
+assert(wheel(-10, -120) && flick.contentY === 35, 'Util.wheelScroll scales touchpad pixelDelta by Style.touchpadScrollFactor')
+assert(wheel(0, -120) && flick.contentY === 75, 'Util.wheelScroll steps mouse wheel angleDelta when pixelDelta is zero')
+assert(wheel(0, -1200) && flick.contentY === 170, 'Util.wheelScroll clamps downward scroll to bottom')
+assert(wheel(0, 1200) && flick.contentY === 10, 'Util.wheelScroll clamps upward scroll to originY')
+flick.contentY = 80
+assert(wheel(0, 0) && flick.contentY === 80, 'Util.wheelScroll leaves contentY unchanged when delta is zero')
+
+const rows = [], positioned = [], deferred = []
+const scrollList = { originY: 0, height: 100, contentHeight: 0, contentY: 0, positionViewAtIndex(i, m) { positioned.push([i, m, this.contentY]) } }
+const scrollCtx = {
+  history: ['a', 'b', 'c', 'd', 'e', 'f'].map(text => ({ type: 'text', text })),
+  filterText: '', selectedIndex: 4, cursorActive: true, resultList: scrollList,
+  ClipboardHistory: clipboard, Util: utilCtx, ListView: { Contain: 1 }, Commons: { I18n: {} },
+  Qt: { callLater(fn) { deferred.push(fn) } }, pruneRemovedImages() {}, saveHistory() {}, disarmPointer() {},
+  displayModel: {
+    get count() { return rows.length }, get(i) { return rows[i] },
+    clear() { rows.length = 0; scrollList.contentY = scrollList.contentHeight = 0 },
+    append(r) { rows.push(r); scrollList.contentHeight = rows.length * 50 }
+  }
+}
+scrollCtx.root = scrollCtx
+require('vm').runInNewContext([
+  clipboardQml.match(/function removeDisplayIndex\(index\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function rebuildDisplay\(preserveScroll\) \{[\s\S]*?\n  \}/)[0]
+].join('\n'), scrollCtx)
+const flush = () => { positioned.length = 0; deferred.splice(0).forEach(fn => fn()) }
+scrollCtx.rebuildDisplay(); flush()
+scrollList.contentY = 180; scrollCtx.removeDisplayIndex(4); flush()
+assertDeepEqual(positioned, [[4, 1, 150]], 'clipboard removeDisplayIndex preserves and clamps scroll before positioning selection')
+scrollList.contentY = 120; scrollCtx.rebuildDisplay(); flush()
+assertDeepEqual(positioned, [[4, 1, 0]], 'clipboard rebuildDisplay without preserveScroll does not restore prior scroll')
+scrollCtx.history = [{ type: 'text', text: 'last' }]; scrollCtx.rebuildDisplay(); flush()
+scrollCtx.removeDisplayIndex(0); flush()
+assert(rows.length === 0 && !scrollCtx.cursorActive && positioned.length === 0, 'clipboard removeDisplayIndex skips positioning on empty list')
 JS
 
 TMPDIR=$(mktemp -d)
