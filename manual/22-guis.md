@@ -6,6 +6,8 @@ Files (Folio) is the graphical file manager. `Super + Shift + F` opens it, and `
 
 Plug in a USB stick or an SD card and it's mounted automatically, so it just shows up in the sidebar. For anything more involved — formatting a drive, checking SMART health, creating partitions — launch _Disks_ from the app launcher (`Super + Space`).
 
+An encrypted drive asks for its password when it's plugged in. To have one unlock on its own, add a keyfile to it with `sudo cryptsetup luksAddKey /dev/sdX1 <keyfile>` and put that keyfile at `~/.config/omarchy/drive-keys/<UUID>`, named by the UUID that `lsblk -dno UUID /dev/sdX1` prints for the encrypted partition, and readable only by you (`chmod 600`). If that keyfile is missing or refused, you're asked for the password as usual.
+
 Double-clicking follows sensible defaults: pictures, videos, and music open in Omaview, PDFs in Document Viewer, Markdown in Omawrite, and plain text in your editor, Plain unless you pick another under _Setup > Defaults > Editor_.
 
 ## Disktree

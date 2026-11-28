@@ -84,4 +84,12 @@ hl.config({
   animations = {
     enabled = false,
   },
+
+  -- Hyprland's own update and donation screens would open over the login
+  -- screen. The session turns them off in default/hypr/envs.lua, which this
+  -- config never loads.
+  ecosystem = {
+    no_update_news = true,
+    no_donation_nag = true,
+  },
 })

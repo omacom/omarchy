@@ -156,19 +156,28 @@ Item {
   Process {
     id: updateProcess
     running: false
-    onExited: {
-      root.rescanAgents()
-      root.reloadRecords()
-      if (root.pendingUpdateKind !== "") {
-        var kind = root.pendingUpdateKind
-        root.pendingUpdateKind = ""
-        root.runUpdate(kind)
-      }
-    }
+    onExited: root.finishUpdate()
 
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: if (text.trim() !== "") console.warn("agents", text.trim())
+    }
+  }
+
+  function finishUpdate() {
+    rescanAgents()
+    reloadRecords()
+    // An update whose records only bumped updatedAt won't emit recordChanged;
+    // still pull remote sync snapshots and re-arm any advised limits retry once
+    // the reloaded files land, without bumping dataRevision.
+    Qt.callLater(function() {
+      scheduleLimitsRetry()
+      scheduleSync()
+    })
+    if (pendingUpdateKind !== "") {
+      var kind = pendingUpdateKind
+      pendingUpdateKind = ""
+      runUpdate(kind)
     }
   }
 
@@ -262,12 +271,14 @@ Item {
   // machine, built by the panel from the local models service.
   property var localModelLines: []
 
-  // The local models added from the add screen, by target (the recipe, or
-  // host/recipe for a paired machine's). Only these get a line, and the one
-  // a default of "local" opens, so the default never goes missing.
+  // Every coding model set up on this machine gets a line, whether it was set
+  // up from the add screen or from the CLI. Paired machines' models are kept
+  // here (by host/recipe) so unlinking one takes it off the panel while it
+  // keeps running there; the default local target always keeps a line too.
   property var addedLocalModels: []
 
   function localModelAdded(line) {
+    if (line.localModel.host === "") return true
     var target = line.localModel.target
     return addedLocalModels.indexOf(target) >= 0 || (defaultAgent === "local" && target === localDefaultTarget)
   }

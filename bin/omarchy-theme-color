@@ -67,51 +67,62 @@ if [[ -z $OUTPUT && -z $QUERY_KEY ]] || [[ -n $OUTPUT && -n $QUERY_KEY ]]; then
   exit 1
 fi
 
-COLORS_DIR=$(dirname "$COLORS_FILE")
+if [[ $COLORS_FILE == */* ]]; then
+  COLORS_DIR=${COLORS_FILE%/*}
+  [[ -n $COLORS_DIR ]] || COLORS_DIR="/"
+else
+  COLORS_DIR="."
+fi
 
 declare -A THEME_COLORS
 
-# Mix two hex colors. Amount may be a fraction (0.30) or percentage (30%).
+# Mix two hex colors into REPLY. Amount may be a fraction (0.30) or percentage (30%).
 mix_color() {
   local start="${1#\#}"
   local end="${2#\#}"
-  local amount="$3"
+  local amount="${3%%%}"
+  local scaled=0 int_part frac_part start_r start_g start_b end_r end_g end_b red green blue
 
-  awk -v start="$start" -v end="$end" -v amount="$amount" '
-    function hex_value(char) {
-      return index("0123456789abcdef", tolower(char)) - 1
-    }
+  [[ $start =~ ^[0-9A-Fa-f]{6}$ ]] || start="000000"
+  [[ $end =~ ^[0-9A-Fa-f]{6}$ ]] || end="000000"
 
-    function hex_pair_to_int(hex, idx) {
-      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
-    }
+  if [[ $3 == *% ]]; then
+    if [[ $amount == *.* ]]; then
+      int_part=${amount%%.*}
+      frac_part="${amount#*.}00"
+      scaled=$(( 10#${int_part:-0} * 100 + 10#${frac_part:0:2} ))
+    else
+      scaled=$(( 10#${amount:-0} * 100 ))
+    fi
+  elif [[ $amount == *.* ]]; then
+    int_part=${amount%%.*}
+    frac_part="${amount#*.}0000"
+    scaled=$(( 10#${int_part:-0} * 10000 + 10#${frac_part:0:4} ))
+    if (( scaled > 10000 )); then
+      scaled=$(( scaled / 100 ))
+    fi
+  else
+    scaled=$(( 10#${amount:-0} * 100 ))
+    if (( scaled == 100 )); then
+      scaled=10000
+    fi
+  fi
 
-    BEGIN {
-      if (amount ~ /%$/) {
-        sub(/%$/, "", amount)
-        amount = amount / 100
-      } else {
-        amount += 0
-        if (amount > 1) amount = amount / 100
-      }
+  (( scaled < 0 )) && scaled=0
+  (( scaled > 10000 )) && scaled=10000
 
-      if (amount < 0) amount = 0
-      if (amount > 1) amount = 1
+  start_r=$(( 16#${start:0:2} ))
+  start_g=$(( 16#${start:2:2} ))
+  start_b=$(( 16#${start:4:2} ))
+  end_r=$(( 16#${end:0:2} ))
+  end_g=$(( 16#${end:2:2} ))
+  end_b=$(( 16#${end:4:2} ))
 
-      start_r = hex_pair_to_int(start, 1)
-      start_g = hex_pair_to_int(start, 3)
-      start_b = hex_pair_to_int(start, 5)
-      end_r = hex_pair_to_int(end, 1)
-      end_g = hex_pair_to_int(end, 3)
-      end_b = hex_pair_to_int(end, 5)
+  red=$(( (start_r * (10000 - scaled) + end_r * scaled + 5000) / 10000 ))
+  green=$(( (start_g * (10000 - scaled) + end_g * scaled + 5000) / 10000 ))
+  blue=$(( (start_b * (10000 - scaled) + end_b * scaled + 5000) / 10000 ))
 
-      red = int(start_r * (1 - amount) + end_r * amount + 0.5)
-      green = int(start_g * (1 - amount) + end_g * amount + 0.5)
-      blue = int(start_b * (1 - amount) + end_b * amount + 0.5)
-
-      printf "#%02x%02x%02x\n", red, green, blue
-    }
-  '
+  printf -v REPLY '#%02x%02x%02x' "$red" "$green" "$blue"
 }
 
 alias_theme_color() {
@@ -131,7 +142,7 @@ resolve_theme_mode() {
     THEME_COLORS[mode]="light"
   elif [[ ${THEME_COLORS[background]} =~ ^#[0-9A-Fa-f]{6}$ ]]; then
     bg_hex="${THEME_COLORS[background]#\#}"
-    lum=$(( $(printf "%d" "0x${bg_hex:0:2}") + $(printf "%d" "0x${bg_hex:2:2}") + $(printf "%d" "0x${bg_hex:4:2}") ))
+    lum=$(( 16#${bg_hex:0:2} + 16#${bg_hex:2:2} + 16#${bg_hex:4:2} ))
     (( lum > 382 )) && THEME_COLORS[mode]="light" || THEME_COLORS[mode]="dark"
   else
     THEME_COLORS[mode]="dark"
@@ -234,17 +245,17 @@ resolve_theme_colors() {
   [[ ${THEME_COLORS[selection_background]} ]] || THEME_COLORS[selection_background]="${THEME_COLORS[selection]}"
   [[ ${THEME_COLORS[selection_foreground]} ]] || THEME_COLORS[selection_foreground]="${THEME_COLORS[bright_foreground]}"
   [[ ${THEME_COLORS[orange]} ]]               || THEME_COLORS[orange]="${THEME_COLORS[yellow]}"
-  [[ ${THEME_COLORS[brown]} ]]      || THEME_COLORS[brown]=$(mix_color "${THEME_COLORS[orange]}" "#000000" 50%)
+  if [[ -z ${THEME_COLORS[brown]} ]]; then mix_color "${THEME_COLORS[orange]}" "#000000" 50%; THEME_COLORS[brown]="$REPLY"; fi
 
   # Auto-derive shades from base accents when not defined and not aliased from colorN
-  [[ ${THEME_COLORS[dark_background]} ]]   || THEME_COLORS[dark_background]=$(mix_color "${THEME_COLORS[background]}" "#000000" 25%)
-  [[ ${THEME_COLORS[darker_background]} ]] || THEME_COLORS[darker_background]=$(mix_color "${THEME_COLORS[background]}" "#000000" 50%)
-  [[ ${THEME_COLORS[bright_red]} ]]    || THEME_COLORS[bright_red]=$(mix_color "${THEME_COLORS[red]}" "#ffffff" 20%)
-  [[ ${THEME_COLORS[bright_yellow]} ]] || THEME_COLORS[bright_yellow]=$(mix_color "${THEME_COLORS[yellow]}" "#ffffff" 20%)
-  [[ ${THEME_COLORS[bright_green]} ]]  || THEME_COLORS[bright_green]=$(mix_color "${THEME_COLORS[green]}" "#ffffff" 20%)
-  [[ ${THEME_COLORS[bright_cyan]} ]]   || THEME_COLORS[bright_cyan]=$(mix_color "${THEME_COLORS[cyan]}" "#ffffff" 20%)
-  [[ ${THEME_COLORS[bright_blue]} ]]   || THEME_COLORS[bright_blue]=$(mix_color "${THEME_COLORS[blue]}" "#ffffff" 20%)
-  [[ ${THEME_COLORS[bright_magenta]} ]] || THEME_COLORS[bright_magenta]=$(mix_color "${THEME_COLORS[magenta]}" "#ffffff" 20%)
+  if [[ -z ${THEME_COLORS[dark_background]} ]]; then mix_color "${THEME_COLORS[background]}" "#000000" 25%; THEME_COLORS[dark_background]="$REPLY"; fi
+  if [[ -z ${THEME_COLORS[darker_background]} ]]; then mix_color "${THEME_COLORS[background]}" "#000000" 50%; THEME_COLORS[darker_background]="$REPLY"; fi
+  if [[ -z ${THEME_COLORS[bright_red]} ]]; then mix_color "${THEME_COLORS[red]}" "#ffffff" 20%; THEME_COLORS[bright_red]="$REPLY"; fi
+  if [[ -z ${THEME_COLORS[bright_yellow]} ]]; then mix_color "${THEME_COLORS[yellow]}" "#ffffff" 20%; THEME_COLORS[bright_yellow]="$REPLY"; fi
+  if [[ -z ${THEME_COLORS[bright_green]} ]]; then mix_color "${THEME_COLORS[green]}" "#ffffff" 20%; THEME_COLORS[bright_green]="$REPLY"; fi
+  if [[ -z ${THEME_COLORS[bright_cyan]} ]]; then mix_color "${THEME_COLORS[cyan]}" "#ffffff" 20%; THEME_COLORS[bright_cyan]="$REPLY"; fi
+  if [[ -z ${THEME_COLORS[bright_blue]} ]]; then mix_color "${THEME_COLORS[blue]}" "#ffffff" 20%; THEME_COLORS[bright_blue]="$REPLY"; fi
+  if [[ -z ${THEME_COLORS[bright_magenta]} ]]; then mix_color "${THEME_COLORS[magenta]}" "#ffffff" 20%; THEME_COLORS[bright_magenta]="$REPLY"; fi
   alias_theme_color purple magenta
   alias_theme_color bright_purple bright_magenta
 

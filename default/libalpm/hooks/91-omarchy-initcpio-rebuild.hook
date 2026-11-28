@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = omarchy-settings
+Target = omarchy-settings-dev
+
+[Action]
+Description = Checking Omarchy initramfs inputs...
+When = PostTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-boot-sync-initcpio --pacman-hook
