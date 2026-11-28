@@ -95,6 +95,11 @@ export OMARCHY_TEST_MENU_ARGS="$tmp_dir/menu-args"
 export OMARCHY_TEST_RECORDER_ARGS="$tmp_dir/recorder-args"
 export OMARCHY_TEST_NOTIFICATION_ARGS="$tmp_dir/notification-args"
 
+# The recording settings are caller-owned; a machine that has them set must not
+# change what this suite asserts about its own defaults.
+unset OMARCHY_SCREENRECORD_ENCODER OMARCHY_SCREENRECORD_CODEC OMARCHY_SCREENRECORD_FALLBACK_CPU \
+  OMARCHY_SCREENRECORD_USE_PORTAL
+
 mapfile -t capture_devices < <(omarchy-capture-webcam-list)
 expected_capture_devices=(
   "/dev/video42  Built-in Webcam: Integrated Camera"
@@ -582,6 +587,20 @@ recorder_args_for_target() {
   cat "$run/args" 2>/dev/null || true
 }
 
+# The encoder, codec, and CPU-fallback toggles pass through to gpu-screen-recorder.
+# A Navi GPU is used so the default (auto) keeps hardware encoding.
+recorder_args_for_navi_with() {
+  local run="$tmp_dir/navi-$1"
+  shift
+  mkdir -p "$run/pci/0000:01:00.0" "$run/recordings"
+  echo 0x1002 >"$run/pci/0000:01:00.0/vendor"
+  echo 0x73df >"$run/pci/0000:01:00.0/device"
+  env "$@" XDG_RUNTIME_DIR="$run" OMARCHY_PCI_DEVICES_PATH="$run/pci" OMARCHY_TEST_GSR_ARGS="$run/args" \
+    OMARCHY_SCREENRECORD_DIR="$run/recordings" "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
+  pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+  cat "$run/args" 2>/dev/null || true
+}
+
 large_region_args=$(recorder_args_for_target large-5k "2000,100 2560x1408")
 [[ $large_region_args == *$'\n-s\n3840x2160\n'* ]] ||
   fail "a region exceeding 4K physical pixels on a scaled monitor is capped to 3840x2160" "$large_region_args"
@@ -602,6 +621,29 @@ unfocused_monitor_args=$(recorder_args_for_target monitor-6k "monitor:DP-2")
 [[ $unfocused_monitor_args == *$'\n-s\n3840x2160\n'* ]] ||
   fail "selecting an unfocused 6K monitor caps to 3840x2160" "$unfocused_monitor_args"
 pass "regions and monitors above 4K are capped to stay on hardware H.264"
+
+gpu_args=$(recorder_args_for_navi_with gpu OMARCHY_SCREENRECORD_ENCODER=gpu)
+[[ $gpu_args == *$'\n-encoder\ngpu\n'* ]] || fail "OMARCHY_SCREENRECORD_ENCODER=gpu forces the GPU encoder" "$gpu_args"
+cpu_args=$(recorder_args_for_navi_with cpu OMARCHY_SCREENRECORD_ENCODER=cpu)
+[[ $cpu_args == *$'\n-encoder\ncpu\n'* ]] || fail "OMARCHY_SCREENRECORD_ENCODER=cpu forces the CPU encoder" "$cpu_args"
+hevc_args=$(recorder_args_for_navi_with hevc OMARCHY_SCREENRECORD_CODEC=hevc)
+[[ $hevc_args == *$'\n-k\nhevc\n'* ]] || fail "OMARCHY_SCREENRECORD_CODEC=hevc selects the codec" "$hevc_args"
+nofallback_args=$(recorder_args_for_navi_with nocpu OMARCHY_SCREENRECORD_FALLBACK_CPU=no)
+[[ $nofallback_args == *$'\n-fallback-cpu-encoding\nno\n'* ]] || fail "OMARCHY_SCREENRECORD_FALLBACK_CPU=no disables the CPU fallback" "$nofallback_args"
+default_args=$(recorder_args_for_navi_with def)
+[[ -n $default_args && $default_args != *-encoder* && $default_args == *$'\n-k\nauto\n'* && $default_args == *$'\n-fallback-cpu-encoding\nyes\n'* ]] \
+  || fail "the defaults keep hardware encoding, auto codec, and CPU fallback" "$default_args"
+pass "encoder, codec, and CPU-fallback toggles"
+
+bad_run="$tmp_dir/bad"
+mkdir -p "$bad_run/recordings"
+if env OMARCHY_SCREENRECORD_ENCODER=garbage XDG_RUNTIME_DIR="$bad_run" OMARCHY_SCREENRECORD_DIR="$bad_run/recordings" \
+    "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>"$bad_run/err"; then
+  fail "an invalid OMARCHY_SCREENRECORD_ENCODER value is rejected"
+fi
+[[ $(<"$bad_run/err") == *"Invalid encoder"* ]] ||
+  fail "an invalid encoder value is rejected for the encoder reason" "$(<"$bad_run/err")"
+pass "an invalid OMARCHY_SCREENRECORD_ENCODER value is rejected"
 
 # gpu-screen-recorder aborts before recording on a GPU it does not know, such
 # as Apple Silicon's. wf-recorder takes over when it is installed, on the same
@@ -733,6 +775,21 @@ if status "$legacy_runtime"; then fail "--status reports nothing when no recorde
 ! grep -q -- '--signal' "$helper_calls" || fail "--status signals nothing" "$(<"$helper_calls")"
 [[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "--status never notifies, even without a recordings directory" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "--status answers what stop would act on, without a recordings directory, notifications or signals"
+
+# A recording setting gone bad must not blind the controls: the bar's --status
+# and the menu's --stop-recording still act, or a running recording is stranded.
+touch "$recording_flag"
+: >"$helper_calls"
+OMARCHY_SCREENRECORD_ENCODER=garbage status "$legacy_runtime" ||
+  fail "--status still answers with an invalid encoder setting"
+OMARCHY_SCREENRECORD_ENCODER=garbage XDG_RUNTIME_DIR="$legacy_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" \
+  OMARCHY_TEST_RECORDING="$recording_flag" OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1 ||
+  fail "--stop-recording still stops the recorder with an invalid encoder setting"
+grep -Fxq -- '--signal INT' "$helper_calls" ||
+  fail "stop with an invalid encoder setting signals the recorder" "$(<"$helper_calls")"
+rm -f "$recording_flag"
+pass "status and stop keep working with an invalid encoder setting"
 
 # A recording that ended without a stop leaves its audio loopbacks and sink
 # loaded. Status and stop unload them, newest first, once the saved recorder is
