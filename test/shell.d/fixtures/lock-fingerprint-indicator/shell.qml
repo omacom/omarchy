@@ -98,26 +98,59 @@ ShellRoot {
           view.fingerprintConfigured = false
           root.assertTrue(view.fingerprintReserve === 0, "no space is reserved when no sensor is configured")
 
-          // An unreachable reader must announce itself instead of silently
-          // inviting touches that can never unlock.
           view.fingerprintConfigured = true
-          var notice = findByObjectName(view, "fingerprintUnavailableNotice")
-          root.assertTrue(notice !== null, "unavailable notice exists in the lock view")
+          var workingGlyph = indicator.text
+          var workingName = indicator.Accessible.name
+          root.assertTrue(workingName.length > 0, "the available reader has an accessible label")
+          view.fingerprintUnavailable = true
+          root.assertTrue(indicator.visible, "an unavailable reader keeps its indicator")
+          root.assertTrue(indicator.text !== workingGlyph, "the glyph distinguishes an unavailable reader")
+          root.assertTrue(indicator.Accessible.name.length > 0 && indicator.Accessible.name !== workingName,
+            "an unavailable reader has distinct accessible feedback")
+          root.assertTrue(view.fingerprintReserve > 0, "space stays reserved for the unavailable reader")
+          view.fingerprintUnavailable = false
+          root.assertTrue(indicator.text === workingGlyph && indicator.Accessible.name === workingName,
+            "the reader's glyph and accessible label recover together")
+        }
 
-          if (notice) {
-            var workingGlyph = indicator.text
-            root.assertTrue(!notice.visible, "notice stays hidden while the reader works")
-
-            view.fingerprintUnavailable = true
-            root.assertTrue(notice.visible, "notice appears when the reader is unavailable")
-            root.assertTrue(indicator.visible, "icon stays visible when the reader is unavailable")
-            root.assertTrue(indicator.text !== workingGlyph, "icon crosses out when the reader is unavailable")
-            root.assertTrue(view.fingerprintReserve > 0, "space stays reserved for the crossed-out icon")
-
-            view.fingerprintUnavailable = false
-            root.assertTrue(!notice.visible, "notice clears when the reader recovers")
-            root.assertTrue(indicator.text === workingGlyph, "icon restores when the reader recovers")
-          }
+        var input = findByObjectName(view, "passwordInput")
+        var status = findByObjectName(view, "authenticationIndicator")
+        var statusText = findByObjectName(view, "authenticationStatusText")
+        root.assertTrue(statusText !== null, "readable status supplements the icons")
+        root.assertTrue(input !== null && status !== null, "password input and status are accessible")
+        if (input && status) {
+          view.passwordText = ""
+          view.passwordTextEdited.connect(function(value) { view.passwordText = value })
+          view.clearFailureRequested.connect(function() { view.failureMessage = "" })
+          var readyGlyph = status.text
+          var readyName = status.Accessible.name
+          root.assertTrue(input.Accessible.passwordEdit && input.Accessible.description.length > 0,
+            "the password field keeps its protected accessible identity")
+          view.authenticatingPassword = true
+          root.assertTrue(status.text !== readyGlyph && status.Accessible.name !== readyName && !input.enabled,
+            "checking is distinguishable while input is temporarily disabled")
+          if (statusText) root.assertTrue(statusText.visible && statusText.text === status.Accessible.name,
+            "checking remains visibly readable")
+          view.passwordText = "fake-password-under-test"
+          if (statusText) root.assertTrue(statusText.visible && statusText.text === status.Accessible.name && statusText.text.indexOf(view.passwordText) < 0,
+            "a submitted nonempty password keeps checking feedback readable without exposing its contents")
+          view.passwordText = ""
+          view.authenticatingPassword = false
+          view.failureMessage = "Authentication failed (2)"
+          root.assertTrue(status.text !== readyGlyph && status.Accessible.name === view.failureMessage,
+            "failure remains available to assistive technology")
+          if (statusText) root.assertTrue(statusText.visible && statusText.text === view.failureMessage,
+            "the failure and attempt count remain visibly readable")
+          view.failureMessage = ""
+          view.fingerprintUnavailable = true
+          if (statusText) root.assertTrue(statusText.visible && statusText.text === indicator.Accessible.name,
+            "the unavailable reader explanation remains visibly readable")
+          view.fingerprintUnavailable = false
+          view.failureMessage = "Authentication failed (2)"
+          input.insert(0, "test")
+          if (statusText) root.assertTrue(!statusText.visible, "typing hides the obsolete status text")
+          root.assertTrue(view.passwordText === "test" && view.failureMessage === "" && !status.visible,
+            "typing remains usable and replaces the failure indicator with password dots")
         }
 
         view.destroy()
