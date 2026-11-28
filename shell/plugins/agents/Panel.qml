@@ -3940,17 +3940,17 @@ Panel {
       markers: compact.scoped
     }
 
-    // Sized to the widest time left ("19h 40m"), so every meter ends in the
-    // same place.
+    // Sized to the widest combined value ("100% · 00h 00m"), so every meter
+    // ends in the same place.
     TextMetrics {
       id: compactValueMetrics
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
-      text: "00h 00m"
+      text: "100% · 00h 00m"
     }
 
-    // How long until the window resets. The meter says how full it is; the
-    // exact percentage is in the row's tooltip.
+    // Exact percentage of the allowance used, with the time until the window
+    // resets alongside when known.
     Text {
       id: compactValue
       width: Math.ceil(compactValueMetrics.advanceWidth)
@@ -3958,7 +3958,11 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       textFormat: Text.PlainText
       horizontalAlignment: Text.AlignRight
-      text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
+      text: {
+        if (!compact.window || compact.window.percent < 0) return ""
+        var used = Commons.I18n.formatNumber(Math.round(compact.window.percent * 100))
+        return compact.resetMs > 0 ? used + "% · " + root.formatDuration(compact.resetMs) : used + "%"
+      }
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
