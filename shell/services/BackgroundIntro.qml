@@ -394,6 +394,8 @@ Item {
         opacity: root.themeOpacity
         // Start decoding while the remaining theme configs render.
         asynchronous: true
+        // One-shot cover snapshots are unlinked once settled; keep them out of QQuickPixmapCache.
+        cache: false
         onStatusChanged: panel.coverFrames = 0
         layer.enabled: root.themeCut && root.themeCutProgress > 0
         layer.smooth: true
