@@ -366,6 +366,14 @@ omarchy-default-browser chrome
 [[ ! -s $terminal_log && ! -s $setup_log ]] || fail "an installed browser with current extensions is selected immediately"
 pass "picking a Chromium-based browser repairs its bundled extensions when they are stale"
 
+# code.desktop stands for an app the user picked: one that's installed. The
+# system's own apps are left out, so what's installed here can't decide a case.
+# The system Flatpak export is pointed off this machine for the same reason.
+export XDG_DATA_DIRS="$test_tmp/data"
+export OMARCHY_FLATPAK_EXPORTS="$test_tmp/no-system-flatpak"
+mkdir -p "$test_tmp/data" "$test_home/.local/share/applications"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$test_home/.local/share/applications/code.desktop"
+
 # Picking an editor points every text type at the editor handler in the
 # user's mimeapps.list, replacing what was there and keeping everything else.
 mimeapps="$test_home/.config/mimeapps.list"
@@ -394,14 +402,59 @@ grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the mi
 grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Plain, the newer default"
 grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "the migration keeps a type the user chose"
 ! grep -qxF "text/x-tex=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration doesn't add a second default for a chosen type"
+printf '[Default Applications]\ntext/plain=vscodium-electron.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces a choice whose app is gone"
+! grep -q "^text/plain=vscodium-electron" "$mimeapps" || fail "the migration drops the line for an app that's gone"
+printf '[Default Applications]\ntext/plain=vscodium-electron.desktop;code.desktop;\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=vscodium-electron.desktop;code.desktop;" "$mimeapps" || fail "the migration keeps a choice whose next app is installed"
+mkdir -p "$test_tmp/linked"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$test_tmp/linked/linked.desktop"
+ln -s "$test_tmp/linked" "$test_tmp/data/applications"
+printf '[Default Applications]\ntext/plain=linked.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=linked.desktop" "$mimeapps" || fail "the migration keeps a choice installed in a linked applications folder"
+rm "$test_tmp/data/applications"
 mkdir -p "$test_home/.local/share/applications"
 printf '[Default Applications]\ntext/x-java=code.desktop\ntext/x-tcl=nvim.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"
 printf '[Default Applications]\n' >"$mimeapps"
 omarchy-cmd-editor-mimetypes --unless-chosen
 ! grep -q "^text/x-java=" "$mimeapps" || fail "the migration keeps a choice saved in the older list"
 grep -qxF "text/x-tcl=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Neovim saved in the older list"
+printf '[Default Applications]\ntext/x-java=vscodium-electron.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+! grep -qxF "text/x-java=omarchy-launch-editor.desktop" "$mimeapps" || fail "a line for an app that's gone doesn't hide a choice in the older list"
 rm -f "$test_home/.local/share/applications/mimeapps.list"
-pass "the migration keeps the user's own choices"
+pass "the migration keeps the user's own choices, while their apps are installed"
+
+# A data dir whose name is a glob must be scanned as that path. Unquoted, it
+# expands to the other directory the pattern matches and the app looks gone.
+glob_root="$test_tmp/glob"
+mkdir -p "$glob_root/app[s]/applications" "$glob_root/apps"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$glob_root/app[s]/applications/chosen.desktop"
+saved_data_dirs=$XDG_DATA_DIRS
+XDG_DATA_DIRS="$glob_root/app[s]"
+printf '[Default Applications]\ntext/plain=chosen.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=chosen.desktop" "$mimeapps" || fail "the migration keeps a choice installed under a data dir whose name is a glob"
+XDG_DATA_DIRS=$saved_data_dirs
+pass "the migration keeps a choice installed under a data dir whose name is a glob"
+
+# Flatpak exports an editor into its own share dir, which a TTY, SSH, or a
+# session started before Flatpak was installed does not put on XDG_DATA_DIRS.
+mkdir -p "$test_home/.local/share/flatpak/exports/share/applications"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$test_home/.local/share/flatpak/exports/share/applications/flatpak-editor.desktop"
+printf '[Default Applications]\ntext/plain=flatpak-editor.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=flatpak-editor.desktop" "$mimeapps" || fail "the migration keeps a choice installed through Flatpak"
+system_flatpak="$test_tmp/flatpak-system"
+mkdir -p "$system_flatpak/applications"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$system_flatpak/applications/system-flatpak.desktop"
+printf '[Default Applications]\ntext/plain=system-flatpak.desktop\n' >"$mimeapps"
+OMARCHY_FLATPAK_EXPORTS="$system_flatpak" omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=system-flatpak.desktop" "$mimeapps" || fail "the migration keeps a choice installed through system Flatpak"
+pass "the migration keeps a Flatpak editor that isn't on XDG_DATA_DIRS"
 
 # Values are ;-separated lists and keys may have spaces around "=", as GLib
 # writes and reads them; a choice in ~/.config outranks the older list's.
