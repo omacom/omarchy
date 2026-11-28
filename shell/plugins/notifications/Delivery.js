@@ -32,6 +32,16 @@ function deeds(row, senderActions) {
   return out
 }
 
+// Whether a card shows its whole text (eight lines) rather than two: in an
+// open deck, on hover when nothing else is on screen, and always when it has
+// buttons. Those are the cards read before choosing, and opening on hover would
+// grow the card under the pointer on its way to a button, pushing the bar down.
+// A collapsed stack draws every card at the front one's height, so an open
+// card behind the front does not hang out of it.
+function bodyOpen(state) {
+  return !!(state.expanded || (state.hovered && state.sole) || state.buttons > 0)
+}
+
 // Nobody looks back at these (the `transient` hint, or an unnamed sender), so
 // quiet drops them rather than holding them.
 function isEphemeral(row) {

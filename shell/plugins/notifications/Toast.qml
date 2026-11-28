@@ -101,10 +101,10 @@ Item {
     }
   }
 
-  // The body opens in an open deck, or on hover when nothing else is on
-  // screen. Never in a collapsed stack: every card there is drawn at the front
-  // one's height, so a tall one would hang out of it.
-  readonly property bool bodyOpen: expanded || (hovered && sole)
+  // A card with buttons is open from the start, so hover never moves them.
+  readonly property bool bodyOpen: Delivery.bodyOpen({
+    expanded: expanded, hovered: hovered, sole: sole, buttons: allDeeds.length
+  })
   readonly property int bodyLines: bodyOpen ? 8 : 2
 
   // Every code the body carried; two or more have to say which they copy.

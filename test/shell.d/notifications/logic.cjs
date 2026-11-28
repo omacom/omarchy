@@ -285,6 +285,10 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
                                [{ id: 'join', text: 'Join call' }])
   assert.equal(JSON.stringify(Array.from(deeds, d => d.kind + ':' + d.value)), JSON.stringify(['code:482913', 'code:771204', 'exec:0', 'action:join']))
   assert.equal(Delivery.deeds({}, []).length, 0)
+  // A card with buttons opens its text at once: hover growing it would walk the buttons out from under the pointer.
+  for (const [state, open] of [[{ buttons: 1 }, true], [{ buttons: 0 }, false], [{ hovered: true }, false],
+                               [{ hovered: true, sole: true }, true], [{ expanded: true }, true]])
+    assert.equal(Delivery.bodyOpen(state), open, JSON.stringify(state))
   for (const [row, ephemeral] of [[{ app: 'notify-send' }, true], [{ app: 'omarchy-action' }, true],
                                   [{ app: 'Slack', transient: true }, true], [{ app: 'Slack' }, false]])
     assert.equal(Delivery.isEphemeral(row), ephemeral, row.app)
