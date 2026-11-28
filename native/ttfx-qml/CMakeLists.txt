@@ -18,17 +18,17 @@ set(TTFX_CARGO_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/cargo")
 set(TTFX_ENGINE_LIB "${TTFX_CARGO_TARGET_DIR}/plymouth/libttfx_plymouth.a")
 find_program(CARGO cargo REQUIRED)
 
-add_custom_command(
-  OUTPUT "${TTFX_ENGINE_LIB}"
+# Cargo runs on every build and decides itself what to rebuild, so a change
+# anywhere in the engine or its vendored crates reaches the module. Cargo finds
+# .cargo/config.toml, which points it at the vendored crates, from its working
+# directory, not from --manifest-path.
+add_custom_target(ttfx_engine_build
   COMMAND "${CARGO}" build --locked --offline --lib --profile plymouth
           --manifest-path "${TTFX_ENGINE_DIR}/Cargo.toml" --target-dir "${TTFX_CARGO_TARGET_DIR}"
-  # Cargo finds .cargo/config.toml, which points it at the vendored crates,
-  # from its working directory, not from --manifest-path.
   WORKING_DIRECTORY "${TTFX_ENGINE_DIR}"
-  DEPENDS "${TTFX_ENGINE_DIR}/Cargo.toml" "${TTFX_ENGINE_DIR}/Cargo.lock" "${TTFX_ENGINE_DIR}/src/lib.rs"
+  BYPRODUCTS "${TTFX_ENGINE_LIB}"
   COMMENT "Building the TTFX engine"
   USES_TERMINAL)
-add_custom_target(ttfx_engine_build DEPENDS "${TTFX_ENGINE_LIB}")
 
 add_library(ttfx_engine STATIC IMPORTED)
 set_target_properties(ttfx_engine PROPERTIES
