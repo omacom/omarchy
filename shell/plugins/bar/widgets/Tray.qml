@@ -877,8 +877,8 @@ BarWidget {
     Rectangle {
       anchors.fill: trayIconImage
       color: root.foreground
-      visible: trayIconRoot.symbolic
-      layer.enabled: trayIconRoot.symbolic
+      visible: trayIconRoot.symbolic && trayIconImage.status === Image.Ready
+      layer.enabled: visible
       layer.effect: MultiEffect {
         maskEnabled: true
         maskSource: trayIconImage
