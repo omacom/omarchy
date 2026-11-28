@@ -464,7 +464,7 @@ cmd_set() {
 }
 
 # Prints the option from the first instance of the widget on the bar, raw for a
-# string and as JSON otherwise, and fails when no instance sets it.
+# string and as JSON otherwise, and fails when that instance does not set it.
 cmd_get() {
   local id="${1:-}"
   local key="${2:-}"
@@ -472,10 +472,45 @@ cmd_get() {
   [[ -n $key ]] || fail "get requires a setting key"
   (( $# == 2 )) || fail "get takes a widget id and a setting key"
 
-  jq -e -r --arg id "$id" --arg key "$key" '
-    first(.bar.layout[]?[]? | select(.id == $id) | .[$key] | select(. != null))
+  local file
+  file="$(source_file)"
+
+  # Look for an entry matching the widget id exactly first.
+  local entry
+  if ! entry=$(jq -c --arg id "$id" '
+    first(.bar.layout[]?[]? | select(.id == $id)) // empty
+  ' "$file" 2>/dev/null); then
+    exit 1
+  fi
+
+  # If no entry with the exact id is on the bar, check whether a plugin clone
+  # is standing in for the built-in (manifest omarchy.clonedFrom == $id).
+  # We choose the exact entry whenever present and only consult the catalog
+  # when the exact id is absent: this keeps exact reads fast (e.g. top bar menu
+  # items) without scanning manifests, and ensures an exact entry that does not
+  # set the requested key fails rather than falling back to an unrelated clone.
+  if [[ -z $entry ]]; then
+    local clones="[]"
+    clones=$(omarchy-plugin-catalog 2>/dev/null | jq -c --arg id "$id" '
+      [ .[] | select((.omarchy | type) == "object" and .omarchy.clonedFrom == $id) | .id ]
+    ') || clones="[]"
+    [[ -n $clones ]] || clones="[]"
+
+    if [[ $clones != "[]" ]]; then
+      entry=$(jq -c --argjson clones "$clones" '
+        first(.bar.layout[]?[]? | select(.id as $entry | $clones | any(. == $entry))) // empty
+      ' "$file" 2>/dev/null) || true
+    fi
+  fi
+
+  if [[ -z $entry ]]; then
+    exit 1
+  fi
+
+  jq -e -r --arg key "$key" '
+    .[$key] | select(. != null)
     | if type == "string" then . else tojson end
-  ' "$(source_file)" 2>/dev/null || exit 1
+  ' <<<"$entry" 2>/dev/null || exit 1
 }
 
 # --------------------------------------------------------------------- dispatch

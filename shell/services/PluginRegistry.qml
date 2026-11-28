@@ -383,19 +383,23 @@ QtObject {
         }
         location = { found: true, section: section, index: numericIndex }
       } else {
-        location = findBarLocation(config, id, section)
+        // A clone standing in for the widget takes the widget's set calls,
+        // the way move and put follow clones.
+        location = findRelativeBarLocation(config, id, section)
       }
       if (!location.found) {
         error = "could not find widget " + id
         return
       }
-      if (barEntryId(config.bar.layout[location.section][location.index]) !== String(id)) {
-        error = "widget at " + location.section + "[" + location.index + "] is not " + id
-        return
-      }
       var entry = config.bar.layout[location.section][location.index]
       if (!Util.isPlainObject(entry)) {
         error = "widget entry must be an object"
+        return
+      }
+      // The index branch still owes the caller proof the slot holds the
+      // widget it named; a search may resolve to a clone of the id.
+      if (index !== undefined && index !== null && barEntryId(entry) !== String(id)) {
+        error = "widget at " + location.section + "[" + location.index + "] is not " + id
         return
       }
       entry[String(key)] = value

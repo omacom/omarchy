@@ -274,6 +274,16 @@ ShellRoot {
     root.assertEqual(registry.moveBarWidget("third.widget", { section: "right" }), "", "registry moves widgets out of the tray section")
     root.assertDeepEqual(root.config.bar.layout.tray, [], "a widget moved out of the tray section leaves it")
 
+    // A clone standing in for its source takes the source's set calls.
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [{ id: "local.first-widget", size: 5 }], right: [] } },
+      plugins: []
+    }
+    root.assertEqual(registry.setBarWidget("omarchy.first-widget", "size", 6, {}), "", "set follows the clone standing in for the source id")
+    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "local.first-widget", size: 6 }], "a set routed to the clone lands on the clone's entry")
+    root.assertEqual(registry.setBarWidget("omarchy.absent-widget", "size", 6, {}), "could not find widget omarchy.absent-widget", "set still refuses an id neither the bar nor a clone holds")
+
     root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }], tray: [{ id: "third.widget" }] } }, plugins: [] }
     root.assertEqual(registry.moveBarWidget("omarchy.tray", { section: "tray" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer")
     root.assertEqual(registry.moveBarWidget("omarchy.tray", { after: "third.widget" }), "the tray cannot go in its own drawer", "registry keeps the tray out of its own drawer when placed beside a widget in it")
