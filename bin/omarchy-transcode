@@ -88,9 +88,94 @@ transcode_picture() {
   esac
 }
 
+# Skip audio codecs without a decoder, keeping FFmpeg's default/channel preference.
+# Prints an index; returns 1 on probe errors, 2 for unusable audio, 3 for no audio.
+decodable_audio_index() {
+  local input="$1"
+  local -A decoders=()
+  local probe flags name rest index codec channels is_default chosen="" fallback=""
+  local chosen_channels=-1 fallback_channels=-1
+  local saw_audio=0
+
+  probe=$(ffprobe -v error -select_streams a \
+    -show_entries stream=index,codec_name,channels:stream_disposition=default \
+    -of csv=p=0 -- "$input") || return 1
+
+  # ffprobe's codec name and ffmpeg's decoder name are not always the same.
+  # DTS is "dts" in the file and "dca" in the decoder list, which also says
+  # "(codec dts)". Record both. The flag field is six characters drawn from
+  # V, A, S, F, X, B, D and "."; AAC's line ends in D.
+  while read -r flags name rest; do
+    [[ $flags =~ ^[VASFXBD.]{6}$ ]] || continue
+    [[ -n $name ]] || continue
+    decoders[$name]=1
+    if [[ $rest =~ \(codec\ ([^\)]+)\) ]]; then
+      decoders[${BASH_REMATCH[1]}]=1
+    fi
+  done < <(ffmpeg -hide_banner -decoders)
+
+  while IFS=',' read -r index codec channels is_default; do
+    [[ -n $index ]] || continue
+    saw_audio=1
+    if [[ -z ${decoders[$codec]:-} ]]; then
+      continue
+    fi
+    if [[ $is_default == "1" ]] && (( ${channels:-0} > chosen_channels )); then
+      chosen_channels=${channels:-0}
+      chosen=$index
+    fi
+    if (( ${channels:-0} > fallback_channels )); then
+      fallback_channels=${channels:-0}
+      fallback=$index
+    fi
+  done <<<"$probe"
+
+  if [[ -n $chosen ]]; then
+    printf '%s\n' "$chosen"
+  elif [[ -n $fallback ]]; then
+    printf '%s\n' "$fallback"
+  elif (( saw_audio == 1 )); then
+    return 2
+  else
+    return 3
+  fi
+}
+
+# Match FFmpeg's frame-area/default scoring, with cover art as a last resort.
+# Prints an index; returns 1 on probe errors and 3 when the file has no video.
+video_stream_index() {
+  local input="$1"
+  local probe index width height is_default attached score
+  local best_index="" best_score=0
+
+  probe=$(ffprobe -v error -select_streams v \
+    -show_entries stream=index,width,height:stream_disposition=default,attached_pic \
+    -of csv=p=0 -- "$input") || return 1
+
+  while IFS=',' read -r index width height is_default attached; do
+    [[ -n $index ]] || continue
+    if [[ $attached == "1" ]]; then
+      score=1
+    else
+      score=$(( ${width:-0} * ${height:-0} + 5000000 * ${is_default:-0} ))
+    fi
+    if (( score > best_score )); then
+      best_score=$score
+      best_index=$index
+    fi
+  done <<<"$probe"
+
+  if [[ -n $best_index ]]; then
+    printf '%s\n' "$best_index"
+  else
+    return 3
+  fi
+}
+
 transcode_video() {
   local input="$1" format="$2" resolution="$3" output="$4"
-  local scale
+  local scale audio_index="" audio_status=0 video_index="" video_status=0
+  local -a args
 
   case "$resolution" in
   4k) scale='scale=-2:2160' ;;
@@ -104,11 +189,44 @@ transcode_video() {
 
   case "$format" in
   mp4)
-    if [[ $resolution == "4k" ]]; then
-      ffmpeg -i "$input" -vf "$scale" -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
-    else
-      ffmpeg -i "$input" -vf "$scale" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
+    audio_index=$(decodable_audio_index "$input") || audio_status=$?
+    if (( audio_status == 1 )); then
+      return 1
     fi
+    if (( audio_status == 2 )); then
+      echo "No decodable audio track: $input" >&2
+      return 1
+    fi
+
+    video_index=$(video_stream_index "$input") || video_status=$?
+    if (( video_status == 1 )); then
+      return 1
+    fi
+    if [[ -z $video_index && -z $audio_index ]]; then
+      echo "No video or decodable audio track: $input" >&2
+      return 1
+    fi
+
+    args=(ffmpeg -i "$input")
+    if [[ -n $video_index ]]; then
+      args+=(-map "0:$video_index")
+    fi
+    if [[ -n $audio_index ]]; then
+      args+=(-map "0:$audio_index")
+    fi
+    if [[ -n $video_index ]]; then
+      args+=(-vf "$scale")
+      if [[ $resolution == "4k" ]]; then
+        args+=(-c:v libx265 -preset slow -crf 24)
+      else
+        args+=(-c:v libx264 -preset fast -crf 23)
+      fi
+    fi
+    if [[ -n $audio_index ]]; then
+      args+=(-c:a aac -b:a 192k)
+    fi
+    args+=(-movflags +faststart "$output")
+    "${args[@]}"
     ;;
   gif)
     ffmpeg -i "$input" -vf "fps=10,$scale:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$output"
