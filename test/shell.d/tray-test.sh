@@ -42,3 +42,10 @@ assertEqual(tray.shownSpan(0, 10, 50, 30), null, 'a section still outside the dr
 assertDeepEqual(tray.shownSpan(0, 50, 50.5, 0), { start: 50, length: 0 }, 'an empty section shows on the drawer\'s edge once within a pixel of it')
 assertEqual(tray.shownSpan(0, 50, 52, 0), null, 'an empty section further out shows nothing')
 JS
+
+# Entering or leaving a submenu swaps the Repeater model under the row that was
+# clicked, so the swap waits a tick; work queued before the menu closed and
+# reopened must not land in the reopened menu.
+require_quickshell "tray submenu test"
+
+run_qml_fixture tray-submenu "tray submenu swaps run after the click and never in a reopened menu" Ui Commons

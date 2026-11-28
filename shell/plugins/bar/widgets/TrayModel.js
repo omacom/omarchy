@@ -73,6 +73,10 @@ function shownSpan(clipStart, clipLength, start, length) {
   return { start: from, length: to - from }
 }
 
+function submenuTransitionCurrent(capturedGeneration, currentGeneration, trayMenuOpen) {
+  return Boolean(trayMenuOpen) && capturedGeneration === currentGeneration
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     shownSpan: shownSpan,
@@ -80,6 +84,7 @@ if (typeof module !== "undefined") {
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
     ownedByOmarchy: ownedByOmarchy,
+    submenuTransitionCurrent: submenuTransitionCurrent,
     activatesOnDoubleClick: activatesOnDoubleClick
   }
 }
