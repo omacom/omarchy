@@ -4,6 +4,7 @@
 # omarchy:requires-sudo=true
 
 set -e
+trap 'exit 130' INT
 
 echo "Installing Signal..."
 omarchy-pkg-add signal-desktop

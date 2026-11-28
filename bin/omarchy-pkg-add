@@ -5,6 +5,8 @@
 # omarchy:examples=omarchy pkg add jq ripgrep
 # omarchy:requires-sudo=true
 
+trap 'exit 130' INT
+
 if [[ ${OMARCHY_PKG_DEFER:-} == "1" && -n ${OMARCHY_PKG_QUEUE_FILE:-} ]]; then
   (( $# == 0 )) && exit 0
   printf '%s\n' "$@" >>"$OMARCHY_PKG_QUEUE_FILE" || exit 1
