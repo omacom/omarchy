@@ -213,10 +213,11 @@ PanelWindow {
 
   // A submenu sits beside the menu, away from the dock, with its first row
   // level with the row that opened it, as far as the room inward of the dock
-  // allows.
+  // allows. It overlaps the menu by a border, as macOS's do, so the two share
+  // one edge rather than standing a sliver apart.
   function submenuX(popup) {
-    var after = menu.x + menu.width + window.gap / 2
-    var before = menu.x - window.gap / 2 - popup.width
+    var after = menu.x + menu.width - Style.normalBorderWidth
+    var before = menu.x - popup.width + Style.normalBorderWidth
     if (window.position === "left") return after
     if (window.position === "right") return before
     var preferBefore = Commons.I18n.rightToLeft
