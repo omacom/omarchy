@@ -1603,7 +1603,10 @@ Panel {
 
         GridLayout {
           width: parent.width
-          columns: 4
+          // Two label/value pairs a row at the panel's full width; one pair a
+          // row when a narrow screen squeezes it, so a value doesn't run into
+          // its label.
+          columns: panel.contentWidth < Style.space(380) ? 2 : 4
           columnSpacing: Style.space(20)
           rowSpacing: Style.spacing.labelGap
 
