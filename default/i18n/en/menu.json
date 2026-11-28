@@ -713,6 +713,12 @@
   "install.gaming": {
     "label": "Gaming"
   },
+  "install.creative": {
+    "label": "Creative"
+  },
+  "install.creative.omasculpt": {
+    "label": "Omasculpt"
+  },
   "install.browser": {
     "label": "Browser"
   },
