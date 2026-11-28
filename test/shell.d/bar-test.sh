@@ -30,7 +30,7 @@ assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 // the window gets the clicks along the edge; a maximized one keeps the bar.
 const output = { x: 0, y: 0, width: 1280, height: 800 }
 const toplevel = (id, fullscreen, name = String(id), x = 0) => ({ workspace: { id, name }, lastIpcObject: { fullscreen, at: [x, 0], size: [1280, 800] } })
-const fullscreenOn = (windows, hasFullscreen = true, special = '') => bar.fullscreenOn(windows, 4, hasFullscreen, special, output)
+const fullscreenOn = (windows, hasFullscreen = true, special = '', closed = undefined) => bar.fullscreenOn(windows, 4, hasFullscreen, special, output, closed)
 assertEqual(fullscreenOn([toplevel(4, 0), toplevel(4, 2)]), true, 'a fullscreen window takes the bar edge')
 assertEqual(fullscreenOn([toplevel(4, 1)]), false, 'a maximized window leaves the bar clickable')
 assertEqual(fullscreenOn([toplevel(9, 2)]), false, 'fullscreen on another workspace leaves the bar clickable')
@@ -45,6 +45,41 @@ assertEqual(bar.fullscreenOn([toplevel(4, 2, '4', -1280)], 4, true, '', { x: -12
 const roundedFullscreen = toplevel(4, 2)
 roundedFullscreen.lastIpcObject.size = [1279, 799]
 assertEqual(fullscreenOn([roundedFullscreen]), true, 'rounded fullscreen geometry still covers the output')
+
+// Quickshell's HyprlandIpc::refreshToplevels() never drops missing toplevels:
+// a stale j/clients answer processed after closewindow resurrects the closed
+// window as a ghost with its old fullscreen flag. Recording closed addresses
+// on closewindow (and clearing on openwindow reuse) keeps the ghost from
+// wedging fullscreenOn true.
+{
+  const addressed = (id, fullscreen, address) => ({
+    workspace: { id, name: String(id) },
+    lastIpcObject: { fullscreen, address, at: [0, 0], size: [1280, 800] }
+  })
+  const ghostAddr = '55a1b2c3'
+  const liveFullscreen = addressed(4, 2, '0x' + ghostAddr)
+  let closed = {}
+  // 1. Window is fullscreen on workspace 4; fullscreen>>0 triggers refreshToplevels().
+  assertEqual(fullscreenOn([liveFullscreen], true, '', closed), true, 'live fullscreen window is detected before close')
+  // 2. closewindow arrives before the stale j/clients response.
+  closed = bar.withClosedWindow(closed, ghostAddr)
+  // 3. Stale j/clients response resurrects the closed window with fullscreen 2.
+  assertEqual(fullscreenOn([liveFullscreen], true, '', closed), false, 'a ghost fullscreen window whose address got closewindow is ignored')
+  // 4. Another live fullscreen window on the same workspace still counts.
+  assertEqual(fullscreenOn([liveFullscreen, addressed(4, 2, '0xdeadbeef')], true, '', closed), true, 'another live fullscreen window still takes the bar edge')
+  // 5. Address normalization matches with or without 0x and across letter case.
+  assertEqual(fullscreenOn([addressed(4, 2, '0X55A1B2C3')], true, '', closed), false, 'closed address matching ignores 0x prefix and case')
+  // 6. openwindow reusing the same address clears it from the closed set.
+  closed = bar.withoutClosedWindow(closed, '0x' + ghostAddr)
+  assertEqual(fullscreenOn([liveFullscreen], true, '', closed), true, 'a new window reusing a closed address is tracked again')
+  // 7. Closed addresses stay bounded (last 32, oldest dropped first) so a long
+  // session never grows the map without bound.
+  let capped = {}
+  for (let i = 0; i < 40; i++) capped = bar.withClosedWindow(capped, (0x10000000 + i).toString(16))
+  assertEqual(Object.keys(capped).length, 32, 'closed window tracking caps at the 32 most recent addresses')
+  assertEqual(fullscreenOn([addressed(4, 2, '0x10000000')], true, '', capped), true, 'oldest closed address past the cap is dropped')
+  assertEqual(fullscreenOn([addressed(4, 2, '0x' + (0x10000000 + 39).toString(16))], true, '', capped), false, 'newest closed address is still filtered by fullscreenOn')
+}
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.
@@ -501,6 +536,90 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// Autohide is off by default, and off means the key is absent, as the dock's
+// is. Hide Bar wins over it: a bar parked by the flag never comes out.
+assertEqual(bar.autohideEngaged({ autohide: true }, false), true, 'autohide is engaged when the mode is on')
+assertEqual(bar.autohideEngaged({}, false), false, 'autohide is off when the key is absent')
+assertEqual(bar.autohideEngaged({ autohide: false }, false), false, 'autohide is off when it is set off')
+assertEqual(bar.autohideEngaged({ autohide: 'true' }, false), false, 'autohide takes a real boolean, not its spelling')
+assertEqual(bar.autohideEngaged({ autohide: true }, true), false, 'Hide Bar wins over autohide')
+assertEqual(bar.autohideEngaged(null, false), false, 'a bar with no config has no autohide')
+
+// The pointer at the edge calls the bar out, but never over a fullscreen
+// window, which owns that edge and the clicks along it.
+assertEqual(bar.autohideCallsOut(true, false), true, 'the edge calls the bar out')
+assertEqual(bar.autohideCallsOut(true, true), false, 'the edge calls no bar over a fullscreen window')
+assertEqual(bar.autohideCallsOut(false, false), false, 'the edge calls no bar when autohide is off')
+
+// Autohide shows the bar when it may act on the screen and something needs it:
+// the pointer (through the reveal flag) or a panel the user opened.
+assertEqual(bar.autohideShows(true, true, false), true, 'the pointer holds the bar out')
+assertEqual(bar.autohideShows(true, false, false), false, 'nothing holding the bar leaves it parked')
+assertEqual(bar.autohideShows(true, true, true), false, 'a fullscreen window parks the bar whatever holds it')
+assertEqual(bar.autohideShows(false, true, false), false, 'a bar with autohide off never comes out')
+
+// Anything the user is on or opened keeps the bar out; otherwise the grace
+// timer parks it an instant after the pointer leaves.
+assertEqual(bar.autohideHolds(true, false, false), true, 'the pointer on the bar holds it out')
+assertEqual(bar.autohideHolds(false, true, false), true, 'the pointer on the edge strip holds it out')
+assertEqual(bar.autohideHolds(false, false, true), true, 'a panel kept open holds it out')
+assertEqual(bar.autohideHolds(false, false, false), false, 'nothing holds the bar out once the pointer and the panels are gone')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, true), false), true, 'an open panel keeps the grace timer from parking the bar')
+
+// A widget or bar-position drag holds the bar out past the grace timer: the
+// pointer has left the bar looking for a place to drop, and the drop targets
+// have to still be there when it comes back. The drag ends, and the grace
+// timer takes over from what is left: the pointer, a panel, or nothing.
+assertEqual(bar.autohideHolds(false, false, false, true), true, 'a drag holds the bar out')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, true), false), true, 'a drag keeps the grace timer from parking the bar')
+assertEqual(bar.autohideHolds(false, false, false, false), false, 'the end of the drag lets the bar go')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, true), true), false, 'a fullscreen window still parks the bar under a drag')
+
+// A slide-in or a closing popout's fade holds the bar out so the grace timer
+// cannot park it before the bar finishes arriving or before the popout's
+// full-screen overlay unmaps.
+assertEqual(bar.autohideTransitionHold(true, false), true, 'a slide-in holds the bar out')
+assertEqual(bar.autohideTransitionHold(false, true), true, 'a closing popout fade holds the bar out')
+assertEqual(bar.autohideTransitionHold(true, true), true, 'overlapping slide-in and popout fade hold the bar out')
+assertEqual(bar.autohideTransitionHold(false, false), false, 'no active transition releases the hold')
+assertEqual(bar.autohideHolds(false, false, false, false, true), true, 'a transition hold keeps the bar out')
+assertEqual(bar.autohideHolds(false, false, false, false, false), false, 'ending a transition hold lets the bar go')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, false, true), false), true, 'a transition hold keeps the grace timer from parking the bar')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, false, true), true), false, 'a fullscreen window still parks the bar during a transition hold')
+
+// A panel or menu opened from a widget on the bar holds it out, found by the
+// widget ids the layout shows. A panel is a live item in a slot on one screen's
+// bar, so it holds that bar and no other: the bar answers for its own screen
+// from its own slots, and the shell's own answer is one open panel away from the
+// whole desktop. A menu has no slot anywhere — it is a window of the shell — so
+// it keeps its old reach over every screen. An empty bar, a closed panel and a
+// key the layout no longer holds all hold nothing.
+const shownSections = { left: ['t.menu'], center: ['t.clock'], tray: ['t.tray'] }
+const shownEntries = { 't.menu': { id: 't.menu' }, 't.clock': { id: 't.clock' }, 't.tray': { id: 't.tray' } }
+const openIds = ids => id => ids.indexOf(id) !== -1
+const panelHere = opened => id => (id === 't.clock' ? opened : undefined)
+const noPanelSlot = () => undefined
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(true), openIds([])), true, 'a panel open from a widget holds the bar out')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(true), openIds(['t.clock'])), true, 'a panel holds the bar on its own screen')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(false), openIds(['t.clock'])), false, 'a panel open on another screen leaves this bar alone')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, noPanelSlot, openIds(['t.menu'])), true, 'a menu open from the first section holds the bar out')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(false), openIds(['t.menu'])), true, 'a menu holds every screen, with no slot to place it')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, noPanelSlot, openIds([])), false, 'nothing open lets the bar go')
+assertEqual(bar.autohidePanelOpenOn({}, {}, noPanelSlot, openIds(['t.clock'])), false, 'an empty bar holds nothing open')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, null, openIds(['t.clock'])), false, 'a bar that cannot say what is open here holds nothing')
+assertEqual(bar.autohidePanelOpenOn({ left: ['gone#1'] }, {}, noPanelSlot, openIds(['t.clock'])), false, 'a key the layout no longer holds is skipped')
+
+// Each screen's state is a flag in a map, so the bar surface and its edge
+// strip, separate windows on one screen, read the same one.
+assertEqual(bar.screenFlag({ 'eDP-1': true }, 'eDP-1'), true, 'a screen reads its own flag')
+assertEqual(bar.screenFlag({ 'eDP-1': true }, 'DP-1'), false, 'a screen does not read another one\'s flag')
+assertEqual(bar.screenFlag({}, ''), false, 'a screen with no name has no flag')
+assertDeepEqual(bar.withScreenFlag({}, 'eDP-1', true), { 'eDP-1': true }, 'a flag set on one screen')
+assertDeepEqual(bar.withScreenFlag({ 'eDP-1': true, 'DP-1': true }, 'eDP-1', false), { 'DP-1': true }, 'a flag cleared leaves the other screens alone')
+assertDeepEqual(bar.withScreenFlag({ 'eDP-1': true }, '', false), { 'eDP-1': true }, 'a screen with no name changes nothing')
+const held = { 'eDP-1': true }
+assert(bar.withScreenFlag(held, 'eDP-1', true) !== held, 'a flag change is a new map, so the property holding it notifies')
 JS
 
 put_tmp=$(mktemp -d)

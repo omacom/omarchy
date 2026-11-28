@@ -653,9 +653,60 @@ function barSizeFor(sizes, screenName, fallback) {
   return size > 0 ? size : fallback
 }
 
+// Maximum number of recently closed window addresses retained to guard against
+// stale `HyprlandIpc::refreshToplevels()` answers. The race only spans an
+// in-flight refresh, so keeping the newest 32 bounds memory and copy cost.
+var closedWindowLimit = 32
+
+// Normalizes a Hyprland window address from either socket2 events (`55a1b2c3`)
+// or `j/clients` (`0x55a1b2c3`) to lowercase hex without a `0x` prefix.
+function normalizeWindowAddress(address) {
+  var text = String(address === undefined || address === null ? "" : address).trim().toLowerCase()
+  if (text.indexOf("0x") === 0) text = text.substring(2)
+  return /^[0-9a-f]+$/.test(text) ? text : ""
+}
+
+// Records a window address that received `closewindow` so a stale
+// `HyprlandIpc::refreshToplevels()` response cannot resurrect it as a ghost.
+// Keys are prefixed with `0x` so all-digit hex addresses never sort as array
+// indexes and insertion order stays exact; drops the oldest entries past
+// `closedWindowLimit` and returns a fresh map so QML bindings notify.
+function withClosedWindow(closed, address) {
+  var key = normalizeWindowAddress(address)
+  if (!key) return closed || {}
+  var mapKey = "0x" + key
+  var keys = []
+  for (var name in closed || {}) {
+    if (name !== mapKey && closed[name] === true) keys.push(name)
+  }
+  keys.push(mapKey)
+  if (keys.length > closedWindowLimit)
+    keys = keys.slice(keys.length - closedWindowLimit)
+  var next = {}
+  for (var i = 0; i < keys.length; i++) next[keys[i]] = true
+  return next
+}
+
+// Drops a window address from the closed set when `openwindow` reuses it.
+// Returns the existing map unchanged if the key was absent, or a fresh map so
+// QML property bindings notify when an entry is removed.
+function withoutClosedWindow(closed, address) {
+  var key = normalizeWindowAddress(address)
+  if (!key || !closed) return closed || {}
+  var mapKey = "0x" + key
+  if (!closed[mapKey] && !closed[key]) return closed
+  var next = {}
+  for (var name in closed) {
+    if (name !== mapKey && name !== key) next[name] = closed[name]
+  }
+  return next
+}
+
 // Only a real fullscreen window covering the output takes the bar's clicks.
 // Scrolling keeps fullscreen flags on columns outside the viewport.
-function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceName, screen) {
+// `closedAddresses`, when given, skips ghost toplevels whose address already
+// received closewindow.
+function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceName, screen, closedAddresses) {
   if (!specialWorkspaceName && !hasFullscreen) return false
   var list = toplevels || []
   for (var i = 0; i < list.length; i++) {
@@ -666,6 +717,10 @@ function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceNam
     } else if (toplevel.workspace.id !== workspaceId) continue
     var ipc = toplevel.lastIpcObject
     if (!ipc || (Number(ipc.fullscreen) & 2) === 0 || !ipc.at || !ipc.size) continue
+    if (closedAddresses) {
+      var addr = normalizeWindowAddress(ipc.address !== undefined && ipc.address !== null ? ipc.address : toplevel.address)
+      if (addr && (closedAddresses["0x" + addr] === true || closedAddresses[addr] === true)) continue
+    }
     // IPC geometry rounds logical pixels at fractional scales.
     if (ipc.at[0] <= screen.x + 1 && ipc.at[1] <= screen.y + 1
         && ipc.at[0] + ipc.size[0] >= screen.x + screen.width - 1
@@ -674,10 +729,114 @@ function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceNam
   return false
 }
 
+// With `bar.autohide` on, the bar keeps no reserved space and slides in over
+// the windows when the pointer reaches its screen edge, then leaves again. The
+// mode is off by default and absent from shell.json, as the dock's is, and Hide
+// Bar still wins over it. The rule lives here, as one definition, so the bar
+// surface, the edge strip that calls it and the tests all read the same one.
+//
+// The bar surface and its edge strip are separate windows on one screen, so
+// each screen's state is a flag in a map keyed by screen name.
+
+// Whether autohide is engaged: the mode is on and Hide Bar has not parked the
+// bar. `hidden` is the bar's own Hide Bar flag.
+function autohideEngaged(config, hidden) {
+  return isPlainObject(config) && config.autohide === true && hidden !== true
+}
+
+// Whether a reveal slide-in or a closing popout's fade-out is still running,
+// during which the grace timer must not park the bar.
+function autohideTransitionHold(slidingIn, popoutFading) {
+  return slidingIn === true || popoutFading === true
+}
+
+// Whether something still needs the bar out: the pointer on the bar, the
+// pointer on its edge strip, a panel, popup or menu open from a widget on it,
+// a widget or bar-position drag in flight, or an active reveal/popout-fade
+// transition hold. Anything else lets the grace timer park it. `dragging` is
+// that drag: the pointer has left the bar looking for a place to drop, so the
+// bar and its drop targets have to stay, and the timer takes over again from
+// whatever the drag leaves behind.
+function autohideHolds(barHovered, edgeHovered, keepOpen, dragging, transitionHold) {
+  return barHovered === true || edgeHovered === true || keepOpen === true || dragging === true || transitionHold === true
+}
+
+// Whether a panel, popup or menu open from a widget on one screen's bar still
+// needs that bar out, with the reach each kind really has. `isOpenHere(id)` is
+// that bar's own answer for its screen, read from the slots it holds: `true` or
+// `false` while a panel copy of the id lives on it, `undefined` when none does.
+// A panel is that copy — a live item in a slot on one screen — so it holds that
+// screen alone. A menu is a window of the shell, placed by the shell, with no
+// slot on the bar to say which screen it opened on, so it falls back to
+// `isOpenAnywhere(id)` and holds every screen: never a screen the bar cannot
+// name.
+function autohidePanelOpenOn(sections, entries, isOpenHere, isOpenAnywhere) {
+  if (typeof isOpenHere !== "function") return false
+  var shown = sections || {}
+  for (var name in shown) {
+    var keys = shown[name] || []
+    for (var i = 0; i < keys.length; i++) {
+      var id = entryId(entries ? entries[keys[i]] : null)
+      if (!id) continue
+      var here = isOpenHere(id)
+      if (here === true) return true
+      if (here === false) continue
+      if (typeof isOpenAnywhere === "function" && isOpenAnywhere(id) === true) return true
+    }
+  }
+  return false
+}
+
+// Whether autohide may act on a screen: the mode is on and the screen holds no
+// real fullscreen window. The edge strip takes input exactly when it may act,
+// so this is its input region too.
+function autohideCallsOut(engaged, underFullscreen) {
+  return engaged === true && underFullscreen === false
+}
+
+// Whether autohide shows the bar on a screen: it may act there and something
+// needs the bar — the pointer on it or on its edge strip, or a panel the user
+// opened from a widget on it (autohideHolds). The bar's tuck, its reveal and
+// the grace timer all read this one rule, and the timer asks it again every
+// time it fires, so a panel closed while the pointer is elsewhere still parks
+// the bar instead of leaving it out for good.
+function autohideShows(engaged, needed, underFullscreen) {
+  return autohideCallsOut(engaged, underFullscreen) && needed === true
+}
+
+// A screen's flag in an autohide state map.
+function screenFlag(map, screenName) {
+  var key = String(screenName || "")
+  return !!key && !!map && map[key] === true
+}
+
+// That map with one screen's flag set or cleared. A fresh object, so the
+// property holding it notifies.
+function withScreenFlag(map, screenName, value) {
+  var key = String(screenName || "")
+  if (!key) return map
+  var next = {}
+  for (var name in map || {}) next[name] = map[name]
+  if (value) next[key] = true
+  else delete next[key]
+  return next
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
+    normalizeWindowAddress: normalizeWindowAddress,
+    withClosedWindow: withClosedWindow,
+    withoutClosedWindow: withoutClosedWindow,
     fullscreenOn: fullscreenOn,
+    autohideEngaged: autohideEngaged,
+    autohideTransitionHold: autohideTransitionHold,
+    autohideHolds: autohideHolds,
+    autohidePanelOpenOn: autohidePanelOpenOn,
+    autohideCallsOut: autohideCallsOut,
+    autohideShows: autohideShows,
+    screenFlag: screenFlag,
+    withScreenFlag: withScreenFlag,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,

@@ -114,6 +114,8 @@ omarchy plugin disable omarchy.weather
 
 `Super + Shift + Space` toggles the bar off and back on without killing the shell — panels and hotkeys keep working, you just get the pixels back. It's also in the menu under **Appearance → Menu Bar → Hide Bar**.
 
+If you want the space back but still want the bar at hand, turn on auto-hide instead: the bar reserves nothing, and slides in over the windows when the pointer reaches its screen edge. It stays out while you're on it or while a menu or panel is open, and slides away when you leave. Turn it on with `omarchy bar autohide on` (the menu's **Appearance → Menu Bar → Auto-hide Bar** does the same), and `omarchy bar autohide` on its own prints whether it's on. Hide Bar still wins over it: a bar you hid stays hidden, whatever auto-hide says.
+
 ## The config file
 
 All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here's a trimmed version:
@@ -124,6 +126,7 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
   "bar": {
     "position": "top",
     "background": "opaque",
+    "autohide": true,
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
       "centerBegin": [{ "id": "omarchy.indicators" }],
@@ -136,6 +139,8 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
 ```
 
 Every widget is one entry in one of the five layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.
+
+`autohide` is absent from the shipped file, which reads as off; it appears once you turn auto-hide on.
 
 `center` is the box in the middle of the bar: everything in it is centered on the screen as one group. `centerBegin` and `centerEnd` hang off either side of the box, which is how the clock stays dead center even as the weather and update badge come and go. Put more than one widget in `center` and they're centered together; leave it empty and `centerBegin` and `centerEnd` meet in the middle of the bar.
 
