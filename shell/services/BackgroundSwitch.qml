@@ -165,7 +165,7 @@ Item {
         : ["bash", "-c", 'owe refresh >/dev/null && exec owe intro --start first-frame "$1"', "_", clip]
       playProc.running = true
     } else {
-      intro.finishTheme(token, !clip)
+      intro.finishTheme(token, !clip, still)
     }
   }
 

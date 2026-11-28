@@ -30,6 +30,10 @@ Item {
   // A finished switch whose wallpaper is still hidden or decoding keeps its
   // cover until the wallpaper is on screen, so the fade never reveals a gap.
   property bool themeFinishing: false
+  // A finished switch onto a video while OWE already holds the desktop. The
+  // shell's background stays hidden under the new video too, so it never
+  // turns ready; the cover waits for OWE to show this video instead.
+  property string themeVideo: ""
   // A switch to a still without an intro of its own opens the cover with the
   // same slanted cut as an ordinary background transition, not the intro fade.
   property bool themeCut: false
@@ -152,12 +156,14 @@ Item {
     themeShell = shell
     themeOpacity = 1
     themeFinishing = false
+    themeVideo = ""
     themeFallback.restart()
   }
 
   function revealTheme() {
     if (!themeToken && !cover) return
     themeFinishing = false
+    themeVideo = ""
     framePoll.stop()
     frameStatus.consecutiveFailures = 0
     themeFallback.stop()
@@ -183,11 +189,19 @@ Item {
 
   // OWE hands the desktop back to the shell when an intro ends or is cut
   // short, and the new still may still be decoding then.
-  function finishTheme(token, cut) {
+  function finishTheme(token, cut, background) {
     if (token !== themeToken) return
     themeCut = !!cut
-    if (backgroundReady || !backgroundService) revealTheme()
-    else themeFinishing = true
+    if (backgroundReady || !backgroundService) {
+      revealTheme()
+    } else if (!backgroundActive && Util.isVideoPath(background)) {
+      themeFinishing = true
+      themeVideo = background
+      framePoll.start()
+      if (!frameStatus.running) frameStatus.running = true
+    } else {
+      themeFinishing = true
+    }
   }
 
   function themeStatus(token) {
@@ -206,6 +220,7 @@ Item {
 
   function cancelTheme() {
     themeFinishing = false
+    themeVideo = ""
     framePoll.stop()
     frameStatus.consecutiveFailures = 0
     themeFallback.stop()
@@ -308,8 +323,13 @@ Item {
       consecutiveFailures = 0
       try {
         var status = JSON.parse(frameStatusOut.text)
-        if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
+        // The outgoing video is playing too, so a background switch waits
+        // for its own path. A paused video holds its first frame at 0.
+        if (root.themeVideo) {
+          if (status.path === root.themeVideo && status.ready && !status.has_transition) root.revealTheme()
+        } else if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0) {
           root.revealTheme()
+        }
       } catch (e) {}
     }
   }
