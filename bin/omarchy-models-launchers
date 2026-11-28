@@ -12,7 +12,7 @@
 #
 # This makes the launchers match the models set up right now, so it is safe to
 # run at any time: omarchy-models runs it after a setup or a removal, and
-# the local models panel when a setup it started in the background has finished.
+# the shell when a setup the agents panel started in the background has finished.
 
 APPLICATIONS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
@@ -53,7 +53,7 @@ SVG
 
 mkdir -p "$APPLICATIONS" "$ICONS" "$STATE"
 
-# omarchy-models and the local models panel can both run this after the same
+# omarchy-models and the shell can both run this after the same
 # setup or removal. Each removes what isn't in its own reading of the models,
 # so one at a time, from that reading to the last file removed.
 exec 9>"$STATE/launchers.lock"

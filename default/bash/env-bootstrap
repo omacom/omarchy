@@ -25,38 +25,50 @@ if [ "$OMARCHY_PATH" != /usr/share/omarchy ]; then
   esac
 fi
 
-# mise's command wrappers must precede real tool directories inherited from a
-# parent shell, so scripts follow account switches without Bash functions.
-# mise activate also keeps this directory ahead of its managed tool binaries.
-omarchy_wrapper_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin"
+# The subscription account dispatchers for claude, codex and grok must precede
+# real tool directories inherited from a parent shell, so scripts follow account
+# switches without Bash functions. mise's command wrappers did this once; that
+# directory is dropped wherever an older session left it. mise's shims go just
+# ahead of the system directories, as in the uwsm session, so a version pinned
+# with mise wins in login shells too while anything a parent put first stays first.
+omarchy_wrapper_dir="$HOME/.local/share/omarchy/agent-accounts/bin"
+omarchy_old_wrapper_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin"
+omarchy_shims_dir="$HOME/.local/share/mise/shims"
 omarchy_wrapper_path=$omarchy_wrapper_dir
+omarchy_shims_placed=0
 if [ -n "${PATH:-}" ]; then
   omarchy_remaining_path=$PATH
   while :; do
     omarchy_path_entry=${omarchy_remaining_path%%:*}
-    if [ "$omarchy_path_entry" != "$omarchy_wrapper_dir" ]; then
-      omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_path_entry"
-    fi
+    case "$omarchy_path_entry" in
+      "$omarchy_wrapper_dir" | "$omarchy_old_wrapper_dir" | "$omarchy_shims_dir") ;;
+      /usr/local/sbin | /usr/local/bin | /usr/sbin | /usr/bin | /sbin | /bin)
+        if [ "$omarchy_shims_placed" = 0 ]; then
+          omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_shims_dir"
+          omarchy_shims_placed=1
+        fi
+        omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_path_entry"
+        ;;
+      *) omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_path_entry" ;;
+    esac
     case "$omarchy_remaining_path" in
       *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
       *) break ;;
     esac
   done
 fi
+if [ "$omarchy_shims_placed" = 0 ]; then
+  omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_shims_dir"
+fi
 PATH=$omarchy_wrapper_path
-unset omarchy_wrapper_dir omarchy_wrapper_path omarchy_remaining_path omarchy_path_entry
+unset omarchy_wrapper_dir omarchy_old_wrapper_dir omarchy_shims_dir omarchy_wrapper_path omarchy_shims_placed omarchy_remaining_path omarchy_path_entry
 
-# User-level tool paths, appended so system binaries keep precedence. This is
-# what lets login shells (ssh, bash -lc) and the uwsm session find mise-managed
-# tools without an interactive rc. Keep these directories in sync with the PAM
-# PATH line from install/config/ssh-command-path.sh, which covers SSH commands
-# that run no shell setup at all.
-case ":$PATH:" in
-  *":$HOME/.local/share/mise/shims:"*) ;;
-  *) PATH="${PATH:+$PATH:}$HOME/.local/share/mise/shims" ;;
-esac
+# ~/.local/bin is appended, so system binaries keep precedence over it. Keep
+# this order in sync with the PAM PATH line from install/config/ssh-command-path.sh,
+# which covers SSH commands that run no shell setup at all.
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) PATH="${PATH:+$PATH:}$HOME/.local/bin" ;;
 esac
 export PATH
+_OMARCHY_ENV_BOOTSTRAPPED=1

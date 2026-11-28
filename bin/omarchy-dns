@@ -261,6 +261,11 @@ if ! provider=$(provider_from_arg "$1"); then
   exit 1
 fi
 
+if (( EUID != 0 )) && [[ $provider == "Custom" ]]; then
+  echo "Configuring custom DNS servers..."
+  echo ""
+fi
+
 require_root "$provider"
 
 case "$provider" in

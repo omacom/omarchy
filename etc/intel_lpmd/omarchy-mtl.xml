@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+
+<!--
+Omarchy configuration for Intel Energy Optimizer (LPMD) on Meteor Lake (F6_M170).
+Enables WLT Proxy dynamic EPP/EPB switching in Balanced and Power-saver modes
+without cgroup cpuset confinement (Mode=-1). Inert unless passed via -c.
+-->
+
+<Configuration>
+  <lp_mode_cpus></lp_mode_cpus>
+  <Mode>-1</Mode>
+  <PerformanceDef>-1</PerformanceDef>
+  <BalancedDef>0</BalancedDef>
+  <PowersaverDef>0</PowersaverDef>
+  <HfiLpmEnable>0</HfiLpmEnable>
+  <WLTHintEnable>1</WLTHintEnable>
+  <WLTProxyEnable>1</WLTProxyEnable>
+  <HfiSuvEnable>0</HfiSuvEnable>
+  <util_entry_threshold></util_entry_threshold>
+  <util_exit_threshold></util_exit_threshold>
+  <EntryDelayMS>0</EntryDelayMS>
+  <ExitDelayMS>0</ExitDelayMS>
+  <EntryHystMS>0</EntryHystMS>
+  <ExitHystMS>0</ExitHystMS>
+  <IgnoreITMT>0</IgnoreITMT>
+  <IntelPstateMode>0</IntelPstateMode>
+
+  <States>
+    <CPUFamily> 6 </CPUFamily>
+    <CPUModel> 170 </CPUModel>
+    <CPUConfig> * </CPUConfig>
+    <State>
+      <ID> 1 </ID>
+      <Name> WLT_IDLE </Name>
+      <WLTType> 0 </WLTType>
+      <EPP> 255 </EPP>
+      <EPB> 15 </EPB>
+      <MinPollInterval>2000</MinPollInterval>
+      <ITMTState> -1 </ITMTState>
+      <IRQMigrate> -1 </IRQMigrate>
+    </State>
+    <State>
+      <ID> 2 </ID>
+      <Name> WLT_BATTERY_LIFE </Name>
+      <WLTType> 1 </WLTType>
+      <EPP> 178 </EPP>
+      <EPB> 6 </EPB>
+      <MinPollInterval>2000</MinPollInterval>
+      <ITMTState> -1 </ITMTState>
+      <IRQMigrate> -1 </IRQMigrate>
+    </State>
+    <State>
+      <ID> 3 </ID>
+      <Name> WLT_SUSTAINED </Name>
+      <WLTType> 2 </WLTType>
+      <EPP> 64 </EPP>
+      <EPB> 6 </EPB>
+      <MinPollInterval>2000</MinPollInterval>
+      <ITMTState> -1 </ITMTState>
+      <IRQMigrate> -1 </IRQMigrate>
+    </State>
+    <State>
+      <ID> 4 </ID>
+      <Name> WLT_BURSTY </Name>
+      <WLTType> 3 </WLTType>
+      <EPP> 64 </EPP>
+      <EPB> 4 </EPB>
+      <MinPollInterval>2000</MinPollInterval>
+      <ITMTState> -1 </ITMTState>
+      <IRQMigrate> -1 </IRQMigrate>
+    </State>
+  </States>
+</Configuration>

@@ -59,6 +59,24 @@ decode_title() {
   printf '%s' "$decoded"
 }
 
+# yt-dlp's reason for giving up: the last ERROR: line it printed, with the
+# "unable to download ...: " wrapper dropped since the toast headline already
+# says the download failed. A toast body is one readable line, so cut at the
+# first control character the way decode_title does for titles.
+last_error() {
+  local text=$1 line last=""
+
+  while IFS= read -r line; do
+    [[ $line == "ERROR: "* ]] || continue
+    line=${line#ERROR: }
+    line=${line%%[[:cntrl:]]*}
+    [[ $line == "unable to download "*": "* ]] && line=${line#*: }
+    last=$line
+  done <<<"$text"
+
+  printf '%s' "$last"
+}
+
 title_from_file() {
   local name=${1##*/}
   name=${name%.*}
@@ -95,13 +113,16 @@ osd_close() {
 }
 
 download_url() {
-  local url="$1"
+  local url="$1" err=""
 
   mkdir -p "$DOWNLOAD_DIR"
 
-  # Don't show anything until yt-dlp confirms there's actually a video to grab.
-  if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
-    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "$url"
+  # Don't show anything until yt-dlp confirms there's actually a video to grab,
+  # and keep what it printed so the toast can say why it refused.
+  if ! err=$(yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" 2>&1); then
+    err=$(last_error "$err")
+    ((${#err} > 200)) && err="${err:0:200}…" # keep the toast readable
+    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "${err:-$url}"
     exit 0
   fi
 
@@ -157,6 +178,10 @@ download_url() {
     OMARCHY_TITLE*)
       title=$(decode_title "${line#OMARCHY_TITLE$'\t'}") || title=""
       ;;
+    ERROR*)
+      # yt-dlp's reason for giving up, for the failure toast below.
+      err=$line
+      ;;
     esac
   done < <(PYTHONUNBUFFERED=1 yt-dlp --no-playlist --no-simulate \
     --quiet --no-warnings --no-exec --no-exec-before-download --progress --newline \
@@ -201,7 +226,9 @@ download_url() {
       rm -f "$preview"
     ) &
   else
-    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.failed)" "$url"
+    err=$(last_error "$err")
+    ((${#err} > 200)) && err="${err:0:200}…" # keep the toast readable
+    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.failed)" "${err:-$url}"
   fi
 
   exit 0

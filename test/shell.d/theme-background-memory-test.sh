@@ -13,9 +13,17 @@ current_state="$test_home/.local/state/omarchy/current"
 background_state="$test_home/.local/state/omarchy/theme-backgrounds"
 mkdir -p "$test_home" "$runtime_dir"
 
+# The stills ship from omarchy-themes-backgrounds, so the themes take theirs
+# from a packaged tree here, sharing one filename between them.
+packaged="$test_tmp/packaged"
+for still in tokyo-night/1-liftoff tokyo-night/2-shared catppuccin/1-totoro catppuccin/2-shared; do
+  mkdir -p "$packaged/${still%/*}/backgrounds"
+  printf '%s' "$still" >"$packaged/${still%/*}/backgrounds/${still#*/}.webp"
+done
+
 set_theme() {
   HOME="$test_home" XDG_RUNTIME_DIR="$runtime_dir" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
-    OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "$1" >/dev/null
+    OMARCHY_PACKAGED_THEMES_PATH="$packaged" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "$1" >/dev/null
 }
 
 current_background_name() {
@@ -39,7 +47,7 @@ mapfile -t theme_b_backgrounds < <(find "$current_state/theme/backgrounds" -maxd
 theme_b_first=${theme_b_backgrounds[0]##*/}
 
 common_background=$(comm -12 \
-  <(find "$ROOT/themes/$theme_a/backgrounds" -maxdepth 1 -type f -printf '%f\n' | sort) \
+  <(find "$packaged/$theme_a/backgrounds" -maxdepth 1 -type f -printf '%f\n' | sort) \
   <(find "$current_state/theme/backgrounds" -maxdepth 1 -type f -printf '%f\n' | sort) | head -n 1)
 [[ -n $common_background ]] || fail "test themes share a background filename"
 theme_b_common_path=$(find "$current_state/theme/backgrounds" -maxdepth 1 -type f -name "$common_background" -print -quit)

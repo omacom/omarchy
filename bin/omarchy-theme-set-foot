@@ -36,7 +36,7 @@ for foot_pid in $foot_pids; do
   for child_pid in $child_pids; do
     tty=$(readlink "/proc/$child_pid/fd/1" 2>/dev/null)
     if [[ $tty == /dev/pts/* ]]; then
-      printf '%b' "$foot_osc" >"$tty"
+      { printf '%s' "$foot_osc" >"$tty"; } 2>/dev/null || true
     fi
   done
 done
