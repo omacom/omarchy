@@ -214,6 +214,8 @@ Item {
     if (fingerprintPam.active) fingerprintPam.abort()
   }
 
+  property bool restoreInputMethod: false
+
   function beginLock() {
     if (!passwordPamConfigured) {
       logEvent("lock-denied: missing-pam")
@@ -222,6 +224,9 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    // A restore from the last unlock still running would turn the engine back on after this
+    // check; it checks again when the restore ends.
+    if (!inputMethodOffProcess.running && !inputMethodOnProcess.running) inputMethodOffProcess.running = true
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -246,6 +251,13 @@ Item {
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
+    restoreSwitchedInputMethod()
+  }
+
+  function restoreSwitchedInputMethod() {
+    if (!restoreInputMethod) return
+    restoreInputMethod = false
+    inputMethodOnProcess.running = true
   }
 
   function armBlankTimer(delayMs) {
@@ -498,6 +510,7 @@ Item {
         pendingSessionLockTimer.stop()
         root.resetAuthenticationState()
         root.runWake()
+        root.restoreSwitchedInputMethod()
       }
     }
 
@@ -523,7 +536,8 @@ Item {
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
-        inputEnabled: root.lockRequested
+        // Typing waits for the input method switch, or it could compose the password in plain sight.
+        inputEnabled: root.lockRequested && !inputMethodOffProcess.running && !inputMethodOnProcess.running
         loadBackground: root.locked
         passwordText: root.enteredPassword
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
@@ -824,6 +838,33 @@ Item {
   Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
+  }
+
+  // With Fcitx sharing one state across all windows, an active engine follows
+  // focus onto the lock and composes the password in plain sight, then commits
+  // something other than what was typed. Start the lock in direct input and
+  // hand the engine back on unlock. Per-window state already gives the lock
+  // its own direct input, and switching it there would strand the app behind.
+  Process {
+    id: inputMethodOffProcess
+    command: ["bash", "-c", "grep -qx 'ShareInputState=All' \"${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5/config\" 2>/dev/null && [[ $(timeout 1 fcitx5-remote) == \"2\" ]] && timeout 1 fcitx5-remote -c && echo active || true"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (String(text || "").trim() !== "active") return
+        // An unlock that beat the switch (a fingerprint) hands the engine straight back.
+        if (root.lockRequested) root.restoreInputMethod = true
+        else inputMethodOnProcess.running = true
+      }
+    }
+  }
+
+  Process {
+    id: inputMethodOnProcess
+    command: ["timeout", "1", "fcitx5-remote", "-o"]
+    onExited: {
+      if (root.lockRequested && !inputMethodOffProcess.running) inputMethodOffProcess.running = true
+    }
   }
 
   Process {
