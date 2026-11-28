@@ -74,6 +74,26 @@ function bluetoothSinkMatchesDevice(node, device) {
   return label !== "" && text.indexOf(label) !== -1
 }
 
+// BlueZ only exposes org.bluez.Battery1 for GATT devices with a standard
+// Battery Service, so classic HID keyboards and mice report their charge
+// through the kernel's HID power-device support instead. UPower carries those
+// entries with the device address embedded in nativePath, e.g.
+// "hid-dc:2c:26:26:f6:4e-battery-3". Percentage is 0..1, like dev.battery.
+function upowerBatteryForAddress(entries, address) {
+  var normalized = normalizedAddress(address)
+  if (normalized === "") return NaN
+
+  var values = toArray(entries)
+  for (var i = 0; i < values.length; i++) {
+    var entry = values[i]
+    if (!entry || entry.isLaptopBattery) continue
+    if (normalizedAddress(entry.nativePath).indexOf(normalized) !== -1) {
+      return entry.percentage !== undefined ? entry.percentage : NaN
+    }
+  }
+  return NaN
+}
+
 function sortedByLabel(devices) {
   var list = toArray(devices)
   list.sort(function(a, b) { return deviceLabel(a).localeCompare(deviceLabel(b)) })
@@ -165,6 +185,7 @@ if (typeof module !== "undefined") {
     nodeProps: nodeProps,
     nodeText: nodeText,
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
+    upowerBatteryForAddress: upowerBatteryForAddress,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
