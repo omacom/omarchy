@@ -2,7 +2,7 @@
 
 Omarchy ships with [Google Chrome](https://www.google.com/chrome/) as the default browser. It's themed to match the rest of your system, and it's what `Super + Shift + Return` (or `Super + Shift + B`) opens, with `Super + Shift + Alt + B` for a private window, and what every [web app](25-web-apps.md) runs inside. It opens straight to a browser window: there's no welcome screen or sign-in prompt, usage statistics and crash reports aren't sent to Google, and the ad privacy prompts are switched off. You can still sign in to your Google account from the profile button whenever you want sync.
 
-If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find [Chromium](https://www.chromium.org/) (the plain open-source build Chrome is made from), Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/) (Edge on x86 machines only). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
+If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find [Chromium](https://www.chromium.org/) (the plain open-source build Chrome is made from), Edge, Brave, Brave Origin, [Vivaldi](https://vivaldi.com/), Firefox, and [Zen](https://zen-browser.app/) (Edge on x86 machines only). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
 
 ## Making one the default
 
@@ -18,7 +18,7 @@ Run it with no argument and it tells you the current default. This sets the XDG 
 
 ## Copy URL and Download Video
 
-The Chromium-family browsers (Chromium itself, Chrome, Edge, Brave, and Brave Origin) come with three Omarchy extensions: two that reach out of the browser and into the rest of your system, and one that tidies up WhatsApp.
+The Chromium-family browsers (Chromium itself, Chrome, Edge, Brave, Brave Origin, and Vivaldi) come with three Omarchy extensions: two that reach out of the browser and into the rest of your system, and one that tidies up WhatsApp.
 
 **Copy URL** puts the current tab's address on your clipboard with `Alt + Shift + L`. That's faster than clicking into the address bar and copying, and because it goes through the system clipboard rather than the browser's, you get an Omarchy notification confirming it and the URL is immediately available in [clipboard history](08-unified-clipboard-history.md) and every other app. There's a toolbar button too, if you prefer clicking.
 
@@ -35,6 +35,16 @@ These are Chromium-family only. Firefox and Zen don't get them.
 Firefox and Zen are a different family, so they get different treatment: Omarchy installs a policies file for sensible defaults and switches them into native Wayland mode, which you want for fractional scaling and smooth trackpad scrolling.
 
 They don't get the Chromium extensions above, and they're not themed by Omarchy, so those parts of the experience are yours to set up.
+
+## Vivaldi
+
+[Vivaldi](https://vivaldi.com/) comes from the Arch repositories, so it installs like Chromium and Firefox rather than through the AUR. Besides the extensions above and the 1Password allowance, Omarchy themes it — but not the way it themes the other Chromium browsers.
+
+Vivaldi ignores the Chromium theme policy the rest of them are colored with, so Omarchy writes a Vivaldi theme of its own into the profile instead. Theme switches update Vivaldi live while it's open; switch with Vivaldi closed and the new colors show up the next time you open it. Along with the Omarchy colors, Omarchy mirrors your Hyprland corner rounding, blur, contrast, inactive-window dimming, and any window opacity you set — which lands as the theme's transparency — into the Vivaldi theme.
+
+A Vivaldi update replaces the files the live theme sync hooks into; the next `omarchy update` re-applies it automatically.
+
+Vivaldi's theme sync is separate for each Linux user. Another user's theme changes or Omarchy updates won't replace your browser colors or appearance. After an update changes the live sync code, restart Vivaldi to load it.
 
 ## Removing one again
 
