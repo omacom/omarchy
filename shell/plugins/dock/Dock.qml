@@ -46,6 +46,8 @@ Item {
 
   function entryForAppId(appId) {
     var entry = DesktopEntries.heuristicLookup(appId)
+    var launcherId = DockModel.launcherIdForHiddenEntry(appId, entry, DesktopEntries.applications.values)
+    if (launcherId) return DesktopEntries.byId(launcherId)
     if (entry) return entry
     var id = DockModel.claimingEntryId(appId, root.terminalEntries)
     return id ? DesktopEntries.byId(id) : null
