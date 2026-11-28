@@ -56,7 +56,7 @@ With no id it updates every git-managed plugin you have. It shows you the diff b
 omarchy plugin remove acme.weather
 ```
 
-Removal disables the plugin first, then deletes it if it's a git checkout (the repo is still upstream) or unlinks it if it's a symlink. A hand-made plugin folder with no git repo gets moved to a timestamped backup inside the plugins directory instead of being deleted outright.
+Removal disables the plugin first, then deletes it if it's a git checkout holding nothing that isn't also upstream, or unlinks it if it's a symlink. A checkout with uncommitted, untracked or ignored files, unpushed commits, or stashes, and a hand-made plugin folder with no git repo, get moved to a timestamped backup inside the plugins directory instead of being deleted outright.
 
 ## Cloning a built-in to modify it
 
