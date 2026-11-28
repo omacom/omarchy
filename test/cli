@@ -156,6 +156,13 @@ output=$("$CLI" hw asus)
 assert_output_contains "partial hardware prefix renders matching commands" "$output" "omarchy hw asus rog"
 assert_output_contains "partial hardware prefix includes nested match" "$output" "omarchy hw asus zenbook ux5406aa"
 
+output=$("$CLI" theme bg --help)
+assert_output_contains "prefix --help renders matching commands" "$output" "omarchy theme bg next"
+assert_output_contains "prefix --help includes bg set" "$output" "omarchy theme bg set"
+
+output=$("$CLI" theme bg -h)
+assert_output_contains "prefix -h renders matching commands" "$output" "omarchy theme bg next"
+
 # omarchy-agent takes only flags, so a word after it names the account
 # commands rather than reaching the agent launcher.
 output=$("$CLI" agent account)

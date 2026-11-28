@@ -1364,6 +1364,7 @@ dispatch_fast_or_help() {
 dispatch_or_help() {
   local args=("$@")
   local remaining=()
+  local prefix_args=()
   local key=""
   local binary_path=""
   local suggestion=""
@@ -1410,7 +1411,12 @@ dispatch_or_help() {
     return 0
   fi
 
-  if show_prefix_help "omarchy ${args[*]}"; then
+  prefix_args=("${args[@]}")
+  if (( ${#prefix_args[@]} > 1 )) && [[ ${prefix_args[-1]} == "--help" || ${prefix_args[-1]} == "-h" ]]; then
+    prefix_args=("${prefix_args[@]:0:${#prefix_args[@]}-1}")
+  fi
+
+  if show_prefix_help "omarchy ${prefix_args[*]}"; then
     return 0
   fi
 
