@@ -7,15 +7,6 @@ import heapq
 from pathlib import Path
 
 
-PLAN_QUOTAS = {
-  "basic": 2_000_000_000,
-  "plus": 2_000_000_000_000,
-  "pro": 3_000_000_000_000,
-  "professional": 3_000_000_000_000,
-  "essentials": 3_000_000_000_000,
-}
-
-
 def read_info():
   info_path = Path.home() / ".dropbox" / "info.json"
   if not info_path.exists():
@@ -106,7 +97,6 @@ def main():
   account = dropbox_account(info)
   account_path = account.get("path") if isinstance(account.get("path"), str) else ""
   plan = account.get("subscription_type") if isinstance(account.get("subscription_type"), str) else ""
-  quota = PLAN_QUOTAS.get(plan.lower(), 0)
   authenticated = account_path != "" and Path(account_path).exists()
 
   running = False
@@ -124,8 +114,8 @@ def main():
 
   status_only = "--status-only" in sys.argv
   used, files = scan_dropbox(account_path, limit) if authenticated and not status_only else (0, [])
-  usage_percent = (used / quota * 100) if quota > 0 else 0
 
+  # Plan name is not a reliable quota; emit unknown until real quota data exists.
   print(json.dumps({
     "ok": True,
     "statusOnly": status_only,
@@ -136,9 +126,9 @@ def main():
     "accountPath": account_path,
     "plan": plan,
     "usedBytes": used,
-    "quotaBytes": quota,
-    "usagePercent": usage_percent,
-    "quotaKnown": quota > 0,
+    "quotaBytes": 0,
+    "usagePercent": 0,
+    "quotaKnown": False,
     "files": files,
   }))
 
