@@ -379,6 +379,7 @@
   "share.couldNot": "Could not share",
   "share.filesTitle": "Share files",
   "share.folderTitle": "Share folder",
+  "share.pathMissing": "Path does not exist: %1",
   "sshd.githubUserPrompt": "GitHub username> ",
   "sshd.howToAddKey": "How would you like to add your SSH key?",
   "sshd.keyFromGithub": "Grab key from GitHub",

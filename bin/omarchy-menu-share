@@ -19,7 +19,20 @@ if [[ $MODE == "clipboard" ]]; then
   wl-paste >"$TEMP_FILE"
   FILE_ARRAY=("$TEMP_FILE")
 elif (($# > 0)); then
-  FILE_ARRAY=("$@")
+  FILE_ARRAY=()
+  for path in "$@"; do
+    if [[ ! -e $path ]]; then
+      message=$(omarchy-i18n share.pathMissing "$path")
+      echo "$message" >&2
+      omarchy-notification-send -g "" -u critical "$(omarchy-i18n share.couldNot)" "$message"
+      exit 1
+    fi
+    # Keep symlink names while making paths absolute for the user service.
+    if [[ $path != /* ]]; then
+      path=$PWD/$path
+    fi
+    FILE_ARRAY+=("$path")
+  done
 else
   if [[ $MODE == "folder" ]]; then
     select_args=(--title "$(omarchy-i18n share.folderTitle)" --directory)
