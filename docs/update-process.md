@@ -108,6 +108,8 @@ transaction setup path; it only aborts with instructions.
 
 The `omarchy` package also installs ALPM hooks for `omarchy-settings` / `omarchy-settings-dev` installs and upgrades. The pre-transaction hook runs `omarchy-hyprland-reload-guard pause` to disable live Hyprland config reloads while `/usr/share/omarchy/default/hypr/**` is replaced. The post-transaction hook runs `omarchy-hyprland-reload-guard resume`, forces one `hyprctl reload`, and restores the session's previous `misc.disable_autoreload` and `debug.suppress_errors` values. A session whose Hyprland binary the same transaction replaced is left paused with errors hidden instead: it predates the new config, and both settings go away when it restarts on the new binary.
 
+A post-transaction hook on `usr/lib/binfmt.d/qemu-*-static.conf` runs `omarchy-apply-binfmt`, which regenerates the `/etc/binfmt.d` overrides that add `O` and `C` to the QEMU registrations, so they follow every qemu update, and restarts `systemd-binfmt` when the running registrations differ. It sorts after systemd's own `25-systemd-binfmt.hook`.
+
 ## Path 1: `omarchy update`
 
 High-level flow:
