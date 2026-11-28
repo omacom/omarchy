@@ -876,3 +876,149 @@ jq -e '.currentAllowed == false and .retainedAllowed == false' \
   fail_with_log "cached plugin facades revoke capabilities removed from the manifest"
 }
 pass "manifest reload revokes cached facade capabilities"
+
+# Starting the shell with a custom bar plugin configured in shell.json must
+# wait for user config and the initial plugin scan before falling back to the
+# default bar; transiently mounting omarchy.bar wastes startup work and flashes
+# two bars. Once the scan confirms a configured bar is missing, fallback to
+# omarchy.bar must still happen.
+stop_scratch_shell
+reset_scratch_home
+
+cat >"$SCRATCH_ROOT/shell/plugins/bar/Bar.qml" <<'QML'
+import QtQuick
+import qs.Commons
+
+Item {
+  id: startupFallbackBar
+  property string omarchyPath: ""
+  property var barWidgetRegistry: null
+  property var barConfig: null
+  property var shell: null
+  property var manifest: null
+
+  Component.onCompleted: console.warn("SCRATCH_DEFAULT_BAR_MOUNTED")
+  ShellIpc {
+    target: "startup-fallback-bar"
+    function reloading(): bool {
+      var host = startupFallbackBar.shell
+      return !host || host.pluginReloading || host.pluginReloadPending
+        || host.pluginRegistry.scanning || host.pluginRegistry.rescanQueued
+    }
+  }
+}
+QML
+
+startup_bar_id="acme.startup-bar"
+startup_bar_dir="$SCRATCH_HOME/.config/omarchy/plugins/$startup_bar_id"
+mkdir -p "$startup_bar_dir"
+cat >"$startup_bar_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$startup_bar_id",
+  "name": "Before Reload",
+  "version": "1.0.0",
+  "kinds": ["bar"],
+  "entryPoints": {"bar": "Bar.qml"}
+}
+JSON
+cat >"$startup_bar_dir/Bar.qml" <<'QML'
+import QtQuick
+import qs.Commons
+
+Item {
+  property string omarchyPath: ""
+  property var barWidgetRegistry: null
+  property var barConfig: null
+  property var shell: null
+  property var manifest: null
+
+  ShellIpc {
+    target: "acme-startup-bar"
+
+    function name(): string {
+      return manifest ? String(manifest.name || "") : ""
+    }
+  }
+}
+QML
+cat >"$SCRATCH_HOME/.config/omarchy/shell.json" <<JSON
+{
+  "version": 1,
+  "bar": {
+    "id": "$startup_bar_id",
+    "position": "top",
+    "layout": {"left": [], "centerBegin": [], "center": [], "centerEnd": [], "right": []}
+  },
+  "plugins": ["$startup_bar_id"]
+}
+JSON
+
+start_scratch_shell
+wait_scratch_shell
+startup_bar_name=""
+for _ in {1..80}; do
+  startup_bar_name=$(scratch_ipc acme-startup-bar name 2>/dev/null || true)
+  [[ $startup_bar_name == "Before Reload" ]] && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while loading configured replacement bar"
+  sleep 0.1
+done
+[[ $startup_bar_name == "Before Reload" ]] ||
+  fail_with_log "configured replacement bar loaded on shell startup"
+
+default_bar_mounts=$(grep -c "SCRATCH_DEFAULT_BAR_MOUNTED" "$SCRATCH_LOG" || true)
+(( default_bar_mounts == 0 )) ||
+  fail_with_log "configured replacement bar avoids transiently mounting omarchy.bar on startup (mounted $default_bar_mounts time(s))"
+if grep -q 'Binding loop detected for property "activeBarId"' "$SCRATCH_LOG"; then
+  fail_with_log "configured replacement bar startup has no activeBarId binding loop"
+fi
+pass "configured replacement bar avoids transiently mounting omarchy.bar on startup"
+
+jq '.name = "After Reload"' "$startup_bar_dir/manifest.json" >"$startup_bar_dir/manifest.json.tmp"
+mv "$startup_bar_dir/manifest.json.tmp" "$startup_bar_dir/manifest.json"
+for _ in {1..80}; do
+  startup_bar_name=$(scratch_ipc acme-startup-bar name 2>/dev/null || true)
+  [[ $startup_bar_name == "After Reload" ]] && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reloading configured replacement bar"
+  sleep 0.1
+done
+[[ $startup_bar_name == "After Reload" ]] ||
+  fail_with_log "configured replacement bar reloaded after local edit"
+
+default_bar_mounts=$(grep -c "SCRATCH_DEFAULT_BAR_MOUNTED" "$SCRATCH_LOG" || true)
+(( default_bar_mounts == 0 )) ||
+  fail_with_log "reloading configured replacement bar does not transiently mount omarchy.bar (mounted $default_bar_mounts time(s))"
+pass "reloading configured replacement bar does not transiently mount omarchy.bar"
+
+stop_scratch_shell
+rm -rf "$startup_bar_dir"
+start_scratch_shell
+wait_scratch_shell
+default_bar_mounts=0
+for _ in {1..80}; do
+  default_bar_mounts=$(grep -c "SCRATCH_DEFAULT_BAR_MOUNTED" "$SCRATCH_LOG" || true)
+  (( default_bar_mounts > 0 )) && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited before falling back to omarchy.bar"
+  sleep 0.1
+done
+(( default_bar_mounts == 1 )) ||
+  fail_with_log "missing configured replacement bar falls back to omarchy.bar once (mounted $default_bar_mounts time(s))"
+pass "missing configured replacement bar falls back to omarchy.bar once"
+
+for _ in {1..80}; do
+  [[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] && break
+  sleep 0.1
+done
+[[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] ||
+  fail_with_log "initial plugin scans settle before reloading the fallback bar"
+scratch_ipc shell reloadPlugins >/dev/null
+for _ in {1..80}; do
+  [[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] && break
+  sleep 0.1
+done
+[[ $(scratch_ipc startup-fallback-bar reloading 2>/dev/null || true) == "false" ]] ||
+  fail_with_log "plugin reload completes with a missing replacement bar"
+default_bar_mounts=$(grep -c "SCRATCH_DEFAULT_BAR_MOUNTED" "$SCRATCH_LOG" || true)
+(( default_bar_mounts == 1 )) ||
+  fail_with_log "plugin reload keeps the fallback bar mounted (mounted $default_bar_mounts time(s))"
+pass "plugin reload keeps the fallback bar mounted"

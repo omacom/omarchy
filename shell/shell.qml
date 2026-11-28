@@ -60,10 +60,26 @@ ShellRoot {
     plugins: []
   })
 
-  property var defaultsConfig: builtinShellConfig
-  property var shellConfig: builtinShellConfig
+  function parseShellConfigText(raw) {
+    var text = String(raw || "").trim()
+    if (!text) return null
+    try {
+      var parsed = JSON.parse(text)
+      if (Util.isPlainObject(parsed) && parsed.version === 1) return parsed
+    } catch (e) {}
+    return null
+  }
+
+  // Read synchronously at startup (both FileViews block loading) so a custom
+  // bar in shell.json is known before the default bar loader evaluates, then
+  // kept current by their load handlers below.
+  property var defaultsConfig: parseShellConfigText(defaultsFile.text()) || builtinShellConfig
+  property var shellConfig: parseShellConfigText(userConfigFile.text()) || defaultsConfig
   // shell.json has text the shell could not use; persisting would replace it with defaults.
-  property bool userConfigUnreadable: false
+  property bool userConfigUnreadable: {
+    var userText = userConfigFile.text() || ""
+    return !!userText.trim() && !parseShellConfigText(userText)
+  }
   property bool pluginReloading: false
   property bool pluginReloadPending: false
   property bool localPluginNeedsReload: false
@@ -143,6 +159,7 @@ ShellRoot {
   FileView {
     id: defaultsFile
     path: shell.defaultsPath
+    blockLoading: true
     watchChanges: true
     printErrors: false
     onLoaded: shell.loadDefaults(text())
@@ -156,6 +173,7 @@ ShellRoot {
   FileView {
     id: userConfigFile
     path: shell.userConfigPath
+    blockLoading: true
     watchChanges: true
     atomicWrites: true
     printErrors: false
@@ -203,7 +221,17 @@ ShellRoot {
     var revision = shell.pluginRegistry.registryRevision
     return shell.barOptionAvailable(shell.selectedBarId)
   }
-  readonly property string activeBarId: selectedBarId !== failedBarId && selectedBarAvailable ? selectedBarId : defaultBarId
+  readonly property string activeBarId: {
+    var selected = selectedBarId
+    var revision = pluginRegistry.registryRevision
+    if (selected !== failedBarId && barOptionAvailable(selected))
+      return selected
+    return defaultBarId
+  }
+  // Hold the default-bar fallback until the first scan finds a configured
+  // custom bar. Once settled, keep the fallback through plugin reloads.
+  readonly property bool waitingForSelectedBar: selectedBarId !== defaultBarId
+    && !shell.pluginRegistry.initialScanComplete
   readonly property var activeBarManifest: {
     var revision = shell.pluginRegistry.registryRevision
     return shell.barManifestFor(shell.activeBarId)
@@ -263,7 +291,7 @@ ShellRoot {
   Loader {
     id: defaultBarLoader
 
-    active: shell.activeBarId === shell.defaultBarId
+    active: !shell.waitingForSelectedBar && shell.activeBarId === shell.defaultBarId
     sourceComponent: defaultBarComponent
     onLoaded: shell.configureBar(item, shell.barManifestFor(shell.defaultBarId))
     onActiveChanged: if (!active && shell.activeBarId !== shell.defaultBarId) shell.bar = null

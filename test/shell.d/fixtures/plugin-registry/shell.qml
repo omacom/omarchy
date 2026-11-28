@@ -8,11 +8,14 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int changeCount: 0
+  property bool initialScanBeforeFirstScan: true
   property var config: ({
     version: 1,
     bar: { layout: { left: [], center: [], right: [] } },
     plugins: []
   })
+
+  Component.onCompleted: initialScanBeforeFirstScan = registry.initialScanComplete
 
   function fail(message) {
     failures.push(String(message))
@@ -139,6 +142,9 @@ ShellRoot {
     registry.firstPartyDir = "/first"
     registry.parseScanOutput(scan)
     registry.firstPartyDir = ""
+
+    root.assertTrue(!initialScanBeforeFirstScan, "initialScanComplete starts false before first scan")
+    root.assertTrue(registry.initialScanComplete, "initialScanComplete becomes true after parseScanOutput")
 
     root.assertDeepEqual(pluginIds(), [
       "local.bar",

@@ -24,6 +24,7 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  property bool initialScanComplete: false
   property bool rescanQueued: false
   property bool destroying: false
   property string lastEnableError: ""
@@ -676,6 +677,7 @@ QtObject {
     installedPlugins = merged
     registryRevision++
     scanning = false
+    initialScanComplete = true
     pluginsChanged()
     scanFinished()
   }
