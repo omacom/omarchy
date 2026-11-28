@@ -38,6 +38,15 @@ end
 table.insert(kept, 1, bin_dir)
 hl.env("PATH", table.concat(kept, ":"))
 
+-- Let RADV expose Vulkan video decode on AMD GPUs where Mesa marks it
+-- experimental: UVD (GFX6-9) and VCN with older firmware. Mesa enables decode
+-- by default only where the decode queue can write memory, which relies on
+-- PCIe atomics and is needed to pass conformance for events set on the video
+-- queue. Playback doesn't use those. Without decode, mpv's Vulkan output falls
+-- back to vaapi-copy. Only RADV reads this, and it changes nothing where
+-- decode is already on.
+hl.env("RADV_EXPERIMENTAL", "video_decode")
+
 -- Hardware-specific environment.
 require("default.hypr.nvidia")
 
