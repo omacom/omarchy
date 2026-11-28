@@ -360,7 +360,7 @@
   "install.gaming.lutris": {"icon":"","label":"Lutris","when":"omarchy-hw-x86","disabled":"omarchy-pkg-present lutris","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-lutris"},
   "install.gaming.heroic": {"icon":"󱓟","label":"Heroic (Epic Games)","when":"omarchy-hw-x86","disabled":"omarchy-pkg-present heroic-games-launcher-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-heroic"},
   "install.gaming.retro-launcher": {"icon":"󰯉","label":"RetroArch Game Launcher","action":"omarchy-games-retro-install"},
-  "install.gaming.tools": {"icon":"󰓅","label":"Gaming Tools","description":"MangoHud, Gamescope, GameMode","disabled":"omarchy-pkg-present mangohud gamescope gamemode","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-tools"},
+  "install.gaming.tools": {"icon":"󰓅","label":"Gaming Tools","description":"MangoHud, Gamescope, GameMode","disabled":"omarchy-pkg-present mangohud gamescope gamemode && { ! omarchy-hw-x86 || omarchy-pkg-present lib32-mangohud lib32-gamemode; }","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-tools"},
   "install.development.rails": {"icon":"󰫏","label":"Ruby on Rails","disabled":"[[ -d $HOME/.local/share/mise/installs/ruby ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env ruby'"},
   "install.development.docker-dbs": {"icon":"","label":"Docker DB","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-docker-dbs"},
   "install.development.javascript": {"icon":"","label":"JavaScript"},
