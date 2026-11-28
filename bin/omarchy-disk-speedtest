@@ -124,6 +124,21 @@ fi
 model=$(lsblk -dno MODEL "/dev/$disk" 2>/dev/null | sed 's/^ *//; s/ *$//')
 echo "disk ${model:-$disk}"
 
+# Discards tell the drive which blocks it can erase and reuse. Without them
+# garbage collection copies live data around instead of reclaiming a block
+# outright, which costs sustained write speed once the drive's write cache
+# fills. dm-crypt drops discards unless it was opened with allow-discards, so
+# an encrypted root never reaches the flash however often fstrim runs.
+#
+# The measured device is the one that has to forward them; a partition carries
+# no queue of its own and inherits the whole disk's, so fall back to the disk.
+discard_dev=$dev
+[[ -d /sys/class/block/$discard_dev/queue ]] || discard_dev=$disk
+discard_granularity=$(<"/sys/class/block/$discard_dev/queue/discard_granularity") 2>/dev/null || discard_granularity=
+if [[ -n $discard_granularity ]] && (( discard_granularity == 0 )); then
+  echo "Warning: no discards reach $disk, so freed blocks stay allocated and sustained writes slow once the cache fills" >&2
+fi
+
 # The stress data must be incompressible so nothing between the write call
 # and the flash can shrink it. Staging a urandom chunk in RAM also keeps the
 # source out of the measurement -- reading tmpfs is a memcpy.
