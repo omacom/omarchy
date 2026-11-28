@@ -490,6 +490,7 @@ local function titlebars()
         icon_on_hover = false,
         inactive_button_color = colors.titlebar,
         on_double_click = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'",
+        on_minimize = "omarchy-hyprland-window-minimize %WINDOW%",
       },
     },
   })
