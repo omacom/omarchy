@@ -181,7 +181,7 @@ if (( can_fast_path )) && resolve_plain_terminal &&
     term_args+=("$TERMINAL_EXEC_ARG" "${fast_cmd[@]}")
   fi
 
-  exec setsid uwsm-app -- "$TERMINAL_EXEC" "${term_args[@]}"
+  setsid uwsm-app -- "$TERMINAL_EXEC" "${term_args[@]}" </dev/null >/dev/null 2>&1 &
 else
-  exec setsid uwsm-app -- xdg-terminal-exec --dir="$cwd" "${fallback_args[@]}"
+  setsid uwsm-app -- xdg-terminal-exec --dir="$cwd" "${fallback_args[@]}" </dev/null >/dev/null 2>&1 &
 fi

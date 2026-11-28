@@ -118,7 +118,8 @@ printf '#!/bin/bash\nexec "$@"\n' >"$launch_bin/setsid"
 cat >"$launch_bin/uwsm-app" <<'SH'
 #!/bin/bash
 [[ $1 == "--" ]] && shift
-printf 'PWD=%s ARGS=%s\n' "$PWD" "$*" >"$OMARCHY_TEST_LAUNCH_OUT"
+printf 'PWD=%s ARGS=%s\n' "$PWD" "$*" >"$OMARCHY_TEST_LAUNCH_OUT.tmp"
+mv -f "$OMARCHY_TEST_LAUNCH_OUT.tmp" "$OMARCHY_TEST_LAUNCH_OUT"
 SH
 printf '#!/bin/bash\nexit 0\n' >"$launch_bin/foot"
 printf '#!/bin/bash\n[[ ${OMARCHY_TEST_FORBID_CWD:-0} == 1 ]] && exit 99\nprintf "%%s\\n" "%s"\n' "$work_dir" >"$launch_bin/omarchy-cmd-terminal-cwd"
@@ -135,12 +136,20 @@ X-TerminalArgExec=-e
 EOF
 
 run_launch() {
-  rm -f "$launch_out"
+  rm -f "$launch_out" "$launch_out.tmp"
   OMARCHY_TEST_LAUNCH_OUT="$launch_out" PATH="$launch_bin:/usr/bin" \
     XDG_CONFIG_HOME="$launch_cfg" XDG_CONFIG_DIRS="$test_tmp/no-etc" \
     XDG_DATA_HOME="$launch_data" XDG_DATA_DIRS="$test_tmp/no-sys" \
     bash "$ROOT/bin/omarchy-launch-terminal" "$@"
-  cat "$launch_out"
+  local attempt
+  for ((attempt = 0; attempt < 500; attempt++)); do
+    if [[ -e $launch_out ]]; then
+      cat "$launch_out"
+      return 0
+    fi
+    sleep 0.01
+  done
+  return 1
 }
 
 [[ $(run_launch --pid="$terminal_pid") == *"ARGS=foot --working-directory=$work_dir" ]] ||

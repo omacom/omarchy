@@ -567,7 +567,7 @@ assert_launch mcode mcode -- "Review this project"
 assert_launch freebuff freebuff
 assert_launch kilo kilo --auto "--prompt=Review this project"
 assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
-assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
+assert_launch amp "$OMARCHY_PATH/bin/omarchy-agent-amp" --wait amp "Review this project"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
@@ -633,6 +633,38 @@ mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "opencode --auto --prompt Review this project" ]] ||
   fail "inline agent launcher runs in the current terminal"
 pass "inline agent launcher runs in the current terminal"
+
+# Inline Amp must invoke the packaged helper by absolute path (ignoring any
+# file named omarchy-agent-amp in the working directory), skip the separate-
+# window Enter wait, and return Amp's own exit status.
+amp_cwd="$test_tmp/amp-cwd"
+amp_decoy_marker="$test_tmp/amp-decoy-ran"
+amp_stdin_log="$test_tmp/amp-stdin"
+amp_args_log="$test_tmp/amp-args"
+mkdir -p "$amp_cwd"
+cat >"$amp_cwd/omarchy-agent-amp" <<SH
+printf 'decoy\n' >"$amp_decoy_marker"
+SH
+cat >"$mock_bin/amp" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_AMP_ARGS"
+cat >"$OMARCHY_TEST_AMP_STDIN"
+exit 42
+SH
+chmod +x "$mock_bin/amp"
+printf '%s\n' "amp" >"$agent_file"
+amp_status=0
+(cd "$amp_cwd" && OMARCHY_TEST_AMP_ARGS="$amp_args_log" OMARCHY_TEST_AMP_STDIN="$amp_stdin_log" \
+  omarchy-agent-prompt --inline "Review this project" </dev/null >/dev/null 2>"$test_tmp/amp-err") || amp_status=$?
+[[ ! -e $amp_decoy_marker ]] || fail "inline Amp ignores a project file named omarchy-agent-amp"
+(( amp_status == 42 )) || fail "inline Amp returns Amp's exit status without waiting" "got $amp_status (stderr: $(cat "$test_tmp/amp-err"))"
+[[ ! -s $test_tmp/amp-err ]] || fail "inline Amp does not touch /dev/tty" "$(cat "$test_tmp/amp-err")"
+mapfile -d '' -t amp_args <"$amp_args_log"
+[[ ${amp_args[*]} == "--dangerously-allow-all" && $(<"$amp_stdin_log") == "Review this project" ]] ||
+  fail "inline Amp pipes the prompt to amp --dangerously-allow-all"
+rm -f "$mock_bin/amp"
+printf '%s\n' "opencode" >"$agent_file"
+pass "inline Amp uses the packaged helper, does not wait for Enter, and propagates exit status"
 
 # The prompt route exists so the router can tell a prompt from a subcommand, so
 # cover the public routes and not only the binaries behind them.
