@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Check that this machine's hardware works: Wi-Fi, Bluetooth, audio, panel, touchpad, graphics, battery and services
+# omarchy:summary=Check that this machine's hardware works: network, audio, camera, panel, input, graphics, power, storage, firmware and services
 # omarchy:args=[--json] [--list] [check...]
 # omarchy:examples=omarchy rollcall | omarchy rollcall wifi bluetooth | omarchy rollcall --json
 
@@ -15,6 +15,10 @@
 # The report is meant to be pasted into an issue, so details name drivers and
 # counts, never interface, device, network or unit names that can carry a MAC,
 # an SSID, a serial, a username or a host.
+#
+# A full roll call also lists what a person finished in the walkthrough
+# (omarchy rollcall test) since boot, which only someone at the machine can
+# judge: a speaker heard, a key pressed, a picture taken.
 
 set -uo pipefail
 
@@ -24,19 +28,37 @@ sys=$root/sys
 proc=$root/proc
 udev_data=$root/run/udev/data
 
-CHECKS=(wifi bluetooth audio-output audio-input panel backlight touchpad graphics battery services)
+CHECKS=(wifi ethernet network bluetooth modem audio-output audio-input camera panel backlight touchpad keyboard sensors fingerprint
+  graphics video-decode battery suspend cpu storage usb card-reader tpm firmware time services user-services)
 
 declare -A SUMMARY=(
   [wifi]="Wi-Fi adapter has a driver and NetworkManager can use it"
+  [ethernet]="Every wired port has a driver and NetworkManager can use it"
+  [network]="NetworkManager reaches the internet, as it last checked"
   [bluetooth]="Bluetooth controller has a driver and is powered"
+  [modem]="Built-in mobile broadband modem has a driver and a control port"
   [audio-output]="Speaker or headphone output reaches PipeWire"
   [audio-input]="Built-in microphone reaches PipeWire (laptops)"
+  [camera]="Built-in camera has a capture device an app can open"
   [panel]="Built-in panel is connected (laptops)"
   [backlight]="Built-in panel has a backlight control (laptops)"
   [touchpad]="Built-in touchpad is detected (laptops)"
+  [keyboard]="Built-in keyboard is detected (laptops)"
+  [sensors]="Accelerometer and light sensor have drivers and answer"
+  [fingerprint]="Fingerprint reader is recognised and fprintd can use it"
   [graphics]="The desktop renders on the GPU, not the CPU"
+  [video-decode]="The GPU decodes video in hardware"
   [battery]="Battery charge and health can be read"
+  [suspend]="Suspends have not failed and reached hardware sleep"
+  [cpu]="Processor speed and idle states are managed, every thread online"
+  [storage]="Storage controllers have drivers; the system disk has TRIM"
+  [usb]="Every USB and Thunderbolt controller has its driver"
+  [card-reader]="Built-in card reader has its driver"
+  [tpm]="The TPM 2.0 chip has a driver and answers"
+  [firmware]="No firmware file is missing and the kernel is not tainted by a fault"
+  [time]="The clock is synchronised over the network"
   [services]="No system service has failed"
+  [user-services]="No service in the user's session has failed"
 )
 
 PASS=0 FAIL=1 SKIP=77
@@ -216,6 +238,159 @@ check_wifi() {
   fi
 }
 
+# 2500 Mb/s reads as 2.5 Gb/s.
+rate() {
+  awk -v rate="$1" 'BEGIN { if (rate >= 1000) printf "%g Gb/s", rate / 1000; else printf "%g Mb/s", rate }'
+}
+
+# Tethered phones and the link a Mac's T2 chip keeps to the machine are USB
+# networking, not a wired port.
+USB_TETHERING=" cdc_ether cdc_ncm cdc_eem cdc_subset rndis_host ipheth "
+
+# USB Ethernet chips built into boards and docks: Realtek's r8152 family and
+# ASIX's AX88179, which report a vendor-specific class rather than a network one.
+USB_ETHERNET=" 0bda:8152 0bda:8153 0bda:8155 0bda:8156 0bda:8157 0b95:1790 0b95:178a "
+
+# The machine's own wired interfaces: Ethernet framing with hardware behind it,
+# and not Wi-Fi, a modem, Thunderbolt networking, a phone, or an adapter on a
+# removable USB port.
+wired_interfaces() {
+  local net driver
+  for net in "$sys"/class/net/*; do
+    [[ -e $net/device && $(read_file "$net/type") == "1" ]] || continue
+    [[ -d $net/wireless || -d $net/phy80211 || -d $net/device/usbmisc || -d $net/device/wwan ]] && continue
+    driver=$(driver_of "$net/device") || driver=""
+    [[ $driver == thunderbolt[-_]net || $USB_TETHERING == *" $driver "* ]] && continue
+    removable_port "$net/device" && continue
+    echo "$net"
+  done
+}
+
+# A wired controller with no network interface: on PCI (0x0200), or a known USB
+# chip on a fixed port. A controller handed to a virtual machine is the user's.
+orphaned_ethernet() {
+  local device id driver
+  while IFS= read -r device; do
+    driver=$(driver_of "$device")
+    [[ $driver == "vfio-pci" || $driver == "pci-stub" ]] && continue
+    compgen -G "$device/net/*" >/dev/null || compgen -G "$device/*/net/*" >/dev/null || {
+      echo "Ethernet controller $(describe_pci "$device")"
+      return
+    }
+  done < <(pci_devices 0x0200)
+
+  for device in "$sys"/bus/usb/devices/*; do
+    [[ ${device##*/} == *:* ]] && continue
+    id="$(read_file "$device/idVendor"):$(read_file "$device/idProduct")"
+    [[ $USB_ETHERNET == *" $id "* ]] || continue
+    removable_port "$device" && continue
+    compgen -G "$device/*:*/net/*" >/dev/null || {
+      echo "USB Ethernet chip $id"
+      return
+    }
+  done
+}
+
+check_ethernet() {
+  local orphan net driver devices status state carrier speed detail cabled=0
+  local -a nets=()
+
+  orphan=$(orphaned_ethernet)
+  if [[ -n $orphan ]]; then
+    echo "$orphan has no network interface"
+    return $FAIL
+  fi
+
+  mapfile -t nets < <(wired_interfaces)
+  if (( ${#nets[@]} == 0 )); then
+    echo "no wired port found"
+    return $SKIP
+  fi
+  driver=$(for net in "${nets[@]}"; do echo "$(driver_of "$net/device" || echo unknown)"; done | sort -u | paste -sd, - | sed 's/,/, /g')
+
+  # Interface names stay here, only to match NetworkManager's list to ours.
+  devices=$(LC_ALL=C timeout 5s nmcli -e no -g DEVICE,TYPE,STATE device status 2>/dev/null)
+  status=$?
+  if (( status == 124 )); then
+    echo "NetworkManager did not answer ($driver)"
+    return $FAIL
+  elif (( status != 0 )); then
+    echo "NetworkManager is not running"
+    return $SKIP
+  fi
+
+  for net in "${nets[@]}"; do
+    state=$(awk -F: -v name="${net##*/}" '$1 == name {print $3}' <<<"$devices")
+    if [[ -z $state ]]; then
+      echo "NetworkManager does not see a wired port ($driver)"
+      return $FAIL
+    fi
+    # carrier cannot be read while the interface is down.
+    carrier=$(read_file "$net/carrier") || carrier=0
+    (( carrier == 1 )) && (( cabled += 1 ))
+  done
+
+  if (( ${#nets[@]} > 1 )); then
+    detail="a cable in $cabled of ${#nets[@]} ports"
+  elif (( cabled )); then
+    detail="cable in"
+    speed=$(read_number "${nets[0]}/speed") && (( speed > 0 )) && detail+=" at $(rate "$speed")"
+  else
+    detail="no cable"
+  fi
+  echo "$detail ($driver)"
+  return $PASS
+}
+
+# NetworkManager's own last verdict on reaching the internet, so nothing is
+# sent. Being offline, or behind a hotel's login page, is where the user is,
+# not a fault; a device that is connected with no connectivity at all is.
+check_network() {
+  local connectivity devices status
+  local -a connected=()
+
+  connectivity=$(LC_ALL=C timeout 5s nmcli -e no -g CONNECTIVITY general 2>/dev/null)
+  status=$?
+  if (( status == 124 )); then
+    echo "NetworkManager did not answer"
+    return $FAIL
+  elif (( status != 0 )); then
+    echo "NetworkManager is not running"
+    return $SKIP
+  fi
+
+  devices=$(LC_ALL=C timeout 5s nmcli -e no -g TYPE,STATE device status 2>/dev/null)
+  mapfile -t connected < <(awk -F: '($1 == "ethernet" || $1 == "wifi" || $1 == "gsm") && $2 == "connected" {print $1}' <<<"$devices" | sort -u)
+
+  case $connectivity in
+    full)
+      echo "online${connected[*]:+ ($(printf '%s\n' "${connected[@]}" | paste -sd, - | sed 's/,/, /g'))}"
+      return $PASS
+      ;;
+    portal)
+      echo "behind a login page"
+      return $SKIP
+      ;;
+    limited)
+      echo "connected, without internet access"
+      return $SKIP
+      ;;
+    none)
+      if (( ${#connected[@]} )); then
+        echo "a connected ${connected[0]} device has no connectivity"
+        return $FAIL
+      else
+        echo "offline"
+        return $SKIP
+      fi
+      ;;
+    *)
+      echo "NetworkManager is not checking connectivity"
+      return $SKIP
+      ;;
+  esac
+}
+
 # Bluetooth hardware with no controller registered: a USB adapter (interface
 # class e0/01/01) or a PCIe one (class 0x0d11, Apple's).
 orphaned_bluetooth() {
@@ -266,7 +441,7 @@ check_bluetooth() {
     fi
   fi
 
-  driver=$(for hci in "${hcis[@]}"; do driver_of "$hci/device" || echo unknown; done | sort -u | paste -sd, -)
+  driver=$(for hci in "${hcis[@]}"; do echo "$(driver_of "$hci/device" || echo unknown)"; done | sort -u | paste -sd, -)
 
   if ! systemctl is-active --quiet bluetooth.service 2>/dev/null; then
     echo "bluetooth.service is not running ($driver)"
@@ -288,6 +463,52 @@ check_bluetooth() {
   done
 
   echo "powered ($driver)"
+  return $PASS
+}
+
+# A mobile broadband modem: on PCI (0x0d40, the MHI, IOSM and T7xx cards) or a
+# USB MBIM function on a fixed port. Its driver makes a control port that
+# ModemManager talks to, which Omarchy does not install, so the modem itself is
+# not asked anything.
+check_modem() {
+  local device interface driver block
+  local -a modems=() drivers=()
+
+  block=$(rfkill_block wwan)
+  if [[ -n $block ]]; then
+    blocked_reason "$block"
+    return $SKIP
+  fi
+
+  mapfile -t modems < <(pci_devices 0x0d40)
+  for interface in "$sys"/bus/usb/devices/*:*; do
+    [[ $(read_file "$interface/bInterfaceClass") == "02" && $(read_file "$interface/bInterfaceSubClass") == "0e" ]] || continue
+    removable_port "$interface" || modems+=("$interface")
+  done
+
+  if (( ${#modems[@]} == 0 )); then
+    echo "no modem found"
+    return $SKIP
+  fi
+
+  for device in "${modems[@]}"; do
+    if ! driver=$(driver_of "$device"); then
+      if [[ -e $device/vendor ]]; then
+        echo "modem $(pci_id "$device") has no driver"
+      else
+        echo "modem $(read_file "${device%%:*}/idVendor"):$(read_file "${device%%:*}/idProduct") has no driver"
+      fi
+      return $FAIL
+    fi
+    drivers+=("$driver")
+  done
+  driver=$(printf '%s\n' "${drivers[@]}" | sort -u | paste -sd, -)
+
+  if ! compgen -G "$sys/class/wwan/*" >/dev/null && ! compgen -G "$sys/class/usbmisc/cdc-wdm*" >/dev/null; then
+    echo "the modem has no control port ($driver)"
+    return $FAIL
+  fi
+  echo "found ($driver)"
   return $PASS
 }
 
@@ -468,6 +689,124 @@ check_audio_input() {
   fi
 }
 
+# The control interface of each USB video function on a fixed port: uvcvideo
+# hangs that function's capture nodes off it. A webcam plugged in says nothing
+# about the built-in one.
+builtin_uvc() {
+  local interface
+  for interface in "$sys"/bus/usb/devices/*:*; do
+    [[ $(read_file "$interface/bInterfaceClass") == "0e" && $(read_file "$interface/bInterfaceSubClass") == "01" ]] || continue
+    removable_port "$interface" || echo "$interface"
+  done
+}
+
+# A capture node under a device, as udev recorded it when it appeared, so no
+# camera is opened or powered up. Without a udev database any node counts.
+has_capture_node() {
+  local node data
+  for node in "$1"/video4linux/video*; do
+    [[ -e $node ]] || continue
+    data=$udev_data/c$(read_file "$node/dev")
+    [[ ! -r $data ]] || grep -q '^E:ID_V4L_CAPABILITIES=.*:capture:' "$data" && return 0
+  done
+  return 1
+}
+
+# Image processors whose MIPI sensors no app can open directly: Intel's IPU6
+# and IPU7 (PCI multimedia controllers) and a Snapdragon's camera subsystem.
+image_processors() {
+  local device
+  while IFS= read -r device; do
+    [[ $(read_file "$device/vendor") == "0x8086" ]] && echo "$device"
+  done < <(pci_devices 0x0480)
+  # A Snapdragon camera subsystem is found by its device-tree node, so one
+  # whose driver never bound is still found.
+  {
+    for device in "$sys"/bus/platform/drivers/qcom-camss/*; do
+      [[ -L $device && ${device##*/} != module ]] && readlink -f "$device"
+    done
+    for device in "$sys"/bus/platform/devices/*; do
+      [[ -r $device/of_node/compatible ]] || continue
+      [[ $(tr '\0' ' ' <"$device/of_node/compatible" 2>/dev/null) =~ qcom,[a-z0-9-]*camss ]] && readlink -f "$device"
+    done
+  } | sort -u
+}
+
+# Omarchy relays such a sensor's picture to a v4l2loopback node, which offers
+# capture while the relay runs; opening a loopback node powers nothing up.
+relayed_camera() {
+  local node
+  for node in "$sys"/devices/virtual/video4linux/video*; do
+    [[ -e $node ]] || continue
+    timeout 2s v4l2-ctl -d "$root/dev/${node##*/}" --info 2>/dev/null |
+      sed -n '/Device Caps/,$p' | grep -q 'Video Capture' && return 0
+  done
+  return 1
+}
+
+# Or libcamera hands it to PipeWire: 0 when it does, 1 when it does not, 2
+# when PipeWire cannot be asked.
+libcamera_camera() {
+  local graph
+  graph=$(timeout 5s pw-dump 2>/dev/null) && [[ -n $graph ]] || return 2
+  jq -e 'any(.[]; (.info.props["media.class"]? == "Video/Source") and (.info.props | tostring | test("libcamera")))' \
+    >/dev/null 2>&1 <<<"$graph"
+}
+
+# A built-in camera is a USB video function on a fixed port or an image
+# processor. Nothing is captured here; the walkthrough takes a picture.
+check_camera() {
+  local interface device id driver status count=0
+  local -a processors=() drivers=()
+
+  while IFS= read -r interface; do
+    device=${interface%%:*}
+    id="$(read_file "$device/idVendor"):$(read_file "$device/idProduct")"
+    if ! driver=$(driver_of "$interface"); then
+      echo "camera $id has no driver"
+      return $FAIL
+    elif ! has_capture_node "$interface"; then
+      echo "camera $id has no capture device ($driver)"
+      return $FAIL
+    fi
+    drivers+=("$driver")
+    (( count += 1 ))
+  done < <(builtin_uvc)
+
+  if (( count )); then
+    echo "$count built-in ($(printf '%s\n' "${drivers[@]}" | sort -u | paste -sd, -))"
+    return $PASS
+  fi
+
+  mapfile -t processors < <(image_processors)
+  if (( ${#processors[@]} == 0 )); then
+    echo "no built-in camera found"
+    return $SKIP
+  fi
+
+  device=${processors[0]}
+  if ! driver=$(driver_of "$device"); then
+    echo "image processor $(pci_id "$device" || tr '\0' '\n' <"$device/of_node/compatible" 2>/dev/null | head -n1) has no driver"
+    return $FAIL
+  elif relayed_camera; then
+    echo "relayed from the image processor ($driver)"
+    return $PASS
+  fi
+
+  libcamera_camera
+  status=$?
+  if (( status == 0 )); then
+    echo "through libcamera ($driver)"
+    return $PASS
+  elif (( status == 2 )); then
+    echo "the camera sits behind an image processor ($driver); PipeWire is not reachable from this session"
+    return $SKIP
+  else
+    echo "image processor ($driver) has no camera an app can open"
+    return $FAIL
+  fi
+}
+
 # Built-in panels are eDP, LVDS or DSI connectors. Read from DRM so this works
 # from a TTY or over SSH too, and on whichever GPU drives the panel.
 internal_connectors() {
@@ -533,12 +872,13 @@ check_backlight() {
   fi
 }
 
-# Whether an input device hangs off a USB port the firmware marks removable,
-# anywhere up the chain: a hub or dock's own ports read unknown. Internal USB
-# touchpads (T2 Macs, the Framework 16) sit on fixed ports all the way up.
-on_removable_usb() {
+# Whether a device hangs off a USB port the firmware marks removable, anywhere
+# up the chain: a hub or dock's own ports read unknown. Internal USB touchpads,
+# keyboards and cameras (T2 Macs, the Framework 16) sit on fixed ports all the
+# way up.
+removable_port() {
   local dir
-  dir=$(readlink -f "$1/device") || return 1
+  dir=$(readlink -f "$1") || return 1
   while [[ $dir == "$sys"/* ]]; do
     [[ $(read_file "$dir/removable") == "removable" ]] && return 0
     dir=${dir%/*}
@@ -546,10 +886,31 @@ on_removable_usb() {
   return 1
 }
 
-# A touchpad udev tagged that is not a Bluetooth or plugged-in USB one: an
-# external trackpad says nothing about the built-in one.
-check_touchpad() {
-  local event dev data chassis bus driver
+on_removable_usb() {
+  removable_port "$1/device"
+}
+
+# The driver of the first input device udev tagged with this property that is
+# not a Bluetooth or plugged-in USB one: an external keyboard or trackpad says
+# nothing about the built-in one.
+builtin_input() {
+  local event dev data bus
+  for event in "$sys"/class/input/event*; do
+    dev=$(read_file "$event/dev") || continue
+    data=$udev_data/c$dev
+    [[ -r $data ]] && grep -qx "E:$1=1" "$data" || continue
+    bus=$(sed -n 's/^E:ID_BUS=//p' "$data")
+    [[ $bus == "bluetooth" ]] && continue
+    [[ $bus == "usb" ]] && on_removable_usb "$event" && continue
+    driver_of "$event/device/device" || echo unknown
+    return 0
+  done
+  return 1
+}
+
+# A built-in input device of one kind, on a laptop with its keyboard attached.
+check_builtin_input() {
+  local property=$1 noun=$2 chassis driver
 
   if ! laptop; then
     echo "not a laptop"
@@ -566,20 +927,155 @@ check_touchpad() {
     return $SKIP
   fi
 
-  for event in "$sys"/class/input/event*; do
-    dev=$(read_file "$event/dev") || continue
-    data=$udev_data/c$dev
-    [[ -r $data ]] && grep -qx 'E:ID_INPUT_TOUCHPAD=1' "$data" || continue
-    bus=$(sed -n 's/^E:ID_BUS=//p' "$data")
-    [[ $bus == "bluetooth" ]] && continue
-    [[ $bus == "usb" ]] && on_removable_usb "$event" && continue
-    driver=$(driver_of "$event/device/device") || driver=unknown
+  if driver=$(builtin_input "$property"); then
     echo "found ($driver)"
     return $PASS
+  else
+    echo "no built-in $noun found"
+    return $FAIL
+  fi
+}
+
+check_touchpad() {
+  check_builtin_input ID_INPUT_TOUCHPAD touchpad
+}
+
+# udev calls a device a keyboard only when it has the letter keys, so a power
+# button or a laptop's hotkeys never stand in for it.
+check_keyboard() {
+  check_builtin_input ID_INPUT_KEYBOARD keyboard
+}
+
+# Sensor hubs that carry a convertible's accelerometer and light sensor:
+# Intel's Integrated Sensor Hub and AMD's Sensor Fusion Hub. Neither shows a
+# sensor until its driver has loaded the hub's firmware.
+SENSOR_HUBS=" 8086:22d8 8086:0aa2 8086:1aa2 8086:5aa2 8086:9d35 8086:9dfc 8086:31a2 8086:a37c 8086:34fc 8086:a135 8086:02fc
+  8086:06fc 8086:4bb3 8086:a0fc 8086:43fc 8086:7af8 8086:51fc 8086:54fc 8086:7a78 8086:7e45 8086:7745 8086:7f78 8086:a845
+  8086:e345 8086:e445 8086:4d45 1022:15e4 1022:164a "
+
+# One sensor's kind and name, when an IIO device has that kind's channels.
+iio_sensor() {
+  local dev=$1 kind
+  if [[ -e $dev/in_accel_x_raw && -e $dev/in_accel_y_raw && -e $dev/in_accel_z_raw ]]; then
+    kind=accelerometer
+  elif compgen -G "$dev/in_illuminance*_raw" >/dev/null || compgen -G "$dev/in_illuminance*_input" >/dev/null ||
+    [[ -e $dev/in_intensity_both_raw ]]; then
+    kind="light sensor"
+  else
+    return 1
+  fi
+  printf '%s (%s)' "$kind" "$(read_file "$dev/name" || echo unknown)"
+}
+
+# Whether a sensor gives a reading. A sensor hub with no firmware lists its
+# sensors and then fails every read.
+iio_reads() {
+  local file
+  for file in "$1"/in_accel_x_raw "$1"/in_illuminance*_{raw,input} "$1"/in_intensity_both_raw; do
+    [[ -e $file ]] || continue
+    timeout 2s cat "$file" 2>/dev/null | grep -qE '^-?[0-9]'
+    return
+  done
+  return 1
+}
+
+# iio-sensor-proxy is how a desktop rotates the screen and dims to the room.
+# Omarchy does not install it, so it is asked only when it is there.
+proxy_has() {
+  timeout 3s busctl --system get-property net.hadess.SensorProxy /net/hadess/SensorProxy net.hadess.SensorProxy "$1" 2>/dev/null
+}
+
+check_sensors() {
+  local dev device sensor chassis answer convertible=false
+  local -a sensors=()
+
+  # 30 is a tablet, 31 a convertible, 32 a detachable: each turns the screen.
+  chassis=$(read_file "$sys/class/dmi/id/chassis_type")
+  [[ $chassis == "30" || $chassis == "31" || $chassis == "32" ]] && convertible=true
+
+  for dev in "$sys"/bus/iio/devices/iio:device*; do
+    sensor=$(iio_sensor "$dev") || continue
+    if ! iio_reads "$dev"; then
+      echo "the $sensor does not answer"
+      return $FAIL
+    fi
+    sensors+=("$sensor")
   done
 
-  echo "no built-in touchpad found"
-  return $FAIL
+  if (( ${#sensors[@]} == 0 )) && [[ $convertible == "false" ]]; then
+    echo "no motion or light sensor found"
+    return $SKIP
+  fi
+
+  while IFS= read -r device; do
+    [[ $SENSOR_HUBS == *" $(pci_id "$device") "* ]] || continue
+    if ! driver_of "$device" >/dev/null; then
+      echo "sensor hub $(pci_id "$device") has no driver"
+      return $FAIL
+    fi
+  done < <(pci_devices 0x1180)
+
+  if [[ $convertible == "true" && " ${sensors[*]} " != *" accelerometer "* ]]; then
+    echo "the convertible reports no accelerometer"
+    return $FAIL
+  fi
+
+  for sensor in Accelerometer:accelerometer AmbientLight:"light sensor"; do
+    [[ " ${sensors[*]} " == *" ${sensor#*:} "* ]] || continue
+    answer=$(proxy_has "Has${sensor%%:*}") || continue
+    if [[ $answer != "b true" ]]; then
+      echo "iio-sensor-proxy does not see the ${sensor#*:}"
+      return $FAIL
+    fi
+  done
+
+  printf '%s\n' "${sensors[@]}" | sort -u | paste -sd, - | sed 's/,/, /g'
+  return $PASS
+}
+
+# Omarchy offers fingerprint setup on a reader its detector recognises, which
+# installs fprintd; fprintd then needs a libfprint driver for it. Asking for
+# the default reader enrols, claims and changes nothing.
+check_fingerprint() {
+  local output status device name
+
+  if ! OMARCHY_USB_DEVICES_PATH=$sys/bus/usb/devices omarchy-hw-fingerprint; then
+    echo "no fingerprint reader found"
+    return $SKIP
+  fi
+
+  output=$(timeout 5s busctl --system call net.reactivated.Fprint /net/reactivated/Fprint/Manager \
+    net.reactivated.Fprint.Manager GetDefaultDevice 2>&1)
+  status=$?
+  if (( status == 124 )); then
+    echo "fprintd did not answer"
+    return $FAIL
+  elif (( status != 0 )); then
+    case $output in
+      *ServiceUnknown* | *"not provided by any"*)
+        echo "reader found; fprintd is not installed until fingerprint setup runs"
+        return $SKIP
+        ;;
+      *NoSuchDevice* | *"No devices available"*)
+        echo "fprintd has no driver for the reader"
+        return $FAIL
+        ;;
+      *"connect to bus"*)
+        echo "the system bus is not reachable"
+        return $SKIP
+        ;;
+      *)
+        echo "fprintd did not answer"
+        return $FAIL
+        ;;
+    esac
+  fi
+
+  device=$(sed -n 's/^o "\(.*\)"$/\1/p' <<<"$output")
+  name=$(timeout 5s busctl --system get-property net.reactivated.Fprint "$device" net.reactivated.Fprint.Device name 2>/dev/null |
+    sed -n 's/^s "\(.*\)"$/\1/p')
+  echo "fprintd sees it${name:+ ($name)}"
+  return $PASS
 }
 
 check_graphics() {
@@ -619,6 +1115,68 @@ check_graphics() {
       return $FAIL
       ;;
   esac
+}
+
+# Kernel drivers whose GPUs decode video through VA-API once Omarchy has
+# installed the matching VA driver. A Snapdragon decodes through V4L2 instead,
+# and Apple's GPUs not at all yet.
+VAAPI_DRIVERS=" i915 xe amdgpu nvidia "
+
+# The codecs a VA-API driver decodes, from vainfo's profiles.
+decode_codecs() {
+  grep -E 'VAEntrypointVLD' | sed -nE 's/^[[:space:]]*VAProfile([A-Za-z0-9]+).*/\1/p' | sed -E '
+    s/^MPEG2.*/MPEG-2/; s/^H264.*/H.264/; s/^HEVC.*/HEVC/; s/^VP8.*/VP8/; s/^VP9.*/VP9/; s/^AV1.*/AV1/
+    s/^VC1.*/VC-1/; s/^JPEG.*/JPEG/; s/^None$//' | awk 'NF && !seen[$0]++' | paste -sd, - | sed 's/,/, /g'
+}
+
+# Asks each awake GPU which codecs it decodes. A discrete GPU that is asleep is
+# left asleep: asking would wake it, and the integrated one draws the desktop.
+check_video_decode() {
+  local card device driver node codecs asleep=false
+  local -a found=() missing=()
+
+  if ! omarchy-cmd-present vainfo; then
+    echo "vainfo is not installed (libva-utils)"
+    return $SKIP
+  fi
+
+  for card in "$sys"/class/drm/card[0-9]*; do
+    [[ ${card##*/} == *-* ]] && continue
+    device=$card/device
+    driver=$(driver_of "$device") || continue
+    if [[ $(read_file "$device/power/runtime_status") == "suspended" ]]; then
+      asleep=true
+      continue
+    fi
+    for node in "$device"/drm/renderD*; do
+      [[ -e $node ]] || continue
+      # The NVIDIA session sets LIBVA_DRIVER_NAME for every GPU; each node is
+      # asked with the driver libva picks for it.
+      codecs=$(timeout 15s env -u LIBVA_DRIVER_NAME vainfo --display drm --device "$root/dev/dri/${node##*/}" 2>/dev/null | decode_codecs)
+      if [[ -n $codecs ]]; then
+        found+=("$codecs ($driver)")
+      elif [[ $driver == "nvidia" && ! -e $root/usr/lib/dri/nvidia_drv_video.so ]]; then
+        # Older NVIDIA cards get a driver series with no VA-API driver.
+        continue
+      elif [[ $VAAPI_DRIVERS == *" $driver "* ]]; then
+        missing+=("$driver")
+      fi
+    done
+  done
+
+  if (( ${#missing[@]} )); then
+    echo "no hardware decode on the GPU ($(printf '%s\n' "${missing[@]}" | sort -u | paste -sd, -))"
+    return $FAIL
+  elif (( ${#found[@]} )); then
+    printf '%s\n' "${found[@]}" | paste -sd';' - | sed 's/;/; /g'
+    return $PASS
+  elif [[ $asleep == "true" ]]; then
+    echo "the GPU is asleep"
+    return $SKIP
+  else
+    echo "no GPU offers VA-API decode"
+    return $SKIP
+  fi
 }
 
 # The machine's own battery, decided as omarchy-battery-present decides it.
@@ -666,14 +1224,640 @@ check_battery() {
   return $PASS
 }
 
+# A kernel device name fit for the report: a PCI address, a bus id, an ACPI
+# node. Anything else, or a long run of hex that could be a serial, is not.
+device_name() {
+  [[ $1 =~ ^[A-Za-z0-9:._-]{1,40}$ && ! $1 =~ [0-9A-Fa-f]{12} ]] || return 1
+  # Kernel device names are bus positions and ids; a long mix of letters and
+  # digits in one segment is a serial.
+  local segment
+  for segment in ${1//[:._-]/ }; do
+    (( ${#segment} >= 10 )) && [[ $segment =~ [0-9] && $segment =~ [A-Za-z] ]] && return 1
+  done
+  echo "$1"
+}
+
+plural() {
+  if (( $1 == 1 )); then echo "1 $2"; else echo "$1 $2s"; fi
+}
+
+# What the kernel kept of this boot's suspends: whether any failed, and on
+# suspend-to-idle whether the platform reached its lowest power state, which
+# is the difference between asleep and warm in the bag with the battery
+# draining. Nothing is suspended here.
+check_suspend() {
+  local stats=$sys/power/suspend_stats state mode successes fails resumes=0 errno step device last total residency detail note=""
+  local counter
+
+  if omarchy-hw-vm; then
+    echo "virtual machine"
+    return $SKIP
+  fi
+
+  state=$(read_file "$sys/power/state")
+  if [[ " $state " != *" mem "* && " $state " != *" freeze "* ]]; then
+    echo "the kernel offers no sleep state"
+    return $SKIP
+  fi
+
+  # The bracketed mode is what suspend uses: s2idle or deep.
+  mode=$(read_file "$sys/power/mem_sleep" | grep -o '\[[a-z0-9]*\]' | tr -d '[]')
+  mode=${mode:-s2idle}
+
+  successes=$(read_number "$stats/success") || successes=0
+  fails=$(read_number "$stats/fail") || fails=0
+  for counter in failed_resume failed_resume_early failed_resume_noirq; do
+    (( resumes += $(read_number "$stats/$counter" || echo 0) ))
+  done
+
+  # -16 is a wake event arriving on the way down, which calls that suspend off
+  # with nothing broken. Only the last failure's error is kept, so a failed
+  # resume, which a wake event never causes, still counts.
+  if (( fails )); then
+    errno=$(read_file "$stats/last_failed_errno")
+    if (( resumes )) || [[ $errno != "-16" ]]; then
+      step=$(read_file "$stats/last_failed_step")
+      device=$(device_name "$(read_file "$stats/last_failed_dev")")
+      echo "$fails of $((successes + fails)) suspends failed, the last at ${step:-an unknown step}${device:+ ($device)}"
+      return $FAIL
+    fi
+    note=", $fails called off by a wake event"
+  fi
+
+  if (( successes == 0 )); then
+    echo "not suspended since boot ($mode)"
+    return $SKIP
+  fi
+  detail="$mode, $(plural "$successes" suspend)"
+
+  # Deep sleep is the firmware's own state; only suspend-to-idle has to reach
+  # the platform's lowest state by itself.
+  if [[ $mode == "s2idle" ]]; then
+    if total=$(read_number "$stats/total_hw_sleep"); then
+      last=$(read_number "$stats/last_hw_sleep") || last=0
+      if (( total == 0 )); then
+        echo "$detail, none reached hardware sleep"
+        return $FAIL
+      elif (( last == 0 )); then
+        echo "$detail, the last never reached hardware sleep"
+        return $FAIL
+      fi
+      detail+=", the last $((last / 1000000)) s in hardware sleep"
+    elif residency=$(read_number "$sys/devices/system/cpu/cpuidle/low_power_idle_system_residency_us"); then
+      if (( residency == 0 )); then
+        echo "$detail, none reached hardware sleep"
+        return $FAIL
+      fi
+      detail+=", hardware sleep reached"
+    else
+      detail+=", no hardware sleep counter"
+    fi
+  fi
+
+  echo "$detail$note"
+  return $PASS
+}
+
+# How many CPUs a list such as 0-7,9 names.
+cpu_count() {
+  local range count=0
+  local -a ranges=()
+  IFS=, read -ra ranges <<<"$1"
+  for range in "${ranges[@]}"; do
+    [[ $range =~ ^([0-9]+)(-([0-9]+))?$ ]] || continue
+    (( count += ${BASH_REMATCH[3]:-${BASH_REMATCH[1]}} - BASH_REMATCH[1] + 1 ))
+  done
+  echo "$count"
+}
+
+# AMD's platform management device, through which the firmware's power and
+# thermal policy reaches the processor; it needs amd_pmf.
+unbound_platform_management() {
+  local device node status
+  for device in "$sys"/bus/acpi/devices/AMDI010[0235789]:*; do
+    [[ -e $device ]] || continue
+    status=$(read_number "$device/status") && (( (status & 1) == 0 )) && continue
+    for node in "$device" "$device"/physical_node*; do
+      [[ $(driver_of "$node") == "amd_pmf" ]] && continue 2
+    done
+    echo "${device##*/}"
+    return
+  done
+}
+
+# The processor's speed and idle states have drivers, every thread came up,
+# and every thread has been in its deepest idle state since boot, which is
+# where a laptop's battery life comes from. Nothing is loaded or switched.
+check_cpu() {
+  local cpu=$sys/devices/system/cpu policy driver="" governor epp x86=false present online smt idle_driver state name
+  local deepest="" disabled states="" never=0 profile detail
+
+  if omarchy-hw-vm; then
+    echo "virtual machine"
+    return $SKIP
+  fi
+  grep -qE '^vendor_id[[:space:]]*: (GenuineIntel|AuthenticAMD)' "$proc/cpuinfo" 2>/dev/null && x86=true
+
+  for policy in "$cpu"/cpufreq/policy*; do
+    driver=$(read_file "$policy/scaling_driver") && break
+  done
+  # No driver at all means the firmware hid the processor's performance
+  # control; acpi-cpufreq is the generic driver, which works but knows less.
+  if [[ -z $driver ]]; then
+    echo "no frequency scaling driver"
+    return $FAIL
+  fi
+  governor=$(read_file "$policy/scaling_governor")
+  epp=$(read_file "$policy/energy_performance_preference")
+  detail="$driver${governor:+, $governor governor}${epp:+, EPP $epp}"
+  [[ $x86 == "true" && $driver == "acpi-cpufreq" ]] && detail+=", the generic driver"
+
+  name=$(unbound_platform_management)
+  if [[ -n $name ]]; then
+    echo "AMD platform management ${name%%:*} has no driver (amd_pmf)"
+    return $FAIL
+  fi
+
+  # A thread left offline by a boot limit or by turning SMT off was chosen.
+  present=$(cpu_count "$(read_file "$cpu/present")")
+  online=$(cpu_count "$(read_file "$cpu/online")")
+  smt=$(read_file "$cpu/smt/control")
+  if (( online < present )) && [[ $smt != "off" && $smt != "forceoff" ]] &&
+    ! grep -qE '(^| )(maxcpus|nr_cpus)=' "$proc/cmdline" 2>/dev/null; then
+    echo "$((present - online)) of $present threads are offline"
+    return $FAIL
+  fi
+
+  idle_driver=$(read_file "$cpu/cpuidle/current_driver")
+  for state in "$cpu"/cpu0/cpuidle/state*; do
+    name=$(read_file "$state/name") || continue
+    [[ $name == "POLL" ]] && continue
+    disabled=$(read_file "$state/disable")
+    [[ $disabled == "1" ]] || deepest=${state##*/}
+    states+="$name "
+  done
+  states=${states% }
+
+  # x86 firmware describes deeper states than halt in its tables; on ARM
+  # there is no such table to hold it to.
+  if [[ -z $states || $idle_driver == "none" || -z $idle_driver ]]; then
+    if [[ $x86 == "true" ]]; then
+      echo "no processor idle states ($detail)"
+      return $FAIL
+    fi
+    detail+=", no idle driver"
+  elif [[ $x86 == "true" && $states != *" "* ]]; then
+    echo "no idle state deeper than $states ($detail)"
+    return $FAIL
+  elif [[ -n $deepest ]]; then
+    name=$(read_file "$cpu/cpu0/cpuidle/$deepest/name")
+    for state in "$cpu"/cpu[0-9]*/cpuidle/"$deepest"; do
+      [[ -e $state/time ]] || continue
+      [[ $(read_file "${state%/cpuidle/*}/online") == "0" ]] && continue
+      (( $(read_number "$state/time" || echo 0) > 0 )) || (( never += 1 ))
+    done
+    if (( never )); then
+      echo "$never of $online threads never entered $name since boot ($detail)"
+      return $FAIL
+    fi
+    detail+=", idle down to $name ($idle_driver)"
+  fi
+
+  detail+=", $online threads"
+  profile=$(timeout 2s powerprofilesctl get 2>/dev/null) && [[ -n $profile ]] && detail+=", $profile profile"
+  echo "$detail"
+  return $PASS
+}
+
+# The disk holding /, through any encryption or LVM layers, as its block device name.
+system_disk() {
+  local source name
+  local -a slaves=()
+  source=$(awk '$5 == "/" { for (i = 7; i <= NF; i++) if ($i == "-") { source = $(i + 2); break } } END { print source }' \
+    "$proc/self/mountinfo" 2>/dev/null)
+  [[ $source == /dev/* ]] || return 1
+  name=$(readlink -f "$root$source") || return 1
+  name=${name##*/}
+  [[ -e $sys/class/block/$name ]] || return 1
+
+  while :; do
+    shopt -s nullglob
+    slaves=("$sys/class/block/$name"/slaves/*)
+    shopt -u nullglob
+    (( ${#slaves[@]} )) || break
+    name=${slaves[0]##*/}
+  done
+
+  if [[ -e $sys/class/block/$name/partition ]]; then
+    name=$(readlink -f "$sys/class/block/$name")
+    name=${name%/*}
+    name=${name##*/}
+  fi
+  echo "$name"
+}
+
+# The driver of the controller a disk hangs off: its PCI device where there is
+# one, else the nearest driver up the chain (eMMC and UFS on a system-on-chip).
+disk_controller() {
+  local dir first=""
+  dir=$(readlink -f "$sys/class/block/$1/device") || return 1
+  while [[ $dir == "$sys"/* ]]; do
+    if [[ -e $dir/vendor && -e $dir/class ]]; then
+      driver_of "$dir"
+      return
+    fi
+    [[ -z $first ]] && first=$(driver_of "$dir")
+    dir=${dir%/*}
+  done
+  [[ -n $first ]] && echo "$first"
+}
+
+# Every storage controller on PCI has a driver (an Intel one in RAID mode hides
+# its drives behind vmd), and a solid-state system disk accepts TRIM, without
+# which it slows as it fills. Native capacity and health need root and are not
+# read; the kernel exposes an NVMe drive's power-state control only when the
+# drive offers it and no quirk turned it off.
+check_storage() {
+  local device disk kind driver discard nvme tolerance quirks detail
+  local -a controllers=()
+
+  if omarchy-hw-vm; then
+    echo "virtual machine"
+    return $SKIP
+  fi
+
+  mapfile -t controllers < <(pci_devices 0x0101 0x0104 0x0106 0x0107 0x0108)
+  for device in "${controllers[@]}"; do
+    if ! driver_of "$device" >/dev/null; then
+      echo "storage controller $(pci_id "$device") has no driver"
+      return $FAIL
+    fi
+  done
+
+  if ! disk=$(system_disk); then
+    echo "the system disk could not be traced"
+    return $SKIP
+  fi
+  driver=$(disk_controller "$disk") || driver=unknown
+
+  case $disk in
+    nvme*) kind=NVMe ;;
+    mmcblk*) kind=eMMC ;;
+    *)
+      if [[ $(readlink -f "$sys/class/block/$disk") == */usb* ]]; then
+        kind=USB
+      elif [[ $driver == "ahci" || $driver == ata_* ]]; then
+        kind=SATA
+      else
+        kind=internal
+      fi
+      ;;
+  esac
+  detail="$kind system disk ($driver)"
+
+  if [[ $(read_file "$sys/class/block/$disk/queue/rotational") == "0" ]]; then
+    discard=$(read_number "$sys/class/block/$disk/queue/discard_max_bytes") || discard=0
+    if (( discard == 0 )) && [[ $kind != "USB" ]]; then
+      echo "the $detail does not accept TRIM"
+      return $FAIL
+    fi
+    (( discard )) && detail+=", TRIM"
+  fi
+
+  if [[ $kind == "NVMe" ]]; then
+    nvme=$(readlink -f "$sys/class/block/$disk/device")
+    if tolerance=$(read_number "$nvme/power/pm_qos_latency_tolerance_us"); then
+      # 0 is a setting, nvme_core.default_ps_max_latency_us=0 or a write here.
+      if (( tolerance )); then detail+=", power saving on"; else detail+=", power saving turned off"; fi
+    else
+      quirks=$(read_file "$nvme/quirks")
+      if [[ $quirks == *no_apst* ]]; then
+        detail+=", power saving off for this model"
+      else
+        detail+=", no power saving offered"
+      fi
+    fi
+  fi
+
+  echo "$detail"
+  return $PASS
+}
+
+# Every USB host controller has its driver, and so does a USB4 or Thunderbolt
+# controller, which also needs a domain to authorise docks and drives through.
+# A system-on-chip's controllers are not on PCI; their root hubs show them.
+check_usb() {
+  local device class driver hub speed top=0 domain security="" detail
+  local -a parents=() drivers=() tunnels=()
+
+  while IFS= read -r device; do
+    class=$(read_file "$device/class")
+    # 0x0c03fe is a device-mode controller, which serves a cable to another host.
+    [[ $class == "0x0c03fe" ]] && continue
+    if ! driver=$(driver_of "$device"); then
+      echo "USB controller $(pci_id "$device") has no driver"
+      return $FAIL
+    fi
+    [[ $class == "0x0c0340" ]] && tunnels+=("$driver")
+  done < <(pci_devices 0x0c03)
+
+  # Thunderbolt 3 controllers are PCI system peripherals the thunderbolt driver binds.
+  for device in "$sys"/bus/pci/drivers/thunderbolt/0000:*; do
+    [[ -e $device && $(read_file "$device/class") != "0x0c0340" ]] && tunnels+=(thunderbolt)
+  done
+
+  for hub in "$sys"/bus/usb/devices/usb[0-9]*; do
+    [[ -e $hub ]] || continue
+    speed=$(read_number "$hub/speed") && (( speed > top )) && top=$speed
+    parents+=("$(readlink -f "$hub/..")")
+  done
+  mapfile -t parents < <(printf '%s\n' "${parents[@]}" | awk 'NF' | sort -u)
+  for device in "${parents[@]}"; do
+    drivers+=("$(driver_of "$device" || echo unknown)")
+  done
+
+  if (( ${#parents[@]} == 0 )); then
+    if laptop; then
+      echo "the laptop reports no USB controller"
+      return $FAIL
+    else
+      echo "no USB controller found"
+      return $SKIP
+    fi
+  fi
+
+  detail="$(plural "${#parents[@]}" controller) ($(printf '%s\n' "${drivers[@]}" | sort -u | paste -sd, -))"
+  (( top )) && detail+=", up to $(rate "$top")"
+
+  if (( ${#tunnels[@]} )); then
+    shopt -s nullglob
+    local -a domains=("$sys"/bus/thunderbolt/devices/domain*)
+    shopt -u nullglob
+    if (( ${#domains[@]} == 0 )); then
+      echo "the USB4 or Thunderbolt controller has no domain ($detail)"
+      return $FAIL
+    fi
+    # Display-only and USB-only levels keep docks and drives from connecting,
+    # but they are a firmware setting the owner chose, not a broken driver.
+    for domain in "${domains[@]}"; do
+      security=$(read_file "$domain/security") || security=""
+      [[ $security == "dponly" || $security == "usbonly" || $security == "nopcie" ]] && break
+    done
+    if [[ $security == "dponly" || $security == "usbonly" || $security == "nopcie" ]]; then
+      detail+=", USB4 or Thunderbolt limited to $security in the firmware settings"
+    else
+      detail+=", USB4 or Thunderbolt${security:+ (security $security)}"
+    fi
+  fi
+
+  echo "$detail"
+  return $PASS
+}
+
+# Whether a PCI device is plugged in from outside, which only a Thunderbolt or
+# USB4 tunnel allows; the kernel links a tunnelled device to that controller.
+tunnelled() {
+  local dir link
+  dir=$(readlink -f "$1") || return 1
+  while [[ $dir == "$sys"/* ]]; do
+    for link in "$dir"/supplier:pci:*; do
+      [[ -e $link && $(read_file "$sys/bus/pci/devices/${link##*supplier:pci:}/class") == "0x0c0340" ]] && return 0
+    done
+    dir=${dir%/*}
+  done
+  return 1
+}
+
+# Realtek's own card readers, which report no class (0xff00): RTS5209 to RTS5264.
+REALTEK_READERS=" 10ec:5209 10ec:5227 10ec:5228 10ec:5229 10ec:522a 10ec:5249 10ec:524a 10ec:525a 10ec:5260 10ec:5261 10ec:5264 10ec:5286 10ec:5287 10ec:5289 "
+
+# Realtek's internal USB card readers, which rtsx_usb drives.
+REALTEK_USB_READERS=" 0bda:0129 0bda:0139 0bda:0140 "
+
+# A built-in SD card reader: an SD host controller on PCI (0x0805), a Realtek
+# one, or a reader on a fixed USB port, by its ID or by the name it gives.
+check_card_reader() {
+  local device id product interface driver
+  local -a found=()
+
+  while IFS= read -r device; do
+    tunnelled "$device" && continue
+    if ! driver=$(driver_of "$device"); then
+      echo "card reader $(pci_id "$device") has no driver"
+      return $FAIL
+    fi
+    found+=("$driver")
+  done < <(pci_devices 0x0805; pci_devices 0xff00 | while read -r device; do
+    [[ $REALTEK_READERS == *" $(pci_id "$device") "* ]] && echo "$device"
+  done)
+
+  for device in "$sys"/bus/usb/devices/*; do
+    [[ ${device##*/} == *:* || ${device##*/} == usb* ]] && continue
+    id="$(read_file "$device/idVendor"):$(read_file "$device/idProduct")"
+    product=$(read_file "$device/product")
+    [[ $REALTEK_USB_READERS == *" $id "* || ${product,,} =~ card.?reader|sd/mmc|sdhc|sdxc ]] || continue
+    removable_port "$device" && continue
+    driver=""
+    for interface in "$device"/*:*; do
+      driver=$(driver_of "$interface") && break
+    done
+    if [[ -z $driver ]]; then
+      echo "card reader $id has no driver"
+      return $FAIL
+    fi
+    found+=("$driver")
+  done
+
+  if (( ${#found[@]} == 0 )); then
+    echo "no card reader found"
+    return $SKIP
+  fi
+  echo "found ($(printf '%s\n' "${found[@]}" | sort -u | paste -sd, -))"
+  return $PASS
+}
+
+# A TPM the firmware describes (MSFT0101, or PNP0C31 for either version) has
+# to have a driver; one the firmware switched off is a choice. Reading a
+# register asks the chip something and changes nothing.
+check_tpm() {
+  local tpm device status version driver off=false
+  local -a nodes=()
+
+  shopt -s nullglob
+  local -a tpms=("$sys"/class/tpm/tpm[0-9]*)
+  nodes=("$sys"/bus/acpi/devices/MSFT0101:* "$sys"/bus/acpi/devices/PNP0C31:*)
+  shopt -u nullglob
+
+  if (( ${#tpms[@]} == 0 )); then
+    for device in "${nodes[@]}"; do
+      status=$(read_number "$device/status") || status=15
+      if (( status & 1 )); then
+        echo "the firmware describes a TPM that has no driver"
+        return $FAIL
+      fi
+      off=true
+    done
+    if [[ $off == "true" ]]; then
+      echo "the TPM is switched off in the firmware"
+    else
+      echo "no TPM found"
+    fi
+    return $SKIP
+  fi
+
+  tpm=${tpms[0]}
+  version=$(read_file "$tpm/tpm_version_major") || version=""
+  driver=$(driver_of "$tpm/device") || driver=unknown
+  if [[ $version != "2" ]]; then
+    echo "TPM ${version:-of an unknown version}, not 2.0 ($driver)"
+    return $SKIP
+  elif [[ -e $tpm/pcr-sha256/0 ]] && ! timeout 5s cat "$tpm/pcr-sha256/0" 2>/dev/null | grep -q .; then
+    echo "TPM 2.0 does not answer ($driver)"
+    return $FAIL
+  fi
+  echo "TPM 2.0 ($driver)"
+  return $PASS
+}
+
+# The kernel's taint letters, bit by bit.
+TAINT_LETTERS=PFSRMBUDAWCIOELKXTNJ
+
+# Letters that mean the kernel or the hardware went wrong this boot. The rest
+# are choices and builds: a proprietary or out-of-tree module, an unsigned one.
+declare -A TAINT_FAULTS=([M]="a machine check" [B]="a bad memory page" [D]="an oops" [W]="a kernel warning" [L]="a soft lockup")
+
+FIRMWARE_DIR=/usr/lib/firmware
+
+firmware_on_disk() {
+  compgen -G "$root$FIRMWARE_DIR/$1" >/dev/null || compgen -G "$root$FIRMWARE_DIR/$1.*" >/dev/null
+}
+
+# Whether the driver fell back from this file to an older numbered version of
+# it: drivers ask for the newest firmware they know first and go down from
+# there (iwlwifi-...-89.ucode, then -86). Only a lower version that did not
+# fail too can be what loaded. File times cannot say what arrived since boot:
+# pacman keeps a package's build time.
+firmware_fell_back() {
+  local file=$1 failed=$2 candidate name number
+  [[ $file =~ ^(.*[-_])([0-9]+)(\.[a-z]+)$ ]] || return 1
+  local prefix=${BASH_REMATCH[1]} wanted=${BASH_REMATCH[2]} suffix=${BASH_REMATCH[3]}
+  for candidate in "$root$FIRMWARE_DIR/$prefix"[0-9]*"$suffix"*; do
+    [[ -e $candidate ]] || continue
+    name=${candidate#"$root$FIRMWARE_DIR/"}
+    name=${name%.zst}
+    name=${name%.xz}
+    [[ $name =~ ^.*[-_]([0-9]+)\.[a-z]+$ ]] || continue
+    number=${BASH_REMATCH[1]}
+    (( 10#$number < 10#$wanted )) || continue
+    grep -qxF -- "$name" <<<"$failed" && continue
+    return 0
+  done
+  return 1
+}
+
+# Firmware this boot asked for and did not find, the kernel's taint, and how
+# many error-level kernel lines there were, which are counted, not judged.
+check_firmware() {
+  local taint bit letter letters="" faults="" modules log errors file warning detail failed
+  local -a missing=() stale=() names=()
+
+  taint=$(read_number "$proc/sys/kernel/tainted") || taint=0
+  for (( bit = 0; bit < ${#TAINT_LETTERS}; bit++ )); do
+    (( taint >> bit & 1 )) || continue
+    letter=${TAINT_LETTERS:bit:1}
+    letters+=$letter
+    [[ -n ${TAINT_FAULTS[$letter]:-} ]] && faults+=$letter
+  done
+
+  log=$(timeout 10s journalctl -k -b --no-pager -o cat 2>/dev/null)
+
+  if [[ -n $faults ]]; then
+    detail="kernel tainted $faults by $(for (( bit = 0; bit < ${#faults}; bit++ )); do echo "${TAINT_FAULTS[${faults:bit:1}]}"; done | paste -sd, - | sed 's/,/, /g')"
+    warning=$(sed -nE 's/.*WARNING: .* at ([^ :]+):[0-9]+.*/\1/p' <<<"$log" | head -n1)
+    echo "$detail${warning:+, first at $warning}"
+    return $FAIL
+  fi
+
+  if [[ -n $letters ]]; then
+    mapfile -t names < <(for modules in "$sys"/module/*/taint; do
+      [[ -n $(read_file "$modules") ]] && modules=${modules%/taint} && echo "${modules##*/}"
+    done | sort | head -n4)
+    detail="tainted $letters${names[*]:+ by ${names[*]}}"
+  else
+    detail="not tainted"
+  fi
+
+  if [[ -z $log ]]; then
+    echo "the kernel log is not readable as this user; $detail"
+    return $SKIP
+  fi
+
+  failed=$(sed -nE 's/.*Direct firmware load for ([^ ]+) failed with error -2.*/\1/p; s/.*firmware: failed to load ([^ ]+) \(-2\).*/\1/p' <<<"$log" | sort -u)
+  while IFS= read -r file; do
+    [[ -n $file ]] || continue
+    if firmware_fell_back "$file" "$failed"; then
+      continue
+    elif firmware_on_disk "$file"; then
+      # Installed since, or missing from the initramfs: the device runs
+      # without it until the next boot either way.
+      stale+=("$file")
+    else
+      missing+=("$file")
+    fi
+  done <<<"$failed"
+
+  if (( ${#missing[@]} || ${#stale[@]} )); then
+    detail=""
+    (( ${#missing[@]} )) && detail="missing firmware: $(printf '%s\n' "${missing[@]}" | paste -sd, - | sed 's/,/, /g')"
+    (( ${#stale[@]} )) && detail+="${detail:+; }failed to load at boot but on disk now, restart to load: $(printf '%s\n' "${stale[@]}" | paste -sd, - | sed 's/,/, /g')"
+    echo "$detail"
+    return $FAIL
+  fi
+
+  errors=$(timeout 10s journalctl -k -b -p 3 --no-pager -o cat 2>/dev/null | grep -c .)
+  echo "no firmware missing, $detail, $(plural "${errors:-0}" "kernel error")"
+  return $PASS
+}
+
+# The clock, as the time service last set it. Unsynchronised while offline is
+# where the user is; on a network that reaches the internet it is a fault.
+check_time() {
+  local fields
+  if ! fields=$(timeout 5s timedatectl show -p CanNTP -p NTP -p NTPSynchronized 2>/dev/null); then
+    echo "timedated did not answer"
+    return $SKIP
+  elif ! grep -qx 'CanNTP=yes' <<<"$fields"; then
+    echo "no network time service"
+    return $SKIP
+  elif ! grep -qx 'NTP=yes' <<<"$fields"; then
+    echo "network time is turned off"
+    return $SKIP
+  elif grep -qx 'NTPSynchronized=yes' <<<"$fields"; then
+    echo "synchronised"
+    return $PASS
+  elif [[ $(LC_ALL=C timeout 5s nmcli -e no -g CONNECTIVITY general 2>/dev/null) != "full" ]]; then
+    echo "not synchronised while offline"
+    return $SKIP
+  elif [[ -z $(timeout 5s timedatectl show-timesync -p NTPMessage --value 2>/dev/null) ]]; then
+    # Shortly after boot or a network change no server has answered yet.
+    echo "not synchronised yet: no time server has answered"
+    return $SKIP
+  else
+    echo "online, but the clock is not synchronised"
+    return $FAIL
+  fi
+}
+
 # Only units a package ships are named, instances cut to their template. Units
 # made on the machine (a VPN, a mount, a disk's .device) can carry a host, a
-# path or a serial, so those are only counted.
-check_services() {
-  local units unit fragment others=0
-  local -a failed=() shown=()
+# path or a serial, so those are only counted. Omarchy copies a few of its own
+# user units into the home directory; those are Omarchy's names, not the user's.
+failed_units() {
+  local manager=$1 units unit fragment others=0
+  local -a scope=() failed=() shown=()
+  [[ $manager == "user" ]] && scope=(--user)
 
-  if ! units=$(timeout 5s systemctl list-units --state=failed --no-legend --plain 2>/dev/null); then
+  if ! units=$(timeout 5s systemctl "${scope[@]}" list-units --state=failed --no-legend --plain 2>/dev/null); then
     echo "systemd did not answer"
     return $SKIP
   fi
@@ -685,8 +1869,9 @@ check_services() {
   fi
 
   for unit in "${failed[@]}"; do
-    fragment=$(timeout 2s systemctl show -p FragmentPath --value "$unit" 2>/dev/null)
-    if [[ $fragment == /usr/lib/systemd/system/* ]]; then
+    fragment=$(timeout 2s systemctl "${scope[@]}" show -p FragmentPath --value "$unit" 2>/dev/null)
+    if [[ $fragment == /usr/lib/systemd/$manager/* || ( $manager == "user" && -n $fragment &&
+      -n ${OMARCHY_PATH:-} && -e $OMARCHY_PATH/default/systemd/user/${fragment##*/} ) ]]; then
       if [[ $unit == *@* ]]; then
         shown+=("${unit%%@*}@")
       else
@@ -700,6 +1885,14 @@ check_services() {
 
   echo "failed: $(printf '%s\n' "${shown[@]}" | sort -u | paste -sd' ' -)"
   return $FAIL
+}
+
+check_services() {
+  failed_units system
+}
+
+check_user_services() {
+  failed_units user
 }
 
 # A last guard on what the machine and the check details say: MAC addresses (as
@@ -721,7 +1914,22 @@ redact() {
         | gsub("(?<p>wl|en)x[0-9a-fA-F]{12}"; "\(.p)x<mac>")
         | reduce $words[] as $w (.; gsub("(?<![a-z0-9])" + ($w.word | escape) + "(?![a-z0-9])"; $w.as; "i"));
     .machine |= map_values(if type == "string" then scrub elif type == "array" then map(scrub) else . end)
-    | .checks |= map(.detail |= scrub)'
+    | .checks |= map(.detail |= scrub)
+    | .attended |= map(.detail |= scrub)'
+}
+
+# What a person finished in the walkthrough this boot, oldest first, as
+# omarchy-rollcall-test recorded it. A file that is not a finished result is
+# left out rather than trusted.
+attended_json() {
+  local dir file
+  dir=${OMARCHY_ROLLCALL_STATE:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omarchy-rollcall}/attended
+  for file in "$dir"/*.json; do
+    [[ -f $file && $file != *.pending.json ]] || continue
+    jq -c 'select(type == "object" and (.id | type == "string" and test("^[a-z0-9-]+$"))
+      and (.result | IN("pass", "fail", "skip")) and (.detail | type == "string") and (.finished | type == "number"))
+      | {id, result, detail, finished}' "$file" 2>/dev/null
+  done | jq -sc 'sort_by(.finished) | map(del(.finished))'
 }
 
 machine_json() {
@@ -763,6 +1971,8 @@ render_text() {
   jq -r '
     def mark: {pass: "✓", fail: "✗", skip: "–"}[.];
     def line($k; $v): if $v == null or $v == "" then empty else "\($k | . + " " * (10 - length))\($v)" end;
+    # Names line up in one column across both blocks, however long the longest.
+    ([12, (.checks[].id | length), ((.attended // [])[].id | length)] | max + 2) as $width |
     "Omarchy roll call\n",
     line("Machine"; [.machine.vendor, .machine.product, .machine.version, .machine.model] | map(select(. != null and . != "")) | join(" · ")),
     line("CPU"; .machine.cpu),
@@ -770,10 +1980,14 @@ render_text() {
     line("Platform"; .platform),
     line("Kernel"; .kernel),
     line("Omarchy"; if .omarchy == "" then "" elif .channel == "" then .omarchy else "\(.omarchy) (\(.channel))" end),
+    def row: "  \(.result | mark) \(.id | . + " " * ($width - length))\(if .result == "skip" then "skipped: " else "" end)\(.detail)";
+    def counts: map(.result) as $r
+      | "\($r | map(select(. == "pass")) | length) passed, \($r | map(select(. == "fail")) | length) failed, \($r | map(select(. == "skip")) | length) skipped";
     "",
-    (.checks[] | "  \(.result | mark) \(.id | . + " " * (14 - length))\(if .result == "skip" then "skipped: " else "" end)\(.detail)"),
+    (.checks[] | row),
     "",
-    ([.checks[] | .result] as $r | "\($r | map(select(. == "pass")) | length) passed, \($r | map(select(. == "fail")) | length) failed, \($r | map(select(. == "skip")) | length) skipped")
+    (.checks | counts),
+    (if .attended == [] then empty else "", "Walkthrough", "", (.attended[] | row), "", (.attended | counts) end)
   '
 }
 
@@ -821,6 +2035,9 @@ if [[ $list == "true" ]]; then
     printf '%-14s %s\n' "$check" "${SUMMARY[$check]}"
   done
 else
+  # Naming checks asks about those alone; the walkthrough belongs to a full roll call.
+  attended='[]'
+  (( ${#selected[@]} )) || attended=$(attended_json)
   (( ${#selected[@]} )) || selected=("${CHECKS[@]}")
 
   report=$(jq -n \
@@ -830,7 +2047,9 @@ else
     --arg platform "$(omarchy-hw-platform 2>/dev/null)" \
     --argjson machine "$(machine_json)" \
     --argjson checks "$(run_checks | jq -sc .)" \
-    '{version: 1, omarchy: $omarchy, channel: $channel, kernel: $kernel, platform: $platform, machine: $machine, checks: $checks}')
+    --argjson attended "${attended:-[]}" \
+    '{version: 1, omarchy: $omarchy, channel: $channel, kernel: $kernel, platform: $platform, machine: $machine, checks: $checks,
+      attended: $attended}')
   report=$(redact <<<"$report")
 
   if [[ $json == "true" ]]; then
@@ -839,5 +2058,5 @@ else
     render_text <<<"$report"
   fi
 
-  jq -e 'any(.checks[]; .result == "fail") | not' >/dev/null <<<"$report"
+  jq -e 'any(.checks[], .attended[]; .result == "fail") | not' >/dev/null <<<"$report"
 fi
