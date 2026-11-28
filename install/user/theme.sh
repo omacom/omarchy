@@ -13,7 +13,14 @@ if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
     omarchy-theme-set "$default_theme"
   fi
 fi
-omarchy-theme-set-pi --activate
+
+# Terminal applications follow Omarchy by default while remaining free to use
+# a different theme after installation.
+for app in codex grok pi claude; do
+  if ! omarchy-done check "theme-activate-$app"; then
+    "omarchy-theme-set-$app" --activate
+  fi
+done
 omarchy-theme-set-fcitx5 --activate
 # A headless theme set skips the retints, so the seeded config would keep its
 # default icon theme until the first switch.
