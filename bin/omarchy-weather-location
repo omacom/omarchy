@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Show or set the location used for weather reports
+# omarchy:args=[--set <name> [lat,lon] | --clear]
+# omarchy:examples=omarchy weather location --set Malibu | omarchy weather location --set Malibu 34.03,-118.78 | omarchy weather location --clear
 #
 # State lives in ~/.local/state/omarchy/settings/weather.json as
 # {"name": ..., "latitude": ..., "longitude": ...}. A missing file means the
