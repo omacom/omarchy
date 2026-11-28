@@ -16,11 +16,7 @@ local function is_game(window)
   end
 
   local class = window.class or ""
-  if GAME_CLASSES[class] or class:match("^steam_app_%d+$") then
-    return true
-  end
-
-  return o.has_tag(window, "steam-game")
+  return GAME_CLASSES[class] or class:match("^steam_app_%d+$") ~= nil or o.has_tag(window, "steam-game")
 end
 
 local function has_active_game()
@@ -34,25 +30,7 @@ local function has_active_game()
 end
 
 local function file_exists(path)
-  if not path then
-    return false
-  end
-
-  local file = io.open(path, "r")
-  if file then
-    file:close()
-    return true
-  end
-
-  return false
-end
-
-local function touch_file(path)
-  if not path then
-    return false
-  end
-
-  local file = io.open(path, "w")
+  local file = path and io.open(path, "r")
   if not file then
     return false
   end
@@ -62,48 +40,22 @@ local function touch_file(path)
 end
 
 -- Hyprland starts a fresh Lua state on every reload, so record an active boost
--- in this Hyprland instance's runtime directory. The boost command removes the
--- marker again when it decides not to boost (on battery or when the hardware
--- has no performance profile), so closing that game skips restoring too.
-local function boost_marker()
-  local runtime = os.getenv("XDG_RUNTIME_DIR")
-  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
-  if not runtime or runtime == "" or not signature or signature == "" then
-    return nil
-  end
-
-  return runtime .. "/hypr/" .. signature .. "/omarchy-game-power-boosted"
-end
-
-local marker = boost_marker()
-local marker_active = file_exists(marker)
-local boosted = marker_active
+-- in this Hyprland instance's runtime directory. The boost command clears the
+-- marker when it declines to boost (on battery or without a performance
+-- profile), so closing that game skips restoring too.
+local runtime = os.getenv("XDG_RUNTIME_DIR")
+local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+local marker = (runtime and runtime ~= "" and signature and signature ~= "")
+    and (runtime .. "/hypr/" .. signature .. "/omarchy-game-power-boosted")
+  or nil
+local boosted = file_exists(marker)
 
 local function is_boosted()
-  if not boosted then
-    return false
-  end
-
-  if marker_active and not file_exists(marker) then
+  if boosted and marker and not file_exists(marker) then
     boosted = false
-    marker_active = false
-    return false
   end
 
-  return true
-end
-
-local function boost_command(clear_marker)
-  local check_ac =
-    '[ "$(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null)" != "b true" ]'
-  local apply =
-    "omarchy-powerprofiles-list | grep -qx performance && powerprofilesctl set performance && (omarchy-shell -q battery refreshPowerProfile >/dev/null 2>&1 || true)"
-
-  if clear_marker then
-    return "if " .. check_ac .. " && " .. apply .. "; then :; else rm -f " .. o.shell_quote(clear_marker) .. "; fi"
-  end
-
-  return check_ac .. " && " .. apply
+  return boosted
 end
 
 local function boost()
@@ -112,8 +64,23 @@ local function boost()
   end
 
   boosted = true
-  marker_active = touch_file(marker)
-  hl.exec_cmd(boost_command(marker_active and marker or nil))
+  if marker then
+    local file = io.open(marker, "w")
+    if file then
+      file:close()
+    else
+      marker = nil
+    end
+  end
+
+  local cmd = '[ "$(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null)" != "b true" ]'
+    .. " && powerprofilesctl set performance >/dev/null 2>&1"
+    .. " && { omarchy-shell -q battery refreshPowerProfile >/dev/null 2>&1 || true; }"
+  if marker then
+    cmd = cmd .. " || rm -f " .. o.shell_quote(marker)
+  end
+
+  hl.exec_cmd(cmd)
 end
 
 local function restore()
@@ -122,9 +89,8 @@ local function restore()
   end
 
   boosted = false
-  if marker_active then
+  if marker then
     os.remove(marker)
-    marker_active = false
   end
 
   hl.exec_cmd("omarchy-powerprofiles-set autodetect")

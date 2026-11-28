@@ -339,6 +339,9 @@ if [[ $1 == "list" ]]; then
     printf '  power-saver:\n* balanced:\n'
   fi
 elif [[ $1 == "set" ]]; then
+  if [[ $2 == "performance" && ${GAME_POWER_HAS_PERF:-1} != "1" ]]; then
+    exit 2
+  fi
   printf 'set %s\n' "$2" >>"$GAME_POWER_LOG"
 fi
 EOF
