@@ -45,6 +45,39 @@ grep -Fqx -- "--user start omarchy-crash-watch.service" "$SYSTEMCTL_LOG" ||
   fail "crash capture toggle starts the watcher, so enabling takes effect before the next login"
 pass "crash capture toggle re-enables the watcher"
 
+# Diagnosis needs the crash instant, not the later journal write or the notice
+# coredumpctl appends while another dump is still being processed.
+diagnose_bin="$TMPDIR/diagnose-bin"
+mkdir -p "$diagnose_bin"
+cat >"$diagnose_bin/coredumpctl" <<'SH'
+#!/bin/bash
+echo 'Fri 2026-10-02 08:19:53 UTC 4242 1000 1000 SIGSEGV present /usr/bin/example'
+echo '-- Notice: 1 systemd-coredump@.service unit is running, output may be incomplete.'
+SH
+cat >"$diagnose_bin/journalctl" <<'SH'
+#!/bin/bash
+[[ -z $CRASH_TIMESTAMP ]] || printf 'COREDUMP_TIMESTAMP=%s\n' "$CRASH_TIMESTAMP"
+SH
+cat >"$diagnose_bin/omarchy-agent" <<'SH'
+#!/bin/bash
+printf '%s\n' "$2"
+SH
+chmod +x "$diagnose_bin/"*
+
+diagnose() {
+  CRASH_TIMESTAMP="$1" LC_ALL=C TZ=UTC OMARCHY_PATH="$ROOT" PATH="$diagnose_bin:$PATH" \
+    "$ROOT/bin/omarchy-agent-crash" 4242
+}
+prompt=$(diagnose 1790929127000000)
+grep -Fq 'time:     Fri 2026-10-02 08:18:47 UTC' <<<"$prompt" ||
+  fail "diagnosis uses the crash timestamp instead of coredumpctl's later time or notice" "$prompt"
+for timestamp in '' invalid; do
+  prompt=$(diagnose "$timestamp")
+  grep -Fq 'time:     unknown' <<<"$prompt" ||
+    fail "diagnosis tolerates an absent or invalid crash timestamp" "$prompt"
+done
+pass "crash diagnosis reports the crash instant and tolerates unavailable timestamps"
+
 require_command jq
 
 # The per-program mute, driven through the real watcher with a stubbed journal:
