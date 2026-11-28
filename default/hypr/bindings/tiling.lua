@@ -17,10 +17,11 @@ o.bind("SUPER + L", "Cycle workspace layout", "omarchy-hyprland-workspace-layout
 o.bind("SUPER + ALT + L", "Cycle workspace layout back", "omarchy-hyprland-workspace-layout-toggle back")
 o.bind("XF86Display", "Cycle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 
-o.bind("SUPER + LEFT", "Focus on left window", hl.dsp.focus({ direction = "l" }))
-o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" }))
-o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
-o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
+-- Also reaches floating and popped-out windows; see default/hypr/window-focus.lua.
+o.bind("SUPER + LEFT", "Focus on left window", o.window_focus.direction("l"))
+o.bind("SUPER + RIGHT", "Focus on right window", o.window_focus.direction("r"))
+o.bind("SUPER + UP", "Focus on above window", o.window_focus.direction("u"))
+o.bind("SUPER + DOWN", "Focus on below window", o.window_focus.direction("d"))
 
 -- Each monitor has workspaces 1-10 of its own; see default/hypr/monitor-workspaces.lua.
 for workspace = 1, 10 do
