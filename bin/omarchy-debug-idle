@@ -59,3 +59,12 @@ fi
 
 section "Lock detector"
 omarchy-shell lock status 2>&1 | jq . 2>/dev/null || omarchy-shell lock status 2>&1 || true
+
+section "State trail"
+trail="$HOME/.local/state/omarchy/state-trail.log"
+# A rotation leaves only the .1 file until the next transition arrives.
+if [[ -f $trail || -f $trail.1 ]]; then
+  cat "$trail.1" "$trail" 2>/dev/null | tail -n "$lines"
+else
+  echo "Not recorded. Run omarchy toggle state trail, then reproduce the problem."
+fi
