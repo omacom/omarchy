@@ -73,9 +73,16 @@ qwen qwen
 EOF
 
 omarchy-pkg-add "${packages[@]}" || exit 1
+# `mise ls` sees only the configs above the current directory, so from here a
+# version a project's mise.toml pins shows no source either. --prunable leaves
+# out what any config mise has loaded asks for, so only the versions it lists go.
 for tool in "${retired[@]}"; do
   if from_omarchy "$tool"; then
-    mise uninstall --all "$tool"
+    prunable=$(mise ls "$tool" --prunable --json | jq -r '.[].version') || exit 1
+    if [[ -n $prunable ]]; then
+      mapfile -t versions <<<"$prunable"
+      mise uninstall "${versions[@]/#/$tool@}"
+    fi
   fi
 done
 

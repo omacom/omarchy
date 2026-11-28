@@ -9,10 +9,16 @@ fi
 
 omarchy-pkg-add pi-coding-agent
 
-# mise's shims come before /usr/bin on PATH, and the shim left by the dropped
-# declaration fails rather than falling through to the package. A Pi the user
-# declared in a mise config of their own is theirs and stays.
+# With the declaration dropped, the versions mise installed for it go unused,
+# so they're removed, and the shim ahead of /usr/bin on PATH with them. A Pi
+# the user declared in a mise config of their own is theirs and stays, as is a
+# version a project's mise.toml pins, which --prunable leaves out though
+# `mise ls` shows it without a source from here.
 if ! mise ls pi --json | jq -e 'any(.[]; .source)' >/dev/null; then
-  mise uninstall --all pi
+  prunable=$(mise ls pi --prunable --json | jq -r '.[].version') || exit 1
+  if [[ -n $prunable ]]; then
+    mapfile -t versions <<<"$prunable"
+    mise uninstall "${versions[@]/#/pi@}"
+  fi
   mise reshim
 fi
