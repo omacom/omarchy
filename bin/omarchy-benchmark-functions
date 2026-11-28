@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Shared reporting helpers for developer benchmarks (source this, don't run it).
+# omarchy:hidden=true
+
+benchmark_format_ms() {
+  local us="$1"
+  printf '%d.%03d' "$(( us / 1000 ))" "$(( us % 1000 ))"
+}
+
+# The measurement function writes elapsed microseconds to its first argument
+# (a variable name). It receives the label and workload as remaining arguments.
+benchmark_run_case() {
+  local label="$1" repeat="$2" measure="$3"
+  shift 3
+  local total_us=0 min_us=0 max_us=0 elapsed_us=0 i
+
+  for (( i = 1; i <= repeat; i++ )); do
+    "$measure" elapsed_us "$label" "$@"
+    total_us=$(( total_us + elapsed_us ))
+    if (( i == 1 || elapsed_us < min_us )); then
+      min_us=$elapsed_us
+    fi
+    if (( elapsed_us > max_us )); then
+      max_us=$elapsed_us
+    fi
+  done
+
+  printf '%-34s avg %8s ms  min %8s ms  max %8s ms\n' \
+    "$label" \
+    "$(benchmark_format_ms "$(( total_us / repeat ))")" \
+    "$(benchmark_format_ms "$min_us")" \
+    "$(benchmark_format_ms "$max_us")"
+}
