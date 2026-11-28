@@ -1,0 +1,39 @@
+import QtQuick
+
+// The menu's result list with revealCursor() spliced in from Menu.qml, so the
+// test drives the real function against a real ListView.
+Item {
+  id: root
+  width: 300
+  height: 500
+  property int selectedIndex: 0
+  property int rowPeek: 28
+  property int rowSpacing: 3
+  property real listHeight: 450
+  property alias view: resultList
+
+  ListModel { id: displayModel }
+
+  function populate(heights) {
+    displayModel.clear()
+    for (var i = 0; i < heights.length; i++) displayModel.append({ rowHeight: heights[i] })
+    resultList.forceLayout()
+  }
+
+@REVEAL_CURSOR@
+
+  ListView {
+    id: resultList
+    width: root.width
+    height: root.listHeight
+    model: displayModel
+    clip: true
+    spacing: root.rowSpacing
+    boundsBehavior: Flickable.StopAtBounds
+    delegate: Rectangle {
+      required property int rowHeight
+      width: ListView.view.width
+      height: rowHeight
+    }
+  }
+}
