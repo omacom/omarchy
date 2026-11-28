@@ -582,7 +582,7 @@ Panel {
     if (q === "" || placeCache[q] !== undefined) return
     if (placeProc.running) return
     placeProc.query = q
-    placeProc.command = ["curl", "-fsS", "--max-time", "8", Model.geocodeUrl(q)]
+    placeProc.command = ["curl", "-fsS", "--max-time", "8", "-A", Model.OPEN_METEO_USER_AGENT, Model.geocodeUrl(q)]
     placeProc.running = true
   }
 
@@ -622,7 +622,7 @@ Panel {
     })
     if (missing.length === 0) { fetchWeather(); return }
     geoProc.rows = missing
-    geoProc.command = ["bash", "-c", 'for url; do curl -fsS --max-time 8 "$url"; printf "\\n\\036\\n"; done', "bash"]
+    geoProc.command = ["bash", "-c", 'ua=$1; shift; for url; do curl -fsS --max-time 8 -A "$ua" "$url"; printf "\\n\\036\\n"; done', "bash", Model.OPEN_METEO_USER_AGENT]
       .concat(missing.map(function(row) { return Model.geocodeUrl(row.label) }))
     geoProc.running = true
   }
@@ -640,7 +640,7 @@ Panel {
     if (stale.length === 0) { publishFacts(); return }
     weatherProc.keys = stale
     weatherProc.points = stale.map(coordsFor)
-    weatherProc.command = ["curl", "-fsS", "--max-time", "8", Model.forecastUrl(stale.map(coordsFor))]
+    weatherProc.command = ["curl", "-fsS", "--max-time", "8", "-A", Model.OPEN_METEO_USER_AGENT, Model.forecastUrl(stale.map(coordsFor))]
     weatherProc.running = true
   }
 
