@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
@@ -48,6 +49,7 @@ Panel {
   //                  its brightness can be controlled.
   //   "textsize"   - single slider row, the same -1 sentinel; one size for
   //                  every display.
+  //   "in"/"out"   - global tiled window spacing sliders.
   //   "scale"      - the shown display's scale presets.
   //   "resolution" - the resolutions it advertises, when it has more than one
   //                  to offer.
@@ -189,7 +191,7 @@ Panel {
 
   // A lone slider, held at the -1 sentinel.
   function isSliderSection(section) {
-    return section === "textsize" || section === "brightness"
+    return section === "textsize" || section === "brightness" || section === "in" || section === "out"
   }
 
   // A display's brightness percent, or -1 when it can't be controlled.
@@ -236,6 +238,7 @@ Panel {
     if (segments.length > 1) list.push("displays")
     if (currentBrightness >= 0) list.push("brightness")
     list.push("textsize")
+    if (windowGaps && windowGaps.enabled) list.push("in", "out")
     if (current && current.scales.length > 0) list.push("scale")
     if (current && current.resolutions.length > 0) list.push("resolution")
     if (current && current.refreshes.length > 0) list.push("refresh")
@@ -289,6 +292,8 @@ Panel {
       if (current) adjustBrightness(current.name, delta * 5)
     } else if (focusSection === "textsize") {
       adjustTextSize(delta)
+    } else if (focusSection === "in" || focusSection === "out") {
+      setWindowGap(focusSection, windowGaps[focusSection] + delta)
     } else if (focusSection === "displays") {
       var next = Math.max(0, Math.min(segments.length - 1, currentIndex + delta))
       selectDisplay(segments[next].name)
@@ -658,6 +663,54 @@ Panel {
     applyTextSizeStop(currentTextIndex() + deltaSteps)
   }
 
+  readonly property int maxWindowGap: 64
+  property var windowGaps: null
+  property bool gapRefreshPending: false
+
+  function refreshWindowGaps() {
+    if (gapReadProc.running) gapRefreshPending = true
+    else gapReadProc.running = true
+  }
+
+  function setWindowGap(side, value) {
+    if (!windowGaps || !windowGaps.enabled || gapSaveProc.running) return
+    var pixels = Math.max(0, Math.min(maxWindowGap, Math.round(value)))
+    if (pixels === windowGaps[side]) return
+    gapSaveProc.command = ["omarchy-hyprland-window-gaps-toggle", "set", side, String(pixels)]
+    gapSaveProc.running = true
+  }
+
+  Process {
+    id: gapReadProc
+    command: ["omarchy-hyprland-window-gaps-toggle", "get"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try { root.windowGaps = JSON.parse(text) }
+        catch (error) { root.windowGaps = null }
+      }
+    }
+    onExited: {
+      if (root.gapRefreshPending) {
+        root.gapRefreshPending = false
+        running = true
+      }
+    }
+  }
+
+  Process {
+    id: gapSaveProc
+    onExited: root.refreshWindowGaps()
+  }
+
+  Connections {
+    target: Hyprland
+    enabled: root.opened
+    function onRawEvent(event) {
+      if (event && String(event.name) === "configreloaded") root.refreshWindowGaps()
+    }
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -670,6 +723,7 @@ Panel {
     closeRotateMenu()
     if (opened) {
       refresh()
+      refreshWindowGaps()
       selectedName = ""
       focusSection = landingSection()
       selectedIndex = sectionFirstIndex(focusSection)
@@ -1147,6 +1201,71 @@ Panel {
 
               HoverHandler {
                 onHoveredChanged: if (hovered) root.pointAt("textsize", -1)
+              }
+            }
+          }
+
+          // ---------- Tiled window spacing ----------
+          PanelSeparator {
+            visible: root.windowGaps !== null
+            foreground: root.bar.foreground
+          }
+
+          Text {
+            visible: root.windowGaps !== null && !root.windowGaps.enabled
+            width: parent.width
+            text: Commons.I18n.t("monitor.gapsDisabled")
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Repeater {
+            model: root.windowGaps && root.windowGaps.enabled ? ["in", "out"] : []
+
+            Column {
+              id: gapSection
+              required property string modelData
+              width: parent.width
+              spacing: Style.space(6)
+
+              PanelSectionHeader {
+                text: (gapSection.modelData === "in"
+                  ? Commons.I18n.t("monitor.gapsBetweenTiles")
+                  : Commons.I18n.t("monitor.gapsAtScreenEdges"))
+                  + "  " + Commons.I18n.formatNumber(Math.round(gapSlider.dragging ? gapSlider.liveValue : root.windowGaps[gapSection.modelData])) + " px"
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+              }
+
+              CursorSurface {
+                id: gapRow
+                width: parent.width
+                height: gapSlider.implicitHeight + Style.spacing.controlGap
+                hasCursor: root.cursorActive && root.focusSection === gapSection.modelData
+                onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(gapRow)
+                foreground: root.bar.foreground
+                outline: true
+
+                PanelSlider {
+                  id: gapSlider
+                  bar: root.bar
+                  anchors.fill: parent
+                  anchors.leftMargin: Style.space(6)
+                  anchors.rightMargin: Style.space(6)
+                  minimum: 0
+                  maximum: root.maxWindowGap
+                  step: 1
+                  integer: true
+                  value: Math.max(0, Math.min(root.maxWindowGap, root.windowGaps[gapSection.modelData]))
+                  onReleased: function(v) { root.setWindowGap(gapSection.modelData, v) }
+                }
+
+                HoverHandler {
+                  onHoveredChanged: if (hovered) root.pointAt(gapSection.modelData, -1)
+                }
               }
             }
           }
