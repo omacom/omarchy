@@ -47,6 +47,8 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  // A switch that arrives while a reveal slides or settles, started when it ends.
+  property var queuedTransition: null
   readonly property bool ready: {
     if (isVideo(displayedBackground)) return true
     if (backgrounds.instances.length === 0) return false
@@ -155,6 +157,19 @@ Item {
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
+    // Restarting a sliding reveal starts the next one from displayedBackground,
+    // which is still the image from before that reveal, so the screen jumped
+    // back one wallpaper. Let the running reveal finish and keep only the
+    // latest switch. Settling on the base images belongs to the reveal: a
+    // switch there would replace the incoming frame that still covers a
+    // loading base. A forced switch can share the final path, since theme
+    // backgrounds land in one folder. Videos keep their own hand-off below.
+    if (!instant && path && !isVideo(path) && incomingBackground && (finishingTransition || (revealProgress > 0 && revealProgress < 1))) {
+      queuedTransition = !force && finalPath === currentBackground ? null
+        : { fromPath: fromPath, path: path, finalPath: finalPath, force: force }
+      return
+    }
+    queuedTransition = null
     if (!path || (!force && finalPath === currentBackground)) return
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
@@ -177,6 +192,7 @@ Item {
     revealAnimation.stop()
     revealGraceTimer.stop()
     finishingTransition = false
+    finishTransitionTimer.stop()
 
     // Video frames are not fed through the image-only reveal stack. Switching
     // instantly also avoids decoding two full videos during a transition.
@@ -255,16 +271,25 @@ Item {
   // The incoming frame stays over the base until the base has drawn the new
   // background on every screen. Ending it when the first screen is ready
   // left a larger screen, still decoding, black for a moment.
-  function maybeFinishTransition() {
-    if (!finishingTransition || !ready) return
+  // A base that never draws, such as a file deleted mid-switch, must not hold
+  // the layers, or a queued switch, forever: finishTransitionTimer ends the
+  // wait after a second.
+  function maybeFinishTransition(timedOut) {
+    if (!finishingTransition || (!ready && !timedOut)) return
+    finishTransitionTimer.stop()
     incomingBackground = ""
     oldBackground = ""
     preparedBackground = ""
     finishingTransition = false
     pruneNativeSizes()
+    if (queuedTransition) {
+      var next = queuedTransition
+      queuedTransition = null
+      transitionBackground(next.fromPath, next.path, next.finalPath, false, next.force)
+    }
   }
 
-  onReadyChanged: maybeFinishTransition()
+  onReadyChanged: maybeFinishTransition(false)
 
   function prepareBackground(path) {
     path = String(path || "").trim()
@@ -443,12 +468,20 @@ Item {
         root.displayedBackground = root.currentBackground && !root.isVideo(root.currentBackground)
           ? root.currentBackground : root.incomingBackground
         root.finishingTransition = true
+        finishTransitionTimer.restart()
       }
       root.revealProgress = 1
       // A base already holding the new background stays ready, so no
       // change of ready would end the transition.
-      Qt.callLater(root.maybeFinishTransition)
+      Qt.callLater(root.maybeFinishTransition, false)
     }
+  }
+
+  Timer {
+    id: finishTransitionTimer
+    interval: 1000
+    repeat: false
+    onTriggered: root.maybeFinishTransition(true)
   }
 
   Component.onCompleted: refreshBackground()
