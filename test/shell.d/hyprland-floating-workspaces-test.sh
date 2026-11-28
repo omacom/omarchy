@@ -765,6 +765,145 @@ assert(bar and bar.bar_color == "rgb(223344)", "titlebars missed the theme with 
 fi
 pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 
+# The clamp keeps a floating title bar on a screen and moves the pointer only
+# while that title bar is what is being dragged. The other cases leave the
+# pointer alone, which is what a still screenshot cannot show.
+printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+if ! run_lua '
+local dragged = window("0x1", 1, { floating = true })
+dragged.mapped = true
+dragged.at = { x = 100, y = 60 }
+dragged.size = { x = 400, y = 300 }
+
+local cursor = { x = 200, y = 80 }
+local screens = {}
+local window_moves = {}
+local cursor_moves = {}
+local clamp
+
+local move_window = hl.dsp.window.move
+hl.dsp.window.move = function(spec)
+  local action = move_window(spec)
+  if action.relative == false then
+    table.insert(window_moves, action.y)
+    action.window.at.x = action.x
+    action.window.at.y = action.y
+  end
+  return action
+end
+hl.dsp.cursor = {
+  move = function(spec)
+    table.insert(cursor_moves, spec.y)
+    cursor.x, cursor.y = spec.x, spec.y
+    spec.kind = "cursor"
+    return spec
+  end,
+}
+local dispatch = hl.dispatch
+hl.dispatch = function(action)
+  if action.kind == "cursor" then
+    return
+  end
+  dispatch(action)
+end
+hl.get_cursor_pos = function()
+  return { x = cursor.x, y = cursor.y }
+end
+hl.get_monitors = function()
+  return screens
+end
+local timer = hl.timer
+hl.timer = function(callback, opts)
+  if opts and opts.type == "repeat" then
+    clamp = callback
+    return
+  end
+  timer(callback, opts)
+end
+
+require("default.hypr.workspace-layouts")
+assert(clamp, "the title bar clamp was not registered")
+assert(has_tag(dragged, "omarchy-floating-workspace"), "the clamped window is not on a floating workspace")
+
+local laptop = {
+  name = "eDP-1", x = 0, y = 0, width = 2560, height = 1600, scale = 2, transform = 0,
+  reserved = { left = 0, right = 0, top = 26, bottom = 0 },
+}
+local upper = {
+  name = "upper", x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0,
+  reserved = { left = 0, right = 0, top = 0, bottom = 0 },
+}
+local lower = {
+  name = "lower", x = 0, y = 1200, width = 1920, height = 1080, scale = 1, transform = 0,
+  reserved = { left = 0, right = 0, top = 0, bottom = 0 },
+}
+
+local function tick()
+  window_moves = {}
+  cursor_moves = {}
+  clamp()
+end
+
+local function expect_window(y, message)
+  assert(window_moves[1] == y and window_moves[2] == nil, message .. ", got " .. tostring(window_moves[1]))
+end
+
+local function expect_still(message)
+  assert(cursor_moves[1] == nil, message .. ", got " .. tostring(cursor_moves[1]))
+end
+
+-- Pointer inside the client, moving with the window. The title bar ends at
+-- the client top, so the pointer stays even though the motion matches a drag.
+screens = { laptop }
+dragged.monitor = laptop
+dragged.at.y = 60
+cursor.y = 80
+tick()
+assert(window_moves[1] == nil, "a window inside the screen was clamped")
+dragged.at.y = 50
+cursor.y = 70
+tick()
+expect_window(56, "a title bar above the panel was not brought down to 56")
+expect_still("a pointer inside the client followed the window")
+
+-- Pointer resting on the title bar while the window is corrected from
+-- somewhere else. The pointer follows only the window being dragged.
+dragged.at.y = 60
+cursor.y = 45
+tick()
+assert(window_moves[1] == nil, "a title bar inside the screen was clamped")
+dragged.at.y = 50
+tick()
+expect_window(56, "a title bar above the panel was left there")
+expect_still("a pointer resting on the title bar was moved")
+
+-- The same motion with the pointer on the title bar is a drag, so the
+-- pointer moves by the same amount as the window.
+dragged.at.y = 60
+cursor.y = 45
+tick()
+dragged.at.y = 50
+cursor.y = 35
+tick()
+expect_window(56, "a dragged title bar was not brought down to 56")
+assert(cursor_moves[1] == 41 and cursor_moves[2] == nil, "the pointer did not follow the dragged title bar, got " .. tostring(cursor_moves[1]))
+
+-- Two screens with a gap between them. A title bar in the gap is pulled
+-- onto the nearer screen, and the gap is not a place it can stay.
+screens = { upper, lower }
+-- The screen the window is on is the farther one. The title bar belongs on
+-- the nearer screen, and a fallback to its own screen would take it the wrong way.
+dragged.monitor = lower
+dragged.at.y = 1150
+cursor.y = 100
+tick()
+expect_window(1080, "a title bar in the gap between screens was not pulled onto the nearer one")
+expect_still("the pointer was moved while a title bar was pulled out of a gap")
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
+  fail "a floating title bar stays on a screen, and the pointer follows only while it is dragged"
+fi
+pass "a floating title bar stays on a screen, and the pointer follows only while it is dragged"
+
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
 
