@@ -155,8 +155,17 @@ if ! $playback_request; then
   fi
 fi
 
+# A playback change keeps the effect, and an effect change keeps the playback
+# mode: the privileged side re-reads the kept fields under the lock, so a
+# concurrent change of the other setting is never written back over.
+if $playback_request; then
+  scope=playback
+else
+  scope=effect
+fi
+
 publish_state() {
-  printf '%s\n%s\n%s\n%s\n%s\n' "$mode" "$effect" "$seed" "$enabled" "$playback" | sudo /bin/bash -c '
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$mode" "$effect" "$seed" "$enabled" "$playback" "$scope" | sudo /bin/bash -c '
     set -eEuo pipefail
     PATH=/usr/bin:/bin
     export PATH
@@ -245,6 +254,31 @@ publish_state() {
     IFS= read -r seed
     IFS= read -r enabled
     IFS= read -r playback
+    IFS= read -r scope
+    [[ $scope == "effect" || $scope == "playback" ]]
+
+    # Read under the lock: whatever another writer published while this one
+    # waited is what the kept fields hold now.
+    ttfx_value() {
+      awk -F= -v wanted="$1" '\''
+        /^\[ttfx\][[:space:]]*$/ { in_section=1; next }
+        /^\[/ { in_section=0 }
+        in_section && $1 == wanted { value=substr($0, index($0, "=") + 1) }
+        END { if (value != "") print value }
+      '\'' "$theme_file"
+    }
+    if [[ $scope == "playback" ]]; then
+      mode=$(ttfx_value Mode)
+      effect=$(ttfx_value Effect)
+      seed=$(ttfx_value Seed)
+      enabled=$(ttfx_value Enabled)
+    else
+      current_playback=$(ttfx_value PlaybackMode)
+      if [[ $current_playback == "submit-to-finish" || $current_playback == "continuous" ]]; then
+        playback=$current_playback
+      fi
+    fi
+
     [[ $mode == "fixed" || $mode == "random" || $mode == "off" ]]
     [[ $enabled == "true" || $enabled == "false" ]]
     [[ $playback == "submit-to-finish" || $playback == "continuous" ]]
@@ -381,4 +415,8 @@ publish_state() {
 }
 
 publish_state
-echo "Plymouth boot logo effect: $mode/$effect (seed $seed)"
+if $playback_request; then
+  echo "Plymouth boot logo playback: $selection"
+else
+  echo "Plymouth boot logo effect: $mode/$effect (seed $seed)"
+fi

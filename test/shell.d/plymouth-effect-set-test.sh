@@ -320,6 +320,51 @@ grep -Fxq 'rebuild lock held' "$log" || fail "rebuild runs under the machine loc
 if grep -Fxq 'rebuild lock free' "$log"; then fail "setter releases the machine lock before the rebuild" "$(<"$log")"; fi
 pass "publication waits for the shared machine lock and holds it through the rebuild"
 
+# Each setter changes only its own setting. A writer that publishes while the
+# other setter waits for the lock keeps its change: the waiting setter reads
+# the fields it keeps once it holds the lock, not before.
+publish_behind_lock() {
+  local key=$1 value=$2
+  sed -i "s/^$key=.*/$key=$value/" "$theme_file"
+}
+wait_for_lock_request() {
+  for _ in {1..250}; do
+    [[ -s $flock_log ]] && break
+    sleep 0.02
+  done
+  [[ -s $flock_log ]] || fail "setter asks for the machine lock" "$(<"$locked_out")"
+}
+
+TEST_SEED=17 run_set decrypt >/dev/null
+run_set playback input-only >/dev/null
+: >"$flock_log"
+exec 8>"$lock_file"
+flock -x 8
+TEST_FLOCK_LOG="$flock_log" run_set playback full-animated >"$locked_out" 2>&1 8>&- &
+setter=$!
+wait_for_lock_request
+publish_behind_lock Effect sweep
+publish_behind_lock Seed 18
+exec 8>&-
+wait "$setter" || fail "a waiting playback change completes" "$(<"$locked_out")"
+[[ $(run_set resolved) == $'mode=fixed\neffect=sweep\nseed=18' ]] ||
+  fail "a playback change keeps an effect published while it waited" "$(<"$theme_file")"
+grep -Fxq 'PlaybackMode=continuous' "$theme_file" || fail "a waiting playback change still publishes its playback"
+
+: >"$flock_log"
+exec 8>"$lock_file"
+flock -x 8
+TEST_FLOCK_LOG="$flock_log" TEST_SEED=19 run_set decrypt >"$locked_out" 2>&1 8>&- &
+setter=$!
+wait_for_lock_request
+publish_behind_lock PlaybackMode submit-to-finish
+exec 8>&-
+wait "$setter" || fail "a waiting effect change completes" "$(<"$locked_out")"
+[[ $(run_set resolved) == $'mode=fixed\neffect=decrypt\nseed=19' ]] || fail "a waiting effect change still publishes its effect"
+grep -Fxq 'PlaybackMode=submit-to-finish' "$theme_file" ||
+  fail "an effect change keeps a playback mode published while it waited" "$(<"$theme_file")"
+pass "effect and playback changes never write back over each other"
+
 # Selecting a native effect must not make an unprovisioned stock boot unusable.
 mv -- "$native_module" "$native_module.retired"
 before=$(<"$theme_file")
