@@ -37,6 +37,7 @@ Item {
   // decode up to cover sourceSize, so a smaller wallpaper would cost the
   // screen's worth of pixels instead of its own.
   property var nativeSizes: ({})
+  property var seenPathSignatures: ({})
   property var sizeQueue: []
   property bool finishingTransition: false
   property int backgroundVersion: 0
@@ -61,6 +62,54 @@ Item {
 
   function imageUrl(path) {
     return Util.fileUrl(path)
+  }
+
+  function panelForScreen(screen) {
+    if (!screen) return null
+    for (var panel of backgrounds.instances) {
+      if (panel.screen && (panel.screen === screen || panel.screen.name === screen.name)) return panel
+    }
+    return null
+  }
+
+  // Returns the desktop background's QQuickPixmapCache descriptor for a still
+  // wallpaper on screen once that panel's decoded image is ready, or null when
+  // another renderer (video), an in-flight transition or decode, an unsized or
+  // missing panel, or a newer on-disk file signature means the desktop cache
+  // cannot satisfy the request yet.
+  function stillCacheEntry(screen, path, signature) {
+    if (!screen || !path || !signature || suspended || isVideo(path)) return null
+    if (displayedBackground !== path) return null
+    var meta = nativeSizes[path]
+    if (!meta || !meta.signature || meta.signature !== signature) return null
+    var panel = panelForScreen(screen)
+    if (!panel || !panel.backgroundReady) return null
+    var size = panel.decodeSize(path)
+    if (size.width <= 0 || size.height <= 0) return null
+    return {
+      version: reloadVersion,
+      width: size.width,
+      height: size.height,
+      ready: true
+    }
+  }
+
+  // True while this screen's desktop panel is actively resolving, probing, or
+  // decoding path on its own base image (not during an animated reveal of a
+  // different wallpaper). Lets the unlocked lock-service preload wait for the
+  // desktop's in-flight decode instead of firing a duplicate startup decode.
+  function stillPending(screen, path, signature) {
+    if (!screen || !path || suspended || isVideo(path)) return false
+    if (displayedBackground !== "" && displayedBackground !== path) return false
+    var panel = panelForScreen(screen)
+    if (!panel) return false
+    if (displayedBackground === "") return readlinkProc.running
+    if (panel.backgroundReady || panel.backgroundFailed) return false
+    var meta = nativeSizes[path]
+    if (meta === undefined) return sizeProbe.running || sizeQueue.indexOf(path) !== -1
+    if (signature && (!meta.signature || meta.signature !== signature)) return false
+    var size = panel.decodeSize(path)
+    return size.width > 0 && size.height > 0
   }
 
   function refreshBackground() {
@@ -235,7 +284,11 @@ Item {
   function probeNextSize() {
     if (sizeProbe.running || sizeQueue.length === 0) return
     sizeProbe.path = sizeQueue[0]
-    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", "--", sizeProbe.path]
+    sizeProbe.command = [
+      "bash", "-c",
+      "dims=$(magick identify -ping -format '%w %h' -- \"$1\" 2>/dev/null) || dims=''; sig=$(stat -Lc '%y:%s:%i' -- \"$1\" 2>/dev/null) || sig=''; printf '%s\\n%s\\n' \"$dims\" \"$sig\"",
+      "_", sizeProbe.path
+    ]
     sizeProbe.running = true
   }
 
@@ -273,12 +326,24 @@ Item {
     property string path: ""
     stdout: StdioCollector { id: sizeProbeOut }
     onExited: function(exitCode) {
-      var parts = String(sizeProbeOut.text || "").trim().split(/\s+/)
+      var lines = String(sizeProbeOut.text || "").split("\n")
+      var parts = String(lines[0] || "").trim().split(/\s+/)
+      var signature = String(lines[1] || "").trim()
       var width = exitCode === 0 ? parseInt(parts[0], 10) : 0
       var height = exitCode === 0 ? parseInt(parts[1], 10) : 0
       var known = Object.assign({}, root.nativeSizes)
       // An unreadable header records 0x0, which decodes at screen size.
-      known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0 }
+      var probedSig = exitCode === 0 ? signature : ""
+      if (probedSig && path.indexOf("/background-transitions/") === -1) {
+        var prevSig = root.seenPathSignatures[path]
+        if (prevSig !== undefined && prevSig !== probedSig) root.reloadVersion += 1
+        root.seenPathSignatures[path] = probedSig
+      }
+      known[path] = {
+        width: width > 0 ? width : 0,
+        height: height > 0 ? height : 0,
+        signature: probedSig
+      }
       root.nativeSizes = known
       root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
       root.probeNextSize()
@@ -415,6 +480,7 @@ Item {
       }
       property int readyFrames: 0
       readonly property bool backgroundReady: base.ready && readyFrames >= 2
+      readonly property bool backgroundFailed: base.failed
 
       FrameAnimation {
         running: base.ready && panel.readyFrames < 2

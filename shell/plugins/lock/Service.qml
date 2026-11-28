@@ -512,9 +512,12 @@ Item {
       LockView {
         id: lockView
         anchors.fill: parent
+        readonly property var wallpaperRequest: root.lockWallpaperRequest(lockSurface.screen, width, height)
         backgroundPath: root.backgroundPath
         videoPosterPath: root.videoPosterPath
-        backgroundVersion: root.backgroundVersion
+        backgroundVersion: wallpaperRequest.version
+        backgroundVersionPrefix: wallpaperRequest.versionPrefix
+        wallpaperDecodeSize: Qt.size(wallpaperRequest.width, wallpaperRequest.height)
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
         authenticatingPassword: root.authenticatingPassword
@@ -548,9 +551,12 @@ Item {
 
     LockView {
       anchors.fill: parent
+      readonly property var wallpaperRequest: root.lockWallpaperRequest(previewWindow.screen, width, height)
       backgroundPath: root.backgroundPath
       videoPosterPath: root.videoPosterPath
-      backgroundVersion: root.backgroundVersion
+      backgroundVersion: wallpaperRequest.version
+      backgroundVersionPrefix: wallpaperRequest.versionPrefix
+      wallpaperDecodeSize: Qt.size(wallpaperRequest.width, wallpaperRequest.height)
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
       authenticatingPassword: false
@@ -615,24 +621,71 @@ Item {
     }
   }
 
-  // The lock only starts decoding its wallpaper once locked, and a machine
-  // suspending right after locking froze that decode partway: waking showed
-  // the password field on a bare background, then the wallpaper popped in.
-  // Keep each screen's lock wallpaper decoded in the image cache ahead of
-  // time, as the lock view requests it (same URL, the screen's logical size,
-  // PreserveAspectCrop), so the lock draws it on its first frame.
+  // The desktop background service already decodes and caches still wallpapers
+  // per output at physical screen size. Sharing that cache entry per output
+  // avoids decoding the wallpaper twice at startup and on theme changes, and
+  // avoids holding a second copy in RAM. Video posters, in-place overwrites,
+  // outputs without a desktop panel, and sessions without the background
+  // service keep the hidden preload so suspend-after-lock still draws frame 1.
+  readonly property var backgroundService: {
+    var _ = root.shell ? root.shell.services : null
+    return root.shell ? root.shell.serviceFor("omarchy.background") : null
+  }
   readonly property string lockWallpaperPath: videoBackground ? videoPosterPath : backgroundPath
   readonly property string lockWallpaperUrl: lockWallpaperPath && !Util.isVideoPath(lockWallpaperPath)
-    ? Util.fileUrl(lockWallpaperPath) + (backgroundVersion ? "?v=" + backgroundVersion : "")
+    ? Util.fileUrl(lockWallpaperPath) + "?lockv=" + backgroundVersion
     : ""
+
+  Connections {
+    target: root.backgroundService
+    function onDisplayedBackgroundChanged() {
+      root.refreshBackground()
+    }
+  }
+
+  function desktopStillEntry(screen) {
+    if (!screen || videoBackground || !backgroundPath) return null
+    if (!backgroundService || typeof backgroundService.stillCacheEntry !== "function") return null
+    return backgroundService.stillCacheEntry(screen, backgroundPath, backgroundSignature)
+  }
+
+  function desktopStillPending(screen) {
+    if (!screen || lockRequested || videoBackground || !backgroundPath) return false
+    if (!backgroundService || typeof backgroundService.stillPending !== "function") return false
+    if (readlinkProc.running) return true
+    return backgroundService.stillPending(screen, backgroundPath, backgroundSignature)
+  }
+
+  function lockWallpaperRequest(screen, fallbackWidth, fallbackHeight) {
+    var entry = desktopStillEntry(screen)
+    if (entry) {
+      return {
+        version: entry.version,
+        versionPrefix: "v",
+        width: entry.width,
+        height: entry.height,
+        shared: true
+      }
+    }
+    return {
+      version: backgroundVersion,
+      versionPrefix: "lockv",
+      width: fallbackWidth,
+      height: fallbackHeight,
+      shared: false
+    }
+  }
 
   Variants {
     model: Quickshell.screens
 
     Image {
       required property var modelData
+      // Skip the hidden preload on outputs where the desktop background panel
+      // already owns this still (or is probing its native dimensions at startup).
+      readonly property bool desktopOwnsOutput: root.desktopStillEntry(modelData) !== null || root.desktopStillPending(modelData)
       visible: false
-      source: root.lockWallpaperUrl
+      source: desktopOwnsOutput ? "" : root.lockWallpaperUrl
       sourceSize.width: modelData.width
       sourceSize.height: modelData.height
       fillMode: Image.PreserveAspectCrop
@@ -700,7 +753,7 @@ Item {
 
   Process {
     id: readlinkProc
-    command: ["bash", "-c", "path=$(readlink -f -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc %Y:%s -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
+    command: ["bash", "-c", "path=$(readlink -f -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc '%y:%s:%i' -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
