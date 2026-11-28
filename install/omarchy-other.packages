@@ -56,5 +56,9 @@ dell-xps-touchpad-haptics
 # Framework 16
 qmk-hid
 
+# Razer
+linux-omarchy-openrazer
+openrazer-driver
+
 # Microsoft Surface
 linux-firmware-marvell
