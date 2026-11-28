@@ -18,6 +18,8 @@ The biggest mindset shift: you don't drag windows around or snap them to screen 
 
 When you genuinely need a floating window, `Super + T` toggles the active one out of the tiling (and back). But give the tiling a real chance first — it's the heart of the whole thing. [Navigation](04-navigation.md) walks you through it.
 
+To try a more familiar desktop, press `Super + L` twice on a tiling workspace to switch to floating, then press it once more to return to tiling. See [floating workspaces](04-navigation.md#floating-workspaces) for how titlebars and the dock work.
+
 Workspaces will feel familiar: they're macOS Spaces or Windows virtual desktops, except you'll actually use them, because `Super + 1/2/3/4` jumps straight to one and `Super + Shift + 1/2/3/4` sends the active window there. No animation delay, just instant jumps. This means that you might not even need multiple monitors, if you were used to that before.
 
 ### Copy and paste just work
