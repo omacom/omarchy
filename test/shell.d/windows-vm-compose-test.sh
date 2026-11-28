@@ -510,3 +510,41 @@ df() {
 unset -f df
 [[ $(cat "$df_log") == "$external_storage" ]] || fail "free-space used home filesystem"
 pass "disk-space checks follow the storage symlink target"
+
+# Readiness is read from the logs since the current start. Podman reports
+# StartedAt in a format logs --since rejects, but answers .Unix; Docker has no
+# .Unix on its string StartedAt but accepts the string itself.
+docker_since_log="$TMPDIR/docker-since"
+for runtime in podman docker; do
+  : >"$docker_since_log"
+  assert_mounts_safe() { :; }
+  sleep() { :; }
+  docker() {
+    case "$1 ${2:-}" in
+      "inspect --format={{.State.Status}}") echo running ;;
+      "inspect --format={{.State.StartedAt.Unix}}")
+        [[ $runtime == "podman" ]] || return 1
+        echo 1761664628
+        ;;
+      "inspect --format={{.State.StartedAt}}")
+        if [[ $runtime == "podman" ]]; then
+          echo "2026-10-28 16:17:08.31632738 +0100 CET"
+        else
+          echo "2026-10-28T15:17:08.31632738Z"
+        fi
+        ;;
+      "logs --since")
+        printf '%s\n' "$3" >>"$docker_since_log"
+        if [[ $3 =~ ^[0-9]+$ || $3 == *T*Z ]]; then
+          echo "Windows started successfully"
+        else
+          echo "Error: parsing --since \"$3\": unable to interpret time value" >&2
+          return 125
+        fi
+        ;;
+    esac
+  }
+  __priv_up_wait 2>/dev/null || fail "$runtime: readiness wait timed out on a started VM" "$(head -1 "$docker_since_log")"
+done
+unset -f assert_mounts_safe sleep docker
+pass "readiness wait reads the start time in a form both Docker and Podman accept"
