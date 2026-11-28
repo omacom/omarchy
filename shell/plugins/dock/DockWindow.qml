@@ -51,6 +51,10 @@ PanelWindow {
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
+  // How far the dock's panel floats off its screen edge: the gap windows keep
+  // from it, so the panel lines up with them and covers a tiled window's
+  // border rather than straddling it.
+  readonly property int edgeGap: Style.gapsOut
   readonly property int iconSize: Math.round(36 * Style.fontScale)
   // Each app has a square slot with its icon in the middle, and the slots run
   // straight to the edge of the dock.
@@ -63,11 +67,6 @@ PanelWindow {
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
   // A submenu opens beside the menu, which a vertical dock needs the width for.
   readonly property int submenuRoom: Style.space(140) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap
-  // Icons pop away from the screen edge.
-  readonly property int popOrigin: position === "top" ? Item.Top
-    : position === "left" ? Item.Left
-    : position === "right" ? Item.Right
-    : Item.Bottom
 
   // The app being dragged along the dock, how far the pointer has taken it,
   // and the slot it would land in.
@@ -210,12 +209,13 @@ PanelWindow {
     if (window.autohide) hideTimer.restart()
   }
 
-  // Places the menu inward of the dock, centered on a slot.
+  // Places the menu inward of the dock, centered on a slot, sharing an edge
+  // with the dock's panel.
   function popupX(slot, popup) {
     if (!slot) return 0
     var center = slot.mapToItem(window.contentItem, slot.width / 2, 0).x
-    if (window.position === "left") return body.x + body.width + window.gap
-    if (window.position === "right") return body.x - window.gap - popup.width
+    if (window.position === "left") return body.x + body.width - Style.normalBorderWidth
+    if (window.position === "right") return body.x + Style.normalBorderWidth - popup.width
     return Math.max(window.gap, Math.min(window.width - popup.width - window.gap, center - popup.width / 2))
   }
 
@@ -236,16 +236,16 @@ PanelWindow {
   function submenuY(row, popup) {
     if (!row) return 0
     var top = row.mapToItem(window.contentItem, 0, 0).y - popup.padding
-    var low = window.position === "top" ? body.y + body.height + window.gap : window.gap
-    var high = window.position === "bottom" ? body.y - window.gap - popup.height : window.height - popup.height - window.gap
+    var low = window.position === "top" ? body.y + body.height - Style.normalBorderWidth : window.gap
+    var high = window.position === "bottom" ? body.y + Style.normalBorderWidth - popup.height : window.height - popup.height - window.gap
     return Math.max(low, Math.min(high, top))
   }
 
   function popupY(slot, popup) {
     if (!slot) return 0
     var center = slot.mapToItem(window.contentItem, 0, slot.height / 2).y
-    if (window.position === "top") return body.y + body.height + window.gap
-    if (window.position === "bottom") return body.y - window.gap - popup.height
+    if (window.position === "top") return body.y + body.height - Style.normalBorderWidth
+    if (window.position === "bottom") return body.y + Style.normalBorderWidth - popup.height
     return Math.max(window.gap, Math.min(window.height - popup.height - window.gap, center - popup.height / 2))
   }
 
@@ -265,8 +265,8 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom + window.submenuRoom : 0
-  implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
+  implicitWidth: window.vertical ? window.edgeGap + window.slotSize + window.popupRoom + window.submenuRoom : 0
+  implicitHeight: window.vertical ? 0 : window.edgeGap + window.slotSize + window.popupRoom
 
   mask: Region {
     item: window.contentShown ? body : null
@@ -291,7 +291,7 @@ PanelWindow {
   Item {
     id: edgeTrigger
 
-    readonly property int depth: window.gap + Style.spacing.xxs
+    readonly property int depth: window.edgeGap + Style.spacing.xxs
 
     x: window.position === "left" ? 0 : window.position === "right" ? window.width - depth : body.x
     y: window.position === "top" ? 0 : window.position === "bottom" ? window.height - depth : body.y
@@ -326,7 +326,7 @@ PanelWindow {
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
     // while the dock is on screen: arriving on a floating workspace shows it
     // where it belongs at once.
-    property real tuck: window.tucked ? window.slotSize + window.gap : 0
+    property real tuck: window.tucked ? window.slotSize + window.edgeGap : 0
 
     // Tucking away is quicker than coming back, though not so quick that the
     // dock seems to vanish rather than slide off. A gentler curve than
@@ -340,11 +340,11 @@ PanelWindow {
       }
     }
 
-    x: window.position === "left" ? window.gap - tuck
-      : window.position === "right" ? window.width - width - window.gap + tuck
+    x: window.position === "left" ? window.edgeGap - tuck
+      : window.position === "right" ? window.width - width - window.edgeGap + tuck
       : Math.round((window.width - width) / 2)
-    y: window.position === "top" ? window.gap - tuck
-      : window.position === "bottom" ? window.height - height - window.gap + tuck
+    y: window.position === "top" ? window.edgeGap - tuck
+      : window.position === "bottom" ? window.height - height - window.edgeGap + tuck
       : Math.round((window.height - height) / 2)
 
     HoverHandler {
@@ -356,6 +356,16 @@ PanelWindow {
         var at = point.position
         if (Math.hypot(at.x - window.dropPoint.x, at.y - window.dropPoint.y) > Style.space(4)) window.hoverStale = false
       }
+    }
+
+    // The dock slides out over windows, and bare icons land on their content
+    // and borders. A panel in the popups' surface makes it one object over
+    // whatever is beneath, and the same object on every workspace.
+    BorderSurface {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: Commons.Color.popups.background
+      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
     }
 
     Grid {
@@ -470,14 +480,14 @@ PanelWindow {
       width: window.iconSize
       height: window.iconSize
       scale: appsSlot.hovered ? 1.15 : 1
-      transformOrigin: window.popOrigin
+      transformOrigin: Item.Center
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
 
       Grid {
         readonly property int square: Math.round(window.iconSize * 0.22)
-        // A theme change fades it with the bar's palette.
-        property color tint: Commons.Color.bar.text
+        // On the panel, so in the popups' text color. A theme change fades it.
+        property color tint: Commons.Color.popups.text
 
         Behavior on tint { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
 
@@ -602,7 +612,7 @@ PanelWindow {
         y: window.vertical ? appSlot.displayedShift : 0
       }
       scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
-      transformOrigin: window.popOrigin
+      transformOrigin: Item.Center
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     }
