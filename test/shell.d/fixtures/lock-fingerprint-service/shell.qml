@@ -235,6 +235,15 @@ ShellRoot {
       check(retry.running && retry.interval === 250, "a wake after a sleep while blank recovers at once")
       check(service.fingerprintUnreachedStreak === 0, "a sleep while blank opens the resume grace")
       retry.stop()
+      service.noteSleepRequested()
+      check(!resumeTimer.running, "a lock request while lit leaves the reader running")
+      service.pauseFingerprint()
+      check(resumeTimer.running, "a blank while logind holds the suspend still watches for the sleep")
+      resumeTimer.lastTickMs = Date.now() - 60000
+      resumeTimer.triggered()
+      blankTimer.stop()
+      check(!service.fingerprintPaused, "a resume after a held suspend brings the reader back")
+      retry.stop()
       service.pauseFingerprint()
       service.noteSleepRequested()
       service.resetAuthenticationState()
@@ -249,6 +258,17 @@ ShellRoot {
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
+
+      service.lockRequested = true
+      blankTimer.stop()
+      service.relock()
+      check(blankTimer.running, "a lock request on a locked session blanks the displays again")
+      blankTimer.stop()
+      service.authenticatingPassword = true
+      service.relock()
+      check(!blankTimer.running, "a repeated lock request leaves a password check lit")
+      service.authenticatingPassword = false
+      blankTimer.stop()
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()

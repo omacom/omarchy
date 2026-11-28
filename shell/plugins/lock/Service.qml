@@ -58,6 +58,7 @@ Item {
   property string backgroundSignature: ""
   property string lastEvent: "init"
   property string lastEventAt: ""
+  property double sleepRequestedAtMs: 0
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
@@ -210,6 +211,7 @@ Item {
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
+    sleepRequestedAtMs = 0
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -232,6 +234,12 @@ Item {
     })
 
     return true
+  }
+
+  // A repeated lock still blanks the displays, unless a password check is in flight.
+  function relock() {
+    noteSleepRequested()
+    if (lockRequested && !authenticatingPassword) armBlankTimer()
   }
 
   function finishUnlock() {
@@ -267,6 +275,8 @@ Item {
     if (fingerprintPaused) return
     fingerprintPaused = true
     fingerprintRetryTimer.stop()
+    // A suspend logind holds past the blank countdown still sleeps blank.
+    if (Date.now() - sleepRequestedAtMs < 20000) watchForResume()
   }
 
   // The retry keeps whatever backoff was armed, counting the time spent blank,
@@ -291,7 +301,12 @@ Item {
   // then takes both away again if nothing else happens. The idle service
   // repeats the same request without sleeping, so the sleep has to be seen.
   function noteSleepRequested() {
-    if (!lockRequested || !fingerprintPaused) return
+    if (!lockRequested) return
+    sleepRequestedAtMs = Date.now()
+    if (fingerprintPaused) watchForResume()
+  }
+
+  function watchForResume() {
     // logind holds a suspend for its inhibitor delay, at most 15 seconds here.
     fingerprintResumeTimer.ticksLeft = 20
     fingerprintResumeTimer.lastTickMs = Date.now()
@@ -906,7 +921,7 @@ Item {
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
       // omarchy-system-sleep-lock asks for the lock before every suspend.
-      if (root.currentlyLocked()) root.noteSleepRequested()
+      if (root.currentlyLocked()) root.relock()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
       return "ok"
     }
