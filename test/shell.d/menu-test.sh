@@ -248,7 +248,9 @@ assert(
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-bar-background-'))
   fs.mkdirSync(path.join(home, '.config/omarchy'), { recursive: true })
   const checked = bar => {
-    fs.writeFileSync(path.join(home, '.config/omarchy/shell.json'), JSON.stringify({ bar }))
+    const configPath = path.join(home, '.config/omarchy/shell.json')
+    if (bar === undefined) fs.rmSync(configPath, { force: true })
+    else fs.writeFileSync(configPath, JSON.stringify({ bar }))
     return ['opaque', 'glassy', 'clear'].filter(look => {
       try {
         execFileSync('bash', ['-c', defaultById[`appearance.top-bar.background.${look}`].checked], { env: { ...process.env, HOME: home, OMARCHY_PATH: root, PATH: `${root}/bin:${process.env.PATH}` } })
@@ -258,7 +260,9 @@ assert(
       }
     })
   }
-  assertDeepEqual(checked({}), ['opaque'], 'menu checks Opaque Bar while the bar is opaque')
+  assertDeepEqual(checked(undefined), ['clear'], 'menu checks Clear Bar on the default config')
+  assertDeepEqual(checked({}), ['opaque'], 'menu checks Opaque Bar while an existing config has no background key')
+  assertDeepEqual(checked({ background: 'opaque' }), ['opaque'], 'menu checks Opaque Bar while the bar is opaque')
   assertDeepEqual(checked({ background: 'glassy' }), ['glassy'], 'menu checks Glassy Bar while the bar is glassy')
   assertDeepEqual(checked({ background: 'none' }), ['clear'], 'menu checks Clear Bar while the bar has no background')
   assertDeepEqual(checked({ transparent: true }), ['clear'], 'menu checks Clear Bar for a bar made transparent before backgrounds')

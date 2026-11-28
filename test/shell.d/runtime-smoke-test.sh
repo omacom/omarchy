@@ -386,12 +386,20 @@ wait_for_elsewhen_cities() {
 }
 
 wait_for_elsewhen_cities
-bar_background none >/dev/null
 for _ in {1..50}; do
   (( $(text_color_count) > 0 )) && break
   sleep 0.1
 done
-(( $(text_color_count) > 0 )) || fail_with_log "transparent bar samples the wallpaper when turned on"
+(( $(text_color_count) > 0 )) || fail_with_log "default transparent bar samples the wallpaper at startup"
+bar_background opaque >/dev/null
+sleep 0.2
+before_enable=$(text_color_count)
+bar_background none >/dev/null
+for _ in {1..50}; do
+  (( $(text_color_count) > before_enable )) && break
+  sleep 0.1
+done
+(( $(text_color_count) > before_enable )) || fail_with_log "transparent bar samples the wallpaper when turned on"
 sleep 0.2
 before=$(text_color_count)
 
@@ -407,7 +415,6 @@ for _ in {1..50}; do
   sleep 0.1
 done
 (( $(text_color_count) > before )) || fail_with_log "repointing the background re-samples the wallpaper"
-bar_background opaque >/dev/null
 pass "unrelated state writes leave the transparent bar alone"
 
 jq '.name = "After Hot Reload"' "$hot_reload_dir/manifest.json" >"$hot_reload_dir/manifest.json.tmp"

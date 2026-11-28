@@ -47,7 +47,7 @@ Item {
   property string omarchyConfigDir: home + "/.config/omarchy"
   property var fallbackBarConfig: ({
     position: "top",
-    background: "opaque",
+    background: "none",
     layout: { left: [], centerBegin: [], center: [], centerEnd: [], right: [] }
   })
   property var layoutConfig: fallbackBarConfig.layout
