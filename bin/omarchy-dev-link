@@ -82,7 +82,8 @@ target=$(realpath -e "$1" 2>/dev/null) || {
 
 for required in bin default shell; do
   if [[ ! -d $target/$required ]]; then
-    echo "Warning: $target/$required not found — does this look like an Omarchy source checkout?" >&2
+    echo "Error: $target is not an Omarchy source checkout: $target/$required not found" >&2
+    exit 1
   fi
 done
 

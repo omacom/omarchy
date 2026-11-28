@@ -13,6 +13,10 @@ if [ -f /etc/omarchy.conf ]; then
 else
   OMARCHY_PATH=/usr/share/omarchy
 fi
+if [ ! -d "$OMARCHY_PATH" ]; then
+  echo "Warning: OMARCHY_PATH=$OMARCHY_PATH does not exist; using /usr/share/omarchy" >&2
+  OMARCHY_PATH=/usr/share/omarchy
+fi
 export OMARCHY_PATH
 
 # Only prepend in dev-link mode. On a production install, the binaries are
