@@ -183,6 +183,58 @@ editor_argv=$(<"$editor_calls")
   fail "launch-editor separates an option-shaped path from editor options" "$editor_argv"
 pass "launch-editor separates an option-shaped path from editor options"
 
+# visudo ends its own options before the file ("-- /etc/sudoers.tmp"). A second
+# separator from the wrapper would reach the editor as a file named "--", and
+# nvim opens it as an empty first buffer (#16768). Exactly one gets through.
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -- /etc/sudoers.tmp
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<-->\n</etc/sudoers.tmp>' ]] ||
+  fail "launch-editor keeps one separator when the caller already ended its options" "$editor_argv"
+pass "launch-editor keeps one separator when the caller already ended its options"
+
+# less's v command runs `$EDITOR +LINE file`. The line number stays an option
+# ahead of the separator, so nvim opens the file at that line rather than a
+# file named "+50"; with no file after it, "+50" is still the file to open.
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline +50 notes.txt
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<+50>\n<-->\n<notes.txt>' ]] ||
+  fail "launch-editor passes a line number before the file as an option" "$editor_argv"
+
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline +50
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<-->\n<+50>' ]] ||
+  fail "launch-editor opens a lone +50 as a file" "$editor_argv"
+
+# After the caller's own "--", "+50" is a file name like any other, even with a
+# file after it.
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -- +50 notes.txt
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<-->\n<+50>\n<notes.txt>' ]] ||
+  fail "launch-editor opens +50 as a file after the caller's separator" "$editor_argv"
+pass "launch-editor passes a line number before the file as an option, and a lone one, or one after --, as a file"
+
+# micro stops reading options at "+50", so a separator after it would open as a
+# file named "--". It reads the line number after the separator instead.
+cp "$mock_bin/nvim" "$mock_bin/micro"
+printf 'micro\n' >"$fake_home/.local/state/omarchy/defaults/editor"
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline +50 notes.txt
+
+editor_argv=$(<"$editor_calls")
+printf 'nvim\n' >"$fake_home/.local/state/omarchy/defaults/editor"
+rm "$mock_bin/micro"
+[[ $editor_argv == $'<-->\n<+50>\n<notes.txt>' ]] ||
+  fail "launch-editor keeps micro's line number after the separator" "$editor_argv"
+pass "launch-editor keeps micro's line number after the separator"
+
 cat >"$mock_bin/omarchy-launch-tui" <<'STUB'
 #!/bin/bash
 
@@ -234,6 +286,12 @@ editor_argv=$(<"$editor_calls")
 [[ $editor_argv == $'<plain>\n<-->\n<-cquit>' ]] ||
   fail "launch-editor runs Plain inline as the default editor" "$editor_argv"
 
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" WAYLAND_DISPLAY=wayland-1 OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -- /etc/sudoers.tmp
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<plain>\n<-->\n</etc/sudoers.tmp>' ]] ||
+  fail "launch-editor keeps one separator for Plain" "$editor_argv"
+
 HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" WAYLAND_DISPLAY=wayland-1 OMARCHY_TEST_SETSID_CALLS="$setsid_calls" \
   "$ROOT/bin/omarchy-launch-editor" -cquit
 setsid_argv=$(<"$setsid_calls")
@@ -254,6 +312,12 @@ env -u WAYLAND_DISPLAY HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCH
 editor_argv=$(<"$editor_calls")
 [[ $editor_argv == $'<vi>\n<-->\n<-cquit>' ]] ||
   fail "launch-editor uses vi for Plain without a display" "$editor_argv"
+
+env -u WAYLAND_DISPLAY HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline +50 notes.txt
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<vi>\n<+50>\n<-->\n<notes.txt>' ]] ||
+  fail "launch-editor passes a line number to the vi fallback" "$editor_argv"
 rm -f "$mock_bin/vi"
 pass "launch-editor defaults to Plain, inline for \$EDITOR, and vi without a display"
 
