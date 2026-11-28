@@ -50,7 +50,7 @@ omarchy plugin update acme.weather
 omarchy plugin update
 ```
 
-With no id it updates every git-managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation.
+With no id it updates every git-managed plugin you have. It shows you the diff before applying it, validates the update together with retained local edits in a temporary checkout, then fast-forwards the installed copy. Failed validation leaves the installed revision and local edits unchanged. It refuses an update that would overwrite local edits or ignored runtime files.
 
 ```
 omarchy plugin remove acme.weather
