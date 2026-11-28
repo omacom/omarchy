@@ -258,6 +258,7 @@ local function window(address, options)
 
   local created = {
     address = address,
+    mapped = true,
     floating = options.floating or false,
     pinned = options.pinned or false,
     group = options.group,
