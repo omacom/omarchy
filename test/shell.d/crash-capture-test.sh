@@ -88,11 +88,12 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" unit="${3:-}" pid="${4:-4242}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
-    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg unit "$unit" --arg pid "$pid" \
+    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: $pid,
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}
+     + (if $unit != "" then {COREDUMP_USER_UNIT: $unit} else {} end)' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -120,7 +121,7 @@ run_watch() {
 # reads have not drifted apart.
 mute() {
   HOME="$watch_home" PATH="$ROOT/bin:$PATH" \
-    "$ROOT/bin/omarchy-crash-mute" "$1" "$2" >/dev/null
+    "$ROOT/bin/omarchy-crash-mute" "$@" >/dev/null
 }
 
 announced() {
@@ -154,6 +155,30 @@ run_watch
 announced hyprland ||
   fail "un-muting a program brings its crash notifications back"
 pass "un-muting a program brings its crash notifications back"
+
+# A mute for one service is exact and must not start a dedupe window that
+# swallows the next crash from a different service using the same executable.
+mute --unit sendspin-hdmi.service on || fail "the mute command accepts a user service"
+reset_entries
+crash_entry sendspin /usr/bin/python3.12 sendspin-hdmi.service 4242
+crash_entry other-player /usr/bin/python3.12 other-player.service 4243
+run_watch
+! grep -Fq 'omarchy-agent-crash 4242 ' "$NOTIFY_LOG" || fail "the muted service is still announced"
+grep -Fq 'omarchy-agent-crash 4243 ' "$NOTIFY_LOG" || fail "muting one service silences another using the same executable"
+pass "a service mute silences only that service, even when the next crash shares its executable"
+
+reset_entries
+crash_entry python3.12 /usr/bin/python3.12
+run_watch
+announced python3.12 || fail "a crash without a user unit no longer falls back to the program rules"
+pass "a crash without a user unit still announces by executable"
+
+mute --unit sendspin-hdmi.service off
+reset_entries
+crash_entry sendspin /usr/bin/python3.12 sendspin-hdmi.service
+run_watch
+announced python3.12 || fail "un-muting a service does not restore its notifications"
+pass "un-muting a service restores its notifications"
 
 # The diagnosis tells the user to mute the name the toast showed them, so the
 # toast has to show the name the watcher checks. COMM is truncated to 15
@@ -267,6 +292,15 @@ crash_mute hyprland >/dev/null
 crash_mute | grep -Fqx hyprland ||
   fail "a muted program is missing from the list, so a mute cannot be found again to lift it"
 pass "the command lists what it muted"
+
+crash_mute --unit 'player@hdmi.service' >/dev/null
+crash_mute | grep -Fqx -- '--unit player@hdmi.service' ||
+  fail "a service mute is not distinguishable from an executable in the list"
+for bad_unit in '../player.service' 'player.scope' '.service'; do
+  ! crash_mute --unit "$bad_unit" >/dev/null 2>&1 ||
+    fail "'$bad_unit' is accepted as a service name"
+done
+pass "the command lists service mutes separately and rejects invalid service names"
 
 # The watcher keys on the basename, so the command has to take the path a crash
 # recorded and land on the same flag the watcher will look for.
