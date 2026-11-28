@@ -2,6 +2,7 @@
 // functions over a snapshot row (Store.snapshot).
 .pragma library
 .import "Security.js" as Security
+.import "Markup.js" as Markup
 
 var CRITICAL = 2
 
@@ -40,9 +41,33 @@ function isEphemeral(row) {
   return app === "notify-send" || app === "omarchy-action"
 }
 
-// "silenced", or "" when the row shows. A verification code always passes: it
-// was asked for a moment ago and expires in minutes.
-function quietReason(row, doNotDisturb) {
+// A summary or body opening with one of the configured prefixes, after
+// trimming leading whitespace. Case-sensitive; empty and non-string entries
+// never match. Both fields may carry the markup the spec allows, so the match
+// reads the plain text oneLine() produces, not the raw payload.
+function matchesDropPrefix(row, dropPrefixes) {
+  if (!Array.isArray(dropPrefixes)) return false
+  var summary = Markup.oneLine((row && row.summary) || "")
+  var body = Markup.oneLine((row && row.body) || "")
+  for (var i = 0; i < dropPrefixes.length; i++) {
+    if (typeof dropPrefixes[i] !== "string") continue
+    // The text is oneLine()'s: space runs collapsed, ends trimmed. The prefix is
+    // read the same way, but a trailing space ends a word, so it stays as one
+    // space or "Build " would also match "Building failed".
+    var prefix = Markup.oneLine(dropPrefixes[i])
+    if (prefix.length === 0) continue
+    if (/\s$/.test(dropPrefixes[i])) prefix += " "
+    if (summary.indexOf(prefix) === 0 || body.indexOf(prefix) === 0) return true
+  }
+  return false
+}
+
+// "silenced", "filtered", or "" when the row shows. A verification code always
+// passes: it was asked for a moment ago and expires in minutes — but a
+// configured prefix outranks even that, because the user named this sender's
+// noise specifically.
+function quietReason(row, doNotDisturb, dropPrefixes) {
+  if (matchesDropPrefix(row, dropPrefixes)) return "filtered"
   if (!doNotDisturb) return ""
   if (bypassesQuiet(row)) return ""
   if (String((row && row.code) || "")) return ""

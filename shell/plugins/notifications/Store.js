@@ -281,19 +281,27 @@ function parseHistory(text) { return parseStored(text, HISTORY_LIMIT, HISTORY_RO
 
 function serialise(entries) { return JSON.stringify(entries) + "\n" }
 
-// quiet.json: whether Do Not Disturb is on. null when there is nothing usable
-// in it.
+// quiet.json: whether Do Not Disturb is on, and the text prefixes a row must
+// open with to be held back (Store/Delivery: "filtered"). null when there is
+// nothing usable in it.
 function parseQuiet(text) {
   var raw = String(text || "")
   if (!raw.trim() || raw.length > 262144) return null
   var read
   try { read = JSON.parse(raw) } catch (e) { return null }
   if (!read || typeof read !== "object" || Array.isArray(read)) return null
-  return { dnd: read.dnd === true }
+  var prefixes = []
+  if (Array.isArray(read.dropPrefixes)) {
+    for (var i = 0; i < read.dropPrefixes.length; i++) {
+      var prefix = read.dropPrefixes[i]
+      if (typeof prefix === "string" && prefix.length > 0) prefixes.push(prefix)
+    }
+  }
+  return { dnd: read.dnd === true, dropPrefixes: prefixes }
 }
 
 function serialiseQuiet(state) {
-  return JSON.stringify({ dnd: !!state.dnd }) + "\n"
+  return JSON.stringify({ dnd: !!state.dnd, dropPrefixes: state.dropPrefixes || [] }) + "\n"
 }
 
 // What a redacted row says, stored in English like any stored value and

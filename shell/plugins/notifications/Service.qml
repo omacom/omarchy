@@ -51,6 +51,7 @@ Item {
   // ------------------------------------------------------------- quiet
   //
   property bool doNotDisturb: false
+  property var dropPrefixes: []
   function setDoNotDisturb(value) {
     var on = !!value
     if (on === doNotDisturb) return
@@ -619,7 +620,7 @@ Item {
     }
 
     // Quiet still records it (unless ephemeral), straight to history.
-    var muted = Delivery.quietReason(row, doNotDisturb)
+    var muted = Delivery.quietReason(row, doNotDisturb, dropPrefixes)
     if (muted) {
       if (!Delivery.isEphemeral(row)) storeRecord(row, muted)
       release(key)
@@ -1266,7 +1267,7 @@ Item {
     }
     if (unsaved.quiet && quietLoaded) {
       delete unsaved.quiet
-      quietFile.setText(Store.serialiseQuiet({ dnd: doNotDisturb }))
+      quietFile.setText(Store.serialiseQuiet({ dnd: doNotDisturb, dropPrefixes: dropPrefixes }))
     }
   }
 
@@ -1297,6 +1298,7 @@ Item {
     if (quietLoaded) return
     if (read) {
       doNotDisturb = read.dnd
+      dropPrefixes = read.dropPrefixes
     }
     quietLoaded = true
     if (unsaved.quiet) saveSoon("quiet")

@@ -39,8 +39,8 @@ A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `d
 The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), three JSON files it reads with `FileView` once at startup and rewrites whole:
 
 - `live.json`: the rows on screen, oldest first, put back after a shell restart with a 20s grace (critical ones still wait). At most 100.
-- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb.
-- `quiet.json`: `{ dnd }`.
+- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb; `filtered` marks one held back by a configured text prefix.
+- `quiet.json`: `{ dnd, dropPrefixes }`.
 
 A card with the `transient` hint is never written to either file, as the hint asks: it is not put back after a restart and leaves no history when it closes. Its sender sends it again when it still applies, as `omarchy-migrate-notify` does at every login.
 
@@ -78,6 +78,8 @@ Three kinds of notification get through Do Not Disturb:
 - a detected verification code: it was asked for a moment ago and expires in minutes.
 
 Silenced notifications are recorded in history, so `showHistory` can put them back on screen. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
+
+An optional `dropPrefixes` array in `quiet.json` holds back notifications by text instead of by app. A notification whose summary or body starts with one of the prefixes (leading whitespace trimmed, case-sensitive) goes straight to history with the reason `filtered`, whatever Do Not Disturb says. Ephemeral matches are dropped, as with silencing.
 
 ## Appearance
 

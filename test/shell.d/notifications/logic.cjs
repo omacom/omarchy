@@ -280,6 +280,35 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     [{ app: 'omarchy-action', urgency: 0 }, true, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
   ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  // A text prefix filters before the Do Not Disturb checks: the user named
+  // this sender's noise specifically, so even a bypassing kind yields.
+  assert.equal(Delivery.quietReason({ app: 'Ghostty', body: 'Lane message from w86: ready' }, false, ['Lane message from']), 'filtered')
+  assert.equal(Delivery.quietReason({ app: 'omarchy-action', summary: '  Automated alert' }, false, ['Automated']), 'filtered')
+  assert.equal(Delivery.quietReason({ app: 'Slack', summary: 'Standup', body: 'anything' }, true, ['Lane message']), 'silenced')
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message from w86: ready' }, ['Lane message from']))
+  assert.ok(Delivery.matchesDropPrefix({ summary: '  Automated alert' }, ['Automated']))
+  assert.ok(Delivery.matchesDropPrefix({ body: ' \n\tLane message' }, ['Lane message']))
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Lane message from w86' }, ['Lane message from', 'Other']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'A Lane message from w86' }, ['Lane message from']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'lane message from w86' }, ['Lane message from']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message' }, []))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message' }, ['', 'Other', 5]))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Ghostty' }, 'Lane message'))
+  // Senders wrap the very text the user prefixed in markup and entities, so
+  // the match reads the plain text, not the raw payload.
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Ghostty', body: '<b>Lane message from</b> w86: ready' }, ['Lane message from']))
+  assert.ok(Delivery.matchesDropPrefix({ summary: '<i>Automated</i> alert' }, ['Automated alert']))
+  assert.ok(Delivery.matchesDropPrefix({ body: '&lt;b&gt;Lane message&lt;/b&gt;' }, ['Lane message']))
+  // oneLine() collapses runs of spaces, so the prefix must be normalised the
+  // same way: "Build  finished" still opens with a user's "Build  ".
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Build  finished' }, ['Build  ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Rebuild finished' }, ['Build  ']))
+  // A trailing space ends a word: "Build " opens "Build finished" but not "Building failed".
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Build finished' }, ['Build ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Building failed' }, ['Build ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Building failed' }, ['Build  ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Build' }, ['   ']))
+  assert.equal(Delivery.quietReason({ app: 'Ghostty', body: '<b>Lane message from</b> w86: ready' }, false, ['Lane message from']), 'filtered')
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
                                [{ id: 'join', text: 'Join call' }])
@@ -395,7 +424,7 @@ function newCapacityScope() {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
-    held: [], doNotDisturb: false,
+    held: [], doNotDisturb: false, dropPrefixes: [],
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -1034,13 +1063,15 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
 }
 
 { // quiet.json keeps today's shape, and anything else in it is ignored.
-  const state = { dnd: true }
+  const state = { dnd: true, dropPrefixes: ['Lane message from', 'Automated'] }
   eq(Store.parseQuiet(Store.serialiseQuiet(state)), state)
-  eq(JSON.parse(Store.serialiseQuiet(state)), state)
+  eq(JSON.parse(Store.serialiseQuiet({ dnd: false })), { dnd: false, dropPrefixes: [] })
   for (const text of ['', 'nope', '[]', '"dnd"', 'null'])
     assert.equal(Store.parseQuiet(text), null, text)
   const odd = Store.parseQuiet('{"snoozes":{"a":{"until":5}},"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
-  eq(odd, { dnd: false })
+  eq(odd, { dnd: false, dropPrefixes: [] })
+  eq(Store.parseQuiet('{"dnd":true,"dropPrefixes":["Keep","","Drop",5,null]}'), { dnd: true, dropPrefixes: ['Keep', 'Drop'] })
+  eq(Store.parseQuiet('{"dnd":true,"dropPrefixes":"Lane message"}'), { dnd: true, dropPrefixes: [] })
 }
 
 { // The service: shown rows are saved live, closed ones move to history, quiet
@@ -1059,6 +1090,22 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Silenced:silenced', 'Shown:expired'])
   assert.equal(s.liveEntries.length, 0)
   assert.ok(s.unsaved.live && s.unsaved.history)
+}
+
+{ // A configured prefix sends a row straight to history as filtered; an
+  // ephemeral match is dropped like any other ephemeral quiet row.
+  const s = newCapacityScope()
+  s.dropPrefixes = ['Lane message']
+  const ghostty = s.fakeNotification(1, 'Ghostty')
+  ghostty.body = 'Lane message from w86: ready'
+  s.admit(ghostty)
+  eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Ghostty:filtered'])
+  assert.equal(s.liveEntries.length, 0)
+  const ephemeral = s.fakeNotification(2, 'note')
+  ephemeral.appName = 'notify-send'
+  ephemeral.body = 'Lane message: gone'
+  s.admit(ephemeral)
+  eq(s.historyEntries.length, 1)
 }
 
 { // A transient card is shown but never stored, so the next login does not
