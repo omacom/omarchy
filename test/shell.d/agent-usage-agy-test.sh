@@ -12,6 +12,8 @@ agent_sandbox
 
 python3 - <<'PY'
 from agent_usage_fixtures import *
+import re
+import shutil
 
 TIER = "v1internal:loadCodeAssist"
 SUMMARY = "v1internal:retrieveUserQuotaSummary"
@@ -110,4 +112,35 @@ record, _ = agy({
 expect("404 on retrieveUserQuota degrades cleanly to summary limits",
        [record["tierLabel"], record["limits"], record["usageStatusText"]],
        ["Ultra", [], ""], record)
+# The client named in the User-Agent decides which groups Google answers with:
+# a bare "antigravity" gets the Claude and GPT allowance alone, so the plan's
+# own Gemini windows never appear. Name the CLI and the version it reports.
+machine()
+stub = home() / "bin" / "agy"
+stub.write_text('#!/bin/bash\necho "1.5.20"\n')
+stub.chmod(0o755)
+record, http = agy({
+  TIER: {"paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}},
+  SUMMARY: {"groups": [{"displayName": "Gemini Models", "buckets": [{"window": "5h", "remainingFraction": 0.9, "resetTime": reset_late}]}]},
+})
+expect("User-Agent names the Antigravity CLI and the version it reports",
+       [r["headers"].get("user-agent") for r in http.requests if r["url"].endswith(SUMMARY)],
+       ["antigravity/cli/1.5.20 (aidev_client; auth_method=consumer)"], http.requests)
+
+# Without the CLI to ask, the version is still a full one: Google answers no
+# client at all, or one below 1.2, by hiding the Gemini group the same way.
+machine()
+real_which = shutil.which
+shutil.which = lambda name, *args, **kwargs: None if name == "agy" else real_which(name, *args, **kwargs)
+try:
+  record, http = agy({
+    TIER: {"paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}},
+    SUMMARY: {"groups": [{"displayName": "Gemini Models", "buckets": [{"window": "5h", "remainingFraction": 0.9, "resetTime": reset_late}]}]},
+  })
+finally:
+  shutil.which = real_which
+expect("User-Agent names a full version with no CLI to ask",
+       [re.fullmatch(r"antigravity/cli/\d+\.\d+\.\d+ \(aidev_client; auth_method=consumer\)", r["headers"].get("user-agent") or "") is not None
+        for r in http.requests if r["url"].endswith(SUMMARY)],
+       [True], http.requests)
 PY
