@@ -7,7 +7,8 @@ o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-clos
 o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
 o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + T", "Toggle window floating/tiling", hl.dsp.window.float({ action = "toggle" }))
-o.bind("SUPER + F", "Full screen", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
+-- Also fullscreens a popped-out window; see default/hypr/window-fullscreen.lua.
+o.bind("SUPER + F", "Full screen", o.window_fullscreen.toggle())
 o.bind("SUPER + CTRL + F", "Tiled full screen", "omarchy-hyprland-window-tiled-fullscreen-toggle")
 o.bind("SUPER + ALT + F", "Full width", hl.dsp.window.fullscreen({ mode = "maximized" }))
 o.bind("SUPER + O", "Pop window out (float & pin)", "omarchy-hyprland-window-pop")
