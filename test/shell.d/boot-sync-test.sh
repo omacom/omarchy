@@ -130,8 +130,8 @@ sync_boot
 rm -f "$test_tmp/uki.conf"
 pass "a published image is rebuilt when a device tree it carries changes"
 
-# Boot images carry no splash: the firmware hands over straight to Plymouth's
-# unlock screen. A splash a store kept from before goes.
+# Boot images carry no splash: the firmware hands over straight to the boot
+# splash's unlock screen. A splash a store kept from before goes.
 new_machine
 printf 'BM-old-splash\n' >"$test_tmp/store/splash.bmp"
 sync_boot

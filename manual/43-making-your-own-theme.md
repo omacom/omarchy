@@ -20,9 +20,9 @@ Omarchy tells the two apart by whether the theme has its own git repo inside it,
 
 If you're making a light mode theme, set `mode = "light"` at the top of your `colors.toml`. Then it'll automatically be paired with light mode for all the apps. (The old way of dropping an empty file called `light.mode` in the root of your theme still works too.)
 
-### Unlock image
+### Boot and login screens
 
-Themes supplied with `unlock.png` and `preview-unlock.png` images will be listed under _Appearance > Unlock_. Your `unlock.png` should preferably be a transparent png. And you can create the preview image using `omarchy plymouth preview`.
+The screen that asks for the drive password at boot, and the login screen, draw the Omarchy logo in your theme's `accent` color on its `background`, with the password field in its `foreground` and `red` for a wrong password. There's nothing extra to ship for them: Omarchy no longer uses a theme's `unlock.png` or `preview-unlock.png`. On Apple Silicon Macs, the drive password screen keeps Omarchy's default look whatever the theme.
 
 ### Theming apps Omarchy doesn't cover
 

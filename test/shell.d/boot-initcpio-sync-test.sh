@@ -117,9 +117,19 @@ run_sync --pacman-hook >/dev/null
 [[ $(<"$state") != "$after_record_hash" ]] || fail "successful retry must update stored hash"
 pass "failed rebuild preserves old hash and retries on next run"
 
-# 10. No installed kernels skips cleanly even if inputs differ.
+# 10. Adding or editing a boot splash file omarchy-splash copies into the image triggers rebuild.
+mkdir -p "$root/usr/share/omarchy/default/splash/ui"
+printf 'Item {}\n' >"$root/usr/share/omarchy/default/splash/ui/Splash.qml"
+run_sync --pacman-hook >/dev/null
+(( $(rebuild_count) == 7 )) || fail "adding a boot splash file must trigger rebuild"
+printf 'Item { id: splash }\n' >"$root/usr/share/omarchy/default/splash/ui/Splash.qml"
+run_sync --pacman-hook >/dev/null
+(( $(rebuild_count) == 8 )) || fail "editing a boot splash file must trigger rebuild"
+pass "boot splash files trigger rebuild"
+
+# 11. No installed kernels skips cleanly even if inputs differ.
 rm -rf "$root/usr/lib/modules/7.3.6-1-omarchy"
 printf 'COMPRESSION="gzip"\n' >"$linked_target"
 run_sync --pacman-hook
-(( $(rebuild_count) == 6 )) || fail "missing kernels must skip rebuild"
+(( $(rebuild_count) == 8 )) || fail "missing kernels must skip rebuild"
 pass "missing kernels skip rebuild"

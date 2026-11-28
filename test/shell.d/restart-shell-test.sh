@@ -58,6 +58,10 @@ SH
 cat >"$restart_bin/quickshell" <<'SH'
 #!/bin/bash
 
+# The startup cover, which the launcher starts beside a session's first shell:
+# this fake ignores it.
+[[ $* == *"/startup-cover.qml" ]] && exit 0
+
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 
 # Other configs' instances, one "<config dir> <pid>" per line.

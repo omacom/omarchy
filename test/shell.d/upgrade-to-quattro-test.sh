@@ -294,3 +294,44 @@ exercise_package_install 0 || fail "Omarchy 4 upgrade goes on when the omarchy p
   fail "Omarchy 4 upgrade goes on when the omarchy package has no realtime repair" "$(cat "$package_calls")"
 pass "Omarchy 4 upgrade goes on when the omarchy package has no realtime repair"
 rm -rf "$package_calls" "$repair_bin" "$package_root_path"
+
+# greetd takes over only once its configuration is written; otherwise SDDM
+# keeps signing in as before. SDDM's autologin user here no longer exists.
+# Every privileged call is recorded on fd 3, past the script's redirections.
+eval "$(sed -n '/^normalize_sddm_login() {$/,/^}$/p;/^normalize_login() {$/,/^}$/p' "$upgrade_to_quattro")"
+exercise_login() {
+  local greetd=$1 login_status=$2
+
+  (
+    log() { :; }
+    warn() { :; }
+    enable_system_service() { echo "enable $1" >&3; }
+    should_enable_autologin() { :; }
+    package_installed_exact() { [[ $1 == greetd && $greetd == yes ]]; }
+    getent() { [[ $2 == alice ]]; }
+    as_root() {
+      echo "$*" >&3
+      case $1 in
+        awk) echo gone ;;
+        tee) cat >/dev/null ;;
+        env) [[ $3 != omarchy-system-login ]] || return "$login_status" ;;
+      esac
+    }
+    target_user=alice root_path=/usr/bin
+    normalize_login
+  ) 3>&1 >/dev/null
+}
+keeps_sddm() {
+  [[ $1 != *greetd.service* && $1 != *"disable sddm"* && $1 == *"enable sddm.service"* &&
+    $1 == *"tee /etc/sddm.conf.d/autologin.conf"* ]]
+}
+
+login_calls=$(exercise_login yes 0)
+[[ $login_calls == *"omarchy-system-login alice --autologin"* && $login_calls == *"systemctl disable sddm.service"* &&
+  $login_calls == *"rm -f /etc/sddm.conf.d/autologin.conf"* ]] ||
+  fail "Omarchy 4 upgrade hands the upgrading user's autologin to greetd" "$login_calls"
+login_calls=$(exercise_login yes 1)
+keeps_sddm "$login_calls" || fail "Omarchy 4 upgrade keeps SDDM when greetd's configuration fails" "$login_calls"
+login_calls=$(exercise_login no 0)
+keeps_sddm "$login_calls" || fail "Omarchy 4 upgrade keeps SDDM on a channel without greetd" "$login_calls"
+pass "Omarchy 4 upgrade switches to greetd only once its configuration is written"
