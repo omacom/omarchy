@@ -1,0 +1,440 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the DeepInfra usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect DeepInfra pay-as-you-go usage into one display-ready JSON record.
+
+DeepInfra has no coding-agent CLI of its own: this is for an API key used
+directly against its OpenAI-compatible inference endpoint, or through a
+tool such as opencode or pi configured with a DeepInfra provider. The
+balance comes from DeepInfra's own GET /payment/checklist (`stripe_balance`,
+a ledger that only settles at invoice time, minus `recent`, usage accrued
+since the last invoice not yet deducted from it); the per-model token
+totals for the trailing month, and a real-dollar spend total for the
+trailing RECENT_SPEND_HOURS (not calendar-aligned -- DeepInfra's own
+built-in sense of "spent recently"), both come from GET /payment/usage, the
+second with the request scoped to that window by a raw Unix timestamp
+rather than the endpoint's own month notation, the one way to get it
+narrower than a whole calendar month. All three are account-wide, like
+Fireworks's billing API, so the record carries `scope: "account"` and no
+prompt or session counts. The agents panel only ever reads the JSON this
+prints.
+
+Each API key keeps its account's last good usage rows, balance, and recent
+spend under the agent-usage cache, so a failed check shows them stale
+rather than blank.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import sys
+import time
+import urllib.parse
+import urllib.request
+from datetime import date, datetime, timezone
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  NUMBER_CEILING,
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record as shared_base_record,
+  config_home,
+  emit,
+  number,
+  open_json,
+  read_json,
+  scan_max_age,
+  trusted_endpoint,
+)
+
+AGENT_ID = "deepinfra"
+AGENT_NAME = "DeepInfra"
+AUTH_HELP = 'Set DEEPINFRA_API_KEY, or put "apiKey" in ~/.config/omarchy/agents/deepinfra.json.'
+API_BASE_URL = "https://api.deepinfra.com"
+
+
+class DeepInfraError(Exception):
+  pass
+
+
+# No server answered at all (DNS, connection, timeout): the one failure worth
+# a sooner retry.
+class DeepInfraTransportError(DeepInfraError):
+  pass
+
+
+# The key itself was refused, so only a new one helps.
+class DeepInfraAuthError(DeepInfraError):
+  pass
+
+
+# Confirmed live against a real account (403, not the key being wrong at
+# all): {"detail": {"error": "this API key does not have the 'billing:read'
+# scope"}}. Neither 401 nor 403 is documented, so this is read best-effort
+# and never raises -- a body of another shape just falls back to the
+# generic message the caller already has.
+def api_error_detail(error: HttpError) -> str:
+  try:
+    body = json.loads(error.body.decode("utf-8"))
+  except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+    return ""
+  detail = body.get("detail") if isinstance(body, dict) else None
+  message = detail.get("error") if isinstance(detail, dict) else None
+  return f"DeepInfra: {message}" if isinstance(message, str) and message else ""
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  return shared_base_record(AGENT_ID, AGENT_NAME, **{
+    # The billing API's numbers are account-wide, not machine-local.
+    "scope": "account",
+    # The billing API reports tokens, never prompt or session counts.
+    "hasPromptStats": False,
+    "tierLabel": "Pay-as-you-go",
+    **overrides,
+  })
+
+
+def model_id(row: dict[str, Any]) -> str:
+  meta = row.get("model") if isinstance(row.get("model"), dict) else {}
+  name = str(meta.get("model_name") or "unknown")
+  return name.rstrip("/").split("/")[-1] or "unknown"
+
+
+def row_day(row: dict[str, Any]) -> str:
+  # UsageItem.interval.fr is milliseconds since the epoch -- but confirmed
+  # live, it's the whole *query's* start, the same for every row a month
+  # notation call returns, not the day tokens were actually used on.
+  # DeepInfra's billing API has no finer-than-the-query-window granularity
+  # for this endpoint (see recent_spend_from_usage for the one place that
+  # matters: a query itself scoped to a short window), so this is the
+  # closest thing to a day a month-wide fetch can honestly give -- usage
+  # from any day in the month lands on the 1st, not estimated finer.
+  interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+  start_ms = number(interval.get("fr"))
+  if not start_ms:
+    return ""
+  try:
+    return datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc).astimezone().date().isoformat()
+  except (OverflowError, OSError, ValueError):
+    return ""
+
+
+# UsageOut.months[].items[] are account-wide month-and-model buckets, not
+# replies: no prompt or session to count. Confirmed live, pricing_type is
+# never literally "token" -- it's "input_tokens", "output_tokens", or
+# "cached_tokens" (a GPU-rental row bills by the second instead, with no
+# "_tokens" suffix, and has nothing to do with a token count, left out the
+# same way a dedicated-hardware collector would leave it out of its own).
+PRICING_TYPE_TOKEN_FIELD = {"input_tokens": "input", "output_tokens": "output", "cached_tokens": "cache_read"}
+
+
+def summarize_usage(months: list[Any], today: date | None = None) -> dict[str, Any]:
+  stats = Stats(today)
+  for month in months:
+    if not isinstance(month, dict):
+      continue
+    items = month.get("items")
+    if not isinstance(items, list):
+      continue
+    for raw_row in items:
+      if not isinstance(raw_row, dict):
+        continue
+      field = PRICING_TYPE_TOKEN_FIELD.get(str(raw_row.get("pricing_type") or ""))
+      if field is None:
+        continue
+      day = row_day(raw_row)
+      model = model_id(raw_row)
+      units = number(raw_row.get("units"))
+      tokens = {"input": 0, "output": 0, "cache_read": 0}
+      tokens[field] = units
+      stats.add(day or None, None, model, tokens["input"], tokens["output"], tokens["cache_read"], 0, prompts=0)
+  snapshot = stats.snapshot()
+  return {key: snapshot[key] for key in ("todayTotalTokens", "todayTokensByModel", "recentDays", "activeDays", "activeDates", "modelUsage")}
+
+
+def config_path() -> Path:
+  return config_home() / "omarchy" / "agents" / "deepinfra.json"
+
+
+def read_config() -> dict[str, Any]:
+  return read_json(config_path())
+
+
+def api_key(config: dict[str, Any]) -> str:
+  return (
+    str(os.environ.get("DEEPINFRA_API_KEY", "")).strip()
+    or str(config.get("apiKey") or "").strip()
+  )
+
+
+class DeepInfraClient:
+  def __init__(self, key: str, base_url: str = API_BASE_URL):
+    self.key = key
+    self.base_url = base_url.rstrip("/")
+
+  def request(self, path: str, query: dict[str, Any] | None = None) -> dict[str, Any]:
+    url = self.base_url + path
+    # DEEPINFRA_API_BASE_URL moves the endpoint, never the key onto a
+    # connection anyone on the way can read.
+    if not trusted_endpoint(url):
+      raise DeepInfraError("DEEPINFRA_API_BASE_URL must use HTTPS (plain HTTP only for loopback)")
+    if query:
+      url += "?" + urllib.parse.urlencode(query)
+    request = urllib.request.Request(
+      url,
+      headers={"Authorization": f"Bearer {self.key}", "Accept": "application/json"},
+    )
+    try:
+      decoded = open_json(request, timeout=15)
+    except HttpError as error:
+      if error.status in (401, 403):
+        raise DeepInfraAuthError(api_error_detail(error) or "DeepInfra rejected the API key") from error
+      if error.status == 422:
+        raise DeepInfraError("DeepInfra rejected the usage request") from error
+      if error.status:
+        raise DeepInfraError(f"DeepInfra API returned HTTP {error.status}") from error
+      if error.transport:
+        raise DeepInfraTransportError("Could not reach the DeepInfra API") from error
+      raise DeepInfraError("DeepInfra returned an invalid billing response") from error
+    # Every answer is an object; anything else would read as an account with
+    # nothing in it and replace the last good numbers.
+    if not isinstance(decoded, dict):
+      raise DeepInfraError("DeepInfra returned an invalid billing response")
+    return decoded
+
+  # Checklist.stripe_balance: negative means funds ready to spend, positive
+  # means money owed since the last invoice.
+  def checklist(self) -> dict[str, Any]:
+    return self.request("/payment/checklist")
+
+  # "current"/"current-N" is the usage endpoint's own month notation.
+  def usage(self, months_back: int = 1) -> dict[str, Any]:
+    return self.request("/payment/usage", query={"from": f"current-{months_back}", "to": "current"})
+
+  # `from`/`to` also take a raw Unix timestamp (seconds, UTC) -- confirmed
+  # live, that's the one way to get a window narrower than a calendar
+  # month: the API echoes the exact requested window back as every row's
+  # interval and sums cost across just that span, rather than collapsing
+  # the whole request into one calendar-month bucket the way "current-N"
+  # does.
+  def recent_usage(self, hours: float) -> dict[str, Any]:
+    now = int(time.time())
+    return self.request("/payment/usage", query={"from": str(now - round(hours * 3600)), "to": str(now)})
+
+
+def signed_money(value: Any) -> float:
+  """A signed balance field from the billing API, 0.0 unless it is a plain
+  JSON number that is finite and not absurdly large. Unlike number()/
+  dollars(), a negative reading is kept rather than discarded: DeepInfra's
+  checklist uses the sign itself (funds ready to spend vs. money owed)."""
+  if isinstance(value, bool) or not isinstance(value, (int, float)):
+    return 0.0
+  if not math.isfinite(value) or abs(value) >= NUMBER_CEILING:
+    return 0.0
+  return float(value)
+
+
+RECENT_SPEND_HOURS = 48
+
+
+def recent_spend_from_usage(payload: dict[str, Any]) -> float:
+  # cost is in cents, confirmed live (UsageMonth.total_cost 26 cents matched
+  # Checklist.recent's real $0.26). Every pricing_type counts here, GPU
+  # rental included -- a dollar total isn't just the token-priced rows the
+  # way the token stats are. A query scoped to RECENT_SPEND_HOURS (not a
+  # calendar month) is the one case where DeepInfra's API actually sums
+  # just that window rather than a whole month, so this is real spend for
+  # exactly that window, not an estimate.
+  months = payload.get("months")
+  if not isinstance(months, list):
+    return 0.0
+  total_cents = 0
+  for month in months:
+    if not isinstance(month, dict):
+      continue
+    items = month.get("items")
+    if not isinstance(items, list):
+      continue
+    for raw_row in items:
+      if isinstance(raw_row, dict):
+        total_cents += number(raw_row.get("cost"))
+  return total_cents / 100
+
+
+def balance_from_checklist(checklist: dict[str, Any]) -> dict[str, Any]:
+  # Despite the name, Checklist.stripe_balance and .recent are plain dollar
+  # amounts, not cents (unlike UsageItem.cost/UsageMonth.total_cost, which
+  # the API docs say explicitly are in cents). Confirmed live: a $5 prepaid
+  # credit reads back as stripe_balance -5.0, not -500.
+  #
+  # stripe_balance is Stripe's own customer-balance ledger, only settled
+  # when an invoice finalizes -- it does NOT fall as usage happens. "recent"
+  # is exactly the usage accrued since the last invoice that hasn't been
+  # deducted from it yet. So the actual spendable balance right now is the
+  # ledger credit minus that not-yet-settled usage, not the credit alone:
+  # confirmed live against a real $5 account with $0.26 of unsettled recent
+  # usage, whose true remaining balance was $4.74 (5.0 - 0.26), not $5.00.
+  credit = max(0.0, -signed_money(checklist.get("stripe_balance")))
+  spent = max(0.0, signed_money(checklist.get("recent")))
+  return {
+    "remaining": max(0.0, credit - spent),
+    "funded": credit,
+    "spent": spent,
+    "currency": "USD",
+    # DeepInfra's checklist is always a live read, never an estimate.
+    "estimated": False,
+  }
+
+
+# ---------------------------------------------------------------- caches
+
+
+# All three answers are keyed by the API key: the balance under the limits
+# cache name every collector shares, the monthly usage rows and the recent-
+# spend window each beside it under their own kind. None holds limit
+# windows, so each stands in for a probe on its own stamp alone.
+def caches(key: str) -> tuple[LimitsCache, LimitsCache, LimitsCache]:
+  return (
+    LimitsCache(AGENT_ID, key, kind="usage"),
+    LimitsCache(AGENT_ID, key),
+    LimitsCache(AGENT_ID, key, kind="recent-spend"),
+  )
+
+
+def cached_part(cache: LimitsCache) -> dict[str, Any] | None:
+  if not cache.fetched_at:
+    return None
+  return dict(cache.data, fetchedAtMs=cache.fetched_at)
+
+
+# Refreshes can overlap (the panel's own and a sooner retry), so an answer
+# only replaces one fetched before it.
+def remember(cache: LimitsCache, **part: Any) -> dict[str, Any]:
+  cache.save([], only_if_newer=True, **part)
+  return dict(cache.data)
+
+
+# ---------------------------------------------------------------- record
+
+
+def scan(api_base_url: str, force: bool = False, limits_only: bool = False) -> dict[str, Any]:
+  config = read_config()
+  key = api_key(config)
+  # No key anywhere: DeepInfra isn't used here, and the panel skips it.
+  if not key:
+    return base_record(tierLabel="")
+
+  usage_cache, balance_cache, recent_spend_cache = caches(key)
+  usage_part = cached_part(usage_cache)
+  balance_part = cached_part(balance_cache)
+  recent_spend_part = cached_part(recent_spend_cache)
+
+  # The usage rows are this record's stats, so they are reused like a local
+  # scan: briefly on a normal run, for 15 minutes on the panel's near-limit
+  # refresh. The balance and recent-spend window each come from their own
+  # call, so each is probed like a normal run. --force reuses nothing.
+  usage_fresh = usage_part is not None and usage_cache.fresh(force, scan_max_age(force, limits_only), allow_empty=True)
+  balance_fresh = balance_part is not None and balance_cache.fresh(force, allow_empty=True)
+  recent_spend_fresh = recent_spend_part is not None and recent_spend_cache.fresh(force, allow_empty=True)
+
+  errors: list[DeepInfraError] = []
+  failed: set[str] = set()
+  today = datetime.now().astimezone().date()
+  if not (usage_fresh and balance_fresh and recent_spend_fresh):
+    client = DeepInfraClient(key, api_base_url)
+    if not usage_fresh:
+      try:
+        months = client.usage(months_back=1).get("months")
+        usage_part = remember(usage_cache, months=months if isinstance(months, list) else [])
+      except DeepInfraError as error:
+        errors.append(error)
+        failed.add("usage")
+    if not balance_fresh:
+      try:
+        balance_part = remember(balance_cache, balance=balance_from_checklist(client.checklist()))
+      except DeepInfraError as error:
+        errors.append(error)
+        failed.add("balance")
+    if not recent_spend_fresh:
+      try:
+        amount = recent_spend_from_usage(client.recent_usage(RECENT_SPEND_HOURS))
+        recent_spend_part = remember(recent_spend_cache, recentSpend={
+          "amount": amount, "hours": RECENT_SPEND_HOURS, "currency": "USD", "estimated": False,
+        })
+      except DeepInfraError as error:
+        errors.append(error)
+        failed.add("recentSpend")
+
+  record = base_record(ready=True)
+  # Kept rows are summarized against today, so a day-old answer still files
+  # its tokens under the right days.
+  if usage_part is not None:
+    months = usage_part.get("months")
+    record.update(summarize_usage(months if isinstance(months, list) else [], today))
+    record["hasLocalStats"] = True
+  if balance_part is not None and isinstance(balance_part.get("balance"), dict):
+    record["balance"] = balance_part["balance"]
+  if recent_spend_part is not None and isinstance(recent_spend_part.get("recentSpend"), dict):
+    record["recentSpend"] = recent_spend_part["recentSpend"]
+
+  kept = [part for part in (usage_part, balance_part, recent_spend_part) if part is not None]
+  if kept:
+    record["limitsFetchedAt"] = min(part["fetchedAtMs"] for part in kept)
+  # Anything that didn't come back fresh marks the record stale, kept or not;
+  # the panel shows the kept numbers' age on hover.
+  record["limitsStale"] = bool(failed)
+  if any(isinstance(error, DeepInfraTransportError) for error in errors):
+    # Usually the seconds after login before the network is up; the panel
+    # tries once more soon instead of waiting out its refresh interval.
+    record["retryAdvised"] = True
+
+  auth_errors = [error for error in errors if isinstance(error, DeepInfraAuthError)]
+  if auth_errors:
+    record["usageStatusText"] = "Sign-in expired"
+    # DeepInfra's own detail (e.g. a key missing the billing:read scope) is
+    # already the one thing to do about it; AUTH_HELP is only for a plain
+    # rejection with nothing more specific to say.
+    detail = str(auth_errors[0])
+    record["authHelpText"] = detail if detail != "DeepInfra rejected the API key" else detail + " " + AUTH_HELP
+  elif "usage" in failed and usage_part is None:
+    record["usageStatusText"] = "DeepInfra unavailable"
+    record["authHelpText"] = str(errors[0])
+  elif "balance" in failed and balance_part is None:
+    record["usageStatusText"] = "Balance unavailable"
+    record["authHelpText"] = str(errors[0])
+  elif "recentSpend" in failed and recent_spend_part is None:
+    record["usageStatusText"] = "DeepInfra unavailable"
+    record["authHelpText"] = str(errors[0])
+  elif errors:
+    record["authHelpText"] = str(errors[0])
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the DeepInfra usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="re-fetch usage and balance, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent usage answer; only the balance must be fresh")
+  parser.add_argument("--api-base-url", default=os.environ.get("DEEPINFRA_API_BASE_URL", API_BASE_URL))
+  args = parser.parse_args()
+
+  try:
+    record = scan(args.api_base_url, args.force, args.limits_only)
+  except Exception as error:
+    record = base_record(usageStatusText="DeepInfra unavailable", authHelpText="DeepInfra usage scan failed")
+    print(f"omarchy-agent-usage-deepinfra: {type(error).__name__}", file=sys.stderr)
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

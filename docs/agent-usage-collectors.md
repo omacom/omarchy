@@ -60,6 +60,7 @@ Its main entry points, each documented where it is defined:
 | `retryAdvised` | `true` only when the service couldn't be reached at all (DNS, connection, timeout), so the panel retries this agent in 30 seconds |
 | `balance` | `{remaining, funded, spent, currency, estimated}` for prepaid accounts |
 | `spend` | `{amount, cap, currency, days, estimated}` for pay-as-you-go accounts: `days`, each of the last 30 days' cost, today last, and `amount`, their total; or, when the account has a monthly cap (`cap`, `0` when it has none), this month's spend against it. `estimated` is `true` when it adds up the costs local stores wrote beside each reply (`Stats.snapshot_with_spend()`) rather than the provider's own rating |
+| `recentSpend` | `{amount, hours, currency, estimated}` -- real cost over a fixed trailing window (`hours`), for a billing API that can answer that window directly but not a real `spend.days` breakdown (one request per day would be too many). `estimated` is `true` only on the same basis as `spend`'s |
 | `accounts`, `accountSwitch` | Only when two or more accounts are registered; each account carries `limits`, `stale`, `fetchedAt`, `usageStatusText`, `authHelpText` |
 | `hasLocalStats` | Whether the stats below come from this machine |
 | `hasPromptStats` | `false` when the source has no real prompt or session counts (an API that counts requests, not prompts) |
