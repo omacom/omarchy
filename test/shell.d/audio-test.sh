@@ -35,6 +35,42 @@ assertEqual(
   'Microphone',
   'audio chooses friendly node labels'
 )
+assertEqual(
+  audio.nodeLabel({
+    ready: true,
+    nickname: 'Scarlett 18i20 USB',
+    description: 'Scarlett 18i20 USB Line Output 1+2',
+    properties: { 'node.nick': 'Scarlett 18i20 USB' }
+  }),
+  'Scarlett 18i20 USB Line Output 1+2',
+  'audio names a port when its nick is only the shared product name'
+)
+assertEqual(
+  audio.nodeLabel({
+    ready: true,
+    properties: {
+      'node.nick': 'Scarlett 18i20 USB',
+      'node.description': 'Scarlett 18i20 USB ADAT Optical Output'
+    }
+  }),
+  'Scarlett 18i20 USB ADAT Optical',
+  'audio keeps the port and drops a trailing Output'
+)
+assertEqual(
+  audio.nodeLabel({
+    ready: true,
+    nickname: 'Speaker',
+    description: 'Core Ultra Processors (Series 3) HD Audio Speaker',
+    properties: { 'node.nick': 'Speaker' }
+  }),
+  'Speaker',
+  'audio keeps a short nick that is not a prefix of the description'
+)
+assertEqual(
+  audio.nodeLabel({ ready: true, properties: { 'device.profile.description': 'Line Output 1+2' } }),
+  'Line Output 1+2',
+  'audio uses the profile name when a node has no nick'
+)
 
 const headphones = { ready: true, name: 'bluez_output.airpods', properties: { 'device.product.name': 'AirPods Headphones' } }
 assert(audio.isHeadphones(headphones), 'audio detects headphone devices')
