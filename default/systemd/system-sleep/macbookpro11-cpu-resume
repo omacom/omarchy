@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# On the MacBook Pro 11,2 the kernel takes one to three seconds per core to
+# bring the secondary CPUs back up after S3, so waking takes around twelve
+# seconds before anything reaches the screen. Bringing the same cores online
+# from a running system takes milliseconds. Take them offline before suspend so
+# resume has nothing to bring up, then put back the ones that were online.
+
+cpu_dir=${OMARCHY_MBP11_CPU_DIR:-/sys/devices/system/cpu}
+marker=${OMARCHY_MBP11_CPU_MARKER:-/run/omarchy-macbookpro11-cpus-offlined}
+
+if [[ $1 == "pre" && ${SYSTEMD_SLEEP_ACTION:-$2} == "suspend" ]]; then
+  # Keep an earlier attempt's record until post restores it, and record each
+  # core before offlining it so an interrupted hook can recover on the next try.
+  if { : >>"$marker"; } 2>/dev/null; then
+    for online in "$cpu_dir"/cpu[0-9]*/online; do
+      [[ -w $online && $(<"$online") == "1" ]] || continue
+      if { echo "$online" >>"$marker"; } 2>/dev/null; then
+        echo 0 >"$online" 2>/dev/null || true
+      fi
+    done
+  fi
+elif [[ $1 == "post" && -f $marker ]]; then
+  while IFS= read -r online; do
+    echo 1 >"$online" 2>/dev/null || true
+  done <"$marker"
+  rm -f "$marker"
+fi
