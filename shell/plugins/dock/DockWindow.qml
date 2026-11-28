@@ -361,8 +361,11 @@ PanelWindow {
   Canvas {
     id: mist
 
-    // How far past the dock's ends it runs, dissolving, and how far inward.
-    readonly property real reach: window.slotSize * 2.5
+    // How far past the dock's ends it runs and how far inward. It dissolves
+    // toward each end over a longer stretch than it overruns, starting under
+    // the last icons, so it ends softly without standing clear of the stack.
+    readonly property real reach: window.slotSize * 0.75
+    readonly property real dissolve: window.slotSize * 1.75
     readonly property real depth: window.gap + window.slotSize * 1.9
     // The share of the depth, from the screen edge, the icons stand in.
     readonly property real ground: (window.gap + window.slotSize * 0.8) / depth
@@ -416,7 +419,7 @@ PanelWindow {
       var length = window.vertical ? height : width
       for (var side = 0; side < 2; side++) {
         var from = side === 0 ? 0 : length
-        var to = side === 0 ? mist.reach : length - mist.reach
+        var to = side === 0 ? mist.dissolve : length - mist.dissolve
         var fade = window.vertical ? ctx.createLinearGradient(0, from, 0, to) : ctx.createLinearGradient(from, 0, to, 0)
         for (var j = 0; j <= stops; j++) {
           var u = j / stops
@@ -424,8 +427,8 @@ PanelWindow {
         }
         ctx.fillStyle = fade
         var low = Math.min(from, to)
-        if (window.vertical) ctx.fillRect(0, low, width, mist.reach)
-        else ctx.fillRect(low, 0, mist.reach, height)
+        if (window.vertical) ctx.fillRect(0, low, width, mist.dissolve)
+        else ctx.fillRect(low, 0, mist.dissolve, height)
       }
     }
   }
