@@ -1444,5 +1444,8 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "appearance.dock.collapse-pinned": {
+    "label": "Collapse Pinned"
   }
 }
