@@ -70,4 +70,174 @@ attempt = runPasswordPam([['error', 1]], false)
 assertEqual(attempt.failedAttempts, 0, 'password error after unlock does not increment failedAttempts')
 assertEqual(attempt.pendingPassword, '', 'password error after unlock still scrubs pendingPassword')
 assertEqual(attempt.authenticatingPassword, false, 'password error after unlock clears authenticatingPassword')
+// Exercise the real readlinkProc handler, Background.stillCacheEntry/stillPending,
+// and lockWallpaperRequest without stubbing the desktop helpers.
+const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
+const backgroundMediaQml = fs.readFileSync(path.join(root, 'shell/Ui/BackgroundMedia.qml'), 'utf8')
+const readlinkBlock = serviceQml.match(/Process \{\s*id: readlinkProc[\s\S]*?\n  \}/)[0]
+const streamFinishedBody = readlinkBlock.match(/onStreamFinished: \{([\s\S]*?)\n      \}/)[1]
+const panelForScreenFn = backgroundQml.match(/function panelForScreen\(screen\) \{[\s\S]*?\n  \}/)
+const stillCacheEntryFn = backgroundQml.match(/function stillCacheEntry\(screen, path, signature\) \{[\s\S]*?\n  \}/)
+const stillPendingFn = backgroundQml.match(/function stillPending\(screen, path, signature\) \{[\s\S]*?\n  \}/)
+const desktopStillEntryFn = serviceQml.match(/function desktopStillEntry\(screen\) \{[\s\S]*?\n  \}/)
+const desktopStillPendingFn = serviceQml.match(/function desktopStillPending\(screen\) \{[\s\S]*?\n  \}/)
+const lockRequestFn = serviceQml.match(/function lockWallpaperRequest\(screen, fallbackWidth, fallbackHeight\) \{[\s\S]*?\n  \}/)
+assert(panelForScreenFn && stillCacheEntryFn && stillPendingFn, 'Background.qml defines panelForScreen, stillCacheEntry, and stillPending')
+assert(desktopStillEntryFn && desktopStillPendingFn && lockRequestFn, 'lock/Service.qml defines desktop still helpers')
+assert(/versionPrefix/.test(backgroundMediaQml), 'BackgroundMedia.qml supports versionPrefix for disjoint lock overwrite keys')
+assert(/%y:%s:%i/.test(readlinkBlock), 'readlinkProc tracks nanosecond mtime, size, and inode')
+assert(/\?lockv=/.test(serviceQml), 'lockWallpaperUrl uses disjoint ?lockv= query parameter')
+
+function runReadlink(entries) {
+  const ctx = {
+    backgroundPath: '',
+    videoPosterPath: 'old-poster.jpg',
+    backgroundSignature: '',
+    backgroundVersion: 0,
+    nextBackgroundVersion: 0,
+    seenBackgroundSignatures: {},
+    seenBackgroundVersions: {},
+    backgroundOverwrittenInPlace: false,
+    posterRefreshes: 0,
+    refreshPoster() { this.posterRefreshes += 1 }
+  }
+  ctx.root = ctx
+  require('vm').runInNewContext(`function onFinished(text) {${streamFinishedBody}}`, ctx)
+  const history = []
+  for (const text of entries) {
+    ctx.onFinished(text)
+    history.push({
+      path: ctx.backgroundPath,
+      version: ctx.backgroundVersion,
+      overwritten: ctx.backgroundOverwrittenInPlace
+    })
+  }
+  return history
+}
+
+// Sequence: A -> overwrite A -> B -> return to A (same second, different ns/inode) -> overwrite A again.
+const seq = runReadlink([
+  '/wall/a.webp\n2026-11-28 10:00:00.100000000 +0000:256:1001\n',
+  '/wall/a.webp\n2026-11-28 10:00:00.200000000 +0000:256:1001\n',
+  '/wall/b.webp\n2026-11-28 10:00:00.300000000 +0000:512:1002\n',
+  '/wall/a.webp\n2026-11-28 10:00:00.400000000 +0000:256:1003\n',
+  '/wall/a.webp\n2026-11-28 10:00:00.500000000 +0000:256:1004\n'
+])
+assertEqual(seq[0].version, 0, 'initial load of A keeps version 0 to share desktop cache')
+assertEqual(seq[0].overwritten, false, 'initial load of A is not marked overwritten')
+assertEqual(seq[1].version, 1, 'in-place overwrite of A bumps to version 1')
+assertEqual(seq[1].overwritten, true, 'in-place overwrite marks backgroundOverwrittenInPlace')
+assertEqual(seq[2].version, 0, 'first load of new path B uses version 0')
+assertEqual(seq[2].overwritten, false, 'new path B clears overwritten flag')
+assertEqual(seq[3].version, 2, 'returning to A after same-second overwrite gets unique version 2')
+assertEqual(seq[4].version, 3, 'subsequent overwrite of A gets unique version 3')
+
+// Wire the REAL Background helpers into lock/Service helpers.
+const dp1 = { name: 'DP-1' }
+const hdmi1 = { name: 'HDMI-A-1' }
+const bgCtx = {
+  displayedBackground: '/wall/a.webp',
+  displayedSignature: 'sig-a-1',
+  currentBackground: '/wall/a.webp',
+  suspended: false,
+  reloadVersion: 1,
+  nativeSizes: { '/wall/a.webp': { width: 5120, height: 2880 } },
+  readlinkProc: { running: false },
+  sizeProbe: { running: false },
+  sizeQueue: [],
+  isVideo: (p) => /\.mp4$/.test(p),
+  backgrounds: {
+    instances: [{
+      screen: dp1,
+      backgroundReady: true,
+      decodeSize: (p) => p === '/wall/a.webp' ? { width: 3840, height: 2160 } : { width: 0, height: 0 }
+    }]
+  }
+}
+require('vm').runInNewContext(`${panelForScreenFn[0]}\n${stillCacheEntryFn[0]}\n${stillPendingFn[0]}`, bgCtx)
+
+const lockCtx = {
+  videoBackground: false,
+  backgroundOverwrittenInPlace: false,
+  lockRequested: false,
+  backgroundPath: '/wall/a.webp',
+  backgroundSignature: 'sig-a-1',
+  backgroundVersion: 0,
+  backgroundService: bgCtx
+}
+require('vm').runInNewContext(`${desktopStillEntryFn[0]}\n${desktopStillPendingFn[0]}\n${lockRequestFn[0]}`, lockCtx)
+
+// Output with desktop panel shares desktop's physical size, reloadVersion, and ?v= prefix.
+const reqDp1 = lockCtx.lockWallpaperRequest(dp1, 1920, 1080)
+assertEqual(reqDp1.shared, true, 'output owned by desktop background shares cache even when reloadVersion > 0')
+assertEqual(reqDp1.version, 1, 'shared request matches desktop reloadVersion')
+assertEqual(reqDp1.versionPrefix, 'v', 'shared request uses desktop ?v= query prefix')
+assertEqual(reqDp1.width, 3840, 'shared request matches desktop physical width')
+assertEqual(reqDp1.height, 2160, 'shared request matches desktop physical height')
+
+// In-place overwrite uses disjoint ?lockv= prefix so version 1 never collides with desktop ?v=1.
+lockCtx.backgroundOverwrittenInPlace = true
+lockCtx.backgroundVersion = 1
+const reqOver = lockCtx.lockWallpaperRequest(dp1, 1920, 1080)
+assertEqual(reqOver.shared, false, 'in-place overwrite falls back to cache-busted lock version')
+assertEqual(reqOver.version, 1, 'in-place overwrite uses monotonic lock backgroundVersion')
+assertEqual(reqOver.versionPrefix, 'lockv', 'in-place overwrite uses disjoint ?lockv= prefix')
+lockCtx.backgroundOverwrittenInPlace = false
+lockCtx.backgroundVersion = 0
+
+// Animated switch (displayedBackground still shows outgoing wallpaper): preload stays active.
+bgCtx.displayedBackground = '/wall/outgoing.webp'
+bgCtx.currentBackground = '/wall/a.webp'
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'animated transition does not claim desktop cache before displayedBackground switches')
+assertEqual(lockCtx.desktopStillPending(dp1), false, 'animated transition does not suppress lock preload')
+bgCtx.displayedBackground = '/wall/a.webp'
+
+// Unsized desktop panel (0x0 decodeSize, no probe running): preload stays active.
+const origDecodeSize = bgCtx.backgrounds.instances[0].decodeSize
+bgCtx.backgrounds.instances[0].decodeSize = () => ({ width: 0, height: 0 })
+assertEqual(lockCtx.desktopStillEntry(dp1), null, '0x0 desktop decodeSize does not suppress lock preload')
+assertEqual(lockCtx.desktopStillPending(dp1), false, '0x0 without active probe does not defer lock preload')
+
+// Initial startup sizeProbe in flight: stillPending defers duplicate startup decode.
+bgCtx.backgrounds.instances[0].backgroundReady = false
+delete bgCtx.nativeSizes['/wall/a.webp']
+bgCtx.sizeProbe.running = true
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'stillCacheEntry stays null until decodeSize is non-zero')
+assertEqual(lockCtx.desktopStillPending(dp1), true, 'stillPending defers duplicate preload while startup sizeProbe runs')
+bgCtx.sizeProbe.running = false
+bgCtx.nativeSizes['/wall/a.webp'] = { width: 5120, height: 2880 }
+bgCtx.backgrounds.instances[0].backgroundReady = true
+bgCtx.backgrounds.instances[0].decodeSize = origDecodeSize
+
+// Suspended desktop background (e.g. OWE active): preload stays active.
+bgCtx.suspended = true
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'suspended desktop background does not suppress lock preload')
+bgCtx.suspended = false
+
+// Hotplugged output without a desktop panel yet falls back per-output instead of suppressing preload.
+const reqHdmi = lockCtx.lockWallpaperRequest(hdmi1, 1920, 1080)
+assertEqual(reqHdmi.shared, false, 'output without a desktop panel does not suppress preload')
+assertEqual(reqHdmi.width, 1920, 'unowned output falls back to logical width')
+
+// Video wallpaper never suppresses preload.
+lockCtx.videoBackground = true
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'video wallpaper keeps lock poster preload active')
+lockCtx.videoBackground = false
+
+// Desktop still decoding (backgroundReady: false): stillCacheEntry stays null so an active lock
+// never drops a decoded fallback image, while unlocked stillPending avoids duplicate startup decode.
+bgCtx.backgrounds.instances[0].backgroundReady = false
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'in-flight desktop decode does not switch LockView before ready')
+assertEqual(lockCtx.desktopStillPending(dp1), true, 'unlocked preload defers while desktop base decode is in flight')
+lockCtx.lockRequested = true
+assertEqual(lockCtx.desktopStillPending(dp1), false, 'active lock never defers to an unready desktop decode')
+lockCtx.lockRequested = false
+bgCtx.backgrounds.instances[0].backgroundReady = true
+
+// First lock observation after desktop loaded earlier bytes (signature mismatch): never share stale desktop cache.
+lockCtx.backgroundSignature = 'sig-a-2'
+assertEqual(lockCtx.desktopStillEntry(dp1), null, 'signature mismatch against desktop displayedSignature rejects stale cache')
+assertEqual(lockCtx.desktopStillPending(dp1), false, 'signature mismatch does not suppress lock preload')
+lockCtx.backgroundSignature = 'sig-a-1'
+
 JS

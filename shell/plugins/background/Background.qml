@@ -20,6 +20,7 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  property string displayedSignature: ""
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -63,6 +64,52 @@ Item {
     return Util.fileUrl(path)
   }
 
+  function panelForScreen(screen) {
+    if (!screen) return null
+    for (var panel of backgrounds.instances) {
+      if (panel.screen && (panel.screen === screen || panel.screen.name === screen.name)) return panel
+    }
+    return null
+  }
+
+  // Returns the desktop background's QQuickPixmapCache descriptor for a still
+  // wallpaper on screen once that panel's decoded image is ready, or null when
+  // another renderer (video), an in-flight transition or decode, an unsized or
+  // missing panel, or a newer on-disk file signature means the desktop cache
+  // cannot satisfy the request yet.
+  function stillCacheEntry(screen, path, signature) {
+    if (!screen || !path || suspended || isVideo(path)) return null
+    if (displayedBackground !== path) return null
+    if (signature && displayedSignature && displayedSignature !== signature) return null
+    var panel = panelForScreen(screen)
+    if (!panel || !panel.backgroundReady) return null
+    var size = panel.decodeSize(path)
+    if (size.width <= 0 || size.height <= 0) return null
+    return {
+      version: reloadVersion,
+      width: size.width,
+      height: size.height,
+      ready: true
+    }
+  }
+
+  // True while this screen's desktop panel is actively resolving, probing, or
+  // decoding path on its own base image (not during an animated reveal of a
+  // different wallpaper). Lets the unlocked lock-service preload wait for the
+  // desktop's in-flight decode instead of firing a duplicate startup decode.
+  function stillPending(screen, path, signature) {
+    if (!screen || !path || suspended || isVideo(path)) return false
+    if (signature && displayedSignature && displayedSignature !== signature) return false
+    if (displayedBackground !== "" && displayedBackground !== path) return false
+    var panel = panelForScreen(screen)
+    if (!panel) return false
+    if (displayedBackground === "") return readlinkProc.running
+    if (panel.backgroundReady) return false
+    if (nativeSizes[path] === undefined) return sizeProbe.running || sizeQueue.indexOf(path) !== -1
+    var size = panel.decodeSize(path)
+    return size.width > 0 && size.height > 0
+  }
+
   function refreshBackground() {
     if (!readlinkProc.running) readlinkProc.running = true
   }
@@ -97,7 +144,8 @@ Item {
     setBackground(path, true)
   }
 
-  function setBackground(path, instant) {
+  function setBackground(path, instant, signature) {
+    displayedSignature = signature || ""
     if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
   }
@@ -287,9 +335,14 @@ Item {
 
   Process {
     id: readlinkProc
-    command: ["readlink", "-f", root.currentBackgroundLink]
+    command: ["bash", "-c", "path=$(readlink -f -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc '%y:%s:%i' -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        var lines = String(text || "").split("\n")
+        var next = String(lines[0] || "").trim()
+        var sig = String(lines[1] || "").trim()
+        root.setBackground(next, false, sig)
+      }
     }
   }
 
