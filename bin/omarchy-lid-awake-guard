@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:summary=Watch disk space and battery while the lid-awake inhibitor is held
+# omarchy:hidden=true
+
+# Runs as the process the inhibitor is held around (see omarchy-toggle-lid-awake).
+# Below the warn levels it only says so; below the stop levels it releases the
+# lid and suspends a closed laptop, rather than hitting a full disk or an empty
+# battery mid-write. Disk is the lower of / and $HOME free space, as a download
+# or VM image may land on either.
+
+interval=${OMARCHY_LID_AWAKE_INTERVAL:-60}
+warn_gb=${OMARCHY_LID_AWAKE_WARN_GB:-10}
+stop_gb=${OMARCHY_LID_AWAKE_STOP_GB:-3}
+warn_pct=${OMARCHY_LID_AWAKE_WARN_PERCENT:-15}
+stop_pct=${OMARCHY_LID_AWAKE_STOP_PERCENT:-8}
+
+# Free GiB on the fullest of / and $HOME; a failed df reads as plenty, since
+# stopping the lid on a reading error would suspend a machine that is working.
+free_gb() {
+  local free lowest=""
+
+  while read -r free; do
+    [[ $free =~ ^[0-9]+$ ]] || continue
+    free=$(( free / 1024 / 1024 / 1024 ))
+    if [[ -z $lowest ]] || (( free < lowest )); then lowest=$free; fi
+  done < <(df --output=avail --block-size=1 / "$HOME" 2>/dev/null | tail -n +2)
+
+  echo "${lowest:-999999}"
+}
+
+# Battery percent while it is discharging; nothing on AC or with no battery.
+discharging_percent() {
+  local state="" percent="" key value
+
+  while IFS=$'\t' read -r key value; do
+    case $key in
+      state) state=$value ;;
+      percentage) percent=${value%\%} ;;
+    esac
+  done < <(omarchy-battery-status --shell 2>/dev/null)
+
+  [[ $state == "discharging" && $percent =~ ^[0-9]+$ ]] && echo "$percent"
+  return 0
+}
+
+warned=""
+stop() {
+  omarchy-notification-send -g 󰒲 "$(omarchy-i18n lidAwake.stopped "$1")"
+  # Releasing the lock is not enough on external power, where logind ignores the
+  # lid. Suspend first: turning the toggle off stops the unit this runs in. An
+  # external display means the closed laptop is still in use.
+  if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors && ! omarchy-sleep-disabled; then
+    systemctl suspend || true
+  fi
+  omarchy-toggle-lid-awake off >/dev/null
+  exit 0
+}
+
+while true; do
+  free=$(free_gb)
+  battery=$(discharging_percent)
+
+  if (( free < stop_gb )); then
+    stop "$(omarchy-i18n lidAwake.reasonDisk "$free")"
+  elif [[ -n $battery ]] && (( battery < stop_pct )); then
+    stop "$(omarchy-i18n lidAwake.reasonBattery "$battery")"
+  elif (( free < warn_gb )) || { [[ -n $battery ]] && (( battery < warn_pct )); }; then
+    # Once per low spell, not once a minute.
+    if [[ -z $warned ]]; then
+      omarchy-notification-send -g 󰒲 "$(omarchy-i18n lidAwake.low)"
+      warned=1
+    fi
+  else
+    warned=""
+  fi
+
+  sleep "$interval"
+done

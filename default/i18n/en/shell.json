@@ -213,6 +213,8 @@
   "bar.dayLight": "Day Light",
   "bar.disablePasswordlessLogin": "Disable Passwordless Login",
   "bar.disablePasswordlessSudo": "Disable Passwordless Sudo",
+  "bar.lidAwake": "Stay Awake with Lid Closed",
+  "bar.allowLidSleep": "Allow Sleep on Lid Close",
   "bar.microphoneInUse": "Microphone in use",
   "bar.microphoneLive": "Microphone live",
   "bar.microphoneMuted": "Microphone muted",

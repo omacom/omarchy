@@ -298,6 +298,12 @@
   "trigger.toggle.idle-lock-off": {
     "label": "Allow Sleep"
   },
+  "trigger.toggle.lid-awake-on": {
+    "label": "Stay Awake, Lid Closed"
+  },
+  "trigger.toggle.lid-awake-off": {
+    "label": "Allow Sleep, Lid Closed"
+  },
   "trigger.toggle.notifications-on": {
     "label": "Notifications On"
   },

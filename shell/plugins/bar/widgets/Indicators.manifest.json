@@ -65,6 +65,11 @@
             "value": "StayAwake",
             "label": "Stay awake",
             "description": "Idle lock and screensaver override"
+          },
+          {
+            "value": "LidAwake",
+            "label": "Lid awake",
+            "description": "Keep running with the lid closed"
           }
         ]
       },

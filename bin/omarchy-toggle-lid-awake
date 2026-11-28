@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle keeping the laptop running with the lid closed
+# omarchy:group=toggle
+# omarchy:args=[toggle|on|off|status]
+# omarchy:examples=omarchy toggle lid-awake | omarchy toggle lid-awake on | omarchy-toggle-lid-awake --status
+
+# Holds logind's handle-lid-switch inhibitor, as omarchy-system-lid-inhibit does
+# for displays logind misses, so a closed lid leaves agents, downloads and VMs
+# running. The guard below is the unit's own process: it refuses to let a
+# forgotten toggle fill the disk or drain the battery, and when it is gone the
+# kernel drops the lock. The unit's own hooks keep the state file, so it can
+# never outlive the lock, whichever way the unit ends. It lives in the runtime
+# dir, which logout and reboot clear, so a crash or power cut that skips the
+# stop hook cannot leave the bar claiming a lock that no longer exists.
+
+UNIT="omarchy-lid-awake.service"
+STATE_DIR="$XDG_RUNTIME_DIR/omarchy"
+STATE_FILE="$STATE_DIR/lid-awake"
+
+held() {
+  systemctl --user is-active --quiet "$UNIT"
+}
+
+print_state() {
+  if held; then
+    printf 'enabled\n'
+  else
+    printf 'disabled\n'
+  fi
+}
+
+print_status() {
+  if held; then
+    printf '{"enabled":true,"class":"enabled","tooltip":"Allow Sleep on Lid Close"}\n'
+  else
+    printf '{"enabled":false,"class":"disabled","tooltip":"Stay Awake with Lid Closed"}\n'
+  fi
+}
+
+lid_on() {
+  held && return 0
+
+  mkdir -p "$STATE_DIR"
+  systemd-run --user --quiet --collect --unit="$UNIT" \
+    --description="Omarchy lid-awake inhibitor" \
+    --property=PartOf=graphical-session.target \
+    --setenv=PATH="$PATH" --setenv=OMARCHY_PATH="$OMARCHY_PATH" \
+    --property="ExecStartPre=/usr/bin/touch $STATE_FILE" \
+    --property="ExecStopPost=/usr/bin/rm -f $STATE_FILE" \
+    systemd-inhibit --no-ask-password --what=handle-lid-switch --mode=block \
+    --who=Omarchy --why="Lid-awake" "$OMARCHY_PATH/bin/omarchy-lid-awake-guard"
+}
+
+lid_off() {
+  held || { rm -f "$STATE_FILE"; return 0; }
+  systemctl --user stop "$UNIT"
+}
+
+case "${1:-toggle}" in
+  toggle)
+    if held; then lid_off; else lid_on; fi
+    print_state
+    ;;
+  on|stay-awake)
+    lid_on
+    print_state
+    ;;
+  off|allow-sleep)
+    lid_off
+    print_state
+    ;;
+  status|--status)
+    print_status
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-lid-awake [toggle|on|off|status]" >&2
+    exit 1
+    ;;
+esac
