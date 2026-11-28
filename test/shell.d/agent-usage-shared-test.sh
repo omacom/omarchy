@@ -736,20 +736,97 @@ check(
 )
 check("canonical roots drop an alias and a root inside another", collectors.canonical_roots([harness, work / "alias", harness / "inner", work / "harness"]) == [(work / "harness").resolve()])
 
-# A scan that couldn't read every session says so, and cached_scan above keeps
-# such a scan out of the cache.
+# The shared per-root SQLite index skips unchanged session files, tails grown
+# ones from the last completed-turn checkpoint (preserving cost), recovers from
+# rewrites/deletions/corruption, and works without rg or a writable cache dir.
 pattern = r'"provider"\s*:\s*"(demo|other)"'
 real_path = os.environ["PATH"]
 os.environ["PATH"] = str(work / "no-bin")
 try:
-  # The warning it prints is the collector's to show, not this test's.
-  with contextlib.redirect_stderr(io.StringIO()):
-    rows, complete = collectors.scan_pi_sessions(pattern, lambda provider, model, entry: provider == "demo")
+  rows_no_rg, complete_no_rg = collectors.scan_pi_sessions(pattern, lambda provider, model, entry: provider == "demo")
 finally:
   os.environ["PATH"] = real_path
-check("without rg the sessions can't be read, and the scan says it is incomplete", rows == [] and not complete)
+check(
+  "pi sessions still read cleanly without rg on PATH",
+  complete_no_rg and sorted(row.input_tokens + row.output_tokens + row.cache_read + row.cache_write for row in rows_no_rg) == by_tokens,
+)
+
+inc_root = work / "incremental-pi"
+inc_file = inc_root / "s1.jsonl"
+inc_static = inc_root / "s2.jsonl"
+write_session(inc_file, [
+  {"type": "message", "id": "u1", "timestamp": stamp, "message": {"role": "user", "content": "hi"}},
+  reply("demo", 0, "a1", usage={"input": 100, "output": 20, "cost": {"total": 0.12}}),
+  {"type": "message", "id": "u2", "timestamp": stamp, "message": {"role": "user", "content": "pending"}},
+])
+write_session(inc_static, [
+  {"type": "message", "id": "u10", "timestamp": stamp, "message": {"role": "user", "content": "stay"}},
+  reply("demo", 0, "a10", usage={"input": 40, "output": 10, "cost": {"total": 0.05}}),
+])
+inc_rows, inc_ok = collectors.scan_pi_sessions(pattern, lambda p, m, e: p == "demo", roots=[inc_root])
+check(
+  "incremental pi index records tokens, prompts, and cost on cold scan",
+  inc_ok and sum(r.input_tokens for r in inc_rows) == 140 and sum(r.prompts for r in inc_rows) == 3 and round(sum(r.cost for r in inc_rows), 4) == 0.17,
+  json.dumps([r._asdict() for r in inc_rows]),
+)
+opened_jsonl = []
+real_path_open = Path.open
+
+
+def tracking_open(self, *args, **kwargs):
+  if self.suffix == ".jsonl":
+    opened_jsonl.append(self)
+  return real_path_open(self, *args, **kwargs)
+
+
+Path.open = tracking_open
+try:
+  warm_rows, warm_ok = collectors.scan_pi_sessions(pattern, lambda p, m, e: p == "demo", roots=[inc_root])
+  check("warm pi scan reuses the shared SQLite index without reopening unchanged session files", warm_ok and opened_jsonl == [] and warm_rows == inc_rows)
+
+  with real_path_open(inc_file, "a") as handle:
+    handle.write(json.dumps(reply("demo", 0, "a2", usage={"input": 200, "output": 50, "cost": {"total": 0.25}})) + "\n")
+  opened_jsonl.clear()
+  appended_rows, appended_ok = collectors.scan_pi_sessions(pattern, lambda p, m, e: p == "demo", roots=[inc_root])
+  check(
+    "appending a reply tails only the changed file and answers the trailing prompt cleanly",
+    appended_ok and opened_jsonl and all(p == inc_file for p in opened_jsonl)
+    and sum(r.input_tokens for r in appended_rows) == 340 and sum(r.prompts for r in appended_rows) == 3
+    and round(sum(r.cost for r in appended_rows), 4) == 0.42,
+    json.dumps({"opened": [str(p) for p in opened_jsonl], "rows": [r._asdict() for r in appended_rows]}),
+  )
+finally:
+  Path.open = real_path_open
+
+# In-place rewrite (larger size, changed prefix), deletion, and corrupt DB all recover.
+write_session(inc_file, [
+  {"type": "session", "id": "rewritten", "pad": "x" * 2000},
+  {"type": "message", "id": "u-new", "timestamp": stamp, "message": {"role": "user", "content": "fresh"}},
+  reply("demo", 0, "a-new", usage={"input": 777, "output": 3, "cost": {"total": 0.5}}),
+])
+inc_static.unlink()
+rewritten_rows, rewritten_ok = collectors.scan_pi_sessions(pattern, lambda p, m, e: p == "demo", roots=[inc_root])
+check(
+  "rewriting or deleting a pi session refreshes the index accurately",
+  rewritten_ok and [(r.input_tokens, r.prompts, round(r.cost, 4)) for r in rewritten_rows] == [(777, 1, 0.5)],
+  json.dumps([r._asdict() for r in rewritten_rows]),
+)
+collectors.pi_session_index(inc_root.resolve()).write_bytes(b"corrupt sqlite bytes")
+recovered_rows, recovered_ok = collectors.scan_pi_sessions(pattern, lambda p, m, e: p == "demo", roots=[inc_root])
+check("a corrupted pi SQLite index is rebuilt cleanly", recovered_ok and recovered_rows == rewritten_rows)
+
+saved_cache = os.environ["XDG_CACHE_HOME"]
+blocked_cache = work / "not-a-dir"
+blocked_cache.write_text("file")
+os.environ["XDG_CACHE_HOME"] = str(blocked_cache)
+try:
+  with contextlib.redirect_stderr(io.StringIO()):
+    fallback_rows, fallback_ok = collectors.scan_pi_sessions(pattern, lambda p, m, e: p == "demo", roots=[inc_root])
+finally:
+  os.environ["XDG_CACHE_HOME"] = saved_cache
+check("an unwritable cache root falls back to an in-memory scan", fallback_ok and fallback_rows == rewritten_rows)
+
 if os.geteuid() != 0:
-  # rg still prints the matches it could read, and only its exit status tells.
   locked = sessions / "p" / "locked.jsonl"
   write_session(locked, [reply("demo", 5000, "locked")])
   locked.chmod(0)
@@ -759,7 +836,7 @@ if os.geteuid() != 0:
     locked.chmod(0o600)
     locked.unlink()
   check(
-    "a session rg couldn't read makes the scan incomplete, the readable ones still counted",
+    "a session the reader couldn't read makes the scan incomplete, the readable ones still counted",
     not complete and sorted(row.input_tokens + row.output_tokens + row.cache_read + row.cache_write for row in rows) == by_tokens,
     json.dumps([row._asdict() for row in rows]),
   )
