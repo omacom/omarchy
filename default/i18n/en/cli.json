@@ -412,6 +412,7 @@
     "one": "%1 file",
     "other": "%1 files"
   },
+  "tailscale.notInstalled": "Tailscale CLI is not installed or not on PATH.",
   "tailscale.received": "Received %1",
   "tailscale.savedTo": "Saved to %1",
   "tailscale.sendFailed": "Could not send to %1",

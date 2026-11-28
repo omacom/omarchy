@@ -339,3 +339,25 @@ const goodUserCtx = makeServiceCtx({ userName: 'alice_1' })
 goodUserCtx.authorizeTailscaleOperator()
 assertDeepEqual(goodUserCtx.operatorProcess.command, ['pkexec', 'tailscale', 'set', '--operator=alice_1'], 'tailscale operator auth accepts valid username')
 JS
+
+send_dir=$(mktemp -d)
+cleanup_send_dir() { rm -rf "$send_dir"; }
+trap cleanup_send_dir EXIT
+
+mkdir -p "$send_dir/bin"
+echo "#!/bin/bash" >"$send_dir/bin/omarchy-notification-send"
+
+cat >"$send_dir/bin/omarchy-file-select" <<SH
+#!/bin/bash
+: >"$send_dir/chooser.called"
+SH
+
+chmod +x "$send_dir/bin/omarchy-notification-send" "$send_dir/bin/omarchy-file-select"
+
+send_status=0
+OMARCHY_PATH="$ROOT" HOME="$send_dir" PATH="$send_dir/bin:$ROOT/bin" \
+  "$ROOT/bin/omarchy-tailscale-send" dhh-fd.tailnet.ts.net || send_status=$?
+
+(( send_status == 1 )) || fail "tailscale send exits 1 when tailscale CLI is missing" "exit=$send_status"
+[[ ! -e $send_dir/chooser.called ]] || fail "tailscale send skips the file chooser when tailscale CLI is missing"
+pass "tailscale send refuses cleanly when the tailscale CLI is missing"
