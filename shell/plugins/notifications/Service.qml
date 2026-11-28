@@ -75,7 +75,6 @@ Item {
     return Delivery.deckMargins(barPosition, Delivery.barThickness(barRef, screenName, defaultBarSize), Style.gapsOut)
   }
   readonly property int notificationWidth: Style.space(380)
-  readonly property int minNotificationWidth: Style.space(160)
   readonly property int maxNotificationWidth: Style.space(560)
 
   // ---------------------------------------------------- fullscreen windows
@@ -417,35 +416,28 @@ Item {
     return true
   }
 
-  // Fed target heights, never mid-animation ones, so layout moves on events.
-  function noteHeight(key, h) {
-    if (Math.abs((heights[key] || 0) - h) < 0.5) return
+  // Fed target sizes, never mid-animation ones, so layout moves on events.
+  function noteSize(key, w, h) {
+    var dw = Math.abs((widths[key] || 0) - w) >= 0.5
+    var dh = Math.abs((heights[key] || 0) - h) >= 0.5
+    if (!dw && !dh) return
     // Measured while it is being inserted: the arrival's own move follows.
     if (key === arriving) {
-      heights[key] = h
+      if (dw) widths[key] = w
+      if (dh) heights[key] = h
       return
     }
     if (fresh[key] && !expanded && !sceneRun.running) {
-      heights[key] = h
+      if (dw) widths[key] = w
+      if (dh) heights[key] = h
       land()
     } else {
-      commit(function() { service.heights[key] = h })
+      commit(function() {
+        if (dw) service.widths[key] = w
+        if (dh) service.heights[key] = h
+      })
     }
-    if (key === keyboardKey) keepSelectionInReach()
-  }
-
-  function noteWidth(key, w) {
-    if (Math.abs((widths[key] || 0) - w) < 0.5) return
-    if (key === arriving) {
-      widths[key] = w
-      return
-    }
-    if (fresh[key] && !expanded && !sceneRun.running) {
-      widths[key] = w
-      land()
-    } else {
-      commit(function() { service.widths[key] = w })
-    }
+    if (dh && key === keyboardKey) keepSelectionInReach()
   }
 
   // ------------------------------------------------------- the scene clock
@@ -465,7 +457,6 @@ Item {
   property real t: 1                 // 0..1, eased, shared by every card
   property var was: ({})             // where each card was when the target moved
   property real deckWas: 0
-  property real deckWidthWas: 0
   // Set while a change lands without the clock, so the cards' text jumps too.
   property bool jumping: false
 
@@ -494,9 +485,6 @@ Item {
   readonly property real deckHeight: t >= 1 ? layout.height
                                             : deckWas + (layout.height - deckWas) * t
 
-  readonly property real deckWidth: deckWidthWas <= 0 || t >= 1 ? layout.width
-                                    : deckWidthWas + (layout.width - deckWidthWas) * t
-
   // Taken *before* a change: afterwards the layout binding already points at
   // the new target, so "was" and "to" would match and nothing would move.
   function snapshot() {
@@ -510,15 +498,14 @@ Item {
 
   // Snapshot, change, then one move for everything from the same instant.
   function commit(change) {
-    var snap = snapshot(), deckNow = deckHeight, widthNow = deckWidth
+    var snap = snapshot(), deckNow = deckHeight
     change()
-    retarget(snap, deckNow, expanded ? arriveDuration : leaveDuration, widthNow)
+    retarget(snap, deckNow, expanded ? arriveDuration : leaveDuration)
   }
 
-  function retarget(snap, deckNow, duration, widthNow) {
-    if (!snap) { snap = snapshot(); deckNow = deckHeight; widthNow = deckWidth }
+  function retarget(snap, deckNow, duration) {
+    if (!snap) { snap = snapshot(); deckNow = deckHeight }
     deckWas = deckNow
-    deckWidthWas = widthNow !== undefined ? widthNow : deckWidth
     was = snap
     sceneDuration = duration || arriveDuration
     layoutRevision += 1
@@ -733,13 +720,13 @@ Item {
       var row = pending.row
       pending.row = null
       var at = service.rowIndexFor(key)
-      var snap = service.snapshot(), deckNow = service.deckHeight, widthNow = service.deckWidth
+      var snap = service.snapshot(), deckNow = service.deckHeight
       if (at >= 0) {
         // A sender replacing a card on its way out gives it a fresh life:
         // it comes back, rather than leaving with the new words on it.
         if (service.leaving[key]) service.unmarkLeaving(key)
         Store.applyTo(toasts, at, row)      // an update, in place
-        service.retarget(snap, deckNow, undefined, widthNow)
+        service.retarget(snap, deckNow)
       } else {
         service.pinDeckDisplay()
         // Before the insert: the delegate measures itself while it is built.
@@ -754,7 +741,7 @@ Item {
                       scale: landing ? landing.scale : 1, opacity: 0,
                       height: landing ? landing.height : 0,
                       width: landing ? landing.width : service.notificationWidth }
-        service.retarget(snap, deckNow, service.arriveDuration, widthNow)
+        service.retarget(snap, deckNow, service.arriveDuration)
       }
     })
   }
@@ -808,7 +795,7 @@ Item {
       Qt.callLater(finishLeaving)
       return
     }
-    var snap = snapshot(), deckNow = deckHeight, widthNow = deckWidth
+    var snap = snapshot(), deckNow = deckHeight
     var staying = 0
     for (var r = 0; r < toasts.count; r++) if (!next[toasts.get(r).key]) staying++
     var gone = {}
@@ -826,7 +813,7 @@ Item {
     }
     departures = gone
     leaving = next
-    retarget(snap, deckNow, leaveDuration, widthNow)
+    retarget(snap, deckNow, leaveDuration)
     if (!departureDeadline.running) departureDeadline.start()
   }
 
@@ -1598,7 +1585,7 @@ Item {
           id: deck
           anchors.right: parent.right
           anchors.rightMargin: surface.margins.right
-          width: service.deckWidth
+          width: service.layout.width
           height: service.deckHeight
 
           // One hover region over the whole deck, so crossing between cards does
@@ -1682,7 +1669,6 @@ Item {
               scene: service
               anchors.right: parent.right
               baseWidth: service.notificationWidth
-              minWidth: service.minNotificationWidth
               maxWidth: surface.maxCardWidth
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
@@ -1708,12 +1694,9 @@ Item {
               drawnHeight: service.at(model.key, "height")
               // A hidden output collapses child visibility; its measurements
               // must not overwrite the visible deck's sizes.
-              onTargetWidthChanged: if (surface.showingNotifications) service.noteWidth(model.key, targetWidth)
-              onTargetHeightChanged: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
-              Component.onCompleted: if (surface.showingNotifications) {
-                service.noteWidth(model.key, targetWidth)
-                service.noteHeight(model.key, targetHeight)
-              }
+              onTargetWidthChanged: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
+              onTargetHeightChanged: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
+              Component.onCompleted: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
 
               onExpired: service.closeToast(model.key, "expired")
               onActivated: { service.stopKeyboard(); service.activate(model.key) }

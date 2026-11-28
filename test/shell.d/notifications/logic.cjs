@@ -411,7 +411,7 @@ function newCapacityScope() {
     Style: { space: n => n, duration: n => n },
     departureDeadline: { running: false, start() {}, restart() {} },
     holding: () => s.pointerHolding === true,
-    snapshot: () => ({}), deckHeight: 0, deckWidth: 0, retarget: () => {}, land: () => {}, layout: { placements: {} },
+    snapshot: () => ({}), deckHeight: 0, retarget: () => {}, land: () => {}, layout: { placements: {} },
   }
   // Bare QML properties and service-qualified accesses are the same object.
   s.service = s
