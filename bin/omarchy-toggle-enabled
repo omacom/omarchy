@@ -3,4 +3,10 @@
 # omarchy:summary=Check if a toggle is enabled (flag file exists)
 # omarchy:args=<flag-name>
 
-[[ -f "$HOME/.local/state/omarchy/toggles/$1" ]]
+# Shipped Hyprland toggles enable through a lua file in the hypr/ flag
+# directory, so ask the toggle that owns them.
+if [[ $1 != "flags" && -f $OMARCHY_PATH/default/hypr/toggles/$1.lua ]]; then
+  exec omarchy-hyprland-toggle-enabled "$1"
+else
+  [[ -f "$HOME/.local/state/omarchy/toggles/$1" ]]
+fi

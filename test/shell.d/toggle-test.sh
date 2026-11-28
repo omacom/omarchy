@@ -135,3 +135,30 @@ for virt in vm none; do
   fi
 done
 pass "a VM install starts without animations and with opaque windows"
+
+# A shipped Hyprland toggle name routes to the hypr/ flag directory the config
+# sources, not to an inert flat flag beside it.
+corners_flag="$test_home/.local/state/omarchy/toggles/hypr/corners-rounded.lua"
+flat_corners="$test_home/.local/state/omarchy/toggles/corners-rounded"
+
+HOME="$test_home" omarchy-toggle corners-rounded
+[[ -f $corners_flag && ! -f $flat_corners ]] || fail "a shipped toggle name lands in the hypr flag directory"
+HOME="$test_home" omarchy-toggle corners-rounded
+[[ ! -f $corners_flag ]] || fail "a shipped toggle name flips off again"
+HOME="$test_home" omarchy-toggle corners-rounded on
+[[ -f $corners_flag ]] || fail "a shipped toggle name accepts an explicit on"
+HOME="$test_home" omarchy-toggle-enabled corners-rounded || fail "toggle-enabled sees an enabled shipped toggle"
+HOME="$test_home" omarchy-toggle corners-rounded off
+[[ ! -f $corners_flag ]] || fail "a shipped toggle name accepts an explicit off"
+! HOME="$test_home" omarchy-toggle-enabled corners-rounded || fail "toggle-enabled sees a disabled shipped toggle"
+pass "a shipped toggle name routes to the hypr flag directory"
+
+# The shipped placeholder is not a Hyprland toggle; a plain flag named flags stays independent.
+placeholder="$test_home/.local/state/omarchy/toggles/hypr/flags.lua"
+cp "$ROOT/default/hypr/toggles/flags.lua" "$placeholder"
+! HOME="$test_home" omarchy-toggle-enabled flags || fail "the Hyprland placeholder does not enable the plain flags flag"
+HOME="$test_home" omarchy-toggle flags on
+[[ -f $test_home/.local/state/omarchy/toggles/flags && -f $placeholder ]] || fail "flags on creates a plain flag without changing the placeholder"
+HOME="$test_home" omarchy-toggle flags off
+[[ ! -f $test_home/.local/state/omarchy/toggles/flags && -f $placeholder ]] || fail "flags off preserves the Hyprland placeholder"
+pass "the Hyprland placeholder stays separate from plain flags"

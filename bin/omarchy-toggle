@@ -10,33 +10,42 @@ fi
 
 FLAG_NAME="$1"
 ACTION="${2:-toggle}"
-FLAG="$HOME/.local/state/omarchy/toggles/$FLAG_NAME"
 
-enable() {
-  mkdir -p "$(dirname "$FLAG")"
-  touch "$FLAG"
-}
+# Names with a shipped Hyprland toggle belong to the hypr/ flag directory the
+# config sources, not to the flat flags this script manages; route them to the
+# toggle that owns them so `omarchy toggle <name>` actually applies instead of
+# quietly writing a flag nothing reads.
+if [[ $FLAG_NAME != "flags" && -f $OMARCHY_PATH/default/hypr/toggles/$FLAG_NAME.lua ]]; then
+  exec omarchy-hyprland-toggle "$FLAG_NAME" "${ACTION:-toggle}"
+else
+  FLAG="$HOME/.local/state/omarchy/toggles/$FLAG_NAME"
 
-disable() {
-  rm -f "$FLAG"
-}
+  enable() {
+    mkdir -p "$(dirname "$FLAG")"
+    touch "$FLAG"
+  }
 
-case "$ACTION" in
-  toggle|"")
-    if [[ -f $FLAG ]]; then
-      disable
-    else
+  disable() {
+    rm -f "$FLAG"
+  }
+
+  case "$ACTION" in
+    toggle|"")
+      if [[ -f $FLAG ]]; then
+        disable
+      else
+        enable
+      fi
+      ;;
+    on)
       enable
-    fi
-    ;;
-  on)
-    enable
-    ;;
-  off)
-    disable
-    ;;
-  *)
-    echo "Usage: omarchy-toggle <flag-name> [toggle|on|off]" >&2
-    exit 1
-    ;;
-esac
+      ;;
+    off)
+      disable
+      ;;
+    *)
+      echo "Usage: omarchy-toggle <flag-name> [toggle|on|off]" >&2
+      exit 1
+      ;;
+  esac
+fi
