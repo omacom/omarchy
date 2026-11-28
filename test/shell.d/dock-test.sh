@@ -245,6 +245,55 @@ grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-7", window = "addr
   fail "minimize remembers the workspace it leaves this time" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize remembers only the workspace the window is leaving"
 
+# A maximized window gives that up before it leaves, so the hidden workspace
+# never holds one, and is tagged once it is there, to get it back on return.
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":3},"fullscreen":1}]\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+minimize 0xabc
+in_order='hl.dsp.window.fullscreen({ mode = "maximized", action = "unset", window = "address:0xabc" })
+hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })
+hl.dsp.window.tag({ tag = "+omarchy-minimized-maximized", window = "address:0xabc" })'
+[[ $(grep -E 'fullscreen|special:minimized|omarchy-minimized-maximized' "$TMPDIR/hyprctl.log") == "$in_order" ]] ||
+  fail "minimize brings a maximized window to its own size before it leaves, and remembers it after" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize brings a maximized window to its own size before it leaves, and remembers it after"
+
+# True fullscreen is given up and remembered the same way.
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":3},"fullscreen":2}]\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+minimize 0xabc
+grep -qxF 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "unset", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" &&
+  grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-fullscreen", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize takes a window out of fullscreen before it leaves, and remembers it" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize takes a window out of fullscreen before it leaves, and remembers it"
+
+# A window whose workspace has no number, as on the scratchpad, stays where it
+# is: its fullscreen state is not taken for a workspace.
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  activewindow) printf '{"address":"0x777","workspace":{"name":"special:scratchpad"},"fullscreen":1}\n' ;;
+  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+if minimize; then
+  fail "minimize refuses a window whose workspace has no number" "$(cat "$TMPDIR/hyprctl.log")"
+fi
+[[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves a maximized window on the scratchpad alone" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize leaves a maximized window on the scratchpad alone"
+
 # A tiled workspace has no dock to bring a window back from, so nothing there
 # is minimized.
 cat >"$mock_bin/hyprctl" <<STUB
