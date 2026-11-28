@@ -69,6 +69,24 @@ SH
 
 cat >"$mock_bin/omarchy-install-ai-cli" <<'SH'
 #!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_MISE_LOG"
+printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
+printf '%s %s\n' "$1" "${MISE_MINIMUM_RELEASE_AGE-unset}" >>"$OMARCHY_TEST_MISE_LOG.env"
+if [[ -n ${MISE_PRERELEASES:-} ]]; then
+  printf 'prereleases=%s %s\n' "$MISE_PRERELEASES" "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
+fi
+
+if [[ $1 == "tool" && $3 == "--backend" ]]; then
+  case "$2" in
+  npm:*) printf '%s\n' "$2" ;;
+  amp) printf '%s\n' "npm:@ampcode/cli" ;;
+  qwen) printf '%s\n' "npm:@qwen-code/qwen-code" ;;
+  *) printf '%s\n' "aqua:example/$2" ;;
+  esac
+  exit 0
+fi
+
+if [[ $1 == "where" || $1 == "which" ]]; then
 # Which agents are packages is the real installer's to say.
 [[ $1 == "--package" ]] && exec "$OMARCHY_PATH/bin/omarchy-install-ai-cli" "$@"
 printf '%s\n' "$*" >>"$OMARCHY_TEST_INSTALL_HISTORY"
@@ -131,6 +149,46 @@ export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
+export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
+# Omarchy's agent wrappers export the cooldown override into agent sessions, so
+# a run from one would inherit the value the cooldown assertions look for.
+unset MISE_MINIMUM_RELEASE_AGE
+
+grok_package="grok"
+omp_package="oh-my-pi"
+crush_package="crush"
+agy_package="antigravity-cli"
+ori_package="ori"
+kimi_package="npm:@moonshot-ai/kimi-code"
+qwen_package="qwen"
+dsh_package="npm:@deepseek-ai/dsh"
+# Omarchy declares a tool with backend options under its bare name; the
+# bracketed package is what a user without the declarations gets.
+mcode_tool="npm:@minimax-ai/code"
+mcode_package="$mcode_tool[allow_builds=better-sqlite3]"
+kiro_cli_tool="http:kiro-cli"
+kiro_cli_package="$kiro_cli_tool[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]"
+freebuff_package="npm:freebuff"
+kilo_package="npm:@kilocode/cli"
+devin_tool="http:devin"
+devin_package="$devin_tool[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
+amp_package="amp"
+commandcode_package="npm:command-code"
+cursor_agent_package="cursor-agent"
+muse_package="muse"
+
+assert_lazy_stub() {
+  local package=$1
+  local command=$2
+
+  : >"$mise_history"
+  "$ROOT/bin/omarchy-mise-install" "$package" "$command"
+  "$test_home/.local/bin/$command" --version
+  mapfile -t mise_calls <"$mise_history"
+
+  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "x $package -- $command --version" ]] ||
+    fail "$command lazy stub preserves its mise package"
+}
 
 # An agent in ~/.local/bin is the user's own, from its own installer, and
 # Remove Preinstalls has no business with it.
@@ -293,6 +351,7 @@ for selection in "${!expected_agents[@]}"; do
   expected=${expected_agents[$selection]}
   : >"$agent_open_log"
   : >"$stub_log"
+  : >"$mise_log.env"
   : >"$install_log"
   OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent "$selection"
   [[ $(omarchy-default-agent) == $expected ]] || fail "default agent canonicalizes $selection"
@@ -304,6 +363,13 @@ for selection in "${!expected_agents[@]}"; do
   fi
 
   [[ ! -s $install_log ]] || fail "selecting an installed $selection installs nothing"
+
+  # mise withholds releases younger than its cooldown. The probe and the install
+  # both have to run with the override, or they resolve different versions and
+  # the probe never finds what the install just activated.
+  grep -Fxq "where 0" "$mise_log.env" && grep -Fxq "use 0" "$mise_log.env" ||
+    fail "default agent defeats the mise release cooldown for $selection" \
+      "expected: where 0 and use 0, actual: $(paste -sd, <"$mise_log.env")"
 
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
