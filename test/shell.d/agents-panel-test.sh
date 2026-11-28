@@ -613,3 +613,31 @@ assertDeepEqual(
 assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
 assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
 JS
+
+# Each row starts the coding agent made for it: a provider with its own
+# harness starts that harness even when its key also opens in OpenCode,
+# which is DeepSeek alone.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const routingFns = ['runLine', 'defaultIdFor', 'harnessFor', 'opensInAgent', 'launches']
+  .map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const execs = []
+const routing = new Function('harnesses', 'keyProviders', 'Util', 'root', routingFns + '\nreturn { runLine, defaultIdFor }')(
+  eval(source.match(/readonly property var harnesses: (\(\{[^]*?\n  \}\))/)[1]),
+  eval(source.match(/readonly property var keyProviders: (\[[^\n]+\])/)[1]),
+  { execArgv: argv => execs.push(argv) },
+  { close() {} }
+)
+const launch = line => { execs.length = 0; routing.runLine(line); return execs[0] }
+assertEqual(routing.defaultIdFor({ providerId: 'deepseek' }), 'dsh',
+  'starring a DeepSeek row saves its DSH harness as the default')
+assertEqual(routing.defaultIdFor({ providerId: 'zai' }), 'opencode',
+  'starring a key-only provider still saves OpenCode as the default')
+assertDeepEqual(launch({ providerId: 'deepseek' }), ['omarchy-agent', '--agent', 'dsh'],
+  'a DeepSeek row starts its own DSH harness instead of OpenCode')
+assertDeepEqual(launch({ providerId: 'zai' }), ['omarchy-agent', '--provider', 'zai'],
+  'a key-only provider still opens OpenCode')
+assertDeepEqual(launch({ providerId: 'claude' }), ['omarchy-agent', '--agent', 'claude'],
+  'a harness provider without a key keeps its harness')
+JS

@@ -1331,9 +1331,11 @@ Panel {
     if (!launches(line)) return
     var command = [kind ? "omarchy-agent-make" : "omarchy-agent"]
     if (line.localModel) command.push("--local-model", line.localModel.target)
-    else if (opensInAgent(line)) command.push("--provider", line.providerId)
-    else command.push("--agent", harnessFor(line))
+    else if (harnessFor(line) !== "") command.push("--agent", harnessFor(line))
+    else command.push("--provider", line.providerId)
     if (kind) command.push(kind)
+    // Only Claude, Codex and Grok keep accounts, so a DeepSeek line never
+    // reaches this switch even though it now routes through --agent too.
     if (command[1] === "--agent" && line.account && !line.account.active)
       command = ["bash", "-c", 'omarchy-agent-account-use "$1" "$2" >/dev/null && exec "${@:3}"',
                  "run-line", line.providerId, String(line.account.id)].concat(command)
@@ -1475,8 +1477,8 @@ Panel {
   }
 
   // The coding agent made for each subscription, by usage provider id. A
-  // provider with none of its own (Z.ai, DeepSeek…) gets no terminal button:
-  // which harness to point at it is the user's choice.
+  // provider with none of its own (Z.ai, OpenRouter…) gets no terminal
+  // button: which harness to point at it is the user's choice.
   readonly property var harnesses: ({
     agy: "agy",
     claude: "claude",
@@ -1519,6 +1521,7 @@ Panel {
   function defaultIdFor(provider) {
     if (!provider) return ""
     if (provider.providerId === "local") return "local"
+    if (harnessFor(provider) !== "") return harnessFor(provider)
     if (opensInAgent(provider)) return "opencode"
     return harnessFor(provider)
   }
