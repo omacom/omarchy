@@ -1602,8 +1602,9 @@ Panel {
         spacing: Style.spacing.labelGap
 
         GridLayout {
+          id: detailsGrid
           width: parent.width
-          columns: 4
+          columns: panel.contentWidth < Style.space(380) ? 2 : 4
           columnSpacing: Style.space(20)
           rowSpacing: Style.spacing.labelGap
 
@@ -1634,12 +1635,16 @@ Panel {
 
           InfoLabel { text: Commons.I18n.t("network.ipAddress") }
           DetailValue {
+            Layout.columnSpan: detailsGrid.columns - 1
+            Layout.fillWidth: true
             text: root.info.ip || "--"
             copyable: !!root.info.ip
             tooltipText: Commons.I18n.t("network.copyIp")
           }
           InfoLabel { text: Commons.I18n.t("network.gateway") }
           DetailValue {
+            Layout.columnSpan: detailsGrid.columns - 1
+            Layout.fillWidth: true
             text: root.info.gateway || "--"
             copyable: !!root.info.gateway
             tooltipText: Commons.I18n.t("network.copyGateway")
