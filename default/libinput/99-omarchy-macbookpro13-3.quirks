@@ -1,0 +1,10 @@
+# The in-tree applespi keyboard reports vendor 0000 on MacBookPro13,3.
+# libinput's Apple SPI keyboard rule requires 05AC, so it misses this keyboard.
+# Keep this workaround limited to the observed model and device identity.
+[Omarchy MacBookPro13,3 SPI Keyboard]
+MatchDMIModalias=dmi:*:svnAppleInc.:pnMacBookPro13,3:*
+MatchName=Apple SPI Keyboard
+MatchUdevType=keyboard
+MatchBus=spi
+MatchVendor=0x0000
+AttrKeyboardIntegration=internal

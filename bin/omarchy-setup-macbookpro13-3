@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Check or install the experimental MacBookPro13,3 sleep and Touch Bar recovery
+# omarchy:args=[check|install|remove]
+
+set -euo pipefail
+base="$OMARCHY_PATH/default/hardware/macbookpro13-3"
+(( $# <= 1 )) || { echo "Expected one action: check, install or remove." >&2; exit 2; }
+
+case ${1:-check} in
+  check)
+    bash "$base/persistent-sleep/macbook-suspend" check
+    python3 -I "$base/touchbar/unpark.py"
+    echo "Hardware preflight passed; this does not test suspend or install anything."
+    ;;
+  install)
+    echo "MacBookPro13,3 only. Requires working T1Bridge and matching kernel headers."
+    echo "This enables experimental s2idle, EC lid wake and Touch Bar recovery."
+    echo "Wake takes about 13 seconds. Battery retention is unresolved."
+    echo "External USB, Thunderbolt or displays will prevent suspend, even with the lid closed."
+    echo "Read the MacBookPro13,3 setup guide before installing."
+    if gum confirm "Install the experimental undocked sleep workaround?"; then
+      sudo /usr/bin/systemd-inhibit --what=sleep --mode=block --why="Installing MacBook recovery" \
+        /bin/bash "$base/install.sh" install
+    fi
+    ;;
+  remove)
+    if gum confirm "Remove sleep and Touch Bar recovery? A reboot will be required."; then
+      sudo /usr/bin/systemd-inhibit --what=sleep --mode=block --why="Removing MacBook recovery" \
+        /bin/bash "$base/install.sh" remove
+    fi
+    ;;
+  *) echo "Usage: omarchy setup macbookpro13-3 [check|install|remove]" >&2; exit 2 ;;
+esac

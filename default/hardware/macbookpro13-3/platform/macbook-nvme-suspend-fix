@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+# Discover NVMe controllers instead of assuming that PCI 01:00.0 is the SSD.
+for controller in /sys/class/nvme/nvme*/device; do
+  if [[ -w "$controller/d3cold_allowed" ]]; then
+    printf '0\n' > "$controller/d3cold_allowed"
+  fi
+done
