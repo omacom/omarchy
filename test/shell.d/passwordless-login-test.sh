@@ -28,7 +28,16 @@ reset_fixture() {
   : >"$LOG_DIR/rebuild.log"
   : >"$LOG_DIR/cmdline.log"
   : >"$LOG_DIR/gum.log"
+  : >"$LOG_DIR/gum-input.log"
   : >"$LOG_DIR/refresh.log"
+}
+
+reset_unencrypted_fixture() {
+  reset_fixture
+  mkdir -p "$FAKE_ROOT/etc/pam.d" "$FAKE_ROOT/etc/greetd"
+  printf 'root:x:0:0::/root:/bin/bash\n_greet:x:900:900::/:/usr/bin/nologin\nalice:x:1000:1000::/home/alice:/bin/bash\n' >"$FAKE_ROOT/etc/passwd"
+  : >"$FAKE_ROOT/etc/pam.d/omarchy-login"
+  "$ROOT/bin/omarchy-system-login" --root "$FAKE_ROOT" alice
 }
 
 cat >"$STUBS/sudo" <<'STUB'
@@ -38,7 +47,11 @@ STUB
 
 cat >"$STUBS/findmnt" <<'STUB'
 #!/bin/bash
-echo "${TEST_ROOT_SOURCE:-/dev/mapper/root}[/@]"
+if [[ -v TEST_ROOT_SOURCE ]]; then
+  printf '%s\n' "$TEST_ROOT_SOURCE"
+else
+  echo "/dev/mapper/root[/@]"
+fi
 STUB
 
 cat >"$STUBS/lsblk" <<'STUB'
@@ -191,6 +204,7 @@ case "$sub" in
     exit "${TEST_GUM_CONFIRM:-0}"
     ;;
   input)
+    printf '%s\n' "${TEST_PASSPHRASE:-user-passphrase}" >>"$LOG_DIR/gum-input.log"
     printf '%s\n' "${TEST_PASSPHRASE:-user-passphrase}"
     ;;
   spin)
@@ -327,12 +341,21 @@ fi
 [[ -f $SLOTS_DIR/1 ]] || fail "last remaining LUKS slot stays intact"
 pass "disable refuses to revoke the last remaining LUKS key slot"
 
-# 7. Rejects non-LUKS root drives and unmanaged /crypto_keyfile.bin
+# 7. Rejects indeterminate encryption state, missing login user, and unmanaged /crypto_keyfile.bin
 reset_fixture
-if TEST_UNENCRYPTED=1 run_cmd 1 >/dev/null 2>&1; then
-  fail "non-LUKS root drive is rejected"
+if TEST_ROOT_SOURCE="" run_cmd 1 >/dev/null 2>&1; then
+  fail "indeterminate root encryption state is rejected"
 fi
-[[ ! -e $FAKE_ROOT/crypto_keyfile.bin ]] || fail "non-LUKS rejection writes no keyfile"
+[[ ! -e $FAKE_ROOT/crypto_keyfile.bin && ! -e $FAKE_ROOT/etc/greetd/config.toml ]] ||
+  fail "indeterminate root encryption check writes no files"
+
+reset_fixture
+mkdir -p "$FAKE_ROOT/etc"
+printf 'root:x:0:0::/root:/bin/bash\nnobody:x:65534:65534::/:/usr/bin/nologin\n' >"$FAKE_ROOT/etc/passwd"
+if TEST_UNENCRYPTED=1 run_cmd 1 >/dev/null 2>&1; then
+  fail "unencrypted root without a regular user is rejected"
+fi
+[[ ! -e $FAKE_ROOT/etc/greetd/config.toml ]] || fail "missing login user writes no greetd config"
 
 reset_fixture
 printf 'existing-custom-key' >"$FAKE_ROOT/crypto_keyfile.bin"
@@ -340,7 +363,7 @@ if run_cmd 1 >/dev/null 2>&1; then
   fail "existing unmanaged /crypto_keyfile.bin is not overwritten"
 fi
 [[ $(<"$FAKE_ROOT/crypto_keyfile.bin") == "existing-custom-key" ]] || fail "unmanaged keyfile content stays untouched"
-pass "rejects non-LUKS root drives and preserves unmanaged /crypto_keyfile.bin"
+pass "rejects indeterminate encryption state, missing login user, and preserves unmanaged /crypto_keyfile.bin"
 
 # 8. Wrong disk passphrase fails cleanly and rolls back the keyfile
 reset_fixture
@@ -391,6 +414,164 @@ if run_cmd --active; then
 fi
 [[ ! -e $FAKE_ROOT/var/lib/omarchy/passwordless-login ]] || fail "state file is cleared once slot is confirmed gone"
 pass "missing or replaced keyfile refuses to clear state until the enrolled LUKS slot is revoked"
+
+# 11. Unencrypted Next boot: enables greetd autologin without keyfile/rebuild,
+# allows Boot 1 to autologin while clearing --active, and revokes before Boot 2.
+reset_unencrypted_fixture
+TEST_UNENCRYPTED=1 TEST_GUM_CHOICE="Next boot" run_cmd >/dev/null
+[[ ! -s $LOG_DIR/gum-input.log ]] || fail "unencrypted setup does not prompt for disk passphrase"
+[[ ! -e $FAKE_ROOT/crypto_keyfile.bin ]] || fail "unencrypted setup writes no LUKS keyfile"
+[[ ! -e $FAKE_ROOT/etc/mkinitcpio.conf.d/99-omarchy-passwordless-login.conf ]] || fail "unencrypted setup writes no mkinitcpio drop-in"
+(( $(wc -l <"$LOG_DIR/rebuild.log") == 0 )) || fail "unencrypted setup does not rebuild boot images"
+[[ ! -s $LOG_DIR/cmdline.log ]] || fail "unencrypted setup touches no kernel cmdline"
+TEST_UNENCRYPTED=1 run_cmd --active || fail "unencrypted Next boot marks passwordless login active"
+grep -qxF '[initial_session]' "$FAKE_ROOT/etc/greetd/config.toml" || fail "unencrypted Next boot adds greetd [initial_session]"
+grep -qxF 'user = "alice"' "$FAKE_ROOT/etc/greetd/config.toml" || fail "unencrypted Next boot configures autologin user"
+grep -qxF 'service = "omarchy-login"' "$FAKE_ROOT/etc/greetd/config.toml" || fail "unencrypted Next boot preserves omarchy-login PAM service"
+grep -qxF 'Before=display-manager.service' "$FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service" ||
+  fail "unencrypted expiry unit runs before display-manager.service"
+grep -qxF 'WantedBy=graphical.target' "$FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service" ||
+  fail "unencrypted expiry unit targets graphical.target"
+[[ -L $FAKE_ROOT/etc/systemd/system/graphical.target.wants/omarchy-passwordless-login-expire.service ]] ||
+  fail "unencrypted Next boot enables expiry unit under graphical.target.wants"
+grep -qxF -- "-q omarchy.indicators refresh" "$LOG_DIR/refresh.log" || fail "unencrypted enable refreshes indicator"
+
+# Boot 1 ticks 1 -> 0 before greetd starts: Boot 1 still autologins, --active is now false.
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+if TEST_UNENCRYPTED=1 run_cmd --active; then
+  fail "unencrypted Next boot deactivates once Boot 1 begins"
+fi
+grep -qxF '[initial_session]' "$FAKE_ROOT/etc/greetd/config.toml" || fail "Boot 1 keeps [initial_session] for that boot"
+grep -qxF 'REMAINING=0' "$FAKE_ROOT/var/lib/omarchy/passwordless-login" || fail "Boot 1 records REMAINING=0"
+
+# Boot 2 ticks 0 -> revoke before greetd starts.
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+if grep -q '^\[initial_session\]$' "$FAKE_ROOT/etc/greetd/config.toml"; then
+  fail "Boot 2 removes [initial_session] before greetd starts"
+fi
+grep -q '^command = "/usr/share/omarchy/default/splash/greeter alice"$' "$FAKE_ROOT/etc/greetd/config.toml" ||
+  fail "Boot 2 keeps the greeter user in greetd config"
+[[ ! -e $FAKE_ROOT/var/lib/omarchy/passwordless-login ]] || fail "Boot 2 removes state file"
+[[ ! -e $FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service ]] || fail "Boot 2 removes expiry unit"
+[[ ! -e $FAKE_ROOT/etc/systemd/system/graphical.target.wants/omarchy-passwordless-login-expire.service ]] || fail "Boot 2 removes graphical symlink"
+(( $(wc -l <"$LOG_DIR/rebuild.log") == 0 )) || fail "unencrypted expiry never rebuilds boot images"
+pass "unencrypted Next boot enables autologin for Boot 1 and revokes before Boot 2"
+
+# 12. Unencrypted --disable during final boot (REMAINING=0) still revokes immediately
+reset_unencrypted_fixture
+TEST_UNENCRYPTED=1 run_cmd 1 >/dev/null
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+: >"$LOG_DIR/refresh.log"
+TEST_UNENCRYPTED=1 run_cmd --disable >/dev/null
+if grep -q '^\[initial_session\]$' "$FAKE_ROOT/etc/greetd/config.toml"; then
+  fail "--disable during final boot removes [initial_session]"
+fi
+[[ ! -e $FAKE_ROOT/var/lib/omarchy/passwordless-login && ! -e $FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service ]] ||
+  fail "--disable during final boot clears state and expiry unit"
+grep -qxF -- "-q omarchy.indicators refresh" "$LOG_DIR/refresh.log" || fail "--disable during final boot refreshes indicator"
+pass "unencrypted --disable during final boot cleans up immediately"
+
+# 13. Unencrypted Next 3 boots counts 3 -> 2 -> 1 -> 0 -> revoke on Boot 4
+reset_unencrypted_fixture
+TEST_UNENCRYPTED=1 TEST_GUM_CHOICE="Next 3 boots" run_cmd >/dev/null
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+TEST_UNENCRYPTED=1 run_cmd --active || fail "unencrypted 3 boots stays active on Boot 1"
+grep -qxF 'REMAINING=2' "$FAKE_ROOT/var/lib/omarchy/passwordless-login" || fail "unencrypted Boot 1 decrements to 2"
+grep -qxF '[initial_session]' "$FAKE_ROOT/etc/greetd/config.toml" || fail "unencrypted Boot 1 keeps autologin"
+
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+TEST_UNENCRYPTED=1 run_cmd --active || fail "unencrypted 3 boots stays active on Boot 2"
+grep -qxF 'REMAINING=1' "$FAKE_ROOT/var/lib/omarchy/passwordless-login" || fail "unencrypted Boot 2 decrements to 1"
+grep -qxF '[initial_session]' "$FAKE_ROOT/etc/greetd/config.toml" || fail "unencrypted Boot 2 keeps autologin"
+
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+if TEST_UNENCRYPTED=1 run_cmd --active; then
+  fail "unencrypted 3 boots clears --active on Boot 3"
+fi
+grep -qxF 'REMAINING=0' "$FAKE_ROOT/var/lib/omarchy/passwordless-login" || fail "unencrypted Boot 3 decrements to 0"
+grep -qxF '[initial_session]' "$FAKE_ROOT/etc/greetd/config.toml" || fail "unencrypted Boot 3 keeps autologin for that boot"
+
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+if grep -q '^\[initial_session\]$' "$FAKE_ROOT/etc/greetd/config.toml"; then
+  fail "unencrypted Boot 4 removes [initial_session]"
+fi
+[[ ! -e $FAKE_ROOT/var/lib/omarchy/passwordless-login ]] || fail "unencrypted Boot 4 clears state file"
+pass "unencrypted Next 3 boots lasts 3 boots and revokes before Boot 4"
+
+# 14. Unencrypted Always, duration switching, re-run disable, and first-boot cleanup unit removal
+reset_unencrypted_fixture
+mkdir -p "$FAKE_ROOT/etc/systemd/system/graphical.target.wants"
+printf '[Unit]\n' >"$FAKE_ROOT/etc/systemd/system/omarchy-provision-autologin-once.service"
+ln -sf "../omarchy-provision-autologin-once.service" \
+  "$FAKE_ROOT/etc/systemd/system/graphical.target.wants/omarchy-provision-autologin-once.service"
+
+TEST_UNENCRYPTED=1 TEST_GUM_CHOICE="Always" run_cmd >/dev/null
+TEST_UNENCRYPTED=1 run_cmd --active || fail "unencrypted Always activates passwordless login"
+[[ ! -e $FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service ]] || fail "unencrypted Always installs no expiry unit"
+[[ ! -e $FAKE_ROOT/etc/systemd/system/omarchy-provision-autologin-once.service && ! -L $FAKE_ROOT/etc/systemd/system/graphical.target.wants/omarchy-provision-autologin-once.service ]] ||
+  fail "unencrypted enable clears pending first-boot autologin-once cleanup"
+TEST_UNENCRYPTED=1 run_cmd __boot-tick >/dev/null
+TEST_UNENCRYPTED=1 run_cmd --active || fail "unencrypted Always survives boot ticks"
+
+TEST_UNENCRYPTED=1 run_cmd 1 >/dev/null
+[[ -L $FAKE_ROOT/etc/systemd/system/graphical.target.wants/omarchy-passwordless-login-expire.service ]] ||
+  fail "switching unencrypted Always to 1 installs graphical expiry unit"
+TEST_UNENCRYPTED=1 run_cmd always >/dev/null
+[[ ! -e $FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service ]] ||
+  fail "switching unencrypted 1 to Always removes expiry unit"
+
+TEST_UNENCRYPTED=1 run_cmd >/dev/null
+if TEST_UNENCRYPTED=1 run_cmd --active; then
+  fail "re-running unencrypted while active disables passwordless login"
+fi
+if grep -q '^\[initial_session\]$' "$FAKE_ROOT/etc/greetd/config.toml"; then
+  fail "re-running unencrypted while active removes [initial_session]"
+fi
+pass "unencrypted Always, duration switching, re-run disable, and provisioning cleanup work"
+
+# 15. Unencrypted fallback user resolution and rollback on state-write failure
+reset_unencrypted_fixture
+"$ROOT/bin/omarchy-system-login" --root "$FAKE_ROOT" --reset
+TEST_UNENCRYPTED=1 run_cmd always >/dev/null
+grep -qxF 'user = "alice"' "$FAKE_ROOT/etc/greetd/config.toml" ||
+  fail "falls back to first regular login user when greetd has no user"
+TEST_UNENCRYPTED=1 run_cmd --disable >/dev/null
+
+rm -rf "$FAKE_ROOT/var/lib/omarchy"
+printf 'not-a-dir' >"$FAKE_ROOT/var/lib/omarchy"
+if TEST_UNENCRYPTED=1 run_cmd 1 >/dev/null 2>&1; then
+  fail "unencrypted enable fails when state directory is unwritable"
+fi
+if grep -q '^\[initial_session\]$' "$FAKE_ROOT/etc/greetd/config.toml"; then
+  fail "unencrypted rollback removes [initial_session] after state write failure"
+fi
+
+# Switching an active Always grant to a timed grant preserves Always if the
+# expiry service cannot be installed.
+reset_unencrypted_fixture
+TEST_UNENCRYPTED=1 run_cmd always >/dev/null
+printf 'not-a-dir' >"$FAKE_ROOT/etc/systemd/system/graphical.target.wants"
+if TEST_UNENCRYPTED=1 run_cmd 1 >/dev/null 2>&1; then
+  fail "switching Always to 1 fails when expiry symlink directory cannot be created"
+fi
+grep -qxF 'MODE=always' "$FAKE_ROOT/var/lib/omarchy/passwordless-login" ||
+  fail "failed expiry install preserves previous Always state"
+[[ ! -e $FAKE_ROOT/etc/systemd/system/omarchy-passwordless-login-expire.service ]] ||
+  fail "failed expiry install leaves no partial unit"
+pass "unencrypted user fallback, enable rollback, and duration-switch failure preservation work cleanly"
+
+# 16. Legacy LUKS state file without TYPE= remains active and disables cleanly
+reset_fixture
+TEST_GUM_CHOICE="Always" run_cmd >/dev/null
+grep -v '^TYPE=' "$FAKE_ROOT/var/lib/omarchy/passwordless-login" >"$FAKE_ROOT/var/lib/omarchy/passwordless-login.legacy"
+mv -f "$FAKE_ROOT/var/lib/omarchy/passwordless-login.legacy" "$FAKE_ROOT/var/lib/omarchy/passwordless-login"
+run_cmd --active || fail "legacy LUKS state without TYPE= remains active"
+run_cmd --disable >/dev/null
+if run_cmd --active; then
+  fail "legacy LUKS state disables cleanly"
+fi
+[[ ! -e $SLOTS_DIR/1 && -f $SLOTS_DIR/0 ]] || fail "legacy LUKS disable revokes enrolled key slot"
+pass "legacy LUKS state file remains compatible"
 
 run_node_test <<'JS'
 const fs = require('fs')
