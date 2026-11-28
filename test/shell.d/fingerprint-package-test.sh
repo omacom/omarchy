@@ -164,6 +164,23 @@ fi
 grep -qx enroll "$CALL_LOG" || fail "a rerun with everything installed reaches enrollment"
 pass "a rerun with everything installed goes straight to enrollment"
 
+for client in fprintd-clients fprintd-clients-git; do
+  INSTALLED="$client"$'\nusbutils' run_setup
+  grep -qx 'pacman -S --needed --noconfirm --ask 4 -- libfprint-git usbutils' "$CALL_LOG" ||
+    fail "$client is not replaced by stock fprintd"
+  grep -qx enroll "$CALL_LOG" || fail "$client reaches enrollment"
+
+  INSTALLED="$client"$'\nlibfprint-git\nusbutils' run_setup
+  ! grep -q '^pacman' "$CALL_LOG" && grep -qx enroll "$CALL_LOG" ||
+    fail "a fully installed $client stack goes straight to enrollment"
+  pass "$client is preserved on install and rerun"
+done
+
+INSTALLED=$'fprintd-clients-git\nusbutils' LIBFPRINT_OWNER=libfprint-tod run_setup
+! grep -q '^pacman' "$CALL_LOG" && grep -qx enroll "$CALL_LOG" ||
+  fail "alternate clients and a TOD driver are both preserved"
+pass "alternate client preservation composes with TOD driver preservation"
+
 INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"
