@@ -751,9 +751,26 @@ grep -F "omarchy agent prompt" "$test_tmp/positional-output" >/dev/null ||
 if omarchy agent prompt '' >"$test_tmp/empty-prompt-output" 2>&1; then
   fail "omarchy agent prompt rejects an empty prompt"
 fi
-[[ $(<"$test_tmp/empty-prompt-output") == "Usage: omarchy agent prompt [--inline] <prompt...>" ]] ||
+[[ $(<"$test_tmp/empty-prompt-output") == "Usage: omarchy agent prompt [--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <id>] <prompt...>" ]] ||
   fail "omarchy agent prompt answers an empty prompt with its usage" "$(<"$test_tmp/empty-prompt-output")"
 [[ ! -s $launch_log ]] || fail "omarchy agent prompt starts nothing for an empty prompt"
+
+: >"$launch_log"
+if omarchy agent --agent codex Review this project >"$test_tmp/flagged-positional-output" 2>&1; then
+  fail "omarchy agent rejects a positional prompt after flags"
+fi
+grep -Fq 'To pass a prompt: omarchy agent prompt --agent "codex" "Review this project"' "$test_tmp/flagged-positional-output" ||
+  fail "omarchy agent keeps parsed flags in its prompt suggestion" "$(<"$test_tmp/flagged-positional-output")"
+[[ ! -s $launch_log ]] || fail "omarchy agent starts nothing for a flagged positional prompt"
+
+omarchy agent prompt --agent codex "Review this project"
+assert_launched codex "routes a flagged prompt to the requested agent instead of the default" \
+  env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
+
+: >"$launch_log"
+omarchy agent prompt -- '--agent'
+assert_launched opencode "passes an option-shaped prompt through after --" \
+  opencode --auto --prompt "--agent"
 pass "omarchy agent keeps prompts on the prompt route"
 
 printf '%s\n' "missing" >"$agent_file"
