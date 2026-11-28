@@ -223,7 +223,7 @@ fn c_abi_rejects_oversized_input_before_reading_or_allocating_it() {
 #[test]
 fn c_abi_records_history_and_plays_the_reverse_to_the_blank_canvas() {
     let effect = CString::new("decrypt").unwrap();
-    let input = include_bytes!("../../plymouth-ttfx-plugin/embedded-logo-v2.txt");
+    let input = include_bytes!("embedded-logo-v2.txt");
     let mut handle: *mut TtfxEngine = ptr::null_mut();
     assert_eq!(
         unsafe {

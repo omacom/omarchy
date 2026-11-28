@@ -78,7 +78,7 @@ fn rejects_unknown_effects_and_out_of_bounds_configuration() {
 
 #[test]
 fn accepts_subdivided_logo_without_loosening_the_cell_budget() {
-    let logo = include_str!("../../plymouth-ttfx-plugin/embedded-logo-v2.txt");
+    let logo = include_str!("embedded-logo-v2.txt");
     let engine = Engine::create("decrypt", 7, logo, 162, 20, 240).unwrap();
 
     assert_eq!(engine.dimensions(), (162, 20));
@@ -91,7 +91,7 @@ fn accepts_subdivided_logo_without_loosening_the_cell_budget() {
 
 #[test]
 fn terminal_decrypt_frame_matches_the_pr29_field_bands() {
-    let logo = include_str!("../../plymouth-ttfx-plugin/embedded-logo-v2.txt");
+    let logo = include_str!("embedded-logo-v2.txt");
     let mut engine = Engine::create("decrypt", 7, logo, 162, 20, 240).unwrap();
 
     for _ in 0..10_000 {
@@ -131,7 +131,7 @@ fn terminal_decrypt_frame_matches_the_pr29_field_bands() {
 
 #[test]
 fn representative_effects_use_the_same_five_final_text_bands() {
-    let logo = include_str!("../../plymouth-ttfx-plugin/embedded-logo-v2.txt");
+    let logo = include_str!("embedded-logo-v2.txt");
     // print covers the ordinary final-gradient path; matrix and rain had
     // separate paths that the audio-background implementation did not wire.
     for effect in ["print", "matrix", "rain"] {
@@ -207,7 +207,7 @@ fn every_exposed_effect_builds_and_steps_at_the_early_boot_limit() {
         "effects.txt must exactly match the vendored registry"
     );
 
-    let input = include_str!("../../plymouth-ttfx-plugin/embedded-logo-v2.txt");
+    let input = include_str!("embedded-logo-v2.txt");
     for effect in effects {
         let mut engine = Engine::create(effect, 7, input, 162, 20, 240)
             .unwrap_or_else(|error| panic!("{effect} failed to build: {error:?}"));
@@ -228,7 +228,7 @@ fn every_exposed_effect_builds_and_steps_at_the_early_boot_limit() {
     }
 }
 
-const LOGO: &str = include_str!("../../plymouth-ttfx-plugin/embedded-logo-v2.txt");
+const LOGO: &str = include_str!("embedded-logo-v2.txt");
 const PLUGIN_SEED: u64 = 22321466108495961;
 /// The plugin's history bounds and default outro budget (700 ms at 240 Hz).
 const HISTORY_FRAMES: usize = 128;

@@ -22,6 +22,9 @@ add_custom_command(
   OUTPUT "${TTFX_ENGINE_LIB}"
   COMMAND "${CARGO}" build --locked --offline --lib --profile plymouth
           --manifest-path "${TTFX_ENGINE_DIR}/Cargo.toml" --target-dir "${TTFX_CARGO_TARGET_DIR}"
+  # Cargo finds .cargo/config.toml, which points it at the vendored crates,
+  # from its working directory, not from --manifest-path.
+  WORKING_DIRECTORY "${TTFX_ENGINE_DIR}"
   DEPENDS "${TTFX_ENGINE_DIR}/Cargo.toml" "${TTFX_ENGINE_DIR}/Cargo.lock" "${TTFX_ENGINE_DIR}/src/lib.rs"
   COMMENT "Building the TTFX engine"
   USES_TERMINAL)
