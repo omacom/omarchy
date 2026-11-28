@@ -222,6 +222,17 @@ function M.identities()
   return identities_of(connected())
 end
 
+-- Whether a workspace with windows is numbered in a block.
+local function occupied(block)
+  for _, workspace in ipairs(hl.get_workspaces()) do
+    if not workspace.special and workspace.id > 0 and (workspace.id - 1) // SLOTS == block and (workspace.windows or 0) > 0 then
+      return true
+    end
+  end
+
+  return false
+end
+
 local function free_block()
   local taken = {}
   for _, block in pairs(blocks) do
@@ -241,6 +252,35 @@ end
 local function assign(monitors)
   local identities = identities_of(monitors)
   local by_connector = {}
+
+  -- The laptop panel takes the first block from a panel that isn't plugged in,
+  -- one from a laptop the state came over from or from before a panel swap,
+  -- which moves to the block this one had or to a free one. Only while neither
+  -- block has windows open, or they would come back on the other monitor.
+  local panel = monitors[1]
+  if panel and internal(panel) then
+    local identity = identities[panel.name]
+    local holder = nil
+    for other, block in pairs(blocks) do
+      if block == 0 then
+        holder = other
+      end
+    end
+
+    local plugged = false
+    for _, other in pairs(identities) do
+      plugged = plugged or other == holder
+    end
+
+    local open = occupied(0) or (blocks[identity] ~= nil and occupied(blocks[identity]))
+
+    if holder ~= identity and not plugged and not open then
+      if holder then
+        blocks[holder] = blocks[identity] or free_block()
+      end
+      blocks[identity] = 0
+    end
+  end
 
   for _, monitor in ipairs(monitors) do
     local identity = identities[monitor.name]
