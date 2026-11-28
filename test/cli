@@ -527,6 +527,34 @@ cp "$NEXT_THEME/colors.toml" "$PI_TMPDIR/.config/omarchy/themes/Walk Handmade Th
 preview_output=$(OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "Walk Handmade Theme" --no-color --no-osc)
 assert_output_contains "theme preview finds a hand-made theme by its folder name" "$preview_output" "themes/Walk Handmade Theme/colors.toml"
 
+legacy_alacritty_dir="$PI_TMPDIR/.config/omarchy/themes/Gruvbox"
+legacy_preview_tmp="$PI_TMPDIR/preview-tmp"
+mkdir -p "$legacy_alacritty_dir" "$legacy_preview_tmp"
+cat >"$legacy_alacritty_dir/alacritty.toml" <<'EOF'
+[colors.primary]
+background = "#121314"
+foreground = "#e1e2e3"
+
+[colors.normal]
+black = "#121314"
+red = "#cc241d"
+green = "#98971a"
+yellow = "#d79921"
+blue = "#458588"
+magenta = "#b16286"
+cyan = "#689d6a"
+white = "#e1e2e3"
+EOF
+
+preview_output=$(TMPDIR="$legacy_preview_tmp" OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "$legacy_alacritty_dir" --no-color --no-osc)
+assert_output_contains "theme preview converts an alacritty-only theme directory" "$preview_output" "#121314"
+
+preview_output=$(TMPDIR="$legacy_preview_tmp" OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "Gruvbox" --no-color --no-osc)
+assert_output_contains "theme preview prefers an exact alacritty-only theme name over the bundled normalized theme" "$preview_output" "#e1e2e3"
+
+[[ ! -e $legacy_alacritty_dir/colors.toml && -z $(ls -A "$legacy_preview_tmp") ]] || fail "theme preview leaves an alacritty-only theme and the temp directory as it found them"
+pass "theme preview leaves an alacritty-only theme and the temp directory as it found them"
+
 tokyo_fg=$(awk -F'"' '/^foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_light_fg=$(awk -F'"' '/^light_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_bright_fg=$(awk -F'"' '/^bright_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
