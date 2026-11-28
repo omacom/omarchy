@@ -49,6 +49,7 @@ macbook12-spi-driver-dkms
 
 # ASUS ROG
 asusctl
+wvkbd
 
 # Dell XPS
 dell-xps-touchpad-haptics

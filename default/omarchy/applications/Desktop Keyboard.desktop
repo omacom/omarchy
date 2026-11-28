@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Desktop Keyboard
+Comment=Show or hide the touch keyboard over the desktop
+Exec=omarchy-toggle-desktop-keyboard
+TryExec=wvkbd-mobintl
+Icon=input-keyboard
+Terminal=false
+StartupNotify=false
+Categories=Utility;Accessibility;
+Keywords=Touch;Keyboard;Handheld;

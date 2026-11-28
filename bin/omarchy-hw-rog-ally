@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Detect the original ASUS ROG Ally (RC71L).
+
+grep -Fqx "ASUSTeK COMPUTER INC." /sys/class/dmi/id/sys_vendor 2>/dev/null &&
+  { grep -Fqx "RC71L" /sys/class/dmi/id/board_name 2>/dev/null ||
+    omarchy-hw-match '^ROG Ally RC71L\(_RC71L\|_Action\)\?$'; }

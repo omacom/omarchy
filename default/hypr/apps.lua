@@ -16,6 +16,7 @@ local modules = {
   "omarchy-shell",
   "pip",
   "retroarch",
+  "rog-ally-keyboard",
   "screenshot-selection",
   "steam",
   "system",
