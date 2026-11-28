@@ -50,6 +50,24 @@ jobs:
           path: src/omarchy-pkgs
           persist-credentials: false
 
+      - name: Pre-flight syntax and routing checks
+        working-directory: src/omarchy
+        run: |
+          python_cmd=$(command -v python3 || command -v python || true)
+          for f in bin/*; do
+            [[ -f $f ]] || continue
+            shebang=$(head -n 1 "$f")
+            if [[ $shebang =~ ^#!/bin/bash ]]; then
+              bash -n "$f"
+            elif [[ -n $python_cmd && $shebang =~ python ]]; then
+              "$python_cmd" -m py_compile "$f"
+            fi
+          done
+          while IFS= read -r -d '' f; do
+            bash -n "$f"
+          done < <(find install migrations -type f \( -name '*.sh' -o -name '*.hook' \) -print0)
+          OMARCHY_PATH="$PWD" bin/omarchy commands --check
+
       # Fetch the current release VM image and pull the prebuilt QEMU container
       # concurrently. On Namespace runners with a bundled cache volume, the
       # release image is reused across runs keyed by its sha256 (~0.2 s hit)
