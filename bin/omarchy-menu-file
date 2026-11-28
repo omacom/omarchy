@@ -44,5 +44,13 @@ for format in "${formats[@]}"; do
 done
 find_args+=(")" -printf '%T@\t%p\n')
 
-find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- |
-  omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
+# An unreadable subdirectory makes find fail without losing what it did find.
+files=$({ find "${find_args[@]}" 2>/dev/null || true; } | sort -rn | cut -f2-)
+
+# Piping an empty list into omarchy-menu-select reads as no options at all.
+if [[ -z $files ]]; then
+  omarchy-notification-send "No files found" "${paths_arg//:/, }"
+  exit 1
+else
+  printf '%s\n' "$files" | omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
+fi
