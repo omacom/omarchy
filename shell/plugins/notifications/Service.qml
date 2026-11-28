@@ -75,6 +75,7 @@ Item {
     return Delivery.deckMargins(barPosition, Delivery.barThickness(barRef, screenName, defaultBarSize), Style.gapsOut)
   }
   readonly property int notificationWidth: Style.space(380)
+  readonly property int maxNotificationWidth: Style.space(560)
 
   // ---------------------------------------------------- fullscreen windows
   //
@@ -212,6 +213,7 @@ Item {
   property real hoverY: -1
 
   property var heights: ({})       // key -> measured card height
+  property var widths: ({})        // key -> measured card width
   property int layoutRevision: 0
   // Cards that arrived since the deck last opened or closed. Once still, they
   // settle into their measured height at once (a late icon, a re-wrap) instead
@@ -414,21 +416,28 @@ Item {
     return true
   }
 
-  // Fed target heights, never mid-animation ones, so layout moves on events.
-  function noteHeight(key, h) {
-    if (Math.abs((heights[key] || 0) - h) < 0.5) return
+  // Fed target sizes, never mid-animation ones, so layout moves on events.
+  function noteSize(key, w, h) {
+    var dw = Math.abs((widths[key] || 0) - w) >= 0.5
+    var dh = Math.abs((heights[key] || 0) - h) >= 0.5
+    if (!dw && !dh) return
     // Measured while it is being inserted: the arrival's own move follows.
     if (key === arriving) {
-      heights[key] = h
+      if (dw) widths[key] = w
+      if (dh) heights[key] = h
       return
     }
     if (fresh[key] && !expanded && !sceneRun.running) {
-      heights[key] = h
+      if (dw) widths[key] = w
+      if (dh) heights[key] = h
       land()
     } else {
-      commit(function() { service.heights[key] = h })
+      commit(function() {
+        if (dw) service.widths[key] = w
+        if (dh) service.heights[key] = h
+      })
     }
-    if (key === keyboardKey) keepSelectionInReach()
+    if (dh && key === keyboardKey) keepSelectionInReach()
   }
 
   // ------------------------------------------------------- the scene clock
@@ -482,7 +491,8 @@ Item {
     var snap = {}
     for (var key in placements)
       snap[key] = { y: at(key, "y"), scale: at(key, "scale"),
-                    opacity: at(key, "opacity"), height: at(key, "height") }
+                    opacity: at(key, "opacity"), height: at(key, "height"),
+                    width: at(key, "width") }
     return snap
   }
 
@@ -533,7 +543,8 @@ Item {
       openDeck: deckKey,
       gap: gap,
       deckGap: Style.space(11),
-      heightOf: function(key) { return service.heights[key] || Style.space(58) }
+      heightOf: function(key) { return service.heights[key] || Style.space(58) },
+      widthOf: function(key) { return (service.widths && service.widths[key]) || service.notificationWidth }
     })
   }
 
@@ -728,7 +739,8 @@ Item {
         var landing = service.layout.placements[key]
         snap[key] = { y: (landing ? landing.y : 0) - service.travel,
                       scale: landing ? landing.scale : 1, opacity: 0,
-                      height: landing ? landing.height : 0 }
+                      height: landing ? landing.height : 0,
+                      width: landing ? landing.width : service.notificationWidth }
         service.retarget(snap, deckNow, service.arriveDuration)
       }
     })
@@ -794,7 +806,8 @@ Item {
       // Under the cards closing in, so the one taking its place covers it on
       // the way up. Its text goes first, or it would read through them; the
       // last card keeps its words, with nothing to cover it.
-      gone[keys[j]] = { y: from.y - travel, scale: from.scale, opacity: 0, height: from.height,
+      gone[keys[j]] = { y: from.y - travel, scale: from.scale, opacity: 0,
+                        height: from.height, width: from.width,
                         z: 0, front: staying === 0, hidden: place ? place.hidden === true : true,
                         leaving: true, until: Date.now() + Style.duration(leaveDuration) }
     }
@@ -843,6 +856,7 @@ Item {
     release(key, reason)
     if (at >= 0) toasts.remove(at)
     delete heights[key]
+    delete widths[key]
     delete fresh[key]
     // A placeholder (the empty-history notice) was never recorded.
     if (key.indexOf("placeholder") !== 0) storeClose(key, reason)
@@ -1529,6 +1543,8 @@ Item {
       screen: modelData
       readonly property bool showingNotifications: service.showsOn(String(modelData.name))
       readonly property var margins: service.marginsFor(String(modelData.name))
+      readonly property int maxCardWidth: Math.min(service.maxNotificationWidth,
+          Math.max(service.notificationWidth, Math.round(screen.width * 0.6)))
       readonly property bool stepAside: service.fullscreenOn(String(modelData.name))
       readonly property bool hasSomethingToShow: showingNotifications && toasts.count > 0
       visible: !stepAside || hasSomethingToShow
@@ -1561,14 +1577,15 @@ Item {
         anchors.topMargin: surface.margins.top
         // Room for the arrival's scale animation, and the gap from the edge.
         readonly property int motionInset: Style.spacing.sm
-        width: service.notificationWidth + motionInset + surface.margins.right
+        width: surface.maxCardWidth + motionInset + surface.margins.right
         height: deck.y + deck.height + motionInset
         clip: true
 
         Item {
           id: deck
-          x: clipper.motionInset
-          width: service.notificationWidth
+          anchors.right: parent.right
+          anchors.rightMargin: surface.margins.right
+          width: service.layout.width
           height: service.deckHeight
 
           // One hover region over the whole deck, so crossing between cards does
@@ -1592,7 +1609,9 @@ Item {
                 var pl = places[key]
                 if (pl.hidden || pl.leaving) continue
                 var h = pl.height || Style.space(58)
-                if (y >= pl.y && y <= pl.y + h) { found = key; break }
+                var w = pl.width || service.notificationWidth
+                var left = deck.width - w
+                if (x >= left && x <= deck.width && y >= pl.y && y <= pl.y + h) { found = key; break }
               }
               service.hoverKey = found
             }
@@ -1630,7 +1649,8 @@ Item {
                 if (!place) continue
                 var top = place.y
                 var bottom = top + (service.heights[first.key] || Style.space(58))
-                if (mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
+                var left = deck.width - (place.width || service.notificationWidth)
+                if (mouse.x >= left - Style.space(6) && mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
                   // Opening another deck would hide the keyboard's card.
                   if (service.keyboardMode && decks[i].key !== service.openDeck) service.stopKeyboard()
                   service.pointerEntered(decks[i].key)
@@ -1644,10 +1664,15 @@ Item {
             model: toasts
 
             Toast {
+              id: toastCard
               required property var model
               row: model
               scene: service
-              cardWidth: deck.width
+              // Positioned explicitly rather than anchored right: Toast mirrors
+              // its own subtree in RTL locales, which would flip anchors.right.
+              x: deck.width - width
+              baseWidth: service.notificationWidth
+              maxWidth: surface.maxCardWidth
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
               hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
@@ -1668,11 +1693,23 @@ Item {
               sole: toasts.count === 1
               paused: service.expanded
 
+              drawnWidth: service.at(model.key, "width") || targetWidth
               drawnHeight: service.at(model.key, "height")
               // A hidden output collapses child visibility; its measurements
-              // must not overwrite the visible deck's heights.
-              onTargetHeightChanged: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
-              Component.onCompleted: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
+              // must not overwrite the visible deck's sizes.
+              onTargetWidthChanged: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
+              onTargetHeightChanged: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
+              Component.onCompleted: if (surface.showingNotifications) service.noteSize(model.key, targetWidth, targetHeight)
+
+              // Re-report this display's clamped size when the deck moves here
+              // (e.g. after unplugging a wider display).
+              Connections {
+                target: surface
+                function onShowingNotificationsChanged() {
+                  if (surface.showingNotifications)
+                    service.noteSize(toastCard.model.key, toastCard.targetWidth, toastCard.targetHeight)
+                }
+              }
 
               onExpired: service.closeToast(model.key, "expired")
               onActivated: { service.stopKeyboard(); service.activate(model.key) }

@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Nổi"
   },
-  "appearance.unlock": {
-    "label": "Mở khóa"
-  },
   "trigger.toggle": {
     "label": "Bật/tắt"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

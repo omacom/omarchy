@@ -6,7 +6,9 @@ The Quickshell desktop runs as a single long-running process out of
 `shell/`. Hyprland autostart launches `bin/omarchy-launch-shell`, which runs
 `quickshell -n -p` under `systemd-cat` (journal logging), a respawn loop, and
 reload-suppressing env vars; do not start additional standalone Quickshell
-instances for individual components.
+instances for individual components. The one exception is the startup cover
+(`shell/startup-cover.qml`), which the launcher starts beside the shell to
+cover a login until the shell reveals the desktop (`docs/boot-splash.md`).
 
 Run `omarchy-restart-shell` after making changes to QML files.
 

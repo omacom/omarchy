@@ -26,9 +26,9 @@ done
 unset firmware directory suffix
 CONF
 
-  # Plymouth leaves the panel black at the unlock prompt, so ask for the
-  # passphrase on the text console instead. Enable Panel Self Refresh
+  # console=tty0 puts the console on the panel, not a serial port, for an
+  # unlock prompt the boot splash leaves to it. Enable Panel Self Refresh
   # (msm.psr_enabled=1, covering eDP and DP sinks) so the display controller
   # suspends on static screens (~2-2.5 W saved on the internal OLED panel).
-  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set zenbook-a16 console=tty0 plymouth.enable=0 msm.psr_enabled=1
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set zenbook-a16 console=tty0 msm.psr_enabled=1
 fi

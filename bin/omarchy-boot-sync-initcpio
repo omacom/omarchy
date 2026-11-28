@@ -8,9 +8,10 @@
 # omarchy-settings installs its initcpio hooks under /etc/initcpio/ rather than
 # /usr/lib/initcpio/ so routine settings updates do not trip
 # 90-mkinitcpio-install.hook when those files are byte-identical. This helper
-# hashes the Omarchy initcpio hooks and /etc/mkinitcpio.conf.d/*.conf after an
-# omarchy-settings upgrade and calls omarchy-boot-rebuild only when the content
-# actually changed.
+# hashes the Omarchy initcpio hooks, the boot splash files omarchy-splash copies
+# into the image and /etc/mkinitcpio.conf.d/*.conf after an omarchy-settings
+# upgrade and calls omarchy-boot-rebuild only when the content actually
+# changed.
 
 set -euo pipefail
 
@@ -21,11 +22,12 @@ STATE=${OMARCHY_INITCPIO_STATE:-$ROOT/var/lib/omarchy/initcpio.sha256}
 BACKEND_CMD=${OMARCHY_INITCPIO_BACKEND_CMD:-omarchy-boot-backend}
 REBUILD_CMD=${OMARCHY_INITCPIO_REBUILD_CMD:-omarchy-boot-rebuild}
 
-# Hash the sorted set of Omarchy initcpio hooks and mkinitcpio drop-ins
-# (ignoring .pacnew/.pacsave/.pacorig backups). Each entry records its relative
-# path and file content digest (and link target for symlinks, plus the resolved
-# target's bytes when present) so renames, additions, removals, link changes,
-# and edits through symlinks all change the resulting digest.
+# Hash the sorted set of Omarchy initcpio hooks, boot splash files and
+# mkinitcpio drop-ins (ignoring .pacnew/.pacsave/.pacorig backups). Each entry
+# records its relative path and file content digest (and link target for
+# symlinks, plus the resolved target's bytes when present) so renames,
+# additions, removals, link changes, and edits through symlinks all change the
+# resulting digest.
 compute_hash() {
   local -a paths=()
   local pattern path rel digest content_digest
@@ -38,6 +40,8 @@ compute_hash() {
     "$ROOT/etc/initcpio/install/omarchy-"* \
     "$ROOT/usr/lib/initcpio/hooks/omarchy-"* \
     "$ROOT/usr/lib/initcpio/install/omarchy-"* \
+    "$ROOT/usr/share/omarchy/default/splash/"* \
+    "$ROOT/usr/share/omarchy/default/splash/ui/"* \
     "$ROOT/etc/mkinitcpio.conf.d/"*.conf; do
     [[ -f $pattern || -L $pattern ]] || continue
     case $pattern in

@@ -4,6 +4,8 @@ A single long-running [Quickshell](https://quickshell.org/) instance
 that hosts the Omarchy desktop. The bar, panels, overlays, menus, and
 services all run inside as plugins. Hyprland autostart launches the
 shell via `omarchy-launch-shell`; restart it with `omarchy-restart-shell`.
+On a new login the launcher also starts the startup cover, a short-lived
+instance of its own (`shell/startup-cover.qml`).
 IPC is the canonical way for CLIs to talk to a running shell —
 `omarchy-shell` forwards a call and fails when the shell is not running
 (`-q` makes it quiet best-effort; `OMARCHY_SHELL_IPC_TIMEOUT` bounds the

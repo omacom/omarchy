@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "플로팅"
   },
-  "appearance.unlock": {
-    "label": "잠금 해제"
-  },
   "trigger.toggle": {
     "label": "토글"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

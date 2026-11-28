@@ -69,7 +69,7 @@ for tool in awk base64 basename cat chmod cksum cmp cp cut date dirname env find
 done
 
 for name in hyprctl omarchy-shell pkill killall omarchy-theme-set-browser-policy \
-  omarchy-theme-set-herdr-machines omarchy-theme-bg-cache omarchy-hook; do
+  omarchy-theme-set-login-colors omarchy-theme-set-herdr-machines omarchy-theme-bg-cache omarchy-hook; do
   stub "$name"
 done
 # Never escalate: the browser policy hook would rewrite the system's policy.

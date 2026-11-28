@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "மிதக்கும்"
   },
-  "appearance.unlock": {
-    "label": "திற"
-  },
   "trigger.toggle": {
     "label": "மாற்று"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

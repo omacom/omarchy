@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "フロート型"
   },
-  "appearance.unlock": {
-    "label": "ロック画面"
-  },
   "trigger.toggle": {
     "label": "切り替え"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"
