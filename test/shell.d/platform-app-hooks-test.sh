@@ -139,6 +139,7 @@ printf '#!/bin/bash\necho "00:02.0 VGA compatible controller: %s"\n' '${GPU:-App
 printf '#!/bin/bash\nexit "${ARCH_X86:-0}"\n' >"$gpu_bin/omarchy-hw-x86"
 printf '#!/bin/bash\nexit "${NVIDIA_GSP:-1}"\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
 printf '#!/bin/bash\nexit "${NVIDIA_WITHOUT_GSP:-1}"\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
+printf '#!/bin/bash\nexit "${HYBRID_GPU:-1}"\n' >"$gpu_bin/omarchy-hw-hybrid-gpu"
 cat >"$gpu_bin/omarchy-pkg-present" <<'SH'
 #!/bin/bash
 for pkg in "$@"; do
@@ -201,6 +202,32 @@ pass "32-bit drivers: aarch64 adds none, even with a supported GPU"
 
 # ── Hybrid GPU Integrated-mode hints ─────────────────────────────────────────
 
+printf '{\n  "mode": "Integrated"\n}\n' >"$tmp/supergfxd-integrated.conf"
+printf '{\n  "mode": "Hybrid"\n}\n' >"$tmp/supergfxd-hybrid.conf"
+
+# The shared lib32 driver step prints a hint once for all gaming installers
+# when Integrated mode is active on hybrid hardware, and stays quiet otherwise
+# (including when /etc/supergfxd.conf does not exist).
+HYBRID_GPU=0 OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-integrated.conf" \
+  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-integrated.out" 2>&1 ||
+  fail "lib32 driver step succeeds in Integrated mode" "$(cat "$tmp/gpu-integrated.out")"
+grep -Fq "Trigger > Hardware > Switch to dGPU" "$tmp/gpu-integrated.out" ||
+  fail "lib32 driver step hints about switching to dGPU in Integrated mode" "$(cat "$tmp/gpu-integrated.out")"
+
+HYBRID_GPU=0 OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-hybrid.conf" \
+  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-hybrid.out" 2>&1 ||
+  fail "lib32 driver step succeeds in Hybrid mode" "$(cat "$tmp/gpu-hybrid.out")"
+! grep -Fq "Switch to dGPU" "$tmp/gpu-hybrid.out" ||
+  fail "lib32 driver step stays quiet about Integrated mode in Hybrid mode" "$(cat "$tmp/gpu-hybrid.out")"
+
+HYBRID_GPU=0 OMARCHY_SUPERGFXD_CONF="$tmp/no-supergfxd.conf" \
+  PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >"$tmp/gpu-noconf.out" 2>"$tmp/gpu-noconf.err" ||
+  fail "lib32 driver step succeeds without supergfxd.conf" "$(cat "$tmp/gpu-noconf.out" "$tmp/gpu-noconf.err")"
+[[ ! -s $tmp/gpu-noconf.err ]] && ! grep -Fq "Switch to dGPU" "$tmp/gpu-noconf.out" ||
+  fail "lib32 driver step stays quiet with no stderr when supergfxd.conf is absent" "$(cat "$tmp/gpu-noconf.out" "$tmp/gpu-noconf.err")"
+pass "32-bit drivers: hints about Switch to dGPU only in Integrated mode"
+
+# Battle.net launch sends a transient notification in Integrated mode and still launches.
 hint_bin=$tmp/hint-bin
 mkdir -p "$hint_bin"
 printf '#!/bin/bash\nexit "${HYBRID_GPU:-0}"\n' >"$hint_bin/omarchy-hw-hybrid-gpu"
@@ -210,26 +237,6 @@ printf '#!/bin/bash\nexit 1\n' >"$hint_bin/pgrep"
 printf '#!/bin/bash\necho "[]"\n' >"$hint_bin/hyprctl"
 chmod +x "$hint_bin"/*
 
-printf '{\n  "mode": "Integrated"\n}\n' >"$tmp/supergfxd-integrated.conf"
-printf '{\n  "mode": "Hybrid"\n}\n' >"$tmp/supergfxd-hybrid.conf"
-
-# Steam install prints a hint only when Integrated mode is active on hybrid hardware.
-OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-integrated.conf" PATH="$hint_bin:$stub_bin:$tmp/x86/bin:$ROOT/bin:$PATH" \
-  HOME="$tmp/home" OMARCHY_PATH="$omarchy_path" OMARCHY_PROC_ROOT="$tmp/x86/proc" OMARCHY_LIFECYCLE_ROOT="$lifecycle" \
-  bash "$ROOT/bin/omarchy-install-gaming-steam" >"$tmp/steam-integrated.out" 2>&1 ||
-  fail "Steam installs in Integrated mode" "$(cat "$tmp/steam-integrated.out")"
-grep -Fq "Trigger > Hardware > Switch to dGPU" "$tmp/steam-integrated.out" ||
-  fail "Steam install hints about switching to dGPU in Integrated mode" "$(cat "$tmp/steam-integrated.out")"
-
-OMARCHY_SUPERGFXD_CONF="$tmp/supergfxd-hybrid.conf" PATH="$hint_bin:$stub_bin:$tmp/x86/bin:$ROOT/bin:$PATH" \
-  HOME="$tmp/home" OMARCHY_PATH="$omarchy_path" OMARCHY_PROC_ROOT="$tmp/x86/proc" OMARCHY_LIFECYCLE_ROOT="$lifecycle" \
-  bash "$ROOT/bin/omarchy-install-gaming-steam" >"$tmp/steam-hybrid.out" 2>&1 ||
-  fail "Steam installs in Hybrid mode" "$(cat "$tmp/steam-hybrid.out")"
-! grep -Fq "Switch to dGPU" "$tmp/steam-hybrid.out" ||
-  fail "Steam install stays quiet about Integrated mode in Hybrid mode" "$(cat "$tmp/steam-hybrid.out")"
-pass "Steam install hints about Switch to dGPU only in Integrated mode"
-
-# Battle.net launch sends a transient notification in Integrated mode and still launches.
 bnet_home=$tmp/bnet-home
 mkdir -p "$bnet_home/Games/battlenet/drive_c/Program Files (x86)/Battle.net"
 : >"$bnet_home/Games/battlenet/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"

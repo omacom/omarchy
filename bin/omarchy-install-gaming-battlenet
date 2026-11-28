@@ -88,7 +88,3 @@ Battle.net is installed. Find it in your app launcher, or run:
 
 EOF
 fi
-
-if grep -Eq '"mode"[[:space:]]*:[[:space:]]*"Integrated"' "${OMARCHY_SUPERGFXD_CONF:-/etc/supergfxd.conf}" 2>/dev/null && omarchy-hw-hybrid-gpu; then
-  echo "Note: Integrated GPU mode is active. Switch to your dedicated GPU in Trigger > Hardware > Switch to dGPU for better gaming performance."
-fi
