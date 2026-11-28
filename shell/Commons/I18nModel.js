@@ -350,14 +350,18 @@ function createRegistry() {
     })
 
     var merged = {}
+    var priorities = {}
     var parents = {}
     var domainOrder = []
     for (var i = 0; i < list.length; i++) {
       var owner = list[i]
       for (var domain in owner.catalogs) {
-        if (!merged[domain]) { merged[domain] = {}; domainOrder.push(domain) }
+        if (!merged[domain]) { merged[domain] = {}; priorities[domain] = {}; domainOrder.push(domain) }
         var cat = owner.catalogs[domain]
-        for (var key in cat) merged[domain][key] = cat[key]
+        for (var key in cat) {
+          merged[domain][key] = cat[key]
+          priorities[domain][key] = owner.precedence
+        }
       }
       for (var child in owner.links) parents[child] = owner.links[child]
     }
@@ -366,12 +370,18 @@ function createRegistry() {
     // translation shadows the original's for unbound callers.
     var global = {}
     var folded = {}
+    var globalPriorities = {}
     function fold(domain, depth) {
       if (folded[domain] || depth > 16) return
       folded[domain] = true
       if (parents[domain] && merged[parents[domain]]) fold(parents[domain], depth + 1)
       var cat = merged[domain]
-      for (var key in cat) if (key !== "") global[key] = { value: cat[key], domain: domain }
+      for (var key in cat) {
+        var precedence = priorities[domain][key]
+        if (key === "" || globalPriorities[key] < precedence) continue
+        globalPriorities[key] = precedence
+        global[key] = { value: cat[key], domain: domain }
+      }
     }
     for (var o = 0; o < domainOrder.length; o++) fold(domainOrder[o], 0)
 
