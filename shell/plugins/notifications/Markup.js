@@ -56,9 +56,9 @@ function unescapeAllowed(text) {
   // Anchors keep only their href, and only when Security allows it: a click
   // goes straight to the desktop URL handler, and the sender writes the label.
   // A refused link keeps its text and loses its click.
-  out = out.replace(/&lt;a\s+href=(?:&quot;|")([^"&]+)(?:&quot;|")[^&]*&gt;([\s\S]*?)&lt;\/a&gt;/gi,
+  out = out.replace(/&lt;a\s+href=(?:&quot;|")((?:[^"&]|&amp;)+)(?:&quot;|")(?:[^&]|&(?!gt;))*&gt;([\s\S]*?)&lt;\/a&gt;/gi,
                     function (whole, href, label) {
-                      var safe = Security.safeExternalUrl(href)
+                      var safe = Security.safeExternalUrl(href.replace(/&amp;/g, "&"))
                       return safe ? '<a href="' + safe + '">' + label + '</a>' : label
                     })
   return out
@@ -87,7 +87,7 @@ function liftSource(body) {
 function linkify(escaped) {
   return escaped.replace(/(https?:\/\/[^\s<]+)/g, function(url) {
     var safe = Security.safeHttpUrl(decodeEntities(url))
-    return safe ? '<a href="' + safe.replace(/&/g, '&amp;') + '">' + url + '</a>' : url
+    return safe ? '<a href="' + safe + '">' + url + '</a>' : url
   })
 }
 

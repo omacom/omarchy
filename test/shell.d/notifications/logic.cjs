@@ -48,6 +48,9 @@ for (const body of ['<img src="file:///etc/passwd">', '<svg><image href="https:/
 // A bare URL is a link even beside formatting, but never inside the sender's own anchor.
 assert.equal(M.render('<b>Standup</b> https://example.com/x'), '<b>Standup</b> <a href="https://example.com/x">https://example.com/x</a>')
 assert.equal(M.render('<a href="https://example.com/">https://example.com/</a>'), '<a href="https://example.com/">https://example.com/</a>')
+assert.equal(M.render('<a href="https://example.com/inbox?thread=42&amp;reply=1" title="Q&amp;A">Open thread</a>'), '<a href="https://example.com/inbox?thread=42&reply=1">Open thread</a>')
+assert.equal(M.render('https://example.com/inbox?thread=42&reply=1'), '<a href="https://example.com/inbox?thread=42&reply=1">https://example.com/inbox?thread=42&amp;reply=1</a>')
+assert.equal(M.render('<a href="https://paypal.com@evil.example/?a=1&amp;b=2">Open thread</a>'), 'Open thread')
 
 { // Escaped sender markup must not leak into collapsed or restored previews.
   const body = 'Thread in #support: &lt;b&gt;Sam&lt;/b&gt;&lt;br/&gt;the preview is readable &amp; compact'
