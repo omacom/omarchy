@@ -13,6 +13,8 @@ import qs.Commons
 //                 against it stays put while the widget grows.
 //   inTraySection - whether it sits in the tray's drawer, which already
 //                   hides it until hovered.
+//   underFullscreen - whether a fullscreen window covers this widget's bar
+//                     surface.
 //
 // Widgets are free to add their own properties, signals, and child items.
 Item {
@@ -23,6 +25,7 @@ Item {
   property var settings: ({})
   property string fixedEdge: "center"
   property bool inTraySection: false
+  property bool underFullscreen: false
 
   // Bar geometry, lifted off the host. Widgets read these constantly to pick
   // between horizontal/vertical layouts; defining them on the base keeps the

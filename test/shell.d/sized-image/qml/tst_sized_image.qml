@@ -227,5 +227,20 @@ Item {
       tryCompare(unsized, "status", Image.Ready)
       verify(bitmap(unsized).width <= Math.ceil(40 * Screen.devicePixelRatio), "decoded width " + bitmap(unsized).width)
     }
+
+    function test_cache_false_forwards_and_reloads_after_clear() {
+      var probe = Qt.createQmlObject('import "../../../../shell/Ui"; SizedImage { width: 40; height: 40; crop: true }', root)
+      compare(probe.cache, true, "caching stays enabled by default")
+      compare(probe.children[0].cache, true, "inner image inherits default cache")
+      probe.cache = false
+      compare(probe.children[0].cache, false, "cache: false forwards to the inner image")
+      probe.url = root.bigImage
+      tryCompare(probe, "status", Image.Ready)
+      probe.url = ""
+      tryCompare(probe, "status", Image.Null)
+      probe.url = root.bigImage
+      tryCompare(probe, "status", Image.Ready)
+      probe.destroy()
+    }
   }
 }

@@ -42,6 +42,7 @@ Item {
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
   property bool barHidden: false
+  readonly property bool sessionLocked: !!(root.shell && root.shell.sessionLocked)
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
   property string omarchyConfigDir: home + "/.config/omarchy"
@@ -232,6 +233,8 @@ Item {
     api.fontFamily = Qt.binding(function() { return root.fontFamily })
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
+    api.barHidden = Qt.binding(function() { return root.barHidden })
+    api.sessionLocked = Qt.binding(function() { return root.sessionLocked })
     api.barSize = Qt.binding(function() { return root.barSize })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
@@ -2770,6 +2773,8 @@ Item {
     property string fixedEdge: "center"
     // Whether that slot is in the tray's drawer.
     property bool inTraySection: false
+    // Whether a fullscreen window covers this widget's bar surface.
+    readonly property bool underFullscreen: !!owner && !!owner.window && !!owner.window.underFullscreen
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
     readonly property string customType: root.customModuleType(entry)
@@ -2877,6 +2882,7 @@ Item {
     onModuleSettingsChanged: injectProps()
     onFixedEdgeChanged: injectProps()
     onInTraySectionChanged: injectProps()
+    onUnderFullscreenChanged: injectProps()
 
     function injectProps() {
       var target = activeItem
@@ -2889,6 +2895,8 @@ Item {
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
       if ("settings" in target) target.settings = moduleSettings
+      if ("underFullscreen" in target && ((registered && firstParty) || target.acceptsUnderFullscreen === true))
+        target.underFullscreen = underFullscreen
     }
 
     Component {

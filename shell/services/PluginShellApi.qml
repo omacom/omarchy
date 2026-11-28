@@ -16,6 +16,7 @@ QtObject {
   property var bar: null
   property var barConfig: ({})
   property var idleConfig: ({})
+  property bool sessionLocked: false
 
   property var _serviceLookup: null
   property var _firstPartyServiceLookup: null
