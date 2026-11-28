@@ -1662,6 +1662,18 @@ Panel {
     return isFinite(ms) ? ms - root.nowMs : -1
   }
 
+  // Every refresh rewrites a line's record, so one older than two of them is
+  // what a collector left when it stopped: still shown, but no longer passed
+  // off as current. A failed check rewrites it, and says so in its note.
+  function recordAgeMs(p) {
+    var ms = Number(p && p.updatedAtMs || 0)
+    return ms > 0 ? Math.max(0, nowMs - ms) : 0
+  }
+
+  function recordOutdated(p) {
+    return recordAgeMs(p) > usage.refreshIntervalSec * 2 * 1000
+  }
+
   function formatDuration(ms) {
     if (!(ms > 0)) return Commons.I18n.t("agents.durationNow")
     var minutes = Math.floor(ms / 60000)
@@ -3076,6 +3088,7 @@ Panel {
     readonly property bool noteInRow: windows.length > 0 && root.resetMsFor(windows[0]) <= 0
     readonly property var balance: provider ? (provider.balance || null) : null
     readonly property var spend: provider ? (provider.spend || null) : null
+    readonly property bool outdated: root.recordOutdated(provider)
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
     // The pointer or the keyboard, whichever moved last, is on this agent.
@@ -3510,10 +3523,23 @@ Panel {
       onClicked: root.signInAgain(section.provider, section.account)
     }
 
+    // Numbers no refresh has touched in a while step back and say how old
+    // they are.
+    Text {
+      visible: section.outdated
+      width: parent.width
+      textFormat: Text.PlainText
+      text: visible ? Commons.I18n.t("agents.lastUpdatedAgo").arg(root.formatDuration(root.recordAgeMs(section.provider))) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      elide: Text.ElideRight
+    }
 
     Column {
       visible: section.windows.length > 0
       width: parent.width
+      opacity: section.outdated ? 0.45 : 1
       spacing: Style.space(12)
 
       Repeater {
@@ -3546,6 +3572,7 @@ Panel {
     Item {
       visible: !!section.balance
       width: parent.width
+      opacity: section.outdated ? 0.45 : 1
       implicitHeight: balanceTitle.implicitHeight
 
       Text {
@@ -3590,6 +3617,7 @@ Panel {
     Item {
       visible: !!section.spend && !section.balance
       width: parent.width
+      opacity: section.outdated ? 0.45 : 1
       implicitHeight: spendTitle.implicitHeight
 
       Text {

@@ -528,8 +528,19 @@ Item {
 
       syncEnabled: synced,
       syncDeviceCount: deviceCount,
-      syncUpdatedAt: aggregateData && aggregateData.updatedAt ? aggregateData.updatedAt : ""
+      syncUpdatedAt: aggregateData && aggregateData.updatedAt ? aggregateData.updatedAt : "",
+
+      // When this machine's collector last wrote the record. Its limits,
+      // plan, balance and spend are as of then; an agent with no record here
+      // has none and is never aged.
+      updatedAtMs: recordUpdatedAtMs(record)
     }
+  }
+
+  // Collectors stamp the record in ISO form, down to the microsecond.
+  function recordUpdatedAtMs(record) {
+    var ms = Date.parse(String(record.updatedAt || ""))
+    return isFinite(ms) ? ms : 0
   }
 
   function setting(name, fallback) {
