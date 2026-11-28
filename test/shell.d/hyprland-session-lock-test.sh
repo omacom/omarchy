@@ -21,12 +21,28 @@ printf '%s\n' "$OMARCHY_TEST_MONITORS"
 SH
 
 # The lockers running are given, so the live desktop's own shell stays out of it.
+# OMARCHY_TEST_LOCKERS names pids outright; OMARCHY_TEST_PROCESSES holds
+# "<pid> <command line>" lines that are matched the way pgrep -f matches them,
+# so a test can hand over a command line an unrelated Quickshell would have.
 cat >"$fake_bin/pgrep" <<'SH'
 #!/bin/bash
 
-[[ $* == "-u $UID -x quickshell|qs|hyprlock" ]] || exit 3
-[[ -n $OMARCHY_TEST_LOCKERS ]] || exit 1
-printf '%s\n' $OMARCHY_TEST_LOCKERS
+[[ $1 == "-u" && $2 == $UID && $3 == "-f" ]] || exit 3
+pattern=$4
+
+if [[ -n ${OMARCHY_TEST_PROCESSES-} ]]; then
+  status=1
+  while read -r pid cmdline; do
+    [[ -n $pid ]] || continue
+    [[ $cmdline =~ $pattern ]] || continue
+    printf '%s\n' "$pid"
+    status=0
+  done <<<"$OMARCHY_TEST_PROCESSES"
+  exit $status
+fi
+
+[[ -n ${OMARCHY_TEST_LOCKERS-} ]] || exit 1
+printf '%s\n' ${OMARCHY_TEST_LOCKERS}
 SH
 chmod +x "$fake_bin"/*
 
@@ -40,12 +56,13 @@ unlocked_monitors='[{"name":"HDMI-A-1","solitaryBlockedBy":["WINDOWED","CANDIDAT
 # The stranded check asks the real omarchy-hyprland-session-locked, so
 # $ROOT/bin follows the stubs on PATH.
 exit_status() {
-  local command="$1" monitors="$2" hyprctl_fails="$3" lockers="$4" actual=0
+  local command="$1" monitors="$2" hyprctl_fails="$3" lockers="$4" processes="${5:-}" actual=0
 
   PATH="$fake_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_MONITORS="$monitors" \
   OMARCHY_TEST_HYPRCTL_FAILS="$hyprctl_fails" \
   OMARCHY_TEST_LOCKERS="$lockers" \
+  OMARCHY_TEST_PROCESSES="$processes" \
     "$ROOT/bin/$command" 100 || actual=$?
 
   printf '%s\n' "$actual"
@@ -63,6 +80,15 @@ assert_stranded() {
   local expected="$1" monitors="$2" lockers="$3" description="$4" hyprctl_fails="${5:-0}" actual
 
   actual=$(exit_status omarchy-hyprland-session-lock-stranded "$monitors" "$hyprctl_fails" "$lockers")
+  (( actual == expected )) || fail "$description" "expected exit $expected, got $actual"
+  pass "$description"
+}
+
+# Pids are listed, but what each one runs is what decides whether it is a locker.
+assert_processes() {
+  local expected="$1" processes="$2" description="$3" actual
+
+  actual=$(exit_status omarchy-hyprland-session-lock-stranded "$locked_monitors" 0 "" "$processes")
   (( actual == expected )) || fail "$description" "expected exit $expected, got $actual"
   pass "$description"
 }
@@ -117,3 +143,25 @@ assert_stranded 0 "$locked_monitors" "100" "the asking shell does not count as a
 assert_stranded 1 "$unlocked_monitors" "" "an unlocked session is not stranded"
 assert_stranded 2 '[]' "" "a compositor that cannot say leaves it undetermined" 1
 assert_stranded 2 "$locked_monitors" "100 200" "a lock another locker may hold is left undetermined, so it is never taken"
+
+# Only an Omarchy shell or hyprlock owns the lock. A Quickshell instance someone
+# else started, as voxtype does, is alive but holds nothing.
+assert_processes 0 "100 quickshell -n -p /usr/share/omarchy/shell
+200 qs -p /usr/share/voxtype/quickshell" \
+  "an unrelated Quickshell instance does not keep the lock from being recovered"
+
+assert_processes 0 "100 quickshell -n -p /usr/share/omarchy/shell
+300 qs -p /home/alice/shell-things/config" \
+  "a -p path that merely contains /shell does not count as an Omarchy shell"
+
+assert_processes 0 "100 quickshell -n -p /usr/share/omarchy/shell
+200 nvim /home/alice/.config/hypr/hyprlock.conf" \
+  "an editor holding hyprlock.conf open does not count as a live locker"
+
+assert_processes 2 "100 quickshell -n -p /usr/share/omarchy/shell
+200 quickshell -n -p /usr/share/omarchy/shell" \
+  "another Omarchy shell may own the lock, so it is left undetermined"
+
+assert_processes 2 "100 quickshell -n -p /usr/share/omarchy/shell
+300 hyprlock" \
+  "a running hyprlock may own the lock, so it is left undetermined"
