@@ -5,4 +5,10 @@
 # regulate latency once the queue fills. Whole disks only: partitions have no
 # scheduler of their own, and zram is memory with nothing to schedule. Zoned
 # btrfs disks are moved back to mq-deadline by 64-btrfs-zoned.rules.
-ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="nvme*|sd*|mmcblk*|vd*", ATTR{queue/scheduler}="kyber"
+#
+# Zero-size disks are skipped: an empty USB card reader exposes a 0-byte disk
+# whose queue is still coming up during probe, so the scheduler write fails
+# with EBUSY and udev never retries, leaving the error in the journal and the
+# reader on its default scheduler for nothing. Inserting media fires a change
+# event with the real size, and this rule sets the scheduler then.
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="nvme*|sd*|mmcblk*|vd*", ATTR{size}!="0", ATTR{queue/scheduler}="kyber"
