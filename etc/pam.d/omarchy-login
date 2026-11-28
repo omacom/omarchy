@@ -3,11 +3,13 @@
 # (omarchy-system-login names this service): greetd's own stack, after the
 # session type and desktop, which pam_systemd records with logind. greetd sets
 # neither, and pam_systemd would otherwise take the VT's type, tty.
-# pam_gnome_keyring unlocks login.keyring on password logins and socket-activates
+# pam_gnome_keyring unlocks an existing login.keyring on password logins (guarded
+# so passwordless Default_keyring installs never create one) and socket-activates
 # gnome-keyring-daemon during session open (after pam_systemd) before apps start.
-auth      include   greetd
--auth     optional  pam_gnome_keyring.so
-account   include   greetd
-session   required  pam_env.so conffile=/usr/share/omarchy/default/splash/login-session.env readenv=0
-session   include   greetd
--session  optional  pam_gnome_keyring.so auto_start
+auth      include                     greetd
+auth      [success=ignore default=1]  pam_exec.so quiet quiet_log /bin/sh -c [PATH=/usr/bin; test -n "$PAM_USER" && home=$(getent passwd "$PAM_USER" | cut -d: -f6) && test -n "$home" && test -f "$home/.local/share/keyrings/login.keyring"]
+-auth     optional                    pam_gnome_keyring.so
+account   include                     greetd
+session   required                    pam_env.so conffile=/usr/share/omarchy/default/splash/login-session.env readenv=0
+session   include                     greetd
+-session  optional                    pam_gnome_keyring.so auto_start
