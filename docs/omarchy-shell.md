@@ -99,6 +99,14 @@ bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+### Renaming a third-party plugin
+
+A Git-managed plugin can opt into an ID change by declaring previous IDs in its new manifest, for example `"id": "author.new-name", "renamedFrom": ["author.old-name"]`. Previous IDs must be unique, valid, non-reserved plugin IDs and must differ from the new ID. An ID change without this declaration is refused.
+
+`omarchy plugin update` migrates the checkout directory and the plugin references in `shell.json` together: enabled plugins, bar selection and placement, disabled state, and clone-source restoration records. Settings and placement order are preserved. The update requires a clean checkout for a rename and refuses an existing destination, another installed plugin with either ID, or saved configuration already using the new ID. Resolve the reported conflict and retry; the updater does not combine two plugins' settings.
+
+Successful migrations record `pluginIdAliases` in `shell.json`. Plugin manager commands, bar commands, and shell lifecycle calls continue accepting the old ID. A manifest's `renamedFrom` alone grants no alias or access to another plugin's configuration. An actually installed ID takes precedence over an alias. The shell resolves migration aliases at its external command boundary; internal component identities stay unchanged during teardown. If an update is interrupted after saving the references, the shell can discover the new manifest at the old path; rerun the update to finish moving the directory. The updater finishes this pending rename before fetching a later rename, so successive updates cannot skip the ID still used by saved references.
+
 ## Keeping the clock current
 
 The clock's `WallClock` moves only on its next whole-minute tick (whole-second with a seconds format), and its Qt timer counts on `CLOCK_MONOTONIC`. So after a resume, a stepped clock or a new timezone the label keeps the old time until that tick, up to a minute later. `omarchy-clock-resync.timer` closes that gap without a process or a poll. `omarchy-settings` ships it and `omarchy-clock-resync.service` in `/usr/lib/systemd/user`; first-run enables the timer on new installs and a migration enables it on existing ones.

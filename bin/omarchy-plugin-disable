@@ -18,6 +18,7 @@ fi
 
 id="${1:-}"
 [[ -n $id ]] || fail "plugin id is required"
+id=$(omarchy-plugin-id resolve "$id")
 
 result=$(omarchy-shell shell setPluginEnabled "$id" false)
 [[ $result == "ok" ]] ||

@@ -19,6 +19,12 @@ require_comparable_speed "lock appear budget"
 BUDGET_MS=$(( ${OMARCHY_LOCK_APPEAR_BUDGET_MS:-300} * SPEED_PERCENT / 100 ))
 REOPEN_BUDGET_MS=$(( ${OMARCHY_LOCK_REAPPEAR_BUDGET_MS:-150} * SPEED_PERCENT / 100 ))
 
+# The IPC deadline must allow a response within the measured appearance budget:
+# at 8x process speed that is 2400ms, beyond omarchy-shell's default 2s.
+# Keep a bounded second for transport; all appearance assertions below still apply.
+IPC_BUDGET_MS=$(( BUDGET_MS > REOPEN_BUDGET_MS ? BUDGET_MS : REOPEN_BUDGET_MS ))
+export OMARCHY_SHELL_IPC_TIMEOUT=${OMARCHY_SHELL_IPC_TIMEOUT:-$(( (IPC_BUDGET_MS + 999) / 1000 + 1 ))s}
+
 setup_scratch_shell
 
 appear_ms() {

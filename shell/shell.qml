@@ -125,6 +125,7 @@ ShellRoot {
   }
 
   function persistShellConfig(nextConfig) {
+    var previous = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
@@ -132,7 +133,40 @@ ShellRoot {
       console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
       return
     }
-    userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
+    // A queued batch keeps the base from before its first edit. Later edits
+    // replace only its desired result, so coalescing cannot drop an earlier edit.
+    var request = pendingConfigWrite ? JSON.parse(pendingConfigWrite) : { base: previous }
+    request.next = payload
+    pendingConfigWrite = JSON.stringify(request)
+    flushConfigWrite()
+  }
+
+  // Serialize shell saves; the writer applies their changes to the latest file
+  // under the same lock as CLI edits and checkout migrations.
+  property string pendingConfigWrite: ""
+  function flushConfigWrite() {
+    if (configWriter.running || !pendingConfigWrite) return
+    configWriter.payload = pendingConfigWrite
+    pendingConfigWrite = ""
+    configWriter.stdinEnabled = true
+    configWriter.running = true
+  }
+
+  Process {
+    id: configWriter
+    property string payload: ""
+    command: [shell.omarchyPath + "/bin/omarchy-plugin-id", "config-save"]
+    onStarted: {
+      write(payload + "\n")
+      payload = ""
+      stdinEnabled = false
+    }
+    stderr: StdioCollector { id: configWriteError; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) console.warn("shell config save failed: " + configWriteError.text)
+      if (!shell.pendingConfigWrite) userConfigFile.reload()
+      Qt.callLater(shell.flushConfigWrite)
+    }
   }
 
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
@@ -159,7 +193,7 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
+    onLoaded: if (!configWriter.running && !shell.pendingConfigWrite) shell.applyShellConfig()
     onLoadFailed: function(error) { shell.applyShellConfig() }
     onFileChanged: reload()
   }
@@ -2093,15 +2127,15 @@ ShellRoot {
     }
 
     function summon(id: string, payloadJson: string): string {
-      return shell.summon(id, payloadJson) ? "ok" : "unknown"
+      return shell.summon(shell.pluginRegistry.resolveMigratedId(id), payloadJson) ? "ok" : "unknown"
     }
 
     function hide(id: string): void {
-      shell.hide(id)
+      shell.hide(shell.pluginRegistry.resolveMigratedId(id))
     }
 
     function toggle(id: string, payloadJson: string): void {
-      shell.toggle(id, payloadJson)
+      shell.toggle(shell.pluginRegistry.resolveMigratedId(id), payloadJson)
     }
 
     // A bar section's panels answer to their position as well as their id, so a
@@ -2118,7 +2152,7 @@ ShellRoot {
     }
 
     function call(id: string, method: string, arg: string): string {
-      return shell.callIfLoaded(id, method, arg)
+      return shell.callIfLoaded(shell.pluginRegistry.resolveMigratedId(id), method, arg)
     }
   }
 }

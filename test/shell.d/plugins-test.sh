@@ -210,5 +210,32 @@ if (publicManifestMatch) {
   check(raw.__sourceDir === '/plugins/acme.demo', 'a plugin editing its manifest copy cannot move the registry entry')
 }
 
+// Execute the public IPC methods themselves: the alias resolver is a
+// collaborator, while the argument routing under test comes from shell.qml.
+const routed = []
+const ipcHost = {
+  pluginRegistry: { resolveMigratedId: id => id === 'acme.old' ? 'acme.new' : id },
+  summon: (...args) => { routed.push(['summon', ...args]); return true },
+  hide: (...args) => routed.push(['hide', ...args]),
+  toggle: (...args) => routed.push(['toggle', ...args]),
+  callIfLoaded: (...args) => { routed.push(['call', ...args]); return 'reply' }
+}
+for (const [name, args] of [
+  ['summon', ['acme.old', '{"value":42}']],
+  ['hide', ['acme.old']],
+  ['toggle', ['acme.old', '{"value":42}']],
+  ['call', ['acme.old', 'probe', 'payload']]
+]) {
+  const method = shellSource.match(new RegExp('function ' + name + '\\((id: string[^)]*)\\)(?:\\s*:\\s*\\w+)?\\s*\\{([\\s\\S]*?)\\n    \\}'))
+  check(!!method, 'public ' + name + ' IPC method is available')
+  if (!method) continue
+  const parameters = method[1].replace(/:\s*\w+/g, '').split(',').map(value => value.trim())
+  const invoke = new Function('shell', ...parameters, method[2])
+  invoke(ipcHost, ...args)
+  const call = routed.pop()
+  check(JSON.stringify(call) === JSON.stringify([name, 'acme.new', ...args.slice(1)]),
+    'public ' + name + ' resolves the migrated identity and preserves its arguments')
+}
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS

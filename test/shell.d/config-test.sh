@@ -1,9 +1,14 @@
 #!/bin/bash
+# omarchy:exclusive
 
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# The headless CLI checks below deliberately mock the session. Restore the
+# incoming environment in the isolated live-shell section at the end.
+config_test_path=$PATH
+config_test_hyprland_signature=${HYPRLAND_INSTANCE_SIGNATURE:-}
 export PATH="$ROOT/bin:$PATH"
 # Reload this session's Hyprland, as a desktop does, even when run over ssh.
 export HYPRLAND_INSTANCE_SIGNATURE=test
@@ -205,6 +210,7 @@ LUA
 pass "Hyprland bootstrap reloads cached Omarchy config modules"
 
 TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
 mkdir -p "$TMPDIR/home/.config/omarchy"
 # The bar keeps its blur toggle where Hyprland reads it, under XDG_STATE_HOME,
 # so that points into the test home too.
@@ -495,3 +501,229 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
+
+
+# Shared configuration writes: migration locking, three-way saves and JSON types.
+python3 - "$ROOT" <<'PYTEST'
+import copy, fcntl, json, os, pathlib, shutil, subprocess, sys, tempfile
+root = pathlib.Path(sys.argv[1])
+with tempfile.TemporaryDirectory() as tmp:
+  home = pathlib.Path(tmp)
+  config = home / ".config/omarchy/shell.json"
+  plugins = config.parent / "plugins"
+  folder = plugins / "acme.old"
+  folder.mkdir(parents=True)
+  (folder / "manifest.json").write_text(json.dumps({"id":"acme.new", "renamedFrom":["acme.old"]}))
+  original = {"version":1,"plugins":[{"id":"acme.old","settings":{"value":42}}],"bar":{"layout":{"left":["acme.old"]}},"disabledPlugins":["acme.old"]}
+  config.write_text(json.dumps(original))
+  stubs = home / "stubs"
+  stubs.mkdir()
+  for name in ("ready", "release"):
+    os.mkfifo(home / name)
+  (stubs / "jq").write_text('#!/bin/bash\n' + shutil.which("jq") + ' "$@" > "$HOME/jq-result" || exit $?\nprintf ready > "$HOME/ready"\nread -r go < "$HOME/release"\ncat "$HOME/jq-result"\n')
+  (stubs / "omarchy-shell").write_text("#!/bin/bash\nexit 0\n")
+  for file in stubs.iterdir(): file.chmod(0o755)
+  env = dict(os.environ, HOME=str(home), OMARCHY_PATH=str(root), PATH=f"{stubs}:{root}/bin:"+os.environ["PATH"])
+  writer = subprocess.Popen([str(root/"bin/omarchy-bar"),"position","bottom"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  try:
+    with (home/"ready").open() as ready: ready.read()
+    lockpath = config.parent / ".plugin-id.lock"
+    held = False
+    if lockpath.exists():
+      with lockpath.open("a") as lock:
+        try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError: held = True
+    migration = subprocess.Popen([str(root/"bin/omarchy-plugin-id"),"migrate",str(folder),"acme.old"],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    # On the old writer the migration can finish while jq holds its stale copy.
+    # With coordinated writers, release jq so the migration can take the lock.
+    if not held:
+      out, err = migration.communicate(timeout=10)
+      assert migration.returncode == 0, err
+    with (home/"release").open("w") as release: release.write("go\n")
+    out, err = writer.communicate(timeout=10)
+    assert writer.returncode == 0, err
+    if held:
+      out, err = migration.communicate(timeout=10)
+      assert migration.returncode == 0, err
+    saved = json.loads(config.read_text())
+    assert saved["plugins"][0]["id"] == "acme.new", "concurrent CLI save restored the old plugin ID"
+    assert saved["bar"]["layout"]["left"] == ["acme.new"]
+    assert saved["bar"]["position"] == "bottom"
+    assert saved["pluginIdAliases"] == {"acme.old":"acme.new"}
+    print("ok - CLI configuration transaction and rename serialize without losing either edit")
+    # The live shell may already hold an old snapshot when the migration starts.
+    # Persist it through the same production writer used by the shell.
+    original["bar"]["position"] = "bottom"
+    snapshot_base = copy.deepcopy(original)
+    original["bar"]["background"] = "glassy"
+    original["pluginIdAliases"] = {"acme.fake":"acme.new"}
+    result = subprocess.run([str(root/"bin/omarchy-plugin-id"),"config-save"],input=json.dumps({"base":snapshot_base,"next":original}),text=True,env=env,capture_output=True,timeout=10)
+    assert result.returncode == 0, result.stderr
+    saved = json.loads(config.read_text())
+    assert saved["plugins"][0] == {"id":"acme.new","settings":{"value":42}}
+    assert saved["bar"]["layout"]["left"] == ["acme.new"]
+    assert saved["disabledPlugins"] == ["acme.new"]
+    assert saved["pluginIdAliases"] == {"acme.old":"acme.new"}
+    assert saved["bar"]["position"] == "bottom"
+    assert saved["bar"]["background"] == "glassy"
+    print("ok - an older shell snapshot preserves committed aliases and migrates its references")
+    # A stale base/next pair may touch one key while a CLI edits another.
+    base = copy.deepcopy(saved)
+    base["removeMe"] = "old"
+    desired = copy.deepcopy(base)
+    del desired["removeMe"]
+    desired["bar"]["background"] = "none"
+    desired["obsolete"] = None
+    current = copy.deepcopy(base)
+    current["bar"]["position"] = "right"
+    current["fromCli"] = True
+    config.write_text(json.dumps(current))
+    result = subprocess.run([str(root/"bin/omarchy-plugin-id"),"config-save"],input=json.dumps({"base":base,"next":desired}),text=True,env=env,capture_output=True,timeout=10)
+    assert result.returncode == 0, result.stderr
+    saved = json.loads(config.read_text())
+    assert saved["bar"]["position"] == "right" and saved["bar"]["background"] == "none"
+    assert saved["fromCli"] is True and saved["obsolete"] is None and "removeMe" not in saved
+    print("ok - shell changes preserve unrelated committed CLI fields, including added fields")
+    # Ambiguous same-key and structural array edits must leave disk untouched.
+    for change in ("scalar", "array"):
+      base = copy.deepcopy(saved)
+      desired = copy.deepcopy(base)
+      current = copy.deepcopy(base)
+      if change == "scalar":
+        desired["bar"]["position"] = "left"
+        current["bar"]["position"] = "bottom"
+      else:
+        desired["bar"]["layout"]["left"] = []
+        current["bar"]["layout"]["left"].append("acme.other")
+      config.write_text(json.dumps(current))
+      before = config.read_bytes()
+      result = subprocess.run([str(root/"bin/omarchy-plugin-id"),"config-save"],input=json.dumps({"base":base,"next":desired}),text=True,env=env,capture_output=True,timeout=10)
+      assert result.returncode != 0 and "changed concurrently" in result.stderr, result.stderr
+      assert config.read_bytes() == before, "conflicting shell edit overwrote a committed CLI edit"
+    print("ok - conflicting scalar and array edits refuse without changing the committed file")
+    # JSON booleans are distinct from numbers, recursively, in both change
+    # detection and conflict detection. Compare serialized results, not Python ==.
+    pairs = [(1, True), (True, 1), (0, False), (False, 0),
+             ({"enabled": 1}, {"enabled": True}),
+             ([{"enabled": 0}], [{"enabled": False}])]
+    for old, new in pairs:
+      base = copy.deepcopy(saved)
+      base["testSetting"] = old
+      desired = copy.deepcopy(base)
+      desired["testSetting"] = new
+      config.write_text(json.dumps(base))
+      result = subprocess.run([str(root/"bin/omarchy-plugin-id"),"config-save"],input=json.dumps({"base":base,"next":desired}),text=True,env=env,capture_output=True,timeout=10)
+      assert result.returncode == 0, result.stderr
+      actual = json.loads(config.read_text())["testSetting"]
+      assert json.dumps(actual, sort_keys=True) == json.dumps(new, sort_keys=True), f"JSON setting change lost: {old!r} -> {new!r}, saved {actual!r}"
+    print("ok - boolean/number changes retain their JSON types inside settings, objects and arrays")
+    for original, requested, intervening in [(0, True, 1), (0, 1, False),
+          ({"enabled": 0}, {"enabled": True}, {"enabled": 1}),
+          ([0], [True], [1])]:
+      base = copy.deepcopy(saved)
+      base["testSetting"] = original
+      desired = copy.deepcopy(base)
+      desired["testSetting"] = requested
+      current = copy.deepcopy(base)
+      current["testSetting"] = intervening
+      config.write_text(json.dumps(current))
+      before = config.read_bytes()
+      result = subprocess.run([str(root/"bin/omarchy-plugin-id"),"config-save"],input=json.dumps({"base":base,"next":desired}),text=True,env=env,capture_output=True,timeout=10)
+      assert result.returncode != 0 and "changed concurrently" in result.stderr, result.stderr
+      assert config.read_bytes() == before, "JSON boolean/number conflict overwrote the intervening edit"
+    print("ok - boolean/number conflicts preserve intervening CLI values and types")
+  finally:
+    if writer.poll() is None: writer.kill(); writer.wait()
+    if "migration" in locals() and migration.poll() is None: migration.kill(); migration.wait()
+PYTEST
+
+# Keep the real-session regression isolated from the headless CLI stubs above.
+(
+  export PATH="$config_test_path"
+  unset XDG_STATE_HOME
+  if [[ -n $config_test_hyprland_signature ]]; then
+    export HYPRLAND_INSTANCE_SIGNATURE="$config_test_hyprland_signature"
+  else
+    unset HYPRLAND_INSTANCE_SIGNATURE
+  fi
+  if ! compositor_reachable || ! command -v quickshell >/dev/null; then
+    skip "queued shell configuration saves and JSON types (no compositor)"
+    exit 0
+  fi
+  # The runner recognizes this unindented probe when selecting its private compositor.
+require_quickshell "plugin rename shell save"
+  setup_scratch_shell
+
+  # Hold the first writer after it commits, queue another GUI edit, then commit
+  # a CLI edit and rename before the queued writer starts. All must survive.
+  rm "$SCRATCH_ROOT/bin"
+  mkdir "$SCRATCH_ROOT/bin"
+  for command in "$ROOT"/bin/*; do ln -s "$command" "$SCRATCH_ROOT/bin/"; done
+  rm "$SCRATCH_ROOT/bin/omarchy-plugin-id"
+  mkfifo "$SCRATCH_DIR/save-ready" "$SCRATCH_DIR/save-release"
+  cat > "$SCRATCH_ROOT/bin/omarchy-plugin-id" <<WRITER
+#!/bin/bash
+if [[ \$1 == "config-save" ]] && mkdir "$SCRATCH_DIR/gated" 2>/dev/null; then
+  payload=\$(cat)
+  printf '%s' "\$payload" | "$ROOT/bin/omarchy-plugin-id" config-save || exit \$?
+  printf ready > "$SCRATCH_DIR/save-ready"
+  read -r go < "$SCRATCH_DIR/save-release"
+else
+  "$ROOT/bin/omarchy-plugin-id" "\$@"
+fi
+WRITER
+  chmod +x "$SCRATCH_ROOT/bin/omarchy-plugin-id"
+  plugin="$SCRATCH_HOME/.config/omarchy/plugins/acme.old"
+  mkdir -p "$plugin"
+  printf '%s\n' '{"schemaVersion":1,"id":"acme.old","name":"Rename","version":"1","kinds":["bar-widget"],"entryPoints":{"barWidget":"Widget.qml"}}' > "$plugin/manifest.json"
+  printf '%s\n' 'import QtQuick; Item { implicitWidth: 20; implicitHeight: 20 }' > "$plugin/Widget.qml"
+  jq '.plugins += [{"id":"acme.old","settings":{"value":42}}] | .bar.layout.left += [{"id":"acme.old","sampleValue":1}]' "$ROOT/config/omarchy/shell.json" > "$SCRATCH_HOME/.config/omarchy/shell.json"
+  start_scratch_shell
+  wait_scratch_shell
+  [[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm:ss"' '{}') == "ok" ]] || fail "shell accepts the settings edit"
+  # Bound both handshakes: a missing writer must fail, never hang the suite.
+  timeout 15 cat "$SCRATCH_DIR/save-ready" >/dev/null || { cat "$SCRATCH_LOG"; fail "shell starts its configuration writer"; }
+  [[ $(scratch_ipc shell setBarWidget omarchy.clock formatAlt '"yyyy"' '{}') == "ok" ]] || fail "shell queues another settings edit"
+  [[ $(scratch_ipc shell setBarWidget omarchy.clock verticalFormat '"mm"' '{}') == "ok" ]] || fail "shell coalesces another queued settings edit"
+  HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$SCRATCH_BIN:$SCRATCH_ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" position bottom
+  jq '.id = "acme.new" | .renamedFrom = ["acme.old"]' "$plugin/manifest.json" > "$SCRATCH_DIR/manifest"
+  mv "$SCRATCH_DIR/manifest" "$plugin/manifest.json"
+  HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" "$ROOT/bin/omarchy-plugin-id" migrate "$plugin" acme.old >/dev/null
+  printf 'go\n' | timeout 15 tee "$SCRATCH_DIR/save-release" >/dev/null
+  for _ in {1..100}; do
+    if jq -e '.bar.position == "bottom" and .pluginIdAliases["acme.old"] == "acme.new" and any(.plugins[]; .id == "acme.new" and .settings.value == 42) and any(.bar.layout.left[]; type == "object" and .id == "acme.new" and .sampleValue == 1) and ([.bar.layout[][] | select(type == "object" and .id == "omarchy.clock") | select(.format == "HH:mm:ss" and .formatAlt == "yyyy" and .verticalFormat == "mm")] | length > 0)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
+      pass "queued shell saves preserve intervening CLI edits, rename and all GUI edits"
+      # The file commit can precede the rename's asynchronous shell reload. Start
+      # the independent type cycle from persisted state, with startup readiness
+      # checked before sending another mutating call (which must never be retried).
+      stop_scratch_shell
+      start_scratch_shell
+      wait_scratch_shell
+      for value in true 1 false 0; do
+        HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$SCRATCH_BIN:$SCRATCH_ROOT/bin:$PATH" \
+          "$ROOT/bin/omarchy-bar" set acme.new sampleValue "$value" --json || {
+            cat "$SCRATCH_LOG"
+            fail "bar set accepts JSON value $value"
+          }
+        saved=""
+        for _ in {1..100}; do
+          if jq -e --argjson expected "$value" '[.. | objects | select(.id? == "acme.new" and has("sampleValue")) | .sampleValue][0] as $actual | $actual == $expected and ($actual | type) == ($expected | type)' "$SCRATCH_HOME/.config/omarchy/shell.json" >/dev/null; then
+            saved=1
+            break
+          fi
+          sleep 0.1
+        done
+        if [[ -z $saved ]]; then
+          jq '[.. | objects | select(.id? == "acme.new" and has("sampleValue")) | .sampleValue]' "$SCRATCH_HOME/.config/omarchy/shell.json" >&2
+          fail "bar set saves JSON value and type $value after the shell reloads"
+        fi
+      done
+      pass "real bar set preserves boolean and numeric JSON setting types in both directions"
+      exit 0
+    fi
+    sleep 0.1
+  done
+  cat "$SCRATCH_LOG"
+  cat "$SCRATCH_HOME/.config/omarchy/shell.json"
+  fail "queued shell saves preserve intervening CLI edits, rename and all GUI edits"
+)

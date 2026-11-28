@@ -83,7 +83,9 @@ if [[ -S $socket && $request != *$'\x1e'* && $request != *$'\x1f'* ]]; then
   # socat waits as long as the shell takes; the timeout alone bounds the call.
   # Its own errors land in the reply too, so a connection it could not make
   # is told apart from one that failed after the request went out.
-  reply=$(printf '%s\x1e' "$request" | timeout --kill-after=1s "${OMARCHY_SHELL_IPC_TIMEOUT:-2s}" socat -t 86400 - "UNIX-CONNECT:$socket" 2>&1)
+  # The record separator ends the request. Keep the write side open until the
+  # reply: QLocalSocket treats peer EOF as a disconnect, losing deferred replies.
+  reply=$(printf '%s\x1e' "$request" | timeout --kill-after=1s "${OMARCHY_SHELL_IPC_TIMEOUT:-2s}" socat -t 86400 - "UNIX-CONNECT:$socket,shut-none" 2>&1)
 
   # An answer counts only once its record separator arrived: a reply cut off
   # partway must not pass for the whole of it.
