@@ -65,8 +65,10 @@ OMARCHY_KEYBOARD_LAYOUTS=$'English (US)|us
 English (UK)|uk
 English (US, Dvorak)|dvorak
 English (US, Colemak)|colemak
+Arabic|us||ara
 Belarusian|by
 Belgian|be-latin1
+Bengali|us||bd
 Bulgarian|bg-cp1251
 Chinese (Simplified, Pinyin)|us|pinyin
 Croatian|croat
@@ -83,6 +85,7 @@ German|de-latin1
 German (Switzerland)|de_CH-latin1
 Greek|gr
 Hebrew|il
+Hindi|us||in
 Hong Kong (Cangjie)|us|cangjie5
 Hungarian|hu
 Icelandic|is-latin1
@@ -104,6 +107,7 @@ Portuguese (Brazil)|br-abnt2
 Romanian|ro
 Russian|ru
 Serbian|sr-latin
+Sinhala|us||lk
 Slovak|sk-qwertz
 Slovenian|slovene
 Spanish|es
@@ -111,8 +115,11 @@ Spanish (Latin American)|la-latin1
 Swedish|sv-latin1
 Taiwan (Zhuyin)|us|chewing
 Tajik|tj_alt-UTF8
+Tamil|us||in:tamilnet
+Thai|us||th
 Turkish|trq
-Ukrainian|ua'
+Ukrainian|ua
+Urdu|us||pk'
 
 # The XKB layout for each keymap in the list above that systemd's kbd-model-map
 # lacks. The values come from the kbd-model-map rows of the nearest keymaps.
@@ -278,7 +285,7 @@ omarchy_prompt_keyboard() {
 omarchy_persist_input_selection() {
   local target_root=${1:-} method=${keyboard_input_method:-none} layout=${keyboard_xkb_layout:-}
   case "$method" in none | mozc | hangul | pinyin | chewing | cangjie5) ;; *) return 1 ;; esac
-  case "$layout" in "" | kr | kr:kr104 | la) ;; *) return 1 ;; esac
+  case "$layout" in "" | ara | bd | in | in:tamilnet | kr | kr:kr104 | la | lk | pk | th) ;; *) return 1 ;; esac
   mkdir -p "$target_root/etc/omarchy"
   printf 'INPUT_METHOD=%s\nXKB_LAYOUT=%s\n' "$method" "$layout" > "$target_root/etc/omarchy/input-method"
 }

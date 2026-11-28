@@ -14,7 +14,8 @@ import time
 
 ROOT = Path(os.environ["OMARCHY_PATH"])
 PRESETS = json.loads((ROOT / "default/input-methods/presets.json").read_text())
-NON_LATIN = set("af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua".split())
+NON_LATIN = set("af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np pk rs ru sy th tj ua".split())
+DESKTOP_OVERRIDES = {"ara", "bd", "in", "in:tamilnet", "kr", "kr:kr104", "la", "lk", "pk", "th"}
 CONTROLLER = ["busctl", "--user", "call", "org.fcitx.Fcitx5", "/controller", "org.fcitx.Fcitx.Controller1"]
 
 
@@ -168,7 +169,7 @@ def selection():
   preference = values(read(Path(os.environ.get("OMARCHY_INPUT_SELECTION", "/etc/omarchy/input-method"))))
   layout = vconsole.get("XKBLAYOUT", "us").split(",")[0] or "us"
   variant = vconsole.get("XKBVARIANT", "").split(",")[0]
-  if preference.get("XKB_LAYOUT") in ("kr", "kr:kr104", "la") and vconsole.get("XKBLAYOUT", "us") == "us" and not variant:
+  if preference.get("XKB_LAYOUT") in DESKTOP_OVERRIDES and vconsole.get("XKBLAYOUT", "us") == "us" and not variant:
     layout, _, variant = preference["XKB_LAYOUT"].partition(":")
   method = preference.get("INPUT_METHOD", "mozc" if layout == "jp" else "none")
   if method not in PRESETS:
