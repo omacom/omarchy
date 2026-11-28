@@ -1059,3 +1059,61 @@ OMARCHY_TEST_MISSING_COMMAND=claude omarchy-agent </dev/null >/dev/null 2>&1
   fail "launching a claude that isn't installed installs it first" "$(tr '\0' ' ' <"$terminal_log")"
 [[ ! -s $launch_log ]] || fail "a claude that isn't installed opens no window before it is"
 pass "launching an agent whose CLI isn't installed installs it, then opens it"
+
+# Remote OpenClaw clients must never recover a local gateway: installing one
+# rewrites their authentication and breaks connections to the remote host.
+(
+  export HOME="$test_tmp/remote-openclaw"
+  export OMARCHY_TEST_REMOTE_LOG="$HOME/calls"
+  export OMARCHY_TEST_REMOTE_ARGS="$HOME/args"
+  export PATH="$HOME/bin:$PATH"
+  mkdir -p "$HOME/bin" "$HOME/.openclaw"
+  cat >"$HOME/bin/openclaw" <<'SH'
+#!/bin/bash
+printf 'openclaw:%s\n' "$*" >>"$OMARCHY_TEST_REMOTE_LOG"
+case "$*" in
+  "config get gateway.mode") echo remote ;;
+  tui*) printf '%s\0' "$@" >"$OMARCHY_TEST_REMOTE_ARGS" ;;
+  *) exit 1 ;;
+esac
+SH
+  cat >"$HOME/bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
+#!/bin/bash
+printf 'terminal:%s\n' "$*" >>"$OMARCHY_TEST_REMOTE_LOG"
+SH
+  cat >"$HOME/bin/systemctl" <<'SH'
+#!/bin/bash
+printf 'systemctl:%s\n' "$*" >>"$OMARCHY_TEST_REMOTE_LOG"
+exit 1
+SH
+  printf '#!/bin/bash\n' >"$HOME/bin/sleep"
+  chmod +x "$HOME/bin/"*
+
+  for format in json json5; do
+    if [[ $format == "json" ]]; then
+      printf '%s\n' '{"gateway":{"mode":"remote","remote":{"url":"wss://gateway.example","token":"keep-me"}}}'
+    else
+      printf '%s\n' '{ // remote client' 'gateway: {mode: "remote", remote: {url: "wss://gateway.example", token: "keep-me"},},}'
+    fi >"$HOME/.openclaw/openclaw.json"
+
+    for launch in app tui; do
+      : >"$OMARCHY_TEST_REMOTE_LOG"
+      : >"$OMARCHY_TEST_REMOTE_ARGS"
+      args=()
+      [[ $launch == "tui" ]] && args=(--tui --message "Review this project")
+      rc=0
+      "$ROOT/bin/omarchy-launch-openclaw" "${args[@]}" >"$HOME/output" 2>&1 || rc=$?
+      ! grep -Eq '^(openclaw:(gateway|dashboard)|systemctl:)' "$OMARCHY_TEST_REMOTE_LOG" ||
+        fail "$format remote $launch never probes or recovers a local gateway" "$(cat "$OMARCHY_TEST_REMOTE_LOG")"
+      (( rc == 0 )) || fail "$format remote $launch succeeds" "$(cat "$HOME/output")"
+      if [[ $launch == "app" ]]; then
+        grep -Fxq 'terminal:omarchy-launch-openclaw --tui' "$OMARCHY_TEST_REMOTE_LOG" || fail "$format remote app opens the terminal UI"
+      else
+        mapfile -d '' -t actual_args <"$OMARCHY_TEST_REMOTE_ARGS"
+        (( ${#actual_args[@]} == 3 )) && [[ ${actual_args[0]} == "tui" && ${actual_args[1]} == "--message" && ${actual_args[2]} == "Review this project" ]] ||
+          fail "$format remote TUI preserves the message argument"
+      fi
+      pass "$format remote $launch opens the TUI without changing the local gateway"
+    done
+  done
+)
