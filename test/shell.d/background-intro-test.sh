@@ -262,10 +262,17 @@ chmod +x "$QML_FIXTURE_TMP/bin/omarchy-theme-bg-boot-intro" "$QML_FIXTURE_TMP/bi
 
 owe_poll_log="$QML_FIXTURE_TMP/owe-poll.log"
 : >"$owe_poll_log"
+cover_snapshot="$QML_FIXTURE_TMP/previous-1.ppm"
+cover_snapshot_next="$QML_FIXTURE_TMP/previous-2.ppm"
+printf 'P6\n4 4\n255\n' >"$cover_snapshot"
+dd if=/dev/zero bs=48 count=1 status=none >>"$cover_snapshot"
+cp "$cover_snapshot" "$cover_snapshot_next"
 
 OMARCHY_SESSION_ID=framepoll-test-session \
 OMARCHY_QML_TEST_OWE_LOG="$owe_poll_log" \
-  run_qml_fixture background-intro "BackgroundIntro stops framePoll and reveals after persistent owe failures" services Commons
+OMARCHY_QML_TEST_SNAPSHOT="$cover_snapshot" \
+OMARCHY_QML_TEST_SNAPSHOT_NEXT="$cover_snapshot_next" \
+  run_qml_fixture background-intro "BackgroundIntro stops framePoll after persistent owe failures and does not cache cover snapshots" services Commons
 
 poll_count=$(grep -c '^render-status$' "$owe_poll_log" || true)
 (( poll_count == 5 )) || fail "BackgroundIntro stops polling owe after 5 consecutive failures" "expected 5, got $poll_count"
