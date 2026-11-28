@@ -165,6 +165,22 @@ assertEqual(menuPanel.cardTop, -1, 'moving an open menu off a disconnected outpu
 assertEqual(menuPanel.maxRowsHeight, -1, 'moving an open menu drops the old output row-height limit')
 assert(menuPanel.shown, 'resetting the layout keeps the menu open')
 
+// The menu shows before its rows have loaded, so a search typed then must not
+// freeze the card around the empty list's single row.
+const freezeBody = /function freezeCardTop\(\) \{([\s\S]*?)\n    \}/.exec(menuQml)[1]
+const freezeCardTop = new Function('panel', 'root', `with (panel) { ${freezeBody} }`)
+const menuRoot = { mode: 'menu', keybindingsLoaded: false, rowsLoaded: false, visibleRowsHeight: 34 }
+const loadingPanel = { shown: true, cardTop: -1, effectiveCardTop: 523, maxRowsHeight: -1 }
+freezeCardTop(loadingPanel, menuRoot)
+assertEqual(loadingPanel.cardTop, -1, 'a search typed before the rows load leaves the card centered')
+assertEqual(loadingPanel.maxRowsHeight, -1, 'the empty list never becomes the row-height limit')
+menuRoot.rowsLoaded = true
+menuRoot.visibleRowsHeight = 510
+loadingPanel.effectiveCardTop = 285
+freezeCardTop(loadingPanel, menuRoot)
+assertEqual(loadingPanel.cardTop, 285, 'the first search after the rows load freezes the top edge')
+assertEqual(loadingPanel.maxRowsHeight, 510, 'the loaded menu sets the row-height limit')
+
 // Fullscreen overlays open without an additional compositor animation.
 const shellRules = read('default/hypr/apps/omarchy-shell.lua')
 const noAnim = /namespace = "\^\(([^)]*)\)\$" \}, no_anim = true/.exec(shellRules)
