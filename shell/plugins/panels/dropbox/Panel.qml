@@ -177,6 +177,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("dropbox.title")
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -200,6 +201,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("dropbox.title")
     anchorItem: button
     owner: root
     bar: root.bar
