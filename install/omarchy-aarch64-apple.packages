@@ -20,6 +20,12 @@ libva-v4l2_request-avd
 # Widevine for DRM streaming.
 widevine
 
+# Touch Bar display and input on the 13-inch MacBook Pro (M1/M2). The daemon
+# draws the strip and turns its touches into keys; its udev rules keep the Touch
+# Bar's DRM device out of the compositor's seat and start it only on the models
+# that have one, so every other Mac installs it without ever running it.
+tiny-dfr
+
 # Screen recording: gpu-screen-recorder finds no display device to capture on
 # Apple Silicon, whose display and GPU are separate DRM devices, so recording
 # falls back to wf-recorder (omarchy-capture-screenrecording).
