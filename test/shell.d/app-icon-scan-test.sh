@@ -71,3 +71,9 @@ const roots = fs.readFileSync(calls, 'utf8').trim().split('\n')
 assertEqual(new Set(roots).size, 5, 'scan visits all icon roots and pixmaps')
 assertEqual(roots.length, 5, 'scan visits each root only once')
 JS
+
+# Launch feedback: a second launch while the OSD is up keeps the first launch's
+# deadline, and a launch after it expired gets a fresh one.
+require_quickshell "app launch feedback test"
+
+run_qml_fixture app-launch-feedback "app launch OSD keeps its first deadline and starts fresh after it" Commons
