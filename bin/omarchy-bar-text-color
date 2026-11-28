@@ -38,32 +38,44 @@ fallback() {
   exit 0
 }
 
-contrast() {
-  local color="$1"
-  local sample="$2"
-
-  awk -v fg="$color" -v bg="$sample" '
+# The more legible of the theme's two colors over the sampled wallpaper, lifted
+# toward white or black until it reaches the contrast themes are asked for
+# between text and background. A theme's text is tuned to its own background,
+# so over a wallpaper it can win the pick and still read dim.
+legible() {
+  awk -v text="$text_color" -v background="$background_color" -v sample="$1" '
     function channel(hex, start) {
       return strtonum("0x" substr(hex, start, 2)) / 255
     }
     function linear(c) {
       return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4
     }
-    function luminance(hex, r, g, b) {
-      r = linear(channel(hex, 2))
-      g = linear(channel(hex, 4))
-      b = linear(channel(hex, 6))
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    function luminance(r, g, b) {
+      return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+    }
+    function hex_luminance(hex) {
+      return luminance(channel(hex, 2), channel(hex, 4), channel(hex, 6))
+    }
+    function contrast(l1, l2) {
+      return l1 > l2 ? (l1 + 0.05) / (l2 + 0.05) : (l2 + 0.05) / (l1 + 0.05)
     }
     BEGIN {
-      l1 = luminance(fg)
-      l2 = luminance(bg)
-      if (l1 < l2) {
-        t = l1
-        l1 = l2
-        l2 = t
+      target = 7
+      under = hex_luminance(sample)
+      pick = contrast(hex_luminance(background), under) > contrast(hex_luminance(text), under) ? background : text
+      r = channel(pick, 2)
+      g = channel(pick, 4)
+      b = channel(pick, 6)
+      toward = luminance(r, g, b) > under ? 1 : 0
+
+      for (step = 0; step < 20 && contrast(luminance(r, g, b), under) < target; step++) {
+        mix = 1 / (20 - step)
+        r += (toward - r) * mix
+        g += (toward - g) * mix
+        b += (toward - b) * mix
       }
-      printf "%.6f\n", (l1 + 0.05) / (l2 + 0.05)
+
+      printf "#%02x%02x%02x\n", int(r * 255 + 0.5), int(g * 255 + 0.5), int(b * 255 + 0.5)
     }
   '
 }
@@ -139,9 +151,4 @@ pixel=$(MAGICK_MEMORY_LIMIT=512MiB \
 [[ $pixel =~ ^([0-9]+),([0-9]+),([0-9]+)$ ]] || fallback
 
 sample=$(printf '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
-text_contrast=$(contrast "$text_color" "$sample")
-background_contrast=$(contrast "$background_color" "$sample")
-
-awk -v text="$text_contrast" -v background="$background_contrast" 'BEGIN { exit !(background > text) }' \
-  && printf '%s\n' "$background_color" \
-  || printf '%s\n' "$text_color"
+legible "$sample"

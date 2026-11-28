@@ -380,6 +380,20 @@ chmod u+w "$toggles_dir"
 [[ $(bar_background) == "opaque" && ! -f $glass_toggle ]] || fail "a bar whose blur can't be turned on keeps its old background" "$(bar_background)"
 pass "a bar whose blur can't change keeps its old background"
 
+# A clear bar's text is lifted until it reads over the wallpaper, and left as
+# the theme has it where it already does.
+if command -v magick >/dev/null; then
+  bar_text_over() {
+    magick -size 64x64 "xc:$1" "$TMPDIR/wallpaper.png"
+    omarchy-bar-text-color top 26 "#a9b1d6" "#1a1b26" --background "$TMPDIR/wallpaper.png" --screen 1920x1080
+  }
+
+  [[ $(bar_text_over "#1a1b26") == "#a9b1d6" ]] || fail "legible theme text stays as it is on a clear bar" "$(bar_text_over "#1a1b26")"
+  [[ $(bar_text_over "#502a6b") == "#c7cce4" ]] || fail "dim theme text is lifted toward white over a dark wallpaper" "$(bar_text_over "#502a6b")"
+  [[ $(bar_text_over "#808080") == "#000000" ]] || fail "text over a mid-tone wallpaper goes as far as black" "$(bar_text_over "#808080")"
+  pass "a clear bar's text reaches a legible contrast over the wallpaper"
+fi
+
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set omarchy.bluetooth enabled false --json
 grep -Fqx 'shell setBarWidget omarchy.bluetooth enabled false {}' \
   "$TMPDIR/home/.local/state/omarchy/shell-ipc-calls"
