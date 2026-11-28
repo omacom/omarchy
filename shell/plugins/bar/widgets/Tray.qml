@@ -13,6 +13,7 @@ BarWidget {
   moduleName: "omarchy.tray"
 
   property bool expanded: false
+  property bool pointerOverDrawer: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
   property var activeTrayItem: null
@@ -61,6 +62,29 @@ BarWidget {
   // The edge the tray section's widgets grow from: the one the pinned icons
   // keep to, beside which the section opens.
   readonly property string sectionEdge: fixedAtStart ? "start" : "end"
+
+  Timer {
+    id: collapseTimer
+    interval: 1000
+    onTriggered: if (!root.holdOpen && !root.pointerOverDrawer) root.expanded = false
+  }
+
+  function trayHoverChanged(hovered) {
+    pointerOverDrawer = hovered
+    if (hovered) {
+      collapseTimer.stop()
+      expanded = true
+    } else if (holdOpen) {
+      collapseTimer.stop()
+    } else {
+      collapseTimer.restart()
+    }
+  }
+
+  onHoldOpenChanged: {
+    if (holdOpen) collapseTimer.stop()
+    else if (!pointerOverDrawer) collapseTimer.restart()
+  }
 
   // Submenu drill-down state. QsMenuEntry.display() renders a *platform* menu,
   // which Quickshell refuses unless the shell root sets `//@ pragma
@@ -314,7 +338,7 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: root.trayHoverChanged(hovered)
         }
 
         BarIconButton {
@@ -404,7 +428,7 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: root.trayHoverChanged(hovered)
         }
 
         BarIconButton {
