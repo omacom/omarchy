@@ -14,6 +14,12 @@
 -- mode floated it or it was floating already. Titlebars, shadows, and full
 -- opacity follow that tag, so a dialog on a floating workspace can be dragged by
 -- its titlebar too, and a window carried out to a tiled one loses it.
+--
+-- A window maximized on a floating workspace carries a third tag. Hyprland
+-- gives a workspace a single maximized window, so maximizing a second one, or
+-- bringing back from the dock one that was minimized maximized, quietly gives
+-- the first its own size back. The tag remembers that it was maximized, so it
+-- is maximized again when it is brought forward, as it would be on Windows.
 
 require("default.hypr.helpers")
 local paths = require("default.hypr.paths")
@@ -21,6 +27,7 @@ local paths = require("default.hypr.paths")
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
 local OPENED_TAG = "omarchy-mode-opened"
+local MAXIMIZED_TAG = "omarchy-maximized"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
@@ -46,6 +53,20 @@ end
 
 local function set_on_floating_workspace(window, on)
   hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. WORKSPACE_TAG, window = window }))
+end
+
+local function set_maximized(window, maximized)
+  hl.dispatch(hl.dsp.window.tag({ tag = (maximized and "+" or "-") .. MAXIMIZED_TAG, window = window }))
+end
+
+local function has_tag(window, tag)
+  for _, held in ipairs(window.tags or {}) do
+    if held == tag then
+      return true
+    end
+  end
+
+  return false
 end
 
 local function claimed()
@@ -134,6 +155,10 @@ local function float_for_mode(windows)
   for _, window in ipairs(windows) do
     set_on_floating_workspace(window, true)
 
+    if (window.fullscreen or 0) == 1 and not has_tag(window, MAXIMIZED_TAG) then
+      set_maximized(window, true)
+    end
+
     if not window.floating and (window.fullscreen or 0) == 0 then
       set_claimed(window, true)
       table.insert(claiming, window)
@@ -150,6 +175,10 @@ end
 -- would unpin it as well, so the mode leaves it be.
 local function tile_for_mode(window, mine)
   set_on_floating_workspace(window, false)
+
+  if has_tag(window, MAXIMIZED_TAG) then
+    set_maximized(window, false)
+  end
 
   if not mine[window.address] or window.pinned then
     return
@@ -297,6 +326,92 @@ local function unmaximize_others(window)
   end
 end
 
+-- A window that lost its maximize to another one waits behind it, and keeps the
+-- tag. One that left it with nothing else there taking its place is at its own
+-- size in plain view, and so is every window that was waiting behind it, so they
+-- all give the tag up. Hyprland takes the maximize from one window before it
+-- gives it to the next, so this is asked once both have happened.
+--
+-- The workspace is the one the window was on when it left its maximize: one
+-- minimized while maximized is on its way to the store, maximized again there,
+-- by the time this is asked.
+local function forget_maximized(id)
+  if not floating_workspace(id) then
+    return
+  end
+
+  local windows = hl.get_workspace_windows(tostring(id))
+  for _, other in ipairs(windows) do
+    if (other.fullscreen or 0) ~= 0 then
+      return
+    end
+  end
+
+  for _, other in ipairs(windows) do
+    if has_tag(other, MAXIMIZED_TAG) then
+      set_maximized(other, false)
+    end
+  end
+end
+
+-- A window waiting behind a maximized one is maximized again when the user
+-- brings it forward, from the dock or any other way, and the other one waits in
+-- its turn. A fullscreen window keeps the screen.
+local function restore_maximized(window)
+  local id = window.workspace and window.workspace.id
+  if (window.fullscreen or 0) ~= 0 or not has_tag(window, MAXIMIZED_TAG) or not floating_workspace(id) then
+    return
+  end
+
+  for _, other in ipairs(hl.get_workspace_windows(tostring(id))) do
+    if (other.fullscreen or 0) >= 2 then
+      return
+    end
+  end
+
+  hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "set", window = window }))
+end
+
+-- An app asking for focus is not the user bringing its window forward. Electron
+-- apps take focus back right after the browser opens a link from them, and
+-- maximizing them again would hide the browser behind them. Hyprland marks a
+-- window urgent just before it gives it the focus its app asked for, and never
+-- for focus the user moves.
+--
+-- Hyprland marks a window urgent as it grants it focus on request, and does the
+-- same when another app sends for it, as the browser is when a link is opened
+-- from a chat, and that one the user did ask for. So only a window that has the
+-- focus, or had it moments ago, is taking it back.
+local asked_for_focus = nil
+local focused, lost_focus = nil, {}
+local TAKING_BACK = 3
+
+local function track_focus(window)
+  local address, now = window and window.address, os.time()
+  if focused and focused ~= address then
+    lost_focus[focused] = now
+  end
+  focused = address
+
+  for other, at in pairs(lost_focus) do
+    if now - at > TAKING_BACK then
+      lost_focus[other] = nil
+    end
+  end
+end
+
+local function on_urgent(window)
+  local lost = lost_focus[window.address]
+  if window.address ~= focused and not (lost and os.time() - lost <= TAKING_BACK) then
+    return
+  end
+
+  asked_for_focus = window.address
+  hl.timer(function()
+    asked_for_focus = nil
+  end, { type = "oneshot", timeout = 1 })
+end
+
 -- The workspace is passed in when a window is still on its way to it.
 local function arrange(windows, workspace)
   local floating = {}
@@ -345,6 +460,9 @@ local function watch()
 
   watching = true
 
+  local active = hl.get_active_window()
+  focused = active and active.address
+
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
   hl.on("window.open", function(window)
@@ -364,10 +482,31 @@ local function watch()
   -- A fullscreen window is left as it is, so it is arranged once it comes back
   -- out: a tiled one leaving fullscreen on a floating workspace floats then.
   hl.on("window.fullscreen", function(window)
+    local left = (window.fullscreen or 0) == 0 and window.workspace and window.workspace.id
     hl.timer(function()
       arrange({ window })
+      if left and window.mapped then
+        forget_maximized(left)
+      end
     end, { type = "oneshot", timeout = 1 })
   end)
+
+  hl.on("window.urgent", on_urgent)
+
+  -- Focus is still moving when this fires. Let it land first: a window leaving
+  -- the minimized ones passes focus to the one beneath it on its way back.
+  hl.on("window.active", function(window)
+    if window and has_tag(window, MAXIMIZED_TAG) and asked_for_focus ~= window.address then
+      hl.timer(function()
+        local active = hl.get_active_window()
+        if active and active.address == window.address then
+          restore_maximized(window)
+        end
+      end, { type = "oneshot", timeout = 1 })
+    end
+  end)
+
+  hl.on("window.active", track_focus)
 
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)

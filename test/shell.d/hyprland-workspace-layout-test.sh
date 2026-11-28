@@ -222,6 +222,7 @@ hl = {
   dispatch = function() end,
   dsp = { window = { float = function(spec) return spec end, tag = function(spec) return spec end } },
   on = function() end,
+  get_active_window = function() end,
   get_active_workspace = function() return { id = 3 } end,
   get_config = function() end,
   config = function() end,
@@ -358,6 +359,7 @@ hl = {
   end,
   -- The move handler waits for the move to land; here it lands at once.
   timer = function(callback) callback() end,
+  get_active_window = function() end,
   get_active_workspace = function() return { id = 3 } end,
   get_config = function(key) return config[key] end,
   config = function(values)
