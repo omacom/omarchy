@@ -77,7 +77,9 @@ PanelWindow {
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
   // A submenu opens beside the menu, which a vertical dock needs the width for.
-  readonly property int submenuRoom: Style.space(220) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap
+  // It is as wide as the widest choice any of the submenus holds, so none is
+  // clipped by the window, and the window does not resize as one opens.
+  readonly property int submenuRoom: Math.max(Style.space(140), Math.ceil(submenu.widestOf(false))) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -950,12 +952,13 @@ PanelWindow {
     id: submenu
 
     // Wide enough for its longest choice with its tick, which a translation
-    // can make longer than any in English.
-    readonly property real widest: {
+    // can make longer than any in English: of the choices showing, or of every
+    // submenu's.
+    function widestOf(showing) {
       var width = 0
       for (var i = 0; i < submenuColumn.children.length; i++) {
         var choice = submenuColumn.children[i]
-        if (choice.visible && choice.contentWidth > width) width = choice.contentWidth
+        if ((choice.visible || !showing) && choice.contentWidth > width) width = choice.contentWidth
       }
       return width
     }
@@ -965,7 +968,7 @@ PanelWindow {
       : null
 
     visible: menu.visible && window.settingsMenu && !!row
-    width: Math.max(Style.space(140), Math.ceil(widest)) + padding * 2
+    width: Math.max(Style.space(140), Math.ceil(widestOf(true))) + padding * 2
     height: submenuColumn.implicitHeight + padding * 2
     x: window.submenuX(submenu)
     y: window.submenuY(row, submenu)
