@@ -72,7 +72,17 @@ Item {
   readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
   onPreviewRadiusChanged: updateVisibleItems()
 
-  onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false }
+  property var scrubAnchor: null
+
+  onOpenedChanged: {
+    disarmPointer()
+    if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false }
+  }
+  onDeleteConfirmOpenChanged: disarmPointer()
+
+  PointerMoveGate {
+    id: pointerGate
+  }
 
   PreviewHold {
     id: previewHold
@@ -152,6 +162,11 @@ Item {
     return ImagePickerModel.firstMatchingIndex(imageArray, filterText)
   }
 
+  function disarmPointer() {
+    pointerGate.reset()
+    scrubAnchor = null
+  }
+
   function select(index, immediate) {
     if (imageArray.length === 0) return
     if (index < 0) index = 0
@@ -160,6 +175,23 @@ Item {
     if (index === selectedIndex && immediate !== true) return
 
     selectedIndex = index
+  }
+
+  function selectFromKeyboard(direction) {
+    disarmPointer()
+    selectAdjacent(direction)
+  }
+
+  function handlePointerMove(pos) {
+    if (matchingImageIndices.length === 0 || !pointerGate.moved(scrubBand, pos)) return
+
+    var readingX = carousel.mirrored ? scrubBand.width - pos.x : pos.x
+    var currentPos = matchingImageIndices.indexOf(selectedIndex)
+    if (!scrubAnchor) {
+      scrubAnchor = ImagePickerModel.createScrubAnchor(matchingImageIndices.length, currentPos, readingX, scrubBand.width)
+    }
+
+    select(matchingImageIndices[ImagePickerModel.scrubPosition(matchingImageIndices.length, currentPos, scrubAnchor, readingX)])
   }
 
   function selectAdjacent(direction) {
@@ -177,6 +209,7 @@ Item {
   }
 
   function updateFilter(nextFilterText) {
+    disarmPointer()
     filterText = nextFilterText
 
     if (!itemMatches(selectedIndex)) {
@@ -308,6 +341,7 @@ Item {
     filterable = nextFilterable === true || nextFilterable === "true"
     filterText = ""
     layoutSettled = false
+    disarmPointer()
 
     if (imageRows && imageRows === loadedImageRows && imageArray.length > 0) {
       root.select(root.selectedImageIndex(), true)
@@ -339,6 +373,7 @@ Item {
   }
 
   property var imageArray: []
+  onImageArrayChanged: disarmPointer()
   readonly property var matchingImageIndices: ImagePickerModel.matchingIndices(imageArray, filterText)
   onMatchingImageIndicesChanged: updateVisibleItems()
   onSelectedIndexChanged: {
@@ -730,6 +765,7 @@ Item {
     filterable = nextFilterable === true || nextFilterable === "true"
     filterText = ""
     layoutSettled = false
+    disarmPointer()
 
     if (imageRows && imageRows === loadedImageRows && imageArray.length > 0) {
       selectedIndex = selectedImageIndex()
@@ -839,10 +875,10 @@ Item {
               root.updateFilter(Util.editedFilter(event, root.filterText))
               event.accepted = true
             } else if (Util.readingKey(event) === Qt.Key_Left || (event.key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
-              root.selectAdjacent(-1)
+              root.selectFromKeyboard(-1)
               event.accepted = true
             } else if (Util.readingKey(event) === Qt.Key_Right || event.key === Qt.Key_Tab) {
-              root.selectAdjacent(1)
+              root.selectFromKeyboard(1)
               event.accepted = true
             } else if (root.filterable && event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
               root.updateFilter(root.filterText + event.text)
@@ -1009,6 +1045,27 @@ Item {
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
         }
+    }
+
+    Item {
+      id: scrubBand
+      anchors.left: parent.left
+      anchors.right: parent.right
+      y: card.y + carousel.y
+      height: carousel.height
+
+      MouseArea {
+        anchors.fill: parent
+        enabled: root.scrubAnchor !== null
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.applySelected()
+      }
+
+      HoverHandler {
+        enabled: root.opened && root.layoutSettled && !root.deleteConfirmOpen && root.imageArray.length > 0
+        onPointChanged: if (hovered) root.handlePointerMove(point.position)
+        onHoveredChanged: if (!hovered) root.scrubAnchor = null
+      }
     }
 
     // Unlike the picker itself, the confirmation keeps the faded backdrop:
