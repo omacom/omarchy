@@ -7,7 +7,24 @@ omarchy-pkg-add visual-studio-code-bin
 
 mkdir -p ~/.vscode ~/.config/Code/User
 
-cat > ~/.vscode/argv.json << 'EOF'
+# A reinstall, or dotfiles restored before it, finds both files already there,
+# so a default joins what they hold and a key they set stays as set. They are
+# JSONC, edited in place as omarchy-theme-set-vscode does: a strict JSON parser
+# would reject the comments.
+add_default() {
+  local file=$1 key=$2 value=$3 comma="" active
+
+  grep -qs '[^[:space:]]' "$file" || printf '{\n}\n' >"$file"
+  active=$(sed -E 's#/\*[^*]*\*/##g; /^[[:space:]]*\/\//d' "$file")
+  if ! grep -Fq "\"$key\"" <<<"$active"; then
+    # A comma whenever the object holds anything quoted: a key can sit on
+    # another line than its colon, and a comma too many is still JSONC.
+    [[ $active != *'"'* ]] || comma=","
+    sed -i --follow-symlinks -E "0,/^[[:space:]]*\{/s/^([[:space:]]*)\{/\1{\n  \"$key\": \"$value\"$comma/" "$file"
+  fi
+}
+
+[[ -s ~/.vscode/argv.json ]] || cat > ~/.vscode/argv.json << 'EOF'
 // This configuration file allows you to pass permanent command line arguments to VS Code.
 // Only a subset of arguments is currently supported to reduce the likelihood of breaking
 // the installation.
@@ -19,9 +36,10 @@ cat > ~/.vscode/argv.json << 'EOF'
   "password-store":"gnome-libsecret"
 }
 EOF
+add_default ~/.vscode/argv.json password-store gnome-libsecret
 
-# Ensure VSC's own auto-update feature is turned off
-printf '{\n  "update.mode": "none"\n}\n' > ~/.config/Code/User/settings.json
+# VSC's own auto-update is off unless the settings already choose a mode
+add_default ~/.config/Code/User/settings.json update.mode none
 
 # Apply Omarchy theme to VSCode
 omarchy-theme-set-vscode

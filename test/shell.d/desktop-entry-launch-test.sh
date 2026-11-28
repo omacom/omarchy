@@ -77,6 +77,24 @@ assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam
 
+# A reinstall, or dotfiles restored before it, finds VS Code's settings already
+# there: Omarchy's defaults join them, and a key the user set stays as set.
+cat >"$HOME/.config/Code/User/settings.json" <<'EOF'
+{
+  // mine
+  "editor.fontSize"
+    : 16
+}
+EOF
+printf '{\n  "password-store": "basic",\n  "enable-crash-reporter": false\n}\n' >"$HOME/.vscode/argv.json"
+bash "$ROOT/bin/omarchy-install-editor-vscode" >/dev/null
+grep -Fq '// mine' "$HOME/.config/Code/User/settings.json" &&
+  [[ $(grep -v '^ *//' "$HOME/.config/Code/User/settings.json" | jq -c .) == '{"update.mode":"none","editor.fontSize":16}' ]] ||
+  fail "VS Code installer adds its update default to existing settings" "$(cat "$HOME/.config/Code/User/settings.json")"
+[[ $(jq -c . "$HOME/.vscode/argv.json") == '{"password-store":"basic","enable-crash-reporter":false}' ]] ||
+  fail "VS Code installer leaves an argv.json key the user set" "$(cat "$HOME/.vscode/argv.json")"
+pass "VS Code installer keeps the settings it finds"
+
 bash "$ROOT/bin/omarchy-install-and-launch" "Example App" "alpha beta" "Disk Usage"
 presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
 
