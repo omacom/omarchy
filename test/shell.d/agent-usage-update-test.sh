@@ -12,6 +12,7 @@ mkdir -p "$FAKE_OMARCHY/bin"
 
 cat >"$FAKE_OMARCHY/bin/omarchy-agent-usage-good" <<'EOF'
 #!/bin/bash
+printf '%s\n' "$*" >>"$HOME/good.calls"
 echo '{"schemaVersion":1,"id":"good","name":"Good Agent","totalPrompts":3}'
 EOF
 
@@ -54,6 +55,32 @@ pass "update skips agents excluded with --except"
 [[ ! -e $usage_dir/update.json ]] ||
   fail "update does not treat itself as a collector"
 pass "update does not treat itself as a collector"
+
+# A second panel refresh must not start another set of full local scans while
+# the first refresh still holds the updater lock.
+exec {update_lock_fd}>"$usage_dir/.update.lock"
+flock -n "$update_lock_fd" || fail "test could not hold the updater lock"
+rm -f "$TEST_HOME/good.calls"
+HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+  "$ROOT/bin/omarchy-agent-usage-update" 2>/dev/null ||
+  fail "a concurrent refresh is skipped successfully"
+[[ ! -e $usage_dir/skipped.json ]] || fail "a concurrent refresh does not start collectors"
+pass "a concurrent refresh does not start collectors"
+
+# An account operation carries an explicit scope and --force. Preserve it by
+# waiting for the active scan, then collecting with the requested arguments.
+HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+  "$ROOT/bin/omarchy-agent-usage-update" --force good 2>/dev/null &
+queued_update_pid=$!
+sleep 0.1
+kill -0 "$queued_update_pid" 2>/dev/null || fail "an explicit refresh waits for the active scan"
+[[ ! -e $TEST_HOME/good.calls ]] || fail "a queued refresh does not overlap the active scan"
+pass "an explicit refresh waits for the active scan"
+flock -u "$update_lock_fd"
+exec {update_lock_fd}>&-
+wait "$queued_update_pid" || fail "the queued explicit refresh succeeds"
+[[ $(<"$TEST_HOME/good.calls") == "--force" ]] || fail "the queued refresh preserves its force flag and agent scope"
+pass "the queued refresh preserves its force flag and agent scope"
 
 HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
   "$ROOT/bin/omarchy-agent-usage-update" skipped 2>/dev/null ||
