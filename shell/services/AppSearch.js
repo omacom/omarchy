@@ -1,3 +1,7 @@
+.import "../plugins/menu/MenuModel.js" as MenuModel
+
+// MenuModel owns the pinyin table, so a cloned menu plugin carries it along.
+
 function entryName(entry) {
   return String((entry && entry.name) || (entry && entry.id) || "")
 }
@@ -20,7 +24,15 @@ function keywordText(entry) {
 
 function entrySearchText(entry) {
   if (!entry) return ""
-  return [entry.name, entry.genericName, entry.comment, keywordText(entry), entry.id].join(" ").toLowerCase()
+  var fields = [entry.name, entry.genericName, entry.comment]
+  // Desktop entries hand keywords over as a QML list, which has length and
+  // indices but no Array methods.
+  try {
+    for (var i = 0; entry.keywords && i < entry.keywords.length; i++) fields.push(entry.keywords[i])
+  } catch (e) {
+  }
+  var pinyin = MenuModel.pinyinFieldInitials(fields)
+  return [entry.name, entry.genericName, entry.comment, keywordText(entry), entry.id, pinyin].join(" ").toLowerCase()
 }
 
 function wordText(value) {
