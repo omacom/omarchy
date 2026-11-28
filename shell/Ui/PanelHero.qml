@@ -37,7 +37,7 @@ Item {
   Column {
     id: heroLabels
     anchors.left: iconLoader.right
-    anchors.leftMargin: Style.space(14)
+    anchors.leftMargin: Style.heroTitleInset(iconLoader.width)
     anchors.right: parent.right
     anchors.rightMargin: root.trailingInset
     anchors.verticalCenter: parent.verticalCenter

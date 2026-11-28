@@ -4,7 +4,7 @@
 # omarchy:args=[omarchy-root]
 # omarchy:hidden=true
 
-# Pi gets Omarchy's package of extensions (web_fetch and the Omarchy look),
+# Pi gets Omarchy's package of extensions (web_fetch, web_search, and the Omarchy look),
 # which it discovers as a folder in its extensions directory,
 # linked from one Omarchy tree: the package, or the checkout `omarchy dev link`
 # points at. A link into another Omarchy tree is moved to this one, and a

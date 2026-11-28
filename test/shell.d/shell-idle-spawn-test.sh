@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:exclusive
+# A full shell on llvmpipe beside a busy pool can be starved or killed during startup.
 
 # An idle shell must not start processes. The shell runs all day, once per
 # session, and a Timer that starts a Process costs that process every tick for
@@ -158,6 +160,15 @@ stub bash '[[ ${1:-} == "-lc" ]] && shift && set -- -c "$@"
 exec /bin/bash "$@"'
 
 fail_with_log() {
+  local status=""
+  if [[ -n $QS_PID ]] && ! kill -0 "$QS_PID" 2>/dev/null; then
+    if wait "$QS_PID" 2>/dev/null; then
+      status=0
+    else
+      status=$?
+    fi
+    printf 'test shell exited with status %s\n' "$status" >&2
+  fi
   sed -n '1,120p' "$log" >&2
   fail "$@"
 }
@@ -180,6 +191,7 @@ OMARCHY_EXEC_LOG="$exec_log" \
 LD_PRELOAD="$TMPDIR/exec-log.so" \
 QS_DISABLE_FILE_WATCHER=1 \
 QS_NO_RELOAD_POPUP=1 \
+QS_DISABLE_CRASH_HANDLER=1 \
   quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
@@ -203,6 +215,7 @@ settle_start=$SECONDS
 quiet_since=$SECONDS
 last=$(exec_count)
 while (( SECONDS - settle_start < 40 )); do
+  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited during startup"
   sleep 0.5
   now=$(exec_count)
   if (( now != last )); then

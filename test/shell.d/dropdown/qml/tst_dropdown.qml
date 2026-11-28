@@ -20,6 +20,15 @@ Item {
     }
   }
 
+  Component {
+    id: searchableDropdownComponent
+    SearchableDropdown {
+      x: 60
+      y: 40
+      width: 320
+    }
+  }
+
   TestCase {
     name: "DropdownPopupGeometry"
     when: windowShown
@@ -142,6 +151,62 @@ Item {
           return item !== null && item.y + item.height <= list.contentY + list.height + 0.01
         }, 2000, "keyboard selection keeps the last row visible")
       }
+    }
+
+    function findText(item, text) {
+      if (!item || !item.visible) return null
+      if (item.text === text) return item
+      for (var i = 0; i < item.children.length; i++) {
+        var hit = findText(item.children[i], text)
+        if (hit) return hit
+      }
+      return null
+    }
+
+    function test_stationary_click_selects_clicked_row_data() {
+      return [
+        {tag: "dropdown", searchable: false},
+        {tag: "searchable", searchable: true}
+      ]
+    }
+
+    function test_stationary_click_selects_clicked_row(data) {
+      mouseMove(scene, scene.width - 1, scene.height - 1)
+      var picker = createTemporaryObject(data.searchable ? searchableDropdownComponent : dropdownComponent, scene, {
+        value: "alpha",
+        options: [
+          {value: "alpha", label: "Alpha"},
+          {value: "beta", label: "Beta"}
+        ]
+      })
+      verify(picker !== null)
+      var emitted = []
+      picker.changed.connect(function(v) { emitted.push(v) })
+
+      picker.open()
+      tryCompare(picker, "popupOpen", true)
+      if (data.searchable) {
+        tryVerify(function() {
+          var item = scene.Window.window.activeFocusItem
+          return item && item.hasOwnProperty("placeholderText")
+        })
+        keyClick(Qt.Key_Down)
+      }
+
+      var beta = null
+      tryVerify(function() {
+        beta = findText(Overlay.overlay, "Beta")
+        return beta !== null
+      })
+      for (var p = beta.parent; p; p = p.parent) {
+        if (isPolishScheduled(p)) verify(waitForPolish(p))
+      }
+
+      // Alpha is the highlighted row. Press and release Beta without moving over it.
+      mousePress(beta)
+      mouseRelease(beta)
+      compare(emitted, ["beta"])
+      compare(picker.value, "beta")
     }
   }
 }

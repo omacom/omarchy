@@ -4,30 +4,36 @@ source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
 
-for bell_supported in false true; do
-  OMARCHY_BELL_SUPPORTED="$bell_supported" lua - <<'LUA' || fail "look and feel loads before and after a Hyprland upgrade"
-local supported = os.getenv("OMARCHY_BELL_SUPPORTED") == "true"
-local bell
+for newer_options in false true; do
+  OMARCHY_NEWER_OPTIONS="$newer_options" lua - <<'LUA' || fail "look and feel loads before and after a Hyprland upgrade"
+local supported = os.getenv("OMARCHY_NEWER_OPTIONS") == "true"
+local newer = { ["misc.bell_sound"] = "default", ["misc.startup_hold_layer"] = "", ["cursor.hide_at_startup"] = false }
+local set = {}
 hl = {
   get_config = function(key)
-    assert(key == "misc.bell_sound")
-    if supported then return "default" end
-    return nil, "unknown config key 'misc.bell_sound'"
+    assert(newer[key] ~= nil, key)
+    if supported then return newer[key] end
+    return nil, "unknown config key '" .. key .. "'"
   end,
   config = function(config)
-    if config.misc then
-      bell = config.misc.bell_sound
-      assert(supported or bell == nil, "unknown config key 'misc.bell_sound'")
+    for section, options in pairs(config) do
+      for option, value in pairs(options) do
+        local key = section .. "." .. option
+        assert(supported or newer[key] == nil, "unknown config key '" .. key .. "'")
+        set[key] = value
+      end
     end
   end,
   curve = function() end,
   animation = function() end,
 }
 dofile(os.getenv("ROOT") .. "/default/hypr/looknfeel.lua")
-assert(bell == (supported and "none" or nil))
+assert(set["misc.bell_sound"] == (supported and "none" or nil))
+assert(set["misc.startup_hold_layer"] == (supported and "overlay:omarchy-background" or nil))
+assert(set["cursor.hide_at_startup"] == (supported or nil))
 LUA
 done
-pass "look and feel mutes bells only when the running compositor supports it"
+pass "look and feel mutes bells, holds the splash's frame and hides the startup cursor only when the running compositor supports them"
 
 run_application_bindings() {
   local home="$1"

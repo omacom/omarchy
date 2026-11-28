@@ -30,6 +30,16 @@ if [ -z "${LANG:-}" ]; then
     LC_IDENTIFICATION
 fi
 
+# A herdr server started over SSH has no WAYLAND_DISPLAY, so its panes can't
+# read the desktop clipboard once you attach locally. Inherit the live graphical
+# session's Wayland display inside herdr panes without exporting it to plain
+# SSH sessions (where omarchy-launch-editor falls back to vi).
+if [[ ${HERDR_ENV:-} == 1 && -z ${WAYLAND_DISPLAY:-} ]]; then
+  _omarchy_wayland=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p')
+  [[ -n $_omarchy_wayland && -S ${XDG_RUNTIME_DIR:-/run/user/$UID}/$_omarchy_wayland ]] && export WAYLAND_DISPLAY=$_omarchy_wayland
+  unset _omarchy_wayland
+fi
+
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) export PATH="$PATH:$HOME/.local/bin" ;;

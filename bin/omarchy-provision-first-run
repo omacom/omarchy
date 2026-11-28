@@ -80,6 +80,12 @@ run_first_run_step "set GTK primary paste" \
   bash "$OMARCHY_PATH/install/user/first-run/gtk-primary-paste.sh"
 run_first_run_step "apply speaker tuning" \
   bash "$OMARCHY_PATH/install/user/first-run/audio-tuning.sh"
+run_first_run_step "apply camera tuning" \
+  bash "$OMARCHY_PATH/install/user/first-run/camera-tuning.sh"
+# The root image sets the theme before there is an ESP to put its colors on, so
+# the boot splash and login screen take them from here on. Not a step: a failure
+# shouldn't rerun first-run, and the next theme change tries again.
+omarchy-theme-set-login || log_first_run "Could not color the boot splash and login screen"
 
 omarchy-notification-wait || log_first_run "Timed out waiting for notification service; continuing"
 # Superwhisper places its bar panel through the shell, so it waits for it too.

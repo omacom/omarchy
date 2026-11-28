@@ -529,17 +529,28 @@ done
 pass "a rescan that only adds a plugin leaves running services alone"
 
 # Dropping the service entry point from the manifest must drop the kept
-# instance instead of leaving a zombie behind.
+# instance instead of leaving a zombie behind. Editing a loaded local plugin
+# schedules a debounced full reload (localPluginReloadTimer, 150ms), so wait
+# until that full reload finishes — shown by acme-plain being recreated with an
+# empty marker — before probing bar geometry and direct panel IPC; otherwise a
+# leftover rescan from acme.late-plugin can drop acme-keep first and leave the
+# full reload to unload bar widgets mid-probe.
 jq 'del(.keepLoaded) | .kinds = ["overlay"] | .entryPoints = {"overlay": "Service.qml"}' \
   "$keep_service_dir/manifest.json" >"$keep_service_dir/manifest.json.tmp"
 mv "$keep_service_dir/manifest.json.tmp" "$keep_service_dir/manifest.json"
-keep_gone=""
+keep_reloaded=0
 for _ in {1..80}; do
   keep_gone=$(scratch_ipc acme-keep get 2>/dev/null || true)
-  [[ $keep_gone != "survived" ]] && break
+  if [[ $keep_gone != "survived" ]] &&
+     plain_after=$(scratch_ipc acme-plain get 2>/dev/null) &&
+     [[ -z $plain_after ]]; then
+    keep_reloaded=1
+    break
+  fi
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while dropping kept service"
   sleep 0.1
 done
-[[ $keep_gone != "survived" ]] ||
+(( keep_reloaded )) ||
   fail_with_log "kept service is dropped when its plugin stops declaring a service"
 pass "kept service is dropped when its plugin stops declaring a service"
 
@@ -549,7 +560,9 @@ geometry=""
 for _ in {1..80}; do
   geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
   if jq -e --argjson layout "$default_layout" '
-    . as $rows | all([$layout[]] | add | .[]; (.id // .) as $id | any($rows[]; .id == $id))
+    . as $rows |
+    all([$layout[]] | add | .[]; (.id // .) as $id | any($rows[]; .id == $id)) and
+    all("omarchy.menu", "omarchy.workspaces", "omarchy.clock"; . as $id | any($rows[]; .id == $id and .visible == true))
   ' <<<"$geometry" >/dev/null 2>&1; then
     break
   fi
@@ -581,12 +594,24 @@ pass "default bar layout renders each widget in its configured section"
 
 # A panel's first open builds its content on the shell's thread, which in CI's
 # emulated VM can hold the next call past omarchy-shell's interactive 2s, so
-# these calls get 10s. A failure says what omarchy-shell answered.
+# these calls get 10s. Right after the reload above, widgets also finish their
+# asynchronous component load in parallel, so retry open while a target is
+# still registering; close must succeed on the first call.
 for panel_id in omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network omarchy.power; do
-  for action in open close; do
-    err=$(OMARCHY_SHELL_IPC_TIMEOUT=10s scratch_ipc "$panel_id" "$action" 2>&1 >/dev/null) ||
-      fail_with_log "direct panel IPC ${action}s $panel_id: ${err:-no answer}"
+  opened=0
+  err=""
+  for _ in {1..50}; do
+    if err=$(OMARCHY_SHELL_IPC_TIMEOUT=10s scratch_ipc "$panel_id" open 2>&1 >/dev/null); then
+      opened=1
+      break
+    fi
+    [[ $err == *"Target not found."* ]] || break
+    kill -0 "$SCRATCH_PID" 2>/dev/null || break
+    sleep 0.1
   done
+  (( opened )) || fail_with_log "direct panel IPC opens $panel_id: ${err:-no answer}"
+  err=$(OMARCHY_SHELL_IPC_TIMEOUT=10s scratch_ipc "$panel_id" close 2>&1 >/dev/null) ||
+    fail_with_log "direct panel IPC closes $panel_id: ${err:-no answer}"
 done
 pass "direct panel IPC opens and closes default panels"
 

@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "ลอย"
-  },
-  "appearance.unlock": {
-    "label": "ปลดล็อก"
   },
   "trigger.toggle": {
     "label": "สลับ"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1094,16 +1076,18 @@
     "label": "ปิดจอแล็ปท็อป"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "เปิดสะท้อนหน้าจอ"
+    "label": "เปิดมิเรอร์จอ"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ปิดการสะท้อนจอ"
+    "label": "ปิดมิเรอร์จอ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "ใช้ GPU ไฮบริด"
+    "label": "สลับไป dGPU",
+    "description": "เปิดใช้ GPU แยกแบบไฮบริด"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "ใช้ GPU ในตัว"
+    "label": "สลับไป iGPU",
+    "description": "ใช้ GPU ในตัวเท่านั้น"
   },
   "trigger.hardware.touchpad-on": {
     "label": "เปิดทัชแพด"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "กู้คืนสแนปชอตนี้"
+  },
+  "setup.security.passwordless-login": {
+    "label": "เข้าสู่ระบบแบบไร้รหัสผ่าน"
   }
 }

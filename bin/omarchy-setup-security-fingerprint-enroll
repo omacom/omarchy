@@ -1,0 +1,305 @@
+#!/bin/bash
+
+# omarchy:summary=Enroll one finger and set up fingerprint authentication, reporting progress as events
+# omarchy:args=status | enroll <finger> | demo <finger> | demo-fail <finger>
+# omarchy:hidden=true
+
+# What the fingerprint panel runs. It prints one event per line for the panel
+# to draw, and never asks anything on a terminal.
+#
+#   status             As the user: the reader and the enrolled fingers.
+#   enroll <finger>    As root, through pkexec: everything
+#                      omarchy-setup-security-fingerprint --terminal does, for
+#                      one finger: packages, enrollment, a verifying touch, then
+#                      PAM for sudo, polkit and the lock screen.
+#   demo <finger>      As the user: the same events on a timer, touching
+#                      nothing, to look at the panel.
+#   demo-fail <finger> The same, failing at the package install.
+#
+# Events: step <name>, scan <type>, stages <n>, stage <n>, retry <reason>,
+# enrolled, matched, done, fail <code>, and for status: finger <name>, ready.
+#
+# A line on stdin (or its end) cancels: once pkexec has made this root, the
+# shell that started it can no longer signal it.
+
+set -uo pipefail
+
+fingers=(left-thumb left-index-finger left-middle-finger left-ring-finger left-little-finger
+  right-thumb right-index-finger right-middle-finger right-ring-finger right-little-finger)
+
+# Steps are also noted on stderr, which the panel keeps as the log it opens
+# when a failure takes more than a line to explain.
+emit() {
+  printf '%s\n' "$*"
+  [[ $1 == "step "* ]] && echo "== ${1#step } ==" >&2
+  return 0
+}
+
+fail() {
+  echo "Fingerprint setup stopped: $1" >&2
+  emit "fail $1"
+  exit 1
+}
+
+valid_finger() {
+  local candidate
+  for candidate in "${fingers[@]}"; do
+    [[ $candidate == "$1" ]] && return 0
+  done
+  return 1
+}
+
+default_device() {
+  local device
+  device=$(busctl --system call net.reactivated.Fprint /net/reactivated/Fprint/Manager \
+    net.reactivated.Fprint.Manager GetDefaultDevice 2>/dev/null) || return 0
+  device=${device#o \"}
+  echo "${device%\"}"
+}
+
+device_property() {
+  [[ -n $1 ]] || return 0
+  busctl --system get-property net.reactivated.Fprint "$1" net.reactivated.Fprint.Device "$2" 2>/dev/null
+}
+
+device_string() {
+  device_property "$1" "$2" | sed -n 's/^s "\(.*\)"$/\1/p'
+}
+
+# Stop on a line from the panel, or when the panel goes away. The reader's own
+# commands are ended at once; anything else (a package install, the PAM edits)
+# finishes its step first, and the TERM trap ends the run after it.
+watch_cancel() {
+  read -r _
+  kill -TERM $$ 2>/dev/null
+  pkill -TERM -P $$ -x 'fprintd-enroll|fprintd-verify|sleep' 2>/dev/null
+}
+
+retry_reason() {
+  case $1 in
+    *-swipe-too-short) echo short ;;
+    *-finger-not-centered) echo center ;;
+    *-remove-and-retry) echo lift ;;
+    *-too-fast) echo fast ;;
+    *) echo again ;;
+  esac
+}
+
+# fprintd-enroll's results as events. With a duplicate check the first stage is
+# fprintd looking for the finger among those enrolled, not a step of this one.
+enroll_events() {
+  local duplicate_check=$1 line stages=0
+  while IFS= read -r line; do
+    [[ $line == "Enroll result: "* ]] || continue
+    case ${line#Enroll result: } in
+      enroll-stage-passed) (( ++stages > duplicate_check )) && emit "stage $(( stages - duplicate_check ))" ;;
+      enroll-completed) emit "enrolled" ;;
+      enroll-duplicate) emit "fail duplicate" ;;
+      enroll-data-full) emit "fail full" ;;
+      enroll-disconnected) emit "fail disconnected" ;;
+      enroll-failed | enroll-unknown-error) ;;
+      *) emit "retry $(retry_reason "${line#Enroll result: }")" ;;
+    esac
+  done
+}
+
+# fprintd-verify marks each result " (done)" or " (not done)"; one that isn't
+# done is a retry, whatever its name. The final result is the caller's to read.
+verify_events() {
+  local line
+  while IFS= read -r line; do
+    [[ $line == "Verify result: "* ]] || continue
+    line=${line#Verify result: }
+    if [[ $line == *" (not done)" ]]; then
+      emit "retry $(retry_reason "${line% (*}")"
+    fi
+  done
+}
+
+# Ends whatever a run left behind, however it ended.
+cleanup() {
+  [[ -z $watcher ]] || kill "$watcher" 2>/dev/null
+  stop_stages_watcher
+  [[ -z $tool_output ]] || rm -f "$tool_output"
+}
+
+stop_stages_watcher() {
+  [[ -n $stages_watcher ]] || return 0
+  pkill -P "$stages_watcher" 2>/dev/null
+  kill "$stages_watcher" 2>/dev/null
+  stages_watcher=""
+}
+
+status() {
+  local device
+  device=$(default_device)
+  emit "scan $(device_string "$device" scan-type)"
+  # fprintd isn't installed before the first setup. Where it is, a list that
+  # fails (the daemon still starting) is not an empty one: ask again before
+  # letting the panel pick a finger the reader may already hold.
+  local listed attempt
+  if omarchy-cmd-present fprintd-list; then
+    for attempt in 1 2 3; do
+      if listed=$(fprintd-list "$(id -un)" 2>/dev/null); then
+        sed -n 's/^ - #[0-9]*: \([a-z-]*\)$/finger \1/p' <<<"$listed"
+        break
+      fi
+      sleep 0.5
+    done
+  fi
+  emit "ready"
+}
+
+demo-fail() {
+  emit "step packages"; sleep 1.2
+  echo "error: failed to synchronize all databases (unable to lock database)" >&2
+  echo "error: this is the demo's stand-in for a package install that failed" >&2
+  fail packages
+}
+
+demo() {
+  local stage
+  emit "step packages"; sleep 0.9
+  emit "step sensor"; sleep 0.7
+  emit "scan press"
+  emit "step enroll"
+  emit "stages 12"
+  for stage in {1..11}; do
+    sleep 0.55
+    if (( stage == 5 )); then
+      emit "retry center"
+      sleep 1.4
+    fi
+    emit "stage $stage"
+  done
+  sleep 0.55
+  emit "enrolled"
+  emit "step verify"; sleep 1.6
+  emit "matched"
+  emit "step secure"; sleep 1.2
+  emit "done"
+}
+
+enroll() {
+  local finger=$1 user device hook
+  local packages=(libfprint-git fprintd usbutils) libfprint_owner duplicate_check=0 attempt status
+
+  (( EUID == 0 )) || fail not-root
+  # pkexec clears the environment, OMARCHY_PATH with it, and root runs only
+  # the packaged Omarchy: its commands on a PATH of system directories, and
+  # the files omarchy-apply-lock installs from the packaged tree.
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+  export OMARCHY_PATH=/usr/share/omarchy
+  cd /
+  [[ ${PKEXEC_UID:-} =~ ^[0-9]+$ ]] || fail not-root
+  user=$(id -nu "$PKEXEC_UID") || fail not-root
+
+  emit "step packages"
+  # Only events go to stdout: anything a command prints there would be read as one.
+  omarchy-hw-fingerprint >&2 || fail no-reader
+  # libfprint-git conflicts with stock libfprint, which --ask 4 replaces in one
+  # transaction. A reader on a vendor's TOD fork keeps that fork instead.
+  libfprint_owner=$(pacman -Qqo /usr/lib/libfprint-2.so.2 2>/dev/null || true)
+  if [[ -n $libfprint_owner && $libfprint_owner != "libfprint" && $libfprint_owner != "libfprint-git" ]]; then
+    packages=(fprintd usbutils)
+  fi
+  if omarchy-pkg-missing "${packages[@]}" >&2; then
+    pacman -S --needed --noconfirm --ask 4 -- "${packages[@]}" </dev/null >&2 || fail packages
+  fi
+
+  emit "step sensor"
+  # A just-installed fprintd starts on the first call and can take a moment.
+  for attempt in {1..10}; do
+    device=$(default_device)
+    [[ -n $device ]] && break
+    sleep 0.5
+  done
+  if [[ -z $device ]]; then
+    # A reader its platform keeps off until the owner agrees (Touch ID) is
+    # turned on by the terminal setup, which explains and asks first; the
+    # panel hands over to it.
+    hook=$(omarchy-lifecycle-dispatch --resolve enable-fingerprint 2>/dev/null || true)
+    [[ -n $hook ]] && fail platform
+    fail no-reader
+  fi
+  emit "scan $(device_string "$device" scan-type)"
+  # Touch ID runs a duplicate check that needs no touch, as an extra first stage.
+  if [[ $(device_string "$device" name) == "Apple secure enclave fingerprint sensor" ]]; then
+    duplicate_check=1
+  fi
+
+  emit "step enroll"
+  # The stage count is only known while a device is claimed, so ask alongside.
+  (
+    for attempt in {1..80}; do
+      stages=$(device_property "$device" num-enroll-stages | sed -n 's/^i \([0-9]*\)$/\1/p')
+      if (( ${stages:-0} > duplicate_check )); then
+        emit "stages $(( stages - duplicate_check ))"
+        break
+      fi
+      sleep 0.25
+    done
+  ) </dev/null &
+  stages_watcher=$!
+  # The authorization that made this root may itself have been a fingerprint
+  # touch, and pam_fprintd can still hold the reader for a moment after it. A
+  # claim refused for that is tried again, not reported as a failed scan.
+  tool_output=$(mktemp)
+  for attempt in {1..15}; do
+    fprintd-enroll -f "$finger" "$user" </dev/null 2>&1 | tee "$tool_output" | enroll_events "$duplicate_check"
+    status=${PIPESTATUS[0]}
+    grep -v '^Enroll result: ' "$tool_output" >&2
+    if (( status == 0 )) || ! grep -qi 'already claimed' "$tool_output"; then
+      break
+    fi
+    sleep 1
+  done
+  stop_stages_watcher
+  (( status == 0 )) || fail enroll
+
+  # Only a touch that didn't match is worth another try; a reader that went
+  # away, or any other error, ends it there.
+  emit "step verify"
+  for attempt in 1 2 3; do
+    fprintd-verify -f "$finger" "$user" </dev/null 2>&1 | tee "$tool_output" | verify_events
+    status=${PIPESTATUS[0]}
+    grep -v '^Verify result: ' "$tool_output" >&2
+    if (( status == 0 )); then
+      emit "matched"
+      break
+    fi
+    grep -q '^Verify result: verify-disconnected' "$tool_output" && fail disconnected
+    grep -q '^Verify result: verify-no-match' "$tool_output" || fail verify
+    (( attempt < 3 )) || fail no-match
+    emit "retry nomatch"
+  done
+
+  # PAM comes last, once a print is enrolled and verified, so a reader libfprint
+  # can't drive never leaves the stacks pointing at pam_fprintd.
+  emit "step secure"
+  omarchy-apply-fingerprint-pam >&2 </dev/null || fail secure
+  omarchy-apply-lock >&2 </dev/null || fail secure
+  [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] || fail secure
+  emit "done"
+}
+
+mode=${1:-}
+finger=${2:-}
+
+if [[ $mode == "status" ]]; then
+  status
+  exit 0
+fi
+
+if [[ $mode != "enroll" && $mode != "demo" && $mode != "demo-fail" ]] || ! valid_finger "$finger"; then
+  echo "Usage: omarchy-setup-security-fingerprint-enroll status | enroll <finger> | demo <finger> | demo-fail <finger>" >&2
+  exit 2
+fi
+
+watcher="" stages_watcher="" tool_output=""
+trap 'exit 130' TERM
+trap cleanup EXIT
+watch_cancel <&0 &
+watcher=$!
+
+"$mode" "$finger"

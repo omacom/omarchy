@@ -393,8 +393,9 @@ function newCapacityScope() {
   const later = []
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
-    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
+    maxLiveNotifications: 100, heights: {}, widths: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
+    notificationWidth: 380,
     held: [], doNotDisturb: false,
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
@@ -1155,6 +1156,26 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.ok(s.toasts.rows.filter(r => r.restored).every(r => r.duration === Store.RESTORE_GRACE))
   s.loadLive('[]')
   assert.equal(s.liveEntries.length, 100, 'a second load event is ignored')
+}
+
+{ // Dynamic card widths: a collapsed deck shares its front card's width, an
+  // open deck gives each card its own, and the deck width fits the widest card.
+  const rows = [
+    { key: 'a1', groupKey: 'app:chat' },
+    { key: 'a2', groupKey: 'app:chat' },
+    { key: 'b1', groupKey: 'toast:battery' },
+  ]
+  const widths = { a1: 220, a2: 380, b1: 450 }
+  const shut = Layout.compute(rows, { expanded: false, widthOf: k => widths[k] })
+  assert.equal(shut.placements.a1.width, 220)
+  assert.equal(shut.placements.a2.width, 220, 'collapsed cards behind a front card match its width')
+  assert.equal(shut.placements.b1.width, 450)
+  assert.equal(shut.width, 450)
+
+  const open = Layout.compute(rows, { expanded: true, openDeck: 'app:chat', widthOf: k => widths[k] })
+  assert.equal(open.placements.a1.width, 220)
+  assert.equal(open.placements.a2.width, 380, 'opening a deck restores each card to its own width')
+  assert.equal(open.width, 450)
 }
 
 console.log('notification logic: passed')

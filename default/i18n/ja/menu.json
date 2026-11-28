@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "フロート型"
-  },
-  "appearance.unlock": {
-    "label": "ロック画面"
   },
   "trigger.toggle": {
     "label": "切り替え"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1085,7 +1067,7 @@
     "label": "ノートPC画面 オフ"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "ディスプレイミラーリング オン"
+    "label": "ミラーリング表示をオン"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "バッテリー % を表示"
@@ -1097,13 +1079,15 @@
     "label": "ウィンドウ"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ミラーリングをオフ"
+    "label": "ミラーリング表示をオフ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "ハイブリッドGPUに切替"
+    "label": "dGPUに切り替え",
+    "description": "ハイブリッド専用GPUを有効化"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "内蔵GPUに切替"
+    "label": "iGPUに切り替え",
+    "description": "内蔵GPUのみ使用"
   },
   "trigger.hardware.touchpad-on": {
     "label": "タッチパッドを有効化"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "このスナップショットを復元"
+  },
+  "setup.security.passwordless-login": {
+    "label": "パスワードなしログイン"
   }
 }

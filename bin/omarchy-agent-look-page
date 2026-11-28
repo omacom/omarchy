@@ -2,14 +2,15 @@
 
 # omarchy:summary=Screenshot a web page an agent built and report its console errors
 # omarchy:args=<file.html|url> [--keys "Space ArrowLeft"] [--after ms] [--theme <name>] [--size WxH] [--out file.png]
-# omarchy:examples=omarchy agent look page index.html | omarchy agent look page game.html --keys "Space ArrowLeft" --after 5000
+# omarchy:examples=omarchy agent look page index.html | omarchy agent look page game.html --keys "Space ArrowLeft" --after 5000 | omarchy agent look page game.html --keys "Space +900 ArrowUp +600 ArrowLeft:400" --after 1000
 
 # Renders the page in a throwaway headless Chrome, driven over its DevTools
 # protocol, so an agent can see what it built and read the errors a browser
 # console would show, without opening a window on the user's desktop or
 # leaving a browser running. The page runs in real time on the GPU, so a game plays as it would
-# for a player: --keys presses each key once a page has loaded, and --after
-# waits that long before the screenshot. --theme passes a theme's palette in
+# for a player: --keys presses each key once a page has loaded, a quarter of a
+# second apart, with +ms waiting longer between two and Key:ms holding one
+# down, and --after waits that long before the screenshot. --theme passes a theme's palette in
 # the URL fragment, as omarchy-games-vibes-launch does, so a game from the omarchy-make-game
 # template shows in that theme. Prints the screenshot's path and exits 1 when
 # the page logged errors.
@@ -74,7 +75,9 @@ log=$(mktemp)
 # failed load, then "saved" once the screenshot is written. Node speaks
 # Chrome's DevTools protocol over its own WebSocket, so nothing else is needed;
 # Arch's Node, since a project's mise version may be anything.
-timeout $(( after / 1000 + 60 )) /usr/bin/node - \
+# Waits and holds in --keys add to the time the look takes.
+key_ms=$(grep -oE '(^| )\+[0-9]+|:[0-9]+( |$)' <<<"$keys" | tr -dc '0-9\n' | awk '{ total += $1 } END { print total + 0 }')
+timeout $(( (after + key_ms) / 1000 + 60 )) /usr/bin/node - \
   "$chrome" "$url" "$keys" "$after" "${size%x*}" "${size#*x}" "$out" >"$log" 2>&1 <<'JS'
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -241,17 +244,36 @@ function keyEvent(name) {
   const timedOut = await Promise.race([load.then(() => false), sleep(30000).then(() => true)]);
   if (timedOut) report("page didn't load: no load event within 30s");
 
+  // Headless Chrome hides the page about a second after it loads, and a hidden
+  // page gets no animation frames, so a game would stand still on its first
+  // frames whatever keys it was sent. The page is put in front and given the
+  // focus once that has happened, and again every second after, so it plays in
+  // real time for the whole look.
+  const wake = () => Promise.all([page.send("Page.bringToFront"), page.send("Emulation.setFocusEmulationEnabled", { enabled: true })]);
+  await sleep(1200);
+  await wake();
+  const awake = setInterval(() => wake().catch(() => {}), 1000);
+
   // Real key presses, held across a few frames as a player's are, so a game
   // reads both the press and the key held down.
-  await sleep(800);
-  for (const name of keys.split(" ").filter(Boolean)) {
+  await sleep(300);
+  // +600 waits 600ms before the next key, so a turn lands where it should in
+  // a game that moves on its own, and ArrowLeft:800 holds the key that long.
+  for (const token of keys.split(" ").filter(Boolean)) {
+    const wait = token.match(/^\+(\d+)$/);
+    if (wait) {
+      await sleep(Number(wait[1]));
+      continue;
+    }
+    const [, name, hold] = token.match(/^(.+?)(?::(\d+))?$/);
     const key = keyEvent(name);
     await page.send("Input.dispatchKeyEvent", { type: key.text ? "keyDown" : "rawKeyDown", ...key });
-    await sleep(100);
+    await sleep(hold ? Number(hold) : 100);
     await page.send("Input.dispatchKeyEvent", { type: "keyUp", ...key, text: undefined });
     await sleep(150);
   }
   await sleep(Number(after));
+  clearInterval(awake);
   const { data } = await page.send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(out, Buffer.from(data, "base64"));
   console.log("saved");

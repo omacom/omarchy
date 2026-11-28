@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "ভাসমান"
-  },
-  "appearance.unlock": {
-    "label": "আনলক"
   },
   "trigger.toggle": {
     "label": "টগল"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1085,7 +1067,7 @@
     "label": "ল্যাপটপ ডিসপ্লে বন্ধ"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "ডিসপ্লে মিররিং চালু"
+    "label": "মিরর ডিসপ্লে চালু"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "ব্যাটারি % দেখান"
@@ -1097,13 +1079,15 @@
     "label": "উইন্ডো"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ডিসপ্লে মিররিং বন্ধ"
+    "label": "মিরর ডিসপ্লে বন্ধ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "হাইব্রিড GPU-তে যান"
+    "label": "dGPU-তে স্যুইচ",
+    "description": "হাইব্রিড ডেডিকেটেড GPU সক্রিয় করুন"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "ইন্টিগ্রেটেড GPU-তে যান"
+    "label": "iGPU-তে স্যুইচ",
+    "description": "শুধুমাত্র ইন্টিগ্রেটেড GPU ব্যবহার করুন"
   },
   "trigger.hardware.touchpad-on": {
     "label": "টাচপ্যাড চালু করুন"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "এই স্ন্যাপশট পুনরুদ্ধার করুন"
+  },
+  "setup.security.passwordless-login": {
+    "label": "পাসওয়ার্ডবিহীন লগইন"
   }
 }

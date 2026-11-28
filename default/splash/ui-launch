@@ -1,0 +1,13 @@
+#!/usr/bin/ash
+# Sway's one client. When it ends (Escape, a crash, or sway going away), sway
+# ends with it, and so does the session (see session), so `plymouth
+# ask-for-password` moves the prompt to the console.
+
+quickshell --path /usr/lib/omarchy-splash/ui >>/run/omarchy-splash/ui.log 2>&1
+
+# The sway that started this one, which names its IPC socket after its pid
+# (sway-ipc.<uid>.<pid>.sock), and not one the session has started since.
+# Killed outright: a sway that stopped answering ignores anything less, and
+# seatd hands the console back when its client goes, however it goes.
+sway=${SWAYSOCK%.sock}
+kill -9 "${sway##*.}" 2>/dev/null

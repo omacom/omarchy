@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "Plutitor"
-  },
-  "appearance.unlock": {
-    "label": "Deblochează"
   },
   "trigger.toggle": {
     "label": "Comută"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1037,16 +1019,18 @@
     "label": "Oprește ecranul laptopului"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Activează oglindirea ecranului"
+    "label": "Activează oglindirea"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Dezactivează oglindirea ecranului"
+    "label": "Dezactivează oglindirea"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Comută la GPU hibrid"
+    "label": "Comută la dGPU",
+    "description": "Activează GPU-ul dedicat hibrid"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Comută la GPU integrat"
+    "label": "Comută la iGPU",
+    "description": "Folosește doar GPU-ul integrat"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Activează touchpadul"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Restaurează acest instantaneu"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Autentificare fără parolă"
   }
 }

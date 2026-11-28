@@ -1,0 +1,8 @@
+#!/usr/bin/ash
+# The power button while the splash is up (see sway.conf). Nothing answers it
+# in the initramfs, where nothing is mounted for writing yet. Once the real root
+# is up, logind answers it instead, and PID 1 is no longer this image's init.
+
+if [ "$(cat /proc/1/comm 2>/dev/null)" = init ]; then
+  poweroff -f
+fi

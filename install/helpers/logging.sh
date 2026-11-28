@@ -55,8 +55,6 @@ omarchy_leaf_platform() {
       hardware/framework16.sh | \
       hardware/framework/qmk-hid.sh | \
       hardware/surface.sh | \
-      hardware/dell-xps13-ptl-speaker-firmware.sh | \
-      hardware/dell-xps13-sidecar-amps.sh | \
       hardware/asus/fix-asus-ptl-display-backlight.sh | \
       hardware/asus/fix-asus-ptl-b9406-display.sh | \
       hardware/asus/fix-asus-ptl-b9406-touchpad.sh | \
@@ -89,13 +87,16 @@ omarchy_leaf_platform() {
       return 0
       ;;
     hardware/qualcomm/* | \
+      hardware/anduril/* | \
       hardware/acer/fix-acer-aspire-16-ai-speakers.sh | \
       hardware/acer/fix-acer-aspire-16-ai-boot.sh | \
       hardware/asus/fix-asus-zenbook-a16-speakers.sh | \
       hardware/asus/fix-asus-zenbook-a16-boot.sh | \
+      hardware/asus/fix-asus-zenbook-a16-wifi.sh | \
       hardware/asus/fix-asus-zenbook-a16-firmware.sh | \
       hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh | \
       hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh | \
+      hardware/asus/fix-asus-zenbook-14-ux3480qa-power.sh | \
       hardware/asus/fix-asus-zenbook-a14-boot.sh | \
       hardware/asus/fix-asus-proart-pz13-speakers.sh | \
       hardware/asus/fix-asus-vivobook-s15-boot.sh | \

@@ -1,6 +1,7 @@
 # Omarchy core package list pacstrapped by the ISO.
 # The ISO builder also reads this file when constructing the offline mirror.
 
+adwaita-cursors
 aether
 alsa-utils
 asdcontrol
@@ -55,6 +56,7 @@ gliff
 gnome-keyring
 gnome-themes-extra
 google-chrome
+greetd
 grim
 gpu-screen-recorder
 gum
@@ -122,6 +124,8 @@ pinta
 plain
 playwright-cli
 plocate
+# Draws the shutdown splash, and the unlock prompt in a systemd initramfs (Apple
+# Silicon's); omarchy-splash draws it in the busybox one.
 plymouth
 podman
 postgresql-libs
@@ -141,12 +145,13 @@ quickshell
 ripgrep
 rtkit
 ruby
-sddm
+seatd
 signed
 slurp
 socat
 starship
 superwhisper-bin
+sway
 system-config-printer
 terminus-font
 tesseract
@@ -157,7 +162,7 @@ tmux
 tobi-try
 ttf-jetbrains-mono-nerd-basic
 tzupdate
-udiskie
+udisks2
 ufw
 ufw-docker
 unzip
@@ -169,6 +174,7 @@ whois
 wireless-regdb
 wireplumber
 wl-clipboard
+wlroots0.20
 wtype
 woff2-font-awesome
 xdg-desktop-portal-gtk

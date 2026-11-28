@@ -25,7 +25,9 @@ Item {
   property bool hovered: false
   property bool selected: false              // the keyboard's card
   property double now: Date.now()
-  property real cardWidth: Style.space(380)
+  property real baseWidth: Style.space(380)
+  property real minWidth: Style.space(160)
+  property real maxWidth: Style.space(560)
   property var actions: []                   // what the sender put on the wire
 
   // The pointer in the deck's coordinates: the deck owns hover, so cards and
@@ -76,6 +78,7 @@ Item {
   readonly property color accentColor: critical ? Commons.Color.urgent
                                                : (row.urgency === 0 ? dimColor : Commons.Color.notifications.countdown)
   readonly property bool hasBody: String(row.body || "").length > 0
+  readonly property string ageText: ago()
   readonly property bool redacted: Store.redacted(row)
   // Omarchy's own toasts and bare notify-send calls name no source worth a
   // letter, and a summary that opens with its own glyph already has its mark.
@@ -172,7 +175,26 @@ Item {
     }
   }
 
-  width: cardWidth
+  // Single-line toasts without action buttons hug their text (within
+  // [minWidth, maxWidth]); body and button cards keep the standard column.
+  // At rest, single-line toasts omit the right-side stamp/close slot so left
+  // and right padding stay even, expanding smoothly on hover for the close mark.
+  readonly property bool dynamicWidth: !hasBody && allDeeds.length === 0
+  readonly property bool rightSideReserved: !dynamicWidth || hovered || ageText.length > 0
+  readonly property real naturalWidth: Math.ceil(
+    plate.contentLeftInset + plate.contentRightInset
+    + Style.space(12) * 2
+    + (thumb.visible ? thumb.width + layout.spacing : 0)
+    + titleProbe.implicitWidth + 1
+    + (titleMarks.visible ? titleMarks.width + Style.space(7) : 0)
+    + (rightSideReserved ? rightSide.width + Style.space(8) : 0)
+  )
+  readonly property real targetWidth: dynamicWidth
+      ? Math.min(maxWidth, Math.max(minWidth, naturalWidth))
+      : baseWidth
+  property real drawnWidth: targetWidth
+
+  width: drawnWidth > 0 ? drawnWidth : targetWidth
   height: body.height
 
   LayoutMirroring.enabled: Commons.I18n.rightToLeft
@@ -242,14 +264,18 @@ Item {
     id: body
     width: parent.width
     height: card.drawnHeight
+    clip: true
 
     Row {
       id: layout
       // Top-anchored: centred content would slide up as the card grows.
-      anchors { left: parent.left; right: parent.right; top: parent.top
+      // Always measure at targetWidth so cards collapsed behind a wider or
+      // narrower front card keep a stable wrapped height across deck motion.
+      anchors { left: parent.left; top: parent.top
                 leftMargin: plate.contentLeftInset + Style.space(12)
-                rightMargin: plate.contentRightInset + Style.space(12)
                 topMargin: plate.contentTopInset + card.contentPaddingY }
+      width: Math.max(1, card.targetWidth
+             - plate.contentLeftInset - plate.contentRightInset - Style.space(12) * 2)
       spacing: thumb.compact ? Style.space(8) : Style.space(12)
 
       // The sender's image, else the icon resolved for its source, else the
@@ -399,9 +425,9 @@ Item {
             id: title
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(1, parent.width - rightSide.width
-                   - (titleMarks.visible ? titleMarks.width + Style.space(7) : 0)
-                   - Style.space(8))
+            width: Math.max(1, parent.width
+                   - (card.rightSideReserved ? rightSide.width + Style.space(8) : 0)
+                   - (titleMarks.visible ? titleMarks.width + Style.space(7) : 0))
             text: card.redacted ? I18n.t("notifications.redactedSummary") : String(card.row.summary || "")
             color: Commons.Color.notifications.text
             font.family: "Liberation Sans"
@@ -410,6 +436,18 @@ Item {
             wrapMode: Text.Wrap
             maximumLineCount: card.bodyOpen ? 8 : 3
             elide: Text.ElideRight
+          }
+
+          // Unwrapped measure of the headline so a single-line card can size
+          // itself to its words without feeding back into title.width. Text
+          // (not TextMetrics) shapes fallback glyphs like Nerd Font arrows at
+          // their real advance.
+          Text {
+            id: titleProbe
+            visible: false
+            textFormat: Text.PlainText
+            text: title.text
+            font: title.font
           }
 
           Row {
@@ -454,7 +492,7 @@ Item {
                 textFormat: Text.PlainText
                 id: stamp
                 anchors.centerIn: parent
-                text: card.ago()
+                text: card.ageText
                 color: card.dimColor
                 opacity: card.hovered ? 0 : 1
                 visible: opacity > 0.01

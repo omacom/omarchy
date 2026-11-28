@@ -156,19 +156,28 @@ Item {
   Process {
     id: updateProcess
     running: false
-    onExited: {
-      root.rescanAgents()
-      root.reloadRecords()
-      if (root.pendingUpdateKind !== "") {
-        var kind = root.pendingUpdateKind
-        root.pendingUpdateKind = ""
-        root.runUpdate(kind)
-      }
-    }
+    onExited: root.finishUpdate()
 
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: if (text.trim() !== "") console.warn("agents", text.trim())
+    }
+  }
+
+  function finishUpdate() {
+    rescanAgents()
+    reloadRecords()
+    // An update whose records only bumped updatedAt won't emit recordChanged;
+    // still pull remote sync snapshots and re-arm any advised limits retry once
+    // the reloaded files land, without bumping dataRevision.
+    Qt.callLater(function() {
+      scheduleLimitsRetry()
+      scheduleSync()
+    })
+    if (pendingUpdateKind !== "") {
+      var kind = pendingUpdateKind
+      pendingUpdateKind = ""
+      runUpdate(kind)
     }
   }
 

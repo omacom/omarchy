@@ -1,12 +1,12 @@
-# තේමාවන්
+# තේමා
 
-Omarchy ලස්සන තේමාවන් විසිතුනක් සමඟ පැමිණේ. Omarchy මෙනුව (`Super + Space`) තුළ _පෙනුම > තේමාව_ හරහා ඔබට ඒවා අතරින් තෝරාගත හැකිය, නැතහොත් `Super + Ctrl + T` භාවිතයෙන් කෙලින්ම තේමා තෝරන්නා වෙත යා හැකිය.
+Omarchy සමඟ අලංකාර තේමා විසිතුනක් ලැබේ. Omarchy Menu එකෙහි _පෙනුම > තේමාව_ හරහා ඔබට ඒවා අතරින් තෝරා ගත හැකිය (`Super + Space`), නැතහොත් `Super + Ctrl + T` භාවිතයෙන් සෘජුවම තේමා තේරීම වෙත යා හැකිය.
 
-සෑම තේමාවක්ම desktop එක, terminal එක, neovim, ක්‍රියාකාරකම් තිරය (btop), ඔබේ බ්‍රවුසරය (Chrome, Chromium, Edge හෝ Brave), සහ සම්පූර්ණ Omarchy shell එකම: ඉහළ තීරුව, මෙනුව, දැනුම්දීම්, OSD, සහ අගුළු තිරය හැඩගන්වයි. (Obsidian සඳහා, යෙදුම තුළ _පෙනුම > තේමාවන්_ හරහා Omarchy තේමාව ඔබම අතින් තෝරාගත යුතුය).
+සෑම තේමාවක්ම desktop එක, terminal එක, neovim, ක්‍රියාකාරකම් තිරය (btop), ඔබේ browser එක (Chrome, Chromium, Edge හෝ Brave), සහ සම්පූර්ණ Omarchy shell එකම හැඩගන්වයි: ඉහළ තීරුව, menu එක, දැනුම්දීම්, OSD එක, සහ අගුළු තිරය. (Obsidian සඳහා, app එක තුළ _පෙනුම > තේමා_ හරහා ඔබ විසින්ම Omarchy තේමාව තෝරා ගත යුතුය).
 
-තේමාවන් සතුව පසුබිම් රූප කට්ටලයක් ඇති අතර, `Super + Ctrl + W` භාවිතයෙන් ඔබට ඒවා අතරින් තෝරාගත හැකිය.
+තේමාවලට පසුබිම් රූප කට්ටලයක් ඇති අතර, `Super + Ctrl + W` භාවිතයෙන් ඔබට ඒවා අතරින් තෝරා ගත හැකිය.
 
-ඔබට තවත් තේමාවන් [අමතර තේමාවන් පිටුවේ](https://omarchy.org/themes/) සොයාගත හැකිය, නැතහොත් [ඔබේම තේමාවක් සාදාගැනීමට](43-making-your-own-theme.md) ද හැකිය.
+ඔබට තවත් තේමා [අමතර තේමා පිටුවේ](https://omarchy.org/themes/) සොයා ගත හැකිය, නැතහොත් [ඔබේම තේමාවක් සාදා ගත](43-making-your-own-theme.md) හැකිය.
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -79,82 +79,16 @@ _Starship_
 
 ### යෙදුම් අයිකන
 
-යෙදුම් දියත් කරන්නා සහ dock එක තුළ ඇති අයිකන ඔබේ තේමාවේ වර්ණවලින් ඇඳ ඇති බැවින්, ඒවා තේමාව සමඟම වෙනස් වේ. ඒවා අයිකන කට්ටලයකින් ලැබෙන අතර, ඔබ තේමාවක් තෝරන ආකාරයටම, එක් එක් කට්ටලයේ පෙරදසුන් වලින්, තේමාවෙන් වෙනම _පෙනුම > අයිකන_ යටතේ ඔබ එය තෝරයි:
+යෙදුම් දියත්කරණයේ සහ dock එකේ අයිකන ඔබේ තේමාවේ වර්ණවලින් ඇඳ ඇති බැවින්, තේමාව සමඟ ඒවාද වෙනස් වේ. ඒවා පැමිණෙන්නේ අයිකන කට්ටලයකින් වන අතර, තේමාවක් තෝරන ආකාරයටම එක් එක් කට්ටලයේ පෙරදසුන්වලින්, _පෙනුම > අයිකන_ යටතේ තේමාවෙන් වෙනම ඔබට එය තෝරා ගත හැකිය:
 
-- _Papercraft_ යනු පෙරනිමියයි: ස්ථාපනය වී පැමිණෙන සියල්ල, එකම විලාසයකින් ඇඳ ඇත. Chrome, HEY, හෝ YouTube වැනි, ඒවායේ ලාංඡනයෙන් හඳුනාගන්නා යෙදුම්, ඒවායේ හැඩය රඳවා ගෙන තේමාවේ වර්ණ ලබා ගනී.
-- _Arcade_ එම යෙදුම්ම පැරණි ක්‍රීඩා කොන්සෝලයක් මෙන් 8-bit පික්සල් කලාවක් ලෙස අඳියි.
-- _Original_ සෑම යෙදුමක්ම එහි නිෂ්පාදකයා එයට දුන් අයිකනය සමඟ පෙන්වයි.
+- _Papercraft_ යනු පෙරනිමියයි: ස්ථාපනය වී ලැබෙන සියල්ල එකම විලාසයකින් ඇඳ ඇත. Chrome, HEY, හෝ YouTube වැනි ඒවායේ ලාංඡනයෙන් හඳුනාගන්නා යෙදුම්, එහි හැඩය රඳවා ගෙන තේමාවේ වර්ණ ලබා ගනියි.
+- _Arcade_ එම යෙදුම්ම පැරණි game console එකක් මෙන් 8-bit pixel art ලෙස අඳියි.
+- _Original_ සෑම යෙදුමක්ම එහි නිර්මාතෘ විසින් ලබා දුන් අයිකනය සමඟ පෙන්වයි.
 
-ඔබට වෙනත් කෙනෙකු විසින් සාදන ලද අයිකන කට්ටලයක් _ස්ථාපනය > විලාසය > අයිකන_ සමඟ (හෝ `omarchy icons install <git url>` සමඟ) ස්ථාපනය කළ හැකිය, සහ _ඉවත් කරන්න > අයිකන_ යටතේ එය නැවත ඉවත් කළ හැකිය. _යාවත්කාලීනය > අමතර අයිකන_ ඔබ ස්ථාපනය කර ඇති කට්ටලවල නවතම අනුවාදය ලබා ගනී.
+ඔබට වෙනත් අයෙකු විසින් සාදන ලද අයිකන කට්ටලයක් _ස්ථාපනය > විලාසය > අයිකන_ සමඟ (හෝ `omarchy icons install <git url>`) ස්ථාපනය කළ හැකිය, සහ _ඉවත් කිරීම > අයිකන_ යටතේ එය නැවත ඉවත් කළ හැකිය. _යාවත්කාලීන කිරීම > අමතර අයිකන_ ඔබ ස්ථාපනය කර ඇති කට්ටලවල නවතම අනුවාදය ලබා ගනියි.
 
-ඔබේම එකක් සෑදීමට, ඔබේ අයිකන `~/.config/omarchy/icons/<name>/` තුළ, යෙදුමකට එක ගොනුව බැගින්, යෙදුමේ `.desktop` ගොනුවේ `Icon=` පේළිය අනුව නම් කර තබන්න. `.svg` වලින් අවසන් වන ගොනුවක් එය තිබෙන ආකාරයටම පෙන්වනු ලැබේ. `.svg.tpl` වලින් අවසන් වන ගොනුවක් තේමාවේ වර්ණවලින් ඇඳනු ලැබේ: වර්ණයක් යන තැන `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` හෝ `{{ icon_shadow }}` ලියන්න. `/usr/share/omarchy/icons/papercraft/` තුළ ඇති පෙරනිමි කට්ටලය ආරම්භ කිරීමට හොඳ තැනකි. ඔබේ කට්ටලය තෝරන්නා තුළ පෙන්වීමට `preview.png` එකක් එක් කරන්න; එකක් නැතිනම්, Omarchy ඔබේ අයිකන වලින් පෙරදසුනක් අඳියි. පෙරනිමි කට්ටලයේ තනි අයිකනයක් වෙනස් කිරීමට, ඔබේ අනුවාදය `~/.config/omarchy/icons/papercraft/` තුළ තබන්න.
+ඔබේම එකක් සාදා ගැනීමට, ඔබේ අයිකන `~/.config/omarchy/icons/<name>/` තුළ තබන්න, යෙදුමකට එක් ගොනුවක් බැගින්, යෙදුමේ `.desktop` ගොනුවේ `Icon=` පේළිය අනුව නම් කරමින්. `.svg` වලින් අවසන් වන ගොනුවක් එය ඇති ආකාරයටම පෙන්වනු ලැබේ. `.svg.tpl` වලින් අවසන් වන ගොනුවක් තේමාවේ වර්ණවලින් ඇඳනු ලැබේ: වර්ණයක් යන තැන `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` හෝ `{{ icon_shadow }}` ලියන්න. `/usr/share/omarchy/icons/papercraft/` තුළ ඇති පෙරනිමි කට්ටලය ආරම්භ කිරීමට හොඳ තැනකි. තේරීමේ ඔබේ කට්ටලය පෙන්වීමට `preview.png` එකක් එක් කරන්න; එය නැතිනම්, Omarchy ඔබේ අයිකනවලින් පෙරදසුනක් අඳියි. පෙරනිමි කට්ටලයේ එක් අයිකනයක් වෙනස් කිරීමට, ඔබේ අනුවාදය `~/.config/omarchy/icons/papercraft/` තුළ තබන්න.
 
-### අගුළු ඇරීම්
+### ආරම්භ වීම සහ පිවිසීම
 
-තේමාවන්ට පද්ධතිය ආරම්භ කිරීමේදී කරන විකේතන ක්‍රියාවලිය සඳහා භාවිතා කරන අභිරුචි අගුළු ඇරීමේ සැලසුමක් ද තිබිය හැකිය. ඔබට ඒවායින් එකක් _පෙනුම > අගුළු ඇරීම_ යටතේ තෝරාගත හැකිය. ඒවා මේ වගේ පෙනේ:
-
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
-
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
-
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
-
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
-
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
-
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
-
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
-
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
-
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![last-horizon](../themes/last-horizon/preview-unlock.png)
-_Last Horizon_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![lupine](../themes/lupine/preview-unlock.png)
-_Lupine_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![solitude](../themes/solitude/preview-unlock.png)
-_Solitude_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+පරිගණකය ආරම්භ වන විට ඔබේ drive මුරපදය අසන තිරය සහ පිවිසුම් තිරයද තේමාව අනුගමනය කරයි. ඔබ තේමා මාරු කරන සෑම විටම, ඒවා එහි පසුබිම, පෙළ, accent, සහ රතු වර්ණ ලබා ගනියි, එබැවින් තෝරා ගැනීමට වෙනම unlock නිර්මාණයක් නැත. Apple Silicon Macs වල, තේමාව කුමක් වුවත් drive මුරපද තිරය Omarchy හි පෙරනිමි පෙනුම රඳවා ගනියි.

@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# omarchy:summary=Automount removable drives and prompt to unlock encrypted ones
+# omarchy:hidden=true
+
+# Lightweight UDisks2 event watcher replacing udiskie (~23 MiB Python) with
+# gdbus monitor + bash (~1.8 MiB). Mounts removable filesystems with
+# HintAuto=true and HintIgnore=false (following CryptoBackingDevice for
+# unlocked LUKS cleartext devices), and delegates locked LUKS partitions to
+# omarchy-drive-unlock.
+
+set -uo pipefail
+
+decode_udisks_name() {
+  local raw=$1 out="" hex=""
+
+  while [[ $raw =~ ^([^_]*)_([0-9a-fA-F]{2})(.*)$ ]]; do
+    out+=${BASH_REMATCH[1]}
+    printf -v hex "\\x${BASH_REMATCH[2]}"
+    out+=$hex
+    raw=${BASH_REMATCH[3]}
+  done
+  printf '%s%s\n' "$out" "$raw"
+}
+
+handle_block_device() {
+  local path=$1 name dev hint_path backing mount_points cleartext
+  local -a props
+
+  name=$(decode_udisks_name "${path##*/}")
+  dev="/dev/$name"
+  [[ -b $dev ]] || return 0
+
+  # Unlocked LUKS cleartext devices (/dev/dm-*) have no direct Drive and report
+  # HintAuto=false; inherit automount hints from their encrypted backing device.
+  hint_path=$path
+  backing=$(
+    busctl get-property org.freedesktop.UDisks2 "$path" \
+      org.freedesktop.UDisks2.Block CryptoBackingDevice 2>/dev/null
+  )
+  if [[ $backing =~ ^o\ \"(/.+)\"$ ]]; then
+    hint_path=${BASH_REMATCH[1]}
+  fi
+
+  mapfile -t props < <(
+    busctl get-property org.freedesktop.UDisks2 "$hint_path" \
+      org.freedesktop.UDisks2.Block HintAuto HintIgnore 2>/dev/null
+  )
+  [[ ${props[0]:-} == "b true" && ${props[1]:-} == "b false" ]] || return 0
+
+  if mount_points=$(
+    busctl get-property org.freedesktop.UDisks2 "$path" \
+      org.freedesktop.UDisks2.Filesystem MountPoints 2>/dev/null
+  ); then
+    if [[ $mount_points == "aay 0" ]]; then
+      udisksctl mount --no-user-interaction -b "$dev" >/dev/null 2>&1 &
+    fi
+    return 0
+  fi
+
+  if cleartext=$(
+    busctl get-property org.freedesktop.UDisks2 "$path" \
+      org.freedesktop.UDisks2.Encrypted CleartextDevice 2>/dev/null
+  ); then
+    if [[ $cleartext == 'o "/"' ]]; then
+      omarchy-drive-unlock "$dev" >/dev/null 2>&1 &
+    fi
+  fi
+}
+
+scan_existing() {
+  local path
+
+  while IFS= read -r path; do
+    [[ $path == /org/freedesktop/UDisks2/block_devices/* ]] || continue
+    handle_block_device "$path"
+  done < <(busctl tree --list org.freedesktop.UDisks2 2>/dev/null)
+}
+
+# Subscribe before scanning so drives plugged in during startup are never missed.
+coproc MONITOR {
+  setpriv --pdeathsig TERM gdbus monitor --system \
+    --dest org.freedesktop.UDisks2 --object-path /org/freedesktop/UDisks2 2>/dev/null
+}
+
+# Wait for gdbus monitor's initial "Monitoring signals..." line so the D-Bus
+# subscription is active before enumerating existing devices.
+IFS= read -r _ <&"${MONITOR[0]}" || exit 0
+
+scan_existing
+
+while IFS= read -r line <&"${MONITOR[0]}"; do
+  if [[ $line =~ InterfacesAdded\ \(objectpath\ \'(/org/freedesktop/UDisks2/block_devices/[^\']+)\' ]]; then
+    handle_block_device "${BASH_REMATCH[1]}"
+  fi
+done

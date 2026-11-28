@@ -345,3 +345,34 @@ browser_policy_firefox_disable_app_update "$fx_merge"
 [[ $(jq -c . "$fx_merge/policies.json") == '{"policies":{"DisableAppUpdate":true}}' ]] ||
   fail "Firefox's updater is turned off in a file with no policies yet" "$(cat "$fx_merge/policies.json")"
 pass "Firefox's updater is turned off in existing policies"
+
+low_mem_dir=$test_tmp/low-mem-policy
+low_mem_info=$test_tmp/meminfo
+fake_image_root=$test_tmp/image-root
+mkdir -p "$low_mem_dir" "$fake_image_root/var/lib/omarchy/image"
+as_root() { unprivileged_as_root "$@"; }
+
+printf 'MemTotal:        8000000 kB\n' >"$low_mem_info"
+OMARCHY_MEMINFO="$low_mem_info" browser_policy_install_defaults "$low_mem_dir"
+[[ -f $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "8 GiB machines install the low-memory browser policy"
+pass "8 GiB machines install the low-memory browser policy"
+
+printf 'MemTotal:       12000000 kB\n' >"$low_mem_info"
+OMARCHY_MEMINFO="$low_mem_info" browser_policy_install_defaults "$low_mem_dir"
+[[ ! -e $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "12 GiB and larger machines omit and clean up the low-memory browser policy"
+pass "12 GiB and larger machines omit the low-memory browser policy"
+
+printf 'MemTotal:        8000000 kB\n' >"$low_mem_info"
+: >"$fake_image_root/var/lib/omarchy/image/target"
+OMARCHY_MEMINFO="$low_mem_info" OMARCHY_IMAGE_ROOT="$fake_image_root" browser_policy_install_defaults "$low_mem_dir"
+[[ ! -e $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "image builds do not bake the build host's RAM into browser policies"
+pass "image builds defer low-memory browser policy to target first boot"
+
+printf 'corrupt\n' >"$low_mem_info"
+OMARCHY_MEMINFO="$low_mem_info" browser_policy_install_defaults "$low_mem_dir"
+[[ ! -e $low_mem_dir/omarchy-low-memory.json ]] ||
+  fail "unreadable MemTotal does not install the low-memory browser policy"
+pass "unreadable MemTotal skips the low-memory browser policy"

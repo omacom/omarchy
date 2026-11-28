@@ -1,12 +1,12 @@
 # থিম
 
-Omarchy-র সঙ্গে আছে তেইশটি সুন্দর থিম। Omarchy Menu (`Super + Space`) থেকে _Appearance > Theme_ এর মাধ্যমে এগুলোর মধ্যে থেকে বেছে নিতে পারেন, অথবা `Super + Ctrl + T` ব্যবহার করে সরাসরি থিম সিলেক্টরে চলে যেতে পারেন।
+Omarchy তেইশটি সুন্দর থিম নিয়ে আসে। আপনি Omarchy Menu-তে (`Super + Space`) _Appearance > Theme_ দিয়ে এগুলোর মধ্যে থেকে বেছে নিতে পারেন, অথবা `Super + Ctrl + T` ব্যবহার করে সরাসরি থিম নির্বাচকে চলে যেতে পারেন।
 
-প্রতিটি থিম ডেস্কটপ, টার্মিনাল, neovim, অ্যাক্টিভিটি স্ক্রিন (btop), আপনার ব্রাউজার (Chrome, Chromium, Edge বা Brave) এবং পুরো Omarchy শেলের স্টাইল নির্ধারণ করে: টপ বার, মেনু, নোটিফিকেশন, OSD এবং লক স্ক্রিন। (Obsidian-এর জন্য, অ্যাপের ভিতরে _Appearance > Themes_ এর মাধ্যমে আপনাকে ম্যানুয়ালি Omarchy থিমটি নির্বাচন করতে হবে)।
+প্রতিটি থিম ডেস্কটপ, টার্মিনাল, neovim, অ্যাক্টিভিটি স্ক্রিন (btop), আপনার ব্রাউজার (Chrome, Chromium, Edge বা Brave) এবং পুরো Omarchy শেলকে স্টাইল করে: টপ বার, মেনু, বিজ্ঞপ্তি, OSD এবং লক স্ক্রিন। (Obsidian-এর জন্য, অ্যাপের ভিতরে _Appearance > Themes_ দিয়ে আপনাকে নিজে হাতে Omarchy থিমটি নির্বাচন করতে হবে)।
 
-থিমগুলোর সঙ্গে ব্যাকগ্রাউন্ড ছবির একটি সেট থাকে, যেগুলোর মধ্যে থেকে `Super + Ctrl + W` ব্যবহার করে বেছে নিতে পারেন।
+থিমগুলোর সঙ্গে একগুচ্ছ ব্যাকগ্রাউন্ড ছবি থাকে, যেগুলোর মধ্যে থেকে আপনি `Super + Ctrl + W` ব্যবহার করে বেছে নিতে পারেন।
 
-আরও থিম পাবেন [অতিরিক্ত থিমের পেজে](https://omarchy.org/themes/) অথবা এমনকি [নিজের থিমও তৈরি করতে পারেন](43-making-your-own-theme.md)।
+আপনি [অতিরিক্ত থিমের পৃষ্ঠায়](https://omarchy.org/themes/) আরও বেশি থিম খুঁজে পেতে পারেন, এমনকি [নিজের থিমও তৈরি করতে পারেন](43-making-your-own-theme.md)।
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -79,82 +79,16 @@ _Starship_
 
 ### অ্যাপ আইকন
 
-অ্যাপ লঞ্চার এবং ডকে থাকা আইকনগুলো আপনার থিমের রঙে আঁকা হয়, তাই থিম বদলালে এগুলোও বদলে যায়। এগুলো আসে একটি আইকন সেট থেকে, যেটি আপনি থিমের থেকে আলাদাভাবে _Appearance > Icons_ এর অধীনে বেছে নেন, প্রতিটি সেটের প্রিভিউ থেকে, ঠিক যেভাবে আপনি একটি থিম বেছে নেন:
+অ্যাপ লঞ্চার ও ডকের আইকনগুলো আপনার থিমের রঙে আঁকা হয়, তাই থিমের সঙ্গে সঙ্গে সেগুলোও বদলে যায়। এগুলো আসে একটি আইকন সেট থেকে, যেটি আপনি থিম থেকে আলাদাভাবে _Appearance > Icons_-এর অধীনে বেছে নেন, প্রতিটি সেটের প্রিভিউ থেকে, ঠিক যেভাবে আপনি একটি থিম বেছে নেন:
 
-- _Papercraft_ হলো ডিফল্ট: ইনস্টল করা সবকিছুই একই স্টাইলে আঁকা। Chrome, HEY বা YouTube-এর মতো যেসব অ্যাপ তাদের লোগো দিয়ে পরিচিত, সেগুলো তাদের আকৃতি বজায় রাখে এবং থিমের রঙ ধারণ করে।
-- _Arcade_ একই অ্যাপগুলোকে 8-bit pixel art হিসেবে আঁকে, যেমনটা একটি পুরোনো গেম কনসোল করত।
+- _Papercraft_ হলো ডিফল্ট: ইনস্টল করা সবকিছু, একই স্টাইলে আঁকা। Chrome, HEY বা YouTube-এর মতো লোগো দিয়ে পরিচিত অ্যাপগুলো তাদের আকৃতি ধরে রাখে এবং থিমের রঙ ধারণ করে।
+- _Arcade_ একই অ্যাপগুলোকে 8-bit পিক্সেল আর্ট হিসেবে আঁকে, পুরোনো গেম কনসোল যেমন আঁকত।
 - _Original_ প্রতিটি অ্যাপকে তার নির্মাতার দেওয়া আইকন দিয়েই দেখায়।
 
-অন্য কারও তৈরি করা একটি আইকন সেট আপনি _Install > Style > Icons_ দিয়ে (অথবা `omarchy icons install <git url>`) ইনস্টল করতে পারেন, এবং _Remove > Icons_ এর অধীনে আবার সরিয়েও ফেলতে পারেন। _Update > Extra Icons_ আপনার ইনস্টল করা সেটগুলোর সর্বশেষ সংস্করণ নিয়ে আসে।
+আপনি অন্য কারও তৈরি করা একটি আইকন সেট _Install > Style > Icons_ দিয়ে (অথবা `omarchy icons install <git url>`) ইনস্টল করতে পারেন, এবং _Remove > Icons_-এর অধীনে সেটি আবার সরিয়েও ফেলতে পারেন। _Update > Extra Icons_ আপনার ইনস্টল করা সেটগুলোর সর্বশেষ সংস্করণ নিয়ে আসে।
 
-নিজেরটি তৈরি করতে, আপনার আইকনগুলো `~/.config/omarchy/icons/<name>/` এ রাখুন, প্রতিটি অ্যাপের জন্য একটি করে ফাইল, অ্যাপের `.desktop` ফাইলের `Icon=` লাইন অনুযায়ী নাম দিয়ে। `.svg` দিয়ে শেষ হওয়া একটি ফাইল যেমন আছে তেমনই দেখানো হয়। `.svg.tpl` দিয়ে শেষ হওয়া একটি ফাইল থিমের রঙে আঁকা হয়: যেখানে রঙ বসবে সেখানে লিখুন `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` অথবা `{{ icon_shadow }}`। `/usr/share/omarchy/icons/papercraft/` এ থাকা ডিফল্ট সেটটি শুরু করার জন্য একটি ভালো জায়গা। পিকারে আপনার সেট দেখাতে একটি `preview.png` যোগ করুন; সেটি না থাকলে, Omarchy আপনার আইকনগুলো থেকে একটি প্রিভিউ আঁকে। ডিফল্ট সেটের একটিমাত্র আইকন বদলাতে, আপনার সংস্করণটি `~/.config/omarchy/icons/papercraft/` এ রাখুন।
+নিজেরটি তৈরি করতে, আপনার আইকনগুলো `~/.config/omarchy/icons/<name>/`-এ রাখুন, প্রতিটি অ্যাপের জন্য একটি করে ফাইল, অ্যাপের `.desktop` ফাইলের `Icon=` লাইনের নাম অনুসারে নামকরণ করে। `.svg` দিয়ে শেষ হওয়া একটি ফাইল যেমন আছে তেমনই দেখানো হয়। `.svg.tpl` দিয়ে শেষ হওয়া একটি ফাইল থিমের রঙে আঁকা হয়: যেখানে রঙ বসবে সেখানে `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` অথবা `{{ icon_shadow }}` লিখুন। শুরু করার জন্য `/usr/share/omarchy/icons/papercraft/`-এ থাকা ডিফল্ট সেটটি একটি ভালো জায়গা। আপনার সেটটি পিকারে দেখাতে একটি `preview.png` যোগ করুন; সেটি না থাকলে, Omarchy আপনার আইকনগুলো থেকে একটি প্রিভিউ এঁকে নেয়। ডিফল্ট সেটের একটি মাত্র আইকন বদলাতে, আপনার সংস্করণটি `~/.config/omarchy/icons/papercraft/`-এ রাখুন।
 
-### আনলক
+### বুট ও লগইন
 
-থিমগুলোর একটি কাস্টম আনলক ডিজাইনও থাকতে পারে, যা বুট ডিক্রিপশন প্রক্রিয়ার জন্য ব্যবহৃত হয়। এগুলোর মধ্যে থেকে একটি আপনি _Appearance > Unlock_ এর অধীনে নির্বাচন করতে পারেন। এগুলো দেখতে এমন:
-
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
-
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
-
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
-
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
-
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
-
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
-
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
-
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
-
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![last-horizon](../themes/last-horizon/preview-unlock.png)
-_Last Horizon_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![lupine](../themes/lupine/preview-unlock.png)
-_Lupine_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![solitude](../themes/solitude/preview-unlock.png)
-_Solitude_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+কম্পিউটার চালু হওয়ার সময় যে স্ক্রিনটি আপনার ড্রাইভের পাসওয়ার্ড চায়, এবং লগইন স্ক্রিন, সেগুলোও থিম অনুসরণ করে। প্রতিবার আপনি থিম বদলালে, সেগুলো তার ব্যাকগ্রাউন্ড, টেক্সট, অ্যাকসেন্ট এবং লাল রঙগুলো গ্রহণ করে, তাই বেছে নেওয়ার জন্য আলাদা কোনো আনলক ডিজাইন নেই। Apple Silicon Mac-গুলোতে, ড্রাইভ পাসওয়ার্ড স্ক্রিনটি থিম যাই হোক না কেন Omarchy-র ডিফল্ট চেহারাই ধরে রাখে।

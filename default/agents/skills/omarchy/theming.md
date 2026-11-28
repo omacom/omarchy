@@ -72,11 +72,11 @@ omarchy icons set <name>
 omarchy icons install <git-repo-url>
 ```
 
-## Boot Screen and Branding
+## Branding
+
+The boot splash, its disk-unlock prompt and the login screen follow the theme's colors on their own. On Apple Silicon the disk-unlock prompt keeps Omarchy's default look, and nothing themes it.
 
 ```bash
-omarchy plymouth set by theme <theme>     # Style the boot and disk-unlock screen from a theme
-omarchy plymouth reset                    # Back to Omarchy's own
 omarchy branding about <image|text|reset> # The logo shown by About (omarchy launch about)
 omarchy branding screensaver <image|text|reset>
 ```

@@ -832,7 +832,7 @@ Panel {
             Column {
               id: heroLabels
               anchors.left: heroIcon.right
-              anchors.leftMargin: Style.space(14)
+              anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
               anchors.right: parent.right
               anchors.rightMargin: powerSwitch.width + Style.space(12)
               anchors.verticalCenter: parent.verticalCenter
@@ -1027,9 +1027,12 @@ Panel {
                   onRightClicked: root.toggleInputMute()
                 }
 
+                // Inset like the slider's track, so the meter starts and
+                // ends where the track does rather than under the knob's overhang.
                 Rectangle {
                   visible: root.inputLevelShown
-                  width: parent.width
+                  x: inputSlider.knobSize / 2
+                  width: parent.width - inputSlider.knobSize
                   height: Math.max(Style.space(5), Style.spacing.xs)
                   color: Util.alpha(root.bar.foreground, 0.18)
                   opacity: root.inputMuted ? 0.35 : 1.0

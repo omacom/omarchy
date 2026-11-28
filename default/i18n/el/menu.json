@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "Αιωρούμενα"
-  },
-  "appearance.unlock": {
-    "label": "Ξεκλείδωμα"
   },
   "trigger.toggle": {
     "label": "Εναλλαγή"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1043,10 +1025,12 @@
     "label": "Κατοπτρισμός οθόνης ανενεργός"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Μετάβαση σε υβριδική GPU"
+    "label": "Αλλαγή σε dGPU",
+    "description": "Ενεργοποίηση υβριδικής αποκλειστικής GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Μετάβαση σε ενσωματωμένη GPU"
+    "label": "Αλλαγή σε iGPU",
+    "description": "Χρήση μόνο ενσωματωμένης GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Ενεργοποίηση επιφάνειας αφής"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Αποκατάσταση αυτού του στιγμιότυπου"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Σύνδεση χωρίς κωδικό"
   }
 }

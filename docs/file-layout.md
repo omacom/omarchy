@@ -15,7 +15,7 @@ separate `omarchy-pkgs` repository, under `pkgbuilds/`):
   the omarchy package installs (specifically before `useradd -m` and the
   limine bootloader install): all `/etc/skel/**`, `/etc/` drop-ins,
   package-owned system files under `/usr/share` and `/usr/lib`, fonts,
-  plymouth theme, sddm theme, branding, plus the limine/snapper configs
+  plymouth theme, boot splash hook, branding, plus the limine/snapper configs
   (mkinitcpio hooks, limine-entry-tool drop-ins, snapper template, the
   `default/limine/` and `default/snapper/` trees, and the boot/snapshot
   story end-to-end). Also ships the three debug binaries
@@ -107,6 +107,7 @@ applications/icons/*           ──►  omarchy-settings    /usr/share/icons/h
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
   ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
+  ├─ initcpio/{install,hooks}/omarchy-splash             (the boot splash; mkinitcpio reads /etc/initcpio)
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
@@ -119,7 +120,8 @@ default/limine/limine.conf     ──►  omarchy-settings    /usr/share/omarchy
 default/limine/default.conf    ──►  omarchy-settings    /usr/share/omarchy/default/limine/default.conf
                                                         (template; ISO substitutes @@CMDLINE@@ → /etc/default/limine)
 default/initcpio/{hooks,install}/omarchy-{snapshot-overlay,restore}
-                               ──►  omarchy-settings    /usr/lib/initcpio/{hooks,install}/
+                               ──►  omarchy-settings    /etc/initcpio/{hooks,install}/
+                                                        (kept out of /usr/lib/initcpio so unchanged settings upgrades skip 90-mkinitcpio-install.hook; rebuilt on content change by 91-omarchy-initcpio-rebuild.hook)
 default/systemd/system/omarchy-boot-{sync,confirm}.service
                                ──►  omarchy-settings    /usr/lib/systemd/system/
 default/boot/**                ──►  omarchy-settings    /usr/share/omarchy/default/boot/
@@ -150,12 +152,14 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
   ├─ systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf  /usr/lib/systemd/user/wireplumber.service.d/
   ├─ systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf      /usr/lib/systemd/user/wireplumber.service.d/
+  ├─ systemd/system-sleep/omarchy-sleep-stats           /usr/lib/systemd/system-sleep/
   ├─ systemd/system-sleep/unmount-fuse                  /usr/lib/systemd/system-sleep/
   ├─ systemd/zram-generator.conf.d/90-omarchy.conf      /usr/lib/systemd/zram-generator.conf.d/
   ├─ systemd/timesyncd.conf.d/10-omarchy.conf          /usr/lib/systemd/timesyncd.conf.d/
   ├─ fonts/omarchy/omarchy.ttf                          /usr/share/fonts/omarchy/
-  ├─ sddm/omarchy/                                      /usr/share/sddm/themes/omarchy/
-  ├─ sddm/hyprland.lua                                  /usr/share/sddm/hyprland.lua
+  ├─ splash/                                            /usr/share/omarchy/default/splash/
+  │                                                       (boot splash, built into the initramfs by
+  │                                                        etc/initcpio/; and the greetd login screen)
   ├─ wayland-sessions/omarchy.desktop                   /usr/local/share/wayland-sessions/
   └─ plymouth/                                          /usr/share/plymouth/themes/omarchy/
 
@@ -199,7 +203,7 @@ No environment variable moves the file: these commands also run under `sudo` and
 
 `omarchy-hw-fingerprint` finds USB readers by their product string or vendor. A reader the kernel drives some other way (a Mac's Touch ID sensor, behind its Secure Enclave) is named by the platform package in `/usr/share/omarchy-platform/fingerprint-readers`; Omarchy ships none. Each line is an absolute path, a shell glob, then the value that file reads once the reader is usable; the reader is present when any file the glob matches reads that value. The value must be the file's whole content, not part of it (Touch ID reads `not-ready` before it reads `ready`). Three details decide a match: the file's trailing newlines are dropped before comparing (sysfs ends every value with one), fields are split on whitespace (so neither the glob nor the value can contain a space), and the file is read as the user running the check, the session user, so it must be readable by that user and not only by root. Blank lines, whole-line `#` comments, relative paths and lines with a missing or extra word are ignored. A platform file never hides a USB reader: when no platform-named file matches, the USB scan still runs. On Apple Silicon, omarchy-mac names `/run/omarchy-mac/touchid` twice, with `ready` and with `available`. Its own units write that file (`0644`): `available` at boot on a Mac that can set up Touch ID but whose owner hasn't turned it on, since nothing loads the Secure Enclave driver before the owner agrees, and `ready` once the driver's attributes say Touch ID can enrol and match; anything else is a reason, which no line names. A reader that is only `available` is turned on by setup's `enable-fingerprint` hook ([lifecycle-dispatch.md](lifecycle-dispatch.md)), which asks the owner first. The file follows the kernel's names for the Secure Enclave driver (`apple_sep`) and its `diag` attributes, read by omarchy-mac, so a kernel rename is that package's to follow.
 
-The rest of the fingerprint path is the same for every reader: the setup's first-run invitation follows `omarchy-hw-fingerprint`, so it reaches a machine once its platform's reader is usable or can be turned on, and `omarchy-setup-security-fingerprint` installs `libfprint-git`, runs the platform's `enable-fingerprint` hook (a no-op where there is none) and enrolls. Removal (`omarchy-remove-security-fingerprint`) authenticates `sudo` in view, then deletes the user's prints through `fprintd-delete` while fprintd still runs, since a match-on-chip reader (a Mac's Touch ID among them) keeps them in the device too; a delete that fails, or finds no reader, is reported and doesn't stop the removal. It runs `disable-fingerprint` before the packages go. Setup can only enroll a platform's reader once that package carries its driver; for a Mac's Touch ID that is the aarch64 build from omacom/omarchy-pkgs#806. `test/shell.d/hw-fingerprint-test.sh` runs a copy rewritten to read a fixture in place of the file.
+The rest of the fingerprint path is the same for every reader: the setup's first-run invitation follows `omarchy-hw-fingerprint`, so it reaches a machine once its platform's reader is usable or can be turned on, and `omarchy-setup-security-fingerprint` installs `libfprint-git`, runs the platform's `enable-fingerprint` hook (a no-op where there is none) and enrolls. On the desktop that command summons the fingerprint panel, which does the same through `omarchy-setup-security-fingerprint-enroll` and leaves the hook, which asks on a terminal, to `omarchy-setup-security-fingerprint --terminal`. Removal (`omarchy-remove-security-fingerprint`) authenticates `sudo` in view, then deletes the user's prints through `fprintd-delete` while fprintd still runs, since a match-on-chip reader (a Mac's Touch ID among them) keeps them in the device too; a delete that fails, or finds no reader, is reported and doesn't stop the removal. It runs `disable-fingerprint` before the packages go. Setup can only enroll a platform's reader once that package carries its driver; for a Mac's Touch ID that is the aarch64 build from omacom/omarchy-pkgs#806. `test/shell.d/hw-fingerprint-test.sh` runs a copy rewritten to read a fixture in place of the file.
 
 #### Audio hints (`audio.json`)
 
@@ -248,7 +252,7 @@ Single source of truth for `OMARCHY_PATH` and dev-link-aware `PATH`. It:
 - Prepends `$OMARCHY_PATH/bin` to `PATH` **only when** `OMARCHY_PATH` is
   not `/usr/share/omarchy`. On a production install the binaries are
   already on `PATH` as `/usr/bin/omarchy-*` via the `omarchy` package.
-- Prepends `~/.local/share/omarchy/agent-accounts/bin` so subscription account dispatch runs before inherited tool binaries (and drops mise's old `command-wrappers/bin` that did this once), then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. SSH commands that run no shell setup get the same order from the PAM PATH line `install/config/ssh-command-path.sh` writes. The directory holds a dispatcher for each of `claude`, `codex` and `grok` that is installed, which `omarchy-agent-account-dispatch` writes when an agent is installed or removed through Omarchy. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Claude sessions all start in `~/.claude`, which holds the active account's login; the others wait in their own homes (Main's in `accounts/claude/.primary`), and switching moves logins between them under Claude Code's own lock directories, so running sessions re-read the new login on their next message. Codex and Grok credentials and running sessions remain in their original account homes.
+- Prepends `~/.local/share/omarchy/agent-accounts/bin` so subscription account dispatch runs before inherited tool binaries (and drops mise's old `command-wrappers/bin` that did this once), puts mise's shims just ahead of the system directories, so login shells and SSH commands run the versions pinned with mise over system copies as the uwsm session does, while in a login shell directories a parent put first keep their place, and appends `~/.local/bin`. SSH commands that run no shell setup get the same order from the PAM PATH line `install/config/ssh-command-path.sh` writes. The directory holds a dispatcher for each of `claude`, `codex` and `grok` that is installed, which `omarchy-agent-account-dispatch` writes when an agent is installed or removed through Omarchy. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Claude sessions all start in `~/.claude`, which holds the active account's login; the others wait in their own homes (Main's in `accounts/claude/.primary`), and switching moves logins between them under Claude Code's own lock directories, so running sessions re-read the new login on their next message. Codex and Grok credentials and running sessions remain in their original account homes.
 
 Sourced by every entry point that needs the env set:
 
@@ -346,7 +350,7 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-boot-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
+- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-boot-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`, `omarchy-clock-resync.timer`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
 - `omarchy-lifecycle-dispatch setup-user` — the platform's own user setup,
   now with the session up (a no-op where the platform registers none; see
   [lifecycle-dispatch.md](lifecycle-dispatch.md)).
@@ -383,7 +387,7 @@ finalization. It sources:
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
   device-specific kernel modules, udev rules, microcode, wireless regdom,
   ASUS / Framework / Intel / Apple / Lenovo quirks.
-- `install/login/all.sh` — SDDM theme/session config.
+- `install/login/all.sh` — greetd, the login screen.
 - `install/post-install/all.sh` — final pacman and udev passes; the `plocate-updatedb` timer builds the locate database after first boot.
 
 Logging goes to `/var/log/omarchy-install.log` via
@@ -393,9 +397,7 @@ Platform-specific setup asks `omarchy-hw-platform`, which prints `x86`, `aarch64
 
 An image built away from the machine it will run on names its target in a root-owned manifest, `/var/lib/omarchy/image/target` (`format=1`, `platform=<omarchy-hw-platform value>`, unknown keys ignored). While the root is being built rather than booted, the detector answers from the manifest and never reads the build host's device tree. The root counts as built when it shows it: no `/run/systemd/system`, PID 1's root is another one (a chroot), or PID 1 is not systemd (a PID namespace). A booted system always answers from its hardware, even with a manifest left behind, so no unit that asks the detector may use `PrivatePIDs=`. As root the detector restarts in an empty environment and ignores the fixture variables its tests use.
 
-The package lists the ISO pacstraps live at `install/omarchy-base.packages`
-and `install/omarchy-other.packages`; the ISO builder also reads them when
-constructing its offline mirror.
+The package lists the ISO pacstraps live at `install/omarchy-base.packages`, `install/omarchy-other.packages`, and `install/omarchy-other-aarch64.packages` (optional and hardware-specific packages built for aarch64 only); the ISO builder reads them when constructing its offline mirror.
 
 A platform's default package set is the base list, then its architecture's additions, then its own: `install/omarchy-aarch64.packages` on every aarch64 platform, then `install/omarchy-<platform>.packages` when that platform has one (`install/omarchy-aarch64-apple.packages` on Apple Silicon, `install/omarchy-aarch64-qualcomm.packages` on Snapdragon, `install/omarchy-aarch64-n1x.packages` on the N1x, `install/omarchy-aarch64-gb10.packages` on the GB10). x86 installs the base list alone. `omarchy-pkg-defaults [platform]` prints the composed set, for the running machine by default (via `omarchy-hw-platform`, so an image build gets its target's set), and `omarchy-reinstall-pkgs` installs it.
 
@@ -422,7 +424,7 @@ brand-new user, so this one copy resyncs `.bashrc`, `.config/**`,
 `.local/share/applications/`, the nautilus-python extensions, hypr toggles,
 branding files, and the shipped migration markers in a single pass.
 
-Then it runs `omarchy-refresh-limine`, `omarchy-refresh-plymouth`, and the
+Then it runs `omarchy-refresh-limine` and the
 nvim refresh. Destructive: existing user files copied from `/etc/skel` are
 clobbered without backup. Fastfetch is package-owned at
 `/etc/fastfetch/config.jsonc`; delete `~/.config/fastfetch/config.jsonc` to

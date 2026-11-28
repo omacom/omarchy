@@ -75,4 +75,26 @@ assertEqual(
   'power-saver',
   'battery takes a read no signal overtook'
 )
+
+const fullyCharged = 4
+assert(
+  battery.shouldRearmChargeLimit(true, { isPresent: true, percentage: 1.0, state: fullyCharged }, false, false, fullyCharged),
+  'battery re-arms charge limit once a one-time top-up reaches fully charged'
+)
+assert(
+  battery.shouldRearmChargeLimit(true, { isPresent: true, percentage: 0.996, state: charging }, false, false, fullyCharged),
+  'battery re-arms charge limit once a one-time top-up rounds to 100%'
+)
+assert(
+  !battery.shouldRearmChargeLimit(true, { isPresent: true, percentage: 0.88, state: charging }, false, false, fullyCharged),
+  'battery keeps one-time top-up active while still charging below 100%'
+)
+assert(
+  battery.shouldRearmChargeLimit(true, { isPresent: true, percentage: 0.88, state: discharging }, true, false, fullyCharged),
+  'battery re-arms charge limit when unplugged after a one-time top-up'
+)
+assert(
+  !battery.shouldRearmChargeLimit(false, { isPresent: true, percentage: 1.0, state: fullyCharged }, false, false, fullyCharged),
+  'battery does not re-arm charge limit when one-time top-up is not active'
+)
 JS

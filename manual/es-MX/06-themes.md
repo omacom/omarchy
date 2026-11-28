@@ -1,12 +1,12 @@
 # Temas
 
-Omarchy viene con veintitrés temas bonitos. Puedes elegir entre ellos en _Apariencia > Tema_ en el Menú de Omarchy (`Super + Space`) o ir directo al selector de temas con `Super + Ctrl + T`.
+Omarchy viene con veintitrés temas hermosos. Puedes elegir entre ellos desde _Apariencia > Tema_ en el menú de Omarchy (`Super + Space`) o ir directo al selector de temas con `Super + Ctrl + T`.
 
-Cada tema le da estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), tu navegador (Chrome, Chromium, Edge o Brave) y a todo el shell de Omarchy: la barra superior, el menú, las notificaciones, el OSD y la pantalla de bloqueo. (En Obsidian, debes seleccionar manualmente el tema de Omarchy en _Apariencia > Temas_ dentro de la aplicación).
+Cada tema le da estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), tu navegador (Chrome, Chromium, Edge o Brave) y toda la interfaz de Omarchy: barra superior, menú, notificaciones, OSD y pantalla de bloqueo. (En Obsidian, debes seleccionar el tema de Omarchy manualmente desde _Apariencia > Temas_ dentro de la app).
 
 Los temas tienen un conjunto de imágenes de fondo entre las que puedes elegir con `Super + Ctrl + W`.
 
-Puedes encontrar aún más temas en [la página de temas adicionales](https://omarchy.org/themes/) o incluso [crear tu propio tema](43-making-your-own-theme.md).
+Puedes encontrar todavía más temas en [la página de temas extra](https://omarchy.org/themes/) o incluso [crear tu propio tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -77,84 +77,18 @@ _Solitude_
  ![starship](../themes/starship/preview.png)
 _Starship_
 
-### Iconos de aplicaciones
+### Íconos de aplicaciones
 
-Los iconos del lanzador de aplicaciones y del dock se dibujan con los colores de tu tema, así que cambian junto con él. Vienen de un conjunto de iconos, que eliges por separado del tema en _Apariencia > Iconos_, desde las vistas previas de cada conjunto, igual que eliges un tema:
+Los íconos del lanzador de aplicaciones y el dock se dibujan con los colores de tu tema, así que cambian junto con él. Vienen de un conjunto de íconos, que eliges por separado del tema desde _Apariencia > Íconos_, a partir de las vistas previas de cada conjunto, igual que eliges un tema:
 
-- _Papercraft_ es el predeterminado: todo lo que viene instalado, dibujado en un solo estilo. Las aplicaciones conocidas por su logotipo, como Chrome, HEY o YouTube, conservan su forma y adoptan los colores del tema.
-- _Arcade_ dibuja las mismas aplicaciones como arte de píxeles de 8 bits, como lo haría una consola de videojuegos vieja.
-- _Original_ muestra cada aplicación con el icono que le dio su creador.
+- _Papercraft_ es el predeterminado: todo lo que viene instalado, dibujado con un mismo estilo. Las apps que se reconocen por su logotipo, como Chrome, HEY o YouTube, conservan su forma y adoptan los colores del tema.
+- _Arcade_ dibuja las mismas apps como arte de píxeles de 8 bits, como lo haría una consola de juegos antigua.
+- _Original_ muestra cada app con el ícono que le dio su creador.
 
-Puedes instalar un conjunto de iconos que haya hecho otra persona con _Instalar > Estilo > Iconos_ (o `omarchy icons install <git url>`), y quitarlo de nuevo en _Quitar > Iconos_. _Actualizar > Iconos adicionales_ descarga la versión más reciente de los conjuntos que tienes instalados.
+Puedes instalar un conjunto de íconos que haya creado otra persona desde _Instalar > Estilo > Íconos_ (o con `omarchy icons install <git url>`), y eliminarlo de nuevo desde _Eliminar > Íconos_. _Actualizar > Íconos extra_ descarga la versión más reciente de los conjuntos que tengas instalados.
 
-Para crear el tuyo, pon tus iconos en `~/.config/omarchy/icons/<name>/`, un archivo por aplicación, con el nombre de la línea `Icon=` del archivo `.desktop` de la aplicación. Un archivo que termina en `.svg` se muestra tal cual. Un archivo que termina en `.svg.tpl` se dibuja con los colores del tema: escribe `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` donde va un color. El conjunto predeterminado en `/usr/share/omarchy/icons/papercraft/` es un buen punto de partida. Agrega un `preview.png` para mostrar tu conjunto en el selector; si no lo tiene, Omarchy dibuja una vista previa a partir de tus iconos. Para cambiar un solo icono del conjunto predeterminado, pon tu versión en `~/.config/omarchy/icons/papercraft/`.
+Para crear el tuyo, pon tus íconos en `~/.config/omarchy/icons/<name>/`, un archivo por app, con el nombre indicado en la línea `Icon=` del archivo `.desktop` de la app. Un archivo que termina en `.svg` se muestra tal cual. Un archivo que termina en `.svg.tpl` se dibuja con los colores del tema: escribe `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` donde va un color. El conjunto predeterminado en `/usr/share/omarchy/icons/papercraft/` es un buen punto de partida. Agrega un `preview.png` para mostrar tu conjunto en el selector; si no lo agregas, Omarchy dibuja una vista previa a partir de tus íconos. Para cambiar un solo ícono del conjunto predeterminado, pon tu versión en `~/.config/omarchy/icons/papercraft/`.
 
-### Desbloqueos
+### Arranque e inicio de sesión
 
-Los temas también pueden tener un diseño de desbloqueo personalizado, que se usa para el proceso de descifrado al arrancar. Puedes seleccionar uno de estos en _Apariencia > Desbloqueo_. Se ven así:
-
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
-
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
-
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
-
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
-
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
-
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
-
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
-
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
-
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![last-horizon](../themes/last-horizon/preview-unlock.png)
-_Last Horizon_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![lupine](../themes/lupine/preview-unlock.png)
-_Lupine_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![solitude](../themes/solitude/preview-unlock.png)
-_Solitude_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+La pantalla que te pide la contraseña de tu disco cuando arranca la computadora, y la pantalla de inicio de sesión, también siguen el tema. Cada vez que cambias de tema, adoptan sus colores de fondo, texto, acento y rojo, así que no hay un diseño de desbloqueo aparte que elegir. En las Mac con Apple Silicon, la pantalla de contraseña del disco mantiene el aspecto predeterminado de Omarchy sea cual sea el tema.

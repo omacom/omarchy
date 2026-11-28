@@ -59,6 +59,7 @@ disable_hyprland_autostart() {
   fi
 }
 
+echo "Removing Sunshine..."
 systemctl --user disable --now sunshine 2>/dev/null || true
 omarchy-pkg-drop sunshine
 omarchy-webapp-remove "$SUNSHINE_ADMIN_APP" 2>/dev/null || true

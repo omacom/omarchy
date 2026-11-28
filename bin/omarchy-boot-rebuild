@@ -122,10 +122,19 @@ pacman_kernels() {
   fi
 }
 
+record_initcpio_state() {
+  if command -v omarchy-boot-sync-initcpio >/dev/null 2>&1; then
+    omarchy-boot-sync-initcpio --record || true
+  fi
+}
+
 case ${1:-} in
 --pacman-install)
   mapfile -t kernels < <(pacman_kernels)
   rebuild_systemd_boot "${kernels[@]}"
+  if ((${#kernels[@]} == 0)); then
+    record_initcpio_state
+  fi
   ;;
 --pacman-remove)
   # After the transaction: the sync drops the live entries of a kernel that is
@@ -153,6 +162,9 @@ case ${1:-} in
     systemd-boot) rebuild_systemd_boot "${kernels[@]}" || status=1 ;;
     esac
   done
+  if ((status == 0 && ${#kernels[@]} == 0)); then
+    record_initcpio_state
+  fi
   exit "$status"
   ;;
 esac

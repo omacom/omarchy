@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "Flytande"
-  },
-  "appearance.unlock": {
-    "label": "Lås upp"
   },
   "trigger.toggle": {
     "label": "Växla"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1043,10 +1025,12 @@
     "label": "Skärmspegling av"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Växla till hybrid-GPU"
+    "label": "Byt till dGPU",
+    "description": "Aktivera hybrid med dedikerad GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Växla till integrerad GPU"
+    "label": "Byt till iGPU",
+    "description": "Använd endast integrerad GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Aktivera styrplatta"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Återställ denna ögonblicksbild"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Lösenordsfri inloggning"
   }
 }

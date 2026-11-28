@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "Плутајући"
-  },
-  "appearance.unlock": {
-    "label": "Откључај"
   },
   "trigger.toggle": {
     "label": "Укључи/искључи"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1094,16 +1076,18 @@
     "label": "Искључи екран лаптопа"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Укључи пресликавање екрана"
+    "label": "Пресликавање укључено"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Искључи пресликавање екрана"
+    "label": "Пресликавање искључено"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Пребаци на хибридни GPU"
+    "label": "Пребаци на dGPU",
+    "description": "Омогући хибридну наменску GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Пребаци на интегрисани GPU"
+    "label": "Пребаци на iGPU",
+    "description": "Користи само интегрисану GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Укључи тачпед"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Врати овај снимак"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Пријава без лозинке"
   }
 }

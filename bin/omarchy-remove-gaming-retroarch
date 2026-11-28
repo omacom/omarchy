@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing RetroArch..."
 omarchy-pkg-drop \
   retroarch \
   retroarch-assets-glui retroarch-assets-ozone retroarch-assets-xmb \

@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "Peldošs"
-  },
-  "appearance.unlock": {
-    "label": "Atbloķēt"
   },
   "trigger.toggle": {
     "label": "Pārslēgt"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1103,16 +1085,18 @@
     "label": "Klēpjdatora ekrāns izslēgts"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Ekrāna spoguļošana ieslēgta"
+    "label": "Ieslēgt spoguļošanu"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Ekrāna spoguļošana izslēgta"
+    "label": "Izslēgt spoguļošanu"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Pārslēgt uz hibrīdo GPU"
+    "label": "Pārslēgt uz dGPU",
+    "description": "Iespējot hibrīdo diskrēto GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Pārslēgt uz integrēto GPU"
+    "label": "Pārslēgt uz iGPU",
+    "description": "Izmantot tikai integrēto GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Ieslēgt skārienpaliktni"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Atjaunot šo momentuzņēmumu"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Pieteikšanās bez paroles"
   }
 }

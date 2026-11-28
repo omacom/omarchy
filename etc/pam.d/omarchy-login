@@ -1,0 +1,9 @@
+#%PAM-1.0
+# The sessions greetd starts, from the login screen and as autologin
+# (omarchy-system-login names this service): greetd's own stack, after the
+# session type and desktop, which pam_systemd records with logind. greetd sets
+# neither, and pam_systemd would otherwise take the VT's type, tty.
+auth      include   greetd
+account   include   greetd
+session   required  pam_env.so conffile=/usr/share/omarchy/default/splash/login-session.env readenv=0
+session   include   greetd

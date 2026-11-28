@@ -1,15 +1,57 @@
 #!/bin/bash
 
 # omarchy:summary=Launch a terminal in the active terminal's current directory
-# omarchy:args=[--pid=<terminal-pid>] [command...]
+# omarchy:args=[--pid=<terminal-pid>] [--dir=<dir>] [command...]
 
 pid=""
-if [[ ${1:-} == --pid=* ]]; then
-  pid=${1#--pid=}
-  shift
-fi
+dir_override=""
+fast_app_id=""
+fast_cmd=()
+fallback_args=()
+can_fast_path=1
 
-cwd=$(omarchy-cmd-terminal-cwd "$pid")
+# Parse --pid=/--dir= plus optional --app-id=<id> and -e/-- command in one pass.
+# Any other leading option (such as --title or --hold) falls back to xdg-terminal-exec.
+while (($# > 0)); do
+  case "$1" in
+    --pid=*)
+      pid=${1#--pid=}
+      shift
+      ;;
+    --dir=*)
+      dir_override=${1#--dir=}
+      shift
+      ;;
+    --app-id=?*)
+      fast_app_id=${1#--app-id=}
+      fallback_args+=("$1")
+      shift
+      ;;
+    -e | --)
+      fallback_args+=("$@")
+      shift
+      fast_cmd=("$@")
+      (( ${#fast_cmd[@]} > 0 )) || can_fast_path=0
+      break
+      ;;
+    -*)
+      can_fast_path=0
+      fallback_args+=("$@")
+      break
+      ;;
+    *)
+      fast_cmd=("$@")
+      fallback_args+=("$@")
+      break
+      ;;
+  esac
+done
+
+if [[ -n $dir_override ]]; then
+  cwd=$dir_override
+else
+  cwd=$(omarchy-cmd-terminal-cwd "$pid")
+fi
 
 executable_present() {
   if [[ $1 == */* ]]; then
@@ -19,13 +61,14 @@ executable_present() {
   fi
 }
 
-# Resolve the default terminal directly from xdg-terminals.list on a plain
-# launch (Super+Return) to avoid xdg-terminal-exec's ~10ms shell scan.
-# Custom options, command arguments, or non-simple desktop entries fall through
+# Resolve the default terminal directly from xdg-terminals.list for plain
+# launches (Super+Return) and simple --app-id / command launches (TUIs, Herdr)
+# to avoid xdg-terminal-exec's shell scan (~10-15ms saved).
+# Other xdg-terminal-exec options or non-simple desktop entries fall through
 # to xdg-terminal-exec.
 resolve_plain_terminal() {
   local list_dir desktop list line desktop_id data_dir desktop_file
-  local in_entry try_exec exec_line dir_arg
+  local in_entry try_exec exec_line dir_arg app_id_arg exec_arg
   local -a config_dirs data_dirs desktops list_dirs
   local -A excluded=()
 
@@ -65,6 +108,8 @@ resolve_plain_terminal() {
           try_exec=""
           exec_line=""
           dir_arg=""
+          app_id_arg=""
+          exec_arg=""
           while IFS= read -r line || [[ -n $line ]]; do
             line=${line%$'\r'}
             if [[ $line =~ ^\[Desktop\ Entry\][[:blank:]]*$ ]]; then
@@ -78,14 +123,20 @@ resolve_plain_terminal() {
                 Exec=*) exec_line=${line#Exec=} ;;
                 X-TerminalArgDir=*) dir_arg=${line#X-TerminalArgDir=} ;;
                 TerminalArgDir=*) [[ -z $dir_arg ]] && dir_arg=${line#TerminalArgDir=} ;;
+                X-TerminalArgAppId=*) app_id_arg=${line#X-TerminalArgAppId=} ;;
+                TerminalArgAppId=*) [[ -z $app_id_arg ]] && app_id_arg=${line#TerminalArgAppId=} ;;
+                X-TerminalArgExec=*) exec_arg=${line#X-TerminalArgExec=} ;;
+                TerminalArgExec=*) [[ -z $exec_arg ]] && exec_arg=${line#TerminalArgExec=} ;;
               esac
             fi
           done <"$desktop_file"
 
-          # Only fast-path simple single-token Exec= and simple dir arg (no args,
-          # quotes, escapes, or field codes)
+          # Only fast-path simple single-token Exec= and simple arg specs (no
+          # spaces, quotes, escapes, or field codes)
           [[ -n $exec_line && $exec_line != *[[:space:]\"\'\\\%]* ]] || return 1
           [[ $dir_arg != *[[:space:]\"\'\\]* ]] || return 1
+          [[ $app_id_arg != *[[:space:]\"\'\\]* ]] || return 1
+          [[ $exec_arg != *[[:space:]\"\'\\]* ]] || return 1
           if [[ -n $try_exec ]] && ! executable_present "$try_exec"; then
             break
           fi
@@ -93,6 +144,8 @@ resolve_plain_terminal() {
 
           TERMINAL_EXEC=$exec_line
           TERMINAL_DIR_ARG=$dir_arg
+          TERMINAL_APP_ID_ARG=$app_id_arg
+          TERMINAL_EXEC_ARG=$exec_arg
           return 0
         done
       done <"$list"
@@ -102,17 +155,33 @@ resolve_plain_terminal() {
   return 1
 }
 
-if (($# == 0)) && resolve_plain_terminal; then
+if (( can_fast_path )) && resolve_plain_terminal &&
+  [[ -z $fast_app_id || -n $TERMINAL_APP_ID_ARG ]] &&
+  { (( ${#fast_cmd[@]} == 0 )) || [[ -n $TERMINAL_EXEC_ARG && $TERMINAL_EXEC_ARG != *= ]]; }; then
+  term_args=()
   if [[ -n $TERMINAL_DIR_ARG ]]; then
     if [[ $TERMINAL_DIR_ARG == *= ]]; then
-      exec setsid uwsm-app -- "$TERMINAL_EXEC" "${TERMINAL_DIR_ARG}${cwd}"
+      term_args+=("${TERMINAL_DIR_ARG}${cwd}")
     else
-      exec setsid uwsm-app -- "$TERMINAL_EXEC" "$TERMINAL_DIR_ARG" "$cwd"
+      term_args+=("$TERMINAL_DIR_ARG" "$cwd")
     fi
   else
     cd "$cwd" || true
-    exec setsid uwsm-app -- "$TERMINAL_EXEC"
   fi
+
+  if [[ -n $fast_app_id ]]; then
+    if [[ $TERMINAL_APP_ID_ARG == *= ]]; then
+      term_args+=("${TERMINAL_APP_ID_ARG}${fast_app_id}")
+    else
+      term_args+=("$TERMINAL_APP_ID_ARG" "$fast_app_id")
+    fi
+  fi
+
+  if (( ${#fast_cmd[@]} > 0 )); then
+    term_args+=("$TERMINAL_EXEC_ARG" "${fast_cmd[@]}")
+  fi
+
+  exec setsid uwsm-app -- "$TERMINAL_EXEC" "${term_args[@]}"
 else
-  exec setsid uwsm-app -- xdg-terminal-exec --dir="$cwd" "$@"
+  exec setsid uwsm-app -- xdg-terminal-exec --dir="$cwd" "${fallback_args[@]}"
 fi

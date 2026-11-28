@@ -2,18 +2,18 @@
 
 ### Sormenjälkitodennus
 
-Monissa kannettavissa on sormenjälkitunnistin todennusta varten. Voit käyttää sitä Omarchyn kanssa suorittamalla Omarchy-valikosta (`Super + Space`) kohdan _Asennus > Tietoturva > Sormenjälki_.
+Monissa kannettavissa tietokoneissa on sormenjälkianturi todennusta varten. Voit käyttää sitä Omarchyssa avaamalla _Setup > Security > Fingerprint_ Omarchy-valikosta (`Super + Space`).
 
-Se asentaa sormenjälkipaketin, kerää sormenjälkesi ja vahvistaa sen, ja sen jälkeen voit käyttää sormenjälkeäsi lukituksen avaamiseen lukitusnäytöltä (jonka voit käynnistää näppäimillä `Super + Ctrl + L`), sudo-tilaan siirtymiseen ja järjestelmän kehotteiden valtuuttamiseen.
+Se avaa koko näytön kokoisen sormenjäljen, joka täyttyy, kun kosketat anturia. Taustalla Omarchy asentaa sormenjälkipaketin, tallentaa sormenjälkesi, vahvistaa sen, ja olet valmis käyttämään sormenjälkeäsi lukituksen avaamiseen lukitusnäytöltä (jonka saat näkyviin näppäimillä `Super + Ctrl + L`), sudo-tilaan siirtymiseen ja järjestelmän kehotteiden valtuuttamiseen.
 
-Kun lukitusnäyttö on sammuttanut näytön, tunnistin lepää virran säästämiseksi, joten herätä näyttö millä tahansa näppäimellä tai kosketusalustalla ennen kuin kosketat sitä.
+Kun lukitusnäyttö on sammuttanut näytön, anturi lepää virran säästämiseksi, joten herätä näyttö millä tahansa näppäimellä tai kosketuslevyllä ennen kuin kosketat sitä.
 
-Kun kannettavan kansi on suljettu, sormenjälkikehote ohitetaan automaattisesti, joten pääset suoraan salasanakehotteeseen sen sijaan, että odottaisit tunnistinta, johon et pääse käsiksi. Jos sinun täytyy muusta syystä työskennellä ulkoisella näppäimistöllä, jossa ei ole tunnistinta, paina vain `CTRL + C`, kun sinulta pyydetään sormenjälkeä `sudo`-käytön aikana.
+Kun kannettavan tietokoneen kansi on kiinni, sormenjälkikehote ohitetaan automaattisesti, joten pääset suoraan salasanakehotteeseen sen sijaan, että jäisit odottamaan anturia, johon et pääse käsiksi. Jos sinun täytyy muuten työskennellä ulkoisella näppäimistöllä, jossa ei ole anturia, paina vain `CTRL + C`, kun sinulta pyydetään sormenjälkeä `sudo`-komennon aikana.
 
-Voit poistaa sormenjälkitodennuksen Omarchy-valikon kohdasta _Poista > Tietoturva > Sormenjälki_.
+Voit poistaa sormenjälkitodennuksen kohdasta _Remove > Security > Fingerprint_ Omarchy-valikossa.
 
 ### Fido2-todennus
 
-Jos käytät Fido2-laitetta, voit määrittää sen `sudo`-todennukseen käyttämällä Omarchy-valikon (`Super + Space`) kohtaa _Asennus > Tietoturva > Fido2_. Se kattaa kuitenkin `sudo`- ja järjestelmän valtuutuskehotteet, ei tietokoneen lukituksen avaamista.
+Jos käytät Fido2-laitetta, voit määrittää sen `sudo`-todennusta varten kohdasta _Setup > Security > Fido2_ Omarchy-valikossa (`Super + Space`). Se kattaa kuitenkin `sudo`-kehotteet ja järjestelmän valtuutuskehotteet, ei tietokoneen lukituksen avaamista.
 
-Voit poistaa Fido2-todennuksen Omarchy-valikon kohdasta _Poista > Tietoturva > Fido2_.
+Voit poistaa fido2-todennuksen kohdasta _Remove > Security > Fido2_ Omarchy-valikossa.

@@ -5,6 +5,8 @@
 
 shell_output=false
 power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+sleep_run_dir="${OMARCHY_SLEEP_RUN_DIR:-/run/omarchy}"
+battery_state_dir="${OMARCHY_BATTERY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/battery}"
 
 case "${1:-}" in
   "")
@@ -56,6 +58,8 @@ percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
 capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
 energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
 energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
+energy_full_design=$(awk '/energy-full-design:/ { print $2; exit }' <<<"$battery_info")
+upower_capacity=$(awk '/^ *capacity:/ { gsub(/%/, "", $2); print $2; exit }' <<<"$battery_info")
 upower_hours=$(awk '/time to (empty|full)/ { print ($5 ~ /^minute/ ? $4 / 60 : $4); exit }' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
@@ -89,17 +93,47 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+upower_threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+upower_threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+upower_threshold_enabled=$(awk '/charge-threshold-enabled:/ { print tolower($2); exit }' <<<"$battery_info")
+upower_threshold_supported=$(awk '/charge-threshold-supported:/ { print tolower($2); exit }' <<<"$battery_info")
 
-# Read the thresholds from the battery UPower resolved rather than a BAT* glob,
-# which misses every battery with another name.
-[[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
-[[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+sysfs_threshold_end=$(read_sysfs_number "$battery_path/charge_control_end_threshold" || true)
+sysfs_threshold_start=$(read_sysfs_number "$battery_path/charge_control_start_threshold" || true)
+
+# Sysfs charge_control_end_threshold is the kernel's ground truth: UPower 1.91+
+# prints hwdb defaults (e.g. 75/80%) in `upower -i` even when ChargeThresholdEnabled
+# is false and sysfs is at 100%. Only fall back to UPower's thresholds when no
+# sysfs file exists (e.g. firmware-only conservation mode or test stubs).
+threshold_start=""
+threshold_end=""
+if [[ -n $sysfs_threshold_end ]]; then
+  if (( sysfs_threshold_end > 0 && sysfs_threshold_end < 100 )); then
+    threshold_end=$sysfs_threshold_end
+    if [[ -n $sysfs_threshold_start ]] && (( sysfs_threshold_start > 0 && sysfs_threshold_start < threshold_end )); then
+      threshold_start=$sysfs_threshold_start
+    fi
+  fi
+elif [[ $upower_threshold_enabled != "no" ]]; then
+  if [[ -n $upower_threshold_end ]] && (( upower_threshold_end > 0 && upower_threshold_end < 100 )); then
+    threshold_end=$upower_threshold_end
+    threshold_start=$upower_threshold_start
+  fi
+fi
+
 # The time to full counts to this battery's own limit, never another one's.
 charge_limit=${threshold_end:-100}
-[[ -n $threshold_end ]] || threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
-[[ -n $threshold_start ]] || threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+if [[ -z $sysfs_threshold_end && $upower_threshold_enabled != "no" ]]; then
+  if [[ -z $threshold_end ]]; then
+    fallback_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
+    if [[ $fallback_end =~ ^[0-9]+$ ]] && (( fallback_end > 0 && fallback_end < 100 )); then
+      threshold_end=$fallback_end
+    fi
+  fi
+  if [[ -z $threshold_start && -n $threshold_end ]]; then
+    threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+  fi
+fi
 
 # Time left is the energy left over the draw shown beside it, so the two always
 # agree; charging counts up to the charge limit. UPower's own estimate averages
@@ -146,6 +180,22 @@ if [[ $ac_online == "true" && -n $threshold_end ]]; then
   fi
 fi
 
+# Battery health percentage (full vs design capacity, clamped to 1..100%).
+compute_health() {
+  local full=$1 design=$2 cap=$3
+  awk -v full="$full" -v design="$design" -v cap="$cap" 'BEGIN {
+    pct = -1
+    if (full + 0 > 0 && design + 0 > 0) {
+      pct = (full / design) * 100
+    } else if (cap + 0 > 0) {
+      pct = cap + 0
+    }
+    if (pct <= 0) exit
+    if (pct > 100) pct = 100
+    printf "%d", int(pct + 0.5)
+  }'
+}
+
 if [[ $shell_output == "true" ]]; then
   printf 'percentage\t%s\n' "${percentage}%"
   if [[ $charge_holding == "true" ]]; then
@@ -156,6 +206,14 @@ if [[ $shell_output == "true" ]]; then
   printf 'rate\t%s\n' "${power_rate}W"
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
+
+  health=$(compute_health "$energy_full" "$energy_full_design" "$upower_capacity")
+  if [[ -z $health ]]; then
+    sysfs_full=$(read_sysfs_number "$battery_path/energy_full" || read_sysfs_number "$battery_path/charge_full" || true)
+    sysfs_design=$(read_sysfs_number "$battery_path/energy_full_design" || read_sysfs_number "$battery_path/charge_full_design" || true)
+    health=$(compute_health "$sysfs_full" "$sysfs_design" "")
+  fi
+  [[ -n $health ]] && printf 'health\t%s\n' "${health}%"
 
   cycles=""
   [[ ! -r $battery_path/cycle_count ]] || cycles=$(<"$battery_path/cycle_count")
@@ -168,6 +226,74 @@ if [[ $shell_output == "true" ]]; then
       printf 'threshold\t%s-%s%%\n' "$threshold_start" "$threshold_end"
     else
       printf 'threshold\t%s%%\n' "$threshold_end"
+    fi
+  fi
+
+  # Charge limit control metadata for the power panel.
+  limit_supported=0
+  if [[ $upower_threshold_supported == "yes" || -r $battery_path/charge_control_end_threshold ]]; then
+    limit_supported=1
+  fi
+  printf 'limit_supported\t%s\n' "$limit_supported"
+
+  if (( limit_supported == 1 )); then
+    limit_mode="threshold"
+    if [[ $upower_threshold_supported == "yes" && ! -r $battery_path/charge_control_end_threshold && -z $upower_threshold_end ]]; then
+      limit_mode="firmware"
+    fi
+
+    limit_state="off"
+    if [[ $upower_threshold_enabled == "yes" ]] || { [[ -n $threshold_end ]] && (( threshold_end < 100 )); }; then
+      limit_state="on"
+    elif [[ $limit_mode == "firmware" ]] && command -v busctl >/dev/null 2>&1; then
+      if [[ $(busctl get-property org.freedesktop.UPower "$battery" org.freedesktop.UPower.Device ChargeThresholdEnabled 2>/dev/null || true) == "b true" ]]; then
+        limit_state="on"
+      elif [[ -f $battery_state_dir/top-up-once ]]; then
+        limit_state="once"
+      fi
+    elif [[ -f $battery_state_dir/top-up-once ]]; then
+      limit_state="once"
+    fi
+
+    limit_end=$upower_threshold_end
+    [[ -n $limit_end ]] || limit_end=$threshold_end
+    if [[ -z $limit_end && $limit_mode == "threshold" ]]; then
+      limit_end=80
+    fi
+
+    printf 'limit_state\t%s\n' "$limit_state"
+    printf 'limit_mode\t%s\n' "$limit_mode"
+    [[ -n $limit_end ]] && printf 'limit_end\t%s\n' "$limit_end"
+    [[ -n $upower_threshold_start ]] && printf 'limit_start\t%s\n' "$upower_threshold_start"
+  fi
+
+  # Last sleep drain telemetry written by /usr/lib/systemd/system-sleep/omarchy-sleep-stats.
+  last_sleep_file="$sleep_run_dir/last-sleep"
+  if [[ -r $last_sleep_file ]]; then
+    s_mode="" s_dur="" s_ac="0" s_dpct="" s_pct_hr="" s_w="" s_s0ix=""
+    while IFS=$'\t' read -r key val; do
+      case "$key" in
+        mode) s_mode=$val ;;
+        duration_s) s_dur=$val ;;
+        ac_plugged) s_ac=$val ;;
+        delta_pct) s_dpct=$val ;;
+        drain_pct_hr) s_pct_hr=$val ;;
+        drain_w) s_w=$val ;;
+        s0ix_pct) s_s0ix=$val ;;
+      esac
+    done <"$last_sleep_file"
+
+    if [[ $s_ac == "0" && $s_dur =~ ^[0-9]+$ ]] && (( s_dur >= 300 )); then
+      s_minutes=$(( (s_dur + 30) / 60 ))
+      s_formatted=$(format_duration "$s_minutes")
+      if [[ -n $s_formatted ]]; then
+        printf 'sleep_duration\t%s\n' "$s_formatted"
+        [[ -n $s_dpct ]] && printf 'sleep_drain_pct\t%s%%\n' "$s_dpct"
+        [[ -n $s_pct_hr ]] && printf 'sleep_drain_pct_hr\t%s%%/h\n' "$s_pct_hr"
+        [[ -n $s_w ]] && printf 'sleep_drain_w\t%sW\n' "$s_w"
+        [[ -n $s_s0ix ]] && printf 'sleep_s0ix\t%s%%\n' "$s_s0ix"
+        [[ -n $s_mode ]] && printf 'sleep_mode\t%s\n' "$s_mode"
+      fi
     fi
   fi
 

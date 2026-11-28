@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "Плавающий"
-  },
-  "appearance.unlock": {
-    "label": "Разблокировать"
   },
   "trigger.toggle": {
     "label": "Переключить"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1100,10 +1082,12 @@
     "label": "Выключить дублирование экрана"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Перейти на гибридный GPU"
+    "label": "Переключить на dGPU",
+    "description": "Включить гибридный дискретный GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Перейти на встроенный GPU"
+    "label": "Переключить на iGPU",
+    "description": "Использовать только встроенный GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Включить тачпад"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Восстановить этот снимок"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Беспарольный вход"
   }
 }

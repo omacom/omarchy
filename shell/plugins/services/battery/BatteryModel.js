@@ -36,12 +36,22 @@ function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
   return signalsAtStart === signalsNow ? parseActiveProfile(replyText) : current
 }
 
+// Re-arm the hardware charge limit after a one-time top-up to 100% once the
+// battery finishes charging or external power is unplugged.
+function shouldRearmChargeLimit(topUpOnce, device, onBattery, wasOnBattery, fullyChargedState) {
+  if (!topUpOnce) return false
+  if (wasOnBattery === false && onBattery === true) return true
+  if (onBattery || !device || !device.isPresent) return false
+  return device.state === fullyChargedState || batteryPercentage(device) >= 100
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
     shouldWarnLowBattery: shouldWarnLowBattery,
     parseActiveProfile: parseActiveProfile,
-    profileAfterRead: profileAfterRead
+    profileAfterRead: profileAfterRead,
+    shouldRearmChargeLimit: shouldRearmChargeLimit
   }
 }

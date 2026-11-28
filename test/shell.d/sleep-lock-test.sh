@@ -24,6 +24,7 @@ setup_scenario() {
   # The budget is derived from logind, so pin the window rather than letting the
   # host's own configuration decide what these scenarios are testing.
   mock_logind_window 5000000
+  mock_passwordless_login 1
 
   # Capture the desktop warning instead of firing a real one at whoever is
   # running the suite.
@@ -33,6 +34,15 @@ setup_scenario() {
 printf '%s\n' "\$*" >>"$notify_log"
 SH
   chmod +x "$mock_bin/omarchy-notification-send"
+}
+
+mock_passwordless_login() {
+  cat >"$mock_bin/omarchy-setup-security-passwordless-login" <<SH
+#!/bin/bash
+
+exit $1
+SH
+  chmod +x "$mock_bin/omarchy-setup-security-passwordless-login"
 }
 
 mock_logind_window() {
@@ -353,3 +363,31 @@ budget_cap_ms=$(sed -n 's/^budget_cap_ms=//p' "$sleep_lock")
   fail "sleep lock cap leaves logind room to act" \
     "cap: ${budget_cap_ms}ms window: ${inhibit_delay}s"
 pass "sleep lock cap stays inside the shipped logind inhibitor window"
+
+# With passwordless login active, waking from sleep must also be passwordless:
+# skip locking, still reconcile clamshell displays, and exit cleanly.
+setup_scenario passwordless_login
+mock_passwordless_login 0
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell
+
+run_sleep_lock 4000
+
+(( exit_status == 0 )) ||
+  fail "sleep lock succeeds without locking when passwordless login is active" "exit: $exit_status"
+pass "sleep lock succeeds without locking when passwordless login is active"
+
+[[ ${calls[*]} == "clamshell" ]] ||
+  fail "sleep lock skips locking and still reconciles clamshell when passwordless login is active" \
+    "calls: ${calls[*]}"
+pass "sleep lock skips locking and still reconciles clamshell when passwordless login is active"
+
+[[ ! -s $notify_log && ! -s $journal_log ]] ||
+  fail "sleep lock emits no warning when passwordless login skips locking" \
+    "notifications: $(<"$notify_log") journal: $(<"$journal_log")"
+pass "sleep lock emits no warning when passwordless login skips locking"

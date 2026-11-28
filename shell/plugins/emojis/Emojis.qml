@@ -19,6 +19,7 @@ Item {
   property int selectedIndex: 0
   property bool cursorActive: false
   property var emojis: []
+  property bool emojisLoaded: false
   property var filteredEmojis: []
 
   // Shares the [menu] surface tokens — themes that style the menu also
@@ -69,6 +70,7 @@ Item {
 
   function loadEmojis(raw) {
     root.emojis = EmojiSearch.parseEmojis(raw)
+    root.emojisLoaded = true
     if (root.opened) root.rebuildDisplay()
   }
 
@@ -307,7 +309,7 @@ Item {
             anchors.centerIn: parent
             width: parent.width - 2 * root.contentMargin
             spacing: Style.space(8)
-            visible: root.filteredEmojis.length === 0
+            visible: root.emojisLoaded && root.filteredEmojis.length === 0
 
             Text {
               text: "󰈉"

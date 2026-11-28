@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "عائم"
-  },
-  "appearance.unlock": {
-    "label": "فتح القفل"
   },
   "trigger.toggle": {
     "label": "تبديل"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1100,10 +1082,12 @@
     "label": "إيقاف عكس الشاشة"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "التبديل إلى GPU الهجين"
+    "label": "التبديل إلى dGPU",
+    "description": "تفعيل GPU المخصص الهجين"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "التبديل إلى GPU المدمج"
+    "label": "التبديل إلى iGPU",
+    "description": "استخدام GPU المدمج فقط"
   },
   "trigger.hardware.touchpad-on": {
     "label": "تفعيل لوحة اللمس"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "استعادة هذه اللقطة"
+  },
+  "setup.security.passwordless-login": {
+    "label": "تسجيل الدخول بدون كلمة مرور"
   }
 }

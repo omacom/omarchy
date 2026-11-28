@@ -19,4 +19,4 @@ if [[ ${NO_COLOR:-} == "1" && ${PAGER:-} == "cat" ]]; then
   [[ ${GIT_PAGER:-} == "cat" ]] && unset GIT_PAGER
 fi
 
-exec setsid uwsm-app -- xdg-terminal-exec --app-id="$APP_ID" -e "$1" "${@:2}"
+exec "$OMARCHY_PATH/bin/omarchy-launch-terminal" --dir="$PWD" --app-id="$APP_ID" -e "$1" "${@:2}"

@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "फ़्लोटिंग"
-  },
-  "appearance.unlock": {
-    "label": "अनलॉक करें"
   },
   "trigger.toggle": {
     "label": "टॉगल"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1085,7 +1067,7 @@
     "label": "लैपटॉप डिस्प्ले बंद"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "डिस्प्ले मिररिंग चालू"
+    "label": "मिरर डिस्प्ले चालू"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "बैटरी % दिखाएँ"
@@ -1097,13 +1079,15 @@
     "label": "विंडो"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "डिस्प्ले मिररिंग बंद करें"
+    "label": "मिरर डिस्प्ले बंद"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Hybrid GPU पर स्विच करें"
+    "label": "dGPU पर स्विच करें",
+    "description": "हाइब्रिड डेडिकेटेड GPU सक्षम करें"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Integrated GPU पर स्विच करें"
+    "label": "iGPU पर स्विच करें",
+    "description": "केवल इंटीग्रेटेड GPU उपयोग करें"
   },
   "trigger.hardware.touchpad-on": {
     "label": "टचपैड चालू करें"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "यह स्नैपशॉट पुनर्स्थापित करें"
+  },
+  "setup.security.passwordless-login": {
+    "label": "पासवर्ड-रहित लॉगिन"
   }
 }

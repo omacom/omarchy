@@ -78,3 +78,19 @@ if OMARCHY_IMAGE_ROOT="$test_tmp/acpi" "$match" asus,zenbook-a16-ux3607oa micros
   fail "hw-match-device-tree reads no live device tree when an image root is named"
 fi
 pass "hw-match-device-tree follows the fixture roots"
+
+# A theme with a `hardware` file is offered, and is the starting theme, only on
+# the machine that file names.
+theme_command() {
+  HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" OMARCHY_PROC_ROOT="$1/proc" "$ROOT/bin/omarchy-theme-$2"
+}
+bluechip="$test_tmp/bluechip"
+mkdir -p "$bluechip/proc/device-tree" "$test_tmp/home/.config/omarchy/themes"
+printf '%s\0' anduril,bluechip qcom,glymur >"$bluechip/proc/device-tree/compatible"
+
+[[ $(theme_command "$bluechip" list) == *"Anduril Bluechip"* ]] || fail "omarchy-theme-list offers a theme on the hardware it names"
+[[ $(theme_command "$bluechip" default) == anduril-bluechip ]] || fail "omarchy-theme-default starts a machine on the theme made for it"
+[[ $(theme_command "$surface" list) != *"Anduril Bluechip"* ]] || fail "omarchy-theme-list hides a theme made for other hardware"
+[[ $(theme_command "$surface" list) == *"Tokyo Night"* ]] || fail "omarchy-theme-list still offers the themes for every machine"
+[[ $(theme_command "$surface" default) != anduril-bluechip ]] || fail "omarchy-theme-default falls back to the region's theme on other hardware"
+pass "a theme made for one machine is offered and seeded only there"

@@ -36,7 +36,7 @@ Making something new has a skill of its own: `omarchy-make-theme`, `omarchy-make
 
 ## Critical Safety Rules
 
-For privileged commands, follow the Privilege Escalation rules below: `sudo` when a terminal is available for the password prompt, `pkexec` when it is not. Do not wrap commands that already manage privilege elevation themselves.
+For privileged commands, follow the Privilege Escalation rules below: `sudo` when a terminal is available for the password prompt, `pkexec` with a reason for its dialog when it is not. Do not wrap commands that already manage privilege elevation themselves.
 
 **For end-user customization tasks, NEVER modify anything in `/usr/share/omarchy/`** - but READING is safe and encouraged.
 
@@ -84,6 +84,16 @@ _Install > CLI_ tool, `gh`, an AI desktop app): use `omarchy-pkg-add-curated`,
 from a terminal or not. Its polkit action is what lets the machine's own
 session install without a password while SSH still asks, which `sudo` can't
 tell apart.
+
+When you run `pkexec` yourself, give the password dialog a reason. Without one, the dialog shows who is asking (when it can tell) and the command, shortened once the command gets long. That tells the person what will run, but not why. Set the reason directly before `pkexec`, in the same shell command, using one array for both:
+
+```bash
+cmd=(install -d -m 0755 /etc/myapp)
+omarchy-shell -q omarchy.polkit expect "${cmd[*]}" "Claude needs a system configuration directory for MyApp"
+pkexec "${cmd[@]}"
+```
+
+The reason appears only on a prompt whose command line matches the one you gave it. That is the command after `pkexec`, with each argument joined by single spaces. A bare program name also matches the full path pkexec finds for it. Keep `pkexec`'s own options out of the array (`pkexec --user postgres "${cmd[@]}"`), because they are not part of the command line. The array keeps the two in step. Typing the command twice may not match, because globs, `$` and quoting expand differently inside a string. If they don't match, nothing fails: the dialog just has no reason. The reason replaces the line that names who is asking, and it is shown on a single line, so name yourself and keep it short. Your command still appears on its own line beneath the reason, so don't repeat it. A reason is used once, by the next matching prompt within a minute, and only the latest one is kept. Give each `pkexec` its own reason, and run them one at a time.
 
 ## System Architecture
 

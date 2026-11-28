@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -257,9 +245,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "Foluaineach"
-  },
-  "appearance.unlock": {
-    "label": "Díghlasáil"
   },
   "trigger.toggle": {
     "label": "Scoránaigh"
@@ -1006,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1094,16 +1076,18 @@
     "label": "Taispeáint Ríomhaire Glúine As"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Scáthánú Taispeána Ar"
+    "label": "Scáthánú Scáileáin Ar"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Scáthánú Taispeána As"
+    "label": "Scáthánú Scáileáin As"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Athraigh go GPU Hibrideach"
+    "label": "Athraigh go dGPU",
+    "description": "Cumasaigh GPU tiomnaithe hibrideach"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Athraigh go GPU Comhtháite"
+    "label": "Athraigh go iGPU",
+    "description": "Úsáid GPU comhtháite amháin"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Cumasaigh Ceap Tadhaill"
@@ -1451,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Athchuir an Seatradán Seo"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Logáil Isteach Gan Pasfhocal"
   }
 }

@@ -10,7 +10,7 @@ SYSTEM_INFO=$(mktemp --tmpdir omarchy-system-info.XXXXXX.txt)
 trap 'rm -f "$TEMP_LOG" "$SYSTEM_INFO"' EXIT
 
 # Get system information if fastfetch is available
-if omarchy-cmd-present fastfetch; then
+if command -v fastfetch &>/dev/null; then
   {
     echo "========================================="
     echo "SYSTEM INFORMATION"

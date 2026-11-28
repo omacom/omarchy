@@ -40,6 +40,13 @@ chmod +x "$launch_shell_bin"
 cat >"$fake_bin/quickshell" <<'SH'
 #!/bin/bash
 
+# The startup cover the launcher starts beside the shell, which it doesn't
+# supervise.
+if [[ $* == *"/startup-cover.qml" ]]; then
+  printf '%s\n' "$*" >>"${OMARCHY_TEST_COVER_LOG:-/dev/null}"
+  exit 0
+fi
+
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 printf 'watcher=%s popup=%s crash-handler-off=%s background=%s\n' \
   "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" \
@@ -97,15 +104,19 @@ qs_env_log="$test_tmp/quickshell-env.log"
 logger_log="$test_tmp/logger.log"
 qs_terminated="$test_tmp/quickshell-terminated"
 hyprctl_misses="$test_tmp/hyprctl-misses"
+cover_log="$test_tmp/cover.log"
 
 launch_shell() {
   : >"$qs_log"
   : >"$qs_env_log"
   : >"$logger_log"
+  : >"$cover_log"
 
   PATH="$fake_bin:$PATH" \
   HOME="$launch_home" \
   OMARCHY_PATH="$shell_root" \
+  OMARCHY_SESSION_ID=test-session \
+  OMARCHY_TEST_COVER_LOG="$cover_log" \
   OMARCHY_TEST_QS_LOG="$qs_log" \
   OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
   OMARCHY_TEST_QS_STATUSES="$1" \
@@ -133,6 +144,27 @@ pass "a shell that exits cleanly is left alone"
 pass "the shell launches with Quickshell's config watcher, reload popup and crash handler off"
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
+
+# The startup cover goes in the background, so it gets a moment to show up.
+cover_started() {
+  for _ in {1..10}; do
+    [[ -s $cover_log ]] && return 0
+    sleep 0.05
+  done
+  return 1
+}
+
+# A session's first shell starts with the startup cover. Its intro then marks
+# the session as started, and a shell started again in it has no startup to
+# cover.
+cover_started && grep -Fx -- "-n -p $shell_root/shell/startup-cover.qml" "$cover_log" >/dev/null ||
+  fail "a session's first shell starts with the startup cover" "$(<"$cover_log")"
+session_marker="$launch_home/.local/state/omarchy/background-intro.session-id"
+echo test-session >"$session_marker"
+launch_shell '0' || fail "a restarted shell launches"
+cover_started && fail "a restarted shell starts no startup cover" "$(<"$cover_log")"
+rm "$session_marker"
+pass "only a session's first shell starts with the startup cover"
 
 # Qt leaves through _exit(), so no signal is raised at all.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"

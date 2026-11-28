@@ -278,6 +278,27 @@ const stopping = update({ unit: 'deactivating', since_ms: now - 1000, expected_s
 const loading = update({ unit: 'activating', since_ms: now - 30000, expected_load_seconds: 60 })
 assert(waiting > 0 && waiting < half && half < fetched && fetched <= stopping && stopping < loading && loading < 1, 'an update fills one way through its phases', [waiting, half, fetched, stopping, loading])
 
+// A CLI package install fills one way too: gentle creep before the first byte,
+// then real download bytes, verification, and extraction/hooks, with stage titles.
+const cliProgress = new Function('Commons', 'clamp', ['phaseProgress', 'cliInstallProgress', 'cliInstallTitle'].map(fn).join('\n') + '\nreturn { cliInstallProgress, cliInstallTitle }')(
+  { I18n: { t: key => key } },
+  (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+)
+const cliStart = cliProgress.cliInstallProgress('', 0, 0, now, now)
+const cliCreep = cliProgress.cliInstallProgress('', 0, 0, now - 4000, now)
+const cliDlHalf = cliProgress.cliInstallProgress('downloading', 50, 100, now - 5000, now)
+const cliDlDone = cliProgress.cliInstallProgress('downloading', 100, 100, now - 8000, now)
+const cliVerify = cliProgress.cliInstallProgress('verifying', 50, 100, now - 9000, now)
+const cliExtract = cliProgress.cliInstallProgress('installing', 50, 100, now - 11000, now)
+const cliHooks = cliProgress.cliInstallProgress('installing', 98, 100, now - 12000, now)
+assert(cliStart > 0 && cliStart < cliCreep && cliCreep < cliDlHalf && cliDlHalf < cliDlDone && cliDlDone < cliVerify && cliVerify < cliExtract && cliExtract < cliHooks && cliHooks < 1,
+  'a CLI install fills one way across its stages', [cliStart, cliCreep, cliDlHalf, cliDlDone, cliVerify, cliExtract, cliHooks])
+assertDeepEqual(
+  ['', 'downloading', 'verifying', 'installing'].map(cliProgress.cliInstallTitle),
+  ['agents.installingMeter', 'agents.downloadingMeter', 'agents.verifyingMeter', 'agents.installingMeter'],
+  'a CLI install labels each stage'
+)
+
 // A model the memory free can't start is held back: one set up when the
 // engine says so, a recipe when it needs more than is free.
 const short = new Function('settingUpLocal', 'localModelsService', fn('localSettingUp') + fn('memoryShort') + '\nreturn memoryShort')('', { memoryFreeGib: 18 })
@@ -390,4 +411,205 @@ assertEqual(refocused, 1, 'submitting a code returns keyboard focus to the panel
 handleAddLine('Paste code here:')
 assertEqual(pasteState.addNeedsPaste, true, 'a re-prompt brings the paste field back')
 assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking state')
+
+// CLI install progress lines update stage, rate, and monotonic bar fill.
+Object.assign(pasteState, {
+  addPhase: '', addRateBytes: 0,
+  addInstallStage: '', addInstallStartedMs: 0, addInstallFill: 0,
+  nowMs: 0,
+  cliInstallProgress: cliProgress.cliInstallProgress
+})
+handleAddLine('@@omarchy progress 0 0 0')
+const initialFill = pasteState.addInstallFill
+assert(initialFill > 0 && pasteState.addPhase === 'get' && pasteState.addInstallStage === '', 'initial progress starts a visible fill')
+pasteState.addInstallFill = 0.1
+handleAddLine('@@omarchy progress 1 100 18000000 downloading')
+assertEqual(pasteState.addInstallStage, 'downloading', 'progress updates the install stage')
+assertEqual(pasteState.addRateBytes, 18000000, 'progress updates the download rate')
+assertEqual(pasteState.addInstallFill, 0.1, 'entering downloading never pulls the bar backward')
+handleAddLine('@@omarchy progress 100 100 20000000 downloading')
+assertEqual(pasteState.addInstallFill, 0.75, 'a completed download caps at the download phase boundary')
+handleAddLine('@@omarchy progress 50 100 0 verifying')
+assertEqual(pasteState.addInstallStage, 'verifying', 'verifying stage updates the label')
+assertEqual(pasteState.addRateBytes, 0, 'verifying clears the download rate')
+assert(pasteState.addInstallFill > 0.75 && pasteState.addInstallFill < 0.82, 'verifying advances past downloading')
+
+// On a blank-slate machine, starting a local model download keeps AddView up
+// and must not also render a duplicate ProviderSection underneath it. Already-
+// installed models stay on the index across loading, stopping, failure, and
+// removal, as do added paired tailnet models.
+const propExpr = name => {
+  const m = source.match(new RegExp('readonly property bool ' + name + ': ([^\\n]+(?:\\n(?:    [^\\n]+|  \\}\\)))*)'))
+  assert(m, 'agents panel defines ' + name)
+  return m[1]
+}
+const addViewVisibleExpr = source.match(/AddView \{[\s\S]*?visible: ([^\n]+)/)[1]
+const sectionsModelExpr = source.match(/id: providerSections[\s\S]*?model: ([^\n]+)/)[1]
+const evalPanelState = new Function(
+  'addStage', 'usage', 'anySignedIn', 'localModels', 'localModelLines', 'localModelState', 'settingUpLocal', 'providers',
+  fn('localSettingUp') + '\n' +
+  'const hasIndexLocalModel = ' + propExpr('hasIndexLocalModel') + '\n' +
+  'const blankSlate = ' + propExpr('blankSlate') + '\n' +
+  'const indexShown = ' + propExpr('indexShown') + '\n' +
+  'const root = { addStage, blankSlate, indexShown, providers }\n' +
+  'return { blankSlate, addVisible: (' + addViewVisibleExpr + '), sections: (' + sectionsModelExpr + ') }'
+)
+const evalPanelView = ({ addStage = '', enabledProviders = [], anySignedIn = false, localModels = {}, localModelLines = [], settingUpLocal = '', added = [], providers = [] }) => {
+  const usage = {
+    enabledProviders,
+    localModelAdded: line => line.localModel.host === '' || added.includes(line.localModel.target)
+  }
+  const localModelState = local => local && local.host === '' ? (localModels[local.target] || null) : null
+  return evalPanelState(addStage, usage, anySignedIn, localModels, localModelLines, localModelState, settingUpLocal, providers)
+}
+const inklingLine = { providerId: 'local', localModel: { target: 'inkling', host: '' } }
+const downloadingView = evalPanelView({
+  localModels: { inkling: { kind: 'text', unit: 'installing' } },
+  localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
+  providers: [inklingLine]
+})
+assertEqual(downloadingView.blankSlate, true, 'downloading a first local model stays on the blank-slate picker')
+assertEqual(downloadingView.addVisible, true, 'downloading a first local model keeps AddView visible')
+assertDeepEqual(downloadingView.sections, [], 'downloading a first local model does not duplicate it in providerSections')
+
+const firstLoadView = evalPanelView({
+  localModels: { inkling: { kind: 'text', unit: 'activating' } },
+  localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
+  providers: [inklingLine]
+})
+assertEqual(firstLoadView.blankSlate, true, 'first-time loading started from the picker stays on the blank-slate picker')
+assertDeepEqual(firstLoadView.sections, [], 'first-time loading started from the picker does not duplicate in providerSections')
+
+for (const [label, model] of [
+  ['running', { kind: 'text', unit: 'active', sub_state: 'running' }],
+  ['loading from index', { kind: 'text', unit: 'activating' }],
+  ['stopping', { kind: 'text', unit: 'deactivating' }],
+  ['stopped', { kind: 'text', unit: 'inactive' }],
+  ['failed', { kind: 'text', unit: 'failed', error: 'Stopped unexpectedly' }],
+  ['removing', { kind: 'text', unit: 'removing' }]
+]) {
+  const view = evalPanelView({
+    localModels: { inkling: model },
+    localModelLines: [inklingLine],
+    providers: [inklingLine]
+  })
+  assertEqual(view.blankSlate, false, 'an installed model (' + label + ') stays on the panel index')
+  assertEqual(view.addVisible, false, 'an installed model (' + label + ') hides AddView')
+  assertDeepEqual(view.sections, [inklingLine], 'an installed model (' + label + ') keeps its section')
+}
+
+const pairedLine = { providerId: 'local', localModel: { target: 'spark/qwen', host: 'spark' } }
+const pairedView = evalPanelView({
+  localModelLines: [pairedLine],
+  added: ['spark/qwen'],
+  providers: [pairedLine]
+})
+assertEqual(pairedView.blankSlate, false, 'an added paired tailnet model leaves the blank-slate picker')
+assertDeepEqual(pairedView.sections, [pairedLine], 'an added paired tailnet model shows in providerSections')
+
+// Rewriting a usage file with only a fresh updatedAt timestamp must not
+// reassign Agent.record or trigger a panel rebuild; a real field change still
+// updates it, and malformed JSON clears it.
+const agentSource = fs.readFileSync(root + '/shell/plugins/agents/Agent.qml', 'utf8')
+const agentClearSrc = agentSource.match(/function clear\(\) \{[\s\S]*?\n  \}/)[0]
+const agentParseSrc = agentSource.match(/function parse\(content\) \{[\s\S]*?\n  \}/)[0]
+let recordWrites = 0
+let storedRecord = null
+const agentRoot = {
+  path: '/tmp/claude.json',
+  parsedText: '',
+  get record() { return storedRecord },
+  set record(v) { recordWrites++; storedRecord = v }
+}
+agentRoot.clear = new Function('root', agentClearSrc + '\nreturn clear')(agentRoot)
+const agentParse = new Function('root', 'console', agentParseSrc + '\nreturn parse')(agentRoot, { warn() {} })
+
+const baseRecord = { id: 'claude', name: 'Claude', todayPrompts: 3, updatedAt: '2026-11-27T11:00:00+00:00' }
+agentParse(JSON.stringify(baseRecord))
+assertEqual(recordWrites, 1, 'initial record parse populates Agent.record')
+assertEqual(agentRoot.record.todayPrompts, 3, 'initial record parse reads fields')
+
+const firstRef = agentRoot.record
+agentParse(JSON.stringify({ ...baseRecord, updatedAt: '2026-11-27T11:05:00+00:00' }))
+assertEqual(recordWrites, 1, 'updatedAt-only rewrite skips reassigning Agent.record')
+assertEqual(agentRoot.record, firstRef, 'updatedAt-only rewrite preserves record reference')
+
+agentParse(JSON.stringify({ ...baseRecord, todayPrompts: 4, updatedAt: '2026-11-27T11:05:00+00:00' }))
+assertEqual(recordWrites, 2, 'real usage change updates Agent.record')
+assertEqual(agentRoot.record.todayPrompts, 4, 'real usage change reflects new field value')
+
+agentParse('{bad json')
+assertEqual(agentRoot.record, null, 'malformed JSON clears Agent.record')
+assertEqual(agentRoot.parsedText, '', 'malformed JSON clears parsedText cache')
+
+// Even when every usage file only bumps updatedAt (so recordChanged never fires
+// and dataRevision does not bump), finishing an update run must still schedule
+// sync (to pull remote snapshots) and re-arm any advised limits retry.
+const mainSourceForUpdate = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const finishUpdateSrc = mainSourceForUpdate.match(/function finishUpdate\(\) \{[\s\S]*?\n  \}/)[0]
+const calls = []
+const deferred = []
+const updateState = {
+  pendingUpdateKind: '',
+  rescanAgents() { calls.push('rescan') },
+  reloadRecords() { calls.push('reload') },
+  scheduleLimitsRetry() { calls.push('retry') },
+  scheduleSync() { calls.push('sync') },
+  runUpdate(kind) { calls.push('run:' + kind) },
+  Qt: { callLater(fn) { deferred.push(fn) } }
+}
+const finishUpdate = new Function('with (this) { ' + finishUpdateSrc + '\nreturn finishUpdate }').call(updateState)
+finishUpdate()
+assertDeepEqual(calls, ['rescan', 'reload'], 'finishUpdate rescans and reloads records before deferred hooks')
+assertEqual(deferred.length, 1, 'finishUpdate defers retry and sync scheduling until reloads land')
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'retry', 'sync'], 'updatedAt-only update still schedules sync and re-arms limits retry')
+
+calls.length = 0
+updateState.pendingUpdateKind = 'force'
+finishUpdate()
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'run:force', 'retry', 'sync'], 'finishUpdate dispatches queued pendingUpdateKind')
+assertEqual(updateState.pendingUpdateKind, '', 'finishUpdate clears pendingUpdateKind')
+
+// China installs filter the add picker to mainland-accessible providers while
+// keeping global installs unchanged and preserving sign-in metadata for all.
+const signInProvidersSrc = source.match(/readonly property var signInProviders: (\[[\s\S]*?\n  \])/)[1]
+const cnGroupIdsSrc = source.match(/readonly property var cnGroupIds: \((\{[\s\S]*?\n  \})\)/)[1]
+const addGroupSrc = fn('addGroup')
+const evalPicker = isChinaRegion => new Function(
+  'Commons', 'isChinaRegion',
+  'const signInProviders = ' + signInProvidersSrc + '\n' +
+  'const cnGroupIds = ' + cnGroupIdsSrc + '\n' +
+  addGroupSrc + '\n' +
+  'return { signInProviders, addGroup }'
+)({ I18n: { t: key => key } }, isChinaRegion)
+
+const globalPicker = evalPicker(false)
+assertDeepEqual(
+  globalPicker.addGroup('subscription').map(p => p.providerId),
+  ['claude', 'codex', 'grok', 'agy', 'muse', 'cursor', 'copilot', 'more-subscriptions'],
+  'global installs keep all subscription picker tiles'
+)
+assertDeepEqual(
+  globalPicker.addGroup('provider').map(p => p.providerId),
+  ['fireworks', 'opencode', 'openrouter', 'more-providers'],
+  'global installs keep all pay-as-you-go picker tiles'
+)
+
+const cnPicker = evalPicker(true)
+assertDeepEqual(
+  cnPicker.addGroup('subscription').map(p => p.providerId),
+  ['minimax', 'zai', 'kimi'],
+  'cn installs offer only China-accessible subscriptions without a More tile'
+)
+assertDeepEqual(
+  cnPicker.addGroup('provider').map(p => p.providerId),
+  ['deepseek'],
+  'cn installs offer only DeepSeek under pay as you go without a More tile'
+)
+assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
+assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
 JS
