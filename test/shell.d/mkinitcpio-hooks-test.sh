@@ -307,10 +307,11 @@ KERNEL_MODULES="" KERNEL_BUILTINS=thunderbolt assert_composed "a kernel with thu
 # to it. The fixtures are the drop-ins omarchy-mac-boot 20260926-1.45 installs,
 # as read from an encrypted M1 Pro, byte for byte the same as
 # omarchy-mac-boot/files/etc/mkinitcpio.conf.d in omacom/omarchy-mac-pkgs at
-# 4399105 (MIT). The encryption drop-in leaves a line carrying busybox encrypt
-# alone, since that is a Mac unlocked through cryptdevice=, so the baseline must
-# give a Mac the systemd line. No kernel modules here: the HID drop-in adds
-# only what modinfo finds.
+# 4399105 (MIT), plus 92-omarchy-mac-display-gate.conf from omacom/omarchy-mac-pkgs
+# at 520edae (#174, MIT). The encryption drop-in leaves a line carrying busybox
+# encrypt alone, since that is a Mac unlocked through cryptdevice=, so the
+# baseline must give a Mac the systemd line. No kernel modules here: the HID and
+# display-gate drop-ins add only what modinfo finds.
 mac_etc() {
   new_etc
   cp "$ROOT"/test/shell.d/fixtures/omarchy-mac-boot-mkinitcpio/*.conf "$etc/mkinitcpio.conf.d/"
