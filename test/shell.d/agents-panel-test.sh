@@ -613,3 +613,79 @@ assertDeepEqual(
 assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
 assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
 JS
+
+# While the account check runs, choices stay hidden behind the spinner and out
+# of keyboard navigation; once the check answers, the first choice takes focus.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const keyRowsBody = source.match(/readonly property var keyRows: (\{[\s\S]*?\n  \})/)[1]
+const checkingExpr = source.match(/readonly property bool checkingAccounts: ([\s\S]*?)\n  \/\//)[1]
+const pointAtFn = source.match(/function pointAt\([\s\S]*?\n  \}/)[0]
+const resetKeysFn = source.match(/function resetKeys\([\s\S]*?\n  \}/)[0]
+
+const evalChecking = new Function('scope', 'with (scope) { return (' + checkingExpr + ') }')
+const evalKeyRows = new Function('scope', 'with (scope) ' + keyRowsBody)
+const signInProviders = [
+  { providerId: 'claude', group: 'subscription' },
+  { providerId: 'codex', group: 'subscription' },
+  { providerId: 'grok', group: 'subscription' },
+  { providerId: 'more-subscriptions', group: 'subscription', more: 'moreSubscriptions' },
+  { providerId: 'fireworks', group: 'provider' },
+  { providerId: 'more-providers', group: 'provider', more: 'moreProviders' }
+]
+const state = {
+  instructionsShown: false,
+  addButtonShown: true,
+  picking: true,
+  addStage: 'pick',
+  addGroup: group => signInProviders.filter(p => p.group === group),
+  addColumns: 4,
+  ownModelOffers: [{ target: 'qwen' }],
+  addChecks: { claude: 'first' },
+  checkProcess: { running: true },
+  providers: [],
+  pasteLinkShown: false,
+  addUrl: '',
+  starterShown: false,
+  starterPrompts: [],
+  starterColumns: 2,
+  cursorActive: false,
+  pointerActive: false,
+  keyRow: 0,
+  keyColumn: 0,
+  Qt: { callLater: fn => fn() }
+}
+Object.defineProperty(state, 'checkingAccounts', { get() { return evalChecking(state) } })
+Object.defineProperty(state, 'keyRows', { get() { return evalKeyRows(state) } })
+state.pointAt = new Function('scope', 'with (scope) { return ' + pointAtFn + ' }')(state)
+state.resetKeys = new Function('scope', 'with (scope) { return ' + resetKeysFn + ' }')(state)
+
+assertEqual(state.checkingAccounts, true, 'account check stays active until every subscription provider has answered')
+assert(!state.keyRows.flat().some(item => item.kind === 'choice'), 'hidden choices stay out of keyboard rows while checking accounts')
+assert(state.keyRows.flat().some(item => item.kind === 'ownModel'), 'own models stay in keyboard rows while checking accounts')
+state.resetKeys()
+assertEqual(state.cursorActive, false, 'resetKeys does not select a hidden choice while checking accounts')
+
+state.addChecks = { claude: 'first', codex: 'first', grok: 'first', fireworks: 'first' }
+assertEqual(state.checkingAccounts, false, 'More tiles do not keep the account check spinner up')
+assertEqual(state.keyRows.flat().filter(item => item.kind === 'choice').length, 6, 'choices join keyboard rows once checking finishes')
+state.resetKeys()
+assertEqual(state.cursorActive, true, 'resetKeys activates the cursor once choices appear')
+assertDeepEqual(state.keyRows[state.keyRow][state.keyColumn], { kind: 'choice', index: 'claude' }, 'first choice is selected once choices appear')
+
+// A tile that signs in through a terminal is never answered by the check, and
+// one that signs in as another provider is answered under that provider's id.
+state.addGroup = group => group === 'subscription' ? [
+  { providerId: 'minimax', group: 'moreSubscriptions' },
+  { providerId: 'kimi', group: '', terminalLogin: true },
+  { providerId: 'opencode-go', group: 'moreSubscriptions', signsInAs: 'opencode' }
+] : []
+state.addChecks = { minimax: 'first', opencode: 'first' }
+assertEqual(state.checkingAccounts, false, 'terminal sign-in tiles and tiles answered under another provider do not keep the account check spinner up')
+state.addChecks = { opencode: 'first' }
+assertEqual(state.checkingAccounts, true, 'a tile the check has not answered keeps the spinner up beside a terminal sign-in tile')
+state.addChecks = { minimax: 'first', opencode: 'first' }
+state.resetKeys()
+assertDeepEqual(state.keyRows[state.keyRow][state.keyColumn], { kind: 'choice', index: 'minimax' }, 'the first tile of the first group takes the cursor, whichever provider it is')
+JS

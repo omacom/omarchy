@@ -158,11 +158,13 @@ Panel {
     if (addButtonShown) hero.push({ kind: "add", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
-      var blocks = [addGroup("subscription"), addGroup("provider")]
-      // A block wraps at addColumns, and so do its rows.
-      for (var b = 0; b < blocks.length; b++)
-        for (var c = 0; c < blocks[b].length; c += addColumns)
-          rows.push(blocks[b].slice(c, c + addColumns).map(function(choice) { return { kind: "choice", index: choice.providerId } }))
+      if (!checkingAccounts) {
+        var blocks = [addGroup("subscription"), addGroup("provider")]
+        // A block wraps at addColumns, and so do its rows.
+        for (var b = 0; b < blocks.length; b++)
+          for (var c = 0; c < blocks[b].length; c += addColumns)
+            rows.push(blocks[b].slice(c, c + addColumns).map(function(choice) { return { kind: "choice", index: choice.providerId } }))
+      }
       for (var o = 0; o < ownModelOffers.length; o++) rows.push([{ kind: "ownModel", index: o }])
     } else if (addStage === "more") {
       var more = moreChoices
@@ -1947,6 +1949,10 @@ Panel {
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
   readonly property bool picking: addStage === "pick" || (blankSlate && addStage === "")
+  // A subscription can't be picked until the check says whether it would be
+  // a first sign-in or another account.
+  readonly property bool checkingAccounts: checkProcess.running
+    && addGroup("subscription").concat(addGroup("provider")).some(function(p) { return !p.more && !p.terminalLogin && !addChecks[p.signsInAs || p.providerId] })
   // The + in the hero turns into the X that leaves adding. A first setup has
   // nothing to go back to until an agent is chosen.
   readonly property bool addButtonShown: !blankSlate || !picking
@@ -1976,6 +1982,8 @@ Panel {
     if (picking && localModelsService) localModelsService.readFreeMemory()
   }
 
+  onCheckingAccountsChanged: if (picking) resetKeys()
+
   // Picking an agent to add starts on the first one, ready for Enter. The
   // rows follow the same stage change, so the cursor waits a tick for them.
   function resetKeys() {
@@ -1984,7 +1992,7 @@ Panel {
     keyRow = 0
     keyColumn = 0
     Qt.callLater(function() {
-      if (!picking) return
+      if (!picking || checkingAccounts) return
       var first = addGroup("subscription")[0] || addGroup("provider")[0]
       if (first) pointAt("choice", first.providerId)
     })
@@ -2492,8 +2500,26 @@ Panel {
       width: parent.width
       spacing: Style.space(14)
 
+      Text {
+        id: checkSpinner
+        visible: root.picking && root.checkingAccounts
+        anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
+        text: "󰦖"
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.display
+
+        RotationAnimator on rotation {
+          running: checkSpinner.visible && !Style.reduceMotion
+          from: 0; to: 360
+          duration: Style.duration(800)
+          loops: Animation.Infinite
+        }
+      }
+
       Repeater {
-        model: root.picking ? [
+        model: root.picking && !root.checkingAccounts ? [
           { group: "subscription", label: Commons.I18n.t("agents.blockSubscriptions") },
           { group: "provider", label: Commons.I18n.t("agents.blockProviders") }
         ].filter(function(b) { return root.addGroup(b.group).length > 0 }) : []
