@@ -387,6 +387,15 @@ ShellRoot {
     return JSON.parse(JSON.stringify(idle))
   }
 
+  // Clones of the audio panel and the media service read the volume scale only;
+  // a manifest's clonedFrom is self-declared, so they get no write path.
+  function publicAudioConfigFor(manifest) {
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    var sourceId = metadata ? String(metadata.clonedFrom || "") : ""
+    if (sourceId !== "omarchy.audio" && sourceId !== "omarchy.media") return ({})
+    return { volumeScale: AudioVolume.scale(shell.shellConfig) }
+  }
+
   function pluginCloneMaySummon(manifest, requestedId) {
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
     var sourceId = metadata ? String(metadata.clonedFrom || "") : ""
@@ -647,6 +656,7 @@ ShellRoot {
       bar: shell.pluginBarStateFor(cacheKey, key),
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
+      audioConfig: shell.publicAudioConfigFor(manifest),
       _serviceLookup: function(requestedId) {
         return allowOwnService ? shell.pluginServiceFor(key, requestedId) : null
       },
@@ -913,6 +923,7 @@ ShellRoot {
       var shellManifest = descriptor ? plugins[descriptor.pluginId] : null
       shellApi.barConfig = shell.publicBarConfig()
       shellApi.idleConfig = shell.publicIdleConfigFor(shellManifest)
+      shellApi.audioConfig = shell.publicAudioConfigFor(shellManifest)
     }
     for (var entryKey in _pluginBarEntryShellApis)
       _pluginBarEntryShellApis[entryKey].barConfig = shell.publicBarConfig()

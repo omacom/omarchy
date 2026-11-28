@@ -63,6 +63,8 @@
   "audio.micOn": "Microphone on",
   "audio.noDevices": "No audio devices found",
   "audio.noMicrophone": "No microphone found",
+  "audio.volumeDecibels": "%1 dB",
+  "audio.volumeSilent": "Silent",
   "battery.durationHours": "%1h",
   "battery.durationHoursMinutes": "%1h %2m",
   "battery.durationMinutes": "%1m",
