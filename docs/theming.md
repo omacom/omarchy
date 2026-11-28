@@ -319,7 +319,6 @@ Common shell sections include:
 - `[popups]`
 - `[tooltip]`
 - `[notifications]`
-- `[launcher]`
 - `[menu]`
 - `[polkit]`
 - `[lock]`
