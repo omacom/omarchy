@@ -539,3 +539,26 @@ rows=$(BOOT_BACKEND=limine CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/
 rows=$(BOOT_BACKEND=systemd-boot CALLS="$select_tmp/snapshot-calls" PATH="$select_tmp/snapshots:$PATH" bash -c "$snapshots_script")
 [[ $rows == $'Snapshot 12 (update)\t12\t' ]] || fail "on systemd-boot the Snapshots provider lists the entries" "$rows"
 pass "the Snapshots provider lists systemd-boot's entries and asks nothing of Limine"
+
+# A select displaced by the menu or by a newer select still gets its done file,
+# or the omarchy-menu-select waiting on it polls forever.
+require_quickshell "menu select supersede test"
+
+qml_fixture_scratch
+trap 'qml_fixture_cleanup; rm -rf "$select_tmp"' EXIT
+scratch="$QML_FIXTURE_TMP/scratch"
+mkdir -p "$scratch"
+
+OMARCHY_MENU_TMP="$scratch" run_qml_fixture menu-select-supersede "the menu takes over from pending select requests" Ui Commons
+
+for name in a b c d f; do
+  if [[ ! -e $scratch/done-$name ]]; then
+    sed -n '1,220p' "$QML_FIXTURE_LOG" >&2
+    fail "superseding a pending menu select strands its waiter" "done-$name was never written; the displaced omarchy-menu-select waiter would spin forever"
+  fi
+  [[ ! -s $scratch/sel-$name && ! -s $scratch/done-$name ]] || fail "a displaced menu request is cancelled" "request $name returned a selection"
+done
+
+[[ -e $scratch/done-e && $(cat "$scratch/sel-e") == "bravo" ]] || fail "a selected value queues behind cancellation writes" "select E did not return bravo"
+
+pass "superseding a pending menu select finishes its request instead of leaking the waiter"
