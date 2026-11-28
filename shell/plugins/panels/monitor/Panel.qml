@@ -83,6 +83,7 @@ Panel {
         width: display.width,
         height: display.height,
         current: display.width + "x" + display.height,
+        transform: Number(display.transform) || 0,
         scales: scales,
         scaleIndex: Model.matchingScaleIndex(scales, display.scale, display.width, display.height),
         resolutions: resolutions.length > 1 ? resolutions : [],
@@ -239,6 +240,7 @@ Panel {
     if (current && current.scales.length > 0) list.push("scale")
     if (current && current.resolutions.length > 0) list.push("resolution")
     if (current && current.refreshes.length > 0) list.push("refresh")
+    if (current) list.push("rotation")
     if (mirrorAvailable) list.push("mirror")
     if (layoutMovable) list.push("layout")
     return list
@@ -249,6 +251,7 @@ Panel {
     if (section === "scale") return current ? current.scales.length : 0
     if (section === "resolution") return current ? current.resolutions.length : 0
     if (section === "refresh") return current ? current.refreshes.length : 0
+    if (section === "rotation") return 4
     if (section === "mirror") return mirrorModes.length
     if (section === "layout") return 1
     return 0  // sliders: only the sentinel at -1
@@ -293,7 +296,7 @@ Panel {
       var next = Math.max(0, Math.min(segments.length - 1, currentIndex + delta))
       selectDisplay(segments[next].name)
       selectedIndex = next
-    } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh" || focusSection === "mirror") {
+    } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh" || focusSection === "rotation" || focusSection === "mirror") {
       selectedIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, selectedIndex + delta))
     }
   }
@@ -310,6 +313,8 @@ Panel {
       setResolution(current.name, current.resolutions[selectedIndex])
     else if (focusSection === "refresh" && selectedIndex >= 0 && selectedIndex < current.refreshes.length)
       setResolution(current.name, current.current + "@" + current.refreshes[selectedIndex].rate)
+    else if (focusSection === "rotation" && selectedIndex >= 0 && selectedIndex < 4)
+      setRotation(current.name, selectedIndex * 90)
     // The picker, sliders and layout: moving is the action.
   }
 
@@ -369,6 +374,10 @@ Panel {
 
     function brightness(percent: string): string { return root.brightnessIpc(percent) }
     function state(): string { return root.stateIpc() }
+    function rotate(monitor: string, angle: string): string {
+      root.setRotation(monitor, parseInt(angle, 10))
+      return "ok"
+    }
     function open() { root.open() }
     function close() { root.close() }
     function toggle() { root.toggle() }
@@ -537,6 +546,14 @@ Panel {
 
   function setRotation(name, degrees) {
     runAction(["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)])
+  }
+
+  function rotationLabel(transform) {
+    var t = (Number(transform) || 0) % 4
+    if (t === 1) return Commons.I18n.t("monitor.rotate90")
+    if (t === 2) return Commons.I18n.t("monitor.rotate180")
+    if (t === 3) return Commons.I18n.t("monitor.rotate270")
+    return Commons.I18n.t("monitor.rotateNormal")
   }
 
   // The layout map's right-click menu: the display it's for, where it opened
@@ -1317,6 +1334,74 @@ Panel {
             }
           }
 
+          // ---------- Rotation ----------
+          PanelSeparator {
+            visible: root.current !== null
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            visible: root.current !== null
+            width: parent.width
+            spacing: Style.space(6) + panelColumn.sliderInset
+            bottomPadding: panelColumn.sliderInset
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(rotationHeader.implicitHeight, rotationCurrent.implicitHeight)
+
+              PanelSectionHeader {
+                id: rotationHeader
+                text: Commons.I18n.t("monitor.rotation")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: rotationCurrent
+                textFormat: Text.PlainText
+                text: root.current ? root.rotationLabel(root.current.transform) : ""
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
+            }
+
+            Grid {
+              id: rotationGrid
+              width: parent.width
+              columns: 4
+              spacing: Style.spacing.xs
+
+              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+
+              Repeater {
+                model: [
+                  [0, Commons.I18n.t("monitor.rotateNormal")],
+                  [90, Commons.I18n.t("monitor.rotate90")],
+                  [180, Commons.I18n.t("monitor.rotate180")],
+                  [270, Commons.I18n.t("monitor.rotate270")]
+                ]
+
+                RotationPill {
+                  required property var modelData
+                  required property int index
+
+                  degrees: modelData[0]
+                  label: modelData[1]
+                  rotationIndex: index
+                  width: rotationGrid.cellWidth
+                }
+              }
+            }
+          }
+
           // ---------- Layout ----------
           PanelSeparator {
             visible: root.layoutShown
@@ -1523,6 +1608,28 @@ Panel {
 
     onClicked: if (root.current) root.setResolution(root.current.name, root.current.current + "@" + option.rate)
     onHovered: function(isHovered) { if (isHovered) root.pointAt("refresh", refreshPill.refreshIndex) }
+  }
+
+  component RotationPill: Button {
+    id: rotationPill
+    required property int degrees
+    required property string label
+    required property int rotationIndex
+
+    text: label
+    fontSize: Style.font.caption
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.sm
+    verticalPadding: Style.spacing.controlPaddingY
+    bordered: true
+
+    active: root.current !== null && (root.current.transform % 4) === degrees / 90
+    hasCursor: root.cursorActive && root.focusSection === "rotation" && root.selectedIndex === rotationIndex
+    onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(rotationPill)
+
+    onClicked: if (root.current) root.setRotation(root.current.name, degrees)
+    onHovered: function(isHovered) { if (isHovered) root.pointAt("rotation", rotationPill.rotationIndex) }
   }
 
   // Extend puts each display beside the others; Mirror shows the built-in
