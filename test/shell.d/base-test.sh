@@ -59,6 +59,23 @@ shell_ipc_socket() {
   printf '%s/omarchy-shell-%s.sock\n' "${XDG_RUNTIME_DIR:-/run/user/$UID}" "${id:0:16}"
 }
 
+# A fixture can leave children behind after Quickshell exits; its setsid group
+# still reaches them, including children that need KILL after a TERM grace period.
+stop_process_group() {
+  local pid="$1" attempt
+
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  for attempt in {1..20}; do
+    if ! pgrep -g "$pid" >/dev/null 2>&1; then
+      wait "$pid" 2>/dev/null || true
+      return 0
+    fi
+    sleep 0.1
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
+
 require_command() {
   local command="$1"
 
@@ -130,25 +147,9 @@ QML_FIXTURE_TMP=""
 QML_FIXTURE_PID=""
 QML_FIXTURE_LOG=""
 
-# The fixture's Quickshell and every process it started, deepest last.
-qml_fixture_tree() {
-  local pid=$1 child
-  printf '%s\n' "$pid"
-  for child in $(pgrep -P "$pid" 2>/dev/null); do
-    qml_fixture_tree "$child"
-  done
-}
-
 qml_fixture_cleanup() {
-  local -a tree=()
   local attempt
-  if [[ -n $QML_FIXTURE_PID ]] && kill -0 "$QML_FIXTURE_PID" 2>/dev/null; then
-    # Processes a fixture started outlive Quickshell and can still be writing
-    # into its HOME while that is removed, so stop them with it.
-    mapfile -t tree < <(qml_fixture_tree "$QML_FIXTURE_PID")
-    kill "${tree[@]}" 2>/dev/null || true
-    wait "$QML_FIXTURE_PID" 2>/dev/null || true
-  fi
+  [[ -n $QML_FIXTURE_PID ]] && stop_process_group "$QML_FIXTURE_PID"
   QML_FIXTURE_PID=""
   if [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]]; then
     # A child that was mid-write when it got the signal can still add a file.
@@ -185,10 +186,7 @@ run_qml_fixture() {
 
   qml_fixture_scratch
   # A second fixture in the same file must not read the first one's result.
-  if [[ -n $QML_FIXTURE_PID ]] && kill -0 "$QML_FIXTURE_PID" 2>/dev/null; then
-    kill "$QML_FIXTURE_PID" 2>/dev/null || true
-    wait "$QML_FIXTURE_PID" 2>/dev/null || true
-  fi
+  [[ -n $QML_FIXTURE_PID ]] && stop_process_group "$QML_FIXTURE_PID"
   config_dir="$QML_FIXTURE_TMP/$fixture"
   result="$QML_FIXTURE_TMP/result.json"
   QML_FIXTURE_LOG="$QML_FIXTURE_TMP/quickshell.log"
@@ -208,7 +206,7 @@ run_qml_fixture() {
   QML2_IMPORT_PATH="$ROOT/shell${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}" \
   QML_IMPORT_PATH="$ROOT/shell${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
   PATH="$QML_FIXTURE_TMP/bin:$ROOT/bin:$PATH" \
-    quickshell -p "$config_dir" --no-color >"$QML_FIXTURE_LOG" 2>&1 &
+    setsid quickshell -p "$config_dir" --no-color >"$QML_FIXTURE_LOG" 2>&1 &
   QML_FIXTURE_PID=$!
 
   for _ in {1..150}; do
