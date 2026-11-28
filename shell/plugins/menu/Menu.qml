@@ -1504,7 +1504,15 @@ Item {
       borderSpec: root.borderSpec
       padding: root.contentMargin
 
-      MouseArea { anchors.fill: parent; onClicked: {} }
+      MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.BackButton
+        onClicked: function(mouse) {
+          if (!root.deleteConfirmOpen && (mouse.button === Qt.RightButton || mouse.button === Qt.BackButton)) {
+            root.goBack()
+          }
+        }
+      }
 
       Item {
         id: keyCatcher
@@ -1595,9 +1603,25 @@ Item {
           radius: root.cornerRadius
           color: "transparent"
 
+          PanelActionButton {
+            id: backButton
+            visible: root.activeMenu !== "root"
+            enabled: !root.deleteConfirmOpen
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            iconText: Commons.I18n.rightToLeft ? "→" : "←"
+            tooltipText: Commons.I18n.t("common.back")
+            foreground: Util.alpha(root.foreground, 0.55)
+            hoverColor: root.selectedText
+            fontFamily: root.fontFamily
+            fontSize: Style.font.heading
+            onClicked: root.goBack()
+          }
+
           FilterInput {
             id: filterInput
-            anchors.left: parent.left
+            anchors.left: backButton.visible ? backButton.right : parent.left
+            anchors.leftMargin: backButton.visible ? Style.spacing.sm : 0
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             keyHandler: keyCatcher
@@ -1639,12 +1663,7 @@ Item {
             WheelHandler {
               acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
               target: null
-              onWheel: function(event) {
-                var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
-                var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
-                resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
-                event.accepted = true
-              }
+              onWheel: function(event) { Util.wheelScroll(resultList, event, root.rowHeightForDetail("") * 3) }
             }
 
             section.property: "section"
@@ -1744,11 +1763,13 @@ Item {
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
               }
 
+              HoverHandler { id: rowHover }
+
               Column {
                 id: contentColumn
                 anchors.left: row.hasIcon ? iconText.right : parent.left
                 anchors.leftMargin: row.hasIcon ? Style.space(6) : root.rowReservedBorderLeft + Style.space(18)
-                anchors.right: trail.left
+                anchors.right: row.isApp ? uninstallButton.left : trail.left
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Style.space(3)
@@ -1829,6 +1850,20 @@ Item {
                   root.selectedIndex = row.index
                   root.activateIndex(row.index, mouseArea.mapToItem(null, mouse.x, mouse.y))
                 }
+              }
+
+              PanelActionButton {
+                id: uninstallButton
+                visible: row.isApp && !row.disabled && row.hasCursor && rowHover.hovered && !root.deleteConfirmOpen
+                anchors.right: parent.right
+                anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                iconText: "󰆴"
+                tooltipText: Commons.I18n.t("common.uninstall")
+                foreground: Util.alpha(root.selectedText, 0.55)
+                hoverColor: Commons.Color.urgent
+                fontFamily: root.fontFamily
+                onClicked: root.requestDeleteSelected()
               }
             }
           }

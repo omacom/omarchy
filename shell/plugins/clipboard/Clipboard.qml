@@ -191,10 +191,11 @@ Item {
     }
 
     root.disarmPointer()
-    root.rebuildDisplay()
+    root.rebuildDisplay(true)
   }
 
-  function rebuildDisplay() {
+  function rebuildDisplay(preserveScroll) {
+    var savedY = resultList.contentY
     var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber)
 
     displayModel.clear()
@@ -216,7 +217,9 @@ Item {
     else if (selectedIndex < 0) selectedIndex = 0
 
     Qt.callLater(function() {
-      if (displayModel.count > 0) resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+      if (displayModel.count === 0) return
+      if (preserveScroll) Util.clampContentY(resultList, savedY)
+      resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
     })
   }
 
@@ -312,6 +315,14 @@ Item {
   Component.onCompleted: initProc.running = true
 
   ListModel { id: displayModel }
+
+  component PreviewAction: Button {
+    foreground: root.foreground
+    accent: root.selectedText
+    fontFamily: root.fontFamily
+    fontSize: Style.font.bodySmall
+    iconSize: Style.font.bodySmall
+  }
 
   PointerMoveGate {
     id: pointerGate
@@ -512,7 +523,8 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: clearHistoryButton.left
+            anchors.rightMargin: Style.spacing.sm
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || Commons.I18n.t("clipboard.search")
             color: root.foreground
@@ -520,6 +532,20 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          PanelActionButton {
+            id: clearHistoryButton
+            visible: root.history.length > 0
+            enabled: !root.clearConfirmOpen
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            iconText: "󰆴"
+            tooltipText: Commons.I18n.t("clipboard.clearHistory")
+            foreground: Util.alpha(root.foreground, 0.55)
+            hoverColor: Commons.Color.urgent
+            fontFamily: root.fontFamily
+            onClicked: root.requestClearHistory()
           }
         }
 
@@ -545,6 +571,12 @@ Item {
                 spacing: Style.space(4)
                 boundsBehavior: Flickable.StopAtBounds
 
+                WheelHandler {
+                  acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                  target: null
+                  onWheel: function(event) { Util.wheelScroll(resultList, event, root.rowHeight * 3) }
+                }
+
                 delegate: Rectangle {
                   id: row
                   required property int index
@@ -560,10 +592,12 @@ Item {
                   radius: root.cornerRadius
                   color: hasCursor ? root.selectedBackground : "transparent"
 
+                  HoverHandler { id: rowHover }
+
                   Row {
                     anchors.fill: parent
                     anchors.leftMargin: Style.space(12)
-                    anchors.rightMargin: Style.space(12)
+                    anchors.rightMargin: deleteButton.width + Style.space(14)
                     anchors.topMargin: Style.space(8)
                     anchors.bottomMargin: Style.space(8)
                     spacing: Style.space(10)
@@ -605,16 +639,33 @@ Item {
                       root.activateIndex(row.index)
                     }
                   }
+
+                  PanelActionButton {
+                    id: deleteButton
+                    visible: row.hasCursor && rowHover.hovered && !root.clearConfirmOpen
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconText: "✕"
+                    tooltipText: Commons.I18n.t("common.delete")
+                    foreground: Util.alpha(root.selectedText, 0.55)
+                    hoverColor: Commons.Color.urgent
+                    fontFamily: root.fontFamily
+                    fontSize: Style.font.body
+                    onClicked: root.removeDisplayIndex(row.index)
+                  }
                 }
               }
             }
 
             Item {
+              id: previewPane
               width: parent.width / 2
               height: parent.height
               clip: true
 
               property var activeRow: displayModel.count > 0 && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
+              readonly property bool hasPreviewImage: activeRow !== null && activeRow.previewImage.length > 0
 
               Rectangle {
                 visible: displayModel.count > 0
@@ -625,34 +676,67 @@ Item {
                 color: Util.alpha(root.border, 0.28)
               }
 
-              Text {
-                textFormat: Text.PlainText
-                visible: parent.activeRow && !parent.activeRow.previewImage
-                anchors.fill: parent
+              Flickable {
+                id: previewFlick
+                visible: previewPane.activeRow !== null && !previewPane.hasPreviewImage
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: previewActions.top
                 anchors.leftMargin: root.contentMargin
-                anchors.rightMargin: 0
-                anchors.topMargin: 0
-                anchors.bottomMargin: 0
-                text: parent.activeRow ? parent.activeRow.fullText : ""
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.title
-                wrapMode: Text.WrapAnywhere
-                elide: Text.ElideRight
-                verticalAlignment: Text.AlignTop
+                anchors.bottomMargin: Style.spacing.md
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                contentWidth: width
+                contentHeight: previewTextItem.implicitHeight
+
+                WheelHandler {
+                  acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                  target: null
+                  onWheel: function(event) { Util.wheelScroll(previewFlick, event, Style.font.title * 4) }
+                }
+
+                Text {
+                  id: previewTextItem
+                  textFormat: Text.PlainText
+                  width: previewFlick.width
+                  text: previewPane.activeRow ? previewPane.activeRow.fullText : ""
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.title
+                  wrapMode: Text.WrapAnywhere
+                  onTextChanged: previewFlick.contentY = 0
+                }
               }
 
               SizedImage {
-                visible: parent.activeRow && parent.activeRow.previewImage
-                anchors.fill: parent
-                anchors.leftMargin: root.contentMargin
-                anchors.rightMargin: 0
-                anchors.topMargin: 0
-                anchors.bottomMargin: 0
-                url: parent.activeRow ? parent.activeRow.previewImage : ""
+                visible: previewPane.hasPreviewImage
+                anchors.fill: previewFlick
+                url: previewPane.activeRow ? previewPane.activeRow.previewImage : ""
                 verticalAlignment: Image.AlignTop
                 asynchronous: true
                 smooth: true
+              }
+
+              Row {
+                id: previewActions
+                visible: previewPane.activeRow !== null
+                enabled: !root.clearConfirmOpen
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                spacing: Style.spacing.sm
+
+                PreviewAction {
+                  iconText: "󰆏"
+                  text: Commons.I18n.t("common.copy")
+                  onClicked: root.copyIndex(root.selectedIndex)
+                }
+
+                PreviewAction {
+                  iconText: "󰏌"
+                  text: Commons.I18n.t("common.open")
+                  onClicked: root.openIndex(root.selectedIndex)
+                }
               }
             }
           }
