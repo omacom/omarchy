@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Build or stage the native TTFX Plymouth module
-# omarchy:args=<build --output FILE|stage --module FILE --destdir DIR>
+# omarchy:args=<build --output FILE [--continuity-output FILE]|stage --module FILE --destdir DIR [--continuity FILE]>
 # omarchy:hidden=true
 
 set -euo pipefail
@@ -19,8 +19,8 @@ cleanup_build() {
 }
 
 usage() {
-  echo "Usage: omarchy-plymouth-ttfx-build build --output FILE" >&2
-  echo "       omarchy-plymouth-ttfx-build stage --module FILE --destdir DIR" >&2
+  echo "Usage: omarchy-plymouth-ttfx-build build --output FILE [--continuity-output FILE]" >&2
+  echo "       omarchy-plymouth-ttfx-build stage --module FILE --destdir DIR [--continuity FILE]" >&2
   exit 2
 }
 
@@ -62,6 +62,29 @@ inspect_module() {
   ! grep -q 'not found' <<<"$dependencies" || { printf 'module has unresolved dependencies:\n%s\n' "$dependencies" >&2; return 1; }
 }
 
+# The desktop's continuity client: a hardened PIE that the session runs.
+inspect_continuity() {
+  local client=$1 dependencies
+
+  [[ -f $client && ! -L $client ]] || { printf 'missing regular continuity client: %s\n' "$client" >&2; return 1; }
+  file "$client" | grep -q 'ELF .* pie executable' || { printf 'continuity client is not a PIE executable: %s\n' "$client" >&2; return 1; }
+  readelf -lW "$client" | grep -q GNU_RELRO || { printf 'continuity client lacks GNU_RELRO: %s\n' "$client" >&2; return 1; }
+  readelf -dW "$client" | grep -Eq 'BIND_NOW|FLAGS.*NOW' || { printf 'continuity client lacks immediate binding: %s\n' "$client" >&2; return 1; }
+  dependencies=$(ldd "$client")
+  ! grep -q 'not found' <<<"$dependencies" || { printf 'continuity client has unresolved dependencies:\n%s\n' "$dependencies" >&2; return 1; }
+}
+
+# Installs the client and its launcher where omarchy-plymouth-handoff runs them.
+stage_continuity() {
+  local client=$1 destdir=$2 dest
+
+  inspect_continuity "$client"
+  dest="$destdir/usr/lib/omarchy/plymouth"
+  mkdir -p -- "$dest"
+  install -m 0755 -- "$client" "$dest/omarchy-plymouth-continuity"
+  install -m 0755 -- "$root/native/plymouth-ttfx-continuity/omarchy-plymouth-continuity-run" "$dest/omarchy-plymouth-continuity-run"
+}
+
 stage_module() {
   local module=$1 destdir=$2 theme_source theme_dest recovery_dest
 
@@ -88,7 +111,7 @@ stage_module() {
 }
 
 build_module() {
-  local output=$1 plugin_root engine_root archive flags
+  local output=$1 continuity_output=$2 plugin_root engine_root archive flags client_dir
   local -a cflags libs
 
   check_abi
@@ -128,6 +151,16 @@ build_module() {
   inspect_module "$build_temporary"
   mv -fT -- "$build_temporary" "$output"
   build_temporary=
+  if [[ -n $continuity_output ]]; then
+    [[ $continuity_output == /* ]] || { printf 'continuity output must be absolute\n' >&2; return 1; }
+    client_dir="$build_target_dir/continuity"
+    TTFX_ENGINE_LIB="$archive" "$root/native/plymouth-ttfx-continuity/build.sh" "$client_dir" >/dev/null
+    strip --strip-unneeded "$client_dir/omarchy-plymouth-continuity"
+    inspect_continuity "$client_dir/omarchy-plymouth-continuity"
+    mkdir -p -- "${continuity_output%/*}"
+    install -m 0755 -- "$client_dir/omarchy-plymouth-continuity" "$continuity_output"
+    printf 'continuity client: %s\n' "$continuity_output"
+  fi
   cleanup_build
   trap - EXIT RETURN
   printf 'module: %s\n' "$output"
@@ -138,12 +171,25 @@ operation=$1
 shift
 case "$operation" in
 stage)
-  [[ ${1:-} == "--module" && -n ${2:-} && ${3:-} == "--destdir" && -n ${4:-} && $# == 4 ]] || usage
-  stage_module "$2" "$4"
+  [[ ${1:-} == "--module" && -n ${2:-} && ${3:-} == "--destdir" && -n ${4:-} ]] || usage
+  if (( $# == 6 )); then
+    [[ ${5:-} == "--continuity" && -n ${6:-} ]] || usage
+    stage_module "$2" "$4"
+    stage_continuity "$6" "$4"
+  else
+    (( $# == 4 )) || usage
+    stage_module "$2" "$4"
+  fi
   ;;
 build)
-  [[ ${1:-} == "--output" && -n ${2:-} && $# == 2 ]] || usage
-  build_module "$2"
+  [[ ${1:-} == "--output" && -n ${2:-} ]] || usage
+  if (( $# == 4 )); then
+    [[ ${3:-} == "--continuity-output" && -n ${4:-} ]] || usage
+    build_module "$2" "$4"
+  else
+    (( $# == 2 )) || usage
+    build_module "$2" ""
+  fi
   ;;
 *) usage ;;
 esac

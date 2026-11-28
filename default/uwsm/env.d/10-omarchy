@@ -15,6 +15,26 @@ fi
 # Optional user overrides kept for compatibility with older installs.
 [ -f "$HOME/.config/uwsm/default" ] && . "$HOME/.config/uwsm/default"
 
+# aquamarine keeps the picture a display shows at startup instead of setting
+# its mode (AQ_SPLASH_ADOPT, Omarchy's aquamarine), so Hyprland starts over the
+# native Plymouth splash's last frame without a blank one. That picture is the
+# splash's only for the first session of a boot that left the frame for the
+# continuity client (bin/omarchy-plymouth-handoff); after a logout it is the
+# login screen's or the console's. The mark keeps it to one session per boot.
+omarchy_adopt_mark="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/plymouth-adopted-boot"
+omarchy_boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+if [ -e /run/omarchy-plymouth-handoff.raw ] &&
+   [ -x /usr/lib/omarchy/plymouth/omarchy-plymouth-continuity-run ] &&
+   [ -n "$omarchy_boot_id" ] &&
+   [ "$(cat "$omarchy_adopt_mark" 2>/dev/null)" != "$omarchy_boot_id" ] &&
+   mkdir -p "${omarchy_adopt_mark%/*}" &&
+   printf '%s\n' "$omarchy_boot_id" >"$omarchy_adopt_mark"; then
+  export AQ_SPLASH_ADOPT=1
+else
+  unset AQ_SPLASH_ADOPT
+fi
+unset omarchy_adopt_mark omarchy_boot_id
+
 # Put mise shims ahead of system binaries, behind the account dispatchers the
 # env bootstrap put first, without spawning mise on every graphical login.
 if command -v mise >/dev/null 2>&1; then

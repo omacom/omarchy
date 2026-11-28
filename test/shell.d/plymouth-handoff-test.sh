@@ -11,234 +11,88 @@ dropin="$ROOT/default/systemd/system/plymouth-quit.service.d/10-omarchy-retain-s
 [[ -x $helper ]] || fail "boot handoff helper is installed as an executable"
 [[ -f $dropin ]] || fail "Plymouth quit drop-in retains the last splash"
 grep -Fx 'ExecStart=' "$dropin" >/dev/null || fail "drop-in clears the vendor quit command"
-grep -Fx "ExecStart=/usr/bin/sh -c '/usr/bin/timeout -k 1s 3s /usr/bin/plymouth quit --retain-splash || /usr/bin/systemctl start omarchy-plymouth-reap.service'" "$dropin" >/dev/null ||
-  fail "drop-in retains Plymouth until the compositor modeset with bounded cleanup"
-grep -Fx 'ExecStartPost=/usr/bin/systemctl start omarchy-plymouth-reap.timer' "$dropin" >/dev/null ||
-  fail "drop-in arms the bounded Plymouth cleanup timer"
-grep -Fx "ExecStartPre=-/usr/bin/timeout -k 1s 3s /usr/bin/plymouth deactivate" "$dropin" >/dev/null ||
-  fail "drop-in releases Plymouth DRM master before retaining the last splash"
-pass "Plymouth deactivates before retaining its last real TTFX frame through display-manager startup"
+grep -Fx "ExecStart=/usr/bin/sh -c '/usr/bin/timeout -k 1s 3s /usr/bin/plymouth deactivate || /usr/bin/timeout -k 1s 3s /usr/bin/plymouth quit --retain-splash'" "$dropin" >/dev/null ||
+  fail "drop-in only deactivates Plymouth, quitting at once when that fails"
+grep -Fx 'ExecStartPost=/usr/bin/systemctl start --no-block omarchy-plymouth-reap.service' "$dropin" >/dev/null ||
+  fail "drop-in starts the bounded Plymouth reaper without holding up the login screen"
+[[ $(grep -c '^ExecStart=.' "$dropin") == 1 ]] || fail "drop-in runs only the deactivate, never a plain quit first"
+reaper="$ROOT/bin/omarchy-plymouth-reap"
+[[ -x $reaper ]] || fail "the Plymouth reaper is installed as an executable"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' "$reaper" || fail "the Plymouth reaper parses"
+grep -Fx 'ExecStart=-/usr/share/omarchy/bin/omarchy-plymouth-reap' "$ROOT/default/systemd/system/omarchy-plymouth-reap.service" >/dev/null ||
+  fail "the reaper service runs the packaged reaper"
+pass "Plymouth only deactivates, so its last frame stays on screen for the compositor to take over"
 
-early_line=$(grep -n 'omarchy-plymouth-handoff --launch-shell' "$autostart" | cut -d: -f1)
-[[ $early_line =~ ^[0-9]+$ ]] || fail "serialized handoff launcher is missing from Hyprland startup"
+grep -F 'hl.exec_cmd("omarchy-plymouth-handoff --launch-shell")' "$autostart" >/dev/null ||
+  fail "Hyprland startup starts the shell through the handoff helper"
 grep -Fx '  hl.exec_cmd("omarchy-launch-shell")' "$autostart" >/dev/null &&
-  fail "Quickshell is still launched independently and can win the controller lock"
-pass "handoff claims startup before launching Quickshell"
+  fail "the shell is still started on its own, ahead of the continuity client"
+pass "Hyprland startup runs the continuity client ahead of the shell"
 
 tmp=$(mktemp -d "${TMPDIR:-/var/tmp}/ttfx-test.XXXXXXXX")
 printf 'Test fixtures: %s\n' "$tmp"
-mkdir -p "$tmp/runtime"
-cat >"$tmp/descriptor" <<'EOF'
-[Plymouth Theme]
-ModuleName=ttfx-plymouth
-[ttfx]
-Mode=fixed
-Enabled=true
-Effect=decrypt
-Seed=18446744073709551615
-EOF
-printf '%s\n' decrypt dissolve >"$tmp/catalog"
-chmod 0644 "$tmp/descriptor" "$tmp/catalog"
-cat >"$tmp/hyprctl" <<'EOF'
-#!/bin/bash
-printf '%s\n' "$*" >>"$HANDOFF_TEST_LOG"
-EOF
+mkdir -p "$tmp/bin"
+
 cat >"$tmp/launcher" <<'EOF'
 #!/bin/bash
 line=launcher
 for arg in "$@"; do line+=" <$arg>"; done
 printf '%s\n' "$line" >>"$HANDOFF_TEST_LOG"
-if (( $# == 0 )); then
-  [[ ! -e $XDG_RUNTIME_DIR/omarchy-plymouth-handoff.active ]] || exit 21
-  printf 'fallback active=no\n' >>"$HANDOFF_TEST_LOG"
-  [[ ${HANDOFF_TEST_FALLBACK_FAIL:-false} == false ]] || exit 22
-  sleep 0.15
-  kill -0 "$PPID" || exit 23
-  printf 'fallback parent=alive\n' >>"$HANDOFF_TEST_LOG"
-elif [[ ${HANDOFF_TEST_READY:-false} == true ]]; then
-  touch "$XDG_RUNTIME_DIR/omarchy-plymouth-handoff.ready"
-  sleep 0.15
-else
-  # The shell starts alongside the renderer; fail only after it has looked at
-  # the claim, as a renderer that dies during startup would.
-  if [[ ${HANDOFF_TEST_SHELL:-false} == true ]]; then
-    for _ in {1..100}; do
-      grep -q '^shell active=' "$HANDOFF_TEST_LOG" && break
-      sleep 0.02
-    done
-  fi
-  exit 17
-fi
 EOF
-cat >"$tmp/omarchy-launch-shell" <<'EOF'
+cat >"$tmp/bin/omarchy-launch-shell" <<'EOF'
 #!/bin/bash
-if [[ -e $XDG_RUNTIME_DIR/omarchy-plymouth-handoff.active ]]; then
-  printf 'shell active=yes\n' >>"$HANDOFF_TEST_LOG"
-else
-  printf 'shell active=no\n' >>"$HANDOFF_TEST_LOG"
-fi
-# Supervise like the real launcher, which stays up for the whole session: keep
-# running until the helper has restored the cursor, bounded so a regression
-# fails instead of hanging.
-if [[ ${HANDOFF_TEST_SHELL:-false} == true ]]; then
-  for _ in {1..100}; do
-    grep -qx 'keyword cursor:invisible false' "$HANDOFF_TEST_LOG" && break
-    sleep 0.05
-  done
-  printf 'shell exit\n' >>"$HANDOFF_TEST_LOG"
-fi
+printf 'shell args=%s\n' "$#" >>"$HANDOFF_TEST_LOG"
 EOF
-chmod +x "$tmp/hyprctl" "$tmp/launcher" "$tmp/omarchy-launch-shell"
-printf 'stale\n' >"$tmp/runtime/omarchy-plymouth-handoff.ready"
+chmod 0755 "$tmp/launcher" "$tmp/bin/omarchy-launch-shell"
+printf 'OMBFRAW1' >"$tmp/frame"
 
-HANDOFF_TEST_LOG="$tmp/log" \
-PATH="$tmp:/usr/bin:/bin" \
-XDG_RUNTIME_DIR="$tmp/runtime" \
-OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/descriptor" \
-OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
-OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-"$helper"
-
-first=$(sed -n '1p' "$tmp/log")
-second=$(sed -n '2p' "$tmp/log")
-[[ $first == 'keyword cursor:invisible true' ]] || fail "cursor is not hidden before the desktop renderer starts"
-[[ $second == "launcher <--boot-effect> <decrypt> <--boot-seed> <18446744073709551615> <--ready-file> <$tmp/runtime/omarchy-plymouth-handoff.ready> <--unhide-cursor-on-ready>" ]] ||
-  fail "helper did not preserve exact boot effect/seed/readiness contract"
-[[ ! -e $tmp/runtime/omarchy-plymouth-handoff.ready ]] || fail "stale readiness marker survived a new login"
-third=$(sed -n '3p' "$tmp/log")
-[[ $third == 'keyword cursor:invisible false' ]] ||
-  fail "cursor remained hidden when renderer exited before its first frame"
-pass "valid native state is handed to one early renderer without resolving random twice"
-[[ $(grep -Fxc launcher "$tmp/log") == 1 ]] || fail "early exit did not launch exactly one ordinary fallback"
-[[ $(sed -n '4p' "$tmp/log") == launcher ]] || fail "fallback started before cursor restoration"
-grep -Fx 'fallback active=no' "$tmp/log" >/dev/null || fail "fallback inherited the handoff claim"
-grep -Fx 'fallback parent=alive' "$tmp/log" >/dev/null || fail "helper did not wait for the ordinary controller"
-pass "renderer startup failure restores cursor and parents one ordinary fallback"
-
-cursor_restored_while_shell_runs() {
-  local restored exited
-  restored=$(grep -nx 'keyword cursor:invisible false' "$tmp/log" | head -n1 | cut -d: -f1)
-  exited=$(grep -nx 'shell exit' "$tmp/log" | head -n1 | cut -d: -f1)
-  [[ $restored =~ ^[0-9]+$ && $exited =~ ^[0-9]+$ ]] && (( restored < exited ))
+# Runs one scenario in its own runtime directory and waits for the
+# backgrounded launcher, which the helper never waits for.
+run_case() {
+  local name=$1
+  shift
+  local case_dir="$tmp/$name"
+  mkdir -p "$case_dir/runtime"
+  : >"$case_dir/log"
+  env PATH="$tmp/bin:/usr/bin:/bin" XDG_RUNTIME_DIR="$case_dir/runtime" HANDOFF_TEST_LOG="$case_dir/log" \
+    OMARCHY_PLYMOUTH_CONTINUITY_LAUNCHER="${CASE_LAUNCHER:-$tmp/launcher}" \
+    OMARCHY_PLYMOUTH_HANDOFF_FRAME="${CASE_FRAME:-$tmp/frame}" \
+    "$helper" "$@" || fail "$name: the helper never fails login"
+  for _ in {1..100}; do
+    [[ -z ${CASE_EXPECT_LAUNCHER:-} ]] || grep -q '^launcher' "$case_dir/log" && break
+    sleep 0.02
+  done
+  case_log=$(<"$case_dir/log")
 }
 
-: >"$tmp/log"
-HANDOFF_TEST_LOG="$tmp/log" \
-HANDOFF_TEST_SHELL=true \
-PATH="$tmp:/usr/bin:/bin" \
-XDG_RUNTIME_DIR="$tmp/runtime" \
-OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/descriptor" \
-OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
-OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-timeout 10 "$helper" --launch-shell || fail "helper exits once the supervised shell does"
-cursor_restored_while_shell_runs ||
-  fail "cursor recovery waited for the session-long shell supervisor" "$(cat "$tmp/log")"
-grep -Fx 'shell active=yes' "$tmp/log" >/dev/null ||
-  fail "Quickshell started before the handoff active claim"
-[[ ! -e $tmp/runtime/omarchy-plymouth-handoff.active ]] ||
-  fail "handoff active claim leaked after renderer exit"
-[[ $(grep -Fxc 'shell active=yes' "$tmp/log") == 1 ]] || fail "shell was relaunched during recovery"
-[[ $(grep -Fxc launcher "$tmp/log") == 1 ]] || fail "shell recovery did not start exactly one fallback"
-pass "Quickshell starts only after the seeded controller is claimed"
-pass "cursor recovery runs while the shell supervisor is still running"
+expected_launch="launcher <--settle-ms> <30> <--pid-file> <$tmp/handoff/runtime/omarchy-plymouth-continuity.pid>"
 
-for scenario in fallback-failure ready; do
-  : >"$tmp/log"
-  HANDOFF_TEST_LOG="$tmp/log" \
-  HANDOFF_TEST_FALLBACK_FAIL=true \
-  HANDOFF_TEST_SHELL=true \
-  HANDOFF_TEST_READY="$([[ $scenario == ready ]] && printf true || printf false)" \
-  PATH="$tmp:/usr/bin:/bin" \
-  XDG_RUNTIME_DIR="$tmp/runtime" \
-  OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/descriptor" \
-  OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
-  OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-  timeout 5 "$helper" --launch-shell || fail "$scenario did not terminate cleanly"
-  [[ $(grep -c '^launcher <--boot-effect>' "$tmp/log") == 1 ]] || fail "$scenario duplicated the seeded controller"
-  [[ $(grep -Fxc 'shell active=yes' "$tmp/log") == 1 ]] || fail "$scenario changed normal shell launch"
-  [[ $(grep -Fxc 'keyword cursor:invisible false' "$tmp/log") == 1 ]] || fail "$scenario did not restore cursor exactly once"
-  [[ ! -e $tmp/runtime/omarchy-plymouth-handoff.active ]] || fail "$scenario leaked the active claim"
-  cursor_restored_while_shell_runs || fail "$scenario held cursor recovery behind the shell" "$(cat "$tmp/log")"
-  if [[ $scenario == fallback-failure ]]; then
-    [[ $(grep -Fxc launcher "$tmp/log") == 1 ]] || fail "failed fallback was retried or missing"
-    grep -Fx 'fallback active=no' "$tmp/log" >/dev/null || fail "failed fallback inherited active claim"
-    pass "ordinary fallback failure exits without recursion or shell relaunch"
-  else
-    [[ $(grep -Fxc launcher "$tmp/log" || true) == 0 ]] || fail "successful readiness launched an ordinary fallback"
-    pass "successful handoff does not launch a fallback"
-  fi
-done
+CASE_EXPECT_LAUNCHER=1 run_case handoff --launch-shell
+grep -Fx -- "$expected_launch" <<<"$case_log" >/dev/null || fail "a boot frame starts the continuity client" "$case_log"
+grep -Fx 'shell args=0' <<<"$case_log" >/dev/null || fail "the shell starts after the continuity client" "$case_log"
+pass "a boot frame starts the continuity client, then the shell"
 
-# The desktop renderer is optional; stock login must start without one.
-: >"$tmp/log"
-HANDOFF_TEST_LOG="$tmp/log" \
-PATH="$tmp:/usr/bin:/bin" \
-XDG_RUNTIME_DIR="$tmp/runtime" \
-OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/descriptor" \
-OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
-env -u OMARCHY_TTFX_BG_LAUNCHER "$helper" --launch-shell
-grep -Fx 'shell active=no' "$tmp/log" >/dev/null ||
-  fail "normal shell login must start without an optional desktop renderer"
-[[ $(wc -l <"$tmp/log") == 1 ]] || fail "stock login must not start a handoff renderer or hide the cursor"
-pass "stock login starts normally without a desktop handoff renderer"
+CASE_EXPECT_LAUNCHER=1 run_case no-shell
+grep -q '^launcher' <<<"$case_log" || fail "without --launch-shell the client still starts" "$case_log"
+grep -q '^shell' <<<"$case_log" && fail "without --launch-shell no shell starts" "$case_log"
+pass "without --launch-shell only the continuity client starts"
 
-: >"$tmp/log"
-sed 's/Effect=decrypt/Effect=not-in-catalog/' "$tmp/descriptor" >"$tmp/bad-descriptor"
-HANDOFF_TEST_LOG="$tmp/log" \
-PATH="$tmp:/usr/bin:/bin" \
-XDG_RUNTIME_DIR="$tmp/runtime" \
-OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/bad-descriptor" \
-OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
-OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-"$helper"
-[[ ! -s $tmp/log ]] || fail "invalid effect launched a renderer or hid the cursor"
-pass "invalid or unavailable boot state never delays graphical login"
+CASE_FRAME="$tmp/missing" run_case no-frame --launch-shell
+[[ $case_log == 'shell args=0' ]] || fail "without a boot frame only the shell starts" "$case_log"
+pass "without a boot frame only the shell starts"
 
-: >"$tmp/log"
-printf '%s\n' decrypt '../injected' >"$tmp/bad-catalog"
-chmod 0644 "$tmp/bad-catalog"
-HANDOFF_TEST_LOG="$tmp/log" \
-PATH="$tmp:/usr/bin:/bin" \
-XDG_RUNTIME_DIR="$tmp/runtime" \
-OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/descriptor" \
-OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/bad-catalog" \
-OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-"$helper"
-[[ ! -s $tmp/log ]] || fail "malformed catalog launched a renderer"
+cp "$tmp/launcher" "$tmp/writable-launcher"
+chmod 0775 "$tmp/writable-launcher"
+CASE_LAUNCHER="$tmp/writable-launcher" run_case writable --launch-shell
+[[ $case_log == 'shell args=0' ]] || fail "a group-writable launcher is never run" "$case_log"
+ln -s "$tmp/launcher" "$tmp/linked-launcher"
+CASE_LAUNCHER="$tmp/linked-launcher" run_case symlink --launch-shell
+[[ $case_log == 'shell args=0' ]] || fail "a symlinked launcher is never run" "$case_log"
+CASE_LAUNCHER="$tmp/missing" run_case no-launcher --launch-shell
+[[ $case_log == 'shell args=0' ]] || fail "a missing launcher still starts the shell" "$case_log"
+pass "an untrusted or missing launcher is skipped and the shell still starts"
 
-ln -s "$tmp/descriptor" "$tmp/descriptor-link"
-HANDOFF_TEST_LOG="$tmp/log" \
-PATH="$tmp:/usr/bin:/bin" \
-XDG_RUNTIME_DIR="$tmp/runtime" \
-OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/descriptor-link" \
-OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
-OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-"$helper"
-[[ ! -s $tmp/log ]] || fail "symlinked descriptor launched a renderer"
-pass "handoff rejects malformed catalogs and symlinked state"
-
-: >"$tmp/log"
-cat >"$tmp/duplicate-descriptor" <<'EOF'
-[Plymouth Theme]
-ModuleName=
-ModuleName=ttfx-plymouth
-[ttfx]
-Mode=
-Mode=fixed
-Enabled=
-Enabled=true
-Effect=
-Effect=decrypt
-Seed=
-Seed=18446744073709551615
-EOF
-chmod 0644 "$tmp/duplicate-descriptor"
-HANDOFF_TEST_LOG="$tmp/log" \
-PATH="$tmp:/usr/bin:/bin" \
-XDG_RUNTIME_DIR="$tmp/runtime" \
-OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/duplicate-descriptor" \
-OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
-OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-"$helper"
-[[ ! -s $tmp/log ]] || fail "empty-first duplicate descriptor keys were accepted"
-pass "descriptor key occurrence validation rejects empty-first duplicates"
+run_case extra-arguments --launch-shell extra
+sleep 0.2
+[[ -z $(<"$tmp/extra-arguments/log") ]] || fail "unexpected arguments start nothing" "$(<"$tmp/extra-arguments/log")"
+pass "unexpected arguments start nothing but never fail"

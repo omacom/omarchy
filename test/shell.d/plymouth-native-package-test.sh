@@ -69,6 +69,28 @@ if readelf -SW "$module" | grep -q '\.debug'; then
 fi
 pass "staged module passes symbol and hardening inspection"
 
+cat >"$tmp/client.c" <<'C'
+int main(void) { return 0; }
+C
+gcc -fPIE -pie -Wl,-z,relro,-z,now "$tmp/client.c" -o "$tmp/omarchy-plymouth-continuity"
+env PATH="$tmp/bin:/usr/bin:/bin" TEST_PLYMOUTH_VERSION=26.134.222-2 TEST_PKGCONFIG_VERSION=26.134.222 \
+  "$command_under_test" stage --module "$tmp/ttfx-plymouth.so" --destdir "$tmp/pkg-continuity" \
+  --continuity "$tmp/omarchy-plymouth-continuity" >"$tmp/out" 2>"$tmp/err" ||
+  fail "stage installs the continuity client" "$(cat "$tmp/err")"
+for file in omarchy-plymouth-continuity omarchy-plymouth-continuity-run; do
+  staged="$tmp/pkg-continuity/usr/lib/omarchy/plymouth/$file"
+  [[ -f $staged && $(stat -c %a "$staged") == 755 ]] || fail "stage installs $file executable where the handoff runs it"
+done
+cmp -s "$ROOT/native/plymouth-ttfx-continuity/omarchy-plymouth-continuity-run" \
+  "$tmp/pkg-continuity/usr/lib/omarchy/plymouth/omarchy-plymouth-continuity-run" || fail "stage installs the packaged launcher"
+gcc -fPIE -pie -Wl,-z,norelro,-z,lazy "$tmp/client.c" -o "$tmp/soft-client"
+if env PATH="$tmp/bin:/usr/bin:/bin" TEST_PLYMOUTH_VERSION=26.134.222-2 TEST_PKGCONFIG_VERSION=26.134.222 \
+  "$command_under_test" stage --module "$tmp/ttfx-plymouth.so" --destdir "$tmp/pkg-soft" \
+  --continuity "$tmp/soft-client" >"$tmp/out" 2>"$tmp/err"; then
+  fail "stage rejects a continuity client without RELRO and immediate binding"
+fi
+pass "stage installs a hardened continuity client and its launcher, and rejects a soft one"
+
 cat >"$tmp/bin/cargo" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"${TEST_CARGO_LOG:?}"

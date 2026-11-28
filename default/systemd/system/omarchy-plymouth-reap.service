@@ -1,8 +1,10 @@
 [Unit]
-Description=Release retained Omarchy Plymouth resources
+Description=Quit the deactivated Omarchy boot splash once the compositor has drawn
 
 [Service]
 Type=oneshot
-ExecStart=-/usr/bin/timeout -k 1s 3s /usr/bin/plymouth quit --retain-splash
+# Waits up to 20s for the compositor to replace the splash's frame, then quits
+# Plymouth with --retain-splash (bin/omarchy-plymouth-reap).
+ExecStart=-/usr/share/omarchy/bin/omarchy-plymouth-reap
 ExecStartPost=-/usr/bin/systemctl stop plymouth-start.service
-TimeoutStartSec=8s
+TimeoutStartSec=30s

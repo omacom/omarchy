@@ -1,7 +1,0 @@
-[Unit]
-Description=Bounded cleanup of deactivated Omarchy Plymouth
-
-[Timer]
-OnActiveSec=20s
-AccuracySec=100ms
-Unit=omarchy-plymouth-reap.service

@@ -16,7 +16,16 @@ Branding changes retain the existing validated effect, seed, colors, and playbac
 
 The default is decrypt at 240 Hz with two engine frames per tick. Input Only plays once and holds completion, speeding up when the password is submitted; Full Animated loops. All playback uses `ttfx_engine_draw_logo`. The effect picker omits Off and keeps Random. The Unlock theme picker remains available.
 
-Plymouth deactivates before quitting, retains its last splash through compositor startup, and has a bounded reap timer. A desktop renderer may opt in with `OMARCHY_TTFX_BG_LAUNCHER`; without one, normal shell startup proceeds immediately. There is no dependency on a personal desktop plugin. The background layer emits a readiness marker once after a settled frame, without idle polling.
+The handoff to the desktop has no blank frame and no console in between:
+
+- **Plymouth only deactivates.** `plymouth-quit.service` (drop-in `10-omarchy-retain-splash.conf`) runs `plymouth deactivate`, as GDM does: Plymouth stops drawing and drops DRM master but keeps its device open, so its last frame stays scanned out, with no `drm_lastclose` console restore flashing in between. The native module publishes its handoff as it deactivates: the last frame in `/run/omarchy-plymouth-handoff.raw` and the effect, colors and outro mode in `/run/omarchy-plymouth-handoff.state`. A failed deactivate quits Plymouth at once.
+- **Plymouth quits once the compositor has drawn.** `omarchy-plymouth-reap.service` (`bin/omarchy-plymouth-reap`), started without holding up the login screen, notes the framebuffer each lit CRTC scans out, waits until each scans out another (the compositor's first frame), and quits Plymouth with `--retain-splash`, since `multi-user.target` waits for it. It quits after 20 seconds anyway.
+- **Hyprland adopts the frame.** With Omarchy's aquamarine, `AQ_SPLASH_ADOPT=1` makes Hyprland take over the lit display, picture and all, without a modeset or an unrendered first frame. `default/uwsm/env.d/10-omarchy` sets it only for the first session of a boot that left the handoff frame, with the continuity client installed (a mark in `~/.local/state/omarchy/plymouth-adopted-boot` holds the boot id), since after a logout what is lit is the login screen's or the console's picture.
+- **The continuity client covers the startup.** `omarchy-plymouth-handoff --launch-shell` (Hyprland's autostart) starts `/usr/lib/omarchy/plymouth/omarchy-plymouth-continuity-run` before the shell when the frame exists. The client shows the frame as an overlay layer (`omarchy-plymouth-continuity`) from Hyprland's first frame until the wallpaper engine's intro plays, then fades out; with `[ttfx] Outro=desktop` it plays the reverse outro there instead of in Plymouth. `default/hypr/plymouth-handoff.lua` draws that layer above the shell's startup cover with no fade in, turns off the `monitorAdded` zoom, and with Omarchy's Hyprland holds the adopted frame until the layer is opaque (`misc:startup_hold_layer`) with no cursor over it (`cursor:hide_at_startup`). Without the frame or the client, the shell starts as usual.
+
+`omarchy-plymouth-ttfx-build build --continuity-output FILE` builds the client with the module, and `stage --continuity FILE` installs it and its launcher under `/usr/lib/omarchy/plymouth/`.
+
+What is left on Apple Silicon is a brightness step while the splash shows, when `systemd-backlight` restores the saved backlight level.
 
 ## Validation
 

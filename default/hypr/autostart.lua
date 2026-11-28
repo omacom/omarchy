@@ -3,8 +3,8 @@ hl.on("hyprland.start", function()
   -- starting session services.
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
 
-  -- Claim the boot handoff before starting Quickshell, so its service cannot
-  -- race the seeded controller for the singleton lock.
+  -- Starts the native Plymouth splash's continuity client, when it left a
+  -- frame, ahead of the shell (default/hypr/plymouth-handoff.lua).
   hl.exec_cmd("omarchy-plymouth-handoff --launch-shell")
   hl.exec_cmd("omarchy-provision-first-run")
   hl.exec_cmd("omarchy-powerprofiles-init")

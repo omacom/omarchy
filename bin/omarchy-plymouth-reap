@@ -1,0 +1,106 @@
+#!/usr/bin/python3 -IS
+# omarchy:summary=Quit the deactivated boot splash once the compositor has replaced its last frame
+# omarchy:hidden=true
+"""Run as root by omarchy-plymouth-reap.service, right after Plymouth deactivates.
+
+plymouth-quit.service only deactivates Plymouth: it keeps its device open, so
+its last frame stays scanned out and the compositor takes it over without the
+console restore that Plymouth's last close would show. Plymouth still has to
+quit soon, as multi-user.target waits for it. Quitting before the compositor
+draws would take its frame off the screen, so this notes which framebuffer
+every lit CRTC scans out now, waits until each scans out another one (the
+compositor's first frame) or goes dark, and then quits Plymouth with
+--retain-splash. After TIMEOUT seconds it quits anyway, so a session that
+never starts can't keep the frozen splash or the boot waiting.
+"""
+
+import array
+import fcntl
+import glob
+import os
+import struct
+import subprocess
+import time
+
+TIMEOUT = 20
+INTERVAL = 0.05
+
+
+def ioc_rw(nr, size):
+  return (3 << 30) | (size << 16) | (ord("d") << 8) | nr
+
+
+DRM_IOCTL_DROP_MASTER = (ord("d") << 8) | 0x1F
+DRM_IOCTL_MODE_GETRESOURCES = ioc_rw(0xA0, 64)
+DRM_IOCTL_MODE_GETCRTC = ioc_rw(0xA1, 104)
+
+
+def open_cards():
+  cards = []
+  for path in sorted(glob.glob("/dev/dri/card[0-9]*")):
+    try:
+      fd = os.open(path, os.O_RDWR | os.O_CLOEXEC)
+    except OSError:
+      continue
+    # The first opener of a device with no master becomes master, which would
+    # lock the compositor out: never keep it.
+    try:
+      fcntl.ioctl(fd, DRM_IOCTL_DROP_MASTER)
+    except OSError:
+      pass
+    cards.append(fd)
+  return cards
+
+
+def crtc_ids(fd):
+  res = bytearray(64)
+  try:
+    fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, res)
+  except OSError:
+    return []  # render-only, or no KMS
+  count = struct.unpack_from("I", res, 36)[0]
+  if count == 0:
+    return []
+  ids = array.array("I", [0] * count)
+  struct.pack_into("Q", res, 8, ids.buffer_info()[0])
+  struct.pack_into("4I", res, 32, 0, count, 0, 0)
+  fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, res)
+  return list(ids[: struct.unpack_from("I", res, 36)[0]])
+
+
+def scanout(fd, crtc):
+  data = bytearray(104)
+  struct.pack_into("I", data, 12, crtc)
+  try:
+    fcntl.ioctl(fd, DRM_IOCTL_MODE_GETCRTC, data)
+  except OSError:
+    return 0
+  return struct.unpack_from("I", data, 16)[0]
+
+
+def lit(cards):
+  return {(fd, crtc): fb for fd in cards for crtc in crtc_ids(fd) if (fb := scanout(fd, crtc))}
+
+
+def main():
+  cards = open_cards()
+  splash = lit(cards)
+  deadline = time.monotonic() + TIMEOUT
+  while splash and time.monotonic() < deadline:
+    if all(scanout(fd, crtc) != fb for (fd, crtc), fb in splash.items()):
+      print("the compositor has replaced the splash's frame", flush=True)
+      break
+    time.sleep(INTERVAL)
+  else:
+    if splash:
+      print(f"nothing replaced the splash's frame within {TIMEOUT}s", flush=True)
+  try:
+    subprocess.run(["plymouth", "quit", "--retain-splash"], timeout=3)
+  except (OSError, subprocess.TimeoutExpired):
+    pass
+  # Held until Plymouth is gone, so its close is never the device's last.
+  for fd in cards:
+    os.close(fd)
+
+
+main()
