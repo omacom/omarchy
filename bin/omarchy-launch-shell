@@ -25,6 +25,9 @@
 # 16 GiB laptop. Constraining arenas, decay, and THP keeps idle RSS tight;
 # Util.execDetached/execArgv scrub MALLOC_CONF so launched apps don't inherit it.
 run_shell() {
+  if [[ -e ${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/lock-touch-keyboard ]]; then
+    export QT_IM_MODULE=qtvirtualkeyboard QT_VIRTUALKEYBOARD_DESKTOP_DISABLE=1 OMARCHY_LOCK_TOUCH_KEYBOARD=1
+  fi
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
   OMARCHY_STARTUP_BACKGROUND="$startup_background" \

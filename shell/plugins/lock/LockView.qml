@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import QtQuick.Effects
 import qs.Commons
 import qs.Commons as Commons
@@ -6,6 +7,18 @@ import qs.Ui
 
 Item {
   id: root
+
+  property bool showTouchKeyboard: false
+
+  function openTouchKeyboard() {
+    if (!inputEnabled || authenticatingPassword || Quickshell.env("OMARCHY_LOCK_TOUCH_KEYBOARD") !== "1") return
+    wakeRequested()
+    forcePasswordFocus()
+    showTouchKeyboard = true
+    Qt.callLater(function() {
+      if (passwordInput.activeFocus && touchKeyboard.active) Qt.inputMethod.show()
+    })
+  }
 
   property string backgroundPath: ""
   property string videoPosterPath: ""
@@ -80,6 +93,7 @@ Item {
 
   onPasswordTextChanged: syncPasswordText()
   onInputEnabledChanged: {
+    if (!inputEnabled) showTouchKeyboard = false
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
 
@@ -141,9 +155,10 @@ Item {
 
     BorderSurface {
       id: inputField
-      width: root.fieldWidth
+      width: Math.min(root.fieldWidth, parent.width)
       height: root.fieldHeight
       anchors.centerIn: parent
+      anchors.verticalCenterOffset: touchKeyboard.visible ? -touchKeyboard.height / 2 : 0
       color: Commons.Color.lock.background
       borderSpec: root.inputBorderSpec
       radius: Style.cornerRadius
@@ -151,6 +166,10 @@ Item {
 
       TextInput {
         id: passwordInput
+        TapHandler {
+          acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
+          onTapped: root.openTouchKeyboard()
+        }
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
@@ -165,6 +184,7 @@ Item {
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
         echoMode: TextInput.Password
+        inputMethodHints: Qt.ImhHiddenText | Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
         passwordCharacter: "\u25CF"
         passwordMaskDelay: 0
         color: Commons.Color.lock.text
@@ -241,6 +261,16 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
       }
+    }
+
+    Loader {
+      id: touchKeyboard
+      anchors.bottom: parent.bottom
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: parent.width
+      active: root.showTouchKeyboard && root.inputEnabled && passwordInput.activeFocus
+      visible: active && item && item.active && !root.authenticatingPassword
+      source: active ? "QtPasswordPanel.qml" : ""
     }
 
     // The crossed-out icon has no meaning to a user who has never seen it — it
