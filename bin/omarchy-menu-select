@@ -4,13 +4,16 @@
 # omarchy:group=menu
 # omarchy:name=select
 # omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels>]
-# omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
+# omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400|omarchy-menu-select Open --heading=Recent a.txt --heading=Projects omarchy
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
 # subtext shown under the label, as "<glyph><TAB><label><TAB><subtext>". The
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+
+# An option written "--heading=<text>" is not an option but a heading over the
+# ones after it: it can't be picked, and a search hides it along with its rows.
 
 # With --multiple, clicking/Enter toggles rows and Apply returns a JSON array.
 # --on-change takes a JSON command array; each toggle runs it with the selection
@@ -126,7 +129,7 @@ payload=$(
       {
         mode: "select",
         prompt: $prompt,
-        options: $ARGS.positional,
+        options: ($ARGS.positional | map(if startswith("--heading=") then { heading: .[10:] } else . end)),
         multiple: $multiple,
         selected: (if length == 0 then [] else split("\u0000")[:-1] end),
         onChange: $onChange,
