@@ -34,6 +34,12 @@ A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stre
 
 A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `default` action; the sender's window by pid; a window showing the source (exact class, then for a site a browser window whose title names it); the site itself; the first link in the text; `omarchy-hyprland-focus-app` by app name.
 
+## Inline replies
+
+The server advertises `inline-reply`, so a sender can take a reply typed into the card: Telegram, KDE Connect, a site's text action in Chromium. Quickshell takes that action out of the sender's list and reports it as `hasInlineReply`; the card then offers Reply after Omarchy's own buttons (`Delivery.deeds`), with the `x-kde-reply-placeholder-text` hint, else the action's own text, as the field's placeholder.
+
+Reply opens a text field in place of the button bar and takes the keyboard for that card. The surface asks for on-demand keyboard focus under a `HyprlandFocusGrab`, so a click anywhere else clears the grab and the window clicked gets the keyboard. Enter sends the trimmed text once (`NotificationReplied`) and closes the card. Escape, an outside click, the sender withdrawing the notification or dropping its reply, keyboard mode starting, or a minute without typing cancel it. While the field is open its deck stays open whatever the pointer hovers, the card's time is paused, and new cards wait until it closes.
+
 ## Persistence
 
 The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), three JSON files it reads with `FileView` once at startup and rewrites whole:
@@ -198,7 +204,7 @@ The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv
 
 Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma` variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`, `showHistory` (put the last few back on screen), `keyboard`, and the silencing toggle.
 
-`keyboard` (`Super+Ctrl+comma`) is the only way the notifications take the keyboard: a card that grabbed focus as it arrived would swallow whatever you were typing. It selects the newest card and opens its deck, and the surface on that display takes exclusive keyboard focus. Arrows (or `j`/`k`, `Tab`) move through the cards deck by deck, `1`–`9` press a button in `Delivery.deeds` order (the card numbers them), `Enter` clicks the card, `Delete` dismisses it and selects the next, and `Escape`, any choice, or ten idle seconds end it. While it lasts the deck stays open and new cards wait, as under the pointer. `invokeAction <n>` presses button `n` on the newest card without the mode.
+`keyboard` (`Super+Ctrl+comma`) and Reply are the only ways the notifications take the keyboard, and both wait to be asked: a card that grabbed focus as it arrived would swallow whatever you were typing. It selects the newest card and opens its deck, and the surface on that display takes exclusive keyboard focus. Arrows (or `j`/`k`, `Tab`) move through the cards deck by deck, `1`–`9` press a button in `Delivery.deeds` order (the card numbers them), `Enter` clicks the card, `Delete` dismisses it and selects the next, and `Escape`, any choice, or ten idle seconds end it. While it lasts the deck stays open and new cards wait, as under the pointer. `invokeAction <n>` presses button `n` on the newest card without the mode.
 
 The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
 

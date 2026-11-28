@@ -285,6 +285,8 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
                                [{ id: 'join', text: 'Join call' }])
   assert.equal(JSON.stringify(Array.from(deeds, d => d.kind + ':' + d.value)), JSON.stringify(['code:482913', 'code:771204', 'exec:0', 'action:join']))
   assert.equal(Delivery.deeds({}, []).length, 0)
+  assert.equal(JSON.stringify(Array.from(Delivery.deeds({ code: '482913' }, [{ id: 'open', text: 'Open' }], true), d => d.kind)),
+               JSON.stringify(['code', 'reply', 'action']), 'Reply comes after Omarchy\'s buttons, before the sender\'s own')
   for (const [row, ephemeral] of [[{ app: 'notify-send' }, true], [{ app: 'omarchy-action' }, true],
                                   [{ app: 'Slack', transient: true }, true], [{ app: 'Slack' }, false]])
     assert.equal(Delivery.isEphemeral(row), ephemeral, row.app)
@@ -381,7 +383,8 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'keyForDuplicate', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'senderActions', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
-  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
+  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive',
+  'pointerEntered', 'canReply', 'replyPlaceholder', 'startReply', 'stopReply', 'sendReply']
 
 function newCapacityScope() {
   const toasts = { rows: [],
@@ -397,6 +400,11 @@ function newCapacityScope() {
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
     notificationWidth: 380,
     held: [], doNotDisturb: false,
+    replyKey: '', pointerIn: false, hoverKey: '',
+    expanded: false, openDeck: '', commit: fn => fn(),
+    replyIdle: { restart() {}, stop() {} }, collapseGrace: { restart() {}, stop() {} },
+    stopKeyboard: () => {}, Layout,
+    I18n: { t: key => key },
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -449,7 +457,8 @@ function newCapacityScope() {
         for (const field of changed) n[field + 'Changed'].emit()
       },
     }
-    for (const field of ['summary', 'body', 'appName', 'appIcon', 'image', 'urgency', 'expireTimeout', 'hints', 'actions'])
+    for (const field of ['summary', 'body', 'appName', 'appIcon', 'image', 'urgency', 'expireTimeout', 'hints',
+      'actions', 'hasInlineReply', 'inlineReplyPlaceholder'])
       n[field + 'Changed'] = signal()
     return n
   }
@@ -713,6 +722,102 @@ for (const held of [true, false]) { // Capacity: at most 100 live senders, held 
   assert.equal(s.liveCount(), 99)
 }
 
+{ // A sender offering inline reply gets one Reply button; the text goes back once, trimmed,
+  // and a card closing mid-reply gives the keyboard back.
+  const s = newCapacityScope()
+  const chat = s.fakeNotification(1, 'Chat'), plain = s.fakeNotification(2, 'Plain')
+  const sent = []
+  // Quickshell takes the sender's inline-reply action out of actions and reports it as hasInlineReply.
+  Object.assign(chat, { hasInlineReply: true, sendInlineReply: text => sent.push(text),
+    hints: { 'x-kde-reply-placeholder-text': 'Message Casey' }, inlineReplyPlaceholder: 'Reply',
+    actions: [{ identifier: 'open', text: 'Open' }] })
+  s.admit(chat, plain)
+  const key = s.keyForOriginal(1), other = s.keyForOriginal(2)
+  const kinds = k => s.deedsFor(k).map(d => d.kind + ':' + d.value).join(' ')
+  assert.equal(kinds(key), 'reply: action:open')
+  assert.equal(s.actionsOf(key).map(a => a.id).join(' '), 'open', 'Reply is not one of the sender\'s actions')
+  assert.equal(s.replyPlaceholder(key), 'Message Casey')
+  chat.hints = {}
+  assert.equal(s.replyPlaceholder(key), 'Reply', 'without the KDE hint, the inline-reply action\'s own text')
+  assert.equal(kinds(other), 'action:open')
+  s.startReply(other)
+  assert.equal(s.replyKey, '', 'a sender without inline reply cannot be replied to')
+  assert.equal(s.runDeed(key, 0), true)
+  assert.equal(s.replyKey, key)
+  assert.equal(chat.tracked, true, 'opening the reply field keeps the card')
+  s.sendReply(key, '   ')
+  assert.deepEqual(sent, [])
+  assert.equal(s.replyKey, '', 'an empty reply cancels')
+  s.runDeed(key, 0)
+  s.sendReply(other, 'wrong card')
+  assert.deepEqual(sent, [], 'only the card being replied to can send')
+  s.sendReply(key, '  on my way \n')
+  assert.deepEqual(sent, ['on my way'])
+  assert.equal(s.replyKey, '')
+  assert.equal(s.leaving[key], 'activated')
+  plain.hasInlineReply = true
+  plain.sendInlineReply = text => sent.push(text)
+  s.startReply(other)
+  assert.equal(s.replyKey, other)
+  s.closeToast(other, 'dismissed')
+  assert.equal(s.replyKey, '', 'closing the replying card releases the keyboard')
+  s.sendReply(other, 'late')
+  assert.deepEqual(sent, ['on my way'], 'a closed reply sends nothing')
+}
+
+{ // Hovering a different stack must keep the composing card in view.
+  const s = newCapacityScope()
+  const chat = s.fakeNotification(1, 'Reply to the oldest'), other = s.fakeNotification(5)
+  chat.hasInlineReply = true
+  other.appName = 'Other'
+  s.admit(chat, s.fakeNotification(2), s.fakeNotification(3), s.fakeNotification(4), other)
+  const key = s.keyForOriginal(1)
+  const otherDeck = Layout.groupKeyFor(s.toasts.get(0))
+  s.startReply(key)
+  s.pointerEntered(otherDeck)
+  assert.equal(Layout.compute(s.toasts.rows, s).placements[key].hidden, false)
+  assert.equal(s.replyKey, key)
+  s.stopReply()
+  s.pointerEntered(otherDeck)
+  assert.equal(Layout.compute(s.toasts.rows, s).placements[key].hidden, true)
+}
+
+{ // Entering keyboard navigation while composing releases the reply grab.
+  const s = newCapacityScope()
+  const chat = s.fakeNotification(1)
+  chat.hasInlineReply = true
+  s.admit(chat)
+  const key = s.keyForOriginal(1)
+  Object.assign(s, { keyboardMode: false, keyboardOrder: () => [key], selectCard() {}, keyboardIdle: { restart() {} } })
+  runIn(s, 'startKeyboard')
+  s.startReply(key)
+  assert.equal(s.startKeyboard(key), true)
+  assert.equal(s.replyKey, '')
+  assert.equal(s.keyboardMode, true)
+}
+
+{ // Replies participate in duplicate matching and a new sender never receives an old draft.
+  const s = newCapacityScope()
+  const chat = s.fakeNotification(1, 'Chat'), plain = s.fakeNotification(2, 'Chat'), repeat = s.fakeNotification(3, 'Chat')
+  plain.body = repeat.body = chat.body
+  chat.hasInlineReply = repeat.hasInlineReply = true
+  const sent = []
+  repeat.sendInlineReply = text => sent.push(text)
+  s.admit(chat, plain)
+  const key = s.keyForOriginal(1)
+  assert.equal(s.toasts.count, 2, 'reply availability distinguishes otherwise identical cards')
+  s.startReply(key)
+  s.admit(repeat)
+  assert.equal(s.keyForOriginal(3), key, 'an identical reply-capable card reuses the slot')
+  assert.equal(s.replyKey, '')
+  s.sendReply(key, 'old draft')
+  assert.deepEqual(sent, [])
+  s.startReply(key)
+  repeat.replace({ hasInlineReply: false })
+  s.drainCallLater()
+  assert.equal(s.replyKey, '', 'a replacement without a reply action releases the keyboard')
+}
+
 for (const held of [true, false]) { // A cancelled pending card frees exactly one slot.
   const s = newCapacityScope()
   s.pointerHolding = held
@@ -768,9 +873,13 @@ for (const held of [true, false]) { // A cancelled pending card frees exactly on
   assert.equal(s.liveCount(), 0)
   assert.equal(s.toasts.count, 0)
   const visible = s.fakeNotification(2, 'Visible')
+  visible.hasInlineReply = true
   s.admit(visible)
   const key = s.keyForOriginal(2)
+  s.startReply(key)
+  assert.equal(s.replyKey, key)
   visible.tracked = false
+  assert.equal(s.replyKey, '', 'sender withdrawal releases the reply grab')
   assert.equal(s.toasts.get(0).summary, 'Visible')
   assert.equal(s.actionsOf(key).length, 0)
   assert.equal(s.liveCount(), 1)

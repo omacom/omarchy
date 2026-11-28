@@ -6,7 +6,7 @@ Notifications land in the top-right corner of the focused display. You can also 
 
 Notifications from the same app or site stack into a deck, so a chatty Slack channel doesn't push your build failure off the screen. Hover a deck to fan it out; nothing new slides in under your pointer while you're reading. Click a card to jump to where it came from, right-click, middle-click, or hit the ✕ to dismiss it.
 
-Cards offer what they carry: _Copy code_ for verification codes (kept out of [clipboard history](08-unified-clipboard-history.md) and cleared after a minute), plus any buttons the app provides. Links in a notification's text open when clicked.
+Cards offer what they carry: _Copy code_ for verification codes (kept out of [clipboard history](08-unified-clipboard-history.md) and cleared after a minute), plus any buttons the app provides. Links in a notification's text open when clicked. When a chat app or site takes replies, _Reply_ answers from the card: type and press `Enter` to send, or `Esc` to cancel. Clicking anywhere else cancels too.
 
 `Super + ,` dismisses the newest notification, or opens what it points to when it offers that, `Super + Alt + ,` dismisses only the last one, `Super + Shift + ,` dismisses them all, and `Super + Shift + Alt + ,` opens the history. To use them without the mouse, press `Super + Ctrl + ,`. The newest notification is selected and its buttons numbered: press a number to use one, `Enter` to click the notification, `↑` and `↓` to move between notifications, `Delete` to dismiss one, and `Esc` to give the keyboard back. It also lets go on its own after a few idle seconds.
 

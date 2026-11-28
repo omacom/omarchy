@@ -224,8 +224,8 @@ Item {
     id: collapseGrace
     interval: 120
     onTriggered: {
-      // The keyboard holds the deck open while the pointer passes through.
-      if (service.keyboardMode) return
+      // Keyboard navigation and replies keep the deck open off the pointer.
+      if (service.keyboardMode || service.replyKey !== "") return
       service.commit(function() { service.expanded = false; service.openDeck = "" })
       service.releaseHeld()
     }
@@ -234,7 +234,7 @@ Item {
   // New cards wait while the deck is held open, so nothing moves mid-read.
   property var held: []
 
-  function holding() { return (pointerIn || keyboardMode) && expanded }
+  function holding() { return (pointerIn || keyboardMode || replyKey !== "") && expanded }
 
   function releaseHeld() {
     if (!held.length) return
@@ -253,19 +253,78 @@ Item {
   Timer {
     id: heldTooLong
     interval: 30000
-    running: service.held.length > 0
+    running: service.held.length > 0 && service.replyKey === ""
     onTriggered: service.releaseHeld()
   }
 
   function pointerEntered(deckKey) {
     collapseGrace.stop()
-    if (expanded && (deckKey === undefined || openDeck === deckKey)) return
+    if (replyKey !== "" || expanded && (deckKey === undefined || openDeck === deckKey)) return
     commit(function() {
       service.expanded = true
       if (deckKey !== undefined) service.openDeck = deckKey
     })
   }
   function pointerLeft() { collapseGrace.restart() }
+
+  // ------------------------------------------------------------- inline reply
+  //
+  // A sender that takes an inline reply gets a Reply button, which opens a
+  // text field on its card and takes the keyboard for it. Enter sends.
+  // Escape, an outside click, loss of the sender, or a minute without typing
+  // cancels and gives the keyboard back.
+  property string replyKey: ""
+
+  Timer { id: replyIdle; interval: 60000; onTriggered: service.stopReply() }
+
+  function replyPlaceholder(key, revision) {
+    var ref = refs[key]
+    var hints = ref && ref.hints
+    var text = hints && hints["x-kde-reply-placeholder-text"]
+    if (typeof text !== "string" || !text) text = ref ? ref.inlineReplyPlaceholder : ""
+    return Security.bounded(text || I18n.t("notifications.replyPlaceholder"), Security.MAX_ACTION_LABEL)
+  }
+
+  function canReply(key, revision) {
+    var ref = refs[key]
+    return !!(ref && ref.hasInlineReply)
+  }
+
+  function startReply(key) {
+    var at = rowIndexFor(key)
+    if (at < 0 || leaving[key] || !canReply(key)) return
+    stopKeyboard()
+    stopReply()
+    pointerEntered(Layout.groupKeyFor(toasts.get(at)))
+    hoverKey = key
+    replyKey = key
+    replyIdle.restart()
+  }
+
+  function touchReply() { if (replyKey !== "") replyIdle.restart() }
+
+  function stopReply() {
+    if (replyKey === "") return
+    replyIdle.stop()
+    replyKey = ""
+    if (!pointerIn) {
+      hoverKey = ""
+      collapseGrace.restart()
+    }
+  }
+
+  function sendReply(key, text) {
+    if (key !== replyKey) return
+    var message = String(text || "").trim()
+    if (!message) { stopReply(); return }
+    var ref = refs[key]
+    var sent = false
+    try {
+      if (ref && ref.hasInlineReply) { ref.sendInlineReply(message); sent = true }
+    } catch (e) {}
+    stopReply()
+    if (sent) closeToast(key, "activated")
+  }
 
   // ------------------------------------------------------------- keyboard
   //
@@ -303,6 +362,7 @@ Item {
   function startKeyboard(key) {
     var order = keyboardOrder()
     if (!order.length) return false
+    stopReply()
     keyboardMode = true
     keyboardRejected = ({})
     selectCard(order.indexOf(key) >= 0 ? key : order[0])
@@ -373,7 +433,7 @@ Item {
   // numbers in the same order.
   function deedsFor(key) {
     var at = rowIndexFor(key)
-    return at < 0 ? [] : Delivery.deeds(toasts.get(at), actionsOf(key, refsRevision))
+    return at < 0 ? [] : Delivery.deeds(toasts.get(at), actionsOf(key, refsRevision), canReply(key, refsRevision))
   }
 
   function runDeed(key, index) {
@@ -381,6 +441,7 @@ Item {
     if (!deed) return false
     if (deed.kind === "code") copyCode(deed.value, key)
     else if (deed.kind === "exec") runExecAction(key, Number(deed.value))
+    else if (deed.kind === "reply") startReply(key)
     else invokeAction(key, String(deed.value))
     return true
   }
@@ -585,14 +646,16 @@ Item {
 
   // The card a new notification repeats word for word (Store.isDuplicate),
   // shown or still waiting to be, offering the same buttons: Reply and Join
-  // under the same words are two cards. One on its way out is left to go.
+  // under the same words are two cards, and so are one that takes an inline
+  // reply and one that does not. One on its way out is left to go.
   function keyForDuplicate(row, notification) {
-    var buttons = JSON.stringify(senderActions(notification))
+    var buttons = JSON.stringify(senderActions(notification)), reply = !!notification.hasInlineReply
     for (var key in liveKeys) {
       if (leaving[key]) continue
       var at = rowIndexFor(key)
       var shown = liveKeys[key].row || (at >= 0 ? toasts.get(at) : null)
-      if (Store.isDuplicate(row, shown) && JSON.stringify(actionsOf(key)) === buttons) return key
+      if (Store.isDuplicate(row, shown) && JSON.stringify(actionsOf(key)) === buttons
+          && canReply(key) === reply) return key
     }
     return ""
   }
@@ -620,6 +683,8 @@ Item {
     row.duration = row.sticky ? 0 : durationFor(notification.urgency, row.expireTimeout)
 
     var previous = refs[key]
+    if (key === replyKey && (previous !== notification || !notification.hasInlineReply || row.groupKey !== openDeck))
+      stopReply()
     refs[key] = notification
     refsRevision += 1
     if (previous !== notification) watchNotification(notification, key)
@@ -665,6 +730,7 @@ Item {
       if (service.refs[key] !== notification) return
       delete service.refs[key]
       service.refsRevision += 1
+      if (key === service.replyKey) service.stopReply()
       // Visible snapshots outlive their sender; pending rows must not appear
       // after the sender withdraws them.
       if (service.rowIndexFor(key) < 0) service.finishClose(key, "closed")
@@ -690,7 +756,8 @@ Item {
                    notification.appNameChanged, notification.appIconChanged,
                    notification.imageChanged, notification.urgencyChanged,
                    notification.expireTimeoutChanged, notification.hintsChanged,
-                   notification.actionsChanged]
+                   notification.actionsChanged, notification.hasInlineReplyChanged,
+                   notification.inlineReplyPlaceholderChanged]
     for (var i = 0; i < signals.length; i++) signals[i].connect(schedule)
   }
 
@@ -747,6 +814,7 @@ Item {
   // Let go of the sender's object. Untracking tells it the notification
   // closed, which is when Chromium deletes the avatar it handed us.
   function release(key, reason) {
+    if (key === replyKey) stopReply()
     var ref = refs[key]
     if (!ref) return
     // Clear identity before invoking the QObject: its close signal can run
@@ -772,6 +840,7 @@ Item {
 
   // One move, or one jump, for the lot, however many cards leave together.
   function closeToasts(keys, reason, instant) {
+    if (replyKey !== "" && keys.indexOf(replyKey) >= 0) stopReply()
     var next = {}, marked = false
     for (var k in leaving) next[k] = leaving[k]
     for (var i = 0; i < keys.length; i++) {
@@ -1388,6 +1457,7 @@ Item {
     keepOnReload: false
     imageSupported: true
     actionsSupported: true
+    inlineReplySupported: true
     bodyMarkupSupported: true
     bodyHyperlinksSupported: true
     persistenceSupported: true
@@ -1498,6 +1568,7 @@ Item {
     // Open the deck as hovering would, or close it again. A headless session
     // has no pointer.
     function expand(): string {
+      if (service.replyKey !== "") return "expanded"
       if (service.expanded) {
         service.commit(function() {
           service.expanded = false; service.openDeck = ""; service.hoverKey = ""
@@ -1550,8 +1621,16 @@ Item {
 
       WlrLayershell.namespace: "omarchy-notifications"
       WlrLayershell.layer: WlrLayer.Overlay
-      readonly property bool takesKeyboard: service.keyboardMode && service.targetDisplayName === String(modelData.name)
-      WlrLayershell.keyboardFocus: takesKeyboard ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+      readonly property bool replyingHere: showingNotifications && service.replyKey !== ""
+      readonly property bool navigatingHere: showingNotifications && service.keyboardMode
+      onNavigatingHereChanged: if (navigatingHere) keyboardNavigation.forceActiveFocus()
+      WlrLayershell.keyboardFocus: replyingHere ? WlrKeyboardFocus.OnDemand
+                                 : navigatingHere ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+      HyprlandFocusGrab {
+        active: surface.replyingHere
+        windows: [surface]
+        onCleared: if (surface.replyingHere) service.stopReply()
+      }
       exclusionMode: ExclusionMode.Ignore
 
       // Constant width and full height, so the buffer is allocated once.
@@ -1561,7 +1640,8 @@ Item {
       mask: Region { item: surface.showingNotifications ? deck : null }
 
       Item {
-        focus: surface.takesKeyboard
+        id: keyboardNavigation
+        focus: surface.navigatingHere
         Keys.onPressed: function(event) {
           event.accepted = service.keyboardPressed(event.key, event.text)
         }
@@ -1599,6 +1679,7 @@ Item {
 
             // The cards cannot see hover under this region, so they are told.
             function hoverAt(x, y) {
+              if (service.replyKey !== "") return
               service.hoverX = x
               service.hoverY = y
               var places = service.placements
@@ -1632,7 +1713,7 @@ Item {
                 service.pointerEntered(undefined)
                 hoverAt(mouseX, mouseY)
               } else {
-                service.hoverKey = ""
+                if (service.replyKey === "") service.hoverKey = ""
                 service.pointerLeft()
               }
             }
@@ -1676,6 +1757,13 @@ Item {
               hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
               selected: service.keyboardMode && service.keyboardKey === model.key
               actions: service.actionsOf(model.key, service.refsRevision)
+              canReply: service.canReply(model.key, service.refsRevision)
+              replying: surface.replyingHere && service.replyKey === model.key
+              replyPlaceholder: replying ? service.replyPlaceholder(model.key, service.refsRevision) : ""
+              onReplyRequested: service.startReply(model.key)
+              onReplySubmitted: function(text) { service.sendReply(model.key, text) }
+              onReplyCancelled: service.stopReply()
+              onReplyTyped: service.touchReply()
               hoverX: service.hoverX
               hoverY: service.hoverY
               // A click is the mouse taking over: it ends keyboard mode, which
@@ -1689,7 +1777,7 @@ Item {
                         && service.openDeck === Layout.groupKeyFor(model)
               // Hover opens the body only when there is nothing else to open.
               sole: toasts.count === 1
-              paused: service.expanded
+              paused: service.expanded || service.replyKey === model.key
 
               drawnWidth: service.at(model.key, "width") || targetWidth
               drawnHeight: service.at(model.key, "height")
