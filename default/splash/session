@@ -47,19 +47,26 @@ has_connectors() {
   return 1
 }
 
-# Looks for a native GPU every tenth of a second, $1 times at most: there is
-# no file watcher in the initramfs.
+# Looks for a GPU every tenth of a second, $1 times at most: there is no file
+# watcher in the initramfs. With $2=any (used when a pre-built UKI omits kms),
+# a firmware framebuffer settles immediately instead of waiting 8 seconds for a
+# native driver that is not in the initramfs.
 wait_native() {
   i=0
   find_cards
   while [ -z "$native" ] && [ ! -e "$run/stopping" ] && [ "$i" -lt "$1" ]; do
+    [ "${2:-}" = any ] && [ -n "$firmware" ] && break
     sleep 0.1
     i=$((i + 1))
     find_cards
   done
 }
 
-wait_native 80
+if [ -e /usr/lib/omarchy-splash/no-kms ]; then
+  wait_native 80 any
+else
+  wait_native 80
+fi
 [ ! -e "$run/stopping" ] || exit 0
 devices=${native:-$firmware}
 if [ -z "$devices" ]; then

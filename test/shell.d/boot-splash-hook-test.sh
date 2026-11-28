@@ -49,3 +49,45 @@ pass "no image on a machine that boots systemd-boot or is switching to it"
 output=$(build_hook limine) || fail "an image for Limine" "$output"
 [[ $output == "added: add_binary sway seatd seatd-launch quickshell" ]] || fail "an image for Limine" "$output"
 pass "an image for Limine"
+
+# Runs build() end-to-end with stubbed mkinitcpio helpers to verify that
+# OMARCHY_SPLASH_NO_KMS=1 adds /usr/lib/omarchy-splash/no-kms via add_file /dev/null
+# and leaves it absent by default.
+sed "s|source=/usr/share/omarchy/default/splash|source=$ROOT/default/splash|" \
+  "$ROOT/etc/initcpio/install/omarchy-splash" >"$test_tmp/omarchy-splash"
+
+build_full_hook() {
+  local no_kms=$1
+  printf 'limine\n' >"$test_tmp/backends"
+  (
+    export PATH="$test_tmp/bin:$PATH" TEST_BACKENDS="$test_tmp/backends"
+    OMARCHY_SPLASH_NO_KMS=$no_kms
+    HOOKS=(base udev omarchy-splash)
+    error() { echo "error: $*"; }
+    warning() { :; }
+    map() { :; }
+    add_binary() { :; }
+    add_full_dir() { :; }
+    add_udev_rule() { :; }
+    add_symlink() { :; }
+    add_runscript() { :; }
+    add_file() {
+      local dst=${2:-$1}
+      [[ $1 == - ]] && cat >/dev/null
+      echo "file: $1 -> $dst (${3:-})"
+    }
+    source "$test_tmp/omarchy-splash"
+    build
+  )
+}
+
+output=$(build_full_hook 1)
+grep -qx "file: /dev/null -> /usr/lib/omarchy-splash/no-kms (644)" <<<"$output" ||
+  fail "OMARCHY_SPLASH_NO_KMS=1 must add /usr/lib/omarchy-splash/no-kms directly" "$output"
+pass "adds no-kms marker when OMARCHY_SPLASH_NO_KMS=1 is set"
+
+output=$(build_full_hook "")
+if grep -Fq "/usr/lib/omarchy-splash/no-kms" <<<"$output"; then
+  fail "no-kms marker must be omitted by default" "$output"
+fi
+pass "omits no-kms marker by default"
