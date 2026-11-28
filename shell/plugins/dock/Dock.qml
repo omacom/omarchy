@@ -55,7 +55,7 @@ Item {
   // out until it is. Windows are matched to the desktop entry that claims them.
   readonly property var items: {
     var appsRevision = DesktopEntries.applications.values.length
-    var pinned = (root.pendingPins || DockModel.pinnedIds(dockConfig, defaultDockConfig)).filter(function(id) {
+    var pinned = root.pinnedKeys.filter(function(id) {
       return !!DesktopEntries.byId(id)
     })
 
@@ -245,7 +245,12 @@ Item {
     appGrid.open()
   }
 
-  readonly property var pinnedKeys: root.pendingPins || DockModel.pinnedIds(root.dockConfig, root.defaultDockConfig)
+  readonly property var pinnedKeys: {
+    var appsRevision = DesktopEntries.applications.values.length
+    return root.pendingPins || DockModel.pinnedIds(root.dockConfig, root.defaultDockConfig, function(id) {
+      return !!DesktopEntries.byId(id)
+    })
+  }
 
   function isPinned(key) {
     return root.pinnedKeys.indexOf(key) >= 0

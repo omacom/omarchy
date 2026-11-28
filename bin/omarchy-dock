@@ -85,9 +85,32 @@ cmd_pinned() {
   echo "Set the apps pinned to the dock"
 }
 
+desktop_file_exists() {
+  local id="$1" dir
+  local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+  local -a dirs=("$data_home/applications" "$data_home/flatpak/exports/share/applications" /var/lib/flatpak/exports/share/applications)
+  local IFS=:
+  for dir in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
+    dirs+=("$dir/applications")
+  done
+  for dir in "${dirs[@]}"; do
+    if [[ -f $dir/$id.desktop ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 desktop_id() {
   (( $# == 1 )) || fail "takes a single desktop id"
   local id="${1%.desktop}"
+  # An id may itself end in .desktop (org.telegram.desktop names the file
+  # org.telegram.desktop.desktop), so only strip a real file-name suffix: keep
+  # the given form when it names an installed desktop file and the stripped
+  # form does not.
+  if [[ -n $id && $1 == *.desktop ]] && desktop_file_exists "$1" && ! desktop_file_exists "$id"; then
+    id="$1"
+  fi
   [[ -n $id ]] || fail "desktop id must not be empty"
   printf '%s\n' "$id"
 }

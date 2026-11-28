@@ -26,6 +26,15 @@ assertDeepEqual(
 assertDeepEqual(dock.pinnedIds({}, { pinned: ['spotify'] }), ['spotify'], 'dock falls back to the default pins')
 assertDeepEqual(dock.pinnedIds({ pinned: [] }, { pinned: ['spotify'] }), [], 'dock keeps an emptied pin list empty')
 
+const installed = id => ['org.telegram.desktop', 'org.gnome.Nautilus'].includes(id)
+assertDeepEqual(
+  dock.pinnedIds({ pinned: ['org.telegram.desktop', 'org.telegram.desktop.desktop', 'org.gnome.Nautilus.desktop'] }, {}, installed),
+  ['org.telegram.desktop', 'org.gnome.Nautilus'],
+  'dock reads installed ids ending in .desktop and file-name forms without truncating or duplicating pins'
+)
+assertEqual(dock.normalizeId('missing.desktop', installed), 'missing', 'uninstalled entries keep file-name normalization')
+assertEqual(dock.normalizeId('org.telegram.desktop', () => true), 'org.telegram', 'an ambiguous file name keeps its existing normalization')
+
 const app = (key, id, extra) => Object.assign({ key, id, hasEntry: true, workspaceId: 3 }, extra)
 const items = dock.buildItems(['chromium', 'Alacritty'], [
   app('signal', 1),
@@ -158,7 +167,7 @@ mock_bin="$TMPDIR/bin"
 mkdir -p "$mock_bin"
 printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-shell"
 chmod +x "$mock_bin/omarchy-shell"
-omarchy_dock() { HOME="$home" PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-dock "$@"; }
+omarchy_dock() { HOME="$home" XDG_DATA_DIRS="$TMPDIR/share" PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-dock "$@"; }
 
 [[ $(omarchy_dock position) == "bottom" ]] || fail "dock position defaults to bottom"
 omarchy_dock position left >/dev/null
@@ -188,6 +197,27 @@ omarchy_dock pinned signal chromium.desktop signal >/dev/null
 [[ $(omarchy_dock pinned | paste -sd ' ') == "signal chromium" ]] ||
   fail "dock pin order is set in one go" "$(cat "$home/.config/omarchy/shell.json")"
 pass "dock pin order is set through omarchy-dock pinned"
+
+# An id may itself end in .desktop (org.telegram.desktop names the file
+# org.telegram.desktop.desktop), so such an id must survive pinning instead of
+# being truncated to a desktop entry that does not exist.
+mkdir -p "$home/.local/share/applications"
+printf '[Desktop Entry]\nType=Application\nName=Telegram Desktop\n' >"$home/.local/share/applications/org.telegram.desktop.desktop"
+omarchy_dock pinned signal org.telegram.desktop >/dev/null
+jq -e '.dock.pinned == ["signal", "org.telegram.desktop"]' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock keeps an id that itself ends in .desktop" "$(cat "$home/.config/omarchy/shell.json")"
+omarchy_dock pinned signal org.telegram.desktop.desktop >/dev/null
+jq -e '.dock.pinned == ["signal", "org.telegram.desktop"]' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock still strips a real .desktop file-name suffix" "$(cat "$home/.config/omarchy/shell.json")"
+pass "dock keeps a pinned id that itself ends in .desktop"
+
+DOCK_HOME="$home" ROOT="$ROOT" run_node_test <<'JS'
+const fs = require('fs')
+const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
+const saved = JSON.parse(fs.readFileSync(process.env.DOCK_HOME + '/.config/omarchy/shell.json', 'utf8'))
+const installed = id => fs.existsSync(process.env.DOCK_HOME + '/.local/share/applications/' + id + '.desktop')
+assertDeepEqual(dock.pinnedIds(saved.dock, {}, installed), ['signal', 'org.telegram.desktop'], 'dock reads the saved pins without losing Telegram after a reload')
+JS
 
 [[ $(omarchy_dock autohide) == "off" ]] || fail "dock auto-hide starts off"
 omarchy_dock autohide toggle >/dev/null
