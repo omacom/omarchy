@@ -13,12 +13,10 @@
 # any active plymouth-*.service start job to complete.
 [Unit]
 Description=Keep graphical sessions alive until Plymouth takes over on shutdown
-After=display-manager.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/true
 ExecStop=/usr/share/omarchy/default/splash/shutdown-handoff wait
 TimeoutStopSec=5s
 SyslogIdentifier=omarchy-shutdown-splash

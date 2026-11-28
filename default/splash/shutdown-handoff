@@ -52,8 +52,10 @@ connected_cards() {
 }
 
 # Switches to a KD_GRAPHICS VT so logind revokes the active compositor's DRM
-# master without disabling its CRTCs or letting fbcon paint over the screen,
-# then waits briefly until DRM master can be acquired and released cleanly.
+# master without disabling its CRTCs or letting fbcon paint over the screen.
+# logind watches tty0/active asynchronously rather than holding VT_PROCESS, so
+# VT_WAITACTIVE can return before logind drops DRM master; poll briefly until
+# DRM master can be acquired and released cleanly.
 handoff_displays() {
   local -a cards=()
   mapfile -t cards < <(connected_cards)
@@ -128,7 +130,8 @@ EOF
 # Waits until any active or queued plymouth shutdown unit finishes starting
 # (including ExecStartPost show-splash and --ping). Returns immediately when no
 # Plymouth shutdown unit is starting (e.g. manual stop, soft-reboot, or
-# plymouth.enable=0).
+# plymouth.enable=0). Bounded polling is used because systemctl has no CLI
+# primitive to block on an already-queued start job from another unit's ExecStop.
 wait_for_plymouth() {
   local -a units=(
     plymouth-reboot.service

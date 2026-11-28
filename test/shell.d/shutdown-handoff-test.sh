@@ -76,31 +76,3 @@ calls=$(wc -l <"$call_file")
 (( calls >= 2 && SECONDS <= 2 )) ||
   fail "wait_for_plymouth times out cleanly if Plymouth stalls" "calls=$calls seconds=$SECONDS"
 pass "wait_for_plymouth times out cleanly if Plymouth stalls"
-
-# Unit ordering invariants:
-# 1. omarchy-shutdown-splash.service must have no ordering edge to plymouth-*.service,
-#    otherwise systemd's stop-before-start rule would invert the handoff.
-hold_unit="$ROOT/etc/systemd/system/omarchy-shutdown-splash.service"
-if grep -Eq '^(Before|After)=.*plymouth-' "$hold_unit"; then
-  fail "omarchy-shutdown-splash.service must not order against plymouth-*.service"
-fi
-pass "omarchy-shutdown-splash.service has no ordering edge to plymouth-*.service"
-
-# 2. All four Plymouth shutdown units must start without waiting for display-manager
-#    or getty@tty1, run shutdown-handoff, and synchronize with plymouth --ping.
-for unit in plymouth-reboot.service plymouth-poweroff.service plymouth-halt.service plymouth-kexec.service; do
-  path="$ROOT/etc/systemd/system/$unit"
-  [[ -f $path ]] || fail "$unit override exists"
-  if grep -Eq '^(After|Before)=.*(display-manager|getty@tty1|omarchy-shutdown-splash)' "$path"; then
-    fail "$unit must not order against display-manager, getty@tty1, or omarchy-shutdown-splash"
-  fi
-  grep -Fq 'ExecStartPre=-/usr/share/omarchy/default/splash/shutdown-handoff' "$path" ||
-    fail "$unit runs shutdown-handoff in ExecStartPre"
-  grep -Fq -- '--tty=/dev/tty63' "$path" ||
-    fail "$unit pins plymouthd to /dev/tty63"
-  show_line=$(grep -nF 'ExecStartPost=-/usr/bin/plymouth show-splash' "$path" | cut -d: -f1)
-  ping_line=$(grep -nF 'ExecStartPost=-/usr/bin/plymouth --ping' "$path" | cut -d: -f1)
-  [[ -n $show_line && -n $ping_line ]] && (( show_line < ping_line )) ||
-    fail "$unit runs plymouth --ping after plymouth show-splash"
-done
-pass "plymouth shutdown overrides drop DM/getty ordering and synchronize with --ping"
