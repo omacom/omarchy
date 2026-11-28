@@ -1,0 +1,16 @@
+diff --git a/src/launch/launch.cpp b/src/launch/launch.cpp
+index 71d9983..0b65fe9 100644
+--- a/src/launch/launch.cpp
++++ b/src/launch/launch.cpp
+@@ -177,7 +177,10 @@ int launch(const LaunchArgs& args, char** argv, QCoreApplication* coreApplicatio
+ 
+ 	if (!pragmas.useSystemStyle) {
+ 		qunsetenv("QT_STYLE_OVERRIDE");
+-		qputenv("QT_QUICK_CONTROLS_STYLE", "Fusion");
++		// A distributor can select the default for Quickshell without changing
++		// Qt applications or requiring a pragma in every shell configuration.
++		auto style = qgetenv("QS_QUICK_CONTROLS_STYLE");
++		qputenv("QT_QUICK_CONTROLS_STYLE", style.isEmpty() ? QByteArray("Fusion") : style);
+ 	}
+ 
+ 	for (auto [var, val]: pragmas.defaultEnv.asKeyValueRange()) {

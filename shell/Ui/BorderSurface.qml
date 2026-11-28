@@ -1,5 +1,5 @@
 import QtQuick
-import qs.Commons
+import "../Commons"
 
 // Rectangle-compatible surface with Omarchy border specs. Uses native
 // Rectangle.border for cheap flat/uniform borders and BorderOverlay for

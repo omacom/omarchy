@@ -1,6 +1,6 @@
 pragma Singleton
 import QtQuick
-import qs.Commons as Commons
+import "." as Commons
 import "BorderGeometry.js" as Geometry
 
 // Central border-spec factory for shell surfaces and controls. A spec carries

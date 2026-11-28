@@ -1,4 +1,5 @@
 //@ pragma OmarchyLoadPatch
+//@ pragma RespectSystemStyle
 import QtQuick
 import QtQml.Models
 import Quickshell
