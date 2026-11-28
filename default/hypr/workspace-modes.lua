@@ -318,8 +318,9 @@ local function arrange(windows, workspace)
 end
 
 -- Overlapping windows are placed with the pointer, so a floating workspace
--- focuses on click rather than on hover. Every other workspace keeps the user's
--- own setting.
+-- focuses on click rather than on hover, and its windows resize from their
+-- borders like any floating window. Every other workspace keeps the user's own
+-- settings.
 local input = {}
 
 local function update_input()
@@ -332,7 +333,13 @@ local function update_input()
 
   input.floating = active
 
-  hl.config({ input = { follow_mouse = active and 0 or input.follow_mouse } })
+  hl.config({
+    input = { follow_mouse = active and 0 or input.follow_mouse },
+    general = {
+      resize_on_border = active or input.resize_on_border,
+      hover_icon_on_border = active or input.hover_icon_on_border,
+    },
+  })
 end
 
 -- Windows arrive by opening and by being carried in, and a window rule only ever
@@ -346,6 +353,8 @@ local function watch()
   watching = true
 
   input.follow_mouse = hl.get_config("input.follow_mouse")
+  input.resize_on_border = hl.get_config("general.resize_on_border")
+  input.hover_icon_on_border = hl.get_config("general.hover_icon_on_border")
 
   hl.on("window.open", function(window)
     claim_opened(window)
