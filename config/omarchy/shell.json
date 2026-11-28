@@ -87,5 +87,8 @@
       "cliamp"
     ]
   },
+  "notifications": {
+    "position": "top-right"
+  },
   "plugins": []
 }

@@ -19,6 +19,7 @@ Item {
   property var row: ({})
   property var place: ({ y: 0, scale: 1, opacity: 1, z: 1, front: true, hidden: false })
   property var scene: null                   // owns the clock; without it the card stands still
+  property bool deckBottom: false            // the deck hangs from a bottom corner
   property bool expanded: false
   property bool sole: false                  // the only card on screen
   property bool paused: false
@@ -210,7 +211,7 @@ Item {
   z: place.z
   scale: scene ? scene.at(row.key, "scale") : 1
   opacity: place.hidden ? 0 : (scene ? scene.at(row.key, "opacity") : 1)
-  transformOrigin: Item.Top
+  transformOrigin: deckBottom ? Item.Bottom : Item.Top
 
   // `visible` is deliberately unbound: anything derived from layout output
   // (opacity, place.hidden) closes a binding loop through `heights`. A hidden
