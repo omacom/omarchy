@@ -353,9 +353,9 @@ Item {
       actionFor: function(value) { return "omarchy-font-set " + Util.shellQuote(value) }
     },
     "power-profiles": {
-      script: "current=$(powerprofilesctl get 2>/dev/null); omarchy-powerprofiles-list 2>/dev/null | while read -r p; do [[ -z $p ]] && continue; printf '%s\\t%s\\t%s\\n' \"$p\" \"$p\" \"$current\"; done",
+      script: "omarchy-powerprofiles-list --active-state 2>/dev/null | awk -F'\\t' '$1 != \"\" { p[++n] = $1; if ($2 == 1) c = $1 } END { for (i = 1; i <= n; i++) printf \"%s\\t%s\\t%s\\n\", p[i], p[i], c }'",
       icon: "\udb81\udc0b",
-      // Profile names are powerprofilesctl ids; only the label is translated,
+      // Profile names are power-profiles-daemon ids; only the label is translated,
       // and the id stays searchable through searchTerms.
       labelFor: function(value) {
         if (value === "power-saver") return Commons.I18n.t("menu.powerProfilePowerSaver")
