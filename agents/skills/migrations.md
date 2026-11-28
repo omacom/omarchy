@@ -149,6 +149,19 @@ current_relative_target="../../../../.local/state/omarchy/current/theme/neovim.l
 ln -sfn "$current_relative_target" "$theme_link"
 ```
 
+## Removing a bundled theme
+
+A bundled theme's source is `$OMARCHY_PATH/themes/<name>`; users normally have no separate copy. `~/.local/state/omarchy/current/theme` is a build output: `omarchy-theme-set` rebuilds it from that source and any user overrides. After removal, a refresh either refuses the missing theme or rebuilds an incomplete leftover directory with no palette; a migration may instead select the default theme. A failed refresh inside a migration can stop the migration queue, so keeping the staged copy is not enough.
+
+Removing one therefore ships, in the same change, a migration that installs it from its own repo for anyone whose `current/theme.name` names it, so they keep a real copy under `~/.config/omarchy/themes`:
+
+- If an earlier migration that re-stages the current theme may still be pending, date this one before it. Pending migrations run in filename order, so an earlier date runs first on an upgrade and still runs on an install that is already past it.
+- Keep an existing `~/.config/omarchy/themes/<name>`, which holds the user's overrides. If it already has `colors.toml`, leave its files alone and do not fetch; re-apply it with `omarchy-theme-set <name>` if the staged theme lacks a palette.
+- For an existing directory without `colors.toml`, `omarchy-theme-install` would delete it before cloning. Clone separately and fill in missing theme data, such as `colors.toml`, `icons.theme` and wallpapers, without overwriting user files or replacing a symlinked `backgrounds`, then re-apply the theme with `omarchy-theme-set <name>`. Keep the clone's `.git` and any files the installed-theme filter rejects out of the override directory: overrides are staged without that filter.
+- If no usable palette exists and the repo cannot be fetched, apply the replacement theme, or the default if there is no replacement; never leave the removed one current.
+
+Remove the theme from every package that installs under `/usr/share/omarchy/themes/<name>`, including `omarchy-themes-intros` and `omarchy-themes-loops` in omarchy-pkgs. Advance their pinned releases and package versions/checksums so they stop shipping it: a leftover video directory makes the theme look installed while it has no palette. `migrations/1787481314.sh`, which moved Osaka Jade to its own repo, is the worked example.
+
 ## Testing migrations
 
 Run a migration against a temporary home when possible:
