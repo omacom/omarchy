@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Rebind the ELAN238E touchscreen after resume on the Lenovo 300e 2nd Gen.
+# The installer gates on "300e 2nd G" because DMI product_family is truncated
+# to that on this model (product_name is 81M9).
+# The I2C HID device stays registered through suspend but stops reporting touches.
+# Only this device is rebound. The Synaptics touchpad on the other controller is left alone.
+# If an earlier bind failed, the device is still present but unbound, so bind it again.
+
+if [[ $1 == "post" ]]; then
+  sysfs="/sys/bus/i2c"
+  dev="i2c-ELAN238E:00"
+  drv="$sysfs/drivers/i2c_hid_acpi"
+
+  if [[ -e $sysfs/devices/$dev ]]; then
+    unbound=1
+    if [[ -e $drv/$dev ]]; then
+      printf '%s\n' "$dev" >"$drv/unbind" && sleep 1 || unbound=0
+    fi
+
+    if ((unbound)) && printf '%s\n' "$dev" >"$drv/bind"; then
+      logger -t lenovo-300e-touchscreen "rebound $dev after resume"
+    else
+      logger -t lenovo-300e-touchscreen "failed to rebind $dev after resume"
+    fi
+  fi
+fi
