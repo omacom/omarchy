@@ -6,8 +6,9 @@ set -e
 
 PREFIX="$HOME/Games/battlenet"
 
-# Stop any running Battle.net / wine processes tied to this prefix.
+# Stop any running Battle.net / wine processes tied to this prefix, or a running installer.
 pkill -f "$PREFIX" 2>/dev/null || true
+pkill -f "$HOME/.cache/omarchy/Battle.net-Setup.exe" 2>/dev/null || true
 sleep 1
 
 rm -rf "$PREFIX"
