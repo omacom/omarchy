@@ -19,7 +19,7 @@ function parseEvent(line) {
   var value = parts.length > 1 ? parts[1] : ""
   var count = /^[0-9]+$/.test(value) ? parseInt(value, 10) : 0
   // An event is its name alone or its name and one value, nothing more.
-  var bare = ["enrolled", "matched", "done", "ready"].indexOf(kind) !== -1
+  var bare = ["enrolled", "matched", "done", "ready", "configured"].indexOf(kind) !== -1
   if (parts.length !== (bare ? 1 : 2)) return null
   switch (kind) {
   case "step":
@@ -33,15 +33,31 @@ function parseEvent(line) {
     return { kind: kind, value: HINTS.indexOf(value) !== -1 ? value : "again" }
   case "fail":
     return /^[a-z][a-z-]*$/.test(value) ? { kind: kind, value: value } : null
+  case "selected":
+    return value === "any" || FINGERS.indexOf(value) !== -1 ? { kind: kind, value: value } : null
   case "finger":
     return FINGERS.indexOf(value) !== -1 ? { kind: kind, value: value } : null
   case "enrolled":
   case "matched":
   case "done":
+  case "configured":
   case "ready":
     return { kind: kind, value: "" }
   }
   return null
+}
+
+// Shared by enrollment and a separate verification of a saved print.
+function retryText(hint, I18n) {
+  switch (hint) {
+  case "short": return I18n.t("fingerprint.retryShort")
+  case "center": return I18n.t("fingerprint.retryCenter")
+  case "lift": return I18n.t("fingerprint.retryLift")
+  case "fast": return I18n.t("fingerprint.retryFast")
+  case "nomatch": return I18n.t("fingerprint.retryNoMatch")
+  case "again": return I18n.t("fingerprint.retryAgain")
+  }
+  return ""
 }
 
 // How a failure is shown: "line" for one the status line explains, "terminal"

@@ -5,8 +5,8 @@ import "EnrollmentModel.js" as Model
 
 // The state of one fingerprint registration, driven by
 // omarchy-setup-security-fingerprint-enroll. The view only reads this: which
-// step, how many touches are in, and how it ended. Everything privileged
-// happens in the one pkexec'd run of that helper.
+// step, how many touches are in, and how it ended. The first enrollment runs
+// privileged setup. Additional enrollments run as the owner against one reader.
 Item {
   id: root
   visible: false
@@ -35,6 +35,7 @@ Item {
   // (full: the reader already holds all ten fingers)
   property string phase: "idle"
   property string finger: ""
+  property string managedReader: ""
   property int stage: 0
   property int stages: 0
   property string hint: ""
@@ -42,6 +43,8 @@ Item {
   // Set when the authorization prompt was dismissed, until the next run.
   property bool dismissed: false
   property bool cancelling: false
+  signal managementRequested()
+  property bool configured: false
   property bool pendingStart: false
   // A registration asked for while the last run's helper was still stopping.
   property bool pendingBegin: false
@@ -69,6 +72,7 @@ Item {
     failure = ""
     dismissed = false
     pendingStart = true
+    configured = false
     pendingEnrolled = []
     statusProc.running = true
   }
@@ -77,12 +81,25 @@ Item {
     if (!pendingStart) return
     pendingStart = false
     enrolled = pendingEnrolled
+    if (!demo && (enrolled.length || configured)) {
+      managementRequested()
+      return
+    }
     start()
   }
 
-  function start() {
+  function start(reader, slot) {
     if (run.running) return
-    finger = Model.suggestFinger(enrolled)
+    managedReader = reader || ""
+    if (reader) {
+      stage = 0
+      stages = 0
+      scanType = ""
+      hint = ""
+      failure = ""
+      dismissed = false
+    }
+    finger = slot || Model.suggestFinger(enrolled)
     if (finger === "") {
       phase = "full"
       return
@@ -92,12 +109,16 @@ Item {
     var command = demo ? [helper, demoFails ? "demo-fail" : "demo", finger] : ["pkexec", helper, "enroll", finger]
     // The polkit agent labels the prompt for this exact command line with the
     // reason. The helper's stderr, and pkexec's own, is the log of this run.
+    if (reader) {
+      command = [Quickshell.env("OMARCHY_PATH") + "/default/fingerprint/manage.py", "add", reader, finger]
+    }
     run.command = ["bash", "-c", 'mkdir -p "${0%/*}"; [[ -z $1 ]] || omarchy-shell -q omarchy.polkit expect "$1" "$2"; shift 2; exec "$@" 2>"$0"',
-      logPath, demo ? "" : helper + " enroll " + finger, reason].concat(command)
+      logPath, (demo || reader) ? "" : helper + " enroll " + finger, reason].concat(command)
     run.running = true
   }
 
   function cancel() {
+    managedReader = ""
     if (run.running) {
       cancelling = true
       // The line reaches a helper pkexec has made root; the signal reaches
@@ -111,6 +132,15 @@ Item {
     statusProc.running = false
     phase = "idle"
     hint = ""
+  }
+
+  function resumeAfterFailure() {
+    // A failed verifying touch may follow a successful enrollment. List the
+    // same reader again so its newly saved print is available to verify.
+    if (managedReader) {
+      phase = "idle"
+      managementRequested()
+    } else begin()
   }
 
   function fail(code) {
@@ -195,7 +225,8 @@ Item {
       onRead: function(line) {
         var event = Model.parseEvent(line)
         if (!event || !root.pendingStart) return
-        if (event.kind === "scan") root.scanType = event.value
+        if (event.kind === "configured") root.configured = true
+        else if (event.kind === "scan") root.scanType = event.value
         else if (event.kind === "finger") root.pendingEnrolled = root.pendingEnrolled.concat([event.value])
         else if (event.kind === "ready") root.ready()
       }

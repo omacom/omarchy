@@ -8,6 +8,7 @@ remove="$ROOT/bin/omarchy-remove-security-fingerprint"
 test_tmp=$(mktemp -d /tmp/omarchy-fingerprint-remove.XXXXXX)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin" "$test_tmp/etc/pam.d" "$test_tmp/fprint"
+touch "$test_tmp/etc/pam.d/sudo"
 copy="$test_tmp/remove.sh"
 log="$test_tmp/calls"
 output="$test_tmp/output"
@@ -15,6 +16,8 @@ output="$test_tmp/output"
 (( $(grep -Fxc 'sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"' "$remove") == 1 )) ||
   fail "fingerprint removal has one fixed deletion path"
 sed -e "s|/etc/pam.d/|$test_tmp/etc/pam.d/|g" \
+  -e "s|/usr/lib/systemd/system-sleep/|$test_tmp/system-sleep/|g" \
+  -e "s|/etc/systemd/system/fprintd.service.d|$test_tmp/fprintd.service.d|g" \
   -e "s|/var/lib/fprint/|$test_tmp/fprint/|g" \
   -e "s|/usr/bin/id|$test_tmp/trusted-id|g" "$remove" >"$copy"
 
@@ -39,6 +42,11 @@ SH
 cat >"$test_tmp/bin/sudo" <<'SH'
 #!/bin/bash
 case $1 in
+  -H)
+    [[ $2 == -u && $3 == "#${TEST_SUDO_UID:-0}" && $4 == -- && $5 == /bin/sh ]] || exit 91
+    shift 4
+    exec "$@"
+    ;;
   -n) exit "${TEST_SUDO_CACHED:-0}" ;;
   -v) printf 'sudo -v\n' >>"$TEST_LOG"; exit "${TEST_SUDO_V_FAIL:-0}" ;;
 esac
@@ -99,7 +107,7 @@ run_remove() {
     "TEST_PRINTS_OUTPUT=${prints_output:-}" "TEST_SUDO_CACHED=${sudo_cached:-0}" "TEST_SUDO_V_FAIL=${sudo_v_fail:-0}"
     "TEST_HOOK_FAIL=${hook_fail:-0}" "TEST_RESOLVE_FAIL=${resolve_fail:-0}"
     "TEST_DISABLE_HOOK=${disable_hook-/usr/lib/omarchy/mac/disable-fingerprint}"
-    "USER=spoofed" "SUDO_USER=spoofed"
+    "XDG_DATA_HOME=$test_tmp/data" "USER=spoofed" "SUDO_USER=spoofed"
     "PATH=$test_tmp/bin:/usr/bin:/bin"
   )
   if (( EUID == 0 )); then
@@ -113,6 +121,8 @@ run_remove() {
 }
 
 direct_user=alice sudo_user=alice expected=alice
+mkdir -p "$test_tmp/data/omarchy"
+touch "$test_tmp/data/omarchy/fingerprint-names.sqlite3"
 unset SUDO_UID
 mkdir -p "$test_tmp/fprint/alice" "$test_tmp/fprint/bob"
 touch "$test_tmp/fprint/alice/print" "$test_tmp/fprint/bob/print"
@@ -144,6 +154,8 @@ run_remove || fail "removal without fprintd succeeds" "$(cat "$output")"
 ! grep -q '^sudo fprintd-delete' "$log" || fail "without fprintd nothing asks it to delete"
 unset fprintd
 pass "prints are deleted in the reader first, and a delete that can't run doesn't stop removal"
+
+[[ ! -e $test_tmp/data/omarchy/fingerprint-names.sqlite3 ]] || fail "a fresh enrollment can inherit an old fingerprint name"
 
 # A platform that turned its reader on for setup turns it off again, after the
 # local files go and before the packages; a failure is reported, not fatal.
@@ -197,6 +209,7 @@ copy="$test_tmp/absolute-id.sh" expected=$test_username
 mkdir -p "$test_tmp/fprint/$expected"
 run_remove || fail "absolute system id ignores malicious PATH id" "$(cat "$output")"
 [[ ! -e $test_tmp/fprint/$expected && -f $test_tmp/fprint/bob/print ]] || fail "system id selects only the invoking user"
+touch "$test_tmp/etc/pam.d/sudo"
 copy="$test_tmp/remove.sh" expected=alice
 pass "absolute system id ignores malicious PATH id"
 
@@ -244,7 +257,7 @@ if unshare -Ur true >/dev/null 2>&1; then
     [[ -v SUDO_UID ]] && sudo_env=("SUDO_UID=$SUDO_UID")
     TEST_LOG="$log" TEST_FPRINT="$test_tmp/fprint" TEST_EXPECTED_USER="$expected" \
       TEST_DIRECT_USER=root TEST_SUDO_USER="$sudo_user" TEST_SUDO_UID="${SUDO_UID:-}" \
-      USER=spoofed SUDO_USER=spoofed PATH="$test_tmp/bin:/usr/bin:/bin" \
+      XDG_DATA_HOME="$test_tmp/data" USER=spoofed SUDO_USER=spoofed PATH="$test_tmp/bin:/usr/bin:/bin" \
       env -u SUDO_UID "${sudo_env[@]}" unshare -Ur bash "$copy" >"$output" 2>&1 || status=$?
     return "$status"
   }

@@ -5,7 +5,8 @@ import qs.Commons
 import qs.Commons as Commons
 
 // Full-screen fingerprint setup: a big fingerprint on a darkened scrim with one
-// status line. Summoning it registers the next free finger, running the whole
+// status line. Existing enrollments open the management view. First-time users
+// register the next free finger, running the whole
 // setup in the background (packages, enrollment, a verifying touch, PAM for
 // sudo, polkit and the lock screen) after one authorization prompt, which is
 // asked before the panel shows so the two never share the screen. Once a
@@ -25,6 +26,7 @@ Item {
   property var manifest: null
 
   property bool opened: false
+  property bool managing: false
   // Fades the whole panel out after the sign-off.
   property real veil: 1
 
@@ -46,12 +48,15 @@ Item {
     enrollment.cancel()
     fadeOut.stop()
     root.veil = 1
+    root.managing = false
     root.opened = true
-    enrollment.begin()
+    if (payload.manage === true) root.managing = true
+    else enrollment.begin()
   }
 
   function close() {
     root.opened = false
+    root.managing = false
     enrollment.cancel()
     fadeOut.stop()
     view.settle()
@@ -65,11 +70,12 @@ Item {
 
   Enrollment {
     id: enrollment
+    onManagementRequested: root.managing = true
     reason: Commons.I18n.t("fingerprint.authorize")
     // A dismissed authorization prompt ends it there: nothing was shown yet.
     onDismissedChanged: if (dismissed && root.opened) Qt.callLater(root.dismiss)
     onFailureKindChanged: {
-      if (!root.opened || failureKind === "" || failureKind === "line") return
+      if (!root.opened || managedReader || failureKind === "" || failureKind === "line") return
       if (failureKind === "terminal") {
         // A reader its platform keeps off: the terminal setup explains what
         // turning it on means, asks, and carries on from there.
@@ -94,12 +100,15 @@ Item {
 
     // The authorization prompt comes first, on its own: the panel only maps
     // once the helper is running, or there is something else to say.
-    visible: root.opened && enrollment.phase !== "idle" && enrollment.phase !== "auth"
+    visible: root.opened && (root.managing ? !(manager.item && manager.item.authorizing)
+                                          : enrollment.phase !== "idle" && enrollment.phase !== "auth")
     // Mapped hidden, so take the focus and open the transmission once the
     // surface is actually on screen.
     onVisibleChanged: {
       if (visible) Qt.callLater(function() {
-        if (root.opened && window.visible) view.transmit()
+        if (!root.opened || !window.visible) return
+        if (root.managing && manager.item) manager.item.forceActiveFocus()
+        else if (!root.managing) view.transmit()
       })
     }
     anchors { top: true; bottom: true; left: true; right: true }
@@ -117,13 +126,30 @@ Item {
       // A stray click must not throw away a scan in flight.
       MouseArea {
         anchors.fill: parent
-        onClicked: if (!enrollment.busy) root.dismiss()
+        onClicked: if (!root.managing && !enrollment.busy) root.dismiss()
+      }
+    }
+
+    Loader {
+      id: manager
+      focus: active
+      onLoaded: if (window.visible) item.forceActiveFocus()
+      anchors.fill: parent
+      active: root.opened && root.managing
+      sourceComponent: ManagementView {
+        initialReader: enrollment.managedReader
+        onCloseRequested: root.dismiss()
+        onAddRequested: function(reader, finger) {
+          root.managing = false
+          enrollment.start(reader, finger)
+        }
       }
     }
 
     EnrollView {
       id: view
       anchors.fill: parent
+      visible: !root.managing
       ctl: enrollment
       onCloseRequested: root.dismiss()
       onSignedOff: if (root.opened) fadeOut.restart()

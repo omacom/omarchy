@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Enroll one finger and set up fingerprint authentication, reporting progress as events
-# omarchy:args=status | enroll <finger> | demo <finger> | demo-fail <finger>
+# omarchy:args=status | enable-lock | enroll <finger> | demo <finger> | demo-fail <finger>
 # omarchy:hidden=true
 
 # What the fingerprint panel runs. It prints one event per line for the panel
@@ -147,6 +147,7 @@ status() {
       sleep 0.5
     done
   fi
+  [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && emit "configured"
   emit "ready"
 }
 
@@ -285,6 +286,16 @@ enroll() {
 
 mode=${1:-}
 finger=${2:-}
+
+# Called after a match when an existing enrollment needs the lock PAM service.
+if [[ $mode == "enable-lock" && $# == 1 ]]; then
+  (( EUID == 0 )) && [[ ${PKEXEC_UID:-} =~ ^[0-9]+$ ]] || fail not-root
+  export OMARCHY_PATH=/usr/share/omarchy
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+  cd / || fail secure
+  /usr/bin/omarchy-apply-lock && [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] || fail secure
+  exit 0
+fi
 
 if [[ $mode == "status" ]]; then
   status

@@ -46,6 +46,7 @@ Item {
   property bool rounded: Style.cornerRadius > 0
   property color foreground: Commons.Color.foreground
   property color accent: Commons.Color.accent
+  property color checkedKnobColor: Style.selectedStateColor(foreground, accent)
 
   signal toggled()
   signal hovered(bool isHovered)
@@ -102,7 +103,7 @@ Item {
       radius: root.rounded ? height / 2 : 0
       x: root.checked !== root.mirrored ? track.width - width - root.knobInset : root.knobInset
       y: root.knobInset
-      color: root.checked ? Style.selectedStateColor(root.foreground, root.accent) : Qt.darker(root.foreground, 1.25)
+      color: root.checked ? root.checkedKnobColor : Qt.darker(root.foreground, 1.25)
 
       Behavior on x { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
       Behavior on color { ColorAnimation { duration: Style.duration(120) } }

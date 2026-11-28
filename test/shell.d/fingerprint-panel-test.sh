@@ -42,3 +42,7 @@ assertEqual(model.suggestFinger(model.FINGERS), '', 'ten enrolled fingers leave 
 JS
 
 pass "fingerprint panel event model"
+
+python3 -B "$ROOT/test/shell.d/fixtures/fingerprint-setup/sudo-test.py"
+dbus-run-session -- python3 -B "$ROOT/test/shell.d/fixtures/fingerprint-setup/management-test.py"
+pass "manage individual saved prints on the claimed reader"

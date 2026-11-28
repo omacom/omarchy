@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set up fingerprint authentication for sudo, polkit, and lock screen
-# omarchy:args=[--terminal]
+# omarchy:args=[--terminal | --manage]
 # omarchy:requires-sudo=true
 
 set -e
@@ -11,6 +11,10 @@ set -e
 # or a session whose shell doesn't answer (SSH, a console), runs it right here.
 # The menu and the first-run invitation start this with no terminal, so with
 # the panel unavailable (its plugin disabled, say) it opens one for itself.
+if [[ ${1:-} == "--manage" ]]; then
+  exec omarchy-shell shell summon omarchy.fingerprint '{"manage":true}'
+fi
+
 if [[ ${1:-} != "--terminal" ]]; then
   if [[ $(omarchy-shell shell summon omarchy.fingerprint 2>/dev/null) == "ok" ]]; then
     exit 0

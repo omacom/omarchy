@@ -8,6 +8,8 @@ That opens a full-screen fingerprint that fills in as you touch the sensor. Behi
 
 Once the lock screen has turned the display off, the sensor rests to save power, so wake the screen with any key or the touchpad before touching it.
 
+Open _Setup > Security > Fingerprint_ again to manage your saved fingerprints. Select a print to name it, verify it, or remove just that print. You can add another finger and choose separately whether to use fingerprints for screen unlock and for sudo. The unlock choice applies to your account. The sudo setting applies to every user with enrolled fingerprints. These switches leave authorization for system prompts alone.
+
 When your laptop lid is closed, the fingerprint prompt is automatically skipped, so you go straight to the password prompt instead of waiting on a sensor you can't reach. If you otherwise need to work on an external keyboard that doesn't have a sensor, just hit `CTRL + C`, when you're prompted for your fingerprint during `sudo`.
 
 You can remove the fingerprint authentication under _Remove > Security > Fingerprint_ in the Omarchy menu.
