@@ -86,7 +86,9 @@ unknown_rate_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$
 grep -Fx $'rate\t7.3W' <<<"$unknown_rate_output" >/dev/null || fail "an unreadable current_now leaves UPower's rate in place" "$unknown_rate_output"
 pass "battery status keeps UPower's rate when the battery has no live reading"
 
-# An 80% hold threshold doesn't trip while the battery is still below it.
+# Display rounding is half-up to match the bar widget, but the charge-hold
+# check must compare UPower's raw percentage: 79.5% displays as 80%, and an
+# 80% hold threshold must not trip while the raw value is still below it.
 hold_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir" "$hold_dir"' EXIT
 
@@ -122,8 +124,9 @@ chmod +x "$hold_dir/bin/upower"
 
 hold_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 
+grep -Fx $'percentage\t80%' <<<"$hold_output" >/dev/null || fail "display percentage rounds half-up"
 grep -Fx $'state\tcharging' <<<"$hold_output" >/dev/null || fail "a hold below its threshold is still charging"
-pass "battery status doesn't trip a hold early"
+pass "battery status rounds display percentage without tripping a hold early"
 
 # Once the battery reaches the threshold, idle charging is holding.
 sed -i 's/percentage:           79.5%/percentage:           80.0%/' "$hold_dir/bin/upower"
@@ -202,7 +205,12 @@ sed -i 's/state:                fully-charged/state:                discharging/
 printf '10000000\n' >"$hold_dir/power/BAT0/power_now"
 draining_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $draining_output == "Battery 100%  ·  5h 19m left  ·  "*"10W"*"53Wh" ]] || fail "a battery draining on AC at 100% is not fully charged" "$draining_output"
-sed -i 's/state:                discharging/state:                fully-charged/' "$hold_dir/bin/upower"
+
+# 99.5% shows as 100%, but a battery still charging there is not full yet.
+sed -i 's/state:                discharging/state:                charging/; s/percentage:           100%/percentage:           99.5%/' "$hold_dir/bin/upower"
+nearly_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $nearly_output == "Battery 100%  ·  "* && $nearly_output != *"Fully charged"* ]] || fail "a battery charging at 99.5% is not fully charged" "$nearly_output"
+sed -i 's/state:                charging/state:                fully-charged/; s/percentage:           99.5%/percentage:           100%/' "$hold_dir/bin/upower"
 
 # A battery with no time estimate and no capacity reading leaves both out.
 sed -i 's/state:                fully-charged/state:                discharging/; s/percentage:           100%/percentage:           60%/; /energy/d' "$hold_dir/bin/upower"
@@ -210,6 +218,9 @@ printf '0\n' >"$hold_dir/power/ac/online"
 printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
 sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
+sed -i '/percentage:/d' "$hold_dir/bin/upower"
+unknown_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t%' <<<"$unknown_output" >/dev/null || fail "an unknown percentage is not read as 0%" "$unknown_output"
 pass "battery status leaves out readings it doesn't have"
 
 # UPower 1.91+ prints hwdb 75/80% thresholds even when disabled (sysfs is 100%).
