@@ -11,6 +11,7 @@ import qs.Commons as Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
+import "services/PluginReload.js" as PluginReload
 
 ShellRoot {
   id: shell
@@ -67,18 +68,43 @@ ShellRoot {
   property bool pluginReloading: false
   property bool pluginReloadPending: false
   property bool localPluginNeedsReload: false
+  property bool localPluginQmlReloadPending: false
+  property bool localPluginReloadHoldLogged: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: {
-      if (shell.localPluginNeedsReload) {
-        shell.localPluginNeedsReload = false
-        shell.reloadPlugins()
-      } else {
-        shell.rescanPlugins()
-      }
+    onTriggered: shell.flushLocalPluginReload()
+  }
+
+  // An engine reload would tear down the session lock, its unlock wake or an
+  // open polkit prompt, so a source edit waits for them. AuthServiceStore
+  // calls resumeHeldPluginReload() when any of them changes.
+  function flushLocalPluginReload() {
+    shell.localPluginQmlReloadPending = PluginReload.flush(
+      shell.localPluginQmlReloadPending,
+      AuthServiceStore.holdsEngineReload(),
+      function() { Quickshell.reload(false) },
+      function() {
+        if (shell.localPluginNeedsReload) {
+          shell.localPluginNeedsReload = false
+          shell.reloadPlugins()
+        } else {
+          shell.rescanPlugins()
+        }
+      })
+    if (!shell.localPluginQmlReloadPending) {
+      shell.localPluginReloadHoldLogged = false
+    } else if (!shell.localPluginReloadHoldLogged) {
+      shell.localPluginReloadHoldLogged = true
+      console.log("Plugin source reload waits for the lock or an authentication prompt")
     }
+  }
+
+  function resumeHeldPluginReload() {
+    if (!shell.localPluginQmlReloadPending || localPluginReloadTimer.running) return
+    localPluginReloadTimer.interval = PluginReload.quietInterval(true)
+    localPluginReloadTimer.restart()
   }
 
   onShellConfigChanged: {
@@ -179,6 +205,7 @@ ShellRoot {
     // case the user dir already existed at startup.
     pluginRegistry.rescan()
     shell._syncServices()
+    AuthServiceStore.setStateListener(shell.resumeHeldPluginReload)
   }
 
   function mutateShellConfig(mutator) {
@@ -1651,18 +1678,21 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
-    if (typeof Qt.clearComponentCache === "function") Qt.clearComponentCache()
     shell.pluginRegistry.rescan()
   }
 
   Connections {
     target: shell.pluginRegistry
-    function onLocalPluginChanged(pluginId) {
-      // An edit to a plugin the shell already runs needs its fresh code; a
-      // plugin that just appeared only needs adding.
-      if (shell.localPluginLoaded(pluginId))
+    function onLocalPluginChanged(pluginId, qmlSourceChanged) {
+      // An edit to a plugin the shell already runs needs its fresh code, and
+      // compiled QML or JavaScript only refreshes in a new engine; a plugin
+      // that just appeared only needs adding.
+      if (shell.localPluginLoaded(pluginId)) {
         shell.localPluginNeedsReload = true
+        if (qmlSourceChanged) shell.localPluginQmlReloadPending = true
+      }
       console.log("Local plugin changed:", pluginId)
+      localPluginReloadTimer.interval = PluginReload.quietInterval(shell.localPluginQmlReloadPending)
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {

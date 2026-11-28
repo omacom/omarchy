@@ -31,12 +31,60 @@ cat >"$hot_reload_dir/manifest.json" <<JSON
   "omarchy": {"clonedFrom": "omarchy.emojis"}
 }
 JSON
+cat >"$hot_reload_dir/Model.js" <<'JS'
+function version() { return "js-before" }
+JS
 cat >"$hot_reload_dir/Overlay.qml" <<'QML'
 import QtQuick
+import Quickshell.Io
+import "Model.js" as Model
 
 Item {
+  id: root
+  property string marker: "qml-before"
   function open(payloadJson) {}
   function close() {}
+
+  IpcHandler {
+    target: "acme-hot-reload"
+    function sourceVersion(): string { return root.marker + ":" + Model.version() }
+  }
+}
+QML
+
+# The test shell must not answer polkit. Run from a session of its own (ssh, a
+# VM worker), its agent registers and takes NetworkManager's requests, showing
+# prompts nobody answers. This clone replaces omarchy.polkit with no agent and
+# stands in for an open prompt, which must hold a source reload.
+prompt_id="acme.prompt"
+prompt_dir="$SCRATCH_HOME/.config/omarchy/plugins/$prompt_id"
+mkdir -p "$prompt_dir"
+cat >"$prompt_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$prompt_id",
+  "name": "Prompt",
+  "version": "1.0.0",
+  "kinds": ["service"],
+  "keepLoaded": true,
+  "entryPoints": {"service": "Prompt.qml"},
+  "omarchy": {"clonedFrom": "omarchy.polkit"}
+}
+JSON
+cat >"$prompt_dir/Prompt.qml" <<'QML'
+import QtQuick
+import Quickshell.Io
+
+Item {
+  property bool dialogVisible: false
+  property string marker: ""
+
+  IpcHandler {
+    target: "acme-prompt"
+    function show(value: string): string { marker = value; dialogVisible = true; return "ok" }
+    function hide(): string { dialogVisible = false; return "ok" }
+    function get(): string { return marker }
+  }
 }
 QML
 
@@ -355,6 +403,9 @@ jq -e '
 }
 pass "shell IPC lists plugin metadata"
 
+[[ $(scratch_ipc shell setPluginEnabled "$prompt_id" true) == "ok" ]] ||
+  fail_with_log "the stand-in prompt replaces the polkit agent"
+
 # Plugins save their own state beside current/. That must not make the
 # transparent bar sample the wallpaper again; repointing the background must.
 text_color_count() {
@@ -431,6 +482,43 @@ pass "installed plugin changes reload without an explicit rescan"
   fail_with_log "installed plugin could not be enabled"
 [[ $(scratch_ipc shell summon omarchy.emojis "{}") == "ok" ]] ||
   fail_with_log "calls to a cloned source id do not reach its enabled clone"
+# Exercise the real inotify watcher, signal, debounce timer, engine reload,
+# and component cache. A registry-only rescan keeps the old compiled source.
+wait_source_version() {
+  local expected="$1" actual=""
+  for _ in {1..100}; do
+    # Engine reload clears openPanelIds, so remount the overlay's IPC probe.
+    scratch_ipc_quiet shell summon "$hot_reload_id" "{}" >/dev/null 2>&1 || true
+    actual=$(scratch_ipc acme-hot-reload sourceVersion 2>/dev/null || true)
+    [[ $actual == "$expected" ]] && return 0
+    kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited during source hot reload"
+    sleep 0.1
+  done
+  fail_with_log "plugin source version becomes $expected (got $actual)"
+}
+wait_source_version "qml-before:js-before"
+sed -i 's/qml-before/qml-after/' "$hot_reload_dir/Overlay.qml"
+wait_source_version "qml-after:js-before"
+pass "QML edits refresh the mounted plugin through the live watcher and shell reload"
+
+sed -i 's/js-before/js-after/' "$hot_reload_dir/Model.js"
+wait_source_version "qml-after:js-after"
+pass "imported JavaScript edits refresh through the live watcher and shell reload"
+
+# Rebuilding the engine under an open prompt would cancel it, and pkexec fails.
+[[ $(scratch_ipc acme-prompt show held) == "ok" ]] || fail_with_log "the stand-in prompt opens"
+sed -i 's/qml-after/qml-held/' "$hot_reload_dir/Overlay.qml"
+for _ in {1..100}; do
+  grep -q "Plugin source reload waits" "$SCRATCH_LOG" && break
+  sleep 0.1
+done
+[[ $(scratch_ipc acme-prompt get) == "held" && $(scratch_ipc acme-hot-reload sourceVersion) == "qml-after:js-after" ]] ||
+  fail_with_log "an open prompt holds a source reload"
+scratch_ipc_quiet acme-prompt hide >/dev/null
+wait_source_version "qml-held:js-after"
+[[ -z $(scratch_ipc acme-prompt get) ]] || fail_with_log "the held source reload runs once the prompt closes"
+pass "an open prompt holds a source reload until it closes"
+
 scratch_ipc_quiet shell hide omarchy.emojis >/dev/null
 scratch_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null
 pass "shell IPC routes built-in ids to enabled clones"

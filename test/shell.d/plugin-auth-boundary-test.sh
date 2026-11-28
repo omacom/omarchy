@@ -48,6 +48,64 @@ assert(
   !store.has('omarchy.lock') && store.isTrusted('omarchy.lock'),
   'authentication classification survives service teardown'
 )
+
+// An engine reload tears down every authentication service, so the shell asks
+// the store whether one is busy, and the store answers with a boolean.
+store.put('omarchy.lock', { locked: true })
+assert(store.hasActiveLock(), 'the session lock holds an engine reload')
+store.destroyAll()
+store.put('my.lock', { locked: true })
+assert(store.hasActiveLock(), 'a lock clone also holds an engine reload')
+// The lock service's bound `locked` can miss a change; its currentlyLocked() is the truth.
+store.put('my.lock', { locked: false, currentlyLocked: () => true })
+assert(store.hasActiveLock(), 'a lock whose bound property went stale still holds an engine reload')
+store.put('my.lock', { locked: true, currentlyLocked: () => false })
+assert(!store.hasActiveLock(), 'a stale locked property does not hold an engine reload after unlock')
+store.destroyAll()
+
+const prompt = { dialogVisible: false }
+store.put('omarchy.polkit', prompt)
+assert(!store.holdsEngineReload(), 'a closed polkit prompt holds no engine reload')
+prompt.dialogVisible = true
+assert(store.holdsEngineReload(), 'an open polkit prompt holds an engine reload')
+store.destroyAll()
+store.put('my.polkit', { dialogVisible: true })
+assert(store.holdsEngineReload(), 'a prompt in an authentication clone also holds an engine reload')
+store.destroyAll()
+
+// A held reload resumes on the services' own change signals instead of a timer.
+function changeSignal() {
+  const handlers = []
+  return { connect: handler => handlers.push(handler), emit: () => handlers.forEach(handler => handler()) }
+}
+let notifications = 0
+let listenerArguments = 0
+store.setStateListener(function() {
+  notifications++
+  listenerArguments += arguments.length
+})
+const lock = { locked: false, lockedChanged: changeSignal(), lockRequestedChanged: changeSignal() }
+const watchedPrompt = { dialogVisible: false, dialogVisibleChanged: changeSignal() }
+store.put('omarchy.lock', lock)
+store.put('omarchy.polkit', watchedPrompt)
+watchedPrompt.dialogVisibleChanged.emit()
+assert(notifications === 1, 'a prompt opening or closing reports a state change')
+lock.lockRequestedChanged.emit()
+lock.lockedChanged.emit()
+assert(notifications === 3, 'a lock request and a lock change each report a state change')
+store.destroy('omarchy.polkit')
+assert(notifications === 4, 'removing an authentication service reports a state change')
+assert(listenerArguments === 0, 'the state listener receives no authentication object')
+
+// The wake after an unlock restores the displays; a reload must not cut it short.
+const wake = { locked: false, waking: true, wakingChanged: changeSignal() }
+store.put('omarchy.lock', wake)
+assert(store.holdsEngineReload(), 'the unlock wake holds an engine reload')
+wake.waking = false
+wake.wakingChanged.emit()
+assert(!store.holdsEngineReload() && notifications === 5, 'the end of the unlock wake releases the hold and reports it')
+store.setStateListener(null)
+store.destroyAll()
 JS
 
 qml_matches "$shell_qml" 'inst\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||

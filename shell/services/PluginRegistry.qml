@@ -1,3 +1,5 @@
+import "PluginReload.js" as PluginReload
+
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -31,7 +33,7 @@ QtObject {
   signal pluginsChanged()
   signal scanFinished()
   signal pluginLoadFailed(string id, string error)
-  signal localPluginChanged(string id)
+  signal localPluginChanged(string id, bool qmlSourceChanged)
 
   // ---------------------------------------------------------------- helpers
 
@@ -750,7 +752,7 @@ QtObject {
     stdout: SplitParser {
       onRead: function(path) {
         var pluginId = registry.localPluginIdForPath(path)
-        if (pluginId) registry.localPluginChanged(pluginId)
+        if (pluginId) registry.localPluginChanged(pluginId, registry.localPluginQmlChangedForPath(path))
       }
     }
     onExited: {
@@ -827,6 +829,10 @@ QtObject {
 
     var slash = relative.indexOf("/")
     return slash === -1 ? relative : relative.slice(0, slash)
+  }
+
+  function localPluginQmlChangedForPath(filePath) {
+    return PluginReload.sourceChangedForPath(filePath)
   }
 
   Component.onCompleted: {
