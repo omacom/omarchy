@@ -765,6 +765,292 @@ assert(bar and bar.bar_color == "rgb(223344)", "titlebars missed the theme with 
 fi
 pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 
+# A floating window dropped with its titlebar out of reach is brought back
+# below the top bar, when Appearance > Windows > Titlebar Snap is on.
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "a floating window dropped under the top bar keeps its titlebar in reach"
+local handlers, binds, timers, dispatched = {}, {}, {}, {}
+local active, cursor = nil, { x = 0, y = 0 }
+local workspace_windows = {}
+local commands = {}
+
+-- Two screens stacked: the top bar reserves 26 at the top of each.
+local upper = { id = 0, x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
+local lower = { id = 1, x = 0, y = 1080, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
+local config = { ["plugin.hyprbars.bar_height"] = 30, ["general.border_size"] = 2 }
+
+hl = {
+  on = function(event, callback) handlers[event] = callback end,
+  bind = function(keys, callback, opts) table.insert(binds, { callback = callback, opts = opts or {} }) end,
+  timer = function(callback) table.insert(timers, callback) end,
+  get_active_window = function() return active end,
+  get_workspace_windows = function() return workspace_windows end,
+  exec_cmd = function(command) table.insert(commands, command) end,
+  get_windows = function(filter)
+    local found = {}
+    for _, w in ipairs(workspace_windows) do
+      for _, tag in ipairs(w.tags or {}) do
+        if tag == filter.tag then table.insert(found, w) end
+      end
+    end
+    return found
+  end,
+  get_cursor_pos = function() return cursor end,
+  get_monitors = function() return { upper, lower } end,
+  get_config = function(key) return config[key] end,
+  plugin = { hyprbars = {} },
+  dispatch = function(dispatcher)
+    table.insert(dispatched, dispatcher)
+    if dispatcher.kind == "move" then dispatcher.window.at = { x = dispatcher.x, y = dispatcher.y } end
+    if dispatcher.kind == "resize" then dispatcher.window.size = { x = dispatcher.x, y = dispatcher.y } end
+    if dispatcher.kind == "tag" then
+      local name, kept = dispatcher.tag:sub(2), {}
+      for _, tag in ipairs(dispatcher.window.tags or {}) do if tag ~= name then table.insert(kept, tag) end end
+      if dispatcher.tag:sub(1, 1) == "+" then table.insert(kept, name) end
+      dispatcher.window.tags = kept
+    end
+  end,
+  dsp = { window = {
+    move = function(args) args.kind = "move"; return args end,
+    resize = function(args) args.kind = "resize"; return args end,
+    tag = function(args) args.kind = "tag"; return args end,
+    fullscreen = function(args) args.kind = "fullscreen"; return args end,
+  } },
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+o = o or {}
+local bounds = require("default.hypr.floating-bounds")
+
+local function window(y, extra)
+  local w = { address = "0xabc", floating = true, fullscreen = 0, workspace = { id = 1 }, monitor = upper,
+    tags = { "omarchy-floating-workspace" }, class = "foot", at = { x = 400, y = 300 }, size = { x = 800, y = 600 } }
+  for key, value in pairs(extra or {}) do w[key] = value end
+  w.at = { x = 400, y = y }
+  return w
+end
+
+-- The window becomes active as a drag starts, and again where it is dropped.
+local function drop(w, to_y, pointer)
+  dispatched = {}
+  active = w
+  handlers["window.active"]()
+  for _, run in ipairs(timers) do run() end
+  timers = {}
+  w.at = { x = w.at.x, y = to_y }
+  cursor = pointer or { x = w.at.x + 100, y = to_y - 10 }
+  handlers["window.active"]()
+  for _, run in ipairs(timers) do run() end
+  timers = {}
+  return dispatched
+end
+
+local function click(pointer)
+  dispatched = {}
+  cursor = pointer
+  binds[1].callback()
+  for _, run in ipairs(timers) do run() end
+  timers = {}
+  return dispatched
+end
+
+assert(#drop(window(300), 40) == 0, "nothing moves until the toggle switches it on")
+bounds.keep_title_bar = true
+
+local moved = drop(window(300), 40)
+assert(#moved == 1 and moved[1].kind == "move" and moved[1].y == 26 + 2 + 30,
+  "a titlebar dropped under the top bar comes down to just below it")
+
+assert(#drop(window(300), 200) == 0, "a window dropped in the clear stays where it was put")
+assert(#click({ x = 900, y = 10 }) == 0, "a click on the bar afterwards moves nothing")
+
+local framed = drop(window(300, { tags = { "omarchy-floating-workspace", "omarchy-self-framed*" } }), 10, { x = 500, y = 30 })
+assert(#framed == 1 and framed[1].y == 26 + 2, "an app drawing its own header has no titlebar to clear")
+
+local straddling = drop(window(1300, { monitor = lower }), 1070, { x = 500, y = 1060 })
+assert(#straddling == 0, "a titlebar showing on the screen above is left where it is")
+
+-- Dragged sideways until its middle is off every screen, a titlebar still in
+-- the clear stays put, while one taken above the screens still comes down.
+local aside = window(300)
+active = aside
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+aside.at = { x = -600, y = 300 }
+cursor = { x = -500, y = 280 }
+dispatched = {}
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+assert(#dispatched == 0, "a sideways drag off the screen's edge does not jump the window up")
+
+local above = window(300)
+active = above
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+above.at = { x = -600, y = -200 }
+cursor = { x = -500, y = -220 }
+dispatched = {}
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+assert(#dispatched == 1 and dispatched[1].y == 26 + 2 + 30, "a window taken above and off the side comes down on its own screen")
+
+assert(#drop(window(300, { workspace = { id = -98 } }), 10) == 0, "the scratchpad is left to its own rules")
+assert(#drop(window(300, { tags = {} }), 10) == 0, "a window on a tiled workspace is left to the layout")
+
+local w = window(300)
+active = w
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+w.at = { x = 400, y = 40 }; w.size = { x = 900, y = 600 }
+dispatched = {}
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+assert(#dispatched == 0, "a resize from the top edge is not taken for a drop")
+
+assert(#drop(window(300), 40, { x = 50, y = 900 }) == 0, "a window moved while the pointer is elsewhere is not taken for a drop")
+
+local function maximized(list)
+  for _, dispatcher in ipairs(list) do
+    if dispatcher.kind == "fullscreen" and dispatcher.mode == "maximized" and dispatcher.action == "set" then
+      return true
+    end
+  end
+  return false
+end
+
+assert(not maximized(drop(window(300), 20, { x = 500, y = 10 })), "nothing maximizes until the toggle switches it on")
+bounds.drop_maximize = true
+
+local dropped = drop(window(300), 20, { x = 500, y = 10 })
+assert(maximized(dropped), "a window dropped with the pointer on the top bar maximizes")
+assert(dropped[1].kind == "move", "its titlebar is brought into reach first, for when it is restored")
+
+assert(not maximized(drop(window(300), 40)), "a window dropped partly under the bar keeps its size")
+assert(not maximized(click({ x = 900, y = 10 })), "a click on the bar after a correction maximizes nothing")
+
+-- Hyprland still counts the window on the screen below as it crosses over.
+local below = window(1400, { monitor = lower })
+assert(not maximized(drop(below, 20, { x = 500, y = 10 })), "the pointer on another screen's bar does not maximize")
+
+-- A drag the mouse binds see ends on the button's release, with no focus
+-- event after it: the window was already active when the press landed.
+local press, release
+for _, bind in ipairs(binds) do
+  if bind.opts.release then release = bind.callback else press = bind.callback end
+end
+assert(press and release, "the left button is watched as it goes down and as it comes up")
+assert(binds[1].opts.non_consuming and binds[2].opts.non_consuming, "the click still reaches the window")
+
+local held = window(300)
+active = held
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+press(); for _, run in ipairs(timers) do run() end; timers = {}
+held.at = { x = 400, y = 20 }
+cursor = { x = 500, y = 10 }
+dispatched = {}
+release(); for _, run in ipairs(timers) do run() end; timers = {}
+assert(maximized(dispatched), "a window released over the top bar maximizes without another focus event")
+
+-- Hyprland keeps one maximized window per workspace. A window another one is
+-- maximized over keeps its full size, and gets its own back once it is
+-- maximized and restored itself.
+local function settle_fullscreen(w)
+  dispatched = {}
+  handlers["window.fullscreen"](w)
+  for _, run in ipairs(timers) do run() end
+  timers = {}
+  return dispatched
+end
+
+local terminal = window(300, { address = "0x1" })
+local mail = window(500, { address = "0x2" })
+workspace_windows = { terminal, mail }
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
+assert(#settle_fullscreen(terminal) == 0, "a window being maximized is only noted")
+
+-- Hyprland hands the state over: the terminal falls back to its own size.
+mail.fullscreen = 1; mail.at = { x = 12, y = 58 }; mail.size = { x = 1896, y = 1030 }
+terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x = 870, y = 522 }
+settle_fullscreen(mail)
+assert(terminal.size.x == 1896 and terminal.size.y == 1030 and terminal.at.x == 12 and terminal.at.y == 58,
+  "a window another one is maximized over keeps exactly its maximized box")
+local function behind(w)
+  for _, tag in ipairs(w.tags) do if tag == "omarchy-maximized-behind" then return true end end
+  return false
+end
+assert(behind(terminal), "it is marked, so the dock hides for it as for a maximized window")
+
+mail.fullscreen = 0; mail.at = { x = 300, y = 200 }; mail.size = { x = 1100, y = 734 }
+assert(#settle_fullscreen(mail) == 0, "restoring the window in front leaves the one behind as it is")
+
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+assert(not behind(terminal), "maximized for real, it is no longer marked")
+terminal.fullscreen = 0; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1000 }
+settle_fullscreen(terminal)
+assert(terminal.size.x == 870 and terminal.size.y == 522 and terminal.at.x == 400 and terminal.at.y == 300,
+  "maximized and restored again, it gets back the size it had before")
+
+-- Omarchy un-maximizes a window when another one opens next to it, so the two
+-- share the workspace; with nothing maximized in front, that is left alone.
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x = 870, y = 522 }
+assert(#settle_fullscreen(terminal) == 0, "a window un-maximized with nothing in front keeps its own size")
+
+-- Moved by the user, it is an ordinary window again and the dock comes back.
+mail.fullscreen = 1; terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+terminal.fullscreen = 0
+settle_fullscreen(mail)
+assert(behind(terminal), "kept at full size behind again")
+mail.fullscreen = 0
+active = terminal
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+terminal.at = { x = 200, y = 300 }
+cursor = { x = 300, y = 280 }
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+assert(not behind(terminal), "dragged away, it is no longer marked")
+
+-- Its earlier size goes with the mark: maximized and restored after the user
+-- moved it, it keeps the box Hyprland restores rather than the old one.
+mail.fullscreen = 0
+settle_fullscreen(mail)
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+terminal.fullscreen = 0; terminal.at = { x = 200, y = 300 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+assert(terminal.at.x == 200 and terminal.size.x == 1896, "a window moved after being kept behind is restored where the user put it")
+
+-- Handed over twice, a window still gets back the size it had before the first.
+local first, second = window(300, { address = "0xa" }), window(500, { address = "0xb" })
+workspace_windows = { first, second }
+local function maximize(w) w.fullscreen = 1; w.at = { x = 12, y = 58 }; w.size = { x = 1896, y = 1030 } end
+first.at = { x = 400, y = 300 }; first.size = { x = 870, y = 522 }
+maximize(first); settle_fullscreen(first)
+maximize(second); first.fullscreen = 0; first.at = { x = 400, y = 300 }; first.size = { x = 870, y = 522 }
+settle_fullscreen(second)
+maximize(first); second.fullscreen = 0; second.at = { x = 300, y = 200 }; second.size = { x = 1100, y = 734 }
+settle_fullscreen(first)
+maximize(second); first.fullscreen = 0; first.at = { x = 12, y = 58 }; first.size = { x = 1896, y = 1030 }
+settle_fullscreen(second)
+second.fullscreen = 0; settle_fullscreen(second)
+maximize(first); settle_fullscreen(first)
+first.fullscreen = 0; settle_fullscreen(first)
+assert(first.size.x == 870 and first.size.y == 522 and first.at.x == 400,
+  "a window maximized over twice gets back the size it had before the first time")
+
+-- With Drag Maximize off, nothing would clear the marks, so a load without it
+-- clears them and has the dock read its windows again.
+local marks = require("default.hypr.floating-marks")
+local marked = window(300, { address = "0xc", tags = { "omarchy-floating-workspace", marks.behind } })
+workspace_windows = { marked }
+commands = {}
+marks.clear()
+assert(not behind(marked) and commands[#commands] == "omarchy-shell -q omarchy.dock refreshWindows",
+  "clearing the marks takes them off and has the dock read its windows")
+commands = {}
+marks.clear()
+assert(#commands == 0, "with nothing marked, the dock is left alone")
+workspace_windows = {}
+
+LUA
+pass "a floating window dropped under the top bar keeps its titlebar in reach"
+
+
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
 

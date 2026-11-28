@@ -219,6 +219,18 @@
   "appearance.windows.one-window-ratio-off": {
     "label": "1-Window Ratio Off"
   },
+  "appearance.windows.title-bars-visible-on": {
+    "label": "Titlebar Snap On"
+  },
+  "appearance.windows.title-bars-visible-off": {
+    "label": "Titlebar Snap Off"
+  },
+  "appearance.windows.drag-maximize-on": {
+    "label": "Drag Maximize On"
+  },
+  "appearance.windows.drag-maximize-off": {
+    "label": "Drag Maximize Off"
+  },
   "appearance.branding": {
     "label": "Branding"
   },

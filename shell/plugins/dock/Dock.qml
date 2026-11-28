@@ -372,8 +372,17 @@ Item {
       else if (name === "fullscreen") {
         Hyprland.refreshWorkspaces()
         Hyprland.refreshToplevels()
+        lateRefresh.restart()
       }
     }
+  }
+
+  // A window losing its maximized state to another one is tagged just after
+  // the event, as it is kept at full size, so the list is read again then.
+  Timer {
+    id: lateRefresh
+    interval: 150
+    onTriggered: Hyprland.refreshToplevels()
   }
 
   ShellIpc {
@@ -381,6 +390,9 @@ Item {
 
     // The layout commands call this after changing a workspace's mode.
     function refresh(): void { root.refresh() }
+    // A window tagged for the dock to hide gives no Hyprland event, so
+    // floating-marks.lua asks for a fresh read after clearing the tags.
+    function refreshWindows(): void { Hyprland.refreshToplevels() }
     function apps(): void { appGrid.toggle() }
   }
 
