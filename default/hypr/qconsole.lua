@@ -13,19 +13,158 @@ local share = 0.5
 local box = 2
 
 local CONSOLE = "special:qconsole"
+local AGENT_CLASS = "org.omarchy.agent"
+local SEED_CLASS = "org.omarchy.qconsole-seed"
+local PICKER_REOPEN_DELAY_MS = 1000
+local PICKER_PENDING_TIMEOUT_MS = 3000
+local PICKER_CLOSE_GRACE_MS = 500
+local AGENT_START_TIMEOUT_MS = 10000
 
 -- Seed the console with the default agent the first time it opens, rather than
 -- at boot, so nothing is running until it is wanted. The exec rule has to pin
 -- the workspace itself: Hyprland only tags a spawn with the workspace it came
 -- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
 -- Omarchy ships without a default agent, so --pick offers the choice instead
--- of an empty console that explains nothing. One that has to be installed
--- first does so in a floating terminal and then moves into the console; see
--- omarchy-default-agent. A console created by moving a window onto it is not
--- empty, and is left alone.
+-- of an empty console that explains nothing. The picker is the agents panel,
+-- an overlay rather than a window on the console, so when no default agent is
+-- set the seed is a marked placeholder terminal behind the picker: that
+-- placeholder holds the console open and takes focus back when the picker is
+-- dismissed, survives Hyprland reloads, and is closed once a real agent window
+-- arrives without ever colliding with a running local agent session.
+-- One that has to be installed first does so in a floating terminal and then
+-- moves into the console; see omarchy-default-agent. A console created by
+-- moving a window onto it is not empty, and is left alone. A default chosen
+-- with the panel's star is only saved, so a console still holding just the
+-- placeholder starts it when the console next opens.
+local picker_timer = nil
+local picker_pending = false
+local picker_pending_timer = nil
+local picker_over_console = false
+local picker_close_timer = nil
+local restore_timer = nil
+local restoring = false
+local agent_starting = false
+local agent_starting_timer = nil
+
+local function cancel_timer(timer)
+  if timer and timer.set_enabled then
+    timer:set_enabled(false)
+  end
+  return nil
+end
+
+local function cancel_picker_timer()
+  picker_timer = cancel_timer(picker_timer)
+end
+
+local function cancel_picker_close_grace()
+  picker_close_timer = cancel_timer(picker_close_timer)
+end
+
+local function clear_picker_pending()
+  picker_pending = false
+  picker_pending_timer = cancel_timer(picker_pending_timer)
+end
+
+local function mark_picker_pending()
+  clear_picker_pending()
+  picker_pending = true
+  picker_pending_timer = hl.timer(function()
+    picker_pending = false
+    picker_pending_timer = nil
+  end, { type = "oneshot", timeout = PICKER_PENDING_TIMEOUT_MS })
+end
+
+local function clear_agent_starting()
+  agent_starting = false
+  agent_starting_timer = cancel_timer(agent_starting_timer)
+end
+
+-- Until the agent's window arrives, another open must not start a second one.
+local function start_default_agent()
+  if agent_starting then
+    return
+  end
+  agent_starting = true
+  agent_starting_timer = hl.timer(function()
+    agent_starting = false
+    agent_starting_timer = nil
+  end, { type = "oneshot", timeout = AGENT_START_TIMEOUT_MS })
+  hl.exec_cmd("omarchy-agent --pick", { workspace = CONSOLE .. " silent" })
+end
+
+local function default_agent()
+  local home = os.getenv("HOME")
+  if not home then
+    return nil
+  end
+  local file = io.open(home .. "/.config/omarchy/defaults/agent", "r")
+  if not file then
+    return nil
+  end
+  local agent = file:read("*l")
+  file:close()
+  if agent and agent ~= "" then
+    return agent
+  end
+  return nil
+end
+
+local function find_seed_window(windows)
+  for _, window in ipairs(windows) do
+    if window.class == SEED_CLASS then
+      return window
+    end
+  end
+  return nil
+end
+
+local function has_only_seed_window()
+  local windows = hl.get_workspace_windows(CONSOLE)
+  return #windows == 1 and windows[1].class == SEED_CLASS
+end
+
+local function close_seed_if_agent_present()
+  local windows = hl.get_workspace_windows(CONSOLE)
+  local has_agent = false
+  local seeds = {}
+
+  for _, window in ipairs(windows) do
+    if window.class == AGENT_CLASS then
+      has_agent = true
+    elseif window.class == SEED_CLASS then
+      table.insert(seeds, window)
+    end
+  end
+
+  if has_agent then
+    clear_agent_starting()
+    cancel_picker_timer()
+    clear_picker_pending()
+    picker_over_console = false
+    cancel_picker_close_grace()
+    restore_timer = cancel_timer(restore_timer)
+    for _, seed in ipairs(seeds) do
+      if seed.address then
+        hl.dispatch(hl.dsp.window.close({ window = "address:" .. seed.address }))
+      end
+    end
+  end
+end
+
 hl.on("workspace.created", function(ws)
   if ws and ws.name == CONSOLE and ws.is_empty then
-    hl.exec_cmd("omarchy-agent --pick", { workspace = CONSOLE .. " silent" })
+    if default_agent() then
+      hl.exec_cmd("omarchy-agent --pick", { workspace = CONSOLE .. " silent" })
+    else
+      mark_picker_pending()
+      hl.exec_cmd(
+        "omarchy-launch-tui --app-id="
+          .. SEED_CLASS
+          .. " bash -c 'omarchy-shell omarchy.agents open; exec bash'",
+        { workspace = CONSOLE .. " silent" }
+      )
+    end
   end
 end)
 
@@ -161,12 +300,94 @@ end)
 hl.on("workspace.special_active", function(ws, mon)
   if ws and ws.name == CONSOLE then
     refit(mon)
+    -- Reopening a seeded console without a default agent offers the picker
+    -- again once focus settles on the console's window. Use a cancellable
+    -- timer and recheck console visibility so hiding it within the delay
+    -- cancels the launch and repeated toggles never queue duplicates. With a
+    -- default chosen since, the placeholder gives way to that agent instead.
+    cancel_picker_timer()
+    if not restoring and default_agent() and has_only_seed_window() then
+      start_default_agent()
+    elseif not restoring and not default_agent() and has_only_seed_window() then
+      picker_timer = hl.timer(function()
+        picker_timer = nil
+        local current = hl.get_workspace(CONSOLE)
+        if not (current and current.visible) then
+          return
+        end
+        if default_agent() or not has_only_seed_window() then
+          return
+        end
+        mark_picker_pending()
+        hl.exec_cmd("omarchy-shell omarchy.agents open")
+      end, { type = "oneshot", timeout = PICKER_REOPEN_DELAY_MS })
+    end
+  else
+    local current = hl.get_workspace(CONSOLE)
+    if not (current and current.visible) then
+      cancel_picker_timer()
+      clear_picker_pending()
+      if picker_over_console and not picker_close_timer then
+        picker_close_timer = hl.timer(function()
+          picker_close_timer = nil
+          picker_over_console = false
+        end, { type = "oneshot", timeout = PICKER_CLOSE_GRACE_MS })
+      end
+    end
   end
 end)
 
 hl.on("workspace.move_to_monitor", function(ws, mon)
   if ws and ws.name == CONSOLE then
     refit(mon)
+  end
+end)
+
+-- Dismissing the picker returns focus to wherever the pointer is, which can
+-- be the window under the console, and a focus there hides the console. When
+-- the picker that qconsole opened over the console closes, bring the console
+-- back and focus its seed window, unless the user already left the console or
+-- chose a default agent; the placeholder gives way to a default chosen with
+-- the star when the console next opens, as the panel may have closed to
+-- launch an agent of its own. Restoring must not re-offer the picker, so it
+-- says so.
+-- The panel hands focus back before its fade-out ends and only closes after
+-- it, so a console hidden in between keeps recovery armed for a short grace.
+hl.on("layer.opened", function(layer)
+  if layer and layer.namespace == "omarchy-keyboard-panel" and picker_pending then
+    clear_picker_pending()
+    local ws = hl.get_workspace(CONSOLE)
+    local windows = hl.get_workspace_windows(CONSOLE)
+    if ws and ws.visible and not default_agent() and (has_only_seed_window() or #windows == 0) then
+      cancel_picker_close_grace()
+      picker_over_console = true
+    end
+  end
+end)
+
+hl.on("layer.closed", function(layer)
+  if layer and layer.namespace == "omarchy-keyboard-panel" and picker_over_console then
+    picker_over_console = false
+    cancel_picker_close_grace()
+    restore_timer = cancel_timer(restore_timer)
+    restore_timer = hl.timer(function()
+      restore_timer = nil
+      if default_agent() then
+        return
+      end
+      local ws = hl.get_workspace(CONSOLE)
+      if not ws or ws.visible then
+        return
+      end
+      local seed = find_seed_window(hl.get_workspace_windows(CONSOLE))
+      if not seed or not seed.address then
+        return
+      end
+      restoring = true
+      hl.dispatch(hl.dsp.workspace.toggle_special("qconsole"))
+      hl.dispatch(hl.dsp.focus({ window = "address:" .. seed.address }))
+      restoring = false
+    end, { type = "oneshot", timeout = 1 })
   end
 end)
 
@@ -189,9 +410,15 @@ local function recount()
   end
 end
 
-hl.on("window.open", recount)
+hl.on("window.open", function()
+  close_seed_if_agent_present()
+  recount()
+end)
 hl.on("window.destroy", recount)
-hl.on("window.move_to_workspace", recount)
+hl.on("window.move_to_workspace", function()
+  close_seed_if_agent_present()
+  recount()
+end)
 hl.on("window.update_rules", recount)
 
 -- The direction names the edge the offset is measured from, not where the

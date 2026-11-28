@@ -10,7 +10,10 @@ require_command lua
 # on a scaled display, so it is worth pinning down.
 # base-test.sh does not set -e, so the assertions have to fail the file
 # themselves rather than leaving the pass below to run regardless.
-OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
+test_home=$(mktemp -d)
+trap 'rm -rf "$test_home"' EXIT
+
+HOME="$test_home" OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
 local rules, handlers, spawned = {}, {}, {}
 local monitor = nil
 local workspace = nil
@@ -21,6 +24,7 @@ hl = {
   workspace_rule = function(rule) table.insert(rules, rule) end,
   on = function(event, callback) handlers[event] = callback end,
   get_active_monitor = function() return monitor end,
+  get_active_window = function() return nil end,
   get_workspace = function() return workspace end,
   -- workspace.windows is the tiled count here and workspace.floats the floating
   -- one, so the fixtures can say which kind of window is on the console.
@@ -31,6 +35,13 @@ hl = {
     return list
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
+  timer = function() return { set_enabled = function() end } end,
+  dispatch = function() end,
+  dsp = {
+    window = { close = function(args) return { kind = "close", args = args } end },
+    workspace = { toggle_special = function(name) return { kind = "toggle_special", name = name } end },
+    focus = function(args) return { kind = "focus", args = args } end,
+  },
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
 
@@ -57,7 +68,12 @@ handlers["workspace.created"]({ name = "special:qconsole", is_empty = false })
 handlers["workspace.created"]({ name = "special:scratchpad", is_empty = true })
 assert(#spawned == 0, "only an empty console is seeded")
 handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
-assert(#spawned == 1 and spawned[1].cmd == "omarchy-agent --pick", "console is seeded with the default agent")
+assert(
+  #spawned == 1
+    and spawned[1].cmd
+      == "omarchy-launch-tui --app-id=org.omarchy.qconsole-seed bash -c 'omarchy-shell omarchy.agents open; exec bash'",
+  "console without a default agent is seeded with a marked seed terminal behind the picker"
+)
 assert(spawned[1].rules.workspace == "special:qconsole silent",
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
 
@@ -284,3 +300,292 @@ assert(left == 435 and right == 435, "moving it back off recenters the panel")
 assert(handlers["window.close"] == nil, "window.close counts the window on its way out")
 LUA
 pass "the console is a centered panel until a second app joins it"
+
+HOME="$test_home" OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "console picker lifecycle and seed cleanup work across reloads"
+local home = os.getenv("HOME")
+local agent_dir = home .. "/.config/omarchy/defaults"
+local agent_file = agent_dir .. "/agent"
+os.execute("mkdir -p " .. agent_dir)
+
+local function set_default_agent(name)
+  if name then
+    local f = assert(io.open(agent_file, "w"))
+    f:write(name .. "\n")
+    f:close()
+  else
+    os.remove(agent_file)
+  end
+end
+
+local function load_qconsole(initial_ws, initial_windows)
+  local handlers, spawned, dispatches, timers = {}, {}, {}, {}
+  local workspace = initial_ws
+  local windows = initial_windows or {}
+  local monitor = { name = "DP-1", width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 30, bottom = 0, left = 0, right = 0 } }
+
+  hl = {
+    config = function() end,
+    animation = function() end,
+    workspace_rule = function() end,
+    on = function(event, callback) handlers[event] = callback end,
+    get_active_monitor = function() return monitor end,
+    get_active_window = function() return nil end,
+    get_workspace = function() return workspace end,
+    get_workspace_windows = function() return windows end,
+    exec_scheduled_prop_refresh_immediately = function() end,
+    timer = function(cb, opts)
+      local t = { cb = cb, opts = opts, enabled = true }
+      function t:set_enabled(v) self.enabled = v end
+      table.insert(timers, t)
+      return t
+    end,
+    dispatch = function(action)
+      table.insert(dispatches, action)
+      if action.kind == "toggle_special" and workspace then
+        workspace.visible = not workspace.visible
+        if workspace.visible then
+          handlers["workspace.special_active"]({ name = "special:qconsole" }, monitor)
+        end
+      end
+    end,
+    dsp = {
+      window = { close = function(args) return { kind = "close", args = args } end },
+      workspace = { toggle_special = function(name) return { kind = "toggle_special", name = name } end },
+      focus = function(args) return { kind = "focus", args = args } end,
+    },
+    exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
+  }
+
+  dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+  require("default.hypr.qconsole")
+
+  return {
+    handlers = handlers,
+    spawned = spawned,
+    dispatches = dispatches,
+    timers = timers,
+    monitor = monitor,
+    set_workspace = function(ws) workspace = ws end,
+    set_windows = function(list) windows = list end,
+    run_timers = function(timeout_filter)
+      local snapshot = {}
+      for _, t in ipairs(timers) do table.insert(snapshot, t) end
+      for _, t in ipairs(snapshot) do
+        if t.enabled and (not timeout_filter or t.opts.timeout == timeout_filter) then
+          t.enabled = false
+          t.cb()
+        end
+      end
+    end,
+  }
+end
+
+-- 1. With a default agent set, seeding launches omarchy-agent directly without an extra seed shell.
+set_default_agent("claude")
+local env = load_qconsole(nil, {})
+env.handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
+assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-agent --pick",
+  "default agent launches directly without spawning a placeholder shell")
+
+-- 2. When a real agent window arrives on the console, the seed placeholder is closed.
+set_default_agent(nil)
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  {
+    { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false },
+    { address = "0xagent", class = "org.omarchy.agent", floating = false },
+  }
+)
+env.handlers["window.open"]()
+assert(#env.dispatches == 1 and env.dispatches[1].kind == "close" and env.dispatches[1].args.window == "address:0xseed",
+  "opening an agent window closes the seed placeholder")
+
+-- 3. Reopening without a default agent uses a cancellable timer; hiding within 1s cancels it.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.handlers["workspace.special_active"](nil, env.monitor)
+env.run_timers(1000)
+assert(#env.spawned == 0, "hiding the console before the delay expires cancels the picker launch")
+
+-- Repeated toggles cancel earlier timers so only one picker launches.
+env.set_workspace({ name = "special:qconsole", visible = true })
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-shell omarchy.agents open",
+  "repeated toggles queue at most one picker launch")
+
+-- 4. Reloading Hyprland (no workspace.created) still recognizes the surviving seed window,
+-- summons the picker on reopen, and restores the console when the picker is dismissed.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+assert(#env.spawned == 1 and env.spawned[1].cmd == "omarchy-shell omarchy.agents open",
+  "reopening after a Hyprland reload still offers the picker")
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
+-- Simulate focus moving under the pointer and hiding the console right after layer.closed.
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.run_timers(1)
+assert(#env.dispatches == 2
+  and env.dispatches[1].kind == "toggle_special"
+  and env.dispatches[2].kind == "focus"
+  and env.dispatches[2].args.window == "address:0xseed",
+  "dismissing the picker restores the console and focuses the seed window")
+-- Restoring must not queue another picker summon.
+env.run_timers(1000)
+assert(#env.spawned == 1, "restoring the console does not re-summon the picker")
+
+-- 5. Deliberately hiding the console while the picker stays open cancels
+-- recovery once the close grace has run out.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.handlers["workspace.special_active"](nil, env.monitor)
+env.run_timers(500)
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
+env.run_timers(1)
+assert(#env.dispatches == 0, "deliberately hiding the console cancels picker recovery")
+
+-- 5b. Dismissing the panel hands focus back before its fade-out ends, so the
+-- console can hide before layer.closed arrives; recovery still restores it.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.handlers["workspace.special_active"](nil, env.monitor)
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
+env.run_timers(1)
+assert(#env.dispatches == 2
+  and env.dispatches[1].kind == "toggle_special"
+  and env.dispatches[2].kind == "focus"
+  and env.dispatches[2].args.window == "address:0xseed",
+  "focus lost while the panel fades out still restores the console")
+
+-- 6. Unrelated keyboard panels (not summoned as the console picker) do not trigger recovery.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.run_timers(1)
+assert(#env.dispatches == 0, "unrelated keyboard panels do not trigger console recovery")
+
+-- 7. Without a default agent, a local agent started from the agents panel
+-- arrives as org.omarchy.agent rather than inside the seed placeholder: it
+-- clears picker_pending, is never closed when another agent window joins the
+-- console, and reopening never pops the picker over it.
+env = load_qconsole({ name = "special:qconsole", visible = true }, {})
+env.handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
+env.set_windows({ { address = "0xlocal", class = "org.omarchy.agent", floating = false } })
+env.handlers["window.open"]()
+-- An unrelated panel after the local agent maps must not trigger recovery.
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.run_timers(1)
+assert(#env.dispatches == 0, "a local agent opening clears picker_pending and closes nothing")
+-- Reopening the console with a running local agent must not summon the picker.
+env.set_workspace({ name = "special:qconsole", visible = true })
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+assert(#env.spawned == 1, "reopening a console with a running local agent does not summon the picker")
+-- Moving another agent window onto the console must leave the local agent open.
+env.set_windows({
+  { address = "0xlocal", class = "org.omarchy.agent", floating = false },
+  { address = "0xother", class = "org.omarchy.agent", floating = false },
+})
+env.handlers["window.move_to_workspace"]()
+assert(#env.dispatches == 0, "moving another agent onto the console does not close a running local agent")
+
+-- 8. A default chosen with the panel's star saves it without launching, and the
+-- seed keeps the console alive, so workspace.created never fires again.
+-- Reopening a seed-only console with a default starts that agent, once.
+set_default_agent("claude")
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+assert(#env.spawned == 1
+  and env.spawned[1].cmd == "omarchy-agent --pick"
+  and env.spawned[1].rules.workspace == "special:qconsole silent",
+  "reopening a seed-only console with a default starts it on the console instead of the picker")
+-- Toggling again before the agent's window maps starts nothing more.
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+assert(#env.spawned == 1, "a start still waiting for its window is not sent again")
+-- One that never produced a window may be started again once the guard runs out.
+env.run_timers(10000)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+assert(#env.spawned == 2 and env.spawned[2].cmd == "omarchy-agent --pick",
+  "a start that never produced a window is tried again after the guard expires")
+
+-- The agent's window arriving closes the seed and clears the guard.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.set_windows({
+  { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false },
+  { address = "0xagent", class = "org.omarchy.agent", floating = false },
+})
+env.handlers["window.open"]()
+assert(#env.dispatches == 1 and env.dispatches[1].kind == "close" and env.dispatches[1].args.window == "address:0xseed",
+  "the started agent's window closes the seed")
+env.set_windows({ { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } })
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+assert(#env.spawned == 2, "an agent window arriving clears the start guard")
+
+-- A console that already holds an agent starts nothing.
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xagent", class = "org.omarchy.agent", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+assert(#env.spawned == 0, "a console holding an agent starts nothing")
+
+-- 9. Starring a default while the picker is open over the visible console
+-- starts nothing as the panel closes, since the panel may have closed to
+-- launch an agent of its own; the console starts the default when it next opens.
+set_default_agent(nil)
+env = load_qconsole(
+  { name = "special:qconsole", visible = true },
+  { { address = "0xseed", class = "org.omarchy.qconsole-seed", floating = false } }
+)
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+env.handlers["layer.opened"]({ namespace = "omarchy-keyboard-panel" })
+set_default_agent("claude")
+env.handlers["layer.closed"]({ namespace = "omarchy-keyboard-panel" })
+env.run_timers(1)
+assert(#env.spawned == 1 and #env.dispatches == 0,
+  "a default starred over the visible console starts nothing as the panel closes")
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+assert(#env.spawned == 2
+  and env.spawned[2].cmd == "omarchy-agent --pick"
+  and env.spawned[2].rules.workspace == "special:qconsole silent",
+  "the starred default starts when the console next opens")
+set_default_agent(nil)
+LUA
+pass "console picker lifecycle and seed cleanup work across reloads"
