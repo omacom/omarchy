@@ -1,7 +1,7 @@
 [Unit]
-Description=Recover the internal monitor toggle when no external display is connected
+Description=Recover the internal monitor toggles when no external display is connected
 Before=graphical-session-pre.target
-ConditionPathExists=%h/.local/state/omarchy/toggles/hypr/internal-monitor-disable.lua
+ConditionPathIsDirectory=%h/.local/state/omarchy/toggles/hypr
 
 [Service]
 Type=oneshot
