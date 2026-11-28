@@ -239,7 +239,11 @@ end
 -- size the mode gives it, so it pops in from its own middle the way a tiled
 -- window does, instead of opening tiled and shrinking into place. Modal
 -- dialogs, and apps with float rules of their own, float on their own account
--- and are left to it, at their own size and outside the mode's claim.
+-- and are left to it, at their own size and outside the mode's claim. So are
+-- windows Hyprland floats before rules apply: X11 menus, tooltips, dialogs and
+-- utility windows, transient and fixed-size windows, and Wayland child
+-- toplevels. Sized and centered like an app window, a menu opens far from
+-- where it was clicked.
 local function sync_open_rules()
   local ranges = floating_ranges()
 
@@ -247,7 +251,7 @@ local function sync_open_rules()
     hl.window_rule({
       name = OPEN_RULE .. i,
       enabled = true,
-      match = not_floating_on_their_own({ workspace = string.format("r[%d-%d]", range[1], range[2]), modal = false }),
+      match = not_floating_on_their_own({ workspace = string.format("r[%d-%d]", range[1], range[2]), modal = false, float = false }),
       float = true,
       size = OPEN_WIDTH .. " " .. OPEN_HEIGHT,
       move = open_position(),
@@ -266,10 +270,11 @@ end
 -- exclusions current before their first window opens, including tag rules.
 o.floating_apps_changed = sync_open_rules
 
--- A rule's tag leaves with the rule, so a window the open rule floated is
--- claimed for good as it opens, and the mode tiles it again when it ends. A
--- rule's tags are listed with a trailing "*", and a strict tag query passes
--- them over, so the window's own list is read.
+-- A rule's tag leaves with the rule, and the open rule stops matching a window
+-- once it has floated it, so the window is claimed for good before it opens,
+-- and the mode tiles it again when it ends. A rule's tags are listed with a
+-- trailing "*", and a strict tag query passes them over, so the window's own
+-- list is read.
 local function claim_opened(window)
   for _, tag in ipairs(window.tags or {}) do
     if tag == OPENED_TAG or tag == OPENED_TAG .. "*" then
@@ -347,8 +352,9 @@ local function watch()
 
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
+  hl.on("window.open_early", claim_opened)
+
   hl.on("window.open", function(window)
-    claim_opened(window)
     unmaximize_others(window)
     arrange({ window })
   end)
