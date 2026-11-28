@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Refresh the home-local compose table and repair packaged includes
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Sandboxes can see HOME without the host's /usr. A failed include rejects the
+# whole compose table, so mirror Omarchy's table in the home they can read.
+packaged_xcompose="$OMARCHY_PATH/default/xcompose"
+home_xcompose="$HOME/.XCompose.omarchy"
+
+if ! cmp -s "$packaged_xcompose" "$home_xcompose"; then
+  cp "$packaged_xcompose" "$home_xcompose"
+  chmod 644 "$home_xcompose"
+fi
+
+xcompose="$HOME/.XCompose"
+legacy_pattern='^[[:space:]]*include[[:space:]]+"(/usr/share/omarchy/default/xcompose|%H/\.local/share/omarchy/default/xcompose|[^"]*/\.local/share/omarchy/default/xcompose)"[[:space:]]*$'
+if [[ -f $xcompose ]] && grep -Eq "$legacy_pattern" "$xcompose"; then
+  # Follow a user's symlink; replacing the directory entry would disconnect
+  # the compose configuration from their dotfiles.
+  sed -i --follow-symlinks -E \
+    -e 's|^([[:space:]]*include[[:space:]]+")/usr/share/omarchy/default/xcompose("[[:space:]]*)$|\1%H/.XCompose.omarchy\2|' \
+    -e 's|^([[:space:]]*include[[:space:]]+")%H/\.local/share/omarchy/default/xcompose("[[:space:]]*)$|\1%H/.XCompose.omarchy\2|' \
+    -e 's|^([[:space:]]*include[[:space:]]+")[^"]*/\.local/share/omarchy/default/xcompose("[[:space:]]*)$|\1%H/.XCompose.omarchy\2|' \
+    "$xcompose"
+fi
