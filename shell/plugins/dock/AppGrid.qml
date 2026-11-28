@@ -551,7 +551,7 @@ Item {
       textFormat: Text.PlainText
       text: row.text
       color: Commons.Color.popups.text
-      font.family: Style.font.family
+      font.family: Style.font.menuFamily
       font.pixelSize: Style.font.body
     }
 
