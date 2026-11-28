@@ -60,7 +60,8 @@ Item {
   function revealStartup() {
     if (!startupPending || startupRevealing || !startupMediaReady || !desktopReady || startupReadyFrames < 2) return
     startupRevealing = true
-    if (!startupCover.send("reveal")) endStartup()
+    // A cover not listening yet gets the reveal once it connects (startupCover).
+    if (!startupCover.send("reveal") && (startupCoverSeen || startupCoverTries > startupCoverMaxTries)) endStartup()
   }
 
   function endStartup() {
@@ -78,6 +79,7 @@ Item {
   property int startupReadyFrames: 0
   property bool startupCoverSeen: false
   property int startupCoverTries: 0
+  readonly property int startupCoverMaxTries: 20
 
   FrameAnimation {
     running: root.startupPending && root.desktopReady && root.startupReadyFrames < 2
@@ -99,21 +101,27 @@ Item {
     }
 
     onConnectionStateChanged: {
-      if (connected) root.startupCoverSeen = true
-      else if (root.startupRevealing) root.endStartup()
+      if (connected) {
+        root.startupCoverSeen = true
+        if (root.startupRevealing) send("reveal")
+      } else if (root.startupRevealing && root.startupCoverSeen) {
+        root.endStartup()
+      }
     }
   }
 
   // The cover starts with this shell, so it may not be listening yet. Each
-  // try that finds nothing logs a socket warning.
+  // try that finds nothing logs a socket warning. The tick after the last try
+  // gives it time to answer; with no cover by then, a reveal has none to tell.
   Timer {
     interval: 100
     repeat: true
     triggeredOnStart: true
-    running: root.startupPending && !root.startupRevealing && !root.startupCoverSeen && root.startupCoverTries < 20
+    running: root.startupPending && !root.startupCoverSeen && root.startupCoverTries <= root.startupCoverMaxTries
     onTriggered: {
       root.startupCoverTries += 1
-      startupCover.connected = true
+      if (root.startupCoverTries <= root.startupCoverMaxTries) startupCover.connected = true
+      else if (root.startupRevealing) root.endStartup()
     }
   }
 

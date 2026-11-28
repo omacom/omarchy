@@ -7,6 +7,14 @@ if [[ ! -e /etc/initcpio/install/omarchy-splash ]]; then
   exit 75
 fi
 
+# The splash is untested with systemd-boot, whether the machine boots it or is
+# switching to it (etc/initcpio/install/omarchy-splash): stop before changing
+# anything.
+if omarchy-boot-backend --managed | grep -qx systemd-boot; then
+  echo "The Omarchy boot splash does not support systemd-boot yet" >&2
+  exit 1
+fi
+
 # The boot splash's runtime and patched wlroots, beside Quickshell, and the
 # login screen's daemon. These ship together in the Omarchy package update.
 omarchy-pkg-add sway seatd wlroots0.20 greetd

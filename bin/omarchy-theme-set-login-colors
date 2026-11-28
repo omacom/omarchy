@@ -86,15 +86,11 @@ publish() {
 
 failed=0
 
-# The ESP the boot loader starts the UKIs, and so systemd-stub, from: where
-# omarchy-boot-sync puts systemd-boot's, or Limine's ESP_PATH. A machine whose
-# boot chain has no such ESP (a platform that boots its own way) has no splash
-# credential to write.
+# The ESP Limine boots from, where the UKIs and so systemd-stub live. A machine
+# whose boot chain has no such ESP (a platform that boots its own way) has no
+# splash credential to write.
 esp=/boot
-backend=$(omarchy-boot-backend)
-if [[ $backend == systemd-boot ]]; then
-  [[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) != vfat ]] || esp=/efi
-elif [[ -f /etc/default/limine ]]; then
+if [[ -f /etc/default/limine ]]; then
   configured=$(sed -n 's/^ESP_PATH=["'\'']\?\([^"'\'']*\).*/\1/p' /etc/default/limine | tail -n 1)
   esp=${configured:-$esp}
 fi
@@ -105,7 +101,7 @@ if mountpoint -q "$esp"; then
     echo "omarchy-theme-set-login-colors: cannot write $esp/$CREDENTIAL" >&2
     failed=1
   fi
-elif [[ $backend != none ]]; then
+elif [[ -f /etc/default/limine ]]; then
   echo "omarchy-theme-set-login-colors: the ESP at $esp is not mounted" >&2
   failed=1
 fi

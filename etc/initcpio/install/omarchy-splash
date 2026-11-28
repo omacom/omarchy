@@ -18,6 +18,13 @@ build() {
     return 1
   fi
 
+  # Untested with systemd-boot, so no image for it, whether the machine boots
+  # it or is switching to it (--managed). Integrating the two is its own work.
+  if omarchy-boot-backend --managed 2>/dev/null | grep -qx systemd-boot; then
+    error "omarchy-splash does not support systemd-boot yet"
+    return 1
+  fi
+
   map add_binary sway seatd seatd-launch quickshell
 
   # What Qt and Quickshell load at run time, which no ELF dependency names.
