@@ -83,6 +83,30 @@ end
 
 load_merged()
 
+-- Replace a state file only once its new contents are written in full, so a
+-- full disk leaves the old file in place instead of an empty one. True when
+-- the file was replaced.
+local function write_state(path, content)
+  local temp = path .. ".tmp"
+  local file = io.open(temp, "w")
+  if not file then
+    os.execute("mkdir -p " .. o.shell_quote(STATE_DIR))
+    file = io.open(temp, "w")
+  end
+
+  if not file then
+    return false
+  end
+
+  local wrote = file:write(content)
+  if file:close() and wrote and os.rename(temp, path) then
+    return true
+  end
+
+  os.remove(temp)
+  return false
+end
+
 local function save_merged()
   local ids = {}
   for id in pairs(merged) do
@@ -95,16 +119,7 @@ local function save_merged()
     lines[#lines + 1] = id .. "\t" .. merged[id].id .. "\t" .. merged[id].identity .. "\n"
   end
 
-  local file = io.open(MERGED_FILE, "w")
-  if not file then
-    os.execute("mkdir -p " .. o.shell_quote(STATE_DIR))
-    file = io.open(MERGED_FILE, "w")
-  end
-
-  if file then
-    file:write(table.concat(lines))
-    file:close()
-  end
+  write_state(MERGED_FILE, table.concat(lines))
 end
 
 -- One line per monitor ever seen: its block, its connector while it is plugged
@@ -131,15 +146,7 @@ local function save(monitors, identities)
     return
   end
 
-  local file = io.open(STATE_FILE, "w")
-  if not file then
-    os.execute("mkdir -p " .. o.shell_quote(STATE_DIR))
-    file = io.open(STATE_FILE, "w")
-  end
-
-  if file then
-    file:write(content)
-    file:close()
+  if write_state(STATE_FILE, content) then
     written = content
   end
 end
