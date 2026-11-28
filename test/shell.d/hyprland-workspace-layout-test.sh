@@ -500,3 +500,6 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# Layout cycling must preserve window order as well as the selected mode.
+lua "$SHELL_TEST_DIR/fixtures/workspace-order/test.lua" "$ROOT/default/hypr/workspace-order.lua"
