@@ -886,10 +886,11 @@ Item {
   // Hyprland lights the panel for any key, but a bound key like volume never
   // reaches the lock surface, so nothing re-arms the blank and the lock stays
   // lit. Blank once input has been quiet for the run-up and no countdown is
-  // pending, so the resume run-up is left alone.
+  // pending, so the resume run-up is left alone. Screensaver mode keeps the
+  // displays on, and its idle prompt returns to the artwork instead.
   IdleMonitor {
     id: lockIdleMonitor
-    enabled: root.lockRequested
+    enabled: root.lockRequested && !root.screensaverMode
     timeout: idleBlankTimer.idleMs / 1000
     respectInhibitors: false
     onIsIdleChanged: {

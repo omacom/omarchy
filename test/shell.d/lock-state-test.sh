@@ -129,4 +129,8 @@ assertEqual(s.requestScreensaver(), 'already-locked', 'a screensaver request lea
 s = session()
 s.beginLock = () => false
 assert(s.requestScreensaver() === 'failed' && !s.showingScreensaver, 'the screensaver never shows without the session lock')
+assert(
+  /id: lockIdleMonitor\s*enabled: root\.lockRequested && !root\.screensaverMode/.test(serviceQml),
+  'the idle monitor that blanks a quiet lock stays off in screensaver mode'
+)
 JS
