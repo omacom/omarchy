@@ -3,7 +3,12 @@
 # omarchy:summary=Add the named packages to the system from the AUR if they're missing. Returns false if it couldn't be done.
 # omarchy:args=<packages...>
 
+trap 'exit 130' INT
+
 if omarchy-pkg-missing "$@"; then
+  if [[ -t 0 ]]; then
+    "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-sudo-authenticate" || exit $?
+  fi
   yay -S --noconfirm --needed -- "$@" || exit 1
 
   for pkg in "$@"; do
