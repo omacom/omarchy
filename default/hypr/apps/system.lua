@@ -13,7 +13,11 @@ o.window(
 -- The portal only ever shows dialogs — file pickers, screen shares, permission
 -- prompts — so every one of its windows belongs in the floating treatment,
 -- whatever the app that asked for it titled it.
-o.window("xdg-desktop-portal-gtk", { tag = "+floating-window" })
+--
+-- Its dialogs also pin: among floats, Hyprland stacks pinned windows above
+-- unpinned ones regardless of focus, so an unpinned dialog maps invisible
+-- behind the popped (pinned) window that spawned it.
+o.window("xdg-desktop-portal-gtk", { tag = "+floating-window", pin = true })
 o.window({
   class = "(sublime_text|DesktopEditors|org.gnome.Nautilus)",
   title = "^(Open.*Files?|Open [F|f]older.*|Save.*Files?|Save.*As|Save|All Files|.*wants to [open|save].*|[C|c]hoose.*)",
@@ -32,8 +36,10 @@ o.window("org.omarchy.about", { size = { 920, 480 } })
 o.window("folio-preview", { float = true })
 
 -- Files is the file chooser other apps get through the portal (see
--- hyprland-portals.conf), and its dialogs float as the GTK ones did.
-o.window("folio-chooser", { tag = "+floating-window" })
+-- hyprland-portals.conf), and its dialogs float and pin as the GTK ones did:
+-- an unpinned dialog loses the stacking contest against the popped window
+-- that opened it and maps behind it, even while it holds keyboard focus.
+o.window("folio-chooser", { tag = "+floating-window", pin = true })
 
 o.window("omacalc", { float = true })
 
