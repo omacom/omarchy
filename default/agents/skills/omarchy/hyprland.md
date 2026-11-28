@@ -87,7 +87,7 @@ Keyboard layouts, repeat rate, mouse sensitivity, and touchpad behavior go in `~
 hl.config({
   input = {
     kb_layout = "us,dk",
-    kb_options = "omarchy:shift_caps_compose,grp:alts_toggle",  -- Left Alt + Right Alt switches layouts
+    kb_options = "omarchy:shift_caps_compose,grp:alt_altgr_toggle",  -- Left Alt + Right Alt switches layouts
     touchpad = { natural_scroll = true },
   },
 })
