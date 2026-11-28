@@ -3,7 +3,9 @@
 # omarchy:summary=Check the update log for known failure conditions
 # omarchy:args=[start byte]
 
-update_log="/tmp/omarchy-update.log"
+# omarchy-update hands its per-run log path through the environment; the
+# legacy fallback also covers an update started before this change.
+update_log="${OMARCHY_UPDATE_LOG_FILE:-/tmp/omarchy-update.log}"
 
 # Read only what the update logged, from the offset it passes: a channel switch
 # logs its own package transactions ahead of the update's.

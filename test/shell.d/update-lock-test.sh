@@ -19,6 +19,8 @@ for command in omarchy-update omarchy-update-lock omarchy-update-stay-awake; do
 done
 sed -i \
   -e "s/omarchy-update\.lock/$update_lock_name/g" \
+  -e "s#/tmp/omarchy-update-log.XXXXXX#$test_tmp/omarchy-update-log.XXXXXX#" \
+  -e "s#/tmp/omarchy-update\.log#$test_tmp/legacy.log#" \
   -e "s#state_dir=\"\$state_base/omarchy-update-stay-awake\"#state_dir=\"\$state_base/$stay_awake_dir_name\"#" \
   "$SUDO_TEST_ROOT/bin/omarchy-update" \
   "$SUDO_TEST_ROOT/bin/omarchy-update-lock" \
@@ -86,9 +88,12 @@ ln -s ../bin/systemd-inhibit "$SUDO_TEST_ROOT/mock/systemd-inhibit"
 # omarchy-update should hold the lock before snapshotting, so a second update
 # cannot even enter its pre-update snapshot.
 update_snapshot_marker="$test_tmp/update-snapshot-started"
-write_stub omarchy-snapshot 'echo started >"$TEST_MARKER"; sleep 0.8; exit 0'
+write_stub omarchy-snapshot 'echo "snapshot for $TEST_MARKER"; echo started >"$TEST_MARKER"; sleep 0.8; exit 0'
 
-OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$update_snapshot_marker" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-first.out" 2>&1 &
+# Exercise both fresh entries through the real logger: rejecting the second
+# update must preserve the running update's transcript.
+unset OMARCHY_UPDATE_LOGGED OMARCHY_UPDATE_LOG_FILE
+TEST_MARKER="$update_snapshot_marker" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y </dev/null >"$test_tmp/update-first.out" 2>&1 &
 update_pid=$!
 
 for _ in {1..50}; do
@@ -98,12 +103,20 @@ done
 [[ -f $update_snapshot_marker ]] || fail "first omarchy-update reached snapshot under lock"
 
 set +e
-OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$test_tmp/update-second-snapshot-started" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-second.out" 2>&1
+TEST_MARKER="$test_tmp/update-second-snapshot-started" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y </dev/null >"$test_tmp/update-second.out" 2>&1
 update_second_status=$?
 set -e
 
 wait "$update_pid"
 
+first_log=$(sed -n 's/^Omarchy update log: //p' "$test_tmp/update-first.out")
+second_log=$(sed -n 's/^Omarchy update log: //p' "$test_tmp/update-second.out")
+grep -Fq "snapshot for $update_snapshot_marker" "${first_log:-$test_tmp/legacy.log}" ||
+  fail "second omarchy-update left the running update's transcript alone"
+[[ -f $first_log && -f $second_log && $first_log != "$second_log" ]] ||
+  fail "updates retain separate transcripts, including rejected runs"
+[[ $(stat -c %a "$first_log") == "600" && $(stat -c %a "$second_log") == "600" ]] ||
+  fail "update transcripts are private"
 [[ $update_second_status -ne 0 ]] || fail "second omarchy-update exits non-zero while update lock is held"
 grep -q "already running" "$test_tmp/update-second.out" || fail "second omarchy-update reports held update lock"
 [[ ! -f $test_tmp/update-second-snapshot-started ]] || fail "second omarchy-update did not snapshot while lock was held"
@@ -429,3 +442,17 @@ if XDG_RUNTIME_DIR="$linked_runtime" "$stub_bin/omarchy-update-lock" run true >/
 fi
 pass "update lock requires a private non-symlink runtime directory"
 
+# The analyzer must read the transcript the update hands it, including when an
+# old updater installs it mid-run and still uses the legacy path.
+analyzer="$boundary_tmp/analyze-logs"
+sed "s#/tmp/omarchy-update\.log#$boundary_tmp/legacy.log#" "$ROOT/bin/omarchy-update-analyze-logs" >"$analyzer"
+printf '(1/1) Updating linux initcpios...\n' >"$boundary_tmp/current.log"
+output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
+[[ $output == *"Initramfs generation may have failed"* ]] || fail "analyzer reads the current transcript"
+printf 'Initcpio image generation successful\n' >>"$boundary_tmp/current.log"
+output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
+[[ -z $output ]] || fail "analyzer accepts a successful initramfs"
+printf '(1/1) Updating linux initcpios...\n' >"$boundary_tmp/legacy.log"
+output=$(env -u OMARCHY_UPDATE_LOG_FILE bash "$analyzer")
+[[ $output == *"Initramfs generation may have failed"* ]] || fail "analyzer supports the updater that installs it"
+pass "analyzer reads the current and legacy update transcripts"
