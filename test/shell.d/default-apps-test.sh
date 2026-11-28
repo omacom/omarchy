@@ -74,6 +74,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   chromium) command=chromium ;;
   firefox) command=firefox ;;
   zen-browser-bin) command=zen-browser ;;
+  helium-browser-bin) command=helium-browser ;;
   cursor-bin) command=cursor ;;
   sublime-text-4) command=subl ;;
   vim) command=vim ;;
@@ -92,6 +93,7 @@ omarchy-install-browser)
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
   zen) command=zen-browser ;;
+  helium) command=helium-browser ;;
   esac
   ;;
 omarchy-install-terminal)
@@ -183,6 +185,7 @@ browser_cases=(
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
   'zen zen-browser browser:zen'
+  'helium helium-browser browser:helium'
 )
 
 terminal_cases=(
@@ -288,6 +291,16 @@ grep -Fxq "sudo:install -m 644 -o root -g root -T $ROOT/default/firefox/policies
   fail "Zen browser installer copies policies.json without following a destination symlink"
 [[ -e $installed_dir/zen-browser ]] || fail "Zen browser installer marks zen-browser installed"
 pass "Zen browser installer restores the complete Omarchy setup"
+
+: >"$install_log"
+: >"$setup_log"
+rm -f "$installed_dir/helium-browser"
+OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install helium >/dev/null
+[[ $(<"$install_log") == "pkg:helium-browser-bin" ]] || fail "Helium browser installer installs the package"
+[[ $(omarchy-default-browser) == "helium" ]] || fail "Helium becomes the default after its full installer succeeds"
+cmp -s "$ROOT/config/chromium-flags.conf" "$test_home/.config/helium-browser-flags.conf" ||
+  fail "Helium browser installer copies the default flags to the file its wrapper reads"
+pass "Helium browser installer restores the complete Omarchy setup"
 
 omarchy-default-browser zen
 rm -f "$installed_dir/chromium"

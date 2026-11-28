@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # omarchy:summary=Install Omarchy's bundled extensions in a Chromium-based browser, or check they are current
-# omarchy:args=[--check] <chromium|chrome|brave|brave-origin|edge>
+# omarchy:args=[--check] <chromium|chrome|brave|brave-origin|edge|helium>
 # omarchy:examples=omarchy install browser extensions chromium | omarchy install browser extensions --check chrome
 # omarchy:requires-sudo=true
 # omarchy:hidden=true
 
 # Every browser reaches the bundled extensions through copies taken when it was
-# set up: Chromium, Brave and Edge load them from the --load-extension line in
-# their flags file, Google Chrome (which ignores that flag) force-installs the
-# signed CRXs through its managed policy, and each profile registers native
-# hosts that must admit the extensions' ids. A new extension or new ids leave
-# those copies behind. Only Chrome's policy needs root.
+# set up: Chromium, Brave, Edge and Helium load them from the --load-extension
+# line in their flags file, Google Chrome (which ignores that flag)
+# force-installs the signed CRXs through its managed policy, and each profile
+# registers native hosts that must admit the extensions' ids. A new extension or
+# new ids leave those copies behind. Only Chrome's policy needs root.
 
 set -euo pipefail
 
@@ -30,8 +30,9 @@ chromium) profile=chromium; flags=chromium-flags.conf ;;
 brave) profile=BraveSoftware/Brave-Browser; flags=brave-flags.conf ;;
 brave-origin) profile=BraveSoftware/Brave-Origin; flags=brave-origin-flags.conf ;;
 edge) profile=microsoft-edge; flags=microsoft-edge-stable-flags.conf ;;
+helium) profile=net.imput.helium; flags=helium-browser-flags.conf ;;
 *)
-  echo "Usage: omarchy-install-browser-extensions [--check] <chromium|chrome|brave|brave-origin|edge>" >&2
+  echo "Usage: omarchy-install-browser-extensions [--check] <chromium|chrome|brave|brave-origin|edge|helium>" >&2
   exit 1
   ;;
 esac
