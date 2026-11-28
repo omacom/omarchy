@@ -68,6 +68,14 @@ HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "o
   fail "every skill in the checkout is linked, including ones the package lacks"
 pass "omarchy-agent-skills-link moves Omarchy's skill links to the tree in use and keeps the user's"
 
+# A skills folder linked from dotfiles gets the skill links inside it.
+mkdir -p "$test_tmp/linked/.claude" "$test_tmp/linked/dotfiles/skills"
+ln -s "$test_tmp/linked/dotfiles/skills" "$test_tmp/linked/.claude/skills"
+HOME="$test_tmp/linked" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "omarchy-agent-skills-link links into a skills folder that is a symlink"
+[[ $(readlink "$test_tmp/linked/dotfiles/skills/omarchy") == "$ROOT/default/agents/skills/omarchy" ]] ||
+  fail "a skill is linked inside a skills folder that is a symlink"
+pass "omarchy-agent-skills-link links into a skills folder that is a symlink"
+
 # Pi's extension package follows the same rules as the skills.
 [[ $(readlink "$test_tmp/home/.pi/agent/extensions/omarchy") == "$ROOT/default/agents/pi" ]] ||
   fail "omarchy-provision-user links Omarchy's Pi package"

@@ -45,6 +45,6 @@ for dir in "${dirs[@]}"; do
     pending+=("$skill")
   done
   if (( ${#pending[@]} > 0 )); then
-    ln -sfn -t "$dir" -- "${pending[@]}"
+    ln -sfn -t "$dir/" -- "${pending[@]}"
   fi
 done
