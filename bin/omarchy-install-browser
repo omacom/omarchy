@@ -44,7 +44,7 @@ copy_chromium_flags() {
 # end of the tab strip to drag it by. Only a profile that does not exist yet is
 # seeded: the browser owns its Preferences once it has run.
 seed_system_title_bar() {
-  local preferences="$HOME/.config/$1/Default/Preferences"
+  local preferences="${XDG_CONFIG_HOME:-$HOME/.config}/$1/Default/Preferences"
 
   if [[ ! -e $preferences ]]; then
     mkdir -p "$(dirname "$preferences")"
