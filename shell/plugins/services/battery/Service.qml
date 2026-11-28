@@ -11,8 +11,11 @@ Item {
   property var shell: null
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
-  readonly property int batteryThreshold: 10
+  // 20 is UPower's own PercentageLow, so a pack that cuts out above 10% still gets a warning.
+  readonly property var batteryThresholds: [20, 10]
   property string pendingPowerSource: ""
+  // A warning that came due while the last one's hooks were still running.
+  property int pendingWarningLevel: -1
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
   // shell started, so a one-off read on startup, on a power source change and
@@ -35,7 +38,7 @@ Item {
   PersistentProperties {
     id: persisted
     reloadableId: "omarchy-battery"
-    property bool notifiedLowBattery: false
+    property int lowBatteryWarnedAt: 0
   }
 
   WatchedFile {
@@ -52,13 +55,16 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
-    persisted.notifiedLowBattery = state.notifiedLowBattery
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPowerDeviceState.Discharging, batteryThresholds, persisted.lowBatteryWarnedAt)
+    persisted.lowBatteryWarnedAt = state.warnedAt
     if (state.notify) sendLowBatteryWarning(state.level)
   }
 
   function sendLowBatteryWarning(level) {
-    if (warningProcess.running) return
+    if (warningProcess.running) {
+      pendingWarningLevel = level
+      return
+    }
     warningProcess.command = [
       "omarchy-battery-low",
       String(level)
@@ -115,7 +121,15 @@ Item {
     }
   }
 
-  Process { id: warningProcess }
+  Process {
+    id: warningProcess
+    onExited: {
+      if (root.pendingWarningLevel < 0) return
+      var level = root.pendingWarningLevel
+      root.pendingWarningLevel = -1
+      root.sendLowBatteryWarning(level)
+    }
+  }
 
   Process {
     id: chargeLimitProcess
