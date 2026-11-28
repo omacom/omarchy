@@ -32,8 +32,11 @@ case ${provider_hash%% *} in
     ;;
 esac
 
-# Updates install packages before migrations. Refuse an older package so this
-# migration remains pending instead of installing the provider it must repair.
+# Uninstalled omarchy-nvim can leave remote_clipboard.lua from an older install.
+omarchy-pkg-present omarchy-nvim || exit 0
+
+# Refuse an older installed package so this migration remains pending instead
+# of installing the provider it must repair.
 nvim_package=$(pacman -Q omarchy-nvim)
 if [[ $(vercmp "${nvim_package#* }" "2026.9.21-2") == -* ]] || [[ ! -f $provider_source ]]; then
   echo "Update omarchy-nvim to 2026.9.21-2 or newer before rerunning this migration." >&2
