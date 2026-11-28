@@ -45,23 +45,31 @@ hl.config({
 -- still schedules a monitor and window state refresh, and monitor.focused fires
 -- on every hop between screens. Most of those hops do not change the gaps, so
 -- only write the rule when it actually moves.
-local beside, below = nil, nil
+local beside, below, framed, spaced = nil, nil, nil, nil
 
-local function cover(side, bottom)
-  if beside == side and below == bottom then
+local function cover(side, bottom, bordered)
+  -- Read on every refit rather than once: the console loads before the user's
+  -- own appearance settings, so the first read sees the default gap.
+  local gap = bordered and hl.get_config("general.gaps_in") or 0
+  -- get_config hands back a new { top, right, bottom, left } table on every read,
+  -- so the cache compares its numbers rather than the table.
+  local spacing = type(gap) == "table" and table.concat({ gap.top, gap.right, gap.bottom, gap.left }, " ") or gap
+  if beside == side and below == bottom and framed == bordered and spaced == spacing then
     return false
   end
-  beside, below = side, bottom
+  beside, below, framed, spaced = side, bottom, bordered, spacing
 
   hl.workspace_rule({
     workspace = CONSOLE,
-    gaps_in = 0,
     gaps_out = { top = 0, right = side, bottom = bottom, left = side },
 
-    -- Nothing to highlight in a console that is only ever focused when it is
-    -- open, and the active border reads as a stray frame around a panel that
-    -- is already set apart by the dimming behind it.
-    no_border = true,
+    -- A lone console window is the only thing to focus, and its active border
+    -- reads as a stray frame around a panel the dimming already sets apart.
+    -- Once a second app shares the console, it is tiled like any workspace:
+    -- the borders are the only way to tell which one has focus, and the usual
+    -- gap keeps them from running together.
+    gaps_in = gap,
+    no_border = not bordered,
   })
 
   return true
@@ -111,11 +119,12 @@ local function fit(monitor)
 
   local tall = math.floor(height * share)
   local wide = width
-  if alone() then
+  local single = alone()
+  if single then
     wide = math.min(width, tall * box)
   end
 
-  return cover(math.floor((width - wide) / 2), math.floor(height - tall))
+  return cover(math.floor((width - wide) / 2), math.floor(height - tall), not single)
 end
 
 -- The console keeps the geometry of the output it is open on: a follow_mouse hop
@@ -144,10 +153,15 @@ end
 -- the console unruled, so it is never seeded without its placement. A reload
 -- runs this again with the console already on screen, so it starts from the
 -- output the console is on rather than whichever one the pointer is over.
-cover(0, 0)
+cover(0, 0, false)
 fit(console_monitor())
 
 hl.on("monitor.layout_changed", function()
+  refit()
+end)
+
+-- A reload can change the gap a split console uses without moving anything else.
+hl.on("config.reloaded", function()
   refit()
 end)
 
