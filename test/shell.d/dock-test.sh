@@ -101,6 +101,48 @@ assertEqual(dock.claimingEntryId('org.omarchy.hey', terminalEntries), 'HEY TUI',
 assertEqual(dock.claimingEntryId('org.omarchy.agent', terminalEntries), '', 'dock leaves an app id no entry claims unclaimed')
 assertEqual(dock.claimingEntryId('Alacritty', terminalEntries), '', 'dock leaves a terminal of its own to its own entry')
 
+const webappEntries = [
+  { id: 'Discord', execString: 'omarchy-launch-webapp "https://discord.com/app"', command: ['omarchy-launch-webapp', 'https://discord.com/app'], runInTerminal: false },
+  { id: 'QuotedTui', execString: 'xdg-terminal-exec "--app-id=org.omarchy.quoted" -e top', command: ['xdg-terminal-exec'], runInTerminal: false }
+]
+assertEqual(dock.extractChromeWebappHost('chrome-discord.com__-Default'), 'discord.com', 'dock extracts the host from a Chromium webapp class')
+assertEqual(dock.claimingEntryId('chrome-discord.com__-Default', webappEntries), 'Discord', 'dock matches Chromium PWA classes to their webapp desktop entry')
+assertEqual(dock.claimingEntryId('org.omarchy.quoted', webappEntries), 'QuotedTui', 'dock strips surrounding quotes when matching --app-id flags')
+
+assertEqual(dock.normalizeAddress('deadbeef'), '0xdeadbeef', 'dock normalizes valid bare hex addresses')
+assertEqual(dock.normalizeAddress('0x1" ); bad'), '', 'dock rejects non-hex window addresses')
+assertEqual(dock.minimizedOriginWorkspace(['foo', 'omarchy-minimized-from-12']), 12, 'dock extracts the origin workspace from minimized tags')
+assertEqual(dock.slotOf(13), 3, 'dock maps per-monitor workspace ids to display slots 1-10')
+
+const statWindows = [
+  { title: 'shell', pid: 101, activated: false, minimized: true, focusHistoryID: 3 },
+  { title: 'shell', pid: 102, activated: true, minimized: false, focusHistoryID: 0 },
+  { title: 'logs', pid: 103, activated: false, minimized: false, focusHistoryID: 1 },
+  { title: 'build', pid: 104, activated: false, minimized: false, focusHistoryID: 2 },
+  { title: 'extra', pid: 105, activated: false, minimized: true, focusHistoryID: 4 }
+]
+assertDeepEqual(dock.itemStats(statWindows), { total: 5, minimized: 2, open: 3, activated: true }, 'dock summarizes total, open, minimized, and active counts')
+assertDeepEqual(
+  dock.representativeDots(statWindows, 4).map(w => w.pid),
+  [102, 103, 104, 101],
+  'dock orders representative indicator dots with active and open windows ahead of minimized ones'
+)
+
+const orderedItems = dock.buildItems(['foot'], [
+  app('foot', 1, { title: 'foot', pid: 101, minimized: true, focusHistoryID: 2 }),
+  app('foot', 2, { title: 'foot', pid: 102, activated: true, focusHistoryID: 0 }),
+  app('foot', 3, { title: 'foot', pid: 103, focusHistoryID: 1 })
+], { '101': { prog: 'nvim', cwd: 'dots', hint: '' }, '102': { prog: 'zsh', cwd: 'Work', hint: '' }, '103': { prog: 'zsh', cwd: 'Work', hint: '' } })
+assertDeepEqual(
+  orderedItems[0].windows.map(w => [w.id, w.displayTitle]),
+  [
+    [2, 'zsh · Work #1'],
+    [3, 'zsh · Work #2'],
+    [1, 'nvim · dots']
+  ],
+  'dock orders app windows by active/open/MRU and disambiguates duplicate terminal labels'
+)
+
 assertDeepEqual(
   dock.orderItems([{ key: 'chromium' }, { key: 'signal' }, { key: 'slack' }, { key: 'foot' }], ['slack', 'gone', 'chromium']).map(item => item.key),
   ['slack', 'chromium', 'signal', 'foot'],
@@ -121,6 +163,24 @@ assertEqual(dock.pickClickWindow('new', [foot[0], foot[2]], 4), -1, 'a click on 
 assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspace app brings forward the one on this workspace')
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
+
+const wsA = { workspaceId: 4, minimized: false, activated: true, address: '0x100', focusHistoryID: 0 }
+const wsB = { workspaceId: 4, minimized: false, activated: false, address: '0x200', focusHistoryID: 1 }
+const wsC = { workspaceId: 4, minimized: false, activated: false, address: '0x300', focusHistoryID: 2 }
+assertEqual(dock.pickClickWindow('workspace', [wsA, wsB, wsC], 4), 1, 'workspace click cycles from first window A to second B')
+// Simulate Hyprland refreshing MRU order after B takes focus: [B, A, C]
+const mruAfterB = [
+  Object.assign({}, wsB, { activated: true, focusHistoryID: 0 }),
+  Object.assign({}, wsA, { activated: false, focusHistoryID: 1 }),
+  Object.assign({}, wsC, { activated: false, focusHistoryID: 2 })
+]
+assertEqual(dock.pickClickWindow('workspace', mruAfterB, 4), 2, 'workspace click continues to C instead of bouncing back to A when MRU reorders')
+const mruAfterC = [
+  Object.assign({}, wsC, { activated: true, focusHistoryID: 0 }),
+  Object.assign({}, wsB, { activated: false, focusHistoryID: 1 }),
+  Object.assign({}, wsA, { activated: false, focusHistoryID: 2 })
+]
+assertEqual(dock.pickClickWindow('workspace', mruAfterC, 4), 2, 'workspace click wraps cleanly from C back to A')
 
 const fs = require('fs')
 const vm = require('vm')
@@ -149,6 +209,28 @@ dispatches.length = 0
 dockCtx.bringForward({ address: '0xabcd', minimized: true, toplevel: { activate() {} } })
 assertEqual(dispatches.length, 4, 'dock bringForward restores minimized windows and brings them forward in-process')
 assertDeepEqual(unsets, ['0xabcd'], 'dock bringForward schedules no_anim unset after restoring a minimized window')
+
+const monFnBody = [
+  dockQml.match(/function monitorForWindow\(window, fallbackMonitor\) \{[\s\S]*?\n  \}/)[0],
+  dockQml.match(/function moveWindowToNextMonitor\(window, currentMonitor\) \{[\s\S]*?\n  \}/)[0],
+  dockQml.match(/function moveWindowToWorkspace\(window, destWorkspace, follow\) \{[\s\S]*?\n  \}/)[0],
+  dockQml.match(/function dispatchSteps\(steps\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+const monDispatches = []
+const monA = { id: 0, name: 'DP-1', activeWorkspace: { id: 1 } }
+const monB = { id: 1, name: 'HDMI-A-1', activeWorkspace: { id: 11 } }
+const monCtx = {
+  DockModel: dock,
+  Hyprland: {
+    monitors: { values: [monA, monB] },
+    workspaces: { values: [{ id: 1, monitor: monA }, { id: 11, monitor: monB }] },
+    dispatch(expr) { monDispatches.push(expr) }
+  },
+  hyprRefreshDebounce: { restart() {} }
+}
+vm.runInNewContext(monFnBody, monCtx)
+monCtx.moveWindowToNextMonitor({ address: '0x999', workspaceId: 11, monitorName: 'HDMI-A-1', monitorId: 1 }, monA)
+assert(monDispatches.some(d => d.includes('workspace = "1"')), 'moveWindowToNextMonitor picks the next monitor after the selected window rather than the dock screen')
 
 JS
 

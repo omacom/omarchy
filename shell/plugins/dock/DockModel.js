@@ -19,6 +19,59 @@ function normalizeId(value) {
   return id
 }
 
+function normalizeAddress(address) {
+  var value = String(address || "").trim()
+  if (!/^(0x)?[0-9a-fA-F]+$/.test(value)) return ""
+  return value.indexOf("0x") === 0 ? value : "0x" + value
+}
+
+function minimizedOriginWorkspace(tags) {
+  var list = tags || []
+  for (var i = 0; i < list.length; i++) {
+    var match = /^omarchy-minimized-from-([1-9][0-9]*)$/.exec(String(list[i] || ""))
+    if (match) return parseInt(match[1], 10)
+  }
+  return -1
+}
+
+function slotOf(workspaceId) {
+  var id = Number(workspaceId)
+  if (!(id >= 1)) return -1
+  return ((id - 1) % 10) + 1
+}
+
+function itemStats(windows) {
+  var list = windows || []
+  var minimized = 0
+  var activated = false
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].minimized) minimized++
+    if (list[i].activated || (list[i].toplevel && list[i].toplevel.activated)) activated = true
+  }
+  return {
+    total: list.length,
+    minimized: minimized,
+    open: list.length - minimized,
+    activated: activated
+  }
+}
+
+// Prioritizes active, then open, then minimized windows within the slot cap.
+function representativeDots(windows, cap) {
+  var list = (windows || []).slice()
+  var limit = cap > 0 ? cap : 4
+  list.sort(function(a, b) {
+    var aa = !!(a.activated || (a.toplevel && a.toplevel.activated))
+    var ba = !!(b.activated || (b.toplevel && b.toplevel.activated))
+    if (aa !== ba) return aa ? -1 : 1
+    if (!!a.minimized !== !!b.minimized) return a.minimized ? 1 : -1
+    var af = isFinite(a.focusHistoryID) ? a.focusHistoryID : 9999
+    var bf = isFinite(b.focusHistoryID) ? b.focusHistoryID : 9999
+    return af - bf
+  })
+  return list.slice(0, limit)
+}
+
 function pinnedIds(dockConfig, defaultsConfig) {
   var source = dockConfig && Array.isArray(dockConfig.pinned) ? dockConfig.pinned
     : (defaultsConfig && Array.isArray(defaultsConfig.pinned) ? defaultsConfig.pinned : [])
@@ -48,25 +101,41 @@ function isMinimizedWorkspace(name) {
   return String(name || "") === MINIMIZED_WORKSPACE
 }
 
+function extractChromeWebappHost(appId) {
+  var match = /^chrome-([A-Za-z0-9._-]+)__-[A-Za-z0-9._-]+$/.exec(String(appId || ""))
+  return match ? match[1].toLowerCase() : ""
+}
+
 // A terminal app's window carries the app id its launcher gave the terminal,
-// which no desktop entry names as its class. The entry that passes that app id
-// claims it, and so does a terminal entry for the command Omarchy's TUI
-// launcher named it after (org.omarchy.nvim for nvim). Entries are
-// { id, execString, command, runInTerminal }.
+// or a Chromium PWA window carries chrome-<host>__-<profile>, which no desktop
+// entry names as its class. Entries are { id, execString, command, runInTerminal }.
 function claimingEntryId(appId, entries) {
   var id = String(appId || "")
   if (!id) return ""
   var list = entries || []
   var flag = "--app-id=" + id
   for (var i = 0; i < list.length; i++) {
-    var words = String(list[i].execString || "").split(/\s+/)
-    if (words.indexOf(flag) >= 0) return list[i].id
+    var exec = String(list[i].execString || "")
+    if (exec.indexOf(flag) >= 0) {
+      var words = exec.split(/\s+/)
+      for (var w = 0; w < words.length; w++) {
+        if (words[w].replace(/^['"]|['"]$/g, "") === flag) return list[i].id
+      }
+    }
   }
-  if (id.indexOf("org.omarchy.") !== 0) return ""
-  var command = id.slice("org.omarchy.".length)
-  for (var j = 0; j < list.length; j++) {
-    var program = String((list[j].command || [])[0] || "")
-    if (list[j].runInTerminal && program.slice(program.lastIndexOf("/") + 1) === command) return list[j].id
+  if (id.indexOf("org.omarchy.") === 0) {
+    var command = id.slice("org.omarchy.".length)
+    for (var j = 0; j < list.length; j++) {
+      var program = String((list[j].command || [])[0] || "")
+      if (list[j].runInTerminal && program.slice(program.lastIndexOf("/") + 1) === command) return list[j].id
+    }
+  }
+  var host = extractChromeWebappHost(id)
+  if (host) {
+    for (var k = 0; k < list.length; k++) {
+      var cmdText = (String(list[k].execString || "") + " " + String((list[k].command || []).join(" "))).toLowerCase()
+      if (cmdText.indexOf("://" + host) >= 0 || cmdText.indexOf("." + host) >= 0) return list[k].id
+    }
   }
   return ""
 }
@@ -94,7 +163,7 @@ function standInKey(key, categories, pinned) {
 // that are not pinned follow in the order their first window appeared. Each
 // window is { key, hasEntry, workspaceId, ... } where key is the desktop id of
 // the entry that claims it.
-function buildItems(pinned, windows) {
+function buildItems(pinned, windows, pidInfo) {
   var items = []
   var byKey = {}
 
@@ -113,6 +182,49 @@ function buildItems(pinned, windows) {
   for (var j = 0; j < (windows || []).length; j++) {
     var window = windows[j]
     if (isDockWindow(window)) itemFor(window.key, false).windows.push(window)
+  }
+
+  // Sort each app's windows by active/open/MRU and assign #N labels for duplicates.
+  var infoMap = pidInfo || ({})
+  for (var k = 0; k < items.length; k++) {
+    var wins = items[k].windows
+    wins.sort(function(a, b) {
+      if (!!a.activated !== !!b.activated) return a.activated ? -1 : 1
+      if (!!a.minimized !== !!b.minimized) return a.minimized ? 1 : -1
+      var fa = isFinite(a.focusHistoryID) ? a.focusHistoryID : 9999
+      var fb = isFinite(b.focusHistoryID) ? b.focusHistoryID : 9999
+      return fa - fb
+    })
+    var labels = []
+    var counts = {}
+    for (var m = 0; m < wins.length; m++) {
+      var w = wins[m]
+      var info = w.pid > 0 ? infoMap[String(w.pid)] : null
+      var base = String(w.title || items[k].key || "")
+      if (info) {
+        var parts = []
+        if (info.prog) parts.push(info.prog)
+        if (info.cwd) parts.push(info.cwd)
+        if (info.hint) parts.push(info.hint)
+        var sub = parts.join(" · ")
+        if (sub && base.toLowerCase() === "foot") base = sub
+        else if (sub) base = base + " — " + sub
+      }
+      labels.push(base)
+      counts[base] = (counts[base] || 0) + 1
+    }
+    var seen = {}
+    for (var n = 0; n < wins.length; n++) {
+      var lbl = labels[n]
+      if (counts[lbl] > 1) {
+        seen[lbl] = (seen[lbl] || 0) + 1
+        wins[n].displayTitle = lbl.length > 20
+          ? ("#" + seen[lbl] + " · " + lbl)
+          : (lbl + " #" + seen[lbl])
+      } else {
+        wins[n].displayTitle = lbl
+      }
+    }
   }
 
   return items
@@ -169,8 +281,8 @@ function pinsInOrder(order, pinned, allPinned) {
 // The window a click on an app brings forward. Windows on the workspace in
 // front of the user come first, then minimized ones, which come back to it,
 // and only then those on other workspaces. Clicking again while one of them
-// is focused moves on to the next in that order. Windows are
-// { workspaceId, minimized, activated }.
+// is focused moves on to the next in a stable order independent of focus MRU.
+// Windows are { workspaceId, minimized, activated, address? }.
 function pickWindow(windows, workspaceId) {
   var list = windows || []
   if (list.length === 0) return -1
@@ -181,7 +293,14 @@ function pickWindow(windows, workspaceId) {
   }
 
   var order = list.map(function(window, index) { return index })
-  order.sort(function(a, b) { return rank(list[a]) - rank(list[b]) || a - b })
+  order.sort(function(a, b) {
+    var dr = rank(list[a]) - rank(list[b])
+    if (dr !== 0) return dr
+    var aa = normalizeAddress(list[a].address).toLowerCase()
+    var ab = normalizeAddress(list[b].address).toLowerCase()
+    if (aa && ab && aa !== ab) return aa < ab ? -1 : 1
+    return a - b
+  })
 
   for (var i = 0; i < order.length; i++) {
     if (list[order[i]].activated) return order[(i + 1) % order.length]
@@ -213,9 +332,15 @@ if (typeof module !== "undefined") {
     normalizePosition: normalizePosition,
     isVertical: isVertical,
     normalizeId: normalizeId,
+    normalizeAddress: normalizeAddress,
     pinnedIds: pinnedIds,
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
+    minimizedOriginWorkspace: minimizedOriginWorkspace,
+    slotOf: slotOf,
+    itemStats: itemStats,
+    representativeDots: representativeDots,
+    extractChromeWebappHost: extractChromeWebappHost,
     claimingEntryId: claimingEntryId,
     standInKey: standInKey,
     buildItems: buildItems,
