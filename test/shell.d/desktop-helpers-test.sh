@@ -160,7 +160,7 @@ rm -f "$tmp/hyprctl-pop-calls"
 POP_ACTIVE_JSON='{"address":"0x1234","pinned":false}' POP_BATCH_MODE=ok \
   PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop" 1200 800
 (( $(wc -l <"$tmp/hyprctl-pop-calls") == 1 )) &&
-  grep -Fq 'hl.dsp.window.float({ window = "address:0x1234", action = "toggle" })' "$tmp/hyprctl-pop-calls" &&
+  grep -Fq 'hl.dsp.window.float({ window = "address:0x1234", action = "on" })' "$tmp/hyprctl-pop-calls" &&
   grep -Fq 'hl.dsp.window.center({ window = "address:0x1234" })' "$tmp/hyprctl-pop-calls" &&
   grep -Fq 'hl.dsp.window.tag({ window = "address:0x1234", tag = "+pop" })' "$tmp/hyprctl-pop-calls" ||
   fail "omarchy-hyprland-window-pop batches unpinned window pop in one IPC call" "$(<"$tmp/hyprctl-pop-calls")"
