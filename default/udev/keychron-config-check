@@ -1,0 +1,33 @@
+#!/usr/bin/python3
+
+import os
+import sys
+
+MAGIC = b"\x06\x60\xff\x09\x61"
+SYS_CLASS_HIDRAW = "/sys/class/hidraw"
+
+
+def main(argv):
+  if len(argv) == 3 and argv[0] == "--sysfs-root":
+    sys_class_hidraw, hidraw_name = argv[1], argv[2]
+  elif len(argv) == 1:
+    sys_class_hidraw, hidraw_name = SYS_CLASS_HIDRAW, argv[0]
+  else:
+    return 1
+
+  if not hidraw_name.startswith("hidraw") or not hidraw_name[6:].isdigit():
+    return 1
+
+  descriptor = os.path.join(sys_class_hidraw, hidraw_name, "device", "report_descriptor")
+  try:
+    with open(descriptor, "rb") as f:
+      if MAGIC in f.read():
+        print("keychron-config")
+        return 0
+  except OSError:
+    pass
+  return 1
+
+
+if __name__ == "__main__":
+  sys.exit(main(sys.argv[1:]))
