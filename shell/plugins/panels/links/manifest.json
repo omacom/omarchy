@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.links",
+  "name": "Quick Links",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Bar panel to quickly access, copy, search, and pin favorite web links",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Quick Links",
+    "description": "Quick web links bookmark manager with search and pinboard",
+    "category": "Productivity",
+    "allowMultiple": false
+  }
+}
