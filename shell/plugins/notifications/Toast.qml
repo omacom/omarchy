@@ -25,7 +25,9 @@ Item {
   property bool hovered: false
   property bool selected: false              // the keyboard's card
   property double now: Date.now()
-  property real cardWidth: Style.space(380)
+  property real baseWidth: Style.space(380)
+  property real minWidth: Style.space(160)
+  property real maxWidth: Style.space(560)
   property var actions: []                   // what the sender put on the wire
 
   // The pointer in the deck's coordinates: the deck owns hover, so cards and
@@ -172,7 +174,23 @@ Item {
     }
   }
 
-  width: cardWidth
+  // Single-line toasts without action buttons hug their text (within
+  // [minWidth, maxWidth]); body and button cards keep the standard column.
+  readonly property bool dynamicWidth: !hasBody && allDeeds.length === 0
+  readonly property real naturalWidth: Math.ceil(
+    plate.contentLeftInset + plate.contentRightInset
+    + Style.space(12) * 2
+    + (thumb.visible ? thumb.width + layout.spacing : 0)
+    + titleProbe.implicitWidth + 1
+    + (titleMarks.visible ? titleMarks.width + Style.space(7) : 0)
+    + rightSide.width + Style.space(8)
+  )
+  readonly property real targetWidth: dynamicWidth
+      ? Math.min(maxWidth, Math.max(minWidth, naturalWidth))
+      : baseWidth
+  property real drawnWidth: targetWidth
+
+  width: drawnWidth > 0 ? drawnWidth : targetWidth
   height: body.height
 
   LayoutMirroring.enabled: Commons.I18n.rightToLeft
@@ -242,14 +260,18 @@ Item {
     id: body
     width: parent.width
     height: card.drawnHeight
+    clip: true
 
     Row {
       id: layout
       // Top-anchored: centred content would slide up as the card grows.
-      anchors { left: parent.left; right: parent.right; top: parent.top
+      // Measure at least at targetWidth so a card collapsed behind a narrower
+      // front card keeps its real wrapped height for when the deck opens.
+      anchors { left: parent.left; top: parent.top
                 leftMargin: plate.contentLeftInset + Style.space(12)
-                rightMargin: plate.contentRightInset + Style.space(12)
                 topMargin: plate.contentTopInset + card.contentPaddingY }
+      width: Math.max(1, Math.max(parent.width, card.targetWidth)
+             - plate.contentLeftInset - plate.contentRightInset - Style.space(12) * 2)
       spacing: thumb.compact ? Style.space(8) : Style.space(12)
 
       // The sender's image, else the icon resolved for its source, else the
@@ -410,6 +432,18 @@ Item {
             wrapMode: Text.Wrap
             maximumLineCount: card.bodyOpen ? 8 : 3
             elide: Text.ElideRight
+          }
+
+          // Unwrapped measure of the headline so a single-line card can size
+          // itself to its words without feeding back into title.width. Text
+          // (not TextMetrics) shapes fallback glyphs like Nerd Font arrows at
+          // their real advance.
+          Text {
+            id: titleProbe
+            visible: false
+            textFormat: Text.PlainText
+            text: title.text
+            font: title.font
           }
 
           Row {
