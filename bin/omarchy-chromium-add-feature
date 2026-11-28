@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Add a feature to --enable-features in the user's Chrome and Chromium flags files
+# omarchy:summary=Add a feature to --enable-features in the user's Chromium-based browser flags files
 # omarchy:args=<feature>
 # omarchy:hidden=true
 
@@ -38,11 +38,11 @@ add_feature() {
   fi
 }
 
-# Chrome and Chromium each read their own flags file, and one that can't be
-# written doesn't hold back the other. Under ||, set -e is off inside, so each
+# Each Chromium-based browser reads its own flags file, and one that can't be
+# written doesn't hold back the others. Under ||, set -e is off inside, so each
 # write returns its own failure.
 status=0
-for conf in ~/.config/chromium-flags.conf ~/.config/chrome-flags.conf; do
+for conf in ~/.config/chromium-flags.conf ~/.config/chrome-flags.conf ~/.config/brave-flags.conf ~/.config/brave-origin-flags.conf ~/.config/microsoft-edge-stable-flags.conf; do
   add_feature "$conf" || status=$?
 done
 exit "$status"

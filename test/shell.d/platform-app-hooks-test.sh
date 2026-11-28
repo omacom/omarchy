@@ -74,18 +74,22 @@ for browser in chromium chrome edge brave brave-origin firefox zen ladybird; do
 done
 pass "apple: every browser install runs post-install <browser> after its package and flags"
 
-# Both write a fresh flags file, which starts without the Snapdragon settings.
-for browser in chromium chrome; do
+# Each writes a fresh flags file, which starts without the Snapdragon settings.
+for browser in chromium chrome edge brave brave-origin; do
   run qualcomm "$ROOT/bin/omarchy-install-browser" "$browser" ||
     fail "qualcomm: $browser installs" "$(cat "$tmp/output")"
   grep -Eq '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$tmp/home/.config/${flags[$browser]}" ||
     fail "qualcomm: $browser's flags enable the PipeWire camera" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+  grep -Eq '^--enable-features=([^[:space:]]*,)?AcceleratedVideoDecoder(,|$)' "$tmp/home/.config/${flags[$browser]}" ||
+    fail "qualcomm: $browser's flags enable hardware video decode" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+  grep -qx -- '--use-angle=gles-egl' "$tmp/home/.config/${flags[$browser]}" ||
+    fail "qualcomm: $browser's flags set ANGLE GLES" "$(cat "$tmp/home/.config/${flags[$browser]}")"
   run x86 "$ROOT/bin/omarchy-install-browser" "$browser" ||
     fail "x86: $browser installs" "$(cat "$tmp/output")"
   cmp -s "$ROOT/config/chromium-flags.conf" "$tmp/home/.config/${flags[$browser]}" ||
     fail "x86: $browser keeps the shipped flags" "$(cat "$tmp/home/.config/${flags[$browser]}")"
 done
-pass "qualcomm: Chromium and Chrome install with PipeWire camera support, and x86 keeps the shipped flags"
+pass "qualcomm: Chromium-based browsers install with PipeWire camera and video decode flags, and x86 keeps the shipped flags"
 
 touch "$tmp/fail"
 for browser in chromium brave; do
