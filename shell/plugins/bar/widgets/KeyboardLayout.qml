@@ -30,9 +30,22 @@ BarWidget {
   property int layoutIndex: 0
   property int layoutCount: 0
   property var syncNames: []
+  // The configured layouts and their variants, as hyprctl reports them
+  // positionally ("us,us" with ",intl"): the label needs to know what else is
+  // configured to know whether the active one's label collides with it. Kept as
+  // the raw strings, so an unchanged reading raises no signal at all.
+  property string layoutNames: ""
+  property string layoutVariants: ""
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
+  // The same table keyed by the layout/variant pair, so the configured list can
+  // be turned into descriptions without a second read.
+  property var descriptionByPair: ({})
+  // Labels per configured layout description, subscripted where two of them
+  // share one (see the model). The active layout reads its own entry; anything
+  // the tables could not resolve falls back to the plain short label.
+  readonly property var configuredLabels: KeyboardLayoutModel.subscriptedLabels(KeyboardLayoutModel.configuredDescriptions(layoutNames, layoutVariants, descriptionByPair), layoutBriefs)
   // The table is only needed once the widget shows a label, which a seat with
   // one layout and one input method never does, so it's read on first need.
   property bool layoutsRead: false
@@ -45,7 +58,7 @@ BarWidget {
     briefsRequested = true
     briefsProc.running = true
   }
-  readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  readonly property string layoutLabel: configuredLabels[layoutFull] || KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
   readonly property var inputState: InputMethodState.state
   readonly property bool multipleInputs: (inputState.methods || []).length > 1
   readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
@@ -187,6 +200,8 @@ BarWidget {
         root.layoutsRead = true
         root.layoutIndex = kb.active_layout_index || 0
         root.layoutCount = kb.layout === undefined ? 0 : String(kb.layout).split(",").length
+        root.layoutNames = kb.layout === undefined ? "" : String(kb.layout)
+        root.layoutVariants = String(kb.variant || "")
         // Buttons and virtual keyboards are included on purpose: they hold the
         // same list, and leaving them behind is what lets a reading drift onto
         // one of them later.
@@ -208,7 +223,10 @@ BarWidget {
     command: ["xkbcli", "list", "--load-exotic"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.layoutBriefs = KeyboardLayoutModel.layoutBriefs(text)
+      onStreamFinished: {
+        root.layoutBriefs = KeyboardLayoutModel.layoutBriefs(text)
+        root.descriptionByPair = KeyboardLayoutModel.layoutDescriptionsByPair(text)
+      }
     }
   }
 

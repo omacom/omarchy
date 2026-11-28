@@ -106,6 +106,50 @@ assertEqual(model.shortLabel('English (US)', {}), 'ENG', 'the label survives an 
 assertEqual(model.shortLabel('constructor', {}), 'CON', 'a description naming a built-in still falls back')
 assertEqual(model.shortLabel('', briefs), '', 'no keymap means no label')
 
+// The same table keyed by the layout/variant pair, so the configured list can
+// name its layouts the way hyprctl reports them.
+const byPair = model.layoutDescriptionsByPair(listing)
+
+assertEqual(byPair['us'], 'English (US)', 'the table reads a bare layout pair')
+assertEqual(byPair['us:intl'], 'English (US, intl., with dead keys)', 'the table reads a variant pair')
+assertEqual(byPair['br'], 'Portuguese (Brazil)', 'a second bare layout keeps its own pair')
+assertEqual(byPair['mm:zawgyi'], 'Burmese (Zawgyi)', 'a variant pairs with its own layout')
+assertEqual(byPair['Generic 105-key PC'], undefined, 'a model block without a layout line never enters the table')
+assertEqual(byPair[''], undefined, 'a block without a layout never gets an empty pair')
+assertEqual(byPair["'Right Alt (while pressed)'"], undefined, 'option descriptions stay out of the table')
+assertEqual(Object.keys(byPair).length, 6, 'the pair table holds nothing but the layouts')
+
+// The seat's configured lists are positional: layout "us,us" with variant
+// ",intl" is us then us:intl.
+assertEqual(model.configuredLayoutPairs('us,us', ',intl').join('|'), 'us|us:intl', 'variants pair with their layouts by position')
+assertEqual(model.configuredLayoutPairs('us', '').join('|'), 'us', 'a single layout needs no variant')
+assertEqual(model.configuredLayoutPairs('us,de', 'nodeadkeys').join('|'), 'us:nodeadkeys|de', 'a shorter variant list leaves the rest bare')
+assertEqual(model.configuredLayoutPairs('us,,de', ',intl').join('|'), 'us|de', 'an empty layout slot consumes its variant position')
+assertEqual(model.configuredLayoutPairs('us,us(intl)', '').join('|'), 'us|us:intl', 'the inline variant spelling pairs without the variant list')
+assertEqual(model.configuredLayoutPairs(undefined, undefined).length, 0, 'no configured layouts means no pairs')
+
+const configured = model.configuredDescriptions('us,us', ',intl', byPair)
+assertEqual(configured[0], 'English (US)', 'the first configured layout reads its description')
+assertEqual(configured[1], 'English (US, intl., with dead keys)', 'the second configured layout reads its variant description')
+assertEqual(model.configuredDescriptions('us,xx', '', byPair)[1], '', 'a pair the table lacks reads as empty')
+
+// Two configured layouts sharing a short label cannot tell the seat which one
+// is typed on; GNOME subscripts the same collision en₁/en₂.
+const colliding = model.subscriptedLabels(configured, briefs)
+assertEqual(colliding['English (US)'], 'EN\u2081', 'the first of two colliding layouts takes the lower subscript')
+assertEqual(colliding['English (US, intl., with dead keys)'], 'EN\u2082', 'the second keeps its list order')
+assertEqual(model.subscriptedLabels(['English (US)'], briefs)['English (US)'], 'EN', 'a layout alone on its label stays plain')
+const mixed = model.subscriptedLabels(['English (US)', 'Portuguese (Brazil)', 'English (US, intl., with dead keys)'], briefs)
+assertEqual(mixed['Portuguese (Brazil)'], 'PT', 'an uncollided layout is never subscripted')
+assertEqual(mixed['English (US)'], 'EN\u2081', 'a collision ignores layouts that do not share its label')
+const triple = model.subscriptedLabels(['Alpha (a)', 'Beta (b)', 'Gamma (c)'], { 'Alpha (a)': 'en', 'Beta (b)': 'en', 'Gamma (c)': 'en' })
+assertEqual(triple['Alpha (a)'], 'EN\u2081', 'a three-way collision subscripts its first')
+assertEqual(triple['Gamma (c)'], 'EN\u2083', 'a three-way collision subscripts its last')
+const fallen = model.subscriptedLabels(['Elvish (Tengwar)', 'Elvish (Other)'], briefs)
+assertEqual(fallen['Elvish (Tengwar)'], 'ELV\u2081', 'fallback labels collide like any other')
+assertEqual(model.subscriptedLabels(['English (US)', 'German', 'English (US)'], briefs)['English (US)'], 'EN', 'a description repeated in the list does not collide with itself')
+assertEqual(model.subscriptedLabels([], briefs)['English (US)'], undefined, 'nothing configured means nothing labelled')
+
 // The seat as hyprctl reports it, virtual keyboards already filtered out: the
 // buttons libinput calls keyboards sit beside the one being typed on, and the
 // main flag lands on either, or on the virtual keyboard that isn't here.
@@ -181,11 +225,16 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
     widget.match(/id: queryProc[\s\S]*?onStreamFinished: \{([\s\S]*?)\n      \}/)[1])
   const needs = new Function('layoutsRead', 'multipleLayouts', 'multipleInputs',
     'return ' + widget.match(/readonly property bool needsBriefs: ([^\n]+)/)[1])
-  const widgetState = layout => {
-    const w = { typedKeyboardName: '', multipleLayouts: true, layoutsRead: false }
+  // Same trust model as the reading/needs extractions above: the body comes
+  // from this repo's own QML text, never from anything untrusted.
+  const labelsExpr = new Function('root', 'KeyboardLayoutModel',
+    'return ' + widget.match(/readonly property var configuredLabels: (.*)$/m)[1])
+  const widgetState = (layout, variant = '', keymap = 'English (US)') => {
+    const w = { typedKeyboardName: '', multipleLayouts: true, layoutsRead: false,
+                layoutNames: '', layoutVariants: '', layoutBriefs: briefs, descriptionByPair: byPair }
     w.typedKeyboards = keyboards => keyboards.filter(k => model.isTypedKeyboard(k.name))
     w.selectKeyboard = typed => model.selectKeyboard(typed, w.typedKeyboardName)
-    reading(w, model, JSON.stringify({ keyboards: [{ name: 'at-translated-set-2-keyboard', main: true, layout, active_keymap: 'English (US)', active_layout_index: 0 }] }))
+    reading(w, model, JSON.stringify({ keyboards: [{ name: 'at-translated-set-2-keyboard', main: true, layout, variant, active_keymap: keymap, active_layout_index: 0 }] }))
     return w
   }
   const single = widgetState('us')
@@ -194,5 +243,14 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   const several = widgetState('us,dk')
   assert(needs(several.layoutsRead, several.multipleLayouts, false), 'a first reading of several layouts needs the table')
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
+
+  // Drive the reading and the configuredLabels binding as QML would, for the
+  // seat the collision issue reports: us and us:intl, the second one active.
+  const pairSeat = widgetState('us,us', ',intl', 'English (US, intl., with dead keys)')
+  assertEqual(pairSeat.layoutNames, 'us,us', 'the reading keeps the configured layouts as they arrived')
+  assertEqual(labelsExpr(pairSeat, model)['English (US)'], 'EN\u2081', 'the first of two same-language layouts takes the lower subscript')
+  assertEqual(labelsExpr(pairSeat, model)['English (US, intl., with dead keys)'], 'EN\u2082', 'the active colliding layout reads its own subscript')
+  assertEqual(labelsExpr(widgetState('us,us(intl)'), model)['English (US, intl., with dead keys)'], 'EN\u2082', 'the inline variant spelling labels the same way')
+  assertEqual(Object.keys(labelsExpr(widgetState(undefined), model)).length, 0, 'an old Hyprland without a layout list labels nothing')
 }
 JS
